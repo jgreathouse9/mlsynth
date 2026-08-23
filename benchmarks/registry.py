@@ -13,6 +13,7 @@ CASES = {
     "ppscm_paglayan": "benchmarks.cases.ppscm_paglayan",  # cross-val vs augsynth::multisynth (jackknife + bootstrap SEs)
     "ppscm_paglayan_covs": "benchmarks.cases.ppscm_paglayan_covs",  # cross-val vs augsynth::multisynth Sec 5.2 (auxiliary covariates)
     "ppscm_cs_real_panels": "benchmarks.cases.ppscm_cs_real_panels",  # cross-val vs diff-diff CallawaySantAnna on mpdta / castle_doctrine / walmart
+    "ronczewski_cannabis": "benchmarks.cases.ronczewski_cannabis",  # Path A: cannabis/alcohol, PPSCM+SDID+GSYNTH vs augsynth/did/synthdid/gsynth
     "ppscm_bfr_mc": "benchmarks.cases.ppscm_bfr_mc",  # Path B: BFR sharp-null designs (ATT coverage both methods + cumulative band)
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
@@ -118,6 +119,7 @@ CASES = {
     "pda_ppi": "benchmarks.cases.pda_ppi",                    # Path A: Shi-Wang China PPI L2-relaxation (real-estate policy)
     "pda_brexit": "benchmarks.cases.pda_brexit",              # Path A: Shi-Wang Brexit multi-treated-units L2-relaxation
     "pda_pi_coverage": "benchmarks.cases.pda_pi_coverage",    # Path B: Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+    "pda_wheeler_lassosynth": "benchmarks.cases.pda_wheeler_lassosynth",  # cross-val vs Wheeler's LassoSynth: the resampled cumulative band reduces to his construction at block=1
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)
     "proximal_germany_oid": "benchmarks.cases.proximal_germany_oid",  # cross-val vs authors' manuscript code (Shi et al. 2026 JASA): over-identified PI (PIOID) on German reunification, ATT + GMM CI value-for-value
@@ -191,6 +193,7 @@ CASES = {
     "cmbsts_supermarket": "benchmarks.cases.cmbsts_supermarket",  # Path A + cross-val vs R CausalMBSTS: Menchetti-Bojinov Table 3 (1-month horizon, pairs 4/7/10)
     "propsc_spain": "benchmarks.cases.propsc_spain",  # Path A + cross-val vs R propsdid: Bogatyrev-Stoetzer Table 2 (common-weights SDID, party vote shares sum to zero)
     "compsc_pennsylvania": "benchmarks.cases.compsc_pennsylvania",  # Path A: Boussim 2026 Pennsylvania AEPS -- Table 1 weights, all of Table 2, and the sec 6.4 placebo (p=0.111) reproduced from public EIA generation data
+    "compsc_pennsylvania_r": "benchmarks.cases.compsc_pennsylvania_r",  # cross-val vs the author's csc_replication.R (quadprog) run live: all ten donor weights, every Table-2 cell, and the 42-donor placebo agree to solver tolerance
     "fsc_okano": "benchmarks.cases.fsc_okano",  # Path A (reference port): Okano-Kurisu 2026 functional SC -- all three applications, both fits each, and Tables 1-3 reproduced exactly from the authors' data
     "fsc_estimator": "benchmarks.cases.fsc_estimator",  # Path A: mlsynth.FSC itself on the same three applications -- fertility exact, and the mortality/service divergences measured and pinned
     "vanillasc_xval_references": "benchmarks.cases.vanillasc_xval_references",  # cross-val vs Synth (uniform V) + tidysynth (ADH spec): placebo rank/p-value agreement, plus recorded solver-quality gaps

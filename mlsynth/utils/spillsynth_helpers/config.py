@@ -156,6 +156,21 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "neighbour a larger weight than the plain simplex. Ignored "
                     "in covariate mode.",
     )
+    iterative_replace_pre: bool = Field(
+        default=False,
+        description="(method='iterative') Melnychuk's replacePreTreatData. "
+                    "False (the default) replaces each affected donor's "
+                    "post-treatment outcomes only and keeps its observed "
+                    "pre-period, so the treated unit's refit sees unchanged "
+                    "fitting data and returns the naive weights. True replaces "
+                    "the donor's whole series with its spillover-free "
+                    "synthetic, which makes it a convex combination of the pool "
+                    "it was built from and moves the refit weights. The "
+                    "reference's function signature defaults to False, but its "
+                    "call sites (runAllMethods / runAllMethodsWithCov, which "
+                    "produce the paper's tables) pass True -- set this to "
+                    "reproduce the published configuration.",
+    )
     n_boot: int = Field(
         default=0, ge=0,
         description="(method='grossi') Residual-resampling draws for the "

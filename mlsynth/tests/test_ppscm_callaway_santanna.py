@@ -800,17 +800,21 @@ class TestInfluenceModuleEdges:
         assert float(probs @ vals ** 3) == pytest.approx(1.0, abs=1e-12)
 
     def test_a_horizon_no_cohort_reaches_comes_back_empty(self):
-        """PPSCM clamps ``n_leads`` to what the last cohort observes, so this is
-        reachable only by asking the module directly. A horizon past the end of
-        the panel has no cell, and it reports ``NaN`` -- not a zero effect with a
-        zero standard error, which is what a silently skipped horizon looks
-        like once it reaches an event-study plot.
+        """A horizon past the end of the panel has no cell, and it reports
+        ``NaN`` -- not a zero effect with a zero standard error, which is what
+        a silently skipped horizon looks like once it reaches an event-study
+        plot.
+
+        Reachable only by asking the module directly. PPSCM's ceiling on
+        ``n_leads`` is the longest post window (#481), which is by construction
+        the last horizon any cohort observes, so no configuration produces an
+        empty one.
 
         The arithmetic: cohorts adopt at columns 9 and 13 of a 30-column panel,
         so the earlier one still reaches horizon 20 and only ``h >= 21`` is
-        empty. ``n_leads`` is 17, so 25 horizons leaves exactly four with no
-        cell -- ``n_leads + 4`` would leave none, and every horizon would come
-        back populated.
+        empty. ``_refit`` poses the balanced window of 17, so 25 horizons
+        leaves exactly four with no cell -- 21 would leave none, and every
+        horizon would come back populated.
         """
         df = staggered((10, 14))
         res = fit_cs_mode(df, run_inference=False)

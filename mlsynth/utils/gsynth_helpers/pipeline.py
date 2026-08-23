@@ -75,6 +75,51 @@ def _treated_residual(inputs: GSYNTHInputs, fit: ControlFit) -> np.ndarray:
     return U - fit.mu - fit.xi[:, None]
 
 
+CV_GUARD = 0.001
+
+
+def select_rank(mspe: Dict[int, float]) -> int:
+    """The rank the cross-validation scores select.
+
+    Walking upward from the smallest rank scored, a larger one is taken only
+    when it beats the running minimum by more than ``CV_GUARD`` of it::
+
+        gsynth 1.2.1, R/core.R:351, with tol = 0.001 from its own signature
+            if ((min(CV.out[,"MSPE"]) - MSPE) > tol * min(CV.out[,"MSPE"]))
+
+    The constant is gsynth's, because Algorithm 1 is gsynth's criterion.
+    ``fect`` -- which ``gsynth >= 1.4`` forwards to -- guards the same step at
+    1% (``R/cv.R:614``), but over a different fold scheme, so its constant does
+    not transfer. Raising this to 0.01 costs five of the sixteen rank
+    agreements in ``benchmarks/cases/gsynth_av_laws.py``, which is measured
+    against a pinned live gsynth 1.2.1 run.
+
+    The guard is what makes the criterion a model-selection rule instead of a
+    minimisation. Mean squared prediction error is not convex in the rank and
+    its minimum is often a near-tie, so a bare ``argmin`` spends a degree of
+    freedom to buy an improvement indistinguishable from noise (#483).
+
+    A rank that scores non-finitely is never adopted; one arises only if every
+    fold's loading regression was singular, which leaves it with nothing to
+    say about fit.
+    """
+    if not mspe:
+        raise ValueError(
+            "no rank was scored, so none can be selected; cross_validate "
+            "raises before this when no treated unit has enough pre-treatment "
+            "periods to hold one back.")
+    ranks = sorted(mspe)
+    best_r = ranks[0]
+    best = mspe[best_r]
+    for r in ranks[1:]:
+        value = mspe[r]
+        if not np.isfinite(value):
+            continue
+        if not np.isfinite(best) or (best - value) > CV_GUARD * best:
+            best_r, best = r, value
+    return int(best_r)
+
+
 def _rank_ceiling(inputs: GSYNTHInputs, force: str) -> int:
     """Largest rank the shortest treated pre-period history can identify.
 
@@ -240,5 +285,5 @@ def cross_validate_rank(
             "enough pre-treatment periods to hold one back. Fix the rank with "
             "the `r` option instead."
         )
-    best = min(mspe, key=lambda r: mspe[r])
-    return GSYNTHCrossValidation(r_selected=int(best), mspe=mspe, n_scored=scored)
+    return GSYNTHCrossValidation(r_selected=select_rank(mspe), mspe=mspe,
+                                 n_scored=scored)

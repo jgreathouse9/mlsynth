@@ -191,6 +191,7 @@ class BilevelSCM:
         X0: Optional[np.ndarray] = None,
         donor_names: Optional[List[str]] = None,
         predictor_names: Optional[List[str]] = None,
+        warm_start: Optional[np.ndarray] = None,
     ) -> BilevelSCMResult:
         """Solve for the donor weights ``W``.
 
@@ -208,6 +209,14 @@ class BilevelSCM:
             Donor labels (defaults to ``donor_0 ...``).
         predictor_names : list of str, optional
             Predictor labels.
+        warm_start : np.ndarray, optional
+            Feasible simplex point of length ``J`` seeding the outcome-only
+            base solve -- the solution of a neighbouring subproblem in a sweep
+            that refits over overlapping donor pools (the LTO placebo loop, the
+            in-space placebo loop). Speed only: the active set still certifies
+            the optimum, and a seed it cannot use is discarded. Backends that
+            search predictor weights do not take a seed and ignore it; check
+            ``result.backend`` to see whether a caller's seed could apply.
         """
         y_pre = np.asarray(y_pre, dtype=float).ravel()
         Y0_pre = np.asarray(Y0_pre, dtype=float)
@@ -256,7 +265,7 @@ class BilevelSCM:
             # 89-quarter Kansas panel: -0.006 vs the exact -0.029), so the
             # outcome-only base -- which Augmented SCM also augments -- is solved
             # exactly, matching augsynth's quadprog.
-            W = simplex_qp(Y0_pre, y_pre)
+            W = simplex_qp(Y0_pre, y_pre, warm_start=warm_start)
         else:
             if not has_cov:
                 # Predictor-free penalized fit: match on the outcome lags alone.

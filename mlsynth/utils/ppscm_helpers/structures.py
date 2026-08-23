@@ -334,8 +334,10 @@ class PPSCMResults(_BaseEstimatorResults):
             observed_outcome=tau, counterfactual_outcome=_np.zeros_like(tau),
             estimated_gap=tau, time_periods=_np.asarray(es.horizons),
             intervention_time=0))
-        set_("weights", _WeightsResults(summary_stats={
-            "constraint": "partially-pooled SC donor weights (per cohort)"}))
+        set_("weights", _WeightsResults(
+            weights_at=["donor_weights_by_cohort", "per_unit"],
+            summary_stats={
+                "constraint": "partially-pooled SC donor weights (per cohort)"}))
         set_("inference", _InferenceResults(
             method=inf.method, standard_error=se,
             ci_lower=(ci_lo if finite_ci else None),

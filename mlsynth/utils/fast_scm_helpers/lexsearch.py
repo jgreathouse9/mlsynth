@@ -51,83 +51,58 @@ from .conflict import is_independent
 from . import strata as _strata
 from .feasibility import audit_feasibility
 from ...exceptions import MlsynthConfigError
+from ...utils.bilevel.minnorm import (
+    solve_simplex_minnorm,
+    solve_simplex_minnorm_batch,
+)
 
 
 # ======================================================================
-# Inner simplex-QP solvers (Away-step Frank-Wolfe; pure numpy)
+# Inner simplex-QP solvers (Wolfe minimum-norm-point active set)
 # ======================================================================
 
 def _afw_single(Q: np.ndarray, iters: int = 300, tol: float = 1e-13):
-    """Exact-to-tolerance min_{w in simplex} w'Qw for one m x m PSD Q.
+    """``min_{w in simplex} w'Qw`` for one ``m x m`` PSD ``Q``, exactly.
 
-    Returns (loss, w, lower_bound) where lower_bound is the certified
-    Frank-Wolfe duality-gap bound (<= true minimum).
+    Returns ``(loss, w, lower_bound)``. The solve is Wolfe's minimum-norm-point
+    active set, which terminates finitely at the optimum, so the lower bound is
+    the loss: there is no gap left to report.
+
+    ``iters`` and ``tol`` are accepted and ignored. They were the Frank-Wolfe
+    budget and its duality-gap tolerance, and neither has a meaning for a method
+    that finishes.
     """
+    Q = np.asarray(Q, dtype=float)
     n = Q.shape[0]
     if n == 1:
         return float(Q[0, 0]), np.array([1.0]), float(Q[0, 0])
-    d = np.diag(Q)
-    w = np.zeros(n); w[int(np.argmin(d))] = 1.0
-    active = {int(np.argmax(w))}
-    best_lb = -np.inf
-    for _ in range(iters):
-        grad = 2.0 * (Q @ w)
-        f = float(w @ (Q @ w))
-        s = int(np.argmin(grad))
-        best_lb = max(best_lb, float(grad[s]) - f)   # FW lower bound
-        gap = float(grad @ w - grad[s])
-        if gap <= tol:
-            break
-        act = np.array(sorted(active))
-        a = int(act[np.argmax(grad[act])])
-        d_fw = -w.copy(); d_fw[s] += 1.0
-        d_aw = w.copy();  d_aw[a] -= 1.0
-        if float(grad @ d_fw) <= float(grad @ d_aw):
-            D, gmax, is_fw = d_fw, 1.0, True
-        else:
-            D = d_aw; gmax = w[a] / (1.0 - w[a]) if w[a] < 1.0 else 1e12; is_fw = False
-        QD = Q @ D
-        quad = float(D @ QD)
-        g = -float(2.0 * (w @ QD)) / (2.0 * quad) if quad > 1e-18 else gmax
-        g = max(0.0, min(g, gmax))
-        w = w + g * D
-        w[w < 1e-15] = 0.0
-        if g >= gmax and not is_fw:
-            active.discard(a)
-        active.add(s)
-        active = {j for j in active if w[j] > 0}
-    w = np.clip(w, 0.0, None); w /= w.sum() + 1e-18
-    return float(w @ (Q @ w)), w, float(best_lb)
+    w = solve_simplex_minnorm(Q)
+    loss = float(w @ (Q @ w))
+    return loss, w, loss
 
 
 def _afw_batched(Qs: np.ndarray, iters: int = 80) -> np.ndarray:
-    """Vectorised AFW losses for many tuples at once. Qs: (N, m, m)."""
-    N, m, _ = Qs.shape
-    if m == 1:
+    """``min_{w in simplex} w'Q w`` for every ``Q`` in an ``(N, m, m)`` stack.
+
+    Wolfe's active set over the whole stack in lockstep: each iteration solves
+    all the current corral systems as one batched LU and retires the candidates
+    whose optimality test has passed, so the arrays shrink as members certify
+    and the iteration count is set by the hardest member rather than by a budget.
+
+    This replaced a fixed number of away-step Frank-Wolfe iterations. Frank-Wolfe
+    converges sublinearly, and on a panel with one dominant factor -- which is
+    what a geo panel is, 97% of the DMA panel's two-way-demeaned variance in a
+    single component -- the columns are near-collinear and a fixed budget stops
+    short of the optimum. At 80 iterations the median relative error on that
+    panel was 9%, high on two thirds of subsets. Since these losses *rank*
+    candidate designs against one another, that error reorders the shortlist.
+
+    ``iters`` is accepted and ignored; see :func:`_afw_single`.
+    """
+    Qs = np.asarray(Qs, dtype=float)
+    if Qs.shape[1] == 1:
         return Qs[:, 0, 0].copy()
-    d = np.diagonal(Qs, axis1=1, axis2=2)
-    W = np.zeros((N, m)); W[np.arange(N), d.argmin(1)] = 1.0
-    rows = np.arange(N)
-    for _ in range(iters):
-        grad = 2.0 * np.einsum('nij,nj->ni', Qs, W)
-        s = grad.argmin(1)
-        ga = np.where(W > 1e-14, grad, -np.inf)
-        a = ga.argmax(1)
-        d_fw = -W.copy(); d_fw[rows, s] += 1.0
-        d_aw = W.copy();  d_aw[rows, a] -= 1.0
-        use_fw = np.einsum('ni,ni->n', grad, d_fw) <= np.einsum('ni,ni->n', grad, d_aw)
-        D = np.where(use_fw[:, None], d_fw, d_aw)
-        wa = W[rows, a]
-        gmax = np.where(use_fw, 1.0, np.where(wa < 1.0, wa / (1.0 - wa + 1e-18), 1e12))
-        QD = np.einsum('nij,nj->ni', Qs, D)
-        quad = np.einsum('ni,ni->n', D, QD)
-        lin = 2.0 * np.einsum('ni,ni->n', W, QD)
-        safe = quad > 1e-18
-        g = gmax.copy()
-        g[safe] = -lin[safe] / (2.0 * quad[safe])
-        g = np.clip(g, 0.0, gmax)
-        W = W + g[:, None] * D
-        W[W < 1e-14] = 0.0
+    W = solve_simplex_minnorm_batch(Qs)
     return np.einsum('ni,nij,nj->n', W, Qs, W)
 
 
@@ -261,15 +236,54 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                 and is_independent(conflict, S)
                 and _strata.within_max(strata, S, max_per))
     diag = np.diag(G)
+    # Two dictionaries with two jobs. `pool` is the *solution* pool: the tuples
+    # the search actually visited, ranked at the end to produce the top-K. It
+    # must keep exactly the membership it had before, or the search returns a
+    # different answer. `memo` is the loss cache: every tuple ever solved,
+    # including the hundreds of thousands merely probed inside a neighbourhood
+    # and never adopted. Those belong in the cache and not in the pool.
     pool: Dict[tuple, float] = {}
+    memo: Dict[tuple, float] = {}
     work = [0]                      # total subsets scored ("simplex iterations")
     best = [np.inf]                 # global incumbent objective
     trail: List[tuple] = []         # (work, objective) at each incumbent improvement
 
     def score(subs):
+        """Losses for a batch of tuples, solving only the ones not seen before.
+
+        Swap neighbourhoods overlap heavily across descent steps and across
+        starts, so the same tuple is asked for repeatedly -- about twice on
+        average. Solving it once and remembering the answer is exact:
+        ``_afw_batched`` is deterministic and treats rows independently, so a
+        remembered loss is the loss that would have been recomputed. Tuples
+        arrive sorted from every caller, so the key is canonical.
+
+        The answer goes in ``memo``, never in ``pool``. Probing a tuple inside
+        a neighbourhood is not visiting it, and only visited tuples may compete
+        for the top-K.
+
+        ``work`` still counts every tuple requested, not every tuple solved: it
+        is the search's reported effort diagnostic, and the number of tuples
+        the search considered has not changed.
+        """
         arr = np.asarray(subs)
         work[0] += len(arr)
-        return _losses_for(G, arr, iters=iters)
+        keys = [tuple(r) for r in arr.tolist()]
+        out = np.empty(len(keys), dtype=float)
+        missing = []
+        for i, k in enumerate(keys):
+            v = memo.get(k)
+            if v is None:
+                missing.append(i)
+            else:
+                out[i] = v
+        if missing:
+            idx = np.asarray(missing, dtype=int)
+            vals = _losses_for(G, arr[idx], iters=iters)
+            out[idx] = vals
+            for i, v in zip(missing, vals.tolist()):
+                memo[keys[i]] = v
+        return out
 
     def loss_of(S):
         v = pool.get(tuple(S))

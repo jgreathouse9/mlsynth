@@ -1118,6 +1118,13 @@ and `brabander_brexit_insample.py
 Both need ``zeta=0`` and ``intercept_adjust=True``, which is what that paper's
 specification is.
 
+On staggered real data, SDID reproduces the ``synthdid`` numbers published by
+Ronczewski (2026) for the cannabis-alcohol panel: each of the three adoption
+cohorts to 2.3e-04 and the cell-count-weighted aggregate to 6.1e-05. The
+paper assembles that aggregate by hand from three balanced blocks; handing
+mlsynth the staggered panel in one call returns the same number. See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
+
 Example
 -------
 

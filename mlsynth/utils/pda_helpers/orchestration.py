@@ -18,6 +18,7 @@ from .lasso import (
 from .fs import forward_select, fs_ate_inference
 from .hcw import fit_hcw, hcw_ate_inference
 from ..inferutils import pda_prediction_intervals
+from ..conformal import resample_cumulative_paths
 from .inference import cumulative_supt_band
 
 # Map config method strings to internal keys.
@@ -96,6 +97,8 @@ def run_pda(
     prediction_intervals: bool = False, cumulative_band: bool = False,
     pi_n_boot: int = 999, pi_dependent: bool = True,
     pi_seed: Optional[int] = 0,
+    cumulative_method: str = "bootstrap", cumulative_block: int = 0,
+    cumulative_n_sim: int = 2000,
 ) -> Dict[str, PDAMethodFit]:
     """Fit each requested PDA variant with its own paper's inference.
 
@@ -154,21 +157,41 @@ def run_pda(
 
         pis = None
         cum_band = None
+        resampled_band = cumulative_band and cumulative_method == "resample"
+        # Both paths refit the estimator, so the LASSO penalty has to be pinned
+        # before either runs -- a refit that re-tunes is a different estimator.
+        if (prediction_intervals or resampled_band) and m == LASSO \
+                and lasso_alpha is None:
+            lasso_alpha = lasso_cv_alpha(y, X, T0)
+            meta["alpha"] = lasso_alpha
+
+        refit_kw = dict(
+            tau=meta.get("tau", tau), l2_standardize=l2_standardize,
+            fs_intercept=fs_intercept, lasso_alpha=lasso_alpha,
+            lasso_criterion=lasso_criterion, hcw_criterion=hcw_criterion,
+            hcw_nvmax=hcw_nvmax, hcw_backend=hcw_backend)
+
         if prediction_intervals:
-            if m == LASSO and lasso_alpha is None:
-                lasso_alpha = lasso_cv_alpha(y, X, T0)
-                meta["alpha"] = lasso_alpha
-            refit = _build_refit(
-                m, X, T0, tau=meta.get("tau", tau),
-                l2_standardize=l2_standardize, fs_intercept=fs_intercept,
-                lasso_alpha=lasso_alpha, lasso_criterion=lasso_criterion,
-                hcw_criterion=hcw_criterion,
-                hcw_nvmax=hcw_nvmax, hcw_backend=hcw_backend)
             pis = pda_prediction_intervals(
-                y, X, T0, counterfactual=cf, support=support_idx, refit=refit,
+                y, X, T0, counterfactual=cf, support=support_idx,
+                refit=_build_refit(m, X, T0, **refit_kw),
                 alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
                 dependent=pi_dependent)
-            if cumulative_band:
+
+        if cumulative_band:
+            if resampled_band:
+                # _build_refit closes over the pre-period length, so an origin in
+                # place of T0 gives the fit trained strictly before that origin.
+                def refit_at(origin, _m=m):
+                    return _build_refit(_m, X, origin, **refit_kw)(y)[0]
+
+                paths = resample_cumulative_paths(
+                    y, refit_at, T0, int(y.size - T0),
+                    block=cumulative_block, n_sim=cumulative_n_sim,
+                    seed=pi_seed)
+                cum_band = cumulative_supt_band(
+                    (y - cf)[T0:], paths, alpha=alpha, method="resample")
+            else:
                 cum_band = cumulative_supt_band(
                     (y - cf)[T0:], pis["error_paths"], alpha=alpha)
 

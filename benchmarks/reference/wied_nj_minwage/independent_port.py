@@ -8,12 +8,19 @@ using statsmodels' Probit for the DR step -- NOT the author's probit_fit.
   eq (2) : f_t(x) = mean_l [ Lambda(x'th1) - Lambda(x'th0) ]^2
 """
 import json, time, numpy as np, pandas as pd
+from pathlib import Path
 from scipy.stats import norm
 import statsmodels.api as sm
 
-d = pd.read_parquet("nj64.parquet")
+# The estimation sample and its standardisation constants sit beside this script,
+# so it runs from any working directory. Both are the float64 files
+# ``provenance.txt`` describes; the Gram matrix has kappa ~ 9.6e4 and a float32
+# round-trip moves the donor weights by 40x the tolerance they reproduce at.
+_DIR = Path(__file__).resolve().parent
+
+d = pd.read_parquet(_DIR / "nj_estimation_sample.parquet")
 d["STATEFIP"] = d["STATEFIP"].astype(int); d["t"] = d["t"].astype(int)
-meta = json.load(open("/root/.claude/uploads/a068a0ba-90d2-58b5-8873-c6320eda4fd6/5c1a37ef-nj_meta.json"))
+meta = json.loads((_DIR / "nj_meta.json").read_text())
 SP = {k: meta[k] for k in ("me","se","mx","sx")}
 NJ, PRE, POST = 34, [1, 2, 3], 4
 states = [NJ] + sorted(s for s in d.STATEFIP.unique() if s != NJ)
@@ -61,7 +68,6 @@ def eval_point(ed, ex):
     es = (ed - SP["me"]) / SP["se"]; xs = (ex - SP["mx"]) / SP["sx"]
     return np.array([1.0, es, xs, xs**2])
 
-w_auth = np.load("w_sc.npy")   # from the float32 run; recompute for f64 below
 print(f"kappa(G) = {np.linalg.cond(G):.5g}   (paper 9.6e4)")
 print(f"sum(w)   = {w.sum():.9f}")
 FIPS = {12:"Florida",36:"New York",46:"South Dakota",32:"Nevada",29:"Missouri"}
@@ -78,4 +84,3 @@ for nm, ed, ex in EVAL:
     x = eval_point(ed, ex)
     dd = norm.cdf(theta[(0, POST)] @ x) - norm.cdf(th0 @ x)
     print(f"  {nm:5s}{np.mean(dd**2)*1e3:8.3f}   paper {PAPER_F[nm]:6.2f}")
-np.save("w_independent.npy", w)

@@ -548,14 +548,14 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "overlapping-calibration-origins"
-  find = "for origin in range(start, int(pre_periods) - int(horizon) + 1, int(horizon)):"
-  replace = "for origin in range(start, int(pre_periods) - int(horizon) + 1, 1):"
+  find = "    return range(start, int(pre_periods) - int(horizon) + 1, int(horizon))"
+  replace = "    return range(start, int(pre_periods) - int(horizon) + 1, 1)"
   models = "sliding the calibration origin one period at a time instead of one window at a time, so consecutive blocks share periods; the scores stop being exchangeable and the band is calibrated on a correlated, artificially large calibration set"
 
   [[target.mutant]]
   id = "scores-average-instead-of-accumulate"
-  find = "scores.append(float(np.sum(y[block] - Y0[block] @ w)))"
-  replace = "scores.append(float(np.mean(y[block] - Y0[block] @ w)))"
+  find = "    return np.asarray([float(np.sum(b)) for b in blocks], dtype=float)"
+  replace = "    return np.asarray([float(np.mean(b)) for b in blocks], dtype=float)"
   models = "scoring the per-period average error rather than the accumulated error, so the band is calibrated for the wrong estimand -- the defect that makes a per-period interval rescaled by the horizon look like a cumulative one"
 
   [[target.mutant]]
@@ -1178,6 +1178,187 @@ timeout = 900.0
   models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
 
 [[target]]
+name = "weights-container-contract"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "emptiness-tested-by-truthiness"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return not any((self.donor_weights, self.time_weights,\n                        self.weights_at)) and self.unit_weights is None"
+  models = "an empty face read as silence. Six factor-model estimators report donor_weights={} to mean 'checked, this method has none', and truthiness collapses that into the same state as never having said anything -- failing the estimators that are already correct while leaving the ones the contract is aimed at untouched"
+
+  [[target.mutant]]
+  id = "prose-counted-as-a-location"
+  find = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None)"
+  replace = "        return (self.donor_weights is None and self.time_weights is None\n                and self.unit_weights is None and self.weights_at is None\n                and self.summary_stats is None)"
+  models = "summary_stats accepted in place of a face or a pointer. It carries a constraint label in prose no caller can resolve to an attribute, so counting it lets an estimator hold real weights, say nothing machine-readable about where, and pass -- which is the exact state #475 was filed about"
+
+[[target]]
+name = "iterative-waterfall-branch"
+module-path = "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_iterative_replace_pre.py mlsynth/tests/test_spillsynth_iterative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "waterfall-always-replaces-the-whole-series"
+  find = """        Y[i, T0:] = cf[T0:]
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  replace = """        Y[i, :] = cf
+        if replace_pre:                               # replacePreTreatData=TRUE"""
+  models = "Melnychuk's replacePreTreatData pinned to TRUE regardless of the setting. This is the branch the reference's own call sites run, so it is not an implausible reading -- which is why it went unnoticed: before the switch existed the whole spillsynth suite (252 tests) stayed green under it, while on German reunification it moves Austria's weight from 0.46 to 0.00 and the ATT by ~320 USD"
+
+  [[target.mutant]]
+  id = "waterfall-never-replaces-the-pre-period"
+  find = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
+            Y[i, :T0] = cf[:T0]"""
+  replace = """        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])"""
+  models = "the switch recorded but not applied -- the cleaned pre-period is reported on the fit object while the donor matrix keeps the observed one, so the setting reads as honoured and the estimate is the other branch's"
+
+  [[target.mutant]]
+  id = "naive-pre-fit-taken-from-the-cleaned-panel"
+  find = "        naive_synthetic_pre=np.asarray(cf_naive[:T0]),"
+  replace = "        naive_synthetic_pre=np.asarray(cf_f[:T0]),"
+  models = "the naive pre-period fit read off the cleaned panel instead of the original outcomes. The two coincide exactly when replace_pre is False, so the defect is invisible in the default configuration and silently asserts that the refit changed nothing whenever it did"
+
+  [[target.mutant]]
+  id = "uncleanable-donor-passed-off-as-cleaned"
+  find = """    if affected and not clean:
+        raise MlsynthDataError("""
+  replace = """    if False:
+        raise MlsynthDataError("""
+  models = "the identification requirement dropped, so a panel with no clean control reaches the waterfall. The shape this used to take was the worst one: the first donor was skipped, appended to the cleaned list anyway, and the next donor fit against its contaminated outcomes, which returned a finite and plausible -6.93 against a true -3.0 on a three-unit panel while cleaned_units named both donors and only the one-entry spillover ledger disagreed"
+
+[[target]]
+name = "lexsearch"
+module-path = "mlsynth/utils/fast_scm_helpers/lexsearch.py"
+test-command = "python -m pytest mlsynth/tests/test_lexsearch_properties.py mlsynth/tests/test_lexsearch.py mlsynth/tests/test_lexscm_perf.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "design-loss-drops-the-simplex-solve"
+  find = "    W = solve_simplex_minnorm_batch(Qs)\n    return np.einsum('ni,nij,nj->n', W, Qs, W)"
+  replace = "    return np.diagonal(Qs, axis1=1, axis2=2).min(axis=1)"
+  models = "ranking tuples by their best single unit instead of by the best convex combination of them, which is the vertex bound rather than the objective and agrees with it exactly when the optimum happens to sit at a vertex"
+
+  [[target.mutant]]
+  id = "probe-losses-enter-the-solution-pool"
+  find = "                memo[keys[i]] = v"
+  replace = "                memo[keys[i]] = v; pool[keys[i]] = v"
+  models = "the loss cache leaking into the solution pool, so the top-K is ranked over every tuple ever probed instead of over the tuples the search visited -- the defect that changed the selected markets on the DMA panel while all 213 tests passed"
+
+  [[target.mutant]]
+  id = "memo-returns-a-stale-loss-for-a-different-tuple"
+  find = "        keys = [tuple(r) for r in arr.tolist()]"
+  replace = "        keys = [tuple(sorted(r)[:-1]) for r in arr.tolist()]"
+  models = "a cache key that ignores the last unit of each tuple, so two designs differing only in one market collide and the second silently receives the first's loss"
+
+  [[target.mutant]]
+  id = "relaxation-bound-reported-above-the-loss"
+  find = "    loss = float(w @ (Q @ w))\n    return loss, w, loss"
+  replace = "    loss = float(w @ (Q @ w))\n    return loss, w, loss * 1.05"
+  models = "a lower bound that exceeds the value it bounds, which would make the reported optimality gap negative and the relaxation diagnostic meaningless"
+
+  [[target.mutant]]
+  id = "search-ranks-by-largest-imbalance"
+  find = "    ranked = sorted(pool.items(), key=lambda kv: kv[1])[:top_K]"
+  replace = "    ranked = sorted(pool.items(), key=lambda kv: -kv[1])[:top_K]"
+  models = "the top-K taken from the wrong end of the pool, returning the worst-balanced designs the search found rather than the best"
+
+[[target]]
+name = "control_qp"
+module-path = "mlsynth/utils/fast_scm_helpers/fast_scm_control_helpers.py"
+test-command = "python -m pytest mlsynth/tests/test_control_qp_batch.py mlsynth/tests/test_lexscm_spillover.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "penalty-dropped-from-the-homogeneous-form"
+  find = "    d = lambda_penalty * c - 2.0 * b"
+  replace = "    d = -2.0 * b"
+  models = "the Abadie-L'Hour discrepancy penalty silently absent from the reduction, so the batch solves plain simplex least squares and the donor pool spreads over units that individually track the treated series badly"
+
+  [[target.mutant]]
+  id = "homogeneous-form-not-symmetrised"
+  find = "    return Q + 0.5 * (d[..., :, None] + d[..., None, :])"
+  replace = "    return Q + d[..., None, :]"
+  models = "the rank-one lift written one-sided, which still reproduces the linear term on the simplex but hands the active set an asymmetric matrix, so its corral solves and its optimality test disagree about the gradient"
+
+  [[target.mutant]]
+  id = "batch-scattered-into-the-wrong-donor-pool"
+  find = "            v[C[row]] = W[row]"
+  replace = "            v[C[0]] = W[row]"
+  models = "every design in a width group scattered through the first design's pool, so weights land on units the design excluded and the treated units come back with nonzero control weight"
+
+  [[target.mutant]]
+  id = "one-treated-series-used-for-the-whole-group"
+  find = "        b = np.einsum('sjt,st->sj', XT[C], Ys)"
+  replace = "        b = np.einsum('sjt,t->sj', XT[C], Ys[0])"
+  models = "the batch fitted against the first design's synthetic treated series throughout, which is the failure a rectangular stack invites and which leaves every weight vector feasible and plausible"
+
+  [[target.mutant]]
+  id = "spillover-neighbours-left-in-the-donor-pool"
+  find = "        if exclude_idx_list is not None and exclude_idx_list[k] is not None:\n            excluded |= {int(j) for j in exclude_idx_list[k]}"
+  replace = "        pass"
+  models = "the exclusion restriction dropped for the batch path, letting a treated unit's conflict neighbours serve as its own controls"
+
+[[target]]
+name = "moving-block-pvalue"
+module-path = "mlsynth/utils/conformal/permutation.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_moving_block.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "exclude-the-observed-block-from-its-own-reference-set"
+  find = "    stats = np.array([_score(np.roll(u, s)[-block:], statistic)\n                      for s in range(u.size)], dtype=float)"
+  replace = "    stats = np.array([_score(np.roll(u, s)[-block:], statistic)\n                      for s in range(1, u.size)], dtype=float)"
+  models = "dropping the shift that reproduces the observed block, so the p-value can reach zero. A permutation test over T reference values cannot produce more evidence than 1/T, and a zero p-value claims certainty the reference set does not contain"
+
+  [[target.mutant]]
+  id = "strict-instead-of-weak-comparison"
+  find = "    return float(np.mean(stats >= observed))"
+  replace = "    return float(np.mean(stats > observed))"
+  models = "excluding ties from the count. On a continuous statistic this changes nothing; on a discrete reference set it drops the observed block itself and every block equal to it, which is the same anti-conservative error as excluding the observed shift, arrived at through the comparison instead of the range"
+
+  [[target.mutant]]
+  id = "sum-without-the-absolute-value"
+  find = "    return abs(float(np.sum(window)))"
+  replace = "    return float(np.sum(window))"
+  models = "scoring a signed rather than a two-sided statistic. A band inverted from it covers only one tail, so a negative effect of any size is never detected while a positive one is over-detected"
+
+  [[target.mutant]]
+  id = "disjoint-blocks-instead-of-every-rotation"
+  find = "                      for s in range(u.size)], dtype=float)"
+  replace = "                      for s in range(0, u.size, block)], dtype=float)"
+  models = "reverting to a disjoint reference set, which is the split-conformal block count this function exists to improve on. The p-value's granularity falls from 1/T to block/T, which at an eight-period horizon over a hundred pre-periods is coarser than the level being inverted at"
+
+[[target]]
+name = "lto-warm-start"
+module-path = "mlsynth/utils/vanillasc_helpers/lto.py"
+test-command = "python -m pytest mlsynth/tests/test_lto_warm_start.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "seed-not-renormalised"
+  find = "    return v / total"
+  replace = "    return v"
+  models = "a seed carried onto the pair's pool without renormalising, so it sums to less than one whenever either removed donor held weight. The active set checks feasibility and discards it, so every number the test reports is still correct and only the speed is gone -- the defect this catalogue exists to catch, since no assertion on the p-value can see it"
+
+  [[target.mutant]]
+  id = "donor-seeded-from-the-treated-base"
+  find = "            ws_a = _seed_from_base(donor_bases[a], pool)"
+  replace = "            ws_a = _seed_from_base(treated_base, pool)"
+  models = "seeding a donor's placebo fit from the treated unit's base instead of its own. The seed is still a feasible simplex point, so the certified weights and the p-value are untouched; what it costs is the pivots, because the treated unit's support is not the donor's"
+
+  [[target.mutant]]
+  id = "pair-drops-one-donor-not-two"
+  find = "        pool = np.delete(all_donors, [a, b])"
+  replace = "        pool = np.delete(all_donors, [a])"
+  models = "a leave-two-out pool that only leaves one out, which is the ordinary placebo test wearing LTO's name: donor b stays in the pool it is being compared against, so its own fit is trivially good and the treated unit wins pairs it should lose"
+
+[[target]]
 name = "conformal-ensemble-loo"
 module-path = "mlsynth/utils/conformal/ensemble.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_ensemble.py -q -p no:cacheprovider"
@@ -1218,3 +1399,21 @@ timeout = 300.0
   find = "        idx = rng.integers(0, n_train, size=n_train)"
   replace = "        idx = rng.integers(0, donors.shape[1], size=n_train)"
   models = "members fitted on periods drawn from the whole series, post periods included. The counterfactual is then fitted on the outcomes it is meant to predict, which is the leak the construction exists to avoid, and the training errors shrink because the fit had more data than it was entitled to"
+
+[[target]]
+name = "conformal-export-surface"
+module-path = "mlsynth/utils/conformal/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_exports.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "export-list-entry-dropped"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = ""
+  models = "the half of a botched merge resolution that nothing used to catch. Every module in this package edits the same two regions of __init__.py, so two branches adding modules conflict there by construction; dropping the import line raises immediately because nine test modules import from the package, but dropping the matching __all__ entry left the direct import working and the declared surface silently smaller"
+
+  [[target.mutant]]
+  id = "export-list-entry-duplicated"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = "    \"bootstrap_loo_errors\",\n    \"bootstrap_loo_errors\",\n"
+  models = "the other signature of a resolution that kept both sides of a conflicting region. A duplicated name changes nothing at import time, so it survives review and accumulates"

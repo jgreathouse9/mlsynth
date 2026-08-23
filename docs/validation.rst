@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **81 cross-validation checks** against original
-implementations across **44 estimators** -- 30 reproduce the reference to display precision, 30 to
-within two percent. A further 3 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **83 cross-validation checks** against original
+implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
+within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -50,8 +50,8 @@ Summary
      - 3 exact · 1 tight
      - 0.036
    * - :ref:`COMPSC <val-compsc>`
-     - 1
-     - 1 tight
+     - 2
+     - 1 exact · 1 tight
      - 0.047
    * - :ref:`CSCM <val-cscm>`
      - 1
@@ -122,9 +122,9 @@ Summary
      - 4 exact · 1 close
      - 0.056
    * - :ref:`PPSCM <val-ppscm>`
-     - 1
-     - 1 tight
-     - 0.0022
+     - 2
+     - 1 tight · 1 documented
+     - 3
    * - :ref:`PROPSC <val-propsc>`
      - 1
      - 1 exact
@@ -175,8 +175,8 @@ Summary
      - 0
    * - :ref:`SPILLSYNTH <val-spillsynth>`
      - 4
-     - 1 exact · 1 tight · 1 close · 1 documented
-     - 7.6
+     - 1 exact · 1 close · 2 documented
+     - 3.7e+02
    * - :ref:`SPSC <val-spsc>`
      - 2
      - 2 exact
@@ -361,6 +361,12 @@ COMPSC
      - 0.047
      - tight
      - `compsc_pennsylvania <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania.py>`__
+   * - Boussim (2026) csc_replication.R (quadprog::solve.QP on the stacked ALR log-odds), run live on basedata/pa_aeps_generation.csv
+     - ``pa_aeps_generation.csv`` (7d7c0aebf62e…)
+     - 23
+     - 0
+     - exact — matches to display precision
+     - `compsc_pennsylvania_r <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/compsc_pennsylvania_r.py>`__
 
 .. _val-cscm:
 
@@ -799,6 +805,12 @@ PPSCM
      - 0.0022
      - tight
      - `ppscm_paglayan <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_paglayan.py>`__
+   * - Ronczewski (2026) replication package, Results/csv/
+     - —
+     - 14
+     - 3
+     - documented — see notes
+     - `ronczewski_cannabis <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`__
 
 .. _val-propsc:
 
@@ -1097,11 +1109,11 @@ SPILLSYNTH
      - max \|Δ\|
      - Verdict
      - Case
-   * - Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights/runInclusiveSCM), transcribed to NumPy
+   * - Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights / runInclusiveSCM). The first four rows solve the same program to the simplex; the rows marked 'reference as shipped' are the authors' ipop output, whose weights sum to 0.9666 and 1.1933
      - —
-     - 4
-     - 7.6
-     - tight
+     - 10
+     - 3.7e+02
+     - documented — see notes
      - `spillsynth_iscm_xval <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/spillsynth_iscm_xval.py>`__
    * - jcao0/synthetic-control-spillover MATLAB spillover.csv (CA row)
      - —
@@ -1415,4 +1427,6 @@ action records them once its toolchain provisions.
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
    * - `marex_scdesign_sim <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_scdesign_sim.py>`__
      - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
+   * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__
+     - —
 

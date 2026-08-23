@@ -706,11 +706,36 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
         T1_post = int(len(y) - pre)
         horizon = int(config.conformal_horizon or T1_post)
-        band = cumulative_conformal_from_refit(
-            y, Y0, pre_periods=int(pre), horizon=horizon,
-            weight_fn=_refit_weight_fn, alpha=config.alpha,
-        )
-        if not np.isfinite(band.half_width):
+        resampled = config.conformal_method == "resample"
+        if resampled:
+            # The same windows, kept per period and drawn from as blocks. The
+            # half-width is the quantile of the accumulated totals; the draws are
+            # centred and sign-symmetric, so their absolute quantile is the
+            # symmetric half-width the band reports.
+            from mlsynth.utils.conformal import (
+                CumulativeConformalBand, origin_schedule,
+                resample_cumulative_paths_from_weights)
+
+            paths = resample_cumulative_paths_from_weights(
+                y, Y0, int(pre), horizon, _refit_weight_fn,
+                block=config.conformal_block, n_sim=config.conformal_n_sim,
+                seed=config.conformal_seed)
+            point = float(np.sum(gap[pre:pre + horizon]))
+            half = float(np.quantile(np.abs(paths.sum(axis=1)), 1.0 - config.alpha))
+            # The periods drawn from, not the windows: m * horizon of them, which
+            # is why this is finite where the order statistic is not. Read off the
+            # schedule, which costs nothing -- the refits already happened above.
+            n_periods = len(list(origin_schedule(int(pre), horizon, 0.3))) * horizon
+            band = CumulativeConformalBand(
+                point=point, lower=point - half, upper=point + half,
+                half_width=half, n_scores=int(n_periods),
+                alpha=float(config.alpha), horizon=horizon)
+        else:
+            band = cumulative_conformal_from_refit(
+                y, Y0, pre_periods=int(pre), horizon=horizon,
+                weight_fn=_refit_weight_fn, alpha=config.alpha,
+            )
+        if not resampled and not np.isfinite(band.half_width):
             warnings.warn(
                 "cumulative conformal band is uninformative (half-width=inf): "
                 f"{band.n_scores} non-overlapping calibration window(s) of length "
@@ -728,7 +753,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             ci_lower=(band.lower / horizon) if spans_post else None,
             ci_upper=(band.upper / horizon) if spans_post else None,
             confidence_level=1.0 - config.alpha,
-            method="split-conformal cumulative-effect band (rolling origin)",
+            method=("block-resampled cumulative-effect band (rolling origin)"
+                    if resampled else
+                    "split-conformal cumulative-effect band (rolling origin)"),
             details={
                 "cumulative_effect": band.point,
                 "cumulative_lower": band.lower,

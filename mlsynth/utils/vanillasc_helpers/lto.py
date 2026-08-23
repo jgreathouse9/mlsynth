@@ -104,6 +104,58 @@ def _rmspe_ratio_resid(y_k: np.ndarray, cf: np.ndarray, pre: int) -> float:
     return abs(post_r / pre_r)
 
 
+# Below this the restricted base weights carry no mass on the pair's pool, so
+# there is no feasible point to renormalise and the solve goes in cold.
+_SEED_MIN = 1e-9
+
+
+def _seed_from_base(base_full: np.ndarray, pool: np.ndarray) -> Optional[np.ndarray]:
+    """Carry a full-pool weight vector onto a leave-two-out pool.
+
+    ``base_full`` is indexed by donor id over all ``J`` donors; ``pool`` is the
+    subset this pair keeps. Dropping the two removed donors and renormalising
+    what is left gives a point on the pool's simplex, which is what the active
+    set needs to start from. Synthetic-control weights are sparse -- on Prop 99
+    the support is 6 of 36 -- so for most pairs neither removed donor carried
+    weight and the seed is already the answer.
+
+    Returns ``None`` when no feasible point survives, which sends the solve in
+    cold.
+    """
+    v = np.asarray(base_full, dtype=float)[pool]
+    total = v.sum()
+    if not np.isfinite(total) or total <= _SEED_MIN:
+        return None
+    return v / total
+
+
+def _base_seeds(engine, y, Y0, pre, X1, X0):
+    """Full-pool base fits the pair loop seeds itself from.
+
+    One fit for the treated unit on all ``J`` donors, and one per donor on the
+    ``J - 1`` others -- ``J + 1`` solves against the loop's ``3 * C(J, 2)``.
+    Each is embedded back into a length-``J`` vector so
+    :func:`_seed_from_base` can index it by donor id.
+
+    Returns ``(treated_base, donor_bases)``, or ``None`` when the engine's
+    backend does not take a seed, so the donor bases are never paid for.
+    """
+    T, J = Y0.shape
+    treated = engine.fit(y[:pre], Y0[:pre], X1=X1, X0=X0)
+    if treated.backend != "outcome-only":
+        return None
+    donor_bases = np.zeros((J, J))
+    for k in range(J):
+        pool = np.delete(np.arange(J), k)
+        rk = engine.fit(
+            Y0[:pre, k], Y0[:pre][:, pool],
+            X1=(X0[:, k] if X0 is not None else None),
+            X0=(X0[:, pool] if X0 is not None else None),
+        )
+        donor_bases[k, pool] = rk.W
+    return np.asarray(treated.W, dtype=float), donor_bases
+
+
 def lto_placebo_test(
     engine: Any,
     y: np.ndarray,
@@ -115,6 +167,7 @@ def lto_placebo_test(
     alpha: float = 0.05,
     max_pairs: Optional[int] = None,
     seed: int = 0,
+    warm_start: bool = True,
 ) -> Dict[str, Any]:
     """Run the Lei-Sudijono (2025) LTO refined placebo test.
 
@@ -140,6 +193,12 @@ def lto_placebo_test(
         for expensive backends). ``None`` -> all :math:`\\binom{J}{2}` pairs.
     seed : int
         RNG seed for the pair subsample when ``max_pairs`` is set.
+    warm_start : bool
+        Seed each pair's three solves from a full-pool base fit
+        (:func:`_base_seeds`) instead of starting the active set at the uniform
+        point. Speed only -- the seed chooses where the active set starts, not
+        where it lands, so every reported quantity is unchanged. Default
+        ``True``; pass ``False`` for the cold path.
 
     Returns
     -------
@@ -167,21 +226,39 @@ def lto_placebo_test(
         pairs = [pairs[i] for i in sorted(idx)]
         subsampled = True
 
-    def _resid(y_k, pool, x1):
+    def _resid(y_k, pool, Y0_pool, x1, ws):
         x0p = X0[:, pool] if X0 is not None else None
-        rk = engine.fit(y_k[:pre], Y0[:, pool][:pre], X1=x1, X0=x0p)
-        return _rmspe_ratio_resid(y_k, rk.counterfactual(Y0[:, pool]), pre)
+        rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)
+        return _rmspe_ratio_resid(y_k, rk.counterfactual(Y0_pool), pre)
+
+    bases = None
+    if warm_start:
+        try:
+            bases = _base_seeds(engine, y, Y0, pre, X1, X0)
+        except Exception:  # pragma: no cover - defensive base-fit guard
+            bases = None
 
     losses = 0
     n_pairs = 0
+    all_donors = np.arange(J)
     for a, b in pairs:
-        pool = [k for k in range(J) if k != a and k != b]
-        if not pool:  # pragma: no cover - pool size = J-2 >= 1 when J >= 3
+        pool = np.delete(all_donors, [a, b])
+        if not pool.size:  # pragma: no cover - pool size = J-2 >= 1 when J >= 3
             continue
+        Y0_pool = Y0[:, pool]
+        if bases is None:
+            ws_I = ws_a = ws_b = None
+        else:
+            treated_base, donor_bases = bases
+            ws_I = _seed_from_base(treated_base, pool)
+            ws_a = _seed_from_base(donor_bases[a], pool)
+            ws_b = _seed_from_base(donor_bases[b], pool)
         try:
-            R_I = _resid(y, pool, X1)
-            R_a = _resid(Y0[:, a], pool, (X0[:, a] if X0 is not None else None))
-            R_b = _resid(Y0[:, b], pool, (X0[:, b] if X0 is not None else None))
+            R_I = _resid(y, pool, Y0_pool, X1, ws_I)
+            R_a = _resid(Y0[:, a], pool, Y0_pool,
+                         (X0[:, a] if X0 is not None else None), ws_a)
+            R_b = _resid(Y0[:, b], pool, Y0_pool,
+                         (X0[:, b] if X0 is not None else None), ws_b)
         except Exception:  # pragma: no cover - defensive donor-refit guard
             continue
         if not np.isfinite(R_I):  # pragma: no cover - donor with zero pre-error

@@ -172,7 +172,8 @@ Path A — empirical replications
    * - ``spillsynth_iscm_germany``
      - inclusive SCM German reunification (Di Stefano-Mellace)
    * - ``spillsynth_iterative_germany``
-     - iterative waterfall SCM German reunification (Melnychuk)
+     - iterative waterfall SCM German reunification (Melnychuk), both
+       replacePreTreatData branches, cross-checked against the authors' live R
    * - ``spotsynth_real_data``
      - SPOTSYNTH donor-spillover screening: Germany/California/Basque (Fig 6) + detection (Fig 2) + debias (Fig 4)
    * - ``tssc_brooklyn``
@@ -248,6 +249,8 @@ Path B — Monte Carlo / simulation
      - Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
    * - ``pda_pi_coverage``
      - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+   * - ``pda_wheeler_lassosynth``
+     - the resampled cumulative band reduces to Wheeler's LassoSynth at ``block=1``
    * - ``fspda_table1``
      - all 108 cells of Shi-Huang Table 1, vs the paper and their own code
    * - ``pda_table1``
@@ -306,6 +309,12 @@ Cross-validation against reference implementations
      - Validates
    * - ``ascm_kansas``
      - vs augsynth: Kansas ridge-ASCM ladder (SCM/ridge/covariate/residualized)
+   * - ``compsc_pennsylvania_r``
+     - vs the author's ``csc_replication.R`` (``quadprog``) run live on the same
+       panel: all ten donor weights to 3e-9, every post-period effect across
+       twenty years and five columns to 1e-7, and the whole 42-donor placebo --
+       ratio, retained count and p-value -- to 1e-8. Also settles the Arkansas
+       weight the paper's Table 1 omits and ``quadprog`` does not
    * - ``dsc_disco_xval``
      - DSC against the authors' ``DiSCos`` R package on the Dube panel, in both feasible sets. The reference draws its quadrature points with ``runif``, so a single run is not a target; this scores mlsynth against the mean of 40 seeds at M = 10,000 and reads the across-seed spread as the yardstick. Max donor-weight gap 0.0079 (simplex) and 0.0103 (sum-to-one) against reference seed standard deviations of 0.0160 and 0.0300 -- closer to the reference's centre than the reference is to itself, which settles issue #304
    * - ``disco_tenure``
@@ -368,7 +377,8 @@ Cross-validation against reference implementations
    * - ``snn_prop99``
      - vs deshen24/syntheticNN (Prop 99)
    * - ``spillsynth_iscm_xval``
-     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German)
+     - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German), against both
+       the authors' shipped output and their algorithm solved to the simplex
    * - ``spillsynth_prop99``
      - vs jcao0/synthetic-control-spillover (Cao-Dowd Prop 99)
    * - ``spsydid_state_mc``

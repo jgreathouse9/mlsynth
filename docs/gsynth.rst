@@ -258,13 +258,30 @@ the loadings on the rest,
       \mathbf{F}^{0\top}_{-s}
       (\mathbf{Y}^0_{i,-s} - \mathbf{X}^{0}_{i,-s}\widehat{\boldsymbol{\beta}}),
 
-predict the held-out cell and save the error. The rank minimizing the mean
-squared prediction error wins. The procedure draws no random numbers, so the
-selected rank is a property of the panel and not of a seed.
+predict the held-out cell and save the error.
 
-Two consequences follow from that, and both are checked in the test suite.
-The set of scored cells is the same at every rank, so the criterion is
-comparable across :math:`r`; and repeated calls return the same rank.
+The scores are then walked upward from the smallest rank, and a larger rank is
+taken only when it beats the running minimum by more than 1 percent of it. The
+guard is what makes this a selection rule instead of a minimization. Prediction
+error is not convex in :math:`r` and its minimum is often a near-tie, so
+without it the criterion spends a degree of freedom to buy an improvement
+indistinguishable from noise. Both R references guard the step the same way.
+
+The procedure draws no random numbers, so the selected rank is a property of
+the panel and not of a seed. Two consequences follow, and both are checked in
+the test suite. The set of scored cells is the same at every rank, so the
+criterion is comparable across :math:`r`; and repeated calls return the same
+rank.
+
+Which reference this is. Algorithm 1 above is what ``gsynth`` implements
+through version 1.3.x. From 1.4.0 the R package is a wrapper that forwards to
+``fect``, whose cross-validation is a different scheme: it masks a random share
+of observed cells over :math:`k` rounds and weights the error across relative
+periods, dropping periods with too few treated observations. On a panel where
+the criterion is flat the two can land on different ranks --- on the Ronczewski
+(2026) cannabis application they choose 4 and 1, and the estimate differs by a
+factor of 2.6. Fix ``r`` when the comparison is meant to be about the
+estimators, which agree to 4e-17 at a common rank.
 
 Pass ``r`` to fix the count instead, and ``r_max`` to bound the search. The
 estimator lowers ``r_max`` further when the shortest treated pre-period
@@ -363,6 +380,15 @@ in all sixteen outcome-by-force combinations. See
 :doc:`replications/gsynth_av_laws` and
 `benchmarks/cases/gsynth_av_laws.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/gsynth_av_laws.py>`_.
+
+A third case is a cross-package one on real data: the cannabis-alcohol panel
+of Ronczewski (2026). At a fixed factor number GSYNTH matches the paper's
+published ``gsynth`` estimate to 6.9e-18. The cross-validation is where the
+two part -- Algorithm 1 selects 4 where the paper's ``gsynth`` 1.4.0 selects
+1, and the estimate differs by a factor of 2.6 -- so the case validates the
+estimator at a fixed rank and records the selected rank as its own metric.
+See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
 
 Core API
 --------
