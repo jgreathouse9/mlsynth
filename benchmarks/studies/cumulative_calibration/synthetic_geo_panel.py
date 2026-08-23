@@ -42,6 +42,18 @@ IDIO_SD = (0.04, 0.06, 0.09)      # p10, median, p90
 IDIO_AR = (0.02, 0.20, 0.42)      # p10, median, p90
 BLOCK_RHO = 0.09
 
+# Share of US TV homes held by each of the thirty largest designated market
+# areas, largest first, from published Nielsen market data. Public geography,
+# carrying no market name, code or coordinate -- only the size profile, which is
+# what a geo test's cross-section is shaped by. The thirty together hold 53.8 per
+# cent of US TV homes and span 7.4x from largest to smallest, a far tighter
+# spread than the full two hundred, because a geo test runs on large markets.
+TOP30_POPULATION_SHARE = (
+    6.468, 4.917, 3.052, 2.583, 2.267, 2.191, 2.073, 2.066, 2.038, 1.941,
+    1.617, 1.593, 1.587, 1.582, 1.513, 1.420, 1.372, 1.301, 1.273, 1.215,
+    1.089, 1.035, 1.021, 1.008, 0.995, 0.954, 0.950, 0.942, 0.889, 0.873,
+)
+
 
 def _spread(rng, n, p10, med, p90):
     """n positive draws with roughly the given decile spread."""
@@ -49,8 +61,21 @@ def _spread(rng, n, p10, med, p90):
     return np.exp(rng.normal(np.log(med), sigma, size=n))
 
 
-def make_panel(rng, n_markets=N_MARKETS, n_weeks=N_WEEKS):
-    """``(n_weeks, n_markets)`` log-outcome panel, and each market's block index."""
+def make_panel(rng, n_markets=N_MARKETS, n_weeks=N_WEEKS, size_profile=None):
+    """``(n_weeks, n_markets)`` log-outcome panel, and each market's block index.
+
+    ``size_profile`` gives the relative size of each market, largest first --
+    :data:`TOP30_POPULATION_SHARE` for a real one. Given it, market log-levels are
+    its logs and ``n_markets`` comes from its length; otherwise levels are drawn
+    with spread :data:`LEVEL_SD`.
+    """
+    if size_profile is not None:
+        profile = np.asarray(size_profile, dtype=float)
+        if profile.ndim != 1 or profile.size < 1 or not np.all(profile > 0):
+            raise ValueError(
+                "size_profile must be a non-empty 1-D sequence of positive sizes; "
+                f"got {size_profile!r}.")
+        n_markets = profile.size
     if int(n_markets) < 1:
         raise ValueError(f"n_markets must be at least 1; got {n_markets!r}.")
     if int(n_weeks) < 2:
@@ -88,5 +113,11 @@ def make_panel(rng, n_markets=N_MARKETS, n_weeks=N_WEEKS):
         eps[t] = idio_ar * eps[t - 1] + innov[t]
     eps = eps / eps.std(axis=0, keepdims=True) * idio_sd
 
-    level = rng.normal(0.0, LEVEL_SD, size=n_markets)
-    return level + np.outer(f, loadings) + eps, block
+    if size_profile is None:
+        level = rng.normal(0.0, LEVEL_SD, size=n_markets)
+    else:
+        level = np.log(profile / profile.mean())
+    # eps and the factor term are each centred over the weeks, so the panel's
+    # market means are the levels exactly -- a profile is reproduced, not blurred.
+    series = np.outer(f, loadings) + eps
+    return level + series - series.mean(axis=0, keepdims=True), block

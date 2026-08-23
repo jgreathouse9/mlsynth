@@ -122,3 +122,48 @@ def test_a_non_positive_market_count_is_refused(n_markets):
 def test_a_horizon_shorter_than_two_weeks_is_refused(n_weeks):
     with pytest.raises(ValueError, match="n_weeks"):
         sgp.make_panel(np.random.default_rng(0), n_markets=20, n_weeks=n_weeks)
+
+
+# ------------------------------------------------- a real, public size profile
+def test_the_top_thirty_profile_is_a_descending_share_vector():
+    p = sgp.TOP30_POPULATION_SHARE
+    assert len(p) == 30
+    assert all(a >= b for a, b in zip(p, p[1:]))
+    assert all(x > 0 for x in p)
+
+
+def test_a_size_profile_sets_the_market_levels():
+    """Given a profile, levels are its logs -- not a random draw."""
+    Y, _ = sgp.make_panel(np.random.default_rng(0),
+                          size_profile=sgp.TOP30_POPULATION_SHARE, n_weeks=60)
+    p = np.asarray(sgp.TOP30_POPULATION_SHARE, dtype=float)
+    expected = np.log(p / p.mean())
+    assert Y.shape == (60, 30)
+    assert np.allclose(Y.mean(0), expected, atol=1e-9)
+
+
+def test_a_size_profile_fixes_the_market_count():
+    Y, block = sgp.make_panel(np.random.default_rng(0), size_profile=[3.0, 2.0, 1.0],
+                              n_weeks=40)
+    assert Y.shape == (40, 3)
+    assert block.size == 3
+
+
+def test_the_profile_ordering_is_preserved_in_the_levels():
+    Y, _ = sgp.make_panel(np.random.default_rng(1),
+                          size_profile=sgp.TOP30_POPULATION_SHARE, n_weeks=60)
+    means = Y.mean(0)
+    assert np.all(np.diff(means) < 0)
+
+
+def test_a_profile_does_not_disturb_the_factor_structure():
+    Y, _ = sgp.make_panel(np.random.default_rng(2),
+                          size_profile=sgp.TOP30_POPULATION_SHARE, n_weeks=130)
+    _, share, _ = _decompose(Y)
+    assert share > 0.80
+
+
+@pytest.mark.parametrize("bad", [[], [1.0, -2.0], [0.0, 1.0]])
+def test_a_profile_that_is_empty_or_non_positive_is_refused(bad):
+    with pytest.raises(ValueError, match="size_profile"):
+        sgp.make_panel(np.random.default_rng(0), size_profile=bad, n_weeks=40)

@@ -299,6 +299,8 @@ Path B — Monte Carlo / simulation
      - Figure 2 MSE-ratio grid
    * - ``conformal_window_count``
      - the cumulative conformal band's coverage is bounded by the number of calibration windows and not the number of periods: 0.86 at three windows, 0.94 at twenty-six, with exchangeability, stationarity and normality granted throughout. See :doc:`cumulative_calibration`
+   * - ``ppscm_geo_conformal_coverage``
+     - PPSCM's per-unit cumulative band on a synthetic top-thirty geo panel covers at the rank its order statistic implies. The window count is a closed form in the design (ten at an eight-week horizon, twenty-one at four), ten windows cannot reach 95 per cent at any width, and the distance between realised coverage and the exchangeable prediction is zero at every reachable level. See :doc:`cumulative_calibration`
 
 Cross-validation against reference implementations
 --------------------------------------------------
