@@ -1232,6 +1232,42 @@ timeout = 900.0
   models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
 
 [[target]]
+name = "ppscm-solve-conditioning"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_solve_conditioning.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "scale-read-off-the-largest-residual"
+  find = "    exponent = int(np.round(np.log2(float(np.median(vals)))))"
+  replace = "    exponent = int(np.round(np.log2(float(np.max(vals)))))"
+  models = "the scale set by the largest residual instead of the typical one. A panel of markets spans an order of magnitude in size, so the biggest market alone would decide the divisor and push every other market's residuals below the tolerance the solver is working to"
+
+  [[target.mutant]]
+  id = "scale-rounded-off-the-power-of-two-grid"
+  find = "    return float(2.0 ** exponent)"
+  replace = "    return float(np.median(vals))"
+  models = "a divisor that is not a power of two, so dividing out and multiplying back rounds in binary floating point and the answer at one magnitude no longer agrees with the answer at another in the last digits"
+
+  [[target.mutant]]
+  id = "near-unit-panels-rescaled-anyway"
+  find = "    if abs(exponent) <= _SCALE_EXPONENT_TOL:"
+  replace = "    if abs(exponent) < 0:"
+  models = "every panel divided by something, including the ones already at unit scale. The arithmetic of every pinned fit in the library changes for no gain, since those solves were never near the tolerance"
+
+  [[target.mutant]]
+  id = "separate-fits-ridge-left-at-the-callers-scale"
+  find = "        lam_sep = lam / scale ** 2"
+  replace = "        lam_sep = lam"
+  models = "a ridge left in the caller's units while the imbalance it trades against is divided by the square of the scale, so the penalty dominates the fit it was meant to regularize and the weights collapse toward the uniform barycenter"
+
+  [[target.mutant]]
+  id = "pooled-fits-norms-left-at-the-callers-scale"
+  find = "                        nu_used, (global_l2 / scale) ** 2, (ind_l2 / scale) ** 2,"
+  replace = "                        nu_used, global_l2 ** 2, ind_l2 ** 2,"
+  models = "norms read off the unscaled imbalance matrix but applied to scaled residuals, so the pooled objective shrinks by the fourth power of the scale and terminates at the first iterate the tolerance accepts"
+
+[[target]]
 name = "weights-container-contract"
 module-path = "mlsynth/config_models.py"
 test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"

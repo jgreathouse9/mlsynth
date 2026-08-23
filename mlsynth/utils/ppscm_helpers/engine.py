@@ -172,6 +172,44 @@ def _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n) -> np
     return M
 
 
+# The separate fit normalizes by 1.0, so its objective carries the square of
+# whatever units the caller's outcome is in, while OSQP is asked for an
+# absolute ``eps_abs=1e-8``. Past a residual magnitude of about 1e3 OSQP
+# returns nothing and the SCS fallback answers to a looser standard. Residuals
+# are rescaled to unit magnitude for the solve, by a power of two so the trip
+# out and back is exact in binary floating point, and left alone when they are
+# already there.
+_SCALE_EXPONENT_TOL = 3
+
+
+def solve_scale(res: Dict[Any, np.ndarray]) -> float:
+    """Power-of-two divisor bringing the residuals to unit magnitude.
+
+    The summary is the median absolute residual, not the panel's median
+    absolute level: the level is removed by ``fit_feff`` before anything
+    reaches the program, so a panel of markets with a large mean and small
+    variation would be divided by a factor its residuals never had, and the
+    objective would land under ``eps_abs`` instead of on it. The median is the
+    right summary of what is left because a panel of markets spans an order of
+    magnitude in size and one very large market should not set the scale.
+
+    Returns 1.0 when the residuals are already within ``2 ** 3`` of unit
+    magnitude, so the arithmetic of a fit that never had this problem is
+    untouched, and when there is nothing finite and non-zero to measure.
+    """
+    parts = [np.abs(np.asarray(r, dtype=float)).ravel() for r in res.values()]
+    if not parts:
+        return 1.0
+    vals = np.concatenate(parts)
+    vals = vals[np.isfinite(vals) & (vals > 0.0)]
+    if vals.size == 0:
+        return 1.0
+    exponent = int(np.round(np.log2(float(np.median(vals)))))
+    if abs(exponent) <= _SCALE_EXPONENT_TOL:
+        return 1.0
+    return float(2.0 ** exponent)
+
+
 def solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
                     nu, norm_pool, norm_sep, lam, solver,
                     zt=None, Zc=None) -> Dict[Any, np.ndarray]:
@@ -345,9 +383,26 @@ def run_multisynth(
         return _uniform_fit(res, groups, adopt_of, members, donors, n1, d, n,
                             n_leads, nu, lam)
 
+    # The program is posed on residuals brought to unit magnitude and the
+    # answer read back in the caller's units, so what ``eps_abs=1e-8`` demands
+    # does not depend on how the outcome happens to be measured. Only the
+    # separate fit's objective changes: it normalizes by 1.0, so it carried the
+    # square of the panel's magnitude, while the pooled fit's norms carry those
+    # units already and divide them out. Both the objective and the ridge are
+    # divided by ``scale ** 2`` there, which leaves the minimizer where it was
+    # and moves the numbers the solver compares against its tolerance.
+    scale = solve_scale(res)
+    res_q, zt_q, Zc_q, lam_sep = res, zt, Zc, lam
+    if scale != 1.0:
+        res_q = {k: v / scale for k, v in res.items()}
+        lam_sep = lam / scale ** 2
+        if zt is not None:
+            zt_q = [z / scale for z in zt]
+            Zc_q = [z / scale for z in Zc]
+
     # separate fit (nu = 0) -> scaling norms + auto-nu
-    W0 = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                         0.0, 1.0, 1.0, lam, solver, zt=zt, Zc=Zc)
+    W0 = solve_cohort_qp(res_q, groups, adopt_of, members, donors, n1, d, n, n_lags,
+                         0.0, 1.0, 1.0, lam_sep, solver, zt=zt_q, Zc=Zc_q)
     M0 = _imbalance_matrix(res, groups, adopt_of, members, donors, W0, n1, d, n)
     avg_imbal = M0.mean(axis=1)
     global_l2 = float(np.sqrt((avg_imbal ** 2).sum()) / np.sqrt(d))
@@ -356,8 +411,12 @@ def run_multisynth(
     ind_l2 = float(np.sqrt(np.mean([(M0[:, k] ** 2).sum() / nnz[k] for k in range(J)])))
     nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)
 
-    W = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                        nu_used, global_l2 ** 2, ind_l2 ** 2, lam, solver, zt=zt, Zc=Zc)
+    # The pooled fit's norms are read off ``M0`` in the caller's units, so they
+    # are divided by the same scale as the residuals: the two ratios are then
+    # the ones the unscaled program formed, and ``lam`` needs no adjustment.
+    W = solve_cohort_qp(res_q, groups, adopt_of, members, donors, n1, d, n, n_lags,
+                        nu_used, (global_l2 / scale) ** 2, (ind_l2 / scale) ** 2,
+                        lam, solver, zt=zt_q, Zc=Zc_q)
     M = _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n)
 
     # uniform-weight baseline for scaled imbalance

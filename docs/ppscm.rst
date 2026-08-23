@@ -127,6 +127,22 @@ pooled SCM.
    :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
    from the separate fit; a float fixes it.
 
+The program is posed on residuals divided by a power of two that brings them to
+unit magnitude, and the answer is read back in the caller's units. Synthetic
+control is scale-equivariant, so this leaves the estimand alone: multiplying
+every series by a constant leaves the weights where they were and scales the
+effect with them. What it changes is what the solver is asked for. The separate
+fit normalizes by one, because it is the fit that produces
+:math:`\text{norm}_{\text{pool}}` and :math:`\text{norm}_{\text{sep}}`, so its
+objective carries the square of whatever units the outcome happens to be in,
+while the solver's convergence test is an absolute tolerance. On a panel running
+at :math:`10^5` that fit takes twenty times as long as the identical problem at
+unit scale, and past about :math:`10^3` it stops converging at all and a fallback
+solver answers to a looser standard. The divisor is the median absolute
+residual: stage 1 has already removed the level, and a panel of markets spans an
+order of magnitude in size, so the typical residual and not the largest sets the
+scale. Residuals already within :math:`2^3` of unit magnitude are left alone.
+
 Assumptions / Remarks.
 
 *Assumption 1 (no anticipation, parallel residual trends).* After removing the
