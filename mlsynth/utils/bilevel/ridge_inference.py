@@ -66,9 +66,29 @@ def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
     scheme, ``resids[(0:T-1+j) %% T]`` in augsynth) -- deterministic, preserving
     serial dependence. The post-block statistic is taken on ``post_slice`` of
     each permuted/shifted path.
+
+    The block family is one gather, not ``T`` rolls: ``np.roll(u, s)[post]`` is
+    ``u[(post - s) % T]``, so every shift's post block is a row of a single
+    ``(T, |post|)`` fancy index. That is ~70x faster per call, and test
+    inversion calls this once per candidate effect.
+
+    The gather runs only at ``q == 1``. The statistic raises to ``q`` and then to
+    ``1 / q``, and a fractional power evaluated over a ``(T, |post|)`` block does
+    not always take the same numpy code path as one over a single row -- measured,
+    ``q = 1.5`` differs in the last bit. An ULP is not negligible here: the
+    p-value counts how many reference statistics reach the observed one, so a
+    value nudged across a tie changes a rank. At ``q == 1`` both exponents are
+    the identity and equality is provable, not merely observed; ``q == 1`` is
+    also augsynth's default and every call site in this library. Any other ``q``
+    keeps the loop.
     """
     if conformal_type == "block":
+        resids = np.asarray(resids, dtype=float)
         n = resids.shape[0]
+        if q == 1.0:
+            post = np.arange(n)[post_slice]
+            shifts = resids[(post[None, :] - np.arange(n)[:, None]) % n]
+            return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)
         return np.array(
             [_stat(np.roll(resids, s)[post_slice], q) for s in range(n)],
             dtype=float,
