@@ -60,8 +60,11 @@ def test_it_is_exactly_the_two_step_composition(block):
     y, X = panel()
     refit_at = ols_refit_at(y, X)
     series = rolling_origin_counterfactual_errors(y, refit_at, 48, 6)
-    stepwise = block_error_paths(series, horizon=6, block=block, n_sim=800,
-                                 rng=np.random.default_rng(11))
+    # the composer derives the window count from the schedule and hands it on
+    _m = len(list(origin_schedule(48, 6, 0.3)))
+    stepwise = block_error_paths(
+        series, horizon=6, block=block, n_sim=800,
+        rng=np.random.default_rng(11), n_windows=_m if _m >= 2 else 0)
     one_call = resample_cumulative_paths(y, refit_at, 48, 6, block=block,
                                          n_sim=800, seed=11)
     np.testing.assert_array_equal(one_call, stepwise)
@@ -74,8 +77,10 @@ def test_the_training_fraction_reaches_the_calibration_pass(frac):
     refit_at = ols_refit_at(y, X)
     series = rolling_origin_counterfactual_errors(y, refit_at, 48, 6,
                                                   min_train_frac=frac)
-    stepwise = block_error_paths(series, horizon=6, block=0, n_sim=300,
-                                 rng=np.random.default_rng(2))
+    _m = len(list(origin_schedule(48, 6, frac)))
+    stepwise = block_error_paths(
+        series, horizon=6, block=0, n_sim=300,
+        rng=np.random.default_rng(2), n_windows=_m if _m >= 2 else 0)
     one_call = resample_cumulative_paths(y, refit_at, 48, 6, n_sim=300, seed=2,
                                          min_train_frac=frac)
     np.testing.assert_array_equal(one_call, stepwise)
@@ -204,42 +209,24 @@ def test_the_longest_admissible_block_still_draws():
 # length therefore stops meaning "how much serial correlation is carried" at
 # b = n/2 and reverses: past the midpoint a longer block draws a NARROWER total,
 # mirroring a shorter one, until at b = n it draws nothing at all.
-def test_the_spread_is_symmetric_about_half_the_series():
-    """The identity the guard is built on, measured -- on the raw block sums.
-
-    A centred series partitions into a b-block and its (n - b) complement, whose
-    sums are exact negatives, so the two carry identical spread. That symmetry is
-    why a block past n / 2 stops meaning "how much serial correlation is carried"
-    and reverses, and it is what the guard refuses on.
-
-    The drawn paths no longer show it, and that is deliberate: the draw now
-    scales by sqrt((n - 1) / (n - b)) to give back the spread centring removed,
-    and b and n - b are scaled by different factors precisely so each carries its
-    own spread instead of the shared, shrunken one. Dividing the factor back out
-    recovers the identity, which is the quantity the guard is about.
-    """
-    e = np.random.default_rng(0).normal(size=24)
-    n = e.size
-
-    def raw_sd(b):
-        drawn = block_error_paths(e, horizon=b, block=b, n_sim=100_000,
-                                  rng=np.random.default_rng(1)).sum(axis=1).std()
-        factor = np.sqrt((n - 1) / (n - b)) if b > 1 else 1.0
-        return drawn / factor
-
-    for b in (1, 2, 5):
-        assert raw_sd(b) == pytest.approx(_complement_sd(e, b), rel=0.02), b
-
-
-def _complement_sd(e, b):
-    """The (n - b)-block spread, computed without the guard in the way."""
+def _raw_blocksum_sd(e, b):
+    """Circular b-block sums of the centred series, with no correction applied."""
     e = np.asarray(e, dtype=float)
     e = e - e.mean()
-    n, k = e.size, e.size - b
-    rng = np.random.default_rng(1)
-    s = rng.integers(0, n, size=100_000)
-    idx = (s[:, None] + np.arange(k)[None, :]) % n
-    return e[idx].sum(axis=1).std()
+    n = e.size
+    S = np.array([e[(np.arange(b) + s) % n].sum() for s in range(n)])
+    return float(S.std())
+
+
+def test_the_spread_is_symmetric_about_half_the_series():
+    """The identity the guard is built on. It is a property of the centred series
+    -- a b-block and its (n - b) complement sum to zero between them -- so it is
+    measured on the raw circular sums, not on the drawn output, which carries a
+    b-dependent correction for exactly this shrinkage."""
+    e = np.random.default_rng(0).normal(size=24)
+    for b in (1, 2, 5, 9):
+        assert _raw_blocksum_sd(e, b) == pytest.approx(
+            _raw_blocksum_sd(e, e.size - b), rel=1e-9), b
 
 
 @pytest.mark.parametrize("block", [7, 9, 11])
@@ -276,3 +263,281 @@ def test_a_single_calibration_error_says_what_is_wrong():
     msg = str(exc.value)
     assert "block <= 0" not in msg
     assert "single" in msg or "one" in msg
+
+
+# --------------------------------------------------------------------------- #
+# The spread the centring removes
+# --------------------------------------------------------------------------- #
+# Centring forces the series to sum to zero, which makes its circular
+# autocovariances sum to zero too. So for a b-block,
+#     Var(S_b) = sum_{|k|<b} (b - |k|) chat(k) = b * v * (1 - (b-1)/(n-1)),
+# and the drawn totals come out too narrow by sqrt((n-b)/(n-1)) -- 16 percent at
+# b = 13 drawn from n = 47. The draw multiplies by the inverse of that factor,
+# which is exactly 1 at b = 1 and so leaves the single-period construction, and
+# the reference parity pinned on it, untouched.
+def _blocksum_sd(series, block, horizon, n_sim=60_000, seed=0):
+    p = block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
+                          rng=np.random.default_rng(seed))
+    return float(p.sum(axis=1).std())
+
+
+@pytest.mark.parametrize("n,b", [(47, 13), (47, 5), (60, 6), (100, 13)])
+def test_block_sums_carry_the_spread_independent_periods_would_give(n, b):
+    """White noise: a b-period total has sd sqrt(b) * sd(x). Uncorrected the draw
+    lands about sqrt((n-b)/(n-1)) of that."""
+    rng = np.random.default_rng(4)
+    ratios = []
+    for _ in range(12):
+        x = rng.normal(size=n)
+        target = np.sqrt(b) * (x - x.mean()).std()
+        ratios.append(_blocksum_sd(x, b, b, n_sim=20_000) / target)
+    assert np.mean(ratios) == pytest.approx(1.0, abs=0.06), np.mean(ratios)
+
+
+def test_the_correction_is_exactly_one_at_block_one():
+    """b = 1 has no centring shrinkage, so the single-period draw -- the one the
+    Wheeler parity benchmark pins -- must be bit-for-bit what it always was."""
+    x = np.random.default_rng(5).normal(size=40)
+    paths = block_error_paths(x, horizon=6, block=1, n_sim=5000,
+                              rng=np.random.default_rng(0))
+    drawn = np.unique(np.round(np.abs(paths.ravel()), 12))
+    expected = np.unique(np.round(np.abs(x - x.mean()), 12))
+    # every drawn value is an element of the centred series, unscaled
+    assert np.isin(drawn, expected).all()
+
+
+def test_the_correction_holds_the_per_period_scale_across_block_lengths():
+    """Uncorrected, sd(S_b)/sqrt(b) falls away as b/n grows -- that is the
+    shrinkage. Corrected, it stays near sd(x) at every block length. Averaged over
+    series, since one realisation's sample autocovariances are noisy enough to
+    swamp the effect."""
+    rng = np.random.default_rng(6)
+    n, blocks = 48, (1, 4, 12, 24)
+    got = {b: [] for b in blocks}
+    for _ in range(10):
+        x = rng.normal(size=n)
+        target = (x - x.mean()).std()
+        for b in blocks:
+            got[b].append(_blocksum_sd(x, b, b, n_sim=20_000) / (np.sqrt(b) * target))
+    means = [float(np.mean(got[b])) for b in blocks]
+    assert all(abs(m - 1.0) < 0.08 for m in means), dict(zip(blocks, means))
+
+
+# --------------------------------------------------------------------------- #
+# Two-level draw: the window's own level, and the fluctuation about it
+# --------------------------------------------------------------------------- #
+# A horizon total is H times the mean error over that horizon, so it is driven by
+# the calibration window's LEVEL, not by fluctuation about it. Centring removes the
+# grand level, and a block of length L drawn from m concatenated windows usually
+# straddles a boundary and averages two levels, diluting what is left. Passing
+# ``n_windows`` splits the two apart: each drawn path gets one window's level plus
+# blocks of the within-window residuals, so the level enters at full weight.
+def _two_level_series(m, L, level_sd, noise_sd, seed=0):
+    """m windows of length L, each with its own level."""
+    rng = np.random.default_rng(seed)
+    levels = rng.normal(0, level_sd, m)
+    return np.concatenate([lv + rng.normal(0, noise_sd, L) for lv in levels]), levels
+
+
+def test_the_level_reaches_the_total_at_full_weight():
+    """With a level ten times the noise, the H-period total must be dominated by
+    it: sd(total) should be near H * sd(level), not a diluted fraction."""
+    m, L = 6, 10
+    s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    paths = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m)
+    got = paths.sum(axis=1).std()
+    target = L * np.std(levels - levels.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.15), (got, target)
+
+
+def test_without_n_windows_the_level_is_diluted():
+    """The contrast that motivates the parameter: the same series drawn flat gives
+    a materially smaller total, because most blocks straddle a boundary."""
+    m, L = 6, 10
+    s, _ = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    flat = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                             rng=np.random.default_rng(0)).sum(axis=1).std()
+    split = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m).sum(axis=1).std()
+    assert split > 1.25 * flat, (split, flat)
+
+
+def test_a_flat_series_is_unchanged_by_splitting_it():
+    """When the windows share a level there is nothing to separate, so the two
+    draws must agree."""
+    rng = np.random.default_rng(7)
+    s = rng.normal(0, 1.0, 60)
+    a = block_error_paths(s, horizon=10, block=10, n_sim=40_000,
+                          rng=np.random.default_rng(0)).sum(axis=1).std()
+    b = block_error_paths(s, horizon=10, block=10, n_sim=40_000,
+                          rng=np.random.default_rng(0), n_windows=6).sum(axis=1).std()
+    assert b == pytest.approx(a, rel=0.20), (a, b)
+
+
+def test_one_window_cannot_identify_a_level():
+    """With a single window every level deviation is zero by construction, so the
+    variance the total needs is unidentified. The draw says so."""
+    s = np.random.default_rng(8).normal(size=30)
+    with pytest.raises(MlsynthDataError, match="two windows|n_windows"):
+        block_error_paths(s, horizon=6, block=6, n_sim=100, n_windows=1)
+
+
+@pytest.mark.parametrize("bad", [-1, 2.5, "3", True])
+def test_a_bad_window_count_is_refused(bad):
+    s = np.random.default_rng(9).normal(size=30)
+    with pytest.raises(MlsynthConfigError, match="n_windows"):
+        block_error_paths(s, horizon=6, block=6, n_sim=100, n_windows=bad)
+
+
+def test_more_windows_than_periods_is_refused():
+    s = np.random.default_rng(10).normal(size=8)
+    with pytest.raises(MlsynthDataError, match="n_windows"):
+        block_error_paths(s, horizon=4, block=2, n_sim=100, n_windows=9)
+
+
+def test_the_level_carries_m_minus_one_degrees_of_freedom():
+    """The m window means are deviations from the grand mean, so they sum to zero
+    and carry m-1 degrees of freedom. Drawing from them as if they were m
+    independent observations understates the level by sqrt((m-1)/m) -- eighteen
+    percent at three windows, which is what a blank window of three horizons gives.
+    Measured at m=3, where the two conventions are furthest apart."""
+    m, L = 3, 8
+    got, ddof1, ddof0 = [], [], []
+    for seed in range(12):
+        s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.05, seed=seed)
+        paths = block_error_paths(s, horizon=L, block=2, n_sim=20_000,
+                                  rng=np.random.default_rng(seed), n_windows=m)
+        got.append(paths.sum(axis=1).std())
+        c = levels - levels.mean()
+        ddof1.append(L * np.std(c, ddof=1))
+        ddof0.append(L * np.std(c, ddof=0))
+    r1 = float(np.mean(got) / np.mean(ddof1))
+    r0 = float(np.mean(got) / np.mean(ddof0))
+    assert abs(r1 - 1.0) < 0.10, ("unbiased target", r1)
+    assert r0 > 1.12, ("must exceed the ddof=0 target", r0)
+
+
+# --------------------------------------------------------------------------- #
+# Shrinking the level toward zero when the windows do not disagree
+# --------------------------------------------------------------------------- #
+# The m window means scatter even when every window shares a level, because each
+# mean is an average of L noisy periods. Their variance estimates
+#     sigma_level^2 + sigma_within^2 / L,
+# so drawing from them whole charges the band for a level that is not there. The
+# draw subtracts the noise floor -- the ANOVA estimator
+# max(0, s2_between - s2_within / L) -- which leaves a strongly levelled series
+# almost untouched and collapses the term to nothing on a flat one.
+def _flat_ratio(m, width=10, horizon=10, block=5, reps=10, seed=11):
+    """Split-draw total over flat-draw total, on a series with no true level."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(reps):
+        s = rng.normal(0, 1.0, m * width)
+        flat = block_error_paths(s, horizon=horizon, block=block, n_sim=8_000,
+                                 rng=np.random.default_rng(0)).sum(axis=1).std()
+        split = block_error_paths(s, horizon=horizon, block=block, n_sim=8_000,
+                                  rng=np.random.default_rng(0),
+                                  n_windows=m).sum(axis=1).std()
+        out.append(split / flat)
+    return float(np.mean(out))
+
+
+def test_a_flat_series_keeps_most_of_the_level_away():
+    """No true level, so the split should stay near the flat draw. It does not
+    reach it exactly: ``max(0, .)`` truncates the negative side of an estimator
+    whose mean is zero, so the floored estimate is biased up. Unshrunk the level
+    inflates the total by about 1.40 at any m -- the level variance and the
+    fluctuation variance are then equal by construction -- and shrinking takes that
+    to roughly 1.12 at six windows."""
+    assert _flat_ratio(6) < 1.25, _flat_ratio(6)
+
+
+def test_the_floor_bias_falls_as_windows_are_added():
+    """The bias is a small-sample property of the estimator, so more windows must
+    shrink it. This is what a longer pre-period buys a cumulative band."""
+    few, many = _flat_ratio(6), _flat_ratio(30)
+    assert many < few, (few, many)
+    assert many < 1.12, many
+
+
+def test_a_strongly_levelled_series_keeps_its_level():
+    """The noise floor is small against a real level, so the term survives nearly
+    whole and the total is still driven by it."""
+    m, L = 6, 10
+    s, levels = _two_level_series(m, L, level_sd=1.0, noise_sd=0.1, seed=3)
+    paths = block_error_paths(s, horizon=L, block=L, n_sim=40_000,
+                              rng=np.random.default_rng(0), n_windows=m)
+    got = paths.sum(axis=1).std()
+    target = L * np.std(levels - levels.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.15), (got, target)
+
+
+def test_the_shrinkage_is_monotone_in_how_much_the_windows_disagree():
+    m, L = 6, 10
+    widths = []
+    for level_sd in (0.0, 0.2, 0.5, 1.0):
+        s, _ = _two_level_series(m, L, level_sd=level_sd, noise_sd=0.3, seed=5)
+        widths.append(block_error_paths(s, horizon=L, block=L, n_sim=20_000,
+                                        rng=np.random.default_rng(0),
+                                        n_windows=m).sum(axis=1).std())
+    assert all(np.diff(widths) > 0), widths
+
+
+def test_the_level_variance_never_goes_negative():
+    """s2_between can fall below the noise floor by chance; the estimator floors
+    at zero instead of producing a negative variance."""
+    rng = np.random.default_rng(13)
+    for seed in range(6):
+        s = rng.normal(0, 1.0, 24)
+        p = block_error_paths(s, horizon=4, block=2, n_sim=4000,
+                              rng=np.random.default_rng(seed), n_windows=6)
+        assert np.isfinite(p).all()
+
+
+# --------------------------------------------------------------------------- #
+# The window is the horizon
+# --------------------------------------------------------------------------- #
+# A horizon total is H times the mean error over H periods, so the level the band
+# needs is a level over H periods. Deriving the window width from the series length
+# instead -- ``size // m`` -- measures a level over some other span whenever the
+# series does not divide evenly, and rescales the block cap and the zero-sum
+# correction against that other span too.
+def test_the_window_width_is_the_horizon_not_the_series_split():
+    """A 47-period series with three windows: the windows are 13 periods, the
+    horizon, and not the 15 that splitting 47 three ways would give."""
+    H = 13
+    # Three clean 13-period levels at the END, with the 8 spare periods leading, so
+    # the windows the draw keeps line up with them. Splitting 47 three ways would
+    # give 15-period chunks, which straddle the boundaries and blunt the levels.
+    lv = np.array([-3.0, 0.0, 3.0])
+    s = np.concatenate([np.zeros(8), np.repeat(lv[0], H), np.repeat(lv[1], H),
+                        np.repeat(lv[2], H)])
+    s = s + np.random.default_rng(0).normal(0, 0.01, s.size)
+    paths = block_error_paths(s, horizon=H, block=H, n_sim=20_000,
+                              rng=np.random.default_rng(0), n_windows=3)
+    got = paths.sum(axis=1).std()
+    # windows of exactly the horizon see levels -3, 0, 3 cleanly
+    target = H * np.std(lv - lv.mean(), ddof=1)
+    assert got == pytest.approx(target, rel=0.20), (got, target)
+
+
+def test_it_calibrates_on_the_periods_nearest_the_horizon():
+    """When the series holds more periods than the windows need, the ones kept are
+    the most recent -- they are the closest thing to the horizon being predicted."""
+    H = 5
+    early = np.repeat([-8.0, 8.0], H)             # 10 periods, wild
+    late = np.concatenate([np.repeat(-0.5, H), np.repeat(0.5, H)])
+    s = np.concatenate([early, late])              # 20 periods
+    s = s + np.random.default_rng(1).normal(0, 0.01, s.size)
+    got = block_error_paths(s, horizon=H, block=H, n_sim=20_000,
+                            rng=np.random.default_rng(0),
+                            n_windows=2).sum(axis=1).std()
+    late_target = H * np.std(np.array([-0.5, 0.5]) - 0.0, ddof=1)
+    assert got == pytest.approx(late_target, rel=0.30), (got, late_target)
+
+
+def test_a_series_too_short_for_two_horizons_is_refused():
+    s = np.random.default_rng(2).normal(size=9)
+    with pytest.raises(MlsynthDataError, match="two windows|n_windows|horizon"):
+        block_error_paths(s, horizon=5, block=2, n_sim=100, n_windows=2)

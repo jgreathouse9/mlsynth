@@ -130,6 +130,7 @@ def block_error_paths(
     block: int = WHOLE_HORIZON,
     n_sim: int = 2000,
     rng: Optional[np.random.Generator] = None,
+    n_windows: int = 0,
 ) -> np.ndarray:
     """``(n_sim, horizon)`` post-period error paths, drawn as sign-flipped blocks.
 
@@ -149,6 +150,17 @@ def block_error_paths(
     rng : numpy.random.Generator, optional
         Source of randomness. A fresh default generator is used when omitted, so
         a caller that wants reproducibility passes its own.
+    n_windows : int, optional
+        Number of equal-length calibration windows the series is made of. ``0``,
+        the default, treats it as one flat series. Any value of at least two
+        splits the draw in two: each path takes one window's own level, and blocks
+        of the within-window residuals on top of it.
+
+        A horizon total is ``H`` times the mean error over that horizon, so it is
+        driven by the level and not by fluctuation about it. Drawn flat, a block of
+        length ``L`` from ``m`` concatenated windows usually straddles a boundary
+        and averages two levels, so the very component that dominates the total
+        enters at a fraction of its weight. Splitting the draw restores it.
 
     Returns
     -------
@@ -169,9 +181,19 @@ def block_error_paths(
         if the series holds a single value, which carries no spread, or if the
         resolved block is not shorter than the series, which would make every
         drawn path sum to the same value and collapse the band to zero width.
+        Also if ``n_windows`` is one, since a single window's level deviation is
+        zero by construction and the variance the total needs is unidentified, or
+        if it exceeds the number of calibration periods.
     """
     h = _check_horizon(horizon)
     b = resolve_block(block, h)
+    if isinstance(n_windows, bool) or not isinstance(n_windows, (int, np.integer)) \
+            or int(n_windows) < 0:
+        raise MlsynthConfigError(
+            f"n_windows must be a non-negative integer (0 means one flat series); "
+            f"got {n_windows!r}."
+        )
+    n_windows = int(n_windows)
     if isinstance(n_sim, bool) or not isinstance(n_sim, (int, np.integer)) \
             or int(n_sim) < 1:
         raise MlsynthConfigError(
@@ -216,6 +238,44 @@ def block_error_paths(
         )
     e = e - e.mean()
 
+    if n_windows == 1:
+        raise MlsynthDataError(
+            "n_windows=1 cannot identify a level: a single window's deviation from "
+            "its own mean is zero by construction, so the between-window variance a "
+            "horizon total is made of is unidentified. Calibrate on at least two "
+            "windows, or pass n_windows=0 to draw the series flat and accept that "
+            "the total carries fluctuation only."
+        )
+    if n_windows > e.size:
+        raise MlsynthDataError(
+            f"n_windows={n_windows} exceeds the {e.size} calibration periods, so the "
+            f"windows would be empty."
+        )
+    if n_windows >= 2 and e.size < 2 * h:
+        raise MlsynthDataError(
+            f"a level needs two windows and a window is the horizon, so splitting "
+            f"asks for at least {2 * h} calibration periods; there are {e.size}. "
+            f"Calibrate on a longer series, shorten the horizon, or pass "
+            f"n_windows=0 to draw the series flat and accept that the total carries "
+            f"fluctuation only."
+        )
+    if n_windows >= 2:
+        mu, e, width = _level_split(e, n_windows, h)
+        # one level per path, sign-flipped like everything else, held across the
+        # whole horizon; the fluctuation is drawn from the within-window residuals
+        # below and added on top.
+        lvl = rng.choice(mu, size=(n_sim, 1))
+        lvl = lvl * rng.choice(np.array([-1.0, 1.0]), size=(n_sim, 1))
+        # Each window's residuals now sum to zero, so the zero-sum constraint binds
+        # at the window length and not at the series length: a block as long as a
+        # window is degenerate exactly as a block as long as the whole series was
+        # before. Cap at half a window, and correct the spread against the window.
+        b = min(b, max(1, width // 2))
+        span = width
+    else:
+        lvl = 0.0
+        span = e.size
+
     n_blocks = int(np.ceil(h / b))
     starts = rng.integers(0, e.size, size=(n_sim, n_blocks))
     idx = (starts[:, :, None] + np.arange(b)[None, None, :]) % e.size
@@ -224,25 +284,66 @@ def block_error_paths(
     # Centring costs the block sums some of their spread, and the loss is exact
     # enough to undo. Because the centred series sums to zero, its circular
     # autocovariances sum to zero too, so for a b-block
-    #     Var(S_b) = sum_{|k| < b} (b - |k|) c(k) = b v (1 - (b - 1) / (n - 1)),
-    # and the drawn totals come out narrow by sqrt((n - b) / (n - 1)) -- sixteen
-    # percent at a 13-period block drawn from 47 calibration periods, which is
-    # under-coverage in every band built on them. Scaling by the inverse restores
-    # it. The factor is exactly 1 at b = 1, so Wheeler's single-period draw, and
-    # the parity pinned on it, are unchanged.
+    #     Var(S_b) = sum_{|k|<b} (b - |k|) chat(k) = b v (1 - (b-1)/(n-1)),
+    # and the drawn totals come out narrow by sqrt((n-b)/(n-1)) -- 16 percent at a
+    # 13-period block drawn from 47 calibration periods. Scaling by the inverse
+    # restores it. The factor is exactly 1 at b = 1, so the single-period draw --
+    # Wheeler's construction, and the parity pinned on it -- is unchanged.
     #
     # It is exact for a horizon made of whole blocks, which the default
     # block = horizon always is. A horizon shorter than one block is scaled by
     # this factor too and comes out slightly wide, since a partial block of length
-    # h < b loses sqrt((n - h) / (n - 1)) and not sqrt((n - b) / (n - 1)). Erring
-    # wide is the safe direction for a band, and a per-horizon factor cannot be
-    # applied to a path without changing its shape.
-    #
-    # The b <= n / 2 guard above is the far end of this same curve, where the
-    # spread collapses to nothing. The shrinkage is continuous and present at
-    # every b; the guard only refuses where it inverts.
-    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0
-    return (draws * signs).reshape(n_sim, n_blocks * b)[:, :h] * scale
+    # h < b loses sqrt((n-h)/(n-1)) and not sqrt((n-b)/(n-1)). Erring wide is the
+    # safe direction for a band, and the alternative -- a per-horizon factor --
+    # cannot be applied to a path without changing its shape.
+    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0
+    fluct = (draws * signs).reshape(n_sim, n_blocks * b)[:, :h] * scale
+    return fluct + lvl
+
+
+def _level_split(e, n_windows, horizon):
+    """Window levels and within-window residuals, from a centred series.
+
+    The window is the horizon. A total over ``H`` periods is ``H`` times the mean
+    error over ``H`` periods, so the level the band needs is a level over exactly
+    that span; deriving the width from the series length instead would measure a
+    level over some other span whenever the series does not divide evenly, and
+    would rescale the block cap and the zero-sum correction against that other span
+    too.
+
+    Where the series holds more periods than ``m`` windows need, the ones kept are
+    the most recent, since they sit closest to the horizon being predicted. For a
+    caller whose series is exactly ``m`` horizons long -- a rolling-origin pass laid
+    end to end -- nothing is dropped and the choice does not arise.
+
+    The series is already centred, so the window means are deviations summing to
+    zero and their spread is what a horizon total is made of.
+    """
+    width = int(horizon)
+    m = min(int(n_windows), e.size // width)
+    used = m * width
+    panel = e[e.size - used:].reshape(m, width)
+    mu = panel.mean(axis=1)
+    mu = mu - mu.mean()
+    resid = (panel - panel.mean(axis=1, keepdims=True)).ravel()
+
+    # The window means scatter even when every window shares a level, since each is
+    # an average of `width` noisy periods. Their variance estimates
+    #     sigma_level^2 + sigma_within^2 / width,
+    # so drawing from them whole charges the band for a level that may not be there.
+    # Subtract the noise floor -- the ANOVA estimator for a one-way random effect --
+    # and floor it at zero, since sampling can put s2_between below the floor.
+    # A strongly levelled series is left almost untouched; a flat one collapses to
+    # nothing and the draw returns to what it would have been without the split.
+    v0 = float(np.mean(mu ** 2))                       # variance of drawing from mu
+    if m > 1 and v0 > 0.0:
+        s2_between = v0 * m / (m - 1.0)                # unbiased, means sum to zero
+        s2_within = float(np.sum(resid ** 2) / max(m * (width - 1), 1))
+        s2_level = max(0.0, s2_between - s2_within / width)
+        mu = mu * np.sqrt(s2_level / v0)
+    else:
+        mu = np.zeros_like(mu)
+    return mu, resid, width
 
 
 def resample_cumulative_paths(
@@ -301,12 +402,16 @@ def resample_cumulative_paths(
         way there is nothing to resample, and that is reported instead of an empty
         band being returned.
     """
-    from .scores import rolling_origin_counterfactual_errors
+    from .scores import origin_schedule, rolling_origin_counterfactual_errors
 
     series = rolling_origin_counterfactual_errors(
         y, refit_at, pre_periods, horizon, min_train_frac=min_train_frac)
+    # As in the weight-vector composer: one horizon-length window per origin, so
+    # the draw is told the structure and takes the level apart from the fluctuation.
+    m = len(list(origin_schedule(pre_periods, horizon, min_train_frac)))
     return block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
-                             rng=np.random.default_rng(seed))
+                             rng=np.random.default_rng(seed),
+                             n_windows=m if m >= 2 else 0)
 
 
 def resample_cumulative_paths_from_weights(
@@ -362,9 +467,14 @@ def resample_cumulative_paths_from_weights(
         If ``Y0`` does not align with ``y``, the pre-period admits no window, or
         the calibration pass yields nothing to resample.
     """
-    from .scores import rolling_origin_period_errors
+    from .scores import origin_schedule, rolling_origin_period_errors
 
     series = rolling_origin_period_errors(
         y, Y0, pre_periods, horizon, weight_fn, min_train_frac=min_train_frac)
+    # The series is one horizon-length window per rolling origin, laid end to end.
+    # Telling the draw so lets it take each window's level separately from the
+    # fluctuation about it, which is what a horizon total is made of.
+    m = len(list(origin_schedule(pre_periods, horizon, min_train_frac)))
     return block_error_paths(series, horizon=horizon, block=block, n_sim=n_sim,
-                             rng=np.random.default_rng(seed))
+                             rng=np.random.default_rng(seed),
+                             n_windows=m if m >= 2 else 0)

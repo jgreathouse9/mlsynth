@@ -862,16 +862,27 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     all. Block length has stopped meaning how much serial correlation is carried,
     so the draw raises instead of honouring it.
 
-    With :math:`m` windows the series is :math:`m \times L` periods and the default
-    block is :math:`L`, which is half the series at :math:`m = 2` and past half at
-    :math:`m = 1`. So the whole-horizon default needs at least two windows; below
-    that, and whenever a longer horizon is wanted from a short calibration series,
-    the remedy is a shorter block, and ``conformal_block=1`` always draws. The same
-    arithmetic says what a given block costs: reading :math:`b \leq n/2` back as
-    :math:`m \geq 2L/b` windows is the pre-period a block of :math:`b` asks for.
+    The band separates two terms, and the block governs only the smaller one. A
+    total over :math:`L` periods is :math:`L` times the mean error over them, so what
+    sizes it is each calibration window's own level, not the fluctuation about that
+    level. Each drawn path therefore takes one window's level, held across the whole
+    horizon, plus blocks of the within-window residuals. Because those residuals sum
+    to zero inside every window, the zero-sum constraint above binds at the window
+    length: the block is capped at :math:`L/2` and its spread corrected against
+    :math:`L`. Two windows are needed before a level can be identified at all --
+    a single window's deviation from its own mean is zero by construction -- and
+    ``conformal_horizon`` is what buys them, since :math:`m` is how many
+    non-overlapping horizons the pre-period holds.
+
+    The level is shrunk against a noise floor before it is drawn from, since the
+    window means scatter even when every window shares a level; :doc:`pda` gives the
+    estimator. Measured on panels built from real weekly market data, with a treated
+    unit the donors can reproduce, separating the two and shrinking it moves the
+    realised coverage of the total from 0.85 to 0.94 against a nominal 0.95.
 
     The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
-    period to a block. :doc:`pda` develops it in full, including the
+    period to a block and split by window. :doc:`pda` develops it in full, including
+    the
     :math:`L\gamma_0 + 2\sum_{k} (L-k)\gamma_k` variance of an :math:`L`-period
     total that the block length is there to carry, and the reference-implementation
     benchmark that pins the two constructions against each other.

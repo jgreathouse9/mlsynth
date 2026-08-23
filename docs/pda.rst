@@ -1308,6 +1308,74 @@ how much serial correlation is carried. With :math:`m` rolling origins the serie
 is :math:`m \times L` periods, so a whole-horizon block asks for :math:`m \geq 2`
 and a block of :math:`b` asks for :math:`m \geq 2L/b`.
 
+Short of that midpoint the same constraint costs spread instead of meaning, and
+the draw corrects for it. Since the centred series sums to zero its circular
+autocovariances do too, so a :math:`b`-block carries
+
+.. math::
+
+   \operatorname{Var}(S_b) = \sum_{|k|<b} (b-|k|)\,\hat\gamma_k
+                           = b\,v\left(1 - \frac{b-1}{n-1}\right),
+
+and the drawn totals come out narrow by :math:`\sqrt{(n-b)/(n-1)}` -- sixteen
+percent for a thirteen-period block drawn from forty-seven calibration periods.
+The draw multiplies by the inverse. The factor is exactly one at :math:`b = 1`, so
+the single-period construction and the reference parity pinned on it are
+unchanged, and it is exact for a horizon made of whole blocks, which the default
+:math:`b = L` always is.
+
+What the correction does not repair is the attenuation of the sample
+autocovariances themselves. A short calibration series understates persistence,
+and a scalar factor cannot recover it, so a band drawn from few windows still runs
+narrow on a strongly persistent panel. More rolling origins is the only remedy.
+
+The level, and the fluctuation about it
+"""""""""""""""""""""""""""""""""""""""
+
+A cumulative band has a second term, and it is the larger one. The total over
+:math:`L` periods is :math:`L` times the mean error over those periods, so what
+drives it is the calibration window's *level*, not the fluctuation about that
+level. Drawn from one flat series the level is invisible: every block shares it, so
+it contributes nothing to their spread, and centring removes it outright. Drawn
+from :math:`m` windows laid end to end the level is present but diluted, since a
+block of length :math:`L` usually straddles a boundary and averages two windows'
+levels.
+
+So the draw separates them. Each path takes one window's level, sign-flipped like
+everything else and held across the whole horizon, and blocks of the within-window
+residuals on top of it. The window means are deviations from the grand mean and
+carry :math:`m - 1` degrees of freedom, so they are scaled by
+:math:`\sqrt{m/(m-1)}` before being drawn from. Because each window's residuals now
+sum to zero, the zero-sum constraint binds at the window length instead of the
+series length, and the block is capped at half a window and corrected against it.
+
+The level is shrunk before it is drawn from. The :math:`m` window means scatter even
+when every window shares a level, since each is an average of :math:`L` noisy
+periods, so their variance estimates :math:`\sigma^2_{\text{level}} +
+\sigma^2_{\text{within}}/L`. Drawing from them whole charges the band for a level
+that may not be there -- on a series with none it inflates the total by about 1.40
+at any number of windows, the spurious level variance and the fluctuation variance
+being equal by construction. So the noise floor is subtracted, giving the one-way
+random-effects estimator
+
+.. math::
+
+   \hat\sigma^2_{\text{level}}
+       = \max\left(0,\ s^2_{\text{between}} - s^2_{\text{within}}/L\right),
+
+which leaves a strongly levelled series almost untouched. The floor is not free:
+truncating the negative side of an estimator whose mean is zero biases it up, so on
+a level-free series the total still runs about 1.12 times wide at six windows,
+falling to 1.04 at forty. More windows is what buys that back.
+
+Measured on panels built from real weekly market data -- 104 pre-periods, a
+13-period horizon, a treated unit the donors can reproduce -- the realised coverage
+of the total moves from 0.85 to 0.94 for VanillaSC and from 0.72 to 0.94 for a
+blank-window design, against a nominal 0.95. PDA reads 0.98 on the same panels, and
+that is its band working as specified and not conservatism: its cumulative band is
+simultaneous over the whole horizon path, so any single horizon is covered at more
+than :math:`1-\alpha` by construction.
+
 Where the scores come from differs from Wheeler as well, and the difference has a
 direction. He calibrates on leave-one-out residuals: each is scored by a model
 that saw every pre-period point but one, so it measures interpolation. mlsynth
@@ -1335,7 +1403,10 @@ horizon one the band is a quantile of :math:`2m` discrete atoms and both
 implementations land exactly on one; the case records that those atoms are
 adjacent, so the difference there is discreteness and not disagreement. It also
 records the 1.4 width ratio above, and that a whole-horizon block widens the band
-by 1.31 on an AR(0.7) panel, which is the generalisation doing its work.
+by 1.58 on an AR(0.7) panel, which is the generalisation doing its work. The
+AR(1) closed form for those eight periods is 1.96; three rolling origins give a
+24-period calibration series, and the sample autocovariances of 24 points
+understate the persistence, so the drawn band does not reach it.
 
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the
