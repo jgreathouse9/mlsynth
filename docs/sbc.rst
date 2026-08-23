@@ -918,12 +918,13 @@ Verification
 SBC is validated against the authors' own released R code, run live and
 checked one step at a time. On the German reunification panel mlsynth's
 Hamilton detrending and trend forecast reproduce the authors' ``lsq`` and
-``trend_predict`` to about :math:`10^{-8}`, and mlsynth attains the verified
-global optimum of the cycle-matching program — where the reference's
+``trend_predict`` to :math:`1.7\times10^{-14}` of each series' scale — the
+distance between R's and numpy's least-squares kernels — and mlsynth attains the
+verified global optimum of the cycle-matching program, where the reference's
 ``Synth::synth`` solver lands about :math:`2.6\%` short. The durable case is
 ``benchmarks/cases/sbc_germany.py`` and the per-step golden tests are in
 ``mlsynth/tests/test_sbc_reference.py``. See the dedicated page
-:doc:`replications/sbc` for the full design, the four-solver optimum check, and
+:doc:`replications/sbc` for the full design, the optimality certificate, and
 the donor-label finding.
 
 The same cross-check holds on a second application. ``benchmarks/cases/sbc_hongkong.py``

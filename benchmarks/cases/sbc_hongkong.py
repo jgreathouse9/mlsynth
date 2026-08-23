@@ -20,9 +20,15 @@ full sample, exactly as ``SBC_HK.R`` does.
 
 Two independent checks (matching the German-reunification finding)
 ------------------------------------------------------------------
-1. Detrending is shared and exact. mlsynth's Hamilton filter reproduces the
-   authors' ``lsq`` trend coefficients and cyclical residuals to ~5e-11 -- the
-   SBC-specific machinery (detrend, then SC the cycle) is the same on both sides.
+1. Detrending is shared and exact. mlsynth's Hamilton filter and an independent
+   base-numpy build of the authors' ``lsq`` design agree bit for bit on this
+   panel -- ``detrend_max_abs_diff`` is 0.0, pinned as 0.0 -- so the two
+   readings of "detrend at horizon h with p lags" are the same computation, not
+   two computations that happen to land close. The R side of the detrending is
+   cross-validated separately and at full precision on the German panel
+   (``mlsynth/tests/test_sbc_reference.py``, agreement 1.7e-14 of the series
+   scale); this bundle's R capture records the ATT, the cyclical SSE and the
+   weights, so nothing here compares a cycle against R.
 
 2. On the synthetic-control step the two diverge, and mlsynth is the more
    accurate one -- the same result the German case documents. The cyclical
@@ -46,7 +52,7 @@ provenance, and this case reads the captured ``reference.json`` via
 ``python benchmarks/reference/generate.py sbc_hongkong``.
 
 The upstream repo carries no licence, so the authors' method is reproduced on the
-in-repo public FRED data rather than vendored (mirroring ``sbc_germany``).
+in-repo public FRED data instead of vendoring it (mirroring ``sbc_germany``).
 
 Provenance
 ----------
@@ -111,6 +117,20 @@ def _cyclical(df):
     return treated_fit, c1, c0
 
 
+def _optimality_gap(c1, c0, w):
+    """Relative distance from the global optimum of the cyclical program.
+
+    The objective is convex, so linearising it at ``w`` bounds every feasible
+    point from below: ``f(v) >= f(w) + g'(v - w)``, minimised over the simplex
+    by putting all mass on the smallest gradient coordinate. The gap between the
+    attained objective and that bound certifies the solve.
+    """
+    attained = float(np.sum((c1 - c0 @ w) ** 2))
+    gradient = 2.0 * (c0.T @ (c0 @ w - c1))
+    lower_bound = attained + float(gradient.min() - gradient @ w)
+    return (attained - lower_bound) / attained
+
+
 def _detrend_max_abs_diff(df):
     """Max abs diff of mlsynth's treated Hamilton coefs+cycle vs the R lsq (the
     R values are captured; here we recompute the authors' lsq to compare)."""
@@ -159,6 +179,9 @@ def run() -> dict:
         # on the strictly-convex cyclical program.
         "mls_sse_le_ipop": 1.0 if mls_sse <= ipop_sse_on_same + 1.0 else 0.0,
         "ipop_sse_excess_frac": float((ipop_sse_on_same - mls_sse) / mls_sse),
+        # how far the returned weights sit from the global optimum, certified by
+        # the convexity of the cyclical objective (see the note below EXPECTED).
+        "mls_cyc_optimality_gap": _optimality_gap(c1, c0, w_cyc),
         # detrending is the shared, exact SBC-specific machinery.
         "detrend_max_abs_diff": _detrend_max_abs_diff(df),
         # top cyclical donors mlsynth loads (Italy/Germany-dominant, as R).
@@ -211,23 +234,30 @@ def comparison() -> dict:
     }
 
 
-# Detrending is deterministic and shared: mlsynth's Hamilton filter reproduces
-# the authors' lsq coefficients + cyclical residuals to ~5e-11. On the cyclical
-# SC step the strictly-convex simplex program has a unique optimum; mlsynth's
-# projected-gradient solver attains it (~1.648e7 SSE), strictly better than the
-# authors' Synth::synth ipop (~1.749e7, +6%). Both give an Italy/Germany-dominant
-# cyclical synthetic HK and a negative post-handover ATT. Targets are pinned from
-# the live captured R run (benchmarks/reference/sbc_hongkong/) via
-# reference_value/load_reference. mls_att is the mlsynth headline (it differs
-# from the R ATT only through ipop's sub-optimal weights, so it is anchored with
-# a band, not to the R value).
+# What each tolerance is. The three claims that are true or false -- a negative
+# ATT, an objective no worse than ipop's, eleven donors -- are pinned exactly,
+# and so is the detrending agreement, which is a bitwise zero.
+# ``mls_cyc_optimality_gap`` is a certificate, not a pin: linearising the convex
+# cyclical objective at the returned weights bounds every feasible point's
+# objective from below, and the distance to that bound proves how close the
+# solve is to the global optimum without trusting a recorded number. mlsynth
+# certifies to 9.8e-8 here; the assertion allows 1e-5.
+# The remaining four are mlsynth's own deterministic output, reproduced bit for
+# bit across runs, pinned as values at 1e-6 relative -- six orders above the
+# floating-point movement a different platform would introduce, and far below
+# the shift an under-converged cyclical solve produces. The authors' ipop values
+# are read from the live captured R run (benchmarks/reference/sbc_hongkong/) via
+# reference_value/load_reference; mlsynth's ATT differs from the R ATT through
+# ipop's sub-optimal weights, so it is pinned as mlsynth's value and compared to
+# R in comparison().
 EXPECTED = {
-    "mls_att": (-5110.78, 5.0),                 # mlsynth headline ATT (per-capita PPP USD)
+    "mls_att": (-5110.7755843056475, 5.11e-3),  # mlsynth headline ATT (per-capita PPP USD)
     "att_negative": (1.0, 0.0),                 # negative post-handover effect
-    "mls_cyc_sse": (16484515.7, 5000.0),        # mlsynth attains the verified optimum
+    "mls_cyc_sse": (16484515.698343469, 16.5),  # mlsynth attains the verified optimum
+    "mls_cyc_optimality_gap": (0.0, 1e-5),      # certified: how close to that optimum
     "mls_sse_le_ipop": (1.0, 0.0),              # <= authors' ipop on the same program
-    "ipop_sse_excess_frac": (0.061, 0.02),      # ipop is ~6% worse
-    "detrend_max_abs_diff": (0.0, 1e-6),        # shared exact detrending
-    "italy_plus_germany": (0.770, 0.05),        # Italy+Germany carry the cyclical mass
+    "ipop_sse_excess_frac": (0.06116224016772239, 6.12e-8),   # ipop is ~6% worse
+    "detrend_max_abs_diff": (0.0, 0.0),         # shared detrending, bit for bit
+    "italy_plus_germany": (0.7700474919523621, 7.7e-7),
     "n_donors": (11.0, 0.0),
 }
