@@ -17,6 +17,10 @@
   "mlsynth/utils/post_fit.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
+ "pcr_shen_estimator_coverage": [
+  "basedata/german_reunification.csv",
+  "mlsynth/utils/clustersc_helpers/pcr/inference.py"
+ ],
  "pda_wheeler_lassosynth": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/pda.py",
