@@ -158,9 +158,17 @@ def test_a_coarse_grid_understates_the_band():
 
 def test_a_band_reaching_the_grid_edge_is_reported_as_infinite():
     """That end is bounded by ``grid_scale``, not by the data, and a finite
-    number there would understate it without saying so."""
+    number there would understate it without saying so.
+
+    Each end is asserted on its own. An earlier version took ``any`` over the
+    union of the two, which passes on a run where only the upper end escapes and
+    so cannot see the lower guard fail -- a mutant that disabled exactly that
+    branch survived it.
+    """
     _, lo, hi, _ = _call(grid_scale=0.05, n_nulls=9)
-    assert np.any(np.isinf(np.asarray(lo)) | np.isinf(np.asarray(hi)))
+    lo, hi = np.asarray(lo, dtype=float), np.asarray(hi, dtype=float)
+    assert np.all(lo == -np.inf), lo
+    assert np.all(hi == np.inf), hi
 
 
 def test_a_wide_enough_grid_gives_a_finite_band():
