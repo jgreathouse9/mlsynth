@@ -463,3 +463,153 @@ def cumulative_conformal_per_unit(
             point[k], s, alpha=float(alpha), horizon=horizon)
         lower[k], upper[k] = band.lower, band.upper
     return point, lower, upper, n_scores
+
+
+def cwz_cumulative_per_unit(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, alpha: float, horizon: int, n_nulls: int = 25,
+    grid_scale: float = 3.0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit cumulative band by inverting a moving-block conformal test.
+
+    The counterpart of :func:`cumulative_conformal_per_unit`, calibrated against
+    the ``T`` cyclic shifts of the residual path instead of a disjoint split of
+    the pre-period. The split version's window count is roughly ``0.7 * T0 / L``
+    and a finite ``1 - alpha`` band needs ``ceil((m+1)(1-alpha)) <= m``, so at the
+    90 percent level it needs nine windows -- a floor of about ``12.8 * L``
+    pre-periods before a band exists at all, and every feasible design then sits
+    in the regime where the rank never trims and the half-width is simply the
+    largest score. The cyclic reference set does not depend on the horizon, so
+    neither the floor nor that regime applies.
+
+    The price is a shape assumption. Test inversion needs a null to subtract, so
+    the null here is a constant per-period effect and the reported band is
+    ``horizon`` times the accepted range of that effect. An effect that ramps is
+    not in the null family, and the honest outcome then is an empty accepted set,
+    which :func:`~mlsynth.utils.conformal.confidence_set_bounds` returns as
+    ``(nan, nan)``.
+
+    Two construction details decide the answer, both established by measurement;
+    the full account is in
+    :func:`~mlsynth.utils.conformal.moving_block_pvalue`.
+
+    The statistic is ``mean_abs``, the reference implementation's. The absolute
+    block sum is the intuitive choice for a running total and is invalid here:
+    the quadratic program leaves end-of-window residuals sign-coherent, so block
+    sums ramp toward the end of the window while magnitudes stay flat, and the
+    trailing block always occupies the most inflated position. It is not a
+    compromise -- displacing a mean-zero block by ``delta`` raises the mean of its
+    absolute values, so the test has power against precisely the constant shift
+    being inverted.
+
+    The null refit balances every period. Under the null the adjusted series is
+    an untreated series, so all of it is fitting data, and leaving a period out
+    would put the trailing block partly outside the fit its reference blocks come
+    from. Balancing the whole window requires an explicit ``nu``: the automatic
+    rule sits exactly on its boundary when one unit is treated, and cvxpy refuses
+    the program. That is why ``nu_used`` is a parameter, not a default.
+
+    The grid is an approximation and it errs in one direction. The band is the
+    range of accepted candidates, so a coarse grid samples fewer of them and
+    reports a band that is too narrow, converging upward as ``n_nulls`` rises --
+    measured on a two-unit panel, a width of 3.14 at five candidates against 5.86
+    at thirty-one. Coarse is anti-conservative here, not conservative, which is
+    the opposite of the usual intuition about discretisation.
+
+    An accepted set that reaches an end of the grid is bounded by ``grid_scale``
+    and not by the data, and that end is returned as infinite. Reporting the
+    endpoint instead would understate the band silently, since it looks like any
+    other number.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(point, lower, upper, p_zero)``, each of shape ``(J,)`` in ``groups``
+        order. ``lower`` and ``upper`` are on the cumulative scale and may be
+        infinite; ``p_zero`` is the permutation p-value of the no-effect null.
+    """
+    from ..conformal import confidence_set_bounds, moving_block_pvalue
+
+    if (isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating))
+            or not 0.0 < float(alpha) < 1.0):
+        raise MlsynthConfigError(
+            f"alpha must be a number in the open interval (0, 1); got {alpha!r}.")
+    if (isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer))
+            or int(horizon) < 1):
+        raise MlsynthConfigError(
+            f"horizon must be a positive integer; got {horizon!r}.")
+    if (isinstance(n_nulls, bool) or not isinstance(n_nulls, (int, np.integer))
+            or int(n_nulls) < 3):
+        raise MlsynthConfigError(
+            f"n_nulls must be an integer of at least 3; got {n_nulls!r}. A "
+            "two-point grid cannot express an interval -- it can only return its "
+            "own endpoints, which would read as a band and be an artifact of the "
+            "grid.")
+    horizon, n_nulls = int(horizon), int(n_nulls)
+    if horizon > int(n_leads):
+        raise MlsynthDataError(
+            f"horizon ({horizon}) exceeds the {int(n_leads)} post-period lead(s) "
+            "estimated; there is no full window to accumulate.")
+
+    Xy = np.asarray(Xy, dtype=float)
+    trt = np.asarray(trt, dtype=float)
+    adopted = np.isfinite(trt)
+    if not adopted.any():
+        raise MlsynthDataError(
+            "cumulative conformal inference needs at least one treated unit; no "
+            "unit has a finite adoption time.")
+
+    full = run_multisynth(Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff,
+                          time_cohort=time_cohort, nu=nu_used, lam=lam,
+                          solver=solver)
+    tau = np.asarray(full["tau_rel"], dtype=float)
+    groups = full["groups"]
+    t0 = int(np.min(trt[adopted]))
+    T = Xy.shape[1]
+
+    # Under the null every period is fitting data, so the refit balances all T.
+    trt_null = np.full(trt.shape, np.inf)
+    trt_null[adopted] = T
+
+    def _resid(fit, k):
+        g = fit["groups"][k]
+        res = np.asarray(fit["res"][fit["adopt_of"][g]], dtype=float)
+        row = fit["members"][g][0]
+        return res[row] - np.asarray(fit["weights"][g], dtype=float) @ res
+
+    def _pvalue(theta, row, k):
+        adj = Xy.copy()
+        adj[row, t0:t0 + horizon] -= theta
+        f = run_multisynth(adj, trt_null, T, 1, T, fixedeff=fixedeff,
+                           time_cohort=time_cohort, nu=nu_used, lam=lam,
+                           solver=solver)
+        return moving_block_pvalue(_resid(f, k)[:t0 + horizon], block=horizon,
+                                   statistic="mean_abs")
+
+    J = len(groups)
+    point = np.empty(J)
+    lower = np.empty(J)
+    upper = np.empty(J)
+    p_zero = np.empty(J)
+    for k, g in enumerate(groups):
+        row = int(full["members"][g][0])
+        total = float(np.nansum(tau[k, :horizon]))
+        point[k] = total
+        per_period = total / horizon
+        pre = _resid(full, k)[:t0]
+        half = max(float(grid_scale) * float(np.std(pre, ddof=1)), 1e-9)
+        grid = np.linspace(per_period - half, per_period + half, n_nulls)
+        pv = np.array([_pvalue(theta, row, k) for theta in grid], dtype=float)
+        lo, hi = confidence_set_bounds(grid, pv, float(alpha))
+        # An accepted set reaching an end of the grid is bounded by the grid, not
+        # by the data: the test would have gone on accepting had it been asked.
+        # Reporting the endpoint would understate the band by an amount set by
+        # ``grid_scale``, and silently, since it looks like any other number.
+        if np.isfinite(lo) and lo <= grid[0]:
+            lo = -np.inf
+        if np.isfinite(hi) and hi >= grid[-1]:
+            hi = np.inf
+        lower[k], upper[k] = lo * horizon, hi * horizon
+        p_zero[k] = _pvalue(0.0, row, k)
+    return point, lower, upper, p_zero

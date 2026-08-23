@@ -1597,3 +1597,45 @@ timeout = 300.0
   find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
   replace = "    scale = np.sqrt((e.size - b) / (e.size - 1)) if b > 1 else 1.0"
   models = "the factor upside down, so the draw shrinks the block sums a second time instead of restoring them. The band is then narrow by (n - b) / (n - 1) rather than by its square root -- twice the under-coverage the fix exists to remove, and still finite, symmetric and the right shape"
+
+[[target]]
+name = "ppscm-cwz-cumulative"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_cwz_cumulative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "null-subtracted-past-the-horizon"
+  find = "        adj[row, t0:t0 + horizon] -= theta"
+  replace = "        adj[row, t0:] -= theta"
+  models = "the candidate null subtracted from every post period instead of the horizon being tested. The band then inverts a test about a longer window than the one it reports, and on a panel whose post-period is exactly the horizon the two coincide, so the defect hides wherever the horizon happens to fill the window"
+
+  [[target.mutant]]
+  id = "band-reported-per-period-not-cumulative"
+  find = "        lower[k], upper[k] = lo * horizon, hi * horizon"
+  replace = "        lower[k], upper[k] = lo, hi"
+  models = "the accepted range of the per-period effect reported as if it were the total. The band is then narrower by a factor of the horizon and sits around a point estimate on the cumulative scale, so it is not merely small but centred wrongly -- and at horizon one the two scales agree, which is where a smoke test would look"
+
+  [[target.mutant]]
+  id = "grid-bounded-end-reported-as-a-number"
+  find = "        if np.isfinite(lo) and lo <= grid[0]:"
+  replace = "        if False and np.isfinite(lo) and lo <= grid[0]:"
+  models = "an accepted set that runs off the low end of the grid reported as if the data had bounded it there. The test would have gone on accepting had it been asked, so the endpoint is an artifact of grid_scale; printed as a number it is indistinguishable from a real bound, and it always errs narrow"
+
+  [[target.mutant]]
+  id = "null-refit-leaves-the-window-out"
+  find = "    trt_null[adopted] = T"
+  replace = "    trt_null[adopted] = t0"
+  models = "the null refit treating the window as post-treatment instead of as fitting data. Under the null the adjusted series is an untreated series, so all of it should balance; leaving the window out puts the trailing block partly outside the fit its reference blocks come from, and the shifts are then no longer exchangeable with it"
+
+  [[target.mutant]]
+  id = "statistic-is-the-block-sum"
+  find = "                                statistic=\"mean_abs\")"
+  replace = "                                statistic=\"abs_sum\")"
+  models = "the absolute block sum in place of the mean absolute residual. The quadratic program leaves end-of-window residuals sign-coherent, so block sums ramp toward the end of the window while magnitudes stay flat and the trailing block always occupies the most inflated position -- the p-value is then driven by where the block sits, not by the effect"
+
+  [[target.mutant]]
+  id = "grid-sized-from-the-treated-window-too"
+  find = "        pre = _resid(full, k)[:t0]"
+  replace = "        pre = _resid(full, k)"
+  models = "the grid half-width sized from residuals that include the treated window. A real effect inflates that spread, so the grid widens exactly when there is something to detect and the band widens with the effect it is measuring -- an interval whose width reports the treatment"
