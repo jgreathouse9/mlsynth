@@ -252,7 +252,14 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          # `all` exists so case_deps sees the whole diff. The gating filter
+          # drops test trees on purpose, and a path missing from the list cannot
+          # be recognised as one no manifest entry claims -- which is the check
+          # that widens the selection when the map has a hole.
+          list-files: json
           filters: |
+            all:
+              - '**'
             benchmarked:
               - 'mlsynth/**'
               - '!mlsynth/tests/**'
@@ -269,10 +276,18 @@ jobs:
       # case-deps job below.
       - name: Collect the changed files
         if: steps.filter.outputs.benchmarked == 'true'
+        env:
+          CHANGED_JSON: ${{ steps.filter.outputs.all_files }}
         run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
-          git diff --name-only FETCH_HEAD...HEAD > /tmp/changed.txt
-          echo "changed files:"; cat /tmp/changed.txt
+          python - <<'EOF'
+          import json, os
+          files = json.loads(os.environ["CHANGED_JSON"] or "[]")
+          with open("/tmp/changed.txt", "w") as fh:
+              fh.write("\n".join(files) + ("\n" if files else ""))
+          print(f"{len(files)} changed file(s)")
+          for f in files:
+              print(" ", f)
+          EOF
 
       - name: Run benchmark suite shard
         if: steps.filter.outputs.benchmarked == 'true'

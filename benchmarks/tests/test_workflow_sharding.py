@@ -236,8 +236,31 @@ class TestTheDependencyMapIsWiredBothEnds:
         steps = jobs["pr-suite"]["steps"]
         run = next(s for s in steps if s["name"] == "Run benchmark suite shard")
         assert "--changed-from" in run["run"]
-        collect = next(s for s in steps if s["name"] == "Collect the changed files")
-        assert "git diff --name-only" in collect["run"]
+
+    def test_the_diff_comes_from_the_filter_and_not_from_git(self, jobs):
+        """checkout is shallow here, so git cannot produce it.
+
+        The job checks out at the default depth of one, which leaves no history
+        and no merge base, so a three-dot ``git diff`` against the base branch
+        fails outright -- it did, on every shard, the first time this was wired.
+        dorny/paths-filter asks the API instead and is already in this job for
+        the gate, so it can hand over the list it has already computed.
+        """
+        steps = {s["name"]: s for s in jobs["pr-suite"]["steps"]}
+        collect = steps["Collect the changed files"]
+        assert "git diff" not in collect.get("run", "")
+        assert "steps.filter.outputs" in str(collect)
+
+    def test_the_filter_reports_every_changed_path_not_only_the_gating_ones(self, jobs):
+        """case_deps needs the whole diff to spot a file no manifest entry claims.
+
+        The gating filter drops test trees and docs on purpose, and selecting on
+        that alone would hide a path from the hole check. A second filter matching
+        everything supplies the full list.
+        """
+        gate = next(s for s in jobs["pr-suite"]["steps"] if s.get("id") == "filter")
+        assert gate["with"].get("list-files") == "json"
+        assert "all:" in gate["with"]["filters"]
 
     def test_the_diff_is_collected_under_the_same_guard_as_the_run(self, jobs):
         """Collecting it when the shards will not run wastes a fetch."""
