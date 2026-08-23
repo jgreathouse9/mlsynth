@@ -191,7 +191,7 @@ def _check_grid(grid):
     return np.sort(grid)
 
 
-def _grid_bounds(accepts, grid, alpha):
+def _grid_bounds(pvalues, grid, alpha):
     """Range of the surviving candidates, and whether they had holes.
 
     Delegates the accept rule and the range to
@@ -201,7 +201,7 @@ def _grid_bounds(accepts, grid, alpha):
     """
     from .inversion import confidence_set_bounds
 
-    pvalues = np.array([accepts(float(t)) for t in grid], dtype=float)
+    pvalues = np.asarray(pvalues, dtype=float)
     lo, hi = confidence_set_bounds(grid, pvalues, alpha)
     kept = pvalues > alpha
     if not kept.any():
@@ -253,7 +253,10 @@ def cumulative_conformal_by_inversion(
         form more than one island; ``bisect`` walks outward from the point
         estimate and stops at the first crossing, which is fast and finds a
         narrow set, but can exclude an accepted candidate beyond a hole.
-        ``grid`` sees whatever the grid covers and says whether there were holes.
+        ``grid`` sees whatever the grid covers and says whether there were holes,
+        and chains its refits through
+        :func:`~mlsynth.utils.bilevel.ridge_inference.conformal_pvalue_sweep`,
+        so its cost is far below one cold solve per candidate.
     grid : array-like, optional
         Candidate per-period effects, required by ``search="grid"``. There is no
         default: a grid has to be scaled to the panel's own dispersion, and one
@@ -306,15 +309,16 @@ def cumulative_conformal_by_inversion(
                                         conformal_type=conformal_type, **kwargs)
         gaps = None
     else:
-        from ..bilevel.ridge_inference import conformal_pvalue
+        # One sweep, not one call per candidate. The sweep walks the grid sorted
+        # so consecutive solves are neighbouring problems and each seeds the next
+        # from its own solution; the p-values come back in the caller's order and
+        # are identical to solving every candidate cold, since a seed moves how
+        # many pivots the active set takes and never where it certifies.
+        from ..bilevel.ridge_inference import conformal_pvalue_sweep
 
-        def pvalue_at(tau0: float) -> float:
-            shifted = y_w.copy()
-            shifted[pre:] -= tau0
-            return conformal_pvalue(shifted, Y0_w, pre, refit=refit,
-                                    conformal_type=conformal_type, **kwargs)
-
-        lo, hi, gaps = _grid_bounds(pvalue_at, grid, alpha)
+        pvalues = conformal_pvalue_sweep(y_w, Y0_w, pre, grid, refit=refit,
+                                         conformal_type=conformal_type, **kwargs)
+        lo, hi, gaps = _grid_bounds(pvalues, grid, alpha)
 
     # The point is the estimator's own effect: weights fitted on the pre-period
     # alone, so the post gaps are the ones the band is meant to describe.
