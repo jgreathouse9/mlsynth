@@ -408,6 +408,31 @@ for the overall ATT and each relative-time horizon, with Wald intervals.
 ``inference_method="bootstrap"`` swaps in augsynth's default Mammen wild
 bootstrap, which reweights the single fit instead of refitting.
 
+What the jackknife varies, and what it therefore prices
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dropping a control and dropping a treated unit are not the same experiment.
+Removing a control moves the synthetic counterfactual a little. Removing a
+treated unit removes one of the few draws the effect is averaged over, and that
+is the sampling variability of the pooled estimand. A jackknife ensemble made
+entirely of control deletions measures donor substitution.
+
+That distinction bites with a single treated unit. Deleting it leaves no treated
+unit, so the estimator cannot be refit and the replicate is skipped: every
+survivor is a control deletion, and the reported standard error cannot be moved
+by the treated unit's own outcomes at all. Raising a planted effect from 2.0 to
+52.0 on such a panel moves the ATT by 50 and leaves the standard error
+bit-identical.
+
+``PPSCM`` therefore refuses instead of reporting that number. The refusal names
+how many replicates were admitted and how many removed a treated unit, so the
+distinction is visible in the message. Two treated units give one treated
+deletion, which is a thin ensemble but not a vacuous one, and it is allowed.
+
+With one treated unit, reach for an inference method that does not rest on
+deleting treated units --- ``inference_method="bootstrap"`` reweights a single
+fit --- or report the point estimate without an interval.
+
 Analytical standard errors under the Callaway-Sant'Anna conventions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
