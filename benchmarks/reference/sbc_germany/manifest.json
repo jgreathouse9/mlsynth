@@ -5,5 +5,8 @@
   "reference_impl": "Shi-Xi-Xie SBC method (Germany.R detrending + Synth::synth ipop, independent R run)",
   "path_type": "cross-validation",
   "command": "Rscript benchmarks/reference/sbc_germany/reference.R",
-  "data": ["basedata/german_reunification.csv"]
+  "data": [
+    "basedata/german_reunification.csv"
+  ],
+  "note": "The deviation is the reference solver's, and it is in one place: the cyclical weight solve. The detrending and trend-forecast rows agree to 1.7e-14 of each series' scale (R's lm QR against numpy's lstsq). On the weight solve the program is strictly convex with a unique optimum, mlsynth attains it -- certified to 1.4e-6 by the convexity of the objective, and a cyclical sum of squares 2.6% lower than the authors' Synth::synth ipop reaches at any tolerance -- so the ATT and weight rows differ because the reference does not converge to the optimum. See docs/replications/sbc.rst."
 }

@@ -1,11 +1,16 @@
 # case: sbc_hongkong
-# generated_at: 2026-07-12T00:13:35Z
-# mlsynth_version: 1.0.0
+# generated_at: 2026-08-23T10:31:41Z
+# mlsynth_version: 2.0.0
 # estimator: SBC (Hamilton detrend + simplex SC on cycle)
 # config: {"estimator": "SBC", "h": 4, "outcome": "gdp", "p": 2, "time": "year", "treat": "Handover", "unitid": "country", "weights_mode": "simplex"}
 # reference_impl: authors' SBC_HK.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
 # reference_version: jinxi-atlas/Synthetic-business-cycle-code (arXiv:2505.22388), reproduced on in-repo FRED data
 quantity,mlsynth,reference,abs_diff
+Hamilton trend coef (intercept),923.942157,923.942157,0.0
+treated cycle (first pre-period),-50.343175,-50.343175,0.0
+treated cycle (last pre-period),-2414.809478,-2414.809478,0.0
+donor cycle Italy (first),-1255.804099,-1255.804099,0.0
+trend forecast (first post period),29223.730907,29223.730907,0.0
 ATT (post-handover),-5110.776,-4993.382,117.394
 cyclical pre-SSE (lower=better),16484515.7,17492666.8,1008151.1
 weight[Italy],0.407867,0.439286,0.031419

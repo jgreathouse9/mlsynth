@@ -84,6 +84,112 @@ def run() -> dict:
     }
 
 
+def _golden() -> dict:
+    """The authors' per-step values, at the precision the capture records."""
+    import numpy as np
+
+    path = (Path(__file__).resolve().parents[1] / "reference" / "sbc_germany"
+            / "golden_steps.txt")
+    out: dict = {}
+    for line in path.read_text().splitlines():
+        if "\t" not in line:
+            continue
+        key, val = line.split("\t", 1)
+        values = np.array([float(x) for x in val.split(",") if x.strip()])
+        if key.startswith("hi:"):
+            out[key[3:]] = values
+        elif key not in out:
+            out[key] = values
+    return out
+
+
+def comparison() -> dict:
+    """mlsynth SBC against the authors' own Germany.R, quantity by quantity.
+
+    Two kinds of row, and they answer different questions. The detrending and
+    trend-forecast rows compare mlsynth against the authors' ``lsq`` and
+    ``trend_predict``, captured per step at full precision in
+    ``benchmarks/reference/sbc_germany/golden_steps.txt``: those agree to the
+    least-squares kernels' own distance, 1.7e-14 of each series' scale. The
+    weight, ATT and objective rows compare against what the authors' ipop solve
+    produces, and there the two part company -- mlsynth attains a cyclical
+    objective 2.6% lower on the identical strictly-convex program, so the gap in
+    those rows is the reference solver's suboptimality. See
+    ``docs/replications/sbc.rst``.
+    """
+    import numpy as np
+
+    from benchmarks.reference import load_reference
+    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
+    from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
+
+    golden = _golden()
+    d = pd.read_csv(_BASE / "german_reunification.csv")
+    panel = d.pivot(index="year", columns="country", values="gdp")
+    T0 = list(panel.index).index(1990) + 1
+    fit = fit_hamilton_filter(panel["West Germany"].to_numpy()[:T0], h=4, p=2)
+    cycle = fit.cycle_pre[~np.isnan(fit.cycle_pre)]
+    forecast = forecast_treated_trend(y_target=panel["West Germany"].to_numpy(),
+                                      treated_fit=fit, T0=T0, horizon=4)
+
+    rows = []
+    for i, name in enumerate(["intercept", "lag 1", "lag 2"]):
+        rows.append({"quantity": f"Hamilton trend coef ({name})",
+                     "mlsynth": float(fit.coefficients[i]),
+                     "reference": float(golden["treated_trend_coef"][i])})
+    for i, label in ((0, "first"), (-1, "last")):
+        rows.append({"quantity": f"treated cycle ({label} pre-period)",
+                     "mlsynth": float(cycle[i]),
+                     "reference": float(golden["treated_cycle_pre"][i])})
+    rows.append({"quantity": "donor cycle Greece (first)",
+                 "mlsynth": float(fit_hamilton_filter(
+                     panel["Greece"].to_numpy(), h=4, p=2).cycle_pre[
+                         ~np.isnan(fit_hamilton_filter(
+                             panel["Greece"].to_numpy(), h=4, p=2).cycle_pre)][0]),
+                 "reference": float(golden["donor_cycle_full:Greece"][0])})
+    for i, year in enumerate(range(1991, 1995)):
+        rows.append({"quantity": f"trend forecast {year}",
+                     "mlsynth": float(forecast[i]),
+                     "reference": float(golden["trend_forecast"][i])})
+
+    idx = np.where(~np.isnan(fit.cycle_pre))[0]
+    donors = [c for c in panel.columns if c != "West Germany"]
+    c0 = np.column_stack([fit_hamilton_filter(panel[c].to_numpy(), h=4, p=2)
+                          .cycle_pre[idx] for c in donors])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        w_cyc = simplex_lstsq(c0, fit.cycle_pre[idx])
+    rows.append({"quantity": "cyclical pre-SSE (lower=better)",
+                 "mlsynth": float(np.sum((fit.cycle_pre[idx] - c0 @ w_cyc) ** 2)),
+                 "reference": float(golden["synth_loose_sse"][0])})
+
+    ref = load_reference("sbc_germany")
+    got = run()
+    rows.append({"quantity": "ATT (1991-1994)", "mlsynth": got["att"],
+                 "reference": float(ref["values"]["att"])})
+    for donor, key in (("Greece", "greece_weight"),
+                       ("Netherlands", "netherlands_weight"),
+                       ("Italy", "italy_weight")):
+        rows.append({"quantity": f"weight[{donor}]", "mlsynth": got[key],
+                     "reference": float(ref["values"][key])})
+
+    cfg = {"outcome": "gdp", "treat": "treat", "unitid": "country",
+           "time": "year", "estimator": "SBC", "h": 4, "p": 2,
+           "weights_mode": "simplex"}
+    return {
+        "rows": [{**r, "mlsynth": round(r["mlsynth"], 6),
+                  "reference": round(r["reference"], 6)} for r in rows],
+        "mlsynth_call": {"estimator": "SBC (Hamilton detrend + simplex SC on cycle)",
+                         "config": cfg},
+        "reference": {"impl": "authors' Germany.R (lsq detrend + trend_predict + "
+                              "Synth::synth ipop), live run, captured",
+                      "version": "jinxi-atlas/Synthetic-business-cycle-code "
+                                 "(arXiv:2505.22388), run on the authoritative "
+                                 "Abadie panel"},
+    }
+
+
 # The paper's claims are pinned exactly (tolerance 0). The four numbers are
 # mlsynth's own output, and SBC is deterministic here -- repeated runs return
 # them bit for bit -- so each is pinned as a value at 1e-6 relative. That width

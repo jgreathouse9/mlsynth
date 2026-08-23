@@ -119,6 +119,64 @@ def _cyclical(df):
     return treated_fit, c1, c0
 
 
+def _golden_steps() -> dict:
+    """The authors' lsq / trend_predict output, per step, at the precision the
+    capture records (``golden_steps.R`` in this case's reference bundle)."""
+    path = (Path(__file__).resolve().parents[1] / "reference" / "sbc_hongkong"
+            / "golden_steps.txt")
+    out: dict = {}
+    if not path.exists():
+        return out
+    for line in path.read_text().splitlines():
+        if "\t" not in line:
+            continue
+        key, val = line.split("\t", 1)
+        values = np.array([float(x) for x in val.split(",") if x.strip()])
+        if key.startswith("hi:"):
+            out[key[3:]] = values
+        elif key not in out:
+            out[key] = values
+    return out
+
+
+def _detrending_rows(df):
+    """mlsynth's Hamilton filter against the authors' ``lsq`` and
+    ``trend_predict``, step by step.
+
+    The rest of this table compares against what ``Synth::synth`` produces,
+    where the two implementations part company over the solver. These rows are
+    the steps before it, where they do not.
+    """
+    from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
+    from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
+
+    golden = _golden_steps()
+    if not golden:
+        return []
+    wide = df.pivot(index="year", columns="country", values="gdp").sort_index()
+    T0 = int((wide.index < _TREAT_YEAR).sum())
+    fit = fit_hamilton_filter(wide[_TREATED].to_numpy()[:T0], h=_H, p=_P)
+    cycle = fit.cycle_pre[~np.isnan(fit.cycle_pre)]
+    forecast = forecast_treated_trend(y_target=wide[_TREATED].to_numpy(),
+                                      treated_fit=fit, T0=T0, horizon=_H)
+    italy = fit_hamilton_filter(wide["Italy"].to_numpy(), h=_H, p=_P).cycle_pre
+    italy = italy[~np.isnan(italy)]
+    pairs = [
+        ("Hamilton trend coef (intercept)", fit.coefficients[0],
+         golden["treated_trend_coef"][0]),
+        ("treated cycle (first pre-period)", cycle[0],
+         golden["treated_cycle_pre"][0]),
+        ("treated cycle (last pre-period)", cycle[-1],
+         golden["treated_cycle_pre"][-1]),
+        ("donor cycle Italy (first)", italy[0],
+         golden["donor_cycle_full:Italy"][0]),
+        ("trend forecast (first post period)", forecast[0],
+         golden["trend_forecast"][0]),
+    ]
+    return [{"quantity": q, "mlsynth": round(float(m), 6),
+             "reference": round(float(r), 6)} for q, m, r in pairs]
+
+
 def _optimality_gap(c1, c0, w):
     """Relative distance from the global optimum of the cyclical program.
 
@@ -210,7 +268,8 @@ def comparison() -> dict:
     _ft, c1, c0 = _cyclical(df)
     mls_sse = float(np.sum((c1 - c0 @ simplex_lstsq(c0, c1)) ** 2))
 
-    rows = [
+    rows = list(_detrending_rows(df))
+    rows += [
         {"quantity": "ATT (post-handover)", "mlsynth": round(att_ml, 3),
          "reference": round(REF_ATT, 3)},
         {"quantity": "cyclical pre-SSE (lower=better)",
