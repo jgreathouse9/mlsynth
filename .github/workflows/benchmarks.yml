@@ -38,42 +38,18 @@ on:
     # Eastern in summer (EDT). Runs every day regardless of whether code changed.
     - cron: "0 7 * * *"
   workflow_dispatch:
-  # Every pull request that could move a pinned value runs the pure-Python suite
-  # (see the pr-suite job). The daily run is the full gate; this is the one that
-  # fails a change before it lands. A regression that reaches main is otherwise
-  # invisible until 07:00 UTC.
+  # Every pull request runs the pure-Python suite (see the pr-suite job), which
+  # gates its own shards on a paths filter so a change that cannot move a pinned
+  # value does not pay for them. The daily run is the full gate; the pull-request
+  # one is what fails a change before it lands. A regression that reaches main is
+  # otherwise invisible until 07:00 UTC.
   #
-  # The paths filter exists because pr-suite runs the WHOLE registry, and most
-  # pull requests cannot move a number: a docs page, a workflow edit, a change
-  # confined to the test suite. They were paying for the slowest shard, which has
-  # run past forty minutes here.
-  #
-  # It sits on the trigger, so it gates the workflow and not one job. That is
-  # only safe because every other job in this file already excludes pull requests
-  # through its own `if`, so a filtered-out pull request loses nothing it would
-  # otherwise have run. Adding a job that should run on every pull request means
-  # moving this filter down to the jobs.
-  #
-  # Inside the filter is anything a benchmark case reads: the library, the cases
-  # and their captured references, and the dependency pins that decide which
-  # versions of each get installed. This workflow is in too, so an edit to it
-  # re-validates against the suite it drives. mlsynth/tests is out because no
-  # case imports it -- the references in case docstrings are prose -- and
-  # mlsynth/guides/llms.txt is out because it is generated agent documentation
-  # that no case reads. Which side a path is on is pinned in
-  # benchmarks/tests/test_workflow_sharding.py, so a new directory that cases
-  # read cannot be added without saying so.
+  # The filter is a step inside pr-suite and not a `paths:` here on purpose. A
+  # trigger-level filter stops the whole workflow, so the check never appears on
+  # the pull request at all; gating the step leaves the job reporting success,
+  # which is what a required check would need and what build.yml already does.
   pull_request:
     branches: [main]
-    paths:
-      - 'mlsynth/**'
-      - '!mlsynth/tests/**'
-      - '!mlsynth/guides/llms.txt'
-      - 'benchmarks/**'
-      - 'pyproject.toml'
-      - 'setup.py'
-      - 'constraints.txt'
-      - '.github/workflows/benchmarks.yml'
 
 permissions:
   contents: read
@@ -257,13 +233,43 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e '.[all]' -c benchmarks/constraints.txt
 
+      # The benchmark shards are the slow half of a pull request, and most pull
+      # requests cannot move a pinned value. This is the same dorny/paths-filter
+      # gate build.yml already uses, with the same danger recorded there: a
+      # skipped step reports success, and a skipped success is indistinguishable
+      # from a real one on the pull request page. So the list is asserted in
+      # benchmarks/tests/test_workflow_sharding.py against what a case can read.
+      #
+      # It is build.yml's list minus two trees and one file. mlsynth/tests and
+      # benchmarks/tests are out because the registry loads only benchmarks.cases,
+      # so no case imports either -- the references to test modules in case
+      # docstrings are prose. This workflow is out because its own invariants are
+      # unit tested, and build.yml runs those tests; validating a YAML edit by
+      # running the whole registry is the cost this gate exists to remove.
+      #
+      # basedata is IN and must stay in: 127 case files read fixtures from it.
+      - name: Detect changes that could move a pinned value
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            benchmarked:
+              - 'mlsynth/**'
+              - '!mlsynth/tests/**'
+              - 'benchmarks/**'
+              - '!benchmarks/tests/**'
+              - 'basedata/**'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+
       - name: Run benchmark suite shard
+        if: steps.filter.outputs.benchmarked == 'true'
         run: |
           python -u benchmarks/run_benchmarks.py --all --report \
             --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
 
       - name: Upload benchmark report
-        if: always()
+        if: always() && steps.filter.outputs.benchmarked == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pr-benchmark-report-shard-${{ matrix.shard }}

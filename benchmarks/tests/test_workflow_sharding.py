@@ -151,85 +151,79 @@ class TestTheTimeoutFitsTheSlowestShard:
         assert jobs["pr-suite"]["timeout-minutes"] >= jobs["suite"]["timeout-minutes"]
 
 
-class TestThePullRequestRunIsScopedToWhatCanMoveANumber:
-    """A path filter, and the reason each entry is on the right side of it.
+class TestTheShardsAreSkippedWhenNothingCouldMoveANumber:
+    """The paths filter on ``pr-suite``, and why each entry is where it is.
 
-    ``pr-suite`` runs the whole case registry on every pull request. Most pull
-    requests cannot move a pinned value: a docs page, a workflow edit, a change
-    confined to the test suite. They still paid for the slowest shard, which has
-    run past forty minutes on this repository.
+    The shards are the slow half of a pull request and most pull requests cannot
+    move a pinned value, so they are gated on a ``dorny/paths-filter`` step --
+    the same mechanism ``build.yml`` uses, asserted here for the same reason
+    ``mlsynth/tests/test_benchmark_reference.py`` gives for that one: a skipped
+    step reports success, and a skipped success is indistinguishable from a real
+    one on the pull request page. Narrowing this list without deleting the
+    dependency it covers is how a case stops being checked without anyone seeing
+    it happen.
 
-    The filter is on the ``pull_request`` trigger, so it gates the workflow and
-    not one job. That is safe here only because every other job in the file is
-    already excluded from pull requests by its own ``if``, so a filtered-out pull
-    request loses nothing that would otherwise have run.
-
-    What has to be inside the filter is anything a benchmark case reads: the
-    library, the cases and their captured references, and the dependency pins
-    that decide which versions of both get installed. The workflow itself is in
-    too, so a change to this file re-validates against the suite it drives.
+    The gate is a step and not a ``paths:`` on the trigger. A trigger-level
+    filter stops the workflow, so the check never appears on the pull request;
+    gating the step leaves the job reporting success.
     """
 
     @staticmethod
     @pytest.fixture(scope="class")
-    def paths(workflow):
-        return workflow["on"]["pull_request"]["paths"]
+    def gate(jobs):
+        steps = jobs["pr-suite"]["steps"]
+        return next(s for s in steps if s.get("id") == "filter")
 
-    def test_the_pull_request_trigger_is_filtered(self, paths):
-        assert paths, "pr-suite runs the full registry; scope it to what can move it"
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def patterns(gate):
+        body = gate["with"]["filters"]
+        return [line.strip().lstrip("- ").strip("'")
+                for line in body.splitlines() if line.strip().startswith("-")]
 
-    @pytest.mark.parametrize("changed", [
-        "mlsynth/utils/conformal/resample.py",   # a shared helper a band is drawn from
-        "mlsynth/estimators/ppscm.py",           # an estimator a case fits
-        "mlsynth/config_models.py",              # a config a case constructs
-        "benchmarks/cases/pda_wheeler_lassosynth.py",   # a case and its pinned values
-        "benchmarks/reference/ascm_mixtape/reference.json",  # a captured reference
-        "benchmarks/run_benchmarks.py",          # the driver
-        "pyproject.toml",                        # the dependency pins
-        ".github/workflows/benchmarks.yml",      # this workflow
-    ])
-    def test_a_change_that_could_move_a_pinned_value_still_runs(self, paths, changed):
-        assert _matches(paths, changed), changed
+    def test_the_gate_uses_the_same_action_build_yml_does(self, gate):
+        assert gate["uses"].startswith("dorny/paths-filter@")
 
-    @pytest.mark.parametrize("changed", [
-        "docs/ppscm.rst",                        # prose
-        "docs/index.rst",
-        "README.md",
-        "CLAUDE.md",
-        "agents/agents_tests.md",
-        "mlsynth/tests/test_ppscm.py",           # nothing imports the test suite
-        "mlsynth/guides/llms.txt",               # generated agent docs, read by no case
-        ".github/workflows/build.yml",           # a different workflow
-    ])
-    def test_a_change_that_cannot_move_one_does_not(self, paths, changed):
-        assert not _matches(paths, changed), changed
+    def test_the_expensive_step_is_the_one_gated(self, jobs):
+        run = next(s for s in jobs["pr-suite"]["steps"]
+                   if s["name"] == "Run benchmark suite shard")
+        assert run["if"] == "steps.filter.outputs.benchmarked == 'true'"
 
-    def test_a_mixed_change_still_runs(self, paths):
-        """One qualifying file is enough; the filter is any-match, not all-match."""
-        assert _matches(paths, "mlsynth/utils/datautils.py")
-        assert not _matches(paths, "docs/choose.rst")
+    def test_the_trigger_itself_is_not_filtered(self, workflow):
+        """A trigger-level filter would remove the check instead of passing it."""
+        assert "paths" not in workflow["on"]["pull_request"]
 
-    def test_the_daily_run_is_not_filtered(self, workflow):
-        """The schedule is the full gate and must not inherit the PR's scope."""
-        schedule = workflow["on"]["schedule"]
-        assert schedule and all("paths" not in entry for entry in schedule)
+    @pytest.mark.parametrize("directory", ["mlsynth/**", "benchmarks/**",
+                                           "basedata/**"])
+    def test_a_directory_a_case_reads_is_covered(self, patterns, directory):
+        assert directory in patterns
 
+    def test_basedata_is_covered_because_the_cases_read_it(self, patterns):
+        """127 case files load fixtures from it; omitting it was the first bug here."""
+        from pathlib import Path
+        cases = Path(__file__).resolve().parents[1] / "cases"
+        readers = sum("basedata" in f.read_text() for f in cases.glob("*.py"))
+        assert readers > 50, readers
+        assert "basedata/**" in patterns
 
-def _matches(patterns, path: str) -> bool:
-    """GitHub's path filter: later negations override earlier matches.
+    @pytest.mark.parametrize("excluded", ["!mlsynth/tests/**",
+                                          "!benchmarks/tests/**"])
+    def test_a_test_tree_no_case_imports_is_excluded(self, patterns, excluded):
+        assert excluded in patterns
 
-    A leading ``!`` excludes. Patterns are evaluated in order and the last one to
-    match decides, so ``mlsynth/**`` followed by ``!mlsynth/tests/**`` includes
-    the library and excludes its test suite.
-    """
-    import fnmatch
+    def test_the_registry_really_loads_only_cases(self):
+        """The claim the two exclusions rest on, checked and not assumed."""
+        from benchmarks import registry
+        assert {m.split(".")[1] for m in registry.CASES.values()} == {"cases"}
 
-    verdict = False
-    for pattern in patterns:
-        negated = pattern.startswith("!")
-        glob = pattern[1:] if negated else pattern
-        # GitHub's ** spans separators; fnmatch's * does not, so translate.
-        if fnmatch.fnmatch(path, glob) or (
-                glob.endswith("/**") and path.startswith(glob[:-2])):
-            verdict = not negated
-    return verdict
+    def test_the_dependency_pins_are_covered(self, patterns):
+        """They decide which versions a case gets installed against."""
+        assert "requirements.txt" in patterns and "pyproject.toml" in patterns
+
+    def test_every_listed_path_exists(self, patterns):
+        """A pattern naming nothing is a filter entry that can never fire."""
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        for pattern in patterns:
+            head = pattern.lstrip("!").split("*")[0].rstrip("/")
+            assert (root / head).exists(), pattern
