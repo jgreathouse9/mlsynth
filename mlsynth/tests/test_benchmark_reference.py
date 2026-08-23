@@ -61,6 +61,16 @@ class TestCIRunsWhenTheSuiteCanBreak:
         assert blocks, "could not locate any paths-filter block in build.yml"
         return [set(re.findall(r"-\s*'([^']+)'", b)) for b in blocks]
 
+    def test_a_benchmarks_workflow_edit_still_runs_the_unit_tests(self):
+        """benchmarks.yml gates its shards on its own filter, so a change to it
+        skips them. The invariants that gate rests on -- the shard count, which
+        jobs a pull request may run -- are asserted in
+        benchmarks/tests/test_workflow_sharding.py, which runs here. Without this
+        entry a pull request touching only benchmarks.yml would skip both, and
+        nothing would check it at all."""
+        for block in self._filter_blocks():
+            assert ".github/workflows/benchmarks.yml" in block
+
     def test_the_workflow_still_has_the_two_filter_copies(self):
         """If a copy is added or removed, re-read the test below before trusting it."""
         assert len(self._filter_blocks()) == 2

@@ -149,3 +149,81 @@ class TestTheTimeoutFitsTheSlowestShard:
         per-shard work is lower -- never give it a tighter cap than the run
         that is known to complete."""
         assert jobs["pr-suite"]["timeout-minutes"] >= jobs["suite"]["timeout-minutes"]
+
+
+class TestTheShardsAreSkippedWhenNothingCouldMoveANumber:
+    """The paths filter on ``pr-suite``, and why each entry is where it is.
+
+    The shards are the slow half of a pull request and most pull requests cannot
+    move a pinned value, so they are gated on a ``dorny/paths-filter`` step --
+    the same mechanism ``build.yml`` uses, asserted here for the same reason
+    ``mlsynth/tests/test_benchmark_reference.py`` gives for that one: a skipped
+    step reports success, and a skipped success is indistinguishable from a real
+    one on the pull request page. Narrowing this list without deleting the
+    dependency it covers is how a case stops being checked without anyone seeing
+    it happen.
+
+    The gate is a step and not a ``paths:`` on the trigger. A trigger-level
+    filter stops the workflow, so the check never appears on the pull request;
+    gating the step leaves the job reporting success.
+    """
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def gate(jobs):
+        steps = jobs["pr-suite"]["steps"]
+        return next(s for s in steps if s.get("id") == "filter")
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def patterns(gate):
+        body = gate["with"]["filters"]
+        return [line.strip().lstrip("- ").strip("'")
+                for line in body.splitlines() if line.strip().startswith("-")]
+
+    def test_the_gate_uses_the_same_action_build_yml_does(self, gate):
+        assert gate["uses"].startswith("dorny/paths-filter@")
+
+    def test_the_expensive_step_is_the_one_gated(self, jobs):
+        run = next(s for s in jobs["pr-suite"]["steps"]
+                   if s["name"] == "Run benchmark suite shard")
+        assert run["if"] == "steps.filter.outputs.benchmarked == 'true'"
+
+    def test_the_trigger_itself_is_not_filtered(self, workflow):
+        """A trigger-level filter would remove the check instead of passing it."""
+        assert "paths" not in workflow["on"]["pull_request"]
+
+    @pytest.mark.parametrize("directory", ["mlsynth/**", "benchmarks/**",
+                                           "basedata/**"])
+    def test_a_directory_a_case_reads_is_covered(self, patterns, directory):
+        assert directory in patterns
+
+    def test_basedata_is_covered_because_the_cases_read_it(self, patterns):
+        """127 case files load fixtures from it; omitting it was the first bug here."""
+        from pathlib import Path
+        cases = Path(__file__).resolve().parents[1] / "cases"
+        readers = sum("basedata" in f.read_text() for f in cases.glob("*.py"))
+        assert readers > 50, readers
+        assert "basedata/**" in patterns
+
+    @pytest.mark.parametrize("excluded", ["!mlsynth/tests/**",
+                                          "!benchmarks/tests/**"])
+    def test_a_test_tree_no_case_imports_is_excluded(self, patterns, excluded):
+        assert excluded in patterns
+
+    def test_the_registry_really_loads_only_cases(self):
+        """The claim the two exclusions rest on, checked and not assumed."""
+        from benchmarks import registry
+        assert {m.split(".")[1] for m in registry.CASES.values()} == {"cases"}
+
+    def test_the_dependency_pins_are_covered(self, patterns):
+        """They decide which versions a case gets installed against."""
+        assert "requirements.txt" in patterns and "pyproject.toml" in patterns
+
+    def test_every_listed_path_exists(self, patterns):
+        """A pattern naming nothing is a filter entry that can never fire."""
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        for pattern in patterns:
+            head = pattern.lstrip("!").split("*")[0].rstrip("/")
+            assert (root / head).exists(), pattern
