@@ -150,6 +150,20 @@ def select_cases(names, needs_reference, *, with_reference, shard, num_shards):
     return names
 
 
+
+def _read_changed(path) -> list:
+    """Repository-relative paths, one per line, as ``git diff --name-only`` gives.
+
+    Blank lines are dropped. An empty file is an empty diff, which is not the
+    same as omitting the flag: an empty diff reaches no mapped case, while no
+    flag runs everything.
+    """
+    from pathlib import Path as _Path
+
+    text = _Path(path).read_text()
+    return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
@@ -161,6 +175,9 @@ def main() -> int:
     ap.add_argument("--num-shards", type=int, default=1,
                     help="split the selected cases into this many shards "
                          "(round-robin), for parallel CI jobs")
+    ap.add_argument("--changed-from", default=None, metavar="FILE",
+                    help="a file of repository-relative changed paths, one per "
+                         "line; run only the cases that diff can reach")
     ap.add_argument("--shard", type=int, default=0,
                     help="0-based index of the shard to run (with --num-shards)")
     args = ap.parse_args()
@@ -170,6 +187,18 @@ def main() -> int:
         ap.error("--shard must be in [0, num_shards)")
 
     base = [args.case] if args.case else list(registry.CASES)
+    if args.changed_from is not None:
+        # Narrow to the cases the diff can reach before sharding, so the shards
+        # split the work that is actually going to run. case_deps widens on any
+        # doubt: an unmapped case runs, and a changed file no entry claims runs
+        # everything.
+        from benchmarks import case_deps
+
+        changed = _read_changed(args.changed_from)
+        picked = case_deps.select(changed, base)
+        print(f"changed files: {len(changed)}; cases selected: "
+              f"{len(picked)}/{len(base)}")
+        base = picked
     names = select_cases(
         base, registry.NEEDS_REFERENCE, with_reference=args.with_reference,
         shard=args.shard, num_shards=args.num_shards)

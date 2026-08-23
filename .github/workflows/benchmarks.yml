@@ -262,10 +262,23 @@ jobs:
               - 'requirements.txt'
               - 'pyproject.toml'
 
+      # The filter above decides whether the shards run at all; this decides
+      # which cases they run. case_deps widens on any doubt -- an unmapped case
+      # runs, and a changed file no entry claims runs everything -- so it can
+      # cost time and cannot silence a case. The map is refreshed nightly by the
+      # case-deps job below.
+      - name: Collect the changed files
+        if: steps.filter.outputs.benchmarked == 'true'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          git diff --name-only FETCH_HEAD...HEAD > /tmp/changed.txt
+          echo "changed files:"; cat /tmp/changed.txt
+
       - name: Run benchmark suite shard
         if: steps.filter.outputs.benchmarked == 'true'
         run: |
           python -u benchmarks/run_benchmarks.py --all --report \
+            --changed-from /tmp/changed.txt \
             --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
 
       - name: Upload benchmark report
@@ -365,6 +378,64 @@ jobs:
   # [all]+R provisioning only runs when a benchmark case/reference actually
   # changed, and commits only when the page changed.
   # ---------------------------------------------------------------------------
+
+  case-deps:
+    # Never on a pull request: this job commits the refreshed dependency map back
+    # to the default branch, and measuring it means running every case.
+    #
+    # The map is what lets a pull request run only the cases its diff can reach.
+    # It is measured, not written, because the cheaper routes fail here:
+    # cases import inside their functions, so a static scan sees entry points and
+    # not reach, and tracing imports returns the whole library because
+    # mlsynth/__init__.py loads every estimator. tools/benchmark_deps.py runs each
+    # case under coverage with the package already imported, which separates
+    # executing a module from loading one.
+    #
+    # --merge keeps entries this run did not produce. A case that skips here for
+    # a missing optional toolchain loses its entry and goes back to always
+    # running, which is the safe direction.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    env:
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[design,bayes]" coverage
+
+      - name: Measure what each case executes
+        run: python -u tools/benchmark_deps.py --all --merge
+
+      - name: Commit the map if it changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/case_deps.json
+          if git diff --cached --quiet; then
+            echo "Dependency map unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "benchmarks: refresh the case dependency map [skip ci]"
+          git pull --rebase --autostash origin main
+          git push
+
   validation-dashboard:
     # Never on a pull request: this job commits the rebuilt dashboard
     # back to the default branch.

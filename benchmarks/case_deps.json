@@ -1,0 +1,46 @@
+{
+ "conformal_window_count": [
+  "mlsynth/utils/conformal/resample.py"
+ ],
+ "marex_table3": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scexp.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/conflict.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/formulation.py",
+  "mlsynth/utils/marex_helpers/optimization.py",
+  "mlsynth/utils/marex_helpers/orchestration.py",
+  "mlsynth/utils/marex_helpers/restrictions.py",
+  "mlsynth/utils/marex_helpers/setup.py",
+  "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/syndes_helpers/restrictions.py"
+ ],
+ "pda_wheeler_lassosynth": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/pda.py",
+  "mlsynth/utils/conformal/resample.py",
+  "mlsynth/utils/conformal/scores.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/pda_helpers/config.py",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/lasso/estimation.py",
+  "mlsynth/utils/pda_helpers/lasso/inference.py",
+  "mlsynth/utils/pda_helpers/orchestration.py",
+  "mlsynth/utils/pda_helpers/results_assembly.py",
+  "mlsynth/utils/pda_helpers/setup.py",
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/supt.py"
+ ],
+ "syndes_exact_vs_mip": [
+  "basedata/urate_cps.csv",
+  "mlsynth/utils/syndes_helpers/enumeration.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
+  "mlsynth/utils/syndes_helpers/formulation.py",
+  "mlsynth/utils/syndes_helpers/gram.py",
+  "mlsynth/utils/syndes_helpers/optimization.py",
+  "mlsynth/utils/syndes_helpers/partition.py"
+ ]
+}

@@ -227,3 +227,33 @@ class TestTheShardsAreSkippedWhenNothingCouldMoveANumber:
         for pattern in patterns:
             head = pattern.lstrip("!").split("*")[0].rstrip("/")
             assert (root / head).exists(), pattern
+
+
+class TestTheDependencyMapIsWiredBothEnds:
+    """The map is useless unless something writes it and something reads it."""
+
+    def test_the_pull_request_shards_pass_the_diff(self, jobs):
+        steps = jobs["pr-suite"]["steps"]
+        run = next(s for s in steps if s["name"] == "Run benchmark suite shard")
+        assert "--changed-from" in run["run"]
+        collect = next(s for s in steps if s["name"] == "Collect the changed files")
+        assert "git diff --name-only" in collect["run"]
+
+    def test_the_diff_is_collected_under_the_same_guard_as_the_run(self, jobs):
+        """Collecting it when the shards will not run wastes a fetch."""
+        steps = {s["name"]: s for s in jobs["pr-suite"]["steps"]}
+        assert (steps["Collect the changed files"]["if"]
+                == steps["Run benchmark suite shard"]["if"])
+
+    def test_the_map_is_refreshed_off_the_pull_request(self, jobs):
+        assert "pull_request" in jobs["case-deps"]["if"]
+        run = " ".join(str(s) for s in jobs["case-deps"]["steps"])
+        assert "tools/benchmark_deps.py --all --merge" in run
+
+    def test_refreshing_the_map_may_write_to_the_repository(self, jobs):
+        assert jobs["case-deps"]["permissions"]["contents"] == "write"
+
+    def test_the_map_job_outlasts_a_full_registry_run(self, jobs):
+        """It runs every case, so its timeout has to clear the daily suite's."""
+        assert (int(jobs["case-deps"]["timeout-minutes"])
+                >= int(jobs["suite"]["timeout-minutes"]))
