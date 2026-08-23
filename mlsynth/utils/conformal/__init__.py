@@ -23,6 +23,11 @@ Contents:
 * :mod:`.cumulative` -- the band for a cumulative (total) effect:
   :func:`cumulative_conformal_interval` (pure combiner) and
   :func:`cumulative_conformal_from_refit` (single-treated-unit convenience).
+* :mod:`.cumulative_inversion` -- the same total by the other route:
+  :func:`cumulative_conformal_by_inversion` inverts a constant-effect null over
+  the whole post block, so its reference set is the ``T0 + H`` periods and not a
+  count of calibration windows. It restricts the effect's shape where
+  :mod:`.cumulative` restricts the window count.
 * :mod:`.refit` -- :func:`conformal_refit_gaps`, the refit a test-inversion
   procedure performs under a candidate null, and the one place the choice
   between a simplex and a ridge-augmented control is made.
@@ -46,6 +51,9 @@ American Statistical Association, 116(536), 1849-1864.
 from __future__ import annotations
 
 from .cumulative import cumulative_conformal_from_refit, cumulative_conformal_interval
+from .cumulative_inversion import (CONFORMAL_PERMUTATIONS,
+                                   CumulativeInversionBand,
+                                   cumulative_conformal_by_inversion)
 from .ensemble import (AGGREGATIONS, DEFAULT_MEMBERS, EnsembleErrors,
                        bootstrap_loo_errors)
 from .inversion import confidence_set_bounds
@@ -65,7 +73,9 @@ from .structure import CumulativeConformalBand
 __all__ = [
     "AGGREGATIONS",
     "BLOCK_STATISTICS",
+    "CONFORMAL_PERMUTATIONS",
     "CONFORMAL_REFIT_RULES",
+    "CumulativeInversionBand",
     "DEFAULT_MEMBERS",
     "EnsembleErrors",
     "MIN_TRAIN_PERIODS",
@@ -73,6 +83,7 @@ __all__ = [
     "confidence_set_bounds",
     "bootstrap_loo_errors",
     "conformal_refit_gaps",
+    "cumulative_conformal_by_inversion",
     "cumulative_conformal_from_refit",
     "cumulative_conformal_interval",
     "moving_block_pvalue",
