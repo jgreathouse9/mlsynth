@@ -1447,3 +1447,33 @@ timeout = 300.0
   find = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)"
   replace = "            return np.sum(np.abs(shifts), axis=1) / np.sqrt(n)"
   models = "the statistic divided by the length of the whole path instead of the post block. Every reference statistic shrinks by the same factor and so does the observed one, so the p-value survives -- but the returned magnitudes no longer match the loop's, and any caller comparing them against a statistic computed by _stat is comparing different scales"
+
+[[target]]
+name = "conformal-sweep-warm-start"
+module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_sweep_warm_start.py mlsynth/tests/test_conformal_sweep_warm_start_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "sweep-walks-the-callers-order"
+  find = "    for i in np.argsort(grid_arr, kind=\"stable\"):"
+  replace = "    for i in range(grid_arr.size):"
+  models = "the chain following the caller's ordering instead of the grid's. Consecutive solves are then no longer neighbouring problems, so the seed is a stale point from elsewhere on the grid and the active set rebuilds anyway. Every p-value is still exactly right, because a seed cannot move the optimum -- only the saving disappears, which is why nothing but a work assertion can see it"
+
+  [[target.mutant]]
+  id = "sweep-never-chains"
+  find = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  replace = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=None,"
+  models = "the seed dropped, so every candidate solves cold. This is the pre-change behaviour wearing the new entry point's name: identical answers, none of the speed, and no test that only checks values can tell the difference"
+
+  [[target.mutant]]
+  id = "sweep-misaligns-its-output"
+  find = "        out[i], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  replace = "        out[int(np.argsort(grid_arr, kind=\"stable\")[0])], base = conformal_pvalue(shifted, Y0, pre, warm_start=base,"
+  models = "results written to one slot instead of the candidate's own, which is the failure mode a sorted walk invites: the sweep visits in grid order but must report in the caller's order, and getting that wrong pairs every p-value with the wrong effect"
+
+  [[target.mutant]]
+  id = "seed-of-the-wrong-size-accepted"
+  find = "        if warm_start.size != Y0.shape[1]:"
+  replace = "        if False:"
+  models = "a seed sized for a different donor pool passed through to the solver, which drops it as infeasible and solves cold. The answer stays correct, so the caller's mix-up -- weights from another panel -- is hidden behind a right-looking number instead of being named"
