@@ -149,3 +149,87 @@ class TestTheTimeoutFitsTheSlowestShard:
         per-shard work is lower -- never give it a tighter cap than the run
         that is known to complete."""
         assert jobs["pr-suite"]["timeout-minutes"] >= jobs["suite"]["timeout-minutes"]
+
+
+class TestThePullRequestRunIsScopedToWhatCanMoveANumber:
+    """A path filter, and the reason each entry is on the right side of it.
+
+    ``pr-suite`` runs the whole case registry on every pull request. Most pull
+    requests cannot move a pinned value: a docs page, a workflow edit, a change
+    confined to the test suite. They still paid for the slowest shard, which has
+    run past forty minutes on this repository.
+
+    The filter is on the ``pull_request`` trigger, so it gates the workflow and
+    not one job. That is safe here only because every other job in the file is
+    already excluded from pull requests by its own ``if``, so a filtered-out pull
+    request loses nothing that would otherwise have run.
+
+    What has to be inside the filter is anything a benchmark case reads: the
+    library, the cases and their captured references, and the dependency pins
+    that decide which versions of both get installed. The workflow itself is in
+    too, so a change to this file re-validates against the suite it drives.
+    """
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def paths(workflow):
+        return workflow["on"]["pull_request"]["paths"]
+
+    def test_the_pull_request_trigger_is_filtered(self, paths):
+        assert paths, "pr-suite runs the full registry; scope it to what can move it"
+
+    @pytest.mark.parametrize("changed", [
+        "mlsynth/utils/conformal/resample.py",   # a shared helper a band is drawn from
+        "mlsynth/estimators/ppscm.py",           # an estimator a case fits
+        "mlsynth/config_models.py",              # a config a case constructs
+        "benchmarks/cases/pda_wheeler_lassosynth.py",   # a case and its pinned values
+        "benchmarks/reference/ascm_mixtape/reference.json",  # a captured reference
+        "benchmarks/run_benchmarks.py",          # the driver
+        "pyproject.toml",                        # the dependency pins
+        ".github/workflows/benchmarks.yml",      # this workflow
+    ])
+    def test_a_change_that_could_move_a_pinned_value_still_runs(self, paths, changed):
+        assert _matches(paths, changed), changed
+
+    @pytest.mark.parametrize("changed", [
+        "docs/ppscm.rst",                        # prose
+        "docs/index.rst",
+        "README.md",
+        "CLAUDE.md",
+        "agents/agents_tests.md",
+        "mlsynth/tests/test_ppscm.py",           # nothing imports the test suite
+        "mlsynth/guides/llms.txt",               # generated agent docs, read by no case
+        ".github/workflows/build.yml",           # a different workflow
+    ])
+    def test_a_change_that_cannot_move_one_does_not(self, paths, changed):
+        assert not _matches(paths, changed), changed
+
+    def test_a_mixed_change_still_runs(self, paths):
+        """One qualifying file is enough; the filter is any-match, not all-match."""
+        assert _matches(paths, "mlsynth/utils/datautils.py")
+        assert not _matches(paths, "docs/choose.rst")
+
+    def test_the_daily_run_is_not_filtered(self, workflow):
+        """The schedule is the full gate and must not inherit the PR's scope."""
+        schedule = workflow["on"]["schedule"]
+        assert schedule and all("paths" not in entry for entry in schedule)
+
+
+def _matches(patterns, path: str) -> bool:
+    """GitHub's path filter: later negations override earlier matches.
+
+    A leading ``!`` excludes. Patterns are evaluated in order and the last one to
+    match decides, so ``mlsynth/**`` followed by ``!mlsynth/tests/**`` includes
+    the library and excludes its test suite.
+    """
+    import fnmatch
+
+    verdict = False
+    for pattern in patterns:
+        negated = pattern.startswith("!")
+        glob = pattern[1:] if negated else pattern
+        # GitHub's ** spans separators; fnmatch's * does not, so translate.
+        if fnmatch.fnmatch(path, glob) or (
+                glob.endswith("/**") and path.startswith(glob[:-2])):
+            verdict = not negated
+    return verdict
