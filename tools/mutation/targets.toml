@@ -1573,3 +1573,27 @@ timeout = 300.0
   find = "    lower_bound = attained + float(gradient.min() - gradient @ w)"
   replace = "    lower_bound = attained + float(gradient.max() - gradient @ w)"
   models = "the convexity bound minimised over the wrong vertex of the simplex, which turns a lower bound into a quantity above the attained objective. The certificate then reports a negative gap, and an assertion that only bounds it from above would accept a solve that never converged as optimal"
+
+[[target]]
+name = "conformal-centring-shrinkage"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_centring_shrinkage.py mlsynth/tests/test_conformal_resample_paths.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "centring-shrinkage-uncorrected"
+  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  replace = "    scale = 1.0"
+  models = "the pre-fix state: block sums drawn from a centred series come out narrow by sqrt((n - b) / (n - 1)), because the centred series' circular autocovariances sum to zero. Sixteen percent at a thirteen-period block drawn from forty-seven calibration periods, and every band built on those draws is narrow by the same factor. The draw still returns finite, symmetric, right-shaped paths, so nothing about the band's appearance shows it -- only a measurement against the series' own variance does"
+
+  [[target.mutant]]
+  id = "correction-scaled-by-the-block-not-its-complement"
+  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt((e.size - 1) / b) if b > 1 else 1.0"
+  models = "the denominator taken as the block rather than its complement. The shrinkage centring imposes is (n - b) / (n - 1), so undoing it needs the complement; using b instead gives 1.88 where 1.16 is correct at a 13-block of 47 periods, and the band is then over half again too wide. Erring wide never fails a coverage check, which is what makes an over-correction harder to notice than an under-correction"
+
+  [[target.mutant]]
+  id = "correction-inverted"
+  find = "    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt((e.size - b) / (e.size - 1)) if b > 1 else 1.0"
+  models = "the factor upside down, so the draw shrinks the block sums a second time instead of restoring them. The band is then narrow by (n - b) / (n - 1) rather than by its square root -- twice the under-coverage the fix exists to remove, and still finite, symmetric and the right shape"
