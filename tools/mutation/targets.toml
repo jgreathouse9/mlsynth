@@ -1357,3 +1357,63 @@ timeout = 300.0
   find = "        pool = np.delete(all_donors, [a, b])"
   replace = "        pool = np.delete(all_donors, [a])"
   models = "a leave-two-out pool that only leaves one out, which is the ordinary placebo test wearing LTO's name: donor b stays in the pool it is being compared against, so its own fit is trivially good and the treated unit wins pairs it should lose"
+
+[[target]]
+name = "conformal-ensemble-loo"
+module-path = "mlsynth/utils/conformal/ensemble.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_ensemble.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scores-every-member-not-the-excluded-ones"
+  find = "        excluded = ~sampled[:, t]"
+  replace = "        excluded = np.ones(n_members, dtype=bool)"
+  models = "the leave-one-out condition dropped, so a period is scored by the members that fitted on it. That is an in-sample residual wearing an out-of-sample name: the series stays finite, the right length and the right sign, and it is uniformly too small, so every band calibrated on it is too narrow with nothing in its appearance to show it"
+
+  [[target.mutant]]
+  id = "excluded-and-included-swapped"
+  find = "        excluded = ~sampled[:, t]"
+  replace = "        excluded = sampled[:, t]"
+  models = "the mask inverted, which is the same in-sample defect as above but drawn from the complementary members. At a few dozen members almost every period is sampled by almost all of them, so the series stays finite and dense and reads as a successful ensemble"
+
+  [[target.mutant]]
+  id = "unscorable-period-returned-as-zero"
+  find = "    errors = np.full(n_train, np.nan)"
+  replace = "    errors = np.zeros(n_train)"
+  models = "a period no member excluded reported as a zero error instead of as missing. Zero is the most favourable value it could take, so a short ensemble looks like a perfectly fitting one, n_dropped falls to zero and the caller loses the signal that would have told it to fit more members"
+
+  [[target.mutant]]
+  id = "counterfactual-is-one-member"
+  find = "        counterfactual=combine(predictions[:, n_train:], axis=0),"
+  replace = "        counterfactual=predictions[0, n_train:],"
+  models = "the post-period path taken from the first member instead of the aggregate. The errors still describe the aggregate, so the band and the point it is laid around come from different estimators -- the one mismatch that makes an otherwise valid band invalid, and it shows up nowhere in the shapes"
+
+  [[target.mutant]]
+  id = "members-share-one-resample"
+  find = "        idx = rng.integers(0, n_train, size=n_train)"
+  replace = "        idx = np.arange(n_train)"
+  models = "the bootstrap removed, so every member fits on all the training periods and is identical to every other. Nothing is ever excluded, so nothing is scored; the ensemble costs B fits and returns a series of nan"
+
+  [[target.mutant]]
+  id = "resample-drawn-over-the-whole-series"
+  find = "        idx = rng.integers(0, n_train, size=n_train)"
+  replace = "        idx = rng.integers(0, donors.shape[1], size=n_train)"
+  models = "members fitted on periods drawn from the whole series, post periods included. The counterfactual is then fitted on the outcomes it is meant to predict, which is the leak the construction exists to avoid, and the training errors shrink because the fit had more data than it was entitled to"
+
+[[target]]
+name = "conformal-export-surface"
+module-path = "mlsynth/utils/conformal/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_exports.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "export-list-entry-dropped"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = "    # bootstrap_loo_errors: lost to a merge resolution\n"
+  models = "the half of a botched merge resolution that nothing used to catch. Every module in this package edits the same two regions of __init__.py, so two branches adding modules conflict there by construction; dropping the import line raises immediately because nine test modules import from the package, but dropping the matching __all__ entry left the direct import working and the declared surface silently smaller"
+
+  [[target.mutant]]
+  id = "export-list-entry-duplicated"
+  find = "    \"bootstrap_loo_errors\",\n"
+  replace = "    \"bootstrap_loo_errors\",\n    \"bootstrap_loo_errors\",\n"
+  models = "the other signature of a resolution that kept both sides of a conflicting region. A duplicated name changes nothing at import time, so it survives review and accumulates"
