@@ -650,9 +650,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "cumulative-scores-average-instead-of-accumulate"
-  find = "scores.setdefault(k, []).append(float(path.sum()))"
-  replace = "scores.setdefault(k, []).append(float(path.mean()))"
-  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+  find = "    return [p.sum(axis=1) for p in _rolling_pooled_paths("
+  replace = "    return [p.mean(axis=1) for p in _rolling_pooled_paths("
+  models = "calibrating on each unit's average post-period error instead of its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
 
   [[target.mutant]]
   id = "cumulative-calibration-origins-overlap"
