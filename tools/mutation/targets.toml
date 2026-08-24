@@ -650,9 +650,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "cumulative-scores-average-instead-of-accumulate"
-  find = "scores.setdefault(k, []).append(float(path.sum()))"
-  replace = "scores.setdefault(k, []).append(float(path.mean()))"
-  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+  find = "    return [p.sum(axis=1) for p in _rolling_pooled_paths("
+  replace = "    return [p.mean(axis=1) for p in _rolling_pooled_paths("
+  models = "calibrating on each unit's average post-period error instead of its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
 
   [[target.mutant]]
   id = "cumulative-calibration-origins-overlap"
@@ -1270,7 +1270,7 @@ timeout = 900.0
 [[target]]
 name = "ppscm-conformal-method"
 module-path = "mlsynth/estimators/ppscm.py"
-test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py mlsynth/tests/test_ppscm_resample_cumulative.py -q -p no:cacheprovider"
 timeout = 900.0
 
   [[target.mutant]]
@@ -1278,6 +1278,12 @@ timeout = 900.0
   find = "                if self.conformal_method == \"cyclic\":"
   replace = "                if False:"
   models = "a config field the fit reads and then does not act on. Every refusal still fires and every result field is still populated, so only a test that compares the two bands notices the caller was given the one they did not ask for"
+
+  [[target.mutant]]
+  id = "the-resample-branch-falls-through-to-split"
+  find = '                elif self.conformal_method == "resample":'
+  replace = '                elif False:'
+  models = "a caller asking for the resample band and silently getting the split one. Every field is still populated and cumulative_method still reads 'resample', so only a test that asserts the band is finite where split is infinite catches it"
 
   [[target.mutant]]
   id = "the-reported-method-taken-from-the-field-alone"
@@ -1289,20 +1295,42 @@ timeout = 900.0
 [[target]]
 name = "ppscm-conformal-method-config"
 module-path = "mlsynth/utils/ppscm_helpers/config.py"
-test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py mlsynth/tests/test_ppscm_resample_cumulative.py -q -p no:cacheprovider"
 timeout = 900.0
 
   [[target.mutant]]
   id = "the-stray-parameter-check-reads-the-chosen-method"
-  find = '        other = "split" if self.conformal_method == "cyclic" else "cyclic"'
-  replace = '        other = self.conformal_method'
+  find = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method not in m]"""
+  replace = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method in m]"""
   models = "the refusal firing on the parameters the chosen band does read and passing the ones it ignores, so every correct configuration is rejected and every mistaken one accepted"
 
   [[target.mutant]]
   id = "the-refusal-asked-of-the-field-instead-of-the-caller"
-  find = "        stray = [f for f in by_method[other] if f in fields]"
-  replace = "        stray = [f for f in by_method[other]]"
-  models = "a refusal that fires on the other method's parameters whether or not the caller set them. Both methods' defaults are always present on the model, so this rejects every fit that asks for a band at all"
+  find = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method not in m]"""
+  replace = """        stray = [f for f, m in readers.items()
+                 if self.conformal_method not in m]"""
+  models = "a refusal that fires on the other methods' parameters whether or not the caller set them. Every method's defaults are always present on the model, so this rejects every fit that asks for a band at all"
+
+  [[target.mutant]]
+  id = "the-training-fraction-owned-by-the-split-band-alone"
+  find = '            "conformal_min_train_frac": ("split", "resample"),'
+  replace = '            "conformal_min_train_frac": ("split",),'
+  models = "the shared parameter treated as the split band's private one, so a resample fit that sets where its own rolling pass starts is refused. The two bands run the same pass; only a test that sets the fraction under resample notices"
+
+  [[target.mutant]]
+  id = "the-block-length-read-after-coercion"
+  find = '    @field_validator("conformal_block", mode="before")'
+  replace = '    @field_validator("conformal_block")'
+  models = "the block length checked after pydantic has coerced it, so True arrives as 1 -- Wheeler's independent-period draw -- and reports a band too narrow under exactly the serial correlation the block exists to carry"
+
+  [[target.mutant]]
+  id = "the-draw-count-read-after-coercion"
+  find = '    @field_validator("conformal_n_sim", mode="before")'
+  replace = '    @field_validator("conformal_n_sim")'
+  models = "the draw count checked after coercion, so True arrives as 1 and the quantile is taken over a single path"
 
   [[target.mutant]]
   id = "a-method-named-without-a-horizon-accepted"

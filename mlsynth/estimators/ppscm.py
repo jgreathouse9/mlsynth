@@ -32,7 +32,8 @@ from ..utils.ppscm_helpers.cs_inference import influence_function_inference
 from ..utils.ppscm_helpers.engine import Conventions, run_multisynth
 from ..utils.ppscm_helpers.inference import (
     jackknife_inference, bootstrap_inference, per_unit_intervals,
-    cumulative_conformal_per_unit, cumulative_supt_band, cwz_cumulative_per_unit)
+    cumulative_conformal_per_unit, cumulative_supt_band, cwz_cumulative_per_unit,
+    resample_cumulative_per_unit)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -101,6 +102,8 @@ class PPSCM:
         self.conformal_min_train_frac = config.conformal_min_train_frac
         self.conformal_n_nulls = config.conformal_n_nulls
         self.conformal_grid_scale = config.conformal_grid_scale
+        self.conformal_block = config.conformal_block
+        self.conformal_n_sim = config.conformal_n_sim
         self.cumulative_band: bool = config.cumulative_band
         self.covariates = config.covariates
 
@@ -277,6 +280,19 @@ class PPSCM:
                         Xy, trt, d, n_leads, n_lags, **common,
                         n_nulls=int(self.conformal_n_nulls),
                         grid_scale=float(self.conformal_grid_scale),
+                    )
+                elif self.conformal_method == "resample":
+                    # Same rolling pass as the split branch, read at period
+                    # resolution instead of window totals, so the window floor
+                    # that leaves the split band infinite does not apply. It
+                    # reports a window count and no p-value: the diagnostic
+                    # belongs to the calibration set, and this one's is the pass.
+                    cum_pt, cum_lo, cum_hi, cum_n = resample_cumulative_per_unit(
+                        Xy, trt, d, n_leads, n_lags, **common,
+                        min_train_frac=float(self.conformal_min_train_frac),
+                        block=int(self.conformal_block),
+                        n_sim=int(self.conformal_n_sim),
+                        seed=int(self.seed),
                     )
                 else:
                     cum_pt, cum_lo, cum_hi, cum_n = cumulative_conformal_per_unit(

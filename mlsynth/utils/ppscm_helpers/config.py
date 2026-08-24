@@ -231,7 +231,7 @@ class PPSCMConfig(BaseEstimatorConfig):
             )
         return float(v)
 
-    conformal_method: Literal["split", "cyclic"] = Field(
+    conformal_method: Literal["split", "cyclic", "resample"] = Field(
         default="split",
         description=(
             "Which reference set calibrates the cumulative band, once "
@@ -254,9 +254,72 @@ class PPSCMConfig(BaseEstimatorConfig):
             "the accepted range, so an effect that ramps is outside the null "
             "family and the accepted set is empty, reported as ``nan`` bounds. "
             "It also costs about fourteen times as much, since every candidate "
-            "in the grid is a refit."
+            "in the grid is a refit. ``'resample'`` runs the same rolling pass "
+            "as ``'split'`` and reads the ``m * horizon`` per-period errors "
+            "inside those windows instead of the ``m`` totals, drawing whole "
+            "post-period paths from them as sign-flipped circular blocks. Its "
+            "reference set is periods, so the window floor does not apply and a "
+            "panel that leaves the split band infinite still gets a finite one; "
+            "unlike ``'cyclic'`` it assumes no shape for the effect and refits "
+            "nothing beyond the pass ``'split'`` already pays for. What it adds "
+            "is an assumption that ``conformal_block`` is long enough to carry "
+            "the serial correlation of the period errors."
         ),
     )
+
+    conformal_block: int = Field(
+        default=0,
+        description=(
+            "Block length in periods for the resample band's circular block "
+            "bootstrap. Only meaningful with ``conformal_method='resample'``. "
+            "``0`` (the default) means the whole horizon, the longest block the "
+            "accumulated total is sensitive to; a block longer than the horizon "
+            "is clamped to it. ``1`` draws periods independently, which is "
+            "Wheeler's original construction and is too narrow whenever the "
+            "period errors are positively autocorrelated -- the variance of an "
+            "``H``-period total is ``H * gamma_0 + 2 * sum_k (H - k) * gamma_k``, "
+            "and independent draws keep only the first term."
+        ),
+    )
+
+    conformal_n_sim: int = Field(
+        default=2000,
+        description=(
+            "Paths the resample band draws per treated unit. Only meaningful "
+            "with ``conformal_method='resample'``. Unlike the cyclic band's "
+            "``conformal_n_nulls`` these cost no refits -- the rolling pass is "
+            "the cost -- so quantile precision here is cheap."
+        ),
+    )
+
+    @field_validator("conformal_block", mode="before")
+    @classmethod
+    def _validate_conformal_block(cls, v):
+        """Read before coercion, for the reason given on
+        :meth:`_validate_conformal_n_nulls`."""
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(
+                f"conformal_block must be a non-negative integer; got {v!r}. "
+                "Zero means the whole horizon.")
+        if v < 0:
+            raise ValueError(
+                f"conformal_block must be a non-negative integer; got {v!r}. "
+                "Zero means the whole horizon.")
+        return v
+
+    @field_validator("conformal_n_sim", mode="before")
+    @classmethod
+    def _validate_conformal_n_sim(cls, v):
+        """Read before coercion, for the reason given on
+        :meth:`_validate_conformal_n_nulls`."""
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(
+                f"conformal_n_sim must be an integer of at least 2; got {v!r}.")
+        if v < 2:
+            raise ValueError(
+                f"conformal_n_sim must be an integer of at least 2; got {v!r}. "
+                "A quantile needs at least two draws to sit between.")
+        return v
 
     conformal_n_nulls: int = Field(
         default=25,
@@ -397,17 +460,27 @@ class PPSCMConfig(BaseEstimatorConfig):
                 "cumulative band to report, and conformal_horizon is None, so "
                 "no band is computed. Set conformal_horizon to the number of "
                 "post-periods to accumulate.")
-        by_method = {"cyclic": ("conformal_n_nulls", "conformal_grid_scale"),
-                     "split": ("conformal_min_train_frac",)}
-        other = "split" if self.conformal_method == "cyclic" else "cyclic"
-        stray = [f for f in by_method[other] if f in fields]
+        # Which methods read each parameter. The training fraction is shared:
+        # 'split' and 'resample' run the same rolling pass and differ only in how
+        # they reduce it, so where that pass starts belongs to both.
+        readers = {
+            "conformal_min_train_frac": ("split", "resample"),
+            "conformal_n_nulls": ("cyclic",),
+            "conformal_grid_scale": ("cyclic",),
+            "conformal_block": ("resample",),
+            "conformal_n_sim": ("resample",),
+        }
+        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method not in m]
         if stray:
+            owners = sorted({m for f in stray for m in readers[f]})
+            named = " or ".join(repr(m) for m in owners)
             raise MlsynthConfigError(
-                f"{', '.join(stray)} configures the {other!r} cumulative band, "
+                f"{', '.join(stray)} configures the {named} cumulative band, "
                 f"and conformal_method is {self.conformal_method!r}, which does "
-                f"not read it. Set conformal_method={other!r} to use it, or drop "
-                "it to take the "
-                f"{self.conformal_method!r} band's own parameters.")
+                f"not read it. Set conformal_method to {named} to use it, or "
+                f"drop it to take the {self.conformal_method!r} band's own "
+                "parameters.")
         return self
 
     @model_validator(mode="after")
