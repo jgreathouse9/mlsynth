@@ -282,13 +282,22 @@ class PPSCMUnitFit:
     tau_lower: Optional[np.ndarray] = None
     tau_upper: Optional[np.ndarray] = None
     # Conformal band on this unit's CUMULATIVE effect over ``conformal_horizon``
-    # periods -- the total it gained, calibrated on out-of-sample windows of the
-    # same length. None unless ``conformal_horizon`` is set. See
-    # ``cumulative_conformal_per_unit`` in ``inference.py``.
+    # periods -- the total it gained. None unless ``conformal_horizon`` is set.
+    # ``cumulative_method`` names the calibration set that produced the bounds,
+    # and the two diagnostics below it belong one to each: a window count for
+    # ``"split"`` (``cumulative_conformal_per_unit``), a permutation p-value of
+    # the no-effect null for ``"cyclic"`` (``cwz_cumulative_per_unit``). The
+    # other is None, which is why they are separate fields.
+    #
+    # The bounds are ``nan`` when the cyclic band's accepted set is empty -- the
+    # effect is outside its constant-per-period null family. That is distinct
+    # from None, which means no band was asked for.
     cumulative_effect: Optional[float] = None
     cumulative_lower: Optional[float] = None
     cumulative_upper: Optional[float] = None
     cumulative_windows: Optional[int] = None
+    cumulative_p_value: Optional[float] = None
+    cumulative_method: Optional[str] = None
 
 
 class PPSCMResults(_BaseEstimatorResults):

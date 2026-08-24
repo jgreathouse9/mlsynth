@@ -494,7 +494,7 @@ def cwz_cumulative_per_unit(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, alpha: float, horizon: int, n_nulls: int = 25,
-    grid_scale: float = 3.0,
+    grid_scale: float = 3.0, conventions: Conventions = Conventions(),
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Per-unit cumulative band by inverting a moving-block conformal test.
 
@@ -542,6 +542,10 @@ def cwz_cumulative_per_unit(
     at thirty-one. Coarse is anti-conservative here, not conservative, which is
     the opposite of the usual intuition about discretisation.
 
+    ``conventions`` reaches both refits, the observed fit and each null one, so
+    the band is calibrated on the estimator the caller configured. The default
+    is augsynth's, so a call that says nothing gets what it always got.
+
     An accepted set that reaches an end of the grid is bounded by ``grid_scale``
     and not by the data, and that end is returned as infinite. Reporting the
     endpoint instead would understate the band silently, since it looks like any
@@ -587,7 +591,7 @@ def cwz_cumulative_per_unit(
 
     full = run_multisynth(Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff,
                           time_cohort=time_cohort, nu=nu_used, lam=lam,
-                          solver=solver)
+                          solver=solver, conventions=conventions)
     tau = np.asarray(full["tau_rel"], dtype=float)
     groups = full["groups"]
     t0 = int(np.min(trt[adopted]))
@@ -608,7 +612,7 @@ def cwz_cumulative_per_unit(
         adj[row, t0:t0 + horizon] -= theta
         f = run_multisynth(adj, trt_null, T, 1, T, fixedeff=fixedeff,
                            time_cohort=time_cohort, nu=nu_used, lam=lam,
-                           solver=solver)
+                           solver=solver, conventions=conventions)
         return moving_block_pvalue(_resid(f, k)[:t0 + horizon], block=horizon,
                                    statistic="mean_abs")
 

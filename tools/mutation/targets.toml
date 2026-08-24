@@ -1268,6 +1268,55 @@ timeout = 900.0
   models = "norms read off the unscaled imbalance matrix but applied to scaled residuals, so the pooled objective shrinks by the fourth power of the scale and terminates at the first iterate the tolerance accepts"
 
 [[target]]
+name = "ppscm-conformal-method"
+module-path = "mlsynth/estimators/ppscm.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-method-field-ignored-at-the-branch"
+  find = "                if self.conformal_method == \"cyclic\":"
+  replace = "                if False:"
+  models = "a config field the fit reads and then does not act on. Every refusal still fires and every result field is still populated, so only a test that compares the two bands notices the caller was given the one they did not ask for"
+
+  [[target.mutant]]
+  id = "the-reported-method-taken-from-the-field-alone"
+  find = """                    cumulative_method=(self.conformal_method
+                                       if self.conformal_horizon is not None else None),"""
+  replace = "                    cumulative_method=self.conformal_method,"
+  models = "a fit with no horizon reporting 'split' as the method that produced its bounds, when it produced none. The label would then read as a band that was computed and came back empty"
+
+[[target]]
+name = "ppscm-conformal-method-config"
+module-path = "mlsynth/utils/ppscm_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-stray-parameter-check-reads-the-chosen-method"
+  find = '        other = "split" if self.conformal_method == "cyclic" else "cyclic"'
+  replace = '        other = self.conformal_method'
+  models = "the refusal firing on the parameters the chosen band does read and passing the ones it ignores, so every correct configuration is rejected and every mistaken one accepted"
+
+  [[target.mutant]]
+  id = "the-refusal-asked-of-the-field-instead-of-the-caller"
+  find = "        stray = [f for f in by_method[other] if f in fields]"
+  replace = "        stray = [f for f in by_method[other]]"
+  models = "a refusal that fires on the other method's parameters whether or not the caller set them. Both methods' defaults are always present on the model, so this rejects every fit that asks for a band at all"
+
+  [[target.mutant]]
+  id = "a-method-named-without-a-horizon-accepted"
+  find = '        if "conformal_method" in fields and self.conformal_horizon is None:'
+  replace = '        if False:'
+  models = "a caller who names a method and forgets the horizon getting a fit with no band and no complaint, which reads as the method having been applied"
+
+  [[target.mutant]]
+  id = "the-null-grid-read-after-coercion"
+  find = '    @field_validator("conformal_n_nulls", mode="before")'
+  replace = '    @field_validator("conformal_n_nulls")'
+  models = "the grid size checked after pydantic has coerced it, so True and \"9\" arrive as integers and the bool check they exist for never fires"
+
+[[target]]
 name = "weights-container-contract"
 module-path = "mlsynth/config_models.py"
 test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"

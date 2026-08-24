@@ -663,6 +663,81 @@ leaving eight windows, which no longer supports a 90% band. Read
   120          0.5    8          below the 90% threshold
   ===========  =====  =========  ===============================================
 
+Which calibration set: ``conformal_method``
+-------------------------------------------
+
+The band above calibrates on non-overlapping windows of the pre-period, and that
+reference set is small. With :math:`m \approx 0.7\,T_0/L` windows, a finite
+:math:`1-\alpha` band needs :math:`\lceil (m+1)(1-\alpha) \rceil \le m`, which
+puts a floor of about :math:`12.8\,L` pre-periods under it. Past the floor, at
+whatever level a given :math:`m` just supports, the required rank equals
+:math:`m` itself, so the order statistic never trims anything and the half-width
+is simply the largest calibration score:
+
+  ===========  =====  =========  ================  ===================
+  :math:`T_0`  L      windows    tightest level    rank
+  ===========  =====  =========  ================  ===================
+  120          8      10         90%               10 of 10
+  120          4      21         95%               21 of 21
+  104          13     5          80%               5 of 5
+  156          8      13         90%               13 of 13
+  ===========  =====  =========  ================  ===================
+
+On a thirty-market weekly panel with 120 pre-weeks, an eight-week horizon and
+:math:`\alpha = 0.05`, that leaves ten windows against a rank of eleven, and
+every treated unit's band is infinite. Marketing geo-lift panels sit here
+routinely: the horizon is a campaign flight and the pre-period is however much
+history the advertiser has.
+
+``conformal_method="cyclic"`` calibrates instead against the :math:`T` cyclic
+shifts of the residual path, a reference set whose size is the length of the
+panel and not a count of windows. Neither the floor nor the rank-never-trims
+regime applies to it. On the same panel, 118 of 120 unit-fits return a finite
+band and 114 of those 118 cover, against 0 of 120 finite for the split band::
+
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "cyclic"}).fit()
+   for label, uf in res.per_unit.items():
+       print(label, uf.cumulative_effect,
+             (uf.cumulative_lower, uf.cumulative_upper), uf.cumulative_p_value)
+
+The price is a shape assumption. Inverting a test needs a null to subtract, and
+the null here is a constant per-period effect: a candidate :math:`\theta` is
+subtracted from the treated unit's post-period, the panel is refitted, and the
+adjusted residual path is compared against its own cyclic shifts by a
+moving-block statistic. The reported band is :math:`L` times the range of the
+candidates the test accepts. An effect that ramps is outside that null family,
+and the honest outcome is an empty accepted set, reported as ``nan`` bounds --
+distinct from ``None``, which means no band was asked for at all. The split
+band assumes only that the calibration windows are exchangeable with the
+post-period window, and reports the accumulated effect directly, so it makes no
+claim about the effect's shape.
+
+The two report the same estimand, so ``conformal_method`` selects between them
+the way ``inference_method`` selects the bootstrap or the jackknife behind the
+ATT, and there is one set of bounds either way. Their diagnostics differ and so
+occupy separate fields: ``cumulative_windows`` counts the split band's calibration
+windows, ``cumulative_p_value`` is the cyclic band's permutation p-value of the
+no-effect null, and the other is ``None``. ``cumulative_method`` says which one
+produced the bounds.
+
+Their parameters differ too, and a parameter belonging to the method not chosen
+is refused by name at config time: ``conformal_min_train_frac`` is the split
+band's, ``conformal_n_nulls`` and ``conformal_grid_scale`` are the cyclic band's.
+The grid is an approximation and it errs in one direction: the band is the range
+of accepted candidates, so a coarse grid samples fewer of them and reports a band
+too narrow, converging upward as ``conformal_n_nulls`` rises -- measured on a
+two-unit panel, a width of 3.14 at five candidates against 5.86 at thirty-one.
+Coarse is anti-conservative here, the opposite of the usual intuition about
+discretisation. An accepted set reaching an end of the grid is bounded by
+``conformal_grid_scale`` and not by the data, and that end is reported as
+infinite.
+
+Every candidate is a refit, so the cyclic band costs about fourteen times the
+split one -- 9.6s against 0.7s per fit at the geometry above. Reach for it when
+the split band comes back infinite, or when the pre-period is too short for the
+floor.
+
 The cumulative effect overall
 -----------------------------
 

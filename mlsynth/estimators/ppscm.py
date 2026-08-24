@@ -32,7 +32,7 @@ from ..utils.ppscm_helpers.cs_inference import influence_function_inference
 from ..utils.ppscm_helpers.engine import Conventions, run_multisynth
 from ..utils.ppscm_helpers.inference import (
     jackknife_inference, bootstrap_inference, per_unit_intervals,
-    cumulative_conformal_per_unit, cumulative_supt_band)
+    cumulative_conformal_per_unit, cumulative_supt_band, cwz_cumulative_per_unit)
 from ..utils.ppscm_helpers.plotter import plot_ppscm
 from ..utils.ppscm_helpers.setup import prepare_ppscm_inputs
 from ..utils.ppscm_helpers.structures import (
@@ -97,7 +97,10 @@ class PPSCM:
         self.seed: int = config.seed
         self.alpha: float = config.alpha
         self.conformal_horizon = config.conformal_horizon
+        self.conformal_method = config.conformal_method
         self.conformal_min_train_frac = config.conformal_min_train_frac
+        self.conformal_n_nulls = config.conformal_n_nulls
+        self.conformal_grid_scale = config.conformal_grid_scale
         self.cumulative_band: bool = config.cumulative_band
         self.covariates = config.covariates
 
@@ -256,17 +259,30 @@ class PPSCM:
             # Per-unit band on the CUMULATIVE effect -- the total each unit gained.
             # Additional to the pooled inference above, not a replacement for it, so
             # it is off unless a horizon is asked for.
+            # ``conformal_method`` picks the calibration set: non-overlapping
+            # pre-period windows, or the cyclic shifts of the residual path. Same
+            # estimand either way, so one set of bounds; the diagnostic differs,
+            # which is why the window count and the p-value are separate fields
+            # and only one of them is filled.
+            cum_pt = cum_lo = cum_hi = cum_n = cum_p = None
             if self.conformal_horizon is not None:
-                cum_pt, cum_lo, cum_hi, cum_n = cumulative_conformal_per_unit(
-                    Xy, trt, d, n_leads, n_lags,
+                common = dict(
                     fixedeff=self.fixedeff, time_cohort=self.time_cohort,
                     nu_used=fit["nu_used"], lam=self.lam, solver=self.solver,
                     alpha=self.alpha, horizon=int(self.conformal_horizon),
-                    min_train_frac=float(self.conformal_min_train_frac),
                     conventions=conventions,
                 )
-            else:
-                cum_pt = cum_lo = cum_hi = cum_n = None
+                if self.conformal_method == "cyclic":
+                    cum_pt, cum_lo, cum_hi, cum_p = cwz_cumulative_per_unit(
+                        Xy, trt, d, n_leads, n_lags, **common,
+                        n_nulls=int(self.conformal_n_nulls),
+                        grid_scale=float(self.conformal_grid_scale),
+                    )
+                else:
+                    cum_pt, cum_lo, cum_hi, cum_n = cumulative_conformal_per_unit(
+                        Xy, trt, d, n_leads, n_lags, **common,
+                        min_train_frac=float(self.conformal_min_train_frac),
+                    )
             per_unit: Dict[Any, PPSCMUnitFit] = {}
             for k, g in enumerate(fit["groups"]):
                 key = (str(inputs.time_labels[fit["adopt_of"][g]]) if self.time_cohort
@@ -293,6 +309,11 @@ class PPSCM:
                     cumulative_lower=(float(cum_lo[k]) if cum_lo is not None else None),
                     cumulative_upper=(float(cum_hi[k]) if cum_hi is not None else None),
                     cumulative_windows=(int(cum_n[k]) if cum_n is not None else None),
+                    # nan bounds mean the cyclic band's accepted set was empty;
+                    # None means no band was asked for. Kept apart on purpose.
+                    cumulative_p_value=(float(cum_p[k]) if cum_p is not None else None),
+                    cumulative_method=(self.conformal_method
+                                       if self.conformal_horizon is not None else None),
                 )
 
             results = PPSCMResults(
