@@ -713,17 +713,53 @@ band assumes only that the calibration windows are exchangeable with the
 post-period window, and reports the accumulated effect directly, so it makes no
 claim about the effect's shape.
 
-The two report the same estimand, so ``conformal_method`` selects between them
-the way ``inference_method`` selects the bootstrap or the jackknife behind the
-ATT, and there is one set of bounds either way. Their diagnostics differ and so
-occupy separate fields: ``cumulative_windows`` counts the split band's calibration
-windows, ``cumulative_p_value`` is the cyclic band's permutation p-value of the
-no-effect null, and the other is ``None``. ``cumulative_method`` says which one
-produced the bounds.
+``conformal_method="resample"`` attacks the same shortage from a third
+direction, and it is the cheapest of the three. The split band runs a rolling
+pass over the pre-period and reduces each window to its total, so :math:`m`
+windows give :math:`m` numbers. The same pass computes an :math:`L`-period path
+on the way to each of those totals, and the resample band keeps them: its
+reference set is the :math:`m \times L` per-period errors rather than the
+:math:`m` totals. Each draw assembles a post-period path from circular blocks of
+a unit's own errors, flipping each block's sign with probability one half, and
+the band is the :math:`1-\alpha` quantile of the absolute accumulated draw::
 
-Their parameters differ too, and a parameter belonging to the method not chosen
-is refused by name at config time: ``conformal_min_train_frac`` is the split
-band's, ``conformal_n_nulls`` and ``conformal_grid_scale`` are the cyclic band's.
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "resample"}).fit()
+
+Because the reference set counts periods, the window floor does not apply, and a
+panel with seven windows against a required rank of eight -- infinite under the
+split band -- returns a finite one. It buys that without the cyclic band's shape
+assumption: nothing is subtracted, no null family is posited, and an effect that
+ramps is as admissible as a flat one. It also refits nothing beyond the rolling
+pass the split band already pays for, where the cyclic band pays a refit per
+candidate in its grid.
+
+What it does assume is that ``conformal_block`` is long enough to carry the
+serial correlation of the period errors. The variance of an :math:`H`-period
+total is :math:`H\gamma_0 + 2\sum_k (H-k)\gamma_k`, so drawing periods
+independently -- ``conformal_block=1``, Wheeler's original construction -- keeps
+only the first term and reports a band too narrow whenever the errors are
+positively autocorrelated. The default, ``0``, means the whole horizon, the
+longest block the accumulated total is sensitive to. A block longer than the
+horizon is clamped to it.
+
+The three report the same estimand, so ``conformal_method`` selects between them
+the way ``inference_method`` selects the bootstrap or the jackknife behind the
+ATT, and there is one set of bounds whichever is chosen. Their diagnostics
+differ and so occupy separate fields: ``cumulative_windows`` counts calibration
+windows and is filled by the split and resample bands, ``cumulative_p_value`` is
+the cyclic band's permutation p-value of the no-effect null, and the unused one
+is ``None``. ``cumulative_method`` says which produced the bounds. A window count
+means different things to the two bands that report it -- the split band's order
+statistic is taken over exactly those windows, while the resample band draws from
+the :math:`L` periods inside each -- which is what ``cumulative_method`` is there
+to disambiguate.
+
+Their parameters differ too, and a parameter belonging to a method not chosen is
+refused by name at config time: ``conformal_n_nulls`` and ``conformal_grid_scale``
+are the cyclic band's, ``conformal_block`` and ``conformal_n_sim`` are the
+resample band's, and ``conformal_min_train_frac`` is shared by the split and
+resample bands, which run the same pass and differ only in how they read it.
 The grid is an approximation and it errs in one direction: the band is the range
 of accepted candidates, so a coarse grid samples fewer of them and reports a band
 too narrow, converging upward as ``conformal_n_nulls`` rises -- measured on a
