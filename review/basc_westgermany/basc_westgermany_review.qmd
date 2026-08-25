@@ -155,9 +155,19 @@ Markdown(full.round(1).to_markdown(index=False))
 
 Every comparison estimator attains a materially tighter pre-treatment fit than BASC. BASC's pre-1990 RMSE sits in a ~170–195 band across the three chain lengths (burn-in/sampling: 500/500, 2000/2000, 25000/25000), roughly 3 times the plain `VanillaSC` fit (60.8), and about twice the `CLUSTERSC` (88.6 / 98.0) and `FDID` (83.4) fits. Lengthening the MCMC does not close the gap; if anything the best-mixed 25000/25000 chain fits worst.
 
-The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024). This is the model BASC is built on, before the donor-selection layer is added. Run the original `bsynth` package in its standard outcome-only mode (`predictor_match = FALSE`) on this same panel and B-MV fits the pre-1990 path at RMSE 62.2; `mlsynth`'s `MVBBSC` returns 62.1. Both tie `VanillaSC` (60.8). Adding the donor-selection layer, on this dataset, costs about three times the pre-treatment fit of the model it is added to, and that comparison is internal to the paper's own lineage — it does not depend on any estimator I have chosen.
+The most telling row is B-MV, the Bayesian synthetic control of Martinez and Vives-i-Bastida (2024), and it is telling because of the relationship the paper itself establishes between the two models.
 
-A note on what in-sample fit can and cannot show. BASC performs selection, so some in-sample loss is expected by construction, and a Bayesian posterior mean is shrunk in a way that a least-squares optimum is not. Neither consideration accounts for the gap here, because B-MV carries the same Bayesian machinery, the same Gaussian-process term and the same posterior-mean summary, and fits at 62.
+Section 3.1 sets out that relationship explicitly. When every donor is selected, so that $\gamma = \mathbf{1}$, the proposed prior on the weights reduces to Equation (11), and the paper states that at $\alpha_u = 1$ this "coincides with the uniform Dirichlet prior in Equation (5), which is used in the implementation of Martinez and Vives-i-Bastida", concluding that the construction "retains the full-simplex Dirichlet construction as a special case". The next sentence introduces the second addition: "we introduce the Gaussian process (GP) term $f_t$ to capture smooth temporal variation in the treated outcome that is not explained by the simplex-constrained donor combination."
+
+So BASC contains B-MV. It is B-MV's prior, plus donor selection, plus a nonparametric term whose stated purpose is to absorb precisely the pre-treatment variation the donor combination fails to explain. On this panel the containing model fits the pre-1990 path at 169 to 195 and the contained one at 62.
+
+That ordering is what I cannot see a reading for. A larger model losing to its own special case in-sample is not the ordinary cost of shrinkage or of sparsity: those explain why a selective model gives up fit against an unrestricted least-squares optimum, and B-MV is neither unrestricted nor least-squares. It is the same Bayesian machinery with the same simplex prior and the same posterior-mean summary, and BASC has strictly more freedom available than it, including a term added for exactly this purpose. The candidate explanations left are that the prior concentrates where the pre-period does not support it, that the sampler has not reached the region it should, or that something in the implementation is not doing what Section 3.1 describes. All three are the authors' to resolve, and none of them are answered by the simulation study.
+
+The paper's posterior donor-set consistency result does not settle it either. That result is proved on a simplified pre-intervention model which, in the paper's words, "excludes the Gaussian process term and the post-intervention effect term" — so the theory covers a model other than the one fitted here, and the component that would be expected to close this gap lies outside it.
+
+The B-MV figure is not a one-off run of mine. `mlsynth`'s `MVBBSC` is a clean-room NumPyro port of the Martinez and Vives-i-Bastida generative model, and it is cross-validated against the authors' own `bsynth` package cell by cell on this very panel as a standing benchmark in the library (`benchmarks/cases/mvbbsc_germany.py`, reference script `benchmarks/R/mvbbsc_bsynth_ref.R`, captured against `bsynth` at commit `22d960f`): pre-1990 RMSE 62.14 against 61.96, mean post-1990 ATT -2081.7 against -2064.6, and mean pre-1990 credible-band width 297.1 against 296.6. The reference is `bayesianSynth` with `predictor_match = FALSE`, which is the outcome-only model with no covariates and no Gaussian-process term.
+
+That last detail matters for a comparison the authors might otherwise question. The B-MV fit of 62 is obtained *without* a GP. BASC's 169 is obtained *with* one. If anything the two are stacked in BASC's favour, and it still fits nearly three times worse.
 
 ## The reported effects do not sit together
 
@@ -437,5 +447,19 @@ bayesianSynth$new(data = repgermany, time = year, id = country, treated = D,
 ```
 
 on the `repgermany` panel (`D = 1` for West Germany from 1990) — the same
-outcome-only configuration as bsynth's own West Germany example. Its posterior-mean
-counterfactual gives pre-1990 RMSE 62.2 and post-1990 ATT -2075.
+outcome-only configuration as bsynth's own West Germany example. `predictor_match
+= FALSE` selects `bsynth`'s model 1: no covariates and no Gaussian-process term.
+Its posterior-mean counterfactual gives pre-1990 RMSE 62.2 and post-1990 ATT -2075.
+
+This is also a standing cross-validation in `mlsynth`, not a one-off run made
+for this report. `benchmarks/cases/mvbbsc_germany.py` pins `MVBBSC` against
+`bsynth` on this panel cell by cell, with the reference script committed at
+`benchmarks/R/mvbbsc_bsynth_ref.R` and the captured output under
+`benchmarks/reference/mvbbsc_germany/` (against `bsynth` at commit `22d960f`):
+
+| quantity | `MVBBSC` | `bsynth` |
+|---|---|---|
+| pre-1990 RMSE | 62.14 | 61.96 |
+| mean post-1990 ATT | -2081.7 | -2064.6 |
+| mean pre-1990 band width | 297.1 | 296.6 |
+| mean post-1990 band width | 1123.3 | 1143.2 |
