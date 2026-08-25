@@ -24,8 +24,29 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
-    "sphinx_copybutton"
+    "sphinx_copybutton",
+    "sphinx_gallery.gen_gallery",
 ]
+
+# -- Sphinx-Gallery -----------------------------------------------------------
+#
+# Executable example gallery. Source scripts live in ``docs/gallery/`` (one
+# ``plot_*.py`` per example, plus a ``README.rst`` header); the rendered gallery
+# is generated into ``docs/auto_examples/`` at build time and is git-ignored.
+# Scripts matching ``filename_pattern`` are executed and their stdout + figures
+# captured; ``abort_on_example_error`` makes a broken example fail the build,
+# so the examples stay validated the way the estimator pages' Verification
+# numbers do. Each example is offered as a downloadable notebook and script.
+sphinx_gallery_conf = {
+    "examples_dirs": "gallery",
+    "gallery_dirs": "auto_examples",
+    "filename_pattern": r"/plot_",
+    "abort_on_example_error": True,
+    "remove_config_comments": True,
+    "download_all_examples": False,
+    "matplotlib_animations": False,
+    "image_scrapers": ("matplotlib",),
+}
 
 # Napoleon settings.
 #
@@ -76,6 +97,12 @@ intersphinx_mapping = {
 intersphinx_disabled_domains = ["std"]
 
 templates_path = ["_templates"]
+
+# Sphinx-Gallery reads the source scripts under ``gallery/`` directly from disk
+# and writes the rendered pages into ``auto_examples/``. Exclude the source dir
+# from Sphinx's own document scan so its ``README.rst`` is not also parsed as a
+# standalone page (which would duplicate the gallery-index label).
+exclude_patterns = ["gallery"]
 
 # -- Options for HTML output
 
