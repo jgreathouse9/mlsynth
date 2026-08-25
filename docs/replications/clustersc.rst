@@ -273,6 +273,64 @@ Correcting the aggregation is a separate change; the measurement is pinned so
 that change has a target. Run with ``python benchmarks/run_benchmarks.py --case
 pcr_shen_estimator_coverage``.
 
+Bayesian RSC posterior (SucreRouge/synth_control)
+-------------------------------------------------
+
+The sections above cover the frequentist PCR-SC. Its Bayesian counterpart --
+``CLUSTERSC(estimator="bayesian")``, the Gaussian-conjugate posterior over the
+donor weights of Amjad, Shah & Shen (2018) -- is cross-validated against an
+independent Python implementation, the ``method="bayesian"`` branch of
+`SucreRouge/synth_control <https://github.com/SucreRouge/synth_control>`_.
+
+Both compute the same posterior: rank-``k`` HSVT of the donor matrix, then a
+weight covariance :math:`\Sigma = (\lambda I + \sigma^{-2} A^\top A)^{-1}` and
+mean :math:`\hat\beta = \sigma^{-2}\,\Sigma\,A^\top y`, with :math:`\lambda` the
+prior precision and :math:`\sigma^2` the observation noise. mlsynth denoises the
+donor matrix with its own HSVT (:func:`mlsynth.utils.pcr.core.hsvt`), which
+reproduces the reference's rank-``k`` truncation to :math:`\sim 10^{-12}` on this
+fully observed panel, then forms the posterior with
+:func:`~mlsynth.utils.clustersc_helpers.pcr.bayesian.BayesSCM`. On Proposition 99
+(California treated, 38 donors, 1989 split, ``k = 3``), fed the reference's two
+data-driven plug-ins, the posterior-mean weights and the ATT agree to
+:math:`\sim 10^{-10}`:
+
+.. list-table:: Bayesian RSC posterior on Prop 99 (k = 3)
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Quantity
+     - mlsynth
+     - SucreRouge/synth_control
+   * - ATT (packs/capita)
+     - -8.9729
+     - -8.9729
+   * - Pre-fit RMSE
+     - 2.2478
+     - 2.2478
+   * - weight[Nevada]
+     - 0.1172
+     - 0.1172
+   * - weight[New Hampshire]
+     - 0.0924
+     - 0.0924
+   * - weight[Rhode Island]
+     - 0.0870
+     - 0.0870
+
+The largest weight discrepancy across all 38 donors is
+:math:`5.7\times 10^{-11}`.
+
+The two implementations set the plug-ins differently: mlsynth's default public
+path estimates :math:`\sigma^2` from the OLS fit residual and uses a fixed prior
+precision, while the reference uses the total pre-period variance and a
+forward-chaining ridge-CV prior. Those are plug-in conventions, not the shared
+object; the case fixes both at the reference's values and cross-validates the
+posterior kernel and the HSVT denoiser, the way the point-estimator check
+(``pcr_rsc_ref``) fixes the rank. The durable check is
+``benchmarks/cases/bayesian_rsc_ref.py``::
+
+   python benchmarks/run_benchmarks.py --case bayesian_rsc_ref
+
 RPCA-SC: West German reunification (Bayani 2021)
 ------------------------------------------------
 

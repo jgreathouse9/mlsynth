@@ -1,0 +1,16 @@
+# case: bayesian_rsc_ref
+# generated_at: 2026-08-25T05:17:29Z
+# mlsynth_version: 2.0.0
+# estimator: ClusterSC/PCR BayesSCM (HSVT rank k + Gaussian posterior, reference plug-ins)
+# config: {"estimator": "bayesian", "method": "PCR", "observation_noise_variance": 136.493216, "outcome": "cigsale", "rank": 3, "time": "year", "treat": "Proposition 99", "unitid": "state", "weights_prior_precision": 0.219791}
+# reference_impl: SucreRouge/synth_control learn(method='bayesian') (live run, captured), num_sv=3
+# reference_version: SucreRouge/synth_control @ a55ee14 (benchmarks/reference/bayesian_rsc_ref/)
+quantity,mlsynth,reference,abs_diff
+ATT,-8.97288,-8.97288,0.0
+pre_RMSE,2.247826,2.247826,0.0
+weight[Nevada],0.117182,0.117182,0.0
+weight[New Hampshire],0.092381,0.092381,0.0
+weight[Rhode Island],0.087011,0.087011,0.0
+weight[Texas],0.082578,0.082578,0.0
+weight[Illinois],0.080551,0.080551,0.0
+weight[North Carolina],0.078965,0.078965,0.0

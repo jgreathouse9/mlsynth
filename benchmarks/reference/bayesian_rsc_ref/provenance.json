@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-08-25T05:12:28Z",
+  "git_sha": "6be04f3deb3dfdcde24f988a14e1492e2801c622",
+  "platform": "Linux-6.18.44-fc-v21-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/bayesian_rsc_ref/reference.py",
+  "data": [
+    {
+      "path": "basedata/smoking_data.csv",
+      "sha256": "a13dd4d5d6e411839c1617c6b7df773129eac0559f064b848a235651fb330b40"
+    }
+  ]
+}

@@ -51,6 +51,7 @@ CASES = {
     "rsc_synth_error": "benchmarks.cases.rsc_synth_error",      # Path B: RSC train≈gen error
     "rsc_shen_coverage": "benchmarks.cases.rsc_shen_coverage",  # cross-val: Shen CIs + coverage
     "pcr_rsc_ref": "benchmarks.cases.pcr_rsc_ref",              # cross-val: mlsynth PCR vs original RSC (jehangiramjad/tslib, Prop 99)
+    "bayesian_rsc_ref": "benchmarks.cases.bayesian_rsc_ref",    # cross-val: mlsynth Bayesian RSC posterior vs SucreRouge/synth_control (Prop 99)
     "lexscm_walmart": "benchmarks.cases.lexscm_walmart",        # Path A: Walmart placebo design
     "lexscm_design_mc": "benchmarks.cases.lexscm_design_mc",    # Path B: Abadie-Zhao design sim
     "marex_walmart": "benchmarks.cases.marex_walmart",
