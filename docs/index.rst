@@ -223,6 +223,12 @@ headline numbers.
 
 .. toctree::
    :hidden:
+   :caption: Examples
+
+   auto_examples/index
+
+.. toctree::
+   :hidden:
    :caption: Observational: canonical workhorses
 
    vanillasc
