@@ -374,6 +374,8 @@ Cross-validation against reference implementations
      - vs scmrelax (skips if absent)
    * - ``rsc_shen_coverage``
      - Shen CIs + coverage
+   * - ``bayesian_rsc_ref``
+     - vs SucreRouge/synth_control (Bayesian RSC posterior, Prop 99)
    * - ``ferman_demeaned_basque``
      - TSSC MSCa == Ferman-Pinto (2021) demeaned SC, value-for-value vs their R quadprog (live Rscript), Basque/ETA 1975
    * - ``sdid_prop99``
@@ -519,6 +521,13 @@ correct optimum.
   matrix while mlsynth de-noises the donor matrix alone (the Amjad-Shah-Shen
   convention). Each is exact for its own convention, and the small gap is
   documented.
+* Bayesian Robust SC posterior against SucreRouge/synth_control
+  (``bayesian_rsc_ref``). The two compute the same Gaussian-conjugate posterior
+  over the donor weights (Amjad-Shah-Shen 2018). Fed the reference's data-driven
+  noise variance and prior precision, mlsynth's own HSVT denoiser and
+  :func:`~mlsynth.utils.clustersc_helpers.pcr.bayesian.BayesSCM` reproduce its
+  posterior-mean weights and ATT to :math:`\sim 10^{-10}` on Prop 99; the
+  differing default plug-ins are documented on :doc:`replications/clustersc`.
 * L-infinity synthetic control (``linf_prop99``). With more donors than
   pre-periods the :math:`\ell_\infty`-minimising weight vector is genuinely
   non-unique, so individual weights are not identified. The case cross-validates
