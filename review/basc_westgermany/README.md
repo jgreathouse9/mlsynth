@@ -33,6 +33,14 @@ the original per-capita scale exactly as their response letter claims, and it
 reproduces (same three donors as their Table 7). The gap is that the repository
 contains only the BASC sampler — none of the four comparison methods.
 
+Recommendation: major revision. The theory and the simulation design are not in
+question; the concerns are confined to Section 5, Table 7, and what can be
+verified. Six numbered conditions are listed at the end of the report, of which
+the full replication script is the one the others depend on: of the four
+comparison methods, two agree with the paper when checked (fPCA-SYNTH to 9%,
+ClusterSC to 16%) and two do not (standard SCM, B-MV), and the same routines
+generate the numerical study on which the competitiveness claim now rests.
+
 ## Layout
 
     basc_westgermany_review.qmd    # the Quarto report (renders from data/ only)
