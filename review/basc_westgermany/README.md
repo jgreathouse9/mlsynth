@@ -8,7 +8,8 @@ reunification study against `mlsynth`'s own estimators on the identical data
 
 - `VanillaSC` — the textbook Abadie estimator: outcome-only, and the ADH 2015
   covariate spec via the Malo global-optimum and MSCMT nested-DE bilevel solvers;
-- `CLUSTERSC` — the robust low-rank RPCA-SC / PCR (RSC) family.
+- `CLUSTERSC` — the paper's own two two-stage comparison methods: `method="rpca"`
+  is fPCA-SYNTH (Bayani 2021/2022), `method="PCR"` is ClusterSC (Rho et al. 2025).
 
 Headline: every standard-toolkit estimator (including the robust ones) attains a
 materially tighter pre-treatment fit than BASC (BASC ~169 vs `VanillaSC` 61 and
@@ -17,9 +18,9 @@ standard analysis — and ADH 2015 — identifies as most important.
 
 The report also records three things that do not depend on any `mlsynth` fit:
 
-- the paper's reported ATTs for standard SCM (-159) and B-MV (-218) are an order
-  of magnitude smaller than those methods return, while its fPCA-SYNTH (-1,655)
-  and ClusterSC (-2,427) are at the scale everything else is on, so a single
+- three of the paper's five reported ATTs reproduce — BASC, fPCA-SYNTH (-1,655
+  vs -1,501) and ClusterSC (-2,427 vs -2,039) — while standard SCM (-159 vs
+  -1,298) and B-MV (-218 vs -2,079) are an order of magnitude out, so a single
   mis-scaled outcome does not explain it;
 - the Table 7 s-SCM weight vector fits the pre-1990 path worse than uniform
   weights (RMSE ~1,925 vs ~1,289) and implies an ATT of the opposite sign to the
