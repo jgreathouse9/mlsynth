@@ -15,6 +15,23 @@ materially tighter pre-treatment fit than BASC (BASC ~169 vs `VanillaSC` 61 and
 `CLUSTERSC` 89–98), and BASC drops the canonical Austria/USA donors that every
 standard analysis — and ADH 2015 — identifies as most important.
 
+The report also records three things that do not depend on any `mlsynth` fit:
+
+- the paper's reported ATTs for standard SCM (-159) and B-MV (-218) are an order
+  of magnitude smaller than those methods return, while its fPCA-SYNTH (-1,655)
+  and ClusterSC (-2,427) are at the scale everything else is on, so a single
+  mis-scaled outcome does not explain it;
+- the Table 7 s-SCM weight vector fits the pre-1990 path worse than uniform
+  weights (RMSE ~1,925 vs ~1,289) and implies an ATT of the opposite sign to the
+  one the text reports — robust to the table's two-decimal rounding;
+- BASC's 95% credible band excludes the observed series in 20 of 30 pre-treatment
+  years, at a mean width of ~180.
+
+What the authors get right, and the report says so: their public sampler is on
+the original per-capita scale exactly as their response letter claims, and it
+reproduces (same three donors as their Table 7). The gap is that the repository
+contains only the BASC sampler — none of the four comparison methods.
+
 ## Layout
 
     basc_westgermany_review.qmd    # the Quarto report (renders from data/ only)
