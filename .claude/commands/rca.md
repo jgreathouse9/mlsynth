@@ -85,10 +85,17 @@ and the first plausible story is the one that hides the rest.
    A *yes* means the ladder continues. The bottom is usually a fault of
    omission -- an invariant nobody asserted.
 
-7. **Check the blast radius before scoping the fix.** `grep` the faulty helper's
-   callers. A defect found in one estimator that lives in a shared helper is a
-   shared-helper fix, which per `CLAUDE.md` lands on its own branch first, with
-   the estimator work rebased onto it.
+7. **Check the blast radius before scoping the fix.** Two questions, and the
+   first is nearly free. *How far downstream does it reach?* A fault damages
+   only what is computed after it, so read the corruption's position in the
+   chain: everything to its left is untouched by construction, and whole
+   branches of the ladder retire without being measured. A value that is wrong
+   is not the same as a value that did damage -- it is still a defect and still
+   gets fixed, but it is not the explanation for a number. *How far sideways
+   does it reach?* `grep` the faulty helper's callers. A defect found in one
+   estimator that lives in a shared helper is a shared-helper fix, which per
+   `CLAUDE.md` lands on its own branch first, with the estimator work rebased
+   onto it.
 
 8. **Fix, then verify with data.** Red-to-green is not verification. Add the
    mutant that reintroduces each defect to `tools/mutation/targets.toml` with a
@@ -127,6 +134,10 @@ candidate could not be tested, say so instead of dropping it from the list.
 - Writing the fix from the incident report alone.
 - Trusting a comment about what the code does over the code.
 - Reporting one cause without accounting for the size of the discrepancy.
+- Taking the reporter's hypothesis about which link is at fault as a starting
+  point. It is evidence about where they looked, not about where the fault is.
+- Confusing a value that is wrong with a value that did damage. Check its
+  position in the chain before crediting it with anything.
 - Descending past a link that was never actually cleared.
 - Clearing a link on a design where the check had no power to fail.
 - Declaring success on a green run with no mutant.

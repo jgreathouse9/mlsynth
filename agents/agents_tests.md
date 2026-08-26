@@ -783,6 +783,12 @@ Three rules govern the descent.
    error into one factor per link and confirm the factors reproduce it. A ladder
    that reports one cause for a number wrong by a large factor, and cannot say
    where the rest of the factor went, is unfinished.
+4. **Position bounds blast radius.** A fault reaches only what is downstream of
+   where it occurs, so locating a corruption in the chain settles what it can
+   have damaged before any of it is measured. Everything to its left is untouched
+   by construction. This retires whole branches of the ladder at no cost, and it
+   is the cheapest step in the procedure: it is a question about line order, not
+   about the estimator.
 
 The number of causes is itself a measured quantity, not something read off the
 source. Two suspicious things on one line may be one fault with two symptoms;
@@ -978,6 +984,71 @@ and would also have caught the collapse to one donor. Both are absent, so both
 faults are faults of omission, and the mutants that reintroduce them
 (`sum_squares` to `sum`, `mean` to `sum`) survive any suite that checks only that
 the ATT is finite and negative.
+
+## Worked example: a corruption with no blast radius
+
+Prop 99 shows two faults compounding. This one shows the opposite -- a fault
+that looks alarming, damages nothing, and is accompanied by a hypothesis about
+the cause that is wrong on every count.
+
+The subject is an outcome-only SCM on simulated data (20 donors, 100 periods,
+intervention at 70, true effect 5.0, noise 0.5), reported by its author as: the
+ATT is biased, the fit is off, and the weights are the problem. It prints
+
+```
+ATT    : 4.7760          (true per-period effect 5.0)
+RMSE   : 7.0606          (noise_std 0.5)
+Weights: [1. 1. 1. 1.3665 1. 1.1297 ...]   min 1.0, sum 21.0
+```
+
+The weights are visibly wrong -- non-negative weights on a simplex cannot have a
+minimum of 1 and sum to 21 -- so the stated hypothesis has something going for
+it. Position settles it anyway, and settles it first:
+
+```python
+fitted = y_donors @ weights.value          # line N
+...
+return {"weights": weights.value + 1, ...} # line N+3
+```
+
+The corruption is downstream of every quantity computed from the weights.
+`fitted`, and therefore the ATT and the residuals, are computed from
+`weights.value` before the `+1` exists. Nothing to the left of the return can
+have moved. That is one reading of line order, and it eliminates the entire
+weights branch before a single seed is run. Had the same `+1` been applied one
+line earlier the ATT would be `5.989` instead of `4.7760`, which is the measure
+of how much position matters.
+
+The estimation link then clears on all five candidates: no intercept,
+`cp.sum(weights) == 1` with the solution summing to 1.0000, `weights >= 0` with
+17 of 20 donors at exactly zero, `cp.sum_squares` as the objective, and a solver
+status of `optimal`. The solver weights are donor 12 at 0.5038, donor 3 at
+0.3665, donor 5 at 0.1297 -- a well-behaved sparse solution.
+
+So both stated symptoms dissolve. Over 400 seeds the estimator's bias is
+`-0.0087` with a Monte Carlo standard error of `0.0074` and an ATT standard
+deviation of `0.1490`; the reported 4.7760 is 1.45 standard deviations below the
+mean, an ordinary draw. The true pre-period RMSE is `0.8439` against a
+cross-seed mean of `0.7234`.
+
+One cause survives, and it is neither of the two the author named:
+`np.sqrt(np.sum(pre_residuals ** 2))` is a residual 2-norm, not a root mean
+square. The missing division by `T0` inflates 0.8439 to 7.0606, a factor of
+8.3666, which is `sqrt(70)` to four decimals. Against a noise floor of 0.5 that
+is the difference between a fit nobody questions and a fit that looks broken --
+and it is the whole reason the weights came under suspicion.
+
+Two lessons, and the second is the one that generalises. The reporter's
+hypothesis about which link is at fault is evidence about where they looked, not
+about where the fault is; the ladder owes it the same treatment as any other
+candidate, which here means clearing the estimation link on its merits and
+finding it clean. And a value being wrong is not the same as a value doing
+damage. The `+1` is a real fault and belongs in the fix, because a returned
+weight vector that violates the constraints the solver was given is a defect
+whatever it touches -- an assertion that `results["weights"].sum() == 1` kills
+it, and would have killed it wherever on the return path it appeared. It is
+simply not the reason any number is wrong.
+
 
 # Four Instruments, Four Questions
 
