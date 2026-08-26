@@ -323,7 +323,7 @@ def _short_support_blocks(e, H, n, rng):
 
     What a block bootstrap over a rolling calibration pass produces. The support
     is the series, not the draw count: ``e.size`` distinct blocks times a sign, so
-    a large ``n`` resamples a small set rather than exploring a continuum. That is
+    a large ``n`` resamples a small set instead of exploring a continuum. That is
     the regime where the two estimators part company.
     """
     m = e.size
@@ -409,7 +409,7 @@ def test_empirical_is_never_narrower_than_pointwise():
 
 @pytest.mark.parametrize("bad", ["bootstrap", "Gaussian", "empirical ", "", None, 1])
 def test_an_unknown_method_is_refused(bad):
-    """Anything outside the two names raises rather than falling through.
+    """Anything outside the two names raises instead of falling through.
 
     Silently defaulting would be the worst outcome: the returned number is a
     perfectly plausible multiplier, so a caller who asked for the empirical one
@@ -465,7 +465,7 @@ def test_the_simulation_cannot_distinguish_ensembles_sharing_one_correlation():
 def test_the_two_methods_converge_as_the_calibration_support_grows():
     """Why the ensembles differ at all: a circular block bootstrap over ``m``
     periods draws from ``m`` distinct blocks, so a large ``n_sim`` resamples a
-    small set rather than exploring a continuum. Lengthen the series and the
+    small set instead of exploring a continuum. Lengthen the series and the
     empirical quantile stops inheriting that particular series' idiosyncrasy.
     """
     H, N = 11, 40_000
@@ -484,7 +484,7 @@ def test_the_two_methods_converge_as_the_calibration_support_grows():
 
 
 # ---------------------------------------------------------------------------
-# Rung 3, as a property rather than one worked case.
+# Rung 3, as a property, not one worked case.
 # ---------------------------------------------------------------------------
 
 @given(

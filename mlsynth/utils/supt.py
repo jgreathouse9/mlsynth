@@ -25,11 +25,10 @@ and jackknife deviations sit on a different scale from the estimator's own
 sampling distribution. Only the correlation is taken from the draws; the scale
 comes from ``se_h`` separately.
 
-That last sentence is also the limit of the method, and worth knowing before
-choosing it: taking only the correlation makes ``c`` a functional of ``R``
-alone. Two ensembles with the same correlation matrix get the same multiplier
-however different their joint laws, and the quantile being estimated is not such
-a functional. Where the draws are close to normal the two agree to a few
+That last sentence is also the limit of the method: taking only the
+correlation makes ``c`` a functional of ``R`` alone. Two ensembles with the
+same correlation matrix get the same multiplier however different their joint
+laws, and the quantile being estimated is not such a functional. Where the draws are close to normal the two agree to a few
 thousandths. Where they are not -- a block bootstrap over a short calibration
 series draws from ``m`` distinct blocks, so a large ``n_sim`` resamples a small
 support instead of exploring a continuum -- they part company, by an amount that
@@ -222,8 +221,8 @@ def supt_critical_value(
         # The same statistic the simulation targets, taken over the draws in
         # hand. Standardizing by each horizon's own spread is what makes it
         # scale-free, exactly as in the simulated route; a horizon with no
-        # variation is given an infinite scale so it contributes zero rather
-        # than a division by zero.
+        # variation is given an infinite scale so it contributes zero instead
+        # of a division by zero.
         with np.errstate(invalid="ignore", divide="ignore"):
             sd = np.nanstd(draws, axis=0)
             centred = draws - np.nanmean(draws, axis=0)
