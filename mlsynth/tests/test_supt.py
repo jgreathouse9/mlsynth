@@ -27,6 +27,8 @@ What the tests pin:
   per-period errors and like ``L`` under perfectly correlated ones -- which is
   the whole reason a cumulative band cannot be assembled by adding endpoints.
 """
+import warnings
+
 import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -541,3 +543,161 @@ def test_both_methods_are_invariant_to_rescaling_a_horizon(method, seed, n_h):
     scaled = supt_critical_value(draws * factors, alpha=0.10, method=method,
                                  n_sims=20_000, seed=0)
     assert plain == pytest.approx(scaled, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# The correlation is estimated, and at few replicates it is estimated badly.
+#
+# A sample correlation over-fits: it implies more co-movement across horizons
+# than the truth has, which lowers the effective number of independent
+# directions the maximum runs over, which shrinks the multiplier. At n <= H the
+# matrix is rank-deficient outright and the simulated path is confined to an
+# (n-1)-dimensional subspace. The band then claims 1 - alpha and covers less.
+# ---------------------------------------------------------------------------
+
+def _c_from_correlation(R, n_sims=40_000, seed=0):
+    """The multiplier the simulation would return for a *known* correlation."""
+    H = R.shape[0]
+    w, V = np.linalg.eigh(R)
+    L = V * np.sqrt(np.clip(w, 0.0, None))
+    z = np.random.default_rng(seed).standard_normal((n_sims, H)) @ L.T
+    scale = np.sqrt(np.clip(np.einsum("ij,ij->i", L, L), 1e-300, None))
+    return float(np.quantile(np.max(np.abs(z / scale), axis=1), 0.90))
+
+
+def test_a_known_correlation_gives_the_right_multiplier():
+    """Rung 2, the control. Handed the truth, the simulation is correct, so
+    whatever goes wrong at few replicates is the estimate of R and not the
+    simulation, the eigenvalue clip, or the quantile."""
+    H = 12
+    c = _c_from_correlation(np.eye(H))
+    z = np.random.default_rng(1).standard_normal((200_000, H))
+    assert c == pytest.approx(float(np.quantile(np.max(np.abs(z), axis=1), 0.90)),
+                              abs=0.02)
+
+
+def test_the_multiplier_falls_as_replicates_are_removed_from_one_truth():
+    """The fault, as a monotone sweep.
+
+    The truth is fixed -- twelve independent horizons -- so the correct
+    multiplier is one number at every n. What changes is only how many
+    replicates R is estimated from, and the multiplier falls as that shrinks.
+    """
+    H = 12
+    target = _c_from_correlation(np.eye(H))
+    got = {}
+    for n in (5, 12, 50):
+        cs = [supt_critical_value(
+                  np.random.default_rng(3000 + r).standard_normal((n, H)),
+                  alpha=0.10, n_sims=40_000, seed=0)
+              for r in range(8)]
+        got[n] = float(np.mean(cs))
+    assert got[5] < got[12] < got[50] < target
+    assert target - got[5] > 0.10, got      # severe where n is below H
+    assert target - got[50] < 0.03, got     # nearly gone by n = 4H
+
+
+def test_the_shortfall_is_governed_by_replicates_per_horizon():
+    """Why ``n`` alone is the wrong thing to guard on.
+
+    Two panels with the same ``n`` but different horizon counts are not equally
+    exposed; two with the same ratio are. That is what a guard has to read.
+    """
+    def shortfall(n, H):
+        target = _c_from_correlation(np.eye(H))
+        cs = [supt_critical_value(
+                  np.random.default_rng(4000 + r).standard_normal((n, H)),
+                  alpha=0.10, n_sims=40_000, seed=0)
+              for r in range(6)]
+        return target - float(np.mean(cs))
+
+    at_ratio_one = [shortfall(H, H) for H in (6, 12)]
+    at_ratio_eight = [shortfall(8 * H, H) for H in (6, 12)]
+    assert max(at_ratio_one) - min(at_ratio_one) < 0.06, at_ratio_one
+    assert all(s < 0.02 for s in at_ratio_eight), at_ratio_eight
+    assert min(at_ratio_one) > max(at_ratio_eight)
+
+
+def test_ledoit_wolf_recovers_the_multiplier_at_few_replicates():
+    """The corrective action, measured against the truth it should reach.
+
+    Shrinking the sample correlation toward the identity by a data-chosen
+    intensity undoes the over-fitting. Where the horizons really are
+    independent it is nearly exact from a handful of replicates.
+    """
+    H = 12
+    target = _c_from_correlation(np.eye(H))
+    plain, shrunk = [], []
+    for r in range(8):
+        d = np.random.default_rng(5000 + r).standard_normal((5, H))
+        plain.append(supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0))
+        shrunk.append(supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
+                                          shrinkage="ledoit_wolf"))
+    assert target - np.mean(plain) > 0.10
+    assert abs(target - np.mean(shrunk)) < 0.05
+
+
+def test_ledoit_wolf_errs_wide_not_narrow_on_correlated_horizons():
+    """The cost, stated as a direction.
+
+    Shrinking a genuinely correlated matrix toward the identity flattens it, so
+    the multiplier comes out a little large. That is the safe way to be wrong:
+    a band slightly too wide, never one that claims a level it does not have.
+    """
+    H = 12
+    R = 0.8 ** np.abs(np.subtract.outer(np.arange(H), np.arange(H)))
+    w, V = np.linalg.eigh(R)
+    L = V * np.sqrt(np.clip(w, 0.0, None))
+    target = _c_from_correlation(R)
+    shrunk = [supt_critical_value(
+                  np.random.default_rng(6000 + r).standard_normal((12, H)) @ L.T,
+                  alpha=0.10, n_sims=40_000, seed=0, shrinkage="ledoit_wolf")
+              for r in range(8)]
+    assert np.mean(shrunk) > target
+    assert np.mean(shrunk) - target < 0.20
+
+
+def test_few_replicates_per_horizon_warns_by_default():
+    """The trap has to be visible. Below two replicates per horizon the
+    unshrunk multiplier is materially short, so saying nothing would ship a
+    band that claims a level it does not reach."""
+    rng = np.random.default_rng(7)
+    with pytest.warns(RuntimeWarning, match="replicates"):
+        supt_critical_value(rng.standard_normal((8, 12)), alpha=0.10, n_sims=5000)
+
+
+def test_enough_replicates_per_horizon_is_silent():
+    rng = np.random.default_rng(8)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        supt_critical_value(rng.standard_normal((120, 12)), alpha=0.10, n_sims=5000)
+
+
+def test_shrinkage_silences_the_warning():
+    """Having taken the corrective action, the caller should not be nagged."""
+    rng = np.random.default_rng(9)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        supt_critical_value(rng.standard_normal((8, 12)), alpha=0.10, n_sims=5000,
+                            shrinkage="ledoit_wolf")
+
+
+def test_the_empirical_route_neither_shrinks_nor_warns():
+    """Shrinkage is a repair to an estimated correlation, and the empirical
+    route estimates none, so the option does not apply to it."""
+    rng = np.random.default_rng(10)
+    draws = rng.standard_normal((8, 12))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        a = supt_critical_value(draws, alpha=0.10, method="empirical")
+        b = supt_critical_value(draws, alpha=0.10, method="empirical",
+                                shrinkage="ledoit_wolf")
+    assert a == b
+
+
+@pytest.mark.parametrize("bad", ["ledoit-wolf", "LedoitWolf", "shrink", None, 2])
+def test_an_unknown_shrinkage_is_refused(bad):
+    rng = np.random.default_rng(11)
+    with pytest.raises(MlsynthConfigError, match="shrinkage"):
+        supt_critical_value(rng.standard_normal((100, 3)), alpha=0.10,
+                            shrinkage=bad)
