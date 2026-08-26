@@ -699,6 +699,18 @@ timeout = 300.0
   models = "reading the largest raw deviation instead of the largest standardised one. The multiplier is then in the units of whichever horizon happens to be widest -- usually the last, since a cumulative path's spread grows -- so it stops being a multiplier at all and the band it produces has no stated level"
 
   [[target.mutant]]
+  id = "supt-few-replicate-warning-never-fires"
+  find = "    elif n < 2 * H:"
+  replace = "    elif False:"
+  models = "silencing the guard on replicates per horizon, which puts the band back to claiming a level it does not reach without saying so. At n = H the multiplier is short by 0.05 and simultaneous coverage falls to 0.89; below that it degrades fast, reaching 0.67 at three replicates over twelve horizons. The returned number stays a plausible multiplier throughout, so nothing downstream can tell"
+
+  [[target.mutant]]
+  id = "supt-ledoit-wolf-is-a-noop"
+  find = "            R = cov / np.outer(d, d)"
+  replace = "            R = R"
+  models = "accepting the shrinkage argument and then ignoring it, so a caller who took the corrective action gets the uncorrected multiplier. Worse than not offering the option, because the caller now believes the problem is handled"
+
+  [[target.mutant]]
   id = "jackknife-inflation-dropped"
   find = "        out[h] = np.sqrt((m - 1) / m * ss) if jackknife else np.sqrt(ss / (m - 1))"
   replace = "        out[h] = np.sqrt(ss / (m - 1))"
