@@ -795,14 +795,15 @@ timeout = 400.0
   [[target.mutant]]
   id = "drop-the-flag-on-the-floor"
   find = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
-                dependent=pi_dependent)"""
-  replace = "                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)"
+                dependent=pi_dependent, cumulative_block=cumulative_block)"""
+  replace = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                cumulative_block=cumulative_block)"""
   models = "the defect the plumbing removes, and the one that was actually there: a config field the caller can set that never reaches the bootstrap. Every fit still succeeds and the default behaviour is unchanged, so nothing looks wrong -- the flag simply does nothing, which is worse than its absence because it invites a caller to believe they chose Remark 2.2 when they are still running Algorithm 2.1"
 
   [[target.mutant]]
   id = "invert-the-flag"
-  find = "                dependent=pi_dependent)"
-  replace = "                dependent=not pi_dependent)"
+  find = "                dependent=pi_dependent, cumulative_block=cumulative_block)"
+  replace = "                dependent=not pi_dependent, cumulative_block=cumulative_block)"
   models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"
 
 [[target]]
@@ -1842,3 +1843,27 @@ timeout = 600.0
   find = "    if n_treated_loo == 0:"
   replace = "    if n_treated_loo < 0:"
   models = "the guard made unreachable while still appearing to exist. Two treated units, the thinnest ensemble that is not vacuous, still work either way, so only a single-treated panel distinguishes this from the fix -- which is exactly the case the guard was written for"
+
+[[target]]
+name = "pda-cumulative-post-dependence"
+module-path = "mlsynth/utils/inferutils.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_cumulative_post_dependence.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cumulative-block-collapses-to-the-independent-draw"
+  find = "    cum_block = T1 if cumulative_block == 0 else min(int(cumulative_block), T1)"
+  replace = "    cum_block = 1"
+  models = "the argument accepted and then ignored, so every cumulative band is built from independently drawn post-period errors again. This is the pre-fix defect wearing the fix's interface, and it is the worst shape it could take: a caller who asked for the whole horizon is told nothing and gets a band too narrow by the AR inflation, while the parameter's presence is evidence to them that the dependence is handled"
+
+  [[target.mutant]]
+  id = "blocks-drawn-without-wrapping"
+  find = "                resid_centered[(st + np.arange(cum_block)) % T0] for st in starts"
+  replace = "                resid_centered[st:st + cum_block] for st in starts"
+  models = "the circular wrap dropped, so a start near the end of the residual series yields a block shorter than cum_block. The concatenation is then short of T1 and the paths ragged; where it does not raise, residuals at the end of the series are drawn less often than those in the middle, which biases the resampled dependence toward whatever the interior of the calibration window happens to show"
+
+  [[target.mutant]]
+  id = "the-block-draw-shares-the-main-rng"
+  find = "        e_post_cum = rng_cum.choice(resid_centered, size=T1, replace=True)"
+  replace = "        e_post_cum = rng.choice(resid_centered, size=T1, replace=True)"
+  models = "the block draw taking from the main stream, so the block length perturbs every later draw and the per-period intervals move as a side effect of an argument that is documented to leave them alone. Algorithm 2.1's output then silently depends on a cumulative-band setting, which is the failure the separate stream exists to prevent"
