@@ -25,6 +25,18 @@ and jackknife deviations sit on a different scale from the estimator's own
 sampling distribution. Only the correlation is taken from the draws; the scale
 comes from ``se_h`` separately.
 
+That last sentence is also the limit of the method, and worth knowing before
+choosing it: taking only the correlation makes ``c`` a functional of ``R``
+alone. Two ensembles with the same correlation matrix get the same multiplier
+however different their joint laws, and the quantile being estimated is not such
+a functional. Where the draws are close to normal the two agree to a few
+thousandths. Where they are not -- a block bootstrap over a short calibration
+series draws from ``m`` distinct blocks, so a large ``n_sim`` resamples a small
+support instead of exploring a continuum -- they part company, by an amount that
+runs either side of parity and shrinks as the support grows.
+``supt_critical_value(..., method="empirical")`` reads the quantile off the
+draws for callers whose ensemble makes that the better instrument.
+
 The cumulative case is why this module exists at all. An interval for a running
 total is not the running total of the period intervals: adding endpoints treats
 the period errors as moving in lockstep, so the width grows like ``L``, while
@@ -131,6 +143,7 @@ def supt_critical_value(
     alpha: float,
     n_sims: int = DEFAULT_N_SIMS,
     seed: Optional[int] = 0,
+    method: str = "gaussian",
 ) -> float:
     """The shared multiplier that makes a band cover the whole path at once.
 
@@ -144,9 +157,33 @@ def supt_critical_value(
     alpha : float
         Level; the band is simultaneous at ``1 - alpha``.
     n_sims : int
-        Draws used to tabulate the quantile of ``max_h |z_h|``.
+        Draws used to tabulate the quantile of ``max_h |z_h|``. Ignored by
+        ``method="empirical"``, which consults no RNG.
     seed : int, optional
-        RNG seed, so a reported band is reproducible.
+        RNG seed, so a reported band is reproducible. Ignored by
+        ``method="empirical"``.
+    method : {"gaussian", "empirical"}
+        Which estimator of the same quantile to use.
+
+        ``"gaussian"`` (default) reduces the draws to their correlation across
+        horizons and tabulates ``max_h |z_h|`` from simulated normals carrying
+        that correlation. This is the right instrument for a delete-one
+        jackknife: there are only as many draws as units, so an empirical
+        quantile at ``1 - alpha`` is coarse, and jackknife deviations are on a
+        different scale from the estimator's sampling distribution anyway.
+
+        ``"empirical"`` reads the quantile off the standardized draws
+        themselves. Reach for it when the draws are a large resampling ensemble
+        -- a block bootstrap, say -- where neither objection applies: the
+        quantile is not coarse, and the draws are already on the estimator's
+        scale. It also keeps what the correlation matrix cannot carry. Reducing
+        the draws to second moments discards *scale heterogeneity across draws*
+        -- a bootstrap replicate that catches an unusual stretch is large at
+        every horizon at once -- and that is precisely what drives ``max_h``. A
+        Gaussian vector's own scale is tightly concentrated, so no correlation
+        matrix can reproduce it, and the simulated multiplier comes back too
+        small. The gap is not a constant: it runs either side of parity, ordered
+        by how dispersed the per-draw scale is.
 
     Returns
     -------
@@ -158,11 +195,16 @@ def supt_critical_value(
     Raises
     ------
     MlsynthConfigError
-        ``alpha`` outside ``(0, 1)``, or a non-positive ``n_sims``.
+        ``alpha`` outside ``(0, 1)``, a non-positive ``n_sims``, or a ``method``
+        that is neither ``"gaussian"`` nor ``"empirical"``.
     MlsynthDataError
         ``draws`` not 2-D, or fewer than two replicates.
     """
     alpha = _check_alpha(alpha)
+    if method not in ("gaussian", "empirical"):
+        raise MlsynthConfigError(
+            f"method must be 'gaussian' or 'empirical'; got {method!r}."
+        )
     if isinstance(n_sims, bool) or not isinstance(n_sims, (int, np.integer)) or n_sims < 1:
         raise MlsynthConfigError(f"n_sims must be a positive integer; got {n_sims!r}.")
     draws = np.asarray(draws, dtype=float)
@@ -175,6 +217,25 @@ def supt_critical_value(
         raise MlsynthDataError(
             f"need at least 2 draws to estimate a correlation; got {n}."
         )
+
+    if method == "empirical":
+        # The same statistic the simulation targets, taken over the draws in
+        # hand. Standardizing by each horizon's own spread is what makes it
+        # scale-free, exactly as in the simulated route; a horizon with no
+        # variation is given an infinite scale so it contributes zero rather
+        # than a division by zero.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            sd = np.nanstd(draws, axis=0)
+            centred = draws - np.nanmean(draws, axis=0)
+            z = centred / np.where(np.isfinite(sd) & (sd > 0.0), sd, np.inf)
+        m = np.nanmax(np.abs(z), axis=1)
+        m = m[np.isfinite(m)]
+        if m.size < 2:
+            raise MlsynthDataError(
+                "no usable draws left after standardizing; every replicate was "
+                "non-finite or every horizon was constant."
+            )
+        return float(np.quantile(m, 1.0 - alpha))
 
     # Correlation across horizons, pairwise-complete so one failed replicate does
     # not discard a whole horizon. A horizon with no variation carries no

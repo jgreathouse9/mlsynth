@@ -633,6 +633,18 @@ timeout = 300.0
   models = "taking one horizon's deviation instead of the largest across horizons, which is the pointwise critical value wearing a simultaneous band's name. Every shape, sign and monotonicity assertion still passes; what fails is the coverage the band claims, and only a test that compares the correction against its own simulation error can see it"
 
   [[target.mutant]]
+  id = "supt-method-silently-ignored"
+  find = "    if method not in (\"gaussian\", \"empirical\"):"
+  replace = "    if False:"
+  models = "dropping the guard, so a misspelled method falls through to the gaussian default instead of being refused. A caller asking for the empirical multiplier on a bootstrap ensemble would silently get the simulated one -- the exact confusion the parameter exists to remove, and invisible because the returned number is a perfectly plausible multiplier"
+
+  [[target.mutant]]
+  id = "supt-empirical-forgets-to-standardise"
+  find = "        m = np.nanmax(np.abs(z), axis=1)"
+  replace = "        m = np.nanmax(np.abs(centred), axis=1)"
+  models = "reading the largest raw deviation instead of the largest standardised one. The multiplier is then in the units of whichever horizon happens to be widest -- usually the last, since a cumulative path's spread grows -- so it stops being a multiplier at all and the band it produces has no stated level"
+
+  [[target.mutant]]
   id = "jackknife-inflation-dropped"
   find = "        out[h] = np.sqrt((m - 1) / m * ss) if jackknife else np.sqrt(ss / (m - 1))"
   replace = "        out[h] = np.sqrt(ss / (m - 1))"

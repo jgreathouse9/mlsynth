@@ -302,3 +302,180 @@ def test_too_few_draws_to_estimate_a_correlation_is_reported():
 def test_a_nonpositive_simulation_count_is_rejected():
     with pytest.raises(MlsynthConfigError, match="n_sims"):
         supt_critical_value(_draws(20, 3), alpha=0.05, n_sims=0)
+
+
+# ---------------------------------------------------------------------------
+# Choosing the estimator: simulated (default) or read off the draws
+#
+# The Gaussian tabulation above is the right instrument for a delete-one
+# jackknife -- few draws, and on a different scale from the sampling
+# distribution. It is a poorer one for a large bootstrap ensemble, where the
+# draws are numerous and already on the estimator's scale, and where reducing
+# them to a correlation matrix discards the thing that drives ``max_h``: draws
+# that are large at every horizon at once. ``method="empirical"`` reads the
+# quantile off the draws instead, which is free when they are already in hand.
+# ---------------------------------------------------------------------------
+
+def _short_support_blocks(e, H, n, rng):
+    """Circular blocks of length ``H`` from a short fixed series, accumulated.
+
+    What a block bootstrap over a rolling calibration pass produces. The support
+    is the series, not the draw count: ``e.size`` distinct blocks times a sign, so
+    a large ``n`` resamples a small set rather than exploring a continuum. That is
+    the regime where the two estimators part company.
+    """
+    m = e.size
+    starts = rng.integers(0, m, size=n)
+    idx = (starts[:, None] + np.arange(H)[None, :]) % m
+    signs = rng.choice(np.array([-1.0, 1.0]), size=(n, 1))
+    return np.cumsum(e[idx] * signs, axis=1)
+
+
+def test_empirical_returns_a_finite_positive_scalar():
+    rng = np.random.default_rng(0)
+    c = supt_critical_value(rng.standard_normal((5000, 6)), alpha=0.10,
+                            method="empirical")
+    assert np.isfinite(c) and c > 0.0
+
+
+def test_empirical_ignores_n_sims_and_seed():
+    """No RNG is consulted, so the two knobs that steer the simulation cannot
+    move it. That is the point: the answer is a statistic of the draws."""
+    rng = np.random.default_rng(1)
+    draws = rng.standard_normal((4000, 5))
+    a = supt_critical_value(draws, alpha=0.10, method="empirical", n_sims=10, seed=0)
+    b = supt_critical_value(draws, alpha=0.10, method="empirical", n_sims=999_999, seed=7)
+    assert a == b
+
+
+def test_empirical_one_horizon_is_the_pointwise_critical_value():
+    rng = np.random.default_rng(2)
+    c = supt_critical_value(rng.standard_normal((200_000, 1)), alpha=0.10,
+                            method="empirical")
+    from scipy.stats import norm
+    assert c == pytest.approx(norm.ppf(0.95), abs=0.02)
+
+
+def test_empirical_ignores_the_scale_of_the_draws():
+    """Same invariance the simulated route has: only the standardized path
+    matters, so rescaling a horizon leaves the multiplier alone."""
+    rng = np.random.default_rng(3)
+    draws = rng.standard_normal((5000, 4))
+    scaled = draws * np.array([1.0, 100.0, 0.01, 7.0])
+    assert supt_critical_value(draws, alpha=0.10, method="empirical") == pytest.approx(
+        supt_critical_value(scaled, alpha=0.10, method="empirical"), rel=1e-12)
+
+
+def test_empirical_agrees_with_the_simulation_on_gaussian_draws():
+    """Where the Gaussian assumption holds, the two routes answer the same."""
+    rng = np.random.default_rng(4)
+    draws = rng.standard_normal((200_000, 8))
+    g = supt_critical_value(draws, alpha=0.10, n_sims=200_000, seed=0)
+    e = supt_critical_value(draws, alpha=0.10, method="empirical")
+    assert e == pytest.approx(g, rel=0.03)
+
+
+def test_the_two_methods_part_company_on_a_short_support_ensemble():
+    """The case the choice exists for.
+
+    A calibration series with one atypical stretch gives an ensemble whose
+    extreme draws are the ones that catch it. The empirical quantile sees them;
+    the simulated route cannot, because a correlation matrix does not record
+    which blocks the series happens to contain. Neither answer is wrong -- the
+    simulation trades that idiosyncrasy for stability -- but they differ enough
+    that the caller should get to pick.
+    """
+    for seed in range(4):
+        rng = np.random.default_rng(seed)
+        e = np.concatenate([rng.standard_normal(11) * (6.0 if i == 0 else 1.0)
+                            for i in range(7)])
+        e = e - e.mean()
+        draws = _short_support_blocks(e, 11, 100_000, np.random.default_rng(100 + seed))
+        g = supt_critical_value(draws, alpha=0.10, n_sims=100_000, seed=0)
+        emp = supt_critical_value(draws, alpha=0.10, method="empirical")
+        assert emp > 1.15 * g, f"seed {seed}: empirical {emp:.4f}, gaussian {g:.4f}"
+
+
+def test_empirical_is_never_narrower_than_pointwise():
+    from scipy.stats import norm
+    rng = np.random.default_rng(6)
+    for H in (2, 5, 12):
+        c = supt_critical_value(rng.standard_normal((50_000, H)), alpha=0.10,
+                                method="empirical")
+        assert c >= norm.ppf(0.95) - 0.02
+
+
+@pytest.mark.parametrize("bad", ["bootstrap", "Gaussian", "empirical ", "", None, 1])
+def test_an_unknown_method_is_refused(bad):
+    """Anything outside the two names raises rather than falling through.
+
+    Silently defaulting would be the worst outcome: the returned number is a
+    perfectly plausible multiplier, so a caller who asked for the empirical one
+    and got the simulated one has no way to notice.
+    """
+    rng = np.random.default_rng(7)
+    with pytest.raises(MlsynthConfigError, match="method"):
+        supt_critical_value(rng.standard_normal((100, 3)), alpha=0.10, method=bad)
+
+
+def test_the_default_method_is_the_simulation():
+    """The default must not move: every existing caller keeps its numbers."""
+    rng = np.random.default_rng(8)
+    draws = rng.standard_normal((2000, 5))
+    assert supt_critical_value(draws, alpha=0.10) == supt_critical_value(
+        draws, alpha=0.10, method="gaussian")
+
+
+def test_the_simulation_cannot_distinguish_ensembles_sharing_one_correlation():
+    """The root cause, stated as an invariant.
+
+    ``method="gaussian"`` reduces the draws to their correlation across horizons
+    and reads the multiplier from normals carrying it, so it is a functional of
+    that matrix alone: two ensembles with the same correlation get the same
+    answer however different their joint laws. The quantile being estimated is
+    not such a functional. Where the draws really are normal the two routes
+    agree; where they are not, the simulation reports the normal answer.
+    """
+    H, N = 11, 100_000
+    rng = np.random.default_rng(2)
+    e = np.concatenate([rng.standard_normal(11) * (6.0 if i == 0 else 1.0)
+                        for i in range(7)])
+    e -= e.mean()
+    B = _short_support_blocks(e, H, N, np.random.default_rng(101))
+
+    R = np.corrcoef(B, rowvar=False)
+    w, V = np.linalg.eigh(R)
+    L = V * np.sqrt(np.clip(w, 0.0, None))
+    A = np.random.default_rng(7).standard_normal((N, H)) @ L.T   # same R, normal
+
+    assert np.max(np.abs(np.corrcoef(A, rowvar=False) - R)) < 0.02
+
+    gA = supt_critical_value(A, alpha=0.10, n_sims=N, seed=0)
+    gB = supt_critical_value(B, alpha=0.10, n_sims=N, seed=0)
+    assert gA == pytest.approx(gB, abs=0.02)          # blind to the difference
+
+    eA = supt_critical_value(A, alpha=0.10, method="empirical")
+    eB = supt_critical_value(B, alpha=0.10, method="empirical")
+    assert eA == pytest.approx(gA, abs=0.05)          # normal: the routes agree
+    assert eB > gB + 1.0                              # not normal: they do not
+
+
+def test_the_two_methods_converge_as_the_calibration_support_grows():
+    """Why the ensembles differ at all: a circular block bootstrap over ``m``
+    periods draws from ``m`` distinct blocks, so a large ``n_sim`` resamples a
+    small set rather than exploring a continuum. Lengthen the series and the
+    empirical quantile stops inheriting that particular series' idiosyncrasy.
+    """
+    H, N = 11, 40_000
+    spread = {}
+    for m in (77, 1100):
+        ratios = []
+        for s in range(6):
+            r = np.random.default_rng(s)
+            e = r.standard_normal(m)
+            e -= e.mean()
+            d = _short_support_blocks(e, H, N, np.random.default_rng(500 + s))
+            g = supt_critical_value(d, alpha=0.10, n_sims=N, seed=0)
+            ratios.append(supt_critical_value(d, alpha=0.10, method="empirical") / g)
+        spread[m] = float(np.std(ratios))
+    assert spread[1100] < 0.5 * spread[77], spread
