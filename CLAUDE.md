@@ -58,6 +58,35 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
 6. **Match the nearest existing estimator** before inventing a pattern.
    Canonical references: `MAREXConfig`, `LEXSCMConfig`, `RESCMConfig`, the
    `BaseEstimatorResults` hierarchy, and `mcnnm`/`vanillasc` for layout.
+7. **Computation and presentation are separate.** Estimators and helpers compute
+   and return; displaying, saving, formatting and printing are the caller's.
+   A `plot_*` helper returns its `Figure` and does not call `plt.show()`; library
+   code does not `print`. A diagnostic the caller might act on becomes a typed
+   field on the result (usually `MethodDetailsResults`) or a `warnings.warn` —
+   never stdout, and never discarded.
+
+## Design doctrine (the Unix rules)
+
+`agents/agents_unix.md` settles which of the Unix design rules bind here, which
+are re-implemented in a typed medium, and which are refused — with the citations,
+the measured backlog, and the checks. Read it before arguing that a structure is
+or is not idiomatic. Three results from it are already invariants above:
+invariant 3 is the Rule of Composition (the result contract is this library's
+universal interface, and `mlsynth/spec.py` is its text boundary), invariant 4 is
+the Rule of Modularity, and invariant 7 is the Rule of Separation plus the Rule
+of Silence.
+
+One rule is refused on purpose: Postel's "be liberal in what you accept". A
+lenient validator turns a malformed panel into a number that looks like an
+estimate, so `extra="forbid"` and fail-early validation stand.
+
+Sweeping the two code rules (documentation-level checks, not gates — the
+baseline counts and the AST versions are in `agents/agents_unix.md`):
+
+```bash
+grep -rn "^\s*print(" mlsynth/ --include=*.py | grep -v /tests/   # Rule of Silence
+grep -rn "plt.show()" mlsynth/ --include=*.py | grep -v /tests/    # Rule of Separation
+```
 
 ## Testing & TDD (test-first is mandatory)
 
@@ -75,7 +104,9 @@ covered — defensive / unreachable branches get `# pragma: no cover` with a
 stated reason, never an untested gap. The layered architecture, patterns,
 exception contract, and the instrument-selection contract — which of
 `coverage` / `pytest` / `hypothesis` / `cosmic-ray` answers which question, and
-why two of them are complements — live in `agents/agents_tests.md`.
+why two of them are complements — live in `agents/agents_tests.md`, along with
+the Unix rules applied to tests (a hard-to-test function is a design report;
+generous fixtures and strict assertions; the failure names the invariant).
 
 ## The replication contract
 
