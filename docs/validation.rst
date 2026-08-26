@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **84 cross-validation checks** against original
-implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
+Coverage: **85 cross-validation checks** against original
+implementations across **44 estimators** -- 32 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -46,8 +46,8 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 4
-     - 3 exact · 1 tight
+     - 5
+     - 4 exact · 1 tight
      - 0.036
    * - :ref:`COMPSC <val-compsc>`
      - 2
@@ -315,6 +315,12 @@ CLUSTERSC
      - max \|Δ\|
      - Verdict
      - Case
+   * - SucreRouge/synth_control learn(method='bayesian') (live run, captured), num_sv=3
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 8
+     - 0
+     - exact — matches to display precision
+     - `bayesian_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/bayesian_rsc_ref.py>`__
    * - Bayani RPCA-SC -- the author's own code, vendored verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)
      - —
      - 9
