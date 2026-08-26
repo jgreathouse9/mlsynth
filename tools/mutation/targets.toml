@@ -682,8 +682,10 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "supt-collapses-to-the-pointwise-critical-value"
-  find = "    m = np.max(np.abs(z / scale), axis=1)"
-  replace = "    m = np.abs(z / scale)[:, 0]"
+  find = """        out[done:done + b] = np.max(
+            np.abs(z) / np.sqrt(np.clip(s2, 1e-300, None)), axis=1)"""
+  replace = """        out[done:done + b] = (
+            np.abs(z) / np.sqrt(np.clip(s2, 1e-300, None)))[:, 0]"""
   models = "taking one horizon's deviation instead of the largest across horizons, which is the pointwise critical value wearing a simultaneous band's name. Every shape, sign and monotonicity assertion still passes; what fails is the coverage the band claims, and only a test that compares the correction against its own simulation error can see it"
 
   [[target.mutant]]
@@ -1879,3 +1881,32 @@ timeout = 900.0
   find = "        e_post_cum = rng_cum.choice(resid_centered, size=T1, replace=True)"
   replace = "        e_post_cum = rng.choice(resid_centered, size=T1, replace=True)"
   models = "the block draw taking from the main stream, so the block length perturbs every later draw and the per-period intervals move as a side effect of an argument that is documented to leave them alone. Algorithm 2.1's output then silently depends on a cumulative-band setting, which is the failure the separate stream exists to prevent"
+
+[[target]]
+name = "supt-studentized-reference"
+module-path = "mlsynth/utils/supt.py"
+test-command = "python -m pytest mlsynth/tests/test_supt.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "studentized-reference-is-a-noop"
+  find = """    df = n - 1
+    Lu = L / scale[:, None]                     # unit-diagonal factor of R"""
+  replace = """    df = 10 ** 9
+    Lu = L / scale[:, None]                     # unit-diagonal factor of R"""
+  models = "the correction accepted and then discarded: at a billion degrees of freedom the Wishart is degenerate at R and the studentized reference returns the normal one. This is the pre-fix defect wearing the fix's interface, which is the worst shape it could take -- the parameter's presence tells a caller the estimated standard error is accounted for while the band goes back to claiming a level it does not reach"
+
+  [[target.mutant]]
+  id = "degrees-of-freedom-off-by-one"
+  find = "    df = n - 1"
+  replace = "    df = n"
+  models = "one degree of freedom too many, from counting replicates instead of deviations about their mean. The multiplier comes back slightly small at every ensemble size and the error is largest exactly where the correction matters most. Nothing about the returned number looks wrong; it is a plausible multiplier drawn from the wrong law"
+
+  [[target.mutant]]
+  id = "reference-argument-not-validated"
+  find = """    if reference not in ("studentized", "normal"):
+        raise MlsynthConfigError(
+            f"reference must be 'studentized' or 'normal'; got {reference!r}."
+        )"""
+  replace = "    pass"
+  models = "a misspelled reference falling through to the default instead of raising. A caller who asked for the normal route and got the studentized one has no way to notice, since both return a perfectly plausible multiplier and neither reports which law it came from"
