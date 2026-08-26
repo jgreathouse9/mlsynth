@@ -369,6 +369,7 @@ def pda_prediction_intervals(
     alpha: float = 0.05,
     n_boot: int = 999,
     dependent: bool = True,
+    cumulative_block: int = 0,
     seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     r"""Bootstrap prediction intervals for the panel data approach (Jiang 2025).
@@ -416,6 +417,26 @@ def pda_prediction_intervals(
         Use the dependent wild bootstrap for the pre-period error (Bartlett
         multipliers). ``False`` uses ordinary i.i.d. standard-normal multipliers
         (Remark 2.2, valid when the errors are independent).
+    cumulative_block : int, default 0
+        Block length in periods for the post-period draw behind ``error_paths``,
+        which a cumulative band accumulates. ``0`` means the whole horizon, the
+        longest block a running total over ``T1`` periods is sensitive to; ``1``
+        draws periods independently. A block longer than the horizon is clamped
+        to it.
+
+        Algorithm 2.1 draws the out-of-sample error i.i.d. from the centred
+        pre-period residuals, which is what a per-period interval needs: it
+        gives each post period the right marginal. A running total needs the
+        joint law across post periods as well, and an i.i.d. draw carries none,
+        so the accumulated standard error grows like ``sqrt(T1)`` however
+        persistent the series is -- 1.68 times too narrow over six periods at an
+        AR(0.6) error, 2.02 times at AR(0.8). Drawing in circular blocks from
+        the same residuals reproduces whatever dependence the series has, and
+        reduces to the i.i.d. draw when there is none.
+
+        This affects ``error_paths`` alone. The studentized statistic behind the
+        per-period intervals keeps Algorithm 2.1's i.i.d. draw, so those
+        intervals do not move with this argument.
     seed : int, optional
         Seed for the bootstrap RNG.
 
@@ -475,6 +496,23 @@ def pda_prediction_intervals(
 
     support = np.asarray(list(support), dtype=int)
     rng = np.random.default_rng(seed)
+    # The block draw behind ``error_paths`` takes its own stream. Sharing one
+    # would make every later draw depend on the block length, which would move
+    # the per-period intervals -- Algorithm 2.1's own output -- as a side effect
+    # of an argument that is supposed to reach only the accumulated paths.
+    rng_cum = np.random.default_rng(
+        None if seed is None else int(seed) ^ 0x5EEDC0DE)
+
+    if (isinstance(cumulative_block, bool)
+            or not isinstance(cumulative_block, (int, np.integer))
+            or cumulative_block < 0):
+        raise MlsynthConfigError(
+            "cumulative_block must be a non-negative integer; got "
+            f"{cumulative_block!r}."
+        )
+    # 0 means the whole horizon, which is the longest block a total over T1
+    # periods can be sensitive to; anything longer is clamped to it.
+    cum_block = T1 if cumulative_block == 0 else min(int(cumulative_block), T1)
 
     K = _hac_bandwidth(T0)
     ell = _dwb_bandwidth(T0)
@@ -521,6 +559,16 @@ def pda_prediction_intervals(
         else:
             e_pre = rng.standard_normal(T0) * resid_pre
         e_post = rng.choice(resid_centered, size=T1, replace=True)
+        # The same residuals in circular blocks, for the accumulated paths only.
+        # Wrapping keeps every start position equally likely, so no residual is
+        # under-represented at the ends of the series.
+        if cum_block > 1:
+            starts = rng_cum.integers(0, T0, size=-(-T1 // cum_block))
+            e_post_cum = np.concatenate([
+                resid_centered[(st + np.arange(cum_block)) % T0] for st in starts
+            ])[:T1]
+        else:
+            e_post_cum = rng_cum.choice(resid_centered, size=T1, replace=True)
         y_star = counterfactual.copy()
         y_star[:T0] += e_pre
         y_star[T0:] += e_post
@@ -542,7 +590,10 @@ def pda_prediction_intervals(
             E[b] = 0.0
             continue
         S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
-        E[b] = e_star_post
+        # The refit reads only the bootstrap pre-period, so its extrapolation
+        # error is the same whichever post draw is added to it. Recombining it
+        # with the block draw costs no refit and leaves S untouched.
+        E[b] = (e_star_post - e_post) + e_post_cum
 
     n_degenerate = int(degenerate.sum())
     S = S[~degenerate]
