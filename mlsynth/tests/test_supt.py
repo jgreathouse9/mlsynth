@@ -29,6 +29,8 @@ What the tests pin:
 """
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from scipy.stats import norm
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
@@ -479,3 +481,63 @@ def test_the_two_methods_converge_as_the_calibration_support_grows():
             ratios.append(supt_critical_value(d, alpha=0.10, method="empirical") / g)
         spread[m] = float(np.std(ratios))
     assert spread[1100] < 0.5 * spread[77], spread
+
+
+# ---------------------------------------------------------------------------
+# Rung 3, as a property rather than one worked case.
+# ---------------------------------------------------------------------------
+
+@given(
+    n_h=st.integers(min_value=2, max_value=8),
+    rho=st.floats(min_value=-0.4, max_value=0.95, allow_nan=False),
+    seed=st.integers(min_value=0, max_value=2**32 - 1),
+)
+@settings(max_examples=25, deadline=None,
+          suppress_health_check=[HealthCheck.too_slow])
+def test_the_simulation_depends_on_the_draws_only_through_their_correlation(
+        n_h, rho, seed):
+    """``method="gaussian"`` is a functional of ``R``.
+
+    Replace an ensemble with normals carrying the same correlation and the
+    simulated multiplier does not move. This is the root cause stated as an
+    invariant: whatever else the draws contain, the estimator cannot see it.
+    """
+    rng = np.random.default_rng(seed)
+    H, N = n_h, 20_000
+    base = np.full((H, H), rho)
+    np.fill_diagonal(base, 1.0)
+    w, V = np.linalg.eigh(base)
+    L = V * np.sqrt(np.clip(w, 0.0, None))
+
+    # An ensemble that is emphatically not normal: a two-component mixture.
+    heavy = rng.standard_normal((N, H)) @ L.T
+    heavy *= np.where(rng.random((N, 1)) < 0.1, 6.0, 1.0)
+
+    R = np.corrcoef(heavy, rowvar=False)
+    w2, V2 = np.linalg.eigh(R)
+    twin = rng.standard_normal((N, H)) @ (V2 * np.sqrt(np.clip(w2, 0.0, None))).T
+
+    a = supt_critical_value(heavy, alpha=0.10, n_sims=20_000, seed=0)
+    b = supt_critical_value(twin, alpha=0.10, n_sims=20_000, seed=0)
+    assert a == pytest.approx(b, abs=0.06), (a, b, rho, H)
+
+
+@given(
+    method=st.sampled_from(["gaussian", "empirical"]),
+    seed=st.integers(min_value=0, max_value=2**32 - 1),
+    n_h=st.integers(min_value=2, max_value=8),
+)
+@settings(max_examples=25, deadline=None,
+          suppress_health_check=[HealthCheck.too_slow])
+def test_both_methods_are_invariant_to_rescaling_a_horizon(method, seed, n_h):
+    """Neither route may read the units. The multiplier applies to ``se_h``,
+    which carries the scale, so a horizon measured in thousands must not buy a
+    different band from the same horizon measured in millions."""
+    rng = np.random.default_rng(seed)
+    draws = rng.standard_normal((4000, n_h))
+    factors = np.exp(rng.uniform(-6.0, 6.0, size=n_h))
+    plain = supt_critical_value(draws, alpha=0.10, method=method,
+                                n_sims=20_000, seed=0)
+    scaled = supt_critical_value(draws * factors, alpha=0.10, method=method,
+                                 n_sims=20_000, seed=0)
+    assert plain == pytest.approx(scaled, rel=1e-9)
