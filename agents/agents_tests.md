@@ -743,7 +743,50 @@ for, and confirm it is killed.
 Rungs branch. One why can have several answers, and each answer is its own
 descent -- the malformed objective below has two independent faults that both
 reach rung 3. Follow every branch; a ladder with one rung per level is usually a
-ladder that stopped at the first plausible story.
+ladder that stopped at the first plausible story. The next section makes that
+branching systematic instead of opportunistic.
+
+## Breadth: the dependency chain
+
+The rungs above are the depth axis. Used alone they find one cause and stop,
+which is the failure mode the anti-pattern list names and the one hardest to
+notice, because a single cause always reads as a complete explanation.
+
+The breadth axis is the fix. Before descending, write down what the reported
+number is a function of, in order, each stage depending only on the ones to its
+right:
+
+```
+reported number  <-  aggregation  <-  effect series  <-  counterfactual
+                 <-  weights  <-  objective + constraints  <-  code / data
+```
+
+The chain is what makes breadth finite. Each link has a small, listable set of
+ways to be wrong, so at each depth the question stops being "what went wrong"
+and becomes "which of these five things went wrong", which is answerable by
+test. The standing enumeration for the estimation link is in
+`.claude/commands/rca.md`; it runs intercept, simplex constraint, non-negativity
+versus strict positivity, objective form, solver status, cheapest first.
+
+Three rules govern the descent.
+
+1. **Clear a link before leaving it.** Record the result for every candidate,
+   including the ones that pass. A cleared link is a finding: it is what
+   licenses ruling out the whole stage and moving down.
+2. **Clearing requires power.** A design where two candidates coincide
+   numerically cannot separate them. A single post period makes a total and an
+   average the same number, so a units check passes there for a reason that has
+   nothing to do with the code being right. Ask what the check would have to see
+   in order to fail before believing it passed.
+3. **Count the causes, and check the count against the magnitude.** Independent
+   faults on different links contribute multiplicatively. Decompose the observed
+   error into one factor per link and confirm the factors reproduce it. A ladder
+   that reports one cause for a number wrong by a large factor, and cannot say
+   where the rest of the factor went, is unfinished.
+
+The number of causes is itself a measured quantity, not something read off the
+source. Two suspicious things on one line may be one fault with two symptoms;
+the way to find out is to correct each independently and see what moves.
 
 ## Confirming you have reached the bottom
 
@@ -758,7 +801,7 @@ an invariant nobody wrote down -- which is why rung 3 and rung 5 are where the
 real causes live. Faults of commission are found by running the code; absent
 assertions are not, and no amount of running finds them.
 
-## The four ways this goes wrong
+## The ways this goes wrong
 
 The failure modes of the procedure itself, in the order they are usually hit:
 
@@ -767,6 +810,17 @@ The failure modes of the procedure itself, in the order they are usually hit:
 * **Taking the docstring's word for it.** A comment saying what the code does is
   hearsay from someone who was not present at the failure. Read the executed
   path -- the objective actually built, the solver actually called.
+* **Skipping the obvious candidates.** Constraints, signs and solver status take
+  a minute each to check. Skipping them turns the rest of the diagnosis from an
+  elimination into a guess, because nothing licenses ruling the stage out.
+* **Descending past a link that was never cleared.** Moving to the objective
+  before establishing that the constraints are the ones the method specifies
+  leaves an untested stage above the one being blamed.
+* **Clearing a link on a design with no power.** A check that could not have
+  failed under this specification has not passed.
+* **Reporting one cause without accounting for the magnitude.** If the number is
+  wrong by a factor of sixty and the cause found explains five, the ladder is
+  unfinished.
 * **Diagnosing only what surfaced.** A defect found on one estimator usually
   lives in a shared helper; check who else calls it before scoping the fix.
 * **Declaring victory without data.** The corrective action needs evidence, and
@@ -846,6 +900,84 @@ record it as such and retire it. A floor set at half the donor pool bites only o
 the last two. Everything between changes which units the fit rests on while
 clearing every property in the file. Knowing which rung a class of fault is
 visible from is the point of building the ladder instead of guessing at a fix.
+
+## Worked example: a hand-rolled synthetic control on Proposition 99
+
+Basque shows the depth axis on a fault that hides. This one shows the breadth
+axis on a fault that does not hide at all, and is still misdiagnosed by a ladder
+that only descends.
+
+The subject is a short outcome-only SCM: weights on the simplex, no covariates,
+run on the Proposition 99 panel (`basedata/P99data.csv`, California treated, 38
+donor states, 1970-2000, intervention 1989).
+
+Rung 0 fails for once. The reported treatment effect is `-1176.00` against a
+literature band of roughly `-14` to `-22` packs. The ratio is `60.28`, and that
+number is the instrument for the rest of the ladder.
+
+The chain: reported number <- aggregation <- weights <- objective <- code.
+
+**Aggregation.** One candidate: the reported scalar is not the estimand its name
+claims. It fails. The field is called `average_treatment_effect` and is assigned
+`np.sum(post_effects)` over 12 post periods. Correcting only this gives `-98.00`.
+Factor: `12.0000`.
+
+**Estimation.** Five candidates, cheapest first, four of them cleared:
+
+| # | Candidate | Result |
+| --- | --- | --- |
+| 1 | intercept fitted where the formulation forbids one | cleared -- the program holds 38 donor weights and no constant |
+| 2 | simplex constraint missing or misstated | cleared -- `cp.sum(weights) == 1`, and `sum(w) = 1.0` at the solution |
+| 3 | non-negativity strengthened to strict positivity | cleared -- `weights >= 0`, and `w = 0` is attained for 37 donors |
+| 4 | objective is not the one the method specifies | FAILS |
+| 5 | solver returned without converging | cleared -- `problem.status` is `optimal` |
+
+Candidates 1, 2, 3 and 5 are the ones people skip because they are obvious. They
+are also the ones that take a minute each, and skipping them is what makes the
+remaining diagnosis a guess instead of an elimination. Clearing them is what
+licenses the claim that the objective is the only estimation-stage fault.
+
+**The objective, and how many faults it carries.** The line is
+`cp.Minimize(cp.sum(residuals))`. Reading it suggests two independent defects --
+the criterion is signed, and it is linear in `w`, so on a simplex the optimum is
+a vertex. Correcting each independently settles it:
+
+| objective | ATT | pre-RMSE | donors carrying weight |
+| --- | --- | --- | --- |
+| `cp.sum(r)` as written | `-98.00` | `133.52` | 1 (New Hampshire 1.00) |
+| `cp.sum(cp.abs(r))` | `-19.81` | `1.76` | 6 |
+| `cp.sum_squares(r)` | `-19.51` | `1.66` | 6 (Utah .39, Montana .23, Nevada .20) |
+
+Taking absolute values recovers essentially the whole answer, so the vertex
+collapse is a symptom of signedness and not a second fault. One cause, two
+symptoms. The remaining `L1` versus `L2` gap is `0.30` packs and is an estimand
+choice, not a defect. The reading was wrong about the count and the test was
+right, which is the third rule above in action.
+
+What signedness does is invert the criterion relative to fit. On this panel the
+sum of residuals scores its own optimum at `-2496.80`, where the pre-period RMSE
+is `133.52`, and scores the least-squares weights at `-1.95`, where the RMSE is
+`1.66`. It strictly prefers the fit that is eighty times worse, because negative
+residuals are rewarded without bound inside the simplex. The solution is a fixed
+selection rule -- take the donor with the largest pre-period mean, here New
+Hampshire at 247.62 packs against California's 116.21 -- that never consults the
+shape of the treated series. Factor: `98.00 / 19.51 = 5.0231`.
+
+**The count checks out.** `12.0000 x 5.0231 = 60.28`, which is the ratio rung 0
+measured. Two causes, on two links, accounting for the whole discrepancy with
+nothing left over. Either one alone leaves a wrong number that still looks like
+an answer: fix the aggregation and the estimate is `-98.00`; fix the objective
+and it is `-234.16`. Both are the kind of number a reader argues with instead of
+rejecting.
+
+**Rung 5.** Neither fault is reachable from the ATT alone, and neither needs a
+clever instrument. A units assertion -- the reported scalar equals
+`post_effects.mean()` -- kills the first. A pre-period fit assertion -- RMSE
+within a small multiple of the donor pool's own dispersion -- kills the second,
+and would also have caught the collapse to one donor. Both are absent, so both
+faults are faults of omission, and the mutants that reintroduce them
+(`sum_squares` to `sum`, `mean` to `sum`) survive any suite that checks only that
+the ATT is finite and negative.
 
 # Four Instruments, Four Questions
 
