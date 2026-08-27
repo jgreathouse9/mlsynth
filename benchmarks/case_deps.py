@@ -39,11 +39,14 @@ registry and the rule never narrowed anything.
 
 The registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
 test module -- :data:`NEVER_REACHABLE`. A file the diff creates did not exist
-when any pre-existing case ran -- the ``added`` argument. And ``__init__.py``
+when any pre-existing case ran -- the ``added`` argument. ``__init__.py``
 executes at import, before measurement starts, which is the separation that
 stops a case from measuring all 834 library files -- :data:`RE_EXPORT_ONLY`,
 whose one member is checked against the file itself in the tests, since the
-claim holds only while that file is imports and an ``__all__``.
+claim holds only while that file is imports and an ``__all__``. And a README is
+prose, which the rule already answers for by directory: ``docs/ppscm.rst`` is
+outside :data:`REACHABLE` and so reaches nothing. :data:`PROSE_SUFFIXES` says
+the same thing by kind, for the prose that sits under a reachable prefix.
 
 An estimator pull request trips all three at once: new helper modules, new test
 modules, and one export line.
@@ -62,6 +65,11 @@ REACHABLE = ("mlsynth/", "basedata/", "benchmarks/")
 #: registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
 #: test module; the references to test files in case docstrings are prose.
 NEVER_REACHABLE = ("mlsynth/tests/", "benchmarks/tests/")
+
+#: Suffixes that are prose. A change outside :data:`REACHABLE` already reaches no
+#: case -- that is how ``docs/ppscm.rst`` is neither a selection nor a hole. A
+#: README one directory over is the same prose, so it gets the same answer.
+PROSE_SUFFIXES = (".md", ".rst")
 
 #: Modules that re-export and do nothing else. These execute at import, before
 #: measurement starts, so coverage never attributes them to a case -- and a file
@@ -104,6 +112,8 @@ def _is_hole(path: str, known: set, created: set) -> bool:
     if not path.startswith(REACHABLE):
         return False
     if path.startswith(NEVER_REACHABLE) or path in RE_EXPORT_ONLY:
+        return False
+    if path.endswith(PROSE_SUFFIXES):
         return False
     if path in created:
         return False
