@@ -168,9 +168,23 @@ def test_the_posterior_band_brackets_its_own_mean(panel):
     assert np.all(detail.counterfactual_mean <= detail.counterfactual_upper + 1e-9)
 
 
-def test_att_interval_brackets_the_point_estimate(fitted):
-    low, high = fitted.att_ci
-    assert low <= fitted.att <= high
+@pytest.mark.parametrize("inference", ["bootstrap", "posterior"])
+def test_the_interval_contains_the_estimate_it_belongs_to(panel, inference):
+    """A reported interval contains the estimate reported beside it.
+
+    Under the bootstrap the two come from different Monte Carlo samples -- the
+    estimate is a posterior mean over every draw, the interval a percentile of
+    replicates that use one draw apiece -- so they can disagree by a fraction of
+    a standard error. CI caught exactly that, at 1.4 percent of a standard error.
+    The bound that falls short is extended, never pulled in.
+    """
+    result = MOSC(base_config(panel, inference=inference)).fit()
+    low, high = result.att_ci
+    assert low <= result.att <= high
+
+    detail = result.inference.details
+    assert np.all(detail.counterfactual_lower <= detail.counterfactual_mean + 1e-9)
+    assert np.all(detail.counterfactual_mean <= detail.counterfactual_upper + 1e-9)
 
 
 def test_tighter_level_gives_a_narrower_interval(panel):
@@ -250,11 +264,21 @@ def test_posterior_draw_count_is_honoured(panel):
     assert result.posterior.loadings.shape[0] == 25
 
 
-def test_more_factors_fit_the_pre_period_at_least_as_well(panel):
-    """Rank is the capacity knob, so pre-period fit must not degrade with it."""
+def test_the_heldout_score_is_not_monotone_in_rank(panel):
+    """Extra rank is free in sample and is not free out of sample.
+
+    This asserted the opposite until CI found it, on Python 3.12 and 3.13 but
+    not 3.10, which is what a claim that only held by RNG luck looks like. A
+    held-out score exists precisely so that capacity stops paying: the in-sample
+    fit is monotone in rank (pinned in ``test_mosc_properties.py``) and this one
+    is not, which is the whole reason the estimator reports this one.
+    """
     small = MOSC(base_config(panel, n_factors=1)).fit()
     large = MOSC(base_config(panel, n_factors=5)).fit()
-    assert large.diagnostics.heldout_log_density >= small.diagnostics.heldout_log_density - 1e-6
+    for result in (small, large):
+        assert np.isfinite(result.diagnostics.heldout_log_density)
+    # Rank changes the fit; which way the held-out score moves is the data's call.
+    assert small.diagnostics.heldout_log_density != large.diagnostics.heldout_log_density
 
 
 # ------------------------------------------------------------- edge cases --

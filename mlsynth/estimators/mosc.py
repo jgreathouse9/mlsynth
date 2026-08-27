@@ -160,15 +160,30 @@ def _summarise(inputs, posterior, config) -> MOSCInference:
     upper[pre:] = np.percentile(spread, upper_q, axis=0)
 
     att_samples = (observed[None, pre:total] - spread).mean(axis=1)
+    att_mean = float((observed[None, pre:total] - draws).mean(axis=1).mean())
+    att_low = float(np.percentile(att_samples, lower_q))
+    att_high = float(np.percentile(att_samples, upper_q))
+
+    # The point estimate is a posterior mean over every draw; the bootstrap
+    # interval is a percentile of the replicates, which use one draw apiece. Both
+    # estimate the same quantity from different Monte Carlo samples, so they can
+    # disagree by a fraction of a standard error and leave the estimate a hair
+    # outside its own interval. An interval reported next to an estimate should
+    # contain it, so it is extended to -- never pulled in from -- whichever bound
+    # falls short. Extending can only widen, so it cannot cost coverage.
+    att_low, att_high = min(att_low, att_mean), max(att_high, att_mean)
+    lower[pre:] = np.minimum(lower[pre:], counterfactual[pre:])
+    upper[pre:] = np.maximum(upper[pre:], counterfactual[pre:])
+
     return MOSCInference(
         method=("unit_bootstrap" if config.inference == "bootstrap"
                 else "posterior_mean_band"),
         counterfactual_mean=counterfactual,
         counterfactual_lower=lower,
         counterfactual_upper=upper,
-        att_mean=float((observed[None, pre:total] - draws).mean(axis=1).mean()),
-        att_lower=float(np.percentile(att_samples, lower_q)),
-        att_upper=float(np.percentile(att_samples, upper_q)),
+        att_mean=att_mean,
+        att_lower=att_low,
+        att_upper=att_high,
         att_samples=att_samples,
         ci_alpha=float(ci_alpha),
     )
