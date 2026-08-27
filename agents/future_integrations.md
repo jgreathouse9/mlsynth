@@ -2206,12 +2206,25 @@ outcomes that plausibly diffuse.
 
 ---
 
-## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- spiked, BUILD
 
-**Status: Spike complete, recommendation is build. The paper's substantive claim
-reproduces; the margin over robust synthetic control is thinner than its figure
-suggests, and its model-criticism step does not work as specified. Spike lives in
-`benchmarks/reference/mosc_spike/` with a full README. Issue #535.**
+## Done
+
+## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
+
+**Status: Shipped as `MOSC`. The spike recommended build and the estimator
+followed; spike, port and placebo sweep live in
+`benchmarks/reference/mosc_spike/`, docs at `docs/mosc.rst`. Issue #535.**
+
+A fourth defect surfaced after the spike, on the authors' own control panels.
+Their posterior band -- what Figures 4 and 5 plot -- covers zero on 4 of 10
+placebos at a nominal 95 percent, so six of ten teams that never admitted fans
+register a significant effect. Section 3.4 prescribes a bootstrap over units
+instead and states that its coverage is evaluated in Section 5; that evaluation
+does not appear, and "bootstrap" occurs three times in the paper, twice in that
+paragraph and once in the bibliography. The bootstrap reaches 9 of 10 and is what
+`MOSC` ships. Its one failure, Minnesota, has a point estimate that misses by 21
+percent of the outcome, which is a wrong counterfactual and not a narrow
+interval.
 
 ### Source
 
@@ -2337,12 +2350,20 @@ branch, per the one-scope-one-branch rule.
   command line running it. It silently dropped two patches here, and the second
   one left a comparison that appeared to validate a rewire against itself. Kill
   by PID, and assert the patch landed.
-* **§17 was worth its keep.** The repository, the data and the date-column
+* **§17 earned its keep.** The repository, the data and the date-column
   warning were all recorded a month earlier while assessing a different paper.
   Check `future_integrations.md` before searching for a paper's artifacts.
+* **Interval width is not evidence about a resampling mechanism.** Three
+  catalogued defects in the bootstrap all survived a suite that checked the
+  interval was wider than the posterior band. Measured, the correct resampling
+  gives width 17.5, permuting the pool 13.2, and reusing one seed 19.8 -- the
+  broken one is wider. The assertions that killed them test the resampling
+  itself: the treated unit is kept, donors repeat within a replicate, and each
+  replicate draws a fresh seed.
+* **Real data finds what fixtures cannot.** Running the estimator on the
+  authors' own panel exposed a 301-label axis, a pre-period RMSE of zero that
+  read as a perfect fit, and six places calling a frequentist interval
+  "credible" -- including the plot legend. All three had full line coverage.
 
 ---
 
-## Done
-
-*(empty -- move completed items here, preserving their Learnings subsection.)*

@@ -14,7 +14,11 @@ Sources:
 
 ## Verdict
 
-Build, with one scope change and two caveats.
+Build, with one scope change and two caveats. Built: `MOSC` ships, and
+`placebo_coverage.py` records a finding that postdates everything below --
+the paper's posterior band covers zero on only 4 of 10 of its own control
+panels, and its Section 3.4 bootstrap, which the paper prescribes and never
+evaluates, reaches 9 of 10.
 
 The paper's substantive claim reproduces: a Poisson-likelihood factor model
 predicts the counterfactual better than the Gaussian alternatives on count
@@ -288,3 +292,4 @@ documented at the call site.
 | `validate_gibbs.py` | validates the sampler by construction |
 | `validate_predictive_check.py` | calibrates `p_pop`, scores held-out density |
 | `check_outcome_scale.py` | dispersion and conditional-independence diagnostics |
+| `placebo_coverage.py` | interval coverage on the authors' control panels |
