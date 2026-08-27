@@ -95,6 +95,7 @@ from .estimators.stackedsc import STACKEDSC
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
+from .estimators.mosc import MOSC
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.rolldid import ROLLDID
@@ -204,5 +205,6 @@ __all__ = [
     "CTSC",
     "SNN",
     "MCNNM",
+    "MOSC",
     "PANGEO",
 ]

@@ -30,10 +30,11 @@ _WORKFLOW = (Path(__file__).resolve().parents[2]
              / ".github" / "workflows" / "benchmarks.yml")
 
 #: Jobs that fan out over shards; each must keep its matrix and NUM_SHARDS in step.
-SHARDED_JOBS = ("suite", "pr-suite")
+SHARDED_JOBS = ("suite", "pr-suite", "case-deps")
 
 #: Jobs that must never run for a pull request.
-NON_PR_JOBS = ("suite", "validation-dashboard")
+NON_PR_JOBS = ("suite", "validation-dashboard", "case-deps",
+               "case-deps-commit")
 
 
 @pytest.fixture(scope="module")
@@ -177,9 +178,24 @@ class TestTheShardsAreSkippedWhenNothingCouldMoveANumber:
     @staticmethod
     @pytest.fixture(scope="class")
     def patterns(gate):
-        body = gate["with"]["filters"]
-        return [line.strip().lstrip("- ").strip("'")
-                for line in body.splitlines() if line.strip().startswith("-")]
+        """The path globs in the filter body.
+
+        A rule may name a change type -- ``- added: '**'`` selects only files the
+        diff creates -- so drop the type and keep the glob, which is the part
+        that has to correspond to something in the repository.
+        """
+        out = []
+        for line in gate["with"]["filters"].splitlines():
+            line = line.strip()
+            if not line.startswith("-"):
+                continue
+            body = line.lstrip("- ").strip()
+            for kind in ("added", "modified", "deleted", "renamed"):
+                if body.startswith(f"{kind}:"):
+                    body = body.split(":", 1)[1].strip()
+                    break
+            out.append(body.strip("'"))
+        return out
 
     def test_the_gate_uses_the_same_action_build_yml_does(self, gate):
         assert gate["uses"].startswith("dorny/paths-filter@")
@@ -271,12 +287,89 @@ class TestTheDependencyMapIsWiredBothEnds:
     def test_the_map_is_refreshed_off_the_pull_request(self, jobs):
         assert "pull_request" in jobs["case-deps"]["if"]
         run = " ".join(str(s) for s in jobs["case-deps"]["steps"])
-        assert "tools/benchmark_deps.py --all --merge" in run
+        assert "tools/benchmark_deps.py --all" in run
 
     def test_refreshing_the_map_may_write_to_the_repository(self, jobs):
-        assert jobs["case-deps"]["permissions"]["contents"] == "write"
+        """The write is the combine job's; the shards only measure."""
+        assert jobs["case-deps-commit"]["permissions"]["contents"] == "write"
 
     def test_the_map_job_outlasts_a_full_registry_run(self, jobs):
         """It runs every case, so its timeout has to clear the daily suite's."""
         assert (int(jobs["case-deps"]["timeout-minutes"])
                 >= int(jobs["suite"]["timeout-minutes"]))
+
+
+class TestTheMapIsMeasuredInSlicesAndCommittedOnce:
+    """``case-deps`` measures what every case executes, and the map it writes is
+    what lets a pull request run only the cases its diff can reach.
+
+    As one job it did not finish. Runs on 23, 24, 25 and 26 August each reached
+    the 350-minute cap and were cancelled -- the 26th ran 07:36 to 13:26 -- so
+    the map never grew past the five entries that shipped with it, and every
+    pull request touching the library ran all 199 cases including the MIP and
+    Monte Carlo ones. Slicing the measurement is what makes the map exist.
+
+    Only the combine job commits. Four shards each rebasing and pushing the same
+    file race, and the loser's slice is dropped without a failure anywhere.
+    """
+
+    def test_the_shards_measure_a_slice_each(self, jobs):
+        step = next(s for s in jobs["case-deps"]["steps"]
+                    if s["name"].startswith("Measure"))
+        assert "--shard" in step["run"] and "--num-shards" in step["run"]
+
+    def test_a_shard_writes_its_own_file(self, jobs):
+        step = next(s for s in jobs["case-deps"]["steps"]
+                    if s["name"].startswith("Measure"))
+        assert "--out" in step["run"]
+
+    def test_no_shard_commits(self, jobs):
+        runs = " ".join(s.get("run", "") for s in jobs["case-deps"]["steps"])
+        assert "git push" not in runs
+
+    def test_the_combine_job_waits_for_every_shard(self, jobs):
+        needs = jobs["case-deps-commit"]["needs"]
+        assert "case-deps" in ([needs] if isinstance(needs, str) else needs)
+
+    def test_the_combine_job_merges_the_slices(self, jobs):
+        runs = " ".join(s.get("run", "") for s in jobs["case-deps-commit"]["steps"])
+        assert "--combine" in runs
+
+    def test_the_combine_job_is_the_one_that_commits(self, jobs):
+        runs = " ".join(s.get("run", "") for s in jobs["case-deps-commit"]["steps"])
+        assert "git push" in runs
+
+    def test_the_combine_job_runs_even_when_a_shard_fails(self, jobs):
+        """A dead shard must cost its own slice, not the other three."""
+        assert "always()" in jobs["case-deps-commit"].get("if", "")
+
+    def test_only_the_combine_job_can_write_to_the_repository(self, jobs):
+        assert jobs["case-deps"].get("permissions", {}).get("contents") != "write"
+        assert jobs["case-deps-commit"]["permissions"]["contents"] == "write"
+
+
+class TestTheAddedSubsetReachesTheSelection:
+    """A file the diff creates cannot have been executed by a pre-existing case,
+    so it is not a hole in the map. The selection can only know that if the
+    workflow tells it which files are new.
+    """
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def gate(jobs):
+        return next(s for s in jobs["pr-suite"]["steps"] if s.get("id") == "filter")
+
+    def test_the_filter_asks_for_the_added_files(self, gate):
+        assert "added:" in gate["with"]["filters"]
+
+    def test_the_run_step_passes_them_to_the_driver(self, jobs):
+        step = next(s for s in jobs["pr-suite"]["steps"]
+                    if s["name"] == "Run benchmark suite shard")
+        assert "--added-from" in step["run"]
+
+    def test_the_added_set_never_arrives_without_the_diff(self, jobs):
+        """``--added-from`` names a subset of ``--changed-from``; the driver
+        refuses one without the other."""
+        step = next(s for s in jobs["pr-suite"]["steps"]
+                    if s["name"] == "Run benchmark suite shard")
+        assert "--changed-from" in step["run"]

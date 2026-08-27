@@ -1910,3 +1910,99 @@ timeout = 900.0
         )"""
   replace = "    pass"
   models = "a misspelled reference falling through to the default instead of raising. A caller who asked for the normal route and got the studentized one has no way to notice, since both return a perfectly plausible multiplier and neither reports which law it came from"
+
+[[target]]
+name = "mosc-pipeline"
+module-path = "mlsynth/utils/mosc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc.py mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treatment-dummy-marks-the-wrong-unit"
+  find = "        treatment[0] = 1.0                       # the treated unit is column 0"
+  replace = "        treatment[-1] = 1.0"
+  models = "an outcome model that identifies the effect off the last donor instead of the treated unit, so the counterfactual is predicted with the treated unit's own treated outcome still in the design and the reported effect is whatever the last donor did"
+
+  [[target.mutant]]
+  id = "counterfactual-keeps-the-treatment-on"
+  find = "    counterfactual_design, _ = _regression_arrays(\n        loadings, panel, pre_periods, treated_on=False\n    )"
+  replace = "    counterfactual_design, _ = _regression_arrays(\n        loadings, panel, pre_periods, treated_on=True\n    )"
+  models = "a counterfactual predicted with the treatment indicator left switched on, which returns the factual path and drives every estimated effect to zero"
+
+  [[target.mutant]]
+  id = "differencing-anchors-on-the-first-period"
+  find = "    anchor = float(panel[pre_periods - 1, 0])"
+  replace = "    anchor = float(panel[0, 0])"
+  models = "a differenced fit re-integrated from the start of the panel instead of the last observed pre-intervention level, so the counterfactual is offset by the treated unit's entire pre-period movement while keeping the right shape"
+
+  [[target.mutant]]
+  id = "differencing-forgets-a-period"
+  find = "    return pre_periods - 1 if outcome_scale == \"difference\" else pre_periods"
+  replace = "    return pre_periods"
+  models = "a differenced fit that treats the pre-period as one step longer than differencing left it, so the first post-intervention difference is used to fit the model that is supposed to predict it"
+
+  [[target.mutant]]
+  id = "dispersion-averages-instead-of-taking-the-median"
+  find = "    dispersion = float(np.median(ratio)) if ratio.size else float(\"nan\")"
+  replace = "    dispersion = float(np.mean(ratio)) if ratio.size else float(\"nan\")"
+  models = "a dispersion statistic set by a handful of cells whose fitted rate is near the floor, so the reported number tracks the worst-fit cells and not the panel"
+
+  [[target.mutant]]
+  id = "autocorrelation-uses-the-raw-series"
+  find = "    pearson = (pre_panel - fitted) / np.sqrt(scale)"
+  replace = "    pearson = pre_panel / np.sqrt(scale)"
+  models = "a conditional-independence check computed before conditioning on the factors, which reports near-perfect correlation for any trending panel and so never distinguishes a cumulative series from a differenced one"
+
+[[target]]
+name = "mosc-factor"
+module-path = "mlsynth/utils/mosc_helpers/factor.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "gibbs-ignores-the-holdout-mask"
+  find = "    counts = np.where(observed > 0, counts, 0)"
+  replace = "    counts = counts"
+  models = "a sampler that fits the cells it is meant to be scored on, so the held-out predictive density reports in-sample fit and cannot detect a misspecified likelihood"
+
+  [[target.mutant]]
+  id = "gibbs-collects-the-warmup"
+  find = "        if sweep >= n_warmup:"
+  replace = "        if sweep >= 0:"
+  models = "a posterior that keeps its own warm-up sweeps, so the draws include the chain walking in from the prior and the credible band is inflated by transient state"
+
+  [[target.mutant]]
+  id = "heldout-score-reads-the-observed-cells"
+  find = "    heldout = ~np.asarray(mask, dtype=bool)"
+  replace = "    heldout = np.asarray(mask, dtype=bool)"
+  models = "a model score computed on the cells the model was fit to, which rewards rank instead of fit and inverts the comparison it exists to make"
+
+  [[target.mutant]]
+  id = "poisson-log-density-drops-the-rate-penalty"
+  find = "    return counts * np.log(rate) - rate - gammaln(counts + 1.0)"
+  replace = "    return counts * np.log(rate) - gammaln(counts + 1.0)"
+  models = "a Poisson log density missing its normalising term, so a model can raise its score without bound by inflating every fitted rate"
+
+[[target]]
+name = "mosc-bootstrap"
+module-path = "mlsynth/utils/mosc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc.py mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "bootstrap-resamples-without-replacement"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return np.concatenate([[0], 1 + rng.permutation(n_donors)])"
+  models = "a bootstrap that permutes the donor pool instead of resampling it, so every replicate holds exactly the same units in a different order and the interval collapses to the posterior spread it was introduced to widen"
+
+  [[target.mutant]]
+  id = "bootstrap-drops-the-treated-unit"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return rng.integers(0, n_donors + 1, size=n_donors + 1)"
+  models = "a bootstrap that resamples every unit as the paper's sentence reads literally, so a replicate can drop the treated unit and the counterfactual is read off whichever donor happened to land in column zero"
+
+  [[target.mutant]]
+  id = "bootstrap-reuses-one-resample"
+  find = "            config.seed + replicate,"
+  replace = "            config.seed,"
+  models = "every replicate fitting its factor model at the same seed, so the only variation left across replicates is the resampled pool and the factor model's contribution to the interval silently vanishes"

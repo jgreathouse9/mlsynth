@@ -705,6 +705,7 @@ _RELOCATED_CONFIGS = {
     "RRSCConfig": "mlsynth.utils.rrsc_helpers.config",
     "ESCConfig": "mlsynth.utils.esc_helpers.config",
     "LPCAConfig": "mlsynth.utils.lpca_helpers.config",
+    "MOSCConfig": "mlsynth.utils.mosc_helpers.config",
 }
 
 

@@ -500,6 +500,45 @@ but scales it by an external covariate-and-distance utility -- reach for it, at
 Q1.1, when the concern is spatial spillover contaminating the donor pool and you
 want close-by donors down-weighted, not trusted or dropped.
 
+*When the outcome is not Gaussian.* Every estimator above puts its prior
+somewhere -- on the weights, on the factors, on the donor coefficients -- and all
+of them assume the outcome itself is well described by a Gaussian model. For a
+count that is often wrong: case counts, crime incidents, claims and conversions
+are non-negative integers whose spread grows with their level, and a
+least-squares fit to them can return a counterfactual with negative values in it.
+:doc:`mosc` (Wang, Schein, Shou and Blei) is the entry point that lets you choose
+the likelihood instead, fitting a gamma-Poisson factor model to the panel and
+adjusting for the per-unit loadings it returns as though they were observed
+confounders. Its justification is what makes this legitimate: it replaces the
+linear factor model with an argument from negative control outcomes -- every
+pre-intervention observation and every untreated unit is one -- so nothing in the
+identification requires linearity. Reach for it when the panel is wide, the
+pre-period long, and the outcome's distribution is what your other options are
+getting wrong. Two things bound it. Like :doc:`bfsc` and :doc:`mtgp` it reports no
+donor weights at all, since the counterfactual is a regression prediction from
+latent loadings, not a weighted average of donors. And it needs a real
+donor pool -- the outcome model fits a coefficient per latent factor across
+units, so it refuses a panel with fewer than ``n_factors + 3`` of them. With a
+small pool and a Gaussian outcome, :doc:`gsynth` or :doc:`mcnnm` remain the
+better tools. The neighbouring choice for counts is :doc:`cscm`, which keeps the
+donor-weight story and enforces non-negativity at the weighting step; prefer it
+when the weights are the deliverable and the pool is small, and :doc:`mosc` when
+the likelihood is the thing you need to get right. The sharper comparison,
+though, is against :doc:`clustersc`'s robust synthetic control, and it is a
+comparison of assumptions and not of flexibility. Robust SC already permits an
+arbitrary nonlinear latent function; what it requires is that the treated unit's
+mean path lie in the linear span of the donors', carrying to the post-period
+under a rank condition, and it requires nothing whatsoever about how treatment
+was assigned. :doc:`mosc` drops the span requirement and pays for it with
+unconfoundedness given a latent recovered from the outcomes -- a much stronger
+claim, in a literature usually applied where assignment is plainly not
+ignorable. Robust SC also carries a finite-sample error bound and imputes
+missing cells, neither of which :doc:`mosc` offers. What robust SC assumes and a
+count panel denies is a single noise variance common to every unit and period,
+since a Poisson variance equals its mean; that, and not linearity, is the reason
+to switch. So: :doc:`clustersc` unless the outcome's distribution is what is
+going wrong, and a placebo run under either.
+
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
 method. Standard SC builds *fixed* weights that match the treated unit's whole

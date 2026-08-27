@@ -188,3 +188,287 @@ class TestTheDriverAcceptsADiff:
         m = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"], "c": ["mlsynth/x.py"]}
         picked = case_deps.select(["mlsynth/x.py"], ["a", "b", "c"], m)
         assert picked == ["a", "c"]
+
+
+# ------------------------------------------------- holes the map can never fill
+class TestPathsNoManifestCanEverClaim:
+    """Three kinds of path are unclaimable by construction, so treating them as
+    holes in the map is a permanent false positive.
+
+    The widen-on-doubt rule is right when doubt is real: an unrecognised
+    dependency might be one the map has not measured yet. These three cannot be.
+    The registry loads only ``benchmarks.cases``, so no case executes a test
+    module. A file added by the diff did not exist when any pre-existing case
+    ran, so no case can have executed it. And ``mlsynth/__init__.py`` runs at
+    import, before measurement starts, which is the separation that keeps a case
+    from measuring all 834 library files -- so it is invisible to coverage no
+    matter how many times the map is refreshed.
+
+    Each therefore widened the selection to the whole registry on every run, and
+    an estimator pull request tripped all three at once.
+    """
+
+    MAP = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+
+    @pytest.mark.parametrize("path", [
+        "mlsynth/tests/test_fdid.py",
+        "benchmarks/tests/test_case_deps.py",
+    ])
+    def test_a_test_module_is_not_a_hole(self, path):
+        assert case_deps.select([path], ["a", "b"], self.MAP) == []
+
+    def test_the_package_init_is_not_a_hole(self):
+        assert case_deps.select(["mlsynth/__init__.py"], ["a", "b"], self.MAP) == []
+
+    def test_an_added_file_is_not_a_hole(self):
+        """It did not exist when any pre-existing case ran."""
+        picked = case_deps.select(["mlsynth/new.py"], ["a", "b"], self.MAP,
+                                  added=["mlsynth/new.py"])
+        assert picked == []
+
+    def test_a_modified_file_the_map_does_not_claim_still_widens(self):
+        """The rule narrows only where doubt is impossible, never where it is
+        merely unlikely."""
+        assert case_deps.select(["mlsynth/new.py"], ["a", "b"], self.MAP) == ["a", "b"]
+
+    def test_one_modified_hole_widens_past_any_number_of_added_files(self):
+        changed = ["mlsynth/added_one.py", "mlsynth/added_two.py", "mlsynth/edited.py"]
+        picked = case_deps.select(changed, ["a", "b"], self.MAP,
+                                  added=changed[:2])
+        assert picked == ["a", "b"]
+
+    def test_an_added_case_module_still_selects_its_own_case(self):
+        """Unclaimable is not unselectable: the case's own file always runs it."""
+        picked = case_deps.select(["benchmarks/cases/a.py"], ["a", "b"], self.MAP,
+                                  added=["benchmarks/cases/a.py"])
+        assert "a" in picked
+
+    def test_an_added_file_a_manifest_entry_names_still_selects_its_case(self):
+        """`added` suppresses the hole test, never a positive match."""
+        picked = case_deps.select(["mlsynth/x.py"], ["a", "b"], self.MAP,
+                                  added=["mlsynth/x.py"])
+        assert picked == ["a"]
+
+    def test_an_estimator_shaped_diff_selects_no_mapped_case(self):
+        """The shape this rule exists for: a new estimator package, its tests,
+        its export line, and a parametrize entry in a shared test."""
+        changed = [
+            "mlsynth/estimators/mosc.py",
+            "mlsynth/utils/mosc_helpers/pipeline.py",
+            "mlsynth/tests/test_mosc.py",
+            "mlsynth/tests/test_result_contract.py",
+            "mlsynth/__init__.py",
+            "docs/mosc.rst",
+        ]
+        added = changed[:3]
+        assert case_deps.select(changed, ["a", "b"], self.MAP, added=added) == []
+
+
+# ---------------------------------------------------------------------- failure
+@pytest.mark.parametrize("bad", [None, "mlsynth/x.py", 3])
+def test_added_must_be_a_sequence_of_paths(bad):
+    with pytest.raises((TypeError, ValueError)):
+        case_deps.select(["mlsynth/x.py"], ["a"], {"a": []}, added=bad)
+
+
+def test_the_shipped_manifest_names_nothing_unclaimable():
+    """A measured entry naming one of these would mean the measurement is wrong."""
+    manifest = case_deps.load()
+    stray = {p for deps in manifest.values() for p in deps
+             if p.startswith(case_deps.NEVER_REACHABLE)
+             or p in case_deps.RE_EXPORT_ONLY}
+    assert not stray, stray
+
+
+def test_the_package_init_really_is_re_export_only():
+    """`RE_EXPORT_ONLY` is a claim about the file, so check the file.
+
+    A change to a module of imports and an ``__all__`` can add or remove a name;
+    it cannot alter what any estimator computes. Put a statement with behaviour
+    in here and that stops being true, so this fails and the entry comes out.
+    """
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    for rel in case_deps.RE_EXPORT_ONLY:
+        tree = ast.parse((root / rel).read_text())
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            if isinstance(node, ast.Try):      # the __version__ lookup
+                continue
+            assert isinstance(node, ast.Assign), (rel, ast.dump(node)[:80])
+            targets = {t.id for t in node.targets if isinstance(t, ast.Name)}
+            assert targets <= {"__all__", "__version__"}, (rel, targets)
+
+
+class TestTheDriverAcceptsTheAddedSubset:
+    """``--added-from`` names the files the diff creates, which cannot be holes."""
+
+    def test_added_from_is_optional(self):
+        from benchmarks import run_benchmarks
+
+        ap = run_benchmarks.build_parser()
+        assert ap.parse_args(["--all"]).added_from is None
+
+    def test_added_from_reads_one_path_per_line(self, tmp_path):
+        from benchmarks import run_benchmarks
+
+        f = tmp_path / "added.txt"
+        f.write_text("mlsynth/a.py\n\nmlsynth/b.py\n")
+        assert run_benchmarks._read_changed(f) == ["mlsynth/a.py", "mlsynth/b.py"]
+
+    def test_added_without_changed_is_refused(self):
+        """The added set is a subset of the diff; alone it says nothing."""
+        from benchmarks import run_benchmarks
+
+        ap = run_benchmarks.build_parser()
+        args = ap.parse_args(["--all", "--added-from", "x.txt"])
+        with pytest.raises(SystemExit):
+            run_benchmarks._check_args(ap, args)
+
+
+class TestTheMapBuilderShards:
+    """The map is measured by running every case under coverage, which does not
+    fit one job: at 199 cases the single job hit its 350-minute cap on each of
+    the four days after it was added and was cancelled every time, so the
+    manifest stayed at the five entries that shipped with it and the selection
+    it exists to feed had nothing to select with.
+    """
+
+    def test_shard_zero_of_one_is_every_case(self):
+        from tools import benchmark_deps
+
+        names = ["a", "b", "c", "d", "e"]
+        assert benchmark_deps.shard_of(names, 0, 1) == names
+
+    def test_the_shards_partition_the_cases(self):
+        from tools import benchmark_deps
+
+        names = [f"c{i}" for i in range(23)]
+        seen = []
+        for i in range(4):
+            seen += benchmark_deps.shard_of(names, i, 4)
+        assert sorted(seen) == sorted(names)
+        assert len(seen) == len(names)
+
+    def test_the_shards_are_round_robin_like_the_runner(self):
+        """Cost is not uniform across the registry, so slice the same way
+        ``run_benchmarks.select_cases`` does and the heavy cases spread."""
+        from tools import benchmark_deps
+
+        names = [f"c{i}" for i in range(10)]
+        assert benchmark_deps.shard_of(names, 1, 3) == names[1::3]
+
+    @pytest.mark.parametrize("shard,num", [(-1, 2), (2, 2), (0, 0)])
+    def test_an_out_of_range_shard_is_refused(self, shard, num):
+        from tools import benchmark_deps
+
+        with pytest.raises(ValueError):
+            benchmark_deps.shard_of(["a", "b"], shard, num)
+
+
+class TestTheMapBuilderCombinesSlices:
+    """Each shard writes only what it measured; one job merges and commits."""
+
+    def test_combining_unions_the_slices(self, tmp_path):
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        b = tmp_path / "b.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"]}))
+        b.write_text(json.dumps({"two": ["mlsynth/y.py"]}))
+        assert benchmark_deps.combine([a, b], base={}) == {
+            "one": ["mlsynth/x.py"], "two": ["mlsynth/y.py"]}
+
+    def test_a_slice_overrides_the_base_for_the_cases_it_measured(self, tmp_path):
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({"one": ["mlsynth/new.py"]}))
+        out = benchmark_deps.combine([a], base={"one": ["mlsynth/old.py"],
+                                                "two": ["mlsynth/y.py"]})
+        assert out == {"one": ["mlsynth/new.py"], "two": ["mlsynth/y.py"]}
+
+    def test_a_case_no_slice_measured_keeps_its_base_entry(self, tmp_path):
+        """A shard that died must not un-map everyone else's cases."""
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"]}))
+        out = benchmark_deps.combine([a], base={"two": ["mlsynth/y.py"]})
+        assert out["two"] == ["mlsynth/y.py"]
+
+    def test_combining_nothing_returns_the_base_unchanged(self):
+        from tools import benchmark_deps
+
+        base = {"one": ["mlsynth/x.py"]}
+        assert benchmark_deps.combine([], base=base) == base
+
+    def test_a_missing_slice_is_refused(self, tmp_path):
+        from tools import benchmark_deps
+
+        with pytest.raises((FileNotFoundError, OSError)):
+            benchmark_deps.combine([tmp_path / "nope.json"], base={})
+
+
+class TestTheMapBuilderCommandLine:
+    """``main`` is the part CI actually calls, so the two paths CI uses are
+    exercised here: combining slices, and refusing a shard that does not exist.
+    """
+
+    def test_combine_writes_the_merged_map_and_measures_nothing(self, tmp_path, monkeypatch):
+        from tools import benchmark_deps
+
+        slice_ = tmp_path / "slice.json"
+        slice_.write_text(json.dumps({"only": ["mlsynth/x.py"]}))
+        out = tmp_path / "out.json"
+
+        def _never(*a, **k):                      # measuring would take hours
+            raise AssertionError("--combine must not trace a case")
+
+        monkeypatch.setattr(benchmark_deps, "_trace", _never)
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--combine",
+                                         str(slice_), "--out", str(out)])
+        assert benchmark_deps.main() == 0
+        assert json.loads(out.read_text())["only"] == ["mlsynth/x.py"]
+
+    def test_a_shard_outside_the_split_is_refused(self, monkeypatch):
+        from tools import benchmark_deps
+
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--all",
+                                         "--shard", "4", "--num-shards", "4"])
+        with pytest.raises(SystemExit):
+            benchmark_deps.main()
+
+
+class TestProseIsProseWhereverItSits:
+    """``docs/ppscm.rst`` reaches no case because ``docs/`` is outside
+    :data:`REACHABLE`. ``benchmarks/README.md`` is the same prose one directory
+    over, and was a hole in the map on every diff that touched it.
+
+    The existing rule already says prose reaches nothing; it said it by
+    directory. Saying it by kind as well is the same claim, applied where the
+    directory test cannot reach.
+    """
+
+    MAP = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+
+    @pytest.mark.parametrize("path", [
+        "benchmarks/README.md",
+        "benchmarks/reference/mosc_spike/README.md",
+        "mlsynth/utils/NOTES.rst",
+    ])
+    def test_prose_under_a_reachable_prefix_is_not_a_hole(self, path):
+        assert case_deps.select([path], ["a", "b"], self.MAP) == []
+
+    @pytest.mark.parametrize("path", [
+        "benchmarks/constraints.txt",
+        "basedata/prop99.csv",
+        "benchmarks/R/requirements.R",
+    ])
+    def test_a_file_a_case_could_read_is_still_a_hole(self, path):
+        """The reads a case makes are measured, so these are claimable and their
+        absence from the map is real doubt."""
+        assert case_deps.select([path], ["a", "b"], self.MAP) == ["a", "b"]

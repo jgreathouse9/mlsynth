@@ -29,6 +29,27 @@ selects every case. Both directions spend time; neither can silence a case. That
 asymmetry is the point: a skipped check reports success, and a skipped success is
 indistinguishable from a real one, so the map is allowed to cost time and is not
 allowed to hide anything.
+
+Three paths the map can never claim
+-----------------------------------
+Widening on an unclaimed file is right when the map might have claimed it and
+did not. Three kinds of path cannot be claimed however often the map is
+refreshed, so treating them as holes widened every selection to the whole
+registry and the rule never narrowed anything.
+
+The registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
+test module -- :data:`NEVER_REACHABLE`. A file the diff creates did not exist
+when any pre-existing case ran -- the ``added`` argument. ``__init__.py``
+executes at import, before measurement starts, which is the separation that
+stops a case from measuring all 834 library files -- :data:`RE_EXPORT_ONLY`,
+whose one member is checked against the file itself in the tests, since the
+claim holds only while that file is imports and an ``__all__``. And a README is
+prose, which the rule already answers for by directory: ``docs/ppscm.rst`` is
+outside :data:`REACHABLE` and so reaches nothing. :data:`PROSE_SUFFIXES` says
+the same thing by kind, for the prose that sits under a reachable prefix.
+
+An estimator pull request trips all three at once: new helper modules, new test
+modules, and one export line.
 """
 from __future__ import annotations
 
@@ -39,6 +60,23 @@ from typing import Dict, Iterable, List, Mapping, Sequence
 #: Prefixes a case can execute. A change outside all of them reaches no case, so
 #: it is neither a selection nor a hole in the map -- docs and prose land here.
 REACHABLE = ("mlsynth/", "basedata/", "benchmarks/")
+
+#: Prefixes under :data:`REACHABLE` that no measurement can ever claim. The
+#: registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
+#: test module; the references to test files in case docstrings are prose.
+NEVER_REACHABLE = ("mlsynth/tests/", "benchmarks/tests/")
+
+#: Suffixes that are prose. A change outside :data:`REACHABLE` already reaches no
+#: case -- that is how ``docs/ppscm.rst`` is neither a selection nor a hole. A
+#: README one directory over is the same prose, so it gets the same answer.
+PROSE_SUFFIXES = (".md", ".rst")
+
+#: Modules that re-export and do nothing else. These execute at import, before
+#: measurement starts, so coverage never attributes them to a case -- and a file
+#: of imports and an ``__all__`` can add or remove a name but cannot change what
+#: any estimator computes. The claim is checked against the file itself in
+#: ``benchmarks/tests/test_case_deps.py``; break it and the entry comes out.
+RE_EXPORT_ONLY = ("mlsynth/__init__.py",)
 
 PATH = Path(__file__).resolve().parent / "case_deps.json"
 
@@ -63,10 +101,31 @@ def _case_source(name: str) -> str:
     return f"benchmarks/cases/{name}.py"
 
 
+def _is_hole(path: str, known: set, created: set) -> bool:
+    """Whether ``path`` is a dependency the map failed to record.
+
+    A hole widens the selection to the whole registry, so the question is not
+    "did the map claim this?" but "could it have?". Three kinds of path answer
+    no by construction and are not holes; everything else under
+    :data:`REACHABLE` that no entry names is.
+    """
+    if not path.startswith(REACHABLE):
+        return False
+    if path.startswith(NEVER_REACHABLE) or path in RE_EXPORT_ONLY:
+        return False
+    if path.endswith(PROSE_SUFFIXES):
+        return False
+    if path in created:
+        return False
+    return path not in known
+
+
 def select(
     changed: Sequence[str],
     cases: Sequence[str],
     manifest: Mapping[str, Sequence[str]] | None = None,
+    *,
+    added: Sequence[str] = (),
 ) -> List[str]:
     """The cases a diff can reach, in the order ``cases`` gives them.
 
@@ -78,6 +137,11 @@ def select(
         Candidate case names, already filtered for references and sharding.
     manifest : mapping, optional
         Case to executed files. Defaults to the shipped manifest.
+    added : sequence of str, optional
+        The subset of ``changed`` the diff creates. A file that did not exist
+        cannot have been executed by a pre-existing case, so its absence from
+        the map is not a hole. It still selects on a positive match, which is
+        what runs a newly added case.
 
     Returns
     -------
@@ -93,13 +157,19 @@ def select(
             f"{type(changed).__name__}. A single path must be wrapped in a list, "
             f"since a bare string would iterate character by character."
         )
+    if isinstance(added, (str, bytes)) or not isinstance(added, Sequence):
+        raise TypeError(
+            f"added must be a sequence of repository-relative paths, not "
+            f"{type(added).__name__}. It names the subset of `changed` the diff "
+            f"creates; pass () when the diff adds nothing."
+        )
     m = load() if manifest is None else manifest
     changed = [str(c) for c in changed]
+    created = {str(a) for a in added}
 
     known = {p for deps in m.values() for p in deps}
     known.update(_case_source(name) for name in m)
-    unmapped_change = [c for c in changed
-                       if c.startswith(REACHABLE) and c not in known]
+    unmapped_change = [c for c in changed if _is_hole(c, known, created)]
     if unmapped_change:
         return list(cases)
 

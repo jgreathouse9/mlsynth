@@ -338,6 +338,7 @@ headline numbers.
    :caption: Observational: missing data
 
    mcnnm
+   mosc
    snn
    rmsi
    lpca

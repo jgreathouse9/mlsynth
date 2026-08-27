@@ -164,7 +164,8 @@ def _read_changed(path) -> list:
     return [ln.strip() for ln in text.splitlines() if ln.strip()]
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, built apart from ``main`` so the tests can read it."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--case", default=None)
@@ -178,13 +179,30 @@ def main() -> int:
     ap.add_argument("--changed-from", default=None, metavar="FILE",
                     help="a file of repository-relative changed paths, one per "
                          "line; run only the cases that diff can reach")
+    ap.add_argument("--added-from", default=None, metavar="FILE",
+                    help="a file of repository-relative paths the diff creates, "
+                         "one per line; a subset of --changed-from. A file that "
+                         "did not exist cannot have been executed by an existing "
+                         "case, so its absence from the map is not a hole")
     ap.add_argument("--shard", type=int, default=0,
                     help="0-based index of the shard to run (with --num-shards)")
-    args = ap.parse_args()
+    return ap
+
+
+def _check_args(ap: argparse.ArgumentParser, args) -> None:
+    """Reject a command line that cannot mean what it says."""
     if args.num_shards < 1:
         ap.error("--num-shards must be >= 1")
     if not (0 <= args.shard < args.num_shards):
         ap.error("--shard must be in [0, num_shards)")
+    if args.added_from is not None and args.changed_from is None:
+        ap.error("--added-from names a subset of --changed-from; give both")
+
+
+def main() -> int:
+    ap = build_parser()
+    args = ap.parse_args()
+    _check_args(ap, args)
 
     base = [args.case] if args.case else list(registry.CASES)
     if args.changed_from is not None:
@@ -195,9 +213,10 @@ def main() -> int:
         from benchmarks import case_deps
 
         changed = _read_changed(args.changed_from)
-        picked = case_deps.select(changed, base)
-        print(f"changed files: {len(changed)}; cases selected: "
-              f"{len(picked)}/{len(base)}")
+        added = _read_changed(args.added_from) if args.added_from else []
+        picked = case_deps.select(changed, base, added=added)
+        print(f"changed files: {len(changed)} ({len(added)} added); "
+              f"cases selected: {len(picked)}/{len(base)}")
         base = picked
     names = select_cases(
         base, registry.NEEDS_REFERENCE, with_reference=args.with_reference,
