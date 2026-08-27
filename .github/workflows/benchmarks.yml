@@ -268,6 +268,13 @@ jobs:
               - 'basedata/**'
               - 'requirements.txt'
               - 'pyproject.toml'
+            # The subset the diff creates. A file that did not exist cannot have
+            # been executed by a pre-existing case, so its absence from the map
+            # is not a hole -- and without this the selection widened to the
+            # whole registry on every pull request that added a file, which an
+            # estimator always does.
+            created:
+              - added: '**'
 
       # The filter above decides whether the shards run at all; this decides
       # which cases they run. case_deps widens on any doubt -- an unmapped case
@@ -278,22 +285,26 @@ jobs:
         if: steps.filter.outputs.benchmarked == 'true'
         env:
           CHANGED_JSON: ${{ steps.filter.outputs.all_files }}
+          ADDED_JSON: ${{ steps.filter.outputs.created_files }}
         run: |
           python - <<'EOF'
           import json, os
           files = json.loads(os.environ["CHANGED_JSON"] or "[]")
+          added = set(json.loads(os.environ["ADDED_JSON"] or "[]"))
           with open("/tmp/changed.txt", "w") as fh:
               fh.write("\n".join(files) + ("\n" if files else ""))
-          print(f"{len(files)} changed file(s)")
+          with open("/tmp/added.txt", "w") as fh:
+              fh.write("\n".join(sorted(added)) + ("\n" if added else ""))
+          print(f"{len(files)} changed file(s), {len(added)} of them new")
           for f in files:
-              print(" ", f)
+              print("  +" if f in added else "   ", f)
           EOF
 
       - name: Run benchmark suite shard
         if: steps.filter.outputs.benchmarked == 'true'
         run: |
           python -u benchmarks/run_benchmarks.py --all --report \
-            --changed-from /tmp/changed.txt \
+            --changed-from /tmp/changed.txt --added-from /tmp/added.txt \
             --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
 
       - name: Upload benchmark report
@@ -395,8 +406,8 @@ jobs:
   # ---------------------------------------------------------------------------
 
   case-deps:
-    # Never on a pull request: this job commits the refreshed dependency map back
-    # to the default branch, and measuring it means running every case.
+    # Never on a pull request: measuring the map means running every case, and
+    # the combine job downstream commits the result to the default branch.
     #
     # The map is what lets a pull request run only the cases its diff can reach.
     # It is measured, not written, because the cheaper routes fail here:
@@ -406,15 +417,29 @@ jobs:
     # case under coverage with the package already imported, which separates
     # executing a module from loading one.
     #
-    # --merge keeps entries this run did not produce. A case that skips here for
-    # a missing optional toolchain loses its entry and goes back to always
-    # running, which is the safe direction.
+    # SHARDED, because as one job it never finished. At 199 cases it reached its
+    # 350-minute cap on 23, 24, 25 and 26 August and was cancelled every time --
+    # the 26th ran 07:36 to 13:26 -- so the map stayed at the five entries that
+    # shipped with it and every pull request touching the library ran the whole
+    # registry, MIP and Monte Carlo cases included. The slice is round-robin, the
+    # same one run_benchmarks.py takes, because cost is not uniform across the
+    # registry. To change the shard count, edit BOTH the matrix and NUM_SHARDS.
+    #
+    # Each shard writes only what it measured and uploads it. Merging onto the
+    # shipped map and committing is the combine job's, once: four shards each
+    # rebasing and pushing the same file race, and the loser's slice disappears
+    # with no failure anywhere.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     permissions:
-      contents: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     env:
+      NUM_SHARDS: "4"
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
@@ -436,7 +461,62 @@ jobs:
           pip install -e ".[design,bayes]" coverage
 
       - name: Measure what each case executes
-        run: python -u tools/benchmark_deps.py --all --merge
+        run: |
+          python -u tools/benchmark_deps.py --all \
+            --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}" \
+            --out "case_deps.shard-${{ matrix.shard }}.json"
+
+      - name: Upload this shard's slice
+        uses: actions/upload-artifact@v4
+        with:
+          name: case-deps-slice-${{ matrix.shard }}
+          path: case_deps.shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Merge the slices and commit the map, once.
+  #
+  # always() so a shard that died costs its own slice and not the other three:
+  # --combine leaves a case no slice measured on its existing entry, and a case
+  # that loses its entry goes back to always running, which is the safe
+  # direction. A cancelled shard therefore delays part of the map by a day
+  # instead of discarding the rest of it.
+  # ---------------------------------------------------------------------------
+  case-deps-commit:
+    if: always() && github.event_name != 'pull_request'
+    needs: case-deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download every slice that was produced
+        uses: actions/download-artifact@v4
+        with:
+          pattern: case-deps-slice-*
+          path: slices
+          merge-multiple: true
+
+      - name: Merge the slices onto the shipped map
+        run: |
+          shopt -s nullglob
+          SLICES=(slices/case_deps.shard-*.json)
+          if [ ${#SLICES[@]} -eq 0 ]; then
+            echo "No slice was produced; leaving the map as it stands."
+            exit 0
+          fi
+          echo "Merging ${#SLICES[@]} slice(s)."
+          python -u tools/benchmark_deps.py --combine "${SLICES[@]}"
 
       - name: Commit the map if it changed
         run: |
