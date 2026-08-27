@@ -2,7 +2,13 @@
 
 from .config import MOSCConfig
 from .factor import FACTOR_MODELS, FactorDraws, gap_gibbs, heldout_log_density, ppca_em
-from .pipeline import counterfactual_draws, diagnose, fit_factor_model, run_mosc
+from .pipeline import (
+    counterfactual_draws,
+    diagnose,
+    fit_factor_model,
+    resample_columns,
+    run_mosc,
+)
 from .plotter import plot_mosc_posterior
 from .setup import prepare_mosc_inputs
 from .structures import (
@@ -30,5 +36,6 @@ __all__ = [
     "plot_mosc_posterior",
     "ppca_em",
     "prepare_mosc_inputs",
+    "resample_columns",
     "run_mosc",
 ]

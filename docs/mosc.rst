@@ -208,8 +208,7 @@ Third, the effect is the observed path minus the counterfactual,
    \widehat{\mathrm{ATT}}^{(s)} = \frac{1}{T - T_0}
        \sum_{t > T_0} \bigl[ y_{t1} - \widehat{f}^{(s)}_{t1}(0) \bigr],
 
-and the spread of :math:`\widehat{\mathrm{ATT}}^{(s)}` across draws is the
-credible interval.
+and the interval around it is formed as the next section describes.
 
 Inference and diagnostics
 -------------------------
@@ -387,7 +386,7 @@ Results
 -------
 
 :class:`~mlsynth.utils.mosc_helpers.structures.MOSCResults`: the ATT and its
-credible interval, the posterior-mean counterfactual with a band, the draws of
+interval, the posterior-mean counterfactual with a band, the draws of
 the estimated confounding structure, and the diagnostics above.
 
 .. automodule:: mlsynth.utils.mosc_helpers.structures

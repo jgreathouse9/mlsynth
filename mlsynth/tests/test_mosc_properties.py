@@ -467,3 +467,86 @@ def test_residual_autocorrelation_is_measured_after_conditioning():
         f"a rank-2 fit explains this panel's trend, so the residual correlation "
         f"should be near zero; got {residual:.3f} against a raw {raw:.3f}"
     )
+
+
+# ---------------------------------------------- the resampling is a bootstrap --
+#
+# Width is not evidence about the mechanism. Measured on a 24-unit panel, the
+# correct resampling gives a 95% ATT interval of width 17.5; permuting the pool
+# instead gives 13.2 and reusing one seed gives 19.8. Neither is separable from
+# the correct value by a threshold, so these assert the mechanism directly.
+
+
+@given(n_donors=st.integers(4, 40), seed=st.integers(0, 2**16))
+@SETTINGS
+def test_every_replicate_keeps_the_treated_unit(n_donors, seed):
+    """Column 0 is the treated unit and survives every resample.
+
+    Resampling all units, as the paper's sentence reads literally, can drop the
+    one whose counterfactual is the estimand; the replicate then reads its
+    "counterfactual" off whichever donor landed in column zero.
+    """
+    from mlsynth.utils.mosc_helpers.pipeline import resample_columns
+
+    rng = np.random.default_rng(seed)
+    for _ in range(20):
+        columns = resample_columns(rng, n_donors)
+        assert columns[0] == 0
+        assert columns.shape == (n_donors + 1,)
+        assert set(columns[1:]) <= set(range(1, n_donors + 1))
+
+
+@given(n_donors=st.integers(6, 40), seed=st.integers(0, 2**16))
+@SETTINGS
+def test_donors_are_drawn_with_replacement(n_donors, seed):
+    """A resample repeats donors; a permutation never does.
+
+    Drawing with replacement is what makes the spread across replicates an
+    estimate of sampling uncertainty. Permuting the pool hands every replicate
+    the same units in a different order, and both stages are exchangeable in
+    units, so the replicates would carry no information about which units were
+    observed.
+    """
+    from mlsynth.utils.mosc_helpers.pipeline import resample_columns
+
+    rng = np.random.default_rng(seed)
+    draws = [resample_columns(rng, n_donors)[1:] for _ in range(30)]
+
+    # With replacement, a draw of n from n repeats something with probability
+    # 1 - n!/n^n, which is above 0.99 for n >= 6. Over 30 draws, seeing none is
+    # decisive evidence that the pool was permuted.
+    repeated = sum(len(set(d)) < len(d) for d in draws)
+    assert repeated > 0, "no resample repeated a donor, so the pool was permuted"
+
+    # And the composition itself must vary, not merely the order.
+    compositions = {tuple(sorted(d)) for d in draws}
+    assert len(compositions) > 1
+
+
+def test_each_replicate_fits_its_factor_model_at_a_fresh_seed(monkeypatch):
+    """The factor model's own uncertainty enters the interval once per replicate.
+
+    Holding the seed fixed leaves only the resampled pool varying, so the
+    posterior contribution silently drops out of an interval that still looks
+    plausible -- it was measured as wider, not narrower, which is why this
+    asserts the seeds and not the width.
+    """
+    import mlsynth.utils.mosc_helpers.pipeline as pipeline
+    from mlsynth import MOSC
+    from test_mosc import base_config, make_count_panel
+
+    seen = []
+    original = pipeline.fit_factor_model
+
+    def spy(*args, **kwargs):
+        seen.append(args[-1])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "fit_factor_model", spy)
+    panel = make_count_panel(n_units=12, n_periods=20, pre_periods=14, seed=1)
+    MOSC(base_config(panel, n_factors=1, n_samples=10, n_warmup=10,
+                     inference="bootstrap", n_bootstrap=12)).fit()
+
+    bootstrap_seeds = seen[1:]          # the first call is the headline fit
+    assert len(bootstrap_seeds) == 12
+    assert len(set(bootstrap_seeds)) == 12, "replicates reused a seed"

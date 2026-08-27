@@ -148,7 +148,7 @@ class MOSCConfig(BaseEstimatorConfig):
     )
     ci_alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided level for the credible interval (0.05 gives a 95% band).",
+        description="Two-sided level for the reported interval (0.05 gives a 95% interval).",
     )
     seed: int = Field(
         default=0,

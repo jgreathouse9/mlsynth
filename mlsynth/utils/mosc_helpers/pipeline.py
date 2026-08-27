@@ -200,8 +200,7 @@ def bootstrap_counterfactuals(inputs: MOSCInputs, config) -> np.ndarray:
 
     replicates = []
     for replicate in range(config.n_bootstrap):
-        columns = np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])
-        resampled = modelled[:, columns]
+        resampled = modelled[:, resample_columns(rng, n_donors)]
         factors = fit_factor_model(
             resampled[:modelled_pre_length], config.factor_model, config.n_factors,
             1, warmup,
@@ -216,6 +215,23 @@ def bootstrap_counterfactuals(inputs: MOSCInputs, config) -> np.ndarray:
         )
 
     return rebase(np.asarray(replicates))
+
+
+def resample_columns(rng, n_donors: int) -> np.ndarray:
+    """Column indices for one bootstrap replicate: the treated unit, then donors.
+
+    Drawn with replacement, which is what makes the spread across replicates an
+    estimate of sampling uncertainty. Permuting the pool instead would hand every
+    replicate the same units in a different order, and both the factor model and
+    the outcome regression are exchangeable in units, so the replicates would
+    differ only by their random seed.
+
+    Column 0 is the treated unit and is always kept. The paper says to resample
+    the per-unit data points; read literally that can drop the unit whose
+    counterfactual is the estimand, leaving the replicate with nothing to
+    predict.
+    """
+    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])
 
 
 def _pre_length(pre_periods: int, outcome_scale: str) -> int:

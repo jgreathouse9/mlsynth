@@ -19,13 +19,24 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard, typing only
     from .structures import MOSCResults
 
 
+_INTERVAL_NAMES = {
+    "unit_bootstrap": "bootstrap interval",
+    "posterior_mean_band": "credible band (conditional mean)",
+}
+
+
 def plot_mosc_posterior(
     results: "MOSCResults",
     title: Optional[str] = None,
     treated_color: str = "black",
     counterfactual_color: str = "tab:blue",
 ) -> "Figure":
-    """Observed path against the posterior counterfactual and its credible band.
+    """Observed path against the counterfactual, with the interval the fit produced.
+
+    The legend names the interval by what it is. Under the default unit
+    bootstrap it is a percentile confidence interval; under
+    ``inference="posterior"`` it is a credible band on the conditional mean.
+    Labelling one as the other would misdescribe every figure.
 
     Returns
     -------
@@ -45,7 +56,7 @@ def plot_mosc_posterior(
             lw=2, ls="--", label="Posterior mean counterfactual")
     ax.fill_between(labels, detail.counterfactual_lower, detail.counterfactual_upper,
                     color=counterfactual_color, alpha=0.15,
-                    label=f"{100 * (1 - detail.ci_alpha):.0f}% credible interval")
+                    label=f"{100 * (1 - detail.ci_alpha):.0f}% {_INTERVAL_NAMES[detail.method]}")
     if pre < len(labels):
         ax.axvline(labels[pre], color="grey", lw=1)
 

@@ -60,8 +60,8 @@ class MOSC:
     Returns
     -------
     MOSCResults
-        An ``EffectResult`` carrying the posterior-mean counterfactual with a
-        credible band, the ATT and its credible interval, the draws of the
+        An ``EffectResult`` carrying the posterior-mean counterfactual with an
+        interval around it, the ATT and its interval, the draws of the
         estimated confounding structure, and the diagnostics that say whether the
         factor model's assumptions hold on this panel.
 

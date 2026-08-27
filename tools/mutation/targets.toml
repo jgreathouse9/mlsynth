@@ -1951,3 +1951,27 @@ timeout = 600.0
   find = "    return counts * np.log(rate) - rate - gammaln(counts + 1.0)"
   replace = "    return counts * np.log(rate) - gammaln(counts + 1.0)"
   models = "a Poisson log density missing its normalising term, so a model can raise its score without bound by inflating every fitted rate"
+
+[[target]]
+name = "mosc-bootstrap"
+module-path = "mlsynth/utils/mosc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc.py mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "bootstrap-resamples-without-replacement"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return np.concatenate([[0], 1 + rng.permutation(n_donors)])"
+  models = "a bootstrap that permutes the donor pool instead of resampling it, so every replicate holds exactly the same units in a different order and the interval collapses to the posterior spread it was introduced to widen"
+
+  [[target.mutant]]
+  id = "bootstrap-drops-the-treated-unit"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return rng.integers(0, n_donors + 1, size=n_donors + 1)"
+  models = "a bootstrap that resamples every unit as the paper's sentence reads literally, so a replicate can drop the treated unit and the counterfactual is read off whichever donor happened to land in column zero"
+
+  [[target.mutant]]
+  id = "bootstrap-reuses-one-resample"
+  find = "            config.seed + replicate,"
+  replace = "            config.seed,"
+  models = "every replicate fitting its factor model at the same seed, so the only variation left across replicates is the resampled pool and the factor model's contribution to the interval silently vanishes"

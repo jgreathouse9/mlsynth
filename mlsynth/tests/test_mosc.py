@@ -641,3 +641,56 @@ def test_the_bootstrap_is_reproducible(panel):
     first = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=20, seed=3)).fit()
     second = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=20, seed=3)).fit()
     np.testing.assert_allclose(first.att_ci, second.att_ci, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "inference, expected",
+    [("bootstrap", "bootstrap interval"),
+     ("posterior", "credible band (conditional mean)")],
+)
+def test_the_legend_names_the_interval_it_drew(panel, inference, expected):
+    """A bootstrap percentile interval is not a credible interval.
+
+    The figure is the output most readers will take a number from, so the label
+    has to track which interval the fit actually produced.
+    """
+    from mlsynth.utils.mosc_helpers.plotter import plot_mosc_posterior
+
+    result = MOSC(base_config(panel, inference=inference)).fit()
+    figure = plot_mosc_posterior(result)
+    try:
+        labels = [t.get_text() for t in figure.axes[0].get_legend().get_texts()]
+        assert any(expected in label for label in labels), labels
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(figure)
+
+
+def test_a_bootstrap_failure_is_translated(panel, monkeypatch):
+    """A replicate that blows up surfaces as MlsynthEstimationError.
+
+    Swallowing it would return an interval built from however many replicates
+    happened to survive, with nothing on the result recording that the rest did
+    not.
+    """
+    import mlsynth.utils.mosc_helpers.pipeline as pipeline
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("resample blew up")
+
+    monkeypatch.setattr(pipeline, "bootstrap_counterfactuals", explode)
+    with pytest.raises(MlsynthEstimationError, match="bootstrap"):
+        MOSC(base_config(panel, inference="bootstrap")).fit()
+
+
+def test_a_bootstrap_error_passes_through_untranslated(panel, monkeypatch):
+    """An error already in the library's vocabulary keeps its own message."""
+    import mlsynth.utils.mosc_helpers.pipeline as pipeline
+
+    def explode(*args, **kwargs):
+        raise MlsynthEstimationError("the resample said exactly this")
+
+    monkeypatch.setattr(pipeline, "bootstrap_counterfactuals", explode)
+    with pytest.raises(MlsynthEstimationError, match="the resample said exactly this"):
+        MOSC(base_config(panel, inference="bootstrap")).fit()
