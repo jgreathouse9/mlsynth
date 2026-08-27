@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-08-27T00:00:00Z",
+  "git_sha": "733a53f5e99fa950cb6ab3deb583593eeb409dab",
+  "platform": "Linux-6.18.44-fc-v21-x86_64-with-glibc2.39",
+  "python_version": "3.11.15",
+  "upstream_repo": "https://github.com/Joshuashou/Synthetic-Control-Paper-Model",
+  "upstream_sha": "efe0803",
+  "upstream_last_substantive_commit": "2024-03-13",
+  "data": [
+    {
+      "path": "panels/baltimore.parquet",
+      "sha256": "81ea0d847390e6acb2506a59ee41d000aec452b51171c14a9e4cf5a1ab0392f4"
+    },
+    {
+      "path": "panels/indianapolis.parquet",
+      "sha256": "c3fb72eea664a982587d0f1d7a14a580947edae78e5923af766c65b7bbefec8a"
+    }
+  ],
+  "packages": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0",
+    "mlsynth": "2.0.0"
+  }
+}

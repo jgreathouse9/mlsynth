@@ -1,0 +1,55 @@
+{
+  "overall_with_lag": {
+    "GAP": 0.034316527279559646,
+    "PPCA": 0.03568272186904628,
+    "rSC": 0.03755589388569502,
+    "gap_beats_ppca": true,
+    "gap_beats_rsc": true
+  },
+  "overall_without_lag": {
+    "GAP": 0.03244026951818814,
+    "PPCA": 0.046190392518080804,
+    "rSC": 0.03755589388569502,
+    "gap_beats_ppca": true,
+    "gap_beats_rsc": true
+  },
+  "by_pre_period": {
+    "25": {
+      "with_lag": {
+        "GAP": 0.038594564934556715,
+        "PPCA": 0.03628348954356236,
+        "rSC": 0.043675523535865596,
+        "gap_beats_ppca": false,
+        "gap_beats_rsc": true
+      },
+      "without_lag": {
+        "GAP": 0.038805846109385624,
+        "PPCA": 0.05714409212576894,
+        "rSC": 0.043675523535865596,
+        "gap_beats_ppca": true,
+        "gap_beats_rsc": true
+      }
+    },
+    "100": {
+      "with_lag": {
+        "GAP": 0.030038489624562584,
+        "PPCA": 0.035081954194530196,
+        "rSC": 0.03143626423552444,
+        "gap_beats_ppca": true,
+        "gap_beats_rsc": true
+      },
+      "without_lag": {
+        "GAP": 0.02607469292699066,
+        "PPCA": 0.03523669291039267,
+        "rSC": 0.03143626423552444,
+        "gap_beats_ppca": true,
+        "gap_beats_rsc": true
+      }
+    }
+  },
+  "verdict": {
+    "advantage_survives_dropping_lag": true,
+    "advantage_holds_at_short_pre_period": true,
+    "build": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case": "mosc_spike",
+  "title": "Many-outcomes synthetic control (Wang, Schein, Shou & Blei): port, bake-off and model-check calibration",
+  "paper": "Wang, Y., Schein, A., Shou, J., & Blei, D. M., 'A Many-outcomes Perspective on the Synthetic Control Method', unpublished JMLR submission (no arXiv posting)",
+  "reference_impl": "Joshuashou/Synthetic-Control-Paper-Model @ efe0803 (src/bayesian_factor_model.py, src/deconfound_and_plot.py, src/semi_synthetic_experiment.ipynb), by the paper's third author; no licence file",
+  "path_type": "spike (demonstrate-first; no estimator added)",
+  "issue": "https://github.com/jgreathouse9/mlsynth/issues/535",
+  "command": "python run_bakeoff.py --posterior-samples 150 && python analyse_bakeoff.py",
+  "data": [
+    "benchmarks/reference/mosc_spike/panels/indianapolis.parquet",
+    "benchmarks/reference/mosc_spike/panels/baltimore.parquet"
+  ],
+  "data_origin": "Reassembled by extract_panels.py from dat/<Team>/{train,test}_data.pt and dates.csv in the upstream repository. Not in basedata/ -- confirmed absent from all 4,476 commits of mlsynth history."
+}
