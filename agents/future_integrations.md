@@ -2206,6 +2206,143 @@ outcomes that plausibly diffuse.
 
 ---
 
+## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- spiked, BUILD
+
+**Status: Spike complete, recommendation is build. The paper's substantive claim
+reproduces; the margin over robust synthetic control is thinner than its figure
+suggests, and its model-criticism step does not work as specified. Spike lives in
+`benchmarks/reference/mosc_spike/` with a full README. Issue #535.**
+
+### Source
+
+> Wang, Y., Schein, A., Shou, J., & Blei, D. M. "A Many-outcomes Perspective on
+> the Synthetic Control Method." Unpublished JMLR submission. No arXiv posting.
+
+Reference implementation and data:
+`Joshuashou/Synthetic-Control-Paper-Model`, by the third author. No licence file.
+This is the repository §17 records while assessing Shen (2026), where it is named
+as "a *different* paper ... which reuses the same setting". §17 paid the discovery
+cost; this entry is what it is worth.
+
+Confirmed across all 4,476 commits: no NFL data has ever been in `basedata/`. The
+only genuine NFL reference in the history is §17's own commit. Every other
+`-S "NFL"` hit is the `_NO_CONFLICT` substring, which is the trap §17's learnings
+note already flagged.
+
+### The idea in one line
+
+Fit a probabilistic factor model to the units-by-time matrix, then use the
+per-unit latent loadings as an estimated confounder in a downstream outcome
+regression -- which frees the analyst to choose the likelihood, so a count panel
+gets a Poisson model instead of a Gaussian one.
+
+### What the spike established
+
+The paper's claim reproduces. Over 48 semi-synthetic cells the gamma-Poisson arm
+beats both Gaussian arms on mean relative error, at 25 pre-periods as well as
+100. That last point is the one that matters here: the identification is
+asymptotic in the pre-period, and panels in this library carry 12-30.
+
+The undocumented lagged-outcome regressor runs the other way from the concern
+that motivated checking it. Upstream hardcodes `Y_{i,-1}` into the design in the
+script that produced Figure 8, gives the rSC baseline no equivalent, and never
+mentions it in equations 40-41. Removing it improves the paper's own case: GAP's
+margin over PPCA is 0.0014 in the published specification and 0.0138 without it,
+because the lag was propping up the Gaussian arm (PPCA 0.0462 -> 0.0357) and
+slightly hurting the Poisson one (GAP 0.0324 -> 0.0343).
+
+Three findings cut against the paper as written.
+
+**The head-to-head against rSC is close.** GAP takes 28 of 48 cells outright and
+beats rSC in 29 of 48. The averages read as a larger effect than the per-cell
+record supports. Splitting by departure from the factor model, rSC is *ahead*
+where the factor model is exactly right (rho=0: GAP 0.0385, rSC 0.0354) and GAP
+wins where it is violated (rho=0.5: 0.0227 against 0.0376). The advantage is
+robustness to departures, not fidelity.
+
+**The paper's pre-period claim does not reproduce.** It reports the gap widening
+with more pre-periods. Measured, the GAP-over-PPCA margin is 0.0183 at 25
+pre-periods and 0.0092 at 100 -- it narrows.
+
+**The model criticism is degenerate.** Section 3.4 makes it the step that
+licenses `Z` to stand in for the unobserved confounder, and 4.3.1 claims a false
+rejection rate of alpha. On data drawn from the model being checked, the measured
+rate is 0.40. Equation 36 sums the discrepancy over held-out cells and equation 35
+scores a replicate and the real data at the same posterior draw; the replicate
+matches that rate exactly while the data carries its estimation error, so the
+per-cell gap grows like `n` while its spread grows like `sqrt(n)`. `p_pop`
+collapses onto 0 or 1 once the held-out set passes roughly 100 cells. The paper
+holds out about 1,660. Its own reported numbers carry the signature -- PPCA at
+1.0 almost everywhere, GAP passing but "rarely for all masks". Scored instead by
+held-out predictive log density, with no calibration claim, the comparison the
+check was reached for comes out decisively the paper's way.
+
+**The panels are cumulative counts.** Each series climbs from 1 to about 70,000,
+non-decreasing at 98.5% of steps. Against a rank-10 fit on held-out cells, Pearson
+dispersion is 13.0 (Indianapolis) and 193.8 (Baltimore) where Poisson needs 1, and
+residual lag-1 autocorrelation is 0.45 and 0.20 where equations 12 and 19 need 0.
+Differencing moves those to 1.7-2.6 and 0.07-0.17. The method is run on the scale
+that fits its own assumptions worst. This is the same cumulative-versus-daily
+ambiguity §17 hit on this data.
+
+### Cost, measured and not estimated
+
+The sampler is not the problem. Upstream runs NUTS on a cluster; the conjugate
+multinomial augmentation that its own dead `gibbs_sample` sketches draws the same
+posterior in 7 seconds of pure NumPy, so a build needs no `[bayes]` extra. The
+cost is the downstream regression: upstream refits a 5-fold cross-validated Ridge
+over a 4-point grid for every posterior draw -- 29.5 seconds against the sampler's
+7 -- and page 23 explains why, since label switching makes averaging draws
+ill-defined. That per-draw refit is intrinsic to Algorithm 1 and is what a build
+should attack first.
+
+### Architecture
+
+New top-level estimator, not a mode on an existing one: no weight solve, no donor
+selection, no balancing. Name it for the mechanism (`MOSC`), since "nonlinear
+synthetic control" collides with `NSC` (Tian 2023). `WeightsResults` has nothing
+to populate, which MCNNM already precedents. Closest existing estimator is
+GSYNTH, which the paper itself names alongside Gobillon & Magnac; the delta is a
+non-Gaussian likelihood, a posterior, and a model-criticism gate.
+
+Deviations a build should make from the paper, all established above: drop the
+lagged outcome; drop `p_pop` and report held-out predictive log density; default
+to differencing and expose the scale, with dispersion and residual
+autocorrelation as diagnostics on the result.
+
+### Carve-out to take separately
+
+Held-out predictive log density is a general model-comparison score that BFSC,
+MVBBSC, MTGP, BSCM, BVSS and BPSCS could all report and none currently do. Own
+branch, per the one-scope-one-branch rule.
+
+### Learnings
+
+* **A reference implementation can disagree with its own paper about the claim.**
+  Reading the code changed three things reading the paper could not: which
+  regressors carry the reported result, which effect sizes the figure labels
+  correspond to, and that the check licensing the whole procedure is degenerate.
+  Port before assessing, whenever code exists.
+* **Validate a screen by what it accepts, not only by what it rejects.** The
+  predictive check rejected every model at every rank on the real panels, which
+  looked like a finding about the data. Running it on data drawn from the model
+  being checked showed it also rejects that, and the sweep over held-out set size
+  showed why. A screen that never accepts is not a screen.
+* **Two `var/mean` numbers can both be wrong in opposite directions.** A pooled
+  variance-to-mean ratio mostly measures rate heterogeneity, which the factor
+  model exists to explain; a rank-10 fit to a 17-column panel interpolates and
+  reports dispersion near 1 whatever the data does. The statistic that answers
+  the question is held-out and median-summarised.
+* **`pkill -f <script>.py` kills its own shell** when the pattern appears in the
+  command line running it. It silently dropped two patches here, and the second
+  one left a comparison that appeared to validate a rewire against itself. Kill
+  by PID, and assert the patch landed.
+* **§17 was worth its keep.** The repository, the data and the date-column
+  warning were all recorded a month earlier while assessing a different paper.
+  Check `future_integrations.md` before searching for a paper's artifacts.
+
+---
+
 ## Done
 
 *(empty -- move completed items here, preserving their Learnings subsection.)*

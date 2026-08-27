@@ -1,0 +1,58 @@
+{
+  "indianapolis": {
+    "shape": [
+      301,
+      84
+    ],
+    "as_shipped": {
+      "series": "cumulative (as shipped)",
+      "min": 0.0,
+      "max": 70801.0,
+      "heldout_median_pearson_dispersion": 12.967420279474652,
+      "n_heldout_cells_scored": 2384,
+      "mean_residual_lag1_autocorrelation": 0.4479754048948807,
+      "mean_raw_lag1_autocorrelation": 0.9999000486107928,
+      "fraction_of_steps_non_decreasing": 0.9852777777777778,
+      "integer_valued": true
+    },
+    "differenced": {
+      "series": "daily (difference)",
+      "min": 0.0,
+      "max": 1159.0,
+      "heldout_median_pearson_dispersion": 1.6586986338931322,
+      "n_heldout_cells_scored": 1943,
+      "mean_residual_lag1_autocorrelation": 0.17312812427857976,
+      "mean_raw_lag1_autocorrelation": 0.7486118484132515,
+      "fraction_of_steps_non_decreasing": 0.6220337633381111,
+      "integer_valued": true
+    }
+  },
+  "baltimore": {
+    "shape": [
+      296,
+      17
+    ],
+    "as_shipped": {
+      "series": "cumulative (as shipped)",
+      "min": 0.0,
+      "max": 70244.0,
+      "heldout_median_pearson_dispersion": 193.7785593033321,
+      "n_heldout_cells_scored": 480,
+      "mean_residual_lag1_autocorrelation": 0.20412733057369856,
+      "mean_raw_lag1_autocorrelation": 0.9998823794123868,
+      "fraction_of_steps_non_decreasing": 0.9846460618145564,
+      "integer_valued": true
+    },
+    "differenced": {
+      "series": "daily (difference)",
+      "min": 0.0,
+      "max": 951.0,
+      "heldout_median_pearson_dispersion": 2.6323122473766096,
+      "n_heldout_cells_scored": 268,
+      "mean_residual_lag1_autocorrelation": 0.06659791824014355,
+      "mean_raw_lag1_autocorrelation": 0.6080317440336013,
+      "fraction_of_steps_non_decreasing": 0.5894357743097239,
+      "integer_valued": true
+    }
+  }
+}
