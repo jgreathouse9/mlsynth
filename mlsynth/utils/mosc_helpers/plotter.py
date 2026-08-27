@@ -49,9 +49,26 @@ def plot_mosc_posterior(
     if pre < len(labels):
         ax.axvline(labels[pre], color="grey", lw=1)
 
+    _thin_time_ticks(ax, labels)
     ax.set_xlabel("Time")
     ax.set_ylabel(results.inputs.treated_unit_name)
     ax.set_title(title or f"MOSC ({results.posterior.factor_model})")
     ax.legend(frameon=False)
     fig.tight_layout()
     return fig
+
+
+def _thin_time_ticks(ax, labels: np.ndarray, most: int = 8) -> None:
+    """Show at most ``most`` time labels, so a long daily panel stays readable.
+
+    A categorical axis draws one tick per period, which for a panel of a few
+    hundred days is a solid bar of overlapping text. Matplotlib's date locators
+    do not apply here because the labels are whatever the caller's time column
+    held, which need not be a date at all.
+    """
+    if len(labels) <= most:
+        return
+    step = int(np.ceil(len(labels) / most))
+    positions = labels[::step]
+    ax.set_xticks(positions)
+    ax.set_xticklabels([str(p) for p in positions], rotation=45, ha="right")

@@ -111,7 +111,6 @@ class MOSCResults(BaseEstimatorResults):
         observed = np.asarray(self.inputs.y_target, dtype=float)
         counterfactual = np.asarray(detail.counterfactual_mean, dtype=float)
         gap = observed - counterfactual
-        pre_rmse = float(np.sqrt(np.mean(gap[:pre] ** 2))) if pre > 0 else float("nan")
         att_se = float(np.std(detail.att_samples)) if detail.att_samples.size else None
 
         object.__setattr__(self, "effects", EffectsResults(
@@ -134,7 +133,13 @@ class MOSCResults(BaseEstimatorResults):
                 "n_draws": int(self.posterior.n_draws),
                 "outcome_scale": self.diagnostics.outcome_scale}))
         object.__setattr__(self, "fit_diagnostics", FitDiagnosticsResults(
-            rmse_pre=None if np.isnan(pre_rmse) else float(pre_rmse)))
+            # MOSC predicts only the post-intervention block, so the
+            # pre-intervention counterfactual is the observed series and a
+            # pre-period RMSE computed from it would be zero by construction --
+            # a number that reads as a perfect fit and measures nothing. The
+            # fit statistic that means something here is the held-out
+            # predictive density on the diagnostics container.
+            rmse_pre=None))
         object.__setattr__(self, "inference", InferenceResults(
             standard_error=att_se,
             ci_lower=None if np.isnan(detail.att_lower) else float(detail.att_lower),

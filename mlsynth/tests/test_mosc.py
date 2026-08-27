@@ -499,3 +499,47 @@ def test_the_estimate_recovers_a_known_effect(panel):
 
     assert result.att == pytest.approx(implied_truth, rel=0.5)
     assert result.att > 0.25 * implied_truth
+
+
+def test_no_pre_period_rmse_is_reported(fitted):
+    """MOSC predicts only the post block, so a pre-period RMSE would be a zero.
+
+    The pre-intervention counterfactual is the observed series, so any RMSE
+    computed from it is zero by construction and reads as a perfect fit. The fit
+    statistic that means something here is the held-out predictive density.
+    """
+    assert fitted.pre_rmse is None
+    assert np.isfinite(fitted.diagnostics.heldout_log_density)
+
+
+def test_a_long_daily_panel_gets_readable_time_ticks():
+    """A few hundred periods must not render a few hundred overlapping labels."""
+    from matplotlib.figure import Figure
+
+    from mlsynth.utils.mosc_helpers.plotter import plot_mosc_posterior
+
+    long_panel = make_count_panel(n_units=14, n_periods=180, pre_periods=150, seed=3)
+    result = MOSC(base_config(long_panel, n_factors=2, n_samples=20, n_warmup=20)).fit()
+    figure = plot_mosc_posterior(result)
+    try:
+        assert isinstance(figure, Figure)
+        assert len(figure.axes[0].get_xticks()) <= 8
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(figure)
+
+
+def test_a_short_panel_keeps_every_time_tick():
+    """Thinning applies only when the labels would overlap; a short panel keeps all."""
+    from mlsynth.utils.mosc_helpers.plotter import plot_mosc_posterior
+
+    short = make_count_panel(n_units=12, n_periods=7, pre_periods=5, seed=4)
+    result = MOSC(base_config(short, n_factors=1, n_samples=15, n_warmup=15)).fit()
+    figure = plot_mosc_posterior(result)
+    try:
+        assert len(figure.axes[0].get_xticks()) >= 7
+    finally:
+        import matplotlib.pyplot as plt
+
+        plt.close(figure)
