@@ -441,3 +441,34 @@ class TestTheMapBuilderCommandLine:
                                          "--shard", "4", "--num-shards", "4"])
         with pytest.raises(SystemExit):
             benchmark_deps.main()
+
+
+class TestProseIsProseWhereverItSits:
+    """``docs/ppscm.rst`` reaches no case because ``docs/`` is outside
+    :data:`REACHABLE`. ``benchmarks/README.md`` is the same prose one directory
+    over, and was a hole in the map on every diff that touched it.
+
+    The existing rule already says prose reaches nothing; it said it by
+    directory. Saying it by kind as well is the same claim, applied where the
+    directory test cannot reach.
+    """
+
+    MAP = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+
+    @pytest.mark.parametrize("path", [
+        "benchmarks/README.md",
+        "benchmarks/reference/mosc_spike/README.md",
+        "mlsynth/utils/NOTES.rst",
+    ])
+    def test_prose_under_a_reachable_prefix_is_not_a_hole(self, path):
+        assert case_deps.select([path], ["a", "b"], self.MAP) == []
+
+    @pytest.mark.parametrize("path", [
+        "benchmarks/constraints.txt",
+        "basedata/prop99.csv",
+        "benchmarks/R/requirements.R",
+    ])
+    def test_a_file_a_case_could_read_is_still_a_hole(self, path):
+        """The reads a case makes are measured, so these are claimable and their
+        absence from the map is real doubt."""
+        assert case_deps.select([path], ["a", "b"], self.MAP) == ["a", "b"]
