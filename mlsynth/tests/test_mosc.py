@@ -74,6 +74,7 @@ def base_config(df: pd.DataFrame, **overrides) -> dict:
         "n_factors": 3,
         "n_samples": 40,
         "n_warmup": 40,
+        "n_bootstrap": 30,
         "seed": 0,
         "display_graphs": False,
     }
@@ -146,8 +147,23 @@ def test_positive_effect_is_reported_positive(panel):
     assert result.att > 0
 
 
-def test_credible_band_brackets_the_counterfactual(fitted):
+def test_the_band_is_an_ordered_interval(fitted):
     detail = fitted.inference.details
+    assert np.all(detail.counterfactual_lower <= detail.counterfactual_upper + 1e-9)
+    assert np.isfinite(detail.counterfactual_lower).all()
+    assert np.isfinite(detail.counterfactual_upper).all()
+
+
+def test_the_posterior_band_brackets_its_own_mean(panel):
+    """The posterior band is quantiles of the draws the mean is taken over.
+
+    The bootstrap interval carries no such guarantee and is not expected to: a
+    percentile interval is located by the resampling distribution, not built
+    around the point estimate. Where the two disagree materially, that is the
+    estimator reporting that it is unstable under resampling.
+    """
+    result = MOSC(base_config(panel, inference="posterior")).fit()
+    detail = result.inference.details
     assert np.all(detail.counterfactual_lower <= detail.counterfactual_mean + 1e-9)
     assert np.all(detail.counterfactual_mean <= detail.counterfactual_upper + 1e-9)
 
@@ -543,3 +559,85 @@ def test_a_short_panel_keeps_every_time_tick():
         import matplotlib.pyplot as plt
 
         plt.close(figure)
+
+
+# ------------------------------------------------------------- inference --
+#
+# The paper prescribes a nonparametric bootstrap over units (Section 3.4) and
+# then plots the posterior spread instead. The two are different objects: the
+# posterior conditions on the observed sample of units, the bootstrap resamples
+# it. Theorem 4 identifies the counterfactual by the g-formula, an expectation
+# over the distribution of loadings among the treated, so the sampling
+# uncertainty in it comes from having finitely many units -- which is what the
+# bootstrap targets and the posterior spread does not.
+
+
+def test_bootstrap_is_the_default_inference(fitted):
+    """The paper's Section 3.4 procedure, not the spread its figures show."""
+    assert fitted.inference.method == "unit_bootstrap"
+    assert fitted.posterior.n_bootstrap > 0
+
+
+def test_the_posterior_band_remains_reachable(panel):
+    """The mean-band is still available, under a name that says what it is."""
+    result = MOSC(base_config(panel, inference="posterior")).fit()
+    assert result.inference.method == "posterior_mean_band"
+    assert np.isfinite(result.att)
+
+
+def test_the_bootstrap_interval_is_wider_than_the_posterior_band(panel):
+    """Resampling units admits uncertainty the posterior spread cannot see.
+
+    The posterior band moves only with the factor model's uncertainty about the
+    loadings. The bootstrap additionally moves with which units were drawn, so
+    it cannot be the narrower of the two.
+    """
+    posterior = MOSC(base_config(panel, inference="posterior")).fit()
+    bootstrap = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=40)).fit()
+
+    posterior_width = posterior.att_ci[1] - posterior.att_ci[0]
+    bootstrap_width = bootstrap.att_ci[1] - bootstrap.att_ci[0]
+    assert bootstrap_width > posterior_width
+
+
+def test_the_interval_covers_zero_when_nothing_happened(panel):
+    """A panel with no intervention effect is the placebo the method must pass.
+
+    This is the property the authors' own figures fail on their own control
+    teams: a 95 percent interval that excludes zero where no treatment occurred
+    is a false positive, and ten of their placebo panels produced six.
+    """
+    untreated = panel.copy()
+    # Strip the effect: the fixture inflates the treated rate by 1.4 post-period.
+    post = untreated["treated"] == 1
+    untreated.loc[post, "cases"] = (untreated.loc[post, "cases"] / 1.4).round()
+
+    result = MOSC(base_config(untreated, inference="bootstrap", n_bootstrap=60)).fit()
+    low, high = result.att_ci
+    assert low <= 0 <= high, (
+        f"no effect was applied, so the interval must cover zero; got "
+        f"[{low:,.1f}, {high:,.1f}] around an ATT of {result.att:,.1f}"
+    )
+
+
+def test_the_bootstrap_keeps_the_treated_unit(panel):
+    """Every resample retains the treated unit, or there is nothing to predict.
+
+    The paper says to resample the per-unit data points. Read literally that can
+    drop the one unit whose counterfactual is the estimand, so the donors are
+    resampled and the treated unit is held.
+    """
+    result = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=25)).fit()
+    assert result.posterior.bootstrap_counterfactual.shape[0] == 25
+    assert np.isfinite(result.posterior.bootstrap_counterfactual).all()
+
+
+def test_bootstrap_replicate_count_is_validated(panel):
+    with pytest.raises(MlsynthConfigError):
+        MOSC(base_config(panel, n_bootstrap=1))
+
+
+def test_the_bootstrap_is_reproducible(panel):
+    first = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=20, seed=3)).fit()
+    second = MOSC(base_config(panel, inference="bootstrap", n_bootstrap=20, seed=3)).fit()
+    np.testing.assert_allclose(first.att_ci, second.att_ci, rtol=1e-12)

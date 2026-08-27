@@ -12,6 +12,11 @@ the authors' code inverts. And the design carries no lagged outcome: the authors
 code adds the last pre-intervention outcome to every regression that produced
 their published figure, gives the baseline no equivalent term, and does not
 mention it in equations 40-41.
+
+Inference follows the paper's text over its figures. Section 3.4 prescribes a
+nonparametric bootstrap over units; the case study plots the posterior spread,
+which conditions on the units that happened to be observed and so sees none of
+the sampling uncertainty in the g-formula of Theorem 4.
 """
 
 from __future__ import annotations
@@ -146,14 +151,71 @@ def run_mosc(inputs: MOSCInputs, config) -> Tuple[MOSCPosterior, MOSCDiagnostics
     except Exception as exc:
         raise MlsynthEstimationError(f"MOSC estimation failed: {exc}") from exc
 
+    if config.inference == "bootstrap":
+        try:
+            replicates = bootstrap_counterfactuals(inputs, config)
+        except MlsynthEstimationError:
+            raise
+        except Exception as exc:
+            raise MlsynthEstimationError(f"MOSC bootstrap failed: {exc}") from exc
+    else:
+        replicates = np.empty((0, 0))
+
     posterior = MOSCPosterior(
         loadings=draws.loadings,
         counterfactual=rebase(raw),
         n_factors=config.n_factors,
         n_draws=draws.n_draws,
         factor_model=config.factor_model,
+        bootstrap_counterfactual=replicates,
     )
     return posterior, diagnose(modelled_pre, mask, draws, config.outcome_scale)
+
+
+def bootstrap_counterfactuals(inputs: MOSCInputs, config) -> np.ndarray:
+    """The paper's Section 3.4 uncertainty: resample units, re-run, collect.
+
+    Each replicate draws a donor pool with replacement and runs the algorithm on
+    it, so the spread across replicates carries the uncertainty that comes from
+    having observed these units and not others -- which is what Theorem 4's outer
+    expectation is taken over.
+
+    The treated unit is held in every replicate. Read literally, resampling all
+    units can drop the one whose counterfactual is the estimand, leaving nothing
+    to predict; resampling the donors is the reading that keeps the procedure
+    defined.
+    """
+    panel, pre = inputs.panel, inputs.pre_periods
+    modelled, rebase = _to_modelling_scale(panel, pre, config.outcome_scale)
+    modelled_pre_length = _pre_length(pre, config.outcome_scale)
+
+    rng = np.random.default_rng(config.seed + 1)
+    n_donors = inputs.n_units - 1
+    # Each replicate contributes one counterfactual, because the spread being
+    # measured is the one across replicates. Taking a single posterior draw per
+    # resample keeps the factor model's own uncertainty in the mixture at one
+    # factor fit and one regression apiece, which is what makes a few hundred
+    # replicates affordable.
+    warmup = max(10, config.n_warmup // 8)
+
+    replicates = []
+    for replicate in range(config.n_bootstrap):
+        columns = np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])
+        resampled = modelled[:, columns]
+        factors = fit_factor_model(
+            resampled[:modelled_pre_length], config.factor_model, config.n_factors,
+            1, warmup,
+            np.ones((modelled_pre_length, resampled.shape[1]), dtype=bool),
+            config.seed + replicate,
+        )
+        replicates.append(
+            counterfactual_draws(
+                factors.loadings, resampled, modelled_pre_length,
+                tuple(config.ridge_alphas),
+            )[0]
+        )
+
+    return rebase(np.asarray(replicates))
 
 
 def _pre_length(pre_periods: int, outcome_scale: str) -> int:

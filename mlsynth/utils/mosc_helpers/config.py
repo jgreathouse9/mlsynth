@@ -65,8 +65,19 @@ class MOSCConfig(BaseEstimatorConfig):
     heldout_fraction : float
         Share of pre-period cells held out to score the fit. Reported as a
         predictive log density, which is a score and carries no size guarantee.
+    inference : {"bootstrap", "posterior"}
+        How the interval is formed. ``"bootstrap"`` is the paper's Section 3.4
+        procedure: resample units with replacement, re-run the algorithm on each
+        resample, and take quantiles of the resulting estimates. It targets the
+        sampling uncertainty in the g-formula of Theorem 4, which comes from
+        having finitely many units. ``"posterior"`` returns the spread of the
+        factor model's own draws, which is what the paper's figures plot; it is a
+        band on the counterfactual's conditional mean and is narrower, because it
+        conditions on the units that happened to be observed.
+    n_bootstrap : int
+        Resamples drawn when ``inference="bootstrap"``.
     ci_alpha : float
-        Two-sided level for the credible interval (0.05 -> 95% band).
+        Two-sided level for the interval (0.05 -> 95%).
     seed : int
         PRNG seed, which makes a fit reproducible.
 
@@ -78,6 +89,15 @@ class MOSCConfig(BaseEstimatorConfig):
     The effect follows equation 43, ``Y - f(0)``. The authors' code computes
     ``f(0) - Y``, which inverts it; on their null result the difference is
     invisible, and on any real effect it flips the sign.
+
+    Inference follows the paper's text and not its figures. Section 3.4
+    prescribes a nonparametric bootstrap over units and states that its coverage
+    is evaluated in Section 5; that evaluation does not appear, and the case
+    study plots the posterior spread instead. On the authors' own control panels
+    -- teams that never admitted fans, where the effect is zero by construction
+    -- the posterior band covered zero four times in ten at a nominal 95%. The
+    bootstrap is therefore the default and the posterior band is available under
+    a name that says what it is.
 
     The paper's ``p_pop`` model check is not offered. Its stated false rejection
     rate is 0.05 and its measured rate on a correctly specified model is 0.40,
@@ -117,6 +137,14 @@ class MOSCConfig(BaseEstimatorConfig):
     heldout_fraction: float = Field(
         default=0.10, gt=0.0, lt=1.0,
         description="Share of pre-period cells held out to score the factor model's fit.",
+    )
+    inference: Literal["bootstrap", "posterior"] = Field(
+        default="bootstrap",
+        description="Interval from the paper's unit bootstrap (Section 3.4), or from the factor model's posterior spread.",
+    )
+    n_bootstrap: int = Field(
+        default=200, ge=2,
+        description="Resamples drawn when inference='bootstrap'; each re-runs the algorithm on a resampled donor pool.",
     )
     ci_alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,

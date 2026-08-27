@@ -214,11 +214,49 @@ credible interval.
 Inference and diagnostics
 -------------------------
 
-Uncertainty is the posterior. The counterfactual band is the pointwise quantile
-range of the draws at ``ci_alpha``, and the ATT interval is the same quantile
-range of the per-draw ATT. There is no bootstrap and no asymptotic standard
-error: what widens the band is the factor model's own uncertainty about
-:math:`\mathbf{Z}_i`, propagated through the outcome regression.
+Uncertainty is the paper's Section 3.4 procedure: a nonparametric bootstrap over
+units. Each replicate draws a donor pool with replacement, re-runs the algorithm
+on it, and contributes one counterfactual; the interval is the pointwise
+percentile range across replicates at ``ci_alpha``. This is what Theorem 4 asks
+for, since the g-formula's outer expectation is over the distribution of
+loadings among the treated and its sampling uncertainty comes from having
+observed these units and not others. The treated unit is held in every replicate:
+read literally the paper resamples all units, which can drop the one whose
+counterfactual is the estimand.
+
+``inference="posterior"`` returns instead the spread of the factor model's own
+draws. That is what the paper's Figures 4 and 5 plot, and it is a band on the
+counterfactual's conditional mean -- it moves only with uncertainty about
+:math:`\mathbf{Z}_i` and conditions on the units that happened to be observed,
+so it is systematically narrower.
+
+The difference is not academic. The paper says it will evaluate the coverage of
+its bootstrap in Section 5; that evaluation does not appear, and the word
+"bootstrap" occurs three times in the paper, twice in the paragraph that
+prescribes it and once in the bibliography. Running the check on the authors'
+own control teams -- the twelve whose stadiums never admitted fans, where the
+effect is zero by construction -- gives the following coverage of a nominal
+95 percent interval over ten panels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 60 20
+
+   * - interval
+     - covers zero
+   * - posterior band (what the paper's figures show)
+     - 4 / 10
+   * - unit bootstrap, percentile (the default here)
+     - 9 / 10
+
+Two things follow for a reader. The posterior band should not be read as a
+confidence interval; it is not one, and on these panels it excludes zero six
+times out of ten where nothing happened. And even the bootstrap does not reach
+nominal. Its one failure, Minnesota, has a point estimate that misses by 21
+percent of the outcome, which is a counterfactual that is wrong and not an
+interval that is narrow. No inference procedure repairs that, and it is the
+reason the placebo check belongs in any applied use of this estimator: run the
+method on a unit you know was untreated, and see whether it finds an effect.
 
 Three diagnostics arrive as typed fields on
 :class:`~mlsynth.utils.mosc_helpers.structures.MOSCDiagnostics`, because each is

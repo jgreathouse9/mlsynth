@@ -6,7 +6,7 @@ result never has to unpack a tuple positionally to find out what it holds.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 import numpy as np
@@ -46,6 +46,14 @@ class MOSCPosterior:
     n_factors: int
     n_draws: int
     factor_model: str
+    # (B, T_post) counterfactuals from the paper's Section 3.4 unit bootstrap;
+    # empty when ``inference="posterior"``.
+    bootstrap_counterfactual: np.ndarray = field(
+        default_factory=lambda: np.empty((0, 0)))
+
+    @property
+    def n_bootstrap(self) -> int:
+        return int(self.bootstrap_counterfactual.shape[0])
 
 
 @dataclass(frozen=True)
@@ -88,6 +96,7 @@ class MOSCInference:
     att_upper: float
     att_samples: np.ndarray
     ci_alpha: float
+    method: str = "unit_bootstrap"
 
 
 class MOSCResults(BaseEstimatorResults):
@@ -131,6 +140,7 @@ class MOSCResults(BaseEstimatorResults):
                 "model": f"probabilistic factor model ({self.posterior.factor_model})",
                 "n_factors": int(self.posterior.n_factors),
                 "n_draws": int(self.posterior.n_draws),
+                "n_bootstrap": int(self.posterior.n_bootstrap),
                 "outcome_scale": self.diagnostics.outcome_scale}))
         object.__setattr__(self, "fit_diagnostics", FitDiagnosticsResults(
             # MOSC predicts only the post-intervention block, so the
@@ -145,7 +155,7 @@ class MOSCResults(BaseEstimatorResults):
             ci_lower=None if np.isnan(detail.att_lower) else float(detail.att_lower),
             ci_upper=None if np.isnan(detail.att_upper) else float(detail.att_upper),
             confidence_level=float(1.0 - detail.ci_alpha),
-            method="bayesian_posterior",
+            method=detail.method,
             details=detail))
         object.__setattr__(self, "method_details", MethodDetailsResults(
             method_name="MOSC",
