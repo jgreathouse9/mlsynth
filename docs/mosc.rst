@@ -63,6 +63,9 @@ Do not use MOSC when
 * A Gaussian likelihood is already appropriate and you want a posterior. Then
   :doc:`bfsc`, :doc:`mvbbsc` or :doc:`mtgp` do the same job with machinery built
   for that case.
+* Robust synthetic control will do. It asks strictly less of you, and the next
+  section says exactly what less. Reach for :doc:`clustersc` first and for MOSC
+  when the likelihood is what you cannot get right.
 
 Notation
 --------
@@ -156,6 +159,85 @@ positive probability under both treatment states. *Remark.* Unusually mild
 here. :math:`\mathbf{Z}_i` is estimated from pre-treatment outcomes alone and
 never touches the treatment assignment, so estimating it does not erode the
 overlap it needs.
+
+What this asks for, against what robust synthetic control asks for
+------------------------------------------------------------------
+
+The estimator MOSC is measured against throughout its own paper is robust
+synthetic control [RSC]_, which is :doc:`clustersc`'s PCR family here. Their
+identification strategies differ in kind, and the difference decides which one
+belongs on a given panel.
+
+rSC is not the linear method it is sometimes described as. Its model is
+:math:`M_{it} = f(\theta_i, \rho_t)` for an *arbitrary* latent function
+:math:`f` -- a latent variable model in the sense of Aldous, Hoover and
+Chatterjee -- which the authors note "subsumes popular econometric factor
+models, such as the one presented in Abadie et al. (2010), as a special case
+with :math:`f` a bilinear function". Nonlinearity in the generating process is
+already there.
+
+What rSC does require, in one specific place, is that the treated unit's
+pre-intervention *mean* vector lie in the linear span of the donors' mean
+vectors: :math:`M^{-}_1 = (M^{-})^{\top} \beta^{*}`. And it supplies the
+condition under which that relationship survives the intervention, which is its
+sharpest contribution: if the span holds before and
+:math:`\mathrm{rank}(M^{-}) = \mathrm{rank}(M)`, then the same
+:math:`\beta^{*}` holds after. The authors observe that this step "has been
+amiss in the literature, potentially implicitly believed or assumed starting in
+the work by Abadie and Gardeazabal (2003)" -- classical synthetic control never
+said why pre-period weights should continue to hold post-period.
+
+Set against each other:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * -
+     - robust synthetic control
+     - MOSC
+   * - generating model
+     - :math:`f(\theta_i, \rho_t)`, :math:`f` arbitrary
+     - any factor model whose latent emancipates
+   * - identifying assumption
+     - treated mean in the linear span of donor means
+     - :math:`Y(a) \perp A \mid U, X`
+   * - what carries pre to post
+     - :math:`\mathrm{rank}(M^{-}) = \mathrm{rank}(M)`
+     - the same adjustment formula at every period
+   * - treatment assignment
+     - never modelled
+     - must be ignorable given the recovered latent
+   * - noise
+     - mean zero, finite, one common variance
+     - whatever likelihood you choose
+   * - missing data
+     - imputed by singular value thresholding
+     - refused at ingestion
+   * - finite-sample theory
+     - yes, with an explicit error bound
+     - none; identification only, and asymptotic
+
+The row that matters most is treatment assignment. rSC asks nothing at all about
+how treatment came about. MOSC asks for ignorability given a latent it recovered
+from the outcomes, which is a much stronger claim about the world -- and
+synthetic control is usually reached for precisely where assignment is visibly
+not ignorable.
+
+So the likelihood argument for MOSC has to be made carefully, because rSC's
+consistency theory is distribution-free in the noise: it asks only for mean zero
+and finite variance. What it does assume is a single noise variance
+:math:`\sigma^2` shared by every unit and period, and its thresholding rule and
+its rescaling of the panel to :math:`[-1, 1]` are both calibrated on that one
+number. A count panel has no such number, since a Poisson variance equals its
+mean. That, and not linearity, is where a count outcome breaks rSC.
+
+The practical reading. If the span-and-rank story is credible -- and on a panel
+of similar units it usually is -- rSC asks less, carries an error bound, and
+handles missing cells, so reach for :doc:`clustersc`. Reach for MOSC when the
+outcome's distribution is the thing going wrong. And run the placebo check under
+either: fit the method to a unit you know was untreated and see whether it finds
+an effect.
 
 How the estimate is computed
 ----------------------------
@@ -365,6 +447,9 @@ term.
 
 .. [MOSC] Wang, Y., Schein, A., Shou, J., & Blei, D. M.
    *A Many-outcomes Perspective on the Synthetic Control Method.*
+
+.. [RSC] Amjad, M., Shah, D., & Shen, D. (2018). *Robust Synthetic Control.*
+   Journal of Machine Learning Research 19(22), 1-51.
 
 Core API
 --------

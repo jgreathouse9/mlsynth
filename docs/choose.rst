@@ -523,7 +523,21 @@ small pool and a Gaussian outcome, :doc:`gsynth` or :doc:`mcnnm` remain the
 better tools. The neighbouring choice for counts is :doc:`cscm`, which keeps the
 donor-weight story and enforces non-negativity at the weighting step; prefer it
 when the weights are the deliverable and the pool is small, and :doc:`mosc` when
-the likelihood is the thing you need to get right.
+the likelihood is the thing you need to get right. The sharper comparison,
+though, is against :doc:`clustersc`'s robust synthetic control, and it is a
+comparison of assumptions and not of flexibility. Robust SC already permits an
+arbitrary nonlinear latent function; what it requires is that the treated unit's
+mean path lie in the linear span of the donors', carrying to the post-period
+under a rank condition, and it requires nothing whatsoever about how treatment
+was assigned. :doc:`mosc` drops the span requirement and pays for it with
+unconfoundedness given a latent recovered from the outcomes -- a much stronger
+claim, in a literature usually applied where assignment is plainly not
+ignorable. Robust SC also carries a finite-sample error bound and imputes
+missing cells, neither of which :doc:`mosc` offers. What robust SC assumes and a
+count panel denies is a single noise variance common to every unit and period,
+since a Poisson variance equals its mean; that, and not linearity, is the reason
+to switch. So: :doc:`clustersc` unless the outcome's distribution is what is
+going wrong, and a placebo run under either.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
