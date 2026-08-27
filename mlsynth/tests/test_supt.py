@@ -244,7 +244,11 @@ def test_the_correlation_route_matches_the_covariance_route(seed):
     n, H = int(rng.integers(12, 70)), int(rng.integers(3, 12))
     draws = (rng.normal(size=(n, 2)) @ rng.normal(size=(2, H))
              + 0.4 * rng.normal(size=(n, H)))
-    mine = supt_critical_value(draws, alpha=0.10, n_sims=200_000, seed=0)
+    # ``_covariance_route`` tabulates a normal maximum, so the comparison is
+    # against the normal reference. The studentized one answers a different
+    # question and is checked separately.
+    mine = supt_critical_value(draws, alpha=0.10, n_sims=200_000, seed=0,
+                               reference="normal")
     other = _covariance_route(draws, alpha=0.10, seed=0)
     assert mine == pytest.approx(other, rel=0.02)
 
@@ -589,7 +593,7 @@ def test_the_multiplier_falls_as_replicates_are_removed_from_one_truth():
     for n in (5, 12, 50):
         cs = [supt_critical_value(
                   np.random.default_rng(3000 + r).standard_normal((n, H)),
-                  alpha=0.10, n_sims=40_000, seed=0)
+                  alpha=0.10, n_sims=40_000, seed=0, reference="normal")
               for r in range(8)]
         got[n] = float(np.mean(cs))
     assert got[5] < got[12] < got[50] < target
@@ -607,7 +611,7 @@ def test_the_shortfall_is_governed_by_replicates_per_horizon():
         target = _c_from_correlation(np.eye(H))
         cs = [supt_critical_value(
                   np.random.default_rng(4000 + r).standard_normal((n, H)),
-                  alpha=0.10, n_sims=40_000, seed=0)
+                  alpha=0.10, n_sims=40_000, seed=0, reference="normal")
               for r in range(6)]
         return target - float(np.mean(cs))
 
@@ -630,9 +634,11 @@ def test_ledoit_wolf_recovers_the_multiplier_at_few_replicates():
     plain, shrunk = [], []
     for r in range(8):
         d = np.random.default_rng(5000 + r).standard_normal((5, H))
-        plain.append(supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0))
+        plain.append(supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
+                                         reference="normal"))
         shrunk.append(supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
-                                          shrinkage="ledoit_wolf"))
+                                          shrinkage="ledoit_wolf",
+                                          reference="normal"))
     assert target - np.mean(plain) > 0.10
     assert abs(target - np.mean(shrunk)) < 0.05
 
@@ -651,7 +657,8 @@ def test_ledoit_wolf_errs_wide_not_narrow_on_correlated_horizons():
     target = _c_from_correlation(R)
     shrunk = [supt_critical_value(
                   np.random.default_rng(6000 + r).standard_normal((12, H)) @ L.T,
-                  alpha=0.10, n_sims=40_000, seed=0, shrinkage="ledoit_wolf")
+                  alpha=0.10, n_sims=40_000, seed=0, shrinkage="ledoit_wolf",
+                  reference="normal")
               for r in range(8)]
     assert np.mean(shrunk) > target
     assert np.mean(shrunk) - target < 0.20
@@ -701,3 +708,156 @@ def test_an_unknown_shrinkage_is_refused(bad):
     with pytest.raises(MlsynthConfigError, match="shrinkage"):
         supt_critical_value(rng.standard_normal((100, 3)), alpha=0.10,
                             shrinkage=bad)
+
+
+# ---------------------------------------------------------------------------
+# The reference distribution: what the multiplier multiplies
+#
+# A band is ``point +/- c * se``, and both factors are estimated. The
+# multiplier has always been the ``1 - alpha`` quantile of ``max_h |z_h|`` for
+# ``z`` normal, which is the right answer when ``se_h`` is the true standard
+# error. It is estimated from the same replicates, so the ratio
+# ``(theta_h - theta_h) / se_h`` is a studentized quantity, not a normal one,
+# and at few replicates a normal quantile does not reach its tail.
+#
+# Measured on the model where both truths are closed form -- ``m`` units drawn
+# ``N(0, Sigma)``, the estimate their mean, the replicates the ``m`` delete-one
+# means -- supplying the true standard error restores the level at every
+# replicate count while supplying the true multiplier moves coverage by at most
+# 0.05. So the multiplier is the smaller of the two terms, and the fault is the
+# reference it is taken from.
+# ---------------------------------------------------------------------------
+
+def _jackknife_panel(m, H, chol, rng):
+    """One replication of the model: the estimate and its delete-one replicates."""
+    X = rng.standard_normal((m, H)) @ chol.T
+    return X.mean(axis=0), (X.sum(axis=0) - X) / (m - 1)
+
+
+def _cumulative_corr(H):
+    """corr(S_j, S_k) = sqrt(min / max): a running total of independent errors."""
+    j = np.arange(1, H + 1)
+    return np.sqrt(np.minimum(j[:, None], j[None, :])
+                   / np.maximum(j[:, None], j[None, :]))
+
+
+def test_the_default_reference_is_studentized():
+    """Pinned so it cannot drift back without a test saying so."""
+    d = _draws(9, 6, seed=1)
+    assert supt_critical_value(d, alpha=0.10) == supt_critical_value(
+        d, alpha=0.10, reference="studentized")
+
+
+def test_one_horizon_is_the_student_t_quantile():
+    """With a single horizon the maximum is one ratio, whose law is exactly t.
+
+    This is the check with a closed form, so it has power the coverage tests do
+    not: a reference that is merely wider than normal, but not a t on ``m - 1``
+    degrees, fails here.
+    """
+    from scipy.stats import t as student_t
+    for m in (5, 12, 40):
+        c = supt_critical_value(np.random.default_rng(m).standard_normal((m, 1)),
+                                alpha=0.10, n_sims=200_000, seed=0)
+        assert c == pytest.approx(student_t.ppf(0.95, m - 1), rel=0.02), m
+
+
+def test_perfectly_correlated_horizons_also_give_the_student_quantile():
+    """A path that moves as one number has one ratio, whatever its length."""
+    from scipy.stats import t as student_t
+    m = 10
+    base = np.random.default_rng(0).standard_normal((m, 1))
+    c = supt_critical_value(np.repeat(base, 5, axis=1), alpha=0.10,
+                            n_sims=200_000, seed=0)
+    assert c == pytest.approx(student_t.ppf(0.95, m - 1), rel=0.05)
+
+
+def test_the_studentized_reference_is_wider_and_converges_to_the_normal_one():
+    """Wider where the standard error is poorly determined, equal once it is not."""
+    ratios = []
+    for m in (6, 12, 25, 60):
+        d = _draws(m, 6, seed=100 + m)
+        s = supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
+                                reference="studentized")
+        n = supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
+                                reference="normal")
+        assert s > n, f"m={m}: studentized {s} not wider than normal {n}"
+        ratios.append(s / n)
+    assert all(a > b for a, b in zip(ratios, ratios[1:])), ratios
+    assert ratios[-1] < 1.10, ratios
+
+
+def test_the_studentized_reference_holds_the_level_where_the_normal_one_does_not():
+    """The claim the fix exists to make, measured and not merely asserted.
+
+    Nine replicates over six horizons -- a fourteen-unit panel, which is an
+    ordinary PPSCM panel -- under the correlation a running total carries.
+    """
+    m, H, alpha, reps = 9, 6, 0.10, 500
+    chol = np.linalg.cholesky(_cumulative_corr(H) + 1e-12 * np.eye(H))
+    hit = {"studentized": 0, "normal": 0}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rng = np.random.default_rng(20260826)
+        for _ in range(reps):
+            xbar, rep = _jackknife_panel(m, H, chol, rng)
+            se = jackknife_se(rep, jackknife=True)
+            stat = float(np.max(np.abs(xbar) / se))
+            s = int(rng.integers(1 << 31))
+            for ref in ("studentized", "normal"):
+                hit[ref] += stat <= supt_critical_value(
+                    rep, alpha=alpha, n_sims=8_000, seed=s, reference=ref)
+    studentized, normal = hit["studentized"] / reps, hit["normal"] / reps
+    assert studentized == pytest.approx(1 - alpha, abs=0.05), studentized
+    assert normal < 0.85, normal
+    assert studentized > normal + 0.05, (studentized, normal)
+
+
+def test_shrinkage_still_applies_under_the_studentized_reference():
+    """The two knobs are independent: one repairs R, the other the reference."""
+    d = _draws(8, 12, seed=7)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        plain = supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0)
+        shrunk = supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0,
+                                     shrinkage="ledoit_wolf")
+    assert shrunk != plain
+    assert shrunk > plain
+
+
+def test_the_reference_does_not_reach_the_empirical_method():
+    """``empirical`` reads a quantile off the draws and simulates nothing."""
+    d = _draws(30, 5, seed=3)
+    a = supt_critical_value(d, alpha=0.10, method="empirical",
+                            reference="studentized")
+    b = supt_critical_value(d, alpha=0.10, method="empirical",
+                            reference="normal")
+    assert a == b
+
+
+def test_the_studentized_reference_still_ignores_the_units():
+    """Rescaling a horizon cannot move a scale-free quantity."""
+    d = _draws(10, 4, seed=5)
+    scaled = d.copy()
+    scaled[:, 2] *= 1e5
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        a = supt_critical_value(d, alpha=0.10, n_sims=40_000, seed=0)
+        b = supt_critical_value(scaled, alpha=0.10, n_sims=40_000, seed=0)
+    assert a == pytest.approx(b, rel=0.05)
+
+
+def test_two_replicates_is_the_thinnest_ensemble_and_still_returns():
+    """The minimum the function accepts; one degree of freedom, so very wide."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        c = supt_critical_value(_draws(2, 3, seed=0), alpha=0.10,
+                                n_sims=20_000, seed=0)
+    assert np.isfinite(c) and c > 6.0
+
+
+@pytest.mark.parametrize("bad", ["student", "Normal", "t", "", None, 1])
+def test_an_unknown_reference_is_refused(bad):
+    """Silently defaulting would hand back a plausible number from the wrong law."""
+    with pytest.raises(MlsynthConfigError):
+        supt_critical_value(_draws(20, 4), alpha=0.10, reference=bad)

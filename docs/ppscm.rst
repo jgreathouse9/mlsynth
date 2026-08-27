@@ -808,6 +808,37 @@ more as the number of horizons grows. One shared critical value
 (:func:`mlsynth.utils.supt.supt_critical_value`, the sup-t construction of
 Montiel Olea and Plagborg-Moller) restores the level for the whole path.
 
+That multiplier is the :math:`1 - \alpha` quantile of
+:math:`\max_h |z_h| / s_h`, where :math:`z` is the vector of horizon errors and
+:math:`s_h` the standard error each is divided by. The construction assumes
+:math:`s_h` is the true standard error, in which case the ratio is normal and its
+maximum has a known law. Here :math:`s_h` is estimated from the same replicates
+that supply :math:`z`, so the ratio is a Student-t and not a :math:`z`, and its
+maximum is wider -- by more as the ensemble shrinks. Reading the multiplier off
+the normal law would therefore hand back a band narrower than :math:`1 - \alpha`
+at every finite ensemble size, and by a margin that grows exactly where the
+ensemble is small enough to make it matter.
+
+``supt_critical_value`` simulates the whole statistic instead. It draws
+:math:`z \sim N(0, R)` and an independent :math:`Q \sim \text{Wishart}(n - 1, R)`
+for the estimated variances, which is exact for Gaussian replicates because a
+sample mean and a sample covariance are independent, and takes the quantile of
+:math:`\max_h |z_h| / \sqrt{Q_{hh} / (n - 1)}`. At one horizon this reduces to a
+Student-t on :math:`n - 1` degrees of freedom, which is what a single-horizon
+interval should have been all along. Passing ``reference="normal"`` restores the
+older behaviour for a caller reproducing a number from an earlier release.
+
+How much it changes depends on the ensemble, and the two ensembles PPSCM offers
+sit at opposite ends. A wild bootstrap draws as many replicates as it is asked
+for -- at 999 and thirteen horizons the correction is a tenth of a percent, so
+the two references agree to the digit. A delete-one jackknife has one replicate
+per treated unit, and a design with a handful of treated units is where the
+correction is the whole story: at :math:`n = 50` it widens the multiplier by
+4 percent, at :math:`n = 20` by 13. Simulated against a known zero over 3000
+draws at thirteen horizons, a nominal 95 percent band read off the normal law
+covers at 0.932 with fifty replicates and 0.910 with twenty; the studentized
+reference returns 0.949 and 0.957 on the same draws.
+
 Which ensemble produced the band is recorded on ``band.method``, because the two
 are not interchangeable. The wild bootstrap reweights each unit's residual by an
 independent multiplier, which does not cancel the common factors the synthetic
