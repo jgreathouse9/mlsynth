@@ -1254,6 +1254,17 @@ its nominal level. One shared critical value
 Plagborg-Moller) restores the level for the path as a whole; on the Oregon panel
 it is 2.54 where the pointwise normal quantile would be 1.96.
 
+The multiplier is referred to the law of the statistic it is a quantile of. The
+sup-t construction divides each horizon error by a standard error, and if that
+standard error were the true one the ratio would be normal. It is estimated from
+the same replicates, so the ratio is a Student-t, and its maximum sits wider than
+the normal law says -- by more as the ensemble shrinks. ``supt_critical_value``
+simulates the ratio in full, drawing the errors and their estimated variances
+jointly, so the multiplier reaches :math:`1 - \alpha` at any ensemble size and
+not only asymptotically. See :doc:`ppscm` for the construction; the two
+estimators share the function. ``reference="normal"`` restores the older
+behaviour for a caller reproducing a number from an earlier release.
+
 By default the band reuses the replicate paths the prediction-interval bootstrap
 already produced, so it costs no extra refits, and on that setting it requires
 ``prediction_intervals=True``. Asking for it without the bootstrap raises rather
