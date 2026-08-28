@@ -87,3 +87,7 @@ the LP intervals do not. With σ̂²₁ from a correct factor fit the FB half-wi
 is 0.047, not 1.30.
 
 The authors published no code, so the discrepancy cannot be traced further.
+
+The assessment this supports — that the paper's LP contribution is already in
+mlsynth and its FB comparison does not stand — is recorded in
+`agents/future_integrations.md` section 22.

@@ -40,6 +40,9 @@ half-width is 0.047.
 The case therefore asserts three things -- that PDA reproduces the LP path, that
 the two correct FB implementations agree with each other, and that both differ
 from the published FB path by the margin recorded above.
+
+The spike that produced this, and the decision not to build from the paper, are
+recorded in ``agents/future_integrations.md`` section 22.
 """
 
 from __future__ import annotations

@@ -36,6 +36,9 @@ everywhere, and prediction averaging beats the plain LP in five of six cells,
 reproducing even the sign of the exception their own table shows at
 ``N - 1 = 100, T = 30``.
 
+The spike that produced this, and the decision not to build from the paper, are
+recorded in ``agents/future_integrations.md`` section 22.
+
 ``R`` is 300 here against the paper's 1000, which is enough for the orderings
 and for a median relative error read to a tenth; the tolerances are set for that
 budget. A 1000-replication run gave LP median 9.5% and FB median 49.0%, with LP

@@ -2207,6 +2207,173 @@ outcomes that plausibly diffuse.
 ---
 
 
+## 22. Hsiao & Zhou (2024) LP vs FB -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. The paper's own comparison does not
+replicate; the evidence is pinned in two benchmark cases so the assessment is
+not repeated.**
+
+### Source
+
+> Hsiao, C., & Zhou, Q. (2024). "Panel treatment effects measurement: Factor or
+> linear projection modelling?" *Journal of Applied Econometrics* 39(7),
+> 1332-1358. Replication package:
+> `doi:10.15456/jae.2024145.0725725591` -- data only, no code.
+
+### The claim
+
+Two predictors of the treated unit's untreated outcome: a linear projection (LP)
+of `y_1t` on the contemporaneous controls, eq. (16)/(32), and a
+principal-component factor predictor (FB), eqs. (17)-(18) with the post-period
+factor recovered from the controls by eq. (31). Propositions 1-3 rank LP below
+FB on mean square prediction error under four `(N, T)` configurations, and
+Proposition 3 introduces the one piece of new machinery: a prediction-averaging
+LP for `T` fixed and `N` large, eqs. (35)-(37), which partitions the controls at
+random into `G` subgroups, runs OLS in each and averages the `G` forecasts.
+
+### Why it looked attractive
+
+The paper review scored it a pass with one `cheap-add` carve-out. Prediction
+averaging is a genuine gap -- nothing in the library bags OLS over random donor
+subsets -- and it is about a day's work in pure NumPy. Proposition 3 was the
+whole justification for building it.
+
+### Why it is not worth building
+
+**1. The LP contribution is already in the library, four times over.** `PDA`
+carries `hcw` (the original best subset), `LASSO` (Li-Bell), `fs` (Shi-Huang
+forward selection) and `l2` (L2-relaxation). On the paper's own German
+reunification panel, `PDA(method="fs")` lands 0.0086 log points from their
+plotted LP path and a faithful port of their eq. (16) lands 0.0299. Their LP
+result is mlsynth's LP result.
+
+**2. Their FB column does not replicate, in either half of the paper.** Section 7
+prints no number, so the referent had to be digitised from their vector figures
+(see below). Against it, the plotted FB path misses the observed series *in
+sample* by RMSE 0.6230 log points -- an 86% miss for a five-factor model on a
+17-series panel. That is not reachable by the method they describe:
+
+- the specified top-five principal-component fit misses by 0.0115;
+- a search over all 6188 five-subsets of the panel's components gets no closer
+  than 0.5633 to the plotted path, against 0.5700 for the specified top five, so
+  the search buys essentially nothing and this is not a component-selection bug;
+- it is not an eigenvalue-ordering bug (taking `eigh`'s ascending first five
+  lands 38.3 away) and not a wrong treated unit (the path matches no country's
+  observed series and no unit's FB counterfactual, closest USA at 0.558);
+- a faithful port of eqs. (30)-(31) and `FMA` -- two independent correct
+  implementations -- agree with each other to 0.0182 and both sit 0.41 from the
+  figure, with pre-period fits of 0.0115 and 0.0107. The published path's
+  in-sample miss is 54x either.
+
+The same one-sided gap appears in the Monte Carlo. Rebuilding Table 1's
+DGP1/Case 1 grid reproduces their LP column to a median 9.5% relative error on
+MSE, while their FB column comes in low in **all twelve cells** -- median 49%.
+Error of that size in one direction across every cell is a specification gap,
+not simulation noise.
+
+**3. The ordering reverses, which removes the reason to build anything.** With a
+correct FB, LP wins 3 of 12 cells instead of the 12 of 12 the paper reports
+(2 of 12 if FB is given `r+1`, the DGP's actual systematic rank once the
+`U(0,2)` intercept is counted; 3 of 12 on a Bai-Ng count). Proposition 3 fails
+outright: prediction averaging beats FB in 2 of 6 cells instead of 6 of 6. The
+carve-out was justified by Proposition 3, so it goes with it -- and in the
+`N > T` regime it would have competed against `fs`, `LASSO` and `l2`, all of
+which have inference theory that prediction averaging does not.
+
+### What the spike established
+
+**The FB failure drives the paper's headline, and their own note 15 is why.**
+`SE^2_{t,FB}` opens with the mean squared in-sample residual, so the plotted 95%
+half-width of 1.2997 is close to the `1.96 * 0.6230 = 1.2210` that their own fit
+implies -- the formula is applied correctly to a counterfactual that misses
+badly. Section 7 concludes that the FB intervals cover zero while the LP
+intervals do not. With a correct factor fit the FB half-width is 0.0465, not
+1.2997. The conclusion is a property of that fit, not of the factor approach.
+
+**Digitising a figures-only paper is cheap, and the technique generalises.** Journal PDFs often carry plots as vector paths, so the
+plotted series are recoverable exactly -- no pixel-peeling. `pdfminer.six`'s
+`LTCurve`/`LTLine` objects give the polylines with their stroke colour and
+width, which separates a point estimate (heavy line) from its bounds
+(hairlines). Two rules made the result trustworthy enough to pin:
+
+- *Self-calibrate against a series you already have.* Figure 1's black path is
+  West Germany's observed log GDP per capita, which is in `basedata/`. Fitting
+  PDF y-units to the known series recovers the axis map and confirms the series
+  identification in one step: max residual 1e-5 log points, R^2 = 1.00000000.
+- *Cross-check the two figures against each other.* Figure 2's effects must
+  equal the observed series minus Figure 1's counterfactuals. They agree to
+  3.7e-4 on both methods. Two independent calibrations agreeing at that scale is
+  what licenses using the numbers as a referent.
+
+`benchmarks/reference/hz_germany/digitise_figures.py` implements both checks as
+hard failures, so a re-run against a different rendering refuses to write
+instead of producing a wrong referent.
+
+**The FB counterfactual is invariant to their two normalisations; the interval is
+not.** Under `Lambda -> Lambda A` for invertible `A`, eq. (31) gives
+`f_hat -> A^{-1} f_hat` while `lambda_1 -> A' lambda_1`, so `lambda_1' f_hat` is
+unchanged. That kills a whole class of ambiguity -- the `Sigma_lambda = I_r` and
+`Sigma_f = I_r` branches of Remark 3 cannot explain any disagreement about the
+counterfactual, and a port may use whichever is numerically convenient. The
+note-15 interval is a different matter: its third term
+`(1/T) sigma_1^2 f_hat_t' f_hat_t` is stated in an `f` whose scale is fixed by
+`Sigma_lambda = I_r`, and reading it with an orthonormal `Lambda` inflates that
+term by a factor of `N`. This cost a debugging cycle in the benchmark case and
+is commented at `_pc_loadings` there.
+
+**Note 9's LASSO screen had to be reverse-engineered.** The footnote says only
+that the LP uses LASSO to select controls with an upper limit of `T/2` when `N`
+is large. Calibrating eight readings against their printed LP column (penalty by
+CV / BIC / LARS path, post-selection OLS or the shrunk fit, screen always or
+only when the pool exceeds the cap) settled on BIC-selected with the shrunk
+coefficients used directly, at median 4.4% on MAB. Post-selection OLS is
+noticeably worse (5.9%), and a plain OLS on all donors is not their LP at all --
+it gives 5.93 MSE against their 2.997 at `N-1 = 30, T = 60`.
+
+**Their Box-Jenkins baseline is weak on its own terms.** Note 11's AR(1) runs
+through the origin on data whose mean is nonzero by construction
+(`alpha_i ~ U(0,2)`, factors `chi2(1)`), so "both approaches beat the univariate
+model" is close to guaranteed. It does replicate -- 12 of 12 -- but it is not
+evidence for the factor-versus-projection question the paper is about.
+
+**Two of the paper's claims do survive** and are asserted as such: both
+predictors beat Box-Jenkins in every cell, and prediction averaging beats the
+plain LP in 5 of 6 cells, reproducing even the sign of the exception their own
+Table 1 shows at `N-1 = 100, T = 30`.
+
+### Where the evidence lives
+
+- `benchmarks/cases/hz_germany.py` -- Path A, 12 metrics. Pins the LP
+  cross-validation, the agreement between the two correct FB implementations,
+  their common distance from the published path, and the note-15 arithmetic that
+  ties the interval width to the in-sample miss. Includes a self-check that
+  Figure 2 equals observed minus Figure 1, so a bad re-digitisation fails
+  instead of passing.
+- `benchmarks/cases/hz_table1_mc.py` -- Path B, 7 metrics, `R = 300`. Asserts
+  orderings and median relative errors, never floats.
+- `benchmarks/reference/hz_germany/` -- the two gold CSVs, the digitiser, and a
+  README carrying the full FB investigation.
+
+### If this is ever revisited
+
+The authors published no code, so the FB discrepancy cannot be traced further
+from the outside; it is their defect, not mlsynth's, and the exact reproduction
+is recorded above. Reporting it to them is the reasonable next step, and a
+corrected package that reproduces Figure 1 would put the comparison back in
+play -- though not the build, since point (1) stands regardless.
+
+Prediction averaging could still be revived on its own merits, not
+Proposition 3's, as a `PDA(method="lp_ave")` with `lp_ave_groups` and
+`lp_ave_seed`. It beat the plain LP in 5 of 6 cells here, which is a real if
+modest result. What it lacks is any inference theory and any rule for `G` -- the
+paper sets `G = 20` at `T = 10` and `G = 5` otherwise, by fiat -- and the
+partition is random, so the predictor is seed-dependent by construction. It
+would need a reason to prefer it over `l2` or `fs` in the same regime, and this
+paper does not supply one.
+
+---
+
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
