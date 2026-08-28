@@ -34,6 +34,10 @@ Validation paths
 * **Path A** -- reproduce the source paper's empirical result on the original
   authors' data.
 * **Path B** -- reproduce the paper's Monte Carlo / simulation table.
+* **Path C** -- measure a property the paper proves about the estimator's
+  behaviour as the sample grows (a selection converging, a bound holding
+  uniformly, an interval covering), against a population benchmark the
+  design makes computable. See :doc:`properties`.
 * **Cross-validation** -- match an authoritative reference implementation
   (an R/MATLAB package or the authors' own code); these skip themselves when
   the optional dependency is absent.
@@ -301,6 +305,26 @@ Path B — Monte Carlo / simulation
      - the cumulative conformal band's coverage is bounded by the number of calibration windows and not the number of periods: 0.86 at three windows, 0.94 at twenty-six, with exchangeability, stationarity and normality granted throughout. See :doc:`cumulative_calibration`
    * - ``ppscm_geo_conformal_coverage``
      - PPSCM's per-unit cumulative band on a synthetic top-thirty geo panel covers at the rank its order statistic implies. The window count is a closed form in the design (ten at an eight-week horizon, twenty-one at four), ten windows cannot reach 95 per cent at any width, and the distance between realised coverage and the exchangeable prediction is zero at every reachable level. See :doc:`cumulative_calibration`
+
+Path C — theoretical properties
+-------------------------------
+
+Cases that measure a claim the source paper proves about its estimator's
+behaviour as the sample grows, against a population benchmark the design
+makes computable. Nothing here is a cell match -- these results are not
+printed tables -- so what is pinned is the direction each quantity is
+claimed to move, together with the caveats an asymptotic statement carries.
+See :doc:`properties` for the prose, the theorem statements, and what each
+case does and does not establish.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 74
+
+   * - Case
+     - Validates
+   * - ``fdid_selection_mc``
+     - Li (2023) Propositions 2.2 / D.1 and Lemma B.1, the results about Forward DiD's donor selection instead of its estimate. Against the theoretical forward selection algorithm computed in closed form from the Web Appendix E design, the empirical algorithm's exact recovery of ``U*`` rises 0.00 → 0.77 over T1 = 25 → 1600 and admits no mismatched control by the end; Lemma B.1's uniform deviations, maxed over all 2^N - 1 subsets, stay inside a sqrt(log N / T1) band across a 32-fold range of T1. The matched design (DGP 1) converges far more slowly and the case records that too: its criterion ranks a 14-control model within 2 per cent of the 20-control optimum. See :doc:`properties/fdid_selection`
 
 Cross-validation against reference implementations
 --------------------------------------------------

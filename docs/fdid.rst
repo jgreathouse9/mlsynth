@@ -532,7 +532,7 @@ convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
 Verification
 ------------
 
-Forward DiD is validated on two fronts. Path A -- mlsynth reproduces the
+Forward DiD is validated on three fronts. Path A -- mlsynth reproduces the
 author's public Hong Kong GDP companion replication cell by cell (FDID ATT
 :math:`0.0254`, :math:`53.84\%`, pre-period :math:`R^2 = 0.843`, 9 of 24
 controls). Path B -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
@@ -542,6 +542,15 @@ Forward DiD pays only a small efficiency cost when ordinary DiD is valid and
 wins decisively when half the controls are mismatched. See the dedicated
 replication page, :doc:`replications/fdid`, for the full design, code, and
 cell-by-cell tables.
+
+Path C -- the paper's results about the donor *selection* instead of the
+estimate. Propositions 2.2 and D.1 say the forward search converges on the
+subset the same search would pick if it knew the population variances;
+against that benchmark, computed in closed form, mlsynth's exact recovery
+rises from 0.00 to 0.77 as :math:`T_1` grows from 25 to 1600, and Lemma
+B.1's uniform deviations stay inside their :math:`\sqrt{\log N / T_1}` band
+throughout. See :doc:`properties/fdid_selection`, which also reports where
+the convergence is slow and why.
 
 Core API
 --------

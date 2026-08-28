@@ -18,6 +18,7 @@ CASES = {
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "fdid_selection_mc": "benchmarks.cases.fdid_selection_mc",  # Path C: forward-selection consistency (Li 2023 Prop 2.2 / D.1) -- Pr(U_hat = U*) climbs 0.00 -> 0.77 over T1 = 25 -> 1600, plus Lemma B.1's uniform sqrt(log N / T1) rate over all 2^N - 1 subsets
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
