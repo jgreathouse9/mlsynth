@@ -219,6 +219,105 @@ def test_did_inference_degenerate():
 
 
 # -----------------------------
+# inference.did_inference -- the standardised ATT
+#
+# Three sources agree on what this quantity is, and they are the reason these
+# tests assert an equality and not a range.
+#
+#   1. Proposition 2.1: sqrt(T2) * (ATT_hat - ATT) / sqrt(omega_1 + omega_2)
+#      is asymptotically standard normal.
+#   2. The author's replication package (MKSC 2022.0212, FDID_Matlab.m):
+#          ATT_std_FDID = sqrt(t2) * ATT_FDID / std_Omega_hat_FDID
+#      annotated "standardized ATT, it is N(0,1) under H0: ATT = 0", with
+#      std_Omega_hat_FDID = sqrt(Omega_1 + Omega_2) -- so her statistic is
+#      the estimate over the same standard error this module returns.
+#      (Her Fun_FDID.R computes no inference at all; the MATLAB script does.)
+#   3. ``effectutils.standardized_att``, which computes it library-wide.
+#
+# All three reduce to ``att / se``. A stray factor in the post-period length
+# would leave the estimate's sign and the p-value intact while making the
+# reported statistic diverge under the null, which is why these pin the
+# scaling directly instead of testing it through the interval.
+# -----------------------------
+@pytest.mark.parametrize("T1,T2", [(3, 2), (20, 5), (100, 10), (100, 50)])
+def test_satt_is_the_studentised_att(T1, T2):
+    """SATT is ``att / se``, at every pre/post split.
+
+    A statistic carrying a stray factor in ``T2`` would pass at one split
+    and fail at the others, so the parametrisation is what does the work.
+    """
+    rng = np.random.default_rng(0)
+    resid = rng.normal(size=T1)
+    se, _, _, satt = did_inference(2.0, resid, T1, T2)
+    assert satt == pytest.approx(2.0 / se)
+
+
+@pytest.mark.parametrize("T1,T2", [(20, 5), (100, 10), (100, 50)])
+def test_satt_matches_the_canonical_primitive(T1, T2):
+    """SATT agrees with :func:`mlsynth.utils.effectutils.standardized_att`.
+
+    One quantity, defined once. The primitive takes the pre- and post-period
+    gaps; ``did_inference`` takes the ATT and the pre-period residuals, which
+    are the same information for a DiD fit whose post-gap averages to the ATT.
+    """
+    from mlsynth.utils.effectutils import standardized_att
+
+    rng = np.random.default_rng(1)
+    pre_gap = rng.normal(size=T1)
+    att = 2.0
+    post_gap = np.full(T2, att)
+    _, _, _, satt = did_inference(att, pre_gap, T1, T2)
+    assert satt == pytest.approx(standardized_att(pre_gap, post_gap))
+
+
+@pytest.mark.parametrize("T1,T2", [(20, 5), (100, 10), (100, 50), (200, 200)])
+def test_satt_closed_form(T1, T2):
+    """SATT equals ``sqrt(T1 T2 / (T1 + T2)) * att / sigma-hat``.
+
+    The same statement as ``att / se``, written without reference to ``se``,
+    so the algebra is pinned even if the standard error is later reworked.
+    """
+    rng = np.random.default_rng(2)
+    resid = rng.normal(size=T1)
+    sigma_hat = np.sqrt(np.mean(resid ** 2))
+    att = 0.75
+    _, _, _, satt = did_inference(att, resid, T1, T2)
+    expected = np.sqrt(T1 * T2 / (T1 + T2)) * att / sigma_hat
+    assert satt == pytest.approx(expected)
+
+
+def test_satt_is_bounded_as_the_post_period_grows():
+    """Holding the pre-period fit and the ATT fixed, SATT is bounded in T2.
+
+    The statistic rises with the post-period -- more evidence for a fixed
+    effect -- but toward ``sqrt(T1) * att / sigma-hat``, since the level
+    shift is still estimated on T1 pre-periods. A statistic scaling with
+    ``sqrt(T2)`` would run away instead, which is the failure this pins.
+    """
+    rng = np.random.default_rng(3)
+    T1 = 50
+    resid = rng.normal(size=T1)
+    sigma_hat = np.sqrt(np.mean(resid ** 2))
+    att = 1.0
+    ceiling = np.sqrt(T1) * att / sigma_hat
+    values = [did_inference(att, resid, T1, T2)[3]
+              for T2 in (10, 100, 1000, 10000)]
+    assert all(v < ceiling for v in values)
+    assert values == sorted(values)
+    # The approach is from below at rate T1 / (T1 + T2), so 1% at T2 = 10000
+    # with T1 = 50. Boundedness is the claim; the rate is not.
+    assert values[-1] == pytest.approx(ceiling, rel=1e-2)
+
+
+def test_fdid_result_satt_is_the_reported_t_statistic(sample_fdid_data):
+    """End to end: ``res.fdid.satt`` matches ``att / att_se`` on the result."""
+    res = FDID(FDIDConfig(df=sample_fdid_data, outcome="y",
+                          treat="treated_indicator", unitid="unit", time="time",
+                          display_graphs=False)).fit()
+    assert res.fdid.satt == pytest.approx(res.fdid.att / res.fdid.att_se, abs=1e-3)
+
+
+# -----------------------------
 # estimation._r2_batch
 # -----------------------------
 # -----------------------------
