@@ -116,8 +116,7 @@ def run() -> dict:
     out: dict = {}
 
     # ---- the deterministic seams ----
-    fixture = _ROOT / "mlsynth" / "tests" / "fixtures" / "dmlfm"
-    design = json.loads((fixture / "german_design.json").read_text())
+    design = json.loads((_REF / "german_design.json").read_text())
     cfg = DMLFMConfig(df=d, outcome="gdp", unitid="index", time="year", treat="D",
                       covariates=COVARIATES, re="time", r=10, niter=100, burn=10,
                       display_graphs=False)
@@ -136,7 +135,7 @@ def run() -> dict:
     ]
     out["design_matches_reference"] = float(all(checks))
 
-    scales = json.loads((fixture / "covariate_scaling.json").read_text())
+    scales = json.loads((_REF / "covariate_scaling.json").read_text())
     got = d[COVARIATES].to_numpy(float).std(axis=0, ddof=1)
     ref = np.asarray(scales["scales"], float)
     out["covariate_scales_max_rel_diff"] = float(np.abs(got / ref - 1.0).max())
