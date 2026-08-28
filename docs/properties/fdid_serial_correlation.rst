@@ -242,7 +242,7 @@ Reproducing it
 
    python benchmarks/run_benchmarks.py --case fdid_serial_correlation_mc
 
-Seeded end to end, about ninety seconds.
+Seeded end to end, about a minute.
 
 .. code-block:: python
 
