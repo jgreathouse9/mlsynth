@@ -49,6 +49,12 @@ ATT, across :math:`\rho`, at :math:`T_1 = 400` so that the post-selection
 effect the :doc:`normality case <fdid_normality_mc>` measures is long gone
 and only the serial correlation is left.
 
+The same draws are then re-fitted with ``inference="hac"``, which estimates
+the residual's autocovariances on the pre-period and puts them through the
+exact finite-block variance of both means. Selection never consults a
+standard error, so the two fits share their subsets and point estimates and
+differ only in the interval.
+
 The dispersion is also scored against a closed-form prediction,
 :func:`~mlsynth.utils.fdid_helpers.population.long_run_inflation`, so the
 gap is identified and not merely reported. That prediction is first-order:
@@ -63,6 +69,7 @@ from __future__ import annotations
 import numpy as np
 
 from mlsynth import FDID
+from mlsynth.utils.fdid_helpers.inference import hac_lag
 from mlsynth.utils.fdid_helpers.population import long_run_inflation
 from mlsynth.utils.fdid_helpers.simulation import simulate_fdid_serial_sample
 
@@ -74,21 +81,34 @@ RHOS = (0.0, 0.3, 0.5, 0.7, 0.9)
 
 
 def _cell(rho: float, seed: int = 0) -> dict:
-    """Coverage and dispersion of the reported inference at one ``rho``."""
+    """Coverage and dispersion of the reported inference at one ``rho``.
+
+    Both standard errors are measured on the same draws. Selection does not
+    consult a standard error, so the two fits differ only in the interval.
+    """
     covered, z, selected = [], [], []
+    covered_hac, z_hac, se_ratio = [], [], []
     for j in range(M):
         rng = np.random.default_rng(seed + j)
         s = simulate_fdid_serial_sample(rho=rho, N=N, T1=T1, T2=T2, rng=rng)
-        r = FDID({"df": s.df, "outcome": "y", "treat": "treat",
-                  "unitid": "unit", "time": "time",
-                  "display_graphs": False, "verbose": False}).fit().fdid
+        cfg = {"df": s.df, "outcome": "y", "treat": "treat",
+               "unitid": "unit", "time": "time",
+               "display_graphs": False, "verbose": False}
+        r = FDID(cfg).fit().fdid
+        h = FDID({**cfg, "inference": "hac"}).fit().fdid
         covered.append(r.ci[0] <= 0.0 <= r.ci[1])     # true ATT is zero
         z.append(r.att / r.att_se)
         selected.append(len(r.selected_names))
+        covered_hac.append(h.ci[0] <= 0.0 <= h.ci[1])
+        z_hac.append(h.att / h.att_se)
+        se_ratio.append(h.att_se / r.att_se)
     return {
         "cov95": float(np.mean(covered)),
         "sd": float(np.std(z)),
         "n_selected": float(np.mean(selected)),
+        "cov95_hac": float(np.mean(covered_hac)),
+        "sd_hac": float(np.std(z_hac)),
+        "se_ratio": float(np.mean(se_ratio)),
     }
 
 
@@ -109,6 +129,10 @@ def run() -> dict:
         # the search actually returned, so a drift there stays visible.
         out[f"sd_over_predicted_rho{tag}"] = m["sd"] / long_run_inflation(
             rho, n=N // 2, T1=T1, T2=T2)
+        out[f"cov95_hac_rho{tag}"] = m["cov95_hac"]
+        out[f"sd_hac_rho{tag}"] = m["sd_hac"]
+        out[f"se_ratio_hac_rho{tag}"] = m["se_ratio"]
+    out["hac_lag"] = float(hac_lag(T1, T2))
     out["cov_decreasing"] = _decreasing(m["cov95"] for m in cells.values())
     out["n_selected_rho00"] = cells[0.0]["n_selected"]
     out["n_selected_rho09"] = cells[0.9]["n_selected"]
@@ -150,6 +174,36 @@ EXPECTED = {
     "sd_over_predicted_rho05": (1.024, 0.05),
     "sd_over_predicted_rho07": (1.036, 0.05),
     "sd_over_predicted_rho09": (1.058, 0.05),
+
+    # --- inference="hac" prices the autocovariances in --------------------
+    # The same draws, the same selected subsets, the same point estimates.
+    # Coverage holds across the whole range where the analytic interval
+    # collapses, and the studentised statistic goes back to unit dispersion.
+    # The lag is min(T2 - 1, T1 // 10) = min(9, 40) = 9, so the post block's
+    # sum is exhaustive: lag k enters it with weight 1 - k/T2, zero at k = 10.
+    "hac_lag": (9.0, 0.0),
+    "cov95_hac_rho00": (0.947, 0.04),
+    "cov95_hac_rho03": (0.935, 0.04),
+    "cov95_hac_rho05": (0.938, 0.04),
+    "cov95_hac_rho07": (0.933, 0.04),
+    "cov95_hac_rho09": (0.920, 0.04),
+
+    "sd_hac_rho00": (0.987, 0.10),
+    "sd_hac_rho03": (1.049, 0.10),
+    "sd_hac_rho05": (1.061, 0.10),
+    "sd_hac_rho07": (1.077, 0.10),
+    "sd_hac_rho09": (1.116, 0.10),
+
+    # What it costs where there is nothing to correct: 2.8 per cent of width
+    # at rho = 0, which coverage does not notice (0.947 against 0.942). What
+    # it buys at rho = 0.9 is an interval 2.52 times wider -- close to the
+    # 2.79 the dispersion column says is missing, the shortfall being the
+    # lag-9 truncation of a sequence still at 0.9^10 = 0.35.
+    "se_ratio_hac_rho00": (1.028, 0.10),
+    "se_ratio_hac_rho03": (1.268, 0.10),
+    "se_ratio_hac_rho05": (1.532, 0.10),
+    "se_ratio_hac_rho07": (1.919, 0.10),
+    "se_ratio_hac_rho09": (2.517, 0.12),
 
     # The prediction uses the population matched-half size N//2 = 10; the
     # search returns fewer. It makes no difference at rho = 0, where the
