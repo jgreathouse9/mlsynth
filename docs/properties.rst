@@ -82,6 +82,14 @@ Catalogue
        throughout. ``inference="hac"`` prices those autocovariances in and
        holds coverage at 0.92 to 0.95 over the same range, costing 2.8% of
        interval width where there is nothing to correct.
+   * - :doc:`RSC <properties/rsc_rank_condition>`
+     - Amjad, Shah & Shen (2018) Theorems 6 and 3
+     - The rank condition that lets a pre-period donor relation extrapolate
+       holds to 2e-15 when :math:`\operatorname{rank}(M^-) =
+       \operatorname{rank}(M)` and fails on every design when it does not,
+       costing the estimator a 14-fold post-period error. The
+       singular-value threshold traces the paper's Goldilocks U-shape, with
+       underfitting the far more expensive side.
 
 .. toctree::
    :hidden:
@@ -90,3 +98,4 @@ Catalogue
    properties/fdid_selection
    properties/fdid_normality
    properties/fdid_serial_correlation
+   properties/rsc_rank_condition
