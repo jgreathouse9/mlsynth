@@ -191,6 +191,77 @@ def prediction_variance(
     return (c0 - c_bar) ** 2 * FACTOR_SUM_VARIANCE + 1.0 + 1.0 / n
 
 
+def long_run_inflation(rho: float, n: int, T1: int, T2: int) -> float:
+    r"""How far Li's standard error falls short when the residual is AR(1).
+
+    Proposition 2.1 studentises by the residual's *marginal* variance
+    :math:`\sigma^2 = \mathbb{E}[v_t^2]`. The estimator's sampling error is
+    :math:`\bar v_{\text{post}} - \bar v_{\text{pre}}`, a difference of two
+    block means, and a block mean's variance is governed by the *long-run*
+    variance :math:`\sum_k \gamma_k`. The two agree exactly when
+    :math:`v_t` is serially uncorrelated, which Assumptions 2(ii) and 3(i)
+    impose; Assumption 2.1 in the main text asks only for weak dependence.
+
+    For the design of
+    :func:`~mlsynth.utils.fdid_helpers.simulation.simulate_fdid_serial_sample`
+    the residual at the matched subset is an AR(1) of unit marginal variance
+    plus the donor average's independent noise, so
+    :math:`\gamma_0 = 1 + 1/n` and :math:`\gamma_k = \rho^{|k|}`. The exact
+    variance of a length-``T`` block mean is then
+
+    .. math::
+
+       \operatorname{Var}(\bar v_T)
+         = \frac{1}{T}\Bigl[\gamma_0
+             + 2\sum_{k=1}^{T-1}\bigl(1 - \tfrac{k}{T}\bigr)\gamma_k\Bigr],
+
+    and this returns the ratio of the true dispersion of the sampling error
+    to the one Li's formula predicts, :math:`\sigma\sqrt{1/T_1 + 1/T_2}`.
+    A returned 1.5 means the reported interval is two thirds the width it
+    should be.
+
+    Parameters
+    ----------
+    rho : float
+        AR(1) coefficient of the treated unit's idiosyncratic shock, in
+        ``(-1, 1)``.
+    n : int
+        Donors in the selected subset (the ``1/n`` in :math:`\gamma_0`).
+    T1, T2 : int
+        Pre- and post-treatment period counts.
+
+    Returns
+    -------
+    float
+        The dispersion ratio, 1.0 when ``rho`` is 0.
+
+    Notes
+    -----
+    The two block means are treated as independent. They are not exactly --
+    an AR(1) links them across the split -- but the cross-covariance decays
+    geometrically in the distance between the windows and is negligible
+    beside either block's own variance at any usable ``T_1``.
+    """
+    if not -1.0 < rho < 1.0:
+        raise ValueError(f"rho must be in (-1, 1) for a stationary AR(1); got {rho}.")
+    if n < 1:
+        raise ValueError(f"n must be at least one donor; got {n}.")
+    if T1 < 1 or T2 < 1:
+        raise ValueError(f"T1 and T2 must be positive; got ({T1}, {T2}).")
+
+    gamma_0 = 1.0 + 1.0 / n
+
+    def block_variance(T: int) -> float:
+        acc = gamma_0
+        for k in range(1, T):
+            acc += 2.0 * (1.0 - k / T) * rho ** k
+        return acc / T
+
+    true = block_variance(T1) + block_variance(T2)
+    reported = gamma_0 * (1.0 / T1 + 1.0 / T2)
+    return float((true / reported) ** 0.5)
+
+
 @dataclass(frozen=True)
 class TheoreticalSelection:
     r"""What the theoretical forward selection algorithm selects.

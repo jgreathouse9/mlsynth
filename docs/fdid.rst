@@ -550,7 +550,12 @@ against that benchmark, computed in closed form, mlsynth's exact recovery
 rises from 0.00 to 0.77 as :math:`T_1` grows from 25 to 1600, and Lemma
 B.1's uniform deviations stay inside their :math:`\sqrt{\log N / T_1}` band
 throughout. See :doc:`properties/fdid_selection`, which also reports where
-the convergence is slow and why.
+the convergence is slow and why. A companion case measures the other
+side of the same proposition: its variance formula uses the residual's
+marginal variance where a block mean needs the long-run variance, so under
+a serially correlated residual the reported interval narrows well below
+nominal while the point estimate stays consistent. See
+:doc:`properties/fdid_serial_correlation`.
 
 Core API
 --------

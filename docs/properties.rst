@@ -72,6 +72,14 @@ Catalogue
        measured against 1.2247 predicted — which identifies the term the
        assumption removes; mlsynth's standard error carries that factor and
        converges anyway.
+   * - :doc:`FDID <properties/fdid_serial_correlation>`
+     - Li (2023) Proposition 2.1, where it stops applying
+     - The standard error prices the residual's marginal variance where a
+       block mean needs its long-run variance. Under an AR(1) residual the
+       nominal 95% interval covers 0.533 at :math:`\rho = 0.9`, and a
+       closed-form long-run-variance prediction accounts for essentially
+       the whole 2.79-fold spread. The point estimate is unaffected
+       throughout.
 
 .. toctree::
    :hidden:
@@ -79,3 +87,4 @@ Catalogue
 
    properties/fdid_selection
    properties/fdid_normality
+   properties/fdid_serial_correlation
