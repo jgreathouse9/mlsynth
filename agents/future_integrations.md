@@ -1580,17 +1580,19 @@ distinguish, and the docs need to say so plainly.
 
 ---
 
-## 17. Shen (2026) Two-Way Synthetic Forecasting (TWSF) -- assessed, PARKED pending two answers from the author
+## 17. Shen (2026) Two-Way Synthetic Forecasting (TWSF) -- CLEARED FOR BUILD at v2
 
-**Status: Parked. Not a rejection -- the method is novel, the gap is real, and
-an implementation exists in scratch. It is blocked because neither replication
-path can be completed from the paper as published. Recorded so the two spikes
-are not repeated.**
+**Status: Unblocked. v2 answers both questions that parked this at v1, and the
+Path-B gate passes: coverage is nominal and the bias now shrinks in n. The gate
+run is staged at `benchmarks/reference/twsf_spike/`. The v1 assessment below is
+kept because its gap, cost and architecture findings still stand; the v2 delta
+is recorded at the end.**
 
 ### Source
 
 > Shen, D. (2026). "Causal Forecasting in Panel Data: A Two-Way Synthetic
-> Forecasting Approach." arXiv:2606.18512v1. Single author, no code release.
+> Forecasting Approach." arXiv:2606.18512. Single author, no code release.
+> v1 parked; v2 cleared.
 
 Data for the case study (NFL stadium openings) is available: the NYT county
 series plus the stadium-county mapping are both vendored in
@@ -1609,7 +1611,7 @@ at a time *beyond the end of the panel* -- by combining a Synthetic
 Interventions unit-side regression with an mSSA Page-matrix time-side
 forecaster, bilinearly.
 
-### Why it is worth wanting
+### Why we want it
 
 It is a genuinely different estimand from everything in the library. Every
 mlsynth estimator imputes a counterfactual *inside* the observed window; TWSF
@@ -1632,7 +1634,7 @@ Unusually clean. Grepping the library:
 
 Closest existing estimator: `SI` (same author lineage, same PCR kernel).
 
-### Cost -- low, and this was verified rather than estimated
+### Cost -- low, and this was verified, not estimated
 
 Both the one-step and the recursive multi-step orthogonalized estimators were
 implemented during the spikes on top of `hsvt` and `pcr_weights` **without
@@ -1725,7 +1727,7 @@ Either likely unblocks its path; both would make this a build.
 New top-level estimator `TWSF`, not a `method=` on `SI` -- different estimand,
 different result semantics, four extra hyperparameters (`L`, `k_y`, `k_z`,
 `k_w`) plus `horizon` and `multistep: Literal["direct","recursive"]`. It should
-import `mlsynth.utils.pcr.core` rather than reimplement HSVT/PCR, and copy
+import `mlsynth.utils.pcr.core` instead of reimplementing HSVT/PCR, and copy
 `SIConfig.inters` for the treated-donor pool. It rides the result contract:
 `observed_outcome` = the realized control path, `counterfactual_outcome` = the
 forecast treated path, `estimated_gap` = the contrast, `counterfactual_lower/
@@ -1736,6 +1738,87 @@ Feasibility traps to surface as diagnostics, not crashes: `B = T_1 / L` must
 give at least two blocks, and the *direct* multi-step estimator is infeasible
 at short horizons -- the paper's own case study cannot use it, which is why it
 uses the recursive one.
+
+### v2 update -- both blockers resolved, gate passed
+
+**Blocker 2, the case study, is answered outright.** `case_study.tex:77`: TWSF
+is estimated on daily counts and the figures display cumulative trajectories.
+v2 also adds the distinction the v1 spike got wrong, which is why containment
+failed there. A validation target is a *realised* trajectory and takes a
+prediction interval, `sqrt((V_rec)^2 + m sigma_hat^2)`, where the second term
+accumulates future daily shocks over the horizon; the counterfactual target is
+a conditional mean and keeps the confidence interval. The spike computed a
+confidence interval for both, so its bands were too narrow on the validation
+panel by construction.
+
+**Blocker 1, the simulation, is narrowed to one item that turned out not to
+matter.** v2 now gives the harmonic frequencies (`2pi/(8 T*)`, `2pi/12`,
+`2pi/37`, `2pi/91`), the eight-component basis, the scaling rule
+(`max |<u_i, v_t(d)>| <= 0.8`), `sigma = 0.10`, the donor factor construction
+and the population ranks. `A_0` and `A_1` are still given only structurally --
+4 x 8, fixed across replications, lowest-frequency harmonic absent under
+control and present under treatment.
+
+The gate drew a non-degenerate pair respecting that structure and ran the
+paper's own budget of 100 latent x 10 noise replications. Coverage against a
+nominal 0.90, with Monte Carlo standard errors of 0.008 to 0.020 clustered over
+latent draws:
+
+    n      h=1     h=5    h=10
+    25    0.857   0.871   0.838
+    50    0.936   0.914   0.921
+    75    0.893   0.876   0.854
+    100   0.895   0.904   0.890
+    125   0.909   0.883   0.895
+    150   0.908   0.885   0.892
+
+against 0.39 to 0.87 for the v1 reconstruction. The bias now shrinks in `n`,
+which is the specific v1 failure: 0.0005 to 0.0010 at `n = 150` against a
+standard error near 0.011, where v1 had 0.195 against 0.084 and no shrinkage.
+
+**The scaling rule is what fixed it, and the spectrum diagnostic shows why.**
+At `n = 150` the Page matrix's retained signal spans 47x with its smallest
+direction at 0.586 against a noise floor of 0.10; the v1 reconstruction spanned
+500,000x with its smallest signal direction at about 1e-4 against a noise floor
+of 3.7, so rank-8 PCR was inverting noise. Specifying the signal cap and sigma
+moved the SNR by five orders of magnitude. The other two diagnostics came back
+as they did on v1: `sigma = 0` recovery is exact to 1e-13..1e-16, and empirical
+SD over plug-in SE is 0.894 to 1.165, so neither the algebra nor the variance
+formula was ever the problem.
+
+**What the gate does not establish.** `A_0` and `A_1` are still the spike's
+choice, so this shows that *a* non-degenerate pair respecting the stated
+structure gives nominal coverage, not that the author's exact numbers
+reproduce. Coverage is below nominal at `n = 25` (0.838 to 0.871) and dips at
+`n = 75` for long horizons (0.854 at `h = 10`); the spectrum explains both,
+since lag length equals `n` here and a 25- or 75-period window cannot resolve
+the `2pi/91` harmonic or separate the two `omega_0` directions. The theory is
+asymptotic in `n`, so a spectral shortfall at the smallest panels is consistent
+with it.
+
+**Two corrections to the notes above.** The algorithm has three tunables, not
+four: `L`, `k_y`, `k_z`. `r_w` is a population rank in the theory, not a
+hyperparameter, and v2's Table 2 reports only `L`, `k_y`, `k_z`. And v2's
+empirical claim is weaker than v1's -- where v1 named exactly three cities
+outside the band, v2 says only that "the clearest deviations occur in
+Cincinnati and Pittsburgh". A benchmark case should therefore pin the point
+forecasts and the relative ranking, not a containment count. v2 also hedges the
+"longer treated-donor windows forecast better" claim that the v1 spike
+contradicted.
+
+**A caveat for the build, from the paper itself.** `case_study.tex:53` states
+that stadium openings were staggered while the theoretical framework assumes a
+common treatment date, and the conclusion lists a formal staggered-adoption
+version as future work. The flagship application does not satisfy the theory's
+design assumption, so a `TWSF` config should surface a staggered panel instead
+of silently accepting one.
+
+**One implementation note.** `HSVT(A, k)` has rank exactly `k`, so its
+pseudo-inverse must be built by inverting those `k` singular values.
+`np.linalg.pinv` on the truncated matrix keeps numerically-zero directions
+under its default tolerance and inflates without bound -- at `n = 150` that
+turned a handful of plug-in standard errors into ~1e8. The staged `twsf.py`
+builds both pseudo-inverses from the truncated factors.
 
 ### Learnings
 
