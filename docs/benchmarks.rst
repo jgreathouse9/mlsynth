@@ -325,6 +325,8 @@ case does and does not establish.
      - Validates
    * - ``fdid_selection_mc``
      - Li (2023) Propositions 2.2 / D.1 and Lemma B.1, the results about Forward DiD's donor selection instead of its estimate. Against the theoretical forward selection algorithm computed in closed form from the Web Appendix E design, the empirical algorithm's exact recovery of ``U*`` rises 0.00 → 0.77 over T1 = 25 → 1600 and admits no mismatched control by the end; Lemma B.1's uniform deviations, maxed over all 2^N - 1 subsets, stay inside a sqrt(log N / T1) band across a 32-fold range of T1. The matched design (DGP 1) converges far more slowly and the case records that too: its criterion ranks a 14-control model within 2 per cent of the 20-control optimum. See :doc:`properties/fdid_selection`
+   * - ``fdid_normality_mc``
+     - Li (2023) Proposition 2.1, the asymptotic normality that licenses Forward DiD's standard error, interval and p-value. Where Assumption 4 holds the studentised ATT's dispersion falls 1.329 → 0.998 and coverage of the 95 per cent interval climbs 0.889 → 0.952, both monotonically; the excess at short pre-periods is post-selection, since sigma-hat is estimated on the subset chosen to minimise it. Where Assumption 4(ii) fails (T2 = T1/2) the statistic settles at sqrt(1 + T2/T1) = 1.2247 instead of 1 -- measured 1.224 -- which identifies the level-shift term the assumption removes, and mlsynth's standard error carries that factor so its own statistic still converges to 1.000. See :doc:`properties/fdid_normality`
 
 Cross-validation against reference implementations
 --------------------------------------------------

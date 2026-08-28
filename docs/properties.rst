@@ -64,9 +64,18 @@ Catalogue
        25 to 1600; the uniform deviations stay inside a
        :math:`\sqrt{\log N / T_1}` band across a 32-fold range of
        :math:`T_1`.
+   * - :doc:`FDID <properties/fdid_normality>`
+     - Li (2023) Proposition 2.1
+     - The studentised ATT's dispersion falls to 1.00 and its interval's
+       coverage climbs to 0.952 where Assumption 4 holds. Where 4(ii)
+       fails, the statistic settles at :math:`\sqrt{1 + T_2/T_1}` — 1.224
+       measured against 1.2247 predicted — which identifies the term the
+       assumption removes; mlsynth's standard error carries that factor and
+       converges anyway.
 
 .. toctree::
    :hidden:
    :caption: Property pages
 
    properties/fdid_selection
+   properties/fdid_normality
