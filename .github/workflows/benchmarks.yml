@@ -68,6 +68,28 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # A shard cancelled by its own timeout concludes "cancelled", not "failure",
+  # and GitHub marks the run cancelled -- which reads like somebody pressed
+  # stop rather than like a gap in coverage. The cases that shard holds simply
+  # go unvalidated, with nothing red to show for it. That is how four
+  # consecutive daily runs (2026-08-24 to -27) left 51 cases unchecked. This
+  # gate turns any shard outcome other than success into a failed run.
+  # ---------------------------------------------------------------------------
+  suite-gate:
+    if: always() && github.event_name != 'pull_request'
+    needs: suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every suite shard succeeded
+        if: needs.suite.result != 'success'
+        run: |
+          echo "::error::suite shards concluded '${{ needs.suite.result }}', not success." >&2
+          echo "A cancelled or failed shard neither passes nor fails on its own," >&2
+          echo "so the cases it holds went unvalidated. Check the shard logs." >&2
+          exit 1
+
+  # ---------------------------------------------------------------------------
   # Main suite: mlsynth[all] + the R reference stack. Runs every registered case;
   # the R-backed live cross-checks execute because R is provisioned here.
   #
@@ -75,6 +97,20 @@ jobs:
   # across NUM_SHARDS parallel jobs (run_benchmarks.py --shard i --num-shards N).
   # Each shard runs ~1/N of the cases, keeping every shard well under the
   # timeout. To change the shard count, edit BOTH the matrix list and NUM_SHARDS.
+  #
+  # Round-robin balances shards by case COUNT, not by runtime, and the two are
+  # not the same thing: at four shards the benchmark steps took 15, 37, 37 and
+  # 66+ minutes. The split was not merely uneven, it was resonant -- a stride
+  # of four landed 12 of the 17 heaviest Monte Carlo and R-backed cases on
+  # shard 1 alone, because of where they sit in the registry. A stride of six
+  # breaks that up (0/6/2/5/1/3 of the same seventeen) and brings the slowest
+  # shard back to roughly 45 minutes. Each extra shard pays the R provisioning
+  # again, which is why this is 6 and not 8.
+  #
+  # It is still count-balanced, so a stride that resonates again is possible.
+  # The durable fix is to bin-pack by measured runtime rather than widen
+  # further; ``case-deps`` already walks every case and is the natural place
+  # to collect the timings that would need.
   #
   # R CACHE: the CRAN references (requirements.R -> Synth/synthdid/did + their
   # dependencies -- the heaviest compiles) install into a user-writable
@@ -87,13 +123,17 @@ jobs:
     # Reference-provisioning is the expensive half; pull requests get pr-suite.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The cap covers R provisioning (18-24 min) AND the shard, not the shard
+    # alone. At 90 it did not: on 2026-08-27 shard 1 was cancelled at 90m14s
+    # having had only ~67 minutes of benchmark budget, and the same happened
+    # on the three days before that.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     env:
-      NUM_SHARDS: "4"
+      NUM_SHARDS: "6"
       R_LIBS_USER: ${{ github.workspace }}/.rlibs
       # Pin BLAS/LAPACK to a single thread so the numerically-sensitive cases
       # reproduce deterministically. constraints.txt already fixes the
@@ -205,7 +245,7 @@ jobs:
     # its cases, writes no report, and leaves the run merely "unstable". Adding
     # heavy cases moves the slowest shard, not the average, so raise the shard
     # count when one next approaches this.
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
