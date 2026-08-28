@@ -2374,6 +2374,130 @@ paper does not supply one.
 ---
 
 
+## 23. MMSCM -- Kato & Ohda moment-matching SCM -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. Prototyped to a decisive result; the
+spike, the oracle and the authors' own DGP are staged at
+`benchmarks/reference/mmscm_spike/`.**
+
+### Source
+
+> Kato, M., & Ohda, A. (2025). *Asymptotically Unbiased Synthetic Control
+> Methods by Moment Matching*. arXiv:2307.11127v5 (econ.EM). Reference
+> implementation: `github.com/MasaKat0/mmscm` (MIT, maintained to Nov 2025).
+
+### The claim
+
+Choose simplex weights matching `G` raw moments of the treated unit's
+pre-period outcome to the weighted sum of the donors' (eq. 4), on outcomes
+rescaled into [0, 1]. Moments run over the pre-period *time* dimension, so this
+consumes an ordinary aggregate panel. Under a mixture-model assumption the
+estimator is asymptotically unbiased, which is offered as a fix for the
+implicit endogeneity of Ferman & Pinto (2021).
+
+### Why it looked attractive
+
+A real capability gap. `DSC` (Gunsilius) is mlsynth's only distributional
+synthetic control and it needs micro-level cells; MMSCM would bring
+distributional treatment effects to the aggregate panels every other estimator
+in the library consumes. The reference code is clean, fast (0.1 s per fit, pure
+SciPy) and actively maintained, all three empirical datasets are already in
+`basedata/`, and Tables 2-4 print per-year estimates and conformal intervals,
+so Path A is quantitative. Nothing in the library matches moments over time;
+the closest by *claim* is `MUSC` (Bottmer, Imbens, Spiess & Warnick), which
+reaches unbiasedness by a design-based route instead.
+
+### Why it is not worth building
+
+**1. On the authors' own simulation, an equally weighted donor average beats it
+in 9 of 9 cells.** At their own 100 replications, uniform `1/J` weights -- no
+fitting, no moments, no optimisation -- beat MMSCM by factors of 1.13 to 1.91
+across `J` in {5, 15, 30} and `G` in {2, 5, 10}. MMSCM's weights sit 0.25 to
+0.64 from uniform in L1 against a simplex diameter of 2.0, and the closer they
+sit the smaller its gap to the uniform average. Their DGP generates independent
+random walks, so averaging `J` of them cuts variance by about `1/J`, while
+anything that fits the pre-period path chases one realisation. The reported
+advantage over Abadie SC is that diversification effect, not a gain from
+matching moments.
+
+**2. Its own supporting claims do not reproduce.** The paper reports the error
+declining as `G` grows; the pattern is non-monotone and at `J = 30` increasing.
+The DGP random-walks the outcome mean with a per-period step of
+`10 * sqrt(J + 1)`, so the simulation validating the theory violates the
+theory's Assumption 5.7, which requires a stationary strongly mixing error
+process. And their notebook differs from the paper's text in three ways that
+change what is measured: means and variances are drawn once per trial and then
+random-walked, `T0 = 50` and `T1 = 1000` against the text's 30 and 100, and
+donor 2 is dropped after generation while the treated unit's mixture still uses
+that component -- so the mixture assumption is violated by the panel the
+estimator is tested on.
+
+**3. On real panels it is beaten by the baseline it targets.** Prop 99, with
+every variant solved properly: MMSCM lands ATT -22.79 with a pre-period RMSE of
+3.66 at best, against Abadie SC's -19.51 / 1.66 and demeaned SC's -11.11 /
+0.96. Abadie, Diamond & Hainmueller report about -19. The same ordering holds on
+the Basque and German panels, where the moment constraint costs a pre-period
+RMSE 3.4 to 4.6 times Abadie SC's. Demeaned SC is Ferman & Pinto's own fix for
+the bias MMSCM targets, mlsynth already carries it as `TSSC`'s MSCa arm, and the
+paper never runs it.
+
+### What the spike established
+
+**The prototype's own proposal was wrong, and that is the useful part.** The
+review recommended breaking the tie by minimum norm. Minimising `||w||_2` on a
+simplex pulls towards the centroid, which is where the under-solved reference
+already sat, so `minnorm` made Prop 99 slightly worse than the reference
+(-33.03 / 9.27 against -32.25 / 8.91). The selector that helps is the opposite
+one: match the moments first, then spend the remaining `J - G` degrees of
+freedom on the pre-period path. That moved Prop 99 to -22.79 / 3.66 on 5 active
+donors. A tie-break is not a detail of the estimator; it is most of it.
+
+**Tie-breaking does fix the determinism, completely.** Over 8 random starts on
+Prop 99 the published solve moves by L1 1.0059 in the weights, with ATTs from
+-33.77 to -31.19. With a stated selector the spread is 0.0000 and the ATT is
+identical to every digit. So the non-determinism was never fundamental
+non-identification -- it was an unsolved optimisation.
+
+**The reference does not solve its own objective.** Its SLSQP reaches a loss of
+1.11e-05 on Prop 99 against a true optimum of 3.80e-10, a factor of about
+29,000. On the German panel it returns ATT +837 with a pre-period RMSE of 711 --
+the wrong sign, against -1297 for Abadie SC and -533 to -798 for every properly
+solved variant. Any future comparison against this repository has to re-solve
+first; its printed numbers are optimiser artefacts.
+
+**The objective is flat because the paper's own `v_gamma = 1` makes it flat.**
+On outcomes rescaled into [0, 1] the gamma-th raw moment decays geometrically:
+on Prop 99 the treated moments run 0.392, 0.155, 0.062, 0.025, 0.010. A
+unit-weighted loss is dominated by the first moment, which is why the ATT moves
+by 0.16 packs going from `G = 1` to `G = 9`. Setting `v_gamma = 1 / m_gamma^2`
+equalises the contributions and is admissible under the paper's own "any
+`v_gamma` in (0, inf)"; it is implemented as the `scaled` weighting in the
+spike's oracle and changes the answer materially.
+
+**`A w = m0` is infeasible on the simplex here.** California's moment vector
+lies outside the convex hull of the 38 donors', so the mixture assumption fails
+on the canonical panel outright. The optimum is a near-miss (3.80e-10 on a
+moment scale of 0.18), not an exact match.
+
+### If this is ever revisited
+
+The capability gap is real and outlives this paper: distributional treatment
+effects on aggregate panels, where `DSC` cannot go. What this paper does not
+supply is evidence that moment matching is the way to get there. A future
+candidate should be tested against the equally weighted average from the start,
+since that is the baseline this design was actually beating.
+
+Two things here are reusable regardless. The oracle's two-stage formulation --
+solve for the optimal loss, then select one point of the near-optimal set by a
+stated rule -- is the right shape for any estimator whose objective has fewer
+equations than donors, and the razor-thin-constraint failure it works around is
+generic. And the equally weighted donor average is a cheap, strong baseline for
+any Monte Carlo on non-stationary panels; it belongs in the comparison whenever
+a paper reports beating Abadie SC on simulated random walks.
+
+---
+
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
