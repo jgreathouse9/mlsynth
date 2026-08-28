@@ -1,0 +1,44 @@
+Vendored reference code for the inference half of the `fdid_hongkong` benchmark.
+
+Why a second bundle
+  The sibling bundle, fdid_hongkong/, runs the author's Fun_FDID.R. That file
+  returns the fit, the R^2 path, the selected controls and the ATT, but it
+  computes no inference at all -- no standard error, interval, p-value or
+  standardised statistic. Her MATLAB driver does. This bundle runs the MATLAB
+  side so the whole inference path is pinned against the author's own code
+  instead of against a reading of Proposition 2.1.
+
+Files
+  FDID_Matlab.m   Kathleen T. Li's driver: reads GDP.csv, runs the forward
+                  selection, and computes the ATT, standard error, 95%
+                  interval, one- and two-sided p-values and the standardised
+                  ATT for both Forward DiD and conventional DiD. Verbatim.
+  FDID_newR2.m    Her forward-selection subroutine, called by the driver.
+                  Verbatim.
+  normcdf.m       A shim, not the author's. Base GNU Octave does not ship
+                  NORMCDF (it lives in the statistics package, and in MATLAB in
+                  the Statistics Toolbox). The driver calls it only for the
+                  standard normal, and this is that CDF in closed form,
+                  Phi(x) = erfc(-x/sqrt(2))/2 -- exact to machine precision,
+                  so the captured values are the author's numbers. Vendored so
+                  her driver runs unmodified.
+  reference.m     The runner: puts the above on the path, changes into
+                  fdid_hongkong/ (which holds GDP.csv), runs FDID_Matlab
+                  unmodified, and prints the captured values.
+
+Data
+  GDP.csv is not duplicated here. The copy under fdid_hongkong/ is
+  byte-identical to the replication package's (sha256
+  487c7007cad0ee7b59e3fd315004edab64641f310ede7aeb003707f905615e55), so both
+  bundles pin the same panel and provenance.json records the one checksum.
+
+Headless plotting
+  FDID_Matlab.m ends by drawing two figures, which a headless Octave cannot do.
+  reference.m tolerates that one error and rethrows any other, then checks that
+  every captured variable exists, so a run truncated before the numbers are
+  computed fails instead of being captured.
+
+Source
+  Released replication package for
+    Li, Kathleen T. (2024), "Forward Difference-in-Differences,"
+    Marketing Science 43(2). DOI 10.1287/mksc.2022.0212

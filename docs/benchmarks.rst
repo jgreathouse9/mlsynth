@@ -105,7 +105,7 @@ Path A — empirical replications
    * - ``dscar_beijing``
      - DSCAR Beijing PM2.5 alerts (Zheng-Chen)
    * - ``fdid_hongkong``
-     - HK GDP empirical
+     - Li (2024) Forward DiD on the Hsiao-Ching-Wan Hong Kong GDP panel, against two live captured runs of the author's own code: ``Fun_FDID.R`` under R for the fit, selection and ATT, and ``FDID_Matlab.m`` under GNU Octave for the standard error, standardized ATT, p-value and 95 per cent interval, which the R file does not compute. Eighteen cells for both Forward DiD and conventional DiD, tolerances covering the estimator's display rounding only; the two references are also checked against each other, agreeing to 5e-7
    * - ``fscm_prop99``
      - forward-selected SC (Prop 99)
    * - ``hsc_hongkong``

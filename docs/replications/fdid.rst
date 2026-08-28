@@ -81,9 +81,25 @@ Forward DiD code (``Fun_FDID.R``, now run live and captured — see
      - 9
      - 24
      - 24
+   * - standard error
+     - 0.00462
+     - 0.00462
+     - 0.00821
+     - 0.00821
+   * - standardized ATT
+     - 5.494
+     - 5.494
+     - 3.865
+     - 3.865
 
-The 95% confidence interval ``(0.0163, 0.0345)`` and the standardized ATT
-(t-statistic) :math:`\approx 5.49` likewise match the released values.
+The inference reproduces too, and against the author's own code rather than
+against the readme: the standard error 0.00462, the standardized ATT
+:math:`5.494`, the two-sided p-value :math:`3.9 \times 10^{-8}` and the 95%
+interval ``(0.0163, 0.0345)``, with the conventional-DiD counterparts
+alongside. See `Reference parity and runtime`_ for how those are captured --
+``Fun_FDID.R`` computes no inference at all, so a second bundle runs the
+author's MATLAB driver.
+
 Forward DiD's far higher pre-period fit (:math:`R^2 = 0.84` versus DiD's
 :math:`0.50`) is the whole point: the all-controls average tracks Hong Kong's
 pre-integration path poorly, so plain DiD overstates the effect, while the
@@ -96,11 +112,43 @@ The durable check lives in ``benchmarks/cases/fdid_hongkong.py``::
 Reference parity and runtime
 ----------------------------
 
-The reference column above is not transcribed from the readme. It is a live
-captured run of Kathleen Li's own ``Fun_FDID.R``, vendored under
-``benchmarks/reference/fdid_hongkong/`` with its provenance pinned (R version,
-data checksum), so the two implementations are compared object to object;
-mlsynth matches the author's code to about :math:`10^{-5}` on every quantity.
+The reference column above is not transcribed from the readme. It is two live
+captured runs of Kathleen Li's own code, vendored with their provenance pinned
+(tool version, data checksum), so the implementations are compared object to
+object.
+
+``Fun_FDID.R`` returns the fit, the :math:`R^2` path, the selected controls and
+the ATT, and nothing else -- it computes no standard error, interval or
+p-value. Her MATLAB driver ``FDID_Matlab.m`` computes all of those, so a second
+bundle runs it under GNU Octave and supplies the inference rows.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 44
+
+   * - Bundle
+     - Runs
+     - Supplies
+   * - ``benchmarks/reference/fdid_hongkong/``
+     - ``Fun_FDID.R`` under R
+     - ATT, %ATT, pre-period :math:`R^2`, control count
+   * - ``benchmarks/reference/fdid_hongkong_matlab/``
+     - ``FDID_Matlab.m`` under Octave
+     - standard error, standardized ATT, p-value, 95% interval
+
+Both compute the ATT, %ATT and :math:`R^2`, and the case checks the two
+references against each other before using either to score mlsynth: two
+independent implementations, in different languages, agreeing to
+:math:`5 \times 10^{-7}`. mlsynth then matches them to about :math:`10^{-5}`
+on every quantity, which is the estimator's own display rounding and nothing
+more.
+
+The Octave bundle carries one file that is not the author's: base Octave does
+not ship ``normcdf`` (it lives in the statistics package, and in MATLAB in the
+Statistics Toolbox), so a shim supplies it as
+:math:`\Phi(x) = \mathrm{erfc}(-x/\sqrt{2})/2`. That is the standard normal
+CDF in closed form, exact to machine precision, and it lets her driver run
+unmodified.
 
 On the same Hong Kong panel — warmed up, data load excluded, averaged over 200
 calls on one machine — the two implementations differ sharply in speed:

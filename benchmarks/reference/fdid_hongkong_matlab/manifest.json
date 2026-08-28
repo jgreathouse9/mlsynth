@@ -1,0 +1,9 @@
+{
+  "case": "fdid_hongkong",
+  "title": "Forward DiD inference vs Li's released FDID_Matlab.m (Hong Kong GDP), under GNU Octave",
+  "paper": "Li, Kathleen T. (2024), \"Forward Difference-in-Differences,\" Marketing Science, DOI 10.1287/mksc.2022.0212",
+  "reference_impl": "Kathleen T. Li's released FDID_Matlab.m + FDID_newR2.m (MKSC replication package, live run under GNU Octave)",
+  "path_type": "cross-validation",
+  "command": "octave --no-gui --quiet benchmarks/reference/fdid_hongkong_matlab/reference.m",
+  "data": ["benchmarks/reference/fdid_hongkong/GDP.csv"]
+}

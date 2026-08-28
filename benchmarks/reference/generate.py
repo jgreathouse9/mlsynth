@@ -85,6 +85,12 @@ def _r_provenance(out: str) -> dict:
     return prov
 
 
+def _octave_provenance(out: str) -> dict:
+    """Pull the GNU Octave version out of a captured Octave run."""
+    m = re.search(r"GNU Octave version ([^\s]+)", out)
+    return {"octave_version": m.group(1)} if m else {}
+
+
 def _git_sha() -> str:
     try:
         return subprocess.check_output(
@@ -118,6 +124,7 @@ def generate(case: str) -> bool:
         "command": cmd,
         "data": [{"path": p, "sha256": _sha256(ROOT / p)} for p in manifest["data"]],
         **_r_provenance(out),
+        **_octave_provenance(out),
     }
     (bundle / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     vals = ", ".join(f"{k}={v:.5g}" for k, v in parsed["values"].items())

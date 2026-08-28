@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-08-28T04:46:47Z",
+  "git_sha": "af11f3e9b9f6516c74326334b7c7a6f81e8cda50",
+  "platform": "Linux-6.18.44-fc-v22-x86_64-with-glibc2.39",
+  "command": "octave --no-gui --quiet benchmarks/reference/fdid_hongkong_matlab/reference.m",
+  "data": [
+    {
+      "path": "benchmarks/reference/fdid_hongkong/GDP.csv",
+      "sha256": "487c7007cad0ee7b59e3fd315004edab64641f310ede7aeb003707f905615e55"
+    }
+  ],
+  "octave_version": "8.4.0"
+}

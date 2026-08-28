@@ -1,0 +1,56 @@
+Control_data_dimension =
+
+   61   24
+
+select_c =
+
+ Columns 1 through 16:
+
+   19   18   22   14   11   10   20   13   21   24    9    3   23    4    1   17
+
+ Columns 17 through 24:
+
+   16   12   15    7    8    2    6    5
+
+Number_controls_selected_by_fDID = 9
+ATT_FDID = 0.025405
+ATT_FDID_per = 53.843
+R2_forward_DID = 0.8428
+ATT_std_FDID = 5.4941
+p_value_forward_DID = 3.9274e-08
+p_value_f_one_sided = 1.9637e-08
+CI_95_FDID_width =
+
+   0.016342   0.034468   0.018126
+
+ATT_DID = 0.031721
+ATT_DID_percentage = 77.620
+R2_DID = 0.5046
+ATT_std_DID = 3.8647
+p_value_DID = 1.1122e-04
+p_value_one_sided = 5.5609e-05
+CI_95_DID_width =
+
+   0.015634   0.047809   0.032175
+
+== REFERENCE VALUES ==
+fdid_att	0.0254049358
+fdid_att_pct	53.8430673556
+fdid_r2_pre	0.8427835127
+fdid_se	0.0046240514
+fdid_att_std	5.4940859487
+fdid_p_value	0.0000000393
+fdid_ci_low	0.0163417950
+fdid_ci_high	0.0344680765
+did_att	0.0317211574
+did_att_pct	77.6203220049
+did_r2_pre	0.5046466907
+did_se	0.0082078827
+did_att_std	3.8647186543
+did_p_value	0.0001112173
+did_ci_low	0.0156337073
+did_ci_high	0.0478086075
+t1	44
+t2	17
+== SESSION INFO ==
+GNU Octave version 8.4.0
