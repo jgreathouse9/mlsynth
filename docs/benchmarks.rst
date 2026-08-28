@@ -53,6 +53,8 @@ Path A — empirical replications
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``clustersc_rpca_germany``
      - RPCA-SC West Germany
+   * - ``hz_germany``
+     - Hsiao & Zhou (2024) Section 7 German reunification. Their replication package ships data and no code, and the section prints no number, so the referent is digitised from their vector Figures 1 and 2 (see ``benchmarks/reference/hz_germany``). The LP half is a cross-validation that passes: ``PDA(method="fs")`` lands 0.009 log points from their plotted linear projection. The FB half is a pinned negative result: their plotted factor path misses the observed series in sample by 54 times what a correct principal-component fit misses by, and that miss is what widens its intervals enough to cover zero
    * - ``cwz_conformal``
      - CWZ 2021 (JASA) conformal test inversion against the authors' own scinference, on their Section 5 Rhode Island application: the moving-block p-value, all six pointwise intervals on the paper's grid, and the three placebo specification tests, all exact
    * - ``cwz_conformal_mc``
@@ -201,6 +203,8 @@ Path B — Monte Carlo / simulation
 
    * - Case
      - Validates
+   * - ``hz_table1_mc``
+     - Hsiao & Zhou (2024) Table 1 (DGP1, Case 1), rebuilt from Section 6 since the replication package has no code. Their LP column reproduces to about a tenth at the median; their FB column does not, and is low in all twelve cells, not scattered. Their Propositions 1-3 ordering reverses once the factor predictor is implemented correctly -- LP wins a minority of cells, not all twelve, and prediction averaging beats FB in a minority of the six, not all of them. Two claims survive: both predictors beat the univariate baseline everywhere, and prediction averaging beats the plain LP in five of six cells, matching the exception their own table shows
    * - ``brabander_mc``
      - de Brabander et al. (2025) Section 5 Monte Carlo: per-replication cross-validation against synthdid on 48 panels drawn by the authors' own DGP, plus the Table 9 finding that demeaning cuts the factor-driven bias about fivefold
    * - ``augsynth_calibrated``

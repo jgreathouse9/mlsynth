@@ -18,6 +18,8 @@ CASES = {
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "hz_table1_mc": "benchmarks.cases.hz_table1_mc",  # Path B: Hsiao-Zhou 2024 Table 1 (DGP1, Case 1) -- their LP column reproduces, their FB column is low in all 12 cells, and their Propositions 1-3 ordering reverses once the factor predictor is implemented correctly
+    "hz_germany": "benchmarks.cases.hz_germany",  # Path A: Hsiao-Zhou 2024 German reunification, digitised from their Figures 1-2 (no code in the replication package) -- PDA reproduces their LP path; their FB path is not reproducible by any PC fit of the panel, which is what makes its intervals cover zero
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)
