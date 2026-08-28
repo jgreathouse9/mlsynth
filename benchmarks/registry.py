@@ -52,7 +52,7 @@ CASES = {
     "hsc_hongkong": "benchmarks.cases.hsc_hongkong",          # Path A: HSC HK handover
     "hsc_mc": "benchmarks.cases.hsc_mc",                      # Path B: HSC regime adaptation
     "rsc_synth_error": "benchmarks.cases.rsc_synth_error",      # Path B: RSC train≈gen error
-    "rsc_rank_condition_mc": "benchmarks.cases.rsc_rank_condition_mc",  # Path C: Amjad-Shah-Shen Thm 6 (rank(M-) = rank(M) is what lets a pre-period relation extrapolate -- exact to 2e-15 when it holds, fails on every design when it does not, costing RSC 14x post-period RMSE) + Thm 3's Goldilocks tradeoff in the singular-value threshold
+    "rsc_rank_condition_mc": "benchmarks.cases.rsc_rank_condition_mc",  # Path C: Amjad-Shah-Shen Thm 6 (rank(M-) = rank(M) is what lets a pre-period relation extrapolate -- exact to 2e-15 when it holds, fails on every design when it does not, costing RSC 14x post-period RMSE) + Thm 3's Goldilocks tradeoff in the singular-value threshold + Section 4.3's reading of Thms 3 and 7 across the ridge penalty eta, where the described exchange (worse pre-period fit for better post-period accuracy) appears at neither threshold: eta buys nothing where the rank is right and improves both windows where it is too permissive
     "rsc_shen_coverage": "benchmarks.cases.rsc_shen_coverage",  # cross-val: Shen CIs + coverage
     "pcr_rsc_ref": "benchmarks.cases.pcr_rsc_ref",              # cross-val: mlsynth PCR vs original RSC (jehangiramjad/tslib, Prop 99)
     "bayesian_rsc_ref": "benchmarks.cases.bayesian_rsc_ref",    # cross-val: mlsynth Bayesian RSC posterior vs SucreRouge/synth_control (Prop 99)

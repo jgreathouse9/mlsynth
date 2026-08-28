@@ -1,6 +1,6 @@
-r"""RSC property case: the rank condition, and the threshold tradeoff.
+r"""RSC property case: the rank condition, and the two hyperparameters.
 
-Path C (property; scenario 1 -- paper only). Two results from Amjad, Shah &
+Path C (property; scenario 1 -- paper only). Three results from Amjad, Shah &
 Shen (2018), *Robust Synthetic Control* (JMLR 19:1-51), Section 4.
 
 Theorem 6 is the one synthetic control has been leaning on without saying
@@ -18,6 +18,18 @@ retained set :math:`S` grows as :math:`\mu` falls, which shrinks the unmodelled
 signal :math:`\lambda^*` and grows the captured noise
 :math:`|S|\sigma^2/T_0`. The paper calls choosing between them the Goldilocks
 principle.
+
+Section 4.3, "Benefits of regularization", reads Theorems 3 and 7 together to
+make a claim about the *other* hyperparameter, the ridge penalty
+:math:`\eta` of equation (18). Theorem 3's bound carries
+:math:`+\eta\|\beta^*\|^2/T_0`, which the paper reads as "the
+pre-intervention error increases linearly with respect to the choice of
+:math:`\eta`"; Theorem 7's second term is controlled by
+:math:`\|\widehat\beta(\eta) - \beta^*\|`, which it reads as "a larger
+value of :math:`\eta` reduces the post-intervention error". Together:
+"employing ridge regression introduces extraneous bias into our model,
+yielding a higher pre-intervention error. In exchange, regularization reduces
+the post-intervention error." Both halves are directional and measurable.
 
 Provenance
 ----------
@@ -60,6 +72,12 @@ SWEEP_RANKS = (1, 2, 3, 5, 10, 25)
 SWEEP_TARGETS = 3
 SWEEP_NOISE = 1.0
 
+# --- Section 4.3 eta sweep, at a well-set and an over-permissive threshold --
+ETAS = (0.0, 100.0, 300.0, 1000.0, 3000.0, 10000.0)
+ETA_RANKS = (3, 25)
+ETA_SEEDS = (0, 1)
+ETA_TARGETS = 3
+
 
 def _theorem6_gap(dormant: bool, seed: int) -> float:
     r"""Post-period failure of a pre-period-fitted relation, on the truth.
@@ -82,26 +100,38 @@ def _rsc_post_rmse(dormant: bool, seed: int) -> float:
     p = simulate_rank_shift_panel(dormant_factor=dormant, N=RANK_N, T=RANK_T,
                                   T0=RANK_T0, n_factors=RANK_R,
                                   noise=RANK_NOISE, seed=seed)
-    cf = _fit_pcr(p.observed, p.T0, target=0, rank=RANK_R)
+    cf, _ = _fit_pcr(p.observed, p.T0, target=0, rank=RANK_R)
     return float(np.sqrt(np.mean((cf[p.T0:] - p.means[0, p.T0:]) ** 2)))
 
 
-def _fit_pcr(X: np.ndarray, T0: int, target: int, rank: int) -> np.ndarray:
-    """RSC (HSVT-denoise the donors, then OLS) through the public API."""
+def _fit_pcr(X: np.ndarray, T0: int, target: int, rank: int,
+             eta: float = 0.0) -> tuple[np.ndarray, np.ndarray]:
+    """RSC (HSVT-denoise the donors, then OLS) through the public API.
+
+    ``eta`` is the paper's equation (18) penalty at ``q = 2``; mlsynth spells
+    the same objective ``lambda_penalty * ||w||_p ** q``, so ``p = q = 2``
+    matches it (held by ``tests/test_pcr_ridge.py``). Returns the
+    counterfactual and the fitted weights.
+    """
     wide = pd.DataFrame(X.T)
     wide.columns = range(X.shape[0])
     long = (wide.reset_index()
             .melt(id_vars="index", var_name="unit", value_name="y")
             .rename(columns={"index": "time"}))
     long["treat"] = ((long["unit"] == target) & (long["time"] >= T0)).astype(int)
-    res = CLUSTERSC({
+    cfg = {
         "df": long, "outcome": "y", "treat": "treat",
         "unitid": "unit", "time": "time",
         "method": "pcr", "clustering": False, "pcr_objective": "OLS",
         "rank": rank, "rank_method": "fixed", "project_denoised": True,
         "compute_shen_ci": False, "display_graphs": False,
-    }).fit()
-    return np.asarray(res.counterfactual).ravel()
+    }
+    if eta:
+        cfg |= {"lambda_penalty": eta, "p": 2.0, "q": 2.0}
+    res = CLUSTERSC(cfg).fit()
+    weights = res.weights.donor_weights
+    beta = np.array([weights[str(j)] for j in sorted(int(k) for k in weights)])
+    return np.asarray(res.counterfactual).ravel(), beta
 
 
 def _sweep_cell(rank: int) -> tuple[float, float]:
@@ -114,10 +144,61 @@ def _sweep_cell(rank: int) -> tuple[float, float]:
     M, T0 = panel.means, panel.T0
     pre, post = [], []
     for ti in range(SWEEP_TARGETS):
-        cf = _fit_pcr(panel.observed, T0, target=ti, rank=rank)
+        cf, _ = _fit_pcr(panel.observed, T0, target=ti, rank=rank)
         pre.append(float(np.mean((cf[:T0] - M[ti, :T0]) ** 2)))
         post.append(float(np.mean((cf[T0:] - M[ti, T0:]) ** 2)))
     return float(np.mean(pre)), float(np.mean(post))
+
+
+def _eta_cell(rank: int, eta: float) -> dict:
+    r"""One (threshold, penalty) cell, scored the paper's way.
+
+    ``pre`` is equation (24)'s MSE and ``post`` equation (33)'s RMSE, both
+    against the true signal :math:`M` -- which is what Theorems 3 and 7 bound,
+    and is not the training error. ``train`` is the fit to the observed
+    :math:`Y`, the quantity the paper's intuition for the eta term is actually
+    about, so the two can be told apart. ``beta_gap`` is Theorem 7's own
+    :math:`\|\widehat\beta(\eta) - \beta^*\|`, with :math:`\beta^*` the
+    pre-period relation on the noise-free signal.
+    """
+    pre, train, post, beta_gap, beta_norm = [], [], [], [], []
+    for seed in ETA_SEEDS:
+        panel = simulate_rsc_panel(N=100, T=2000, T0=1600,
+                                   noise=SWEEP_NOISE, seed=seed)
+        M, Y, T0 = panel.means, panel.observed, panel.T0
+        for ti in range(ETA_TARGETS):
+            cf, beta = _fit_pcr(Y, T0, target=ti, rank=rank, eta=eta)
+            donors = [j for j in range(M.shape[0]) if j != ti]
+            beta_star = np.linalg.lstsq(M[donors, :T0].T, M[ti, :T0],
+                                        rcond=None)[0]
+            pre.append(np.mean((cf[:T0] - M[ti, :T0]) ** 2))
+            train.append(np.mean((cf[:T0] - Y[ti, :T0]) ** 2))
+            post.append(np.sqrt(np.mean((cf[T0:] - M[ti, T0:]) ** 2)))
+            beta_gap.append(np.linalg.norm(beta - beta_star))
+            beta_norm.append(np.linalg.norm(beta))
+    return {"pre": float(np.mean(pre)), "train": float(np.mean(train)),
+            "post": float(np.mean(post)),
+            "beta_gap": float(np.mean(beta_gap)),
+            "beta_norm": float(np.mean(beta_norm))}
+
+
+def _increasing(values, tol: float = 0.02) -> float:
+    """Non-decreasing to within ``tol`` of the first value.
+
+    The eta columns are flat over part of the grid, at a level where the
+    conic solver's own accuracy shows. A strict test would report noise; the
+    slack is far below the effects being separated (a 19 per cent fall at one
+    threshold against a 2 per cent rise at the other).
+    """
+    v = list(values)
+    slack = tol * abs(v[0])
+    return float(all(b >= a - slack for a, b in zip(v, v[1:])))
+
+
+def _decreasing_seq(values, tol: float = 0.02) -> float:
+    v = list(values)
+    slack = tol * abs(v[0])
+    return float(all(b <= a + slack for a, b in zip(v, v[1:])))
 
 
 def run() -> dict:
@@ -164,6 +245,38 @@ def run() -> dict:
         and all(b >= a for a, b in zip(posts[best:], posts[best + 1:])))
     out["sweep_post_penalty_underfit"] = posts[0] / posts[best]
     out["sweep_post_penalty_overfit"] = posts[-1] / posts[best]
+
+    # --- Section 4.3: what the ridge penalty does at each threshold --------
+    eta = {(r, e): _eta_cell(r, e) for r in ETA_RANKS for e in ETAS}
+    for r in ETA_RANKS:
+        for e in ETAS:
+            tag = f"r{r}_eta{int(e)}"
+            out[f"eta_pre_{tag}"] = eta[(r, e)]["pre"]
+            out[f"eta_train_{tag}"] = eta[(r, e)]["train"]
+            out[f"eta_post_{tag}"] = eta[(r, e)]["post"]
+        col = lambda k: [eta[(r, e)][k] for e in ETAS]           # noqa: E731
+        # The training error rises in eta at every threshold, which is what
+        # "handicaps its ability to fit the data" predicts. Whether the error
+        # against the signal follows it is the separate question below.
+        out[f"eta_train_rises_r{r}"] = _increasing(col("train"))
+        out[f"eta_train_ratio_r{r}"] = col("train")[-1] / col("train")[0]
+        # Shrinkage is happening, so a flat error column is not an inert knob.
+        out[f"eta_beta_norm_falls_r{r}"] = _decreasing_seq(col("beta_norm"))
+        # The two directional claims of Section 4.3, at this threshold.
+        pres, posts_e, gaps = col("pre"), col("post"), col("beta_gap")
+        out[f"eta_pre_rises_r{r}"] = _increasing(pres)
+        out[f"eta_pre_improvement_r{r}"] = pres[0] / min(pres)
+        out[f"eta_post_improvement_r{r}"] = posts_e[0] / min(posts_e)
+        # Theorem 7's own term. Farebrother (1976), which the paper invokes,
+        # asserts some eta > 0 improves it; this records by how much.
+        out[f"eta_beta_gap_improvement_r{r}"] = gaps[0] / min(gaps)
+        # And where the bound's eta-dependent term still improves past the
+        # eta at which the error it bounds has already turned around. A
+        # one-step flip in either argmin leaves this unchanged.
+        out[f"eta_beta_gap_outlasts_post_r{r}"] = float(
+            np.argmin(gaps) > np.argmin(posts_e))
+    out["eta_post_best_r25"] = float(
+        ETAS[int(np.argmin([eta[(25, e)]["post"] for e in ETAS]))])
     return out
 
 
@@ -210,6 +323,94 @@ EXPECTED = {
     "sweep_post_penalty_overfit": (1.458, 0.3),
     # The pre-intervention error, which Theorem 3 bounds directly, traces
     # the same shape.
+
+    # --- Section 4.3: the ridge penalty, at each threshold ----------------
+    # MSE (eq. 24) on the pre window and RMSE (eq. 33) on the post, both
+    # against the true signal M -- what Theorems 3 and 7 bound. "train" is
+    # the fit to the observed Y, which is what the paper's intuition for the
+    # eta term is about, kept alongside so the two can be told apart.
+    # retained rank 3: the threshold matches the signal's approximate rank
+    "eta_pre_r3_eta0": (0.0235, 0.004),
+    "eta_train_r3_eta0": (1.0193, 0.004),
+    "eta_post_r3_eta0": (0.1568, 0.010),
+    "eta_pre_r3_eta100": (0.0234, 0.004),
+    "eta_train_r3_eta100": (1.0193, 0.004),
+    "eta_post_r3_eta100": (0.1567, 0.010),
+    "eta_pre_r3_eta300": (0.0234, 0.004),
+    "eta_train_r3_eta300": (1.0193, 0.004),
+    "eta_post_r3_eta300": (0.1569, 0.010),
+    "eta_pre_r3_eta1000": (0.0235, 0.004),
+    "eta_train_r3_eta1000": (1.0197, 0.004),
+    "eta_post_r3_eta1000": (0.1585, 0.010),
+    "eta_pre_r3_eta3000": (0.0257, 0.004),
+    "eta_train_r3_eta3000": (1.0224, 0.004),
+    "eta_post_r3_eta3000": (0.1697, 0.010),
+    "eta_pre_r3_eta10000": (0.0415, 0.004),
+    "eta_train_r3_eta10000": (1.0390, 0.004),
+    "eta_post_r3_eta10000": (0.2224, 0.010),
+
+    # retained rank 25: an order of magnitude too permissive
+    "eta_pre_r25_eta0": (0.0341, 0.004),
+    "eta_train_r25_eta0": (1.0087, 0.004),
+    "eta_post_r25_eta0": (0.1902, 0.010),
+    "eta_pre_r25_eta100": (0.0331, 0.004),
+    "eta_train_r25_eta100": (1.0087, 0.004),
+    "eta_post_r25_eta100": (0.1876, 0.010),
+    "eta_pre_r25_eta300": (0.0315, 0.004),
+    "eta_train_r25_eta300": (1.0088, 0.004),
+    "eta_post_r25_eta300": (0.1835, 0.010),
+    "eta_pre_r25_eta1000": (0.0284, 0.004),
+    "eta_train_r25_eta1000": (1.0101, 0.004),
+    "eta_post_r25_eta1000": (0.1756, 0.010),
+    "eta_pre_r25_eta3000": (0.0276, 0.004),
+    "eta_train_r25_eta3000": (1.0154, 0.004),
+    "eta_post_r25_eta3000": (0.1766, 0.010),
+    "eta_pre_r25_eta10000": (0.0418, 0.004),
+    "eta_train_r25_eta10000": (1.0355, 0.004),
+    "eta_post_r25_eta10000": (0.2238, 0.010),
+    # The paper: "the pre-intervention error increases linearly with respect
+    # to the choice of eta". At the well-set threshold it does (flat, then
+    # steeply up). At the over-permissive one it falls 19 per cent first.
+    "eta_pre_rises_r3": (1.0, 0.0),
+    "eta_pre_rises_r25": (0.0, 0.0),
+    "eta_pre_improvement_r3": (1.0054, 0.03),
+    "eta_pre_improvement_r25": (1.2353, 0.08),
+
+    # The paper: "a larger value of eta reduces the post-intervention error."
+    # At the well-set threshold the best cell beats eta = 0 by 0.01 per cent,
+    # which is nothing; at the over-permissive one it beats it by 7.7.
+    "eta_post_improvement_r3": (1.0001, 0.02),
+    "eta_post_improvement_r25": (1.0829, 0.05),
+    # A clear interior minimum, with the neighbouring cells within 0.6 per
+    # cent, so the tolerance admits a one-step move without admitting either
+    # end of the grid.
+    "eta_post_best_r25": (1000.0, 2000.0),
+
+    # The intuition offered for the eta term is about the fit to Y, and about
+    # that it is right: the training error rises in eta at both thresholds.
+    # Equation (24) is against M, not Y, and at rank 25 the two move
+    # oppositely on the same fits.
+    "eta_train_rises_r3": (1.0, 0.0),
+    "eta_train_rises_r25": (1.0, 0.0),
+    "eta_train_ratio_r3": (1.0193, 0.01),
+    "eta_train_ratio_r25": (1.0266, 0.01),
+
+    # The shrinkage is real, so a flat error column is not an inert knob.
+    "eta_beta_norm_falls_r3": (1.0, 0.0),
+    "eta_beta_norm_falls_r25": (1.0, 0.0),
+
+    # Theorem 7's own term. Farebrother (1976), which the paper invokes for
+    # the post-intervention half, holds at both thresholds: some eta > 0
+    # improves ||beta_hat(eta) - beta*||, by 11 per cent at rank 3 and 51 at
+    # rank 25.
+    "eta_beta_gap_improvement_r3": (1.1248, 0.05),
+    "eta_beta_gap_improvement_r25": (2.0319, 0.15),
+    # And at both thresholds that term is still improving at an eta where the
+    # error it bounds has already turned around -- the distance between a
+    # bound and the quantity under it.
+    "eta_beta_gap_outlasts_post_r3": (1.0, 0.0),
+    "eta_beta_gap_outlasts_post_r25": (1.0, 0.0),
+
     "sweep_pre_mse_r1": (0.1601, 0.02),
     "sweep_pre_mse_r2": (0.0221, 0.004),
     "sweep_pre_mse_r25": (0.0326, 0.006),

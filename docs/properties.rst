@@ -83,13 +83,16 @@ Catalogue
        holds coverage at 0.92 to 0.95 over the same range, costing 2.8% of
        interval width where there is nothing to correct.
    * - :doc:`RSC <properties/rsc_rank_condition>`
-     - Amjad, Shah & Shen (2018) Theorems 6 and 3
+     - Amjad, Shah & Shen (2018) Theorems 6, 3 and 7
      - The rank condition that lets a pre-period donor relation extrapolate
        holds to 2e-15 when :math:`\operatorname{rank}(M^-) =
        \operatorname{rank}(M)` and fails on every design when it does not,
        costing the estimator a 14-fold post-period error. The
        singular-value threshold traces the paper's Goldilocks U-shape, with
-       underfitting the far more expensive side.
+       underfitting the far more expensive side. The ridge penalty does not
+       trace the exchange Section 4.3 describes: it buys nothing where the
+       threshold is right and improves both windows at once where it is too
+       permissive.
 
 .. toctree::
    :hidden:

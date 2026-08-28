@@ -1,20 +1,26 @@
 .. _property-rsc-rank-condition:
 
-RSC — the rank condition behind extrapolation (Amjad, Shah & Shen 2018)
-========================================================================
+RSC — the rank condition, and the two hyperparameters (Amjad, Shah & Shen 2018)
+===============================================================================
 
 :Estimator: :doc:`../clustersc` — :class:`mlsynth.CLUSTERSC` with
    ``method="pcr"``, ``clustering=False``
 :Source: Amjad, M., Shah, D. & Shen, D. (2018), *"Robust Synthetic
    Control,"* Journal of Machine Learning Research 19(22):1-51 —
-   Theorem 6 (Section 4.3) and Theorem 3 (Section 4.2.1).
+   Theorem 6 (Section 4.3), Theorem 3 (Section 4.2.1), and the reading of
+   Theorems 3 and 7 in "Benefits of regularization" (Section 4.3).
 :Results checked: Theorem 6, both directions; Theorem 3's bias-variance
-   reading of the singular-value threshold.
+   reading of the singular-value threshold; and the paper's directional
+   claim about the ridge penalty, which does not survive measurement.
 :Benchmark case: `benchmarks/cases/rsc_rank_condition_mc.py
    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/rsc_rank_condition_mc.py>`_
 :Status: Reproduced. Where the ranks agree the pre-period relation
    extrapolates to 2e-15; where they do not it fails on every design tested,
-   costing the estimator a 14-fold post-period error.
+   costing the estimator a 14-fold post-period error. The threshold's
+   bias-variance tradeoff is measured and holds. The regularization claim
+   does not: the exchange it describes — a worse pre-period fit bought in
+   return for a better post-period one — appears at neither threshold
+   tested.
 
 The assumption nobody states
 ----------------------------
@@ -170,6 +176,144 @@ pattern, and a :math:`\theta`-scaled trend — and the third component is weak
 beside unit-variance noise, so the two are effectively tied. The case admits
 either.
 
+What regularization does
+------------------------
+
+The threshold :math:`\mu` is one of the algorithm's two hyperparameters. The
+other is the ridge penalty :math:`\eta` of equation (18),
+
+.. math::
+
+   \widehat\beta(\eta) = \operatorname*{argmin}_{v \in \mathbb{R}^{N-1}}
+       \bigl\| Y_1^- - (\widehat M^-)^\top v \bigr\|^2
+     + \eta \sum_{j=1}^{N-1} |v_j|^q,
+
+at :math:`q = 2`. mlsynth spells the same objective as
+``lambda_penalty * ||w||_p ** q``, so ``lambda_penalty=eta, p=2, q=2`` is
+this estimator; ``tests/test_pcr_ridge.py`` holds that against the closed
+form :math:`(\widehat M^{-\top}\widehat M^- + \eta I)^{-1}\widehat M^{-\top}
+Y_1^-`.
+
+Section 4.3 reads Theorems 3 and 7 together to say what :math:`\eta` buys.
+Theorem 3's bound carries a term :math:`+\eta\|\beta^*\|^2/T_0`, and the
+paper reads it as
+
+   As seen from Theorem 3, the pre-intervention error increases linearly
+   with respect to the choice of :math:`\eta`. Intuitively, this increase in
+   pre-intervention error derives from the fact that regularization reduces
+   the model complexity, which biases the model and handicaps its ability to
+   fit the data.
+
+Theorem 7's second term is controlled by
+:math:`\|\widehat\beta(\eta) - \beta^*\|`, and the paper reads it as
+
+   Therefore, a larger value of :math:`\eta` reduces the post-intervention
+   error. […] employing ridge regression introduces extraneous bias into our
+   model, yielding a higher pre-intervention error. In exchange,
+   regularization reduces the post-intervention error (due to smaller
+   variance).
+
+Both halves are directional, so both can be measured. Sweeping :math:`\eta`
+on the same Section 5.3 design, at the threshold that matches the signal's
+rank and at one an order of magnitude too permissive, over two seeds and
+three targets, scoring equation (24)'s MSE on the pre window and equation
+(33)'s RMSE on the post, both against the true :math:`M`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 21 21 22 22
+
+   * - :math:`\eta`
+     - rank 3, pre MSE
+     - rank 3, post RMSE
+     - rank 25, pre MSE
+     - rank 25, post RMSE
+   * - 0
+     - 0.0235
+     - 0.1568
+     - 0.0341
+     - 0.1902
+   * - 100
+     - 0.0234
+     - 0.1567
+     - 0.0331
+     - 0.1876
+   * - 300
+     - 0.0234
+     - 0.1569
+     - 0.0315
+     - 0.1835
+   * - 1000
+     - 0.0235
+     - 0.1585
+     - 0.0285
+     - 0.1756
+   * - 3000
+     - 0.0257
+     - 0.1697
+     - 0.0276
+     - 0.1766
+   * - 10000
+     - 0.0415
+     - 0.2224
+     - 0.0418
+     - 0.2238
+
+The exchange is at neither threshold. Where :math:`\mu` matches the signal's
+rank, :math:`\eta` has nothing to offer in either window: the best
+post-period cell beats :math:`\eta = 0` by 0.01 per cent, and past
+:math:`\eta = 1000` both columns climb together. Where :math:`\mu` is too
+permissive, :math:`\eta` helps in both windows at once — 19 per cent off the
+pre-intervention error and 8 per cent off the post. The pre-period error
+never pays for the post-period one, because the two move together.
+
+The two knobs are substitutes, not opposites. Both suppress directions the
+data does not support: :math:`\mu` by dropping them from the retained
+subspace, :math:`\eta` by shrinking the weights placed on them. Where
+:math:`\mu` has already removed the noise directions there is nothing left
+for :math:`\eta` to shrink, and where it has not, :math:`\eta` does the job
+:math:`\mu` skipped. Past :math:`\eta = 10^4` the two rows agree to three
+decimals in both windows: the penalty dominates and the retained rank stops
+mattering at all.
+
+Where the reasoning parts from the measurement
+-----------------------------------------------
+
+Neither theorem is contradicted. Theorem 3 is an upper bound, and a bound
+may rise in :math:`\eta` while the error beneath it falls. What the
+measurement reaches is the prose, and it separates two quantities the
+argument runs together.
+
+The intuition offered for the :math:`\eta` term — that regularization
+"handicaps its ability to fit the data" — is about the fit to the observed
+:math:`Y_1^-`. That is measured too, and it is correct: the training error
+rises monotonically in :math:`\eta` at both thresholds, by 1.9 per cent at
+rank 3 and 2.7 per cent at rank 25 across the grid. But equation (24)'s
+:math:`\mathrm{MSE}(\widehat M_1^-)` is the error against the signal
+:math:`M_1^-`, not against :math:`Y_1^-`, and the two move oppositely
+exactly when the retained subspace carries noise. That is the rank-25
+column: the fit to :math:`Y` degrades and the error against :math:`M`
+improves, at the same :math:`\eta`, on the same fits.
+
+Theorem 7's own term behaves as the paper says. Farebrother's (1976)
+existence claim, which Section 4.3 invokes, holds at both thresholds:
+:math:`\|\widehat\beta(\eta) - \beta^*\|` has an interior minimum, 11 per
+cent below :math:`\eta = 0` at rank 3 and 51 per cent below at rank 25. What
+does not follow is the conclusion drawn from it. At both thresholds that
+term is still improving at an :math:`\eta` where the post-intervention error
+it bounds has already turned around and started climbing — at rank 3 it
+keeps improving to :math:`\eta = 1000` while the error's minimum is at 100.
+So the one part of Theorem 7's bound that depends on :math:`\eta` moves the
+right way while the error moves the wrong way, which is the whole distance
+between a bound and the quantity under it.
+
+The practical reading is the ordering. :math:`\eta` is not a second
+independent dial to turn after :math:`\mu`; whether it helps at all is
+decided by whether :math:`\mu` was set too low. Cross-validating them
+jointly, as Section 3.4.3 prescribes, is what the measurement supports.
+Cross-validating :math:`\eta` alone in the expectation of trading pre-period
+fit for post-period accuracy is not.
+
 What is established, and what is not
 ------------------------------------
 
@@ -182,9 +326,12 @@ Theorems 3 and 7 and Corollary 4 are a different matter. Each reads
 :math:`\le C_1(\cdot) + C_2(\cdot)` with :math:`C_1, C_2` described only as
 "universal positive constants", so none can be checked as a numerical bound
 — there is no number to compare against. What is checked instead is the
-structure Theorem 3 asserts: which way the error moves as the threshold
-turns, and that it turns in both directions. That is weaker than a bound and
-it is what the statement supports.
+structure they are read as asserting: which way each error moves as a
+hyperparameter turns. That is weaker than a bound, and it is what the
+statements support. On the threshold the structure holds. On the
+regularizer the errors move together where the paper says they move apart,
+and the bounds themselves stand — the reading of them is what the
+measurement reaches.
 
 One practical reading. The rank condition is about the panel, not the
 method, and it is not testable from data alone — a dormant factor is
@@ -202,7 +349,7 @@ Reproducing it
 
    python benchmarks/run_benchmarks.py --case rsc_rank_condition_mc
 
-Deterministic throughout, about three seconds.
+Deterministic throughout, about fifty seconds.
 
 .. code-block:: python
 
@@ -213,3 +360,9 @@ Deterministic throughout, about three seconds.
                                  n_factors=3, noise=0.0, seed=0)
    np.linalg.matrix_rank(p.means[:, :p.T0]), np.linalg.matrix_rank(p.means)
    # (2, 3) -- Theorem 6's hypothesis fails
+
+.. code-block:: python
+
+   # equation (18) at q = 2, through the public API
+   CLUSTERSC({..., "method": "pcr", "pcr_objective": "OLS",
+              "lambda_penalty": 1000.0, "p": 2.0, "q": 2.0}).fit()
