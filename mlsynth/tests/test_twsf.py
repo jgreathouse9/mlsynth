@@ -350,3 +350,42 @@ def test_display_graphs_draws_without_blocking():
     df, _ = _factor_panel(sigma=0.05, seed=26)
     res = TWSF(_cfg(df, display_graphs=True)).fit()
     assert res.time_series is not None
+
+
+def test_plug_in_standard_error_is_calibrated_against_the_empirical_spread():
+    """The interval must be the right *size*, not merely positive and widening.
+
+    Every other assertion here constrains the band's shape -- symmetric, non-
+    negative, wider at longer horizons, collapsing with the noise. A variance
+    that is systematically too small satisfies all of them, so the only thing
+    that pins the magnitude is the diagnostic the theory actually promises:
+    over repeated panels the empirical spread of the forecast error should
+    match the plug-in standard error.
+
+    Measured at lead 5 rather than lead 1 on purpose. At one step the recursion
+    is the identity and its Jacobian carries no information; the term that
+    propagates one-step estimation error through the recursion only bites at
+    longer leads, and this is where a missing one shows up.
+
+    The panel is deliberately not small. The plug-in variance is a leading-order
+    approximation and the ratio is only near one where the theory's asymptotics
+    have room: measured across donor counts it runs 3.9 at ten donors, then
+    0.79, 0.90 and 1.28 at twenty, forty and sixty, and the full-budget gate on
+    the paper's own design gave 0.894 to 1.165. Ten donors is outside the
+    regime, not evidence against the formula -- the same story as the coverage
+    shortfall at the smallest panels.
+    """
+    lead, R = 5, 60
+    errs, ses = [], []
+    for r in range(R):
+        df, truth = _factor_panel(n_donors=40, T0=80, T1=300, horizon=lead,
+                                  sigma=0.05, seed=900 + r)
+        res = TWSF(_cfg(df, L=16, k_y=2, k_z=4, horizon=lead)).fit()
+        cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+        se = np.asarray(res.inference.details["std_error_path"], dtype=float)
+        errs.append(float(cf[lead - 1] - truth[lead - 1]))
+        ses.append(float(se[lead - 1]))
+    ratio = float(np.std(errs, ddof=1) / np.mean(ses))
+    assert 0.6 < ratio < 1.5, (
+        f"empirical SD over mean plug-in SE = {ratio:.3f}; a ratio well above 1 "
+        "means the interval understates the true sampling spread")
