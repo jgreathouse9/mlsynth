@@ -42,6 +42,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 ## Docs
 - Full documentation: https://mlsynth.readthedocs.io
 - Replications catalogue: https://mlsynth.readthedocs.io/en/latest/replications.html
+- Theoretical-property checks: https://mlsynth.readthedocs.io/en/latest/properties.html
 
 ## Estimators
 """
