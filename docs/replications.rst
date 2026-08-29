@@ -56,6 +56,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/drsc
    replications/fsc
    replications/fdid
+   replications/twsf
    replications/wine_tennessee
    replications/cast
    replications/rrsc

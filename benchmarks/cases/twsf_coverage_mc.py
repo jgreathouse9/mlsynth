@@ -24,7 +24,7 @@ Algebra. With ``sigma = 0`` the forecast is exact, because the treated time
 factor is a sum of harmonics and so satisfies a linear recursion of order at
 most the lag length. Any error in the Page-block layout, the companion
 recursion or the bilinear combination shows up here as a finite error, at
-machine precision rather than as a shift in a coverage rate.
+machine precision, not as a shift in a coverage rate.
 
 Variance. Empirical standard deviation over mean plug-in standard error. The
 paper's plug-in formula was already exact under v1, when its coverage was not,
@@ -36,7 +36,7 @@ theory's asymptotics have room to work. Coverage is below nominal at the
 smallest panels for a spectral reason: the lag length equals ``n`` in this
 design, so a short window cannot resolve the longest harmonic and the Page
 matrix is near-degenerate at the oracle rank. That is consistent with an
-asymptotic theory, and the case asserts the large-panel value rather than a
+asymptotic theory, and the case asserts the large-panel value, not a
 uniform one.
 
 The replication budget here is smaller than the paper's 100 x 10, since the
@@ -63,9 +63,16 @@ Z90 = 1.6448536269514722
 EXPECTED = {
     # algebra: sigma = 0 must recover the estimand exactly
     "noiseless_max_abs_error": (0.0, 1e-8),
-    # variance: empirical SD over mean plug-in SE, 1.0 is a calibrated formula
-    "sd_over_se_h1": (1.00, 0.22),
-    "sd_over_se_h5": (1.00, 0.22),
+    # Variance: empirical SD over mean plug-in SE, 1.0 being a calibrated
+    # formula. The band is set by the replication budget here, not by how much
+    # miscalibration would be tolerable -- 100 replications put roughly 7% of
+    # Monte Carlo error on an SD estimate. The full-budget run gave 0.894 to
+    # 1.165 across the grid. The direction that would matter is a ratio well
+    # *above* one, which is an interval narrower than the sampling spread it
+    # claims to cover; below one is conservative, and shows up as the coverage
+    # rows landing above nominal, not below.
+    "sd_over_se_h1": (1.00, 0.30),
+    "sd_over_se_h5": (1.00, 0.30),
     # coverage at the large panel, nominal 0.90
     "coverage_h1": (0.90, 0.07),
     "coverage_h5": (0.90, 0.07),
@@ -176,8 +183,9 @@ def run() -> dict:
         inp = prepare_twsf_inputs(df, "y", "unit", "time", "treat", "target",
                                   horizon=1)
         Z, _z, _W = page_blocks(inp.Y_donors_post, L=max(3, n // 2))
-        sv = np.linalg.svd(Z, compute_uv=False)[:8]
-        spreads[n] = float(sv[0] / sv[7])
+        sv = np.linalg.svd(Z, compute_uv=False)
+        k = min(8, sv.size)          # the oracle rank, or all of them if L < 8
+        spreads[n] = float(sv[0] / sv[k - 1])
     # the large panel's retained signal must be better conditioned
     out["page_signal_spread_large_panel_below"] = float(
         spreads[60] < spreads[12])

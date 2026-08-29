@@ -18,6 +18,7 @@ CASES = {
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "twsf_coverage_mc": "benchmarks.cases.twsf_coverage_mc",  # Path B: Shen 2026 TWSF section 7.1 -- sigma=0 exact recovery, plug-in variance calibration, and coverage at nominal 90%; also pins the spectral reason coverage falls short on small panels
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)
     "cscipca_brexit": "benchmarks.cases.cscipca_brexit",  # Path A: Wang 2024 Brexit->UK FDI, per-year ATT (2017/18/19 = -7.8/-12.9/-18.3)

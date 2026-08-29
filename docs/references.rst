@@ -544,3 +544,5 @@ References
     *"The Equivalence of Optimal Perspective Formulation and Shor's SDP for Quadratic Programs with Indicator Variables."*
     *Operations Research Letters*, 50(2): 195-198, 2022.
     https://www.sciencedirect.com/science/article/pii/S0167637722000141
+
+.. [TWSF] Shen, Dennis. *"Causal Forecasting in Panel Data: A Two-Way Synthetic Forecasting Approach."* arXiv:2606.18512, 2026. https://arxiv.org/abs/2606.18512.

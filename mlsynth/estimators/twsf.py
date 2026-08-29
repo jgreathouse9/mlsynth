@@ -72,7 +72,7 @@ class TWSF:
     -----
     ``estimated_gap`` is the forecast treated path minus the last observed
     control level, so a positive gap means the intervention is predicted to
-    raise the outcome. The contrast is against a level rather than a
+    raise the outcome. The contrast is against a level, not a
     contemporaneous counterfactual because, past the end of the panel, there is
     no observed control path to difference against.
 

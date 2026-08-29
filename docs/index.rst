@@ -259,6 +259,7 @@ headline numbers.
    scd
    drosc
    si
+   twsf
    microsynth
 
 .. toctree::

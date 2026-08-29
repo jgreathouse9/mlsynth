@@ -62,6 +62,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **MCNNM** — Matrix Completion with Nuclear Norm Minimization estimator.  (config: MCNNMConfig)
 - **MEDSC** — Mediation-analysis synthetic control estimator.  (config: MEDSCConfig)
 - **MLSC** — Multi-Level Synthetic Control (mlSC) estimator.  (config: MLSCConfig)
+- **MOSC** — Many-outcomes synthetic control (Wang, Schein, Shou & Blei).  (config: MOSCConfig)
 - **MSQRT** — Multivariate Square-root Lasso Synthetic Control estimator.  (config: MSQRTConfig)
 - **MTGP** — Multitask Gaussian Process synthetic control (Ben-Michael et al. 2023).  (config: MTGPConfig)
 - **MUSC** — Modified Unbiased Synthetic Control estimator.  (config: MUSCConfig)
@@ -102,6 +103,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SparseSC** — L1-penalized Sparse Synthetic Control estimator.  (config: SparseSCConfig)
 - **TASC** — Time-Aware Synthetic Control (TASC) estimator.  (config: TASCConfig)
 - **TSSC** — Two-Step Synthetic Control (TSSC) estimator.  (config: TSSCConfig)
+- **TWSF** — Forecast a never-treated unit's treated outcome past the end of the panel.  (config: TWSFConfig)
 - **TruncatedHistoryResult** — The TH stability profile across truncated pre-treatment windows.
 - **TruncatedHistoryWindow** — One truncated-window re-estimate.
 - **VanillaSC** — Standard synthetic control estimator (bilevel engine).  (config: VanillaSCConfig)

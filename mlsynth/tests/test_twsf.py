@@ -362,7 +362,7 @@ def test_plug_in_standard_error_is_calibrated_against_the_empirical_spread():
     over repeated panels the empirical spread of the forecast error should
     match the plug-in standard error.
 
-    Measured at lead 5 rather than lead 1 on purpose. At one step the recursion
+    Measured at lead 5, not lead 1, on purpose. At one step the recursion
     is the identity and its Jacobian carries no information; the term that
     propagates one-step estimation error through the recursion only bites at
     longer leads, and this is where a missing one shows up.
