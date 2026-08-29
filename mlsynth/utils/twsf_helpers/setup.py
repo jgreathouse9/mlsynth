@@ -59,7 +59,7 @@ def prepare_twsf_inputs(
             "already adopted is a donor, not a target."
         )
 
-    first_adopt = adopted.groupby(unitid)[time].min()
+    first_adopt = adopted.groupby(unitid, observed=True)[time].min()
     if donors is not None:
         missing = [d for d in donors if d not in first_adopt.index]
         if missing:
