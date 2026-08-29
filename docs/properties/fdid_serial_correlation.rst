@@ -11,10 +11,13 @@ FDID — the standard error under serial correlation (Li 2023)
    and by how much.
 :Benchmark case: `benchmarks/cases/fdid_serial_correlation_mc.py
    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fdid_serial_correlation_mc.py>`_
-:Status: Measured. Coverage of the nominal 95% interval falls from 0.942 to
-   0.533 as the residual's autocorrelation goes from 0 to 0.9, and a
-   closed-form long-run-variance prediction accounts for essentially the
-   whole 2.79-fold spread in the statistic.
+:Status: Measured, and repaired. Coverage of the nominal 95% interval falls
+   from 0.942 to 0.533 as the residual's autocorrelation goes from 0 to 0.9,
+   and a closed-form long-run-variance prediction accounts for essentially
+   the whole 2.79-fold spread in the statistic. ``inference="hac"`` prices
+   those autocovariances in and holds coverage at 0.92 to 0.95 across the
+   same range, at a cost of 2.8% of interval width where there is nothing to
+   correct.
 
 What this page checks
 ---------------------
@@ -146,21 +149,91 @@ The 1.016 at :math:`\rho = 0`, where there is no serial correlation at all,
 is the residual post-selection effect at this :math:`T_1`, and matches what
 the normality page reports independently.
 
-What this means in practice
----------------------------
+A standard error that prices the dependence in
+----------------------------------------------
 
-The residual :math:`\hat v_t` is observable on the pre-period, so this is
-checkable on a real panel and not a leap of faith. Autocorrelation there
-means the reported interval is too narrow by roughly the factor above, and
-a long-run variance estimate belongs in place of :math:`\widehat\sigma^2` —
-or a scheme that preserves serial dependence, which is what
-``conformal_type="block"`` provides for the estimators that offer it.
+The residual :math:`\hat v_t` is observable on the pre-period, so the
+diagnosis is checkable on a real panel and the repair uses the same series.
+``inference="hac"`` estimates the autocovariances there — the only stretch
+long enough to estimate them, and the stretch :math:`\widehat\sigma^2`
+already uses — and puts them through the exact variance of both block means:
+
+.. math::
+
+   \mathrm{SE}_{\text{HAC}}^2
+     = \sum_{T \in \{T_1,\, T_2\}} \frac{1}{T}
+       \Bigl[\widehat\gamma_0
+         + 2\sum_{k=1}^{\min(L,\,T-1)}
+             \bigl(1 - \tfrac{k}{T}\bigr)\widehat\gamma_k\Bigr].
+
+The weight :math:`1 - k/T` is not a kernel choice. It is the exact
+coefficient lag :math:`k` carries in the variance of a length-:math:`T`
+mean, so at :math:`L = T - 1` the bracket is that variance and not an
+approximation to it. Truncation at :math:`L` is the only approximation, and
+each block's sum is floored at :math:`\widehat\gamma_0`, since truncating
+an alternating sequence can drive it below the iid value or negative.
+
+Measured on the same 600 draws per cell, on the same selected subsets and
+the same point estimates:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 24 24 20 20
+
+   * - :math:`\rho`
+     - Coverage, analytic
+     - Coverage, HAC
+     - Dispersion, HAC
+     - HAC / analytic width
+   * - 0.0
+     - 0.942
+     - 0.947
+     - 0.987
+     - 1.028
+   * - 0.3
+     - 0.877
+     - 0.935
+     - 1.049
+     - 1.268
+   * - 0.5
+     - 0.787
+     - 0.938
+     - 1.061
+     - 1.532
+   * - 0.7
+     - 0.678
+     - 0.933
+     - 1.077
+     - 1.919
+   * - 0.9
+     - 0.533
+     - 0.920
+     - 1.116
+     - 2.517
+
+The studentised statistic goes back to unit dispersion — 0.99 to 1.12
+against 1.02 to 2.79 — so the interval is tracking the sampling variability
+again and not merely widened until it happens to cover. At
+:math:`\rho = 0`, where there is nothing to correct, the interval is 2.8%
+wider and coverage is unchanged.
+
+The residual 0.92 at :math:`\rho = 0.9` is the truncation. The default lag
+is :math:`L = \min(T_2 - 1,\, T_1/10) = 9` here, and an AR(1) at 0.9 still
+has :math:`\gamma_{10} = 0.35`, so the tail past lag 9 is genuinely
+missing. Both terms in that default bind, and dropping either loses more
+than the truncation does: :math:`T_2 - 1` alone gives 0.53 at
+:math:`T_1 = T_2 = 100`, where nine hundred autocovariances are estimated
+from a hundred observations, and a :math:`T_1`-only Newey-West rule gives
+0.81 at :math:`T_1 = 400, T_2 = 40`, where it truncates at 5 in a post block
+that carries lags out to 39.
 
 Two things this does not say. It is not a counterexample to Proposition
 2.1, which assumes the serial correlation away and is correct under its own
-conditions. And it is not a defect in Forward DiD's point estimate, which
-is consistent across the whole table; a practitioner reading the ATT is
-fine, and a practitioner reading the interval is not.
+conditions, and the analytic standard error stays the default for that
+reason. And it is not a defect in Forward DiD's point estimate, which is
+consistent across the whole table; a practitioner reading the ATT is fine,
+and a practitioner reading the analytic interval on an autocorrelated
+residual is not.
 
 Reproducing it
 --------------
@@ -169,10 +242,21 @@ Reproducing it
 
    python benchmarks/run_benchmarks.py --case fdid_serial_correlation_mc
 
-Seeded end to end, about forty seconds.
+Seeded end to end, about a minute.
 
 .. code-block:: python
 
    from mlsynth.utils.fdid_helpers.population import long_run_inflation
 
    long_run_inflation(rho=0.5, n=10, T1=400, T2=10)   # 1.5696
+
+.. code-block:: python
+
+   from mlsynth import FDID
+
+   common = dict(df=df, outcome="y", treat="treat", unitid="unit",
+                 time="time", display_graphs=False)
+
+   FDID(common).fit().att_se                                    # Li (2023)
+   FDID({**common, "inference": "hac"}).fit().att_se            # robust
+   FDID({**common, "inference": "hac", "lrvar_lag": 4}).fit()   # fixed lag

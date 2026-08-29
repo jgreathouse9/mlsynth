@@ -50,6 +50,8 @@ def _build_method_fit(
         donor_weights=donor_weights,
         r2_path=raw.get("R2_at_each_step"),
         intermediary=raw.get("intermediary"),
+        inference_method=inference.get("Method", "analytic"),
+        lrvar_lag=inference.get("Lag"),
     )
 
 

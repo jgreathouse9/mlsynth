@@ -79,7 +79,9 @@ Catalogue
        nominal 95% interval covers 0.533 at :math:`\rho = 0.9`, and a
        closed-form long-run-variance prediction accounts for essentially
        the whole 2.79-fold spread. The point estimate is unaffected
-       throughout.
+       throughout. ``inference="hac"`` prices those autocovariances in and
+       holds coverage at 0.92 to 0.95 over the same range, costing 2.8% of
+       interval width where there is nothing to correct.
 
 .. toctree::
    :hidden:
