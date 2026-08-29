@@ -478,8 +478,6 @@
  ],
  "dmlfm_germany": [
   "basedata/repgermany.dta",
-  "benchmarks/reference/dmlfm_germany/covariate_scaling.json",
-  "benchmarks/reference/dmlfm_germany/german_design.json",
   "mlsynth/config_models.py",
   "mlsynth/estimators/dmlfm.py",
   "mlsynth/utils/datautils.py",

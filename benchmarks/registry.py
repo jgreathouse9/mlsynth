@@ -18,6 +18,9 @@ CASES = {
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
+    "fdid_selection_mc": "benchmarks.cases.fdid_selection_mc",  # Path C: forward-selection consistency (Li 2023 Prop 2.2 / D.1) -- Pr(U_hat = U*) climbs 0.00 -> 0.77 over T1 = 25 -> 1600, plus Lemma B.1's uniform sqrt(log N / T1) rate over all 2^N - 1 subsets
+    "fdid_normality_mc": "benchmarks.cases.fdid_normality_mc",  # Path C: ATT asymptotic normality (Li 2023 Prop 2.1) -- dispersion falls to 1 and coverage climbs to nominal where Assumption 4 holds; where 4(ii) fails the paper's statistic settles at sqrt(1 + T2/T1) and mlsynth's finite-sample SE converges anyway
+    "fdid_serial_correlation_mc": "benchmarks.cases.fdid_serial_correlation_mc",  # Path C: where Li 2023 Prop 2.1 stops applying -- the SE uses the marginal residual variance where a block mean needs the long-run variance, so under an AR(1) residual 95% coverage falls 0.94 -> 0.53 as rho goes 0 -> 0.9, and a closed-form long-run-variance prediction accounts for the whole 2.79x dispersion blow-up
     "twsf_coverage_mc": "benchmarks.cases.twsf_coverage_mc",  # Path B: Shen 2026 TWSF section 7.1 -- sigma=0 exact recovery, plug-in variance calibration, and coverage at nominal 90%; also pins the spectral reason coverage falls short on small panels
     "cfm": "benchmarks.cases.cfm",                      # Path A: Bai-Wang 2026 Prop99 + German reunification
     "cscipca_mc": "benchmarks.cases.cscipca_mc",        # Path B: CSC-IPCA bias shrinks in observed-covariate share + beats extrapolating SC (Wang 2024 eq-13 DGP)

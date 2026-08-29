@@ -153,3 +153,84 @@ def simulate_fdid_sample(
     df = pd.DataFrame(rows)
     return FDIDSample(df=df, Y_treated=y_tr, Y_controls=y_ctrl,
                       T1=T1, T2=T2, dgp=dgp)
+
+
+def simulate_fdid_serial_sample(
+    rho: float,
+    N: int = 20,
+    T1: int = 400,
+    T2: int = 10,
+    rng: np.random.Generator | None = None,
+) -> FDIDSample:
+    r"""Draw a panel whose parallel-trends residual is AR(1) at the optimum.
+
+    Not one of the paper's four DGPs. It is Web Appendix E's DGP 2 -- treated
+    loading :math:`c_0 = 1`, a matched control half at :math:`c_1 = 1` and a
+    mismatched half at :math:`c_2 = 2` -- with the treated unit's
+    idiosyncratic shock replaced by an AR(1),
+
+    .. math::
+
+       y_{tr,t} = 1 + \mathbf{1}'f_t + u_t,
+       \qquad u_t = \rho u_{t-1} + e_t,
+
+    with :math:`e_t` scaled so :math:`\operatorname{Var}(u_t) = 1` at every
+    :math:`\rho`. Only the dependence changes with :math:`\rho`, never the
+    size of the shock, so a measured effect cannot be the error growing.
+
+    The point is what happens at the subset the forward search selects. There
+    the mean loading equals :math:`c_0`, the factor term cancels, and the
+    residual is :math:`u_t` plus the donor average's independent noise --
+    serially correlated, which the appendix's Assumptions 2(ii) and 3(i)
+    rule out and Assumption 2.1 in the main text permits. The four Web
+    Appendix E DGPs cannot exhibit this: their factors are serially
+    correlated but that term vanishes at the optimum, leaving an iid
+    residual exactly where the standard error needs testing.
+
+    Parameters
+    ----------
+    rho : float
+        AR(1) coefficient of the treated shock, in ``(-1, 1)``. Zero
+        recovers DGP 2's error structure.
+    N : int, default 20
+        Number of control units; the first ``N // 2`` are the matched half.
+    T1, T2 : int
+        Pre- and post-treatment period counts.
+    rng : np.random.Generator, optional
+
+    Returns
+    -------
+    FDIDSample
+        Carrying ``dgp = 2``, the design it modifies. True ATT is zero.
+    """
+    if not -1.0 < rho < 1.0:
+        raise ValueError(
+            f"rho must be in (-1, 1) for a stationary AR(1); got {rho}.")
+    rng = rng or np.random.default_rng()
+    T = T1 + T2
+    f_sum = _factors(T, rng).sum(axis=1)
+
+    # AR(1) treated shock at unit marginal variance, started from its own
+    # stationary distribution so there is no burn-in transient in the panel.
+    innovation_sd = np.sqrt(1.0 - rho ** 2) if rho else 1.0
+    e = rng.normal(0.0, innovation_sd, T)
+    u = np.empty(T)
+    u[0] = rng.normal()
+    for t in range(1, T):
+        u[t] = rho * u[t - 1] + e[t]
+
+    y_tr = 1.0 + f_sum + u
+    half = N // 2
+    eps = rng.standard_normal((N, T))
+    y_ctrl = np.empty((N, T))
+    y_ctrl[:half, :] = 1.0 + 1.0 * f_sum[None, :] + eps[:half, :]   # matched
+    y_ctrl[half:, :] = 1.0 + 2.0 * f_sum[None, :] + eps[half:, :]   # mismatched
+
+    rows = [{"unit": "treated", "time": t, "y": float(y_tr[t]),
+             "treat": int(t >= T1)} for t in range(T)]
+    for i in range(N):
+        rows.extend({"unit": f"c{i:03d}", "time": t,
+                     "y": float(y_ctrl[i, t]), "treat": 0}
+                    for t in range(T))
+    return FDIDSample(df=pd.DataFrame(rows), Y_treated=y_tr,
+                      Y_controls=y_ctrl, T1=T1, T2=T2, dgp=2)
