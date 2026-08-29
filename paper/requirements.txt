@@ -1,7 +1,8 @@
 # Render environment for paper/paper.qmd (consumed by .github/workflows/paper_render.yml).
 # Installs the library from the repo checkout so the paper reflects current code,
-# plus the Jupyter engine Quarto uses to execute the Python chunks. The `bayes`
-# extra (NumPyro) is needed by Example 4's SPOTSYNTH Bayesian credible band.
+# plus the Jupyter engine Quarto uses to execute the Python chunks. The `design`
+# extra (SCIP) is needed by the paper's MAREX experimental-design example; `bayes`
+# (NumPyro) is kept so the render environment covers the full estimator set.
 -e .[design,bayes]
 jupyter
 matplotlib

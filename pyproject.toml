@@ -32,11 +32,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
-# Core runtime dependencies. The two heavy, estimator-specific dependencies are
-# optional extras (below): `pyscipopt` (the SCIP MIP solver, needed only by the
-# SYNDES / MAREX experimental designs) and `numpyro` (JAX-based, needed only by
-# SPOTSYNTH's Bayesian mode). Both are imported lazily, so the base install
-# imports and runs every other estimator without them.
+# Core runtime dependencies. The heavy, estimator-specific dependencies are
+# optional extras (below): `pyscipopt` (the SCIP MIP solver, needed by the
+# SYNDES / MAREX experimental designs and by HCW's best-subset certification),
+# `highspy` (needed only by PANGEO's exact-cover partition MIP), and `numpyro`
+# (JAX-based, needed only by SPOTSYNTH's Bayesian mode). All are imported
+# lazily, so the base install imports and runs every other estimator without
+# them.
 dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
