@@ -1,4 +1,4 @@
-# BASC vs the standard SC toolkit — West Germany (review material)
+# BASC vs the standard SC toolkit: West Germany (review material)
 
 A short, self-contained analysis supporting a referee report on *Bayesian Donor
 Set Selection in Synthetic Controls* (BASC). It compares BASC's in-sample
@@ -6,32 +6,32 @@ Set Selection in Synthetic Controls* (BASC). It compares BASC's in-sample
 reunification study against `mlsynth`'s own estimators on the identical data
 (original per-capita GDP scale):
 
-- `VanillaSC` — the textbook Abadie estimator: outcome-only, and the ADH 2015
+- `VanillaSC`, the textbook Abadie estimator: outcome-only, and the ADH 2015
   covariate spec via the Malo global-optimum and MSCMT nested-DE bilevel solvers;
-- `CLUSTERSC` — the paper's own two two-stage comparison methods: `method="rpca"`
+- `CLUSTERSC`, the paper's own two two-stage comparison methods: `method="rpca"`
   is fPCA-SYNTH (Bayani 2021/2022), `method="PCR"` is ClusterSC (Rho et al. 2025).
 
 Headline: every standard-toolkit estimator (including the robust ones) attains a
 materially tighter pre-treatment fit than BASC (BASC ~169 vs `VanillaSC` 61 and
 `CLUSTERSC` 89–98), and BASC drops the canonical Austria/USA donors that every
-standard analysis — and ADH 2015 — identifies as most important.
+standard analysis, ADH 2015 included, identifies as most important.
 
 The report also records three things that do not depend on any `mlsynth` fit:
 
-- three of the paper's five reported ATTs reproduce — BASC, fPCA-SYNTH (-1,655
-  vs -1,501) and ClusterSC (-2,427 vs -2,039) — while standard SCM (-159 vs
+- three of the paper's five reported ATTs reproduce (BASC, fPCA-SYNTH -1,655
+  vs -1,501, and ClusterSC -2,427 vs -2,039), while standard SCM (-159 vs
   -1,298) and B-MV (-218 vs -2,079) are an order of magnitude out, so a single
   mis-scaled outcome does not explain it;
 - the Table 7 s-SCM weight vector fits the pre-1990 path worse than uniform
   weights (RMSE ~1,925 vs ~1,289) and implies an ATT of the opposite sign to the
-  one the text reports — robust to the table's two-decimal rounding;
+  one the text reports, robust to the table's two-decimal rounding;
 - BASC's 95% credible band excludes the observed series in 20 of 30 pre-treatment
   years, at a mean width of ~180.
 
 What the authors get right, and the report says so: their public sampler is on
 the original per-capita scale exactly as their response letter claims, and it
 reproduces (same three donors as their Table 7). The gap is that the repository
-contains only the BASC sampler — none of the four comparison methods.
+contains only the BASC sampler, none of the four comparison methods.
 
 Recommendation: major revision. The theory and the simulation design are not in
 question; the concerns are confined to Section 5, Table 7, and what can be
@@ -56,14 +56,14 @@ generate the numerical study on which the competitiveness claim now rests.
 
 `data/counterfactuals.csv` is a single transparency table: one row per year
 (1960–2003) with the treatment indicator, observed West Germany, and every
-counterfactual that goes into the report — the seven render-time `mlsynth` fits
+counterfactual that goes into the report: the seven render-time `mlsynth` fits
 (VanillaSC ×3, CLUSTERSC ×2, FDID, MVBBSC/B-MV), the offline `bsynth` and BASC
 (500/500, 2000/2000) posterior paths, and the two dot-product weight vectors
 (the Table 7 s-SCM weights and uniform 1/16). The BASC 25000/25000 chain is not
 included: only its two summary numbers were saved, not a posterior path.
 
 The `mlsynth` estimators (`VanillaSC`, `CLUSTERSC`) run at render time via
-`compare_estimators` on `basedata/repgermany.dta` — only BASC is precomputed
+`compare_estimators` on `basedata/repgermany.dta`; only BASC is precomputed
 (its Gibbs sampler needs R and is slow).
 
 ## Rendering
@@ -79,6 +79,6 @@ e.g. `quarto install tinytex`). Add `--to html` or `--to pdf` for a single forma
 
 ## Regenerating the BASC data
 
-See the header of `scripts/basc_run.R` — it uses the authors' own sampler from
+See the header of `scripts/basc_run.R`; it uses the authors' own sampler from
 github.com/sll-lee/paper-BASC (not vendored here). The `mlsynth` side needs no
 regeneration; it runs in the document.
