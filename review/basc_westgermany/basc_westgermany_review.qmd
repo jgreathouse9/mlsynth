@@ -62,7 +62,7 @@ The difficulty is with the four methods BASC is compared against, none of which 
 
 BASC is presented as a competitive-or-superior synthetic-control estimator, and Section 5 is offered as the empirical evidence for that. My objection is not that BASC fits the pre-1990 path less well than the alternatives and is therefore the inferior method; in-sample fit is one criterion among several, and the Bottom line below sets out why I do not treat it as decisive on its own. The objection is narrower and, I think, harder to answer: on the canonical application, BASC fits far worse than the methods it extends and competes with, while two of the comparison results it is measured against are themselves inconsistent with the estimators the paper says produced them. The application therefore cannot presently establish the competitiveness it is offered to establish.
 
-Two findings carry that. The first is the fit gap against B-MV, the model BASC nests, established below. The second is the s-SCM weight vector printed in the paper's own Table 7, which fails an arithmetic check against the authors' own donor data. The second requires no trust in `mlsynth`, in my sampler runs, or in any implementation of mine: it takes the paper's published weights, multiplies them by the published donor series, and reads off the contradiction. I take it first, after the fit table that gives it its comparison points.
+Two findings carry that, and neither depends on an estimator of mine. The first is that BASC estimates its donor weights from the post-treatment outcomes: the likelihood scores residuals over all 44 years with a single constant absorbing the post-1990 divergence. Constrained least squares under that specification reproduces the paper's published Table 7 weight column to an L1 distance of 0.04, with no sampler, prior or Gaussian process involved, and it accounts for the pre-treatment fit gap that first drew my attention. The second is the s-SCM weight vector printed in the same table, which fails an arithmetic check against the authors' own donor data: multiply the published weights by the published donor series and read off the contradiction. I take the second first, after the fit table that gives it its comparison points.
 
 Below I compare BASC's in-sample (pre-1990) fit on West Germany against `mlsynth`'s own estimators on the identical data (the Abadie, Diamond & Hainmueller 2015 `repgermany` panel, original per-capita GDP scale), assembled with `mlsynth`'s `compare_estimators` utility. The `mlsynth` analyses run at render time; BASC is precomputed (its Gibbs sampler runs from the authors' R, `github.com/sll-lee/paper-BASC`).
 
@@ -162,11 +162,81 @@ The most telling row is B-MV, the Bayesian synthetic control of Martinez and Viv
 
 Section 3.1 sets out that relationship explicitly. When every donor is selected, so that $\gamma = \mathbf{1}$, the proposed prior on the weights reduces to Equation (11), and the paper states that at $\alpha_u = 1$ this "coincides with the uniform Dirichlet prior in Equation (5), which is used in the implementation of Martinez and Vives-i-Bastida", concluding that the construction "retains the full-simplex Dirichlet construction as a special case". The next sentence introduces the second addition: "we introduce the Gaussian process (GP) term $f_t$ to capture smooth temporal variation in the treated outcome that is not explained by the simplex-constrained donor combination."
 
-So BASC contains B-MV. It is B-MV's prior, plus donor selection, plus a nonparametric term whose stated purpose is to absorb precisely the pre-treatment variation the donor combination fails to explain. On this panel the containing model fits the pre-1990 path at 169 to 195 and the contained one at 62.
+So BASC contains B-MV's prior. It is that prior, plus donor selection, plus a nonparametric term whose stated purpose is to absorb precisely the pre-treatment variation the donor combination fails to explain. On this panel the containing model fits the pre-1990 path at 169 to 195 and the contained one at 62.
 
-That ordering is what I cannot see a reading for. A larger model losing to its own special case in-sample is not the ordinary cost of shrinkage or of sparsity: those explain why a selective model gives up fit against an unrestricted least-squares optimum, and B-MV is neither unrestricted nor least-squares. It is the same Bayesian machinery with the same simplex prior and the same posterior-mean summary, and BASC has strictly more freedom available than it, including a term added for exactly this purpose. Why the ordering comes out this way is for the authors to establish, and the simulation study does not answer it.
+Instead of speculating about why, I ran the authors' own sampler with $\gamma$ fixed to $\mathbf{1}$. The patch to `BASC_realdata.R` is four lines: the loop that resamples $\gamma_j$ is given an empty index set, and `alpha_u` becomes an argument so that the Section 3.1 configuration ($\alpha_u = 1$) can be run alongside the value the authors actually use. Everything else, the priors, the updates, the Gaussian process, the posterior summary, is their code unmodified. The control confirms it: run without the patch, the sampler returns pre-1990 RMSE 169.4 and ATT -582.5, reproducing the 2000/2000 row of the table above.
 
-The paper's posterior donor-set consistency result does not settle it either. That result is proved on a simplified pre-intervention model which, in the paper's words, "excludes the Gaussian process term and the post-intervention effect term". The theory therefore covers a model other than the one fitted here, and the component that would be expected to close this gap lies outside it.
+```{python}
+#| label: tbl-gamma1
+g1 = pd.read_csv(os.path.join(DATA, "gamma1_diagnostic.csv"))
+_lab = {"basc": "as published (γ sampled, α_u = 2.5)",
+        "g1_a2.5": "γ = 1, α_u = 2.5 (their prior, selection off)",
+        "g1_a1": "γ = 1, α_u = 1 (the Section 3.1 configuration)"}
+_t = (g1.assign(Configuration=g1.config.map(_lab))
+        .pivot_table(index="Configuration", columns="seed",
+                     values="rmse_pre", sort=False)
+        .round(1))
+_t.columns = [f"seed {c}" for c in _t.columns]
+_t["donors kept"] = (g1.groupby(g1.config.map(_lab), sort=False).n_donors.max().values)
+Markdown("Pre-1990 RMSE, 2000 burn-in / 2000 sampling, the authors' sampler:\n\n"
+         + _t.reset_index().to_markdown(index=False))
+```
+
+Donor selection is not what costs the fit. Removing it makes the fit worse, and the Section 3.1 configuration lands at 193 in every seed, not at the 62 the correspondence with B-MV would suggest. The Gaussian process is inert throughout: its posterior mean path has a standard deviation under 1 unit against residuals near 200, so the counterfactual is the donor combination alone to two decimal places.
+
+The reason is in the likelihood, and it is visible in `loglik_gamma`. The residual it scores is `y - x %*% beta - Dt * alpha.v - f`, taken over all 44 years. The donor weights are therefore estimated from the post-treatment outcomes as well as the pre-treatment ones, with the entire post-1990 divergence absorbed by `alpha.v`, a single constant over fourteen years. B-MV conditions on the pre-period, as standard synthetic-control practice does. The Section 3.1 statement is about the prior, and it is correct about the prior; it does not make BASC nest B-MV as an estimator, so the two fits were never going to agree.
+
+That difference accounts for the numbers on its own, with no MCMC involved. Below, the weights are chosen by constrained least squares under the same simplex constraint, once on the pre-period alone, which is the standard synthetic control, and once on all 44 years with one constant post-treatment shift, which is what BASC's likelihood scores.
+
+```{python}
+#| label: tbl-fullsample-ls
+#| echo: true
+#| code-fold: false
+import cvxpy as cp
+from mlsynth.utils.datautils import dataprep
+
+_p = dataprep(d, "country", "year", "gdp", "treat")
+_y = np.asarray(_p["y"]).flatten(); _X = np.asarray(_p["donor_matrix"])
+_names = list(_p["donor_names"]); _npre = int(_p["pre_periods"])
+_pre = np.arange(len(_y)) < _npre; _D = (~_pre).astype(float)
+
+def _solve(mask, free_alpha):
+    w = cp.Variable(_X.shape[1], nonneg=True); a = cp.Variable(1)
+    r = _y[mask] - _X[mask] @ w - (cp.multiply(_D[mask], a) if free_alpha else 0)
+    cp.Problem(cp.Minimize(cp.sum_squares(r)), [cp.sum(w) == 1]).solve(solver=cp.CLARABEL)
+    return np.asarray(w.value).ravel(), float(np.atleast_1d(a.value)[0]) if free_alpha else 0.0
+
+w_pre, _   = _solve(_pre, False)
+w_all, a_all = _solve(np.ones(len(_y), bool), True)
+_rm = lambda w: float(np.sqrt(np.mean((_y[_pre] - (_X @ w)[_pre]) ** 2)))
+Markdown(pd.DataFrame({
+    "Weights fit on": ["pre-1990 only (standard SCM)", "all 44 years, one constant shift"],
+    "pre-1990 RMSE": [round(_rm(w_pre), 1), round(_rm(w_all), 1)],
+    "post-1990 effect": [round(float((_y[~_pre] - (_X @ w_pre)[~_pre]).mean()), 0), round(a_all, 0)],
+}).to_markdown(index=False))
+```
+
+The second row is BASC. Its pre-1990 fit of 198 sits inside the 193 to 206 band the sampler produces, and its constant shift of -351 sits inside the -195 to -582 range of the sampler's ATT. The weights match the paper's published column:
+
+```{python}
+#| label: tbl-ls-vs-table7
+paper_basc = {"USA": 0.00, "UK": 0.00, "Austria": 0.00, "Belgium": 0.00, "Denmark": 0.00,
+              "France": 0.00, "Italy": 0.12, "Netherlands": 0.00, "Norway": 0.00,
+              "Switzerland": 0.44, "Japan": 0.37, "Greece": 0.01, "Portugal": 0.05,
+              "Spain": 0.00, "Australia": 0.00, "New Zealand": 0.00}
+_w = pd.DataFrame({"Donor": _names,
+                   "BASC, paper Table 7": [paper_basc[n] for n in _names],
+                   "Least squares, all 44 years": w_all.round(3)})
+_l1 = float(abs(_w.iloc[:, 1] - _w.iloc[:, 2]).sum())
+Markdown(_w[_w.iloc[:, 1:].abs().max(axis=1) > 0.005].to_markdown(index=False)
+         + f"\n\nDonors below 0.005 in both columns are omitted. L1 distance between the two columns: {_l1:.3f}.")
+```
+
+The paper's published BASC donor weights are what constrained least squares returns when the post-treatment outcomes are allowed to inform the weights. No prior, no sampler, no Gaussian process and no donor selection is needed to produce them.
+
+Two consequences follow, and both are for the authors. The pre-treatment fit reported for BASC is not evidence about how well a synthetic West Germany can be constructed, because the weights were not chosen to construct one. And the reported effect is estimated jointly with weights that are themselves fitted to the divergence the effect is meant to measure, which is why the same simplex constraint yields -1,298 when the weights are set on the pre-period and -351 when they are not. Whether that is the intended design I cannot tell from the paper, which describes the model but does not discuss the consequence.
+
+The posterior donor-set consistency result does not settle it. That result is proved on a simplified pre-intervention model which, in the paper's words, "excludes the Gaussian process term and the post-intervention effect term". The theory therefore covers a model other than the one fitted here, and the post-intervention term it excludes is the one doing the damage.
 
 The B-MV figure is not a one-off run of mine. `mlsynth`'s `MVBBSC` is a clean-room NumPyro port of the Martinez and Vives-i-Bastida generative model, and it is cross-validated against the authors' own `bsynth` package cell by cell on this very panel as a standing benchmark in the library (`benchmarks/cases/mvbbsc_germany.py`, reference script `benchmarks/R/mvbbsc_bsynth_ref.R`, captured against `bsynth` at commit `22d960f`): pre-1990 RMSE 62.14 against 61.96, mean post-1990 ATT -2081.7 against -2064.6, and mean pre-1990 credible-band width 297.1 against 296.6. The reference is `bayesianSynth` with `predictor_match = FALSE`, which is the outcome-only model with no covariates and no Gaussian-process term.
 
@@ -367,7 +437,7 @@ They do, however, mean the empirical section cannot presently be read as evidenc
 
 4. Report in-sample fit alongside every reported effect, for every method, in the application and in the simulations. Pre-treatment fit is the diagnostic by which synthetic control estimates are conventionally judged, and its absence is why the discrepancies above survived a round of review.
 
-5. Run BASC with $\gamma$ fixed to $\mathbf{1}$ and report the pre-1990 fit. Section 3.1 states that the prior then coincides with B-MV's, so the fit should return approximately 62. If it does, the gap documented here is attributable to donor selection and can be argued about on its merits. If it returns something near 169, the fitted model does not match the specification in Section 3.1 and the issue is not the West Germany application. I regard this as the single most informative check available, and it is cheap.
+5. State whether estimating the donor weights from the post-treatment outcomes is intended, and defend it if so. The likelihood scores residuals over all 44 years with a single constant absorbing the post-1990 divergence, so the weights are fitted to the period the counterfactual is supposed to predict. This is the finding I would most want answered. It accounts for the pre-treatment fit, it reproduces the published Table 7 weights from least squares alone, and it means the reported effect and the weights are estimated from the same divergence. If it is intended, the paper needs to say so and to establish that the effect remains identified; if it is not, Section 5 and the numerical study both change.
 
 6. Report convergence diagnostics for the real-data fit specifically, and state which quantity the reported credible band is an interval for. The band contains the observed series in ten of thirty pre-treatment years, and what that indicates depends on whether the interval is for the latent mean, the posterior predictive, or the counterfactual trajectory inclusive of the error term.
 

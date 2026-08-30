@@ -15,6 +15,16 @@ Headline: every standard-toolkit estimator (including the robust ones) attains a
 materially tighter pre-treatment fit than BASC (BASC ~169 vs `VanillaSC` 61 and
 `CLUSTERSC` 89–98).
 
+The cause of that gap is established by running the authors' own sampler with
+the donor-selection indicators forced to 1 (`scripts/run_gamma1.R`, a four-line
+patch to `BASC_realdata.R`). Selection is not what costs the fit: switching it
+off makes the fit worse, and the Section 3.1 configuration lands at 193 across
+three seeds. The likelihood is the cause. It scores residuals over all 44 years
+with one constant absorbing the post-1990 divergence, so the donor weights are
+fitted to the post-treatment outcomes. Constrained least squares under that
+specification reproduces the paper's published Table 7 BASC weights to an L1
+distance of 0.04, with no sampler, prior, Gaussian process or selection.
+
 The report also records three things that do not depend on any `mlsynth` fit:
 
 - three of the paper's five reported ATTs reproduce (BASC, fPCA-SYNTH -1,655
@@ -50,8 +60,11 @@ generate the numerical study on which the competitiveness claim now rests.
       bmv_counterfactual.csv       #   B-MV (bsynth) posterior path + 95% CI
       basc_weights.csv             #   BASC posterior donor weights
       basc_insample_rmse.txt       #   BASC 2000/2000 in-sample RMSE
+      gamma1_diagnostic.csv        #   gamma = 1 runs, three configurations x three seeds
     scripts/
       basc_run.R                   # regenerate the BASC CSVs (see header)
+      run_gamma1.R                 # the gamma = 1 diagnostic (see header)
+      run_init.R                   # start the chain at the best simplex fit
 
 `data/counterfactuals.csv` is a single transparency table: one row per year
 (1960–2003) with the treatment indicator, observed West Germany, and every
