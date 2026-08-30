@@ -13,8 +13,7 @@ reunification study against `mlsynth`'s own estimators on the identical data
 
 Headline: every standard-toolkit estimator (including the robust ones) attains a
 materially tighter pre-treatment fit than BASC (BASC ~169 vs `VanillaSC` 61 and
-`CLUSTERSC` 89–98), and BASC drops the canonical Austria/USA donors that every
-standard analysis, ADH 2015 included, identifies as most important.
+`CLUSTERSC` 89–98).
 
 The report also records three things that do not depend on any `mlsynth` fit:
 

@@ -114,7 +114,6 @@ cmp = compare_estimators({
 #| label: load-basc
 basc_cf = pd.read_csv(os.path.join(DATA, "basc_counterfactual.csv"))        # 2000/2000
 basc_cf500 = pd.read_csv(os.path.join(DATA, "basc_counterfactual_500.csv")) # 500/500
-basc_w = pd.read_csv(os.path.join(DATA, "basc_weights.csv"))
 bmv_cf = pd.read_csv(os.path.join(DATA, "bmv_counterfactual.csv"))          # B-MV via bsynth
 ```
 
@@ -240,36 +239,6 @@ ax.set_title("BASC posterior counterfactual (2000/2000)")
 ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
-
-## Which donors BASC keeps
-
-The fit gap has a readable cause in the donor set. The canonical ADH 2015 solution for West Germany is sparse and led by Austria and the USA (published weights: Austria 0.42, USA 0.22, Japan 0.16, Switzerland 0.11, Netherlands 0.09); `VanillaSC` on this panel recovers the same two units at the top. BASC assigns both a weight of zero.
-
-```{python}
-#| label: tbl-basc-weights
-w = basc_w.copy()
-w["weight"] = w["weight"].round(3)
-w["incl_prob"] = w["incl_prob"].round(3)
-
-# cmp.weights is long-form: one row per (method, donor)
-vsc = dict(zip(*(cmp.weights.loc[cmp.weights.method == "VanillaSC (outcome-only)",
-                                 ["donor", "weight"]].to_numpy().T)))
-w["VanillaSC"] = [round(float(vsc.get(n, 0.0)), 3) for n in w["donor"]]
-# the paper's own Table 7 BASC column (CSDA-D-25-01439R1, p.31), posterior means
-paper_basc = {"USA": 0.00, "UK": 0.00, "Austria": 0.00, "Belgium": 0.00, "Denmark": 0.00,
-              "France": 0.00, "Italy": 0.12, "Netherlands": 0.00, "Norway": 0.00,
-              "Switzerland": 0.44, "Japan": 0.37, "Greece": 0.01, "Portugal": 0.05,
-              "Spain": 0.00, "Australia": 0.00, "New Zealand": 0.00}
-w["BASC (paper Table 7)"] = [paper_basc[n] for n in w["donor"]]
-w = w.rename(columns={"donor": "Donor", "weight": "BASC (reproduced)",
-                      "incl_prob": "incl. prob."})
-Markdown(w[["Donor", "BASC (paper Table 7)", "BASC (reproduced)", "incl. prob.", "VanillaSC"]]
-         .to_markdown(index=False))
-```
-
-My reproduction and the paper's Table 7 select the same three donors (Switzerland, Japan and Italy) and agree that every other unit, Austria and the USA included, receives essentially nothing. The two columns differ on how the mass is split between them (Italy 0.30 against the paper's 0.12, inside the paper's own reported standard deviation of 0.14), which is the sort of disagreement two runs of the same sampler produce. Taken with the ATT agreement (-390 against -434), this is a reproduction of the authors' method, so what follows about its fit is a statement about BASC and not about my ability to run it.
-
-Dropping Austria and the USA is a substantive choice, not a numerical detail. These are the two donors that carry the ADH solution, and BASC assigns them posterior inclusion probability 0.000 and 0.014. A method whose selling point is donor selection excluding the donors the canonical analysis of this dataset relies on is a result the paper should confront directly.
 
 ## The reported "standard SCM" weights (Table 7)
 
