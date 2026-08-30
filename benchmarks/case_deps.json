@@ -1795,6 +1795,18 @@
   "mlsynth/utils/sdid_helpers/setup.py",
   "mlsynth/utils/sdid_helpers/weights.py"
  ],
+ "rsc_rank_condition_mc": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/clustersc.py",
+  "mlsynth/utils/clustersc_helpers/config.py",
+  "mlsynth/utils/clustersc_helpers/pcr/frequentist.py",
+  "mlsynth/utils/clustersc_helpers/pcr/pipeline.py",
+  "mlsynth/utils/clustersc_helpers/setup.py",
+  "mlsynth/utils/clustersc_helpers/simulation.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/pcr/core.py",
+  "mlsynth/utils/pcr/rank.py"
+ ],
  "rsc_synth_error": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/clustersc.py",
