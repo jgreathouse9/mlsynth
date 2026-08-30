@@ -60,7 +60,11 @@ On the BASC side that claim checks out. The authors' public sampler (`BASC_reald
 The difficulty is with the four methods BASC is compared against, none of which appear in that repository at all.
 
 
-BASC is presented as a competitive-or-superior synthetic-control estimator. Because the credibility of any synthetic control rests, to some degree, on how well it reproduces the treated unit's pre-intervention outcome trajectory, a minimum bar for such a claim is the pre-treatment fit for the new method compared to those of the standard tools in the SCM literature. Below I compare BASC's in-sample (pre-1990) fit on West Germany against `mlsynth`'s own estimators on the identical data (the Abadie, Diamond & Hainmueller 2015 `repgermany` panel, original per-capita GDP scale), assembled with `mlsynth`'s `compare_estimators` utility. The `mlsynth` analyses run at render time; BASC is precomputed (its Gibbs sampler runs from the authors' R, `github.com/sll-lee/paper-BASC`).
+BASC is presented as a competitive-or-superior synthetic-control estimator, and Section 5 is offered as the empirical evidence for that. My objection is not that BASC fits the pre-1990 path less well than the alternatives and is therefore the inferior method; in-sample fit is one criterion among several, and the Bottom line below sets out why I do not treat it as decisive on its own. The objection is narrower and, I think, harder to answer: on the canonical application, BASC fits far worse than the methods it extends and competes with, while two of the comparison results it is measured against are themselves inconsistent with the estimators the paper says produced them. The application therefore cannot presently establish the competitiveness it is offered to establish.
+
+Two findings carry that. The first is the fit gap against B-MV, the model BASC nests, established below. The second is the s-SCM weight vector printed in the paper's own Table 7, which fails an arithmetic check against the authors' own donor data. The second requires no trust in `mlsynth`, in my sampler runs, or in any implementation of mine: it takes the paper's published weights, multiplies them by the published donor series, and reads off the contradiction. I take it first, after the fit table that gives it its comparison points.
+
+Below I compare BASC's in-sample (pre-1990) fit on West Germany against `mlsynth`'s own estimators on the identical data (the Abadie, Diamond & Hainmueller 2015 `repgermany` panel, original per-capita GDP scale), assembled with `mlsynth`'s `compare_estimators` utility. The `mlsynth` analyses run at render time; BASC is precomputed (its Gibbs sampler runs from the authors' R, `github.com/sll-lee/paper-BASC`).
 
 ## Specifications
 
@@ -160,85 +164,13 @@ Section 3.1 sets out that relationship explicitly. When every donor is selected,
 
 So BASC contains B-MV. It is B-MV's prior, plus donor selection, plus a nonparametric term whose stated purpose is to absorb precisely the pre-treatment variation the donor combination fails to explain. On this panel the containing model fits the pre-1990 path at 169 to 195 and the contained one at 62.
 
-That ordering is what I cannot see a reading for. A larger model losing to its own special case in-sample is not the ordinary cost of shrinkage or of sparsity: those explain why a selective model gives up fit against an unrestricted least-squares optimum, and B-MV is neither unrestricted nor least-squares. It is the same Bayesian machinery with the same simplex prior and the same posterior-mean summary, and BASC has strictly more freedom available than it, including a term added for exactly this purpose. The candidate explanations left are that the prior concentrates where the pre-period does not support it, that the sampler has not reached the region it should, or that something in the implementation is not doing what Section 3.1 describes. All three are the authors' to resolve, and none of them are answered by the simulation study.
+That ordering is what I cannot see a reading for. A larger model losing to its own special case in-sample is not the ordinary cost of shrinkage or of sparsity: those explain why a selective model gives up fit against an unrestricted least-squares optimum, and B-MV is neither unrestricted nor least-squares. It is the same Bayesian machinery with the same simplex prior and the same posterior-mean summary, and BASC has strictly more freedom available than it, including a term added for exactly this purpose. Why the ordering comes out this way is for the authors to establish, and the simulation study does not answer it.
 
 The paper's posterior donor-set consistency result does not settle it either. That result is proved on a simplified pre-intervention model which, in the paper's words, "excludes the Gaussian process term and the post-intervention effect term". The theory therefore covers a model other than the one fitted here, and the component that would be expected to close this gap lies outside it.
 
 The B-MV figure is not a one-off run of mine. `mlsynth`'s `MVBBSC` is a clean-room NumPyro port of the Martinez and Vives-i-Bastida generative model, and it is cross-validated against the authors' own `bsynth` package cell by cell on this very panel as a standing benchmark in the library (`benchmarks/cases/mvbbsc_germany.py`, reference script `benchmarks/R/mvbbsc_bsynth_ref.R`, captured against `bsynth` at commit `22d960f`): pre-1990 RMSE 62.14 against 61.96, mean post-1990 ATT -2081.7 against -2064.6, and mean pre-1990 credible-band width 297.1 against 296.6. The reference is `bayesianSynth` with `predictor_match = FALSE`, which is the outcome-only model with no covariates and no Gaussian-process term.
 
 That last detail matters for a comparison the authors might otherwise question. The B-MV fit of 62 is obtained *without* a GP. BASC's 169 is obtained *with* one. If anything the two are stacked in BASC's favour, and it still fits nearly three times worse.
-
-## The reported effects do not sit together
-
-
-The paper's five ATT estimates (p.32) are -434 for BASC, -218 for B-MV, -159 for standard SCM, -1,655 for fPCA-SYNTH and -2,427 for ClusterSC, all described as per-capita units. Set them beside what the same methods return on the same panel:
-
-| Method (paper's label) | Paper's ATT (p.32) | Reproduced here | Reproduced pre-1990 RMSE |
-|---|---|---|---|
-| BASC | -434 | -390 to -702 (authors' own sampler) | 169-195 |
-| fPCA-SYNTH (Bayani 2021) | -1,655 | -1,501 (`CLUSTERSC`, RPCA-SC) | 88.6 |
-| ClusterSC (Rho et al. 2025) | -2,427 | -2,039 (`CLUSTERSC`, PCR/RSC) | 98.0 |
-| B-MV | -218 | -2,075 (`bsynth`) / -2,079 (`MVBBSC`) | 62.2 / 62.1 |
-| standard SCM | -159 | -1,298 (`VanillaSC`) | 60.8 |
-
-Three of the five reproduce. BASC does, as noted above. fPCA-SYNTH is the functional-PCA screen followed by robust PCA and non-negative least squares set out in Section 2.4.1; `CLUSTERSC`'s RPCA-SC path is that procedure, and it returns -1,501 against the reported -1,655, about nine percent apart. ClusterSC is the SVD-clustering-plus-PCR procedure of Rho et al.; `CLUSTERSC`'s PCR/RSC path returns -2,039 against the reported -2,427, about sixteen percent. Those are the differences one expects from independent implementations of a two-stage screen, and I raise no objection to either.
-
-That is what isolates the last two rows. The paper is working on a scale where an effect of -1,655 or -2,427 is the natural size, because three of its own five numbers are, and I can obtain all three. Standard SCM and B-MV are reported an order of magnitude below what those methods return on the same panel.
-
-The BASC row carries a caveat in the authors' favour. My chains are far shorter than theirs: 500/500, 2,000/2,000 and 25,000/25,000 against the paper's three chains of 500,000 after 500,000 burn-in, which Section 5 reports as converged with Gelman-Rubin below 1.01 and diagnoses further in Appendix C.2. Across my three the ATT moves over -702, -583 and -390 without settling, so I do not read the gap from the reported -434 as a discrepancy. It is most likely my burn-in, and the reported value has the better claim to being the converged one.
-
-What matters for this report is that the in-sample fit is not similarly unstable. It stays in a 169 to 195 band across a fiftyfold change in chain length, and the shortest and longest chains bracket the same conclusion. The fit finding does not depend on chain length; the ATT reproduction does, and I am not resting anything on it.
-
-A single mis-scaled outcome would have moved all five numbers together, and it has not: whatever produced -218 and -159 was applied to those two methods and not to the other three. These are also the two whose reported values I can check most directly: standard SCM because the paper prints its entire weight vector in Table 7, and B-MV because two independent implementations of it exist.
-
-The direction is also one-sided. At -159 and -218, BASC's -434 sits unremarkably among its comparators, larger than the two classical benchmarks and smaller than the two robust ones. At the values those methods actually return, -1,298 and -2,079, BASC is the smallest estimate in the table by a factor of three, and the ordering that supports the paper's competitiveness claim on this application does not survive. I make no claim about how this arose. I do think it has to be resolved before the West Germany application can be read as evidence for the method.
-
-On B-MV specifically: `mlsynth`'s `MVBBSC` is a NumPyro re-implementation of the Martinez and Vives-i-Bastida model written from the paper, not from `bsynth`'s code, so the agreement between them (-2,079 against -2,075, credible bands agreeing year by year) is a genuine cross-check and not a translation. Reconciling the reported B-MV with what the method returns is for the authors to do.
-
-This section carries less weight than its length suggests. It is the part of my report the authors are most likely to answer, and answering it would not settle the review. Suppose every reported ATT is confirmed as computed on the raw per-capita series exactly as stated, and the -218 and -159 turn out to be correct for whatever was actually run. The two findings that motivate this report are untouched. BASC's pre-1990 fit is still three times worse than the model it extends, and the weight vector printed in Table 7 still fits the pre-1990 path worse than uniform weights do. Neither of those is an inference from the ATTs; both are computed from the pre-treatment period alone, on the original scale, and one of them uses nothing but the authors' own published numbers.
-
-```{python}
-#| label: fig-paths
-fig, ax = plt.subplots()
-cmp.plot(ax=ax)                                   # mlsynth methods + observed
-ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2.2,
-        label="BASC", zorder=5)
-ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
-ax.axvline(1990, color="grey", ls=":", lw=1)
-ax.set_title("West Germany: observed vs synthetic counterfactuals")
-ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
-ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
-plt.tight_layout(); plt.show()
-```
-
-BASC's own posterior path, with its 95% credible band, is below. The band raises a second issue on its own account, separately from the fit.
-
-```{python}
-#| label: basc-coverage
-_pre = basc_cf[basc_cf["year"] < 1990]
-_in = ((_pre["observed"] >= _pre["lo95"]) & (_pre["observed"] <= _pre["hi95"]))
-Markdown(
-    f"In the pre-treatment period the 95% credible band contains the observed West "
-    f"German series in {int(_in.sum())} of {len(_pre)} years, with a mean band "
-    f"width of {float((_pre['hi95'] - _pre['lo95']).mean()):.0f} per-capita units."
-)
-```
-
-This is a calibration point, not a fit point, and it cuts against reading the wide posterior as appropriate humility. The band is narrow, with a mean pre-treatment width about the size of the pre-treatment RMSE itself, and it nonetheless excludes the series it is modelling in two thirds of the years where the truth is observed. A 95% interval that misses in-sample two-thirds of the time is not expressing uncertainty about a well-centred fit; it is a tight interval around a path that is in the wrong place. Whatever the post-1990 credible intervals in Figure 5 are doing, the pre-1990 record gives little reason to trust their nominal coverage.
-
-```{python}
-#| label: fig-basc-ci
-fig, ax = plt.subplots()
-ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
-ax.fill_between(basc_cf["year"], basc_cf["lo95"], basc_cf["hi95"], color="#d62728", alpha=0.15, label="BASC 95% CI")
-ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2, label="BASC synthetic")
-ax.plot(basc_cf["year"], basc_cf["observed"], color="black", lw=2.4, label="West Germany (observed)")
-ax.axvline(1990, color="grey", ls=":", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
-ax.set_title("BASC posterior counterfactual (2000/2000)")
-ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
-plt.tight_layout(); plt.show()
-```
 
 ## The reported "standard SCM" weights (Table 7)
 
@@ -280,7 +212,7 @@ Markdown(pd.DataFrame({
 }).to_markdown(index=False))
 ```
 
-Two things follow, using only the authors' own weights. First, the s-SCM column fits the pre-1990 path at an RMSE near 1,925. This is worse than uniform weights (about 1,289), and roughly 30 times greater than the actual synthetic control (about 61, reported above). A weight vector that loses to uniform is not the standard-SCM solution, whatever produced it. Second, those same weights imply a post-1990 ATT near +2,900, with West Germany above its synthetic, while the paper's text (p.32) reports an s-SCM ATT of -159, the opposite sign. So the reported vector is not the optimum, and the table and the text disagree with each other. Even setting `mlsynth`'s `VanillaSC` aside entirely, the Table 7 s-SCM column and the reported s-SCM effect cannot both come from the same estimator, and I would like an explanation of why.
+Two things follow, using only the authors' own weights. First, the s-SCM column fits the pre-1990 path at an RMSE near 1,925, against about 1,289 for uniform weights and about 61 for the synthetic control reported above. Standard SCM is defined as the simplex vector minimising pre-treatment squared error, so a vector attaining 1,925 cannot be the solution to that problem when another feasible vector drives the same criterion to 61. The reported column is not a solved standard synthetic control, and no property of my solver is needed to say so. Second, those same weights imply a post-1990 ATT near +2,900, with West Germany above its synthetic, while the paper's text (p.32) reports an s-SCM ATT of -159, the opposite sign. The Table 7 s-SCM column and the reported s-SCM effect cannot both come from the same estimator, and I would like an explanation of why.
 
 The table prints weights to two decimals, so it is fair to ask whether that rounding is doing the damage. It is not. Perturbing the sixteen weights independently within the full printing error and renormalising to the simplex, over 4,000 draws, moves the pre-1990 RMSE only within 1,861 to 2,002 and leaves the implied ATT positive in every draw (2,731 to 3,088). The conclusion does not depend on the printed precision.
 
@@ -335,23 +267,89 @@ ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
 
+## The reported effects do not sit together
+
+
+The paper's five ATT estimates (p.32) are -434 for BASC, -218 for B-MV, -159 for standard SCM, -1,655 for fPCA-SYNTH and -2,427 for ClusterSC, all described as per-capita units. Set them beside what the same methods return on the same panel:
+
+| Method (paper's label) | Paper's ATT (p.32) | Reproduced here | Reproduced pre-1990 RMSE |
+|---|---|---|---|
+| BASC | -434 | -390 to -702 (authors' own sampler) | 169-195 |
+| fPCA-SYNTH (Bayani 2021) | -1,655 | -1,501 (`CLUSTERSC`, RPCA-SC) | 88.6 |
+| ClusterSC (Rho et al. 2025) | -2,427 | -2,039 (`CLUSTERSC`, PCR/RSC) | 98.0 |
+| B-MV | -218 | -2,075 (`bsynth`) / -2,079 (`MVBBSC`) | 62.2 / 62.1 |
+| standard SCM | -159 | -1,298 (`VanillaSC`) | 60.8 |
+
+Three of the five reproduce. BASC does, as noted above. fPCA-SYNTH is the functional-PCA screen followed by robust PCA and non-negative least squares set out in Section 2.4.1; `CLUSTERSC`'s RPCA-SC path is that procedure, and it returns -1,501 against the reported -1,655, about nine percent apart. ClusterSC is the SVD-clustering-plus-PCR procedure of Rho et al.; `CLUSTERSC`'s PCR/RSC path returns -2,039 against the reported -2,427, about sixteen percent. Those are the differences one expects from independent implementations of a two-stage screen, and I raise no objection to either.
+
+That is what isolates the last two rows. The paper is working on a scale where an effect of -1,655 or -2,427 is the natural size, because three of its own five numbers are, and I can obtain all three. Standard SCM and B-MV are reported an order of magnitude below what those methods return on the same panel, so a single mis-scaled outcome does not account for it: whatever produced -218 and -159 was applied to those two methods and not to the other three. They are also the two whose reported values I can check most directly, standard SCM through the weight vector Table 7 prints in full and B-MV because two independent implementations of it exist.
+
+The BASC row carries a caveat in the authors' favour. My chains are far shorter than theirs: 500/500, 2,000/2,000 and 25,000/25,000 against the paper's three chains of 500,000 after 500,000 burn-in, which Section 5 reports as converged with Gelman-Rubin below 1.01 and diagnoses further in Appendix C.2. Across my three the ATT moves over -702, -583 and -390 without settling, so I do not read the gap from the reported -434 as a discrepancy. It is most likely my burn-in, and the reported value has the better claim to being the converged one.
+
+What matters for this report is that the in-sample fit is not similarly unstable. It stays in a 169 to 195 band across a fiftyfold change in chain length, and the shortest and longest chains bracket the same conclusion. The fit finding does not depend on chain length; the ATT reproduction does, and I am not resting anything on it.
+
+The direction is also one-sided. At -159 and -218, BASC's -434 sits unremarkably among its comparators, larger than the two classical benchmarks and smaller than the two robust ones. At the values those methods actually return, -1,298 and -2,079, BASC is the smallest estimate in the table by a factor of three, and the ordering that supports the paper's competitiveness claim on this application does not survive. I make no claim about how this arose. I do think it has to be resolved before the West Germany application can be read as evidence for the method.
+
+This section carries less weight than its length suggests. It is the part of my report the authors are most likely to answer, and answering it would not settle the review. Suppose every reported ATT is confirmed as computed on the raw per-capita series exactly as stated, and the -218 and -159 turn out to be correct for whatever was actually run. The two findings that motivate this report are untouched. BASC's pre-1990 fit is still three times worse than the model it extends, and the weight vector printed in Table 7 still fits the pre-1990 path worse than uniform weights do. Neither of those is an inference from the ATTs; both are computed from the pre-treatment period alone, on the original scale, and one of them uses nothing but the authors' own published numbers.
+
+```{python}
+#| label: fig-paths
+fig, ax = plt.subplots()
+cmp.plot(ax=ax)                                   # mlsynth methods + observed
+ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2.2,
+        label="BASC", zorder=5)
+ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
+ax.axvline(1990, color="grey", ls=":", lw=1)
+ax.set_title("West Germany: observed vs synthetic counterfactuals")
+ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
+ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
+plt.tight_layout(); plt.show()
+```
+
+BASC's own posterior path, with its 95% credible band, is below. The band raises a second issue on its own account, separately from the fit.
+
+```{python}
+#| label: basc-coverage
+_pre = basc_cf[basc_cf["year"] < 1990]
+_in = ((_pre["observed"] >= _pre["lo95"]) & (_pre["observed"] <= _pre["hi95"]))
+Markdown(
+    f"In the pre-treatment period the 95% credible band contains the observed West "
+    f"German series in {int(_in.sum())} of {len(_pre)} years, with a mean band "
+    f"width of {float((_pre['hi95'] - _pre['lo95']).mean()):.0f} per-capita units."
+)
+```
+
+I raise this as a question about what the band represents, not as a coverage failure. A posterior credible band for a latent counterfactual mean is not an object one should expect to contain a noisy observed series 95% of the time, and the gap between the two depends on whether the reported interval is for the latent mean, for the posterior predictive, or for the counterfactual trajectory inclusive of the error term. The paper does not say which. What can be said without settling that is that the band is narrow, with a mean pre-treatment width about the size of the pre-treatment RMSE itself, and that it excludes the observed series in two thirds of the years where that series is observed. The authors should state which quantity the reported band is an interval for, and explain why the observed pre-treatment trajectory falls outside it in twenty of thirty years.
+
+```{python}
+#| label: fig-basc-ci
+fig, ax = plt.subplots()
+ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
+ax.fill_between(basc_cf["year"], basc_cf["lo95"], basc_cf["hi95"], color="#d62728", alpha=0.15, label="BASC 95% CI")
+ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2, label="BASC synthetic")
+ax.plot(basc_cf["year"], basc_cf["observed"], color="black", lw=2.4, label="West Germany (observed)")
+ax.axvline(1990, color="grey", ls=":", lw=1)
+ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
+ax.set_title("BASC posterior counterfactual (2000/2000)")
+ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
+plt.tight_layout(); plt.show()
+```
+
 ## Bottom line
 
-In my opinion, in order for us to continue reviewing this, the authors' GitHub page needs to be updated. Not just with their own BASC code, but with everything that went into producing these results. That is, we must be able to verify the importing of the data, the cleaning process that was done, the exact runs of fPCA-SC/ClusterSC they used, the exact code they used to produce B-MV, and the exact solver they used to produce the s-SCM weight vector in Table 7. Further, the authors must report not just the ATT, but the in-sample RMSE that each method produces, so that their claims may be directly checked against the syntax they used.
+For us to continue reviewing this, the authors' GitHub page needs everything that went into producing these results, not their BASC code alone: data import, cleaning, the runs of fPCA-SC and ClusterSC, the code for B-MV, and the solver that produced the s-SCM weight vector in Table 7. Every reported effect also needs its in-sample RMSE beside it, so the claims can be checked against the syntax that produced them.
 
 This request is narrower than it may sound, because the repository as it stands supplies exactly one of the five methods in Table 7. `github.com/sll-lee/paper-BASC` contains `BASC_realdata.R` and the `repgermany` data, and that script runs the BASC sampler and nothing else. There is no code in it for standard SCM, B-MV, fPCA-SYNTH or ClusterSC. `tidysynth` is declared in the script's package list and never called anywhere in the file, which is the only trace of a comparison method in the repository.
 
-The full script is the one non-negotiable item, and it is a larger request than the West Germany section on its own would justify.
+The full script is the one non-negotiable item, and it is a larger request than the West Germany section on its own would justify. The argument for it is four steps.
 
-Of the four comparison methods, I was able to obtain three independently and to check the fourth from the paper's own printed weights. Two of those four agree with the paper: fPCA-SYNTH to nine percent and ClusterSC to sixteen. Two do not: standard SCM and B-MV are each reported an order of magnitude away from what the method returns. So half of the comparison table fails when it is checked, and the half that fails is the textbook estimator and the model BASC is built on, the two a reader is least likely to doubt and most likely to take on trust.
+Two of the four comparison methods I could independently check reproduce the paper: fPCA-SYNTH to nine percent and ClusterSC to sixteen. Two produce materially different results from those reported: standard SCM and B-MV, each an order of magnitude away. Those two are the textbook estimator and the Bayesian synthetic control BASC is built on. And one of them, standard SCM, fails an elementary check on the paper's own published weights, with no implementation of mine involved.
 
-That failure rate is what carries past Section 5. The same four methods appear throughout the numerical study, and the competitiveness claim now rests on that study alone, since the West Germany application no longer supports it. Whatever routine produced a "standard SCM" weight vector that fits worse than uniform weights on West Germany is presumably the routine that produced standard SCM in every simulation cell in Tables 3 to 6. If it is mis-specified there too, then the reported margins over s-SCM across the entire numerical study are margins over a broken benchmark, and the paper's central claim is unsupported in both of the places it is made. I have no way to determine whether that is the case, and neither does any other reader, because the code does not exist publicly.
-
-That is the argument for asking for everything and not for a patch: data import, cleaning, every simulation, every table, every fit metric, every ATT, top to bottom, for all five methods. It is not a matter of convention or of the journal's policy. Half the numbers I can audit are wrong, the ones I cannot audit are generated by the same machinery, and the paper's surviving evidence depends entirely on them.
+The same four methods appear throughout the numerical study, on which the competitiveness claim now rests alone. Whatever routine produced the Table 7 s-SCM column is presumably the routine that produced standard SCM in every simulation cell in Tables 3 to 6, and no reader can determine whether it is mis-specified there too. Only the complete pipeline, from data import through cleaning, solver specification and reporting, can establish where the discrepancies originate.
 
 Two smaller points on the repository, offered as housekeeping. The README's structure block names `BASC_basc_realdata.R` and its run instructions say `source("clean_basc_realdata.R")`, while the file that is actually present is `BASC_realdata.R`; neither of the documented names exists. And the README says the data file may be absent for licensing reasons, but `data/repgermany.dta` is in fact committed.
 
-In-sample fit is not the sole determining factor in the validity of a novel SCM. For example, in the original Robust SC and Robust PCA SC papers by Amjad and Bayani respectively, the authors remark that their denoising solutions are desirable because they attain similar results as the original method without the need to match on predictors. As we can see here, these results hold even though PCR, clustered PCR/RPCA SC attain slightly worse in-sample fit compared to the baseline model from ADH 2015. However, it is not my belief that BASC attains comparable in-sample fit compared to the baseline toolkit. BASC does not even compete with the Forward DID method (a uniformly weighted subset of controls plus an intercept). The paper claims competitiveness to the baseline toolkit in simulation studies, but the competitiveness on the canonical datasets has not yet been demonstrated.
+In-sample fit is not the sole determining factor in the validity of a novel SCM, and the comparison table shows why: Amjad's Robust SC and Bayani's Robust PCA SC give up a little fit against the ADH 2015 baseline and buy something for it, namely results as good as the original without matching on predictors. That trade is a defensible one. BASC's is a different case. It is not slightly worse than the baseline toolkit, it is three times worse than the model it nests, and it does not compete with Forward DID, a uniformly weighted subset of controls plus an intercept. The paper claims competitiveness in the simulation studies; on the canonical dataset it has not been demonstrated.
 
 ## Recommendation
 
@@ -363,7 +361,7 @@ They do, however, mean the empirical section cannot presently be read as evidenc
 
 1. The full replication script, for everything, as set out above. This is the condition the rest depend on: several of the items below cannot be assessed by a referee until the code exists.
 
-2. Recompute Table 7 and reconcile it with the text. The reported s-SCM weight vector fits the pre-1990 path worse than uniform weights and implies a post-1990 effect of the opposite sign to the s-SCM effect reported on p.32. Whatever produced that column, it is not a solved standard synthetic control, and the table and text cannot both be right.
+2. Recompute Table 7 and reconcile it with the text. The reported s-SCM weight vector fits the pre-1990 path worse than uniform weights and implies a post-1990 effect of the opposite sign to the s-SCM effect reported on p.32. It cannot be the solution to the standard synthetic-control problem, and the table and text cannot both be right.
 
 3. Reconcile the reported standard SCM and B-MV effects. Both are reported an order of magnitude below what those methods return on this panel, while fPCA-SYNTH and ClusterSC are not.
 
@@ -371,7 +369,7 @@ They do, however, mean the empirical section cannot presently be read as evidenc
 
 5. Run BASC with $\gamma$ fixed to $\mathbf{1}$ and report the pre-1990 fit. Section 3.1 states that the prior then coincides with B-MV's, so the fit should return approximately 62. If it does, the gap documented here is attributable to donor selection and can be argued about on its merits. If it returns something near 169, the fitted model does not match the specification in Section 3.1 and the issue is not the West Germany application. I regard this as the single most informative check available, and it is cheap.
 
-6. Report convergence and coverage diagnostics for the real-data fit specifically, including the pre-treatment coverage of the credible band. A 95% band that contains the observed series in ten of thirty pre-treatment years needs comment.
+6. Report convergence diagnostics for the real-data fit specifically, and state which quantity the reported credible band is an interval for. The band contains the observed series in ten of thirty pre-treatment years, and what that indicates depends on whether the interval is for the latent mean, the posterior predictive, or the counterfactual trajectory inclusive of the error term.
 
 Items 2, 3 and 5 are the ones I would want to see resolved before the paper is reconsidered. Item 1 is what makes any of it checkable.
 
