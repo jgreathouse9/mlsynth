@@ -247,6 +247,24 @@ Two consequences follow, and both are for the authors. The pre-treatment fit rep
 
 This is not a discrepancy between the paper and the code. Equation (7) specifies the full-sample model, Section 3.1 specifies the constant post-treatment shift, and the sampler implements both faithfully. It is a consequence of a stated design that the paper does not discuss, arising in the one place where the design and the comparison interact most sharply, and it is not covered by the theory the paper offers.
 
+Fitting over the whole sample is not itself the problem. If the post-treatment term can absorb the post-treatment residual exactly, the treated observations after $T_0$ carry no information about $w$ whatever their values, and the weights are determined by the pre-period alone. Under least squares with one free parameter per post-treatment year that is exactly what happens: the estimate returns the pre-period solution to an L1 distance of 0.000, with the same pre-1990 RMSE of 60.8 and the same effect of -1,297. The best case for full-sample fitting is a tie with pre-period fitting. Every more restrictive effect model does worse, because the post-treatment observations then become informative about $w$ through a channel that is the treatment effect itself. What the constant does is force fourteen years of a widening gap through a single parameter, and the residual it cannot take is absorbed by the weights.
+
+That is testable in the authors' own sampler, because Section 3.1 supplies the alternative basis: $D_{1t} = 1$ together with $D_{2t} = t - T_0$. Generalising the released code to accept it is one substitution, `Dt * alpha.v` becoming `Dt %*% alpha.v`, at the five sites where that expression appears, plus a truncated-normal draw valid for a non-diagonal covariance. Run at $q = 1$ the generalised code is bit-identical to the original, returning 166.2, 169.4 and 222.1 across the three seeds.
+
+```{python}
+#| label: tbl-effect-basis
+eb = pd.read_csv(os.path.join(DATA, "effect_basis_diagnostic.csv"))
+_l = {"q1_const": r"$q=1$, $D_{1t}=1$ (as published)",
+      "q2_linear": r"$q=2$, adding $D_{2t}=t-T_0$"}
+_p = (eb.assign(Specification=eb.config.map(_l))
+        .pivot_table(index="Specification", columns="seed",
+                     values=["rmse_pre", "att_post"], sort=False).round(0))
+_p.columns = [f"{'RMSE' if a=='rmse_pre' else 'ATT'}, seed {s}" for a, s in _p.columns]
+Markdown(_p.reset_index().to_markdown(index=False))
+```
+
+Adding the one term moves the pre-1990 fit from 166 to 222 down to 135 to 149, and moves the estimated effect from -279 to -583 out to -978 to -1,438. Standard SCM on this panel returns -1,297. The reported -434 is specific to the constant, and the effect path the linear basis recovers is the one the application would lead a reader to expect: averaged over the seeds it is about -198 in 1990, -1,208 by 1996 and -2,385 by 2003, growing across the window instead of holding flat. The fit does not return all the way to 61, so the constant is not the whole of the gap, but it is most of it.
+
 The B-MV figure is not a one-off run of mine. `mlsynth`'s `MVBBSC` is a clean-room NumPyro port of the Martinez and Vives-i-Bastida generative model, and it is cross-validated against the authors' own `bsynth` package cell by cell on this very panel as a standing benchmark in the library (`benchmarks/cases/mvbbsc_germany.py`, reference script `benchmarks/R/mvbbsc_bsynth_ref.R`, captured against `bsynth` at commit `22d960f`): pre-1990 RMSE 62.14 against 61.96, mean post-1990 ATT -2081.7 against -2064.6, and mean pre-1990 credible-band width 297.1 against 296.6. The reference is `bayesianSynth` with `predictor_match = FALSE`, which is the outcome-only model with no covariates and no Gaussian-process term.
 
 That last detail matters for a comparison the authors might otherwise question. The B-MV fit of 62 is obtained *without* a GP. BASC's 169 is obtained *with* one. If anything the two are stacked in BASC's favour, and it still fits nearly three times worse.
@@ -443,7 +461,7 @@ Most of my concerns sit in Section 5, in Table 7, and in what a referee can veri
 
 1. The full replication script, for everything, as set out above. This is the condition the rest depend on: several of the items below cannot be assessed by a referee until the code exists.
 
-2. State whether estimating the donor weights from the post-treatment outcomes is intended, and defend it if so. The likelihood scores residuals over all 44 years with a single constant absorbing the post-1990 divergence, so the weights are fitted to the period the counterfactual is supposed to predict. This is the finding I would most want answered. It accounts for the pre-treatment fit, it reproduces the published Table 7 weights from least squares alone, and it means the reported effect and the weights are estimated from the same divergence. If it is intended, the paper needs to say so and to establish that the effect remains identified; if it is not, Section 5 and the numerical study both change.
+2. Rerun Section 5 with a non-constant effect basis, and report Table 7 and the ATT under it. Because Equation (7) is fitted over all 44 years while $q = 1$ gives the post-treatment term a single constant, the donor weights absorb the part of the widening post-1990 gap that the constant cannot represent. In the authors' own sampler, adding the $D_{2t} = t - T_0$ term that Section 3.1 already describes moves the pre-1990 fit from 166 to 222 down to 135 to 149 and the effect from -279 to -583 out to -978 to -1,438, against -1,297 for standard SCM. This is the finding I would most want addressed, and the remedy is inside the paper's existing framework. If the constant is preferred on other grounds, the paper needs to argue that the weights remain interpretable when they are fitted partly to the effect being estimated, and the reported -434 needs to be presented as conditional on that choice.
 
 3. Recompute Table 7 and reconcile it with the text. The reported s-SCM weight vector fits the pre-1990 path worse than uniform weights and implies a post-1990 effect of the opposite sign to the s-SCM effect reported on p.32. It cannot be the solution to the standard synthetic-control problem, and the table and text cannot both be right.
 
