@@ -211,19 +211,33 @@ _y = np.asarray(_p["y"]).flatten(); _X = np.asarray(_p["donor_matrix"])
 _names = list(_p["donor_names"]); _npre = int(_p["pre_periods"])
 _pre = np.arange(len(_y)) < _npre; _D = (~_pre).astype(float)
 
-def _solve(mask, free_alpha):
-    w = cp.Variable(_X.shape[1], nonneg=True); a = cp.Variable(1)
-    r = _y[mask] - _X[mask] @ w - (cp.multiply(_D[mask], a) if free_alpha else 0)
+def _solve(mask, basis):
+    """Least squares on the simplex. `basis` is the post-treatment design, or
+    None for standard SCM, which admits no post-treatment term at all."""
+    w = cp.Variable(_X.shape[1], nonneg=True)
+    if basis is None:
+        r = _y[mask] - _X[mask] @ w
+    else:
+        a = cp.Variable(basis.shape[1]); r = _y[mask] - _X[mask] @ w - basis[mask] @ a
     cp.Problem(cp.Minimize(cp.sum_squares(r)), [cp.sum(w) == 1]).solve(solver=cp.CLARABEL)
-    return np.asarray(w.value).ravel(), float(np.atleast_1d(a.value)[0]) if free_alpha else 0.0
+    return np.asarray(w.value).ravel(), (np.atleast_1d(a.value) if basis is not None else np.zeros(1))
 
-w_pre, _   = _solve(_pre, False)
-w_all, a_all = _solve(np.ones(len(_y), bool), True)
+_all = np.ones(len(_y), bool)
+_const = _D.reshape(-1, 1)                       # a single constant shift, BASC's q = 1
+_sat = np.eye(len(_y))[:, ~_pre]                 # one free parameter per post-treatment year
+w_pre, _    = _solve(_pre, None)
+w_all, a_all = _solve(_all, _const)
+w_sat, _     = _solve(_all, _sat)
 _rm = lambda w: float(np.sqrt(np.mean((_y[_pre] - (_X @ w)[_pre]) ** 2)))
+_gap = lambda w: float((_y[~_pre] - (_X @ w)[~_pre]).mean())
 Markdown(pd.DataFrame({
-    "Weights fit on": ["pre-1990 only (standard SCM)", "all 44 years, one constant shift"],
-    "pre-1990 RMSE": [round(_rm(w_pre), 1), round(_rm(w_all), 1)],
-    "post-1990 effect": [round(float((_y[~_pre] - (_X @ w_pre)[~_pre]).mean()), 0), round(a_all, 0)],
+    "Weights fit on": ["pre-1990 only (standard SCM)",
+                       "all 44 years, one constant shift",
+                       "all 44 years, one parameter per post year"],
+    "pre-1990 RMSE": [round(_rm(w_pre), 1), round(_rm(w_all), 1), round(_rm(w_sat), 1)],
+    "post-1990 effect": [round(_gap(w_pre), 0), round(float(a_all[0]), 0), round(_gap(w_sat), 0)],
+    "L1 from the pre-only weights": [0.0, round(float(np.abs(w_all - w_pre).sum()), 3),
+                                     round(float(np.abs(w_sat - w_pre).sum()), 3)],
 }).to_markdown(index=False))
 ```
 
