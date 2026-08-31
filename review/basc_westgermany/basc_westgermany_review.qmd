@@ -253,22 +253,6 @@ Fitting over the whole sample is not itself the problem. If the post-treatment t
 
 That is testable in the authors' own sampler, because Section 3.1 supplies the alternative basis: $D_{1t} = 1$ together with $D_{2t} = t - T_0$. Generalising the released code to accept it is one substitution, `Dt * alpha.v` becoming `Dt %*% alpha.v`, at the five sites where that expression appears, plus a truncated-normal draw valid for a non-diagonal covariance. Run at $q = 1$ the generalised code is bit-identical to the original, returning 166.2, 169.4 and 222.1 across the three seeds and 195.5 at 25000/25000.
 
-```{python}
-#| label: tbl-effect-basis
-eb = pd.read_csv(os.path.join(DATA, "effect_basis_diagnostic.csv"))
-_l = {"q1_const": r"$q=1$, $D_{1t}=1$ (as published)",
-      "q2_linear": r"$q=2$, adding $D_{2t}=t-T_0$"}
-_col = lambda r: (f"2000/2000, seed {r.seed}" if r.N == 2000 else "25000/25000")
-_p = (eb.assign(Specification=eb.config.map(_l), col=eb.apply(_col, axis=1))
-        .pivot_table(index="Specification", columns="col",
-                     values=["rmse_pre", "att_post"], sort=False))
-_order = [c for c in ["2000/2000, seed 100", "2000/2000, seed 200",
-                      "2000/2000, seed 300", "25000/25000"]]
-_p = _p.reindex(columns=pd.MultiIndex.from_product([["rmse_pre", "att_post"], _order])).round(0)
-_p.columns = [f"{'RMSE' if a == 'rmse_pre' else 'ATT'}, {c}" for a, c in _p.columns]
-Markdown(_p.reset_index().to_markdown(index=False))
-```
-
 Adding the one term moves the pre-1990 fit from 166 to 222 down to 135 to 149, and moves the estimated effect from -279 to -583 out to -978 to -1,438. Standard SCM on this panel returns -1,297. Lengthening the chain fiftyfold does not disturb this: at 25000/25000 the published specification returns 195.5 and -390, and the linear basis returns 141.3 and -1,123, so the separation holds at the chain length the paper's own convergence discussion would favour. The reported -434 is specific to the constant, and the effect path the linear basis recovers is the one the application would lead a reader to expect: averaged over the seeds it is about -198 in 1990, -1,208 by 1996 and -2,385 by 2003, growing across the window instead of holding flat. The fit does not return all the way to 61, so the constant is not the whole of the gap, but it is most of it.
 
 The B-MV figure is not a one-off run of mine. `mlsynth`'s `MVBBSC` is a clean-room NumPyro port of the Martinez and Vives-i-Bastida generative model, and it is cross-validated against the authors' own `bsynth` package cell by cell on this very panel as a standing benchmark in the library (`benchmarks/cases/mvbbsc_germany.py`, reference script `benchmarks/R/mvbbsc_bsynth_ref.R`, captured against `bsynth` at commit `22d960f`): pre-1990 RMSE 62.14 against 61.96, mean post-1990 ATT -2081.7 against -2064.6, and mean pre-1990 credible-band width 297.1 against 296.6. The reference is `bayesianSynth` with `predictor_match = FALSE`, which is the outcome-only model with no covariates and no Gaussian-process term.
