@@ -476,6 +476,45 @@ term. This collapses to Proposition 2.1's
 :math:`T_0 \gg |\mathcal{T}_2|`. The 95% Wald interval and two-sided
 p-value follow in the usual way.
 
+Serially correlated residuals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+That formula prices the two averages with :math:`\widehat{\sigma}^2`, the
+residual's variance at a single date. The variance of an average over a
+window is not the variance at a date: it is the long-run variance, which
+sums the autocovariances :math:`\gamma_k = \operatorname{Cov}(v_t,
+v_{t+k})`. The two agree exactly when every :math:`\gamma_k` with
+:math:`k \ge 1` is zero, which the online appendix's iid assumptions impose.
+Assumption 2.1 in the main text asks only for weak dependence, and under
+that weaker condition the estimator is still consistent while the interval
+is not. :doc:`properties/fdid_serial_correlation` measures the cost:
+coverage of the nominal 95% interval falls to 0.53 when the residual is an
+AR(1) with coefficient 0.9.
+
+Setting ``inference="hac"`` reports instead
+
+.. math::
+
+   \mathrm{SE}_{\text{HAC}}(\widehat{\tau})^2
+     = \sum_{T \in \{T_0,\, |\mathcal{T}_2|\}} \frac{1}{T}
+       \Bigl[\widehat\gamma_0
+         + 2\sum_{k=1}^{\min(L,\,T-1)}
+             \bigl(1 - \tfrac{k}{T}\bigr)\widehat\gamma_k\Bigr],
+
+with the autocovariances estimated on the pre-period residuals -- the only
+stretch long enough to estimate them, and the stretch
+:math:`\widehat\sigma^2` already uses. The weight :math:`1 - k/T` is not a
+kernel choice: it is the exact coefficient lag :math:`k` carries in the
+variance of a length-:math:`T` mean, so truncation at :math:`L` is the only
+approximation. Each block's sum is floored at :math:`\widehat\gamma_0`,
+since a truncated alternating sequence can fall below the iid value.
+
+The truncation defaults to :math:`L = \min(|\mathcal{T}_2| - 1,\,
+T_0 / 10)`, and ``lrvar_lag`` overrides it. The first term is exhaustive:
+lag :math:`k` enters the post block with weight :math:`1 - k/|\mathcal{T}_2|`,
+which is zero at :math:`k = |\mathcal{T}_2|`. The second is the usual
+one-tenth-of-sample cap on the pre-period sample supplying the estimates.
+
 Consistency of the selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
