@@ -72,7 +72,7 @@ for (cf in configs) {
   cat(sprintf("%-13s rmse_pre=%8.2f  att=%9.2f  per-draw rmse first/median/last = %.0f/%.0f/%.0f  sigma=%.0f\n",
               cf$tag, row$rmse_pre, row$att_post,
               row$draw_rmse_first, row$draw_rmse_median, row$draw_rmse_last, row$sigma_post))
-  write.csv(data.frame(draw = 1:N, rmse = per_draw), sprintf("draws_%s_%d.csv", cf$tag, N), row.names = FALSE)
-  write.csv(data.frame(year = years, observed = y, synthetic = path), sprintf("path_%s_%d.csv", cf$tag, N), row.names = FALSE)
+  write.csv(data.frame(draw = 1:N, rmse = per_draw), sprintf("draws_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
+  write.csv(data.frame(year = years, observed = y, synthetic = path), sprintf("path_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
 }
-write.csv(out, sprintf("init_results_%d.csv", N), row.names = FALSE)
+write.csv(out, sprintf("init_results_%d_%d.csv", N, seed), row.names = FALSE)

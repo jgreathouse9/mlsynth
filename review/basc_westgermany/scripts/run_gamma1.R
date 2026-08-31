@@ -85,8 +85,8 @@ for (cf in configs) {
               row$n_donors, row$sigma_post, el))
 
   write.csv(data.frame(year = years, observed = y, synthetic = path, donor_only = don),
-            sprintf("path_%s_%d.csv", cf$tag, N), row.names = FALSE)
+            sprintf("path_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
   write.csv(data.frame(donor = donor_names, weight = colMeans(beta), incl_prob = colMeans(g)),
-            sprintf("weights_%s_%d.csv", cf$tag, N), row.names = FALSE)
+            sprintf("weights_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
 }
-write.csv(out, sprintf("gamma1_results_%d.csv", N), row.names = FALSE)
+write.csv(out, sprintf("gamma1_results_%d_%d.csv", N, seed), row.names = FALSE)

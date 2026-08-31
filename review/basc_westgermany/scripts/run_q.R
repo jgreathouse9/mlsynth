@@ -88,8 +88,8 @@ for (cf in configs) {
               if (cf$q > 1) sprintf("%.1f, %.1f", row$alpha1, row$alpha2) else sprintf("%.1f", row$alpha1),
               row$n_donors, el))
   write.csv(data.frame(year = years, observed = y, synthetic = path),
-            sprintf("path_%s_%d.csv", cf$tag, N), row.names = FALSE)
+            sprintf("path_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
   write.csv(data.frame(donor = donor_names, weight = colMeans(beta), incl_prob = colMeans(g)),
-            sprintf("weights_%s_%d.csv", cf$tag, N), row.names = FALSE)
+            sprintf("weights_%s_%d_%d.csv", cf$tag, N, seed), row.names = FALSE)
 }
-write.csv(out, sprintf("q_results_%d.csv", N), row.names = FALSE)
+write.csv(out, sprintf("q_results_%d_%d.csv", N, seed), row.names = FALSE)

@@ -36,3 +36,17 @@ if __name__ == "__main__":
     with open("donors.csv", "w") as fh:
         fh.write("\n".join(donors) + "\n")
     print(f"wrote y.csv {y.shape}, x.csv {X.shape}, donors.csv ({len(donors)} donors)")
+
+    # run_init.R starts the chain at the best simplex fit, which is what standard
+    # SCM solves for. Taken from mlsynth so the starting point is the same object
+    # the report compares BASC against, not a separate solve.
+    from mlsynth import VanillaSC
+
+    d = d.copy()
+    d["treat"] = ((d.country == "West Germany") & (d.year >= 1990)).astype(int)
+    res = VanillaSC({"df": d, "unitid": "country", "time": "year", "outcome": "gdp",
+                     "treat": "treat", "display_graphs": False}).fit()
+    w = np.array([float(res.weights.donor_weights.get(c, 0.0)) for c in donors])
+    np.savetxt("w_opt.csv", np.maximum(w, 1e-8), delimiter=",")
+    print(f"wrote w_opt.csv (VanillaSC, pre-1990 RMSE "
+          f"{res.fit_diagnostics.rmse_pre:.3f}, ATT {res.effects.att:.1f})")

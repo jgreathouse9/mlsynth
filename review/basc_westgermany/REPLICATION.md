@@ -8,6 +8,27 @@ comparison, the least-squares results, the Table 7 arithmetic and the rounding
 check all run at render time from `repgermany.dta`. The MCMC results are slower
 than a render, so they are produced by the R scripts below and read from `data/`.
 
+## One command
+
+```
+./run_all.sh              # short chains, about 20 minutes
+./run_all.sh --full       # adds the 25000/25000 chains, about 2 hours
+./run_all.sh --render-only  # re-render from the CSVs already here
+```
+
+It clones the authors' sampler, installs `mlsynth` from source, derives the
+patched sampler files, runs the diagnostics, consolidates them into `data/` and
+renders the report. Completed steps are skipped on a re-run, so an interrupted
+run resumes. R and Quarto are checked for and named if absent; everything else
+is fetched. The steps are listed individually below for anyone who wants to run
+them one at a time.
+
+Two notes. PyPI carries `mlsynth` 1.0.0 and the report needs 2.x, so the script
+installs from GitHub. And a short run merges into the shipped CSVs on the keys
+`config`, `N` and `seed`, so it updates what it recomputed and leaves the long
+chains in place; without `--full` the report's 25000/25000 BASC row still comes
+from the shipped file.
+
 ## What is not included
 
 The authors' Gibbs sampler is not redistributed. `scripts/prepare_sampler.py`
@@ -42,7 +63,11 @@ walking up for a `basedata` directory.
 ## Order
 
 ```
-python scripts/export_inputs.py basedata/repgermany.dta   # y.csv, x.csv, donors.csv
+git clone --depth 1 https://github.com/sll-lee/paper-BASC
+pip install "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth@main"
+pip install jupyter matplotlib tabulate cvxpy
+
+python scripts/export_inputs.py basedata/repgermany.dta   # y.csv, x.csv, donors.csv, w_opt.csv
 python scripts/prepare_sampler.py paper-BASC/BASC_realdata.R
 
 Rscript scripts/basc_run.R                          # BASC posterior paths and weights
@@ -50,6 +75,8 @@ Rscript scripts/run_gamma1.R  2000 2000 200         # the gamma = 1 diagnostic
 Rscript scripts/run_q.R       2000 2000 200         # q = 1 against q = 2
 Rscript scripts/run_decomp.R  2000 2000 200         # selection and alpha_u at q = 2
 Rscript scripts/run_init.R    2000 2000 200         # chain started at the best simplex fit
+
+python scripts/collect_results.py                   # per-seed outputs into data/
 
 quarto render basc_westgermany_review.qmd
 ```
@@ -88,8 +115,10 @@ data/
   gamma1_diagnostic.csv       gamma = 1 runs, three configurations
   effect_basis_diagnostic.csv q = 1 against q = 2
   selection_decomposition.csv selection and alpha_u crossed, at q = 2
+run_all.sh                    the whole pipeline
 scripts/
-  export_inputs.py            y.csv, x.csv, donors.csv from the .dta
+  export_inputs.py            y.csv, x.csv, donors.csv, w_opt.csv from the .dta
+  collect_results.py          merges the per-seed outputs into data/
   prepare_sampler.py          derives the sampler files from the authors' code
   basc_run.R                  BASC posterior paths and weights
   run_gamma1.R                gamma forced to 1
