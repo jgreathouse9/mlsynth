@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Reproduce every number in the BASC West Germany referee report.
+# Check every numerical claim in the BASC West Germany referee report, from
+# fresh clones and a fresh install.
 #
 #   ./run_all.sh              short chains, about 20 minutes
 #   ./run_all.sh --full       adds the 25000/25000 chains, about 2 hours
-#   ./run_all.sh --render-only  re-render the report from the CSVs already here
+#   ./run_all.sh --verify-only  re-check against the CSVs already here
 #
-# Fetches the authors' sampler and mlsynth, derives the patched sampler files
-# from the authors' own code, runs the MCMC diagnostics, and renders the report.
-# Existing outputs are left alone, so the script can be re-run after an
-# interruption and will pick up where it stopped.
+# Fetches the authors' sampler and mlsynth from main, derives the patched
+# sampler files from the authors' own code, runs the MCMC diagnostics, and then
+# recomputes every claim the report makes and compares it against the stated
+# value. Exits non-zero if any claim fails. Rendering the report is optional and
+# needs Quarto; the verification does not.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -16,7 +18,7 @@ FULL=0; RENDER_ONLY=0
 for a in "$@"; do
   case "$a" in
     --full) FULL=1 ;;
-    --render-only) RENDER_ONLY=1 ;;
+    --verify-only) RENDER_ONLY=1 ;;
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
 done
@@ -35,7 +37,7 @@ have Rscript || {
   echo "Debian/Ubuntu: apt-get install r-base-core r-cran-mass" >&2
   exit 1; }
 
-have quarto || echo "quarto not found: the report will not be rendered, everything else will run."
+have quarto || echo "quarto absent: the report will not be rendered. Verification does not need it."
 echo "python3 $(python3 -c 'import sys;print(".".join(map(str,sys.version_info[:3])))'), $(Rscript -e 'cat(R.version.string)' 2>/dev/null)"
 
 # ------------------------------------------------------------------ python deps
@@ -82,12 +84,12 @@ if [ "$RENDER_ONLY" -eq 0 ]; then
     run_if_absent "q_results_2000_$s.csv"      run_q.R      2000 2000 "$s"
     run_if_absent "decomp_2000_$s.csv"         run_decomp.R 2000 2000 "$s"
   done
-  run_if_absent "init_results_2000.csv" run_init.R 2000 2000 200
+  run_if_absent "init_results_2000_200.csv" run_init.R 2000 2000 200
 
   if [ "$FULL" -eq 1 ]; then
     say "long chains at 25000/25000, seed 200 (about 25 minutes each)"
-    run_if_absent "gamma1_results_25000.csv" run_gamma1.R 25000 25000 200
-    run_if_absent "q_results_25000.csv"      run_q.R      25000 25000 200
+    run_if_absent "gamma1_results_25000_200.csv" run_gamma1.R 25000 25000 200
+    run_if_absent "q_results_25000_200.csv"  run_q.R      25000 25000 200
   else
     echo "  (skipping the 25000/25000 chains; pass --full to run them)"
   fi
@@ -96,13 +98,19 @@ if [ "$RENDER_ONLY" -eq 0 ]; then
   python3 scripts/collect_results.py
 fi
 
-# ----------------------------------------------------------------------- render
+# ------------------------------------------------------------------ verification
+say "checking every claim in the report"
+MCMC_FLAG=""
+if [ -f data/gamma1_diagnostic.csv ]; then MCMC_FLAG="--with-mcmc"; fi
+# verify.py exits non-zero when a claim fails; capture that instead of aborting
+STATUS=0
+python3 verify.py $MCMC_FLAG --json verification.json || STATUS=$?
+
+# ------------------------------------------------------------- optional render
 if have quarto; then
   say "rendering the report"
-  quarto render basc_westgermany_review.qmd
-  echo "wrote basc_westgermany_review.html"
-else
-  say "quarto absent, skipping the render"
+  quarto render basc_westgermany_review.qmd || echo "render failed; verification above is unaffected"
 fi
 
 say "done"
+exit $STATUS

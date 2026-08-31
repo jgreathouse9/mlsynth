@@ -1,33 +1,41 @@
 # Replication package for the BASC West Germany referee report
 
-Every number in the report is produced by something in this package. Nothing is
-transcribed from a run that is not here, and nothing is hardcoded.
-
-The report itself computes most of its numbers when it renders: the toolkit
-comparison, the least-squares results, the Table 7 arithmetic and the rounding
-check all run at render time from `repgermany.dta`. The MCMC results are slower
-than a render, so they are produced by the R scripts below and read from `data/`.
+Every numerical claim the report makes is recomputed here from the panel and
+checked against the value the report states. Nothing is transcribed from a run
+that is not in this package, and nothing is hardcoded.
 
 ## One command
 
 ```
-./run_all.sh              # short chains, about 20 minutes
-./run_all.sh --full       # adds the 25000/25000 chains, about 2 hours
-./run_all.sh --render-only  # re-render from the CSVs already here
+./run_all.sh                # short chains, about 20 minutes
+./run_all.sh --full         # adds the 25000/25000 chains, about 2 hours
+./run_all.sh --verify-only  # re-check against the CSVs already here
 ```
 
-It clones the authors' sampler, installs `mlsynth` from source, derives the
-patched sampler files, runs the diagnostics, consolidates them into `data/` and
-renders the report. Completed steps are skipped on a re-run, so an interrupted
-run resumes. R and Quarto are checked for and named if absent; everything else
-is fetched. The steps are listed individually below for anyone who wants to run
-them one at a time.
+It clones the authors' sampler, installs `mlsynth` from `main`, derives the
+patched sampler files from the authors' own code, runs the MCMC diagnostics, and
+then recomputes every claim and compares it against the report. It exits
+non-zero if any claim fails, and writes `verification.json`. Completed steps are
+skipped on a re-run, so an interrupted run resumes.
 
-Two notes. PyPI carries `mlsynth` 1.0.0 and the report needs 2.x, so the script
-installs from GitHub. And a short run merges into the shipped CSVs on the keys
-`config`, `N` and `seed`, so it updates what it recomputed and leaves the long
-chains in place; without `--full` the report's 25000/25000 BASC row still comes
-from the shipped file.
+Rendering the report is not part of this. `verify.py` needs no Quarto and no
+LaTeX; if Quarto happens to be installed the report is rendered afterwards as a
+convenience, and a failure there does not affect the verification.
+
+The check itself:
+
+```
+python verify.py                # the deterministic claims, about a minute
+python verify.py --with-mcmc    # also the claims read from the R outputs
+```
+
+Each line prints the claim, the value the report states, and the value computed
+here. Deterministic claims are held to a tight tolerance; MCMC claims are given
+a band, since a chain reproduces to its seed and not to a decimal.
+
+PyPI carries `mlsynth` 1.0.0 and the report needs 2.x, so the install comes from
+GitHub. A short run merges into the shipped CSVs on `config`, `N` and `seed`, so
+it updates what it recomputed and leaves the long chains in place.
 
 ## What is not included
 
@@ -77,8 +85,7 @@ Rscript scripts/run_decomp.R  2000 2000 200         # selection and alpha_u at q
 Rscript scripts/run_init.R    2000 2000 200         # chain started at the best simplex fit
 
 python scripts/collect_results.py                   # per-seed outputs into data/
-
-quarto render basc_westgermany_review.qmd
+python verify.py --with-mcmc                        # check every claim
 ```
 
 `run_gamma1.R`, `run_q.R` and `run_decomp.R` take burn-in, sampling and seed.
@@ -116,6 +123,7 @@ data/
   effect_basis_diagnostic.csv q = 1 against q = 2
   selection_decomposition.csv selection and alpha_u crossed, at q = 2
 run_all.sh                    the whole pipeline
+verify.py                     recomputes and checks every claim
 scripts/
   export_inputs.py            y.csv, x.csv, donors.csv, w_opt.csv from the .dta
   collect_results.py          merges the per-seed outputs into data/
