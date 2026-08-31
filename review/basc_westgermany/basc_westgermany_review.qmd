@@ -383,17 +383,15 @@ The paper's five ATT estimates (p.32) are -434 for BASC, -218 for B-MV, -159 for
 
 Three of the five reproduce. BASC does, as noted above. fPCA-SYNTH is the functional-PCA screen followed by robust PCA and non-negative least squares set out in Section 2.4.1; `CLUSTERSC`'s RPCA-SC path is that procedure, and it returns -1,501 against the reported -1,655, about nine percent apart. ClusterSC is the SVD-clustering-plus-PCR procedure of Rho et al.; `CLUSTERSC`'s PCR/RSC path returns -2,039 against the reported -2,427, about sixteen percent. Both are within the range I would expect two runs of a two-stage screen to differ by, and I raise no objection to either as an effect estimate.
 
-The fPCA-SYNTH row does carry a smaller question, because Section 5 states that it "is implemented using the `mlsynth` package in Python", which is the package I am running. Two runs of the same code should agree exactly, so the nine percent needs a source. Section 5 gives the two settings: the number of functional principal components chosen by the elbow rule to explain at least 90% of pre-intervention variation, and the number of clusters chosen by maximising the average silhouette coefficient. Running `CLUSTERSC` that way returns -1,500.9, and the variance target does not move it: 0.90 through 0.95 all select the same components and return the same estimate. Fixing the cluster count by hand moves it as far as -1,620.0 at four or five clusters, which the silhouette criterion does not select here. So the reported -1,655 is not recovered at the stated settings. A version difference is the most likely explanation, since the package has changed since the analysis was run, and I raise it only because the replication script would settle in one line what I can otherwise only guess at.
+The fPCA-SYNTH row carries a smaller question, since Section 5 states it "is implemented using the `mlsynth` package in Python", which is the package I am running, and two runs of the same code should agree exactly. At the settings Section 5 gives, `CLUSTERSC` returns -1,500.9 and not the reported -1,655. A version difference is the likely explanation, and the replication script would settle it.
 
 That is what isolates the last two rows. The paper is working on a scale where an effect of -1,655 or -2,427 is the natural size, because three of its own five numbers are, and I can obtain all three. Standard SCM and B-MV are reported an order of magnitude below what those methods return on the same panel, so a single mis-scaled outcome does not account for it: whatever produced -218 and -159 was applied to those two methods and not to the other three. They are also the two whose reported values I can check most directly, standard SCM through the weight vector Table 7 prints in full and B-MV because two independent implementations of it exist.
 
-The BASC row carries a caveat in the authors' favour. My chains are far shorter than theirs: 500/500, 2,000/2,000 and 25,000/25,000 against the paper's three chains of 500,000 after 500,000 burn-in, which Section 5 reports as converged with Gelman-Rubin below 1.01 and diagnoses further in Appendix C.2. Across my three the ATT moves over -702, -583 and -390 without settling, so I do not read the gap from the reported -434 as a discrepancy. It is most likely my burn-in, and the reported value has the better claim to being the converged one.
+The BASC row carries a caveat in the authors' favour. My chains are far shorter than the paper's three of 500,000 after 500,000 burn-in, and across them the ATT moves over -702, -583 and -390 without settling, so I do not read the gap from the reported -434 as a discrepancy. The in-sample fit is not similarly unstable, holding between 169 and 195 across a fiftyfold change in chain length, so the fit finding does not depend on it and the ATT reproduction is not something I rest on.
 
-What matters for this report is that the in-sample fit is not similarly unstable. It stays in a 169 to 195 band across a fiftyfold change in chain length, and the shortest and longest chains bracket the same conclusion. The fit finding does not depend on chain length; the ATT reproduction does, and I am not resting anything on it.
+The direction is one-sided. At -159 and -218, BASC's -434 sits unremarkably among its comparators; at the values those methods return, -1,298 and -2,079, it is the smallest estimate in the table by a factor of three, and the ordering that supports the competitiveness claim on this application does not survive.
 
-The direction is also one-sided. At -159 and -218, BASC's -434 sits unremarkably among its comparators, larger than the two classical benchmarks and smaller than the two robust ones. At the values those methods actually return, -1,298 and -2,079, BASC is the smallest estimate in the table by a factor of three, and the ordering that supports the paper's competitiveness claim on this application does not survive. I make no claim about how this arose. I do think it has to be resolved before the West Germany application can be read as evidence for the method.
-
-This section carries less weight than its length suggests. It is the part of my report the authors are most likely to answer, and answering it would not settle the review. Suppose every reported ATT is confirmed as computed on the raw per-capita series exactly as stated, and the -218 and -159 turn out to be correct for whatever was actually run. The two findings that motivate this report are untouched. The donor weights are still estimated from the post-treatment outcomes, which is a property of Equation (7) and of the sampler that fits it, and the weight vector printed in Table 7 still fits the pre-1990 path worse than uniform weights do. Neither is an inference from the reported ATTs. The first is read off the model, confirmed by running the authors' own sampler, and reproduced by least squares from their published weights; the second uses nothing but their published numbers.
+This is the part of my report the authors are most likely to answer, and answering it would not settle the review. Suppose every reported ATT is confirmed as computed on the raw per-capita series exactly as stated, and the -218 and -159 turn out to be correct for whatever was actually run. The two findings that motivate this report are untouched. The donor weights are still estimated from the post-treatment outcomes, which is a property of Equation (7) and of the sampler that fits it, and the weight vector printed in Table 7 still fits the pre-1990 path worse than uniform weights do. Neither is an inference from the reported ATTs. The first is read off the model, confirmed by running the authors' own sampler, and reproduced by least squares from their published weights; the second uses nothing but their published numbers.
 
 ```{python}
 #| label: fig-paths
@@ -405,35 +403,6 @@ ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
 ax.axvline(1990, color="grey", ls=":", lw=1)
 ax.set_title("West Germany: observed vs synthetic counterfactuals")
 ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
-ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
-plt.tight_layout(); plt.show()
-```
-
-BASC's own posterior path, with its 95% credible band, is below. The band raises a second issue on its own account, separately from the fit.
-
-```{python}
-#| label: basc-coverage
-_pre = basc_cf[basc_cf["year"] < 1990]
-_in = ((_pre["observed"] >= _pre["lo95"]) & (_pre["observed"] <= _pre["hi95"]))
-Markdown(
-    f"In the pre-treatment period the 95% credible band contains the observed West "
-    f"German series in {int(_in.sum())} of {len(_pre)} years, with a mean band "
-    f"width of {float((_pre['hi95'] - _pre['lo95']).mean()):.0f} per-capita units."
-)
-```
-
-I raise this as a question about what the band represents, not as a coverage failure. A posterior credible band for a latent counterfactual mean is not an object one should expect to contain a noisy observed series 95% of the time, and the gap between the two depends on whether the reported interval is for the latent mean, for the posterior predictive, or for the counterfactual trajectory inclusive of the error term. The paper does not say which. What can be said without settling that is that the band is narrow, with a mean pre-treatment width about the size of the pre-treatment RMSE itself, and that it excludes the observed series in two thirds of the years where that series is observed. The authors should state which quantity the reported band is an interval for, and explain why the observed pre-treatment trajectory falls outside it in twenty of thirty years.
-
-```{python}
-#| label: fig-basc-ci
-fig, ax = plt.subplots()
-ax.axvspan(basc_cf["year"].min(), 1990, color="0.92", zorder=0)
-ax.fill_between(basc_cf["year"], basc_cf["lo95"], basc_cf["hi95"], color="#d62728", alpha=0.15, label="BASC 95% CI")
-ax.plot(basc_cf["year"], basc_cf["synthetic"], color="#d62728", lw=2, label="BASC synthetic")
-ax.plot(basc_cf["year"], basc_cf["observed"], color="black", lw=2.4, label="West Germany (observed)")
-ax.axvline(1990, color="grey", ls=":", lw=1)
-ax.set_xlabel("year"); ax.set_ylabel("GDP per capita")
-ax.set_title("BASC posterior counterfactual (2000/2000)")
 ax.legend(fontsize=8, loc="upper left"); ax.grid(alpha=0.25)
 plt.tight_layout(); plt.show()
 ```
