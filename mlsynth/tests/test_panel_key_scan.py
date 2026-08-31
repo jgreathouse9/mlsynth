@@ -21,6 +21,14 @@ producing them, so a second pivot conformed and cost nothing at review.
 Counting is deterministic, which is why the assertion is a count and not a
 wall-clock threshold.
 
+Those two counts cover the passes a reader can see at ``dataprep``'s call site,
+and ``PanelKeys`` holds three more derivations behind them: the cell index, the
+duplicate verdict, and the two axis sorts. ``TestDerivedWorkCount`` counts each
+of those as well, because a count that stops at the object's boundary leaves
+the caching itself unasserted -- which is what let two mutants of the axis
+sorts and the cell index survive the weekly run. All three derivations return
+the same value when recomputed, so no equivalence test below can see them move.
+
 The equivalence tests pass before the change and must pass after it. They are
 the whole acceptance bar, since 51 modules read what ``dataprep`` returns. They
 check three layers, and the third is easy to lose: the values, the failures and
@@ -126,6 +134,83 @@ class PivotCounter:
         return len(set(self.calls))
 
 
+class AxisSortCounter:
+    """Counts ``np.argsort`` calls -- the two axis sorts a pivot needs.
+
+    ``_fast_pivot`` takes its sorted axes from ``keys.unit_order`` and
+    ``keys.time_order``, which derive once and are held. A pivot that sorts the
+    levels itself returns the identical permutation, so no frame and no value
+    moves; the sort is simply paid for again, and a count is the only thing
+    that sees it.
+    """
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        real = np.argsort
+
+        def traced(a, *args, **kwargs):
+            self.calls += 1
+            return real(a, *args, **kwargs)
+
+        monkeypatch.setattr(np, "argsort", traced)
+        monkeypatch.setattr(DU.np, "argsort", traced)
+
+
+class DerivedCacheCounter:
+    """Counts *recomputations* of the caches ``PanelKeys`` derives on demand.
+
+    A read is not a computation: the point of the cache is that the second read
+    costs nothing. Each traced property records a pass only when the backing
+    slot was empty, or when the call replaced what was already there -- which is
+    what a mutant that drops the cache does. The arrays are distinct objects per
+    derivation, so identity separates a fresh one from the held one.
+    """
+
+    TRACED = {"cell": "_cell", "unit_order": "_unit_order",
+              "time_order": "_time_order"}
+
+    def __init__(self, monkeypatch):
+        self.counts = {name: 0 for name in self.TRACED}
+        for name, slot in self.TRACED.items():
+            real = getattr(DU.PanelKeys, name).fget
+            monkeypatch.setattr(DU.PanelKeys, name,
+                                property(self._trace(name, slot, real)))
+
+    def _trace(self, name, slot, real):
+        def traced(keys):
+            before = getattr(keys, slot)
+            out = real(keys)
+            if before is None or getattr(keys, slot) is not before:
+                self.counts[name] += 1
+            return out
+        return traced
+
+    def __getitem__(self, name) -> int:
+        return self.counts[name]
+
+
+class DuplicateCheckCounter:
+    """Counts ``np.bincount`` calls -- the duplicate-key verdict.
+
+    ``has_duplicate`` counts the cell index to rule out a repeated
+    ``(unit, time)`` pair, and holds the answer. The count is over the whole
+    grid, which is the one derivation whose cost grows with the panel's
+    sparsity and not its length, so paying it twice is the most expensive way
+    to recompute something already known.
+    """
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        real = np.bincount
+
+        def traced(*args, **kwargs):
+            self.calls += 1
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(np, "bincount", traced)
+        monkeypatch.setattr(DU.np, "bincount", traced)
+
+
 # =========================================================================== #
 # work assertions -- these start red
 # =========================================================================== #
@@ -190,6 +275,83 @@ class TestPivotCount:
             f"a (index, columns, values) signature was pivoted twice: "
             f"{counter.calls}")
         assert counter.total == 2
+
+
+class TestDerivedWorkCount:
+    """The scan's derived parts are derived once per panel too.
+
+    ``PanelKeys`` holds more than the two ``factorize`` passes ``TestScanCount``
+    watches: the cell index, the duplicate verdict and the two axis sorts all
+    depend on ``(df, index, columns)`` alone and are derived on demand, once.
+    Recomputing any of them returns the same value, so every equivalence test
+    below stays green and only these counts fall.
+    """
+
+    def test_single_treated_sorts_each_axis_once(self, monkeypatch):
+        df = make_panel()
+        counter = AxisSortCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter.calls == 2, (
+            f"one sort per axis per panel, not per pivot: {counter.calls} sorts "
+            f"for a two-pivot dataprep")
+
+    def test_cohort_sorts_each_axis_once(self, monkeypatch):
+        df = make_staggered()
+        counter = AxisSortCounter(monkeypatch)
+        out = dataprep(df, *ARGS)
+        assert "cohorts" in out, "fixture must exercise the cohort branch"
+        assert counter.calls == 2
+
+    def test_covariate_pivots_do_not_resort_the_axes(self, monkeypatch):
+        """Two covariates add two pivots and must add no sorts."""
+        df = make_panel(covariates=["x1", "x2"])
+        counter = AxisSortCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=["x1", "x2"])
+        assert counter.calls == 2
+
+    def test_supplied_keys_carry_their_axis_sorts(self, monkeypatch):
+        """A scan whose axes are already sorted is not sorted again."""
+        df = make_panel()
+        keys = balance(df, "id", "time")
+        keys.unit_order, keys.time_order            # derive them on the scan
+        counter = AxisSortCounter(monkeypatch)
+        dataprep(df, *ARGS, keys=keys)
+        assert counter.calls == 0
+
+    def test_single_treated_derives_each_cache_once(self, monkeypatch):
+        df = make_panel()
+        counter = DerivedCacheCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter["cell"] == 1, (
+            f"the cell index is built once per panel, not once per read: "
+            f"{counter['cell']} builds")
+        assert counter["unit_order"] == 1
+        assert counter["time_order"] == 1
+
+    def test_covariates_do_not_rebuild_the_cell_index(self, monkeypatch):
+        df = make_panel(covariates=["x1", "x2"])
+        counter = DerivedCacheCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=["x1", "x2"])
+        assert counter["cell"] == 1
+
+    def test_the_duplicate_check_runs_once_per_panel(self, monkeypatch):
+        df = make_panel()
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter.calls == 1, (
+            f"the grid is counted once per panel: {counter.calls} counts")
+
+    def test_covariates_do_not_recount_the_grid(self, monkeypatch):
+        df = make_panel(covariates=["x1", "x2"])
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=["x1", "x2"])
+        assert counter.calls == 1
+
+    @pytest.mark.parametrize("name", ["cell", "unit_order", "time_order"])
+    def test_a_second_read_returns_the_held_object(self, name):
+        """The cache is the contract: two reads, one array."""
+        keys = balance(make_panel(), "id", "time")
+        assert getattr(keys, name) is getattr(keys, name)
 
 
 # =========================================================================== #

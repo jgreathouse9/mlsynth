@@ -1007,6 +1007,12 @@ timeout = 900.0
   models = "the cell index rebuilt on every access instead of once. The value is the same each time, so the panel still reads correctly and the duplicate check still agrees -- it is the caching, not the arithmetic, that the shared scan is for"
 
   [[target.mutant]]
+  id = "duplicate-check-recomputed-on-every-read"
+  find = "        if self._has_duplicate is None:"
+  replace = "        if True:"
+  models = "the duplicate verdict recounted on every read instead of once. The answer is the same each time, so the panel loads and every pivot takes the same path; the grid count is the one derivation whose cost grows with the panel's sparsity and not its length, and only a pass count reports the second one"
+
+  [[target.mutant]]
   id = "covariate-pivots-rescan-the-panel"
   find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
   replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
