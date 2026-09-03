@@ -2581,6 +2581,159 @@ a paper reports beating Abadie SC on simulated random walks.
 ---
 
 
+## 24. Wei (2026) partial identification under unknown interference -- assessed, PARKED behind a code release
+
+**Status: Parked. The identification half is new, in-lane and cheap; the
+inference half is another paper's machinery with no oracle to check it
+against, and neither of the paper's two validation routes is reachable
+without data that cannot ship with the library.**
+
+### Source
+
+> Wei, S. (2026). *Learning about Treatment Effects in Panels under Unknown
+> Interference*. arXiv:2608.13466v1 (econ.EM). Boston College job-market
+> paper; LaTeX source and three figures, no replication package and no
+> reference implementation.
+
+### The claim
+
+One treated aggregate unit, `K-1` donors, `T0` pre-periods, one scalar
+post-treatment target. Donors may respond to the treatment, the response
+vector `s` is unknown, and no exposure mapping or classification of affected
+donors is assumed. Two restrictions do the work.
+
+Assumption 3.1, fit-scaled comparison validity over the full simplex: for
+every convex weight `w`, the latent post-treatment no-policy gap is bounded by
+`L / (T0 - 1)` times that weight's average absolute pre-treatment discrepancy.
+A poorly fitting weight buys a wider allowance; the envelope is homogeneous,
+so exact population fit forces a zero floor.
+
+This constrains only the relative effects `x_k = tau - s_k`: adding the same
+constant to `tau` and every `s_k` leaves all comparison restrictions
+unchanged. Level information comes from a second, prespecified restriction on
+`s` -- outcome support, an aggregate budget, signs, orderings. In the
+application the budget is `sum_k q_k |s_k| <= rho * mu_T^1(d^0)`, the total
+population-scaled absolute response bounded by `rho` times Arizona's
+counterfactual target population.
+
+Lemma 3.1 is the computational result, and the part this library would
+actually use. The continuum of restrictions -- one per weight in the simplex --
+reduces *exactly* to `2(K-1)` donor-vertex inequalities plus box constraints
+on two `(T0 - 1)`-vectors `v^+`, `v^-`. The reduction is the support-function
+identity for the absolute-value allowance, plus Sion's minimax theorem to
+exchange the order of optimisation over a compact simplex and a compact box
+with a bilinear criterion; conditional on `v`, both sides are linear in `w`,
+so the maximum sits at a vertex. Compatibility of a candidate `tau^c` then
+becomes feasibility of one finite linear system in
+`eta = (x, u, v^-, v^+)`, and Farkas' alternative certifies incompatibility.
+
+Inference inverts a test of that feasibility. The statistic is a normalised
+Farkas score, each row scaled by the largest bootstrap standard deviation
+among its estimated entries. The critical value comes from a bootstrap
+recentred at a minimum-norm near-feasible completion and maximised over
+near-optimal certificate directions, with `gamma_n = sqrt(log(B + 1))`.
+Coverage is candidatewise and uniform over the model-generated null class.
+
+### Why it looked attractive
+
+A genuine gap, and the complement of what the library already has.
+`SPILLSYNTH` point-identifies spillovers and its config asks for exactly what
+Wei refuses to assume -- `affected_units`, `spatial_W`,
+`spillover_structure` in {per_unit, homogeneous, distance_decay} -- and
+`RRSC` (He et al. 2026) returns a per-unit interference map under structure.
+Nothing in the 102 exported names returns a *set*. The scope gate passes on
+ingestion: units by time, pre and post, a donor simplex, so `dataprep` reads
+it unchanged. The algorithm is fully specified down to the tuning constants
+and needs no solver the library does not already have -- linear programs and
+one quadratic program, per candidate one Farkas LP, one minimum-norm
+completion, and `B` certificate LPs over a common feasible region where only
+the objective changes.
+
+### Why it is parked
+
+**1. Neither Path A nor Path B is reachable.** The application needs IPUMS CPS
+v13.0 Basic Monthly, 1998-2009, aggregated to state-year Hispanic-noncitizen
+shares with `WTFINL` over 1,216,961 household trajectories. IPUMS requires
+registration and restricts redistribution, so it cannot enter `basedata/`.
+The repo's `cps_lawa_arizona.parquet` is a different panel -- monthly
+`wklyearn`, the SpSyDiD wage study -- not the annual population share this
+paper builds. Path B does not escape the problem: Appendix A.1 says the Monte
+Carlo "starts from the empirical finite-dimensional input", holds the LAWA
+donor gaps, post-treatment contrasts, levels and 2006 Census population
+weights fixed, and draws from a rank-398 covariance factor calibrated on 399
+household-clustered multiplier draws. The simulation is a re-signing of the
+empirical gaps, so reproducing Table 4 needs the same extract. The population
+geometry numbers are clean deterministic LP output --
+`[-0.033650, -0.010704]` at the donor vertices under both designs,
+`[-0.021302, -0.018067]` on the full simplex under near-exact fit, an 85.9
+percent width reduction -- but the input `Pi` they are computed from is never
+published.
+
+**2. There is no reference implementation, so cross-validation is out.** That
+leaves a port validated against printed numbers computed from data we cannot
+obtain, which is not validation.
+
+**3. The expensive half is a second paper.** The identification half is a
+day's work. The inference layer is Goff (2025)'s normalised solvability
+statistic and bootstrap calibration, specialised to this family, and porting
+it means porting that paper: the row-scale rule, the classification of which
+entries count as estimated, the near-feasible completion, and the
+near-optimal certificate tolerance that controls both size and power. Written
+blind against no oracle, with the paper's own diagnostics unreproducible.
+
+**4. The result contract fits badly at the output end.** The estimand is a set
+of `tau` values for one scalar target, not a counterfactual path, so there is
+no `time_series.counterfactual_outcome` to populate, and `InferenceResults`
+carries one `ci_lower`/`ci_upper` pair where the paper's diagnostics track
+connected acceptance components. Inference also needs an input the library
+does not accept: a covariance for the vector of estimated cell means, from
+household-clustered draws on micro data. Accommodating either would touch a
+shared invariant.
+
+**5. The paper's headline is a null, and a wide one.** Across all nine
+`(L, rho)` specifications the 95 percent inversion sets contain both zero and
+the 1.50 percentage-point decline of Bohn et al. (2014). The main `rho = 2`
+sets are `[-4.19, 0.17]` at `L = 1`, `[-4.66, 0.64]` at `L = 2` and
+`[-5.13, 1.05]` at `L = 3`. Sets five to six points wide around a 1.5-point
+original estimate answer whether a published finding survives unknown
+interference; they do not produce an estimate. The Monte Carlo agrees: power
+against alternatives one percentage point away runs 0.042 to 0.390 across the
+twelve cells, reaching 0.890 to 0.948 only at two points and the highest
+precision. False exclusion is 0.004 to 0.026 against a nominal 0.05.
+
+**6. The unknown-interference selling point is partly recovered by the user.**
+`L`, `rho`, the donor pool and the admissible rule are all prespecified, and
+the reported sets move materially across the grid the paper itself sweeps.
+The factor placebo indices of Section 3.4, built by leaving out one period at
+a time, put `L` on an observed scale but benchmark the latent post-treatment
+threshold instead of estimating it.
+
+### What would unblock it
+
+A code release, or a published version with a replication package. Failing
+that, the one honest cheap step is a Path C check of the identification half
+alone: Lemma 3.1 is an exact equivalence, so on synthetic panels the finite
+`2(K-1)`-row system can be checked against brute force over a fine simplex
+grid, and Proposition A.1 -- interior weights add nothing under sign
+alignment, and bind when pre-treatment discrepancies cancel -- is checkable on
+the same fixtures. That is a day, it needs no IPUMS data, and it would settle
+whether the geometry claim holds without committing to the inference port.
+It validates nothing about the inference layer, which is where the cost is.
+
+### What carries over regardless
+
+The support-function-plus-minimax reduction is a general tool: any
+mlsynth constraint of the form "an absolute-value allowance holding uniformly
+over the donor simplex" collapses to donor-vertex rows plus a box on lifted
+coordinates, and the same trick would finitise a continuum of weight-indexed
+restrictions elsewhere. The observation behind Assumption 3.1 -- that a
+weight's own pre-treatment fit is what licenses its post-treatment allowance,
+and that interior weights carry information beyond the vertices only when
+donor discrepancies offset -- is a statement about donor pools that holds
+outside this paper's inference.
+
+---
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
