@@ -263,6 +263,7 @@ measures that claim directly, which a reproduced number cannot.
    scd
    drosc
    si
+   twsf
    microsynth
 
 .. toctree::

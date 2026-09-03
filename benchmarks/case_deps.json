@@ -2455,6 +2455,15 @@
   "mlsynth/utils/tssc_helpers/estimation.py",
   "mlsynth/utils/tssc_helpers/simulation.py"
  ],
+ "twsf_coverage_mc": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/twsf.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/pcr/core.py",
+  "mlsynth/utils/twsf_helpers/config.py",
+  "mlsynth/utils/twsf_helpers/pipeline.py",
+  "mlsynth/utils/twsf_helpers/setup.py"
+ ],
  "vanillasc_carbontax": [
   "basedata/carbontax_data.dta",
   "mlsynth/config_models.py",

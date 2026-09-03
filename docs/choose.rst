@@ -89,6 +89,7 @@ At a glance
    Interpolation across dissimilar donors? ─► MASC
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
    Different ESTIMAND / treatment type? ─► DSC (dist.) · DRSC (cond. dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
+   Forecasting a unit that has NOT adopted yet? ─► TWSF (prospective, past the end of the panel)
 
    PART 2 — MANY treated units   (easy ─────────────────────► hard)
    ─────────────────────────────────────────────────────────────────
@@ -122,7 +123,16 @@ Q0.1 · Are you designing the experiment? Has the treatment *not yet* been
 assigned, and you are choosing whom to treat?
 
 * Yes -- jump to Part 3 (experimental design).
-* No -- the treatment already happened; continue.
+* No, and some units have already adopted while the one you care about has
+  not -- you are asking a *prospective* question: what will this unit do if it
+  adopts next month? That is a different estimand from everything below, which
+  imputes a cell inside the observed window. Go to :doc:`twsf`, which forecasts
+  the treated outcome of a never-treated unit past the end of the panel by
+  learning the treated regime's dynamics from the units already in it. It needs
+  donors that have run under the intervention long enough to show how it
+  behaves, and a short horizon.
+* No, and you want to know what the units that *did* adopt would have done
+  otherwise -- the treatment already happened; continue.
 
 Q0.2 · Is assignment randomized (or as-good-as-random)?
 
