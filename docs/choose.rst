@@ -1043,7 +1043,10 @@ left over -- as in a geo roll-out?
 * Scoring by simulated power on your own history -- :doc:`geox` slides a
   pretend treatment window backwards through the panel, injects a lift of known
   size, and ranks candidate test regions by the smallest lift it reliably
-  detects. The design is chosen by the estimator that will analyse the result,
+  detects. The same backtests report how far each design's estimate lands from
+  the lift that was injected, so a region that detects small effects and
+  misstates them is visible as such. The design is chosen by the estimator that
+  will analyse the result,
   and which estimator that is is a setting: ``engine="sdid"`` differences out a
   level gap between the test region and its donors instead of having to match
   it, ``engine="augsynth"`` is the augmented synthetic control GeoLift scores

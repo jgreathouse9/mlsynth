@@ -43,6 +43,20 @@ class CandidateDesign:
         it. ``mde`` is the smallest in a field of candidates and so is
         optimistic; this one is not selected on. Set only on the winner, and
         ``None`` when ``n_validation_backtests`` is 0 or the panel is too short.
+    bias, error_sd, rmse : float or None
+        How far the design's estimate lands from an injected truth, over the
+        backtests: the mean error, its spread, and the root mean square that
+        combines them. The MDE answers what the design can detect; these answer
+        what it will get wrong.
+    calibration_ratio : float or None
+        ``rmse`` over the placebo standard error the design's own inference
+        tests at. Small is ordinary, since the two are measured over different
+        things; above one says the design's error exceeds what its null admits,
+        so the p-values and the MDE built from them are anti-conservative.
+        ``None`` where the engine's procedure has no standard error.
+    rmse_planning : float or None
+        The winner's ``rmse`` re-scored on the same held-back backtests as
+        ``mde_planning``, and set under the same conditions.
     """
 
     units: List
@@ -56,6 +70,11 @@ class CandidateDesign:
     power: Optional[float] = None
     rank: Optional[float] = None
     mde_planning: Optional[float] = None
+    bias: Optional[float] = None
+    error_sd: Optional[float] = None
+    rmse: Optional[float] = None
+    calibration_ratio: Optional[float] = None
+    rmse_planning: Optional[float] = None
 
 
 @dataclass

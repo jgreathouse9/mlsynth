@@ -8,7 +8,8 @@ the ATT and the placebo sigma is shared across it -- so the whole grid of effect
 sizes costs one fit and one placebo run.
 
 The row schema matches what
-:func:`~mlsynth.utils.geox_helpers.aggregate.compute_power` consumes, one row
+:func:`~mlsynth.utils.geox_helpers.aggregate.compute_power` and
+:func:`~mlsynth.utils.geox_helpers.aggregate.compute_accuracy` consume, one row
 per effect size.
 """
 
@@ -16,7 +17,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from .engines import resolve_engine
 from .windows import backtest_pre_periods, backtest_treatment_window
 
@@ -83,13 +84,19 @@ def simulate_backtest(
         One row per effect size, carrying ``sim``, ``duration``,
         ``effect_size``, ``p_value``, ``placebo_mean_effect`` (the SDID ATT),
         ``detected_lift`` (ATT over the counterfactual post mean),
-        ``scaled_l2``, ``pre_rmspe`` and ``investment``.
+        ``estimation_error`` (the ATT with nothing injected, which is the
+        estimate minus the injected truth at every effect size),
+        ``placebo_sigma`` (``nan`` where the engine's procedure has no standard
+        error), ``scaled_l2``, ``pre_rmspe`` and ``investment``.
 
     Raises
     ------
     MlsynthConfigError
         If the backtest runs off the start of the panel, or ``treated`` /
         ``donors`` do not have ``n_periods`` rows.
+    MlsynthEstimationError
+        If the engine's sweep returns no ``tau0``, which the engine protocol
+        requires and the accuracy of the design is measured from.
     """
     n_pre = backtest_pre_periods(n_periods, duration, sim)
     start, end = backtest_treatment_window(n_periods, duration, sim)
@@ -117,6 +124,19 @@ def simulate_backtest(
                  if treated_total is not None else treated_arr)
     window_volume = float(np.sum(total_arr[start:end + 1]))
 
+    # The estimation error of this backtest. The injected truth at effect size
+    # ``es`` is ``es * mean(y_post)`` and the estimate is
+    # ``tau0 + es * mean(y_post)``, so the error is ``tau0`` whatever was
+    # injected -- which is why it is one value per backtest, not one per grid
+    # point, and why measuring it costs no additional fit.
+    if "tau0" not in swept:
+        raise MlsynthEstimationError(
+            f"the {engine!r} engine's sweep returned no tau0, so the backtest "
+            "cannot report what it got wrong; every engine owes it.")
+    error = float(swept["tau0"])
+    sigma = swept.get("sigma")
+    sigma = float("nan") if sigma is None else float(sigma)
+
     rows: List[dict] = []
     for es, tau, p_value in zip(effect_sizes, swept["tau"], swept["p_value"]):
         rows.append({
@@ -125,6 +145,8 @@ def simulate_backtest(
             "effect_size": float(es),
             "p_value": p_value,
             "placebo_mean_effect": tau,
+            "estimation_error": error,
+            "placebo_sigma": sigma,
             "detected_lift": (tau / cf_post_mean if cf_post_mean != 0.0
                               else float("nan")),
             "scaled_l2": fit.scaled_l2,

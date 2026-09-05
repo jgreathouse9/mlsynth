@@ -16,7 +16,8 @@ from .simulate import simulate_backtest
 
 _COLUMNS = [
     "candidate", "duration", "sim", "effect_size",
-    "p_value", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
+    "p_value", "placebo_mean_effect", "detected_lift", "estimation_error",
+    "placebo_sigma", "scaled_l2", "pre_rmspe",
     "pre_rmspe_lambda", "boundary_up", "boundary_down", "investment",
 ]
 
