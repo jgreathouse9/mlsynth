@@ -476,6 +476,45 @@ term. This collapses to Proposition 2.1's
 :math:`T_0 \gg |\mathcal{T}_2|`. The 95% Wald interval and two-sided
 p-value follow in the usual way.
 
+Serially correlated residuals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+That formula prices the two averages with :math:`\widehat{\sigma}^2`, the
+residual's variance at a single date. The variance of an average over a
+window is not the variance at a date: it is the long-run variance, which
+sums the autocovariances :math:`\gamma_k = \operatorname{Cov}(v_t,
+v_{t+k})`. The two agree exactly when every :math:`\gamma_k` with
+:math:`k \ge 1` is zero, which the online appendix's iid assumptions impose.
+Assumption 2.1 in the main text asks only for weak dependence, and under
+that weaker condition the estimator is still consistent while the interval
+is not. :doc:`properties/fdid_serial_correlation` measures the cost:
+coverage of the nominal 95% interval falls to 0.53 when the residual is an
+AR(1) with coefficient 0.9.
+
+Setting ``inference="hac"`` reports instead
+
+.. math::
+
+   \mathrm{SE}_{\text{HAC}}(\widehat{\tau})^2
+     = \sum_{T \in \{T_0,\, |\mathcal{T}_2|\}} \frac{1}{T}
+       \Bigl[\widehat\gamma_0
+         + 2\sum_{k=1}^{\min(L,\,T-1)}
+             \bigl(1 - \tfrac{k}{T}\bigr)\widehat\gamma_k\Bigr],
+
+with the autocovariances estimated on the pre-period residuals -- the only
+stretch long enough to estimate them, and the stretch
+:math:`\widehat\sigma^2` already uses. The weight :math:`1 - k/T` is not a
+kernel choice: it is the exact coefficient lag :math:`k` carries in the
+variance of a length-:math:`T` mean, so truncation at :math:`L` is the only
+approximation. Each block's sum is floored at :math:`\widehat\gamma_0`,
+since a truncated alternating sequence can fall below the iid value.
+
+The truncation defaults to :math:`L = \min(|\mathcal{T}_2| - 1,\,
+T_0 / 10)`, and ``lrvar_lag`` overrides it. The first term is exhaustive:
+lag :math:`k` enters the post block with weight :math:`1 - k/|\mathcal{T}_2|`,
+which is zero at :math:`k = |\mathcal{T}_2|`. The second is the usual
+one-tenth-of-sample cap on the pre-period sample supplying the estimates.
+
 Consistency of the selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -532,7 +571,7 @@ convenience accessors (``res.att``, ``res.att_se``, ``res.counterfactual``,
 Verification
 ------------
 
-Forward DiD is validated on two fronts. Path A -- mlsynth reproduces the
+Forward DiD is validated on three fronts. Path A -- mlsynth reproduces the
 author's public Hong Kong GDP companion replication cell by cell (FDID ATT
 :math:`0.0254`, :math:`53.84\%`, pre-period :math:`R^2 = 0.843`, 9 of 24
 controls). Path B -- the paper's own Monte Carlo (Li 2024, Web Appendix E)
@@ -542,6 +581,20 @@ Forward DiD pays only a small efficiency cost when ordinary DiD is valid and
 wins decisively when half the controls are mismatched. See the dedicated
 replication page, :doc:`replications/fdid`, for the full design, code, and
 cell-by-cell tables.
+
+Path C -- the paper's results about the donor *selection* instead of the
+estimate. Propositions 2.2 and D.1 say the forward search converges on the
+subset the same search would pick if it knew the population variances;
+against that benchmark, computed in closed form, mlsynth's exact recovery
+rises from 0.00 to 0.77 as :math:`T_1` grows from 25 to 1600, and Lemma
+B.1's uniform deviations stay inside their :math:`\sqrt{\log N / T_1}` band
+throughout. See :doc:`properties/fdid_selection`, which also reports where
+the convergence is slow and why. A companion case measures the other
+side of the same proposition: its variance formula uses the residual's
+marginal variance where a block mean needs the long-run variance, so under
+a serially correlated residual the reported interval narrows well below
+nominal while the point estimate stays consistent. See
+:doc:`properties/fdid_serial_correlation`.
 
 Core API
 --------

@@ -2006,3 +2006,59 @@ timeout = 900.0
   find = "            config.seed + replicate,"
   replace = "            config.seed,"
   models = "every replicate fitting its factor model at the same seed, so the only variation left across replicates is the resampled pool and the factor model's contribution to the interval silently vanishes"
+
+[[target]]
+name = "twsf"
+module-path = "mlsynth/utils/twsf_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_twsf_properties.py mlsynth/tests/test_twsf.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "page-training-consumes-the-held-back-block"
+  find = "        for b in range(n_blocks - 1):"
+  replace = "        for b in range(n_blocks):"
+  models = "a Page construction that trains on the final block as well, so the forecast state W is also a training observation and the temporal rule is fitted on the very window it is asked to extrapolate from"
+
+  [[target.mutant]]
+  id = "response-is-the-last-lag-not-the-future-value"
+  find = "            resp.append(seg[-1])"
+  replace = "            resp.append(seg[L - 1])"
+  models = "a temporal regression whose response is the last entry of its own lag vector, so the rule predicts the present from the present instead of one step ahead -- it fits almost perfectly and forecasts nothing"
+
+  [[target.mutant]]
+  id = "forecast-starts-at-the-wrong-end-of-the-treated-window"
+  find = "    W = Y_post[:, T1 - L:]                  # N1 x L"
+  replace = "    W = Y_post[:, :L]                       # N1 x L"
+  models = "a forecast state taken from the opening of the treated window instead of its close, so the recursion is launched from the donors' oldest treated observations and the horizon is effectively shifted by the whole window"
+
+  [[target.mutant]]
+  id = "recursive-variance-drops-the-jacobian"
+  find = "            q_a = Zk_pinv @ (J_m.T @ state)"
+  replace = "            q_a = Zk_pinv @ state"
+  models = "a recursive interval that ignores how one-step estimation error propagates through the recursion. The point forecast is untouched and the band only narrows at longer horizons, so nothing that checks forecasts can see it"
+
+  # Accepted survivor, and not an equivalent mutant: it does change the answer.
+  # Measured against the true term by monkeypatching the Jacobian to the
+  # identity, the plug-in standard error inflates by 1.00x, 1.01x, 1.02x and
+  # 1.03x at leads 2, 5, 8 and 12 on the calibration fixture. Making the treated
+  # regime persistent (an AR(1) at phi = 0.97, where the companion powers grow)
+  # raises that to 1.08x at lead 6 and 1.22x at lead 12 -- but the leading-order
+  # variance is itself badly calibrated in that regime, empirical SD over plug-in
+  # SE running 4.3 to 5.9, so an assertion there would be measuring the wrong
+  # thing. A Monte Carlo that separates a 1-3% shift in the standard error needs
+  # replication counts far beyond what a pull-request suite can carry, so this
+  # is left live and documented rather than killed by a tolerance loose enough
+  # to be meaningless. The term is pinned structurally instead: lead_jacobian
+  # has its own property tests, including that it is the identity at lead one.
+
+  [[target.mutant]]
+  id = "pooled-variance-ignores-the-time-side"
+  find = "    sigma2 = float((np.sum(ru ** 2) + np.sum(rt ** 2)) / dof)"
+  replace = "    sigma2 = float(np.sum(ru ** 2) / dof)"
+  models = "a noise estimate built from the unit-side residual alone. On panels where the donors are larger in scale than the target the time side dominates the pooled variance, so this understates every interval while leaving every point estimate exact"
+
+  [[target.mutant]]
+  id = "prediction-interval-adds-no-future-noise"
+  find = "            var += sigma2                                    # future innovation"
+  replace = "            var += 0.0                                       # future innovation"
+  models = "a prediction interval that silently equals the confidence interval, so a caller validating against a realised trajectory is given a band for a conditional mean"

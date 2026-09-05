@@ -34,6 +34,10 @@ Validation paths
 * **Path A** -- reproduce the source paper's empirical result on the original
   authors' data.
 * **Path B** -- reproduce the paper's Monte Carlo / simulation table.
+* **Path C** -- measure a property the paper proves about the estimator's
+  behaviour as the sample grows (a selection converging, a bound holding
+  uniformly, an interval covering), against a population benchmark the
+  design makes computable. See :doc:`properties`.
 * **Cross-validation** -- match an authoritative reference implementation
   (an R/MATLAB package or the authors' own code); these skip themselves when
   the optional dependency is absent.
@@ -305,6 +309,32 @@ Path B — Monte Carlo / simulation
      - the cumulative conformal band's coverage is bounded by the number of calibration windows and not the number of periods: 0.86 at three windows, 0.94 at twenty-six, with exchangeability, stationarity and normality granted throughout. See :doc:`cumulative_calibration`
    * - ``ppscm_geo_conformal_coverage``
      - PPSCM's per-unit cumulative band on a synthetic top-thirty geo panel covers at the rank its order statistic implies. The window count is a closed form in the design (ten at an eight-week horizon, twenty-one at four), ten windows cannot reach 95 per cent at any width, and the distance between realised coverage and the exchangeable prediction is zero at every reachable level. See :doc:`cumulative_calibration`
+
+Path C — theoretical properties
+-------------------------------
+
+Cases that measure a claim the source paper proves about its estimator's
+behaviour as the sample grows, against a population benchmark the design
+makes computable. Nothing here is a cell match -- these results are not
+printed tables -- so what is pinned is the direction each quantity is
+claimed to move, together with the caveats an asymptotic statement carries.
+See :doc:`properties` for the prose, the theorem statements, and what each
+case does and does not establish.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 74
+
+   * - Case
+     - Validates
+   * - ``fdid_selection_mc``
+     - Li (2023) Propositions 2.2 / D.1 and Lemma B.1, the results about Forward DiD's donor selection instead of its estimate. Against the theoretical forward selection algorithm computed in closed form from the Web Appendix E design, the empirical algorithm's exact recovery of ``U*`` rises 0.00 → 0.77 over T1 = 25 → 1600 and admits no mismatched control by the end; Lemma B.1's uniform deviations, maxed over all 2^N - 1 subsets, stay inside a sqrt(log N / T1) band across a 32-fold range of T1. The matched design (DGP 1) converges far more slowly and the case records that too: its criterion ranks a 14-control model within 2 per cent of the 20-control optimum. See :doc:`properties/fdid_selection`
+   * - ``fdid_normality_mc``
+     - Li (2023) Proposition 2.1, the asymptotic normality that licenses Forward DiD's standard error, interval and p-value. Where Assumption 4 holds the studentised ATT's dispersion falls 1.329 → 0.998 and coverage of the 95 per cent interval climbs 0.889 → 0.952, both monotonically; the excess at short pre-periods is post-selection, since sigma-hat is estimated on the subset chosen to minimise it. Where Assumption 4(ii) fails (T2 = T1/2) the statistic settles at sqrt(1 + T2/T1) = 1.2247 instead of 1 -- measured 1.224 -- which identifies the level-shift term the assumption removes, and mlsynth's standard error carries that factor so its own statistic still converges to 1.000. See :doc:`properties/fdid_normality`
+   * - ``fdid_serial_correlation_mc``
+     - Where Li (2023) Proposition 2.1 stops applying. Its standard error prices the parallel-trends residual's marginal variance, but the estimator's error is a difference of two block means, whose variance is the long-run variance; the two agree only under the appendix's iid assumptions, which Assumption 2.1 in the main text does not require. On a DGP 2 variant whose residual is AR(1) at the selected subset, coverage of the nominal 95 per cent interval falls 0.942 -> 0.533 as rho goes 0 -> 0.9 while the point estimate stays consistent, and a closed-form long-run-variance prediction carries the whole 2.79-fold dispersion (the measured/predicted ratio moves only 1.016 -> 1.058). The paper's own four designs cannot show this: their factor term vanishes at the optimum, leaving an iid residual. The same draws re-fitted with ``inference="hac"``, which estimates the autocovariances on the pre-period and puts them through the exact finite-block variance of both means, hold coverage at 0.947 -> 0.920 over the same range at a cost of 2.8 per cent of interval width at rho = 0. See :doc:`properties/fdid_serial_correlation`
+   * - ``rsc_rank_condition_mc``
+     - Amjad, Shah & Shen (2018) Theorem 6, the condition under which a donor relation fitted before the intervention still holds after it -- which the authors note "has been amiss in the literature" since Abadie-Gardeazabal (2003). On a factor panel built to satisfy or break rank(M-) = rank(M), the relation extrapolates to 2e-15 where the ranks agree and fails on all eight designs where a factor lies dormant until T0, costing RSC a 14-fold post-period RMSE. Theorem 3's Goldilocks tradeoff is swept alongside: the error against the truth is U-shaped in the retained rank, underfitting costing 10.5x against overfitting's 1.46x. Section 4.3's reading of Theorems 3 and 7 is swept too, over the ridge penalty eta of equation (18), and does not survive: the paper describes an exchange, a higher pre-intervention error bought in return for a lower post-intervention one, and at neither threshold does that happen. Where the threshold matches the signal's rank eta buys nothing in either window (0.01 per cent); where it is ten times too permissive eta improves both at once, 19 per cent pre and 7.7 per cent post. The two hyperparameters are substitutes, and past eta = 1e4 the retained rank stops mattering entirely. The paper's bounds carry unnamed universal constants, so what is checked is their structure, not a numerical bound; the bounds stand, and it is the reading of them the measurement reaches. See :doc:`properties/rsc_rank_condition`
 
 Cross-validation against reference implementations
 --------------------------------------------------

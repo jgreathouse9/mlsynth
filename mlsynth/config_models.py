@@ -681,6 +681,7 @@ _RELOCATED_CONFIGS = {
     "SCTAConfig": "mlsynth.utils.scta_helpers.config",
     "SCULConfig": "mlsynth.utils.scul_helpers.config",
     "SIConfig": "mlsynth.utils.si_helpers.config",
+    "TWSFConfig": "mlsynth.utils.twsf_helpers.config",
     "FMAConfig": "mlsynth.utils.fma_helpers.config",
     "CFMConfig": "mlsynth.utils.cfm_helpers.config",
     "GSYNTHConfig": "mlsynth.utils.gsynth_helpers.config",

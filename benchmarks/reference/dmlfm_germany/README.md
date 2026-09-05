@@ -14,6 +14,17 @@ rename with a different argument list, and searching every commit reachable from
 all refs finds none of the arguments the paper's scripts pass, so it is not a
 substitute.
 
+Two of the captured objects are not CSVs. `german_design.json` holds every
+matrix the sampler consumes on this panel -- `y`, `X`, `A`, the treated
+blocks, the unit and time codes, the group-break vectors and the time-sort
+permutation -- and `covariate_scaling.json` holds the covariate names and the
+standard deviations the reference scales them by. They sit here, with the rest
+of the captured reference, because the benchmark case reads them; they lived
+under `mlsynth/tests/fixtures/dmlfm/` until a dependency-map refresh made a
+benchmark case claim a path under the test tree, which the map forbids by
+construction. `test_dmlfm_against_pblasso.py` reads `covariate_scaling.json`
+from here too, and the two step fixtures it alone uses stay where they were.
+
 ## The specification
 
 Six time-invariant covariates, each the unit's mean over all 44 years

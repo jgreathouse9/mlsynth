@@ -25,6 +25,7 @@ from .estimators.scul import SCUL
 from .estimators.esc import ESC
 from .estimators.scd import SCD                                # noqa: F401
 from .estimators.si import SI ## Check
+from .estimators.twsf import TWSF
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
@@ -146,6 +147,7 @@ __all__ = [
     "ESC",
     "SCD",
     "SI",
+    "TWSF",
     "NSC",
     "MUSC",
     "MASC",
