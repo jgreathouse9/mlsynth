@@ -24,6 +24,14 @@ An engine supplies five things.
     be recomputed per effect size. Keeping the grid here keeps that cost
     decision inside the module that owns it.
 
+    The dict carries ``tau``, ``p_value`` and ``sigma`` (``None`` where the
+    procedure has no standard error), plus ``tau0`` -- the ATT with nothing
+    injected. ``tau0`` is the backtest's estimation error: the injected truth is
+    ``e * mean(y[post])`` and the estimate is ``tau0 + e * mean(y[post])``, so
+    the difference is ``tau0`` at every effect size. It is returned instead of
+    being read off the grid because the grid is user-supplied and need not
+    contain zero.
+
 ``point_inference(fit, y, Y0, n_pre, start, end, ...) -> (p_value, details)``
     A single window's test, for the realized readout.
 

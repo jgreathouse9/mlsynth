@@ -7,7 +7,7 @@
     -> GEOXResults
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ import pandas as pd
 from ...config_models import WeightsResults
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..datautils import geoex_dataprep
-from .aggregate import (compute_exact_mde, compute_mde,
+from .aggregate import (compute_accuracy, compute_exact_mde, compute_mde,
                         compute_power, compute_rank)
 from .batch import run_simulations
 from .candidates import generate_candidate_markets
@@ -80,34 +80,46 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
     )
 
 
+class PlanningReadout(NamedTuple):
+    """The winner's design scored on backtests that did not choose it.
 
-def planning_mde(Ywide: pd.DataFrame, candidate, config: GEOXConfig,
-                power_table: pd.DataFrame, exclude=None) -> Optional[float]:
-    """The winner's MDE re-scored on backtests that did not choose it.
+    ``mde`` and ``att_error_rmse`` are read at the same duration, so the two
+    numbers describe one experiment.
+    """
+
+    mde: Optional[float] = None
+    att_error_rmse: Optional[float] = None
+
+
+def planning_backtests(Ywide: pd.DataFrame, candidate, config: GEOXConfig,
+                       exclude=None) -> pd.DataFrame:
+    """Score one candidate on backtests held back from the search.
 
     ``compute_rank`` hands back the smallest MDE in the field, and the smallest
     of many noisy estimates is optimistic: the region most likely to be picked
     is the one whose estimate happened to come out low. Re-scoring the winner on
     backtests held back from the search removes that, because those backtests
     played no part in selecting it -- the same reason a region fixed in advance
-    is calibrated at any backtest count.
+    is calibrated at any backtest count. The same argument applies to accuracy,
+    which is why one cube serves both readings.
 
     Backtests ``n_backtests + 1 .. n_backtests + n_validation_backtests``
     sit deeper in history, so their pseudo-treatment windows differ from every
-    window the search used. Returns ``None`` when the panel cannot carry them.
+    window the search used. Returns an empty frame when the panel cannot carry
+    them.
     """
     if config.n_validation_backtests < 1:
-        return None
+        return pd.DataFrame()
     n_periods = Ywide.shape[0]
     longest = max(config.durations)
     deepest = config.n_backtests + config.n_validation_backtests
     if longest + deepest - 1 >= n_periods:
-        return None  # the panel cannot carry the extra backtests
+        return pd.DataFrame()  # the panel cannot carry the extra backtests
 
     treated = aggregate_treated(Ywide, candidate, how="mean").to_numpy()
     donors = donor_matrix(Ywide, candidate, exclude=exclude).to_numpy()
     # The validation backtests score on the same engine and settings the search
-    # used, so the planning MDE is comparable with the one it corrects.
+    # used, so the planning numbers are comparable with the ones they correct.
     ekw = engine_settings(config)
     rows: List[dict] = []
     for duration in config.durations:
@@ -119,17 +131,37 @@ def planning_mde(Ywide: pd.DataFrame, candidate, config: GEOXConfig,
             ):
                 row["candidate"] = candidate
                 rows.append(row)
-    if not rows:  # pragma: no cover - guarded by the depth check above
-        return None
+    return pd.DataFrame(rows)
 
-    held = compute_power(pd.DataFrame(rows), alpha=config.alpha)
+
+def planning_readout(cube: pd.DataFrame, config: GEOXConfig) -> PlanningReadout:
+    """Read the MDE and the RMSE off the held-back backtests.
+
+    Across durations the design deploys the one it ranked best, so the MDE is
+    the smallest magnitude, matching how ``compute_rank`` reads a candidate's
+    row. The RMSE is reported at that same duration. When nothing is detectable
+    the MDE is absent and the RMSE falls back to the duration the design
+    deploys at, which is the longest requested.
+    """
+    if cube.empty:
+        return PlanningReadout()
+
+    held = compute_power(cube, alpha=config.alpha)
     mde_table = compute_mde(held, power_threshold=config.power_threshold)
-    values = mde_table["mde"].dropna()
-    if values.empty:
-        return None  # nothing detectable on the held-back backtests
-    # Across durations, the design deploys the one it ranked best; take the
-    # smallest magnitude, matching how compute_rank reads a candidate's row.
-    return float(values.loc[values.abs().idxmin()])
+    accuracy = compute_accuracy(cube).set_index("duration")
+
+    detectable = mde_table.dropna(subset=["mde"])
+    if detectable.empty:
+        mde = None  # nothing detectable on the held-back backtests
+        duration = max(config.durations)
+    else:
+        best = detectable.loc[detectable["mde"].abs().idxmin()]
+        mde = float(best["mde"])
+        duration = best["duration"]
+
+    att_error_rmse = (float(accuracy.loc[duration, "att_error_rmse"])
+            if duration in accuracy.index else None)
+    return PlanningReadout(mde=mde, att_error_rmse=att_error_rmse)
 
 
 def engine_settings(config: GEOXConfig) -> dict:
@@ -283,11 +315,18 @@ def run_design(config: GEOXConfig) -> GEOXResults:
     # grid. Reported beside mde, which the ranking and the GeoLift
     # cross-validation both depend on and which is left alone.
     exact = compute_exact_mde(cube, power_threshold=config.power_threshold)
+    # How far the estimate lands from an injected truth, beside how small an
+    # effect the design can detect. Reported, and no part of the rank: the
+    # composite is what the GeoLift cross-validation pins.
+    accuracy = compute_accuracy(cube)
     shortlist = compute_rank(power_table,
                              power_threshold=config.power_threshold,
                              budget=config.budget)
     if not shortlist.empty and not exact.empty:
         shortlist = shortlist.merge(exact, on=["candidate", "duration"],
+                                    how="left")
+    if not shortlist.empty and not accuracy.empty:
+        shortlist = shortlist.merge(accuracy, on=["candidate", "duration"],
                                     how="left")
     if not shortlist.empty:
         # Surface the region size next to its MDE, so a size scan is readable
@@ -306,18 +345,21 @@ def run_design(config: GEOXConfig) -> GEOXResults:
     }
 
     # Stitch each candidate's best (lowest-rank) shortlist row into its design.
+    stitched = ("rank", "mde", "power", "att_error_mean", "att_error_sd",
+                "att_error_rmse", "att_error_over_sigma")
     best: Dict[frozenset, dict] = {}
     for _, row in shortlist.iterrows():
         cand = row["candidate"]
         if cand not in best or row["rank"] < best[cand]["rank"]:
-            best[cand] = {"rank": row["rank"], "mde": row["mde"],
-                          "power": row["power"]}
+            best[cand] = {name: row.get(name) for name in stitched}
     for cand, design in designs.items():
         match = best.get(cand)
-        if match is not None:
-            design.rank = float(match["rank"])
-            design.mde = float(match["mde"])
-            design.power = float(match["power"])
+        if match is None:
+            continue
+        for name in stitched:
+            value = match[name]
+            setattr(design, name,
+                    None if value is None or pd.isna(value) else float(value))
 
     winner = None
     winner_units = None
@@ -327,8 +369,11 @@ def run_design(config: GEOXConfig) -> GEOXResults:
         winner_units = sorted(map(str, winning))
         # Scored only now, and only for the winner, so the backtests behind it
         # cannot have influenced which region was picked.
-        winner.mde_planning = planning_mde(Ywide, winning, config, power_table,
-                                           exclude=excluded.get(winning))
+        held = planning_backtests(Ywide, winning, config,
+                                  exclude=excluded.get(winning))
+        readout = planning_readout(held, config)
+        winner.mde_planning = readout.mde
+        winner.att_error_rmse_planning = readout.att_error_rmse
 
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)
@@ -372,6 +417,10 @@ def run_design(config: GEOXConfig) -> GEOXResults:
             "winner_mde_planning": (
                 float(winner.mde_planning) if winner is not None
                 and winner.mde_planning is not None else None),
+            # What the winner gets wrong, on the same held-back backtests.
+            "winner_att_error_rmse_planning": (
+                float(winner.att_error_rmse_planning) if winner is not None
+                and winner.att_error_rmse_planning is not None else None),
             "n_validation_backtests": config.n_validation_backtests,
         },
         search=search,

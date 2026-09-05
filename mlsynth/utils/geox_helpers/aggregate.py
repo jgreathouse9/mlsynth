@@ -7,8 +7,10 @@ Pure array/groupby reductions on the long p-value cube from
    rate, plus the backtest-averaged metrics.
 2. :func:`compute_mde` -- the minimum detectable effect per (candidate,
    duration), with GeoLift's signed positive/negative selection.
+3. :func:`compute_accuracy` -- the same collapse read for error instead of
+   detection: how far the design's estimate lands from the truth.
 
-(The composite rank is built on top of these.)
+(The composite rank is built on top of the first two.)
 """
 
 from typing import List, Optional
@@ -16,10 +18,18 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
+from ...exceptions import MlsynthEstimationError
+
 _POWER_COLUMNS = [
     "candidate", "duration", "effect_size",
     "power", "placebo_mean_effect", "detected_lift", "scaled_l2", "pre_rmspe",
     "pre_rmspe_lambda", "investment",
+]
+
+_ACCURACY_COLUMNS = [
+    "candidate", "duration",
+    "att_error_mean", "att_error_sd", "att_error_rmse",
+    "placebo_sigma_mean", "att_error_over_sigma",
 ]
 
 
@@ -63,6 +73,118 @@ def compute_power(cube: pd.DataFrame, *, alpha: float = 0.1) -> pd.DataFrame:
     return tmp.groupby(
         ["candidate", "duration", "effect_size"], as_index=False, sort=False, observed=True
     ).agg(**aggs)
+
+
+# The accuracy statistics propagate a nan instead of skipping it, which is
+# where they part company with the pandas reductions used elsewhere in this
+# module. A backtest whose fit failed leaves a nan error, and skipping it would
+# report the accuracy of the backtests that happened to work.
+def _mean(values: pd.Series) -> float:
+    return float(np.mean(values.to_numpy(dtype=float)))
+
+
+def _sd(values: pd.Series) -> float:
+    return float(np.std(values.to_numpy(dtype=float), ddof=0))
+
+
+def _rmse(values: pd.Series) -> float:
+    return float(np.sqrt(np.mean(np.square(values.to_numpy(dtype=float)))))
+
+
+def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
+    """Collapse the backtest dimension into the design's estimation error.
+
+    The MDE says the smallest effect a design can detect. It says nothing about
+    how far the estimate lands from the truth once an effect is there, and the
+    two come apart when the estimator is biased under the design -- for
+    synthetic control, a treated region outside the donor hull.
+
+    Each backtest carries one error, ``att_error``: the ATT with nothing
+    injected. Injecting a lift ``e`` moves the truth and the estimate by the
+    same ``e * mean(y_post)``, so that value is the estimate minus the truth at
+    every effect size, and the error is a property of the backtest, not of the
+    grid. Rows are reduced to one per (candidate, duration, backtest) before
+    aggregating, so the numbers below are over backtests however long the grid.
+
+    Over those backtests::
+
+        att_error_mean = mean(error)          # the design's bias
+        att_error_sd   = std(error)           # population sd, so that
+        att_error_rmse = sqrt(mean(error**2)) # rmse^2 = mean^2 + sd^2
+
+    ``att_error_over_sigma`` divides ``att_error_rmse`` by
+    ``placebo_sigma_mean``, setting the error against the scale the design's
+    own inference tests it at. The two are not the same
+    measurement: the placebo standard error is drawn across donor markets
+    reassigned as pseudo-treated, while the error varies across backtest
+    windows for one fixed region. So the ratio has no value it should sit at,
+    and a small one is the ordinary case -- a region's own ATT is usually far
+    more stable across windows than the placebo pool is across markets. What it
+    catches is the other end: a ratio above one says the design's error exceeds
+    what its null admits, so the p-values, and the MDE built from them, are
+    anti-conservative. It is ``nan`` where the engine's procedure has no
+    standard error, as conformal inference does not.
+
+    ``att_error_sd`` is a lower bound on across-experiment variability, because
+    consecutive backtests shift their window by one period and so overlap
+    heavily. On a short backtest set ``att_error_rmse`` is dominated by
+    ``att_error_mean``.
+
+    A ``nan`` error from a backtest whose fit failed propagates into all three
+    statistics. Dropping it would report the accuracy of the backtests that
+    happened to work.
+
+    Parameters
+    ----------
+    cube : pd.DataFrame
+        Long simulation table from :func:`run_simulations`.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (candidate, duration) with ``att_error_mean``, ``att_error_sd``,
+        ``att_error_rmse``, ``placebo_sigma_mean`` and ``att_error_over_sigma``.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If the cube carries no ``att_error`` column, which means the
+        engine did not report it.
+    """
+    if cube.empty:
+        return pd.DataFrame(columns=_ACCURACY_COLUMNS)
+    if "att_error" not in cube.columns:
+        raise MlsynthEstimationError(
+            "the simulation cube carries no att_error column, so the "
+            "design's accuracy cannot be measured; the engine's sweep must "
+            "return tau0.")
+
+    # One row per backtest: the error is constant across the effect grid, so
+    # aggregating the long cube directly would weight nothing differently but
+    # would state the reduction less plainly.
+    per_backtest = cube.drop_duplicates(
+        subset=["candidate", "duration", "sim"], keep="first")
+    if "placebo_sigma" not in per_backtest.columns:
+        # An engine with no standard error reports none; the ratio is then
+        # absent, which is a different thing from the error being unmeasured.
+        per_backtest = per_backtest.assign(placebo_sigma=np.nan)
+
+    grouped = per_backtest.groupby(
+        ["candidate", "duration"], as_index=False, sort=False, observed=True
+    ).agg(
+        att_error_mean=("att_error", _mean),
+        # ddof=0 keeps rmse^2 = mean^2 + sd^2 exact, and gives a single
+        # backtest a spread of zero instead of nan.
+        att_error_sd=("att_error", _sd),
+        att_error_rmse=("att_error", _rmse),
+        placebo_sigma_mean=("placebo_sigma", _mean),
+    )
+    grouped["att_error_over_sigma"] = np.where(
+        grouped["placebo_sigma_mean"].to_numpy(dtype=float) > 0,
+        grouped["att_error_rmse"] / grouped["placebo_sigma_mean"],
+        np.nan,
+    )
+    return grouped[_ACCURACY_COLUMNS]
 
 
 def compute_mde(power_table: pd.DataFrame, *, power_threshold: float = 0.8) -> pd.DataFrame:

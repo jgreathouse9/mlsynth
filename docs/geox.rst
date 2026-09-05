@@ -355,6 +355,130 @@ are sparse: on this panel 7 of 91 pre-days carry any weight.
 stays empty until the experiment has run and post-treatment outcomes
 exist.
 
+What the design detects, and what it gets wrong
+-----------------------------------------------
+
+The MDE answers one question: how small a lift this design can pick up.
+It does not answer the second question a designer has, which is where the
+estimate will land once the lift is real. The two separate whenever the
+estimator is biased under the design -- for synthetic control, when the
+test region sits outside the range its donor markets can reproduce. A
+design can be sensitive to small effects and consistently wrong about
+their size.
+
+Both come out of the same backtests, because the error is already
+determined by what a backtest computes. Injecting a lift of size
+:math:`e` multiplies the treated markets' outcomes by :math:`1 + e`, so
+the truth it puts into the window is :math:`e\,\bar y_{\text{post}}`. The
+counterfactual is built from the pre-period alone, so the estimate moves
+by exactly that same amount:
+
+.. math::
+
+   \hat\tau(e) \;=\; \tau_0 + e\,\bar y_{\text{post}},
+   \qquad
+   \hat\tau(e) - e\,\bar y_{\text{post}} \;=\; \tau_0 .
+
+The estimate minus the truth is :math:`\tau_0`, the backtest's own ATT
+with nothing injected, at every effect size on the grid. Measuring
+accuracy therefore needs no extra fit and no extra simulation: it is a
+second reading of the numbers the power calculation already produced.
+
+Over the backtests of one candidate, three numbers follow.
+``att_error_mean`` is the mean error, which is the design's bias;
+``att_error_sd`` is its spread; and ``att_error_rmse`` is the root mean
+square that combines them, with
+
+.. math::
+
+   \mathrm{att\_error\_rmse}^{2}
+     = \mathrm{att\_error\_mean}^{2} + \mathrm{att\_error\_sd}^{2} .
+
+They sit beside ``mde`` in the shortlist:
+
+.. code-block:: text
+
+                    candidate  duration    mde  att_error_rmse  att_error_mean  att_error_sd  att_error_over_sigma
+          atlanta + nashville        14   0.15          16.822          -9.452        13.915                 0.069
+   jacksonville + minneapolis        14   0.20          13.365           5.264        12.284                 0.055
+          milwaukee + orlando        14   0.15          29.494         -25.998        13.929                 0.123
+           cleveland + denver        14  -0.15          42.555         -38.536        18.054                 0.159
+        detroit + new orleans        14  -0.15          50.323         -42.927        26.261                 0.199
+         boston + new orleans        14   0.10          64.449          51.392        38.891                 0.260
+
+The two columns disagree, which is the reason for reporting both. Boston
+and New Orleans detect the smallest lift in this field, 10% against the
+15% the top row needs, and their estimate is off by the most -- an error
+RMSE of 64 conversions a day against 17. An experiment run there would
+find a small effect and misstate it.
+
+What the error is measured against
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The prediction being scored is the counterfactual the engine fits for the
+test region over the pseudo-treatment window. The comparison is the
+region's own observed outcome over that same window. Because the window
+sits in history and carries no real treatment, the observed path is the
+truth and the true effect there is zero, so :math:`\tau_0` is the mean
+per-period prediction error of the counterfactual on a window the weights
+were not fit on.
+
+The injected lift contributes none of it. The identity above says the
+error is :math:`\tau_0` at every :math:`e`, and the reason is that the
+injection is additive on the treated post block, the estimate is linear in
+that block, and the counterfactual never reads it -- so the lift is
+recovered exactly by construction. ``att_error_rmse`` is therefore
+held-out counterfactual bias expressed on the ATT scale, and it does not
+measure any interaction between the size of an effect and the estimator's
+behaviour. For these engines there is none to measure: neither re-tunes on
+the post window. An estimator that did -- a penalty re-selected under the
+injected series, a data-driven donor screen -- would have error that moves
+with :math:`e`, and this design would not see it.
+
+Three quantities are easy to conflate. ``pre_rmspe`` is in-sample and
+per-period, the root mean square gap over the window the weights were fit
+on. :math:`\tau_0` is out-of-sample and averaged over the window with its
+sign kept. ``att_error_rmse`` is the root mean square of that across
+backtest windows. The signed average inside the window is what the ATT is,
+so a counterfactual running high for one week and low for the next scores
+as accurate -- correct for an effect estimate, and misleading if read as
+a claim that the counterfactual tracks the region period by period.
+
+Squaring is what separates these from ``abs_lift_in_zero``, the recovery
+term the composite rank already carries. That term is computed after the
+backtests have been averaged, so it measures bias and cancels error that
+changes sign from one backtest to the next. A design whose error runs
++5, -5, +5, -5 is unbiased and unreliable, and only the RMSE says so.
+
+``att_error_over_sigma`` is ``att_error_rmse`` over the placebo standard
+error the design's own inference tests against. The two are measured over
+different things -- the placebo error is drawn across donor markets
+reassigned as pseudo-treated, the estimation error across backtest windows
+for one fixed region -- so there is no value the ratio should take, and the
+small numbers above are the ordinary case. What it catches is the other
+end: a ratio above one says the design's error exceeds what its own null
+admits, so the p-values, and the MDE built from them, are too small.
+
+``att_error_sd`` is a floor, not an estimate of how much the answer would
+move across independent experiments. Consecutive backtests shift their
+window by one period, so they overlap heavily and their errors are close to
+each other by construction. On a short backtest set, ``att_error_rmse`` is
+mostly ``att_error_mean``.
+
+The winner's error is re-scored on the held-back backtests, on the same
+argument that produces ``winner_mde_planning``: the region a search picks
+is the one whose estimate came out favourably, so the number the search
+produced is optimistic. On this panel the correction is large. The winning
+region's in-search RMSE is 16.8; scored on backtests that took no part in
+choosing it, ``metadata["winner_att_error_rmse_planning"]`` is 149.4, against an MDE
+that moved only from 0.15 to 0.10. Selection flatters accuracy more than
+it flatters detectability, and the held-back windows sit deeper in history
+where the fit has more to reproduce. Plan against the held-back number.
+
+The accuracy columns are reported and take no part in the ranking, which
+stays the GeoLift composite of :math:`\lvert\mathrm{MDE}\rvert`, power and
+recovery error.
+
 Scanning several region sizes
 -----------------------------
 
