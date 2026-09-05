@@ -2309,6 +2309,89 @@ the result.
 
 ---
 
+## 23. GP-ITS -- Cho (2026) Gaussian-process interrupted time series -- REPLICATED, build
+
+**Status: Replicated, build recommended. Path A reproduces exactly and the NumPy
+port matches the author's R to ~1e-11 on every quantity. Spike:
+`benchmarks/reference/gpits_heller/` (run `verify.py`). No estimator code yet.**
+
+### Source
+
+> Cho, S. (2026). "Let Time Tell: Identification and Gaussian Process Estimation
+> for Interrupted Time Series." arXiv:2608.20610v1.
+
+Reference: `gpss::gp_its` (doeun-kim/gpss, GPL-3, CRAN) for the estimator;
+`soonhong-cho/gpits` (MIT) for the pipeline, and it ships the NICS and census
+data, so Path A needs nothing bought or requested.
+
+### The idea in one line
+
+When a treatment reaches every unit at once there is no donor pool, so estimate
+the untreated counterfactual by Gaussian-process regression on the unit's own
+pre-treatment history, with a Gaussian + periodic + linear kernel whose
+posterior variance widens as the forecast leaves the data.
+
+### What reproduced
+
+- Path A. D.C.'s cumulative four-month effect after *Heller*: port gives
+  15.1323 per 100k, 95% CI [12.9687, 17.2960], against the paper's 15.1
+  [13.0, 17.3]. Exact at reported precision.
+- Cross-validation. Port vs `gpss` run live in R 4.3.3: `b` 2.0e-12, `s2`
+  5.5e-11, counterfactual 9.6e-11, `tau_cum` 4.8e-12, placebo `tau` 2.1e-11,
+  all relative. The residual is the Brent optimizer's path, not the arithmetic.
+- Figure 4A. D.C. rank 1 of 50 on the paper's standardised scale (36.99 against
+  8.73 for the next highest), the other 49 at median 0.91.
+- Section 5 coverage, 200 reps: GP 0.986-1.000 across all 15 cells, segmented
+  regression 0.201-0.844. Not a weak-baseline artifact.
+
+### Findings to carry into the build
+
+1. The intervals are conservative, not calibrated. GP coverage is pinned at
+   1.000 in most cells with intervals a median of 2.3x wider than segmented
+   regression's (up to 4.9x at the shortest pre-periods). That is the worst-case
+   bound working as Section 4 intends, and the paper says so, but the docs page
+   must say it too: the method buys coverage in power, and an effect small
+   relative to the band will not be detected. The Heller effect survives because
+   it is roughly 20x the pre-period SD.
+2. Figure 4A's separation is the standardisation. On the raw per-100k scale D.C.
+   ranks 25th of 50 and six other jurisdictions are significant at 95% (Alaska
+   +200.2, Missouri -193.1, both larger in magnitude than D.C.'s 15.1). D.C.'s
+   pre-treatment SD is 0.41 against a median of 19.8, a factor of ~48. The paper
+   discloses this; the estimator should surface the pre-period SD alongside any
+   standardised effect so a user cannot read the figure without it.
+3. Four reference conventions a from-the-paper implementation gets wrong, all
+   flagged at their sites in `gpits_port.py`: the periodic and linear components
+   run over every design column including the one-hot month dummies, not time
+   alone; one-hot columns are multiplied by `sqrt(0.5)` and never scaled; the
+   period is rescaled by the SD of the first continuous column; the marginal
+   likelihood uses `sum(log(diag(L)))`, half the log-determinant.
+4. `b` is chosen by a covariate-only rule (max variance of the off-diagonal
+   kernel entries) and `s2` by marginal likelihood with `b` fixed. R's
+   `optimize()` tolerances are part of the reference's definition of `b`; the
+   port matches them. A tighter tolerance moves `tau_cum` by ~3e-7, which
+   changes nothing, but pin it so cross-validation stays exact.
+
+### Architecture
+
+New top-level estimator `GPITS`, riding `dataprep(..., allow_no_donors=True)` --
+already used by `SHC`, `TWSF`, `CMBSTS`, `COMPSC`. Closed-form posterior, pure
+NumPy/SciPy, no MCMC and no cvxpy, so lighter than `MTGP`. Returns an
+`EffectResult` with counterfactual plus bands and no donor weights.
+
+Two decisions for the build. The paper fits one GP per unit and aggregates over
+N=50 all-treated units; take the single-treated-unit path first and leave
+aggregation to a separate utility, so the result contract is unchanged. And
+`docs/choose.rst` Q0.3 currently routes all no-donor traffic to `SHC`, so that
+branch needs a which-of-the-two paragraph: `SHC` matches historical blocks and
+infers by conformal permutation, `GPITS` puts a kernel prior on the trend and
+widens with horizon.
+
+Licensing: `gpss` is GPL-3 and `mlsynth` is MIT. `gpits_port.py` was written
+from the paper's equations and the reference's structure; no `gpss` source is
+copied. Keep it that way and use `gpss` only as a run-separately reference.
+
+---
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
