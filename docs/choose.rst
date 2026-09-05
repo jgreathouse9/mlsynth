@@ -147,9 +147,20 @@ Q0.2 · Is assignment randomized (or as-good-as-random)?
 
 Q0.3 · Do control units exist at all?
 
-* No -- every unit is treated (a nationwide policy, a global shock like
-  COVID-19), so there is no donor pool -- :doc:`shc` rebuilds the comparison
-  from overlapping historical blocks of the treated unit's own series.
+* No -- every unit is treated (a nationwide policy, a court ruling, a global
+  shock like COVID-19), so there is no donor pool and the comparison has to
+  come from the treated unit's own past. Two estimators do this, and they
+  divide on whether you can name the cycle in the series. :doc:`shc` rebuilds
+  the comparison from overlapping historical blocks of the same series, so it
+  needs recurring local structure but not strict periodicity, and it infers by
+  conformal permutation. :doc:`gpits` puts a Gaussian-process prior on the
+  trend with a kernel you specify -- a seasonal component at a period you give
+  it, plus a linear trend -- and its interval widens with the forecast horizon
+  instead of staying flat. Reach for :doc:`gpits` when the series is seasonal
+  at a known period or the horizon is long enough that a flat interval would
+  understate the extrapolation; reach for :doc:`shc` when the structure
+  recurs but no single period describes it. Both are most credible over short
+  post-treatment windows.
 * Yes -- continue.
 
 Q0.4 · Is the treatment endogenous in a way SC cannot absorb? This is the home
@@ -1082,7 +1093,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Complication
      - Reach for
    * - No control group (everyone treated)
-     - :doc:`shc`
+     - :doc:`shc`, :doc:`gpits`
    * - Randomized, few large units
      - :doc:`musc`
    * - Endogenous treatment, have an instrument

@@ -51,6 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/geox
+   replications/gpits
    replications/geox_sdid_equivalence
    replications/geox_augsynth_recast
    replications/drsc
@@ -345,6 +346,13 @@ Generalising the estimand, treatment, or unit
   post (``MSE_pre`` / ``MSE_post`` near zero, rising only mildly with
   the horizon, as the bias bound predicts; durable:
   ``shc_recovery_mc``).
+* :doc:`gpits` -- Cho (2026) Gaussian-process interrupted time series.
+  Path A: the *Heller* decision on D.C. handgun background checks --
+  cumulative four-month effect 15.1323 per 100k with a 95 percent
+  interval of [12.9687, 17.2960], against the paper's 15.1 [13.0, 17.3],
+  exact at the reported precision. Cross-validated cell-for-cell against
+  the author's R package ``gpss`` to :math:`\approx 10^{-11}` relative on
+  every quantity (durable: ``gpits``).
 * :doc:`dtwsc` -- Dynamic SC (speed warping). Cross-validation:
   Cao & Chadefaux's R package ``conflictlab/dsc`` on the Basque panel --
   pre-RMSE 0.0705 exact, ATT within 0.23 percent
