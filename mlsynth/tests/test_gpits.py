@@ -33,6 +33,7 @@ from mlsynth.utils.gpits_helpers.kernels import (  # noqa: E402
     kernel_gaussian,
     kernel_gaussian_periodic_linear,
 )
+from mlsynth.utils.gpits_helpers.plotter import plot_gpits  # noqa: E402
 from mlsynth.utils.gpits_helpers.structures import GPITSResults  # noqa: E402
 
 BASEDATA = Path(__file__).resolve().parents[2] / "basedata"
@@ -503,3 +504,69 @@ class TestGuardedPaths:
         with pytest.warns(UserWarning, match="GPITS plotting failed"):
             res = GPITS(_cfg(_panel(), display_graphs=True)).fit()
         assert np.isfinite(res.effects.att)
+
+
+class TestPlotAxis:
+    def test_the_axis_carries_the_real_period_labels(self):
+        """The result knows its dates; the plot must not fall back to 0..T-1."""
+        df = _panel(T=48, T0=36)
+        fig = plot_gpits(GPITS(_cfg(df)).fit())
+        ax = fig.axes[0]
+        xs = np.asarray(ax.lines[0].get_xdata())
+        assert len(xs) == 48
+        # the labels reach the axis as dates, not as 0..T-1 positions
+        assert not np.array_equal(xs, np.arange(48))
+        assert pd.Timestamp(xs[0]) == pd.Timestamp("2000-01-01")
+        assert pd.Timestamp(xs[-1]) == pd.Timestamp("2003-12-01")
+        assert ax.get_xlabel() == "Date"
+        plt.close(fig)
+
+    def test_the_treatment_marker_sits_at_the_first_treated_period(self):
+        df = _panel(T=48, T0=36)
+        res = GPITS(_cfg(df)).fit()
+        fig = plot_gpits(res)
+        ax = fig.axes[0]
+        vlines = [ln for ln in ax.lines if ln.get_linestyle() == ":"]
+        assert vlines, "treatment marker absent"
+        got = pd.Timestamp(np.asarray(vlines[0].get_xdata())[0])
+        assert got == pd.Timestamp(res.time_series.time_periods[36])
+        plt.close(fig)
+
+    def test_a_non_datetime_index_still_plots(self):
+        """Integer period labels are a valid index and must not crash."""
+        df = _panel(T=36, T0=28)
+        df["time"] = np.arange(len(df))
+        fig = plot_gpits(GPITS(_cfg(df)).fit())
+        assert fig.axes[0].get_xlabel() == "Period"
+        plt.close(fig)
+
+    def test_string_period_labels_plot_as_categories(self):
+        """Matplotlib handles string labels natively, so they reach the axis
+        as themselves; only labels it cannot place trigger the fallback."""
+        df = _panel(T=36, T0=28)
+        df["time"] = [f"p{i:03d}" for i in range(len(df))]
+        fig = plot_gpits(GPITS(_cfg(df)).fit())
+        ax = fig.axes[0]
+        assert list(np.asarray(ax.lines[0].get_xdata()))[:2] == ["p000", "p001"]
+        assert ax.get_xlabel() == "Period"
+        plt.close(fig)
+
+    def test_unplottable_labels_fall_back_to_positions(self):
+        """An object array matplotlib cannot place must not raise: the plot
+        falls back to 0..T-1."""
+        from mlsynth.utils.gpits_helpers.plotter import _plottable
+        assert _plottable(np.array([1, 2.0, np.int64(3)], dtype=object))
+        assert not _plottable(np.array([(1, 2), (3, 4)], dtype=object))
+
+        res = GPITS(_cfg(_panel(T=36, T0=28))).fit()
+        n = len(res.time_series.observed_outcome)
+        odd = np.empty(n, dtype=object)
+        for i in range(n):
+            odd[i] = (i, i)
+        object.__setattr__(res.time_series, "time_periods", odd)
+        fig = plot_gpits(res)
+        ax = fig.axes[0]
+        np.testing.assert_array_equal(
+            np.asarray(ax.lines[0].get_xdata()), np.arange(n))
+        assert ax.get_xlabel() == "Period"
+        plt.close(fig)
