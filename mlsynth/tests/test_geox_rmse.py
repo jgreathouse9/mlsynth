@@ -20,12 +20,18 @@ makes the criterion free, and if it ever stops holding the reported RMSE stops
 meaning what it says.
 
 Over the backtests of one (candidate, duration) the three reported numbers are
-``bias = mean(tau_0)``, ``error_sd = std(tau_0)`` and ``rmse = sqrt(mean(tau_0^2))``,
-with ``rmse^2 = bias^2 + error_sd^2``. The squaring is the whole difference from
+``att_error_mean`` (the mean error, so the design's bias), ``att_error_sd``
+(its spread) and ``att_error_rmse`` (the root mean square combining them), with
+``rmse^2 = mean^2 + sd^2``. The squaring is the whole difference from
 ``abs_lift_in_zero``, which the composite rank already carries: that term is
 built after :func:`compute_power` has averaged over backtests, so it measures
 bias and cancels error that alternates in sign. A design whose placebo ATT runs
 +5, -5, +5, -5 is unbiased and unreliable, and only the RMSE says so.
+
+The error is the counterfactual's, not the injection's. The window carries no
+real treatment, so the region's observed path is the truth there and the true
+effect is zero; the injected lift is recovered exactly by construction, and
+what is left is out-of-sample counterfactual bias on the ATT scale.
 """
 
 from __future__ import annotations
@@ -127,9 +133,9 @@ class TestEstimationErrorIdentity:
                                  alpha=ALPHA)
         assert rows
         for row in rows:
-            assert np.isfinite(row["estimation_error"])
+            assert np.isfinite(row["att_error"])
             assert np.isfinite(row["placebo_sigma"])
-        errors = {row["estimation_error"] for row in rows}
+        errors = {row["att_error"] for row in rows}
         assert len(errors) == 1, "the error does not depend on the effect size"
 
     def test_an_engine_that_omits_tau0_is_reported(self, wide, monkeypatch):
@@ -167,8 +173,8 @@ class TestEstimationErrorIdentity:
                                       [-0.1, 0.0, 0.1], **kw)
         without = simulate_backtest(y, Y0, wide.shape[0], 14, 1,
                                     [0.3, 0.4], **kw)
-        assert (without[0]["estimation_error"]
-                == pytest.approx(with_zero[0]["estimation_error"]))
+        assert (without[0]["att_error"]
+                == pytest.approx(with_zero[0]["att_error"]))
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +196,7 @@ def _cube(errors_by_candidate, *, duration=14, effect_sizes=(0.0, 0.1),
                 rows.append({
                     "candidate": candidate, "duration": duration, "sim": sim,
                     "effect_size": float(es),
-                    "estimation_error": float(error),
+                    "att_error": float(error),
                     "placebo_sigma": sigma,
                     "p_value": 0.5,
                     "placebo_mean_effect": float(error) + float(es) * 100.0,
@@ -205,12 +211,12 @@ class TestAccuracyAggregation:
     def test_rmse_decomposes_into_bias_and_spread(self):
         table = compute_accuracy(_cube({"A": [1.0, 3.0, 5.0, 7.0]}))
         row = table.iloc[0]
-        assert row["bias"] == pytest.approx(4.0)
-        assert row["error_sd"] == pytest.approx(np.std([1.0, 3.0, 5.0, 7.0]))
-        assert row["rmse"] == pytest.approx(
+        assert row["att_error_mean"] == pytest.approx(4.0)
+        assert row["att_error_sd"] == pytest.approx(np.std([1.0, 3.0, 5.0, 7.0]))
+        assert row["att_error_rmse"] == pytest.approx(
             np.sqrt(np.mean(np.square([1.0, 3.0, 5.0, 7.0]))))
-        assert row["rmse"] ** 2 == pytest.approx(
-            row["bias"] ** 2 + row["error_sd"] ** 2)
+        assert row["att_error_rmse"] ** 2 == pytest.approx(
+            row["att_error_mean"] ** 2 + row["att_error_sd"] ** 2)
 
     def test_alternating_error_separates_from_constant_error(self):
         # The claim the criterion exists to make. Two designs, the same error
@@ -219,76 +225,78 @@ class TestAccuracyAggregation:
                       "flipping": [5.0, -5.0, 5.0, -5.0]})
         table = compute_accuracy(cube).set_index("candidate")
 
-        # Averaging first cannot tell them apart on bias ...
-        assert abs(table.loc["flipping", "bias"]) < abs(table.loc["steady", "bias"])
+        # Averaging first cannot tell them apart on att_error_mean ...
+        assert (abs(table.loc["flipping", "att_error_mean"])
+                < abs(table.loc["steady", "att_error_mean"]))
         # ... and the rank's own recovery term is built on that average, so it
         # calls the unreliable design the better one.
         averaged = compute_power(cube, alpha=ALPHA).set_index("candidate")
         assert (abs(averaged.loc["flipping", "detected_lift"]).min()
                 < abs(averaged.loc["steady", "detected_lift"]).min())
         # Squaring first says they are equally wrong, which they are.
-        assert table.loc["flipping", "rmse"] == pytest.approx(
-            table.loc["steady", "rmse"])
+        assert table.loc["flipping", "att_error_rmse"] == pytest.approx(
+            table.loc["steady", "att_error_rmse"])
 
     def test_accuracy_does_not_depend_on_the_effect_grid(self):
         errors = {"A": [1.0, -2.0, 3.0]}
         coarse = compute_accuracy(_cube(errors, effect_sizes=(0.1,)))
         fine = compute_accuracy(
             _cube(errors, effect_sizes=(-0.2, -0.1, 0.0, 0.1, 0.2)))
-        for column in ("bias", "error_sd", "rmse"):
+        for column in ("att_error_mean", "att_error_sd", "att_error_rmse"):
             assert coarse[column].iloc[0] == pytest.approx(fine[column].iloc[0])
 
     def test_calibration_ratio_is_rmse_over_the_placebo_sigma(self):
         table = compute_accuracy(_cube({"A": [2.0, -2.0]}, sigma=4.0))
         row = table.iloc[0]
-        assert row["sigma_mean"] == pytest.approx(4.0)
-        assert row["calibration_ratio"] == pytest.approx(row["rmse"] / 4.0)
+        assert row["placebo_sigma_mean"] == pytest.approx(4.0)
+        assert row["att_error_over_sigma"] == pytest.approx(row["att_error_rmse"] / 4.0)
 
     def test_calibration_ratio_absent_when_the_engine_reports_no_sigma(self):
         # The conformal path permutes instead of drawing placebos, so there is
         # no sigma to calibrate against. Reported absent, not guessed.
         table = compute_accuracy(_cube({"A": [1.0, 2.0]}, sigma=float("nan")))
-        assert np.isnan(table["sigma_mean"].iloc[0])
-        assert np.isnan(table["calibration_ratio"].iloc[0])
-        assert np.isfinite(table["rmse"].iloc[0])
+        assert np.isnan(table["placebo_sigma_mean"].iloc[0])
+        assert np.isnan(table["att_error_over_sigma"].iloc[0])
+        assert np.isfinite(table["att_error_rmse"].iloc[0])
 
-    @pytest.mark.parametrize("errors,bias,sd,rmse", [
+    @pytest.mark.parametrize("errors,att_error_mean,sd,att_error_rmse", [
         ([4.0], 4.0, 0.0, 4.0),                    # one backtest: no spread
         ([0.0, 0.0], 0.0, 0.0, 0.0),               # a design that never errs
-        ([-3.0, 3.0], 0.0, 3.0, 3.0),              # pure spread, no bias
+        ([-3.0, 3.0], 0.0, 3.0, 3.0),              # pure spread, no att_error_mean
     ])
-    def test_degenerate_backtest_sets(self, errors, bias, sd, rmse):
+    def test_degenerate_backtest_sets(self, errors, att_error_mean, sd, att_error_rmse):
         row = compute_accuracy(_cube({"A": errors})).iloc[0]
-        assert row["bias"] == pytest.approx(bias)
-        assert row["error_sd"] == pytest.approx(sd)
-        assert row["rmse"] == pytest.approx(rmse)
+        assert row["att_error_mean"] == pytest.approx(att_error_mean)
+        assert row["att_error_sd"] == pytest.approx(sd)
+        assert row["att_error_rmse"] == pytest.approx(att_error_rmse)
 
     def test_empty_cube_returns_the_columns(self):
         table = compute_accuracy(pd.DataFrame())
         assert table.empty
-        for column in ("candidate", "duration", "bias", "error_sd", "rmse",
-                       "sigma_mean", "calibration_ratio"):
+        for column in ("candidate", "duration", "att_error_mean",
+                       "att_error_sd", "att_error_rmse",
+                       "placebo_sigma_mean", "att_error_over_sigma"):
             assert column in table.columns
 
     def test_a_failed_backtest_is_reported_not_dropped(self):
         # A fit that did not converge leaves a nan error. Dropping it would
         # report the accuracy of the backtests that happened to work.
         table = compute_accuracy(_cube({"A": [1.0, float("nan"), 3.0]}))
-        assert np.isnan(table["rmse"].iloc[0])
-        assert np.isnan(table["bias"].iloc[0])
+        assert np.isnan(table["att_error_rmse"].iloc[0])
+        assert np.isnan(table["att_error_mean"].iloc[0])
 
     def test_a_cube_without_the_error_column_raises(self):
-        cube = _cube({"A": [1.0]}).drop(columns=["estimation_error"])
-        with pytest.raises(MlsynthEstimationError, match="estimation_error"):
+        cube = _cube({"A": [1.0]}).drop(columns=["att_error"])
+        with pytest.raises(MlsynthEstimationError, match="att_error"):
             compute_accuracy(cube)
 
     def test_a_cube_without_a_sigma_column_still_reports_the_error(self):
         # No standard error is a missing comparison, not a missing measurement.
         cube = _cube({"A": [1.0, 3.0]}).drop(columns=["placebo_sigma"])
         row = compute_accuracy(cube).iloc[0]
-        assert row["rmse"] == pytest.approx(np.sqrt(5.0))
-        assert np.isnan(row["sigma_mean"])
-        assert np.isnan(row["calibration_ratio"])
+        assert row["att_error_rmse"] == pytest.approx(np.sqrt(5.0))
+        assert np.isnan(row["placebo_sigma_mean"])
+        assert np.isnan(row["att_error_over_sigma"])
 
 
 # ---------------------------------------------------------------------------
@@ -306,34 +314,37 @@ def result(panel):
 
 class TestShortlist:
     def test_shortlist_carries_the_accuracy_columns(self, result):
-        for column in ("bias", "error_sd", "rmse", "sigma_mean",
-                       "calibration_ratio"):
+        for column in ("att_error_mean", "att_error_sd", "att_error_rmse",
+                       "placebo_sigma_mean", "att_error_over_sigma"):
             assert column in result.power.columns, column
 
     def test_rmse_is_non_negative_and_finite(self, result):
-        rmse = result.power["rmse"].dropna()
-        assert not rmse.empty
-        assert (rmse >= 0).all()
-        assert np.isfinite(rmse).all()
+        att_error_rmse = result.power["att_error_rmse"].dropna()
+        assert not att_error_rmse.empty
+        assert (att_error_rmse >= 0).all()
+        assert np.isfinite(att_error_rmse).all()
 
     def test_rmse_dominates_its_components(self, result):
-        s = result.power.dropna(subset=["rmse", "bias", "error_sd"])
+        s = result.power.dropna(
+            subset=["att_error_rmse", "att_error_mean", "att_error_sd"])
         assert not s.empty
-        assert (s["rmse"] >= s["bias"].abs() - 1e-9).all()
-        assert (s["rmse"] >= s["error_sd"] - 1e-9).all()
+        assert (s["att_error_rmse"] >= s["att_error_mean"].abs() - 1e-9).all()
+        assert (s["att_error_rmse"] >= s["att_error_sd"] - 1e-9).all()
 
     def test_decomposition_holds_on_real_backtests(self, result):
-        s = result.power.dropna(subset=["rmse", "bias", "error_sd"])
+        s = result.power.dropna(
+            subset=["att_error_rmse", "att_error_mean", "att_error_sd"])
         np.testing.assert_allclose(
-            s["rmse"] ** 2, s["bias"] ** 2 + s["error_sd"] ** 2, rtol=1e-9)
+            s["att_error_rmse"] ** 2,
+            s["att_error_mean"] ** 2 + s["att_error_sd"] ** 2, rtol=1e-9)
 
     def test_candidate_designs_carry_the_accuracy(self, result):
-        scored = [c for c in result.search.candidates if c.rmse is not None]
+        scored = [c for c in result.search.candidates if c.att_error_rmse is not None]
         assert scored
         for design in scored:
-            assert np.isfinite(design.rmse) and design.rmse >= 0
-            assert np.isfinite(design.bias)
-            assert np.isfinite(design.error_sd)
+            assert np.isfinite(design.att_error_rmse) and design.att_error_rmse >= 0
+            assert np.isfinite(design.att_error_mean)
+            assert np.isfinite(design.att_error_sd)
 
     def test_the_ranking_is_untouched(self, panel, result):
         # The composite rank is what the GeoLift cross-validation pins. The
@@ -353,21 +364,22 @@ class TestShortlist:
         # drawn across donor markets, the error across backtest windows -- so
         # the ratio has no value it should sit at. What is pinned is what it
         # is: a positive, finite comparison of the one against the other.
-        s = result.power.dropna(subset=["calibration_ratio"])
+        s = result.power.dropna(subset=["att_error_over_sigma"])
         assert not s.empty
-        assert (s["calibration_ratio"] > 0).all()
-        assert np.isfinite(s["calibration_ratio"]).all()
-        np.testing.assert_allclose(s["calibration_ratio"],
-                                   s["rmse"] / s["sigma_mean"], rtol=1e-9)
+        assert (s["att_error_over_sigma"] > 0).all()
+        assert np.isfinite(s["att_error_over_sigma"]).all()
+        np.testing.assert_allclose(
+            s["att_error_over_sigma"],
+            s["att_error_rmse"] / s["placebo_sigma_mean"], rtol=1e-9)
 
 
 class TestPlanningAccuracy:
     def test_planning_rmse_is_reported_for_the_winner(self, result):
-        assert "winner_rmse_planning" in result.metadata
-        planning = result.metadata["winner_rmse_planning"]
+        assert "winner_att_error_rmse_planning" in result.metadata
+        planning = result.metadata["winner_att_error_rmse_planning"]
         assert planning is not None
         assert planning >= 0 and np.isfinite(planning)
-        assert result.search.winner.rmse_planning == pytest.approx(planning)
+        assert result.search.winner.att_error_rmse_planning == pytest.approx(planning)
 
     def test_absent_when_no_validation_backtests(self, panel):
         res = GEOX(GEOXConfig(
@@ -375,15 +387,17 @@ class TestPlanningAccuracy:
             treatment_size=2, durations=[14], effect_sizes=GRID,
             n_backtests=3, n_draws=25, n_validation_backtests=0,
             alpha=ALPHA, seed=0)).fit()
-        assert res.metadata["winner_rmse_planning"] is None
-        assert res.search.winner.rmse_planning is None
+        assert res.metadata["winner_att_error_rmse_planning"] is None
+        assert res.search.winner.att_error_rmse_planning is None
 
     def test_planning_backtests_are_not_the_selecting_ones(self, result):
         # Held-back backtests sit deeper in history, so the winner's planning
         # RMSE is a different number from its in-search one except by accident.
         winner = result.search.winner
-        assert winner.rmse is not None and winner.rmse_planning is not None
-        assert winner.rmse_planning != pytest.approx(winner.rmse, rel=1e-12)
+        assert winner.att_error_rmse is not None
+        assert winner.att_error_rmse_planning is not None
+        assert winner.att_error_rmse_planning != pytest.approx(
+            winner.att_error_rmse, rel=1e-12)
 
 
 class TestPlanningReadout:
@@ -419,7 +433,7 @@ class TestPlanningReadout:
             ignore_index=True)
         readout = planning_readout(undetectable, config)
         assert readout.mde is None
-        assert readout.rmse == pytest.approx(np.sqrt(5.0))
+        assert readout.att_error_rmse == pytest.approx(np.sqrt(5.0))
 
 
 class TestConformalEngine:
@@ -434,8 +448,8 @@ class TestConformalEngine:
 
     def test_rmse_is_reported_without_a_sigma(self, conformal):
         s = conformal.power
-        assert np.isfinite(s["rmse"].dropna()).all()
-        assert s["calibration_ratio"].isna().all()
+        assert np.isfinite(s["att_error_rmse"].dropna()).all()
+        assert s["att_error_over_sigma"].isna().all()
 
 
 def test_the_criterion_costs_no_extra_fits(wide, monkeypatch):

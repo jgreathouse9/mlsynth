@@ -83,12 +83,12 @@ def design_fit(Ywide: pd.DataFrame, candidate, n_pre: int,
 class PlanningReadout(NamedTuple):
     """The winner's design scored on backtests that did not choose it.
 
-    ``mde`` and ``rmse`` are read at the same duration, so the two numbers
-    describe one experiment.
+    ``mde`` and ``att_error_rmse`` are read at the same duration, so the two
+    numbers describe one experiment.
     """
 
     mde: Optional[float] = None
-    rmse: Optional[float] = None
+    att_error_rmse: Optional[float] = None
 
 
 def planning_backtests(Ywide: pd.DataFrame, candidate, config: GEOXConfig,
@@ -159,9 +159,9 @@ def planning_readout(cube: pd.DataFrame, config: GEOXConfig) -> PlanningReadout:
         mde = float(best["mde"])
         duration = best["duration"]
 
-    rmse = (float(accuracy.loc[duration, "rmse"])
+    att_error_rmse = (float(accuracy.loc[duration, "att_error_rmse"])
             if duration in accuracy.index else None)
-    return PlanningReadout(mde=mde, rmse=rmse)
+    return PlanningReadout(mde=mde, att_error_rmse=att_error_rmse)
 
 
 def engine_settings(config: GEOXConfig) -> dict:
@@ -345,8 +345,8 @@ def run_design(config: GEOXConfig) -> GEOXResults:
     }
 
     # Stitch each candidate's best (lowest-rank) shortlist row into its design.
-    stitched = ("rank", "mde", "power", "bias", "error_sd", "rmse",
-                "calibration_ratio")
+    stitched = ("rank", "mde", "power", "att_error_mean", "att_error_sd",
+                "att_error_rmse", "att_error_over_sigma")
     best: Dict[frozenset, dict] = {}
     for _, row in shortlist.iterrows():
         cand = row["candidate"]
@@ -373,7 +373,7 @@ def run_design(config: GEOXConfig) -> GEOXResults:
                                   exclude=excluded.get(winning))
         readout = planning_readout(held, config)
         winner.mde_planning = readout.mde
-        winner.rmse_planning = readout.rmse
+        winner.att_error_rmse_planning = readout.att_error_rmse
 
     search = MarketSearch(shortlist=shortlist, power_table=power_table,
                           candidates=list(designs.values()), winner=winner)
@@ -418,9 +418,9 @@ def run_design(config: GEOXConfig) -> GEOXResults:
                 float(winner.mde_planning) if winner is not None
                 and winner.mde_planning is not None else None),
             # What the winner gets wrong, on the same held-back backtests.
-            "winner_rmse_planning": (
-                float(winner.rmse_planning) if winner is not None
-                and winner.rmse_planning is not None else None),
+            "winner_att_error_rmse_planning": (
+                float(winner.att_error_rmse_planning) if winner is not None
+                and winner.att_error_rmse_planning is not None else None),
             "n_validation_backtests": config.n_validation_backtests,
         },
         search=search,

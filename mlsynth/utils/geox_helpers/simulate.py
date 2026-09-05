@@ -84,7 +84,7 @@ def simulate_backtest(
         One row per effect size, carrying ``sim``, ``duration``,
         ``effect_size``, ``p_value``, ``placebo_mean_effect`` (the SDID ATT),
         ``detected_lift`` (ATT over the counterfactual post mean),
-        ``estimation_error`` (the ATT with nothing injected, which is the
+        ``att_error`` (the ATT with nothing injected, which is the
         estimate minus the injected truth at every effect size),
         ``placebo_sigma`` (``nan`` where the engine's procedure has no standard
         error), ``scaled_l2``, ``pre_rmspe`` and ``investment``.
@@ -145,7 +145,7 @@ def simulate_backtest(
             "effect_size": float(es),
             "p_value": p_value,
             "placebo_mean_effect": tau,
-            "estimation_error": error,
+            "att_error": error,
             "placebo_sigma": sigma,
             "detected_lift": (tau / cf_post_mean if cf_post_mean != 0.0
                               else float("nan")),

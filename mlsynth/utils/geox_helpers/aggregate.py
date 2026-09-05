@@ -27,8 +27,9 @@ _POWER_COLUMNS = [
 ]
 
 _ACCURACY_COLUMNS = [
-    "candidate", "duration", "bias", "error_sd", "rmse", "sigma_mean",
-    "calibration_ratio",
+    "candidate", "duration",
+    "att_error_mean", "att_error_sd", "att_error_rmse",
+    "placebo_sigma_mean", "att_error_over_sigma",
 ]
 
 
@@ -98,7 +99,7 @@ def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
     two come apart when the estimator is biased under the design -- for
     synthetic control, a treated region outside the donor hull.
 
-    Each backtest carries one error, ``estimation_error``: the ATT with nothing
+    Each backtest carries one error, ``att_error``: the ATT with nothing
     injected. Injecting a lift ``e`` moves the truth and the estimate by the
     same ``e * mean(y_post)``, so that value is the estimate minus the truth at
     every effect size, and the error is a property of the backtest, not of the
@@ -107,12 +108,13 @@ def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
 
     Over those backtests::
 
-        bias     = mean(error)
-        error_sd = std(error)                  # population, so that
-        rmse     = sqrt(mean(error ** 2))      # rmse^2 = bias^2 + error_sd^2
+        att_error_mean = mean(error)          # the design's bias
+        att_error_sd   = std(error)           # population sd, so that
+        att_error_rmse = sqrt(mean(error**2)) # rmse^2 = mean^2 + sd^2
 
-    ``calibration_ratio = rmse / sigma_mean`` sets the error against the scale
-    the design's own inference tests it at. The two are not the same
+    ``att_error_over_sigma`` divides ``att_error_rmse`` by
+    ``placebo_sigma_mean``, setting the error against the scale the design's
+    own inference tests it at. The two are not the same
     measurement: the placebo standard error is drawn across donor markets
     reassigned as pseudo-treated, while the error varies across backtest
     windows for one fixed region. So the ratio has no value it should sit at,
@@ -123,9 +125,10 @@ def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
     anti-conservative. It is ``nan`` where the engine's procedure has no
     standard error, as conformal inference does not.
 
-    ``error_sd`` is a lower bound on across-experiment variability, because
+    ``att_error_sd`` is a lower bound on across-experiment variability, because
     consecutive backtests shift their window by one period and so overlap
-    heavily. On a short backtest set ``rmse`` is dominated by ``bias``.
+    heavily. On a short backtest set ``att_error_rmse`` is dominated by
+    ``att_error_mean``.
 
     A ``nan`` error from a backtest whose fit failed propagates into all three
     statistics. Dropping it would report the accuracy of the backtests that
@@ -139,20 +142,20 @@ def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        One row per (candidate, duration) with ``bias``, ``error_sd``,
-        ``rmse``, ``sigma_mean`` and ``calibration_ratio``.
+        One row per (candidate, duration) with ``att_error_mean``, ``att_error_sd``,
+        ``att_error_rmse``, ``placebo_sigma_mean`` and ``att_error_over_sigma``.
 
     Raises
     ------
     MlsynthEstimationError
-        If the cube carries no ``estimation_error`` column, which means the
+        If the cube carries no ``att_error`` column, which means the
         engine did not report it.
     """
     if cube.empty:
         return pd.DataFrame(columns=_ACCURACY_COLUMNS)
-    if "estimation_error" not in cube.columns:
+    if "att_error" not in cube.columns:
         raise MlsynthEstimationError(
-            "the simulation cube carries no estimation_error column, so the "
+            "the simulation cube carries no att_error column, so the "
             "design's accuracy cannot be measured; the engine's sweep must "
             "return tau0.")
 
@@ -169,16 +172,16 @@ def compute_accuracy(cube: pd.DataFrame) -> pd.DataFrame:
     grouped = per_backtest.groupby(
         ["candidate", "duration"], as_index=False, sort=False, observed=True
     ).agg(
-        bias=("estimation_error", _mean),
-        # ddof=0 keeps rmse^2 = bias^2 + error_sd^2 exact, and gives a single
+        att_error_mean=("att_error", _mean),
+        # ddof=0 keeps rmse^2 = mean^2 + sd^2 exact, and gives a single
         # backtest a spread of zero instead of nan.
-        error_sd=("estimation_error", _sd),
-        rmse=("estimation_error", _rmse),
-        sigma_mean=("placebo_sigma", _mean),
+        att_error_sd=("att_error", _sd),
+        att_error_rmse=("att_error", _rmse),
+        placebo_sigma_mean=("placebo_sigma", _mean),
     )
-    grouped["calibration_ratio"] = np.where(
-        grouped["sigma_mean"].to_numpy(dtype=float) > 0,
-        grouped["rmse"] / grouped["sigma_mean"],
+    grouped["att_error_over_sigma"] = np.where(
+        grouped["placebo_sigma_mean"].to_numpy(dtype=float) > 0,
+        grouped["att_error_rmse"] / grouped["placebo_sigma_mean"],
         np.nan,
     )
     return grouped[_ACCURACY_COLUMNS]
