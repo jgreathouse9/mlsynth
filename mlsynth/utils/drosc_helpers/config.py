@@ -13,14 +13,17 @@ from ...exceptions import MlsynthConfigError
 class DROSCConfig(BaseEstimatorConfig):
     """Distributionally Robust Synthetic Control.
 
-    DROSC (Koo & Guo 2026) targets a worst-case treatment effect over the set of
-    donor weights compatible with the pre-treatment moments up to a robustness
-    radius ``robustness_lambda``. At ``robustness_lambda = 0`` the compatible set
-    is tightest (classical-SC-like); as it grows the estimate becomes a
-    conservative proxy that is robust to highly correlated controls and to shifts
-    in the treated-control relationship. Optional perturbation-based inference
-    returns a (possibly disjoint) union confidence interval whose limiting law is
-    non-normal.
+    DROSC (Koo & Guo 2026) reports the smallest-magnitude effect consistent with
+    the donor weightings the pre-treatment moments cannot rule out -- the
+    projection of the origin onto the interval of effects that set admits. Where
+    the post-treatment weighting lies in the set, that effect is a lower bound on
+    the true one's magnitude and cannot take the opposite sign, so a directional
+    claim survives even though the size is understated.
+
+    ``robustness_lambda`` widens the set, so the effect shrinks toward zero as it
+    grows; read the sweep, not one value. Optional perturbation-based inference
+    returns a (possibly disjoint) union confidence interval, which is a
+    confidence set for the effects the data cannot reject.
 
     References
     ----------
@@ -31,9 +34,14 @@ class DROSCConfig(BaseEstimatorConfig):
 
     robustness_lambda: float = Field(
         default=0.0, ge=0.0,
-        description="Robustness radius lambda >= 0: the half-width of the "
-                    "pre-treatment moment-compatibility band. 0 is the tightest "
-                    "(classical-SC-like) set; larger values widen it.",
+        description="Robustness radius lambda >= 0: how far a plausible "
+                    "post-treatment weighting may violate the pre-treatment "
+                    "moment condition. This is a tolerance for weight shift, a "
+                    "modelling choice that does not shrink with more data; the "
+                    "slack for sampling error in the estimated moments is added "
+                    "separately and vanishes as the pre-period grows. 0 trusts "
+                    "the classical identification; larger values widen the set "
+                    "and drive the reported effect toward zero.",
     )
     inference: bool = Field(
         default=False,
