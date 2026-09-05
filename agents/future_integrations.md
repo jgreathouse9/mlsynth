@@ -2734,6 +2734,136 @@ outside this paper's inference.
 
 ---
 
+## 25. Bruns-Smith et al. (2026) augmented balancing weights -- assessed, CLOSED as a property check, no estimator
+
+**Status: Closed. Out of scope as an estimator and nothing to build, but its
+theorem is about an estimator the library already ships, so the Path C spike
+was run anyway. Spike at
+`benchmarks/reference/balance_equiv_spike/`.**
+
+### Source
+
+> Bruns-Smith, D., Dukes, O., Feller, A., & Ogburn, E. L. (2026). *Augmented
+> balancing weights as linear regression*. Journal of the Royal Statistical
+> Society Series B 88(3), 699-723. doi:10.1093/jrsssb/qkaf019. Read before the
+> Society as a Discussion Paper, so the article carries the formal discussion
+> and rejoinder. Replication package: `github.com/bruns-smith/balance-equiv-jrssb`
+> (Python, 351 lines across three modules plus seven notebooks, data included).
+
+### The claim
+
+Augmented balancing weights -- AIPW, automatic debiased machine learning, and
+their relatives -- combine an outcome model with weights that balance
+covariates directly instead of inverting a propensity score. When both models
+are linear in some basis, the augmented estimator is a *single* linear model
+whose coefficients mix the outcome model's with unpenalized OLS
+(Proposition 3.2).
+
+Specialized to a ridge outcome model at `Lambda` and `l2` balancing weights at
+`delta`, Proposition 4.3 gives the mixing in closed form: the augmented
+estimator is one generalized ridge at
+
+    gamma_j = delta * lambda_j / (sigma_j + lambda_j + delta)  <=  lambda_j
+
+so augmenting *is* undersmoothing, and the paper reads off exactly how much.
+At `delta = 0` the augmented estimator is numerically OLS.
+
+### Why it is out of scope as an estimator
+
+Cross-sectional. Section 2.1.1 is `X, Y, Z` i.i.d. with a binary treatment
+under SUTVA, targeting `E[Y(1) - Y(0)]`; the application is 912 rows of
+NSW-PSID with one outcome per unit. No time index, no pre-periods, no donor
+pool, so `dataprep` cannot read it. This is the MAVE lesson again: a paper by
+synthetic-control authors is still cross-sectional if its data is.
+
+### Why the spike was run anyway
+
+The paper's framework contains an estimator mlsynth ships. Section 2.3 names
+the Synthetic Control Method and "their augmented analogues (Athey et al.,
+2018; Ben-Michael, Feller, Rothstein, 2021)" as the nonnegativity-constrained
+case of its own setup, and Feller authored both papers. Ridge-augmented SCM is
+`VanillaSC(augment="ridge")`, implemented in
+`mlsynth/utils/bilevel/ridge_augment.py`.
+
+So the question was not whether to build anything. It was whether the paper's
+documented failure mode is live in code already on `main`. The paper reports
+that practical tuning selects `delta = 0` on 56 percent of its draws
+(Table 1), landing on OLS, while `delta = 0` is never optimal across its 36
+DGPs and is usually catastrophic.
+
+### What the spike established
+
+**1. The theorem reproduces, in both geometries.** Proposition 4.3 holds to
+1.6e-09 over 32 cells on the authors' own LaLonde data and to 1.3e-12 over 27
+cells on simulated panels. Panels invert the paper's aspect ratio as often as
+not, so the sweep covers `J = 40, T0 = 12`, `J = 12, T0 = 40` and
+`J = T0 = 30`; the equivalence does not care. The `delta -> 0` collapse to the
+OLS plug-in reproduces at 2.98e-08.
+
+**2. mlsynth's ASCM is an instance of equation (7), at `Lambda = lam / J`.**
+With `B` the centered donor pre-matrix, `A` the centered treated pre-vector and
+`W` base simplex weights, `ridge_augment_weights` computes
+`W_ridge = M (B B^T + lam I)^{-1} B` for `M = A - B W`, so the prediction is
+`W . Y_post + M . beta` with `beta = (B B^T + lam I)^{-1} B Y_post`. Putting
+`Xp = B^T` and `Sigma = B B^T / J`, that `beta` is the paper's generalized
+ridge coefficient at `Lambda = lam / J` and `M` is its residual feature shift.
+Checked over 12 cells, worst 2.3e-12.
+
+**3. The failure mode does not transfer, for two independent reasons.**
+
+The collapse target is not OLS. At `lam -> 0` with `B B^T` invertible,
+
+    W_aug . Y = A (B B^T)^{-1} B Y  +  W . (I - P) Y,   P = B^T (B B^T)^{-1} B
+
+The first term is the OLS plug-in; the second applies the base weights to the
+part of the donors' post-treatment outcome lying outside the row space of the
+pre-window. `l2` balancing weights have the form `theta B`, which lies in that
+row space, so the second term vanishes and the paper's collapse follows.
+Simplex weights do not, so it survives -- measured at 0.405 on `J = 40,
+T0 = 12` and -0.084 on `J = 30, T0 = 20`, with the decomposition exact to
+1.6e-12. Swapping the simplex for `l2` weights through the *same* mlsynth code
+path (`base_weights_fn` is an injectable hook) makes the collapse appear at
+8.9e-16. The nonnegativity constraint is what breaks the equivalence, which is
+the case the paper sends to Supplementary Appendix D.2 and treats as sample
+trimming.
+
+And the 1-SE cross-validation does not go near the degenerate end: the grid
+floor is selected once in 120 simulated panels, and never on the three real
+ones.
+
+| panel | J | T0 | CV lambda | ATT (CV) | ATT (lam -> 0) | ATT (OLS) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Kansas tax cut | 49 | 89 | 0.0787 | -0.04006 | -0.06699 | 10.777 |
+| Prop 99 (California) | 38 | 19 | 429.8 | -15.953 | -12.374 | 86.571 |
+| German reunification | 16 | 30 | 1.49e+05 | -1333.11 | -5251.24 | 21220.16 |
+
+Kansas under CV reproduces the `augsynth` R reference of -0.0401 pinned in
+`benchmarks/cases/ascm_kansas.py`, so the probed path is the validated one.
+
+### What carries over
+
+The last column prices the paper's warning on panels, and it lands harder here
+than in the paper's own application: the unpenalized plug-in is not merely
+suboptimal but nonsensical, +10.8 log points on Kansas and +21220 on Germany
+against CV-selected estimates of -0.04 and -1333. The degenerate end of the
+penalty grid costs a factor of 1.7 on Kansas and 3.9 on Germany without ever
+reaching OLS.
+
+The reading of ASCM as undersmoothing is the durable idea. The ridge penalty
+is not a nuisance knob: it sets how far the augmented fit is allowed to leave
+the simplex, and `|W|_1` climbing from 1.009 to 2.900 as `lam` falls from 1e2
+to 1e-10 is that statement in one number.
+
+### If anything changes
+
+Part 3 of `check_ascm.py` and `check_real_panels.py` are the regression check
+for the third finding, and both take seconds. Re-run them if the ridge penalty
+grid, the 1-SE rule, or the base simplex solver changes. Neither is registered
+in `benchmarks/registry.py`: the finding is a negative, and a negative does
+not need to be re-established on every run.
+
+---
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
