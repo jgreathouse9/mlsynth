@@ -11,13 +11,13 @@
 from .config import GPITSConfig
 from .kernels import getb_maxvar, kernel_gaussian, kernel_gaussian_periodic_linear
 from .pipeline import fit_gpits, run_placebo, summarize_effects
-from .plotter import plot_gpits
+from .plotter import plot_gpits, plot_gpits_panels
 from .setup import prepare_gpits_inputs
 from .structures import GPITSDesign, GPITSInputs, GPITSPlacebo, GPITSResults
 
 __all__ = [
     "GPITSConfig", "GPITSDesign", "GPITSInputs", "GPITSPlacebo", "GPITSResults",
     "fit_gpits", "getb_maxvar", "kernel_gaussian",
-    "kernel_gaussian_periodic_linear", "plot_gpits", "prepare_gpits_inputs",
+    "kernel_gaussian_periodic_linear", "plot_gpits", "plot_gpits_panels", "prepare_gpits_inputs",
     "run_placebo", "summarize_effects",
 ]

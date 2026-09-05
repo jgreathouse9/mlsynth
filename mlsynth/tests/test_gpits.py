@@ -33,7 +33,10 @@ from mlsynth.utils.gpits_helpers.kernels import (  # noqa: E402
     kernel_gaussian,
     kernel_gaussian_periodic_linear,
 )
-from mlsynth.utils.gpits_helpers.plotter import plot_gpits  # noqa: E402
+from mlsynth.utils.gpits_helpers.plotter import (  # noqa: E402
+    plot_gpits,
+    plot_gpits_panels,
+)
 from mlsynth.utils.gpits_helpers.structures import GPITSResults  # noqa: E402
 
 BASEDATA = Path(__file__).resolve().parents[2] / "basedata"
@@ -506,18 +509,34 @@ class TestGuardedPaths:
         assert np.isfinite(res.effects.att)
 
 
+def _observed_xy(ax):
+    """The observed series is a scatter; find it by label, not by index."""
+    for c in ax.collections:
+        if str(c.get_label()).startswith("Observed"):
+            off = c.get_offsets()
+            return np.asarray(off[:, 0]), np.asarray(off[:, 1])
+    raise AssertionError("observed scatter not found")
+
+
+def _marker_x(ax):
+    for ln in ax.lines:
+        if ln.get_label() == "Treatment start":
+            return np.asarray(ln.get_xdata())[0]
+    raise AssertionError("treatment marker not found")
+
+
 class TestPlotAxis:
     def test_the_axis_carries_the_real_period_labels(self):
         """The result knows its dates; the plot must not fall back to 0..T-1."""
         df = _panel(T=48, T0=36)
         fig = plot_gpits(GPITS(_cfg(df)).fit())
         ax = fig.axes[0]
-        xs = np.asarray(ax.lines[0].get_xdata())
+        xs, _ = _observed_xy(ax)
         assert len(xs) == 48
         # the labels reach the axis as dates, not as 0..T-1 positions
         assert not np.array_equal(xs, np.arange(48))
-        assert pd.Timestamp(xs[0]) == pd.Timestamp("2000-01-01")
-        assert pd.Timestamp(xs[-1]) == pd.Timestamp("2003-12-01")
+        assert matplotlib.dates.num2date(xs[0]).strftime("%Y-%m") == "2000-01"
+        assert matplotlib.dates.num2date(xs[-1]).strftime("%Y-%m") == "2003-12"
         assert ax.get_xlabel() == "Date"
         plt.close(fig)
 
@@ -526,9 +545,7 @@ class TestPlotAxis:
         res = GPITS(_cfg(df)).fit()
         fig = plot_gpits(res)
         ax = fig.axes[0]
-        vlines = [ln for ln in ax.lines if ln.get_linestyle() == ":"]
-        assert vlines, "treatment marker absent"
-        got = pd.Timestamp(np.asarray(vlines[0].get_xdata())[0])
+        got = pd.Timestamp(_marker_x(ax))
         assert got == pd.Timestamp(res.time_series.time_periods[36])
         plt.close(fig)
 
@@ -547,7 +564,8 @@ class TestPlotAxis:
         df["time"] = [f"p{i:03d}" for i in range(len(df))]
         fig = plot_gpits(GPITS(_cfg(df)).fit())
         ax = fig.axes[0]
-        assert list(np.asarray(ax.lines[0].get_xdata()))[:2] == ["p000", "p001"]
+        xs, _ = _observed_xy(ax)
+        assert len(xs) == 36
         assert ax.get_xlabel() == "Period"
         plt.close(fig)
 
@@ -566,7 +584,99 @@ class TestPlotAxis:
         object.__setattr__(res.time_series, "time_periods", odd)
         fig = plot_gpits(res)
         ax = fig.axes[0]
-        np.testing.assert_array_equal(
-            np.asarray(ax.lines[0].get_xdata()), np.arange(n))
+        xs, _ = _observed_xy(ax)
+        np.testing.assert_array_equal(xs, np.arange(n))
         assert ax.get_xlabel() == "Period"
         plt.close(fig)
+
+
+# --------------------------------------------------------------------------
+# parity with the reference's plot.gp_its
+# --------------------------------------------------------------------------
+class TestReferencePanels:
+    """``plot.gp_its`` (gpits/code/00_its_helpers.R) returns four named plots;
+    ``plot_gpits_panels`` returns the same four under the same names."""
+
+    @staticmethod
+    def _res(**kw):
+        return GPITS(_seasonal_cfg(_panel(T=60, T0=48), **kw)).fit()
+
+    def test_returns_the_reference_four_panels(self):
+        figs = plot_gpits_panels(self._res())
+        assert set(figs) == {"fit", "pointwise", "cumulative", "average"}
+        assert all(isinstance(f, plt.Figure) for f in figs.values())
+
+    def test_the_fit_panel_splits_the_band_at_the_intervention(self):
+        """Grey before, counterfactual colour after: the pre-period band is a
+        fit's uncertainty and the post-period band an extrapolation's."""
+        res = self._res()
+        fig = plot_gpits(res)
+        ax = fig.axes[0]
+        fills = ax.collections
+        colors = [tuple(np.round(c.get_facecolor()[0][:3], 3)) for c in fills
+                  if c.get_facecolor().size]
+        # lightgrey is achromatic; red is not
+        assert any(len(set(c)) == 1 for c in colors), "no grey (pre-fit) band"
+        assert any(c[0] > c[1] and c[0] > c[2] for c in colors), "no red band"
+
+    def test_observed_is_drawn_as_points_not_a_line(self):
+        res = self._res()
+        ax = plot_gpits(res).axes[0]
+        scatters = [c for c in ax.collections if c.get_offsets() is not None
+                    and len(c.get_offsets()) == len(res.time_series.observed_outcome)]
+        assert scatters, "observed series is not a scatter of all periods"
+
+    def test_pointwise_prepends_the_placebo_window(self):
+        res = self._res(placebo_periods=4)
+        ax = plot_gpits_panels(res)["pointwise"].axes[0]
+        xs = np.asarray(ax.lines[-1].get_xdata(), dtype=float)
+        assert xs.min() == -4 and xs.max() == res.inputs.n_post - 1
+        assert len(xs) == 4 + res.inputs.n_post
+        assert "Placebo" in ax.get_title()
+
+    def test_pointwise_without_a_placebo_covers_only_the_post_period(self):
+        ax = plot_gpits_panels(self._res())["pointwise"].axes[0]
+        xs = np.asarray(ax.lines[-1].get_xdata(), dtype=float)
+        assert xs.min() == 0
+        assert "Placebo" not in ax.get_title()
+
+    def test_relative_time_puts_zero_at_the_first_treated_period(self):
+        """R's id_time_std = time_id - time_id_treat, so 0 is the first post."""
+        res = self._res()
+        ax = plot_gpits_panels(res)["cumulative"].axes[0]
+        xs = np.asarray(ax.lines[-1].get_xdata(), dtype=float)
+        np.testing.assert_array_equal(xs, np.arange(res.inputs.n_post))
+
+    def test_cumulative_panel_plots_the_result_series(self):
+        res = self._res()
+        ax = plot_gpits_panels(res)["cumulative"].axes[0]
+        ys = np.asarray(ax.lines[-1].get_ydata(), dtype=float)
+        np.testing.assert_allclose(ys, np.asarray(res.cumulative_effect), atol=1e-12)
+
+    def test_average_panel_is_the_cumulative_divided_by_horizon(self):
+        res = self._res()
+        ax = plot_gpits_panels(res)["average"].axes[0]
+        ys = np.asarray(ax.lines[-1].get_ydata(), dtype=float)
+        k = np.arange(1, res.inputs.n_post + 1)
+        np.testing.assert_allclose(ys, np.asarray(res.cumulative_effect) / k,
+                                   atol=1e-12)
+        assert ys[-1] == pytest.approx(res.effects.att, rel=1e-10)
+
+    def test_pointwise_interval_matches_the_counterfactual_band(self):
+        """The effect is observed minus counterfactual, so its band is the
+        counterfactual's half-width reflected about the effect."""
+        res = self._res()
+        ts = res.time_series
+        T0 = res.inputs.T0
+        half = (np.asarray(ts.counterfactual_upper, dtype=float)[T0:]
+                - np.asarray(ts.counterfactual_outcome, dtype=float)[T0:])
+        ax = plot_gpits_panels(res)["pointwise"].axes[0]
+        band = [c for c in ax.collections if c.get_paths()][0]
+        verts = band.get_paths()[0].vertices
+        assert verts.size > 0
+        gap = np.asarray(ts.estimated_gap, dtype=float)[T0:]
+        assert np.isclose(np.max(gap + half), np.max(verts[:, 1]), rtol=1e-6)
+
+    def test_panels_are_independent_figures(self):
+        figs = plot_gpits_panels(self._res(placebo_periods=3))
+        assert len({id(f) for f in figs.values()}) == 4

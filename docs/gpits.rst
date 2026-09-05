@@ -187,14 +187,36 @@ Example
    print(res.cumulative_ci[-1])             # (12.97, 17.30)
    print(res.placebo.all_cover)             # True
 
-The plot helper returns a figure and leaves showing and saving to you:
+The plot helpers return figures and leave showing and saving to you.
+``plot_gpits`` draws the fit panel, which is what ``display_graphs`` shows:
 
 .. code-block:: python
 
-   from mlsynth.utils.gpits_helpers.plotter import plot_gpits
+   from mlsynth.utils.gpits_helpers import plot_gpits, plot_gpits_panels
 
    fig = plot_gpits(res)
-   fig.savefig("heller.png", dpi=150)
+   fig.savefig("heller_fit.png", dpi=150)
+
+The fit panel draws the pre-period band in grey and the post-period band in the
+counterfactual colour, because the two are different quantities: before the
+intervention the band is a fit's uncertainty, after it the band is an
+extrapolation's.
+
+``plot_gpits_panels`` returns the four panels of the paper's own plotting code
+(``plot.gp_its`` in the replication repository), keyed by its names:
+
+.. code-block:: python
+
+   figs = plot_gpits_panels(res)
+   figs["fit"]          # observed points, fitted trend, counterfactual
+   figs["pointwise"]    # per-period effects, placebo window shaded separately
+   figs["cumulative"]   # running total with its interval
+   figs["average"]      # running average, ending at the ATT
+
+The pointwise panel is the one that carries the paper's argument: the placebo
+periods sit flat near zero immediately before an intervention the observed
+series jumps away from. Time on the effect panels is measured from the
+intervention, so period 0 is the first treated period.
 
 Verification
 ------------
