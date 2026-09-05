@@ -2207,6 +2207,108 @@ outcomes that plausibly diffuse.
 ---
 
 
+## 22. SDM -- Kyo & Kawata (2026) sequential deviation minimization -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. Paper reviewed in full; the authors'
+replication package obtained and ported; the demo application and the Section 4
+Monte Carlo both re-run. Recorded so the assessment is not repeated. Spike:
+`benchmarks/reference/sdm_kyokawata/`.**
+
+### Source
+
+> Kyo, K., & Kawata, Y. (2026). "Sequential deviation minimization for improving
+> the estimation in synthetic control methods." *Journal of Applied Statistics*.
+> https://doi.org/10.1080/02664763.2026.2717163
+
+Reference implementation: the authors' package (`code_demo_F.txt`,
+`code_demo_F_co.txt`, `data_demo_F.txt`), supplied privately -- the article says
+only that code is available on request. Not committed; checksummed in the
+spike's `provenance.json`, ported in its `sdm_port.py`.
+
+### The idea in one line
+
+Build SC weights by rescaling one donor at a time -- centre each unit's
+pre-period outcome, keep `w_j >= 0`, drop sum-to-one, initialise from clamped
+univariate slopes, then iterate `w_j <- a_j w_j` with
+`a_j = max(0, <r_j, y~_j> / <y~_j, y~_j>)` until the `a_j` settle near one --
+and restore the intercept as `alpha = mean(y_1) - sum_j w_j mean(y_j)`.
+
+### Why it is not a gap: the fixed point is MSCc
+
+Concentrating the intercept out of `min_{alpha, w >= 0} ||y_1 - alpha - Y_0 w||^2`
+gives exactly the centred problem SDM solves. That is MSCc (Li & Shankar 2023),
+which `TSSC` already fits exactly by convex solve
+(`TSSCConfig.method="MSCc"`, `mlsynth/utils/tssc_helpers/estimation.py`).
+
+SDM is coordinate descent on that objective with a multiplicative update, so a
+weight driven to zero -- or one whose initial univariate slope was non-positive
+-- never returns. It is non-negative least squares on a greedily and irreversibly
+chosen support: weakly worse than MSCc by construction, equal only when the
+greedy support contains the optimal one. On the authors' demo panel MSCc reaches
+pre-MSPE 4,370,135 against SDM's own best iterate at 4,632,462.
+
+Closest existing estimators: `TSSC` (same estimand, better solver, plus a
+formal pre-trends test that chooses among SC / MSCa / MSCb / MSCc instead of
+assuming the relaxation); `FSCM` for the greedy donor screening, which validates
+its sparsity out of sample where SDM does not; `mlsynth.utils.conformal.*` and
+`inferutils.debiased_sc_ttest` for the diagnostic SDM gestures at.
+
+### Learnings from the port (keep these)
+
+Three findings, each reproducible from the spike bundle.
+
+1. The released script does not implement the article's Equation (14). The
+   iteration converges to weights summing to 0.6307; the final block
+   renormalises them to sum to one and builds the counterfactual from that.
+   Pre-period MSPE goes from 4,632,462 to 45,733,960 and the ATT from 51,078 to
+   66,880. The script prints both fit statistics and they disagree by 3.1x in
+   RMSE terms; Section 5.2 reports the first, Table 2's weights (summing to
+   0.9938) are consistent with the second. The shipped estimator is 6.7x worse
+   than plain SC, the baseline the article sets out to beat.
+
+2. The convergence index is not Equation (13). `NO <- which(a > 0)` reads the
+   scalar `a` left over from the inner loop, so the stopping statistic is
+   `(a_last - 1)^2` for one donor. On the demo panel it stops at 9.25e-05 while
+   Equation (13) over the substantial set stands at 4.39e-03, with 8 donors
+   still being updated. Figure 3 plots that scalar. A related latent hazard:
+   `Reg1` leaves `V` unassigned for a zeroed column and R resolves it lexically
+   to the previous step's global `V` -- silent, and zero occurrences here.
+
+3. Section 4's Monte Carlo separates constrained from unconstrained, not
+   sequential from joint. The DGP fixes the treated loading at 1 and draws donor
+   loadings summing to one, so a convex combination reaches at most
+   `max_j w_j ~ 1.5/J` and the simplex arm cannot track the factor -- worsening
+   in `J` as the loadings shrink. Reproduced at 300 reps: SC 4.2414 (J=5) to
+   5.3671 (J=50) against the article's 4.4540 to 5.4300, while plain NNLS lands
+   at 1.91-2.22, inside the 1.7000-1.9100 band the article claims for its own
+   method, and MSCc beats it. Section 4.1 also scores RMSPE on the pre-period
+   only, so it measures in-sample fit; at `J = 50` with `T0 = 20` the relaxed
+   arms carry more parameters than observations and drive it toward zero.
+
+The package implements one of the article's three contributions. There is no
+scale-adjustment parameter `theta` (the covariate script stacks raw centred
+covariates, i.e. Section 3.3 with `theta` fixed at 1), no cross-validation, and
+no simulation code.
+
+### What would reopen this
+
+A performance claim, not an accuracy one. Fixed, SDM is a competent approximate
+MSCc solver built from inner products with no convex solver in the loop, and it
+agrees with the exact solve on the ATT. If a large-`J` panel ever makes the
+cvxpy path in `TSSC` a bottleneck, the shape of the answer is
+`TSSCConfig.solver="sdm"` -- an alternative solver for an objective already in
+the library, never a new estimator. Nothing in the benchmark suite is currently
+solver-bound.
+
+Section 3.1.2, insight 4 is the part the article gets right and does not
+resolve: placebo inference assumes the construction procedure transfers across
+units, and scale mismatch breaks that assumption. The proposed answer is a
+statistic whose denominator is the number of resamples, so it grows with
+computational effort and has no scale. If someone calibrates that idea, review
+the result.
+
+---
+
 ## Done
 
 ## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT

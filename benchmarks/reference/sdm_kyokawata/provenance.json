@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-09-05T00:00:00Z",
+  "git_sha": "c9314ba655925a1d6f22e543ee08162177ddbba9",
+  "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+  "commands": [
+    "python benchmarks/reference/sdm_kyokawata/run_demo.py --data <data_demo_F.txt>",
+    "python benchmarks/reference/sdm_kyokawata/run_simulation.py"
+  ],
+  "python": "3.11.15",
+  "packages": {
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "cvxpy": "1.9.2"
+  },
+  "reference_package": {
+    "obtained": "supplied by the authors; the article states only that code is available on request, and the package is not published anywhere",
+    "committed": false,
+    "reason": "third-party source and data with no stated licence; redistributing it from a public repository is the authors' call, not ours",
+    "files": [
+      {"name": "code_demo_F.txt", "sha256": "6063f61f24d8b015a8f61a78fed79f7cd1d0eab4ce1a9a76d77224aa95bc205c", "lines": 367},
+      {"name": "code_demo_F_co (3).txt", "sha256": "a1c94fcf4a3ed238ae2930c987c53d139a4f6c90dc0a61ccb428f80c79cd1466", "lines": 395},
+      {"name": "data_demo_F.txt", "sha256": "5095223f9db759610b388c1ef0cae263cec004ea0b22bc732789603b89dcef0a", "lines": 1176}
+    ],
+    "also_supplied": "a Japanese commentary manuscript (.docx), not used here"
+  }
+}

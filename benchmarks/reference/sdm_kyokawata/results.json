@@ -1,0 +1,73 @@
+{
+  "treated": "Fukui",
+  "intervention": 2015,
+  "T0": 16,
+  "T1": 9,
+  "n_donors": 46,
+  "iterations": 29,
+  "scope_fallthroughs": 0,
+  "rho_coded_final": 9.247578847965955e-05,
+  "rho_paper_final": 0.004389183382733824,
+  "scale_offset": 4.330823895773974,
+  "donors_kept_shipped": {
+    "Gifu": 0.2657,
+    "Ibaraki": 0.0121,
+    "Kagawa": 0.0677,
+    "Saga": 0.0715,
+    "Tottori": 0.2944,
+    "Toyama": 0.2403,
+    "Yamaguchi": 0.0291
+  },
+  "arms": {
+    "SDM objective (sum w free)": {
+      "sum_w": 0.6307217033357421,
+      "intercept": 14185.267466178015,
+      "pre_mspe": 4632462.126550209,
+      "att": 51078.07744818799
+    },
+    "SDM bookkeeping (Sbet)": {
+      "sum_w": 0.14563549996830902,
+      "intercept": 231196.9952692801,
+      "pre_mspe": 75555597.3099657,
+      "att": 30320.253989106353
+    },
+    "SDM shipped (renormalised)": {
+      "sum_w": 0.9999999999999998,
+      "intercept": -151017.78436870588,
+      "pre_mspe": 45733959.85943291,
+      "att": 66880.24546742724
+    },
+    "MSCb exact": {
+      "sum_w": 0.6384374436482684,
+      "intercept": 0.0,
+      "pre_mspe": 4468136.414164128,
+      "att": 52162.04991017164
+    },
+    "MSCc exact": {
+      "sum_w": 0.6326161130794697,
+      "intercept": 20659.438311348975,
+      "pre_mspe": 4370134.831016579,
+      "att": 50745.689463974806,
+      "active_donors": 6
+    },
+    "TSSC(method='MSCc') via mlsynth": {
+      "sum_w": 0.6325000000000001,
+      "intercept": null,
+      "pre_mspe": 4370134.546364589,
+      "att": 50745.682,
+      "active_donors": 6
+    },
+    "SC exact": {
+      "sum_w": 0.9999999999998772,
+      "intercept": 0.0,
+      "pre_mspe": 9390726.302826054,
+      "att": 46481.519314707126
+    },
+    "MSCa exact": {
+      "sum_w": 1.0000000000002875,
+      "intercept": -36738.49614338327,
+      "pre_mspe": 6778471.987782868,
+      "att": 50567.77227017826
+    }
+  }
+}
