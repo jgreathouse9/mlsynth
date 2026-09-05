@@ -658,6 +658,7 @@ _RELOCATED_CONFIGS = {
     "CSCMConfig": "mlsynth.utils.cscm_helpers.config",
     "SequentialSDIDConfig": "mlsynth.utils.seq_sdid_helpers.config",
     "SHCConfig": "mlsynth.utils.shc_helpers.config",
+    "GPITSConfig": "mlsynth.utils.gpits_helpers.config",
     "MLSCConfig": "mlsynth.utils.mlsc_helpers.config",
     "RESCMConfig": "mlsynth.utils.laxscm_helpers.config",
     "SYNDESConfig": "mlsynth.utils.syndes_helpers.config",
