@@ -33,7 +33,8 @@ The estimator is a thin orchestration layer over
 
     setup.py      : long DataFrame -> GPITSInputs (via dataprep)
     pipeline.py   : the GP, the effects, the placebo checks
-    plotter.py    : observed vs counterfactual
+    plotter.py    : the reference's four panels (fit, pointwise,
+                    cumulative, average)
     structures.py : frozen result containers
 """
 
