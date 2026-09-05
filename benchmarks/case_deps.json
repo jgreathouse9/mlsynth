@@ -931,6 +931,18 @@
   "mlsynth/utils/orthsc_helpers/gmm_sce/solver.py",
   "mlsynth/utils/results_helpers.py"
  ],
+ "gpits": [
+  "basedata/dc_handgun_heller.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/gpits.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/gpits_helpers/config.py",
+  "mlsynth/utils/gpits_helpers/kernels.py",
+  "mlsynth/utils/gpits_helpers/pipeline.py",
+  "mlsynth/utils/gpits_helpers/setup.py",
+  "mlsynth/utils/gpits_helpers/structures.py",
+  "mlsynth/utils/helperutils.py"
+ ],
  "gsynth_av_laws": [
   "basedata/lang_av_laws.parquet",
   "mlsynth/config_models.py",
