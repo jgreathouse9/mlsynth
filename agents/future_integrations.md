@@ -1580,17 +1580,19 @@ distinguish, and the docs need to say so plainly.
 
 ---
 
-## 17. Shen (2026) Two-Way Synthetic Forecasting (TWSF) -- assessed, PARKED pending two answers from the author
+## 17. Shen (2026) Two-Way Synthetic Forecasting (TWSF) -- CLEARED FOR BUILD at v2
 
-**Status: Parked. Not a rejection -- the method is novel, the gap is real, and
-an implementation exists in scratch. It is blocked because neither replication
-path can be completed from the paper as published. Recorded so the two spikes
-are not repeated.**
+**Status: Unblocked. v2 answers both questions that parked this at v1, and the
+Path-B gate passes: coverage is nominal and the bias now shrinks in n. The gate
+run is staged at `benchmarks/reference/twsf_spike/`. The v1 assessment below is
+kept because its gap, cost and architecture findings still stand; the v2 delta
+is recorded at the end.**
 
 ### Source
 
 > Shen, D. (2026). "Causal Forecasting in Panel Data: A Two-Way Synthetic
-> Forecasting Approach." arXiv:2606.18512v1. Single author, no code release.
+> Forecasting Approach." arXiv:2606.18512. Single author, no code release.
+> v1 parked; v2 cleared.
 
 Data for the case study (NFL stadium openings) is available: the NYT county
 series plus the stadium-county mapping are both vendored in
@@ -1609,7 +1611,7 @@ at a time *beyond the end of the panel* -- by combining a Synthetic
 Interventions unit-side regression with an mSSA Page-matrix time-side
 forecaster, bilinearly.
 
-### Why it is worth wanting
+### Why we want it
 
 It is a genuinely different estimand from everything in the library. Every
 mlsynth estimator imputes a counterfactual *inside* the observed window; TWSF
@@ -1632,7 +1634,7 @@ Unusually clean. Grepping the library:
 
 Closest existing estimator: `SI` (same author lineage, same PCR kernel).
 
-### Cost -- low, and this was verified rather than estimated
+### Cost -- low, and this was verified, not estimated
 
 Both the one-step and the recursive multi-step orthogonalized estimators were
 implemented during the spikes on top of `hsvt` and `pcr_weights` **without
@@ -1725,7 +1727,7 @@ Either likely unblocks its path; both would make this a build.
 New top-level estimator `TWSF`, not a `method=` on `SI` -- different estimand,
 different result semantics, four extra hyperparameters (`L`, `k_y`, `k_z`,
 `k_w`) plus `horizon` and `multistep: Literal["direct","recursive"]`. It should
-import `mlsynth.utils.pcr.core` rather than reimplement HSVT/PCR, and copy
+import `mlsynth.utils.pcr.core` instead of reimplementing HSVT/PCR, and copy
 `SIConfig.inters` for the treated-donor pool. It rides the result contract:
 `observed_outcome` = the realized control path, `counterfactual_outcome` = the
 forecast treated path, `estimated_gap` = the contrast, `counterfactual_lower/
@@ -1736,6 +1738,87 @@ Feasibility traps to surface as diagnostics, not crashes: `B = T_1 / L` must
 give at least two blocks, and the *direct* multi-step estimator is infeasible
 at short horizons -- the paper's own case study cannot use it, which is why it
 uses the recursive one.
+
+### v2 update -- both blockers resolved, gate passed
+
+**Blocker 2, the case study, is answered outright.** `case_study.tex:77`: TWSF
+is estimated on daily counts and the figures display cumulative trajectories.
+v2 also adds the distinction the v1 spike got wrong, which is why containment
+failed there. A validation target is a *realised* trajectory and takes a
+prediction interval, `sqrt((V_rec)^2 + m sigma_hat^2)`, where the second term
+accumulates future daily shocks over the horizon; the counterfactual target is
+a conditional mean and keeps the confidence interval. The spike computed a
+confidence interval for both, so its bands were too narrow on the validation
+panel by construction.
+
+**Blocker 1, the simulation, is narrowed to one item that turned out not to
+matter.** v2 now gives the harmonic frequencies (`2pi/(8 T*)`, `2pi/12`,
+`2pi/37`, `2pi/91`), the eight-component basis, the scaling rule
+(`max |<u_i, v_t(d)>| <= 0.8`), `sigma = 0.10`, the donor factor construction
+and the population ranks. `A_0` and `A_1` are still given only structurally --
+4 x 8, fixed across replications, lowest-frequency harmonic absent under
+control and present under treatment.
+
+The gate drew a non-degenerate pair respecting that structure and ran the
+paper's own budget of 100 latent x 10 noise replications. Coverage against a
+nominal 0.90, with Monte Carlo standard errors of 0.008 to 0.020 clustered over
+latent draws:
+
+    n      h=1     h=5    h=10
+    25    0.857   0.871   0.838
+    50    0.936   0.914   0.921
+    75    0.893   0.876   0.854
+    100   0.895   0.904   0.890
+    125   0.909   0.883   0.895
+    150   0.908   0.885   0.892
+
+against 0.39 to 0.87 for the v1 reconstruction. The bias now shrinks in `n`,
+which is the specific v1 failure: 0.0005 to 0.0010 at `n = 150` against a
+standard error near 0.011, where v1 had 0.195 against 0.084 and no shrinkage.
+
+**The scaling rule is what fixed it, and the spectrum diagnostic shows why.**
+At `n = 150` the Page matrix's retained signal spans 47x with its smallest
+direction at 0.586 against a noise floor of 0.10; the v1 reconstruction spanned
+500,000x with its smallest signal direction at about 1e-4 against a noise floor
+of 3.7, so rank-8 PCR was inverting noise. Specifying the signal cap and sigma
+moved the SNR by five orders of magnitude. The other two diagnostics came back
+as they did on v1: `sigma = 0` recovery is exact to 1e-13..1e-16, and empirical
+SD over plug-in SE is 0.894 to 1.165, so neither the algebra nor the variance
+formula was ever the problem.
+
+**What the gate does not establish.** `A_0` and `A_1` are still the spike's
+choice, so this shows that *a* non-degenerate pair respecting the stated
+structure gives nominal coverage, not that the author's exact numbers
+reproduce. Coverage is below nominal at `n = 25` (0.838 to 0.871) and dips at
+`n = 75` for long horizons (0.854 at `h = 10`); the spectrum explains both,
+since lag length equals `n` here and a 25- or 75-period window cannot resolve
+the `2pi/91` harmonic or separate the two `omega_0` directions. The theory is
+asymptotic in `n`, so a spectral shortfall at the smallest panels is consistent
+with it.
+
+**Two corrections to the notes above.** The algorithm has three tunables, not
+four: `L`, `k_y`, `k_z`. `r_w` is a population rank in the theory, not a
+hyperparameter, and v2's Table 2 reports only `L`, `k_y`, `k_z`. And v2's
+empirical claim is weaker than v1's -- where v1 named exactly three cities
+outside the band, v2 says only that "the clearest deviations occur in
+Cincinnati and Pittsburgh". A benchmark case should therefore pin the point
+forecasts and the relative ranking, not a containment count. v2 also hedges the
+"longer treated-donor windows forecast better" claim that the v1 spike
+contradicted.
+
+**A caveat for the build, from the paper itself.** `case_study.tex:53` states
+that stadium openings were staggered while the theoretical framework assumes a
+common treatment date, and the conclusion lists a formal staggered-adoption
+version as future work. The flagship application does not satisfy the theory's
+design assumption, so a `TWSF` config should surface a staggered panel instead
+of silently accepting one.
+
+**One implementation note.** `HSVT(A, k)` has rank exactly `k`, so its
+pseudo-inverse must be built by inverting those `k` singular values.
+`np.linalg.pinv` on the truncated matrix keeps numerically-zero directions
+under its default tolerance and inflates without bound -- at `n = 150` that
+turned a handful of plug-in standard errors into ~1e8. The staged `twsf.py`
+builds both pseudo-inverses from the truncated factors.
 
 ### Learnings
 
@@ -2206,6 +2289,580 @@ outcomes that plausibly diffuse.
 
 ---
 
+
+## 22. Hsiao & Zhou (2024) LP vs FB -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. The paper's own comparison does not
+replicate; the evidence is pinned in two benchmark cases so the assessment is
+not repeated.**
+
+### Source
+
+> Hsiao, C., & Zhou, Q. (2024). "Panel treatment effects measurement: Factor or
+> linear projection modelling?" *Journal of Applied Econometrics* 39(7),
+> 1332-1358. Replication package:
+> `doi:10.15456/jae.2024145.0725725591` -- data only, no code.
+
+### The claim
+
+Two predictors of the treated unit's untreated outcome: a linear projection (LP)
+of `y_1t` on the contemporaneous controls, eq. (16)/(32), and a
+principal-component factor predictor (FB), eqs. (17)-(18) with the post-period
+factor recovered from the controls by eq. (31). Propositions 1-3 rank LP below
+FB on mean square prediction error under four `(N, T)` configurations, and
+Proposition 3 introduces the one piece of new machinery: a prediction-averaging
+LP for `T` fixed and `N` large, eqs. (35)-(37), which partitions the controls at
+random into `G` subgroups, runs OLS in each and averages the `G` forecasts.
+
+### Why it looked attractive
+
+The paper review scored it a pass with one `cheap-add` carve-out. Prediction
+averaging is a genuine gap -- nothing in the library bags OLS over random donor
+subsets -- and it is about a day's work in pure NumPy. Proposition 3 was the
+whole justification for building it.
+
+### Why it is not worth building
+
+**1. The LP contribution is already in the library, four times over.** `PDA`
+carries `hcw` (the original best subset), `LASSO` (Li-Bell), `fs` (Shi-Huang
+forward selection) and `l2` (L2-relaxation). On the paper's own German
+reunification panel, `PDA(method="fs")` lands 0.0086 log points from their
+plotted LP path and a faithful port of their eq. (16) lands 0.0299. Their LP
+result is mlsynth's LP result.
+
+**2. Their FB column does not replicate, in either half of the paper.** Section 7
+prints no number, so the referent had to be digitised from their vector figures
+(see below). Against it, the plotted FB path misses the observed series *in
+sample* by RMSE 0.6230 log points -- an 86% miss for a five-factor model on a
+17-series panel. That is not reachable by the method they describe:
+
+- the specified top-five principal-component fit misses by 0.0115;
+- a search over all 6188 five-subsets of the panel's components gets no closer
+  than 0.5633 to the plotted path, against 0.5700 for the specified top five, so
+  the search buys essentially nothing and this is not a component-selection bug;
+- it is not an eigenvalue-ordering bug (taking `eigh`'s ascending first five
+  lands 38.3 away) and not a wrong treated unit (the path matches no country's
+  observed series and no unit's FB counterfactual, closest USA at 0.558);
+- a faithful port of eqs. (30)-(31) and `FMA` -- two independent correct
+  implementations -- agree with each other to 0.0182 and both sit 0.41 from the
+  figure, with pre-period fits of 0.0115 and 0.0107. The published path's
+  in-sample miss is 54x either.
+
+The same one-sided gap appears in the Monte Carlo. Rebuilding Table 1's
+DGP1/Case 1 grid reproduces their LP column to a median 9.5% relative error on
+MSE, while their FB column comes in low in **all twelve cells** -- median 49%.
+Error of that size in one direction across every cell is a specification gap,
+not simulation noise.
+
+**3. The ordering reverses, which removes the reason to build anything.** With a
+correct FB, LP wins 3 of 12 cells instead of the 12 of 12 the paper reports
+(2 of 12 if FB is given `r+1`, the DGP's actual systematic rank once the
+`U(0,2)` intercept is counted; 3 of 12 on a Bai-Ng count). Proposition 3 fails
+outright: prediction averaging beats FB in 2 of 6 cells instead of 6 of 6. The
+carve-out was justified by Proposition 3, so it goes with it -- and in the
+`N > T` regime it would have competed against `fs`, `LASSO` and `l2`, all of
+which have inference theory that prediction averaging does not.
+
+### What the spike established
+
+**The FB failure drives the paper's headline, and their own note 15 is why.**
+`SE^2_{t,FB}` opens with the mean squared in-sample residual, so the plotted 95%
+half-width of 1.2997 is close to the `1.96 * 0.6230 = 1.2210` that their own fit
+implies -- the formula is applied correctly to a counterfactual that misses
+badly. Section 7 concludes that the FB intervals cover zero while the LP
+intervals do not. With a correct factor fit the FB half-width is 0.0465, not
+1.2997. The conclusion is a property of that fit, not of the factor approach.
+
+**Digitising a figures-only paper is cheap, and the technique generalises.** Journal PDFs often carry plots as vector paths, so the
+plotted series are recoverable exactly -- no pixel-peeling. `pdfminer.six`'s
+`LTCurve`/`LTLine` objects give the polylines with their stroke colour and
+width, which separates a point estimate (heavy line) from its bounds
+(hairlines). Two rules made the result trustworthy enough to pin:
+
+- *Self-calibrate against a series you already have.* Figure 1's black path is
+  West Germany's observed log GDP per capita, which is in `basedata/`. Fitting
+  PDF y-units to the known series recovers the axis map and confirms the series
+  identification in one step: max residual 1e-5 log points, R^2 = 1.00000000.
+- *Cross-check the two figures against each other.* Figure 2's effects must
+  equal the observed series minus Figure 1's counterfactuals. They agree to
+  3.7e-4 on both methods. Two independent calibrations agreeing at that scale is
+  what licenses using the numbers as a referent.
+
+`benchmarks/reference/hz_germany/digitise_figures.py` implements both checks as
+hard failures, so a re-run against a different rendering refuses to write
+instead of producing a wrong referent.
+
+**The FB counterfactual is invariant to their two normalisations; the interval is
+not.** Under `Lambda -> Lambda A` for invertible `A`, eq. (31) gives
+`f_hat -> A^{-1} f_hat` while `lambda_1 -> A' lambda_1`, so `lambda_1' f_hat` is
+unchanged. That kills a whole class of ambiguity -- the `Sigma_lambda = I_r` and
+`Sigma_f = I_r` branches of Remark 3 cannot explain any disagreement about the
+counterfactual, and a port may use whichever is numerically convenient. The
+note-15 interval is a different matter: its third term
+`(1/T) sigma_1^2 f_hat_t' f_hat_t` is stated in an `f` whose scale is fixed by
+`Sigma_lambda = I_r`, and reading it with an orthonormal `Lambda` inflates that
+term by a factor of `N`. This cost a debugging cycle in the benchmark case and
+is commented at `_pc_loadings` there.
+
+**Note 9's LASSO screen had to be reverse-engineered.** The footnote says only
+that the LP uses LASSO to select controls with an upper limit of `T/2` when `N`
+is large. Calibrating eight readings against their printed LP column (penalty by
+CV / BIC / LARS path, post-selection OLS or the shrunk fit, screen always or
+only when the pool exceeds the cap) settled on BIC-selected with the shrunk
+coefficients used directly, at median 4.4% on MAB. Post-selection OLS is
+noticeably worse (5.9%), and a plain OLS on all donors is not their LP at all --
+it gives 5.93 MSE against their 2.997 at `N-1 = 30, T = 60`.
+
+**Their Box-Jenkins baseline is weak on its own terms.** Note 11's AR(1) runs
+through the origin on data whose mean is nonzero by construction
+(`alpha_i ~ U(0,2)`, factors `chi2(1)`), so "both approaches beat the univariate
+model" is close to guaranteed. It does replicate -- 12 of 12 -- but it is not
+evidence for the factor-versus-projection question the paper is about.
+
+**Two of the paper's claims do survive** and are asserted as such: both
+predictors beat Box-Jenkins in every cell, and prediction averaging beats the
+plain LP in 5 of 6 cells, reproducing even the sign of the exception their own
+Table 1 shows at `N-1 = 100, T = 30`.
+
+### Where the evidence lives
+
+- `benchmarks/cases/hz_germany.py` -- Path A, 12 metrics. Pins the LP
+  cross-validation, the agreement between the two correct FB implementations,
+  their common distance from the published path, and the note-15 arithmetic that
+  ties the interval width to the in-sample miss. Includes a self-check that
+  Figure 2 equals observed minus Figure 1, so a bad re-digitisation fails
+  instead of passing.
+- `benchmarks/cases/hz_table1_mc.py` -- Path B, 7 metrics, `R = 300`. Asserts
+  orderings and median relative errors, never floats.
+- `benchmarks/reference/hz_germany/` -- the two gold CSVs, the digitiser, and a
+  README carrying the full FB investigation.
+
+### If this is ever revisited
+
+The authors published no code, so the FB discrepancy cannot be traced further
+from the outside; it is their defect, not mlsynth's, and the exact reproduction
+is recorded above. Reporting it to them is the reasonable next step, and a
+corrected package that reproduces Figure 1 would put the comparison back in
+play -- though not the build, since point (1) stands regardless.
+
+Prediction averaging could still be revived on its own merits, not
+Proposition 3's, as a `PDA(method="lp_ave")` with `lp_ave_groups` and
+`lp_ave_seed`. It beat the plain LP in 5 of 6 cells here, which is a real if
+modest result. What it lacks is any inference theory and any rule for `G` -- the
+paper sets `G = 20` at `T = 10` and `G = 5` otherwise, by fiat -- and the
+partition is random, so the predictor is seed-dependent by construction. It
+would need a reason to prefer it over `l2` or `fs` in the same regime, and this
+paper does not supply one.
+
+---
+
+
+## 23. MMSCM -- Kato & Ohda moment-matching SCM -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. Prototyped to a decisive result; the
+spike, the oracle and the authors' own DGP are staged at
+`benchmarks/reference/mmscm_spike/`.**
+
+### Source
+
+> Kato, M., & Ohda, A. (2025). *Asymptotically Unbiased Synthetic Control
+> Methods by Moment Matching*. arXiv:2307.11127v5 (econ.EM). Reference
+> implementation: `github.com/MasaKat0/mmscm` (MIT, maintained to Nov 2025).
+
+### The claim
+
+Choose simplex weights matching `G` raw moments of the treated unit's
+pre-period outcome to the weighted sum of the donors' (eq. 4), on outcomes
+rescaled into [0, 1]. Moments run over the pre-period *time* dimension, so this
+consumes an ordinary aggregate panel. Under a mixture-model assumption the
+estimator is asymptotically unbiased, which is offered as a fix for the
+implicit endogeneity of Ferman & Pinto (2021).
+
+### Why it looked attractive
+
+A real capability gap. `DSC` (Gunsilius) is mlsynth's only distributional
+synthetic control and it needs micro-level cells; MMSCM would bring
+distributional treatment effects to the aggregate panels every other estimator
+in the library consumes. The reference code is clean, fast (0.1 s per fit, pure
+SciPy) and actively maintained, all three empirical datasets are already in
+`basedata/`, and Tables 2-4 print per-year estimates and conformal intervals,
+so Path A is quantitative. Nothing in the library matches moments over time;
+the closest by *claim* is `MUSC` (Bottmer, Imbens, Spiess & Warnick), which
+reaches unbiasedness by a design-based route instead.
+
+### Why it is not worth building
+
+**1. On the authors' own simulation, an equally weighted donor average beats it
+in 9 of 9 cells.** At their own 100 replications, uniform `1/J` weights -- no
+fitting, no moments, no optimisation -- beat MMSCM by factors of 1.13 to 1.91
+across `J` in {5, 15, 30} and `G` in {2, 5, 10}. MMSCM's weights sit 0.25 to
+0.64 from uniform in L1 against a simplex diameter of 2.0, and the closer they
+sit the smaller its gap to the uniform average. Their DGP generates independent
+random walks, so averaging `J` of them cuts variance by about `1/J`, while
+anything that fits the pre-period path chases one realisation. The reported
+advantage over Abadie SC is that diversification effect, not a gain from
+matching moments.
+
+**2. Its own supporting claims do not reproduce.** The paper reports the error
+declining as `G` grows; the pattern is non-monotone and at `J = 30` increasing.
+The DGP random-walks the outcome mean with a per-period step of
+`10 * sqrt(J + 1)`, so the simulation validating the theory violates the
+theory's Assumption 5.7, which requires a stationary strongly mixing error
+process. And their notebook differs from the paper's text in three ways that
+change what is measured: means and variances are drawn once per trial and then
+random-walked, `T0 = 50` and `T1 = 1000` against the text's 30 and 100, and
+donor 2 is dropped after generation while the treated unit's mixture still uses
+that component -- so the mixture assumption is violated by the panel the
+estimator is tested on.
+
+**3. On real panels it is beaten by the baseline it targets.** Prop 99, with
+every variant solved properly: MMSCM lands ATT -22.79 with a pre-period RMSE of
+3.66 at best, against Abadie SC's -19.51 / 1.66 and demeaned SC's -11.11 /
+0.96. Abadie, Diamond & Hainmueller report about -19. The same ordering holds on
+the Basque and German panels, where the moment constraint costs a pre-period
+RMSE 3.4 to 4.6 times Abadie SC's. Demeaned SC is Ferman & Pinto's own fix for
+the bias MMSCM targets, mlsynth already carries it as `TSSC`'s MSCa arm, and the
+paper never runs it.
+
+### What the spike established
+
+**The prototype's own proposal was wrong, and that is the useful part.** The
+review recommended breaking the tie by minimum norm. Minimising `||w||_2` on a
+simplex pulls towards the centroid, which is where the under-solved reference
+already sat, so `minnorm` made Prop 99 slightly worse than the reference
+(-33.03 / 9.27 against -32.25 / 8.91). The selector that helps is the opposite
+one: match the moments first, then spend the remaining `J - G` degrees of
+freedom on the pre-period path. That moved Prop 99 to -22.79 / 3.66 on 5 active
+donors. A tie-break is not a detail of the estimator; it is most of it.
+
+**Tie-breaking does fix the determinism, completely.** Over 8 random starts on
+Prop 99 the published solve moves by L1 1.0059 in the weights, with ATTs from
+-33.77 to -31.19. With a stated selector the spread is 0.0000 and the ATT is
+identical to every digit. So the non-determinism was never fundamental
+non-identification -- it was an unsolved optimisation.
+
+**The reference does not solve its own objective.** Its SLSQP reaches a loss of
+1.11e-05 on Prop 99 against a true optimum of 3.80e-10, a factor of about
+29,000. On the German panel it returns ATT +837 with a pre-period RMSE of 711 --
+the wrong sign, against -1297 for Abadie SC and -533 to -798 for every properly
+solved variant. Any future comparison against this repository has to re-solve
+first; its printed numbers are optimiser artefacts.
+
+**The objective is flat because the paper's own `v_gamma = 1` makes it flat.**
+On outcomes rescaled into [0, 1] the gamma-th raw moment decays geometrically:
+on Prop 99 the treated moments run 0.392, 0.155, 0.062, 0.025, 0.010. A
+unit-weighted loss is dominated by the first moment, which is why the ATT moves
+by 0.16 packs going from `G = 1` to `G = 9`. Setting `v_gamma = 1 / m_gamma^2`
+equalises the contributions and is admissible under the paper's own "any
+`v_gamma` in (0, inf)"; it is implemented as the `scaled` weighting in the
+spike's oracle and changes the answer materially.
+
+**`A w = m0` is infeasible on the simplex here.** California's moment vector
+lies outside the convex hull of the 38 donors', so the mixture assumption fails
+on the canonical panel outright. The optimum is a near-miss (3.80e-10 on a
+moment scale of 0.18), not an exact match.
+
+### If this is ever revisited
+
+The capability gap is real and outlives this paper: distributional treatment
+effects on aggregate panels, where `DSC` cannot go. What this paper does not
+supply is evidence that moment matching is the way to get there. A future
+candidate should be tested against the equally weighted average from the start,
+since that is the baseline this design was actually beating.
+
+Two things here are reusable regardless. The oracle's two-stage formulation --
+solve for the optimal loss, then select one point of the near-optimal set by a
+stated rule -- is the right shape for any estimator whose objective has fewer
+equations than donors, and the razor-thin-constraint failure it works around is
+generic. And the equally weighted donor average is a cheap, strong baseline for
+any Monte Carlo on non-stationary panels; it belongs in the comparison whenever
+a paper reports beating Abadie SC on simulated random walks.
+
+---
+
+
+## 24. Wei (2026) partial identification under unknown interference -- assessed, PARKED behind a code release
+
+**Status: Parked. The identification half is new, in-lane and cheap; the
+inference half is another paper's machinery with no oracle to check it
+against, and neither of the paper's two validation routes is reachable
+without data that cannot ship with the library.**
+
+### Source
+
+> Wei, S. (2026). *Learning about Treatment Effects in Panels under Unknown
+> Interference*. arXiv:2608.13466v1 (econ.EM). Boston College job-market
+> paper; LaTeX source and three figures, no replication package and no
+> reference implementation.
+
+### The claim
+
+One treated aggregate unit, `K-1` donors, `T0` pre-periods, one scalar
+post-treatment target. Donors may respond to the treatment, the response
+vector `s` is unknown, and no exposure mapping or classification of affected
+donors is assumed. Two restrictions do the work.
+
+Assumption 3.1, fit-scaled comparison validity over the full simplex: for
+every convex weight `w`, the latent post-treatment no-policy gap is bounded by
+`L / (T0 - 1)` times that weight's average absolute pre-treatment discrepancy.
+A poorly fitting weight buys a wider allowance; the envelope is homogeneous,
+so exact population fit forces a zero floor.
+
+This constrains only the relative effects `x_k = tau - s_k`: adding the same
+constant to `tau` and every `s_k` leaves all comparison restrictions
+unchanged. Level information comes from a second, prespecified restriction on
+`s` -- outcome support, an aggregate budget, signs, orderings. In the
+application the budget is `sum_k q_k |s_k| <= rho * mu_T^1(d^0)`, the total
+population-scaled absolute response bounded by `rho` times Arizona's
+counterfactual target population.
+
+Lemma 3.1 is the computational result, and the part this library would
+actually use. The continuum of restrictions -- one per weight in the simplex --
+reduces *exactly* to `2(K-1)` donor-vertex inequalities plus box constraints
+on two `(T0 - 1)`-vectors `v^+`, `v^-`. The reduction is the support-function
+identity for the absolute-value allowance, plus Sion's minimax theorem to
+exchange the order of optimisation over a compact simplex and a compact box
+with a bilinear criterion; conditional on `v`, both sides are linear in `w`,
+so the maximum sits at a vertex. Compatibility of a candidate `tau^c` then
+becomes feasibility of one finite linear system in
+`eta = (x, u, v^-, v^+)`, and Farkas' alternative certifies incompatibility.
+
+Inference inverts a test of that feasibility. The statistic is a normalised
+Farkas score, each row scaled by the largest bootstrap standard deviation
+among its estimated entries. The critical value comes from a bootstrap
+recentred at a minimum-norm near-feasible completion and maximised over
+near-optimal certificate directions, with `gamma_n = sqrt(log(B + 1))`.
+Coverage is candidatewise and uniform over the model-generated null class.
+
+### Why it looked attractive
+
+A genuine gap, and the complement of what the library already has.
+`SPILLSYNTH` point-identifies spillovers and its config asks for exactly what
+Wei refuses to assume -- `affected_units`, `spatial_W`,
+`spillover_structure` in {per_unit, homogeneous, distance_decay} -- and
+`RRSC` (He et al. 2026) returns a per-unit interference map under structure.
+Nothing in the 102 exported names returns a *set*. The scope gate passes on
+ingestion: units by time, pre and post, a donor simplex, so `dataprep` reads
+it unchanged. The algorithm is fully specified down to the tuning constants
+and needs no solver the library does not already have -- linear programs and
+one quadratic program, per candidate one Farkas LP, one minimum-norm
+completion, and `B` certificate LPs over a common feasible region where only
+the objective changes.
+
+### Why it is parked
+
+**1. Neither Path A nor Path B is reachable.** The application needs IPUMS CPS
+v13.0 Basic Monthly, 1998-2009, aggregated to state-year Hispanic-noncitizen
+shares with `WTFINL` over 1,216,961 household trajectories. IPUMS requires
+registration and restricts redistribution, so it cannot enter `basedata/`.
+The repo's `cps_lawa_arizona.parquet` is a different panel -- monthly
+`wklyearn`, the SpSyDiD wage study -- not the annual population share this
+paper builds. Path B does not escape the problem: Appendix A.1 says the Monte
+Carlo "starts from the empirical finite-dimensional input", holds the LAWA
+donor gaps, post-treatment contrasts, levels and 2006 Census population
+weights fixed, and draws from a rank-398 covariance factor calibrated on 399
+household-clustered multiplier draws. The simulation is a re-signing of the
+empirical gaps, so reproducing Table 4 needs the same extract. The population
+geometry numbers are clean deterministic LP output --
+`[-0.033650, -0.010704]` at the donor vertices under both designs,
+`[-0.021302, -0.018067]` on the full simplex under near-exact fit, an 85.9
+percent width reduction -- but the input `Pi` they are computed from is never
+published.
+
+**2. There is no reference implementation, so cross-validation is out.** That
+leaves a port validated against printed numbers computed from data we cannot
+obtain, which is not validation.
+
+**3. The expensive half is a second paper.** The identification half is a
+day's work. The inference layer is Goff (2025)'s normalised solvability
+statistic and bootstrap calibration, specialised to this family, and porting
+it means porting that paper: the row-scale rule, the classification of which
+entries count as estimated, the near-feasible completion, and the
+near-optimal certificate tolerance that controls both size and power. Written
+blind against no oracle, with the paper's own diagnostics unreproducible.
+
+**4. The result contract fits badly at the output end.** The estimand is a set
+of `tau` values for one scalar target, not a counterfactual path, so there is
+no `time_series.counterfactual_outcome` to populate, and `InferenceResults`
+carries one `ci_lower`/`ci_upper` pair where the paper's diagnostics track
+connected acceptance components. Inference also needs an input the library
+does not accept: a covariance for the vector of estimated cell means, from
+household-clustered draws on micro data. Accommodating either would touch a
+shared invariant.
+
+**5. The paper's headline is a null, and a wide one.** Across all nine
+`(L, rho)` specifications the 95 percent inversion sets contain both zero and
+the 1.50 percentage-point decline of Bohn et al. (2014). The main `rho = 2`
+sets are `[-4.19, 0.17]` at `L = 1`, `[-4.66, 0.64]` at `L = 2` and
+`[-5.13, 1.05]` at `L = 3`. Sets five to six points wide around a 1.5-point
+original estimate answer whether a published finding survives unknown
+interference; they do not produce an estimate. The Monte Carlo agrees: power
+against alternatives one percentage point away runs 0.042 to 0.390 across the
+twelve cells, reaching 0.890 to 0.948 only at two points and the highest
+precision. False exclusion is 0.004 to 0.026 against a nominal 0.05.
+
+**6. The unknown-interference selling point is partly recovered by the user.**
+`L`, `rho`, the donor pool and the admissible rule are all prespecified, and
+the reported sets move materially across the grid the paper itself sweeps.
+The factor placebo indices of Section 3.4, built by leaving out one period at
+a time, put `L` on an observed scale but benchmark the latent post-treatment
+threshold instead of estimating it.
+
+### What would unblock it
+
+A code release, or a published version with a replication package. Failing
+that, the one honest cheap step is a Path C check of the identification half
+alone: Lemma 3.1 is an exact equivalence, so on synthetic panels the finite
+`2(K-1)`-row system can be checked against brute force over a fine simplex
+grid, and Proposition A.1 -- interior weights add nothing under sign
+alignment, and bind when pre-treatment discrepancies cancel -- is checkable on
+the same fixtures. That is a day, it needs no IPUMS data, and it would settle
+whether the geometry claim holds without committing to the inference port.
+It validates nothing about the inference layer, which is where the cost is.
+
+### What carries over regardless
+
+The support-function-plus-minimax reduction is a general tool: any
+mlsynth constraint of the form "an absolute-value allowance holding uniformly
+over the donor simplex" collapses to donor-vertex rows plus a box on lifted
+coordinates, and the same trick would finitise a continuum of weight-indexed
+restrictions elsewhere. The observation behind Assumption 3.1 -- that a
+weight's own pre-treatment fit is what licenses its post-treatment allowance,
+and that interior weights carry information beyond the vertices only when
+donor discrepancies offset -- is a statement about donor pools that holds
+outside this paper's inference.
+
+---
+
+## 25. Bruns-Smith et al. (2026) augmented balancing weights -- assessed, CLOSED as a property check, no estimator
+
+**Status: Closed. Out of scope as an estimator and nothing to build, but its
+theorem is about an estimator the library already ships, so the Path C spike
+was run anyway. Spike at
+`benchmarks/reference/balance_equiv_spike/`.**
+
+### Source
+
+> Bruns-Smith, D., Dukes, O., Feller, A., & Ogburn, E. L. (2026). *Augmented
+> balancing weights as linear regression*. Journal of the Royal Statistical
+> Society Series B 88(3), 699-723. doi:10.1093/jrsssb/qkaf019. Read before the
+> Society as a Discussion Paper, so the article carries the formal discussion
+> and rejoinder. Replication package: `github.com/bruns-smith/balance-equiv-jrssb`
+> (Python, 351 lines across three modules plus seven notebooks, data included).
+
+### The claim
+
+Augmented balancing weights -- AIPW, automatic debiased machine learning, and
+their relatives -- combine an outcome model with weights that balance
+covariates directly instead of inverting a propensity score. When both models
+are linear in some basis, the augmented estimator is a *single* linear model
+whose coefficients mix the outcome model's with unpenalized OLS
+(Proposition 3.2).
+
+Specialized to a ridge outcome model at `Lambda` and `l2` balancing weights at
+`delta`, Proposition 4.3 gives the mixing in closed form: the augmented
+estimator is one generalized ridge at
+
+    gamma_j = delta * lambda_j / (sigma_j + lambda_j + delta)  <=  lambda_j
+
+so augmenting *is* undersmoothing, and the paper reads off exactly how much.
+At `delta = 0` the augmented estimator is numerically OLS.
+
+### Why it is out of scope as an estimator
+
+Cross-sectional. Section 2.1.1 is `X, Y, Z` i.i.d. with a binary treatment
+under SUTVA, targeting `E[Y(1) - Y(0)]`; the application is 912 rows of
+NSW-PSID with one outcome per unit. No time index, no pre-periods, no donor
+pool, so `dataprep` cannot read it. This is the MAVE lesson again: a paper by
+synthetic-control authors is still cross-sectional if its data is.
+
+### Why the spike was run anyway
+
+The paper's framework contains an estimator mlsynth ships. Section 2.3 names
+the Synthetic Control Method and "their augmented analogues (Athey et al.,
+2018; Ben-Michael, Feller, Rothstein, 2021)" as the nonnegativity-constrained
+case of its own setup, and Feller authored both papers. Ridge-augmented SCM is
+`VanillaSC(augment="ridge")`, implemented in
+`mlsynth/utils/bilevel/ridge_augment.py`.
+
+So the question was not whether to build anything. It was whether the paper's
+documented failure mode is live in code already on `main`. The paper reports
+that practical tuning selects `delta = 0` on 56 percent of its draws
+(Table 1), landing on OLS, while `delta = 0` is never optimal across its 36
+DGPs and is usually catastrophic.
+
+### What the spike established
+
+**1. The theorem reproduces, in both geometries.** Proposition 4.3 holds to
+1.6e-09 over 32 cells on the authors' own LaLonde data and to 1.3e-12 over 27
+cells on simulated panels. Panels invert the paper's aspect ratio as often as
+not, so the sweep covers `J = 40, T0 = 12`, `J = 12, T0 = 40` and
+`J = T0 = 30`; the equivalence does not care. The `delta -> 0` collapse to the
+OLS plug-in reproduces at 2.98e-08.
+
+**2. mlsynth's ASCM is an instance of equation (7), at `Lambda = lam / J`.**
+With `B` the centered donor pre-matrix, `A` the centered treated pre-vector and
+`W` base simplex weights, `ridge_augment_weights` computes
+`W_ridge = M (B B^T + lam I)^{-1} B` for `M = A - B W`, so the prediction is
+`W . Y_post + M . beta` with `beta = (B B^T + lam I)^{-1} B Y_post`. Putting
+`Xp = B^T` and `Sigma = B B^T / J`, that `beta` is the paper's generalized
+ridge coefficient at `Lambda = lam / J` and `M` is its residual feature shift.
+Checked over 12 cells, worst 2.3e-12.
+
+**3. The failure mode does not transfer, for two independent reasons.**
+
+The collapse target is not OLS. At `lam -> 0` with `B B^T` invertible,
+
+    W_aug . Y = A (B B^T)^{-1} B Y  +  W . (I - P) Y,   P = B^T (B B^T)^{-1} B
+
+The first term is the OLS plug-in; the second applies the base weights to the
+part of the donors' post-treatment outcome lying outside the row space of the
+pre-window. `l2` balancing weights have the form `theta B`, which lies in that
+row space, so the second term vanishes and the paper's collapse follows.
+Simplex weights do not, so it survives -- measured at 0.405 on `J = 40,
+T0 = 12` and -0.084 on `J = 30, T0 = 20`, with the decomposition exact to
+1.6e-12. Swapping the simplex for `l2` weights through the *same* mlsynth code
+path (`base_weights_fn` is an injectable hook) makes the collapse appear at
+8.9e-16. The nonnegativity constraint is what breaks the equivalence, which is
+the case the paper sends to Supplementary Appendix D.2 and treats as sample
+trimming.
+
+And the 1-SE cross-validation does not go near the degenerate end: the grid
+floor is selected once in 120 simulated panels, and never on the three real
+ones.
+
+| panel | J | T0 | CV lambda | ATT (CV) | ATT (lam -> 0) | ATT (OLS) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Kansas tax cut | 49 | 89 | 0.0787 | -0.04006 | -0.06699 | 10.777 |
+| Prop 99 (California) | 38 | 19 | 429.8 | -15.953 | -12.374 | 86.571 |
+| German reunification | 16 | 30 | 1.49e+05 | -1333.11 | -5251.24 | 21220.16 |
+
+Kansas under CV reproduces the `augsynth` R reference of -0.0401 pinned in
+`benchmarks/cases/ascm_kansas.py`, so the probed path is the validated one.
+
+### What carries over
+
+The last column prices the paper's warning on panels, and it lands harder here
+than in the paper's own application: the unpenalized plug-in is not merely
+suboptimal but nonsensical, +10.8 log points on Kansas and +21220 on Germany
+against CV-selected estimates of -0.04 and -1333. The degenerate end of the
+penalty grid costs a factor of 1.7 on Kansas and 3.9 on Germany without ever
+reaching OLS.
+
+The reading of ASCM as undersmoothing is the durable idea. The ridge penalty
+is not a nuisance knob: it sets how far the augmented fit is allowed to leave
+the simplex, and `|W|_1` climbing from 1.009 to 2.900 as `lam` falls from 1e2
+to 1e-10 is that statement in one number.
+
+### If anything changes
+
+Part 3 of `check_ascm.py` and `check_real_panels.py` are the regression check
+for the third finding, and both take seconds. Re-run them if the ridge penalty
+grid, the 1-SE rule, or the base simplex solver changes. Neither is registered
+in `benchmarks/registry.py`: the finding is a negative, and a negative does
+not need to be re-established on every run.
+
+---
 
 ## Done
 
