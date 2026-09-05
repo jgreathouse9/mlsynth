@@ -2309,11 +2309,13 @@ the result.
 
 ---
 
-## 23. GP-ITS -- Cho (2026) Gaussian-process interrupted time series -- REPLICATED, build
+## 23. GP-ITS -- Cho (2026) Gaussian-process interrupted time series -- BUILT
 
-**Status: Replicated, build recommended. Path A reproduces exactly and the NumPy
-port matches the author's R to ~1e-11 on every quantity. Spike:
-`benchmarks/reference/gpits_heller/` (run `verify.py`). No estimator code yet.**
+**Status: BUILT and merged (#547), shipped as `mlsynth.GPITS`. Path A reproduces
+exactly and the NumPy port matches the author's R to ~1e-11 on every quantity.
+Spike: `benchmarks/reference/gpits_heller/` (run `verify.py`); estimator:
+`mlsynth/estimators/gpits.py` with `docs/gpits.rst`,
+`docs/replications/gpits.rst` and `benchmarks/cases/gpits.py`.**
 
 ### Source
 
@@ -2373,18 +2375,19 @@ posterior variance widens as the forecast leaves the data.
 
 ### Architecture
 
-New top-level estimator `GPITS`, riding `dataprep(..., allow_no_donors=True)` --
-already used by `SHC`, `TWSF`, `CMBSTS`, `COMPSC`. Closed-form posterior, pure
-NumPy/SciPy, no MCMC and no cvxpy, so lighter than `MTGP`. Returns an
-`EffectResult` with counterfactual plus bands and no donor weights.
+Built as a new top-level estimator `GPITS`, riding
+`dataprep(..., allow_no_donors=True)` -- already used by `SHC`, `TWSF`,
+`CMBSTS`, `COMPSC`. Closed-form posterior, pure NumPy/SciPy, no MCMC and no
+cvxpy, so lighter than `MTGP`. Returns an `EffectResult` with counterfactual
+plus bands and no donor weights.
 
-Two decisions for the build. The paper fits one GP per unit and aggregates over
-N=50 all-treated units; take the single-treated-unit path first and leave
-aggregation to a separate utility, so the result contract is unchanged. And
-`docs/choose.rst` Q0.3 currently routes all no-donor traffic to `SHC`, so that
-branch needs a which-of-the-two paragraph: `SHC` matches historical blocks and
-infers by conformal permutation, `GPITS` puts a kernel prior on the trend and
-widens with horizon.
+Both build decisions went the way this entry proposed. The single-treated-unit
+path shipped; aggregation over an all-treated panel is still a separate utility
+if anyone wants it, which keeps the result contract unchanged. And
+`docs/choose.rst` Q0.3 now divides the no-donor branch: `SHC` matches historical
+blocks and infers by conformal permutation, `GPITS` puts a kernel prior on the
+trend and widens with horizon, so reach for `SHC` when the cycle cannot be named
+and `GPITS` when it can.
 
 Licensing: `gpss` is GPL-3 and `mlsynth` is MIT. `gpits_port.py` was written
 from the paper's equations and the reference's structure; no `gpss` source is
