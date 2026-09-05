@@ -1,0 +1,17 @@
+kernel_smooth    n_pre=  12  GP cov=0.986 hw=5.88 rmse=2.01   |   Seg cov=0.730 hw=1.20 rmse=1.47
+kernel_smooth    n_pre=  36  GP cov=0.998 hw=2.48 rmse=0.60   |   Seg cov=0.683 hw=0.89 rmse=1.21
+kernel_smooth    n_pre=  60  GP cov=1.000 hw=1.91 rmse=0.41   |   Seg cov=0.665 hw=0.88 rmse=1.14
+kernel_smooth    n_pre=  96  GP cov=1.000 hw=1.51 rmse=0.33   |   Seg cov=0.755 hw=0.80 rmse=0.85
+kernel_smooth    n_pre= 120  GP cov=1.000 hw=1.44 rmse=0.30   |   Seg cov=0.768 hw=0.85 rmse=0.87
+nonlinear_trend  n_pre=  12  GP cov=1.000 hw=4.26 rmse=1.62   |   Seg cov=0.201 hw=1.17 rmse=2.45
+nonlinear_trend  n_pre=  36  GP cov=0.997 hw=1.82 rmse=0.84   |   Seg cov=0.558 hw=1.20 rmse=1.20
+nonlinear_trend  n_pre=  60  GP cov=0.999 hw=1.40 rmse=0.47   |   Seg cov=0.702 hw=1.14 rmse=1.00
+nonlinear_trend  n_pre=  96  GP cov=0.998 hw=1.10 rmse=0.38   |   Seg cov=0.804 hw=1.10 rmse=0.90
+nonlinear_trend  n_pre= 120  GP cov=0.999 hw=1.05 rmse=0.34   |   Seg cov=0.844 hw=1.09 rmse=0.86
+trend_seasonal   n_pre=  12  GP cov=0.991 hw=4.63 rmse=1.40   |   Seg cov=0.604 hw=0.96 rmse=1.07
+trend_seasonal   n_pre=  36  GP cov=1.000 hw=1.92 rmse=0.39   |   Seg cov=0.576 hw=0.54 rmse=0.58
+trend_seasonal   n_pre=  60  GP cov=1.000 hw=1.50 rmse=0.34   |   Seg cov=0.725 hw=0.51 rmse=0.44
+trend_seasonal   n_pre=  96  GP cov=0.999 hw=1.16 rmse=0.31   |   Seg cov=0.810 hw=0.50 rmse=0.37
+trend_seasonal   n_pre= 120  GP cov=0.998 hw=1.12 rmse=0.30   |   Seg cov=0.827 hw=0.49 rmse=0.36
+
+wrote coverage_results.json  (n_reps=200, code 66b2eeea7d2ae6dc)
