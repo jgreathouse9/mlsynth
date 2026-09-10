@@ -156,6 +156,67 @@ def _base_seeds(engine, y, Y0, pre, X1, X0):
     return np.asarray(treated.W, dtype=float), donor_bases
 
 
+def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start):
+    """Yield ``(a, b, cf_I, cf_a, cf_b)`` for each donor pair left out.
+
+    One traversal, used by both entry points. For the pair ``{a, b}`` the donor
+    pool is every other control, and three synthetic controls are built on it:
+    one for the treated unit and one for each left-out donor. What a caller does
+    with the three counterfactuals is its own business -- the placebo test
+    reduces each to a scalar and compares, the interval keeps the residual paths
+    and takes quantiles across pairs.
+
+    A pair whose refit raises is skipped rather than counted, so a failed solve
+    contributes nothing instead of a zero that would shrink the reference set.
+    """
+    J = Y0.shape[1]
+    all_donors = np.arange(J)
+
+    bases = None
+    if warm_start:
+        try:
+            bases = _base_seeds(engine, y, Y0, pre, X1, X0)
+        except Exception:  # pragma: no cover - defensive base-fit guard
+            bases = None
+
+    def _cf(y_k, pool, Y0_pool, x1, ws):
+        x0p = X0[:, pool] if X0 is not None else None
+        rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)
+        return rk.counterfactual(Y0_pool)
+
+    for a, b in pairs:
+        pool = np.delete(all_donors, [a, b])
+        if not pool.size:  # pragma: no cover - pool size = J-2 >= 1 when J >= 3
+            continue
+        Y0_pool = Y0[:, pool]
+        if bases is None:
+            ws_I = ws_a = ws_b = None
+        else:
+            treated_base, donor_bases = bases
+            ws_I = _seed_from_base(treated_base, pool)
+            ws_a = _seed_from_base(donor_bases[a], pool)
+            ws_b = _seed_from_base(donor_bases[b], pool)
+        try:
+            cf_I = _cf(y, pool, Y0_pool, X1, ws_I)
+            cf_a = _cf(Y0[:, a], pool, Y0_pool,
+                       (X0[:, a] if X0 is not None else None), ws_a)
+            cf_b = _cf(Y0[:, b], pool, Y0_pool,
+                       (X0[:, b] if X0 is not None else None), ws_b)
+        except Exception:  # pragma: no cover - defensive donor-refit guard
+            continue
+        yield a, b, cf_I, cf_a, cf_b
+
+
+def _donor_pairs(J, max_pairs, seed):
+    """Every unordered pair of donors, optionally a deterministic subsample."""
+    pairs = [(a, b) for a in range(J) for b in range(a + 1, J)]
+    if max_pairs is not None and len(pairs) > max_pairs:
+        rng = np.random.default_rng(seed)
+        idx = rng.choice(len(pairs), size=max_pairs, replace=False)
+        return [pairs[i] for i in sorted(idx)], True
+    return pairs, False
+
+
 def lto_placebo_test(
     engine: Any,
     y: np.ndarray,
@@ -229,13 +290,7 @@ def lto_placebo_test(
         )
     N = J + 1
 
-    pairs = [(a, b) for a in range(J) for b in range(a + 1, J)]
-    subsampled = False
-    if max_pairs is not None and len(pairs) > max_pairs:
-        rng = np.random.default_rng(seed)
-        idx = rng.choice(len(pairs), size=max_pairs, replace=False)
-        pairs = [pairs[i] for i in sorted(idx)]
-        subsampled = True
+    pairs, subsampled = _donor_pairs(J, max_pairs, seed)
 
     if statistic is None:
         statistic = _rmspe_ratio_resid
@@ -245,41 +300,13 @@ def lto_placebo_test(
             f"got {type(statistic).__name__}."
         )
 
-    def _resid(y_k, pool, Y0_pool, x1, ws):
-        x0p = X0[:, pool] if X0 is not None else None
-        rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)
-        return statistic(y_k, rk.counterfactual(Y0_pool), pre)
-
-    bases = None
-    if warm_start:
-        try:
-            bases = _base_seeds(engine, y, Y0, pre, X1, X0)
-        except Exception:  # pragma: no cover - defensive base-fit guard
-            bases = None
-
     losses = 0
     n_pairs = 0
-    all_donors = np.arange(J)
-    for a, b in pairs:
-        pool = np.delete(all_donors, [a, b])
-        if not pool.size:  # pragma: no cover - pool size = J-2 >= 1 when J >= 3
-            continue
-        Y0_pool = Y0[:, pool]
-        if bases is None:
-            ws_I = ws_a = ws_b = None
-        else:
-            treated_base, donor_bases = bases
-            ws_I = _seed_from_base(treated_base, pool)
-            ws_a = _seed_from_base(donor_bases[a], pool)
-            ws_b = _seed_from_base(donor_bases[b], pool)
-        try:
-            R_I = _resid(y, pool, Y0_pool, X1, ws_I)
-            R_a = _resid(Y0[:, a], pool, Y0_pool,
-                         (X0[:, a] if X0 is not None else None), ws_a)
-            R_b = _resid(Y0[:, b], pool, Y0_pool,
-                         (X0[:, b] if X0 is not None else None), ws_b)
-        except Exception:  # pragma: no cover - defensive donor-refit guard
-            continue
+    for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
+                                                 pairs, warm_start):
+        R_I = statistic(y, cf_I, pre)
+        R_a = statistic(Y0[:, a], cf_a, pre)
+        R_b = statistic(Y0[:, b], cf_b, pre)
         if not np.isfinite(R_I):  # pragma: no cover - donor with zero pre-error
             R_I = np.finfo(float).max
         n_pairs += 1
@@ -303,4 +330,100 @@ def lto_placebo_test(
         "alpha": float(alpha),
         "reject": bool(p_powered <= alpha),
         "subsampled": subsampled,
+    }
+
+
+def lto_interval(
+    engine: Any,
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre: int,
+    *,
+    X1: Optional[np.ndarray] = None,
+    X0: Optional[np.ndarray] = None,
+    alpha: float = 0.10,
+    max_pairs: Optional[int] = None,
+    seed: int = 0,
+    warm_start: bool = True,
+) -> Dict[str, Any]:
+    """Pointwise confidence interval for the treated unit's counterfactual.
+
+    The construction of Lei & Sudijono (2025) as their replication code builds
+    it (``tsudijon/LeaveTwoOutSCI``,
+    ``basque_analysis/slurm/basque_ltojk_poweranalysis_slurm.R``): each pair of
+    left-out donors contributes a centre -- the treated unit's counterfactual on
+    the pool without that pair -- and a spread, the larger of the two left-out
+    donors' own absolute residuals at that period. The bounds are empirical
+    quantiles across pairs of ``centre + spread`` and ``centre - spread``.
+
+    The reference set is ``C(J, 2)`` pairs of donors. That count does not involve
+    the post-period length, so unlike a calibration set cut from the time axis it
+    does not thin as the horizon grows.
+
+    Parameters
+    ----------
+    engine, y, Y0, pre, X1, X0, max_pairs, seed, warm_start
+        As :func:`lto_placebo_test`.
+    alpha : float
+        Miscoverage. Must be at least ``1 / n_pairs``: below that the quantile
+        indices collapse onto the extremes of the pair set and the bounds carry
+        no resolution, so the call is refused instead.
+
+    Returns
+    -------
+    dict
+        ``lower`` / ``upper`` ``(T,)`` bounds; ``pair_centres``,
+        ``pair_spreads``, ``pair_resid_i`` and ``pair_resid_j``, each
+        ``(n_pairs, T)``, the inputs the bounds were read off; and ``n_pairs``,
+        ``N``, ``alpha``, ``subsampled``.
+
+    Notes
+    -----
+    The quantile is R's ``type = 1``, the inverse ECDF, which returns one of the
+    values the pair set actually produced. NumPy's default interpolates between
+    two order statistics; on the small pair sets this method exists for, the two
+    disagree, and only the order statistic is the quantity the reference computes.
+    """
+    Y0 = np.asarray(Y0, float)
+    y = np.asarray(y, float).ravel()
+    T, J = Y0.shape
+    if J < 3:
+        raise ValueError(
+            "LTO interval needs at least 3 donor units (to leave two out and "
+            "retain a non-empty control pool)."
+        )
+    pairs, subsampled = _donor_pairs(J, max_pairs, seed)
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must lie in (0, 1); got {alpha!r}.")
+    if alpha * len(pairs) < 1.0:
+        raise ValueError(
+            f"alpha={alpha} is finer than {len(pairs)} pairs can resolve: the "
+            f"order statistics collapse onto the extremes of the pair set. The "
+            f"tightest reachable level here is alpha={1.0 / len(pairs):.4f}."
+        )
+
+    centres, spreads, resid_i, resid_j = [], [], [], []
+    for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
+                                                 pairs, warm_start):
+        r_a = Y0[:, a] - np.asarray(cf_a).ravel()
+        r_b = Y0[:, b] - np.asarray(cf_b).ravel()
+        centres.append(np.asarray(cf_I).ravel())
+        spreads.append(np.maximum(np.abs(r_a), np.abs(r_b)))
+        resid_i.append(r_a)
+        resid_j.append(r_b)
+
+    if not centres:  # pragma: no cover - unreachable when J >= 3
+        raise ValueError("every leave-two-out refit failed; no interval to report.")
+
+    centres = np.vstack(centres)
+    spreads = np.vstack(spreads)
+    upper = np.quantile(centres + spreads, 1.0 - alpha, axis=0,
+                        method="inverted_cdf")
+    lower = np.quantile(centres - spreads, alpha, axis=0, method="inverted_cdf")
+    return {
+        "lower": lower, "upper": upper,
+        "pair_centres": centres, "pair_spreads": spreads,
+        "pair_resid_i": np.vstack(resid_i), "pair_resid_j": np.vstack(resid_j),
+        "n_pairs": centres.shape[0], "N": J + 1,
+        "alpha": float(alpha), "subsampled": subsampled,
     }
