@@ -427,3 +427,108 @@ def lto_interval(
         "n_pairs": centres.shape[0], "N": J + 1,
         "alpha": float(alpha), "subsampled": subsampled,
     }
+
+
+def lto_cumulative_interval(
+    engine: Any,
+    y: np.ndarray,
+    Y0: np.ndarray,
+    pre: int,
+    *,
+    X1: Optional[np.ndarray] = None,
+    X0: Optional[np.ndarray] = None,
+    alpha: float = 0.10,
+    max_pairs: Optional[int] = None,
+    seed: int = 0,
+    warm_start: bool = True,
+) -> Dict[str, Any]:
+    """Confidence interval for the treated unit's cumulative post-period total.
+
+    The same leave-two-out construction as :func:`lto_interval` with the
+    cumulative post-period sum as the pair statistic, which Lei & Sudijono
+    (2025) section 6.4 permits: the theory rests on uniform assignment and not on
+    the choice of summary statistic.
+
+    The calibration set is ``C(J, 2)`` pairs of donors, so its size is a count of
+    donors and does not involve the horizon. A calibration set cut from the time
+    axis -- non-overlapping windows of the horizon's length out of a fixed
+    pre-period -- loses windows as the horizon grows and eventually cannot place
+    the quantile at all. This one does not thin.
+
+    Each pair contributes a centre, the treated unit's cumulative counterfactual
+    on the pool without that pair, and a spread,
+    ``max(|sum r_a|, |sum r_b|)`` over the two left-out donors. Each donor's
+    residual is accumulated *before* the absolute value and the maximum, so the
+    cross-period correlation entering the total is the one the donor actually
+    had. Taking the maximum period by period and accumulating that would fix the
+    correlation at one, which is the comonotone endpoint sum this construction
+    exists to avoid.
+
+    Parameters
+    ----------
+    engine, y, Y0, pre, X1, X0, alpha, max_pairs, seed, warm_start
+        As :func:`lto_interval`.
+
+    Returns
+    -------
+    dict
+        ``lower`` / ``upper`` on the cumulative counterfactual and
+        ``effect_lower`` / ``effect_upper`` on the cumulative effect (the
+        observed total minus the counterfactual bounds, so the ends swap);
+        ``observed_total``; the per-pair ``pair_centres``, ``pair_spreads``,
+        ``pair_resid_i``, ``pair_resid_j``; and ``horizon``, ``n_pairs``, ``N``,
+        ``alpha``, ``subsampled``.
+    """
+    Y0 = np.asarray(Y0, float)
+    y = np.asarray(y, float).ravel()
+    T, J = Y0.shape
+    if J < 3:
+        raise ValueError(
+            "LTO interval needs at least 3 donor units (to leave two out and "
+            "retain a non-empty control pool)."
+        )
+    horizon = T - int(pre)
+    if horizon < 1:
+        raise ValueError(
+            f"a cumulative interval needs at least one post period; got "
+            f"pre={pre} with T={T}."
+        )
+    pairs, subsampled = _donor_pairs(J, max_pairs, seed)
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must lie in (0, 1); got {alpha!r}.")
+    if alpha * len(pairs) < 1.0:
+        raise ValueError(
+            f"alpha={alpha} is finer than {len(pairs)} pairs can resolve: the "
+            f"order statistics collapse onto the extremes of the pair set. The "
+            f"tightest reachable level here is alpha={1.0 / len(pairs):.4f}."
+        )
+
+    centres, spreads, resid_i, resid_j = [], [], [], []
+    for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
+                                                 pairs, warm_start):
+        r_a = Y0[pre:, a] - np.asarray(cf_a).ravel()[pre:]
+        r_b = Y0[pre:, b] - np.asarray(cf_b).ravel()[pre:]
+        centres.append(float(np.asarray(cf_I).ravel()[pre:].sum()))
+        spreads.append(max(abs(float(r_a.sum())), abs(float(r_b.sum()))))
+        resid_i.append(r_a)
+        resid_j.append(r_b)
+
+    if not centres:  # pragma: no cover - unreachable when J >= 3
+        raise ValueError("every leave-two-out refit failed; no interval to report.")
+
+    centres = np.asarray(centres, float)
+    spreads = np.asarray(spreads, float)
+    upper = float(np.quantile(centres + spreads, 1.0 - alpha,
+                              method="inverted_cdf"))
+    lower = float(np.quantile(centres - spreads, alpha, method="inverted_cdf"))
+    observed_total = float(y[pre:].sum())
+    return {
+        "lower": lower, "upper": upper,
+        "effect_lower": observed_total - upper,
+        "effect_upper": observed_total - lower,
+        "observed_total": observed_total,
+        "pair_centres": centres, "pair_spreads": spreads,
+        "pair_resid_i": np.vstack(resid_i), "pair_resid_j": np.vstack(resid_j),
+        "horizon": horizon, "n_pairs": centres.size, "N": J + 1,
+        "alpha": float(alpha), "subsampled": subsampled,
+    }
