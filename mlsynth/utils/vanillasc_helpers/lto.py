@@ -50,7 +50,7 @@ computed at (reject when it is :math:`\\le \\alpha`).
 from __future__ import annotations
 
 from math import floor, sqrt
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 
@@ -168,6 +168,7 @@ def lto_placebo_test(
     max_pairs: Optional[int] = None,
     seed: int = 0,
     warm_start: bool = True,
+    statistic: Optional[Callable[[np.ndarray, np.ndarray, int], float]] = None,
 ) -> Dict[str, Any]:
     """Run the Lei-Sudijono (2025) LTO refined placebo test.
 
@@ -199,6 +200,16 @@ def lto_placebo_test(
         point. Speed only -- the seed chooses where the active set starts, not
         where it lands, so every reported quantity is unchanged. Default
         ``True``; pass ``False`` for the cold path.
+    statistic : callable, optional
+        The per-unit summary ``(y_k, counterfactual, pre) -> float`` compared
+        across each triple. ``None`` (the default) uses
+        :func:`_rmspe_ratio_resid`, the post/pre RMSPE ratio of ADH15 and of the
+        paper's own applications. Theorem 2.2 rests on uniform assignment and not
+        on this choice (Lei & Sudijono 2025, section 6.4), so any summary of a
+        unit's fit is admissible and the guarantee is unchanged -- which is what
+        lets a cumulative post-period total be tested by the same procedure.
+        Larger means "less like the controls": the treated unit wins a triple
+        when its value exceeds both left-out donors'.
 
     Returns
     -------
@@ -226,10 +237,18 @@ def lto_placebo_test(
         pairs = [pairs[i] for i in sorted(idx)]
         subsampled = True
 
+    if statistic is None:
+        statistic = _rmspe_ratio_resid
+    elif not callable(statistic):
+        raise ValueError(
+            f"statistic must be a callable (y_k, counterfactual, pre) -> float; "
+            f"got {type(statistic).__name__}."
+        )
+
     def _resid(y_k, pool, Y0_pool, x1, ws):
         x0p = X0[:, pool] if X0 is not None else None
         rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)
-        return _rmspe_ratio_resid(y_k, rk.counterfactual(Y0_pool), pre)
+        return statistic(y_k, rk.counterfactual(Y0_pool), pre)
 
     bases = None
     if warm_start:
