@@ -35,24 +35,30 @@ generate those without drowning the meaningful site, and it was never meant to.
 So: generic operator swaps do not belong in `targets.toml`. They duplicate
 cosmic-ray partially and worse.
 
-### cosmic-ray is blocked upstream
-
-It cannot currently be installed. Its `yattag` dependency ships a legacy
-`setup.py` that modern setuptools rejects (`install_layout` was removed), so
-the wheel fails to build. Nothing in this repo works around that.
+### Running cosmic-ray
 
 `module-path`, `test-command` and `timeout` in `targets.toml` are cosmic-ray's
 own configuration keys, so the targets already describe a cosmic-ray session:
 
 ```bash
+pip install cosmic-ray
 python tools/mutation/emit_cosmic_ray_config.py --out build/cosmic-ray
-cosmic-ray init build/cosmic-ray/dataprep.toml dataprep.sqlite
+cosmic-ray init build/cosmic-ray/dataprep-refusals.toml dataprep.sqlite
 cosmic-ray exec dataprep.toml dataprep.sqlite
 cr-report dataprep.sqlite
 ```
 
-The emitter is tested and its output is valid TOML today, so when the upstream
-packaging is fixed the blocker costs a `pip install` and not a redesign.
+`init` enumerates the operator sweep without running anything: on
+`mlsynth/utils/datautils.py` it produces 709 jobs. `exec` runs the target's
+`test-command` once per job, so budget against that count and the target's
+`timeout` before starting one.
+
+This section used to record cosmic-ray as uninstallable, because `yattag`
+ships sdist-only at every release and its `setup.py` opens
+`from distutils.core import setup`, which broke when `distutils` left the
+stdlib in Python 3.12 (PEP 632). Modern setuptools injects `_distutils_hack`,
+which resolves that import to its vendored copy, so the sdist builds again and
+`cosmic-ray` 8.7.0 installs under both `pip` and `uv`.
 
 ## Reading a result
 

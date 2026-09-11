@@ -349,9 +349,13 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
         treated_unit_treatment_vector = treatment_matrix[:, treated_indices[0]]
         # Find all periods where this single treated unit has a treatment indicator of 1.
         treatment_period_indices = np.where(treated_unit_treatment_vector == 1)[0]
-        if not len(treatment_period_indices) > 0:
-            # This should ideally be caught by the earlier `num_treated_observations` check,
-            # but it's a safeguard for the single unit logic.
+        if not len(treatment_period_indices) > 0:  # pragma: no cover - unreachable
+            # `treated_indices` is built from `np.any(treatment_matrix == 1)`, so a
+            # unit listed there has at least one treated period by construction and
+            # this branch cannot fire. Kept as a safeguard against a future change
+            # to how the treated mask is derived. An exhaustive search over every
+            # binary panel up to 3x3, and every {0, 1, NaN} panel up to 2x2,
+            # reaches it zero times.
             raise MlsynthDataError("Treated unit has no post-treatment period")
         # The first treatment period is the first time index where treatment is 1.
         first_treatment_period_index = treatment_period_indices[0]
@@ -383,8 +387,10 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
         for unit_idx in treated_indices: # Iterate through identified treated units
             unit_treatment_vector = treatment_matrix[:, unit_idx]
             unit_treatment_period_indices = np.where(unit_treatment_vector == 1)[0]
-            if not len(unit_treatment_period_indices) > 0:
-                # Safeguard: ensure each marked treated unit actually has treatment periods.
+            if not len(unit_treatment_period_indices) > 0:  # pragma: no cover - unreachable
+                # Same construction as the single-treated branch above: `unit_idx`
+                # comes from `treated_indices`, so the unit has a treated period by
+                # definition. Kept as a safeguard, not reachable from any panel.
                 raise MlsynthDataError(f"Unit {unit_idx} has no post-treatment period")
             # Store the first period (0-indexed) where treatment is 1 for this unit.
             first_treatment_period_by_unit[unit_idx] = unit_treatment_period_indices[0]

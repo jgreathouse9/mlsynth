@@ -392,3 +392,89 @@ class TestFastPathDeclines:
             DU._wide_pivot(df, index="time", columns="id", values="y"),
             df.pivot(index="time", columns="id", values="y"),
             check_exact=True)
+
+
+# =========================================================================== #
+# the derived work, not just the scan
+# =========================================================================== #
+class ArgsortCounter:
+    """Counts ``np.argsort`` calls made inside ``datautils``.
+
+    ``argsort`` appears in exactly two places in the module -- the bodies of
+    ``PanelKeys.unit_order`` and ``PanelKeys.time_order`` -- so this counts the
+    axis-sort work and nothing else.
+    """
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        real = np.argsort
+
+        def traced(a, *args, **kw):
+            self.calls += 1
+            return real(a, *args, **kw)
+
+        monkeypatch.setattr(DU.np, "argsort", traced)
+
+
+class TestDerivedWorkIsCachedToo:
+    """A scan taken once is also *used* once.
+
+    ``TestScanCount`` and ``TestPivotCount`` hold the factorize and pivot calls
+    to one per panel. The quantities derived from that scan -- the sorted axis
+    permutations and the linear cell index -- are cached on ``PanelKeys`` for
+    the same reason, and nothing asserted it: a mutation run deleting either
+    cache left the whole suite green, because recomputing them returns the same
+    values and moves no output. The cost is the only observable, so the count
+    is the assertion.
+    """
+
+    def test_axis_sorts_are_taken_once_per_panel(self, monkeypatch):
+        """Two argsorts per panel, not two per pivot.
+
+        A panel with covariates is pivoted once for the outcome, once for the
+        treatment, and once per covariate. Taking the permutations inside
+        ``_fast_pivot`` instead of reading them off the scan multiplies the
+        sorts by the number of pivots while leaving every frame identical.
+        """
+        covariates = ["x0", "x1", "x2"]
+        df = make_panel(covariates=covariates)
+        counter = ArgsortCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=covariates)
+        assert counter.calls <= 2, (
+            f"axis sorts taken {counter.calls} times; the unit and time "
+            "permutations are cached on the scan and cost at most one each")
+
+    def test_staggered_panel_also_sorts_once(self, monkeypatch):
+        """The cohort branch reads the same cached permutations."""
+        df = make_staggered()
+        counter = ArgsortCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter.calls <= 2
+
+    def test_cell_index_is_built_once(self):
+        """Repeated reads return the same array, not an equal one.
+
+        Identity is the assertion because the value is what a rebuild
+        preserves: only the object changes, and only the cost.
+        """
+        df = make_panel()
+        keys = DU.PanelKeys(df, "id", "time")
+        first = keys.cell
+        assert keys.cell is first
+        assert keys.cell is first
+
+    def test_axis_orders_are_built_once(self):
+        """The same identity contract for the two sorted permutations."""
+        df = make_panel()
+        keys = DU.PanelKeys(df, "id", "time")
+        u, t = keys.unit_order, keys.time_order
+        assert keys.unit_order is u
+        assert keys.time_order is t
+
+    def test_cached_cell_index_still_has_the_right_value(self):
+        """The companion: caching is not hiding a wrong answer."""
+        df = make_panel()
+        keys = DU.PanelKeys(df, "id", "time")
+        expected = (keys.time_codes.astype(np.int64) * keys.n_units
+                    + keys.unit_codes)
+        assert np.array_equal(keys.cell, expected)

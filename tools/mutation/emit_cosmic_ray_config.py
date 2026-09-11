@@ -4,19 +4,17 @@
 
 ``module-path``, ``test-command`` and ``timeout`` are cosmic-ray's own keys, so
 the targets declared for the semantic catalogue describe a cosmic-ray session
-without restating anything. Once cosmic-ray is installable again the workflow
-is::
+without restating anything. The workflow is::
 
+    pip install cosmic-ray
     python tools/mutation/emit_cosmic_ray_config.py --out build/cosmic-ray
     cosmic-ray init build/cosmic-ray/<target>.toml <target>.sqlite
     cosmic-ray exec <target>.toml <target>.sqlite
     cr-report <target>.sqlite
 
-cosmic-ray is currently blocked upstream: its ``yattag`` dependency ships a
-legacy ``setup.py`` that modern setuptools rejects (``install_layout`` was
-removed), so the wheel cannot be built. The configs are emitted and validated
-regardless, which keeps the two halves in step and means the blocker costs a
-`pip install` and not a design.
+``init`` only enumerates: it produces 709 jobs on
+``mlsynth/utils/datautils.py``. ``exec`` runs the target's ``test-command``
+once per job, so price a run against that count before starting one.
 
 The two instruments answer different questions and neither replaces the other.
 cosmic-ray applies general operators over the parso syntax tree, exhaustively

@@ -4,10 +4,8 @@
 #
 # `module-path` and `test-command` are cosmic-ray's own configuration keys.
 # Declaring them here means a valid `[cosmic-ray]` config is emitted from this
-# file without restating anything -- see emit_cosmic_ray_config.py. When
-# cosmic-ray becomes installable again (it is currently blocked upstream: its
-# `yattag` dependency uses a legacy setup.py that modern setuptools rejects),
-# `cosmic-ray init` on these targets is a drop-in addition.
+# file without restating anything -- see emit_cosmic_ray_config.py, and
+# tools/mutation/README.md for the run.
 #
 # The `mutant` entries are the part cosmic-ray does not generate. Its operators
 # are general rules over parso AST nodes -- replace a binary operator, flip a
@@ -120,6 +118,50 @@ timeout = 300.0
   replace = """"pre_periods": num_post_treatment_periods,
             "post_periods": num_pre_treatment_periods,"""
   models = "pre and post counts swapped, which still sums to the panel length and so survives any test that only checks the partition"
+
+[[target]]
+name = "dataprep-refusals"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_datautils_refusals.py mlsynth/tests/test_datautils.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "binary-treatment-check-dropped"
+  find = "    if not np.all(np.isin(valid_treatment_values, [0, 1])):"
+  replace = "    if False:"
+  models = "a treatment column holding a 2 admitted. Every count downstream reads `== 1`, so the 2s drop out of the treated mask silently: the unit is neither treated nor a clean donor, and the panel is fitted with a donor whose treatment status was misencoded"
+
+  [[target.mutant]]
+  id = "multi-unit-sustained-check-dropped"
+  find = """            if not np.all(unit_treatment_vector[unit_treatment_period_indices[0] :] == 1):
+                raise MlsynthDataError(f"Treatment is not sustained for unit {unit_idx}")"""
+  replace = """            if False:
+                raise MlsynthDataError(f"Treatment is not sustained for unit {unit_idx}")"""
+  models = "a staggered cohort in which one unit switches back off is admitted. post_periods is counted from the first 1 to the end of the panel, so the periods where that unit is untreated are billed as treated. The single-treated branch keeps its own check, so only the cohort path is exposed"
+
+  [[target.mutant]]
+  id = "missing-covariate-deferred-to-pandas"
+  find = """        if cov not in df.columns:
+            raise MlsynthDataError(f"covariate {cov!r} not present in df.columns")"""
+  replace = """        if False:
+            raise MlsynthDataError(f"covariate {cov!r} not present in df.columns")"""
+  models = "a mistyped covariate name reaching the pivot instead of the refusal. pandas raises its own KeyError, so the failure is real but untranslated, and every caller that narrows on MlsynthDataError sees an exception it does not handle"
+
+  [[target.mutant]]
+  id = "pre-mean-accepts-an-empty-window"
+  find = "            if pre_periods <= 0:"
+  replace = "            if pre_periods < 0:"
+  models = "pre_periods == 0 admitted. The slice is empty, so every covariate aggregates to NaN and the covariate matrix is silently all-NaN -- a fit that runs and returns numbers built on nothing"
+
+  [[target.mutant]]
+  id = "unknown-aggregation-falls-back-silently"
+  find = """        else:
+            raise MlsynthDataError(
+                f"Unknown covariate_aggregation: {aggregation!r}"
+            )"""
+  replace = """        else:
+            agg = pivot.iloc[:pre_periods, :].mean(axis=0)"""
+  models = "a misspelled aggregation served as pre_mean. The caller asked for one estimand and is given another, and no output records the substitution"
 
 [[target]]
 name = "mlsc-penalty"
