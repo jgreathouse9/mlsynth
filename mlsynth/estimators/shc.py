@@ -96,6 +96,8 @@ class SHC:
         self.use_augmented: bool = config.use_augmented
         self.bandwidth_grid = config.bandwidth_grid
         self.inference_method: str = config.inference_method
+        self.reference_pool: str = config.reference_pool
+        self.reference_stride = config.reference_stride
         self.permutation_scheme: str = config.permutation_scheme
         self.num_permutations = config.num_permutations
 
@@ -133,6 +135,8 @@ class SHC:
                 method=self.inference_method,
                 permutation_scheme=self.permutation_scheme,
                 num_permutations=self.num_permutations,
+                reference_pool=self.reference_pool,
+                reference_stride=self.reference_stride,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

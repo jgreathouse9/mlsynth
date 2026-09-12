@@ -43,6 +43,30 @@ class SHCConfig(BaseEstimatorConfig):
         ),
     )
 
+    reference_pool: str = Field(
+        default="block_oos",
+        description=(
+            "Which pre-period residuals calibrate the conformal test. "
+            "'block_oos' (default) refits each historical block against the "
+            "blocks that share no observation with it and takes the residual "
+            "over its own post-window, so the reference residuals are the same "
+            "object as the tested statistic. 'smoother' is the paper's literal "
+            "reading, y_t minus the fitted latent trend; it is retained for "
+            "reproducing published numbers and it over-rejects."
+        ),
+    )
+    reference_stride: Optional[int] = Field(
+        default=None,
+        description=(
+            "With reference_pool='block_oos', evaluate every stride-th block. "
+            "Each block costs one matching solve. None (the default) picks the "
+            "smallest stride keeping the count at or under 60 blocks, so the "
+            "cost does not grow with the panel; 1 evaluates every block, which "
+            "is what the 1% level needs and what a few hundred blocks charges "
+            "a few tens of seconds for."
+        ),
+    )
+
     @model_validator(mode="after")
     def check_shc_params(self) -> "SHCConfig":
         if not isinstance(self.use_augmented, bool):
@@ -71,5 +95,11 @@ class SHCConfig(BaseEstimatorConfig):
             )
         if self.num_permutations is not None and self.num_permutations < 2:
             raise MlsynthConfigError("'num_permutations' must be >= 2.")
+        if self.reference_pool not in ("block_oos", "smoother"):
+            raise MlsynthConfigError(
+                "'reference_pool' must be 'block_oos' or 'smoother'."
+            )
+        if self.reference_stride is not None and self.reference_stride < 1:
+            raise MlsynthConfigError("'reference_stride' must be >= 1.")
 
         return self

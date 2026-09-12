@@ -116,6 +116,17 @@ class SHCInference:
     scheme : str
         The resampling family that built the null: ``"iid_with_replacement"``
         for the paper's bootstrap, or the permutation scheme of the exact test.
+    reference_pool : str
+        Which reference pool built the null: ``"block_oos"`` (out-of-sample
+        residuals over each historical block's post-window) or ``"smoother"``
+        (the in-sample kernel-smoother residuals, which over-reject).
+    n_reference : int
+        How many blocks were refitted for ``"block_oos"``, or how many
+        residuals were pooled for ``"smoother"``.
+    reference_note : str
+        Empty when the requested pool ran. When ``"block_oos"`` was requested
+        and the panel could not supply an out-of-sample residual, this records
+        why and ``reference_pool`` names the pool that actually ran.
     """
 
     method: str
@@ -130,6 +141,9 @@ class SHCInference:
     confidence_level: float
     levels: Tuple[float, ...] = (0.01, 0.05, 0.10)
     scheme: str = "iid_with_replacement"
+    reference_pool: str = "block_oos"
+    n_reference: int = 0
+    reference_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -255,6 +269,9 @@ class SHCResults(_BaseEstimatorResults):
                     "num_resamples": getattr(inf, "num_resamples", None),
                     "levels": tuple(getattr(inf, "levels", ()) or ()),
                     "scheme": getattr(inf, "scheme", None),
+                    "reference_pool": getattr(inf, "reference_pool", None),
+                    "n_reference": getattr(inf, "n_reference", None),
+                    "reference_note": getattr(inf, "reference_note", ""),
                     "null_distribution": getattr(inf, "null_distribution", None),
                 }))
             # The Andrews-Genton band covers the post window only; the canonical

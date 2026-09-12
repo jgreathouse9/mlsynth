@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import cvxpy as cp
 import numpy as np
-from scipy.linalg import eigh
 
 
 def smooth(y_pre, bw):
@@ -123,10 +122,24 @@ def solve_shc_qp(L, ell_eval, use_augmented=False, w_shc=None, lam=None,
         fit_term = cp.sum_squares(ell_eval - L @ w)
         deviation = 0
 
-    G = L.T @ L
-    eigvals, eigvecs = eigh(G)
-    C = eigvecs[:, eigvals < tol]
-    penalty = varsigma * cp.sum_squares(C.T @ w) if C.size > 0 else 0
+    # The penalty pins down the directions the fit cannot see: with m rows and
+    # N columns at most m of the N directions are identified, so on a real panel
+    # most of them are chosen by this term alone.
+    #
+    # Written with the null-space basis C it is a dense (N - r) x N operator and
+    # obtaining C means decomposing the N x N Gram matrix. Neither is needed.
+    # The eigenvectors are a complete orthonormal set, so C C' + V V' = I with V
+    # the r identified directions, hence
+    #
+    #     ||C' w||^2 = w' (I - V V') w = ||(I - V V') w||^2,
+    #
+    # a rank-r affine map -- 24 columns instead of 205 on the COVID panel -- and
+    # V is the leading right singular vectors of L, from a thin SVD of an m x N
+    # matrix. Same quadratic to machine precision, about six times faster.
+    _u, singular, Vt = np.linalg.svd(L, full_matrices=False)
+    V = Vt[singular ** 2 >= tol].T
+    penalty = (varsigma * cp.sum_squares(w - V @ (V.T @ w))
+               if V.shape[1] < N else 0)
 
     objective = cp.Minimize(fit_term + deviation + penalty)
     constraints = [cp.sum(w) == 1]

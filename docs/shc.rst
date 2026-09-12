@@ -209,14 +209,118 @@ under exchangeability). The observed statistic is identical across all three;
 only the reference distribution changes, and ``details["scheme"]`` records
 which built it.
 
+Cost of the matching program
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The matching program (Eq. 23) minimises the pre-window mismatch over the
+simplex plus a small penalty on the components of :math:`\mathbf{w}` that the
+fit cannot see. With :math:`m` rows and :math:`N` columns the Gram matrix
+:math:`L^\top L` has rank at most :math:`m`, so on the COVID panel
+(:math:`m = 24`, :math:`N = 229`) about 205 of the 229 directions are
+unidentified and the penalty is the only thing that chooses among them.
+
+Expressed through the null-space basis :math:`C` that penalty is a dense
+:math:`(N - r) \times N` operator, and obtaining :math:`C` requires
+decomposing the :math:`N \times N` Gram matrix. Because the eigenvectors are a
+complete orthonormal set, :math:`CC^\top + VV^\top = I` with :math:`V` the
+:math:`r` identified directions, so
+
+.. math::
+
+   \lVert C^\top \mathbf{w} \rVert^2
+     = \mathbf{w}^\top (I - VV^\top) \mathbf{w}
+     = \lVert (I - VV^\top)\mathbf{w} \rVert^2 ,
+
+which is a rank-:math:`r` affine map -- 24 columns instead of 205 -- and
+:math:`V` is the leading right singular vectors of :math:`L`, from a thin SVD
+of an :math:`m \times N` matrix. The two forms are the same quadratic: on the
+COVID panel they agree on the weights to 2e-15 and on the counterfactual to
+1e-14, and the second runs about 5.7 times faster. This is what the
+out-of-sample reference pool below is affordable on, since that pool solves the
+program once per historical block.
+
+A projected-gradient solve over the simplex, as
+:func:`mlsynth.utils.bilevel.simplex.simplex_lstsq` does for the ordinary
+synthetic control, is faster still per iteration but does not converge as
+tightly here: at its defaults it leaves the objective 0.7% high and moves the
+post-window counterfactual by 0.014, so it is not used. With the penalty
+reformulated the remaining cost in the reference pool is building the program
+:math:`N` times, not solving it.
+
+Which residuals calibrate the test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The statistic is the observed outcome minus an SHC prediction the treated block
+did not inform. The permutation argument needs the reference residuals to be the
+same object, and ``reference_pool`` chooses how they are built.
+
+``"block_oos"`` (the default) builds them the statistic's own way. Each
+historical block is treated in turn as if it were the treated block: its
+pre-window is matched by a simplex over the blocks that share no observation
+with it, and the residual is taken over its own post-window. Excluding the
+overlapping blocks and not merely the block itself is what makes the residual
+out of sample, since the blocks are formed at stride one and block
+:math:`j \pm 1` shares :math:`m + n - 1` of block :math:`j`'s observations.
+Each block costs one matching solve, so a panel with a few hundred blocks takes
+a few tens of seconds; ``reference_stride`` evaluates every ``stride``-th block
+to trade pool size for runtime.
+
+``"smoother"`` is the paper's literal reading: :math:`y_t - \hat\ell_t` over
+the whole pre-period. It is retained for reproducing published numbers, and it
+over-rejects badly. The residuals are in-sample kernel-smoother residuals, which
+omit both the matching error and the treated block's own noise, so the null sits
+at the wrong scale. Measured on the paper's own simulation design with no effect
+(25 replications, :math:`m = 25`, :math:`n = 4`):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 24 24 24
+
+   * - ``reference_pool``
+     - size at 0.01
+     - at 0.05
+     - at 0.10
+   * - ``"smoother"``
+     - 0.280
+     - 0.400
+     - 0.600
+   * - ``"block_oos"``
+     - 0.080
+     - 0.120
+     - 0.200
+
+On real US four-quarter GDP growth over the paper's COVID design the difference
+is a factor of 850 in the critical value: ``"smoother"`` reports 0.009 at the 1%
+level against the paper's 8.517, and ``"block_oos"`` reports 7.621. The gap is
+the kernel smoother interpolating. ``loocv_bandwidth`` minimises leave-one-out
+prediction error, which smooths correctly under the paper's Assumption 1 of iid
+errors and collapses to the smallest bandwidth on the grid when the errors are
+serially correlated, because then a neighbour predicts the error too. A
+four-quarter growth rate is an overlapping annual difference, hence a moving
+average by construction, so it violates that assumption by the definition of the
+outcome variable: the selected bandwidth is 0.30, ``latent_pre`` correlates
+0.9999995 with the outcome, and the pool's standard deviation is 0.0027 against
+the series' 2.291.
+
+A panel too short to supply an out-of-sample residual -- every historical block
+overlapping every other, which happens when :math:`N \le m + n` -- keeps its
+point estimate. The default degrades to the smoother pool, warns, and records
+the pool that actually ran in ``reference_pool`` with the reason in
+``reference_note``, instead of failing the fit for the sake of its p-value.
+
 .. note::
 
-   The test is designed for the empirical setting where a genuine effect is
-   present (in the paper's Brexit application it rejects at the 1% level:
-   :math:`S = 2.492 > 2.190`). Because the reference residuals are the
-   in-sample kernel-smoother residuals, which are mildly under-dispersed
-   relative to the true noise, the test can over-reject under an exact
-   null; the paper does not run it in the (effect-free) simulation.
+   ``"block_oos"`` is a large improvement and not a clean bill of health. Size
+   settles around twice nominal at the 5% and 10% levels and does not improve
+   with a larger pool: sweeping ``reference_stride`` over 40, 16 and 6 on the
+   simulation design gives 10, 25 and 67 blocks and rejection rates of
+   0.15/0.25, 0.10/0.20 and 0.10/0.20 at those two levels. What remains is the
+   dependence within a block. The statistic sums :math:`n` consecutive
+   residuals, whose sum is about 1.4 times as dispersed as :math:`n`
+   independent draws from the pool, while the null sums independent draws.
+   Resampling whole blocks instead was measured and did not help. So read these
+   levels as approximate, prefer them to the 1% level, whose quantile rests on
+   the pool's extreme tail, and treat a marginal rejection as marginal.
 
 Core API
 --------
