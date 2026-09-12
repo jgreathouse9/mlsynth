@@ -1386,6 +1386,13 @@ has an unbounded one. Both raise inside the routine and both surface as an
 ``InferenceResults`` carrying ``unavailable_reason`` plus a warning, so an
 unusable level does not take the fit down.
 
+``placebo_cs_precision`` is a resolution, not a taste. The search walks outward
+from the point estimate halving its step, so it approaches each bound from
+inside the set and an under-set precision reports a set that is too narrow and
+under-covers. On Proposition 99 the linear set is 3.607 wide at ``precision=4``
+and 3.718 at 30; the default of 20 is converged to about 1e-5. The authors
+suggest 20 to 30.
+
 .. code-block:: python
 
    res = VanillaSC({

@@ -318,6 +318,59 @@ class TestAgainstTheAuthorsR:
                             precision=12)
         assert cs.lower <= cs.point_estimate <= cs.upper
 
+    def test_the_bounds_are_where_the_test_flips(self, prop99):
+        """The set is ``{c : p(c) > alpha}``, so its edges must be crossings.
+
+        This is what ``precision`` buys and the only thing that makes the
+        reported interval the inverted test and not an interval near it: just
+        inside each bound the null survives, just outside it is rejected.
+        """
+        Y, W, t0, pre = prop99
+        alpha, precision = 4 / 39, 22
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=alpha,
+                            precision=precision)
+
+        def p_at(value):
+            path = effect_path(value, Y.shape[0], pre, "linear")
+            return placebo_pvalue(Y, W, t0, pre, path)
+
+        # the bisection resolves the bound to 2**-precision of the point
+        # estimate, so step outside by a comfortable multiple of that
+        eps = abs(cs.point_estimate) * 2.0 ** -(precision - 4)
+        assert p_at(cs.upper - eps) > alpha
+        assert p_at(cs.upper + eps) <= alpha
+        assert p_at(cs.lower + eps) > alpha
+        assert p_at(cs.lower - eps) <= alpha
+
+    def test_a_coarser_search_gives_a_narrower_set(self, prop99):
+        """The search walks out from the point estimate, so it converges from
+        inside: an under-set ``precision`` reports a set that is too small, and
+        therefore under-covers. On this panel the width rises monotonically
+        from 3.607 at precision 4 to 3.718 at 30.
+        """
+        Y, W, t0, pre = prop99
+        widths = []
+        for precision in (4, 8, 12, 16, 22):
+            cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                                precision=precision)
+            widths.append(cs.upper - cs.lower)
+        assert widths == sorted(widths)
+        assert widths[0] < widths[-1]
+
+    def test_each_refinement_moves_less_than_its_own_step(self, prop99):
+        """Successive halvings cannot move a bound by more than the step they
+        take, which is what makes ``precision`` a resolution and not a knob."""
+        Y, W, t0, pre = prop99
+        previous = None
+        for precision in range(8, 15):
+            cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                                precision=precision)
+            if previous is not None:
+                step = abs(cs.point_estimate) * 2.0 ** -(precision - 1)
+                assert abs(cs.upper - previous.upper) <= step + 1e-12
+                assert abs(cs.lower - previous.lower) <= step + 1e-12
+            previous = cs
+
     def test_paths_agree_with_the_bounds(self, prop99):
         Y, W, t0, pre = prop99
         cs = confidence_set(Y, W, t0, pre, kind="constant", alpha=4 / 39,
@@ -554,7 +607,7 @@ class TestVanillaSCIntegration:
                            inference="placebo_cs", placebo_cs_class="cubic",
                            display_graphs=False))
 
-    def test_misspelled_inference_mode_still_fails_loudly(self):
+    def test_misspelled_inference_mode_is_refused(self):
         from mlsynth import VanillaSC
         with pytest.raises(Exception, match="not a recognized"):
             VanillaSC(dict(df=self._prop99_frame(), outcome="cigsale",
