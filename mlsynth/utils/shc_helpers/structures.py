@@ -22,7 +22,7 @@ repository's :class:`IndexSet`. The only DataFrame touchpoint is
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import numpy as _np
@@ -111,6 +111,11 @@ class SHCInference:
         Post-period Andrews-Genton conformal bands, retained for plotting.
     confidence_level : float
         Coverage of the conformal bands (e.g. 0.90).
+    levels : tuple of float
+        Significance levels ``critical_values`` and ``reject`` are keyed by.
+    scheme : str
+        The resampling family that built the null: ``"iid_with_replacement"``
+        for the paper's bootstrap, or the permutation scheme of the exact test.
     """
 
     method: str
@@ -123,6 +128,8 @@ class SHCInference:
     conformal_lower: np.ndarray
     conformal_upper: np.ndarray
     confidence_level: float
+    levels: Tuple[float, ...] = (0.01, 0.05, 0.10)
+    scheme: str = "iid_with_replacement"
 
 
 @dataclass(frozen=True)
@@ -233,8 +240,39 @@ class SHCResults(_BaseEstimatorResults):
             r_squared_pre=fd.get("r_squared_pre")))
         if self.inference_detail is not None:
             inf = self.inference_detail
+            # ``details`` on the contract is a mapping every caller subscripts,
+            # so the dataclass's scalars are copied across instead of the
+            # dataclass being handed over whole. ``inference_detail`` keeps the
+            # dataclass, and the arrays, for callers that already read it.
             set_("inference", _InferenceResults(
                 method=getattr(inf, "method", None),
-                p_value=getattr(inf, "p_value", None), details=inf))
+                p_value=getattr(inf, "p_value", None),
+                confidence_level=getattr(inf, "confidence_level", None),
+                details={
+                    "test_statistic": getattr(inf, "test_statistic", None),
+                    "critical_values": dict(getattr(inf, "critical_values", {}) or {}),
+                    "reject": dict(getattr(inf, "reject", {}) or {}),
+                    "num_resamples": getattr(inf, "num_resamples", None),
+                    "levels": tuple(getattr(inf, "levels", ()) or ()),
+                    "scheme": getattr(inf, "scheme", None),
+                    "null_distribution": getattr(inf, "null_distribution", None),
+                }))
+            # The Andrews-Genton band covers the post window only; the canonical
+            # representation is aligned to ``time_periods`` with NaN where the
+            # method has no band, which is the block's pre-window here.
+            lo = _np.asarray(getattr(inf, "conformal_lower", ()), dtype=float)
+            hi = _np.asarray(getattr(inf, "conformal_upper", ()), dtype=float)
+            if lo.size and lo.size == hi.size and lo.size + m == len(times):
+                full_lo = _np.full(len(times), _np.nan)
+                full_hi = _np.full(len(times), _np.nan)
+                full_lo[m:] = lo
+                full_hi[m:] = hi
+                ts = self.time_series
+                object.__setattr__(ts, "counterfactual_lower", full_lo)
+                object.__setattr__(ts, "counterfactual_upper", full_hi)
+                object.__setattr__(ts, "prediction_interval_level",
+                                   float(getattr(inf, "confidence_level", _np.nan)))
+                object.__setattr__(ts, "prediction_interval_kind",
+                                   "conformal:andrews-genton")
         set_("method_details", _MethodDetailsResults(method_name="SHC"))
         return self
