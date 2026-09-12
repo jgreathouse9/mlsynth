@@ -342,6 +342,32 @@ class TestAgainstTheAuthorsR:
         assert p_at(cs.lower + eps) > alpha
         assert p_at(cs.lower - eps) <= alpha
 
+    def test_the_search_agrees_with_a_brute_force_scan(self, prop99):
+        """The bisection against the acceptance region computed exhaustively.
+
+        The p-value is a rank, so it is a step function of the candidate
+        parameter and its acceptance region need not be an interval. Scanning a
+        grid finds the region without assuming anything about its shape: on this
+        panel it is one connected component, and it is the one the search
+        reports.
+        """
+        Y, W, t0, pre = prop99
+        alpha = 4 / 39
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=alpha,
+                            precision=25)
+        grid = np.linspace(cs.lower - 3.0, cs.upper + 3.0, 700)
+        accepted = np.array([
+            placebo_pvalue(Y, W, t0, pre,
+                           effect_path(c, Y.shape[0], pre, "linear")) > alpha
+            for c in grid])
+        assert accepted.any()
+        # exactly one run of accepted values, and it is the reported interval
+        changes = int(np.count_nonzero(np.diff(accepted.astype(int))))
+        assert changes == 2                      # one enter, one leave
+        step = grid[1] - grid[0]
+        assert grid[accepted][0] == pytest.approx(cs.lower, abs=2 * step)
+        assert grid[accepted][-1] == pytest.approx(cs.upper, abs=2 * step)
+
     def test_a_coarser_search_gives_a_narrower_set(self, prop99):
         """The search walks out from the point estimate, so it converges from
         inside: an under-set ``precision`` reports a set that is too small, and
