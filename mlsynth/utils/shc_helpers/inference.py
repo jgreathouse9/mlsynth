@@ -9,13 +9,15 @@ plot.
 
 from __future__ import annotations
 
-from typing import Any, Sequence, Tuple
+import warnings
+from typing import Any, Optional, Sequence, Tuple
 
 from scipy.optimize import lsq_linear
 import numpy as np
 
 from .structures import SHCDesign, SHCInference, SHCInputs
-from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ...exceptions import (MlsynthConfigError, MlsynthDataError,
+                           MlsynthEstimationError)
 
 
 def ag_conformal(
@@ -376,6 +378,123 @@ def cwz_conformal_test(
     }
 
 
+MAX_REFERENCE_BLOCKS = 60
+"""Default cap on refitted blocks, so the pool's cost does not scale with ``N``.
+
+Each block costs one matching solve. A panel with a few hundred blocks would
+otherwise make every fit two orders of magnitude slower than the point estimate
+it reports, which is a poor default for a quantity most callers read at the 5%
+or 10% level. Sixty blocks is ``60 * n`` residuals -- 240 at ``n = 4`` -- which
+resolves those levels; pass ``stride=1`` for the full pool when the 1% level
+matters.
+"""
+
+
+def block_oos_residuals(
+    inputs: SHCInputs,
+    design: SHCDesign,
+    *,
+    stride: Optional[int] = None,
+    use_augmented: bool = False,
+) -> Tuple[np.ndarray, dict]:
+    r"""Out-of-sample residuals over each historical block's own post-window.
+
+    The conformal test compares the post-period statistic against a reference
+    distribution drawn from pre-period residuals, and the permutation argument
+    needs those residuals to be the same object as the statistic. The statistic
+    is the raw outcome minus an SHC prediction the treated block did not inform.
+    An in-sample kernel-smoother residual is not that: it omits the matching
+    error and omits the treated block's own noise, so it understates the scale
+    the null should sit at.
+
+    This builds the pool the statistic's own way. Block ``j`` is treated as if
+    it were the treated block: its pre-window in :math:`\hat\ell` space is
+    matched by a simplex over the blocks that share no observation with it, and
+    the residual is taken over ``j``'s own post-window in raw outcome units,
+
+    .. math::
+
+        \hat\varepsilon_{j,t} = y_{j+m+t} - \bigl(L^{post}_{\cdot,
+        \mathcal{D}_j} \hat w^{(j)}\bigr)_t, \qquad t = 1, \dots, n,
+
+    with :math:`\mathcal{D}_j = \{k : |k - j| \ge m + n\}`. Excluding the
+    overlapping blocks and not merely ``j`` itself is what makes the residual
+    out of sample: the blocks are formed at stride one, so block ``j \pm 1``
+    shares :math:`m + n - 1` of ``j``'s observations.
+
+    Parameters
+    ----------
+    inputs : SHCInputs
+        Supplies the outcome, the split and the block count.
+    design : SHCDesign
+        Supplies the fitted latent trend, which is reused; only the matching
+        program is re-solved per block.
+    stride : int, optional
+        Evaluate every ``stride``-th block. Each block costs one matching solve.
+        ``None`` (the default) picks the smallest stride that keeps the count at
+        or under :data:`MAX_REFERENCE_BLOCKS`, so the cost does not grow with
+        the panel; ``1`` evaluates every block.
+    use_augmented : bool
+        Solve the ridge-augmented (ASHC) program instead of the simplex one.
+
+    Returns
+    -------
+    pool : np.ndarray
+        The residuals, ``n_blocks * n`` of them, block-major.
+    info : dict
+        ``n_blocks``, ``blocks`` (the indices evaluated) and ``donor_sets``
+        (the donor indices used for each), for tests and diagnostics.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If no block has any non-overlapping donor, which happens when the
+        pre-period is barely longer than one block.
+    """
+    from ..datautils import build_donor_segments
+    from .kernels import solve_shc_qp
+
+    m, n, T0, N = inputs.m, inputs.n, inputs.T0, inputs.N
+    ell_hat = np.asarray(design.latent_pre, dtype=float).ravel()
+    L_full, L_post, _ell_eval = build_donor_segments(ell_hat, m, T0, n)
+
+    if stride is None:
+        stride = max(1, -(-N // MAX_REFERENCE_BLOCKS))      # ceil division
+    stride = int(stride)
+    if stride < 1:
+        raise MlsynthEstimationError(f"stride must be >= 1, got {stride}.")
+
+    residuals: list = []
+    blocks: list = []
+    donor_sets: list = []
+    for j in range(0, N, stride):
+        donors = [k for k in range(N) if abs(k - j) >= m + n]
+        if len(donors) < 2:
+            continue
+        idx = np.asarray(donors, dtype=int)
+        w, _ = solve_shc_qp(L_full[:, idx], L_full[:, j],
+                            use_augmented=use_augmented)
+        if w is None:                       # pragma: no cover - solver guard
+            continue
+        own_post = inputs.y[j + m:j + m + n]
+        if own_post.size != n:              # pragma: no cover - tail guard
+            continue
+        residuals.extend(list(own_post - L_post[:, idx] @ w))
+        blocks.append(int(j))
+        donor_sets.append([int(k) for k in donors])
+
+    if not residuals:
+        raise MlsynthEstimationError(
+            "no out-of-sample reference residual could be built: every "
+            f"historical block overlaps every other (N={N}, block length "
+            f"m+n={m + n}). Shorten m, or use reference_pool='smoother' and "
+            "read the test as miscalibrated."
+        )
+    return (np.asarray(residuals, dtype=float),
+            {"n_blocks": len(blocks), "blocks": blocks, "stride": stride,
+             "donor_sets": donor_sets})
+
+
 def run_conformal_inference(
     inputs: SHCInputs,
     design: SHCDesign,
@@ -390,6 +509,8 @@ def run_conformal_inference(
     num_resamples: int = 1000,
     levels: Sequence[float] = (0.01, 0.05, 0.10),
     random_state: int = 0,
+    reference_pool: str = "block_oos",
+    reference_stride: Optional[int] = None,
 ) -> SHCInference:
     """Assemble the SHC conformal permutation test and conformal bands.
 
@@ -425,9 +546,40 @@ def run_conformal_inference(
     m = inputs.m
     T0 = inputs.T0
 
-    # Paper's residuals: pre-period eps_t^0 = y_t - ell_hat_t over t = 1..T0
-    # (the kernel-smoother residuals); post-period eps_t^0 = the gap.
-    pre_residuals = inputs.y[:T0] - np.asarray(design.latent_pre).ravel()
+    # The reference pool. "block_oos" builds it the way the statistic is built
+    # -- raw outcome minus a prediction the block did not inform -- which is
+    # what the permutation argument needs. "smoother" is the paper's literal
+    # reading, y_t - ell_hat_t over the whole pre-period; it is retained for
+    # reproducing published numbers and it over-rejects, because an in-sample
+    # smoother residual is tighter than the out-of-sample error it calibrates.
+    pool_used, note = reference_pool, ""
+    if reference_pool == "block_oos":
+        try:
+            pre_residuals, pool_info = block_oos_residuals(
+                inputs, design, stride=reference_stride)
+            n_reference = int(pool_info["n_blocks"])
+        except MlsynthEstimationError as exc:
+            # A panel too short for an out-of-sample residual still has a point
+            # estimate to report, so the fit is not taken down for the sake of
+            # its p-value. The smoother pool runs instead, the caller is warned,
+            # and the result records which pool produced the number.
+            note = str(exc)
+            warnings.warn(
+                f"SHC: {note} Falling back to the in-sample smoother pool, "
+                "which over-rejects; read the test as miscalibrated.",
+                UserWarning, stacklevel=2,
+            )
+            pool_used = "smoother"
+            pre_residuals = inputs.y[:T0] - np.asarray(design.latent_pre).ravel()
+            n_reference = int(pre_residuals.size)
+    elif reference_pool == "smoother":
+        pre_residuals = inputs.y[:T0] - np.asarray(design.latent_pre).ravel()
+        n_reference = int(pre_residuals.size)
+    else:
+        raise MlsynthConfigError(
+            f"reference_pool must be 'block_oos' or 'smoother', got "
+            f"{reference_pool!r}."
+        )
     post_residuals = observed[m:] - counterfactual[m:]
 
     if method == "bootstrap":
@@ -478,4 +630,7 @@ def run_conformal_inference(
         confidence_level=1.0 - miscoverage_rate,
         levels=tuple(test.get("levels", tuple(levels))),
         scheme=test.get("scheme", "iid_with_replacement"),
+        reference_pool=str(pool_used),
+        n_reference=n_reference,
+        reference_note=note,
     )

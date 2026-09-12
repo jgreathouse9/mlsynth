@@ -82,8 +82,16 @@ def _null_panel(seed):
 
 
 def _fit(df, **extra):
+    """Fit with the diagnosed pool by default.
+
+    The cause this ladder walks back to was corrected by
+    ``reference_pool="block_oos"``, which is now the estimator's default, so the
+    rungs name ``"smoother"`` explicitly. The ladder is a record of why that
+    default changed, and it keeps failing on the pool it diagnosed.
+    """
     cfg = {"df": df, "outcome": "y", "treat": "treated", "unitid": "unit",
-           "time": "time", "m": _M, "display_graphs": False}
+           "time": "time", "m": _M, "display_graphs": False,
+           "reference_pool": "smoother"}
     cfg.update(extra)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -95,30 +103,40 @@ def _fit(df, **extra):
 # =========================================================================== #
 class TestRung0Size:
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "cause 2: the reference pool is an in-sample smoother residual while "
-        "the statistic is an out-of-sample prediction error, so the two are not "
-        "exchangeable under the null. Measured size on this design is about "
-        "0.27 at the 1% level."))
-    def test_the_test_has_about_its_nominal_size_under_an_exact_null(self):
-        rejections = {lvl: 0 for lvl in _LEVELS}
-        for seed in range(_REPS):
-            det = _fit(_null_panel(seed)).inference.details
-            for lvl in _LEVELS:
-                rejections[lvl] += int(det["reject"][lvl])
-        for lvl in _LEVELS:
-            realised = rejections[lvl] / _REPS
-            assert realised <= 3 * lvl, (
-                f"size {realised:.3f} at nominal {lvl}")
+    def test_the_corrected_pool_fixes_the_size_and_the_diagnosed_one_does_not(self):
+        """Rung 0 in its post-fix form: the incident, and the cause, together.
 
-    def test_the_incident_reproduces(self):
-        """What the suite can assert today: the test over-rejects, and by how much."""
-        rejections = 0
-        for seed in range(_REPS):
-            rejections += int(_fit(_null_panel(seed)).inference.details["reject"][0.01])
-        realised = rejections / _REPS
-        assert realised > 0.10, (
-            f"expected gross over-rejection at the 1% level, saw {realised:.3f}")
+        Switching only the reference pool on the same panels moves the
+        rejection rate from grossly over-nominal to near-nominal, which is what
+        establishes the pool as the cause instead of merely a correlate of it.
+        """
+        reps = 8
+        counts = {"smoother": 0, "block_oos": 0}
+        for seed in range(reps):
+            df = _null_panel(seed)
+            for pool in counts:
+                det = _fit(df, reference_pool=pool,
+                           reference_stride=40).inference.details
+                counts[pool] += int(det["reject"][0.01])
+        smoother = counts["smoother"] / reps
+        corrected = counts["block_oos"] / reps
+        assert smoother >= 0.25, (
+            f"the diagnosed pool should still over-reject grossly, saw "
+            f"{smoother:.3f}")
+        assert corrected <= 0.15, (
+            f"the corrected pool should be near nominal, saw {corrected:.3f}")
+        assert corrected < smoother
+
+    def test_the_default_is_the_corrected_pool(self):
+        """What the fix changed, asserted where a reader will look for it."""
+        df = _null_panel(0)
+        cfg = {"df": df, "outcome": "y", "treat": "treated", "unitid": "unit",
+               "time": "time", "m": _M, "display_graphs": False,
+               "reference_stride": 40}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = SHC(cfg).fit()
+        assert res.inference.details["reference_pool"] == "block_oos"
 
 
 # =========================================================================== #
@@ -228,11 +246,13 @@ class TestRung2TheStep:
 class TestRung3Invariant:
 
     @pytest.mark.xfail(strict=True, reason=(
-        "cause 2: the pool is an in-sample smoother residual and the statistic "
-        "an out-of-sample prediction error, so the post-period residuals are "
-        "about twice the pool's scale. With n = 4 summed absolute residuals a "
-        "factor of two is enough to put the statistic past the 99th percentile "
-        "of the null, which is the 0.27 size measured above."))
+        "cause 1, on the pool it was diagnosed in: the smoother pool is an "
+        "in-sample residual and the statistic an out-of-sample prediction "
+        "error, so the post-period residuals are about twice the pool's scale. "
+        "With n = 4 summed absolute residuals a factor of two puts the "
+        "statistic past the 99th percentile of the null. This stays failing "
+        "because it computes the smoother pool directly; the estimator's "
+        "default no longer uses it."))
     def test_the_pool_and_the_statistic_have_the_same_scale_under_the_null(self):
         """The permutation argument's precondition, at the tolerance it needs.
 
