@@ -4,11 +4,15 @@ Firpo, S. & Possebom, V. (2018), "Synthetic Control Method: Inference,
 Sensitivity Analysis and Confidence Sets", *Journal of Causal Inference* 6(2),
 20160026.
 
-The decisive test is :class:`TestAgainstTheAuthorsR`, which pins the inversion
-against the authors' own ``SCM.CS`` on inputs both sides were handed. That run,
-its provenance and the reasoning behind sharing the weights are staged in
-``benchmarks/reference/fp_confidence_sets/``; the gold file is read here
-instead of transcribed, so the constants and the captured run cannot drift
+Two tests pin the inversion against the authors' own ``SCM.CS``.
+:class:`TestAgainstTheAuthorsDriver` is the decisive one: it runs on the weights
+the authors' own California script produces, from R ``Synth`` under their
+predictor specification, so the whole construction is theirs and only the
+inversion is ours. :class:`TestAgainstTheAuthorsR` repeats the comparison on
+outcome-only simplex weights, which anyone can regenerate without R. Both runs,
+their provenance and the reasoning behind sharing the weights are staged in
+``benchmarks/reference/fp_confidence_sets/``; the gold files are read here
+instead of transcribed, so the constants and the captured runs cannot drift
 apart.
 
 The rest of the file pins the pieces that gold cannot see on its own: that the
@@ -54,6 +58,25 @@ def gold():
     if not (_REF / "gold_bounds.csv").exists():  # pragma: no cover
         pytest.skip("reference bundle not present")
     with (_REF / "gold_bounds.csv").open() as fh:
+        return list(csv.DictReader(fh))
+
+
+@pytest.fixture(scope="module")
+def prop99_authors():
+    """California as the authors' own driver builds it, via R ``Synth``."""
+    if not (_REF / "Ymat_authors.csv").exists():  # pragma: no cover - committed
+        pytest.skip("reference bundle not present")
+    Y = np.loadtxt(_REF / "Ymat_authors.csv", delimiter=",", skiprows=1)
+    W = np.loadtxt(_REF / "weightsmat_authors.csv", delimiter=",", skiprows=1)
+    return Y, W, 2, 19
+
+
+@pytest.fixture(scope="module")
+def gold_authors():
+    import csv
+    if not (_REF / "gold_bounds_authors.csv").exists():  # pragma: no cover
+        pytest.skip("reference bundle not present")
+    with (_REF / "gold_bounds_authors.csv").open() as fh:
         return list(csv.DictReader(fh))
 
 
@@ -196,6 +219,66 @@ class TestPlaceboPvalue:
 # =========================================================================== #
 # the inversion, against the authors' R
 # =========================================================================== #
+class TestAgainstTheAuthorsDriver:
+    """Cross-validation on the authors' own California construction.
+
+    ``benchmarks/reference/fp_confidence_sets/reference_authors.R`` is Firpo and
+    Possebom's ``california_beta_testing`` script: R ``Synth`` fits all 39
+    placebo units under their predictor specification, and ``SCM.CS`` inverts
+    the placebo test on the result. Everything here except the inversion is the
+    authors' code, so a match leaves nothing of the procedure unpinned.
+    """
+
+    def test_every_captured_configuration_matches(self, prop99_authors,
+                                                  gold_authors):
+        Y, W, t0, pre = prop99_authors
+        v_tr = np.zeros(Y.shape[1]); v_tr[t0] = 1.0
+        checked = 0
+        for row in gold_authors:
+            phi = float(row["phi"])
+            v = None if phi == 0.0 else v_tr
+            if row["lower"] in ("NA", ""):
+                with pytest.raises(MlsynthEstimationError):
+                    confidence_set(Y, W, t0, pre, kind=row["kind"],
+                                   alpha=4 / 39, precision=30, phi=phi, v=v)
+                checked += 1
+                continue
+            cs = confidence_set(Y, W, t0, pre, kind=row["kind"], alpha=4 / 39,
+                                precision=30, phi=phi, v=v)
+            assert cs.lower == pytest.approx(float(row["lower"]), abs=1e-10)
+            assert cs.upper == pytest.approx(float(row["upper"]), abs=1e-10)
+            checked += 1
+        assert checked == len(gold_authors) > 0
+
+    def test_the_weights_are_a_simplex_for_every_placebo_unit(self,
+                                                              prop99_authors):
+        """Synth's output, as handed to the inversion: non-negative, sums to one.
+
+        The tolerances are Synth's, not ours. Its ``BFGS`` solve returns weights
+        up to about 8e-9 below zero and column sums up to about 2e-8 off one;
+        the inversion takes them as given, so the test records the size of that
+        slack instead of cleaning it up.
+        """
+        _, W, _, _ = prop99_authors
+        assert W.shape == (38, 39)
+        assert (W >= -1e-7).all()
+        assert W.sum(axis=0) == pytest.approx(np.ones(39), abs=1e-6)
+
+    def test_the_conclusion_survives_a_tilt_it_lost_on_outcome_only_weights(
+            self, prop99_authors, gold_authors):
+        """Zero stays outside the set at every tilt the search resolves.
+
+        On the outcome-only weights of :class:`TestAgainstTheAuthorsR` the sign
+        is lost at ``phi = 1``. Under the authors' specification it is not, so
+        the sensitivity verdict depends on which weights the inversion is given.
+        """
+        resolved = [r for r in gold_authors
+                    if r["kind"] == "linear" and r["lower"] not in ("NA", "")]
+        assert len(resolved) == 3
+        for row in resolved:
+            assert float(row["upper"]) < 0.0
+
+
 class TestAgainstTheAuthorsR:
     """Cross-validation on inputs both implementations were handed."""
 

@@ -1403,17 +1403,60 @@ On Proposition 99 this gives a linear-slope set excluding zero, and a sweep
 showing the sign absorbing a tilt of :math:`\phi = 0.5` toward California and
 losing it at :math:`\phi = 1.0`.
 
-*A caveat on comparing with the paper.* The set depends on the placebo weights,
-which are an input to the procedure, not part of it. The published
-numbers were produced with R ``Synth``'s predictor weighting; mlsynth's bilevel
-backends deliberately reach a different (better) optimum, as
-``benchmarks/cases/malo_prop99.py`` documents, so the bounds here are for the
-weights the chosen backend produces and are not expected to equal the paper's
-to the digit. Across the outcome-only fit and the three bilevel backends on the
-authors' ADH predictor specification, the linear set moves between
-:math:`[-4.66, -0.53]` and :math:`[-4.37, -1.00]` and excludes zero in every
-case. The inversion itself is pinned against the authors' own code to 1.8e-14
-in ``benchmarks/reference/fp_confidence_sets/``.
+*The set depends on the weights.* They are an input to the procedure, not part
+of it, so two implementations that invert identically still report different
+bounds if they fit the donors differently. mlsynth's bilevel backends reach a
+better optimum than R ``Synth``'s predictor weighting does, as
+``benchmarks/cases/malo_prop99.py`` documents, and the bounds above are for the
+weights the chosen backend produces.
+
+Handing the inversion the authors' own weights closes the comparison.
+``benchmarks/reference/fp_confidence_sets/reference_authors.R`` is Firpo and
+Possebom's California script: ``Synth`` fits all thirty-nine placebo units under
+their predictor specification, and ``SCM.CS`` inverts on the result. On those
+inputs mlsynth agrees with the authors' code to 7.1e-15 across every
+configuration, and refuses on the same one:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 22 22 21
+
+   * - class
+     - :math:`\phi`
+     - authors' ``SCM.CS``
+     - mlsynth
+     - deviation
+   * - constant
+     - 0
+     - :math:`[-27.881, -9.588]`
+     - :math:`[-27.881, -9.588]`
+     - 7.1e-15
+   * - linear
+     - 0
+     - :math:`[-3.984, -1.239]`
+     - :math:`[-3.984, -1.239]`
+     - 3.1e-15
+   * - linear
+     - 0.5
+     - :math:`[-4.140, -1.079]`
+     - :math:`[-4.140, -1.079]`
+     - 2.4e-15
+   * - linear
+     - 1.0
+     - :math:`[-4.322, -0.902]`
+     - :math:`[-4.322, -0.902]`
+     - 2.2e-15
+   * - linear
+     - 2.0
+     - search fails
+     - raises
+     - --
+
+The sensitivity verdict is the part that moves with the weights. Under the
+authors' specification the sign survives a tilt of :math:`\phi = 1.0`; on
+mlsynth's outcome-only fit it is lost there. Both are the same procedure
+applied to different donor fits, and a sweep reported without the weights it
+was computed on says less than it appears to.
 
 Choosing among placebo, LTO, and SCPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

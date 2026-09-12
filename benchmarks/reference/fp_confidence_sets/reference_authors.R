@@ -32,8 +32,10 @@ smoking$state <- rep(levels(as.factor(smoking$state)), 31)
 californiaid <- 3
 
 # --- the authors' placebo loop, serialised ------------------------------------
+ycache <- file.path(outdir, "Ymat_authors.csv")
+wcache <- file.path(outdir, "weightsmat_authors.csv")
 results <- NULL
-for (j in 1:39) {
+for (j in if (file.exists(ycache) && file.exists(wcache)) c() else 1:39) {
   controlunits <- setdiff(1:39, j)
   dataprep.out <- dataprep(
     foo = smoking,
@@ -56,11 +58,18 @@ for (j in 1:39) {
   results <- rbind(results, c(dataprep.out$Y1plot, NA, synth.out$solution.w))
   cat("fitted unit", j, "\n")
 }
-Ymat <- t(results[, 1:31])
-weightsmat <- t(results[, 33:70])
-
-write.csv(Ymat, file.path(outdir, "Ymat_published.csv"), row.names = FALSE)
-write.csv(weightsmat, file.path(outdir, "weightsmat_published.csv"), row.names = FALSE)
+if (is.null(results)) {
+  cat("reusing the cached placebo fits\n")
+  Ymat <- as.matrix(read.csv(ycache))
+  weightsmat <- as.matrix(read.csv(wcache))
+  dimnames(Ymat) <- NULL
+  dimnames(weightsmat) <- NULL
+} else {
+  Ymat <- t(results[, 1:31])
+  weightsmat <- t(results[, 33:70])
+  write.csv(Ymat, ycache, row.names = FALSE)
+  write.csv(weightsmat, wcache, row.names = FALSE)
+}
 
 # --- the authors' headline options -------------------------------------------
 treated <- californiaid
@@ -73,9 +82,11 @@ rows <- NULL
 for (type in c("constant", "linear")) {
   b <- SCM.CS(Ymat, weightsmat, treated, T0, 0, v, precision, type,
               significance, FALSE)
+  u <- as.vector(b$u); l <- as.vector(b$l); n <- length(u)
+  d <- if (type == "linear") (n - T0) else 1
   rows <- rbind(rows, data.frame(kind = type, phi = 0,
-                                 lower = b[1], upper = b[2]))
-  cat(sprintf("%-8s phi=0  [%.15f, %.15f]\n", type, b[1], b[2]))
+                                 lower = l[n] / d, upper = u[n] / d))
+  cat(sprintf("%-8s phi=0   [%.15f, %.15f]\n", type, l[n] / d, u[n] / d))
 }
 
 # --- the sensitivity sweep, v marking the treated unit ------------------------
@@ -84,10 +95,15 @@ v_treated[1, californiaid] <- 1
 for (p in c(0.5, 1.0, 2.0)) {
   b <- tryCatch(SCM.CS(Ymat, weightsmat, treated, T0, p, v_treated, precision,
                        "linear", significance, FALSE),
-                error = function(e) c(NA, NA))
-  rows <- rbind(rows, data.frame(kind = "linear", phi = p,
-                                 lower = b[1], upper = b[2]))
-  cat(sprintf("linear   phi=%.1f [%.15f, %.15f]\n", p, b[1], b[2]))
+                error = function(e) NULL)
+  if (is.null(b)) {
+    lo <- NA; hi <- NA
+  } else {
+    u <- as.vector(b$u); l <- as.vector(b$l); n <- length(u); d <- n - T0
+    lo <- l[n] / d; hi <- u[n] / d
+  }
+  rows <- rbind(rows, data.frame(kind = "linear", phi = p, lower = lo, upper = hi))
+  cat(sprintf("linear   phi=%.1f [%.15f, %.15f]\n", p, lo, hi))
 }
 
-write.csv(rows, file.path(outdir, "gold_bounds_published.csv"), row.names = FALSE)
+write.csv(rows, file.path(outdir, "gold_bounds_authors.csv"), row.names = FALSE)
