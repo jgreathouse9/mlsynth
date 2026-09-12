@@ -264,17 +264,32 @@ def confidence_set(Y, W, treated_index: int, pre_periods: int, *,
                    v: Optional[Sequence[float]] = None) -> PlaceboConfidenceSet:
     """Invert the placebo test into a confidence set for the effect parameter.
 
-    The search starts at the point estimate -- which the test cannot reject,
-    since the treated unit's own gap defines it -- and walks each bound outward
-    in steps of ``(1/2)**power``, stepping back in on a rejection. ``power``
-    runs to ``precision``, halving the bracket at each level.
+    The search starts at the point estimate and walks each bound outward in
+    steps of ``(1/2)**power``, stepping back in on a rejection. ``power`` runs
+    to ``precision``, halving the bracket at each level.
+
+    Two consequences follow from starting there, and both are the procedure's,
+    not this implementation's.
+
+    The point estimate is not guaranteed to survive the test. For the constant
+    class it is the mean post-treatment gap and for the linear class the final
+    gap spread over the post-periods, and imposing either as the null leaves the
+    treated unit a residual that can still rank high enough to reject. When that
+    happens the routine reports an empty set, even where the acceptance region
+    is non-empty somewhere the search never reaches.
+
+    What is returned is the connected component of ``{c : p(c) > alpha}``
+    containing the point estimate. The p-value is a rank, so it is a step
+    function of the candidate and its acceptance region is not guaranteed to be
+    an interval; on the reference panel it is one component, which
+    ``test_the_search_agrees_with_a_brute_force_scan`` checks against a grid.
 
     Raises
     ------
     MlsynthEstimationError
-        If the point estimate itself is rejected (the set is empty at this
-        level), if a bound runs away without ever being rejected, or if the
-        panel, weights or split are inconsistent.
+        If the point estimate itself is rejected (reported as an empty set), if
+        a bound runs away without ever being rejected, or if the panel, weights
+        or split are inconsistent.
     """
     Y, W = _check(Y, W, treated_index, pre_periods)
     if kind not in EFFECT_CLASSES:

@@ -527,6 +527,36 @@ class TestRefusals:
             confidence_set(Y, W, t0, pre, kind="linear", alpha=0.999,
                            precision=6)
 
+    def test_empty_means_the_starting_point_was_rejected(self, prop99):
+        """"Empty" is a statement about where the search starts, not about the
+        acceptance region being empty.
+
+        The search can only return the component containing the point estimate,
+        so when the test rejects that point there is nothing to walk out from
+        and the routine reports an empty set. That is the right report for this
+        algorithm and it is not the same claim as "no parameter survives the
+        test": at a level where the point estimate rejects, other parameters can
+        still be accepted, and a grid finds them.
+        """
+        Y, W, t0, pre = prop99
+        alpha = 0.999
+        n_periods = Y.shape[0]
+        gaps = Y[:, t0] - Y[:, [k for k in range(Y.shape[1]) if k != t0]] @ W[:, t0]
+        point = float(gaps[-1]) / (n_periods - pre)
+
+        def p_at(c):
+            return placebo_pvalue(Y, W, t0, pre,
+                                  effect_path(c, n_periods, pre, "linear"))
+
+        assert p_at(point) <= alpha                     # the start is rejected
+        with pytest.raises(MlsynthEstimationError, match="empty"):
+            confidence_set(Y, W, t0, pre, kind="linear", alpha=alpha,
+                           precision=10)
+        # and at this level the test accepts nothing anywhere, which is what
+        # makes alpha=0.999 a degenerate level and not a counterexample
+        grid = np.linspace(point - 20.0, point + 20.0, 200)
+        assert not any(p_at(c) > alpha for c in grid)
+
     def test_an_unbounded_search_is_reported(self, prop99):
         """A level so strict nothing rejects walks off and must say so."""
         Y, W, t0, pre = prop99
