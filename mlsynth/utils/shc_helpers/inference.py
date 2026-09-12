@@ -476,4 +476,6 @@ def run_conformal_inference(
         conformal_lower=lower[m:],
         conformal_upper=upper[m:],
         confidence_level=1.0 - miscoverage_rate,
+        levels=tuple(test.get("levels", tuple(levels))),
+        scheme=test.get("scheme", "iid_with_replacement"),
     )

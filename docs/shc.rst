@@ -181,9 +181,33 @@ statistic is
 
 and the null distribution is built by sampling :math:`n` residuals with
 replacement from the :math:`T_0` pre-intervention residuals, 1,000 times.
-``results.inference`` exposes ``p_value``, ``test_statistic``, the 1/5/10%
-``critical_values`` and ``reject`` decisions, the resampled
-``null_distribution``, and Andrews-Genton conformal bands for the plot.
+
+Where to read it:
+
+.. code-block:: python
+
+   inf = res.inference
+   inf.p_value, inf.method, inf.confidence_level
+   d = inf.details
+   d["test_statistic"], d["critical_values"], d["reject"]   # keyed 0.01/0.05/0.10
+   d["scheme"], d["num_resamples"], d["null_distribution"]
+
+   # the Andrews-Genton band, aligned to the time axis, NaN over the pre-window
+   res.time_series.counterfactual_lower, res.time_series.counterfactual_upper
+   res.time_series.prediction_interval_level      # 0.90
+   res.time_series.has_prediction_interval        # True
+
+``res.inference_detail`` keeps the same numbers on the estimator's own
+:class:`~mlsynth.utils.shc_helpers.structures.SHCInference` dataclass, with the
+post-window band as ``conformal_lower`` / ``conformal_upper``.
+
+``inference_method="exact"`` swaps the null for the permutation test of
+Chernozhukov, Wüthrich & Zhu (2021) over the same statistic, with
+``permutation_scheme`` choosing cyclic shifts (``"moving_block"``, for
+stationary weakly dependent errors) or random permutations (``"iid"``, exact
+under exchangeability). The observed statistic is identical across all three;
+only the reference distribution changes, and ``details["scheme"]`` records
+which built it.
 
 .. note::
 
@@ -326,9 +350,12 @@ Internal optimization and tuning routines for SHC and ASHC. When
 ``use_augmented`` is true, the simplex SHC weights from the matching QP
 are passed to the ASHC ridge refinement for bias correction.
 
-.. autofunction:: mlsynth.utils.inferutils.shc_conformal_test
-.. autofunction:: mlsynth.utils.estutils._solve_SHC_QP
-.. autofunction:: mlsynth.utils.estutils.tune_lambda_ashc
+.. autofunction:: mlsynth.utils.shc_helpers.inference.run_conformal_inference
+.. autofunction:: mlsynth.utils.shc_helpers.inference.shc_conformal_test
+.. autofunction:: mlsynth.utils.shc_helpers.inference.cwz_conformal_test
+.. autofunction:: mlsynth.utils.shc_helpers.inference.ag_conformal
+.. autofunction:: mlsynth.utils.shc_helpers.kernels.solve_shc_qp
+.. autofunction:: mlsynth.utils.shc_helpers.kernels.tune_lambda_ashc
 
 References
 ----------
