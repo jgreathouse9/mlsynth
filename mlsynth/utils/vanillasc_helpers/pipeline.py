@@ -825,6 +825,83 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Firpo-Possebom (2018) confidence sets: the same placebo test, inverted
+    # over a one-parameter family of effect paths instead of evaluated at zero.
+    # The weights every placebo needs are the ones this estimator already fits,
+    # so the branch assembles them and hands them to the inversion.
+    if mode == "placebo_cs" and J >= 2 and gap[pre:].size:
+        from .placebo_cs import (breakdown_phi, confidence_set,
+                                 sensitivity_sweep)
+
+        # Panel in the layout the inversion expects: treated unit first, then
+        # the donors. Unlike the plain placebo refits above, each donor's own
+        # synthetic control is fitted against a pool that CONTAINS the treated
+        # unit -- that is what the procedure's donor-pool correction acts on,
+        # and excluding it would invert a different test.
+        Ymat = np.column_stack([y, Y0])
+        n_units = Ymat.shape[1]
+        Wmat = np.empty((n_units - 1, n_units))
+        Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
+        ok = True
+        for j in range(1, n_units):
+            others = [k for k in range(n_units) if k != j]
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rj = engine.fit(Ymat[:pre, j], Ymat[:pre, others])
+                Wmat[:, j] = np.asarray(rj.W, dtype=float).ravel()
+            except Exception:  # pragma: no cover - defensive refit guard
+                ok = False
+                break
+        if ok:
+            v = (np.asarray(config.placebo_cs_v, dtype=float)
+                 if config.placebo_cs_v is not None
+                 else np.eye(1, n_units, 0).ravel())
+            try:
+                cs = confidence_set(
+                    Ymat, Wmat, 0, pre, kind=config.placebo_cs_class,
+                    alpha=config.alpha, precision=config.placebo_cs_precision,
+                    phi=config.placebo_cs_phi, v=v)
+                details = {
+                    "effect_class": cs.kind,
+                    "point_estimate": cs.point_estimate,
+                    "contains_zero": cs.contains_zero,
+                    "precision": cs.precision,
+                    "phi": cs.phi,
+                    "lower_path": cs.lower_path.tolist(),
+                    "upper_path": cs.upper_path.tolist(),
+                }
+                if config.placebo_cs_sweep:
+                    rows = sensitivity_sweep(
+                        Ymat, Wmat, 0, pre, phis=config.placebo_cs_sweep, v=v,
+                        kind=config.placebo_cs_class, alpha=config.alpha,
+                        precision=config.placebo_cs_precision)
+                    details["sensitivity"] = [
+                        {"phi": r.phi,
+                         "lower": None if r.confidence_set is None else r.confidence_set.lower,
+                         "upper": None if r.confidence_set is None else r.confidence_set.upper,
+                         "contains_zero": r.contains_zero,
+                         "reason": r.reason}
+                        for r in rows]
+                    details["breakdown_phi"] = breakdown_phi(rows)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    ci_lower=cs.lower, ci_upper=cs.upper,
+                    details=details,
+                )
+            except MlsynthEstimationError as exc:
+                # An empty or unbounded set is a result about the panel, not a
+                # crash: report it and say which level produced it.
+                warnings.warn(str(exc), UserWarning)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    details={"effect_class": config.placebo_cs_class,
+                             "phi": config.placebo_cs_phi,
+                             "unavailable_reason": str(exc)},
+                )
+
     # Never leave a requested-but-uncomputable inference as a silent ``None``: a
     # valid mode whose preconditions were not met (too few donors, no
     # post-periods) returns an explanatory ``InferenceResults`` plus a warning,
