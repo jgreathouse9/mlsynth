@@ -1465,6 +1465,74 @@ mlsynth's outcome-only fit it is lost there. Both are the same procedure
 applied to different donor fits, and a sweep reported without the weights it
 was computed on says less than it appears to.
 
+Is it calibrated
+^^^^^^^^^^^^^^^^
+
+The test is exact by the randomization argument, and Firpo and Possebom's
+Monte Carlo (their Table 1, column 1) confirms it: all five permutation
+statistics come in at a size of 0.10 against a nominal 0.10. Three conditions
+carry that exactness to the confidence set, and each can fail on real data.
+
+1. Assignment is exchangeable across the :math:`J+1` units. This is what
+   :math:`\phi` exists to relax, and the breakdown :math:`\phi` reports how far
+   it can fail before the conclusion turns over.
+2. The true effect path lies in the class being inverted. Outside it, the test
+   is answering a different question and coverage does not transfer.
+3. The level is attainable. A rank p-value over :math:`J+1` units lives on
+   multiples of :math:`1/(J+1)`, so only :math:`\alpha \in \{1/(J+1),
+   2/(J+1), \ldots\}` are exact. Proposition 99 uses :math:`4/39 \approx
+   0.1026`, not 0.10.
+
+A fourth condition is not the paper's and belongs to any implementation of the
+search. The reported interval is the connected component of :math:`\{c : p(c)
+> \alpha\}` containing the point estimate, and the point estimate is not
+guaranteed to survive the test. Running the paper's own design (equations 21 and
+22, :math:`J+1 = 20`, :math:`T = 25`, :math:`T_0 = 15`, 250 replications at
+:math:`\alpha = 2/20`) separates the two:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 25 15
+
+   * - test accepts the truth
+     - accepts the point estimate
+     - search returns
+     - n
+   * - yes
+     - yes
+     - the interval, covering
+     - 221
+   * - no
+     - no
+     - empty
+     - 17
+   * - no
+     - yes
+     - the interval, excluding
+     - 1
+   * - yes
+     - no
+     - empty
+     - 11
+
+The test rejects the true parameter in 18 of 250, a size of 0.072 against a
+nominal 0.10. Every one of the remaining 11 misses is the last row: the search
+starts at a rejected point, so it reports an empty set even though the test
+accepts the truth. Raising ``placebo_cs_precision`` from 8 to 40 does not move
+this, which rules the resolution out as the cause.
+
+Two things follow for reading output. An empty set means the search had nowhere
+to start, not that no parameter survives the test. And an unavailable set is not
+a neutral outcome to discard: treating it as "no information" discards the
+replications where the procedure missed, and the measured coverage rises from
+0.884 to near one.
+
+Restricting the placebo pool to donors with good pre-treatment fit, a common
+convention, breaks the exactness in the other direction. The paper's Table 2
+(pre-treatment MSPE at most five times the treated unit's) puts
+:math:`\hat\theta_1` at 0.13 and :math:`\hat\theta_2`, :math:`\hat\theta_3`
+at 0.06 against a nominal 0.10. ``placebo_cs`` does no such filtering.
+
 Reading the set on other scales
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
