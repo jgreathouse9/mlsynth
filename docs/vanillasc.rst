@@ -1458,8 +1458,49 @@ mlsynth's outcome-only fit it is lost there. Both are the same procedure
 applied to different donor fits, and a sweep reported without the weights it
 was computed on says less than it appears to.
 
+Drawing the set
+^^^^^^^^^^^^^^^
+
+``mlsynth.utils.vanillasc_helpers.placebo_cs_plotter`` renders the two things
+the inversion produces. Both functions take the fitted result, and both return
+their ``Figure`` without displaying or saving it:
+
+.. code-block:: python
+
+   from mlsynth.utils.vanillasc_helpers.placebo_cs_plotter import (
+       plot_confidence_set, plot_sensitivity)
+
+   fig = plot_confidence_set(res)     # the gap, with the set shaded around it
+   fig.savefig("cs.png")
+
+   fig = plot_sensitivity(res)        # the swept bounds against the tilt
+                                      # (needs placebo_cs_sweep)
+
+``plot_confidence_set`` is the figure the authors' own ``SCM.CS`` draws when
+called with ``plot = TRUE``. The shaded region is the pair of effect paths the
+bounds generate, so it closes to zero width over the pre-period, where every
+candidate path is zero, and opens after treatment: flat at the bound for the
+constant class, a fan at the bound's slope for the linear one.
+
+That band is a set of paths, not a per-period interval on the gap, and the two
+are different objects. The estimated gap can sit outside it -- on Proposition 99
+it does in 1989 and 1990, two of the twelve post-treatment periods -- because
+the set collects the parameters of the family the test does not reject, and no
+member of a one-parameter family is obliged to track a noisy trajectory year by
+year. For a band the realised gap is meant to fall inside, use ``inference="scpi"``
+or ``"conformal"``.
+
+``plot_sensitivity`` puts one bar per tilt against a zero line, marks the
+breakdown :math:`\phi` where the set first covers zero, and marks a tilt whose
+search failed with the reason it failed, so a hole in the sweep is not read as a
+hole in the evidence.
+
+Both accept the objects the helper returns directly, for a call that did not go
+through ``fit()``: ``plot_confidence_set(cs, gap)`` on what ``confidence_set``
+returned, and ``plot_sensitivity(rows)`` on what ``sensitivity_sweep`` returned.
+
 Choosing among placebo, LTO, and SCPI
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Prefer LTO over the ordinary placebo whenever the donor pool is small --
   especially in the :math:`\alpha < 1/N` regime (e.g. :math:`N \le 20` at
