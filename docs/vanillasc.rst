@@ -1563,6 +1563,49 @@ On Proposition 99, with twelve post-treatment periods, the linear set
 ``effects.att``. Under the authors' own weights the same set is
 :math:`[-3.98, -1.24]`, a cumulative :math:`[-310.7, -96.6]`.
 
+``placebo_cs_horizon`` accumulates only the first :math:`L` post-treatment
+periods, which is what makes the set comparable with a cumulative conformal band
+over the same window::
+
+   res = VanillaSC({..., "inference": "placebo_cs",
+                    "placebo_cs_horizon": 10}).fit()
+   res.inference.details["cumulative_lower"], res.inference.details["horizon"]
+
+The two answer different questions and rest on different exchangeability
+assumptions, so they can disagree. On GeoLift's own daily test panel -- forty
+metro markets, 105 days, Chicago treated, a ten-day campaign -- both report a
+point estimate of :math:`-2211` incremental units, and at
+:math:`\alpha = 0.10`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 28 20 18
+
+   * - interval
+     - over the same ten days
+     - width
+     - excludes zero
+   * - ``conformal_cumulative``, split
+     - :math:`(-\infty, \infty)`
+     - --
+     - no
+   * - ``conformal_cumulative``, resample
+     - :math:`[-3221, -1201]`
+     - 2020
+     - yes
+   * - ``placebo_cs``, constant
+     - :math:`[-9397, 4975]`
+     - 14372
+     - no
+
+The split band is infinite because ninety-five pre-period days hold only six
+non-overlapping ten-day windows, and a 90% band needs the seventh of six order
+statistics. That is the construction saying it cannot do the job at this level,
+and it is the same arithmetic that governs PPSCM's per-unit band. The resample
+band spends the same windows period by period, so it draws on sixty residuals
+where the order statistic had six. The inverted set uses neither: its reference
+distribution is the thirty-nine other markets.
+
 The coverage statement travels with the family. This covers the total effect of
 every path the test does not reject within the class, so it is a statement about
 the cumulative effect given that the true path is constant, or linear, in time.

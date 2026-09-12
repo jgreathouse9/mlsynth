@@ -85,36 +85,64 @@ class PlaceboConfidenceSet:
         """Post-treatment periods the effect path covers."""
         return int(self.lower_path.size - self.pre_periods)
 
-    @property
-    def cumulative(self) -> tuple:
-        """The set read as the total post-treatment effect, ``(lower, upper)``.
+    def _horizon(self, horizon: Optional[int]) -> int:
+        """Validate a window length against the post-treatment period."""
+        if horizon is None:
+            horizon = self.n_post
+        horizon = int(horizon)
+        if horizon < 1:
+            raise MlsynthEstimationError(
+                f"a horizon accumulates at least one period; got {horizon}")
+        if horizon > self.n_post:
+            raise MlsynthEstimationError(
+                f"horizon {horizon} exceeds the {self.n_post} post-treatment "
+                "periods the panel has")
+        return horizon
+
+    def cumulative_over(self, horizon: Optional[int] = None) -> tuple:
+        """Total effect over the first ``horizon`` post-treatment periods.
 
         Summing the path is a strictly increasing function of the parameter --
-        ``c * K`` for the constant class and ``c * K(K+1)/2`` for the linear one,
-        over ``K`` post-treatment periods -- so the image of the confidence set
-        is the confidence set of the image, at the same level. Inverting the
-        test on this scale would return these same two numbers.
+        ``c * L`` for the constant class and ``c * L(L+1)/2`` for the linear one,
+        over ``L`` accumulated periods -- so the image of the confidence set is
+        the confidence set of the image, at the same level. Inverting the test
+        on this scale would return these same two numbers.
+
+        A horizon is what makes this comparable with a cumulative conformal band
+        (``inference="conformal_cumulative"``, or PPSCM's per-unit band), which
+        reports the total over a window of the caller's choosing. ``None`` uses
+        the whole post-treatment period.
 
         The coverage statement is the family's: this covers the total effect of
         every path in the class the test does not reject, so it is a statement
         about the cumulative effect under the maintained assumption that the
         true path is constant (or linear) in time.
         """
-        return (float(self.lower_path.sum()), float(self.upper_path.sum()))
+        k = self._horizon(horizon)
+        stop = self.pre_periods + k
+        return (float(self.lower_path[self.pre_periods:stop].sum()),
+                float(self.upper_path[self.pre_periods:stop].sum()))
+
+    def average_over(self, horizon: Optional[int] = None) -> tuple:
+        """Average per-period effect over the first ``horizon`` post-periods.
+
+        The cumulative scale divided by the periods accumulated, which at the
+        full horizon puts the set on the same scale as the estimator's reported
+        ATT. Carries the same caveat as :meth:`cumulative_over`.
+        """
+        k = self._horizon(horizon)
+        lo, hi = self.cumulative_over(k)
+        return (lo / k, hi / k)
+
+    @property
+    def cumulative(self) -> tuple:
+        """:meth:`cumulative_over` across the whole post-treatment period."""
+        return self.cumulative_over(None)
 
     @property
     def average(self) -> tuple:
-        """The set read as the average post-treatment effect, ``(lower, upper)``.
-
-        The cumulative scale divided by the number of post-treatment periods,
-        which puts the set on the same scale as the estimator's reported ATT.
-        Carries the same caveat as :attr:`cumulative`.
-        """
-        k = self.n_post
-        if k <= 0:  # pragma: no cover - confidence_set refuses an empty window
-            raise MlsynthEstimationError("there are no post-treatment periods")
-        lo, hi = self.cumulative
-        return (lo / k, hi / k)
+        """:meth:`average_over` across the whole post-treatment period."""
+        return self.average_over(None)
 
 
 @dataclass(frozen=True)

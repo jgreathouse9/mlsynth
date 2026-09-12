@@ -857,6 +857,14 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             v = (np.asarray(config.placebo_cs_v, dtype=float)
                  if config.placebo_cs_v is not None
                  else np.eye(1, n_units, 0).ravel())
+            # A horizon longer than the panel is the caller's mistake, not a
+            # property of the data, so it is refused before the search runs
+            # instead of arriving as an unavailable set.
+            horizon = config.placebo_cs_horizon
+            if horizon is not None and int(horizon) > int(len(y) - pre):
+                raise MlsynthEstimationError(
+                    f"placebo_cs_horizon={int(horizon)} exceeds the "
+                    f"{int(len(y) - pre)} post-treatment periods the panel has")
             try:
                 cs = confidence_set(
                     Ymat, Wmat, 0, pre, kind=config.placebo_cs_class,
@@ -868,8 +876,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 # functions of it, so they are the same set read differently and
                 # cost nothing to report; the average one is comparable with
                 # ``effects.att``.
-                cum_lower, cum_upper = cs.cumulative
-                att_lower, att_upper = cs.average
+                cum_lower, cum_upper = cs.cumulative_over(horizon)
+                att_lower, att_upper = cs.average_over(horizon)
                 details = {
                     "effect_class": cs.kind,
                     "point_estimate": cs.point_estimate,
@@ -881,6 +889,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                     "att_lower": att_lower,
                     "att_upper": att_upper,
                     "n_post_periods": cs.n_post,
+                    "horizon": cs.n_post if horizon is None else int(horizon),
                     "lower_path": cs.lower_path.tolist(),
                     "upper_path": cs.upper_path.tolist(),
                 }

@@ -313,6 +313,16 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "alongside the set, so the breakdown point is visible. "
                     "None runs no sweep.",
     )
+    placebo_cs_horizon: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="With inference='placebo_cs', how many post-treatment "
+                    "periods the reported cumulative and average scales "
+                    "accumulate. None uses the whole post-period. Set it to the "
+                    "``conformal_horizon`` of a cumulative conformal band to "
+                    "read the two over the same window; a horizon longer than "
+                    "the panel's post-period is refused.",
+    )
     @field_validator("inference")
     @classmethod
     def _validate_inference(cls, v):

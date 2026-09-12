@@ -478,6 +478,65 @@ class TestCumulativeAndAverage:
                             precision=12)
         assert cs.cumulative[0] <= cs.point_estimate * n_post <= cs.cumulative[1]
 
+    def test_a_horizon_sums_only_the_first_periods(self, prop99):
+        """A campaign that runs L periods is not the whole post-period.
+
+        Cumulative conformal bands (``inference="conformal_cumulative"``, and
+        PPSCM's per-unit band) are reported over a horizon. Reading the inverted
+        set over the same window is what makes the two comparable.
+        """
+        Y, W, t0, pre = prop99
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                            precision=12)
+        for horizon in (1, 3, 7):
+            weight = horizon * (horizon + 1) / 2.0
+            lo, hi = cs.cumulative_over(horizon)
+            assert lo == pytest.approx(cs.lower * weight)
+            assert hi == pytest.approx(cs.upper * weight)
+            alo, ahi = cs.average_over(horizon)
+            assert alo == pytest.approx(lo / horizon)
+            assert ahi == pytest.approx(hi / horizon)
+
+    def test_a_horizon_sums_the_path_it_plots(self, prop99):
+        Y, W, t0, pre = prop99
+        for kind in ("constant", "linear"):
+            cs = confidence_set(Y, W, t0, pre, kind=kind, alpha=4 / 39,
+                                precision=12)
+            for horizon in (2, 5):
+                lo, hi = cs.cumulative_over(horizon)
+                assert lo == pytest.approx(
+                    float(cs.lower_path[pre:pre + horizon].sum()))
+                assert hi == pytest.approx(
+                    float(cs.upper_path[pre:pre + horizon].sum()))
+
+    def test_the_full_horizon_is_the_default(self, prop99):
+        Y, W, t0, pre = prop99
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                            precision=12)
+        assert cs.cumulative_over(cs.n_post) == pytest.approx(cs.cumulative)
+        assert cs.cumulative_over(None) == pytest.approx(cs.cumulative)
+        assert cs.average_over(None) == pytest.approx(cs.average)
+
+    def test_a_horizon_past_the_post_period_is_refused(self, prop99):
+        """Silently clamping would report a shorter window under a longer name."""
+        Y, W, t0, pre = prop99
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                            precision=12)
+        with pytest.raises(MlsynthEstimationError, match="post-treatment"):
+            cs.cumulative_over(cs.n_post + 1)
+        for bad in (0, -1):
+            with pytest.raises(MlsynthEstimationError, match="at least one"):
+                cs.cumulative_over(bad)
+
+    def test_a_shorter_horizon_gives_a_narrower_cumulative_set(self, prop99):
+        """Fewer periods accumulated is less total effect, either way signed."""
+        Y, W, t0, pre = prop99
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                            precision=12)
+        widths = [cs.cumulative_over(h)[1] - cs.cumulative_over(h)[0]
+                  for h in range(1, cs.n_post + 1)]
+        assert widths == sorted(widths)
+
     def test_the_cumulative_bound_is_the_path_it_plots(self, prop99):
         """The scale is not a second formula: it is the drawn path, summed."""
         Y, W, t0, pre = prop99
@@ -641,6 +700,24 @@ class TestVanillaSCIntegration:
         assert d["att_lower"] == pytest.approx(d["cumulative_lower"] / k)
         assert d["att_upper"] == pytest.approx(d["cumulative_upper"] / k)
         assert d["att_lower"] < d["att_upper"] < 0.0
+
+    def test_a_horizon_reports_the_window_it_accumulated(self):
+        """Set it to a conformal band's horizon and the two cover the same days."""
+        full = self._fit(placebo_cs_class="linear").inference.details
+        short = self._fit(placebo_cs_class="linear",
+                          placebo_cs_horizon=4).inference.details
+        assert full["horizon"] == 12
+        assert short["horizon"] == 4
+        # same parameter, different window: the slope is unchanged
+        weight = 4 * 5 / 2.0
+        assert short["cumulative_lower"] == pytest.approx(
+            self._fit(placebo_cs_class="linear").inference.ci_lower * weight)
+        assert abs(short["cumulative_lower"]) < abs(full["cumulative_lower"])
+
+    def test_a_horizon_longer_than_the_panel_is_refused(self):
+        from mlsynth.exceptions import MlsynthEstimationError
+        with pytest.raises(MlsynthEstimationError, match="post-treatment"):
+            self._fit(placebo_cs_class="linear", placebo_cs_horizon=99)
 
     def test_the_average_scale_brackets_the_reported_att(self):
         """The set is on the ATT's scale, so the two can be read together."""
