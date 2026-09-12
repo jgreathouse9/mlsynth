@@ -328,6 +328,88 @@ class TestAgainstTheAuthorsR:
 
 
 # =========================================================================== #
+# derived scales: cumulative and average effect
+# =========================================================================== #
+class TestCumulativeAndAverage:
+    """The same set, read on two scales the parameter is not on.
+
+    Within a one-parameter family the cumulative post-treatment effect and the
+    average per-period effect are strictly increasing functions of the
+    parameter, so the confidence set maps over exactly: inverting a test and
+    then reparametrising gives the same set as reparametrising and then
+    inverting. Nothing is recomputed and no coverage is given up.
+    """
+
+    def test_the_constant_class_multiplies_by_the_post_period_count(self, prop99):
+        Y, W, t0, pre = prop99
+        n_post = Y.shape[0] - pre
+        cs = confidence_set(Y, W, t0, pre, kind="constant", alpha=4 / 39,
+                            precision=12)
+        lo, hi = cs.cumulative
+        assert lo == pytest.approx(cs.lower * n_post)
+        assert hi == pytest.approx(cs.upper * n_post)
+
+    def test_the_linear_class_multiplies_by_the_triangular_number(self, prop99):
+        """A linear path sums to ``c * K(K+1)/2`` over its ``K`` post-periods."""
+        Y, W, t0, pre = prop99
+        n_post = Y.shape[0] - pre
+        weight = n_post * (n_post + 1) / 2.0
+        cs = confidence_set(Y, W, t0, pre, kind="linear", alpha=4 / 39,
+                            precision=12)
+        lo, hi = cs.cumulative
+        assert lo == pytest.approx(cs.lower * weight)
+        assert hi == pytest.approx(cs.upper * weight)
+
+    def test_the_average_is_the_cumulative_over_the_post_periods(self, prop99):
+        Y, W, t0, pre = prop99
+        n_post = Y.shape[0] - pre
+        for kind in ("constant", "linear"):
+            cs = confidence_set(Y, W, t0, pre, kind=kind, alpha=4 / 39,
+                                precision=12)
+            clo, chi = cs.cumulative
+            alo, ahi = cs.average
+            assert alo == pytest.approx(clo / n_post)
+            assert ahi == pytest.approx(chi / n_post)
+
+    def test_the_bounds_stay_ordered_on_every_scale(self, prop99):
+        """The maps are strictly increasing, so they cannot flip the interval."""
+        Y, W, t0, pre = prop99
+        for kind in ("constant", "linear"):
+            cs = confidence_set(Y, W, t0, pre, kind=kind, alpha=4 / 39,
+                                precision=12)
+            assert cs.lower <= cs.upper
+            assert cs.cumulative[0] <= cs.cumulative[1]
+            assert cs.average[0] <= cs.average[1]
+
+    def test_zero_is_inside_on_every_scale_or_on_none(self, prop99):
+        """A scale change cannot turn a significant result insignificant."""
+        Y, W, t0, pre = prop99
+        for kind in ("constant", "linear"):
+            cs = confidence_set(Y, W, t0, pre, kind=kind, alpha=4 / 39,
+                                precision=12)
+            inside = [cs.contains_zero,
+                      cs.cumulative[0] <= 0.0 <= cs.cumulative[1],
+                      cs.average[0] <= 0.0 <= cs.average[1]]
+            assert len(set(inside)) == 1
+
+    def test_the_point_estimate_is_inside_on_every_scale(self, prop99):
+        Y, W, t0, pre = prop99
+        n_post = Y.shape[0] - pre
+        cs = confidence_set(Y, W, t0, pre, kind="constant", alpha=4 / 39,
+                            precision=12)
+        assert cs.cumulative[0] <= cs.point_estimate * n_post <= cs.cumulative[1]
+
+    def test_the_cumulative_bound_is_the_path_it_plots(self, prop99):
+        """The scale is not a second formula: it is the drawn path, summed."""
+        Y, W, t0, pre = prop99
+        for kind in ("constant", "linear"):
+            cs = confidence_set(Y, W, t0, pre, kind=kind, alpha=4 / 39,
+                                precision=12)
+            assert cs.cumulative[0] == pytest.approx(float(cs.lower_path.sum()))
+            assert cs.cumulative[1] == pytest.approx(float(cs.upper_path.sum()))
+
+
+# =========================================================================== #
 # sensitivity
 # =========================================================================== #
 class TestSensitivitySweep:
@@ -437,6 +519,25 @@ class TestVanillaSCIntegration:
         d = self._fit(placebo_cs_sweep=[0.0, 0.5, 1.0]).inference.details
         assert [r["phi"] for r in d["sensitivity"]] == [0.0, 0.5, 1.0]
         assert d["breakdown_phi"] == 1.0
+
+    def test_it_reports_the_cumulative_and_average_scales(self):
+        """A slope is hard to read; total packs not smoked is not."""
+        inf = self._fit(placebo_cs_class="linear").inference
+        d = inf.details
+        k = d["n_post_periods"]
+        assert k == 12                                  # 1989-2000
+        weight = k * (k + 1) / 2.0
+        assert d["cumulative_lower"] == pytest.approx(inf.ci_lower * weight)
+        assert d["cumulative_upper"] == pytest.approx(inf.ci_upper * weight)
+        assert d["att_lower"] == pytest.approx(d["cumulative_lower"] / k)
+        assert d["att_upper"] == pytest.approx(d["cumulative_upper"] / k)
+        assert d["att_lower"] < d["att_upper"] < 0.0
+
+    def test_the_average_scale_brackets_the_reported_att(self):
+        """The set is on the ATT's scale, so the two can be read together."""
+        res = self._fit(placebo_cs_class="constant")
+        d = res.inference.details
+        assert d["att_lower"] <= float(res.effects.att) <= d["att_upper"]
 
     def test_an_unavailable_set_is_reported_and_warned_not_raised(self):
         """A level at which nothing rejects must not take the whole fit down."""

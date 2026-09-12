@@ -1458,6 +1458,45 @@ mlsynth's outcome-only fit it is lost there. Both are the same procedure
 applied to different donor fits, and a sweep reported without the weights it
 was computed on says less than it appears to.
 
+Reading the set on other scales
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ci_lower`` and ``ci_upper`` are on the parameter's own scale: a level for the
+constant class, a per-period slope for the linear one. A slope is awkward to
+report, so the result also carries the set as a cumulative and as an average
+effect:
+
+.. code-block:: python
+
+   d = res.inference.details
+   d["cumulative_lower"], d["cumulative_upper"]   # total post-treatment effect
+   d["att_lower"], d["att_upper"]                 # per-period average
+
+These cost nothing and give up no coverage. Within a one-parameter family the
+total effect is a strictly increasing function of the parameter -- :math:`cK`
+for the constant class and :math:`\tilde c K(K+1)/2` for the linear one, over
+:math:`K` post-treatment periods -- and the average is that divided by
+:math:`K`. Test inversion commutes with a strictly increasing reparametrisation,
+so the image of the set is the set you would get by inverting on the new scale,
+at the same level. Both are the drawn effect path summed, which is why they
+agree with the figure.
+
+On Proposition 99, with twelve post-treatment periods, the linear set
+:math:`[-4.50, -0.78]` packs per capita per year becomes a cumulative
+:math:`[-350.8, -61.0]` packs per capita over 1989--2000 and an average
+:math:`[-29.2, -5.1]` per year, which is on the same scale as the reported
+``effects.att``. Under the authors' own weights the same set is
+:math:`[-3.98, -1.24]`, a cumulative :math:`[-310.7, -96.6]`.
+
+The coverage statement travels with the family. This covers the total effect of
+every path the test does not reject within the class, so it is a statement about
+the cumulative effect given that the true path is constant, or linear, in time.
+It is not a family-free interval for :math:`\sum_t \tau_t`. The paper defines
+the general set over all of :math:`\mathbb{R}^{T}` (its equation 14) and calls
+estimating it computationally infeasible; two-parameter families are
+straightforward and expensive, and the implemented classes are the one-parameter
+ones.
+
 Drawing the set
 ^^^^^^^^^^^^^^^
 

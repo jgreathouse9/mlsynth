@@ -74,10 +74,47 @@ class PlaceboConfidenceSet:
     phi: float
     lower_path: np.ndarray
     upper_path: np.ndarray
+    pre_periods: int = 0
 
     @property
     def contains_zero(self) -> bool:
         return bool(self.lower <= 0.0 <= self.upper)
+
+    @property
+    def n_post(self) -> int:
+        """Post-treatment periods the effect path covers."""
+        return int(self.lower_path.size - self.pre_periods)
+
+    @property
+    def cumulative(self) -> tuple:
+        """The set read as the total post-treatment effect, ``(lower, upper)``.
+
+        Summing the path is a strictly increasing function of the parameter --
+        ``c * K`` for the constant class and ``c * K(K+1)/2`` for the linear one,
+        over ``K`` post-treatment periods -- so the image of the confidence set
+        is the confidence set of the image, at the same level. Inverting the
+        test on this scale would return these same two numbers.
+
+        The coverage statement is the family's: this covers the total effect of
+        every path in the class the test does not reject, so it is a statement
+        about the cumulative effect under the maintained assumption that the
+        true path is constant (or linear) in time.
+        """
+        return (float(self.lower_path.sum()), float(self.upper_path.sum()))
+
+    @property
+    def average(self) -> tuple:
+        """The set read as the average post-treatment effect, ``(lower, upper)``.
+
+        The cumulative scale divided by the number of post-treatment periods,
+        which puts the set on the same scale as the estimator's reported ATT.
+        Carries the same caveat as :attr:`cumulative`.
+        """
+        k = self.n_post
+        if k <= 0:  # pragma: no cover - confidence_set refuses an empty window
+            raise MlsynthEstimationError("there are no post-treatment periods")
+        lo, hi = self.cumulative
+        return (lo / k, hi / k)
 
 
 @dataclass(frozen=True)
@@ -305,7 +342,8 @@ def confidence_set(Y, W, treated_index: int, pre_periods: int, *,
         lower=float(lower), upper=float(upper), point_estimate=point, kind=kind,
         alpha=float(alpha), precision=int(precision), phi=float(phi),
         lower_path=effect_path(lower, n_periods, pre_periods, kind),
-        upper_path=effect_path(upper, n_periods, pre_periods, kind))
+        upper_path=effect_path(upper, n_periods, pre_periods, kind),
+        pre_periods=int(pre_periods))
 
 
 def sensitivity_sweep(Y, W, treated_index: int, pre_periods: int, *,

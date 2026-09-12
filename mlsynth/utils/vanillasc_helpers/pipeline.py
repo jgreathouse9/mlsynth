@@ -862,12 +862,25 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                     Ymat, Wmat, 0, pre, kind=config.placebo_cs_class,
                     alpha=config.alpha, precision=config.placebo_cs_precision,
                     phi=config.placebo_cs_phi, v=v)
+                # ``ci_lower``/``ci_upper`` are on the path parameter's scale
+                # (a level for the constant class, a slope for the linear one).
+                # The cumulative and average scales are strictly increasing
+                # functions of it, so they are the same set read differently and
+                # cost nothing to report; the average one is comparable with
+                # ``effects.att``.
+                cum_lower, cum_upper = cs.cumulative
+                att_lower, att_upper = cs.average
                 details = {
                     "effect_class": cs.kind,
                     "point_estimate": cs.point_estimate,
                     "contains_zero": cs.contains_zero,
                     "precision": cs.precision,
                     "phi": cs.phi,
+                    "cumulative_lower": cum_lower,
+                    "cumulative_upper": cum_upper,
+                    "att_lower": att_lower,
+                    "att_upper": att_upper,
+                    "n_post_periods": cs.n_post,
                     "lower_path": cs.lower_path.tolist(),
                     "upper_path": cs.upper_path.tolist(),
                 }
