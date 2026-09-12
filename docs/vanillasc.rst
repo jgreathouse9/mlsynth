@@ -1340,8 +1340,80 @@ assignment assumption is where care is needed.
   :math:`\alpha`. In the paper, Prop 99 tolerates :math:`\Gamma \approx 1.4`
   (robust) while German reunification flips at only :math:`\Gamma \approx 1.1`
   (fragile). The weighted p-value and :math:`\Gamma` search require solving a
-  non-convex (NP-hard) quadratic program and are not yet implemented in
+  non-convex (NP-hard) quadratic program and are not implemented in
   ``VanillaSC``; the uniform-assignment naive/powered p-values are.
+
+  A cheaper form of the same question is available through
+  ``inference="placebo_cs"``. Firpo and Possebom (2018) reweight the rank
+  p-value by :math:`\pi \propto \exp(\phi v)`, where :math:`v` is a 0/1 vector
+  the analyst declares, naming the units the design might have favoured.
+  Sweeping :math:`\phi` upward and watching where the confidence set first
+  admits zero answers "how far from uniform assignment does the conclusion
+  survive" without any optimisation: the direction is declared instead of
+  searched over, so the answer is a worst case *within that direction* and not
+  over the whole :math:`\Gamma` ball. It is the weaker statement, and it costs a
+  sweep instead of a non-convex program.
+
+Confidence sets by inverting the placebo test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The placebo test above answers one hypothesis: that the effect is zero.
+``inference="placebo_cs"`` inverts it over a one-parameter family of effect
+paths and reports the parameters the test does not reject, which is a
+confidence set for the path. Set ``placebo_cs_class`` to ``"constant"`` (a flat
+post-treatment effect) or ``"linear"`` (the parameter is then the per-period
+slope).
+
+The candidate effect is imposed across the whole panel before any statistic is
+recomputed. For each placebo unit the path is added to its own outcome and
+subtracted from the treated unit's column inside its donor pool, because under
+a non-zero null the treated unit's observed series is not its untreated one and
+every donor pool containing it is wrong by exactly that path. Taking quantiles
+of a placebo distribution computed once at zero is a different object: the
+post/pre RMSPE ratio does not stay fixed as the null moves.
+
+That correction acts only on units whose synthetic control borrows from the
+treated one, and it shifts their gaps by exactly :math:`\text{path} \times w`.
+On Proposition 99 it moves eight of thirty-nine statistics, by up to two orders
+of magnitude, and moves the p-value at none of the candidates tried: the
+p-value is a rank comparison against the treated unit, none of the eight
+crosses it, and with 39 units the statistic only takes multiples of about
+:math:`1/39`. The mechanism and the p-value are separate claims.
+
+The search reports what it cannot do. A level at which the point estimate
+itself is rejected has an empty set; a level at which nothing is ever rejected
+has an unbounded one. Both raise inside the routine and both surface as an
+``InferenceResults`` carrying ``unavailable_reason`` plus a warning, so an
+unusable level does not take the fit down.
+
+.. code-block:: python
+
+   res = VanillaSC({
+       "df": df, "outcome": "cigsale", "treat": "treat",
+       "unitid": "state", "time": "year",
+       "inference": "placebo_cs", "alpha": 4 / 39,
+       "placebo_cs_class": "linear",
+       "placebo_cs_sweep": [0.0, 0.5, 1.0],
+   }).fit()
+
+   res.inference.ci_lower, res.inference.ci_upper
+   res.inference.details["breakdown_phi"]     # where the sign is lost
+
+On Proposition 99 this gives a linear-slope set excluding zero, and a sweep
+showing the sign absorbing a tilt of :math:`\phi = 0.5` toward California and
+losing it at :math:`\phi = 1.0`.
+
+*A caveat on comparing with the paper.* The set depends on the placebo weights,
+which are an input to the procedure, not part of it. The published
+numbers were produced with R ``Synth``'s predictor weighting; mlsynth's bilevel
+backends deliberately reach a different (better) optimum, as
+``benchmarks/cases/malo_prop99.py`` documents, so the bounds here are for the
+weights the chosen backend produces and are not expected to equal the paper's
+to the digit. Across the outcome-only fit and the three bilevel backends on the
+authors' ADH predictor specification, the linear set moves between
+:math:`[-4.66, -0.53]` and :math:`[-4.37, -1.00]` and excludes zero in every
+case. The inversion itself is pinned against the authors' own code to 1.8e-14
+in ``benchmarks/reference/fp_confidence_sets/``.
 
 Choosing among placebo, LTO, and SCPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
