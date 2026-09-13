@@ -78,18 +78,27 @@ V <- rep(1 / ncol(Z), ncol(Z))
 W1 <- fn_W(cbind(Z[wg, ]), Z[!wg, ], diag(V, ncol(Z)))
 
 donors <- as.matrix(data1[!wg, , drop = FALSE])
+W_p <- rep(1 / nrow(donors), nrow(donors))   # comparison-group simple average
 multi  <- as.numeric(t(donors) %*% W1)   # synthetic (multiple outcomes), 1989
 single <- as.numeric(t(donors) %*% W)    # synthetic (single outcome), 1989
+sample_mean <- as.numeric(t(donors) %*% W_p)
+wg_values <- unlist(data1[wg, , drop = FALSE])
 names(multi) <- names(single) <- colnames(data1)
+names(sample_mean) <- names(wg_values) <- colnames(data1)
 donor_countries <- country_names[!wg]
 
 cat("== REFERENCE VALUES ==\n")
-cat(sprintf("multi_gdp_pc_1989\t%.6f\n", multi[["GDP per capita"]]))
-cat(sprintf("multi_cpi_1989\t%.6f\n", multi[["CPI: all items"]]))
-cat(sprintf("multi_trade_1989\t%.6f\n", multi[["Trade openness"]]))
-cat(sprintf("multi_tax_1989\t%.6f\n", multi[["Total tax revenue"]]))
-cat(sprintf("multi_gdp_growth_1989\t%.6f\n", multi[["Real GDP growth"]]))
-cat(sprintf("single_gdp_pc_1989\t%.6f\n", single[["GDP per capita"]]))
+# Table 2 in full: every outcome for the treated unit, the two synthetic
+# controls, and the comparison-group simple average.
+slugs <- c("social", "energy", "electricity", "patents", "gdp_growth",
+           "cpi", "trade", "tax", "gdp_pc")
+cols <- colnames(data1)
+for (i in seq_along(slugs)) {
+  cat(sprintf("wg_%s_1989\t%.6f\n", slugs[i], wg_values[[cols[i]]]))
+  cat(sprintf("multi_%s_1989\t%.6f\n", slugs[i], multi[[cols[i]]]))
+  cat(sprintf("single_%s_1989\t%.6f\n", slugs[i], single[[cols[i]]]))
+  cat(sprintf("mean_%s_1989\t%.6f\n", slugs[i], sample_mean[[cols[i]]]))
+}
 for (i in seq_along(donor_countries)) {
   if (W1[i] > 1e-4) cat(sprintf("weight\t%s\t%.6f\n", donor_countries[i], W1[i]))
 }

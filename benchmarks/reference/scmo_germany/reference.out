@@ -1,10 +1,40 @@
 == REFERENCE VALUES ==
-multi_gdp_pc_1989	19029.776051
-multi_cpi_1989	3.058765
-multi_trade_1989	59.050673
-multi_tax_1989	34.063824
+wg_social_1989	3.419000
+multi_social_1989	3.549459
+single_social_1989	3.660767
+mean_social_1989	2.014812
+wg_energy_1989	0.155000
+multi_energy_1989	0.143994
+single_energy_1989	0.143313
+mean_energy_1989	0.127250
+wg_electricity_1989	8.981148
+multi_electricity_1989	8.711659
+single_electricity_1989	10.060925
+mean_electricity_1989	7.629356
+wg_patents_1989	0.071686
+multi_patents_1989	0.054888
+single_patents_1989	0.040369
+mean_patents_1989	0.029486
+wg_gdp_growth_1989	3.896552
 multi_gdp_growth_1989	4.119806
+single_gdp_growth_1989	3.517000
+mean_gdp_growth_1989	3.486234
+wg_cpi_1989	2.780563
+multi_cpi_1989	3.058765
+single_cpi_1989	3.995736
+mean_cpi_1989	5.510771
+wg_trade_1989	57.664852
+multi_trade_1989	59.050673
+single_trade_1989	59.298960
+mean_trade_1989	60.377507
+wg_tax_1989	36.229000
+multi_tax_1989	34.063824
+single_tax_1989	32.879192
+mean_tax_1989	33.694813
+wg_gdp_pc_1989	18994.000000
+multi_gdp_pc_1989	19029.776051
 single_gdp_pc_1989	19075.911363
+mean_gdp_pc_1989	16493.750000
 weight	USA	0.207541
 weight	Belgium	0.006967
 weight	France	0.267012

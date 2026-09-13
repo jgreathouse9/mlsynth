@@ -147,7 +147,7 @@ Path A — empirical replications
    * - ``sbc_germany``
      - SBC German reunification
    * - ``scmo_germany``
-     - Tian et al. West Germany balance
+     - Tian et al. West Germany balance, all 36 cells of Table 2 (both synthetic controls, both data columns) against a captured ``Germany.R`` run
    * - ``scpi_staggered``
      - scpi staggered point estimates, Germany (Cattaneo et al. 2025)
    * - ``scpi_staggered_pi``
@@ -270,7 +270,7 @@ Path B — Monte Carlo / simulation
    * - ``scmo_averaged_mc``
      - Sun averaged regime geometry
    * - ``scmo_concatenated_mc``
-     - Tian Table 1 / Sun Sim1
+     - Tian Table 1 / Sun Sim1, all 36 cells: fit, bias and SD for the conventional, five- and ten-outcome, and ridge-augmented SC
    * - ``seq_sdid_mc``
      - SSDiD vs DiD coverage/RMSE
    * - ``shc_recovery_mc``

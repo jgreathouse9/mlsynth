@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-24T17:19:11Z",
-  "git_sha": "1b4b98436e75c257b72f2e4fad38abae6b7ff45d",
-  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "generated_at": "2026-09-12T23:33:39Z",
+  "git_sha": "4b4d0df26f852879709a69c3d1ebc50925820921",
+  "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
   "command": "Rscript benchmarks/reference/scmo_germany/reference.R",
   "data": [
     {
