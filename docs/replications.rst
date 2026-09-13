@@ -286,7 +286,7 @@ Generalising the estimand, treatment, or unit
   :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
   ten-outcome bias further (durable: ``scmo_concatenated_mc``).
   Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
-  light-touch NPIs -- all 78 cells of their Table B.3 donor weights across
+  light-touch NPIs -- all 76 cells of their Table B.3 donor weights across
   the public-health, labour and economic domains, the effect magnitudes
   reported in the text (COVID-19 cases :math:`-70\%`, deaths
   :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,

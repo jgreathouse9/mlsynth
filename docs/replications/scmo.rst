@@ -140,8 +140,9 @@ observed (``metric_weighting="outcome"``). Inference is the permutation test on
 the post-to-pre-treatment RMSPE ratio (``inference="placebo"``), one-sided, with
 the guard :math:`\eta = 0.01\sigma_k`.
 
-mlsynth reproduces all 78 cells of the paper's Table B.3 — the synthetic
-control weights of 26 donors in each of the three domains — to within
+mlsynth reproduces all 76 cells of the paper's Table B.3 — the synthetic
+control weights of the donors in each of the three domains, 25 of them in the
+public-health and labour domains and 26 in the economic one — to within
 :math:`0.005`, against a table printed to two decimals. Sweden's public-health
 synthetic is the Netherlands :math:`0.31`, Denmark :math:`0.26`, Finland
 :math:`0.20`, Poland :math:`0.09`, Norway :math:`0.07`, France and Greece

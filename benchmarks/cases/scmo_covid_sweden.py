@@ -31,10 +31,11 @@ Provenance
   their ``COVID_prep.R`` from Our World in Data and Eurostat), cut to the 27
   countries, the window 2019-01-01 to 2020-09-30, and the twelve outcomes the
   three domains use.
-* Headline 1 -- Table B.3, the synthetic control weights in each domain. All 78
-  cells (26 donors x 3 domains) are pinned: the thirteen non-zero weights of
-  each domain individually, and the largest error over the whole column, which
-  covers the zeros.
+* Headline 1 -- Table B.3, the synthetic control weights in each domain. All 76
+  cells are pinned (25 donors in the public-health and labour domains, 26 in
+  the economic one, the difference being the country each holds out): every
+  non-zero weight individually, and the largest error over the whole column,
+  which covers the zeros.
 * Headline 2 -- the effect magnitudes reported in the appendix text: cumulative
   COVID-19 cases and deaths lower by about 5,300 and 390 per million by July
   (70% and 68% of the realized levels); cumulative deaths from all causes lower
@@ -247,7 +248,7 @@ def run() -> dict:
 # Deterministic (no resampling): one fit per outcome plus its permutation loop.
 #
 # The weights are pinned to the printed Table B.3 at its own precision (two
-# decimals), with +-0.02 per cell; measured, every one of the 78 cells lands
+# decimals), with +-0.02 per cell; measured, every one of the 76 cells lands
 # within 0.005 of the printed value, which the max-error rows pin directly.
 #
 # The effect magnitudes are pinned to the appendix text. Its figures are rounded
