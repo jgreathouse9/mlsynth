@@ -1897,6 +1897,8 @@
  "scmo_concatenated_mc": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/scmo.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/scmo_helpers/config.py",
