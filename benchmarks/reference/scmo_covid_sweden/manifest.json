@@ -1,0 +1,9 @@
+{
+  "case": "scmo_covid_sweden",
+  "title": "Sweden's light-touch NPIs vs Tian-Lee-Panchenko's COVID_analysis.R (Online Appendix B.3)",
+  "paper": "Tian, Wei, Seojeong Lee & Valentyn Panchenko (2026), \"Synthetic Control with Multiple Outcomes,\" Econometrics Journal; Online Appendix B.3 (Table B.3 and Figures B.4-B.13)",
+  "reference_impl": "Tian-Lee-Panchenko COVID_analysis.R (replication package, fn_W solve.QP, live run, plotting removed)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/scmo_covid_sweden/reference.R",
+  "data": ["benchmarks/reference/scmo_covid_sweden/covid_panel.csv"]
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-09-13T10:58:44Z",
+  "git_sha": "b62e35ae349bf11f02044e72f8f91ff782e83e26",
+  "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/scmo_covid_sweden/reference.R",
+  "data": [
+    {
+      "path": "benchmarks/reference/scmo_covid_sweden/covid_panel.csv",
+      "sha256": "505cae38fc0cca3db20c2906676506d301a334a484a8e00fb9ccfe8a494dbd87"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "compiler": "4.3.3"
+  }
+}
