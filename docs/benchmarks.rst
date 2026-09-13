@@ -146,6 +146,8 @@ Path A — empirical replications
      - Lee-Wooldridge Prop99 + castle
    * - ``sbc_germany``
      - SBC German reunification
+   * - ``scmo_covid_sweden``
+     - Tian et al. Online Appendix B.3: Sweden's light-touch NPIs, all 78 Table B.3 weights in three domains plus the effect magnitudes and the significance pattern of the permutation test
    * - ``scmo_germany``
      - Tian et al. West Germany balance, all 36 cells of Table 2 (both synthetic controls, both data columns) against a captured ``Germany.R`` run
    * - ``scpi_staggered``
@@ -269,6 +271,8 @@ Path B — Monte Carlo / simulation
      - Shi-Xi-Xie MSE ratios
    * - ``scmo_averaged_mc``
      - Sun averaged regime geometry
+   * - ``scmo_demeaned_mc``
+     - Tian et al. Online Appendix Table B.1, all 144 cells: demeaned matching and the size of the 10% permutation test as the treated unit moves into the donors' hull
    * - ``scmo_concatenated_mc``
      - Tian Table 1 / Sun Sim1, all 36 cells: fit, bias and SD for the conventional, five- and ten-outcome, and ridge-augmented SC
    * - ``seq_sdid_mc``

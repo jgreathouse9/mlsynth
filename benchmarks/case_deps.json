@@ -1912,6 +1912,23 @@
   "mlsynth/utils/scmo_helpers/solvers.py",
   "mlsynth/utils/scmo_helpers/structures.py"
  ],
+ "scmo_covid_sweden": [
+  "basedata/tlp_covid_sweden.parquet",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scmo.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/scmo_helpers/config.py",
+  "mlsynth/utils/scmo_helpers/estimation.py",
+  "mlsynth/utils/scmo_helpers/inference.py",
+  "mlsynth/utils/scmo_helpers/matrix_builder.py",
+  "mlsynth/utils/scmo_helpers/orchestration.py",
+  "mlsynth/utils/scmo_helpers/pcr_cv.py",
+  "mlsynth/utils/scmo_helpers/results_assembly.py",
+  "mlsynth/utils/scmo_helpers/setup.py",
+  "mlsynth/utils/scmo_helpers/solvers.py",
+  "mlsynth/utils/scmo_helpers/structures.py"
+ ],
  "scmo_germany": [
   "basedata/germany_augmented.csv",
   "mlsynth/config_models.py",

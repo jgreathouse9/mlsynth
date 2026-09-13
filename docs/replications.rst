@@ -285,6 +285,18 @@ Generalising the estimand, treatment, or unit
   pre-fit rising with the outcome count :math:`K` across
   :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
   ten-outcome bias further (durable: ``scmo_concatenated_mc``).
+  Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
+  light-touch NPIs -- all 78 cells of their Table B.3 donor weights across
+  the public-health, labour and economic domains, the effect magnitudes
+  reported in the text (COVID-19 cases :math:`-70\%`, deaths
+  :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,
+  retail :math:`-5` to :math:`-13\%`), and the significance pattern of
+  their permutation test (durable: ``scmo_covid_sweden``).
+  Path B (demeaned): TLP Online Appendix Table B.1 -- all 144 cells over
+  :math:`d \in \{1, 0.5, 0\}` and :math:`T_0 \in \{5, 10, 20\}`, with
+  demeaning improving the fit, the permutation test's size distorting as the
+  treated unit moves inside the donors' hull, and demeaning and more
+  outcomes pulling it back (durable: ``scmo_demeaned_mc``).
   Path B (averaged): Sun-Ben-Michael-Feller (2025) Appendix-D regime
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).

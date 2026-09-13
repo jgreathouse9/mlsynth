@@ -10,7 +10,7 @@ differ in their covariate processing (column names, scales, unit pool). They are
 not interchangeable; consolidating them would break the replication contract.
 
 This manifest maps each family to its files and primary consumers so the
-redundancy is navigable rather than confusing.
+redundancy is navigable, not confusing.
 
 Note on packaging: these files are **not shipped in the PyPI wheel** (they live
 at the repo root, not inside the `mlsynth` package). Load them from a checkout,
@@ -18,6 +18,21 @@ or via the raw GitHub URL the doc galleries use
 (`https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/...`).
 The larger tables are stored as Parquet (needs `pyarrow`); read with
 `pd.read_parquet`.
+
+## COVID-19 in Europe — Tian, Lee & Panchenko (2026), Online Appendix B.3
+
+| File | What it is | Used by |
+|---|---|---|
+| `tlp_covid_sweden.parquet` | 27 European countries x 639 days (2019-01-01 to 2020-09-30), twelve outcomes at four frequencies: daily COVID-19 cases and deaths, weekly all-cause deaths, monthly industrial production / retail / imports / exports / CPI, quarterly GDP / employment / absence from work / hours worked | SCMO Sweden NPI replication (`scmo_covid_sweden`) |
+
+The authors' own assembled panel, from `Data_COVID/data.csv` of their
+replication package (built by their `COVID_prep.R` from Our World in Data and
+Eurostat), cut to the twelve outcomes the three domains use and stored as
+Parquet. Values are per million population or index levels exactly as the
+authors prepared them; nothing is rescaled. Sweden is the treated unit, with
+the treatment dated 2020-03-28 for the public-health domain and 2020-02-15 for
+the labour and economic domains, so that only pre-treatment observations of
+each frequency enter the matching.
 
 ## Proposition 99 (California tobacco control) — Abadie, Diamond & Hainmueller (2010)
 
@@ -105,7 +120,7 @@ matches on the pre-launch sales and the seven covariates with `standardize=True`
 | `pa_aeps_generation.csv` | annual net generation in MWh by state and category, 1990–2023, for Pennsylvania plus the 42 donors surviving the paper's screens: three categories (`gas` = EIA Natural Gas + Other Gases; `fossil` = Coal + Petroleum; `renewables` = conventional hydro, wind, solar, geothermal, wood, other biomass, other, pumped storage), nuclear excluded | COMPSC Pennsylvania AEPS replication |
 
 Built from the EIA state historical table `annual_generation_state.xls` (Total
-Electric Power Industry). Raw megawatt hours are stored rather than shares, so
+Electric Power Industry). Raw megawatt hours are stored, not shares, so
 the file can be audited directly against the EIA source; COMPSC closes each row
 to the simplex on ingestion. The category assignment is not stated outright in
 the paper — it was recovered by matching its Table 1 balance row; see

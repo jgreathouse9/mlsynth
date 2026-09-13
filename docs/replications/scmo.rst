@@ -10,10 +10,11 @@ SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 
    Improve the Synthetic Control Method,"* Review of Economics and Statistics
    (the **averaged** variant).
 :Replication type: **Path A** — Tian et al.'s German-reunification balance
-   table reproduced cell by cell — **and Path B** — the concatenated simulation
-   (Tian Table 1, also the Sun et al. ``Simulation1.R`` output) and the averaged
-   regime contrast (Sun et al. Appendix D).
-:Status: **Verified** — empirical balance and both simulations reproduced.
+   table and their Sweden NPI application, both reproduced cell by cell — **and
+   Path B** — the concatenated simulation (Tian Table 1, also the Sun et al.
+   ``Simulation1.R`` output), the demeaned simulation (Tian Table B.1) and the
+   averaged regime contrast (Sun et al. Appendix D).
+:Status: **Verified** — both applications and all three simulations reproduced.
 
 Validation strategy
 -------------------
@@ -117,6 +118,84 @@ al. Figure 1), so no ATT number is asserted against the paper; mlsynth's
 deterministic ATTs (concatenated :math:`-1463`, averaged :math:`-1720`) ride
 along as regression guards. Durable case: ``scmo_germany``.
 
+Path A — Sweden's light-touch NPIs (Tian et al. Appendix B.3)
+--------------------------------------------------------------
+
+The paper's second application, and the one the method was built for. Sweden
+did not impose the strict non-pharmaceutical interventions its neighbours
+adopted in March 2020, so a synthetic Sweden built from countries that did
+estimates what those interventions would have done. There is no long
+pre-treatment series to match on — the pandemic is weeks old — so the synthetic
+control is matched on several outcomes at once, in three domains estimated
+separately: public health (COVID-19 cases, COVID-19 deaths, deaths from all
+causes), the labour market (employment, absence from work, hours worked), and
+the economy (GDP, imports, exports, industrial production, retail sales, CPI).
+
+The application exercises three things the appendix adds to the main text, all
+of which SCMO now carries: outcomes observed at four frequencies share one
+panel (daily cases matched alongside quarterly GDP), each outcome is matched
+after centering on its own pre-treatment mean (``demean=True``), and each
+outcome carries the same total weight in the objective however often it is
+observed (``metric_weighting="outcome"``). Inference is the permutation test on
+the post-to-pre-treatment RMSPE ratio (``inference="placebo"``), one-sided, with
+the guard :math:`\eta = 0.01\sigma_k`.
+
+mlsynth reproduces all 78 cells of the paper's Table B.3 — the synthetic
+control weights of 26 donors in each of the three domains — to within
+:math:`0.005`, against a table printed to two decimals. Sweden's public-health
+synthetic is the Netherlands :math:`0.31`, Denmark :math:`0.26`, Finland
+:math:`0.20`, Poland :math:`0.09`, Norway :math:`0.07`, France and Greece
+:math:`0.03`, Italy :math:`0.02`; its labour-market and economic synthetics
+reproduce cell for cell in the same way.
+
+The effect magnitudes the appendix reports in text come back with them:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 44 28 28
+
+   * - Quantity
+     - Tian et al.
+     - mlsynth
+   * - Cumulative COVID-19 cases by July, per million
+     - −5,300 (−70%)
+     - −5,347 (−70.1%)
+   * - Cumulative COVID-19 deaths by July, per million
+     - −390 (−68%)
+     - −389 (−68.2%)
+   * - Cumulative all-cause deaths since April, per million
+     - −364 (−11%)
+     - −368 (−11.6%)
+   * - Weekly all-cause deaths at the peak
+     - −20%
+     - −20.6%
+   * - Absence from work, 2020 Q2
+     - +76%
+     - +75.9%
+   * - Hours worked, 2020 Q2
+     - −12%
+     - −12.2%
+   * - Employment, 2020 Q2 and Q3
+     - no visible effect
+     - +0.3%, +0.7%
+   * - Retail sales, March to May
+     - −5% to −13%
+     - −6.6%, −13.4%, −5.0%
+   * - GDP, imports, exports, industry, CPI
+     - close to zero
+     - at most 6.1% in absolute value
+
+The significance pattern of Figure B.6 reproduces as well, at the paper's own
+threshold :math:`\alpha = 3/(J+1)` (the treated unit among the three largest
+RMSPE ratios): cases and deaths significant from May, deaths from all causes
+from April to June, absence from work and hours worked in the second quarter,
+employment never, retail sales in March alone, and no other economic outcome at
+any point. One divergence: COVID-19 deaths reach the threshold here in April
+too, a month before the paper's figure reads, on a rank-three tie. The
+aggregate treatment effects and aggregate p-values (Figures B.5 and B.7) carry
+their numbers inside the plots, so nothing is asserted against them. Durable
+case: ``scmo_covid_sweden``.
+
 Path B — concatenated simulation (Tian et al. Table 1)
 ------------------------------------------------------
 
@@ -146,6 +225,36 @@ lowers the ten-outcome SC's bias at all three :math:`T_0` (by
 the pre-treatment fit above the single-outcome floor. The DGP lives in
 :func:`mlsynth.utils.scmo_helpers.simulation.simulate_tian`. Durable case:
 ``scmo_concatenated_mc``.
+
+Path B — demeaned simulation (Tian et al. Table B.1)
+----------------------------------------------------
+
+The Online Appendix repeats the Monte Carlo under a DGP where matching on
+levels fails: each outcome carries a large mean of its own, and a parameter
+:math:`d` places the treated unit, which at :math:`d = 1` is as likely as a
+donor to take an extreme predictor value and so to fall outside the donors'
+convex hull. Four estimators — one outcome in levels, one demeaned, and three
+and ten demeaned outcomes — are compared over :math:`d \in \{1, 0.5, 0\}` and
+:math:`T_0 \in \{5, 10, 20\}`, on four statistics: pre-treatment fit, average
+absolute bias, the standard deviation of the gap, and the rejection rate of the
+10% permutation test. Under the null DGP that last column is the test's size,
+and anything above :math:`0.10` is size distortion.
+
+mlsynth reproduces all 144 cells at :math:`M = 100` draws (the paper uses
+5,000), and the appendix's three readings of them hold exactly:
+
+1. demeaning improves the pre-treatment fit in all nine settings, and lowers the
+   bias at :math:`d = 1`, where the treated unit is as extreme as the donors;
+2. the test holds its nominal size at :math:`d = 1`, and distorts as :math:`d`
+   falls — the treated unit fits its donors better, its pre-treatment RMSPE
+   shrinks and its ratio grows — while demeaning and more outcomes pull the size
+   back toward 10%;
+3. more pre-treatment periods reduce the distortion too.
+
+The DGP lives in
+:func:`mlsynth.utils.scmo_helpers.simulation.simulate_tian_demeaned` and the
+test in :func:`mlsynth.utils.scmo_helpers.inference.permutation_inference`.
+Durable case: ``scmo_demeaned_mc``.
 
 Path B — averaged regime contrast (Sun et al. Appendix D)
 ---------------------------------------------------------
