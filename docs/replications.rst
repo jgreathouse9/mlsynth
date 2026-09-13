@@ -286,12 +286,14 @@ Generalising the estimand, treatment, or unit
   :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
   ten-outcome bias further (durable: ``scmo_concatenated_mc``).
   Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
-  light-touch NPIs -- all 76 cells of their Table B.3 donor weights across
-  the public-health, labour and economic domains, the effect magnitudes
-  reported in the text (COVID-19 cases :math:`-70\%`, deaths
+  light-touch NPIs, cross-validated against a captured run of their own
+  ``COVID_analysis.R`` -- all 76 cells of their Table B.3 donor weights, the
+  446 per-period permutation p-values across twelve outcomes, the aggregate
+  index and its p-values (Figures B.5 and B.7, which the paper prints only
+  inside the plots), and four robustness variants, together with the effect
+  magnitudes the text reports (COVID-19 cases :math:`-70\%`, deaths
   :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,
-  retail :math:`-5` to :math:`-13\%`), and the significance pattern of
-  their permutation test (durable: ``scmo_covid_sweden``).
+  retail :math:`-5` to :math:`-13\%`) (durable: ``scmo_covid_sweden``).
   Path B (demeaned): TLP Online Appendix Table B.1 -- all 144 cells over
   :math:`d \in \{1, 0.5, 0\}` and :math:`T_0 \in \{5, 10, 20\}`, with
   demeaning improving the fit, the permutation test's size distorting as the

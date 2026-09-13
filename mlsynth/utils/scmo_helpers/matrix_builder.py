@@ -30,7 +30,8 @@ no within-block mean and is passed through untouched.
 
 Each resulting column is standardized by its cross-unit SD
 (Tian-Lee-Panchenko footnote 5); columns that are not complete across all units
-are dropped (``complete.cases``).
+are dropped (``complete.cases``), as are columns every unit shares once the
+matrix is centered, which carry nothing to match on.
 """
 
 from __future__ import annotations
@@ -163,6 +164,19 @@ def build_matching_matrix(
 
     if demean:
         Z_raw = _demean_blocks(Z_raw, col_var)
+
+    # Then drop what no unit is distinguished by, judged on the matrix as it
+    # will be matched on: a column identical across units contributes the same
+    # constant to every donor's distance. Centering comes first, so a column
+    # that is flat in levels but separates units once its block is centered
+    # stays -- which is what the paper's published weights are computed from.
+    keep = np.full(Z_raw.shape[1], True)
+    if Z_raw.shape[0] > 1:
+        with np.errstate(invalid="ignore"):
+            keep = np.nan_to_num(Z_raw.std(axis=0, ddof=1), nan=1.0) > 0
+    Z_raw = Z_raw[:, keep]
+    labels = [l for l, k in zip(labels, keep) if k]
+    col_period = col_period[keep]
 
     # standardize each column by its cross-unit SD (no centering)
     sd = Z_raw.std(axis=0, ddof=1)

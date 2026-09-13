@@ -51,7 +51,7 @@ class SCMO:
         Validated configuration. Beyond the common fields (``df``, ``outcome``,
         ``treat``, ``unitid``, ``time``, ``display_graphs``, ``save``, colors),
         SCMO reads ``spec`` (matching specification), ``schemes`` /
-        ``method``, ``demean``, ``metric_weighting``, ``inference``
+        ``method``, ``demean``, ``donors``, ``metric_weighting``, ``inference``
         (``"conformal"`` or
         ``"placebo"``, with ``placebo_eta`` / ``placebo_alternative``),
         ``addout``,
@@ -105,7 +105,7 @@ class SCMO:
         inputs = prepare_scmo_inputs(
             self.df, unitid=self.unitid, time=self.time, outcome=self.outcome,
             spec=spec, treated_unit=treated_unit, intervention_time=intervention_time,
-            demean=self.config.demean,
+            demean=self.config.demean, donors=self.config.donors,
         )
 
         schemes = resolve_schemes(self.config.schemes, self.config.method)

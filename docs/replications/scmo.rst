@@ -131,25 +131,51 @@ separately: public health (COVID-19 cases, COVID-19 deaths, deaths from all
 causes), the labour market (employment, absence from work, hours worked), and
 the economy (GDP, imports, exports, industrial production, retail sales, CPI).
 
-The application exercises three things the appendix adds to the main text, all
-of which SCMO now carries: outcomes observed at four frequencies share one
-panel (daily cases matched alongside quarterly GDP), each outcome is matched
-after centering on its own pre-treatment mean (``demean=True``), and each
-outcome carries the same total weight in the objective however often it is
-observed (``metric_weighting="outcome"``). Inference is the permutation test on
-the post-to-pre-treatment RMSPE ratio (``inference="placebo"``), one-sided, with
-the guard :math:`\eta = 0.01\sigma_k`.
+The application exercises everything the appendix adds to the main text:
+outcomes observed at four frequencies share one panel (daily cases matched
+alongside quarterly GDP), each outcome is matched after centering on its own
+pre-treatment mean (``demean=True``), each outcome carries the same total
+weight however often it is observed (``metric_weighting="outcome"``), inference
+is the permutation test on the post-to-pre-treatment RMSPE ratio
+(``inference="placebo"``, one-sided, with the guard :math:`\eta = 0.01\sigma_k`),
+and the domain is summarized by the Kling index and its own permutation test.
 
-mlsynth reproduces all 76 cells of the paper's Table B.3 — the synthetic
-control weights of the donors in each of the three domains, 25 of them in the
-public-health and labour domains and 26 in the economic one — to within
-:math:`0.005`, against a table printed to two decimals. Sweden's public-health
-synthetic is the Netherlands :math:`0.31`, Denmark :math:`0.26`, Finland
-:math:`0.20`, Poland :math:`0.09`, Norway :math:`0.07`, France and Greece
-:math:`0.03`, Italy :math:`0.02`; its labour-market and economic synthetics
-reproduce cell for cell in the same way.
+Most of the appendix is reported through figures, so the reference is a live
+captured run of the authors' own ``COVID_analysis.R`` with the plotting removed
+and the objects the plots were drawn from printed instead
+(``benchmarks/reference/scmo_covid_sweden/``, 1,687 values, re-runnable and
+byte-identical). Against it, mlsynth agrees to far inside the printed
+precision:
 
-The effect magnitudes the appendix reports in text come back with them:
+.. list-table::
+   :header-rows: 1
+   :widths: 46 30 24
+
+   * - Quantity
+     - How many
+     - Largest disagreement
+   * - Donor weights (Table B.3)
+     - 76 cells, 3 domains
+     - :math:`5 \times 10^{-5}`
+   * - Per-period permutation p-values
+     - 446, across 12 outcomes
+     - :math:`5 \times 10^{-7}`
+   * - Aggregate index (Figure B.5)
+     - 33 windows, 3 domains
+     - :math:`5 \times 10^{-7}`
+   * - Aggregate p-values (Figure B.7)
+     - 33 windows
+     - 30 of 33 identical
+   * - Robustness variants (Figures B.9–B.11, B.13)
+     - 4 variants, 12 outcomes
+     - :math:`7 \times 10^{-7}` relative
+
+The printed Table B.3 is pinned alongside, cell by cell at its own two
+decimals: Sweden's public-health synthetic is the Netherlands :math:`0.31`,
+Denmark :math:`0.26`, Finland :math:`0.20`, Poland :math:`0.09`, Norway
+:math:`0.07`, France and Greece :math:`0.03`, Italy :math:`0.02`, and the other
+two domains reproduce the same way. So do the effect magnitudes the text
+reports, at the dates their script prints them:
 
 .. list-table::
    :header-rows: 1
@@ -160,42 +186,51 @@ The effect magnitudes the appendix reports in text come back with them:
      - mlsynth
    * - Cumulative COVID-19 cases by July, per million
      - −5,300 (−70%)
-     - −5,347 (−70.1%)
+     - −5,279.8 (−70.29%)
    * - Cumulative COVID-19 deaths by July, per million
      - −390 (−68%)
-     - −389 (−68.2%)
+     - −388.1 (−68.11%)
    * - Cumulative all-cause deaths since April, per million
      - −364 (−11%)
-     - −368 (−11.6%)
-   * - Weekly all-cause deaths at the peak
-     - −20%
-     - −20.6%
+     - −363.7
    * - Absence from work, 2020 Q2
      - +76%
-     - +75.9%
+     - +75.89%
    * - Hours worked, 2020 Q2
      - −12%
-     - −12.2%
-   * - Employment, 2020 Q2 and Q3
-     - no visible effect
-     - +0.3%, +0.7%
+     - −12.24%
    * - Retail sales, March to May
      - −5% to −13%
-     - −6.6%, −13.4%, −5.0%
-   * - GDP, imports, exports, industry, CPI
-     - close to zero
-     - at most 6.1% in absolute value
+     - −6.64%, −13.39%, −5.05%
 
-The significance pattern of Figure B.6 reproduces as well, at the paper's own
-threshold :math:`\alpha = 3/(J+1)` (the treated unit among the three largest
-RMSPE ratios): cases and deaths significant from May, deaths from all causes
-from April to June, absence from work and hours worked in the second quarter,
-employment never, retail sales in March alone, and no other economic outcome at
-any point. One divergence: COVID-19 deaths reach the threshold here in April
-too, a month before the paper's figure reads, on a rank-three tie. The
-aggregate treatment effects and aggregate p-values (Figures B.5 and B.7) carry
-their numbers inside the plots, so nothing is asserted against them. Durable
-case: ``scmo_covid_sweden``.
+The aggregate index, which the paper prints only inside its figures, comes out
+at :math:`1.10` for public health, :math:`0.45` for the labour market and
+:math:`0.07` for the economy, with permutation p-values of :math:`0.077`,
+:math:`0.077` and :math:`0.519`. The public-health path rises from
+:math:`-0.04` in late March to :math:`1.38` by the end of June and then
+flattens, which is the appendix's reading of Figure B.5; the labour market is
+significant in the second quarter alone and the economy in the first, which is
+its reading of Figure B.7.
+
+Two divergences are recorded, both established against the authors' script:
+
+1. COVID-19 deaths reach the significance threshold in April. Their own run
+   puts that series at exactly :math:`\alpha = 3/26` from 25 April and never
+   below it, so the text's "significant from May" is a reading of where the
+   figure's dotted line falls. mlsynth agrees with the script, not the reading.
+2. Three of the 33 window p-values differ. Footnote 14 puts the guard
+   :math:`\eta` on both sides of the ratio and mlsynth does that everywhere;
+   their script does it for the per-outcome and overall tests but leaves
+   :math:`\eta` off the numerator when aggregating inside a window. All three
+   are windows whose aggregate index is about zero, where the guard reorders the
+   bottom of the ranking.
+
+One variant is computed but not pinned: single-outcome matching (Figure B.12).
+Their script filters constant columns before centering there and after
+centering everywhere else, and with three or four pre-treatment columns against
+twenty-five donors the program has many optimal weight vectors, so the two
+solvers land on different ones without either being wrong. Durable case:
+``scmo_covid_sweden``.
 
 Path B — concatenated simulation (Tian et al. Table 1)
 ------------------------------------------------------

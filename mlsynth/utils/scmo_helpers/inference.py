@@ -170,26 +170,29 @@ def permutation_inference(
 
     col_scale = col_scale_for(inputs, scheme, weights, metric_weights,
                               metric_weighting)
-    N, T0, T = inputs.Y.shape[0], inputs.T0, inputs.T
+    # The universe is the treated unit and its donor pool: with a restricted
+    # pool the placebos are the units that could have been matched on.
+    universe = np.union1d(inputs.donor_idx, [inputs.treated_idx])
+    N, T0, T = universe.shape[0], inputs.T0, inputs.T
     n_post = T - T0
     pre = np.empty(N)
     post = np.empty(N)
     post_gaps = np.empty((N, n_post))
     per_period_ratios = np.empty((N, n_post))
-    for i in range(N):
-        donors = np.delete(np.arange(N), i)
+    for slot, i in enumerate(universe):
+        donors = np.array([u for u in universe if u != i], dtype=int)
         pre_rmse, gap = fit_placebo(
             inputs, i, donors, scheme, demean, augment, ridge_lambda,
             weights, pcr_rank, pcr_cumvar, col_scale)
-        post_gaps[i] = gap[T0:]                 # signed, for the aggregate index
+        post_gaps[slot] = gap[T0:]              # signed, for the aggregate index
         post_gap = _directional(gap[T0:], alternative)
-        pre[i] = pre_rmse
-        post[i] = float(np.sqrt(np.mean(post_gap ** 2))) if n_post else 0.0
+        pre[slot] = pre_rmse
+        post[slot] = float(np.sqrt(np.mean(post_gap ** 2))) if n_post else 0.0
         for t in range(n_post):
-            per_period_ratios[i, t] = rmspe_ratio(abs(post_gap[t]), pre[i], eta)
+            per_period_ratios[slot, t] = rmspe_ratio(abs(post_gap[t]), pre[slot], eta)
 
     ratios = np.array([rmspe_ratio(post[i], pre[i], eta) for i in range(N)])
-    treated = inputs.treated_idx
+    treated = int(np.searchsorted(universe, inputs.treated_idx))
     p_value = float(np.mean(ratios >= ratios[treated]))
     per_period_p = np.array([
         float(np.mean(per_period_ratios[:, t] >= per_period_ratios[treated, t]))

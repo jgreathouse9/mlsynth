@@ -1918,6 +1918,7 @@
   "mlsynth/estimators/scmo.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/scmo_helpers/aggregate.py",
   "mlsynth/utils/scmo_helpers/config.py",
   "mlsynth/utils/scmo_helpers/estimation.py",
   "mlsynth/utils/scmo_helpers/inference.py",

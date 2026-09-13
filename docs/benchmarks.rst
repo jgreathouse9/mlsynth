@@ -147,7 +147,7 @@ Path A — empirical replications
    * - ``sbc_germany``
      - SBC German reunification
    * - ``scmo_covid_sweden``
-     - Tian et al. Online Appendix B.3: Sweden's light-touch NPIs, all 76 Table B.3 weights in three domains plus the effect magnitudes and the significance pattern of the permutation test
+     - Tian et al. Online Appendix B.3: Sweden's light-touch NPIs against a captured run of their own COVID_analysis.R -- 76 Table B.3 weights, 446 per-period p-values, the aggregate index and p-values of Figures B.5 and B.7, and four robustness variants, plus the effect magnitudes the text reports
    * - ``scmo_germany``
      - Tian et al. West Germany balance, all 36 cells of Table 2 (both synthetic controls, both data columns) against a captured ``Germany.R`` run
    * - ``scpi_staggered``

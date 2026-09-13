@@ -41,6 +41,10 @@ class SCMOConfig(BaseEstimatorConfig):
         default=False,
         description="Intercept-shift the counterfactual (Doudchenko-Imbens / Sun-Ben-Michael-Feller level adjustment).",
     )
+    donors: Optional[List[Any]] = Field(
+        default=None,
+        description="Units allowed to carry weight, by their unit-id label. None (default) uses every unit but the treated one. The matching matrix is still built and standardized on the whole panel, so leave-one-out refits stay comparable to the full fit.",
+    )
     metric_weighting: Literal["column", "outcome"] = Field(
         default="column",
         description="Diagonal metric on the matching imbalance for the concatenated scheme. 'column' (default) weights every matching column equally; 'outcome' gives each outcome the same total weight, split over the periods it is observed in (Tian-Lee-Panchenko Online Appendix B.3.2), which is what keeps a daily series from outvoting a quarterly one.",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -23,6 +23,7 @@ def prepare_scmo_inputs(
     treated_unit: Any,
     intervention_time: Any,
     demean: bool = False,
+    donors: Optional[Sequence[Any]] = None,
 ) -> SCMOInputs:
     """Pivot the panel to NumPy, build ``IndexSet``\\ s and the matching matrix.
 
@@ -42,6 +43,11 @@ def prepare_scmo_inputs(
     demean : bool, default False
         Center each variable's stacked matching columns on the unit's own block
         mean before standardizing (Tian-Lee-Panchenko Online Appendix B.1.1).
+    donors : sequence, optional
+        Units allowed to carry weight. Default: every unit but the treated one.
+        The restriction is a choice set, not a change of the data -- the
+        matching matrix is still built and standardized on every unit -- which
+        is what makes leave-one-out refits comparable to the full fit.
 
     Returns
     -------
@@ -85,7 +91,7 @@ def prepare_scmo_inputs(
     )
 
     treated_idx = int(unit_index.get_index([treated_unit])[0])
-    donor_idx = np.array([i for i in range(len(unit_index)) if i != treated_idx], dtype=int)
+    donor_idx = _donor_index(unit_index, treated_idx, donors)
 
     return SCMOInputs(
         unit_index=unit_index,
@@ -101,3 +107,24 @@ def prepare_scmo_inputs(
                   "intervention_time": intervention_time, "demean": demean,
                   "dropped_outcome_periods": dropped},
     )
+
+
+def _donor_index(unit_index: IndexSet, treated_idx: int,
+                 donors: Optional[Sequence[Any]]) -> np.ndarray:
+    """Row indices of the units allowed to carry weight."""
+    if donors is None:
+        return np.array([i for i in range(len(unit_index)) if i != treated_idx],
+                        dtype=int)
+    labels = list(unit_index.labels)
+    treated = labels[treated_idx]
+    chosen = list(donors)
+    if not chosen:
+        raise MlsynthDataError("donors must name at least one donor unit.")
+    unknown = [d for d in chosen if d not in labels]
+    if unknown:
+        raise MlsynthDataError(f"donors names units absent from the panel: {unknown}.")
+    if treated in chosen:
+        raise MlsynthDataError(
+            f"donors names the treated unit {treated!r}; a unit cannot be its own donor.")
+    keep = set(chosen)
+    return np.array([i for i, label in enumerate(labels) if label in keep], dtype=int)

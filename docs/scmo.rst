@@ -344,6 +344,17 @@ outcome the statistic reduces to :math:`|\text{gap}_t|`.
 exchangeability, applies identically to the concatenated and averaged fits, and
 needs no refitting, so it serves both schemes and returns an interval.
 
+Restricting the donor pool
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``donors`` names the units allowed to carry weight, by their unit-id label;
+the default is every unit but the treated one. The restriction is a choice set,
+not a change of the data — the matching matrix is still built and standardized
+on the whole panel — which is what makes a leave-one-out refit comparable to
+the full fit. Dropping the unit from the panel instead would rescale every
+column by a different cross-unit SD, changing the objective instead of the
+choice set. A placebo unit draws from the same restricted universe.
+
 The permutation test
 ~~~~~~~~~~~~~~~~~~~~
 

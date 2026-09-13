@@ -248,3 +248,68 @@ def test_two_outcomes_on_one_panel_share_their_weights(panel):
     dense = SCMO({**cfg, "outcome": "y2"}).fit()._primary
     np.testing.assert_allclose(sparse.weights, dense.weights, atol=1e-6)
     assert sparse.counterfactual.shape != dense.counterfactual.shape
+
+
+# --- columns that carry no cross-unit information --------------------------
+
+def _flatten(panel: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Give every unit the same value of ``y1`` in one period."""
+    out = panel.copy()
+    out.loc[out["time"] == year, "y1"] = 5.0
+    return out
+
+
+def test_a_column_every_unit_shares_is_dropped_from_a_levels_matrix(panel):
+    """Matched in levels it distinguishes no two units: it adds the same
+    constant to every donor's distance, so it cannot inform the weights."""
+    Z, labels, col_period = _build(_flatten(panel, 1962), SPEC, demean=False)
+    assert "a@1962" not in labels
+    assert "b@1962" in labels                      # the other outcome still varies
+    assert Z.shape[1] == len(labels) == len(col_period)
+
+
+def test_dropping_it_leaves_a_levels_fit_alone(panel):
+    """Which is why the drop is a no-op in levels: same weights either way."""
+    flat = _flatten(panel, 1962)
+    cfg = {"df": flat, "outcome": "y1", "treat": "treat", "unitid": "unit",
+           "time": "time", "schemes": [CONCATENATED], "display_graphs": False}
+    with_flat = SCMO({**cfg, "spec": {"year": PRE_YEARS, "vars": {"a": "y1"}}})
+    without = SCMO({**cfg, "spec": {"year": [1960, 1961, 1963, 1964],
+                                    "vars": {"a": "y1"}}})
+    np.testing.assert_allclose(with_flat.fit()._primary.weights,
+                               without.fit()._primary.weights, atol=1e-6)
+
+
+def test_the_same_column_survives_a_demeaned_matrix(panel):
+    """Centering happens first, and it separates the units that shared the
+    value: each is centered on its own block mean. The column is then matched
+    on, which is what Tian-Lee-Panchenko's published weights are computed
+    from -- their script demeans the domain's matrix before testing which
+    columns are constant.
+    """
+    Z, labels, _cp = _build(_flatten(panel, 1962), SPEC, demean=True)
+    assert "a@1962" in labels
+    column = Z[:, labels.index("a@1962")]
+    assert column.std(ddof=1) > 0
+
+
+def test_a_column_constant_after_centering_is_dropped(panel):
+    """The test is on the matrix as it will be matched on: a variable whose
+    block is the same for every unit has nothing left after centering."""
+    same = panel.copy()
+    for year in PRE_YEARS:
+        same.loc[same["time"] == year, "y1"] = float(year)     # identical per unit
+    _Z, labels, _cp = _build(same, SPEC, demean=True)
+    assert not [l for l in labels if str(l).startswith("a@")]
+    assert [l for l in labels if str(l).startswith("b@")]
+
+
+def test_the_outcome_weight_counts_the_columns_that_survive(panel):
+    """The equal-weight-per-outcome metric divides by the columns an outcome
+    contributes, so it must count what the drop leaves."""
+    from mlsynth.utils.scmo_helpers.estimation import outcome_column_scale
+    _Z, labels, _cp = _build(_flatten(panel, 1962), SPEC, demean=False)
+    scale = outcome_column_scale(labels)
+    a = [s for s, l in zip(scale, labels) if str(l).startswith("a@")]
+    assert len(a) == 4
+    np.testing.assert_allclose(a, np.sqrt(1 / 4))
