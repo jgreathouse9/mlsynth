@@ -22,6 +22,7 @@ def prepare_scmo_inputs(
     spec: Dict[str, Any],
     treated_unit: Any,
     intervention_time: Any,
+    demean: bool = False,
 ) -> SCMOInputs:
     """Pivot the panel to NumPy, build ``IndexSet``\\ s and the matching matrix.
 
@@ -38,11 +39,17 @@ def prepare_scmo_inputs(
         Label of the treated unit.
     intervention_time : Any
         First treated period; pre-period is ``time < intervention_time``.
+    demean : bool, default False
+        Center each variable's stacked matching columns on the unit's own block
+        mean before standardizing (Tian-Lee-Panchenko Online Appendix B.1.1).
 
     Returns
     -------
     SCMOInputs
-        Pure-NumPy container for the estimation engine.
+        Pure-NumPy container for the estimation engine. Its ``time_index`` and
+        ``Y`` cover the periods the outcome is observed in, which can be a
+        subset of the periods the matching matrix spans; ``metadata`` records
+        the rest under ``dropped_outcome_periods``.
     """
     units = list(pd.unique(df[unitid]))
     if treated_unit not in units:
@@ -50,19 +57,31 @@ def prepare_scmo_inputs(
     unit_index = IndexSet.from_labels(units)
 
     times = np.sort(pd.unique(df[time]))
-    time_index = IndexSet.from_labels(times)
 
     Ywide = df.pivot(index=unitid, columns=time, values=outcome).reindex(unit_index.labels)[times]
+    # A period no unit observes the outcome in carries nothing for the outcome
+    # panel, and is dropped from it: the matching matrix keeps every period, so
+    # outcomes observed at different frequencies share one panel (the COVID
+    # application of Tian-Lee-Panchenko, where a daily series is matched
+    # alongside a quarterly one). A period only *some* units are missing is a
+    # broken panel, and still raises below.
+    unobserved = Ywide.isna().all(axis=0).to_numpy()
+    dropped = [t for t, gone in zip(times, unobserved) if gone]
+    if dropped:
+        Ywide = Ywide.loc[:, ~unobserved]
+        times = times[~unobserved]
     if Ywide.isna().any().any():
         raise MlsynthDataError("SCMO requires a complete outcome panel after pivoting.")
     Y = Ywide.to_numpy(dtype=float)
+    time_index = IndexSet.from_labels(times)
 
     T0 = int(np.sum(times < intervention_time))
     if T0 < 1:
         raise MlsynthDataError("No pre-treatment periods (check intervention_time).")
 
     Z, predictor_labels, col_period = build_matching_matrix(
-        df, unitid=unitid, time=time, spec=spec, unit_index=unit_index
+        df, unitid=unitid, time=time, spec=spec, unit_index=unit_index,
+        demean=demean,
     )
 
     treated_idx = int(unit_index.get_index([treated_unit])[0])
@@ -78,5 +97,7 @@ def prepare_scmo_inputs(
         Z=Z,
         predictor_labels=predictor_labels,
         col_period=col_period,
-        metadata={"spec": spec, "outcome": outcome, "intervention_time": intervention_time},
+        metadata={"spec": spec, "outcome": outcome,
+                  "intervention_time": intervention_time, "demean": demean,
+                  "dropped_outcome_periods": dropped},
     )

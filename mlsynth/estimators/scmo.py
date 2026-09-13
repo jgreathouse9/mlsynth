@@ -3,8 +3,8 @@
 A thin, NumPy-first orchestration over :mod:`mlsynth.utils.scmo_helpers`.
 SCMO builds the synthetic control by matching the treated unit to donors on a
 **matching matrix** assembled from one or more related outcomes/predictors
-(optionally across several pre-treatment periods), rather than a single
-outcome's long trajectory. Two weighting schemes from the literature are
+(optionally across several pre-treatment periods), not a single outcome's
+long trajectory. Two weighting schemes from the literature are
 supported, plus a model-average and the conventional baseline:
 
 * ``concatenated`` -- Tian, Lee & Panchenko (2024): stack the standardized
@@ -16,8 +16,9 @@ supported, plus a model-average and the conventional baseline:
 
 Matching is configured by a ``spec`` (``{"year": int|list, "vars": {...}}``);
 when omitted it is built by stacking the primary outcome and ``addout`` over
-the pre-treatment period. Inference defaults to the Abadie permutation
-(placebo) test; conformal intervals are available via ``inference="conformal"``.
+the pre-treatment period. Inference defaults to the CWZ conformal test, which
+also yields the ATT interval; Abadie's permutation test is available via
+``inference="placebo"``.
 """
 
 from __future__ import annotations
@@ -50,7 +51,10 @@ class SCMO:
         Validated configuration. Beyond the common fields (``df``, ``outcome``,
         ``treat``, ``unitid``, ``time``, ``display_graphs``, ``save``, colors),
         SCMO reads ``spec`` (matching specification), ``schemes`` /
-        ``method``, ``demean``, ``inference``, ``addout``,
+        ``method``, ``demean``, ``metric_weighting``, ``inference``
+        (``"conformal"`` or
+        ``"placebo"``, with ``placebo_eta`` / ``placebo_alternative``),
+        ``addout``,
         ``conformal_alpha``, and ``weights`` (``"simplex"`` convex SC weights,
         the default, or ``"pcr"`` for denoised principal-component-regression
         weights with rank set by ``pcr_rank`` / ``pcr_cumvar``).
@@ -101,6 +105,7 @@ class SCMO:
         inputs = prepare_scmo_inputs(
             self.df, unitid=self.unitid, time=self.time, outcome=self.outcome,
             spec=spec, treated_unit=treated_unit, intervention_time=intervention_time,
+            demean=self.config.demean,
         )
 
         schemes = resolve_schemes(self.config.schemes, self.config.method)
@@ -118,6 +123,10 @@ class SCMO:
             pcr_cv_grid=self.config.pcr_cv_grid,
             pcr_cv_horizon=self.config.pcr_cv_horizon,
             pcr_cv_min_train=self.config.pcr_cv_min_train,
+            metric_weighting=self.config.metric_weighting,
+            inference=self.config.inference,
+            placebo_eta=self.config.placebo_eta,
+            placebo_alternative=self.config.placebo_alternative,
         )
         results = assemble_scmo_results(
             inputs, fits, selected_variant=schemes[0] if schemes else CONCATENATED

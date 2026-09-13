@@ -41,6 +41,23 @@ class SCMOConfig(BaseEstimatorConfig):
         default=False,
         description="Intercept-shift the counterfactual (Doudchenko-Imbens / Sun-Ben-Michael-Feller level adjustment).",
     )
+    metric_weighting: Literal["column", "outcome"] = Field(
+        default="column",
+        description="Diagonal metric on the matching imbalance for the concatenated scheme. 'column' (default) weights every matching column equally; 'outcome' gives each outcome the same total weight, split over the periods it is observed in (Tian-Lee-Panchenko Online Appendix B.3.2), which is what keeps a daily series from outvoting a quarterly one.",
+    )
+    inference: Literal["conformal", "placebo"] = Field(
+        default="conformal",
+        description="Inference procedure. 'conformal' (default) is the CWZ conformal test, which also yields the ATT interval; 'placebo' is Abadie's permutation test on the post-to-pre-treatment RMSPE ratio (Tian-Lee-Panchenko Online Appendix B.3.3), which reports a rank and no interval.",
+    )
+    placebo_eta: float = Field(
+        default=0.0,
+        description="Guard added to both RMSPEs in the placebo ratio, keeping a near-zero pre-treatment fit from taking an arbitrarily large ratio (the paper uses 0.01 times the outcome's cross-sectional SD). Only used with inference='placebo'.",
+        ge=0,
+    )
+    placebo_alternative: Literal["two-sided", "greater", "less"] = Field(
+        default="two-sided",
+        description="Which part of the gap (observed minus counterfactual) the placebo statistic keeps. 'greater' is the papers' one-sided test for a negative treatment effect, since they write the effect as counterfactual minus observed. Only used with inference='placebo'.",
+    )
     conformal_q: float = Field(
         default=1.0,
         description="Norm exponent q of the CWZ conformal test statistic S_q (1 = average effect; larger targets sparse/large effects across outcomes).",

@@ -307,9 +307,13 @@ averaged weights in their Online Appendix A.
 Inference
 ---------
 
-``mlsynth`` uses a single inference procedure for every weighting scheme:
-the conformal test of Chernozhukov, Wuethrich and Zhu [CWZ2021]_, in the
-multiple-outcome form of Sun-Ben-Michael-Feller (Online Appendix A). Under the
+``mlsynth`` offers two inference procedures, either of which serves every
+weighting scheme. The default, ``inference="conformal"``, is the conformal test
+of Chernozhukov, Wuethrich and Zhu [CWZ2021]_, in the multiple-outcome form of
+Sun-Ben-Michael-Feller (Online Appendix A); it is the one that inverts to a
+confidence interval. The alternative, ``inference="placebo"``, is the
+permutation test Tian-Lee-Panchenko report p-values from, described after it.
+Under the
 sharp null :math:`H_0: \tau = \tau_0`, form the adjusted residuals
 :math:`\widehat{u}_{tk}` (the gap, with the post-period shifted by
 :math:`\tau_0`) and the per-period statistic
@@ -336,10 +340,34 @@ information, the SC weights do not depend on the post-period outcome, so
 the test inversion is essentially free (no refitting). With a single predicted
 outcome the statistic reduces to :math:`|\text{gap}_t|`.
 
-*Why this replaces placebo/permutation.* The conformal test is exact-in-finite-
-sample under exchangeability and applies identically to the concatenated and
-averaged fits, so SCMO does not need the Abadie permutation test or a separate
-agnostic-conformal path -- one method serves both schemes.
+*Why it is the default.* The conformal test is exact-in-finite-sample under
+exchangeability, applies identically to the concatenated and averaged fits, and
+needs no refitting, so it serves both schemes and returns an interval.
+
+The permutation test
+~~~~~~~~~~~~~~~~~~~~
+
+``inference="placebo"`` runs Abadie's permutation test, which is what
+Tian-Lee-Panchenko report (Online Appendix B.3.3). Every unit in turn is put in
+the treated seat and the scheme is refit on the remaining donors, giving each
+unit a post-to-pre-treatment RMSPE ratio
+
+.. math::
+
+   r_i = \frac{R^{\text{post}}_i + \eta}{R^{\text{pre}}_i + \eta},
+   \qquad
+   \widehat{p} = \frac{1}{N} \sum_{i} \mathbf{1}\{ r_i \ge r_1 \},
+
+so the p-value is the treated unit's rank. The guard :math:`\eta`
+(``placebo_eta``, the paper's :math:`0.01\sigma_k`) keeps a unit whose
+pre-treatment RMSPE is near zero from taking an arbitrarily large ratio.
+``placebo_alternative`` selects which part of the gap the statistic keeps:
+``"two-sided"`` is :math:`|\text{gap}|`, while ``"greater"`` and ``"less"``
+keep one side, for a one-sided alternative. The result carries the whole
+placebo distribution -- every unit's ratio, and the p-value in each
+post-treatment period -- on ``res.fits[scheme].placebo``. The test ranks; it
+does not invert to an interval, so ``ci`` is empty under it. The model average
+has no single scheme to permute and keeps the conformal test.
 
 When to Use Concatenated vs Averaged
 ------------------------------------
@@ -430,8 +458,11 @@ and adds one of its own:
   standardisation. Concatenation puts every period of every
   outcome into a single objective; an outcome measured in millions
   will dominate one measured in proportions unless you demean and
-  scale. Use ``demean=True`` (the default) and consider
-  pre-standardising.
+  scale. The columns are standardised by their cross-unit SD either way; set
+  ``demean=True`` to center each outcome on the unit's own pre-treatment mean
+  as well, and ``metric_weighting="outcome"`` when the outcomes are observed at
+  different frequencies, so a daily series does not outvote a quarterly one by
+  contributing more columns.
 * Long, clean pre-period for a single primary outcome. If you
   have, say, 30 years of stable annual GDP, single-outcome SC has
   enough information to nail the weights without help. SCMO's
@@ -516,34 +547,34 @@ outcome:
 prints (deterministic with the seeds above)::
 
    DGP=averaged  (true ATT = 3.0)   N = 50 reps
-     concatenated   mean bias =  +0.100   RMSE = 0.744
-     averaged       mean bias =  +0.097   RMSE = 0.742
-     MA             mean bias =  +0.120   RMSE = 0.788
+     concatenated   mean bias =  +0.139   RMSE = 0.953
+     averaged       mean bias =  +0.118   RMSE = 0.932
+     MA             mean bias =  +0.122   RMSE = 0.964
      separate       mean bias =  +0.101   RMSE = 1.132
 
    DGP=concatenated  (true ATT = 3.0)   N = 50 reps
-     concatenated   mean bias =  -0.055   RMSE = 0.769
-     averaged       mean bias =  -0.087   RMSE = 0.895
-     MA             mean bias =  -0.094   RMSE = 0.750
+     concatenated   mean bias =  -0.045   RMSE = 0.688
+     averaged       mean bias =  -0.113   RMSE = 0.978
+     MA             mean bias =  -0.071   RMSE = 0.725
      separate       mean bias =  -0.062   RMSE = 0.910
 
 Three takeaways:
 
-1. Both multi-outcome schemes beat single-outcome SC by a wide
-   margin in either regime. ``separate``'s RMSE is 50% worse in
-   DGP A and 18% worse in DGP B than the best multi-outcome
-   competitor. That's the headline of both papers: with a short
-   :math:`T_0`, *any* form of multi-outcome stacking is a strict
-   improvement.
-2. Averaged ties or beats concatenated when the DGP genuinely
-   averages: in DGP A, averaged's RMSE is 0.742 vs concatenated's
-   0.744. The advantage is small on this calibration but the
+1. Both multi-outcome schemes beat single-outcome SC in either
+   regime. ``separate``'s RMSE is 21% worse in DGP A and 32% worse
+   in DGP B than the best multi-outcome competitor. That's the
+   headline of both papers: with a short :math:`T_0`, *any* form of
+   multi-outcome stacking is an improvement.
+2. Averaged beats concatenated when the DGP genuinely averages: in
+   DGP A, averaged's RMSE is 0.932 vs concatenated's 0.953. The
+   advantage is small on this calibration but the
    Sun-Ben-Michael-Feller theory says it grows with :math:`K`.
 3. Concatenated wins when outcomes are distinct: in DGP B,
-   concatenated's RMSE is 0.769 vs averaged's 0.895 -- a 16%
-   reduction. ``MA``'s pre-fit weighting hedges close to the
-   winner in both regimes (0.788 / 0.750), which is why it's the
-   safest default when you don't know which DGP you're in.
+   concatenated's RMSE is 0.688 vs averaged's 0.978 -- a 30%
+   reduction. ``MA``'s pre-fit weighting tracks the winner in that
+   regime (0.725) and costs a little in the other (0.964, just
+   behind both schemes it averages), which is the price of hedging
+   when you don't know which DGP you're in.
 
 
 
@@ -722,9 +753,21 @@ units (1 treated, 29 control), one post period, zero true effect, and
        return res.att_by_method()["concatenated"]
 
    for K in (1, 3, 10):                              # half-normal floor: bias~0.80, sd~1.00
-       tau = np.array([tlp_sim(1.0, 10, K, np.random.default_rng(K)) for _ in range(300)])
+       rng = np.random.default_rng(K)                # one generator, reused across draws
+       tau = np.array([tlp_sim(1.0, 10, K, rng) for _ in range(300)])
        print(f"K={K:>2}:  bias={np.mean(np.abs(tau)):.2f}  sd={np.std(tau):.2f}")
-   # bias/SD shrink toward the floor as K grows
+
+prints::
+
+   K= 1:  bias=1.33  sd=1.71
+   K= 3:  bias=1.21  sd=1.51
+   K=10:  bias=1.24  sd=1.55
+
+Both move toward the floor as outcomes are added, and most of the move is made
+by the third: at 300 draws the :math:`K = 3` and :math:`K = 10` cells sit
+within a Monte Carlo standard error of each other. The table above separates
+them, and the ``scmo_demeaned_mc`` benchmark carries all 144 cells of the
+appendix table, the permutation test's size among them.
 
 Simulation study: Sun-Ben-Michael-Feller averaging gain (Path B)
 ----------------------------------------------------------------
@@ -921,7 +964,8 @@ separate / model-average) plus de-meaning.
    :members:
    :undoc-members:
 
-The Chernozhukov-Wuethrich-Zhu conformal inference (multi-outcome form).
+Inference: the Chernozhukov-Wuethrich-Zhu conformal test (multi-outcome form)
+and the permutation test on the post-to-pre-treatment RMSPE ratio.
 
 .. automodule:: mlsynth.utils.scmo_helpers.inference
    :members:

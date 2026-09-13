@@ -3,7 +3,7 @@
 SCMO (Tian-Lee-Panchenko 2024; Sun-Ben-Michael-Feller 2025) builds the
 synthetic control by matching the treated unit to donors on a **matching
 matrix** ``Z`` assembled from one or more related outcomes/predictors --
-optionally across several pre-treatment periods -- rather than a single
+optionally across several pre-treatment periods -- not a single
 outcome's long trajectory. Everything below is pure NumPy; the only
 DataFrame touchpoint is :func:`mlsynth.utils.scmo_helpers.setup.prepare_scmo_inputs`.
 
@@ -112,6 +112,27 @@ class SCMOInputs:
 
 
 @dataclass(frozen=True)
+class PlaceboInference:
+    """Abadie permutation test on the post-to-pre-treatment RMSPE ratio.
+
+    Every unit in turn plays the treated one; the treated unit's rank among the
+    resulting ratios is the p-value (Tian-Lee-Panchenko 2026, Online Appendix
+    B.3.3). All arrays are indexed by unit row, in ``SCMOInputs.unit_index``
+    order.
+    """
+
+    p_value: float
+    treated_ratio: float
+    ratios: np.ndarray               # (N,) post/pre RMSPE ratio per unit
+    pre_rmspe: np.ndarray            # (N,) pre-treatment RMSPE per unit
+    post_rmspe: np.ndarray           # (N,) post-treatment RMSPE per unit
+    per_period_p: np.ndarray         # (T - T0,) p-value in each post-period
+    per_period_ratios: np.ndarray    # (N, T - T0) ratio per unit and post-period
+    alternative: str = "two-sided"
+    eta: float = 0.0
+
+
+@dataclass(frozen=True)
 class SCMOMethodFit:
     """A single weighting-scheme fit (concatenated / averaged / separate / MA)."""
 
@@ -125,6 +146,7 @@ class SCMOMethodFit:
     att_se: Optional[float] = None
     ci: Tuple[float, float] = (float("nan"), float("nan"))
     p_value: Optional[float] = None
+    placebo: Optional[PlaceboInference] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
