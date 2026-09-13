@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-09-12T05:00:00Z",
+  "command": "Rscript benchmarks/reference/fp_confidence_sets/reference.R",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {},
+  "note": "SCM.CS is base R only; it takes the weights as an input and needs no CRAN package.",
+  "reference_source": {
+    "origin": "Firpo & Possebom (2018) JCI 6(2) 20160026, supplementary material, function_SCM-CS_v07.R",
+    "sha256_script": "cb3f7f7960557203fcbf24f7934a4df73719546f696e921b8f620485ac2a1b68",
+    "sha256_supplement_archive": "5fd21125b39689099d560328101b855835825073f5b4ba7a5df8def9ccbee626",
+    "vendored": false,
+    "note": "Not redistributed here; fetch the journal supplement and place function_SCM-CS_v07.R beside reference.R."
+  },
+  "data": [
+    {"path": "basedata/P99data.csv",
+     "sha256": "e88bc9097100117191588c7bf091c85b5d53f8795fe41d6f19232c5b0b358c6f",
+     "note": "byte-identical in cigsale/age15to24/retprice to the supplement's smoking_dataset.csv"}
+  ],
+  "spec": {
+    "treated": 3, "treated_name": "California", "T0": 19,
+    "precision": 30, "significance": "4/39",
+    "weights": "outcome-only simplex over 1970-1988, computed by mlsynth.utils.bilevel.simplex.simplex_lstsq"
+  }
+}
