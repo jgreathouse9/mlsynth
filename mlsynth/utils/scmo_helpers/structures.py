@@ -128,6 +128,7 @@ class PlaceboInference:
     post_rmspe: np.ndarray           # (N,) post-treatment RMSPE per unit
     per_period_p: np.ndarray         # (T - T0,) p-value in each post-period
     per_period_ratios: np.ndarray    # (N, T - T0) ratio per unit and post-period
+    post_gaps: Optional[np.ndarray] = None   # (N, T - T0) gap per unit, untruncated
     alternative: str = "two-sided"
     eta: float = 0.0
 

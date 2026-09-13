@@ -174,12 +174,14 @@ def permutation_inference(
     n_post = T - T0
     pre = np.empty(N)
     post = np.empty(N)
+    post_gaps = np.empty((N, n_post))
     per_period_ratios = np.empty((N, n_post))
     for i in range(N):
         donors = np.delete(np.arange(N), i)
         pre_rmse, gap = fit_placebo(
             inputs, i, donors, scheme, demean, augment, ridge_lambda,
             weights, pcr_rank, pcr_cumvar, col_scale)
+        post_gaps[i] = gap[T0:]                 # signed, for the aggregate index
         post_gap = _directional(gap[T0:], alternative)
         pre[i] = pre_rmse
         post[i] = float(np.sqrt(np.mean(post_gap ** 2))) if n_post else 0.0
@@ -195,4 +197,5 @@ def permutation_inference(
     return PlaceboInference(
         p_value=p_value, treated_ratio=float(ratios[treated]), ratios=ratios,
         pre_rmspe=pre, post_rmspe=post, per_period_p=per_period_p,
-        per_period_ratios=per_period_ratios, alternative=alternative, eta=float(eta))
+        per_period_ratios=per_period_ratios, post_gaps=post_gaps,
+        alternative=alternative, eta=float(eta))
