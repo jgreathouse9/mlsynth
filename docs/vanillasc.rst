@@ -1340,11 +1340,324 @@ assignment assumption is where care is needed.
   :math:`\alpha`. In the paper, Prop 99 tolerates :math:`\Gamma \approx 1.4`
   (robust) while German reunification flips at only :math:`\Gamma \approx 1.1`
   (fragile). The weighted p-value and :math:`\Gamma` search require solving a
-  non-convex (NP-hard) quadratic program and are not yet implemented in
+  non-convex (NP-hard) quadratic program and are not implemented in
   ``VanillaSC``; the uniform-assignment naive/powered p-values are.
 
+  A cheaper form of the same question is available through
+  ``inference="placebo_cs"``. Firpo and Possebom (2018) reweight the rank
+  p-value by :math:`\pi \propto \exp(\phi v)`, where :math:`v` is a 0/1 vector
+  the analyst declares, naming the units the design might have favoured.
+  Sweeping :math:`\phi` upward and watching where the confidence set first
+  admits zero answers "how far from uniform assignment does the conclusion
+  survive" without any optimisation: the direction is declared instead of
+  searched over, so the answer is a worst case *within that direction* and not
+  over the whole :math:`\Gamma` ball. It is the weaker statement, and it costs a
+  sweep instead of a non-convex program.
+
+Confidence sets by inverting the placebo test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The placebo test above answers one hypothesis: that the effect is zero.
+``inference="placebo_cs"`` inverts it over a one-parameter family of effect
+paths and reports the parameters the test does not reject, which is a
+confidence set for the path. Set ``placebo_cs_class`` to ``"constant"`` (a flat
+post-treatment effect) or ``"linear"`` (the parameter is then the per-period
+slope).
+
+The candidate effect is imposed across the whole panel before any statistic is
+recomputed. For each placebo unit the path is added to its own outcome and
+subtracted from the treated unit's column inside its donor pool, because under
+a non-zero null the treated unit's observed series is not its untreated one and
+every donor pool containing it is wrong by exactly that path. Taking quantiles
+of a placebo distribution computed once at zero is a different object: the
+post/pre RMSPE ratio does not stay fixed as the null moves.
+
+That correction acts only on units whose synthetic control borrows from the
+treated one, and it shifts their gaps by exactly :math:`\text{path} \times w`.
+On Proposition 99 it moves eight of thirty-nine statistics, by up to two orders
+of magnitude, and moves the p-value at none of the candidates tried: the
+p-value is a rank comparison against the treated unit, none of the eight
+crosses it, and with 39 units the statistic only takes multiples of about
+:math:`1/39`. The mechanism and the p-value are separate claims.
+
+The search reports what it cannot do. A level at which the point estimate
+itself is rejected has an empty set; a level at which nothing is ever rejected
+has an unbounded one. Both raise inside the routine and both surface as an
+``InferenceResults`` carrying ``unavailable_reason`` plus a warning, so an
+unusable level does not take the fit down.
+
+``placebo_cs_precision`` is a resolution, not a taste. The search walks outward
+from the point estimate halving its step, so it approaches each bound from
+inside the set and an under-set precision reports a set that is too narrow and
+under-covers. On Proposition 99 the linear set is 3.607 wide at ``precision=4``
+and 3.718 at 30; the default of 20 is converged to about 1e-5. The authors
+suggest 20 to 30.
+
+.. code-block:: python
+
+   res = VanillaSC({
+       "df": df, "outcome": "cigsale", "treat": "treat",
+       "unitid": "state", "time": "year",
+       "inference": "placebo_cs", "alpha": 4 / 39,
+       "placebo_cs_class": "linear",
+       "placebo_cs_sweep": [0.0, 0.5, 1.0],
+   }).fit()
+
+   res.inference.ci_lower, res.inference.ci_upper
+   res.inference.details["breakdown_phi"]     # where the sign is lost
+
+On Proposition 99 this gives a linear-slope set excluding zero, and a sweep
+showing the sign absorbing a tilt of :math:`\phi = 0.5` toward California and
+losing it at :math:`\phi = 1.0`.
+
+*The set depends on the weights.* They are an input to the procedure, not part
+of it, so two implementations that invert identically still report different
+bounds if they fit the donors differently. mlsynth's bilevel backends reach a
+better optimum than R ``Synth``'s predictor weighting does, as
+``benchmarks/cases/malo_prop99.py`` documents, and the bounds above are for the
+weights the chosen backend produces.
+
+Handing the inversion the authors' own weights closes the comparison.
+``benchmarks/reference/fp_confidence_sets/reference_authors.R`` is Firpo and
+Possebom's California script: ``Synth`` fits all thirty-nine placebo units under
+their predictor specification, and ``SCM.CS`` inverts on the result. On those
+inputs mlsynth agrees with the authors' code to 7.1e-15 across every
+configuration, and refuses on the same one:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 22 22 21
+
+   * - class
+     - :math:`\phi`
+     - authors' ``SCM.CS``
+     - mlsynth
+     - deviation
+   * - constant
+     - 0
+     - :math:`[-27.881, -9.588]`
+     - :math:`[-27.881, -9.588]`
+     - 7.1e-15
+   * - linear
+     - 0
+     - :math:`[-3.984, -1.239]`
+     - :math:`[-3.984, -1.239]`
+     - 3.1e-15
+   * - linear
+     - 0.5
+     - :math:`[-4.140, -1.079]`
+     - :math:`[-4.140, -1.079]`
+     - 2.4e-15
+   * - linear
+     - 1.0
+     - :math:`[-4.322, -0.902]`
+     - :math:`[-4.322, -0.902]`
+     - 2.2e-15
+   * - linear
+     - 2.0
+     - search fails
+     - raises
+     - --
+
+The sensitivity verdict is the part that moves with the weights. Under the
+authors' specification the sign survives a tilt of :math:`\phi = 1.0`; on
+mlsynth's outcome-only fit it is lost there. Both are the same procedure
+applied to different donor fits, and a sweep reported without the weights it
+was computed on says less than it appears to.
+
+Is it calibrated
+^^^^^^^^^^^^^^^^
+
+The test is exact by the randomization argument, and Firpo and Possebom's
+Monte Carlo (their Table 1, column 1) confirms it: all five permutation
+statistics come in at a size of 0.10 against a nominal 0.10. Three conditions
+carry that exactness to the confidence set, and each can fail on real data.
+
+1. Assignment is exchangeable across the :math:`J+1` units. This is what
+   :math:`\phi` exists to relax, and the breakdown :math:`\phi` reports how far
+   it can fail before the conclusion turns over.
+2. The true effect path lies in the class being inverted. Outside it, the test
+   is answering a different question and coverage does not transfer.
+3. The level is attainable. A rank p-value over :math:`J+1` units lives on
+   multiples of :math:`1/(J+1)`, so only :math:`\alpha \in \{1/(J+1),
+   2/(J+1), \ldots\}` are exact. Proposition 99 uses :math:`4/39 \approx
+   0.1026`, not 0.10.
+
+A fourth condition is not the paper's and belongs to any implementation of the
+search. The reported interval is the connected component of :math:`\{c : p(c)
+> \alpha\}` containing the point estimate, and the point estimate is not
+guaranteed to survive the test. Running the paper's own design (equations 21 and
+22, :math:`J+1 = 20`, :math:`T = 25`, :math:`T_0 = 15`, 250 replications at
+:math:`\alpha = 2/20`) separates the two:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 25 15
+
+   * - test accepts the truth
+     - accepts the point estimate
+     - search returns
+     - n
+   * - yes
+     - yes
+     - the interval, covering
+     - 221
+   * - no
+     - no
+     - empty
+     - 17
+   * - no
+     - yes
+     - the interval, excluding
+     - 1
+   * - yes
+     - no
+     - empty
+     - 11
+
+The test rejects the true parameter in 18 of 250, a size of 0.072 against a
+nominal 0.10. Every one of the remaining 11 misses is the last row: the search
+starts at a rejected point, so it reports an empty set even though the test
+accepts the truth. Raising ``placebo_cs_precision`` from 8 to 40 does not move
+this, which rules the resolution out as the cause.
+
+Two things follow for reading output. An empty set means the search had nowhere
+to start, not that no parameter survives the test. And an unavailable set is not
+a neutral outcome to discard: treating it as "no information" discards the
+replications where the procedure missed, and the measured coverage rises from
+0.884 to near one.
+
+Restricting the placebo pool to donors with good pre-treatment fit, a common
+convention, breaks the exactness in the other direction. The paper's Table 2
+(pre-treatment MSPE at most five times the treated unit's) puts
+:math:`\hat\theta_1` at 0.13 and :math:`\hat\theta_2`, :math:`\hat\theta_3`
+at 0.06 against a nominal 0.10. ``placebo_cs`` does no such filtering.
+
+Reading the set on other scales
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ci_lower`` and ``ci_upper`` are on the parameter's own scale: a level for the
+constant class, a per-period slope for the linear one. A slope is awkward to
+report, so the result also carries the set as a cumulative and as an average
+effect:
+
+.. code-block:: python
+
+   d = res.inference.details
+   d["cumulative_lower"], d["cumulative_upper"]   # total post-treatment effect
+   d["att_lower"], d["att_upper"]                 # per-period average
+
+These cost nothing and give up no coverage. Within a one-parameter family the
+total effect is a strictly increasing function of the parameter -- :math:`cK`
+for the constant class and :math:`\tilde c K(K+1)/2` for the linear one, over
+:math:`K` post-treatment periods -- and the average is that divided by
+:math:`K`. Test inversion commutes with a strictly increasing reparametrisation,
+so the image of the set is the set you would get by inverting on the new scale,
+at the same level. Both are the drawn effect path summed, which is why they
+agree with the figure.
+
+On Proposition 99, with twelve post-treatment periods, the linear set
+:math:`[-4.50, -0.78]` packs per capita per year becomes a cumulative
+:math:`[-350.8, -61.0]` packs per capita over 1989--2000 and an average
+:math:`[-29.2, -5.1]` per year, which is on the same scale as the reported
+``effects.att``. Under the authors' own weights the same set is
+:math:`[-3.98, -1.24]`, a cumulative :math:`[-310.7, -96.6]`.
+
+``placebo_cs_horizon`` accumulates only the first :math:`L` post-treatment
+periods, which is what makes the set comparable with a cumulative conformal band
+over the same window::
+
+   res = VanillaSC({..., "inference": "placebo_cs",
+                    "placebo_cs_horizon": 10}).fit()
+   res.inference.details["cumulative_lower"], res.inference.details["horizon"]
+
+The two answer different questions and rest on different exchangeability
+assumptions, so they can disagree. On GeoLift's own daily test panel -- forty
+metro markets, 105 days, Chicago treated, a ten-day campaign -- both report a
+point estimate of :math:`-2211` incremental units, and at
+:math:`\alpha = 0.10`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 28 20 18
+
+   * - interval
+     - over the same ten days
+     - width
+     - excludes zero
+   * - ``conformal_cumulative``, split
+     - :math:`(-\infty, \infty)`
+     - --
+     - no
+   * - ``conformal_cumulative``, resample
+     - :math:`[-3221, -1201]`
+     - 2020
+     - yes
+   * - ``placebo_cs``, constant
+     - :math:`[-9397, 4975]`
+     - 14372
+     - no
+
+The split band is infinite because ninety-five pre-period days hold only six
+non-overlapping ten-day windows, and a 90% band needs the seventh of six order
+statistics. That is the construction saying it cannot do the job at this level,
+and it is the same arithmetic that governs PPSCM's per-unit band. The resample
+band spends the same windows period by period, so it draws on sixty residuals
+where the order statistic had six. The inverted set uses neither: its reference
+distribution is the thirty-nine other markets.
+
+The coverage statement travels with the family. This covers the total effect of
+every path the test does not reject within the class, so it is a statement about
+the cumulative effect given that the true path is constant, or linear, in time.
+It is not a family-free interval for :math:`\sum_t \tau_t`. The paper defines
+the general set over all of :math:`\mathbb{R}^{T}` (its equation 14) and calls
+estimating it computationally infeasible; two-parameter families are
+straightforward and expensive, and the implemented classes are the one-parameter
+ones.
+
+Drawing the set
+^^^^^^^^^^^^^^^
+
+``mlsynth.utils.vanillasc_helpers.placebo_cs_plotter`` renders the two things
+the inversion produces. Both functions take the fitted result, and both return
+their ``Figure`` without displaying or saving it:
+
+.. code-block:: python
+
+   from mlsynth.utils.vanillasc_helpers.placebo_cs_plotter import (
+       plot_confidence_set, plot_sensitivity)
+
+   fig = plot_confidence_set(res)     # the gap, with the set shaded around it
+   fig.savefig("cs.png")
+
+   fig = plot_sensitivity(res)        # the swept bounds against the tilt
+                                      # (needs placebo_cs_sweep)
+
+``plot_confidence_set`` is the figure the authors' own ``SCM.CS`` draws when
+called with ``plot = TRUE``. The shaded region is the pair of effect paths the
+bounds generate, so it closes to zero width over the pre-period, where every
+candidate path is zero, and opens after treatment: flat at the bound for the
+constant class, a fan at the bound's slope for the linear one.
+
+That band is a set of paths, not a per-period interval on the gap, and the two
+are different objects. The estimated gap can sit outside it -- on Proposition 99
+it does in 1989 and 1990, two of the twelve post-treatment periods -- because
+the set collects the parameters of the family the test does not reject, and no
+member of a one-parameter family is obliged to track a noisy trajectory year by
+year. For a band the realised gap is meant to fall inside, use ``inference="scpi"``
+or ``"conformal"``.
+
+``plot_sensitivity`` puts one bar per tilt against a zero line, marks the
+breakdown :math:`\phi` where the set first covers zero, and marks a tilt whose
+search failed with the reason it failed, so a hole in the sweep is not read as a
+hole in the evidence.
+
+Both accept the objects the helper returns directly, for a call that did not go
+through ``fit()``: ``plot_confidence_set(cs, gap)`` on what ``confidence_set``
+returned, and ``plot_sensitivity(rows)`` on what ``sensitivity_sweep`` returned.
+
 Choosing among placebo, LTO, and SCPI
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Prefer LTO over the ordinary placebo whenever the donor pool is small --
   especially in the :math:`\alpha < 1/N` regime (e.g. :math:`N \le 20` at
