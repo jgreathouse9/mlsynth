@@ -11,10 +11,10 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-seven of the
-thirty-eight estimators are currently fully verified; ISCM carries a
-one-draw illustration only (its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce).
+This page catalogues those replications. Every estimator is verified
+along one of these paths except ISCM, which carries a one-draw
+illustration only (its paper relies on a non-public panel and provides
+no Monte Carlo to reproduce).
 
 The runnable cases that pin these numbers -- and guard against
 regressions -- live in the durable benchmark suite; see
@@ -928,11 +928,11 @@ Coverage summary
      - 5
      - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
 
-Of mlsynth's 36 estimators, 35 (97%) carry a strong or solid
-replication against their source paper or against an
-authoritative reference implementation. Only ISCM remains a
-one-draw illustration -- its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce.
+Every estimator but ISCM carries a strong or solid replication
+against its source paper or against an authoritative reference
+implementation. ISCM remains a one-draw illustration -- its paper
+relies on a non-public panel and provides no Monte Carlo to
+reproduce.
 
 Contributing a replication
 --------------------------
