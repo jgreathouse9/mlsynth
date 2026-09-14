@@ -2036,6 +2036,8 @@ timeout = 300.0
   find = "            q_a = Zk_pinv @ (J_m.T @ state)"
   replace = "            q_a = Zk_pinv @ state"
   models = "a recursive interval that ignores how one-step estimation error propagates through the recursion. The point forecast is untouched and the band only narrows at longer horizons, so nothing that checks forecasts can see it"
+  expected = "survived"
+  accepted-because = "the shift is 1-3% of the standard error on the calibration fixture, and separating it by Monte Carlo needs replication counts a pull-request suite cannot carry. The term is pinned structurally instead: lead_jacobian has its own property tests, including that it is the identity at lead one. Measurements in the comment below."
 
   # Accepted survivor, and not an equivalent mutant: it does change the answer.
   # Measured against the true term by monkeypatching the Jacobian to the
@@ -2047,9 +2049,9 @@ timeout = 300.0
   # SE running 4.3 to 5.9, so an assertion there would be measuring the wrong
   # thing. A Monte Carlo that separates a 1-3% shift in the standard error needs
   # replication counts far beyond what a pull-request suite can carry, so this
-  # is left live and documented rather than killed by a tolerance loose enough
-  # to be meaningless. The term is pinned structurally instead: lead_jacobian
-  # has its own property tests, including that it is the identity at lead one.
+  # is left live and documented, and not killed by a tolerance loose enough to
+  # be meaningless. The term is pinned structurally instead: lead_jacobian has
+  # its own property tests, including that it is the identity at lead one.
 
   [[target.mutant]]
   id = "pooled-variance-ignores-the-time-side"

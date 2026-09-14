@@ -354,3 +354,123 @@ def test_every_catalogued_mutant_still_matches_its_module(harness):
                 f"{target.name}/{mutant.id}: pattern occurs {count} times in "
                 f"{target.module_path}; it must match exactly once"
             )
+
+
+# ---------------------------------------------------------------------------
+# Accepted survivors
+# ---------------------------------------------------------------------------
+
+def _results(harness, outcomes):
+    """Hand-built results, so ``_report``'s arithmetic is tested on its own."""
+    return [harness.MutantResult("t", mid, outcome, "detail", expected)
+            for mid, outcome, expected in outcomes]
+
+
+def test_an_unaccepted_survivor_fails_the_run(harness):
+    assert harness._report(_results(harness, [
+        ("m", harness.SURVIVED, harness.KILLED)])) == 1
+
+
+def test_an_accepted_survivor_does_not_fail_the_run(harness):
+    """A mutant the catalogue declares it expects to survive is the answer to
+    the question a survivor asks, so the run has nothing left to report."""
+    assert harness._report(_results(harness, [
+        ("m", harness.SURVIVED, harness.SURVIVED)])) == 0
+
+
+def test_an_accepted_survivor_that_gets_killed_fails_the_run(harness):
+    """Good news the catalogue still has to be told: a test has become strong
+    enough to kill it, so the recorded acceptance is now false."""
+    assert harness._report(_results(harness, [
+        ("m", harness.KILLED, harness.SURVIVED)])) == 1
+
+
+def test_an_accepted_mutant_that_never_applied_still_fails_the_run(harness):
+    """Acceptance is a statement about a mutant that ran."""
+    assert harness._report(_results(harness, [
+        ("m", harness.NOT_APPLIED, harness.SURVIVED)])) == 1
+
+
+def test_acceptance_is_per_mutant(harness):
+    assert harness._report(_results(harness, [
+        ("accepted", harness.SURVIVED, harness.SURVIVED),
+        ("not", harness.SURVIVED, harness.KILLED)])) == 1
+
+
+def test_a_mutant_is_expected_to_be_killed_unless_it_says_otherwise(harness):
+    assert harness.Mutant("m", "a", "b", "models").expected == harness.KILLED
+
+
+def test_the_acceptance_reaches_the_result(harness, workspace):
+    """End to end: the declaration travels from the target to the score."""
+    target = _target(harness, workspace, [
+        {"id": "sorts-first", "find": "return sum(values)",
+         "replace": "return sum(sorted(values))",
+         "models": "a total that sorts first",
+         "expected": harness.SURVIVED,
+         "accepted_because": "addition is commutative, so this is equivalent"},
+    ])
+    results = harness.run_target(target, root=workspace)
+    assert results[0].outcome == harness.SURVIVED
+    assert results[0].expected == harness.SURVIVED
+    assert harness._report(results) == 0
+
+
+# ---------------------------------------------------------------------------
+# Declaring an acceptance
+# ---------------------------------------------------------------------------
+
+def _catalogue(tmp_path: Path, mutant_body: str) -> Path:
+    path = tmp_path / "targets.toml"
+    path.write_text(textwrap.dedent(f"""
+        [[target]]
+        name = "subject"
+        module-path = "subject.py"
+        test-command = "pytest -q"
+
+          [[target.mutant]]
+          id = "m"
+          find = "a"
+          replace = "b"
+          models = "something"
+        {mutant_body}
+    """).lstrip())
+    return path
+
+
+def test_an_acceptance_must_give_its_reason(harness, tmp_path):
+    """A survivor left live is a claim about why. Without the reason in the
+    data it is a threshold nobody can audit."""
+    path = _catalogue(tmp_path, '  expected = "survived"')
+    with pytest.raises(ValueError, match="accepted-because"):
+        harness.load_targets(path)
+
+
+def test_an_acceptance_with_a_reason_parses(harness, tmp_path):
+    path = _catalogue(tmp_path, '  expected = "survived"\n'
+                                '  accepted-because = "it is equivalent"')
+    mutant = harness.load_targets(path)[0].mutants[0]
+    assert mutant.expected == harness.SURVIVED
+    assert mutant.accepted_because == "it is equivalent"
+
+
+def test_an_unknown_expectation_is_refused(harness, tmp_path):
+    path = _catalogue(tmp_path, '  expected = "maybe"')
+    with pytest.raises(ValueError, match="expected"):
+        harness.load_targets(path)
+
+
+def test_a_reason_without_an_acceptance_is_refused(harness, tmp_path):
+    """It would read as accepted while failing the run every week."""
+    path = _catalogue(tmp_path, '  accepted-because = "it is equivalent"')
+    with pytest.raises(ValueError, match="accepted-because"):
+        harness.load_targets(path)
+
+
+def test_every_acceptance_in_the_shipped_catalogue_gives_its_reason(harness):
+    root = Path(__file__).resolve().parents[2]
+    for target in harness.load_targets(root / "tools" / "mutation" / "targets.toml"):
+        for mutant in target.mutants:
+            if mutant.expected == harness.SURVIVED:
+                assert mutant.accepted_because.strip(), (
+                    f"{target.name}/{mutant.id} is accepted without a reason")

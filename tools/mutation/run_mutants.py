@@ -55,6 +55,8 @@ class Mutant:
     find: str
     replace: str
     models: str
+    expected: str = KILLED
+    accepted_because: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,7 @@ class MutantResult:
     mutant_id: str
     outcome: str
     detail: str
+    expected: str = KILLED
 
 
 def load_targets(path: Path) -> List[Target]:
@@ -84,11 +87,37 @@ def load_targets(path: Path) -> List[Target]:
             module_path=Path(entry["module-path"]),
             test_command=entry["test-command"],
             timeout=float(entry.get("timeout", 300.0)),
-            mutants=[Mutant(id=m["id"], find=m["find"], replace=m["replace"],
-                            models=m.get("models", ""))
-                     for m in entry.get("mutant", [])],
+            mutants=[_mutant(entry["name"], m) for m in entry.get("mutant", [])],
         ))
     return targets
+
+
+def _mutant(target: str, entry: dict) -> Mutant:
+    """Build one ``Mutant``, refusing an acceptance that states nothing.
+
+    ``expected = "survived"`` takes a mutant out of the run's exit code, so it
+    is the one field in the catalogue that can hide a weak test. It is only
+    admitted with ``accepted-because`` beside it, and a reason on its own is
+    refused too: it reads as accepted while the run keeps failing on it.
+    """
+    expected = entry.get("expected", KILLED)
+    because = entry.get("accepted-because", "")
+    where = f"{target}/{entry.get('id', '<unnamed>')}"
+    if expected not in (KILLED, SURVIVED):
+        raise ValueError(
+            f"{where}: expected must be {KILLED!r} or {SURVIVED!r}; got {expected!r}")
+    if expected == SURVIVED and not because.strip():
+        raise ValueError(
+            f"{where}: a mutant expected to survive must say why in "
+            f"accepted-because -- is it equivalent to the original, or is the "
+            f"assertion that would kill it one this suite cannot carry?")
+    if expected == KILLED and because.strip():
+        raise ValueError(
+            f"{where}: accepted-because without expected = {SURVIVED!r} records "
+            f"an acceptance the run does not act on")
+    return Mutant(id=entry["id"], find=entry["find"], replace=entry["replace"],
+                  models=entry.get("models", ""), expected=expected,
+                  accepted_because=because)
 
 
 def apply_mutant(source: str, mutant: Mutant) -> str:
@@ -161,7 +190,8 @@ def run_target(target: Target, root: Path) -> List[MutantResult]:
         try:
             mutated = apply_mutant(original, mutant)
         except ValueError as exc:
-            results.append(MutantResult(target.name, mutant.id, NOT_APPLIED, str(exc)))
+            results.append(MutantResult(target.name, mutant.id, NOT_APPLIED,
+                                        str(exc), mutant.expected))
             continue
 
         try:
@@ -172,7 +202,8 @@ def run_target(target: Target, root: Path) -> List[MutantResult]:
             if module.read_bytes() == raw:          # pragma: no cover - defensive
                 results.append(MutantResult(
                     target.name, mutant.id, NOT_APPLIED,
-                    "the module on disk is unchanged after writing the mutant"))
+                    "the module on disk is unchanged after writing the mutant",
+                    mutant.expected))
                 continue
             results.append(_score(target, mutant, root))
         finally:
@@ -220,40 +251,67 @@ def _score(target: Target, mutant: Mutant, root: Path) -> MutantResult:
         )
     except subprocess.TimeoutExpired:
         return MutantResult(target.name, mutant.id, KILLED,
-                            f"the test command timed out after {target.timeout}s")
+                            f"the test command timed out after {target.timeout}s",
+                            mutant.expected)
     except (OSError, ValueError) as exc:
         return MutantResult(target.name, mutant.id, NOT_APPLIED,
-                            f"the test command could not be run: {exc}")
+                            f"the test command could not be run: {exc}",
+                            mutant.expected)
 
     if completed.returncode == 0:
-        return MutantResult(target.name, mutant.id, SURVIVED,
-                            f"the suite passed with this mutant in place; {mutant.models}")
+        detail = (f"the suite passed with this mutant in place; {mutant.models}"
+                  if mutant.expected == KILLED else
+                  f"as the catalogue expects; {mutant.accepted_because}")
+        return MutantResult(target.name, mutant.id, SURVIVED, detail, mutant.expected)
     return MutantResult(target.name, mutant.id, KILLED,
-                        f"exit {completed.returncode}")
+                        f"exit {completed.returncode}", mutant.expected)
 
 
 def _report(results: Sequence[MutantResult]) -> int:
-    """Print a table and return the process exit code."""
+    """Print a table and return the process exit code.
+
+    A survivor fails the run unless the catalogue declared it would survive and
+    said why -- that declaration is the recorded answer to the question a
+    survivor asks. An accepted mutant that is killed fails the run too: a test
+    has become strong enough to catch it, which is the good outcome, and the
+    entry now states something false.
+    """
     width = max((len(f"{r.target}/{r.mutant_id}") for r in results), default=20)
     for result in results:
+        label = result.outcome
+        if result.expected == SURVIVED:
+            label = (f"{result.outcome} (accepted)" if result.outcome == SURVIVED
+                     else f"{result.outcome} (acceptance stale)")
         print(f"  {result.target + '/' + result.mutant_id:<{width}}  "
-              f"{result.outcome:<12}  {result.detail[:96]}")
+              f"{label:<24}  {result.detail[:96]}")
 
     killed = sum(r.outcome == KILLED for r in results)
-    survived = [r for r in results if r.outcome == SURVIVED]
+    survived = [r for r in results
+                if r.outcome == SURVIVED and r.expected == KILLED]
+    accepted = [r for r in results
+                if r.outcome == SURVIVED and r.expected == SURVIVED]
+    stale = [r for r in results
+             if r.outcome == KILLED and r.expected == SURVIVED]
     broken = [r for r in results if r.outcome == NOT_APPLIED]
 
     print(f"\n{killed}/{len(results)} killed, {len(survived)} survived, "
+          f"{len(accepted)} survived as expected, "
           f"{len(broken)} could not be applied")
 
     if survived:
         print("\nSurvivors are a question, not a verdict. For each: is the "
               "assertion too weak, or is the mutant equivalent to the "
-              "original? Record the answer either way.")
+              "original? Record the answer either way -- an answer of "
+              "'left live' is expected = \"survived\" with its reason.")
+    if stale:
+        names = ", ".join(f"{r.target}/{r.mutant_id}" for r in stale)
+        print(f"\nAccepted survivors that were killed: {names}. The suite now "
+              "catches them, so the acceptance and its reason are out of date "
+              "and should be removed.")
     if broken:
         print("\nMutants that could not be applied measure nothing. Fix the "
               "pattern or retire the mutant.")
-    return 1 if (survived or broken) else 0
+    return 1 if (survived or broken or stale) else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
