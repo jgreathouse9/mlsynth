@@ -34,7 +34,7 @@ SHARDED_JOBS = ("suite", "pr-suite", "case-deps")
 
 #: Jobs that must never run for a pull request.
 NON_PR_JOBS = ("suite", "validation-dashboard", "case-deps",
-               "case-deps-commit")
+               "case-deps-commit", "suite-gate")
 
 
 @pytest.fixture(scope="module")
@@ -132,10 +132,17 @@ class TestTheTimeoutFitsTheSlowestShard:
     written, and the run reports `cancelled` rather than red, so roughly an
     eighth of the suite goes unexamined while the PR looks merely unstable.
 
-    The floor is set against the daily suite, which has run this registry to
-    completion for months at 90 minutes with R provisioning on top. Adding heavy
-    cases moves the slowest shard, not the average, so this is the number to
-    revisit -- by raising the shard count -- when a shard next approaches it.
+    The floor was set against the daily suite on the belief that it had run
+    this registry to completion at 90 minutes with R provisioning on top. It
+    had not: on 2026-08-24 through -27 its shard 1 was cancelled every day,
+    at 90m14s of job wall clock on the last of them, and nothing went red
+    because a cancelled shard neither passes nor fails. The daily job now
+    runs six shards at 120 minutes and a gate turns a non-success shard into
+    a failed run; see the two classes at the foot of this file.
+
+    Adding heavy cases moves the slowest shard, not the average, so this is
+    still the number to revisit -- by raising the shard count -- when a shard
+    next approaches it.
     """
 
     #: Minutes. Below this a heavy shard is at risk of being cancelled.
@@ -373,3 +380,47 @@ class TestTheAddedSubsetReachesTheSelection:
         step = next(s for s in jobs["pr-suite"]["steps"]
                     if s["name"] == "Run benchmark suite shard")
         assert "--changed-from" in step["run"]
+
+
+class TestASlowShardCannotPassSilently:
+    """A shard killed by its own timeout concludes ``cancelled``, not
+    ``failure``, and GitHub marks the whole run cancelled -- which reads like
+    somebody pressed stop, not like a gap in coverage. The cases that shard
+    holds are simply not validated, and nothing goes red.
+
+    That is not hypothetical. The daily run was cancelled on four consecutive
+    days (2026-08-24 through -27) because ``suite`` shard 1 overran, and the
+    51 cases it holds went unchecked the whole time. The gate below turns any
+    shard outcome other than success into a failed run.
+    """
+
+    def test_a_gate_job_depends_on_the_suite(self, jobs):
+        assert "suite-gate" in jobs
+        needs = jobs["suite-gate"]["needs"]
+        needs = [needs] if isinstance(needs, str) else list(needs)
+        assert "suite" in needs
+
+    def test_the_gate_runs_even_when_a_shard_did_not(self, jobs):
+        """Without ``always()`` a cancelled dependency skips the gate too."""
+        assert "always()" in jobs["suite-gate"]["if"]
+
+    def test_the_gate_fails_on_anything_but_success(self, jobs):
+        steps = " ".join(str(s) for s in jobs["suite-gate"]["steps"])
+        assert "needs.suite.result" in steps
+        assert "exit 1" in steps
+
+
+class TestTheTimeoutCoversProvisioningToo:
+    """``suite`` spends 18-24 minutes building the R reference toolchain
+    before the first case runs, so its cap has to cover setup *plus* the
+    shard. On 2026-08-27 shard 1 was cancelled at 90m14s of job wall clock
+    having had only about 67 minutes of actual benchmark budget, while the
+    other three shards finished their cases in 15 to 38 minutes.
+    """
+
+    def test_the_suite_has_headroom_over_provisioning(self, jobs):
+        assert int(jobs["suite"]["timeout-minutes"]) >= 120
+
+    def test_the_suite_is_sharded_finely_enough(self, jobs):
+        """Four shards left the slowest holding more than an hour of cases."""
+        assert int(jobs["suite"]["env"]["NUM_SHARDS"]) >= 6
