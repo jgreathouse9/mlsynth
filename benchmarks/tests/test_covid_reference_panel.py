@@ -33,13 +33,24 @@ def _load(path: Path) -> pd.DataFrame:
 
 
 def _mismatches(left: pd.DataFrame, right: pd.DataFrame) -> list:
-    """Columns whose values differ, treating NaN as equal to NaN."""
+    """Columns whose values differ, treating NaN as equal to NaN.
+
+    Datetimes are compared at a common resolution. ``Series.equals`` compares
+    dtype as well as value, and the two readers do not agree on the unit: from
+    pandas 2 a Parquet column keeps the microseconds Arrow stored, while the
+    same instants parsed out of the CSV's strings arrive as nanoseconds. The
+    claim here is that the two files hold the same panel, which is a claim
+    about instants and not about which unit a reader chose to carry them in.
+    """
     bad = []
     for col in left.columns:
         a, b = left[col], right[col]
         if a.dtype.kind in "fi" and b.dtype.kind in "fi":
             if not np.allclose(a.to_numpy(float), b.to_numpy(float),
                                rtol=0, atol=1e-9, equal_nan=True):
+                bad.append(col)
+        elif a.dtype.kind == "M" and b.dtype.kind == "M":
+            if not a.astype("datetime64[ns]").equals(b.astype("datetime64[ns]")):
                 bad.append(col)
         elif not a.equals(b):
             bad.append(col)
@@ -97,3 +108,23 @@ def test_the_comparison_catches_a_changed_label():
     right = left.copy()
     right.loc[right.index[0], "location"] = "Atlantis"
     assert _mismatches(left, right) == ["location"]
+
+
+def test_the_comparison_catches_a_moved_date():
+    """Resolution is not the only thing a date column can differ by."""
+    left = _load(PARQUET)
+    right = left.copy()
+    right.loc[right.index[0], "date"] = right.loc[right.index[0], "date"] + pd.Timedelta(days=1)
+    assert _mismatches(left, right) == ["date"]
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_a_datetime_resolution_alone_is_not_a_mismatch(unit):
+    """The defect this guard had: on pandas 2 the Parquet reader hands back
+    microseconds and the parsed CSV nanoseconds, and comparing with
+    ``Series.equals`` called the identical panel a mismatch on Python 3.10
+    while passing everywhere the two readers happened to agree."""
+    left = _load(PARQUET)
+    right = left.copy()
+    right["date"] = right["date"].astype(f"datetime64[{unit}]")
+    assert _mismatches(left, right) == []
