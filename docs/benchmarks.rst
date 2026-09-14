@@ -146,8 +146,10 @@ Path A — empirical replications
      - Lee-Wooldridge Prop99 + castle
    * - ``sbc_germany``
      - SBC German reunification
+   * - ``scmo_covid_sweden``
+     - Tian et al. Online Appendix B.3: Sweden's light-touch NPIs against a captured run of their own COVID_analysis.R -- 76 Table B.3 weights, 446 per-period p-values, the aggregate index and p-values of Figures B.5 and B.7, and four robustness variants, plus the effect magnitudes the text reports
    * - ``scmo_germany``
-     - Tian et al. West Germany balance
+     - Tian et al. West Germany balance, all 36 cells of Table 2 (both synthetic controls, both data columns) against a captured ``Germany.R`` run
    * - ``scpi_staggered``
      - scpi staggered point estimates, Germany (Cattaneo et al. 2025)
    * - ``scpi_staggered_pi``
@@ -269,8 +271,10 @@ Path B — Monte Carlo / simulation
      - Shi-Xi-Xie MSE ratios
    * - ``scmo_averaged_mc``
      - Sun averaged regime geometry
+   * - ``scmo_demeaned_mc``
+     - Tian et al. Online Appendix Table B.1, all 144 cells: demeaned matching and the size of the 10% permutation test as the treated unit moves into the donors' hull
    * - ``scmo_concatenated_mc``
-     - Tian Table 1 / Sun Sim1
+     - Tian Table 1 / Sun Sim1, all 36 cells: fit, bias and SD for the conventional, five- and ten-outcome, and ridge-augmented SC
    * - ``seq_sdid_mc``
      - SSDiD vs DiD coverage/RMSE
    * - ``shc_recovery_mc``

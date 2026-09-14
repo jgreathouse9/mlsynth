@@ -39,7 +39,8 @@ import pytest
 from mlsynth import PPSCM
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.ppscm_helpers.engine import Conventions, run_multisynth
-from mlsynth.utils.ppscm_helpers.inference import jackknife_inference
+from mlsynth.utils.ppscm_helpers.inference import (
+    jackknife_inference, rolling_pooled_block_sums)
 from mlsynth.utils.ppscm_helpers.setup import prepare_ppscm_inputs
 
 
@@ -265,7 +266,7 @@ class TestRungFourTheContracts:
         succeeds. Breaking the solver only breaks a fit that solves.
         """
         Xy, trt, d, n_leads, n_lags = panel_arrays(staggered())
-        with pytest.raises(MlsynthEstimationError, match="replicate"):
+        with pytest.raises(MlsynthEstimationError, match="at least 2 are needed"):
             jackknife_inference(
                 Xy, trt, d, n_leads, n_lags, fixedeff=True, time_cohort=False,
                 nu_used=1.0, lam=0.0, solver="NOT_A_SOLVER",
@@ -273,6 +274,29 @@ class TestRungFourTheContracts:
                 conventions=Conventions(donor_weights="scm",
                                         base_period="pre_treatment",
                                         donor_pool="never_treated"))
+
+    def test_the_two_jackknife_post_conditions_say_different_things(self):
+        """Matching only on "replicate" cannot tell them apart.
+
+        A jackknife with nothing usable falls through to the treated-deletion
+        guard, whose message also carries the word, so a loose match passes
+        whichever fires. They are different faults with different remedies: no
+        replicate at all is a broken refit, while replicates that are all
+        control deletions is a panel the method cannot serve.
+        """
+        Xy, trt, d, n_leads, n_lags = panel_arrays(staggered())
+        with pytest.raises(MlsynthEstimationError) as excinfo:
+            jackknife_inference(
+                Xy, trt, d, n_leads, n_lags, fixedeff=True, time_cohort=False,
+                nu_used=1.0, lam=0.0, solver="NOT_A_SOLVER",
+                alpha=0.05, per_time_full=np.zeros(n_leads), att_full=0.0,
+                conventions=Conventions(donor_weights="scm",
+                                        base_period="pre_treatment",
+                                        donor_pool="never_treated"))
+        message = str(excinfo.value)
+        assert "0 usable replicate(s)" in message
+        assert "removed a treated unit" not in message, (
+            "the count guard must fire first; this is the treated-deletion one")
 
     def test_the_uniform_branch_consults_no_solver(self):
         """Why the test above cannot use the Callaway-Sant'Anna conventions,
@@ -296,9 +320,91 @@ class TestRungFourTheContracts:
     def test_the_conformal_calibration_refits_as_asked(self):
         """``cumulative_conformal_per_unit`` refits at rolling origins and
         carries the same requirement as the jackknife."""
-        df = staggered()
+        df = staggered(onsets=(18, 22, 26), n_per=40)
         res = fit(df, conformal_horizon=2, **CS)
         unit = next(iter(res.per_unit.values()))
         assert unit.cumulative_windows is not None
+        assert int(unit.cumulative_windows) > 0, (
+            "the panel must afford calibration origins, or this asserts over "
+            "an empty schedule")
         assert unit.cumulative_effect is not None
         assert np.isfinite(unit.cumulative_effect)
+
+
+def rolling_origins(trt, horizon, min_train_frac=0.3):
+    """The origin schedule ``_rolling_pooled_paths`` walks, rebuilt here.
+
+    A hand refit has to sit at the same origins as the calibration it checks,
+    and deriving them independently is what makes the comparison a claim about
+    the estimator instead of a restatement of the loop.
+    """
+    from mlsynth.utils.conformal import MIN_TRAIN_PERIODS
+    adopted = np.isfinite(trt)
+    earliest = int(np.min(trt[adopted]))
+    start = max(MIN_TRAIN_PERIODS, int(earliest * float(min_train_frac)))
+    return list(range(start, earliest - horizon + 1, horizon))
+
+
+def hand_calibration(Xy, trt, horizon, conv, nu=None):
+    """Cohort 0's calibration windows, refit by hand under ``conv``."""
+    adopted = np.isfinite(trt)
+    totals = []
+    for origin in rolling_origins(trt, horizon):
+        trt_o = trt.copy()
+        trt_o[adopted] = origin
+        fo = run_multisynth(Xy, trt_o, origin, horizon, origin, fixedeff=True,
+                            time_cohort=False, nu=nu, lam=0.0, solver=None,
+                            conventions=Conventions(**conv))
+        path = np.asarray(fo["tau_rel"][0], dtype=float)[:horizon]
+        if path.size == horizon and np.isfinite(path).all():
+            totals.append(float(path.sum()))
+    return np.asarray(totals)
+
+
+class TestRungFourTheCalibration:
+    """The rolling-origin calibration carries the jackknife's requirement.
+
+    A conformal score is the out-of-sample error of the fit being calibrated.
+    Drawn from a different estimator it is the error of something else, and the
+    band it builds covers at a level nobody can state -- but it is finite,
+    ordered and the right shape, so every assertion of that form passes.
+
+    The panel is later-adopting than the rest of the ladder's. Calibration needs
+    ``MIN_TRAIN_PERIODS`` periods before the first origin and a horizon after
+    it, and ``staggered()``'s first cohort adopts at index 9, one short -- so on
+    that panel the schedule is empty and a test written on it asserts over no
+    windows at all.
+    """
+
+    PANEL = dict(onsets=(18, 22, 26), n_per=40)
+
+    @pytest.mark.parametrize("conv", [
+        CS,
+        {"donor_weights": "scm", "base_period": "all_pre",
+         "donor_pool": "not_yet_treated"},
+    ])
+    def test_the_windows_equal_a_hand_refit_at_the_same_origins(self, conv):
+        df = staggered(**self.PANEL)
+        Xy, trt, d, n_leads, n_lags = panel_arrays(df)
+        got = rolling_pooled_block_sums(
+            Xy, trt, d, n_leads, n_lags, fixedeff=True, time_cohort=False,
+            nu_used=float("nan"), lam=0.0, solver=None, horizon=2,
+            conventions=Conventions(**conv))[0]
+        want = hand_calibration(Xy, trt, 2, conv)
+        assert want.size, "the schedule must afford at least one window"
+        np.testing.assert_allclose(got, want, atol=1e-9)
+
+    def test_two_convention_sets_give_different_windows(self):
+        """The counterpart of ``test_the_donor_pool_moves_the_standard_error``
+        one level up: dropping the conventions makes both of these the default,
+        and the two calibrations come back identical."""
+        df = staggered(**self.PANEL)
+        Xy, trt, d, n_leads, n_lags = panel_arrays(df)
+        kw = dict(fixedeff=True, time_cohort=False, nu_used=float("nan"),
+                  lam=0.0, solver=None, horizon=2)
+        a = rolling_pooled_block_sums(Xy, trt, d, n_leads, n_lags,
+                                      conventions=Conventions(**CS), **kw)[0]
+        b = rolling_pooled_block_sums(Xy, trt, d, n_leads, n_lags,
+                                      conventions=Conventions(), **kw)[0]
+        assert a.shape == b.shape
+        assert not np.allclose(a, b, atol=1e-6), (a, b)

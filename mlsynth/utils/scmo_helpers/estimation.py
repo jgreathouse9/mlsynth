@@ -109,10 +109,16 @@ def _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank, pcr_cumvar,
 def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
                     weights="simplex", pcr_rank=None, pcr_cumvar=0.95,
                     col_scale=None):
-    """Weights on the matching matrix: simplex (optionally ridge-augmented) or PCR."""
+    """Weights on the matching matrix: simplex (optionally ridge-augmented) or PCR.
+
+    ``col_scale`` multiplies the columns before the solve, which is how a
+    diagonal metric on the imbalance enters a least-squares objective.
+    """
     if weights == "pcr":
         return _pcr_scheme_weights(M, treated_idx, donor_idx, pcr_rank,
                                    pcr_cumvar, col_scale)
+    if col_scale is not None:
+        M = M * np.asarray(col_scale, dtype=float)[None, :]
     if augment == "ridge":
         from ..bilevel.ridge_augment import ridge_augment_weights
         ra = ridge_augment_weights(
@@ -142,19 +148,20 @@ def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False,
                ridge_lambda: Optional[float] = None,
                weights: str = "simplex", pcr_rank: Optional[int] = None,
                pcr_cumvar: float = 0.95,
-               metric_weights: Optional[List[float]] = None) -> SCMOMethodFit:
+               metric_weights: Optional[List[float]] = None,
+               metric_weighting: str = "column") -> SCMOMethodFit:
     """Fit one weighting scheme on the real treated unit.
 
     ``metric_weights`` (length = number of metrics, primary outcome first)
     applies per-metric ``delta`` weights to the concatenated PCR fit; it has no
     effect on the simplex solver or the averaged/separate schemes, whose
     matching matrices do not carry per-metric columns.
+    ``metric_weighting="outcome"`` is the other column metric, and does reach
+    the simplex solver: it gives each outcome the same total weight however
+    many periods it is observed in (see :func:`col_scale_for`).
     """
-    col_scale = None
-    if weights == "pcr" and scheme == CONCATENATED and metric_weights is not None:
-        from .pcr_cv import metric_ids, metric_order, column_scale
-        ids = metric_ids(inputs.predictor_labels)
-        col_scale = column_scale(metric_weights, ids, metric_order(ids))
+    col_scale = col_scale_for(inputs, scheme, weights, metric_weights,
+                              metric_weighting)
     w, cf, att, pre_rmse, gap = _fit_core(
         inputs.Z, inputs.Y, inputs.treated_idx, inputs.donor_idx,
         inputs.T0, scheme, inputs.col_period, demean, augment, ridge_lambda,
@@ -166,7 +173,8 @@ def fit_scheme(inputs: SCMOInputs, scheme: str, demean: bool = False,
         name=scheme, weights=w, counterfactual=cf, gap=gap, att=att,
         pre_rmse=pre_rmse, donor_weights=donor_weights,
         metadata={"demean": demean, "augment": augment, "weights": weights,
-                  "metric_weights": metric_weights},
+                  "metric_weights": metric_weights,
+                  "metric_weighting": metric_weighting},
     )
 
 
@@ -190,3 +198,61 @@ def model_average(inputs: SCMOInputs, fits: List[SCMOMethodFit]) -> SCMOMethodFi
         pre_rmse=pre_rmse, donor_weights=donor_weights,
         metadata={"lambdas": {fits[m].name: float(round(lam[m], 4)) for m in range(M)}},
     )
+
+
+def outcome_column_scale(predictor_labels) -> np.ndarray:
+    """``sqrt(1 / #columns of this outcome)`` for each matching column.
+
+    The diagonal metric of Tian-Lee-Panchenko (2026, Online Appendix B.3.2):
+    every outcome carries the same total weight, split evenly over the periods
+    it is observed in. Squaring it back gives their ``V``.
+    """
+    from .pcr_cv import metric_ids
+    ids = metric_ids(predictor_labels)
+    counts = {m: int(np.sum(ids == m)) for m in set(ids.tolist())}
+    return np.array([np.sqrt(1.0 / counts[m]) for m in ids])
+
+
+def col_scale_for(inputs: SCMOInputs, scheme: str, weights: str,
+                  metric_weights: Optional[List[float]],
+                  metric_weighting: str = "column") -> Optional[np.ndarray]:
+    """Per-column scaling of the matching matrix, or ``None`` for none.
+
+    Two independent sources, multiplied when both apply: the ``sqrt(delta)``
+    per-metric weights of a concatenated PCR fit, and the equal-weight-per-
+    outcome metric (``metric_weighting="outcome"``). Both only bite on the
+    concatenated scheme, whose matrix is the one with several outcomes stacked
+    across periods. Shared by :func:`fit_scheme` and the permutation placebos so
+    a placebo is fit exactly as the treated unit was.
+    """
+    if scheme != CONCATENATED:
+        return None
+    scale = None
+    if metric_weighting == "outcome":
+        scale = outcome_column_scale(inputs.predictor_labels)
+    if weights == "pcr" and metric_weights is not None:
+        from .pcr_cv import metric_ids, metric_order, column_scale
+        ids = metric_ids(inputs.predictor_labels)
+        delta = column_scale(metric_weights, ids, metric_order(ids))
+        scale = delta if scale is None else scale * delta
+    return scale
+
+
+def fit_placebo(
+    inputs: SCMOInputs, treated_idx: int, donor_idx: np.ndarray, scheme: str,
+    demean: bool = False, augment: Optional[str] = None,
+    ridge_lambda: Optional[float] = None, weights: str = "simplex",
+    pcr_rank: Optional[int] = None, pcr_cumvar: float = 0.95,
+    col_scale: Optional[np.ndarray] = None,
+) -> Tuple[float, np.ndarray]:
+    """Fit one permutation placebo: ``(pre-treatment RMSPE, gap series)``.
+
+    The same core as :func:`fit_scheme`, with an arbitrary unit in the treated
+    seat, and without assembling a full result the placebo loop would discard.
+    """
+    _w, _cf, _att, pre_rmse, gap = _fit_core(
+        inputs.Z, inputs.Y, treated_idx, donor_idx, inputs.T0, scheme,
+        inputs.col_period, demean, augment, ridge_lambda, weights, pcr_rank,
+        pcr_cumvar, col_scale,
+    )
+    return pre_rmse, gap

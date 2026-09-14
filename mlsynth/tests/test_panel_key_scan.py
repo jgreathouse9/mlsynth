@@ -126,6 +126,64 @@ class PivotCounter:
         return len(set(self.calls))
 
 
+class DerivationCounter:
+    """Counts reads of a scan's derived structures, and rebuilds among them.
+
+    ``PanelKeys`` factorizes the two key columns up front and derives the cell
+    index and the two axis permutations on demand, each memoized. Neither
+    ``KeyScanCounter`` nor ``PivotCounter`` can see that: a derivation taken
+    again costs no ``factorize`` and no ``_wide_pivot`` call, and returns the
+    same answer, so the whole difference is the work.
+
+    The subclass records every read and, by comparing the memo slot before and
+    after, whether that read built the value or returned the one already held.
+    """
+
+    NAMES = {"cell": "_cell", "unit_order": "_unit_order", "time_order": "_time_order"}
+
+    def __init__(self, monkeypatch):
+        self.scans: list = []
+        outer = self
+        # Bound before the patch: inside ``_tally`` the module attribute is the
+        # subclass, and a late lookup would recur into itself.
+        base = DU.PanelKeys
+
+        class Traced(base):
+            def __init__(self, df, unit_column, time_column):
+                super().__init__(df, unit_column, time_column)
+                self.reads = {name: 0 for name in DerivationCounter.NAMES}
+                self.builds = {name: 0 for name in DerivationCounter.NAMES}
+                outer.scans.append(self)
+
+            def _tally(self, name):
+                self.reads[name] += 1
+                held = getattr(self, DerivationCounter.NAMES[name])
+                value = getattr(base, name).fget(self)
+                if value is not held:
+                    self.builds[name] += 1
+                return value
+
+            @property
+            def cell(self):
+                return self._tally("cell")
+
+            @property
+            def unit_order(self):
+                return self._tally("unit_order")
+
+            @property
+            def time_order(self):
+                return self._tally("time_order")
+
+        monkeypatch.setattr(DU, "PanelKeys", Traced)
+
+    @property
+    def only(self):
+        """The single scan the panel was read through."""
+        assert len(self.scans) == 1, f"expected one scan, took {len(self.scans)}"
+        return self.scans[0]
+
+
 # =========================================================================== #
 # work assertions -- these start red
 # =========================================================================== #
@@ -190,6 +248,72 @@ class TestPivotCount:
             f"a (index, columns, values) signature was pivoted twice: "
             f"{counter.calls}")
         assert counter.total == 2
+
+
+class TestDerivationCount:
+    """The cell index and the axis permutations are derived once per panel, and
+    every pivot takes them from the scan.
+
+    These are the two structures the scan holds that cost nothing visible to
+    rebuild: the permutations are identical and the cell index is identical, so
+    a pivot that derives its own returns exactly the right frame and the only
+    difference is the pass it spent. Counting factorizes and pivots cannot
+    reach them, which is what a mutant that swaps ``keys.unit_order`` for a
+    fresh ``argsort``, or forces the ``cell`` memo to rebuild, survives on.
+    """
+
+    def test_the_cell_index_is_built_once_however_often_it_is_read(self, monkeypatch):
+        counter = DerivationCounter(monkeypatch)
+        dataprep(make_panel(), *ARGS)
+        keys = counter.only
+        assert keys.reads["cell"] > 1, "fixture must read the cell index more than once"
+        assert keys.builds["cell"] == 1
+
+    def test_every_pivot_takes_its_axis_sorts_from_the_scan(self, monkeypatch):
+        pivots = PivotCounter(monkeypatch)
+        counter = DerivationCounter(monkeypatch)
+        dataprep(make_panel(), *ARGS)
+        keys = counter.only
+        assert pivots.total == 2
+        assert keys.reads["unit_order"] == pivots.total
+        assert keys.reads["time_order"] == pivots.total
+        assert keys.builds["unit_order"] == 1
+        assert keys.builds["time_order"] == 1
+
+    def test_the_cohort_branch_derives_no_more_than_the_single_treated_one(
+            self, monkeypatch):
+        counter = DerivationCounter(monkeypatch)
+        out = dataprep(make_staggered(), *ARGS)
+        assert "cohorts" in out, "fixture must exercise the cohort branch"
+        keys = counter.only
+        assert keys.builds == {"cell": 1, "unit_order": 1, "time_order": 1}
+
+    def test_covariate_pivots_derive_nothing_of_their_own(self, monkeypatch):
+        """Ten covariates are ten more pivots and no more derivations."""
+        names = [f"x{k}" for k in range(10)]
+        counter = DerivationCounter(monkeypatch)
+        dataprep(make_panel(covariates=names), *ARGS, covariates=names)
+        keys = counter.only
+        assert keys.builds == {"cell": 1, "unit_order": 1, "time_order": 1}
+
+    def test_a_second_read_is_the_first_answer(self):
+        """Stated on the object, without a ``dataprep`` around it: a derived
+        structure is the same array every time it is asked for."""
+        keys = DU.PanelKeys(make_panel(), "id", "time")
+        assert keys.cell is keys.cell
+        assert keys.unit_order is keys.unit_order
+        assert keys.time_order is keys.time_order
+
+    def test_a_supplied_scan_carries_its_derivations_into_dataprep(self, monkeypatch):
+        """The point of handing a scan on: what ``balance`` derived is not
+        derived again."""
+        df = make_panel()
+        counter = DerivationCounter(monkeypatch)
+        keys = balance(df, "id", "time")
+        before = dict(keys.builds)
+        dataprep(df, *ARGS, keys=keys)
+        assert keys.builds == {"cell": 1, "unit_order": 1, "time_order": 1}
+        assert before["cell"] == 1, "balance must have built the cell index"
 
 
 # =========================================================================== #

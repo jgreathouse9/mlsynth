@@ -66,6 +66,8 @@ CASES = {
     "scmo_germany": "benchmarks.cases.scmo_germany",            # Path A: Tian et al. West Germany balance
     "scmo_concatenated_mc": "benchmarks.cases.scmo_concatenated_mc",  # Path B: Tian Table 1 / Sun Sim1
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
+    "scmo_demeaned_mc": "benchmarks.cases.scmo_demeaned_mc",    # Path B: Tian Online Appendix Table B.1 (demeaned matching + permutation test size)
+    "scmo_covid_sweden": "benchmarks.cases.scmo_covid_sweden",  # Path A: Tian Online Appendix B.3 -- Sweden's NPIs, Table B.3 weights + effect magnitudes + significance pattern
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP (2016Q3)
     "rescm_brexit_2020": "benchmarks.cases.rescm_brexit_2020",  # Path A: SCM-relaxation Brexit robustness (2020Q1)
     "brabander_brexit_table1": "benchmarks.cases.brabander_brexit_table1",      # Path A: de Brabander et al. 2025 Table 1, all 14 cells (SC/DSC/SDID i-iii/MASC/ASCM, 2016Q3, no covariates)

@@ -288,13 +288,29 @@ Generalising the estimand, treatment, or unit
 
 * :doc:`scmo` -- multi-outcome SC, both variants.
   Path A: Tian-Lee-Panchenko (2026) German reunification (nine
-  pre-1989 indicators) -- the concatenated synthetic reproduces their
-  Table 2 balance cell by cell (synthetic 1989 GDP per capita
-  :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
+  pre-1989 indicators) -- all 36 cells of their Table 2 balance, the two
+  synthetic controls and the two data columns (synthetic 1989 GDP per
+  capita :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
   :math:`34.1`), pre-RMSE :math:`= 110` (durable: ``scmo_germany``).
   Path B (concatenated): TLP Table 1 == Sun et al. ``Simulation1.R``
-  -- bias falls and pre-fit rises with the outcome count :math:`K` across
-  :math:`T_0 \in \{1, 5, 10\}` (durable: ``scmo_concatenated_mc``).
+  -- all 36 cells (fit, bias, SD for four estimators), bias falling and
+  pre-fit rising with the outcome count :math:`K` across
+  :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
+  ten-outcome bias further (durable: ``scmo_concatenated_mc``).
+  Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
+  light-touch NPIs, cross-validated against a captured run of their own
+  ``COVID_analysis.R`` -- all 76 cells of their Table B.3 donor weights, the
+  446 per-period permutation p-values across twelve outcomes, the aggregate
+  index and its p-values (Figures B.5 and B.7, which the paper prints only
+  inside the plots), and four robustness variants, together with the effect
+  magnitudes the text reports (COVID-19 cases :math:`-70\%`, deaths
+  :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,
+  retail :math:`-5` to :math:`-13\%`) (durable: ``scmo_covid_sweden``).
+  Path B (demeaned): TLP Online Appendix Table B.1 -- all 144 cells over
+  :math:`d \in \{1, 0.5, 0\}` and :math:`T_0 \in \{5, 10, 20\}`, with
+  demeaning improving the fit, the permutation test's size distorting as the
+  treated unit moves inside the donors' hull, and demeaning and more
+  outcomes pulling it back (durable: ``scmo_demeaned_mc``).
   Path B (averaged): Sun-Ben-Michael-Feller (2025) Appendix-D regime
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
