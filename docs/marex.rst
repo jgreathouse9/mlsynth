@@ -672,10 +672,24 @@ onto ``mlsynth``'s implementation, which was checked against it:
    * - Predictors :math:`\mathbf{x} = [\mathbf{y}^E ; \mathbf{z}]`
      - ``covariates=[...]`` (matched on pre-outcomes + covariates)
    * - "treated = smaller set" swap
-     - applied in :func:`~mlsynth.utils.marex_helpers.orchestration.solve_marex`
+     - not applied; the treated group is the cardinality-constrained variable
+       (see below)
    * - Exact permutation test (sum statistic)
      - permutation inference (mlsynth defaults to a mean statistic / sampled
        permutations)
+
+One deliberate divergence. The reference relabels the two groups so the treated
+one is the smaller, expressing the preference for treating few units. In
+``mlsynth`` that preference is already expressed by the caller, through
+``m_eq`` / ``m_min`` / ``m_max``, and the config requires one of them. Applying
+the relabelling on top of a cardinality-constrained solve overrides the caller:
+``m_eq=6`` on twelve markets returned three, and they were the control
+synthetic's markets -- the group that ``sum(z) = m_eq`` does not constrain and
+that :math:`\sum_j c_j w_j \le B` does not price. ``mlsynth`` therefore reads
+the treated group off :math:`\mathbf{w}`, the variable the program constrains.
+Were the labelling ever free -- the symmetric ``standard`` objective with no
+cardinality, no cost bound and no restrictions -- a convention would be needed,
+but that configuration cannot be built here.
 
 Driving ``mlsynth``'s ``solve_design`` on the authors' exact DGP and predictor
 matrix recovers the average treatment effect to within its scale, and the effect
