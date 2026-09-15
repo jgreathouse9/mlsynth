@@ -6,7 +6,7 @@
 
 The table sits between ``.. coverage-table-start`` and ``.. coverage-table-end``
 in the page; everything outside the markers is left alone. The source of the
-counts is tools/estimator_families.toml.
+counts is tools/estimator_families_data.py.
 """
 from __future__ import annotations
 

@@ -4,7 +4,7 @@ are what stop it drifting from the library again.
 The table previously said "Thirty-seven of the thirty-eight estimators" and
 "Of mlsynth's 36 estimators, 35 (97%)" while the library exported 78. Nothing
 failed, because nothing was checking. The counts now come from
-``tools/estimator_families.toml``; these tests assert that the file describes
+``tools/estimator_families_data.py``; these tests assert that it describes
 exactly the exported estimators, that every family it references is defined,
 and that the committed table is what the generator produces from it.
 
@@ -24,6 +24,7 @@ import pytest
 import mlsynth
 from tools.estimator_families import (
     FAMILY_ORDER,
+    build_coverage,
     coverage_rows,
     load_families,
     render_table,
@@ -59,13 +60,13 @@ class TestTheFileDescribesTheLibrary:
         missing = exported_estimators() - set(data.assignments)
         assert not missing, (
             "exported estimators with no family in "
-            "tools/estimator_families.toml: %s" % sorted(missing)
+            "tools/estimator_families_data.py: %s" % sorted(missing)
         )
 
     def test_no_assignment_names_a_nonexistent_estimator(self, data):
         extra = set(data.assignments) - exported_estimators()
         assert not extra, (
-            "tools/estimator_families.toml names estimators mlsynth does not "
+            "tools/estimator_families_data.py names estimators mlsynth does not "
             "export: %s" % sorted(extra)
         )
 
@@ -130,7 +131,7 @@ class TestTheCommittedTable:
         expected = ".. coverage-table-start\n\n" + render_table(data) + "\n"
         assert committed == expected, (
             "docs/replications.rst is out of date with "
-            "tools/estimator_families.toml -- run "
+            "tools/estimator_families_data.py -- run "
             "`python tools/gen_coverage_table.py`"
         )
 
@@ -146,37 +147,40 @@ class TestTheCommittedTable:
 
 
 class TestFailuresAreReported:
-    """Edge and failure level: a malformed file is refused, not worked around."""
+    """Edge and failure level: malformed data is refused, not worked around."""
 
-    def test_a_missing_file_raises(self, tmp_path):
-        with pytest.raises(FileNotFoundError):
-            load_families(tmp_path / "nope.toml")
+    ONE_FAMILY = [("canonical", "Canonical")]
 
-    def test_an_unknown_family_raises(self, tmp_path):
-        p = tmp_path / "f.toml"
-        p.write_text(
-            '[[family]]\nkey = "canonical"\ntitle = "Canonical"\n\n'
-            '[estimators]\nFDID = "canonical"\nTSSC = "nosuchfamily"\n'
-        )
+    def test_the_minimal_valid_case_builds(self):
+        cov = build_coverage(self.ONE_FAMILY, {"FDID": "canonical"}, {})
+        assert cov.assignments == {"FDID": "canonical"}
+        assert [f.key for f in cov.families] == ["canonical"]
+
+    def test_empty_data_builds_to_nothing(self):
+        cov = build_coverage([], {}, {})
+        assert cov.families == [] and cov.assignments == {}
+        assert coverage_rows(cov) == []
+
+    def test_an_unknown_family_raises(self):
         with pytest.raises(ValueError, match="nosuchfamily"):
-            load_families(p)
+            build_coverage(
+                self.ONE_FAMILY,
+                {"FDID": "canonical", "TSSC": "nosuchfamily"},
+                {},
+            )
 
-    def test_a_duplicate_family_key_raises(self, tmp_path):
-        p = tmp_path / "f.toml"
-        p.write_text(
-            '[[family]]\nkey = "canonical"\ntitle = "Canonical"\n'
-            '[[family]]\nkey = "canonical"\ntitle = "Again"\n\n'
-            '[estimators]\nFDID = "canonical"\n'
-        )
+    def test_a_duplicate_family_key_raises(self):
         with pytest.raises(ValueError, match="duplicate"):
-            load_families(p)
+            build_coverage(
+                [("canonical", "Canonical"), ("canonical", "Again")],
+                {"FDID": "canonical"},
+                {},
+            )
 
-    def test_an_unverified_name_outside_the_assignments_raises(self, tmp_path):
-        p = tmp_path / "f.toml"
-        p.write_text(
-            '[[family]]\nkey = "canonical"\ntitle = "Canonical"\n\n'
-            '[estimators]\nFDID = "canonical"\n\n'
-            '[unverified]\nGHOST = "no such estimator"\n'
-        )
+    def test_an_unverified_name_outside_the_assignments_raises(self):
         with pytest.raises(ValueError, match="GHOST"):
-            load_families(p)
+            build_coverage(
+                self.ONE_FAMILY,
+                {"FDID": "canonical"},
+                {"GHOST": "no such estimator"},
+            )

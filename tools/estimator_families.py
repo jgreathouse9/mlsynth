@@ -1,24 +1,23 @@
-"""Read ``tools/estimator_families.toml`` and render the coverage table.
+"""Build the estimator-family coverage and render its table.
 
 The table on ``docs/replications.rst`` reports, per family, how many estimators
 mlsynth ships and how many carry a replication. Both counts were maintained by
 hand and both went 42 estimators out of date without anything failing. They are
-now derived from the data file, and ``tools/gen_coverage_table.py`` writes the
-result into the page between its two markers.
+now derived from :mod:`tools.estimator_families_data`, and
+``tools/gen_coverage_table.py`` writes the result into the page between its two
+markers.
 
-Loading refuses a file that does not describe the library: an unknown family, a
+Building refuses data that does not describe the library: an unknown family, a
 duplicate family key, or an unverified estimator that was never assigned all
-raise, so a malformed file fails where it is read and not several counts later.
+raise, so bad data fails where it is read and not several counts later.
 """
 from __future__ import annotations
 
 import textwrap
-import tomllib
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Mapping
+from typing import Dict, List, Mapping, Sequence, Tuple
 
-DATA_FILE = Path(__file__).resolve().parent / "estimator_families.toml"
+from tools.estimator_families_data import ESTIMATORS, FAMILIES, UNVERIFIED
 
 #: Family keys in the order their rows appear in the table.
 FAMILY_ORDER = [
@@ -65,43 +64,46 @@ class Row:
     unverified: List[str]
 
 
-def load_families(path: Path | None = None) -> Coverage:
-    """Parse the data file, or raise saying what is wrong with it."""
-    path = Path(path) if path is not None else DATA_FILE
-    if not path.exists():
-        raise FileNotFoundError(path)
-    raw = tomllib.loads(path.read_text())
+def build_coverage(
+    families: Sequence[Tuple[str, str]],
+    assignments: Mapping[str, str],
+    unverified: Mapping[str, str],
+) -> Coverage:
+    """Validate the three pieces and bind them together, or raise saying why.
 
-    families: List[Family] = []
+    Kept separate from :func:`load_families` so the refusals can be exercised
+    on inputs built in a test, with no file to write first.
+    """
+    defined: List[Family] = []
     seen = set()
-    for entry in raw.get("family", []):
-        key = entry["key"]
+    for key, title in families:
         if key in seen:
-            raise ValueError("duplicate family key %r in %s" % (key, path))
+            raise ValueError("duplicate family key %r" % key)
         seen.add(key)
-        families.append(Family(key=key, title=entry["title"]))
+        defined.append(Family(key=key, title=title))
 
-    assignments: Mapping[str, str] = raw.get("estimators", {})
     unknown = {f for f in assignments.values() if f not in seen}
     if unknown:
         raise ValueError(
-            "estimators assigned to undefined families %s in %s"
-            % (sorted(unknown), path)
+            "estimators assigned to undefined families: %s" % sorted(unknown)
         )
 
-    unverified: Mapping[str, str] = raw.get("unverified", {})
     stray = set(unverified) - set(assignments)
     if stray:
         raise ValueError(
-            "unverified names %s are not assigned a family in %s"
-            % (sorted(stray), path)
+            "unverified names are not assigned a family: %s" % sorted(stray)
         )
 
     return Coverage(
-        families=families,
+        families=defined,
         assignments=dict(assignments),
         unverified=dict(unverified),
     )
+
+
+def load_families() -> Coverage:
+    """The library's own coverage, from :mod:`tools.estimator_families_data`."""
+    return build_coverage(FAMILIES, ESTIMATORS, UNVERIFIED)
 
 
 def coverage_rows(data: Coverage) -> List[Row]:
