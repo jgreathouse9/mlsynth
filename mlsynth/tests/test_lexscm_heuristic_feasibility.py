@@ -199,6 +199,12 @@ class TestCompletionBound:
         assert ls._budget_allows_completion([0], free, None, None, 3)
         assert ls._budget_allows_completion([0], free, np.ones(6), np.inf, 3)
 
+    def test_bound_rejects_when_too_few_candidates_remain(self):
+        """A partial cannot be finished from a pool that has run out."""
+        costs = np.array([1.0, 1.0, 1.0])
+        assert not ls._budget_allows_completion([0], [0, 1, 2], costs, 100.0, m=4)
+        assert ls._budget_allows_completion([0], [0, 1, 2], costs, 100.0, m=3)
+
     def test_bound_rejects_a_partial_that_has_overspent(self):
         costs = np.array([10.0, 10.0, 1.0, 1.0, 1.0])
         free = list(range(5))
@@ -266,6 +272,22 @@ class TestInfeasibilityIsOnlyClaimedWhenProved:
         assert "multi-start search" in msg
         assert "not a proof" in msg
         assert "n_starts" in msg and "enumerate" in msg
+
+    def test_error_with_no_named_constraint_still_explains_the_path(self, monkeypatch):
+        """With neither a conflict graph nor a budget there is no line to add.
+
+        The head has to carry the whole message on its own, and it still has to
+        distinguish a search that found nothing from a region that holds
+        nothing.
+        """
+        G = _gram(12, 9, seed=3)
+        monkeypatch.setattr(ls, "_local_search", lambda *a, **k: ([], 0, None))
+        with pytest.raises(MlsynthConfigError) as e:
+            select_treated_designs(G, list(range(12)), m=3, top_K=5,
+                                   method="heuristic", n_starts=8, random_state=0)
+        msg = str(e.value)
+        assert "multi-start search" in msg and "not a proof" in msg
+        assert "\n  - " not in msg, f"nothing to itemise, yet it itemised:\n{msg}"
 
     def test_enumeration_failure_still_claims_the_region_is_empty(self):
         """Enumeration did exhaust the region, so the strong claim is earned."""
