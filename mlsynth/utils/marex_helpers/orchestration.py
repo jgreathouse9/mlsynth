@@ -161,13 +161,18 @@ def solve_marex(
             return False
         return complement >= 1
 
-    z_opt = np.asarray(raw["z_opt"])
+    # The exact path carries the selection in ``z``; the relaxed one rounds the
+    # weights and reports ``z_opt=None``, and there the discretised support of
+    # ``w`` is the selection, since post_hoc_discretize puts exactly the chosen
+    # units in it.
+    z_raw = raw.get("z_opt")
+    z_sel = (np.asarray(z_raw) > 0.5) if z_raw is not None else (w_opt > 1e-8)
     w_sw, v_sw = w_opt.copy(), v_opt.copy()
     for lab in np.unique(clusters_vec):
         k = label_to_k[lab]
         members = np.where(clusters_vec == lab)[0]
         if not _labelling_is_free(lab, len(members),
-                                  int((z_opt[members, k] > 0.5).sum())):
+                                  int(z_sel[members, k].sum())):
             continue
         tw, cw = w_opt[:, k], v_opt[:, k]
         n_t, n_c = int((tw > 1e-8).sum()), int((cw > 1e-8).sum())
