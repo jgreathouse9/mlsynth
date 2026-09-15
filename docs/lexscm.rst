@@ -382,14 +382,78 @@ not on a certificate of global optimality. LEXSCM therefore:
   ``FEASIBLE``.
 
 Because the local search has no MIP optimality gap, LEXSCM reports a
-consensus diagnostic in its place: the fraction of independent starts
-that converged to the incumbent (``consensus_rate``), the number of
-distinct local optima seen, and the incumbent-improvement trail. High
-consensus across many random starts is the practical confidence signal
-that the incumbent is the global optimum. (A convex hull lower bound is
-*also* reported, but only as advisory information -- for the reason above
-it is :math:`\approx 0` and is deliberately not turned into an
-optimality gap.)
+consensus block in its place: the number of independent starts run, how
+many of them ended on the incumbent (``starts_reaching_incumbent``, and
+its share ``consensus_rate``), the number of distinct local optima seen,
+and the incumbent-improvement trail. (A convex hull lower bound is *also*
+reported, but only as advisory information -- for the reason above it is
+:math:`\approx 0` and is deliberately not turned into an optimality gap.)
+
+What the consensus block does and does not tell you
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The block records what the search did. It does not measure whether the
+incumbent is the global optimum, and ``consensus_rate`` in particular
+should not be read that way.
+
+The measurement: 18 instances built from a 211-market DMA panel
+(three population bands,
+:math:`m \in \{3, 4\}`, three constraint regimes), each solved exactly by
+enumeration, against 1,350 multi-start runs over
+``n_starts`` :math:`\in \{1, 2, 4, 8, 16\}` and fifteen seeds. Within a
+fixed ``n_starts`` -- the only situation an analyst is ever in, since
+``n_starts`` is set before the number is read -- ``consensus_rate``
+separates a suboptimal run from an exact one with an AUC of 0.44 to 0.54.
+Half of that range is on the wrong side of a coin flip.
+
+Pooled across ``n_starts`` the AUC is 0.38, which is worse than
+uninformative: it runs backwards. The rate divides by the quantity that
+determines accuracy. More starts explore more basins, so the share
+reaching the incumbent falls while the answer improves:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 22 28 28
+
+   * - ``n_starts``
+     - share exact
+     - mean ``consensus_rate``
+     - mean starts on incumbent
+   * - 1
+     - 0.51
+     - 0.64
+     - 1.2
+   * - 4
+     - 0.90
+     - 0.44
+     - 3.1
+   * - 16
+     - 1.00
+     - 0.40
+     - 11.0
+
+A low ``consensus_rate`` is therefore not evidence of a miss, and two runs
+at different ``n_starts`` cannot be compared on it. No threshold is usable
+either: ``consensus_rate <= 0.5`` catches three quarters of the suboptimal
+runs but fires on 70% of the exact ones, and tightening it to
+:math:`0.2` drops the false-alarm rate to 16% while catching 3% of the
+misses.
+
+That corpus needs an exact solve per instance, so the suite pins the
+structure behind it instead, on three small enumerable designs:
+``mlsynth/tests/test_lexscm_heuristic_consensus.py`` holds accuracy rising
+with ``n_starts`` while the rate falls, the underlying count rising, and the
+rate on wrong answers overlapping the rate on right ones -- including runs
+where every start agreed and the answer was still not the optimum.
+
+What does predict accuracy is ``n_starts``, which the analyst sets. On
+that corpus the share of runs landing on the certified optimum was 0.51,
+0.76, 0.90, 0.98 and 1.00 at ``n_starts`` of 1, 2, 4, 8 and 16, and the
+suboptimal runs missed by 3.4% of imbalance on average. The default of 16
+was exact on every returned run. Constraints are what makes the landscape
+hard: the spillover-plus-budget regime accounts for most of the misses at
+low ``n_starts``, so raise ``n_starts`` when a budget or an adjacency graph
+is active, and enumerate when :math:`\binom{M}{m}` allows it.
 
 What ``OPTIMAL`` certifies, and how it is checked
 """""""""""""""""""""""""""""""""""""""""""""""""""

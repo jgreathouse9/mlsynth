@@ -155,6 +155,95 @@ def _budget_feasible_candidates(candidate_idx, m, unit_costs, budget):
     return np.asarray(keep)
 
 
+def _budget_allows_completion(S, free, unit_costs, budget, m, cheapest_first=None):
+    """Whether a partial tuple ``S`` can still be finished to size ``m`` on budget.
+
+    Spending is monotone, so a partial that fits the budget can still be
+    impossible to complete. Testing the partial alone is what let the greedy
+    construction walk into a dead end: it would buy the two markets that most
+    lowered the loss, find nothing affordable left, and give up with the region
+    still full of feasible designs.
+
+    The bound is the cheapest conceivable completion -- the ``m - |S|`` cheapest
+    remaining candidates, with the conflict graph ignored. Ignoring conflicts can
+    only make a completion look cheaper, so the bound never rejects a partial
+    that could have been finished. It admits some that cannot, which costs one
+    wasted step of the construction and never an answer.
+
+    ``cheapest_first`` is ``free`` pre-sorted by cost; passing it makes the check
+    ``O(m)`` instead of ``O(M log M)``, which matters because the construction
+    runs it once per candidate per step.
+    """
+    if unit_costs is None or budget is None or np.isinf(budget):
+        return True
+    S = [int(x) for x in S]
+    spent = float(np.asarray(unit_costs, dtype=float)[S].sum()) if S else 0.0
+    k = m - len(S)
+    if k <= 0:
+        return spent <= budget + 1e-12
+    order = (cheapest_first if cheapest_first is not None
+             else sorted((int(j) for j in free), key=lambda j: unit_costs[j]))
+    in_S = set(S)
+    need, taken = 0.0, 0
+    for j in order:
+        if int(j) in in_S:
+            continue
+        need += float(unit_costs[int(j)])
+        taken += 1
+        if taken == k:
+            break
+    if taken < k:
+        return False
+    return spent + need <= budget + 1e-12
+
+
+def _no_design_error(exact, m, M, cand, conflict, unit_costs, budget):
+    """The error for an empty result, claiming only what the path establishes.
+
+    Enumeration scores every tuple in the region, so an empty result from it is
+    a proof that the region is empty. The multi-start search only ever visits
+    part of the region, so an empty result from it is a failed search. Reporting
+    the second as the first told analysts to relax constraints that admitted
+    thousands of designs.
+
+    The spillover line states the inequality it has measured.
+    :func:`greedy_independent_set_size` is a *lower* bound on the maximum
+    independent set, so reaching ``m`` proves a conflict-free ``m``-tuple exists
+    and rules spillover out as the binding constraint on its own.
+    """
+    problems = []
+    if conflict is not None:
+        from .conflict import greedy_independent_set_size
+        largest = greedy_independent_set_size(conflict, cand)
+        if largest < m:
+            problems.append(
+                f"spillover: the largest conflict-free set found among the {M} "
+                f"candidates is {largest} < m={m}. Relax the cluster/adjacency "
+                f"constraint, widen the candidate pool, or reduce m.")
+        else:
+            problems.append(
+                f"spillover: not binding on its own -- a conflict-free set of "
+                f"{largest} candidates exists, covering m={m}. Any exclusion is "
+                f"from the constraints in combination.")
+    if unit_costs is not None and budget is not None and not np.isinf(budget):
+        cheapest = float(np.sort(np.asarray(unit_costs, dtype=float)[cand])[:m].sum())
+        problems.append(
+            f"budget: the {m} cheapest of the {M} candidates cost "
+            f"${cheapest:,.0f} against a ${budget:,.0f} budget.")
+    if exact:
+        head = (f"LEXSCM design is infeasible -- enumeration scored every candidate "
+                f"{m}-tuple and none satisfies the constraints together.")
+    else:
+        head = ("LEXSCM found no feasible design -- the multi-start search did not "
+                "construct one. This is not a proof that none exists; only "
+                "enumeration exhausts the region. Raise n_starts, set "
+                "method='enumerate' when C(M, m) is affordable, or relax the "
+                "constraint named below.")
+    if problems:
+        return MlsynthConfigError(head + "\n  - " + "\n  - ".join(problems))
+    return MlsynthConfigError(head)
+
+
 # ======================================================================
 # Exact enumeration (small C(M, m))
 # ======================================================================
@@ -236,6 +325,8 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                 and is_independent(conflict, S)
                 and _strata.within_max(strata, S, max_per))
     diag = np.diag(G)
+    cheapest_first = (None if unit_costs is None
+                      else sorted(free, key=lambda j: unit_costs[j]))
     # Two dictionaries with two jobs. `pool` is the *solution* pool: the tuples
     # the search actually visited, ranked at the end to produce the top-K. It
     # must keep exactly the membership it had before, or the search returns a
@@ -300,7 +391,13 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
         if start not in forced_set and len(S) < m and _ok(sorted(S + [start])):
             S = sorted(S + [start])
         while len(S) < m:
-            rem = [j for j in free if j not in S and _ok(S + [j])]
+            # A partial that fits the budget is not the same as a partial that
+            # can be finished on it: without the completion bound the build
+            # spends on the loss-greedy picks and starves before reaching m.
+            rem = [j for j in free
+                   if j not in S and _ok(S + [j])
+                   and _budget_allows_completion(S + [j], free, unit_costs,
+                                                 budget, m, cheapest_first)]
             if not rem:
                 return None
             cands = [sorted(S + [j]) for j in rem]
@@ -509,21 +606,14 @@ def select_treated_designs(
     else:
         raise ValueError(f"unknown method {method!r}")
 
-    # Spillover feasibility: with the "No interference" constraint active, an
-    # admissible design must be a size-m independent set of the conflict graph.
-    # If the search found none, that constraint (alone or with the budget) is
-    # infeasible -- fail loudly, in the same ``have vs need`` shape as the audit,
-    # reporting the largest conflict-free set actually found.
-    if conflict is not None and not raw:
-        from .conflict import greedy_independent_set_size
-        largest = greedy_independent_set_size(conflict, cand)
-        raise MlsynthConfigError(
-            "LEXSCM design is infeasible -- the binding constraint(s):\n  - "
-            f"spillover: no conflict-free treated {m}-tuple exists among the {M} "
-            f"candidates (largest conflict-free set found is {largest} < m={m}). "
-            f"Relax the cluster/adjacency constraint, widen the candidate pool, or "
-            f"reduce m."
-        )
+    # An empty result means different things on the two paths. Enumeration
+    # exhausted the region, so nothing feasible exists. The multi-start search
+    # visited part of it, so it found nothing -- which is not the same claim,
+    # and reporting it as the same one sent analysts to relax constraints that
+    # admitted thousands of designs. ``_no_design_error`` says only what the
+    # path that produced the empty result establishes.
+    if not raw and (conflict is not None or not exact):
+        raise _no_design_error(exact, m, M, cand, conflict, unit_costs, budget)
 
     # Coverage feasibility backstop: ``_strata.check_feasible`` (and the budget
     # presolve) already reject infeasible quotas up front, so this post-search
