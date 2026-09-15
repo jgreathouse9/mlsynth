@@ -2064,3 +2064,20 @@ timeout = 300.0
   find = "            var += sigma2                                    # future innovation"
   replace = "            var += 0.0                                       # future innovation"
   models = "a prediction interval that silently equals the confidence interval, so a caller validating against a realised trajectory is given a band for a conditional mean"
+
+[[target]]
+name = "marex-treated-assignment"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_treated_assignment.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "infer-the-treated-group-from-support-size"
+  find = "    w_sw, v_sw = w_opt, v_opt"
+  replace = """    w_sw, v_sw = w_opt.copy(), v_opt.copy()
+    for _lab in np.unique(clusters_vec):
+        _k = label_to_k[_lab]
+        _tw, _cw = w_opt[:, _k], v_opt[:, _k]
+        if int((_tw > 1e-8).sum()) > int((_cw > 1e-8).sum()):
+            w_sw[:, _k], v_sw[:, _k] = _cw, _tw"""
+  models = "reading the treated group off the answer instead of the program: whichever of the two weight vectors has the smaller support is called treated. The design returned is still an optimum of the program that was solved and every fit statistic is unchanged, so nothing looks wrong -- but an experimenter who asked for six treated markets is handed three, and they are the control synthetic's markets, the group the cardinality does not constrain and the cost bound does not price"

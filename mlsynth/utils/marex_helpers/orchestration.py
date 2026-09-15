@@ -117,20 +117,22 @@ def solve_marex(
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)
 
-    # swap labels so the *treated* group is the smaller-support set (Abadie &
-    # Zhao's convention: treat as few units as possible), ties broken by the
-    # earlier first-treated index.
-    def _first_pos(x):
-        nz = np.where(x > 1e-8)[0]
-        return int(nz[0]) if nz.size else len(x)
-
-    w_sw, v_sw = w_opt.copy(), v_opt.copy()
-    for lab in np.unique(clusters_vec):
-        k = label_to_k[lab]
-        tw, cw = w_opt[:, k], v_opt[:, k]
-        n_t, n_c = int((tw > 1e-8).sum()), int((cw > 1e-8).sum())
-        if (n_t > n_c) or (n_t == n_c and _first_pos(tw) > _first_pos(cw)):
-            w_sw[:, k], v_sw[:, k] = cw, tw
+    # Which group is treated is settled by the program, so it is read off the
+    # solution and not inferred from it. ``w`` is the variable the cardinality
+    # reaches (``w <= z`` with ``sum(z)`` pinned by m_eq / m_min / m_max), the
+    # one the budget prices (``sum(c * w) <= B``), and the one the geographic
+    # restrictions act on through ``z``; ``v`` lives on the complement. Swapping
+    # the two is therefore not a symmetry of the feasible set, and the config
+    # requires a cardinality constraint, so there is no configuration in which
+    # the labelling is free.
+    #
+    # This used to relabel the groups so the treated one had the smaller
+    # support, ties broken by the earlier first index, on the reading that
+    # Abadie & Zhao prefer to treat few units. They do, and the program says so
+    # through ``m_eq`` -- imposing it again on the answer overrode the solver.
+    # Asked for six treated markets on a twelve-market panel it returned three,
+    # and they were the control synthetic's markets.
+    w_sw, v_sw = w_opt, v_opt
 
     # per-cluster designs
     clusters_out = {}
