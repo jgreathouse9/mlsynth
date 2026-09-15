@@ -1,0 +1,18 @@
+# case: ascm_mixtape
+# generated_at: 2026-09-15T12:44:55Z
+# mlsynth_version: 2.0.0
+# estimator: VanillaSC
+# config: {}
+# reference_impl: augsynth 0.2.0 (R, commit 7a90ea48)
+# reference_version: 
+quantity,mlsynth,reference,abs_diff
+ATT[Prop 99],-15.952568,-15.952578,1e-05
+pre_fit_L2[Prop 99],3.197963,3.197961,2e-06
+scaled_L2[Prop 99],0.045728,0.045728,0.0
+jackknife+ lower[Prop 99],-22.137127,-22.137124,3e-06
+jackknife+ upper[Prop 99],-12.268526,-12.268538,1.2e-05
+ATT[Texas],20972.161234,20972.169744,0.00851
+pre_fit_L2[Texas],2436.209098,2436.208862,0.000236
+scaled_L2[Texas],0.059339,0.059339,0.0
+jackknife+ lower[Texas],18900.107581,18900.107478,0.000103
+jackknife+ upper[Texas],23849.490298,23849.482186,0.008112
