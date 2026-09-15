@@ -82,6 +82,29 @@ n_estimators = sum(
     for name in mlsynth.__all__
     if inspect.isclass(getattr(mlsynth, name)) and hasattr(getattr(mlsynth, name), "fit")
 )
+
+
+# And of the benchmark cases behind them, read off the registry the suite runs.
+# Parsed, not imported: importing the registry would import every case module
+# and the reference toolchains they reach for.
+def _n_benchmark_cases():
+    import ast
+
+    here = Path.cwd().resolve()
+    for base in [here, *here.parents]:
+        registry = base / "benchmarks" / "registry.py"
+        if registry.exists():
+            tree = ast.parse(registry.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign) and any(
+                    getattr(t, "id", None) == "CASES" for t in node.targets
+                ):
+                    return len(node.value.keys)
+            raise ValueError(f"no CASES mapping in {registry}")
+    raise FileNotFoundError(f"could not locate benchmarks/registry.py above {here}")
+
+
+n_benchmark_cases = _n_benchmark_cases()
 mlsynth_version = mlsynth.__version__ if hasattr(mlsynth, "__version__") else "1.0.0"
 ```
 
@@ -1221,7 +1244,7 @@ contributions and bug reports from the applied community are encouraged.
 To keep the library correct as it grows, every estimator ships with automated
 tests, written before the code they cover and run in a continuous-integration
 environment on each change. Correctness against the literature is checked
-separately, by a benchmark suite of two hundred small re-runnable cases that
+separately, by a benchmark suite of `{python} n_benchmark_cases` small re-runnable cases that
 hold each estimator to an outside answer rather than to its own past output. When
 an authoritative implementation of a method can be run, usually an R package or
 the original authors' replication code, the benchmark runs it on the same input
