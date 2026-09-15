@@ -195,11 +195,21 @@ class TestTheAmbiguousCaseKeepsTheConvention:
     """
 
     def test_loose_bounds_report_the_smaller_group_as_treated(self):
+        """Seed 2 is the instance where the convention has to do something.
+
+        The solver returns ``w`` on seven units and ``v`` on five, so reading
+        the labels off ``w`` and applying the convention give different
+        answers. On a panel where ``w`` is already the smaller of the two the
+        assertion below passes whatever the code does, which is why the
+        precondition is asserted first: if the fixture ever stops
+        discriminating, the test says so instead of going quietly green.
+        """
         res, w_sup, v_sup = _fit_capturing_solver(
-            _panel(3), design="standard", m_min=1, m_max=N_UNITS - 1)
-        reported = sorted(str(u) for u in res.selected_units)
-        assert len(reported) <= len(w_sup) or len(reported) <= len(v_sup)
-        assert len(reported) == min(len(w_sup), len(v_sup))
+            _panel(2), design="standard", m_min=1, m_max=N_UNITS - 1)
+        assert len(w_sup) > len(v_sup), (
+            f"fixture no longer discriminates: |w|={len(w_sup)} is not larger "
+            f"than |v|={len(v_sup)}, so this test cannot fail")
+        assert sorted(str(u) for u in res.selected_units) == v_sup
 
     def test_a_cardinality_constraint_is_still_required(self):
         """Omitting the bounds entirely is rejected, so the search space is
