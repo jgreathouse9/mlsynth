@@ -16,12 +16,13 @@ it reported 3, and they were the control synthetic's markets. The number of
 markets an experimenter is told to treat was then neither the number they asked
 for nor the answer to the program that was solved.
 
-The convention is not wrong everywhere. It would not be wrong if the labelling were ever free: under the symmetric
-``standard`` objective with no cardinality, no budget and no restrictions,
-``(w, v, z)`` and ``(v, w, 1 - z)`` are both feasible at the same cost. The
-config forbids that configuration -- a cardinality constraint is mandatory --
-so the case the convention was for does not arise.
-:class:`TestThereIsNoAmbiguousCase` pins that.
+The convention is not wrong everywhere. The convention is right where the labelling really is free, and that case is
+reachable: under the symmetric ``standard`` objective, bounds as loose as
+``m_min=1, m_max=N-1`` admit the complement as a treated set too, so
+``(w, v, z)`` and ``(v, w, 1 - z)`` are both optimal. It is kept there -- it is
+what the authors' code does, and the Section 5 Monte Carlo benchmark compares
+that cell against their numbers.
+:class:`TestTheAmbiguousCaseKeepsTheConvention` pins both halves.
 
 :class:`TestAgreesWithLexscmAndBruteForce` is the other reason this matters. Put
 on the same fit window and the same standardisation, MAREX's treated subproblem
@@ -182,28 +183,46 @@ class TestTheSolverDecidesWhoIsTreated:
 # 2. Where the labelling really is free, keep the convention
 # =========================================================================
 
-class TestThereIsNoAmbiguousCase:
-    """A cardinality constraint is mandatory, so the labelling is never free.
+class TestTheAmbiguousCaseKeepsTheConvention:
+    """Where either labelling is feasible at the same cost, pick one and say so.
 
-    Were ``m_eq``, ``m_min`` and ``m_max`` all absent under the symmetric
-    ``standard`` objective, ``(w, v, z)`` and ``(v, w, 1 - z)`` would both be
-    feasible at the same cost and a tie-break convention would be needed. The
-    config forbids that configuration, which is what makes reading the treated
-    group off ``w`` correct everywhere and inferring it wrong everywhere.
+    ``m_min=1, m_max=N-1`` bounds the treated size without pinning it: the
+    complement of any admissible set is admissible too. Under the symmetric
+    ``standard`` objective ``(w, v, z)`` and ``(v, w, 1 - z)`` are then both
+    optimal, so a convention is needed and Abadie & Zhao's is the one to use --
+    it is what their own code does, and ``benchmarks/cases/marex_section5_mc``
+    compares this cell against their Monte Carlo.
     """
 
-    def test_a_cardinality_constraint_is_required(self):
+    def test_loose_bounds_report_the_smaller_group_as_treated(self):
+        res, w_sup, v_sup = _fit_capturing_solver(
+            _panel(3), design="standard", m_min=1, m_max=N_UNITS - 1)
+        reported = sorted(str(u) for u in res.selected_units)
+        assert len(reported) <= len(w_sup) or len(reported) <= len(v_sup)
+        assert len(reported) == min(len(w_sup), len(v_sup))
+
+    def test_a_cardinality_constraint_is_still_required(self):
+        """Omitting the bounds entirely is rejected, so the search space is
+        always bounded even where the labelling is free."""
         from mlsynth.exceptions import MlsynthConfigError
         with pytest.raises(MlsynthConfigError, match="m_eq|m_min|m_max"):
             _fit_capturing_solver(_panel(3), design="standard")
 
-    @pytest.mark.parametrize("bounds", [{"m_min": 3, "m_max": 3},
-                                        {"m_min": 2, "m_max": 5}])
-    def test_bounds_without_m_eq_still_report_the_solvers_w(self, bounds):
-        res, w_sup, v_sup = _fit_capturing_solver(_panel(3), **bounds)
+    def test_bounds_that_exclude_the_complement_pin_the_labels(self):
+        """``m_max`` below the complement's size makes the swap infeasible."""
+        res, w_sup, _ = _fit_capturing_solver(
+            _panel(3), design="standard", m_min=1, m_max=4)
         reported = sorted(str(u) for u in res.selected_units)
         assert reported == w_sup
-        assert bounds["m_min"] <= len(reported) <= bounds["m_max"]
+        assert 1 <= len(reported) <= 4
+
+    def test_an_asymmetric_objective_pins_the_labels(self):
+        """Only ``standard`` matches both synthetics to the mean; under
+        ``weakly_targeted`` only ``w`` is targeted, so swapping changes the
+        objective even with the bounds wide open."""
+        res, w_sup, _ = _fit_capturing_solver(
+            _panel(3), m_min=1, m_max=N_UNITS - 1)
+        assert sorted(str(u) for u in res.selected_units) == w_sup
 
 
 # =========================================================================
