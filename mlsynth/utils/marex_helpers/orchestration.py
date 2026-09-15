@@ -117,16 +117,63 @@ def solve_marex(
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)
 
-    # swap labels so the *treated* group is the smaller-support set (Abadie &
-    # Zhao's convention: treat as few units as possible), ties broken by the
-    # earlier first-treated index.
+    # Which group is treated is settled by the program wherever the program
+    # settles it, and the labels are read off the solution only there. ``w`` is
+    # what the cardinality reaches (``w <= z`` with ``sum(z)`` bounded), what
+    # the cost bound prices (``sum(c * w) <= B``), and what the restrictions
+    # act on through ``z``; ``v`` lives on the complement. Where any of those
+    # tells the two apart, swapping them is infeasible or dearer, so ``w`` is
+    # the treated group and there is nothing to decide.
+    #
+    # Where none of them does, the labelling is genuinely free and needs a
+    # convention. That case is reachable: the ``standard`` objective is
+    # symmetric in ``w`` and ``v``, and bounds as loose as ``m_min=1``,
+    # ``m_max=N-1`` admit the complement as a treated set too, so
+    # ``(w, v, z)`` and ``(v, w, 1 - z)`` are both feasible at the same cost.
+    # Abadie & Zhao's convention picks one -- treat the smaller set, ties
+    # broken by the earlier first index -- and their own code does exactly
+    # this. Their program is this case throughout: a continuous QCQP with no
+    # selection variable, and an enumeration capped at floor(N/2).
+    #
+    # Applying that convention where the program *does* settle it is the defect
+    # this guard replaced: with ``m_eq=6`` on twelve markets it reported three,
+    # they were the control synthetic's markets, and the estimated effect came
+    # back negated.
     def _first_pos(x):
         nz = np.where(x > 1e-8)[0]
         return int(nz[0]) if nz.size else len(x)
 
+    def _labelling_is_free(lab, n_members, m_sel):
+        """Whether ``(v, w, 1 - z)`` is feasible at the same cost as ``(w, v, z)``."""
+        if design != "standard":
+            return False            # only this objective is symmetric in w, v
+        if costs is not None or budget is not None or restrictions is not None:
+            return False            # these price or restrict w and z alone
+        from .formulation import get_per_cluster_param
+        if get_per_cluster_param(m_eq, lab) is not None:
+            return False            # the treated size is pinned exactly
+        complement = n_members - m_sel
+        lo = get_per_cluster_param(m_min, lab)
+        hi = get_per_cluster_param(m_max, lab)
+        if lo is not None and complement < int(lo):
+            return False
+        if hi is not None and complement > int(hi):
+            return False
+        return complement >= 1
+
+    # The exact path carries the selection in ``z``; the relaxed one rounds the
+    # weights and reports ``z_opt=None``, and there the discretised support of
+    # ``w`` is the selection, since post_hoc_discretize puts exactly the chosen
+    # units in it.
+    z_raw = raw.get("z_opt")
+    z_sel = (np.asarray(z_raw) > 0.5) if z_raw is not None else (w_opt > 1e-8)
     w_sw, v_sw = w_opt.copy(), v_opt.copy()
     for lab in np.unique(clusters_vec):
         k = label_to_k[lab]
+        members = np.where(clusters_vec == lab)[0]
+        if not _labelling_is_free(lab, len(members),
+                                  int(z_sel[members, k].sum())):
+            continue
         tw, cw = w_opt[:, k], v_opt[:, k]
         n_t, n_c = int((tw > 1e-8).sum()), int((cw > 1e-8).sum())
         if (n_t > n_c) or (n_t == n_c and _first_pos(tw) > _first_pos(cw)):

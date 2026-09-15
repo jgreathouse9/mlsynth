@@ -672,10 +672,38 @@ onto ``mlsynth``'s implementation, which was checked against it:
    * - Predictors :math:`\mathbf{x} = [\mathbf{y}^E ; \mathbf{z}]`
      - ``covariates=[...]`` (matched on pre-outcomes + covariates)
    * - "treated = smaller set" swap
-     - applied in :func:`~mlsynth.utils.marex_helpers.orchestration.solve_marex`
+     - applied where either labelling is optimal; not where ``m_eq``, a cost
+       bound or an asymmetric objective already settles it (see below)
    * - Exact permutation test (sum statistic)
      - permutation inference (mlsynth defaults to a mean statistic / sampled
        permutations)
+
+The reference's labelling rule is kept, and only where it applies. The authors'
+base program in ``SCdesign_LazyRun.R`` is two simplex rows and the disjointness
+:math:`\mathbf{w}'\mathbf{v} = 0`, solved as a continuous non-convex QCQP
+(``vtype = 'C'``) with no selection variable at all. Exchanging the two weight
+vectors is feasible there at the same cost, so the labelling is free and
+"treatment regions are the smaller set of regions" is the tie-break that
+program needs. Their cardinality routine enumerates treated sets of every size
+from 1 up to :math:`K`, defaulting to :math:`\lfloor N/2 \rfloor`, so the
+treated group is never the majority there either.
+
+``mlsynth``'s program can be either case, so the rule is applied on a test of
+which. Swapping :math:`\mathbf{w}` and :math:`\mathbf{v}` is feasible at the
+same cost when the objective is symmetric in them (the ``standard`` design),
+no exact ``m_eq`` is set, the complement's size also satisfies ``m_min`` and
+``m_max``, and there is no cost bound or geographic restriction -- those price
+and restrict :math:`\mathbf{w}` and :math:`\mathbf{z}` alone. That case is
+ordinary: ``m_min=1, m_max=N-1`` is exactly it, and it is the cell the Section 5
+Monte Carlo compares against the authors' numbers. There the convention decides,
+as it does for them.
+
+Where the program does settle the labelling it is read off :math:`\mathbf{w}`,
+the variable the program constrains. Applying the convention there instead
+returned three treated markets for ``m_eq = 6`` on twelve, and they were the
+control synthetic's markets -- the group :math:`\sum_j z_j = m` does not
+constrain and :math:`\sum_j c_j w_j \le B` does not price. It also negated the
+estimated effect, which is the treated synthetic minus the control one.
 
 Driving ``mlsynth``'s ``solve_design`` on the authors' exact DGP and predictor
 matrix recovers the average treatment effect to within its scale, and the effect

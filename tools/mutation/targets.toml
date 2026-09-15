@@ -2064,3 +2064,26 @@ timeout = 300.0
   find = "            var += sigma2                                    # future innovation"
   replace = "            var += 0.0                                       # future innovation"
   models = "a prediction interval that silently equals the confidence interval, so a caller validating against a realised trajectory is given a band for a conditional mean"
+
+[[target]]
+name = "marex-treated-assignment"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_treated_assignment.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "infer-the-treated-group-from-support-size"
+  find = """    def _labelling_is_free(lab, n_members, m_sel):
+        \"\"\"Whether ``(v, w, 1 - z)`` is feasible at the same cost as ``(w, v, z)``.\"\"\"
+        if design != "standard":"""
+  replace = """    def _labelling_is_free(lab, n_members, m_sel):
+        \"\"\"Whether ``(v, w, 1 - z)`` is feasible at the same cost as ``(w, v, z)``.\"\"\"
+        return True
+        if design != "standard":"""
+  models = "the convention applied everywhere, including where the program has already settled the labels. Whichever weight vector has the smaller support is called treated, so an experimenter who asked for six treated markets is handed three -- the control synthetic's, the group the cardinality does not constrain and the cost bound does not price -- and the estimated effect comes back negated, since it is the treated synthetic minus the control one. Every fit statistic is unchanged and the design returned is still an optimum of the program solved, so nothing about it looks wrong"
+
+  [[target.mutant]]
+  id = "never-let-the-convention-apply"
+  find = "        return complement >= 1"
+  replace = "        return False"
+  models = "the over-correction: reading the labels off w even where either labelling is optimal. With m_min=1 and m_max=N-1 under the symmetric objective the complement is an admissible treated set too, so the solver's choice between them is arbitrary and the reported treated count stops being comparable to Abadie & Zhao's, whose own code takes the smaller set. The Section 5 Monte Carlo cell moved from 6.83 treated units to 7.5 against a 0.8 tolerance when this was the behaviour"
