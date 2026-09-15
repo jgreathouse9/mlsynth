@@ -901,60 +901,99 @@ Experimental design
 Coverage summary
 ----------------
 
+.. coverage-table-start
+
 .. list-table:: Verification coverage by family
    :header-rows: 1
-   :widths: 32 14 14 40
+   :widths: 26 10 10 54
 
    * - Family
      - Verified
      - In family
      - Status
    * - Canonical workhorses
-     - 2
-     - 2
-     - Complete (TSSC, FDID)
+     - 4
+     - 4
+     - Complete (FDID, MASC, TSSC, VanillaSC)
    * - Decomposition-first
      - 2
      - 2
      - Complete (HSC, SBC)
    * - Generalised estimand / treatment / unit
-     - 5
-     - 5
-     - Complete (SCMO, CTSC, DSC, SI, MicroSynth)
+     - 12
+     - 12
+     - Complete (CSCM, CTSC, DRSC, DSC, DTWSC, FSC, MEDSC, MOSC,
+       MicroSynth, SCMO, SCTA, SI)
    * - Convex-hull relaxation
-     - 1
      - 2
-     - NSC ✓ (cross-validated vs author's R + Path-B MC);
-       ISCM one-draw only (non-public panel, no MC)
+     - 3
+     - NSC, SRC verified;
+       ISCM -- one-draw illustration only: the paper relies on a
+       non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
-     - 7
-     - 7
-     - Complete (BVSS, CLUSTERSC, MLSC, PDA, RESCM, FSCM,
-       SPARSE_SC)
+     - 12
+     - 12
+     - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
+       PDA, RESCM, SCD, SCUL, SparseSC)
    * - Time-aware / factor models
-     - 2
-     - 2
-     - Complete (FMA, TASC)
+     - 5
+     - 5
+     - Complete (CFM, CSCIPCA, FMA, LPCA, TASC)
+   * - Bayesian
+     - 7
+     - 7
+     - Complete (BFSC, BPSCS, BSCM, CMBSTS, DMLFM, MTGP, MVBBSC)
    * - Staggered adoption
-     - 5
-     - 5
-     - Complete (SDID, SpSyDiD, PPSCM, SSC, SEQ_SDID)
+     - 10
+     - 10
+     - Complete (CAST, GSYNTH, PPSCM, ROLLDID, SDID, SPILLSYNTH, SSC,
+       STACKEDSC, SequentialSDID, SpSyDiD)
    * - Spillover-aware (donor screening)
-     - 1
-     - 1
-     - Complete (SPOTSYNTH; SpSyDiD counted under staggered)
+     - 2
+     - 2
+     - Complete (RRSC, SPOTSYNTH)
    * - Missing data
      - 3
      - 3
-     - Complete (MCNNM, SNN, RMSI)
+     - Complete (MCNNM, RMSI, SNN)
    * - Identification under endogeneity
+     - 3
+     - 3
+     - Complete (DSCAR, PROXIMAL, SIV)
+   * - Compositional outcomes
      - 2
      - 2
-     - Complete (SIV, PROXIMAL)
+     - Complete (COMPSC, PROPSC)
+   * - No control units
+     - 2
+     - 2
+     - Complete (GPITS, SHC)
+   * - Honest inference on the ATT
+     - 2
+     - 2
+     - Complete (ESC, ORTHSC)
+   * - Randomized assignment
+     - 1
+     - 1
+     - Complete (MUSC)
+   * - Prospective forecasting
+     - 1
+     - 1
+     - Complete (TWSF)
+   * - Privacy-constrained release
+     - 1
+     - 1
+     - Complete (DPSC)
    * - Experimental design
-     - 5
-     - 5
-     - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
+     - 6
+     - 6
+     - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
+   * - Total
+     - 77
+     - 78
+     - 77 of 78 estimators carry a replication.
+
+.. coverage-table-end
 
 Every estimator but ISCM carries a strong or solid replication
 against its source paper or against an authoritative reference

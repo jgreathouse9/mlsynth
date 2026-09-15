@@ -1,0 +1,217 @@
+# Which family each estimator belongs to, and which estimators carry a
+# replication. The coverage table on docs/replications.rst is generated from
+# this file by tools/gen_coverage_table.py; mlsynth/tests/test_replication_coverage.py
+# fails if the file and mlsynth.__all__ disagree, or if the committed table is
+# not what the generator produces.
+#
+# A new estimator lands red until it is given a family here. That is deliberate:
+# which family a method belongs to is a decision, and the generator does not
+# guess it.
+#
+# Family order is the order of the rows in the table.
+
+[[family]]
+key = "canonical"
+title = "Canonical workhorses"
+
+[[family]]
+key = "decomp"
+title = "Decomposition-first"
+
+[[family]]
+key = "generalised"
+title = "Generalised estimand / treatment / unit"
+
+[[family]]
+key = "hull"
+title = "Convex-hull relaxation"
+
+[[family]]
+key = "highdim"
+title = "High-dimensional donors"
+
+[[family]]
+key = "time"
+title = "Time-aware / factor models"
+
+[[family]]
+key = "bayesian"
+title = "Bayesian"
+
+[[family]]
+key = "staggered"
+title = "Staggered adoption"
+
+[[family]]
+key = "spillover"
+title = "Spillover-aware (donor screening)"
+
+[[family]]
+key = "missing"
+title = "Missing data"
+
+[[family]]
+key = "endogeneity"
+title = "Identification under endogeneity"
+
+[[family]]
+key = "compositional"
+title = "Compositional outcomes"
+
+[[family]]
+key = "nocontrols"
+title = "No control units"
+
+[[family]]
+key = "inference"
+title = "Honest inference on the ATT"
+
+[[family]]
+key = "randomized"
+title = "Randomized assignment"
+
+[[family]]
+key = "forecasting"
+title = "Prospective forecasting"
+
+[[family]]
+key = "privacy"
+title = "Privacy-constrained release"
+
+[[family]]
+key = "design"
+title = "Experimental design"
+
+
+# ---------------------------------------------------------------------------
+# Estimator -> family.
+#
+# The 36 assignments the previous hand-maintained table made are kept as it
+# made them. The rest follow the family sections of docs/replications.rst where
+# those place an estimator, and each method's own "When to use" section where
+# they do not.
+# ---------------------------------------------------------------------------
+[estimators]
+
+# Canonical workhorses -- the ones you reach for first.
+VanillaSC = "canonical"
+FDID = "canonical"
+TSSC = "canonical"
+MASC = "canonical"
+
+# Decomposition-first: match on a cycle or spectral component, not raw outcomes.
+HSC = "decomp"
+SBC = "decomp"
+
+# Generalised estimand, treatment type, or unit scale.
+SCMO = "generalised"
+CTSC = "generalised"
+DSC = "generalised"
+SI = "generalised"
+MicroSynth = "generalised"
+SCTA = "generalised"
+DTWSC = "generalised"
+CSCM = "generalised"
+DRSC = "generalised"
+FSC = "generalised"
+MEDSC = "generalised"
+MOSC = "generalised"
+
+# Relaxing the convex-hull assumption.
+NSC = "hull"
+ISCM = "hull"
+SRC = "hull"
+
+# Donor pools large relative to the pre-period.
+CLUSTERSC = "highdim"
+MLSC = "highdim"
+PDA = "highdim"
+RESCM = "highdim"
+FSCM = "highdim"
+SparseSC = "highdim"
+BVSS = "highdim"
+BEAST = "highdim"
+SCD = "highdim"
+DROSC = "highdim"
+MSQRT = "highdim"
+SCUL = "highdim"
+
+# State-space and factor models.
+FMA = "time"
+TASC = "time"
+CFM = "time"
+CSCIPCA = "time"
+LPCA = "time"
+
+# Bayesian posteriors over the untreated outcome.
+BFSC = "bayesian"
+BPSCS = "bayesian"
+BSCM = "bayesian"
+CMBSTS = "bayesian"
+DMLFM = "bayesian"
+MTGP = "bayesian"
+MVBBSC = "bayesian"
+
+# Many treated units, adopting at the same time or at different ones.
+SDID = "staggered"
+SpSyDiD = "staggered"
+PPSCM = "staggered"
+SSC = "staggered"
+SequentialSDID = "staggered"
+SPILLSYNTH = "staggered"
+CAST = "staggered"
+GSYNTH = "staggered"
+ROLLDID = "staggered"
+STACKEDSC = "staggered"
+
+# Treatment reaching the donors.
+SPOTSYNTH = "spillover"
+RRSC = "spillover"
+
+# Missing cells in the panel.
+MCNNM = "missing"
+SNN = "missing"
+RMSI = "missing"
+
+# Where the treatment is endogenous in a way SC cannot absorb.
+SIV = "endogeneity"
+PROXIMAL = "endogeneity"
+DSCAR = "endogeneity"
+
+# Outcomes that are vectors of shares summing to a whole.
+COMPSC = "compositional"
+PROPSC = "compositional"
+
+# No untreated unit exists to borrow from.
+SHC = "nocontrols"
+GPITS = "nocontrols"
+
+# The counterfactual is not the hard part; the standard error is.
+ESC = "inference"
+ORTHSC = "inference"
+
+# Assignment is randomized, over few large units.
+MUSC = "randomized"
+
+# Forecasting past the end of the panel, for a unit that has not adopted.
+TWSF = "forecasting"
+
+# Releasing the counterfactual under a formal privacy guarantee.
+DPSC = "privacy"
+
+# Choosing who to treat, before the experiment runs.
+LEXSCM = "design"
+MAREX = "design"
+SYNDES = "design"
+PANGEO = "design"
+SPCD = "design"
+GEOX = "design"
+
+
+# ---------------------------------------------------------------------------
+# Estimators with no replication, and why. Everything not named here carries
+# one of the three paths in docs/replications.rst. The prose on that page says
+# ISCM is the only exception; the tests hold the two statements together.
+# ---------------------------------------------------------------------------
+[unverified]
+ISCM = "one-draw illustration only: the paper relies on a non-public panel and provides no Monte Carlo to reproduce"
