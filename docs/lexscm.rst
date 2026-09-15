@@ -391,6 +391,48 @@ that the incumbent is the global optimum. (A convex hull lower bound is
 it is :math:`\approx 0` and is deliberately not turned into an
 optimality gap.)
 
+What ``OPTIMAL`` certifies, and how it is checked
+"""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The status is a statement about the algorithm and not a quantity measured on
+the instance: ``OPTIMAL`` is reported because the enumeration branch was taken.
+The claim it stands for is that the returned ``top_designs`` are the ``top_K``
+feasible treated :math:`m`-tuples of smallest :math:`L(\mathcal{S})` over the
+entire feasible region -- the candidate pool intersected with the budget,
+spillover, stratum-quota and forced-unit constraints -- and that each design's
+weights are the exact minimiser of its own inner QP.
+
+``mlsynth/tests/test_lexscm_optimality_certificate.py`` checks that claim
+against a reference sharing no code with the search: an inner solver that
+enumerates the :math:`2^{m} - 1` faces of the simplex instead of running
+Wolfe's active set, and an outer brute force that scores every feasible tuple
+behind plain-Python constraint predicates. The two agree tuple for tuple and
+loss for loss across ten constraint regimes, the weak-targeting ridge, and
+Grams that are rank deficient, dominated by one factor, or carrying duplicate
+donors.
+
+Three further things are pinned there. The weights carry a per-instance
+certificate: with :math:`g = G_{\mathcal{S}\mathcal{S}} \mathbf{w}` and
+:math:`\nu = \mathbf{w}' G_{\mathcal{S}\mathcal{S}} \mathbf{w}`, the
+conditions :math:`g_j \ge \nu` for every :math:`j`, with equality on the
+support, are the KKT conditions of the inner program and are computed from the
+Gram alone, so they hold whatever solver produced :math:`\mathbf{w}`. The
+number of tuples scored equals the size of the feasible region counted
+independently. And the batched solver that ranks the candidates agrees with the
+high-precision re-solve to :math:`5 \times 10^{-16}` relative on the measured
+instances, which is the step that would otherwise seat the wrong ``K`` in a
+pool whose reported losses are all correct.
+
+The checks are themselves checked. With the enumeration made to drop the
+optimum, to rank on perturbed losses, or to skip the budget filter, the
+comparison has to fail, and a test asserts that it does: a verification that
+passes on a broken search verifies nothing.
+
+Ties are the one place the word is weaker than it sounds. Duplicate donors put
+several tuples at the same minimum, and the search returns ``K`` of that tied
+class. Any ``K`` of them are global minimisers, so the certificate holds on the
+losses and not on the labels.
+
 Building tuples in the heuristic regime
 """""""""""""""""""""""""""""""""""""""
 
