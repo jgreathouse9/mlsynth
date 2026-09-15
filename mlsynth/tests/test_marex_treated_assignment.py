@@ -135,6 +135,25 @@ class TestTheSolverDecidesWhoIsTreated:
         assert treated and control
         assert not (treated & control)
 
+    def test_the_synthetic_treated_series_is_built_from_the_solvers_w(self):
+        """The labels are not cosmetic: the effect is built from them.
+
+        ``synthetic_treated`` is the treated weights against the outcome panel
+        and the estimated effect is it minus ``synthetic_control``, so
+        exchanging the two vectors negates the effect exactly. On this panel
+        the post-period mean gap read -0.5995 with the solver's assignment and
+        +0.5995 with the groups exchanged -- same magnitude, opposite sign.
+        """
+        df = _panel(3)
+        res, w_sup, _ = _fit_capturing_solver(df, m_eq=4)
+        wide = df.pivot(index="unit", columns="time", values="Y").sort_index()
+        weights = list(res.clusters.values())[0].unit_weight_map["Treated"]
+        expected = sum(float(wt) * wide.loc[str(u)].to_numpy()
+                       for u, wt in weights.items())
+        assert sorted(str(u) for u in weights) == w_sup
+        assert np.allclose(np.asarray(res.globres.synthetic_treated), expected,
+                           rtol=1e-8, atol=1e-8)
+
     def test_the_budget_prices_the_group_that_is_reported_treated(self):
         """The cost bound constrains ``w``, so it must bind what is called treated.
 
