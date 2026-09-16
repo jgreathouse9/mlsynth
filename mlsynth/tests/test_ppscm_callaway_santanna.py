@@ -840,3 +840,165 @@ class TestInfluenceModuleEdges:
         keys = res.inference_detail.group_time_se.keys()
         assert (2010, 2010) in keys and (2014, 2014) in keys
         assert all(g >= 2010 and t >= g for g, t in keys)
+
+
+# =========================================================================== #
+# 9. the same estimator, in de Chaisemartin and D'Haultfoeuille's notation
+# =========================================================================== #
+# de Chaisemartin & D'Haultfoeuille (REStat 2026, 108(4):863) estimate dynamic
+# effects for treatments that may be non-binary and non-absorbing. Their design
+# 1 -- binary, staggered, every group untreated at baseline -- is the case this
+# module already covers, and on p.869 they record that there ``DID_l`` is the
+# Callaway-Sant'Anna event-study coefficient ``theta^es(l - 1)`` computed on the
+# binarised-and-staggerised treatment. PPSCM reaches Callaway-Sant'Anna under
+# three conventions (section 2), so under those same conventions it must
+# reproduce ``DID_l`` too, and the paper's claim becomes a thing this suite can
+# measure instead of cite.
+#
+# Their control set is the one place the two constructions can come apart. The
+# paper compares g against groups that have not switched by ``F_g - 1 + l``, so
+# the set is re-chosen at every horizon; PPSCM fixes one donor pool per cohort.
+# The two coincide exactly when no later cohort survives to ``F_g - 1 + l``,
+# which is the same condition that separates ``window`` from ``never_treated``
+# in section 4, and the tests below pin both sides of it.
+
+DCDH_NEVER = 10 ** 9            # the paper's ``F_g = T + 1`` for never-switchers
+
+
+def dcdh_did_l(df, L, pool="never", outcome="y", unit="id", time="time",
+               first_treat="first_treat"):
+    """``DID_l`` for ``l = 1..L``, transcribed from the paper's definition.
+
+    For a group ``g`` adopting at ``F_g``, and ``l`` such that
+    ``F_g - 1 + l <= T_g``::
+
+        DID_{g,l} = (Y_{g,F_g-1+l} - Y_{g,F_g-1})
+                    - mean_{g' in C} (Y_{g',F_g-1+l} - Y_{g',F_g-1})
+        DID_l     = (1 / N_l) sum_g S_g DID_{g,l}
+
+    with ``S_g = 1`` throughout design 1 and ``N_l`` the number of groups the
+    horizon is estimable for. ``T_g = max_{g'} F_{g'} - 1`` is the last period
+    with a group whose treatment has not changed, and equals ``T`` whenever a
+    never-treated group exists, so with these panels it never binds.
+
+    ``pool`` selects ``C``:
+
+    * ``"paper"`` -- ``{g' : F_{g'} > F_g - 1 + l}``, re-chosen per horizon, as
+      written.
+    * ``"never"`` -- the never-treated, which is the fixed pool PPSCM uses.
+
+    Transcribed instead of imported for the same reason ``cs_group_time`` is:
+    the identity has to be enforced wherever the suite runs.
+    """
+    wide = df.pivot(index=unit, columns=time, values=outcome)
+    F = df.groupby(unit)[first_treat].first().replace(0, DCDH_NEVER)
+    T = int(wide.columns.max())
+    Tg = T if (F == DCDH_NEVER).any() else int(F.max()) - 1
+    never = F.index[F == DCDH_NEVER]
+    out = {}
+    for l in range(1, L + 1):
+        cells = []
+        for g in F.index[F < DCDH_NEVER]:
+            fg = int(F[g])
+            t = fg + l - 1
+            if fg - 1 + l > Tg or t > T or (fg - 1) not in wide.columns:
+                continue
+            ctrl = never if pool == "never" else F.index[F > fg - 1 + l]
+            if not len(ctrl):
+                continue
+            d_tr = wide.loc[g, t] - wide.loc[g, fg - 1]
+            d_co = (wide.loc[ctrl, t] - wide.loc[ctrl, fg - 1]).mean()
+            cells.append(d_tr - d_co)
+        if cells:
+            out[l] = float(np.mean(cells))
+    return out
+
+
+def dcdh_pools_coincide(df, L, unit="id", first_treat="first_treat"):
+    """Horizons at which ``{F' > F_g - 1 + l}`` is the never-treated set."""
+    F = df.groupby(unit)[first_treat].first().replace(0, DCDH_NEVER)
+    treated = F.index[F < DCDH_NEVER]
+    return [l for l in range(1, L + 1)
+            if all((F[F > int(F[g]) - 1 + l] == DCDH_NEVER).all() for g in treated)]
+
+
+def tau_of(res):
+    return np.asarray(res.event_study.tau, dtype=float)
+
+
+# Onsets spread far enough apart that a later cohort always survives an earlier
+# one's horizons, so ``dcdh_pools_coincide`` is empty and the fixed-pool variant
+# is the only one the identity is claimed for.
+SPREAD = (10, 14, 18)
+# Onsets close enough together that the paper's own pool collapses to the
+# never-treated set from l = 3 on.
+CLUSTERED = (10, 11, 12)
+
+
+class TestDCDHIdentity:
+    @pytest.mark.parametrize("effect", EFFECTS)
+    def test_did_l_matches_lead_for_lead(self, effect):
+        """``DID_l`` against ``tau[l - 1]``, horizon by horizon.
+
+        The ATT is one number and could agree by cancellation; the path is
+        where a weighting difference would show.
+        """
+        df = staggered(SPREAD, effect=effect)
+        tau = tau_of(fit_cs_mode(df, n_leads=6))
+        for l, v in dcdh_did_l(df, 6).items():
+            assert tau[l - 1] == pytest.approx(v, abs=1e-12), f"{effect} l={l}"
+
+    @pytest.mark.parametrize("seed", range(4))
+    def test_did_l_identity_holds_across_seeds(self, seed):
+        df = staggered(SPREAD, seed=seed)
+        tau = tau_of(fit_cs_mode(df, n_leads=6))
+        for l, v in dcdh_did_l(df, 6).items():
+            assert tau[l - 1] == pytest.approx(v, abs=1e-12), f"l={l}"
+
+    @pytest.mark.parametrize("sizes", [(2, 5, 3), (1, 1, 8)])
+    def test_unequal_cohorts_do_not_break_it(self, sizes):
+        """``delta_l`` averages over groups and PPSCM weights cohorts by share.
+
+        Those are the same number, because every unit in a cohort shares its
+        control mean -- so unequal cohorts must not separate them, unlike the
+        unweighted aggregation tested in section 5.
+        """
+        df = staggered(SPREAD, sizes=sizes)
+        tau = tau_of(fit_cs_mode(df, n_leads=6))
+        for l, v in dcdh_did_l(df, 6).items():
+            assert tau[l - 1] == pytest.approx(v, abs=1e-12), f"{sizes} l={l}"
+
+    def test_the_papers_own_pool_agrees_where_the_pools_coincide(self):
+        df = staggered(CLUSTERED)
+        same = dcdh_pools_coincide(df, 6)
+        assert same, "the clustered panel is meant to have coinciding horizons"
+        tau = tau_of(fit_cs_mode(df, n_leads=6))
+        paper = dcdh_did_l(df, 6, pool="paper")
+        for l in same:
+            assert tau[l - 1] == pytest.approx(paper[l], abs=1e-12), f"l={l}"
+
+    def test_the_papers_own_pool_differs_where_they_do_not(self):
+        """Measured at ~5e-03 on this panel. A documented difference between two
+        donor pools, pinned so it is not read as breakage."""
+        df = staggered(CLUSTERED)
+        same = set(dcdh_pools_coincide(df, 6))
+        tau = tau_of(fit_cs_mode(df, n_leads=6))
+        paper = dcdh_did_l(df, 6, pool="paper")
+        apart = [abs(tau[l - 1] - paper[l]) for l in paper if l not in same]
+        assert apart, "expected horizons where the pools differ"
+        assert max(apart) > 1e-4, apart
+
+    def test_the_spread_panel_has_no_coinciding_horizon(self):
+        """Guards the premise of the tests above: if ``SPREAD`` ever stopped
+        separating the pools, the identity tests would pass for the wrong
+        reason."""
+        assert dcdh_pools_coincide(staggered(SPREAD), 6) == []
+
+    @pytest.mark.parametrize("field,value", [("donor_weights", "scm"),
+                                             ("base_period", "all_pre")])
+    def test_a_broken_convention_breaks_the_did_l_identity(self, field, value):
+        """The identity is the three conventions', not PPSCM's in general."""
+        df = staggered(SPREAD)
+        tau = tau_of(fit_cs_mode(df, n_leads=6, **{field: value}))
+        gaps = [abs(tau[l - 1] - v) for l, v in dcdh_did_l(df, 6).items()]
+        assert max(gaps) > 1e-6, f"{field}={value} should move the answer"
