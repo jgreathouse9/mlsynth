@@ -2060,6 +2060,15 @@ Texas, where only 8 pre-periods are available, the cross-validation selects a
 penalty of :math:`1.7\times 10^{10}` and the fit reverts to plain SCM. See the
 dedicated page :doc:`replications/ascm_mixtape`; durable case ``ascm_mixtape``.
 
+One application uses the estimator outside its usual setting. Klößner & Pfeifer
+(2018) forecast US real GDP growth by handing the synthetic control a donor pool
+built from the series' own lags, with no treatment in the problem at all; the
+outcome-only fit is then a discounted simplex least squares, and the forecast is
+an AR whose coefficients are confined to the simplex. Their Table 2 forecast
+errors are reproduced to about 0.02--0.07, the residual being a FRED vintage
+difference. See the dedicated page :doc:`replications/kp_scm_forecast`; durable
+case ``kp_scm_forecast``.
+
 The solver underneath the covariate backends is validated on its own terms by
 `mscmt_solver <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mscmt_solver.py>`__,
 which checks the batched active set against cvxpy's interior-point solver on the

@@ -137,6 +137,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cscipca
    replications/medsc
    replications/fspda_table1
+   replications/kp_scm_forecast
 
 .. _replications-canonical:
 
@@ -188,6 +189,15 @@ Canonical workhorses
   ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
   ``scpi_staggered_pi``).
   → dedicated page: :doc:`replications/vanillasc_staggered`.
+* :doc:`vanillasc` (as a forecasting method) -- Klößner & Pfeifer (2018).
+  Path A: the donor pool is built from the series' own lags and there is no
+  treatment, so the outcome-only fit becomes an AR whose coefficients are
+  confined to the simplex. Table 2's ``All`` rows on FRED ``GDPC1`` reproduce to
+  0.02--0.07 (:math:`\mathrm{SCM}^{1}_{\mathrm{All}}(36)`: RMSPE
+  :math:`3.612` against the paper's :math:`3.646`), the residual being a FRED
+  vintage difference, and the public estimator matches the engine path to
+  :math:`5\times 10^{-12}` (durable: ``kp_scm_forecast``).
+  → dedicated page: :doc:`replications/kp_scm_forecast`.
 * :doc:`replications/ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
   (the ridge-augmentation layer on VanillaSC). Cross-validation vs
   ``augsynth``\ : the canonical Kansas tax-cut ladder reproduced

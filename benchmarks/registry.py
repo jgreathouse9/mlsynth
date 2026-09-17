@@ -196,6 +196,7 @@ CASES = {
     "beast_prop99": "benchmarks.cases.beast_prop99",  # cross-val vs authors R (jeremylhour): BEAST immunized ATT path on Prop 99 (basic covariate regime)
     "eiv_coverage_mc": "benchmarks.cases.eiv_coverage_mc",  # Path B: Hirshberg 2021 error-in-variables SC interval coverage (low-rank DGP)  # Path A: Andersson 2019 Swedish carbon tax ATT/2005-gap, malo + mscmt backends (paper predictor spec)
     "synth_prop99": "benchmarks.cases.synth_prop99",   # cross-val vs original R Synth solver (Prop 99 outcome-only); skips if R/Synth absent
+    "kp_scm_forecast": "benchmarks.cases.kp_scm_forecast",  # Path A: Klossner-Pfeifer 2018 Table 2 -- SCM as a forecasting method (donors are the series' own lags); All rows on FRED GDPC1, plus VanillaSC-vs-engine agreement
     "synth_jhai_prop99": "benchmarks.cases.synth_jhai_prop99",  # cross-val vs Hainmueller j-hai/Synth 1.2.0 (Prop 99 ADH spec): weights/ATT + split-conformal band value-for-value
     "ferman_manyperiods": "benchmarks.cases.ferman_manyperiods",  # Path B: Ferman 2021 JASA Table 1 -- VanillaSC recovers factor structure as J,T0 grow (E[mu01]->1, se(alpha) shrinks vs OLS grows); mlsynth == R solve.QP value-for-value
     "ferman_pinto_mc": "benchmarks.cases.ferman_pinto_mc",  # Path B + cross-val: Ferman-Pinto 2021 QE Table 1 MC (CPS-calibrated factor model) -- VanillaSC(SC)/TSSC-MSCa(demeaned SC) reproduce Panel A/B bias + theory; == authors' quadprog QPs value-for-value on identical panels (LIVE Rscript)
