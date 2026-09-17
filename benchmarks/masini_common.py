@@ -2,7 +2,7 @@
 
 The two pieces of *"Counterfactual Analysis With Artificial Controls: Inference,
 High Dimensions, and Nonstationarity"*, JASA 116(536), 1773-1788. They live here
-because two cases need them and neither owns them: ``arco_lasa`` runs the paper's
+because two cases need them and neither owns them: ``arco_retail`` runs the paper's
 empirical application and ``arco_resampling_mc`` runs its size and power designs.
 
 The method is a counterfactual in two steps. Fit the treated series on the
@@ -18,7 +18,7 @@ Ported from the authors' MATLAB in ``codes/`` of their replication package:
 ``arco.m`` for the wiring between them. The MATLAB calls ``lasso`` from the
 Statistics Toolbox; this uses :func:`sklearn.linear_model.lasso_path` over the
 same standardized design, which reproduces their published table to five digits
-(see :mod:`benchmarks.cases.arco_lasa`).
+(see :mod:`benchmarks.cases.arco_retail`).
 
 Two transcription notes.
 
@@ -27,7 +27,7 @@ Equation 12, ``W_t = L^-1 X_t``), and standardizing the columns is itself a
 diagonal rescaling, so standardization absorbs any weight vector: with
 ``standardize=True`` every scheme in Table 1 returns the same fit. MATLAB's
 ``lasso`` standardizes by default and the authors did not turn it off, so their
-published numbers are the ``w = 1`` column of that table. ``arco_lasa`` measures
+published numbers are the ``w = 1`` column of that table. ``arco_retail`` measures
 this. Keeping the weights as an argument is what lets a case measure it, and the
 reading that makes both facts consistent is that a column's pre-sample standard
 deviation already carries the Table 1 order -- ``O(sqrt(T0))`` for a driftless
@@ -50,11 +50,11 @@ from sklearn.linear_model import lasso_path
 
 WeightMode = Literal["unit", "sqrt", "level", "auto"]
 
-_LASA = os.path.join(os.path.dirname(__file__), "..", "basedata",
-                     "masini_lasa_sales.parquet")
+_RETAIL = os.path.join(os.path.dirname(__file__), "..", "basedata",
+                       "masini_retail_sales.parquet")
 
 #: Treatment date of the retail price experiment; the 121st of 134 daily periods.
-LASA_TREAT_DATE = pd.Timestamp("2016-10-18")
+TREAT_DATE = pd.Timestamp("2016-10-18")
 
 
 # --------------------------------------------------------------------------- #
@@ -264,7 +264,7 @@ def partial_resampling(
 # --------------------------------------------------------------------------- #
 # The application's panel
 # --------------------------------------------------------------------------- #
-def load_lasa() -> pd.DataFrame:
+def load_retail() -> pd.DataFrame:
     """The retail panel of their Section 6, long, ready for ``dataprep``.
 
     233 Brazilian municipalities over 134 daily periods (2016-06-20 to
@@ -276,7 +276,7 @@ def load_lasa() -> pd.DataFrame:
     alongside the 126 untouched municipalities. ``dataprep`` then reads the
     aggregate as the treated unit and the 126 as the donor pool.
     """
-    raw = pd.read_parquet(os.path.abspath(_LASA))
+    raw = pd.read_parquet(os.path.abspath(_RETAIL))
     controls = raw[raw.treated_group == 0].copy()
     treated = (raw[raw.treated_group == 1]
                .groupby("date", as_index=False)["quantity"].sum())
@@ -284,7 +284,7 @@ def load_lasa() -> pd.DataFrame:
     treated["treated_group"] = 1
     treated["shops"] = int(raw.loc[raw.treated_group == 1, ["municipality", "shops"]]
                            .drop_duplicates()["shops"].sum())
-    treated["treat"] = (treated.date >= LASA_TREAT_DATE).astype("int8")
+    treated["treat"] = (treated.date >= TREAT_DATE).astype("int8")
     return (pd.concat([treated, controls], ignore_index=True)
             .sort_values(["municipality", "date"], ignore_index=True))
 

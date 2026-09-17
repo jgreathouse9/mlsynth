@@ -58,7 +58,7 @@ points -- returns 0.143. Coordinate descent reaches its tolerance on every draw.
 The remaining candidate is the first stage's effective shrinkage, and the
 paper's simulation code is not in the replication package -- only the empirical
 application is -- so it cannot be settled from what shipped. The empirical
-application reproduces value-for-value (``arco_lasa``).
+application reproduces value-for-value (``arco_retail``).
 
 One property of their baseline design bears on any follow-up: all six loading
 units take ``mu_i = 1`` on a common trend, so the relevant controls are 0.9988

@@ -130,7 +130,7 @@ Path A — empirical replications
      - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``masc_basque``
      - MASC Basque/ETA (KMPT Sec 5)
-   * - ``arco_lasa``
+   * - ``arco_retail``
      - Masini and Medeiros (2021) Table 5 Panel (a), the Brazilian retail price
        experiment, from their own replication package: the average effect, the
        per-shop effect, the selected-regressor count and both resampling

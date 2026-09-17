@@ -2,8 +2,8 @@
 
 The empirical application of *"Counterfactual Analysis With Artificial Controls:
 Inference, High Dimensions, and Nonstationarity"*, JASA 116(536), 1773-1788,
-Section 6, on the authors' own data (``codes/dados_lasa.mat`` of their
-replication package, shipped here as ``basedata/masini_lasa_sales.parquet``).
+Section 6, on the authors' own data (the panel in ``codes/`` of their
+replication package, shipped here as ``basedata/masini_retail_sales.parquet``).
 
 A Brazilian retail chain raised the price of one product in 107 municipalities
 on 2016-10-18 and held it there for 14 days, leaving 126 municipalities at the
@@ -65,8 +65,8 @@ import numpy as np
 import pandas as pd
 
 from benchmarks.masini_common import (
-    LASA_TREAT_DATE,
-    load_lasa,
+    TREAT_DATE,
+    load_retail,
     partial_resampling,
     trend_weights,
     weekday_dummies,
@@ -82,7 +82,7 @@ def _design() -> tuple:
     from mlsynth.utils.datautils import dataprep
 
     prepped = dataprep(
-        load_lasa(),
+        load_retail(),
         unit_id_column_name="municipality",
         time_period_column_name="date",
         outcome_column_name="quantity",
@@ -95,11 +95,11 @@ def _design() -> tuple:
 
     assert T0 == 120, T0
     assert int(prepped["post_periods"]) == 14, prepped["post_periods"]
-    assert dates[T0] == LASA_TREAT_DATE, dates[T0]
+    assert dates[T0] == TREAT_DATE, dates[T0]
     assert donors.shape[1] == 126, donors.shape
 
     X = np.column_stack([donors, weekday_dummies(dates)])
-    shops = int(load_lasa().query("municipality == 0")["shops"].iloc[0])
+    shops = int(load_retail().query("municipality == 0")["shops"].iloc[0])
     return y, X, T0, shops
 
 
