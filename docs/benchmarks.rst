@@ -130,6 +130,13 @@ Path A — empirical replications
      - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``masc_basque``
      - MASC Basque/ETA (KMPT Sec 5)
+   * - ``arco_lasa``
+     - Masini and Medeiros (2021) Table 5 Panel (a), the Brazilian retail price
+       experiment, from their own replication package: the average effect, the
+       per-shop effect, the selected-regressor count and both resampling
+       p-values, value-for-value. Also measures that column standardisation
+       absorbs their Table 1 penalty weights, so the published cells are the
+       unit-weight column
    * - ``pda_brexit``
      - Shi-Wang Brexit multi-treated-units L2-relaxation
    * - ``pda_hongkong``
@@ -249,6 +256,12 @@ Path B — Monte Carlo / simulation
      - fsPDA ``FS()`` / ``lasso.BIC()`` / ``scm.R`` cell by cell on their own dense-MC panels
    * - ``fspda_sparse_mc``
      - fsPDA ``fs()`` / ``lasso_ic()`` / ``oracle()`` on their three sparse DGPs
+   * - ``arco_resampling_mc``
+     - Masini and Medeiros (2021) Tables 2-3 size, all three arms. The two
+       arms without selection reproduce their cells and a single
+       post-intervention period is correctly sized; the LASSO arm rejects at
+       2.2 times their reported rate, and the case records the five checks
+       that localise the gap to the first stage
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
