@@ -64,7 +64,7 @@ Path A — empirical replications
    * - ``cwz_rae``
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest``
-     - CWZ 2025 Table 5 carbon-tax debiased t-test
+     - CWZ 2026 Table 5 carbon-tax debiased t-test
    * - ``cwz_ttest_mc``
      - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
    * - ``dsc_dube``
@@ -218,7 +218,7 @@ Path B — Monte Carlo / simulation
    * - ``ctsc_powell_mc``
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
-     - CWZ 2025 Table 3 application-based Monte Carlo
+     - CWZ 2026 Table 3 application-based Monte Carlo
    * - ``dr_proximal_scenarios``
      - DR_Proximal_SC ``correct.DR`` / ``correct.q`` across their scenario directory
    * - ``dr_proximal_mc``
