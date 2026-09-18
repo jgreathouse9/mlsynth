@@ -218,6 +218,26 @@ different inputs. The authors' own committed outputs — weights, balance table
 and placebo p-values at all three intervention timings — are vendored beside it
 under `authors/`.
 
+## Retail price experiment in Brazil — Masini & Medeiros (2021)
+
+| File | What it is | Used by |
+|---|---|---|
+| `masini_retail_sales.parquet` | 233 Brazilian municipalities x 134 daily periods (2016-06-20 to 2016-10-31): quantity sold of one product, the treated-group flag, and the number of shops per municipality | ArCo/WLASSO replication (`arco_retail`) |
+
+The Section 6 application of Masini & Medeiros (2021), *"Counterfactual Analysis
+With Artificial Controls: Inference, High Dimensions, and Nonstationarity"*,
+JASA 116(536), converted from the panel in `codes/` of the authors' replication
+package (the `qtd`, `gtreat` and `shops` arrays, round-tripped exactly). A retail
+chain raised the product's price in 107 municipalities on 2016-10-18 and held it
+for 14 days; the other 126 stayed at the old price. The paper undertakes not to
+disclose the name of the product or of the chain, so nothing here carries either:
+municipalities are integer indices, no column is labelled with a product, and the
+file is renamed off the source archive's own name, which contains a token that
+reads as a chain abbreviation. The
+`treat` column flags treated-group municipalities from 2016-10-18 onward.
+`benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
+which is the series the authors' `arco.m` explains.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
