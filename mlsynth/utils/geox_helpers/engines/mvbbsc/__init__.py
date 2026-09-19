@@ -8,17 +8,8 @@ NUTS. This is the arrangement a Bayesian geo product takes: GeoLift's design
 loop with a Bayesian synthetic control doing the fitting, the estimator
 occupying the slot augsynth occupies today.
 
-Three things differ from a direct call to :class:`mlsynth.MVBBSC`, and each is
-a consequence of what the scoring loop asks of an engine.
-
-Donor order is canonicalised before sampling. Column order is not information
-about the estimand, and the engine property suite asserts that by permuting the
-donors and requiring the weights to permute with them to ``1e-6``. NUTS is
-chaotic, so it is information to a sampler: permuting donors moves the posterior
-weights by about ``7e-3``. Sorting the columns lexicographically on the
-pre-period, fitting, and mapping the weights back makes the relation exact,
-because every permutation of the same donor set presents the sampler with one
-input.
+One thing differs from a direct call to :class:`mlsynth.MVBBSC`, and it is a
+consequence of what the scoring loop asks of an engine.
 
 The ATT interval carries the pre-period autocorrelation. MVBBSC's own
 counterfactual adds an iid shock, and the ATT averages a post window: under iid
@@ -32,6 +23,10 @@ exposes the difference.
 The null is the posterior, selected by ``inference="bayes"``. A conformal or
 placebo null is refused here for the same reason the sdid engine refuses
 conformal: the procedure would not be the one the interval came from.
+
+Donor order needs no handling here. ``run_mvbbsc`` canonicalises its own
+columns, so the invariance the engine property suite asserts -- permute the
+donors, the weights permute with them -- is inherited, not re-imposed.
 
 ``engine_kwargs`` carries ``n_warmup``, ``n_samples``, ``n_chains``,
 ``target_accept`` and ``autocorr``. The defaults cost roughly four seconds a
@@ -50,16 +45,6 @@ from ...engine import normal_p_value
 from .. import Engine, EngineFit, placebo_detection_boundary, placebo_interval
 
 N_WARMUP, N_SAMPLES, N_CHAINS, TARGET_ACCEPT = 600, 600, 2, 0.9
-
-
-def canonical_order(donors: np.ndarray, n_pre: int) -> np.ndarray:
-    """Donor ordering that does not depend on the caller's column order.
-
-    Lexicographic on the pre-period columns, so any permutation of the same
-    donor set maps to the same internal order and the sampler sees one input.
-    """
-    pre = np.asarray(donors, dtype=float)[:n_pre]
-    return np.lexsort(pre[::-1])
 
 
 def _ar1(residuals: np.ndarray) -> float:
@@ -87,24 +72,20 @@ def fit_once(y, Y0, n_pre: int, start: int, end: int, n_tr: int,
 
     y = np.asarray(y, dtype=float).ravel()
     Y0 = np.asarray(Y0, dtype=float)
-    order = canonical_order(Y0, n_pre)
-    inverse = np.empty_like(order)
-    inverse[order] = np.arange(order.shape[0])
-    sorted_donors = Y0[:, order]
 
-    draws = run_mvbbsc(y, sorted_donors, n_pre, n_warmup=n_warmup,
-                       n_samples=n_samples, n_chains=n_chains,
-                       target_accept=target_accept, seed=seed)
+    draws = run_mvbbsc(y, Y0, n_pre, n_warmup=n_warmup, n_samples=n_samples,
+                       n_chains=n_chains, target_accept=target_accept,
+                       seed=seed)
 
     # Rebuild the model's standardization to recover the noiseless mean. The
     # counterfactual it returns already carries an iid shock, which is the one
     # this engine replaces.
     loc = float(y[:n_pre].mean())
     scale = float(y[:n_pre].std(ddof=1)) or 1.0
-    donor_loc = sorted_donors[:n_pre].mean(axis=0)
-    donor_scale = sorted_donors[:n_pre].std(axis=0, ddof=1)
+    donor_loc = Y0[:n_pre].mean(axis=0)
+    donor_scale = Y0[:n_pre].std(axis=0, ddof=1)
     donor_scale = np.where(donor_scale > 0, donor_scale, 1.0)
-    standardized = (sorted_donors - donor_loc) / donor_scale
+    standardized = (Y0 - donor_loc) / donor_scale
     weights = np.asarray(draws["weights"], dtype=float)
     mu = (weights @ standardized.T) * scale + loc            # (n_draws, T)
     sd = np.asarray(draws["sigma"], dtype=float) * scale
@@ -125,11 +106,10 @@ def fit_once(y, Y0, n_pre: int, start: int, end: int, n_tr: int,
 
     return EngineFit(
         counterfactual=counterfactual,
-        donor_weights=weights.mean(axis=0)[inverse],
+        donor_weights=weights.mean(axis=0),
         pre_rmspe=pre_rmspe,
         scaled_l2=pre_rmspe / spread if spread > 0 else float("nan"),
         extras={"mu": mu, "sd": sd, "rho": _ar1(gap), "y": y, "seed": int(seed),
-                "donor_order": order,
                 "max_rhat": float(draws.get("max_rhat", float("nan"))),
                 "n_divergent": int(draws.get("n_divergent", 0))},
     )
@@ -225,4 +205,4 @@ ENGINE = Engine(name="mvbbsc", fit_once=fit_once, att=att,
                 detection_boundary=detection_boundary)
 
 __all__ = ["ENGINE", "fit_once", "att", "att_posterior", "sweep_p_values",
-           "point_inference", "detection_boundary", "canonical_order"]
+           "point_inference", "detection_boundary"]
