@@ -1,4 +1,9 @@
 {
+ "arco_resampling_mc": [],
+ "arco_retail": [
+  "basedata/masini_retail_sales.parquet",
+  "mlsynth/utils/datautils.py"
+ ],
  "ascm_jackknife_plus": [
   "basedata/kansas_ascm.csv",
   "mlsynth/utils/bilevel/active_set.py",
