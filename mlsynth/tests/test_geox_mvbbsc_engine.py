@@ -18,10 +18,12 @@ engine therefore carries the pre-period AR(1) into the predictive shock, and
 
 NUTS is chaotic, so donor column order is information to a sampler even though
 it is not information to the estimand: permuting the donors moved the posterior
-weights by 7e-3 against the suite's 1e-6 tolerance. The engine canonicalises the
-donor order before sampling and maps the weights back, which makes the relation
-exact. ``test_canonical_order_is_permutation_invariant`` is the direct test of
-that mechanism, ahead of the property suite that depends on it.
+weights by 7e-3 against the suite's 1e-6 tolerance. ``run_mvbbsc`` canonicalises
+its own columns, so the engine inherits the invariance instead of re-imposing
+it. ``test_donor_order_is_invariant`` asserts it holds through the seam, which
+is the thing the scoring loop depends on when nomination hands candidates over
+in whatever order it produced them, and it is a separate claim from the
+estimator-level property in ``test_mvbbsc_donor_order.py``.
 """
 
 from __future__ import annotations
@@ -74,11 +76,13 @@ def test_donor_weights_are_a_simplex():
 # the two mechanisms the property suite cannot reach
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("key", [0, 1, 2])
-def test_canonical_order_is_permutation_invariant(key):
+def test_donor_order_is_invariant(key):
     """Relabelling donors permutes the weights identically, exactly.
 
-    Without canonicalisation the sampler sees a different input and the weights
-    move by about 7e-3, which the engine property suite rejects at 1e-6.
+    Inherited from ``run_mvbbsc``, and asserted here because the engine is where
+    the scoring loop consumes it. Without the canonicalisation the sampler sees
+    a different input and the weights move by about 7e-3, which the engine
+    property suite rejects at 1e-6.
     """
     y, Y0, n_pre, end = _panel()
     eng = resolve_engine("mvbbsc")

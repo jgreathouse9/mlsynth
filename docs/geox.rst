@@ -76,23 +76,10 @@ optional dependency. Pick it when the analysis that will be reported is
 Bayesian, or when the design's readout should be a credible interval on
 the effect instead of a test against a reassignment null.
 
-Two things about it differ from calling :class:`mlsynth.MVBBSC` on the
-same panel, and both follow from what a scoring loop asks of an engine.
+One thing about it differs from calling :class:`mlsynth.MVBBSC` on the
+same panel, and it follows from what a scoring loop asks of an engine.
 
-Donor column order is not information about the effect, but it is
-information to a sampler: NUTS is chaotic, so relabelling the donors
-moves the posterior. On the German reunification panel, permuting the
-16 donors moves the estimator's posterior-mean weights by
-:math:`7.2\times 10^{-3}`. The engine sorts the donor columns into a
-canonical order before sampling and maps the weights back, so a design
-does not depend on the order its candidates happened to arrive in.
-``benchmarks/cases/geox_mvbbsc_equivalence.py`` pins both halves of
-that: with donor order held fixed the engine and the estimator agree
-identically -- the posterior-mean counterfactual to the last bit and
-the ATT with it -- and the order sensitivity the engine removes is
-recorded as its own quantity.
-
-The second is that the interval carries the pre-period autocorrelation.
+The interval carries the pre-period autocorrelation.
 MVBBSC's counterfactual adds a shock that is independent across
 periods, and a design's readout averages a whole post window, so under
 independence the variance of that mean falls as
@@ -103,6 +90,16 @@ the independent shock covers 65% of the time and one carrying the
 pre-period AR(1) covers 87.5%, against augsynth's conformal 89.7% at
 1.7 times the width. A band read period by period looks acceptable
 either way; averaging is what separates them.
+
+Donor column order needs no handling in the design. MVBBSC canonicalises
+its own columns, so a design does not depend on the order nomination
+happened to hand its candidates over in, and the engine inherits that
+instead of re-imposing it.
+``benchmarks/cases/geox_mvbbsc_equivalence.py`` pins the consequence:
+the engine and the estimator agree identically on West Germany -- the
+posterior-mean counterfactual, the ATT and the donor weights all to
+zero difference, not to a tolerance -- and reversing the donor columns
+the design hands over changes nothing the engine reports.
 
 The two frequentist engines report different imbalance measures, because each
 reports its own estimator's. ``pre_rmspe`` on the SDID path is the

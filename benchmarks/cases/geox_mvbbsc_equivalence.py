@@ -8,22 +8,19 @@ already validated against -- the German reunification data of Abadie, Diamond &
 Hainmueller (2015), where ``mvbbsc_germany`` cross-validates the estimator
 against the authors' ``bsynth`` package.
 
-The comparison has to fix donor order, and why is the finding.
+The two agree exactly. The posterior-mean counterfactual is identical to the
+last bit (``0.0`` maximum absolute difference, not a tolerance), the ATT agrees
+to the same, and so do the weights. Identity, not approximation, is the right
+bar: the engine and the estimator call one sampler with one seed on one
+standardized panel, so anything else would mean the wrapper had introduced a
+transformation of its own.
 
-NUTS is chaotic, so the column order of the donor matrix changes the sampler's
-trajectory even though it carries no information about the estimand. Measured
-here: permuting the 16 donors moves the estimator's posterior-mean weights by
-``7.2e-03``. The engine canonicalises donor order before sampling and maps the
-weights back, so it is invariant to that permutation where the estimator is not.
-``geox_engine_donor_order_gap`` pins the size of what the engine removes.
-
-With donor order held fixed the two agree exactly. The posterior-mean
-counterfactual is identical to the last bit (``0.0`` maximum absolute
-difference, not a tolerance), the ATT agrees to the same, and the weights differ
-only by the float reassembly of the inverse permutation. Identity, not
-approximation, is the right bar here: the engine and the estimator call one
-sampler with one seed on one standardized panel, so anything else would mean the
-wrapper had introduced a transformation of its own.
+Donor order needs no special handling. ``run_mvbbsc`` canonicalises its own
+columns, so both sides inherit the invariance and the engine re-imposes nothing;
+``engine_donor_order_gap`` pins that it survives the seam, which is the property
+the scoring loop depends on when it hands candidates over in whatever order
+nomination produced them. The estimator-level property is asserted in
+``mlsynth/tests/test_mvbbsc_donor_order.py``.
 
 The ATT the pair agree on, ``-2071.7``, sits inside the band
 ``mvbbsc_germany`` already pins (``-2080 +/- 500``) and beside bsynth's
@@ -77,31 +74,32 @@ def _fit():
         ) from exc
 
     from mlsynth.utils.geox_helpers.engines import resolve_engine
-    from mlsynth.utils.geox_helpers.engines.mvbbsc import canonical_order
     from mlsynth.utils.mvbbsc_helpers.model import run_mvbbsc
 
     y, donors, T0, T = _panel()
-    order = canonical_order(donors, T0)
-    inverse = np.empty_like(order)
-    inverse[order] = np.arange(order.shape[0])
     engine = resolve_engine("mvbbsc")
+    reverse = np.arange(donors.shape[1])[::-1]
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         fit = engine.fit_once(y, donors, T0, T0, T - 1, 1, **_KW)
-        natural = run_mvbbsc(y, donors, T0, **_KW)
-        canonical = run_mvbbsc(y, donors[:, order], T0, **_KW)
+        flipped = engine.fit_once(y, donors[:, reverse], T0, T0, T - 1, 1, **_KW)
+        estimator = run_mvbbsc(y, donors, T0, **_KW)
 
     # Rebuild the estimator's noiseless posterior mean the way the engine does,
     # so the two counterfactuals are the same quantity and not one of them plus
     # an iid shock.
-    sorted_donors = donors[:, order]
+    # NumPyro samples in x32 by default, and the engine upcasts its draws. Match
+    # that here or the comparison measures float32 against float64: the
+    # counterfactual hides it, because ``weights @ standardized.T`` promotes
+    # implicitly, while a mean over the raw draws does not.
+    estimator_weights = np.asarray(estimator["weights"], dtype=float)
     loc, scale = float(y[:T0].mean()), float(y[:T0].std(ddof=1)) or 1.0
-    d_loc = sorted_donors[:T0].mean(axis=0)
-    d_scale = sorted_donors[:T0].std(axis=0, ddof=1)
+    d_loc = donors[:T0].mean(axis=0)
+    d_scale = donors[:T0].std(axis=0, ddof=1)
     d_scale = np.where(d_scale > 0, d_scale, 1.0)
-    standardized = (sorted_donors - d_loc) / d_scale
-    cf_estimator = ((canonical["weights"] @ standardized.T) * scale
+    standardized = (donors - d_loc) / d_scale
+    cf_estimator = ((estimator_weights @ standardized.T) * scale
                     + loc).mean(axis=0)
 
     return {
@@ -109,11 +107,12 @@ def _fit():
         "engine_cf": fit.counterfactual,
         "engine_w": fit.donor_weights,
         "engine_att": engine.att(fit, y, T0, T - 1),
+        "flipped_w": flipped.donor_weights[reverse],
+        "flipped_cf": flipped.counterfactual,
         "estimator_cf": cf_estimator,
-        "estimator_w": canonical["weights"].mean(axis=0)[inverse],
+        "estimator_w": estimator_weights.mean(axis=0),
         "estimator_att": float(np.mean(y[T0:] - cf_estimator[T0:])),
-        "natural_w": natural["weights"].mean(axis=0),
-        "max_rhat": float(canonical.get("max_rhat", float("nan"))),
+        "max_rhat": float(estimator.get("max_rhat", float("nan"))),
     }
 
 
@@ -126,10 +125,12 @@ def run() -> dict:
         "att_abs_diff": float(abs(f["engine_att"] - f["estimator_att"])),
         "donor_weight_max_abs_diff": float(
             np.max(np.abs(f["engine_w"] - f["estimator_w"]))),
-        # what canonicalisation removes: the estimator's own donor-order
-        # sensitivity, which the engine does not inherit
-        "geox_engine_donor_order_gap": float(
-            np.max(np.abs(f["engine_w"] - f["natural_w"]))),
+        # the invariance survives the seam: reversing the donor columns the
+        # scoring loop hands over changes nothing it reports
+        "engine_donor_order_gap": float(
+            np.max(np.abs(f["engine_w"] - f["flipped_w"]))),
+        "engine_donor_order_cf_gap": float(
+            np.max(np.abs(f["engine_cf"] - f["flipped_cf"]))),
         # anchored to the external reference via mvbbsc_germany / bsynth
         "engine_att": f["engine_att"],
         "att_negative": float(f["engine_att"] < 0.0),
@@ -168,15 +169,18 @@ def comparison() -> dict:
 
 # The identity cells carry no tolerance: engine and estimator are one sampler
 # call on one standardized panel, so a nonzero difference is a defect and not
-# MCMC error. The weight cell allows float reassembly through the inverse
-# permutation. The donor-order gap is a measured property of NUTS, so it is
-# pinned as a band and not as a point.
+# MCMC error. Both sides are taken at float64; comparing the engine's upcast
+# draws against NumPyro's x32 output reads as a 1.8e-08 disagreement that is
+# precision and not computation. The order-gap cells allow float reassociation
+# only -- rebuilding the standardized panel from reversed columns changes the
+# summation order and nothing else.
 EXPECTED = {
     "counterfactual_max_abs_diff": (0.0, 1e-9),
     "att_abs_diff": (0.0, 1e-9),
-    "donor_weight_max_abs_diff": (0.0, 1e-6),
-    "geox_engine_donor_order_gap": (7.2e-3, 7.0e-3),
-    "engine_att": (-2071.7, 500.0),   # inside mvbbsc_germany's band; bsynth -2075
+    "donor_weight_max_abs_diff": (0.0, 1e-9),
+    "engine_donor_order_gap": (0.0, 1e-9),
+    "engine_donor_order_cf_gap": (0.0, 1e-9),
+    "engine_att": (-2077.6, 500.0),   # inside mvbbsc_germany's band; bsynth -2075
     "att_negative": (1.0, 0.0),
     "max_rhat": (1.0, 0.1),
 }
