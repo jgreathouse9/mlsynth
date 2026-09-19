@@ -69,7 +69,42 @@ donors is absorbed. Synthetic DiD differences it out, so the donor pool
 does not have to contain the treated region's scale, only its shape.
 A two-city test region in a pool of small markets remains estimable.
 
-The two engines report different imbalance measures, because each
+``engine="mvbbsc"`` is the Bayesian synthetic control of Martinez and
+Vives-i-Bastida (2024): a uniform-Dirichlet simplex on the donor weights
+with a HalfNormal scale, sampled by NUTS. It needs the ``[bayes]``
+optional dependency. Pick it when the analysis that will be reported is
+Bayesian, or when the design's readout should be a credible interval on
+the effect instead of a test against a reassignment null.
+
+Two things about it differ from calling :class:`mlsynth.MVBBSC` on the
+same panel, and both follow from what a scoring loop asks of an engine.
+
+Donor column order is not information about the effect, but it is
+information to a sampler: NUTS is chaotic, so relabelling the donors
+moves the posterior. On the German reunification panel, permuting the
+16 donors moves the estimator's posterior-mean weights by
+:math:`7.2\times 10^{-3}`. The engine sorts the donor columns into a
+canonical order before sampling and maps the weights back, so a design
+does not depend on the order its candidates happened to arrive in.
+``benchmarks/cases/geox_mvbbsc_equivalence.py`` pins both halves of
+that: with donor order held fixed the engine and the estimator agree
+identically -- the posterior-mean counterfactual to the last bit and
+the ATT with it -- and the order sensitivity the engine removes is
+recorded as its own quantity.
+
+The second is that the interval carries the pre-period autocorrelation.
+MVBBSC's counterfactual adds a shock that is independent across
+periods, and a design's readout averages a whole post window, so under
+independence the variance of that mean falls as
+:math:`\sigma^2 / h` while under positive autocorrelation it falls more
+slowly. Measured on Meta's GeoLift panel, with each of its 40 locations
+taken in turn as an untreated placebo, a nominal 90% interval built on
+the independent shock covers 65% of the time and one carrying the
+pre-period AR(1) covers 87.5%, against augsynth's conformal 89.7% at
+1.7 times the width. A band read period by period looks acceptable
+either way; averaging is what separates them.
+
+The two frequentist engines report different imbalance measures, because each
 reports its own estimator's. ``pre_rmspe`` on the SDID path is the
 root-mean-square pre-period gap; ``scaled_l2`` on the augsynth path is
 augsynth's ratio of the fitted imbalance to the imbalance uniform donor
@@ -211,7 +246,7 @@ Inference and Diagnostics
 ``inference`` chooses the null a detection is taken against, and it
 varies separately from ``engine``. Left unset, each engine takes its
 own default: placebo for ``sdid``, conformal for ``augsynth``, which is
-GeoLift's choice.
+GeoLift's choice, and ``"bayes"`` for ``mvbbsc``.
 
 Placebo reassignment is Arkhangelsky et al.'s Algorithm 4: reassign
 :math:`N_{\mathrm{tr}}` donors as pretend-treated, drop them from the
@@ -240,6 +275,17 @@ every time; ``finite_sample_p=True`` reports
 ``(1 + #{stat >= observed}) / (1 + ns)`` instead, which cannot. That
 correction is off by default so the GeoLift reproduction keeps augsynth's
 convention; turn it on for inference you intend to report.
+
+``"bayes"`` is the posterior predictive of the Bayesian engine, and it
+is available on ``mvbbsc`` alone. It is also the only null that engine
+admits. A placebo or conformal procedure substituted onto a Bayesian fit
+would report a quantity the estimator did not produce, which is the same
+argument by which ``sdid`` refuses conformal, and the error says so. The
+readout is a credible interval on the effect and a posterior tail
+probability in place of a p-value, with the shock carrying the
+pre-period AR(1) as described above. ``max_rhat`` and ``n_divergent``
+travel with it, so a design scored on a chain that did not converge is
+visible as such and not merely as a number.
 
 Holding one of the two fixed and varying the other separates the two
 sources of a difference between designs. Scoring one panel with both
