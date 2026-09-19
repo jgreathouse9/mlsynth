@@ -2105,3 +2105,15 @@ timeout = 600.0
   find = '        "weights": W[:, donor_inverse],'
   replace = '        "weights": W,'
   models = "weights handed back in the sampler's internal order while the caller reads them against its own columns, so every weight is attributed to the wrong donor. The counterfactual and the ATT are untouched, which is what makes it survive any check that looks only at the effect"
+
+[[target]]
+name = "mvbbsc-scale-invariance"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc.py -q -p no:cacheprovider -k scale_invariance"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-treated-series-keeps-its-own-scale"
+  find = "    sy = sy if sy > 0 else 1.0"
+  replace = "    sy = 1.0"
+  models = "standardisation that centres but does not scale. The invariance this estimator advertises is that the units of the outcome do not matter, and dropping the divisor removes it: the same panel in dollars and in thousands of dollars is then two different fits. It is the defect test_scale_invariance_of_weights exists to catch, and the check has to catch it while tolerating the sampler's own spread, which on this panel is 0.02 to 0.04 in the posterior-mean weights"
