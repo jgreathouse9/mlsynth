@@ -32,7 +32,11 @@ from pydantic import ConfigDict, Field as PydField, model_validator
 
 from ...config_models import (
     BaseEstimatorResults,
+    EffectsResults,
+    FitDiagnosticsResults,
     InferenceResults,
+    MethodDetailsResults,
+    TimeSeriesResults,
     WeightsResults,
 )
 from ..results_helpers import build_effect_submodels
@@ -299,3 +303,295 @@ class FDIDResults(BaseEstimatorResults):
     def ci_by_method(self) -> Dict[str, Tuple[float, float]]:
         """``{method: (lower, upper)}`` confidence intervals for both fits."""
         return {name: fit.ci for name, fit in self.methods.items()}
+
+
+# ─── staggered adoption ───────────────────────────────────────────────────
+#
+# Li (2023) Web Appendix C extends Forward DID to several treated units by
+# running the method per unit and averaging the results. The containers below
+# carry that extension plus what it needs to be usable: an event clock, and a
+# covariance that prices the dependence between treated units drawing on one
+# donor pool.
+
+@dataclass(frozen=True)
+class FDIDStaggeredInputs:
+    """Preprocessed panel for the staggered Forward DID pipeline.
+
+    Parameters
+    ----------
+    treated_matrix : np.ndarray
+        Treated-unit outcomes, shape ``(T, n_treated)``.
+    treated_names : list
+        Length-``n_treated`` treated-unit labels (column order).
+    adoption_index : np.ndarray
+        Integer position of each treated unit's first treated period.
+    donor_matrix : np.ndarray
+        Never-treated donor outcomes, shape ``(T, n_donors)``. One pool serves
+        every cohort: units treated at any point are excluded, which is what
+        keeps an adopting donor out of a treated unit's criterion as well as
+        out of its counterfactual.
+    donor_names : list
+        Length-``n_donors`` donor labels (column order).
+    time_labels : np.ndarray
+        Length-``T`` time labels.
+    T : int
+        Total number of periods.
+    verbose : bool
+        Whether per-unit selection paths are recorded.
+    """
+
+    treated_matrix: np.ndarray
+    treated_names: List[Any]
+    adoption_index: np.ndarray
+    donor_matrix: np.ndarray
+    donor_names: List[Any]
+    time_labels: np.ndarray
+    T: int
+    verbose: bool = True
+
+    @property
+    def n_treated(self) -> int:
+        """Number of treated units."""
+        return int(self.treated_matrix.shape[1])
+
+    @property
+    def n_donors(self) -> int:
+        """Number of never-treated donor units."""
+        return int(self.donor_matrix.shape[1])
+
+
+@dataclass(frozen=True)
+class FDIDUnitFit:
+    """One treated unit's Forward DID fit within a staggered panel.
+
+    Parameters
+    ----------
+    unit_name : Any
+        Treated-unit label.
+    adoption_index : int
+        Integer position of the unit's first treated period.
+    adoption_time : Any
+        Time label of that period.
+    selected_indices, selected_names : list
+        Donors retained by forward selection, as column indices and labels.
+    donor_weights : dict
+        ``{donor_name: weight}``, equal over the selected donors.
+    intercept : float
+        Difference-in-differences intercept, the pre-window mean of the gap.
+    observed, counterfactual, gap : np.ndarray
+        Length-``T`` series, with ``gap = observed - counterfactual`` as in the
+        single-treated fit. The gap is the parallel-trends residual: its
+        post-treatment values are the ``ATT(g, h)`` estimates and its
+        pre-window supplies the cross-unit covariance.
+    pre_periods : int
+        Length of the pre-window actually used, after any anticipation trim.
+    att : float
+        Mean effect over the reported horizons.
+    att_by_horizon : dict
+        ``{horizon: ATT(g, g + h)}``.
+    pre_rmse, r_squared : float
+        Pre-window fit of the selected donor average.
+    selection_path : np.ndarray or None
+        Criterion value after each forward-selection step.
+    """
+
+    unit_name: Any
+    adoption_index: int
+    adoption_time: Any
+    selected_indices: List[int]
+    selected_names: List[Any]
+    donor_weights: Dict[Any, float]
+    intercept: float
+    observed: np.ndarray
+    counterfactual: np.ndarray
+    gap: np.ndarray
+    pre_periods: int
+    att: float
+    att_by_horizon: Dict[int, float]
+    pre_rmse: float
+    r_squared: float
+    selection_path: Optional[np.ndarray] = None
+
+
+@dataclass(frozen=True)
+class FDIDEventStudy:
+    """Balanced event-time aggregation of the per-unit ``ATT(g, h)``.
+
+    Parameters
+    ----------
+    horizons : np.ndarray
+        Event times ``h = 0, ..., H``.
+    att : np.ndarray
+        Cohort-size-weighted average of ``ATT(g, g + h)`` at each horizon
+        (Callaway and Sant'Anna 2021, equation 31).
+    se, ci_lower, ci_upper : np.ndarray
+        Standard error and interval at each horizon, from the joint covariance
+        across treated units.
+    n_units : np.ndarray
+        How many treated units contribute at each horizon.
+    """
+
+    horizons: np.ndarray
+    att: np.ndarray
+    se: np.ndarray
+    ci_lower: np.ndarray
+    ci_upper: np.ndarray
+    n_units: np.ndarray
+
+
+class FDIDStaggeredResults(BaseEstimatorResults):
+    """Container returned by :meth:`mlsynth.FDID.fit` on a staggered panel.
+
+    An :class:`~mlsynth.config_models.EffectResult`. Forward DID over several
+    treated units is an event-study estimator, so the standardized
+    ``time_series`` is laid out over event-time horizons, not calendar time,
+    as in ``SequentialSDID``: ``time_periods`` are the horizons and
+    ``gap`` is the aggregated ``ATT(h)``. Per-unit detail stays in ``units``.
+
+    This surface is experimental, and its intervals are anti-conservative from
+    two directions. Forward selection minimises the pre-window residual
+    variance and the variance is then estimated on that same window, so the
+    estimate inherits a winner's curse; ``selection`` is the lever that
+    mitigates it. And a persistent residual is only partly recoverable from a
+    short pre-window, so ``overall_se`` still undercovers when the
+    parallel-trends residual is strongly autocorrelated, even though this path
+    prices autocovariances by default. Read ``event_study`` in preference to
+    ``overall_att`` where the distinction matters: the per-horizon intervals
+    average nothing and hold up far better.
+
+    Parameters
+    ----------
+    inputs : FDIDStaggeredInputs
+        Preprocessed panel.
+    units : list of FDIDUnitFit
+        One fit per treated unit, in column order.
+    event_study : FDIDEventStudy
+        Balanced event-time aggregation.
+    overall_att, overall_se : float
+        Average of the event-time path and its standard error.
+    overall_ci : tuple of float
+        ``(lower, upper)`` interval for ``overall_att``.
+    selection : str
+        How donors were chosen -- ``"unit"``, ``"pooled"`` or ``"partial"``.
+    metadata : dict
+        Free-form pipeline diagnostics.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    inputs: FDIDStaggeredInputs
+    units: List[FDIDUnitFit]
+    event_study: FDIDEventStudy
+    overall_att: float
+    overall_se: float
+    overall_ci: Tuple[float, float]
+    selection: str = "unit"
+    metadata: Dict[str, Any] = PydField(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _populate_standard_submodels(self) -> "FDIDStaggeredResults":
+        """Derive the standardized sub-models over event time.
+
+        The series layout follows ``SequentialSDID``: ``time_periods`` are the
+        horizons, ``gap`` is the aggregated effect at each, and the
+        counterfactual is the no-effect baseline. Uses ``object.__setattr__``
+        because the model is frozen.
+        """
+        if self.effects is not None:
+            return self
+        es = self.event_study
+        att = np.asarray(es.att, dtype=float)
+        derived = {
+            "effects": EffectsResults(att=float(self.overall_att)),
+            "time_series": TimeSeriesResults(
+                observed_outcome=att,
+                counterfactual_outcome=np.zeros_like(att),
+                estimated_gap=att,
+                time_periods=np.asarray(es.horizons),
+                intervention_time=0,
+            ),
+            "weights": WeightsResults(
+                weights_at=["units"],
+                summary_stats={
+                    "constraint": "equal weights over the donors each treated "
+                                  "unit selected"
+                },
+            ),
+            "fit_diagnostics": FitDiagnosticsResults(
+                rmse_pre=float(np.mean([u.pre_rmse for u in self.units]))
+                if self.units else None,
+            ),
+            "inference": InferenceResults(
+                standard_error=float(self.overall_se),
+                ci_lower=float(self.overall_ci[0]),
+                ci_upper=float(self.overall_ci[1]),
+                method="joint covariance across treated units",
+            ),
+            "method_details": MethodDetailsResults(
+                method_name=f"FDID (staggered, selection={self.selection})",
+                is_recommended=True,
+            ),
+        }
+        for key, value in derived.items():
+            object.__setattr__(self, key, value)
+        return self
+
+    def plot(self, kind: str = "auto", *, ax: Any = None, **overrides: Any) -> Any:
+        """Render the event study.
+
+        A staggered fit has one estimate per event time and no single
+        counterfactual path, so the base class's ``"counterfactual"`` and
+        ``"gap"`` kinds do not apply and ``kind`` selects nothing: the chart is
+        always effects against event time with the joint-covariance band.
+
+        Parameters
+        ----------
+        kind : str, default "auto"
+            Accepted for signature compatibility with
+            :meth:`mlsynth.config_models.EffectResult.plot`.
+        ax : matplotlib Axes, optional
+            Draw into an existing axis.
+        **overrides
+            Per-call cosmetic overrides applied over the stored ``PlotConfig``.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+        """
+        from ...config_models import PlotConfig
+        from .plotter import plot_fdid_staggered
+
+        ax = plot_fdid_staggered(self, ax=ax, **overrides)
+
+        pc = self.plot_config or PlotConfig()
+        if overrides:
+            pc = pc.model_copy(update=overrides)
+        if pc.save:
+            fname = pc.save if isinstance(pc.save, str) else "fdid_event_study.png"
+            ax.figure.savefig(fname, bbox_inches="tight")
+        if pc.display:
+            import matplotlib.pyplot as plt
+
+            plt.show()
+        return ax
+
+    @property
+    def att(self) -> float:
+        """Average effect over the reported horizons."""
+        return self.overall_att
+
+    @property
+    def att_se(self) -> float:
+        """Standard error of :attr:`att`."""
+        return self.overall_se
+
+    def att_by_unit(self) -> Dict[Any, float]:
+        """``{treated unit: mean effect over the reported horizons}``."""
+        return {u.unit_name: u.att for u in self.units}
+
+    def donors_by_unit(self) -> Dict[Any, List[Any]]:
+        """``{treated unit: selected donor labels}``."""
+        return {u.unit_name: list(u.selected_names) for u in self.units}
+
+
+FDIDStaggeredResults.model_rebuild()

@@ -17,7 +17,7 @@ rest of the FDID pipeline.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -180,6 +180,117 @@ def _compute_fdid_result(
     return result
 
 
+def forward_selection_path(
+    donors_pre: np.ndarray,
+    targets_pre: Sequence[np.ndarray],
+    weights: Optional[Sequence[float]] = None,
+    verbose_hook: Optional[Any] = None,
+) -> Tuple[List[int], np.ndarray]:
+    r"""Greedy forward-selection order and its criterion path.
+
+    Adding donor ``j`` to ``k`` already-selected donors gives the candidate
+    average ``(S + x_j) / (k + 1)``. The difference-in-differences :math:`R^2`
+    depends only on the *centred* donors, so centre once and cache each donor's
+    squared norm and its cross-product with each target. A step then costs one
+    matvec against the centred running sum -- :math:`O(N T_0)` per step,
+    :math:`O(N^2 T_0)` overall, against the reference implementation's
+    :math:`O(N^3 T_0)`, with identical selections.
+
+    Several targets are supported so the criterion can be a convex combination
+    of per-unit and pooled pre-treatment fit. The donor-side quantities are
+    shared across targets; only the cross-products are per target.
+
+    Parameters
+    ----------
+    donors_pre : np.ndarray
+        Donor outcomes over the pre-window, shape ``(T0, N)``.
+    targets_pre : sequence of np.ndarray
+        One or more length-``T0`` target series to fit.
+    weights : sequence of float, optional
+        Convex weights over ``targets_pre``; defaults to equal weights. A
+        single target needs none.
+    verbose_hook : callable, optional
+        Called as ``hook(it, best_idx, best_crit, crit_remaining, selected, k)``
+        after each step, for the caller's diagnostics log.
+
+    Returns
+    -------
+    order : list of int
+        All ``N`` donors in the order the greedy search added them.
+    path : np.ndarray
+        Criterion value after each step, shape ``(N,)``. The caller truncates
+        at the maximum.
+
+    Raises
+    ------
+    ValueError
+        If ``weights`` does not match ``targets_pre``, or a target's length
+        does not match the pre-window.
+    """
+    X_pre = np.asarray(donors_pre, dtype=float)
+    T0, N = X_pre.shape
+    targets = [np.asarray(t, dtype=float).ravel() for t in targets_pre]
+    if not targets:
+        raise ValueError("forward selection needs at least one target series.")
+    for t in targets:
+        if t.size != T0:
+            raise ValueError(
+                f"target length {t.size} does not match the pre-window {T0}."
+            )
+    if weights is None:
+        w = np.full(len(targets), 1.0 / len(targets))
+    else:
+        w = np.asarray(weights, dtype=float)
+        if w.size != len(targets):
+            raise ValueError("weights must have one entry per target series.")
+
+    x_c = X_pre - X_pre.mean(axis=0)              # (T0, N) centred donors
+    q = np.einsum("tj,tj->j", x_c, x_c)           # ||x_c_j||^2
+
+    y_c = [t - t.mean() for t in targets]
+    # A degenerate target has no variation to explain; floor its total sum of
+    # squares so the ratio stays finite and the donor ranking is unaffected.
+    ss_tot = np.array([max(float(y @ y), 1e-12) for y in y_c])
+    p = [x_c.T @ y for y in y_c]                  # per-target cross-products
+
+    S_c = np.zeros(T0, dtype=float)
+    Sc2 = 0.0
+    ySc = np.zeros(len(targets), dtype=float)
+
+    order: List[int] = []
+    path = np.empty(N, dtype=float)
+    remaining = np.ones(N, dtype=bool)
+
+    for it in range(N):
+        k = len(order)
+        c = 1.0 / (k + 1)
+        dots = x_c.T @ S_c                        # (N,) one matvec
+        ss_X = c * c * (Sc2 + 2.0 * dots + q)
+        crit = np.zeros(N, dtype=float)
+        for m in range(len(targets)):
+            cross = c * (ySc[m] + p[m])
+            crit += w[m] * (
+                1.0 - (ss_tot[m] + ss_X - 2.0 * cross) / ss_tot[m]
+            )
+        crit[~remaining] = -np.inf
+
+        best_idx = int(np.nanargmax(crit))
+        best_crit = float(crit[best_idx])
+        if verbose_hook is not None:
+            verbose_hook(it, best_idx, best_crit, crit[remaining],
+                         order + [best_idx], k)
+
+        order.append(best_idx)
+        path[it] = best_crit
+        remaining[best_idx] = False
+        Sc2 += 2.0 * dots[best_idx] + q[best_idx]
+        for m in range(len(targets)):
+            ySc[m] += p[m][best_idx]
+        S_c = S_c + x_c[:, best_idx]
+
+    return order, path
+
+
 def forward_did_select(
     treated_outcome: np.ndarray,
     control_outcomes: np.ndarray,
@@ -229,15 +340,7 @@ def forward_did_select(
     if len(donor_names) != control_outcomes.shape[1]:
         raise ValueError("donor_names length must match number of control units")
 
-    T, N = control_outcomes.shape
     T0 = pre_periods
-    treated_pre = treated_outcome[:T0]
-
-    y_c = treated_pre - treated_pre.mean()
-    ss_tot = np.sum(y_c ** 2)
-    if ss_tot <= 1e-12:
-        ss_tot = 1e-12
-
     X_pre = control_outcomes[:T0]
 
     mean_all = control_outcomes.mean(axis=1)
@@ -245,58 +348,21 @@ def forward_did_select(
         treated_outcome, mean_all, T0, inference=inference, lrvar_lag=lrvar_lag
     )
 
-    # --- constants precomputed once (independent of the selection step) ---
-    # Adding donor j to k already-selected donors gives the candidate average
-    # (S + x_j) / (k + 1). The DID R^2 depends only on the *centred* donors, so
-    # centre once and cache each donor's squared norm ``q`` and its cross-product
-    # with the treated ``p``. Then a step costs one matvec against the centred
-    # running sum ``S_c`` -- O(N.T0) per step, O(N^2.T0) overall (versus the
-    # reference's O(N^3.T0)), with identical selections.
-    x_c = X_pre - X_pre.mean(axis=0)              # (T0, N) centred donors
-    q = np.einsum("tj,tj->j", x_c, x_c)           # ||x_c_j||^2
-    p = x_c.T @ y_c                               # y_c . x_c_j
-
-    S_c = np.zeros(T0, dtype=float)               # centred running sum of selected
-    Sc2 = 0.0                                     # ||S_c||^2
-    ySc = 0.0                                     # y_c . S_c
-    run_sum_pre = np.zeros(T0, dtype=float)       # uncentred running sum (verbose)
-
-    selected: List[int] = []
-    R2_path = np.empty(N, dtype=float)
-    remaining_mask = np.ones(N, dtype=bool)
     intermediary_results = [] if verbose else None
 
-    for it in range(N):
-        k = len(selected)
-        c = 1.0 / (k + 1)
-        dots = x_c.T @ S_c                        # (N,) one matvec
-        ss_X = c * c * (Sc2 + 2.0 * dots + q)
-        cross = c * (ySc + p)
-        r2_all = 1.0 - (ss_tot + ss_X - 2.0 * cross) / ss_tot
-        # never re-select an already-chosen donor (first-tie argmax over the rest)
-        r2_all[~remaining_mask] = -np.inf
+    def _hook(it, best_idx, best_r2, r2_remaining, selected, k):
+        _record_verbose_step(
+            intermediary_results=intermediary_results,
+            it=it, best_idx=best_idx, best_r2=best_r2,
+            r2_cand=r2_remaining,
+            selected=selected, donor_names=donor_names,
+            current_mean_pre=X_pre[:, selected].mean(axis=1), k=k,
+        )
 
-        best_idx = int(np.nanargmax(r2_all))
-        best_r2 = float(r2_all[best_idx])
-
-        if verbose:
-            remaining_idx = np.where(remaining_mask)[0]
-            _record_verbose_step(
-                intermediary_results=intermediary_results,
-                it=it, best_idx=best_idx, best_r2=best_r2,
-                r2_cand=r2_all[remaining_idx],
-                selected=selected + [best_idx], donor_names=donor_names,
-                current_mean_pre=(run_sum_pre + X_pre[:, best_idx]) / (k + 1), k=k,
-            )
-
-        selected.append(best_idx)
-        R2_path[it] = best_r2
-        remaining_mask[best_idx] = False
-        # fold the selected donor into the running sums (O(T0))
-        Sc2 += 2.0 * dots[best_idx] + q[best_idx]
-        ySc += p[best_idx]
-        S_c = S_c + x_c[:, best_idx]
-        run_sum_pre = run_sum_pre + X_pre[:, best_idx]
+    selected, R2_path = forward_selection_path(
+        X_pre, [treated_outcome[:T0]],
+        verbose_hook=_hook if verbose else None,
+    )
 
     optimal_idxs, R2_path = _choose_optimal_subset(selected, R2_path)
 
