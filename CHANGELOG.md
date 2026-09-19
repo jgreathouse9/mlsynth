@@ -8,6 +8,31 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Fixed
+- MVBBSC no longer depends on the order its donors arrive in. Donor column order
+  carries no information about the effect -- the pool is a set -- but NUTS walks
+  a parameter vector, so permuting the simplex coordinates changes the
+  trajectory and two runs at one seed disagree by however far it diverges. On
+  the German reunification panel, permuting the 16 donors moved the
+  posterior-mean weights by 7.2e-3 and the mean post-1990 ATT by 6.03, which is
+  0.29% of the estimate: an answer that changed because somebody sorted a
+  dataframe. `run_mvbbsc` now sorts the donor columns lexicographically on the
+  pre-period before sampling and maps the draws back, so every permutation of
+  one donor set presents the sampler with one input and the weights still come
+  back against the columns the caller passed. The relation is exact, so the
+  tests carry no tolerance. `mvbbsc_germany` still passes on its existing pins
+  (mean_att -2078 against -2080 +/- 500, pre_rmse 61.8 against 62.2 +/- 20).
+
+  The tests are parametrized over `target_accept`, and that is not incidental.
+  It defaults to 0.8 and moves the ATT on this panel by 5.92, the same size as
+  the 6.03 the donor order moved it, so a check at one setting is a check where
+  two effects of equal magnitude can cancel. The pre-fix natural order at 0.9
+  and the post-fix canonical order at 0.8 agree to 0.1 by coincidence, which is
+  enough to make a working fix look inert. Two mutants in
+  `tools/mutation/targets.toml` pin both halves: dropping the canonicalisation,
+  and returning the weights in the sampler's internal order so every weight is
+  attributed to the wrong donor while the ATT stays correct.
+
 ### Added
 - `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
   CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
