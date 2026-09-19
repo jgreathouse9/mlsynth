@@ -101,6 +101,21 @@ posterior-mean counterfactual, the ATT and the donor weights all to
 zero difference, not to a tolerance -- and reversing the donor columns
 the design hands over changes nothing the engine reports.
 
+The fit is a posterior draw, so the scorer carries a little spread of its
+own. The sampler seed is fixed, so re-running one design reproduces its
+own numbers; at the engine's defaults of 600 warmup and 600 sampling
+iterations over two chains, two different seeds on one panel move the
+posterior-mean donor weights by around 1e-2. Rescaling the outcome or
+shifting it by a constant, neither of which changes the problem, moves
+them by about as much or less. Differences of that size between two runs
+are spread in the scorer, not a difference between designs; tighten them
+by raising ``n_samples`` through ``engine_kwargs``, at proportionate cost.
+NumPyro samples in single precision unless something else in the process
+has enabled double, which :class:`mlsynth.MTGP` and
+:class:`mlsynth.BPSCS` do when they are imported; on one panel at one
+seed that shifts the posterior-mean weights by 6.4e-3, the same order as
+the spread above.
+
 The two frequentist engines report different imbalance measures, because each
 reports its own estimator's. ``pre_rmspe`` on the SDID path is the
 root-mean-square pre-period gap; ``scaled_l2`` on the augsynth path is

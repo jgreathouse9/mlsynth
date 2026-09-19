@@ -24,9 +24,24 @@ it. ``test_donor_order_is_invariant`` asserts it holds through the seam, which
 is the thing the scoring loop depends on when nomination hands candidates over
 in whatever order it produced them, and it is a separate claim from the
 estimator-level property in ``test_mvbbsc_donor_order.py``.
+
+The same chaos sets how tightly the other relations can hold. Rescaling or
+shifting a panel is equivariant in exact arithmetic, and the model's
+standardization is not bit-exact in floating point -- the inputs reaching the
+sampler differ by about 1e-14 -- so the posterior moves. The tests here bound
+that movement by the engine's own re-run spread and pin it in the precision mode
+a full-suite run leaves behind: NumPyro samples in single precision by default,
+and MTGP and BPSCS call ``numpyro.enable_x64()`` at import, which is
+process-wide. Under single precision the 1e-14 rounds away and the relations
+held exactly; under double precision it survives. Asserting only the first is
+asserting a rounding accident.
 """
 
 from __future__ import annotations
+
+import subprocess
+import sys
+import textwrap
 
 import numpy as np
 import pytest
@@ -93,6 +108,71 @@ def test_donor_order_is_invariant(key):
                                atol=1e-12)
     np.testing.assert_allclose(shuffled.counterfactual, base.counterfactual,
                                atol=1e-12)
+
+
+def test_the_engine_declares_a_sampling_tolerance():
+    # The declared number is what the property suite asserts at. A sampler
+    # cannot meet the deterministic engines' bar, and saying so here is what
+    # keeps the looser bar from looking like an oversight.
+    eng = resolve_engine("mvbbsc")
+    assert eng.fit_tolerance > resolve_engine("sdid").fit_tolerance
+    assert eng.fit_tolerance > resolve_engine("augsynth").fit_tolerance
+
+
+def test_a_transformation_moves_the_fit_no_more_than_refitting_does():
+    # The sharp form of the metamorphic claim, which a fixed tolerance only
+    # approximates: rescaling or shifting the panel costs no more than running
+    # the sampler again on the untransformed one. The declared tolerance is the
+    # floor, since two seeds can happen to land close together and that is not
+    # evidence against the relation.
+    y, Y0, n_pre, end = _panel()
+    eng = resolve_engine("mvbbsc")
+    base = eng.fit_once(y, Y0, n_pre, n_pre, end, 1)
+    scaled = eng.fit_once(y * 7.5, Y0 * 7.5, n_pre, n_pre, end, 1)
+    shifted = eng.fit_once(y + 123.0, Y0 + 123.0, n_pre, n_pre, end, 1)
+    rerun = eng.fit_once(y, Y0, n_pre, n_pre, end, 1, seed=1)
+
+    spread = float(np.max(np.abs(rerun.donor_weights - base.donor_weights)))
+    for other in (scaled, shifted):
+        moved = float(np.max(np.abs(other.donor_weights - base.donor_weights)))
+        assert moved <= max(spread, eng.fit_tolerance)
+
+
+def test_the_metamorphic_relations_hold_in_double_precision():
+    # The regression this guards: the relations passed in isolation and failed
+    # in a full-suite run, because another estimator had enabled x64 first.
+    # NumPyro's precision is process-global, so the check needs its own process.
+    eng = resolve_engine("mvbbsc")
+    script = textwrap.dedent(
+        """
+        import os, numpy as np
+        os.environ.setdefault("JAX_PLATFORMS", "cpu")
+        import numpyro; numpyro.enable_x64()
+        from mlsynth.utils.geox_helpers.engines import resolve_engine
+        rng = np.random.default_rng(7)
+        T, N, T0 = 24, 5, 19
+        t = np.arange(T)
+        Y0 = (rng.uniform(50.0, 500.0, N)[None, :]
+              + (10.0 * np.sin(2 * np.pi * t / 7.0))[:, None]
+              + rng.normal(0.0, 5.0, (T, N)))
+        y = Y0 @ rng.dirichlet(np.ones(N)) + rng.normal(0.0, 3.0, T)
+        eng = resolve_engine("mvbbsc")
+        base = eng.fit_once(y, Y0, T0, T0, T - 1, 1)
+        scaled = eng.fit_once(y * 7.5, Y0 * 7.5, T0, T0, T - 1, 1)
+        shifted = eng.fit_once(y + 123.0, Y0 + 123.0, T0, T0, T - 1, 1)
+        import jax
+        assert jax.numpy.zeros(1).dtype == jax.numpy.float64, "x64 did not take"
+        print("RESULT", np.max(np.abs(scaled.donor_weights - base.donor_weights)),
+              np.max(np.abs(shifted.donor_weights - base.donor_weights)))
+        """
+    )
+    proc = subprocess.run([sys.executable, "-c", script], capture_output=True,
+                          text=True, timeout=1200)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    line = [ln for ln in proc.stdout.splitlines() if ln.startswith("RESULT")][-1]
+    d_scale, d_shift = (float(v) for v in line.split()[1:])
+    assert d_scale <= eng.fit_tolerance
+    assert d_shift <= eng.fit_tolerance
 
 
 def test_autocorrelated_shock_widens_the_interval():

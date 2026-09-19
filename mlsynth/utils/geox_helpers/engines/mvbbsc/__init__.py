@@ -28,6 +28,17 @@ Donor order needs no handling here. ``run_mvbbsc`` canonicalises its own
 columns, so the invariance the engine property suite asserts -- permute the
 donors, the weights permute with them -- is inherited, not re-imposed.
 
+The other relations that suite asserts hold at ``fit_tolerance``, 5e-2, and the
+number is measured. Rescaling or shifting a panel is exactly equivariant in
+arithmetic; the model's standardization is not bit-exact in floating point, so
+the arrays reaching the sampler differ by about 1e-14, and NUTS carries that
+difference into the draws. Over six generated panels a rescale moved the
+posterior weights by at most 5.7e-3 and a shift by 1.1e-2, against 1.2e-2 from
+refitting the same panel at another seed: the transformation costs no more than
+running the sampler again. 5e-2 is twice the worst of those. The frequentist
+engines keep the 1e-6 default, and the donor-order relation stays there too,
+since canonicalisation makes it exact.
+
 ``engine_kwargs`` carries ``n_warmup``, ``n_samples``, ``n_chains``,
 ``target_accept`` and ``autocorr``. The defaults cost roughly four seconds a
 fit, which the scoring loop pays once per candidate, duration and backtest.
@@ -202,7 +213,7 @@ def detection_boundary(fit: EngineFit, y, Y0, n_pre: int, start: int, end: int,
 
 ENGINE = Engine(name="mvbbsc", fit_once=fit_once, att=att,
                 sweep_p_values=sweep_p_values, point_inference=point_inference,
-                detection_boundary=detection_boundary)
+                detection_boundary=detection_boundary, fit_tolerance=5e-2)
 
 __all__ = ["ENGINE", "fit_once", "att", "att_posterior", "sweep_p_values",
            "point_inference", "detection_boundary"]

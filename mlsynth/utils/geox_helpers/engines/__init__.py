@@ -39,6 +39,10 @@ An engine supplies five things.
     The effect sizes at which this backtest starts detecting, in each
     direction. Closed form where the p-value is analytic in the effect, and
     ``(nan, nan)`` where it is not -- reported absent instead of guessed.
+
+It also declares one number, ``fit_tolerance``, because the seam carries
+engines of two kinds: a convex program that returns the same answer every time,
+and a sampler that returns a draw. See :class:`Engine`.
 """
 
 from __future__ import annotations
@@ -71,7 +75,17 @@ class EngineFit:
 
 @dataclass(frozen=True)
 class Engine:
-    """One resolved scoring engine: its name and its five functions."""
+    """One resolved scoring engine: its name, its five functions, its precision.
+
+    ``fit_tolerance`` is the relative precision at which two fits of the same
+    panel agree. A deterministic program reproduces itself to solver precision,
+    which is the 1e-6 default; a Monte Carlo estimator reproduces itself only to
+    its posterior sampling error, which is several orders of magnitude wider.
+    It sits on the engine because no equality an engine satisfies can hold
+    tighter than the engine repeats itself, so it is the scale at which the
+    metamorphic relations in ``tests/test_geox_engine_properties.py`` are
+    asserted. An engine that samples sets it from measurement.
+    """
 
     name: str
     fit_once: Callable[..., EngineFit]
@@ -79,6 +93,7 @@ class Engine:
     sweep_p_values: Callable[..., Dict[str, Any]]
     point_inference: Callable[..., Any]
     detection_boundary: Callable[..., Any]
+    fit_tolerance: float = 1e-6
 
 
 def placebo_detection_boundary(att_0: float, baseline: float, sigma, alpha: float):

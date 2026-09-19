@@ -14,6 +14,17 @@ that contract prefers -- a pure function of two arrays -- with the caveat that a
 solver runs inside it, so tolerances come from measured solver spread and the
 example counts stay modest.
 
+No relation can hold tighter than the fit repeats, so the tolerance comes from
+the engine. A deterministic program reproduces itself to solver precision; a
+sampler reproduces itself only to its posterior sampling error, and each engine
+declares which it is through ``Engine.fit_tolerance``. The standardization a
+Bayesian engine applies is equivariant in exact arithmetic and differs in the
+last ulps in floating point -- about 1e-14 -- and NUTS is chaotic, so that
+difference grows to the size of a re-run. Measured on the mvbbsc engine, a
+rescale moves the posterior weights by up to 1.1e-2 and refitting the same panel
+at another seed moves them by 1.2e-2: the transformation costs no more than
+running it again, which is the claim the relation is really making.
+
 The relations asserted are the metamorphic ones that carry the estimator's
 meaning:
 
@@ -47,8 +58,9 @@ from mlsynth.utils.geox_helpers.engines import ENGINE_NAMES, resolve_engine
 
 ENGINES = sorted(ENGINE_NAMES)
 
-# Solver tolerance. Both engines run a numerical program, so equalities that are
-# exact in arithmetic hold to solver precision and not to machine epsilon.
+# Default tolerance, for an engine that solves a deterministic program: the
+# equalities are exact in arithmetic and hold to solver precision, not to
+# machine epsilon. An engine that samples declares a wider one.
 _ATOL = 1e-6
 _RTOL = 1e-6
 
@@ -92,14 +104,18 @@ class TestMetamorphicRelations:
         # Y -> cY scales the ATT by c and leaves the donor weights unchanged.
         y, Y0, n_pre, end = case
         eng = resolve_engine(engine)
+        tol = eng.fit_tolerance
         c = 7.5
         base = eng.fit_once(y, Y0, n_pre, n_pre, end, 1)
         scaled = eng.fit_once(y * c, Y0 * c, n_pre, n_pre, end, 1)
         np.testing.assert_allclose(scaled.donor_weights, base.donor_weights,
-                                   atol=_ATOL)
+                                   atol=tol)
+        # The ATT is a mean gap, so the fit's own pre-period gap is its unit;
+        # taking the tolerance from there scales with the panel, as a fixed
+        # absolute one does not.
         np.testing.assert_allclose(eng.att(scaled, y * c, n_pre, end),
                                    c * eng.att(base, y, n_pre, end),
-                                   rtol=_RTOL, atol=_ATOL)
+                                   rtol=tol, atol=tol * scaled.pre_rmspe)
 
     @_SETTINGS
     @given(case=panels())
@@ -108,14 +124,15 @@ class TestMetamorphicRelations:
         # neither the weights nor the estimated effect.
         y, Y0, n_pre, end = case
         eng = resolve_engine(engine)
+        tol = eng.fit_tolerance
         a = 123.0
         base = eng.fit_once(y, Y0, n_pre, n_pre, end, 1)
         shifted = eng.fit_once(y + a, Y0 + a, n_pre, n_pre, end, 1)
         np.testing.assert_allclose(shifted.donor_weights, base.donor_weights,
-                                   atol=_ATOL)
+                                   atol=tol)
         np.testing.assert_allclose(eng.att(shifted, y + a, n_pre, end),
                                    eng.att(base, y, n_pre, end),
-                                   rtol=_RTOL, atol=_ATOL)
+                                   rtol=tol, atol=tol * shifted.pre_rmspe)
 
     @_SETTINGS
     @given(case=panels(), key=st.integers(min_value=0, max_value=2**31 - 1))
