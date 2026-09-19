@@ -137,11 +137,14 @@ def resolve_engine(name: str) -> Engine:
     if name == "augsynth":
         from .augsynth import ENGINE as _augsynth
         return _augsynth
+    if name == "mvbbsc":
+        from .mvbbsc import ENGINE as _mvbbsc
+        return _mvbbsc
     raise MlsynthConfigError(
         f"unknown engine {name!r}; available engines are {sorted(ENGINE_NAMES)}.")
 
 
-ENGINE_NAMES = frozenset({"sdid", "augsynth"})
+ENGINE_NAMES = frozenset({"sdid", "augsynth", "mvbbsc"})
 
 __all__ = ["Engine", "EngineFit", "ENGINE_NAMES", "resolve_engine",
            "placebo_interval", "placebo_detection_boundary"]
