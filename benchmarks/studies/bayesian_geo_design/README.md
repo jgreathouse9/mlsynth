@@ -34,6 +34,7 @@ What a team should not expect is the published market ranking. See arm 2.
 | `calibration.py` | arm 1: placebo coverage of every interval, on Meta's pre-test panel |
 | `market_selection.py` | arm 2: each engine against GeoLift's published BestMarkets top five |
 | `criterion.py` | arm 3: what the MDE ranks on, and what to rank on instead |
+| `unconstrained.py` | arm 4: what the design picks when no market is pinned |
 | `plot.py` | the counterfactual and credible bands on the test panel |
 | `results/` | the runs behind the tables below |
 
@@ -43,6 +44,7 @@ Every arm runs from the repository root against data already in `basedata/`:
 python -m benchmarks.studies.bayesian_geo_design.calibration      results/calibration.json
 python -m benchmarks.studies.bayesian_geo_design.market_selection results/market_selection.json
 python -m benchmarks.studies.bayesian_geo_design.criterion        results/criterion.json
+python -m benchmarks.studies.bayesian_geo_design.unconstrained    results/unconstrained.json
 python -m benchmarks.studies.bayesian_geo_design.plot
 ```
 
@@ -152,6 +154,44 @@ anti-conservative". `att_error_over_sigma` is merged into the shortlist at
 `orchestration.py:329` and nothing ranks or gates on it. Median on the Walmart
 panel is 0.65, so this is a guard and not a live fire.
 
+## Arm 4 — free selection, with nothing pinned
+
+Arm 2 inherits GeoLift's walkthrough config, which forces chicago into every
+candidate. That is the analyst choosing the treated market and the design
+filling in around it. Dropping the constraint lets nomination range over all 40
+markets.
+
+| engine | scored designs | top design | its MDE | its investment |
+| --- | --- | --- | --- | --- |
+| augsynth, chicago pinned | 20 | chicago+portland (15) | 0.10 | 64,564 |
+| augsynth, free | 106 | jacksonville+milwaukee+new orleans (15) | 0.05 | 64,524 |
+| mvbbsc, free | 174 | chicago+portland (15) | 0.05 | 32,282 |
+
+Three results.
+
+Both engines rank chicago+portland first with nothing pinned, so GeoLift's
+published design is not an artifact of the constraint. Two estimators choosing
+freely over 40 markets agree at the top.
+
+The constraint costs something measurable. augsynth's free search reaches
+jacksonville+milwaukee+new orleans at an MDE of 0.05 for 64,524, against
+chicago+portland at 0.10 for 64,564 — one grid step better at the same spend,
+from a design the pinned 33-candidate field never contained. The effect grid
+steps by 0.05, so the improvement is bracketed by the grid and not measured
+exactly.
+
+The engines agree less when neither is constrained. Top-five overlap is 1 of 5,
+and the one is chicago+portland; under the constraint both engines at least
+contained all five published designs. A larger field gives the criterion more
+room to disagree.
+
+And the MDE stops discriminating. MVBBSC returns its whole top five tied at
+rank 1, every one at the 0.05 grid floor, because its intervals are tighter and
+a larger field puts more designs under the smallest effect the grid expresses —
+174 feasible designs against augsynth's 106. Ranking a free field by MDE is the
+case arm 3 measures; power at a fixed effect still separates designs the MDE
+ties. Free selection is the regime where that choice of criterion matters most.
+
 ## Negative results
 
 Recorded because each cost a day and each would otherwise be attempted again.
@@ -195,6 +235,8 @@ Recorded because each cost a day and each would otherwise be attempted again.
 - `market_selection.py` runs MVBBSC at 600 warmup and 600 samples over two
   chains. The arm-1 calibration run used 1000 and 1000, at max r-hat 1.003.
   Per-fit r-hat is recorded but not asserted in arm 2.
+- Arm 4 is one deterministic nomination pass. GEOX can nominate stochastically
+  (`run_stochastic`), which would widen the field again and is untested here.
 - The realised error arm 3 scores against is the MAREX weighted contrast. Every
   criterion correlates far worse with the realised sdid gap (0.12 to 0.25,
   including the in-sample contrast at 0.196), because sdid refits donor and time
