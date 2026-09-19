@@ -910,6 +910,14 @@
   "mlsynth/utils/geox_helpers/windows.py",
   "mlsynth/utils/sdid_helpers/weights.py"
  ],
+ "geox_mvbbsc_equivalence": [
+  "basedata/german_reunification.csv",
+  "benchmarks/cases/geox_mvbbsc_equivalence.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/geox_helpers/engines/__init__.py",
+  "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py",
+  "mlsynth/utils/mvbbsc_helpers/model.py"
+ ],
  "geox_sdid_equivalence": [
   "basedata/smoking_data.csv",
   "mlsynth/config_models.py",

@@ -61,6 +61,44 @@ now returns and the back-compat guarantee.
   attributed to the wrong donor while the ATT stays correct.
 
 ### Added
+- `engine="mvbbsc"` on GEOX: the Bayesian synthetic control of Martinez and
+  Vives-i-Bastida (2024) in the slot augsynth occupies, needing the `[bayes]`
+  optional dependency. Nomination, backtest windows, effect injection, the power
+  sweep, the MDE rule and the composite rank are untouched, so the engine
+  supplies the fit and the null and nothing else. Two things differ from calling
+  `mlsynth.MVBBSC` on the same panel, and both follow from what a scoring loop
+  asks. Donor column order is not information about the effect but is
+  information to a sampler, since NUTS is chaotic: on the German reunification
+  panel, permuting the 16 donors moves the estimator's posterior-mean weights by
+  7.2e-3, which is past the 1e-6 the engine property suite asserts. The engine
+  sorts the donor columns canonically before sampling and maps the weights back,
+  so the relation holds exactly and a design does not depend on the order its
+  candidates arrived in. And the ATT interval carries the pre-period AR(1): a
+  design's readout averages a post window, so under an iid shock its variance
+  falls as sigma^2/h while under positive autocorrelation it falls more slowly.
+  On Meta's GeoLift panel, every one of its 40 locations taken in turn as an
+  untreated placebo, a nominal 90% interval on the iid shock covers 65% and this
+  one covers 87.5%, against augsynth's conformal 89.7% at 1.7x the width. Scale
+  and location equivariance already held exactly, because the per-unit
+  standardization leaves the standardized panel bitwise identical. The shipped
+  `mlsynth.MVBBSC` estimator is unchanged.
+- `inference="bayes"` in the GEOX vocabulary: the posterior predictive of the
+  Bayesian engine. Available on `mvbbsc` alone, and also the only null that
+  engine admits, since substituting a placebo or conformal procedure would
+  report a quantity the estimator did not produce -- the argument by which
+  `sdid` already refuses conformal. The readout is a credible interval and a
+  posterior tail probability, carrying `max_rhat` and `n_divergent` so a design
+  scored on an unconverged chain is visible as such. The other engines' defaults
+  are unchanged: placebo for `sdid`, conformal for `augsynth`.
+- `benchmarks/cases/geox_mvbbsc_equivalence.py`: certification by equivalence.
+  With donor order held fixed, the engine and the estimator agree identically on
+  West Germany -- the posterior-mean counterfactual to 0.0 maximum absolute
+  difference and the ATT with it, pinned without a tolerance because the two are
+  one sampler call on one standardized panel and anything else would mean the
+  wrapper introduced a transformation. The donor-order sensitivity the engine
+  removes is pinned as its own quantity. The agreed ATT, -2071.7, sits inside
+  the band `mvbbsc_germany` already pins and beside bsynth's -2075, so the
+  equivalence is anchored to the external reference and not only to itself.
 - `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
   CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
   `cumulative_lower`, `cumulative_upper` and `cumulative_windows`. PPSCM reported the
