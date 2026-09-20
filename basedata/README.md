@@ -238,6 +238,20 @@ reads as a chain abbreviation. The
 `benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
 which is the series the authors' `arco.m` explains.
 
+## Simulation donor pools
+
+| File | What it is | Used by |
+|---|---|---|
+| `gvb_rgdpl1980.csv` | 157 countries' 1980 log real GDP per capita, from PWT | `wan_pda_vs_scm_ref` |
+
+Gardeazabal & Vega-Bayo's replication files ship this pool as `rgdpl1980.txt`,
+and Wan, Xie & Hsiao's simulation scripts sample it to build unit fixed effects
+and a covariate for their Designs 1b and 2d. It is a donor pool for a
+data-generating process, not a panel: there is one value per country and no time
+dimension. Table 1 of Wan, Xie & Hsiao describes the pool as `j = 1, ..., 143`,
+while the file carries 157 values and the authors' own scripts sample `1:157`;
+the scripts are what `benchmarks/R/wan_pda_vs_scm.R` follows.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
