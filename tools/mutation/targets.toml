@@ -2087,3 +2087,33 @@ timeout = 900.0
   find = "        return complement >= 1"
   replace = "        return False"
   models = "the over-correction: reading the labels off w even where either labelling is optimal. With m_min=1 and m_max=N-1 under the symmetric objective the complement is an admissible treated set too, so the solver's choice between them is arbitrary and the reported treated count stops being comparable to Abadie & Zhao's, whose own code takes the smaller set. The Section 5 Monte Carlo cell moved from 6.83 treated units to 7.5 against a 0.8 tolerance when this was the behaviour"
+
+[[target]]
+name = "mvbbsc-donor-order"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc_donor_order.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "donor-order-left-to-the-caller"
+  find = "    X = X[:, donor_order]"
+  replace = "    pass  # donor order left as the caller supplied it"
+  models = "the defect this canonicalisation exists to remove: NUTS walks a parameter vector, so permuting the simplex coordinates changes the trajectory and the posterior moves. On the German reunification panel that was 7.2e-3 in the posterior-mean weights and 6.03 in the ATT -- an answer that changes because somebody sorted a dataframe"
+
+  [[target.mutant]]
+  id = "weights-returned-in-the-samplers-order"
+  find = '        "weights": W[:, donor_inverse],'
+  replace = '        "weights": W,'
+  models = "weights handed back in the sampler's internal order while the caller reads them against its own columns, so every weight is attributed to the wrong donor. The counterfactual and the ATT are untouched, which is what makes it survive any check that looks only at the effect"
+
+[[target]]
+name = "mvbbsc-scale-invariance"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc.py -q -p no:cacheprovider -k scale_invariance"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-treated-series-keeps-its-own-scale"
+  find = "    sy = sy if sy > 0 else 1.0"
+  replace = "    sy = 1.0"
+  models = "standardisation that centres but does not scale. The invariance this estimator advertises is that the units of the outcome do not matter, and dropping the divisor removes it: the same panel in dollars and in thousands of dollars is then two different fits. It is the defect test_scale_invariance_of_weights exists to catch, and the check has to catch it while tolerating the sampler's own spread, which on this panel is 0.02 to 0.04 in the posterior-mean weights"

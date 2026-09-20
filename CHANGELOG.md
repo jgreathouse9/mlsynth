@@ -8,6 +8,58 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Fixed
+- `test_scale_invariance_of_weights` no longer asserts against a constant the
+  sampler's own spread can exceed. MVBBSC standardizes internally, so rescaling
+  every series leaves the posterior weights alone -- exactly, in arithmetic. The
+  sampler is where that stops being exact: `(1000*y - mean(1000*y))/std(1000*y)`
+  is not bitwise `(y - mean(y))/std(y)`, the two standardized panels differ by
+  about 1e-14 in float64, and NUTS carries that into the draws. In single
+  precision, NumPyro's default, the difference rounds away and the check comes
+  back at 0.0; MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so which of the two happens depends on what else the process
+  imported.
+
+  At the 80-draw chains the check used, the measured numbers say the 0.05
+  constant was never a bound. Across eight panels under x64 a rescale moved the
+  posterior-mean weights by a median of 0.0211 and at most 0.0374, and refitting
+  the same panel at another seed moved them by a median of 0.0213 and at most
+  0.0384 -- the same distribution, which is the invariance holding. A constant
+  1.4x above that floor passes on luck, and on one CI build it drew 0.0587 and
+  failed.
+
+  The check now bounds the movement by the sampler's own re-run spread, measured
+  in the same process on the same panel, with 0.05 kept as a floor since two
+  seeds can land close by chance. That comparison is build-independent where a
+  constant is not. The chains are also lengthened to 400 draws, which halves
+  both quantities (0.0072 median movement against 0.0102 median spread) and
+  costs no measurable time, since compilation dominates. A mutant that drops the
+  scale divisor is killed, so the looser bound still catches the defect the
+  check exists for.
+- MVBBSC no longer depends on the order its donors arrive in. Donor column order
+  carries no information about the effect -- the pool is a set -- but NUTS walks
+  a parameter vector, so permuting the simplex coordinates changes the
+  trajectory and two runs at one seed disagree by however far it diverges. On
+  the German reunification panel, permuting the 16 donors moved the
+  posterior-mean weights by 7.2e-3 and the mean post-1990 ATT by 6.03, which is
+  0.29% of the estimate: an answer that changed because somebody sorted a
+  dataframe. `run_mvbbsc` now sorts the donor columns lexicographically on the
+  pre-period before sampling and maps the draws back, so every permutation of
+  one donor set presents the sampler with one input and the weights still come
+  back against the columns the caller passed. The relation is exact, so the
+  tests carry no tolerance. `mvbbsc_germany` still passes on its existing pins
+  (mean_att -2078 against -2080 +/- 500, pre_rmse 61.8 against 62.2 +/- 20).
+
+  The tests are parametrized over `target_accept`, and that is not incidental.
+  It defaults to 0.8 and moves the ATT on this panel by 5.92, the same size as
+  the 6.03 the donor order moved it, so a check at one setting is a check where
+  two effects of equal magnitude can cancel. The pre-fix natural order at 0.9
+  and the post-fix canonical order at 0.8 agree to 0.1 by coincidence, which is
+  enough to make a working fix look inert. Two mutants in
+  `tools/mutation/targets.toml` pin both halves: dropping the canonicalisation,
+  and returning the weights in the sampler's internal order so every weight is
+  attributed to the wrong donor while the ATT stays correct.
+
 ### Added
 - `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
   CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
