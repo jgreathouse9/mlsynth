@@ -262,6 +262,12 @@ Path B — Monte Carlo / simulation
        post-intervention period is correctly sized; the LASSO arm rejects at
        2.2 times their reported rate, and the case records the five checks
        that localise the gap to the first stage
+   * - ``botosaru_ferman_covariates``
+     - Botosaru-Ferman (2019) Table 1 on West Germany: a synthetic control fit
+       on pre-treatment GDP alone matches the outcome to 0.02% and misses
+       inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
+       weighting of standardized predictors, so it is not the plain
+       outcome-only fit
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
