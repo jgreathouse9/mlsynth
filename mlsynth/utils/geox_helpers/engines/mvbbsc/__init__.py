@@ -213,7 +213,8 @@ def detection_boundary(fit: EngineFit, y, Y0, n_pre: int, start: int, end: int,
 
 ENGINE = Engine(name="mvbbsc", fit_once=fit_once, att=att,
                 sweep_p_values=sweep_p_values, point_inference=point_inference,
-                detection_boundary=detection_boundary, fit_tolerance=5e-2)
+                detection_boundary=detection_boundary, fit_tolerance=5e-2,
+                requires=("numpyro",))
 
 __all__ = ["ENGINE", "fit_once", "att", "att_posterior", "sweep_p_values",
            "point_inference", "detection_boundary"]

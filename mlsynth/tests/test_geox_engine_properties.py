@@ -45,9 +45,18 @@ Named degenerate panels are kept as ``@example`` instead of left to the
 generator: a single donor, a constant treated series, and a donor pool that
 already reproduces the treated path exactly are the corners a real geo panel
 produces.
+
+Not every engine can run everywhere. One of them needs an optional dependency,
+so the parametrization reads ``Engine.requires`` and skips an engine whose
+imports are absent. Without that, registering such an engine turns this suite
+red in every environment installing the base requirements alone -- which is
+what happened, and which the PR gate could not see, because it installs numpyro
+explicitly while the daily badge and the mutation matrix do not.
 """
 
 from __future__ import annotations
+
+import importlib.util
 
 import numpy as np
 import pytest
@@ -56,7 +65,35 @@ from hypothesis import strategies as st
 
 from mlsynth.utils.geox_helpers.engines import ENGINE_NAMES, resolve_engine
 
-ENGINES = sorted(ENGINE_NAMES)
+
+def _importable(module: str) -> bool:
+    """Whether ``module`` can be imported, without importing it."""
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _engines():
+    """Every registered engine, skipped where its optional imports are absent.
+
+    An engine declares what it needs through ``Engine.requires``, so this asks
+    the registry instead of naming engines: the suite keeps covering whatever is
+    registered, and an engine that cannot run in this environment is reported
+    absent and not broken.
+    """
+    params = []
+    for name in sorted(ENGINE_NAMES):
+        missing = [m for m in resolve_engine(name).requires if not _importable(m)]
+        marks = ()
+        if missing:
+            marks = pytest.mark.skip(
+                reason=f"the {name} engine needs {', '.join(missing)}")
+        params.append(pytest.param(name, marks=marks))
+    return params
+
+
+ENGINES = _engines()
 
 # Default tolerance, for an engine that solves a deterministic program: the
 # equalities are exact in arithmetic and hold to solver precision, not to

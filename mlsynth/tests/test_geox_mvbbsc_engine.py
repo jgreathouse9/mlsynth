@@ -110,6 +110,46 @@ def test_donor_order_is_invariant(key):
                                atol=1e-12)
 
 
+def test_the_engine_declares_its_optional_dependency():
+    # The property suite parametrizes over every registered engine, and this
+    # one needs an optional dependency. Declaring it is what lets that suite
+    # skip instead of erroring where the dependency is absent.
+    assert resolve_engine("mvbbsc").requires == ("numpyro",)
+    assert resolve_engine("sdid").requires == ()
+    assert resolve_engine("augsynth").requires == ()
+
+
+def test_the_property_suite_skips_this_engine_without_numpyro():
+    # The regression: registering an engine with an optional dependency made
+    # the shared property suite fail in every environment that installs
+    # `requirements.txt` alone -- the daily coverage badge and the mutation
+    # matrix -- where it had previously been dependency-free. Those jobs are
+    # not the PR gate, which installs numpyro explicitly, so the PR was green
+    # and main was not. Blocking the import needs its own process.
+    script = textwrap.dedent(
+        """
+        import sys, pytest
+
+        class Blocked:
+            def find_spec(self, name, path=None, target=None):
+                if name == "numpyro" or name.startswith("numpyro."):
+                    raise ModuleNotFoundError(name)
+                return None
+
+        sys.meta_path.insert(0, Blocked())
+        sys.exit(pytest.main(["mlsynth/tests/test_geox_engine_properties.py",
+                              "-q", "-p", "no:cacheprovider", "-k", "mvbbsc",
+                              "-rs"]))
+        """
+    )
+    proc = subprocess.run([sys.executable, "-c", script], capture_output=True,
+                          text=True, timeout=900)
+    out = proc.stdout
+    assert "failed" not in out.splitlines()[-1], out[-3000:]
+    assert "skipped" in out, out[-3000:]
+    assert proc.returncode == 0, out[-3000:]
+
+
 def test_the_engine_declares_a_sampling_tolerance():
     # The declared number is what the property suite asserts at. A sampler
     # cannot meet the deterministic engines' bar, and saying so here is what
