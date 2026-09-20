@@ -2126,9 +2126,15 @@ timeout = 1800.0
 
   [[target.mutant]]
   id = "a-samplers-relations-held-to-solver-precision"
-  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2)"
-  replace = "                detection_boundary=detection_boundary)"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary,\n                requires=(\"numpyro\",))"
   models = "the bar this engine was first certified against: the property suite's 1e-6, which a sampler cannot meet. It passed only because NumPyro draws in single precision by default and the 1e-14 difference a rescale makes to the standardized inputs rounds away there. Once MTGP or BPSCS enables x64 earlier in a run the difference survives, NUTS amplifies it to 1e-2, and the relations fail -- so the engine was green in isolation and red in the suite"
+
+  [[target.mutant]]
+  id = "an-optional-dependency-left-undeclared"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary, fit_tolerance=5e-2)"
+  models = "the regression that took the daily coverage badge red on main. The engine property suite parametrises over every registered engine, so an engine needing an optional dependency has to say so or the suite fails it where the dependency is absent instead of reporting it missing. The pull request gate installs numpyro explicitly and cannot see this; the badge and the mutation matrix install requirements.txt alone and go red with eight failures"
 
   [[target.mutant]]
   id = "an-iid-shock-on-an-averaged-estimand"
