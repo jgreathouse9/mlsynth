@@ -73,28 +73,50 @@ is the ``(5,5)`` MAE-rule PDA cell: the paper prints 0.77 and this case measures
 0.99. The 1000-rule cell beside it reproduces (0.903 against 0.91), so the fit
 agrees and the filter is what diverges.
 
-Three readings of the rule were measured against that cell -- the equal-K fix
-above (0.99), the archive's ``s3`` table, which applies the plain 0.2 threshold
-to PDA (1.01), and its ``s1`` table, which averages PDA over the rows where SCM
-passes (0.89). None reaches 0.77, and the direction is the same in all three:
-filtering moves the PDA cell up, while the paper's moves it down. ``nvmax`` is
-not the cause, since the AICc choice at :math:`T_0 = 5` selects one control
-whether the cap is 1, 2, 3 or absent, and the cell is identical under all four.
+The gap is not a property of this port. The authors' script defines six
+subsetting rules (``s1`` through ``s6``) and reports both methods under each;
+Section 3 of the paper describes a seventh, the equal-K adjustment above. Their
+script was run unmodified at ``(5,5)`` -- their DGP, their seed, their
+``pampe``, their ``Synth`` -- for 400 replications, and every rule gives the
+same answer:
 
-The measurement that accounts for it: the correlation between
-:math:`\mathrm{MAE}_{0,\mathrm{PDA}} / |\bar y^0_1|` and the post-period MSE is
--0.030 at ``(5,5)``. Across the five cells the largest such correlation in
+============== ========= =========  =====
+rule            PDA MSE   SCM MSE       n
+============== ========= =========  =====
+unfiltered         0.861     0.094    400
+``s1``             0.864     0.093    241
+``s2``             0.874     0.094    384
+``s3``             0.847     0.092    258
+``s4``             0.853     0.092    257
+``s5``             0.865     0.093    277
+``s6``             0.864     0.094    397
+equal-K            0.871     0.093    241
+============== ========= =========  =====
+
+The PDA column spans 0.847 to 0.874 across all seven filters, against an
+unfiltered 0.861 and the paper's printed 0.77. The SCM column reproduces under
+every one of them (0.092 to 0.094 against the paper's 0.10), so the panels, the
+estimators and the metric are all behaving.
+
+What accounts for the PDA column refusing to move: the correlation between
+:math:`\mathrm{MAE}_{0,\mathrm{PDA}} / |\bar y^0_1|` and the post-period MSE
+is -0.030 at ``(5,5)``. Across the five cells the largest such correlation in
 absolute value is 0.081, at ``(20,20)``, where the replication count is 60 and
 the sampling error on a correlation is itself about 0.13. The pre-period fit
 carries no information about post-period accuracy in this design, so no filter
-built on it can move the PDA column, whichever of the three forms it takes. That
-is consistent with the paper's other four cells, where its MAE-rule and
-1000-rule values differ by at most 0.01, and inconsistent with its ``(5,5)``
-pair alone.
+built on it can move the PDA column, whichever form it takes. That is
+consistent with the paper's other four cells, where its MAE-rule and 1000-rule
+values differ by at most 0.01, and inconsistent with its ``(5,5)`` pair alone.
+
+``nvmax`` is not the cause either: the AICc choice at :math:`T_0 = 5` selects
+one control whether the cap is 1, 2, 3 or absent, and the cell is identical
+under all four.
 
 The cell is reported here at the measured value with the paper's printed value
-alongside, so a later reading of the archive can settle it against a recorded
-number.
+alongside. The reference run that produced the table above is
+``benchmarks/R/wan_pda_vs_scm.R``'s Design 6a block under the archive's own
+subsetting rules; it is a negative result, and recording it is what keeps the
+next reader from spending the same afternoon on it.
 """
 from __future__ import annotations
 
