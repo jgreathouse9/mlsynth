@@ -460,9 +460,21 @@ What the surface looks like
 
    p.sigma_placebo                         # σ̂ used (from blank or pre window)
    p.serial_correlation                    # ρ̂ AR(1) of the placebo gaps
+   p.placebo_bias                          # mean placebo gap; 0 for an unbiased design
+   p.placebo_bias_pvalue                   # is that offset distinguishable from 0?
+   p.n_placebo, p.sigma_ci                 # periods σ̂ rests on, and its interval
    p.baseline                              # mean(synthetic_control) on post window
    p.alpha, p.power_target                 # 0.05 / 0.80 by default
-   p.method                                # "analytical_ar1"
+   p.method                                # "analytical_ar1_mean_gap"
+
+   pt = p.headline
+   pt.critical_value                       # t quantile the MDE is built at
+   pt.mde_ci                               # MDE at the ends of p.sigma_ci
+
+Test an observed effect against ``pt.critical_value``, not against 1.96. The
+noise scale is estimated from the placebo window, so the pivot follows a
+Student-t on that window's effective degrees of freedom; the Gaussian quantile
+gives a nominal 5% test a true size above 10% on a short, persistent window.
 
 The default horizon grid covers :math:`T \in \{1, 2, 4, 6, 8, 12\}` plus the
 realised ``n_post``, so the table also doubles as a *"how long do I need to

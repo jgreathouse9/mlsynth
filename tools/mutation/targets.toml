@@ -2141,3 +2141,39 @@ timeout = 1800.0
   find = "    draws = att_posterior(fit, start, end, autocorr=autocorr)\n    p = 2.0 * min("
   replace = "    draws = att_posterior(fit, start, end, autocorr=False)\n    p = 2.0 * min("
   models = "MVBBSC's shipped predictive shock used on a window average. Under iid the variance of the mean falls as sigma^2/h; under the positive autocorrelation a geo panel actually has it falls more slowly, so the interval is too narrow. On Meta's GeoLift panel, with each of its 40 locations taken as a placebo, this covers 65% of a nominal 90% against 87.5% for the AR(1) form"
+
+[[target]]
+name = "power-calibration"
+module-path = "mlsynth/utils/post_fit.py"
+test-command = "python -m pytest mlsynth/tests/test_power_calibration.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "noise-scale-discards-the-designs-blank-period-bias"
+  find = "        bias = float(placebo.mean())"
+  replace = "        bias = 0.0"
+  models = "the noise scale taken as the spread about the placebo window's own mean, so a design that misses on the periods it was not fitted to is charged nothing for that miss. The offset is real and it lands in the post window on top of the effect being measured. Every shape assertion passes -- the MDE is finite, positive and falls with the horizon -- and only the empirical size of the test it claims to describe moves, which no assertion on the number itself can see"
+
+  [[target.mutant]]
+  id = "serial-correlation-read-off-an-uncentred-series"
+  find = "    r = r - r.mean()\n    num = float(r[:-1] @ r[1:])"
+  replace = "    num = float(r[:-1] @ r[1:])"
+  models = "the lag-1 autocorrelation estimated without removing the mean. On a series with mean b and noise sigma the estimator tends to b^2 / (b^2 + sigma^2), so a biased design reports strong persistence it does not have and the AR(1) variance inflation built on it is measuring the offset twice. rho stays inside (-1, 1) and the MDE stays finite, so only a test that knows the true rho of a simulated process can tell"
+
+  [[target.mutant]]
+  id = "gaussian-quantile-against-an-estimated-scale"
+  find = "    t_a = float(t_dist.ppf(1.0 - alpha / 2.0, df))"
+  replace = "    t_a = float(norm.ppf(1.0 - alpha / 2.0))"
+  models = "sigma treated as known when it was estimated from the placebo window. This is the textbook reason a nominal 5% test is not one, and on the short persistent windows these designs have it is not a rounding difference: at rho = 0.7 on a 24-period window the Gaussian quantile gives a true size above 10 percent. The reported MDE only shrinks by a few percent, which is why no assertion on its value catches it"
+
+  [[target.mutant]]
+  id = "effective-sample-size-uncapped-at-the-period-count"
+  find = "    return float(min(float(n), max(2.0, n * (1.0 - r) / (1.0 + r))))"
+  replace = "    return float(max(2.0, n * (1.0 - r) / (1.0 + r)))"
+  models = "the Bartlett effective sample size allowed to exceed the number of periods. It does so whenever the sample autocorrelation is negative, which is an ordinary draw on a 20-period window: rho-hat = -0.42 turns 20 periods into 48 degrees of freedom, narrowing both the t quantile and sigma's chi-square interval on the windows where they should be widest"
+
+  [[target.mutant]]
+  id = "squared-bias-plugged-in-without-removing-its-own-noise"
+  find = "    bias_sq = max(0.0, bias ** 2 - var_bias)"
+  replace = "    bias_sq = bias ** 2"
+  models = "the plug-in b^2 used for the squared bias. Since E[b_hat^2] = beta^2 + Var(b_hat), a design that is genuinely unbiased is charged for the sampling noise in measuring its own bias, and its MDE is inflated for no reason. The direction is conservative, so nothing over-rejects and no size assertion fires -- it costs power silently, and only a test that pins the standard error against sigma/sqrt(n_post) on an unbiased design notices"
