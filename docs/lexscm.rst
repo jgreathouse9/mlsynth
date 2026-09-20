@@ -1042,6 +1042,35 @@ non-significant p-value from the permutation test the design search ranked it
 by, and the ``method`` field on ``res.power`` names which test its number
 refers to.
 
+Ranking on the B window, and why it is allowed
+"""""""""""""""""""""""""""""""""""""""""""""
+
+Stage 4 ranks candidates by their B-window MDE and the inference is then built
+from those same B-window residuals, which looks like the thing Vives-i-Bastida
+(2022, Section 4) rules out: "we can't decide the outcome pair on the basis of
+the fit in the blank period (otherwise we would bias our statistical
+analysis)." The concern is a winner's curse -- if the ranking sorts on noise,
+the winner's B residuals are a minimum over candidates and the null built from
+them is too narrow.
+
+Measured on simulated panels with a known factor structure, it does not bite.
+Against a control that never consults the B window, the ranked design is 24
+percent better on the post window -- periods no design was ranked on -- so what
+Stage 4 finds is real donor-fit stability and not a lucky draw. Stage 1 is what
+makes this hold: it hands Stage 4 designs that already meet the balance
+objective, so the candidates differ in true quality by more than they differ by
+noise. Remove that and the property goes with it. On a panel whose units share
+one noise scale, where the candidates are equal in truth, the same ranking buys
+nothing (a post-window ratio of 0.98 against 1.00). Both arms are pinned in
+``mlsynth/tests/test_lexscm_selection_validity.py``, the second as the positive
+control that gives the first the power to fail.
+
+What the B window does understate is the post-window error, by about a sixth on
+that configuration. This is a horizon effect and not a selection one -- B
+periods sit adjacent to the estimation window and post periods sit beyond them,
+so the gap is the same size for a design chosen without ever consulting B. It
+is priced by the terms on ``res.power``, not by the ranking rule.
+
 Power-analysis failures (e.g. degenerate B-window residuals) never break a
 fit; ``res.power`` is simply left as ``None``. To compute on a
 non-default horizon grid or significance level call
