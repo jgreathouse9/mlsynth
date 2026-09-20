@@ -131,6 +131,8 @@ CASES = {
     "pda_ppi": "benchmarks.cases.pda_ppi",                    # Path A: Shi-Wang China PPI L2-relaxation (real-estate policy)
     "pda_brexit": "benchmarks.cases.pda_brexit",              # Path A: Shi-Wang Brexit multi-treated-units L2-relaxation
     "pda_pi_coverage": "benchmarks.cases.pda_pi_coverage",    # Path B: Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
+    "wan_pda_vs_scm": "benchmarks.cases.wan_pda_vs_scm",              # Path B: Wan-Xie-Hsiao 2018 Table 2 Design 6a, PDA vs SCM over 5 (J,T0) cells x both aggregation rules
+    "wan_pda_vs_scm_ref": "benchmarks.cases.wan_pda_vs_scm_ref",      # cross-val vs pampe/Synth on all six Wan-Xie-Hsiao design variants (paired on shared R-generated panels)
     "pda_wheeler_lassosynth": "benchmarks.cases.pda_wheeler_lassosynth",  # cross-val vs Wheeler's LassoSynth: the resampled cumulative band reduces to his construction at block=1
     "mlsc_bottmer": "benchmarks.cases.mlsc_bottmer",          # cross-val vs Bottmer's mlSC_estimator (skips if absent)
     "proximal_panic1907": "benchmarks.cases.proximal_panic1907",  # cross-val vs freshtaste/proximal (Panic 1907 Table 3)

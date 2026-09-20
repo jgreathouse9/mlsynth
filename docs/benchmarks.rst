@@ -270,6 +270,17 @@ Path B — Monte Carlo / simulation
      - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
    * - ``pda_wheeler_lassosynth``
      - the resampled cumulative band reduces to Wheeler's LassoSynth at ``block=1``
+   * - ``wan_pda_vs_scm``
+     - Wan-Xie-Hsiao (2018) Table 2, Design 6a: PDA against SCM over five
+       ``(J, T0)`` cells under both of the paper's aggregation rules. Nineteen
+       of the twenty cells land on the printed values; the ``(5,5)`` MAE-rule
+       PDA cell does not, and the case records the measurement that accounts
+       for it
+   * - ``wan_pda_vs_scm_ref``
+     - the same paper's other five design variants, cross-validated against
+       ``pampe`` and ``Synth`` on shared R-generated panels. PDA agrees to
+       machine precision on all eight designs; the SCM gap at ``T0 = 5`` is
+       traced to Synth's outer search over ``V``
    * - ``fspda_table1``
      - all 108 cells of Shi-Huang Table 1, vs the paper and their own code
    * - ``pda_table1``
