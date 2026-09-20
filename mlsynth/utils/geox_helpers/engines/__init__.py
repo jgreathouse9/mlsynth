@@ -40,15 +40,17 @@ An engine supplies five things.
     direction. Closed form where the p-value is analytic in the effect, and
     ``(nan, nan)`` where it is not -- reported absent instead of guessed.
 
-It also declares one number, ``fit_tolerance``, because the seam carries
-engines of two kinds: a convex program that returns the same answer every time,
-and a sampler that returns a draw. See :class:`Engine`.
+It also declares two things about itself: ``fit_tolerance``, because the seam
+carries engines of two kinds -- a convex program that returns the same answer
+every time, and a sampler that returns a draw -- and ``requires``, because an
+engine may need an optional dependency that the rest of the library does not.
+See :class:`Engine`.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -85,6 +87,14 @@ class Engine:
     tighter than the engine repeats itself, so it is the scale at which the
     metamorphic relations in ``tests/test_geox_engine_properties.py`` are
     asserted. An engine that samples sets it from measurement.
+
+    ``requires`` names the optional imports the engine cannot fit without, so
+    the registry can be read without them. An engine module never imports its
+    optional dependency at module scope -- resolving an engine must not depend
+    on whether it can run -- and the property suite skips an engine whose
+    requirements are absent instead of failing it. Declaring them here, instead
+    of naming engines in the suite, is what makes a later engine inherit that
+    by construction.
     """
 
     name: str
@@ -94,6 +104,7 @@ class Engine:
     point_inference: Callable[..., Any]
     detection_boundary: Callable[..., Any]
     fit_tolerance: float = 1e-6
+    requires: Tuple[str, ...] = ()
 
 
 def placebo_detection_boundary(att_0: float, baseline: float, sigma, alpha: float):

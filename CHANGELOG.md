@@ -9,6 +9,31 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Fixed
+- The GEOX engine property suite skips an engine whose optional dependency is
+  absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
+  needs numpyro into a registry that `tests/test_geox_engine_properties.py`
+  parametrizes over unconditionally, so in any environment installing
+  `requirements.txt` alone the eight mvbbsc cases raised
+  `MlsynthEstimationError: MVBBSC requires NumPyro` instead of reporting the
+  engine absent.
+
+  The pull request gate did not see it. `build.yml` runs `pip install numpyro`
+  explicitly, so both PRs were green; `coverage-badge.yml` and `mutation.yml` do
+  not, and the daily badge went red on main with exactly those eight failures.
+
+  `Engine` now carries `requires`, the optional imports an engine cannot fit
+  without, and the suite reads it from the registry instead of naming engines,
+  so a later engine inherits the behaviour. An engine module still imports its
+  dependency inside `fit_once` and never at module scope, which is what lets the
+  registry be resolved without it.
+
+  `mutation.yml` installs numpyro too, and that one was the worse exposure: the
+  bayes tests `importorskip`, so a target whose tests all skip exits 0 and the
+  harness reads the mutant as having survived. That reports confidence nobody
+  measured, which is the one outcome `tools/mutation/run_mutants.py` is written
+  to refuse.
+
+### Fixed
 - `test_scale_invariance_of_weights` no longer asserts against a constant the
   sampler's own spread can exceed. MVBBSC standardizes internally, so rescaling
   every series leaves the posterior weights alone -- exactly, in arithmetic. The
