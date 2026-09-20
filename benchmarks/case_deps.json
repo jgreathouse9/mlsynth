@@ -912,7 +912,6 @@
  ],
  "geox_mvbbsc_equivalence": [
   "basedata/german_reunification.csv",
-  "benchmarks/cases/geox_mvbbsc_equivalence.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/geox_helpers/engines/__init__.py",
   "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py",
