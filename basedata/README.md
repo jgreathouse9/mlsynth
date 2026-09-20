@@ -62,7 +62,7 @@ The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depth
 | File | What it is | Used by |
 |---|---|---|
 | `germany_augmented.csv` | the superset (106 cols) | SCMO multi-outcome replication |
-| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / west-Germany cases |
+| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / `botosaru_ferman_covariates` / west-Germany cases |
 | `german_reunification.csv` | `gdp` + the `Reunification` flag | ClusterSC / SpotSynth / several west-Germany cases |
 
 ## Basque Country — Abadie & Gardeazabal (2003)

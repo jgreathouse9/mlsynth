@@ -117,6 +117,7 @@ CASES = {
     "tasc_prop99": "benchmarks.cases.tasc_prop99",            # cross-val vs authors' TimeAwareSC (srho1/tasc) on Prop 99 (d=2)
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "gpits": "benchmarks.cases.gpits",                        # Path A: GP-ITS (Heller, no donors)
+    "botosaru_ferman_covariates": "benchmarks.cases.botosaru_ferman_covariates",  # Path A: Botosaru-Ferman 2019 Table 1 -- a no-covariate SC matches West German GDP to 0.02% and misses inflation by 92%
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
     "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
