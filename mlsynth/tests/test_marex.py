@@ -430,7 +430,7 @@ class TestPowerAnalysis:
         assert -1.0 <= power.serial_correlation <= 1.0
         assert power.alpha == 0.05
         assert power.power_target == 0.80
-        assert power.method == "analytical_ar1"
+        assert power.method == "analytical_ar1_mean_gap"
 
     def test_power_falls_back_to_pre_window_without_blank(self, panel):
         # No inference -> no carved-out blank window. Power still attaches,
