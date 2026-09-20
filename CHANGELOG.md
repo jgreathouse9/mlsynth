@@ -61,6 +61,75 @@ now returns and the back-compat guarantee.
   attributed to the wrong donor while the ATT stays correct.
 
 ### Added
+- `engine="mvbbsc"` on GEOX: the Bayesian synthetic control of Martinez and
+  Vives-i-Bastida (2024) in the slot augsynth occupies, needing the `[bayes]`
+  optional dependency. Nomination, backtest windows, effect injection, the power
+  sweep, the MDE rule and the composite rank are untouched, so the engine
+  supplies the fit and the null and nothing else. Two things differ from calling
+  `mlsynth.MVBBSC` on the same panel, and both follow from what a scoring loop
+  asks. The ATT interval carries the pre-period AR(1): a
+  design's readout averages a post window, so under an iid shock its variance
+  falls as sigma^2/h while under positive autocorrelation it falls more slowly.
+  On Meta's GeoLift panel, every one of its 40 locations taken in turn as an
+  untreated placebo, a nominal 90% interval on the iid shock covers 65% and this
+  one covers 87.5%, against augsynth's conformal 89.7% at 1.7x the width. Donor
+  order is handled in `run_mvbbsc` (see Fixed), so the engine inherits that
+  invariance instead of re-imposing it, and it is exact. Scale and location
+  equivariance are not exact and hold at the engine's declared `fit_tolerance`
+  (see Changed).
+- `Engine.fit_tolerance`: the relative precision at which an engine reproduces
+  itself on one panel, declared on the engine and read by the metamorphic
+  property suite. `sdid` and `augsynth` solve deterministic programs and keep
+  the 1e-6 default; `mvbbsc` samples and declares 5e-2.
+
+  The number exists because the suite's fixed 1e-6 was asserting a rounding
+  accident. Rescaling or shifting a panel is exactly equivariant in arithmetic
+  and the model's standardization is not bit-exact in floating point: the
+  standardized arrays reaching the sampler differ in the last ulps, 1.3e-14 on
+  a rescale and 6.7e-15 on a shift. NumPyro samples in single precision by
+  default, where that difference rounds away and the relations held to 0.0
+  exactly. MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so in a full-suite run the difference survives and NUTS carries
+  it into the draws -- 4.3e-03 on a rescale, 2.1e-03 on a shift. The engine was
+  green on its own file and red in the suite, and which it was depended on what
+  had been imported first.
+
+  5e-2 is measured. Over six generated panels a rescale moved the posterior
+  weights by at most 5.7e-3 and a shift by 1.1e-2, while refitting the same
+  panel at another seed moved them by 1.2e-2 -- the transformation costs no more
+  than running the sampler again, which is the claim the relation is making, and
+  5e-2 is twice the worst of those. `test_a_transformation_moves_the_fit_no_more_than_refitting_does`
+  asserts that sharp form directly, and
+  `test_the_metamorphic_relations_hold_in_double_precision` re-runs the relations
+  in a subprocess with x64 on, since a single process cannot test both modes.
+  The donor-order relation is unaffected and stays at 1e-6.
+
+  The global-state leak itself is untouched here: whether a NumPyro estimator
+  runs in single or double precision still depends on whether MTGP or BPSCS was
+  imported earlier in the process, and on one panel at one seed that moves
+  MVBBSC's posterior-mean weights by 6.4e-3. That is a shared-helper fix and
+  belongs on its own branch.
+- `inference="bayes"` in the GEOX vocabulary: the posterior predictive of the
+  Bayesian engine. Available on `mvbbsc` alone, and also the only null that
+  engine admits, since substituting a placebo or conformal procedure would
+  report a quantity the estimator did not produce -- the argument by which
+  `sdid` already refuses conformal. The readout is a credible interval and a
+  posterior tail probability, carrying `max_rhat` and `n_divergent` so a design
+  scored on an unconverged chain is visible as such. The other engines' defaults
+  are unchanged: placebo for `sdid`, conformal for `augsynth`.
+- `benchmarks/cases/geox_mvbbsc_equivalence.py`: certification by equivalence.
+  The engine and the estimator agree identically on West Germany -- the
+  posterior-mean counterfactual, the ATT and the donor weights all to 0.0
+  maximum absolute difference, pinned without a tolerance because the two are
+  one sampler call on one standardized panel and anything else would mean the
+  wrapper introduced a transformation. Both sides are compared at float64:
+  NumPyro samples in x32, so measuring the engine's upcast draws against the raw
+  output reads as a 1.8e-08 disagreement that is precision and not computation,
+  and the counterfactual hides it because a matrix product promotes implicitly
+  where a mean over draws does not. Reversing the donor columns changes nothing
+  the engine reports. The agreed ATT sits inside the band `mvbbsc_germany`
+  already pins and beside bsynth's -2075, so the equivalence is anchored to the
+  external reference and not only to itself.
 - `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
   CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
   `cumulative_lower`, `cumulative_upper` and `cumulative_windows`. PPSCM reported the

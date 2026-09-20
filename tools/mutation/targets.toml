@@ -2117,3 +2117,21 @@ timeout = 900.0
   find = "    sy = sy if sy > 0 else 1.0"
   replace = "    sy = 1.0"
   models = "standardisation that centres but does not scale. The invariance this estimator advertises is that the units of the outcome do not matter, and dropping the divisor removes it: the same panel in dollars and in thousands of dollars is then two different fits. It is the defect test_scale_invariance_of_weights exists to catch, and the check has to catch it while tolerating the sampler's own spread, which on this panel is 0.02 to 0.04 in the posterior-mean weights"
+
+[[target]]
+name = "geox-mvbbsc-engine"
+module-path = "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_geox_mvbbsc_engine.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "a-samplers-relations-held-to-solver-precision"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2)"
+  replace = "                detection_boundary=detection_boundary)"
+  models = "the bar this engine was first certified against: the property suite's 1e-6, which a sampler cannot meet. It passed only because NumPyro draws in single precision by default and the 1e-14 difference a rescale makes to the standardized inputs rounds away there. Once MTGP or BPSCS enables x64 earlier in a run the difference survives, NUTS amplifies it to 1e-2, and the relations fail -- so the engine was green in isolation and red in the suite"
+
+  [[target.mutant]]
+  id = "an-iid-shock-on-an-averaged-estimand"
+  find = "    draws = att_posterior(fit, start, end, autocorr=autocorr)\n    p = 2.0 * min("
+  replace = "    draws = att_posterior(fit, start, end, autocorr=False)\n    p = 2.0 * min("
+  models = "MVBBSC's shipped predictive shock used on a window average. Under iid the variance of the mean falls as sigma^2/h; under the positive autocorrelation a geo panel actually has it falls more slowly, so the interval is too narrow. On Meta's GeoLift panel, with each of its 40 locations taken as a placebo, this covers 65% of a nominal 90% against 87.5% for the AR(1) form"
