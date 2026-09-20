@@ -2177,3 +2177,21 @@ timeout = 300.0
   find = "    bias_sq = max(0.0, bias ** 2 - var_bias)"
   replace = "    bias_sq = bias ** 2"
   models = "the plug-in b^2 used for the squared bias. Since E[b_hat^2] = beta^2 + Var(b_hat), a design that is genuinely unbiased is charged for the sampling noise in measuring its own bias, and its MDE is inflated for no reason. The direction is conservative, so nothing over-rejects and no size assertion fires -- it costs power silently, and only a test that pins the standard error against sigma/sqrt(n_post) on an unbiased design notices"
+
+[[target]]
+name = "pda-hcw-empty-model"
+module-path = "mlsynth/utils/pda_helpers/hcw/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_hcw_empty_model.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "furnival-wilson-seeded-with-the-intercept-only-model"
+  find = "    best_ic = [np.inf]\n    best_idx: List[int] = []"
+  replace = "    best_ic = [info_criterion(tss, n, 1, criterion)]\n    best_idx: List[int] = []"
+  models = "the incumbent seeded with the size-zero model, so an intercept-only counterfactual competes against the donor subsets. HCW Section 5 and pampe's regsubsets both enumerate sizes 1..nvmax, so the reference cannot return it. It is invisible at the pre-period lengths the suite otherwise uses -- AICc's 2K(K+1)/(n-K-1) correction is 0.75 against 0.35 at T0 = 20 and the empty model never wins -- and decisive at T0 = 5, where it is 6.0 against 1.33 and wins on over half of draws. Against pampe on Wan, Xie & Hsiao's own Design 6a it inflated mean MSE from 0.910 to 6.238, the paper's published cell being 0.91"
+
+  [[target.mutant]]
+  id = "exhaustive-search-seeded-with-the-intercept-only-model"
+  find = "    best_idx: List[int] = []\n    best_ic = np.inf\n    for r in range(1, r_max + 1):"
+  replace = "    best_idx: List[int] = []\n    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)\n    for r in range(1, r_max + 1):"
+  models = "the same defect in the brute-force reference search that the branch-and-bound engine is validated against. Left here it would make the oracle agree with a faulty incumbent, so the backend-agreement test would pass while both were wrong -- the reason this mutant is listed separately from the Furnival-Wilson one"

@@ -819,18 +819,28 @@ class TestFitHCW:
         assert beta_full.shape == (1,)
         assert cf.shape == (30,)
 
-    def test_intercept_only_when_donors_useless(self):
-        # Nearly-constant treated series, donors uncorrelated with it: no donor
-        # earns its AICc penalty, so the counterfactual is the pre-period mean.
+    def test_flat_counterfactual_when_donors_useless(self):
+        # Nearly-constant treated series, donors uncorrelated with it. The search
+        # runs over sizes 1..nvmax, as HCW Section 5 and pampe's regsubsets do,
+        # so a donor is always selected -- but one that earns nothing takes a
+        # negligible coefficient and the counterfactual is still the pre-period
+        # mean to within less than the treated series' own scale.
+        #
+        # This asserted `sel == []` until the size-zero model was removed from
+        # the search. See test_pda_hcw_empty_model.py: admitting it let AICc's
+        # small-sample correction pick the intercept-only model on over half of
+        # T0 = 5 draws, inflating MSE 6.9x against pampe on Wan, Xie & Hsiao's
+        # own Design 6a.
         rng = np.random.default_rng(11)
         T0 = 15
         X = rng.standard_normal((25, 4))
         y = 5.0 + 0.001 * rng.standard_normal(25)
         sel, beta_full, intercept, cf = fit_hcw(y, X, T0, criterion="AICc")
-        assert sel == []
-        np.testing.assert_array_equal(beta_full, 0.0)
-        assert abs(intercept - float(np.mean(y[:T0]))) < 1e-9
-        np.testing.assert_allclose(cf, intercept, atol=1e-9)
+        assert len(sel) == 1
+        assert abs(float(beta_full[sel[0]])) < 1e-3
+        pre_mean = float(np.mean(y[:T0]))
+        assert abs(intercept - pre_mean) < 1e-3
+        assert np.max(np.abs(cf - pre_mean)) < float(np.std(y))
 
 
 # =========================================================================
