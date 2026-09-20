@@ -56,17 +56,18 @@ run the same Furnival-Wilson best-subset search under the same AICc, and the
 per-replication relative gap stays at 1e-15, which is double-precision
 accumulation order and not a difference in the estimator.
 
-SCM agrees closely where the pre-period is long and diverges by up to 10% in the
-mean where it is short (the two ``T0 = 5`` cells of Design 2d). That gap is not
-an mlsynth error. The authors' SCM passes each pre-period outcome as its own
+SCM agrees closely on all eight designs: the largest gap between the two Monte
+Carlo mean MSEs is 0.2%, at the ``T0 = 5`` cells of Design 2d, which are also
+the cells where individual replications disagree most. Those per-replication
+disagreements are not an mlsynth error. The authors' SCM passes each pre-period outcome as its own
 predictor and sets ``time.optimize.ssr`` to that same window, which makes
 ``V = I`` reproduce the outer objective exactly: at ``V = I`` the inner program
 minimises the unweighted pre-period SSR, which is what the outer search is trying
 to minimise, so ``V = I`` attains the outer optimum and ``Synth``'s BFGS search
 over ``V`` can only match it or fall short. mlsynth solves that convex program
 directly. The case records which implementation fits the pre-period better as
-``mlsynth_pre_fit_wins``; it is mlsynth on the majority of designs, and by the
-largest margin on exactly the two cells where the MSE gap is largest.
+``mlsynth_pre_fit_wins``; it is mlsynth on seven of the eight designs, and by
+the largest margin on exactly the cells where the MSE gap is largest.
 
 Provenance
 ----------
@@ -237,16 +238,17 @@ def run() -> dict:
 # tolerance on both sides.
 #
 # ``pda_max_rel_gap`` is the headline: the two best-subset implementations agree
-# to 1e-15 per replication, so the tolerance admits nothing that would not be
-# floating-point accumulation. The SCM tolerance is set by the two T0 = 5 cells
-# of Design 2d, where Synth's outer search leaves the optimum; the mechanism is
-# in the module docstring and ``mlsynth_pre_fit_wins`` is the evidence for it.
+# to 3e-12 at worst per replication, so the tolerance admits nothing that would
+# not be floating-point accumulation. The SCM tolerance is set by the two T0 = 5
+# cells of Design 2d, where Synth's outer search leaves the optimum; the
+# mechanism is in the module docstring and ``mlsynth_pre_fit_wins`` is the
+# evidence for it.
 EXPECTED = {
     "n_designs": (8.0, 0.0),
     "pda_max_rel_gap": (0.0, 1e-9),         # machine precision on every design
-    "scm_max_mean_rel_gap": (0.10, 0.10),   # the T0 = 5 cells of Design 2d
-    "mlsynth_pre_fit_wins": (6.0, 2.0),     # mlsynth attains the lower pre-period SSR
-    "scm_over_pda_6a": (0.81, 0.35),        # SCM beats PDA under unit loadings
+    "scm_max_mean_rel_gap": (0.002, 0.030),  # largest of the eight; the T0 = 5 cells of Design 2d
+    "mlsynth_pre_fit_wins": (7.0, 1.0),      # mlsynth attains the lower pre-period MAE
+    "scm_over_pda_6a": (0.818, 0.150),       # SCM beats PDA under unit loadings
     "scm_over_pda_6d": (1.0, 0.0),          # and loses badly once they are random
     "pda_gap_d1b_j20_t20": (0.0, 1e-9),
     "pda_gap_d2d_j10_t5": (0.0, 1e-9),
