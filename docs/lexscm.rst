@@ -1007,6 +1007,19 @@ the same module powers all three estimators.
    p.curve                                     # tuple of MDEPoint per horizon
    p.sigma_placebo                             # σ̂ used (B window in LEXSCM)
    p.serial_correlation                        # ρ̂ AR(1) of the B residuals
+   p.placebo_bias                              # mean B gap; 0 for an unbiased design
+   p.placebo_bias_pvalue                       # is that offset distinguishable from 0?
+   p.n_placebo, p.sigma_ci                     # periods σ̂ rests on, and its interval
+   p.headline.critical_value                   # t quantile the MDE is built at
+   p.headline.mde_ci                           # MDE at the ends of p.sigma_ci
+
+The MDE is what a constant effect has to clear to be detected by a two-sided
+test on the mean post-period gap. Compare an observed effect against
+``p.headline.critical_value``, not 1.96: σ̂ comes from the B window, so the
+pivot is Student-t on that window's effective degrees of freedom. A non-zero
+``placebo_bias`` says the synthetic control misses on periods it was not fitted
+to, and that offset is carried into the standard error, since it lands in the
+post window on top of whatever effect is there.
 
 Two MDEs, complementary roles
 """""""""""""""""""""""""""""
@@ -1015,10 +1028,19 @@ Two MDEs, complementary roles
   null on the B window, used to *rank designs against each other*. Aggregated
   to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
   ``early_mean``) and consumed by Stage 4's lexicographic gate.
-* Post-fit MDE (``res.power``) -- analytical Gaussian +
-  AR(1) MDE consumed *after* a design has been chosen, on the same surface
-  that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
-  detectability number alongside the realised ATE / CI.
+* Post-fit MDE (``res.power``) -- closed-form AR(1) MDE for a two-sided
+  Student-t test on the *mean* post-period gap, consumed *after* a design has
+  been chosen, on the same surface that MAREX / SYNDES / PANGEO produce. Use
+  this when reporting a single detectability number alongside the realised
+  ATE / CI.
+
+The two answer different questions and need not agree. Stage 3 tests
+:math:`\frac{1}{|post|}\sum_t |e_t|` against a moving-block placebo null;
+the post-fit MDE tests the signed mean against a t quantile. A design whose
+``res.power`` headline sits below its realised ATE can still return a
+non-significant p-value from the permutation test the design search ranked it
+by, and the ``method`` field on ``res.power`` names which test its number
+refers to.
 
 Ranking on the B window, and why it is allowed
 """""""""""""""""""""""""""""""""""""""""""""
