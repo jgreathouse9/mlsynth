@@ -268,6 +268,11 @@ Path B — Monte Carlo / simulation
        inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
+   * - ``xu_gsynth_sims``
+     - Xu (2017) ``sim_factor.R``, cross-validated against the ``gsynth 1.0``
+       the archive ships. At a shared rank the two agree to 3.6e-14; all
+       fifteen rank disagreements over 600 draws fall between gsynth 1.0's 1%
+       cross-validation guard and mlsynth's 0.1%, and none outside
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
