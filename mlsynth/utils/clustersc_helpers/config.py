@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, List
 from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
 
@@ -124,6 +124,26 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         description="fGRC k-means starts within each loading restart "
                     "(cluster_method='fgrc'). Raise it alongside fgrc_n_random "
                     "when the cluster assignment is unstable.",
+    )
+    fgrc_k_selection: Literal["fixed", "gap"] = Field(
+        default="fixed",
+        description="How fgrc_k is decided. 'fixed' takes it from fgrc_k "
+                    "(default 2). 'gap' runs the Gap-statistic confidence rule "
+                    "of Yamamoto and Hwang (2017, Algorithm 1) over "
+                    "fgrc_k_candidates and keeps the number of clusters whose "
+                    "own subspace independently reports that many clusters. It "
+                    "costs one fGRC fit per candidate plus the reference "
+                    "clusterings, so it is opt-in.",
+    )
+    fgrc_k_candidates: Optional[List[int]] = Field(
+        default=None,
+        description="Candidate cluster counts for fgrc_k_selection='gap', each "
+                    ">= 2. Defaults to [2, 3, 4].",
+    )
+    fgrc_gap_n_ref: int = Field(
+        default=20, ge=2,
+        description="Reference datasets drawn per k when computing the Gap "
+                    "statistic (fgrc_k_selection='gap').",
     )
     hsvt_rank_method: Literal["usvt", "cumvar", "fixed"] = Field(
         default="usvt",

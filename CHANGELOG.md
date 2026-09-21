@@ -26,6 +26,38 @@ now returns and the back-compat guarantee.
   retained loss, and a test asserts that ordering instead of a fixed number.
   Passing the defaults explicitly reproduces not passing them, on both the ATT
   and the cluster labels.
+- `fgrc_k_selection="gap"` on `CLUSTERSCConfig`: the number-of-clusters stage of
+  Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
+  authors' own R package previously implemented. The rule is a self-consistency
+  check and not a maximisation: for a candidate K the method is fitted, the Gap
+  statistic (Tibshirani, Walther and Hastie 2001) is computed on the resulting
+  component scores over a wider grid of k, and K is accepted only when
+  `argmax_k Gap(k | L_C, L_D, K) = K`. Among accepted candidates the largest Gap
+  wins; when none is accepted the rule relaxes to the t-th largest argmax, and
+  the empty accepted set is the finding.
+
+  `fgrc_k_candidates` (default `[2, 3, 4]`) and `fgrc_gap_n_ref` (default 20)
+  control it. The default remains `"fixed"`, so nothing moves unless asked, and
+  a test pins that the fixed path reproduces its previous ATT and cluster
+  labels.
+
+  The result carries the evidence: `fgrc_gap_confident`,
+  `fgrc_gap_relaxation_level` and `fgrc_gap_curves` in the RPCA metadata.
+
+  No reference implementation exists to check a port against, so validation is
+  against the planted design of the paper's own Section 5 -- three clusters in a
+  two-dimensional subspace, recovered as K=3 -- plus the Gap statistic itself on
+  cases with answers known by construction: three separated blobs give k=3, and
+  a single Gaussian gives k=1.
+
+  Run on the bundled panels, the rule accepts a candidate at t=1 on West Germany
+  in four runs out of five and accepts K=4 there. On California, Basque and
+  Barcelona no candidate is accepted at t=1, and on Barcelona every candidate's
+  subspace reports a single cluster in all five runs. `fgrc_k=2` is unsupported
+  on all four, which is what the docs page now says.
+
+  Only this stage of Algorithm 1 is implemented; the smoothing lambda by GCV and
+  the penalties by pseudo-F are taken from the configuration.
 
 ### Fixed
 - The GEOX engine property suite skips an engine whose optional dependency is

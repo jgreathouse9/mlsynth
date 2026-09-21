@@ -67,6 +67,9 @@ def run_rpca(
     fgrc_order: int = 4,
     fgrc_n_random: int = 40,
     fgrc_nstart: int = 40,
+    fgrc_k_selection: str = "fixed",
+    fgrc_k_candidates=None,
+    fgrc_gap_n_ref: int = 20,
     # HSVT denoiser knobs (rpca_method="HSVT")
     hsvt_rank_method: str = "usvt",
     hsvt_rank: Optional[int] = None,
@@ -189,8 +192,30 @@ def run_rpca(
         }
     else:  # cluster_method == "fgrc"
         n_units = full_pre_panel.shape[0]
-        k = int(fgrc_k) if fgrc_k is not None else 2
         knots = int(fgrc_knots) if fgrc_knots is not None else max(4, T0 // 2 - 2)
+        gap_meta = {}
+        if fgrc_k_selection == "gap":
+            from .selection import select_fgrc_k
+            cands = ([int(c) for c in fgrc_k_candidates]
+                     if fgrc_k_candidates else [2, 3, 4])
+            # the selector fits fGRC once per candidate, so it honours the
+            # same restart counts the final fit will use
+            sel = select_fgrc_k(full_pre_panel, k_candidates=cands, c1=fgrc_c1,
+                                c2=fgrc_c2, n_knots=knots, order=fgrc_order,
+                                n_ref=fgrc_gap_n_ref, seed=random_state,
+                                n_random=fgrc_n_random, nstart=fgrc_nstart)
+            k = int(sel.selected_k)
+            gap_meta = {
+                "fgrc_k_selection": "gap",
+                "fgrc_k_candidates": cands,
+                "fgrc_gap_confident": list(sel.confident),
+                "fgrc_gap_relaxation_level": int(sel.relaxation_level),
+                "fgrc_gap_k_eval": list(sel.k_eval),
+                "fgrc_gap_curves": {int(kk): [float(x) for x in v]
+                                    for kk, v in sel.gaps.items()},
+            }
+        else:
+            k = int(fgrc_k) if fgrc_k is not None else 2
         labels, fgrc_loss = _fgrc_cluster(
             full_pre_panel, c1=fgrc_c1, c2=fgrc_c2, k=k,
             n_knots=knots, order=fgrc_order, seed=random_state,
@@ -204,6 +229,7 @@ def run_rpca(
             "fgrc_knots": int(knots), "fgrc_order": int(fgrc_order),
             "fgrc_n_random": int(fgrc_n_random), "fgrc_nstart": int(fgrc_nstart),
             "fgrc_loss": float(fgrc_loss),
+            **gap_meta,
             "treated_cluster": treated_cluster,
             "cluster_labels": labels.tolist(),
         }
@@ -352,6 +378,9 @@ def run_rpca(
                 fgrc_order=fgrc_order,
                 fgrc_n_random=fgrc_n_random,
                 fgrc_nstart=fgrc_nstart,
+                fgrc_k_selection=fgrc_k_selection,
+                fgrc_k_candidates=fgrc_k_candidates,
+                fgrc_gap_n_ref=fgrc_gap_n_ref,
                 hsvt_rank_method=hsvt_rank_method,
                 hsvt_rank=hsvt_rank,
                 hsvt_cumvar=hsvt_cumvar,

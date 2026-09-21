@@ -563,6 +563,42 @@ whose ``N.random`` defaults to ``1``. Raise them when the cluster
 assignment moves between runs on a panel: the restarts minimise over
 starting points, so spending more of them can only lower the retained
 loss, never change what is being optimised.
+Whether a panel supports the number of clusters you asked for is a
+question the method can answer about itself. Yamamoto and Hwang propose a
+selection rule that is a self-consistency check and not a maximisation:
+for a candidate :math:`K`, fit the method, compute the Gap statistic of
+Tibshirani, Walther and Hastie (2001) on the resulting component scores
+over a wider grid of :math:`k`, and accept :math:`K` only when
+
+.. math:: \operatorname*{argmax}_k \operatorname{Gap}(k \mid L_C, L_D, K) = K,
+
+so that the subspace fitted assuming :math:`K` clusters independently
+looks like it holds :math:`K` of them. Among accepted candidates the
+largest Gap wins; when none is accepted the rule relaxes to the
+:math:`t`-th largest argmax, and the empty accepted set is itself the
+finding.
+
+``fgrc_k_selection="gap"`` runs it over ``fgrc_k_candidates`` (default
+``[2, 3, 4]``), and the result object carries the evidence:
+``fgrc_gap_confident`` lists the candidates that passed,
+``fgrc_gap_relaxation_level`` reports the :math:`t` it needed, and
+``fgrc_gap_curves`` holds the Gap curve behind each candidate. The
+default stays ``"fixed"``, because the rule costs one fGRC fit per
+candidate plus the reference clusterings.
+
+Reading the output matters more than the number it returns. On the West
+German panel the rule accepts a candidate at :math:`t = 1` in four runs
+out of five, and the candidate it accepts is :math:`K = 4`. On the
+California, Basque and Barcelona panels no candidate is accepted at
+:math:`t = 1`, and for Barcelona every candidate's own subspace reports a
+single cluster in all five runs, which says that panel carries no cluster
+structure to find. A default of ``fgrc_k=2`` is not supported on any of
+the four.
+
+Only this stage of the authors' Algorithm 1 is implemented. The
+smoothing :math:`\lambda` by generalised cross-validation and the
+penalties :math:`(\rho_1, \rho_2)` by the Calinski-Harabasz pseudo-F
+index are taken from the configuration instead of searched.
 
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
