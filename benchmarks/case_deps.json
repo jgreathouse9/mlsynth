@@ -436,6 +436,13 @@
   "mlsynth/utils/bilevel/ridge_inference.py",
   "mlsynth/utils/conformal/refit.py"
  ],
+ "cwz_conformal_nonstationary": [
+  "mlsynth/utils/bilevel/accelerate.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/bilevel/ridge_inference.py",
+  "mlsynth/utils/conformal/refit.py"
+ ],
  "cwz_mc": [
   "basedata/carbontax_data.dta",
   "mlsynth/config_models.py",
@@ -2631,6 +2638,31 @@
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/vanillasc_helpers/config.py",
+  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+ ],
+ "wan_pda_vs_scm": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/pda.py",
+  "mlsynth/estimators/vanillasc.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/engine.py",
+  "mlsynth/utils/bilevel/minnorm.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/pda_helpers/config.py",
+  "mlsynth/utils/pda_helpers/hcw/estimation.py",
+  "mlsynth/utils/pda_helpers/hcw/inference.py",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/orchestration.py",
+  "mlsynth/utils/pda_helpers/results_assembly.py",
+  "mlsynth/utils/pda_helpers/setup.py",
+  "mlsynth/utils/pda_helpers/structures.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
