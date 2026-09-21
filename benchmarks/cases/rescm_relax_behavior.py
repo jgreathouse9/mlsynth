@@ -71,6 +71,38 @@ band wide enough to admit the wrong sign, because at 25 replications a +0.052
 contrast is not resolvable either. Reading it needs the number, not the
 pass. Resolving it would take a few hundred replications, which is a
 half-hour case and a separate decision.
+
+Verified against the defect
+---------------------------
+Run with both halves of the old ``tau`` grid put back, which is the only way to
+learn whether a case detects anything. Two metrics fail and the rest do not:
+
+=================================  ========  ========
+metric                             corrected  old grid
+=================================  ========  ========
+relax_l2_max_collapse_rate            0.16      0.36
+max_collapse_rate_any_objective       0.20      0.36
+panelA_l2_ratio                       0.4953    0.7424
+max_abs_dev_from_published            0.2056    0.4405
+relax_l2_within_group_sd_ratio        0.0414    0.0357
+relax_l2_l1_distance_ratio            0.3582    0.3588
+relax_l2_l2_distance_ratio            0.2225    0.2255
+relax_l2_share_of_donors_used         0.98      0.98
+=================================  ========  ========
+
+So the collapse rate and the Panel A level detect it, and the weight metrics do
+not -- they are the same to three decimals with more than a third of fits
+returning ``1/J``. Two reasons, and the second is the one to carry away. They
+are medians, so a minority regime does not move them; that is the property that
+let ``rescm_relax_mc`` sit green through this. And the oracle weights are
+themselves equal within each group, so with ``K`` small they are not far from
+uniform overall, and a collapsed fit lands *near* the oracle on any weight
+distance. A metric can be the right quantity and still be blind to a defect
+that pushes the estimate toward the truth for the wrong reason.
+
+The weight metrics therefore describe the mechanism; they do not guard it. What
+guards it is the collapse rate, whose bands are set from the separation above
+with about 0.09 of margin on each side.
 """
 
 from __future__ import annotations
@@ -107,9 +139,9 @@ EXPECTED = {
     # their ceiling so they admit 0, since a further drop is an improvement and
     # must not fail. The ceilings are set from a run against the old grid,
     # recorded under "Verified against the defect" above.
-    "relax_l2_max_collapse_rate": (0.16, 0.16),
+    "relax_l2_max_collapse_rate": (0.13, 0.13),
     # EL collapses more than L2 even on the corrected grid.
-    "max_collapse_rate_any_objective": (0.20, 0.20),
+    "max_collapse_rate_any_objective": (0.14, 0.14),
     # ---- the ordering claims the replication count can resolve ----
     # The paper separates L2 from EL by 0.54 and 0.28 in Panels A and B.
     "panelA_l2_beats_el": (1.0, 0.0),
