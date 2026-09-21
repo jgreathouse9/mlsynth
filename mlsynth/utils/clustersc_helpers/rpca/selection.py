@@ -1,4 +1,4 @@
-"""Model selection for fGRC: the Gap-statistic confidence rule.
+"""Cluster-count diagnostics for fGRC: the Gap statistic and the paper's rule.
 
 Implements the number-of-clusters half of Algorithm 1 of
 
@@ -6,30 +6,55 @@ Implements the number-of-clusters half of Algorithm 1 of
     Functional Data via Subspace Separation." Journal of Classification
     34:294-326.
 
-The rule is a self-consistency check and not a maximisation. For a candidate
-``K`` the method is fitted, the Gap statistic (Tibshirani, Walther & Hastie
-2001) is computed on the resulting component scores over a wider grid of ``k``,
-and ``K`` counts as confident when
+For a candidate ``K`` the method is fitted, the Gap statistic (Tibshirani,
+Walther & Hastie 2001) is computed on the resulting component scores over a
+wider grid of ``k``, and ``K`` is accepted when
 
-.. math:: \\operatorname{argmax}_k \\operatorname{Gap}(k \\mid L_C, L_D, K) = K,
+.. math:: \\operatorname{argmax}_k \\operatorname{Gap}(k \\mid L_C, L_D, K) = K.
 
-that is, the subspace fitted under the assumption of ``K`` clusters
-independently looks like it holds ``K`` clusters. Among confident candidates
-the largest Gap wins. When none is confident the rule relaxes to the ``t``-th
-largest argmax, ``t = 2, 3, ...``, which is what the paper prescribes for an
-empty confident set.
+Among accepted candidates the largest Gap wins; when none is accepted the rule
+relaxes to the ``t``-th largest rank, ``t = 2, 3, ...``.
+
+What the rule can and cannot support
+------------------------------------
+This is a diagnostic, and no configuration wires it to ``fgrc_k``. A root-cause
+analysis on the Basque panel established two things about it, both measured.
+
+First, the acceptance is not independent evidence. The Gap is read on
+``G A[:, :c1]``, the subspace fGRC chose *under the assumption of* ``K``
+clusters by minimising within-cluster scatter in exactly those coordinates,
+against reference clouds drawn inside that same fixed subspace, which never pay
+the selection cost. On white noise at ``N=30`` and ``c2=1`` the fitted subspace
+puts its Gap maximum at ``K`` in 10 to 11 replications out of 12; a random
+two-dimensional projection of the same basis matrix does so in 0 to 2, which is
+chance. The acceptance rate under the null is accordingly uncontrolled, and it
+is worst in the small-``N``, ``c2=1`` regime panel data lives in: on
+structureless panels at ``N=18`` with ``c2=1`` every replication accepted a
+candidate.
+
+Second, an argmax at an end of ``k_eval`` is a property of the grid. On the
+17-unit Basque panel the maximum moved with the grid -- 1, 6, 8, 10, 12, 16 for
+grids ``1..4`` through ``1..16`` -- so the relaxation ranks were the candidate
+list sorted by distance from the edge. Candidates whose curve peaks at an edge
+are therefore reported in :attr:`FGRCSelection.boundary` and are excluded from
+both the accepted set and the relaxation; when that leaves nothing,
+:attr:`FGRCSelection.selected_k` is ``None`` and the rule declines.
+
+Tibshirani's one-standard-error reading of the same curves is reported in
+:attr:`FGRCSelection.one_se`. It is the conservative instrument of the two:
+across 18 structureless panels it answered ``k = 1`` on all 54 candidate
+curves, and on the paper's planted design it answers 3.
 
 What this does not do. Algorithm 1 is a cascade of three stages, and only the
 third is here: the smoothing ``lambda`` by GCV and the penalties
 ``(rho1, rho2)`` by the Calinski-Harabasz pseudo-F index are taken from the
-caller instead of searched. A selector over ``K`` at fixed penalties answers
-the question the number of clusters poses; the penalty search is a separate
-piece of the same algorithm.
+caller instead of searched.
 
 Neither the authors' R package nor any other implementation ships this
 procedure, so there is no reference to check a port against. It is validated
-instead against the planted design of the paper's own Section 5, where the
-number of clusters is known by construction.
+against the planted design of the paper's own Section 5, where the number of
+clusters is known by construction, and against the null of that same design
+with the separation removed, where it is known that there is nothing to find.
 """
 from __future__ import annotations
 
@@ -44,34 +69,44 @@ from .fgrc import basis_expand, optim_grc
 
 @dataclass(frozen=True)
 class FGRCSelection:
-    """What the selector concluded, and the evidence for it.
+    """What the rule concluded, and the evidence for it.
 
     Attributes
     ----------
-    selected_k : int
-        The retained number of clusters.
+    selected_k : int or None
+        The retained number of clusters, or ``None`` when every candidate's Gap
+        curve peaked at an end of ``k_eval`` and the rule declined.
     confident : tuple of int
-        Candidates satisfying the consistency check at ``relaxation_level``.
-        Empty when the rule had to relax past the plain argmax, which is
-        itself the finding: no candidate's subspace looked like it held that
-        many clusters.
+        Candidates accepted by the plain check, ``argmax_k Gap(k | K) = K``.
+        Empty when the rule had to relax or declined. Read it against the
+        module docstring: on a structureless panel this set is often non-empty.
     relaxation_level : int
-        The ``t`` at which a non-empty confident set first appeared. ``1`` is
-        the paper's primary rule; anything higher is a weaker conclusion.
+        The ``t`` at which a non-empty rank class first appeared. ``1`` is the
+        paper's primary rule, higher is a weaker conclusion, and ``0`` means
+        the rule declined.
+    boundary : tuple of int
+        Candidates whose Gap curve attains its maximum at ``min(k_eval)`` or
+        ``max(k_eval)``. These rank against the grid instead of the data, so
+        they are excluded from ``confident`` and from the relaxation.
+    one_se : dict of int -> int
+        Tibshirani's one-standard-error choice read off each candidate's curve:
+        the smallest ``k`` whose Gap is within one reference standard error of
+        the next ``k``'s. The conservative reading of the same evidence.
     gaps : dict of int -> np.ndarray
         Gap curve over ``k_eval`` for each candidate ``K``.
     gap_se : dict of int -> np.ndarray
-        Tibshirani's ``s_k`` for each curve, carried so a caller can apply the
-        one-standard-error rule instead of the argmax if it prefers.
+        Tibshirani's ``s_k`` for each curve.
     k_eval : tuple of int
         The wider grid the Gap statistic was evaluated on.
     losses : dict of int -> float
         fGRC objective at each candidate, for reference.
     """
 
-    selected_k: int
+    selected_k: Optional[int]
     confident: Tuple[int, ...]
     relaxation_level: int
+    boundary: Tuple[int, ...]
+    one_se: Dict[int, int]
     gaps: Dict[int, np.ndarray]
     gap_se: Dict[int, np.ndarray]
     k_eval: Tuple[int, ...]
@@ -137,6 +172,21 @@ def gap_statistic(F: np.ndarray, k_values: Iterable[int], n_ref: int = 20,
     return gap, s
 
 
+def one_se_k(gap: np.ndarray, gap_se: np.ndarray,
+             k_values: Sequence[int]) -> int:
+    """Tibshirani's one-standard-error choice: the smallest ``k`` whose Gap is
+    within one reference standard error of the next ``k``'s.
+
+    This is the rule the Gap statistic's authors propose in place of the plain
+    argmax, which chases the tail on a cloud with a dense core and outliers.
+    """
+    ks = [int(k) for k in k_values]
+    for j in range(len(ks) - 1):
+        if gap[j] >= gap[j + 1] - gap_se[j + 1]:
+            return ks[j]
+    return ks[-1]
+
+
 def select_fgrc_k(trajectories: np.ndarray, k_candidates: Sequence[int],
                   c1: int = 2, c2: int = 1, n_knots: Optional[int] = None,
                   order: int = 4, rho1: float = 1.0, rho2: float = 0.0,
@@ -144,7 +194,11 @@ def select_fgrc_k(trajectories: np.ndarray, k_candidates: Sequence[int],
                   center: bool = True, n_random: int = 40, nstart: int = 40,
                   n_ite: int = 100, eps: float = 1e-5,
                   seed: int = 0) -> FGRCSelection:
-    """Choose the number of fGRC clusters by the Gap-statistic confidence rule.
+    """Read the Gap-statistic evidence on the number of fGRC clusters.
+
+    Read the module docstring before acting on ``selected_k`` or ``confident``:
+    the check is not independent of the fit it is checking, and its acceptance
+    rate under the null is uncontrolled.
 
     Parameters
     ----------
@@ -154,9 +208,8 @@ def select_fgrc_k(trajectories: np.ndarray, k_candidates: Sequence[int],
         The candidates to decide among, each ``>= 2``.
     k_eval : sequence of int, optional
         The wider grid the Gap statistic is read over, the paper's
-        ``Theta-tilde(K)``. Defaults to ``1 .. max(k_candidates) + 2``, which
-        must extend past the candidates for the check to have the power to
-        reject one.
+        ``Theta-tilde(K)``. Defaults to ``1 .. max(k_candidates) + 2``. It must
+        extend past the largest candidate, or the check cannot reject one.
     """
     X = np.asarray(trajectories, dtype=float)
     if X.ndim != 2:
@@ -175,11 +228,14 @@ def select_fgrc_k(trajectories: np.ndarray, k_candidates: Sequence[int],
 
     grid = (tuple(int(k) for k in k_eval) if k_eval is not None
             else tuple(range(1, max(cands) + 3)))
-    if max(grid) >= X.shape[0]:
-        grid = tuple(k for k in grid if k < X.shape[0])
-    if not grid:
+    grid = tuple(k for k in grid if k < X.shape[0])
+    if not grid or max(grid) <= max(cands):
         raise MlsynthConfigError(
-            "select_fgrc_k: no evaluation grid fits inside the panel; too few units.")
+            f"select_fgrc_k: the evaluation grid must extend past the largest "
+            f"candidate ({max(cands)}) and stay below the number of units "
+            f"({X.shape[0]}); with {X.shape[0]} units there is no such grid, so "
+            f"the check has no power to reject a candidate. Lower k_candidates "
+            f"or use a larger panel.")
 
     if center:
         X = X - X.mean(axis=0)
@@ -207,17 +263,26 @@ def select_fgrc_k(trajectories: np.ndarray, k_candidates: Sequence[int],
             "select_fgrc_k: no candidate could be fitted; reduce k_candidates or "
             "check the panel for degenerate trajectories.")
 
+    ones = {K: one_se_k(gaps[K], ses[K], grid) for K in gaps}
+    edges = {min(grid), max(grid)}
+    boundary = tuple(sorted(K for K, g in gaps.items()
+                            if grid[int(np.argmax(g))] in edges))
+    eligible = [K for K in gaps if K not in boundary]
+    common = dict(boundary=boundary, one_se=ones, gaps=gaps, gap_se=ses,
+                  k_eval=grid, losses=losses)
+    if not eligible:
+        return FGRCSelection(selected_k=None, confident=(), relaxation_level=0,
+                             **common)
+
     # rank of each candidate's own k within its Gap curve: t = 1 means argmax
-    order_of = {K: list(np.argsort(-g)) for K, g in gaps.items()}
-    rank_of = {K: (order_of[K].index(grid.index(K)) + 1 if K in grid else len(grid) + 1)
-               for K in gaps}
-    for t in range(1, len(grid) + 2):
-        confident = tuple(sorted(K for K in gaps if rank_of[K] == t))
+    rank_of = {K: list(np.argsort(-gaps[K])).index(grid.index(K)) + 1
+               for K in eligible}
+    for t in range(1, len(grid) + 1):
+        confident = tuple(sorted(K for K in eligible if rank_of[K] == t))
         if confident:
             best = max(confident, key=lambda K: float(gaps[K][grid.index(K)]))
             return FGRCSelection(selected_k=int(best),
                                  confident=confident if t == 1 else (),
-                                 relaxation_level=t, gaps=gaps, gap_se=ses,
-                                 k_eval=grid, losses=losses)
-    best = min(gaps, key=lambda K: losses[K])          # pragma: no cover - unreachable
-    return FGRCSelection(int(best), (), len(grid) + 2, gaps, ses, grid, losses)
+                                 relaxation_level=t, **common)
+    raise AssertionError(                              # pragma: no cover
+        "unreachable: every eligible candidate has a rank in 1..len(k_eval)")

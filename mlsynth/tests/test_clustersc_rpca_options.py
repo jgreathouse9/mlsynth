@@ -122,48 +122,31 @@ def test_defaults_are_unchanged_by_the_new_fields(germany_df):
                        fgrc_n_random=40, fgrc_nstart=40)).fit().rpca
     assert a.att == pytest.approx(b.att, rel=1e-12)
     assert a.metadata["cluster_labels"] == b.metadata["cluster_labels"]
-# Gap-statistic selection of fgrc_k (Yamamoto & Hwang 2017, Algorithm 1)
+
+
 # --------------------------------------------------------------------------
-def test_k_selection_defaults_to_fixed(germany_df):
-    from mlsynth.config_models import CLUSTERSCConfig
-    cfg = CLUSTERSCConfig(**_cfg(germany_df))
-    assert cfg.fgrc_k_selection == "fixed"
-    assert cfg.fgrc_k_candidates is None
-
-
-def test_fixed_selection_is_unchanged_by_the_new_fields(germany_df):
-    a = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc")).fit().rpca
-    b = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc",
-                       fgrc_k_selection="fixed")).fit().rpca
-    assert a.att == pytest.approx(b.att, rel=1e-12)
-    assert a.metadata["cluster_labels"] == b.metadata["cluster_labels"]
-
-
-def test_gap_selection_reports_its_evidence(germany_df):
-    r = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", fgrc_k_selection="gap",
-                       fgrc_k_candidates=[2, 3], fgrc_gap_n_ref=5)).fit()
-    m = r.rpca.metadata
-    assert m["fgrc_k_selection"] == "gap"
-    assert m["fgrc_k"] in (2, 3)
-    assert set(m["fgrc_gap_curves"]) == {2, 3}
-    assert m["fgrc_gap_relaxation_level"] >= 1
-    # the confident set is the diagnostic: empty means no candidate's subspace
-    # independently reported that many clusters
-    assert isinstance(m["fgrc_gap_confident"], list)
-
-
-def test_invalid_k_selection_raises_translated(germany_df):
+# The Gap-statistic selector is not a configuration option
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("kw", [
+    dict(fgrc_k_selection="gap"),
+    dict(fgrc_k_selection="fixed"),
+    dict(fgrc_k_candidates=[2, 3]),
+    dict(fgrc_gap_n_ref=5),
+])
+def test_the_gap_selector_is_not_reachable_from_the_config(germany_df, kw):
+    """A root-cause analysis (see ``rpca/selection.py``) found the selection
+    rule's acceptance rate under the null uncontrolled in the regime this
+    library runs in, so no configuration wires it to ``fgrc_k``. The keys are
+    refused by ``extra="forbid"`` and the selector stays a diagnostic the
+    caller invokes deliberately."""
     with pytest.raises(MlsynthConfigError):
-        CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", fgrc_k_selection="bogus"))
+        CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", **kw))
 
 
-def test_gap_selection_honours_the_restart_counts(germany_df):
-    """The selector fits fGRC once per candidate, so the restart counts the
-    final fit obeys must reach it too -- otherwise a user raising them to
-    stabilise a hard panel would stabilise the fit and not the selection."""
-    r = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", fgrc_k_selection="gap",
-                       fgrc_k_candidates=[2, 3], fgrc_gap_n_ref=4,
-                       fgrc_n_random=2, fgrc_nstart=2)).fit()
-    m = r.rpca.metadata
-    assert m["fgrc_n_random"] == 2 and m["fgrc_nstart"] == 2
-    assert m["fgrc_k_selection"] == "gap"
+def test_fgrc_k_comes_only_from_the_configured_value(germany_df):
+    a = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc")).fit().rpca
+    b = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", fgrc_k=2)).fit().rpca
+    assert a.metadata["fgrc_k"] == 2
+    assert a.att == pytest.approx(b.att, rel=1e-12)
+    assert "fgrc_k_selection" not in a.metadata
+    assert "fgrc_gap_curves" not in a.metadata

@@ -1,20 +1,24 @@
-"""Model selection for fGRC: the Gap-statistic confidence rule.
+"""Cluster-count diagnostics for fGRC: the Gap statistic and the paper's rule.
 
 Yamamoto & Hwang (2017) Algorithm 1 selects the number of clusters by a
 self-consistency check, not by maximising a criterion. For fixed
 (L_C, L_D, K) the method is fitted, the Gap statistic (Tibshirani, Walther &
 Hastie 2001) is computed on the resulting component scores over a wider grid
-of k, and the combination counts as confident only when
+of k, and K is accepted only when
 
-    argmax_k Gap(k | L_C, L_D, K) = K,
+    argmax_k Gap(k | L_C, L_D, K) = K.
 
-that is, the subspace fitted under the assumption of K clusters independently
-looks like it holds K clusters. Among confident combinations the largest Gap
-wins; if none is confident the rule relaxes to the t-th largest argmax.
+Three layers are tested separately because they fail independently: the Gap
+statistic itself, on data whose answer is known by construction; the rule on
+top of it, on the planted design of the paper's Section 5; and the rule on the
+null of that same design, with the cluster separation removed.
 
-Two layers are tested separately because they can fail independently: the Gap
-statistic itself, on data whose answer is known by construction, and the
-consistency rule on top of it, on the planted design of the paper's Section 5.
+The third layer is the one a root-cause analysis added, and it is the reason
+the rule ships as a diagnostic and not as a configuration option. The
+acceptance is not independent of the fit it checks, so a non-empty confident
+set is not evidence of structure; and a Gap maximum at an end of the grid is a
+property of the grid. The module under test reports both, and declines when
+nothing is left. See its docstring for the measurements.
 """
 from __future__ import annotations
 
@@ -38,7 +42,7 @@ def test_gap_recovers_three_separated_blobs():
 
 def test_gap_reports_one_cluster_when_there_is_no_structure():
     """The case that matters for using this as a diagnostic: a single Gaussian
-    blob has no clusters, and the statistic has to say so rather than split it."""
+    blob has no clusters, and the statistic has to say so instead of splitting it."""
     from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
     rng = np.random.default_rng(1)
     F = rng.standard_normal((120, 2))
@@ -77,7 +81,7 @@ def _planted(n_per=50, T=40, lc=2, sep=7.0, noise=0.35, seed=0):
     The paper's structure lives in coefficient space -- F is N x L_C with a
     three-group mean structure and identity covariance, and the observed
     functions follow from a basis expansion of it. fGRC basis-expands whatever
-    it is handed, so the fixture generates the curves rather than the
+    it is handed, so the fixture generates the curves, not the
     coefficients: each unit is a smooth combination of two basis functions
     with cluster-structured loadings, plus a disturbing direction independent
     of the grouping and observation noise.
@@ -110,21 +114,107 @@ def test_selector_reports_the_full_diagnostic():
                         n_ref=10, seed=0, n_random=4, nstart=4)
     assert set(sel.gaps) == {2, 3}                     # per-candidate Gap curves
     assert all(len(v) == len(sel.k_eval) for v in sel.gaps.values())
-    assert sel.relaxation_level >= 1
+    assert set(sel.one_se) == {2, 3}                   # the 1-SE reading of each
+    assert all(k in sel.k_eval for k in sel.one_se.values())
     assert isinstance(sel.confident, tuple)
+    assert isinstance(sel.boundary, tuple)
 
 
-def test_selector_relaxes_when_nothing_is_confident():
-    """With no cluster structure no candidate should be confident at t=1, and
-    the rule must fall through to a higher t instead of failing."""
+def test_a_verdict_is_never_a_candidate_whose_curve_peaked_at_an_edge():
+    """The invariant the Basque panel violated: a candidate ranked inside a Gap
+    curve that peaks at an end of the evaluation grid is ranked against the
+    grid, not against the data, so it can never be the answer."""
     from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
     rng = np.random.default_rng(5)
     X = rng.standard_normal((60, 10))
     sel = select_fgrc_k(X, k_candidates=(2, 3), c1=2, c2=0,
                         n_ref=10, seed=0, n_random=4, nstart=4)
-    assert sel.selected_k in (2, 3)
-    if not sel.confident:
-        assert sel.relaxation_level > 1
+    assert sel.selected_k is None or sel.selected_k not in sel.boundary
+    assert not set(sel.confident) & set(sel.boundary)
+    if sel.selected_k is None:
+        assert sel.confident == () and sel.relaxation_level == 0
+
+
+# --------------------------------------------------------------------------
+# Layer 3: what the rule does when there is nothing to find
+# --------------------------------------------------------------------------
+def _null(n_per=6, seed=0):
+    """The planted design with the cluster separation removed: smooth curves
+    from the same generator, sharing a disturbing direction, in one group."""
+    X, _ = _planted(n_per=n_per, sep=0.0, seed=seed)
+    return X
+
+
+@pytest.mark.parametrize("seed", [200, 201, 202])
+def test_the_rule_abstains_when_every_curve_peaks_at_an_edge(seed):
+    """On a structureless panel every candidate's Gap curve peaks at k = 1, so
+    no ranking inside any of them is evidence. The rule must decline instead of
+    relaxing to the t-th rank and returning the largest candidate."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    sel = select_fgrc_k(_null(seed=seed), k_candidates=(2, 3, 4), c1=2, c2=0,
+                        n_ref=15, seed=0, n_random=10, nstart=10)
+    assert sel.boundary == (2, 3, 4)
+    assert sel.selected_k is None
+    assert sel.confident == ()
+    assert sel.relaxation_level == 0
+    assert sel.gaps and sel.gap_se                     # the evidence is still reported
+
+
+@pytest.mark.parametrize("seed", [200, 201, 202])
+def test_the_one_se_reading_does_not_manufacture_structure(seed):
+    """Tibshirani's own safeguard on the same curves. Where the argmax rule
+    calls a structureless panel confident, the 1-SE reading says one cluster."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    for c2 in (0, 1):
+        sel = select_fgrc_k(_null(seed=seed), k_candidates=(2, 3, 4), c1=2, c2=c2,
+                            n_ref=15, seed=0, n_random=10, nstart=10)
+        assert set(sel.one_se.values()) == {1}
+
+
+def test_the_one_se_reading_finds_the_planted_clusters():
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X, _ = _planted(n_per=10)
+    sel = select_fgrc_k(X, k_candidates=(2, 3, 4), c1=2, c2=1,
+                        n_ref=15, seed=0, n_random=10, nstart=10)
+    assert sel.one_se[3] == 3
+    assert sel.one_se[4] == 3
+
+
+def test_the_default_grid_is_pinned_to_the_candidate_set():
+    """The grid is the instrument's aperture, and the root-cause analysis found
+    the evidence the rule reads off moves with it: on the Basque panel the Gap
+    maximum tracked the largest k in the grid out to 16 clusters on 17 units.
+    Two past the largest candidate is enough to reject one and no more."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X, _ = _planted(n_per=10)
+    sel = select_fgrc_k(X, k_candidates=(2, 3, 4), c1=2, c2=0,
+                        n_ref=5, seed=0, n_random=2, nstart=2)
+    assert sel.k_eval == (1, 2, 3, 4, 5, 6)
+    sel = select_fgrc_k(X, k_candidates=(2, 3), c1=2, c2=0,
+                        n_ref=5, seed=0, n_random=2, nstart=2)
+    assert sel.k_eval == (1, 2, 3, 4, 5)
+
+
+def test_the_grid_must_extend_past_the_candidates():
+    """The check asks whether a candidate is the argmax of its own curve. A grid
+    that stops at the largest candidate cannot answer it, because the largest
+    candidate can then only win at the edge."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X, _ = _planted(n_per=10)
+    with pytest.raises(MlsynthConfigError):
+        select_fgrc_k(X, k_candidates=(2, 3, 4), c1=2, c2=0, k_eval=range(1, 5),
+                      n_ref=5, seed=0, n_random=2, nstart=2)
+
+
+def test_a_panel_too_small_for_the_grid_is_refused_not_truncated():
+    """Trimming k_eval to fit the panel used to leave max(k_eval) at the largest
+    candidate, which silently removed the check's power: on five units of noise
+    the rule reported two candidates as confident."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X = np.random.default_rng(3).standard_normal((5, 30))
+    with pytest.raises(MlsynthConfigError):
+        select_fgrc_k(X, k_candidates=(2, 3, 4), c1=2, c2=0,
+                      n_ref=5, seed=0, n_random=2, nstart=2)
 
 
 @pytest.mark.parametrize("kw", [

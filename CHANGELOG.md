@@ -26,39 +26,45 @@ now returns and the back-compat guarantee.
   retained loss, and a test asserts that ordering instead of a fixed number.
   Passing the defaults explicitly reproduces not passing them, on both the ATT
   and the cluster labels.
-- `fgrc_k_selection="gap"` on `CLUSTERSCConfig`: the number-of-clusters stage of
-  Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
-  authors' own R package previously implemented. The rule is a self-consistency
-  check and not a maximisation: for a candidate K the method is fitted, the Gap
-  statistic (Tibshirani, Walther and Hastie 2001) is computed on the resulting
-  component scores over a wider grid of k, and K is accepted only when
-  `argmax_k Gap(k | L_C, L_D, K) = K`. Among accepted candidates the largest Gap
-  wins; when none is accepted the rule relaxes to the t-th largest argmax, and
-  the empty accepted set is the finding.
+- `mlsynth.utils.clustersc_helpers.rpca.selection`: the number-of-clusters stage
+  of Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
+  authors' own R package previously implemented -- as a diagnostic. It is
+  deliberately not a configuration option: `fgrc_k` stays whatever you set, and
+  nothing in `CLUSTERSCConfig` reaches the rule.
 
-  `fgrc_k_candidates` (default `[2, 3, 4]`) and `fgrc_gap_n_ref` (default 20)
-  control it. The default remains `"fixed"`, so nothing moves unless asked, and
-  a test pins that the fixed path reproduces its previous ATT and cluster
-  labels.
+  The rule is a self-consistency check. For a candidate K the method is fitted,
+  the Gap statistic (Tibshirani, Walther and Hastie 2001) is computed on the
+  resulting component scores over a wider grid of k, and K is accepted when
+  `argmax_k Gap(k | L_C, L_D, K) = K`. Two measurements say why the number it
+  produces is not something to act on unread.
 
-  The result carries the evidence: `fgrc_gap_confident`,
-  `fgrc_gap_relaxation_level` and `fgrc_gap_curves` in the RPCA metadata.
+  The acceptance is not independent of the fit it checks. The Gap is read on the
+  subspace fGRC chose under the assumption of K clusters, against references
+  drawn inside that same fixed subspace. On white noise at N=30 with c2=1 the
+  fitted subspace puts its Gap maximum at K in 10 to 11 replications out of 12,
+  against 0 to 2 for a random projection of the same basis, which is chance. On
+  structureless 18-unit panels with c2=1, every replication accepted a
+  candidate.
 
-  No reference implementation exists to check a port against, so validation is
-  against the planted design of the paper's own Section 5 -- three clusters in a
-  two-dimensional subspace, recovered as K=3 -- plus the Gap statistic itself on
-  cases with answers known by construction: three separated blobs give k=3, and
-  a single Gaussian gives k=1.
+  A maximum at an end of the evaluation grid is a property of the grid. On the
+  17-unit Basque panel it moves with the grid -- 1, 6, 8, 10, 12, 16 for grids
+  1..4 through 1..16 -- and the K that follows moves the donor pool from 15
+  units to 9 and the ATT from -0.365 to -1.212.
 
-  Run on the bundled panels, the rule accepts a candidate at t=1 on West Germany
-  in four runs out of five and accepts K=4 there. On California, Basque and
-  Barcelona no candidate is accepted at t=1, and on Barcelona every candidate's
-  subspace reports a single cluster in all five runs. `fgrc_k=2` is unsupported
-  on all four, which is what the docs page now says.
+  `FGRCSelection` reports both: `boundary` names the candidates whose curve
+  peaked at an end of the grid, they are excluded from acceptance and from the
+  relaxation, and `selected_k` is `None` when that leaves nothing. `one_se`
+  carries Tibshirani's one-standard-error reading, which is the conservative
+  instrument: across 18 structureless panels it answered k=1 on all 54 candidate
+  curves, and on the paper's planted design it answers 3. The evaluation grid
+  must now extend past the largest candidate, and a panel too small for such a
+  grid is refused instead of silently truncated -- on five units the old
+  truncation reported two candidates as accepted on pure noise.
 
-  Only this stage of Algorithm 1 is implemented; the smoothing lambda by GCV and
-  the penalties by pseudo-F are taken from the configuration.
-
+  Validation is against the planted design of the paper's Section 5 and against
+  the null of that same design with the separation removed. Only this stage of
+  Algorithm 1 is implemented; the smoothing lambda by GCV and the penalties by
+  pseudo-F are taken from the caller.
 ### Fixed
 - The GEOX engine property suite skips an engine whose optional dependency is
   absent instead of failing it. Registering `engine="mvbbsc"` put an engine that

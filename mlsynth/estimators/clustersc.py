@@ -98,9 +98,6 @@ class CLUSTERSC:
         self.fgrc_order: int = config.fgrc_order
         self.fgrc_n_random: int = config.fgrc_n_random
         self.fgrc_nstart: int = config.fgrc_nstart
-        self.fgrc_k_selection: str = config.fgrc_k_selection
-        self.fgrc_k_candidates = config.fgrc_k_candidates
-        self.fgrc_gap_n_ref: int = config.fgrc_gap_n_ref
         self.hsvt_rank_method: str = config.hsvt_rank_method
         self.hsvt_rank = config.hsvt_rank
         self.hsvt_cumvar: float = config.hsvt_cumvar
@@ -337,9 +334,6 @@ class CLUSTERSC:
                     fgrc_order=self.fgrc_order,
                     fgrc_n_random=self.fgrc_n_random,
                     fgrc_nstart=self.fgrc_nstart,
-                    fgrc_k_selection=self.fgrc_k_selection,
-                    fgrc_k_candidates=self.fgrc_k_candidates,
-                    fgrc_gap_n_ref=self.fgrc_gap_n_ref,
                     hsvt_rank_method=self.hsvt_rank_method,
                     hsvt_rank=self.hsvt_rank,
                     hsvt_cumvar=self.hsvt_cumvar,

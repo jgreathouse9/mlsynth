@@ -2213,3 +2213,48 @@ timeout = 180.0
   find = "        lower_limit = float(problem.value) * 1.01"
   replace = "        lower_limit = 1e-5"
   models = "the shipped bound until 2026-09, which floored the grid at a constant instead of the smallest relaxation admitting any simplex weight. Points below that floor are infeasible and get skipped at fit time, so the usable grid is shorter than n_taus without saying so. With the Lasso upper bound this left 0 of 10 points inside [eta_low, eta_bar] on a J=20, T0=10 panel; the two faults are independent and their span inflations multiply to 6.4e5"
+
+[[target]]
+name = "fgrc-cluster-count-selection"
+module-path = "mlsynth/utils/clustersc_helpers/rpca/selection.py"
+test-command = "python -m pytest mlsynth/tests/test_fgrc_selection.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "boundary-candidates-are-ranked-like-any-other"
+  find = "    eligible = [K for K in gaps if K not in boundary]"
+  replace = "    eligible = [K for K in gaps]"
+  models = "the shipped rule until the Basque root-cause analysis: the relaxation step ranks a candidate inside a Gap curve whose maximum sits at an end of k_eval. On a monotone curve that ranking is the candidate list sorted by distance from the edge, so on 17 Basque units it returned K=4 with an empty accepted set, cutting the donor pool from 15 to 9 and the ATT from -0.365 to -1.212. The mutant reintroduces exactly that: nothing is ever excluded, so the rule always produces a number and never declines"
+
+  [[target.mutant]]
+  id = "evaluation-grid-reaches-far-past-the-candidates"
+  find = "            else tuple(range(1, max(cands) + 3)))"
+  replace = "            else tuple(range(1, max(cands) + 9)))"
+  models = "a wider default aperture. It looks harmless and is not: the Gap maximum on these panels tracks whichever k is largest in the grid -- measured at 1, 6, 8, 10, 12 and 16 on Basque for grids 1..4 through 1..16 -- so widening the grid changes the answer without touching the data. This mutant survived the suite as it stood before the analysis, which is what put the grid under an assertion"
+
+  [[target.mutant]]
+  id = "a-grid-that-cannot-reject-a-candidate-is-accepted"
+  find = "    if not grid or max(grid) <= max(cands):"
+  replace = "    if not grid:"
+  models = "the shipped validation until the analysis, where trimming k_eval to fit the panel could leave max(k_eval) at the largest candidate. The check asks whether K is the argmax of its own curve, and a grid stopping at K cannot answer it -- K can then only win at the edge. On five units of pure white noise the old form reported two candidates as accepted"
+
+  [[target.mutant]]
+  id = "the-rule-answers-even-when-it-has-nothing-to-go-on"
+  find = """    if not eligible:
+        return FGRCSelection(selected_k=None, confident=(), relaxation_level=0,
+                             **common)"""
+  replace = """    if not eligible:
+        return FGRCSelection(selected_k=max(gaps), confident=(), relaxation_level=0,
+                             **common)"""
+  models = "an abstention that still hands back a number. The caller sees selected_k set and relaxation_level 0, and the diagnostic saying the rule had nothing to rank is one field away from the answer it contradicts. This is how the Basque number reached an ATT in the first place: the pipeline read selected_k and ignored the empty accepted set"
+
+  [[target.mutant]]
+  id = "the-one-standard-error-reading-is-just-the-argmax"
+  find = """    ks = [int(k) for k in k_values]
+    for j in range(len(ks) - 1):
+        if gap[j] >= gap[j + 1] - gap_se[j + 1]:
+            return ks[j]
+    return ks[-1]"""
+  replace = """    ks = [int(k) for k in k_values]
+    return ks[int(np.argmax(gap))]"""
+  models = "discarding gap_se and reporting the argmax twice. The two readings disagree exactly where it matters: across 18 structureless panels the 1-SE rule answered k=1 on all 54 candidate curves while the argmax accepted a candidate on 4 of them, and on Basque the 1-SE rule answers 1 for every candidate against an argmax of 6. A selector whose conservative reading is a copy of its permissive one reports one instrument as two"
