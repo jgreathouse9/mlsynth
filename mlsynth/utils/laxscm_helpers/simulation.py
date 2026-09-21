@@ -13,13 +13,42 @@ out-of-sample counterfactual prediction.
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Tuple, NamedTuple
 
 import numpy as np
 import pandas as pd
 
 
-def simulate_relaxation_groups(
+class RelaxationDesign(NamedTuple):
+    """A drawn panel together with the design that generated it.
+
+    ``simulate_relaxation_groups`` returns only what an estimator needs. The
+    weight-recovery claims in Liao, Shi & Zheng (2026) Table 2 are about the
+    distance between the fitted weights and ``w_star``, and the paper's stated
+    mechanism -- that the relaxation approximates the equal weights *within
+    each group* -- is about ``groups``, so a case checking either needs the
+    design too.
+    """
+
+    Yc: np.ndarray            #: (J, T) control outcomes
+    y0: np.ndarray            #: (T,) treated untreated-potential outcome
+    oracle_cf: np.ndarray     #: (T,) oracle synthetic control, ``w_star @ Yc``
+    T0: int                   #: pre-period count
+    w_star: np.ndarray        #: (J,) oracle donor weights, equal within group
+    groups: np.ndarray        #: (J,) group index of each donor
+    group_weights: np.ndarray  #: (K,) oracle weight on each group
+
+
+def simulate_relaxation_groups_design(*args, **kwargs) -> RelaxationDesign:
+    """:func:`simulate_relaxation_groups`, keeping the design it drew.
+
+    Same arguments and same draws; the return carries ``w_star``, ``groups``
+    and ``group_weights`` as well.
+    """
+    return _simulate_relaxation_groups(*args, **kwargs)
+
+
+def _simulate_relaxation_groups(
     rng: np.random.Generator,
     J: int,
     T0: int,
@@ -103,7 +132,7 @@ def simulate_relaxation_groups(
     Yc = Lam @ F.T + rng.normal(size=(J, T))       # (J, T)
     y0 = lam0 @ F.T + rng.normal(size=T)           # (T,)
     oracle_cf = w_star @ Yc                         # (T,)
-    return Yc, y0, oracle_cf, T0
+    return RelaxationDesign(Yc, y0, oracle_cf, T0, w_star, groups, wG)
 
 
 def to_panel(Yc: np.ndarray, y0: np.ndarray, T0: int) -> pd.DataFrame:
@@ -122,3 +151,17 @@ def to_panel(Yc: np.ndarray, y0: np.ndarray, T0: int) -> pd.DataFrame:
             rows.append({"unit": f"c{j:03d}", "time": t, "y": float(Yc[j, t]),
                          "treat": 0})
     return pd.DataFrame(rows)
+
+
+def simulate_relaxation_groups(
+    *args, **kwargs
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    """Liao-Shi-Zheng (2026) Section-5 latent-group factor DGP.
+
+    Returns ``(Yc, y0, oracle_cf, T0)``. Use
+    :func:`simulate_relaxation_groups_design` to keep the oracle weights and
+    group labels as well; see :class:`RelaxationDesign` for the full contract
+    and the DGP itself.
+    """
+    d = _simulate_relaxation_groups(*args, **kwargs)
+    return d.Yc, d.y0, d.oracle_cf, d.T0
