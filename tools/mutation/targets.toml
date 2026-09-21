@@ -2195,3 +2195,21 @@ timeout = 120.0
   find = "    best_idx: List[int] = []\n    best_ic = np.inf\n    for r in range(1, r_max + 1):"
   replace = "    best_idx: List[int] = []\n    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)\n    for r in range(1, r_max + 1):"
   models = "the same defect in the brute-force reference search that the branch-and-bound engine is validated against. Left here it would make the oracle agree with a faulty incumbent, so the backend-agreement test would pass while both were wrong -- the reason this mutant is listed separately from the Furnival-Wilson one"
+
+[[target]]
+name = "rescm-tau-grid"
+module-path = "mlsynth/utils/laxscm_helpers/crossval.py"
+test-command = "python -m pytest mlsynth/tests/test_cv.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "tau-upper-bound-is-a-lasso-penalty-path"
+  find = "        upper_limit = float(v.max() - v.min()) / 2.0 * 1.01"
+  replace = "        upper_limit = float(np.linalg.norm(X.T @ y, np.inf))"
+  models = "the shipped bound until 2026-09, which topped the grid at ||X'y||_inf -- the smallest Lasso penalty giving an all-zero fit, not the smallest relaxation at which the equal weights become feasible. It omits the 1/T in Sigma and Upsilon, so it also grows with the pre-period: measured 76x, 67x and 172x above eta_bar at T0 = 25, 50 and 100 on the Liao-Shi-Zheng design. Grid points above eta_bar leave the balance constraint vacuous, and there the L2, entropy and empirical-likelihood objectives all return their unconstrained simplex minimiser, which is the equal weights -- so the fit silently reports 1/J and three different objectives return bit-identical counterfactuals"
+
+  [[target.mutant]]
+  id = "tau-lower-bound-is-a-hard-coded-constant"
+  find = "        lower_limit = float(problem.value) * 1.01"
+  replace = "        lower_limit = 1e-5"
+  models = "the shipped bound until 2026-09, which floored the grid at a constant instead of the smallest relaxation admitting any simplex weight. Points below that floor are infeasible and get skipped at fit time, so the usable grid is shorter than n_taus without saying so. With the Lasso upper bound this left 0 of 10 points inside [eta_low, eta_bar] on a J=20, T0=10 panel; the two faults are independent and their span inflations multiply to 6.4e5"
