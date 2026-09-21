@@ -281,6 +281,14 @@ Path B — Monte Carlo / simulation
        third decimal at every rank, and GSYNTH is the tighter of the two in all
        eight cells. Records that the archive's ``sim_adh.R`` reproduces the
        table only at ``p = 0``
+   * - ``xu_gsynth_properties``
+     - Xu (2017) Table A1 at ``T0 = 15``, ``Nco = 40``: bias 0.023, 0.053, 0.013
+       and SD 1.163, 0.589, 0.375 as the treated group grows, with SD and RMSE
+       coinciding because ``sim_TN.R`` holds the effect fixed. Also cross-
+       validated against ``gsynth 1.0`` -- with the rank given the two
+       implementations are the same computation, so bias, standard deviation and
+       RMSE agree to solver precision -- and the Algorithm 2 parametric bootstrap
+       covers at nominal over the post periods
    * - ``xu_gsynth_sims``
      - Xu (2017) Table A5 on ``sim_factor.R``: cross-validation recovers the
        true rank at 0.801, 0.921, 0.896 and 0.895 in the paper's four
