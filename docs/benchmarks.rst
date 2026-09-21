@@ -296,14 +296,6 @@ Path B — Monte Carlo / simulation
        that under the simplex the ``|S|`` story is replaced by convex-hull
        membership, which the design satisfies in 30-60% of draws and which is
        not monotone in ``|S|``
-   * - ``tssc_tables2_5``
-     - Li-Shankar (2023) Tables 2 to 5, cross-validated against the authors'
-       MATLAB run under Octave. The Step-1 restriction tests that choose
-       between SC, MSC(a), MSC(b) and MSC(c) hold their nominal size at every
-       level under the null (0.050 at 5%, 0.100 at 10%, 0.208 at 20%), and each
-       data-generating process fires only the test whose restriction it
-       violates. The four constrained fits agree with core Octave's ``qp`` to
-       1e-4 on shared panels
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
@@ -371,6 +363,14 @@ Path B — Monte Carlo / simulation
      - TASC vs SC state-space ablation (Rho et al.)
    * - ``tssc_figure2``
      - Figure 2 MSE-ratio grid
+   * - ``tssc_tables2_5``
+     - Li-Shankar (2023) Tables 2 to 5, cross-validated against the authors'
+       MATLAB run under Octave. The Step-1 restriction tests that choose
+       between SC, MSC(a), MSC(b) and MSC(c) hold their nominal size at every
+       level under the null (0.050 at 5%, 0.100 at 10%, 0.208 at 20%), and each
+       data-generating process fires only the test whose restriction it
+       violates. The four constrained fits agree with core Octave's ``qp`` to
+       1e-4 on shared panels
    * - ``conformal_window_count``
      - the cumulative conformal band's coverage is bounded by the number of calibration windows and not the number of periods: 0.86 at three windows, 0.94 at twenty-six, with exchangeability, stationarity and normality granted throughout. See :doc:`cumulative_calibration`
    * - ``ppscm_geo_conformal_coverage``
