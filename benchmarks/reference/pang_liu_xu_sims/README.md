@@ -76,6 +76,24 @@ the within-unit variance, and the moment would report that draw and not the
 generator. The within-time moment, which the time effect cannot touch, is the
 one that pins the cross-sectional half on its own.
 
+## Sixty replications against five hundred
+
+The Python case runs sixty replications per design against the drivers' 500,
+and the RMSE comparison between the two arms is the quantity that count is
+least kind to. Each design run at a second seed:
+
+| design | seed | gsynth RMSE | DM-LFM RMSE | gap | paired boot SE | published gap |
+|---|---|---|---|---|---|---|
+| A6 | A | 3.709 | 2.868 | +0.841 | 0.295 | +0.361 |
+| A6 | B | 3.535 | 2.952 | +0.582 | 0.326 | +0.361 |
+| A7 | A | 3.268 | 2.855 | +0.412 | 0.287 | −0.020 |
+| A7 | B | 3.576 | 3.507 | +0.070 | 0.282 | −0.020 |
+
+A6 is the paper's claimed regime and DM-LFM leads at both seeds. A7 is
+published as a tie, and the first seed's +0.412 reads as a real gap on its own
+until the second gives +0.070 and the pair straddles the published value. The
+bands on both metrics are sized for that spread.
+
 ## Chain length
 
 `seam_reference.csv` runs `pblasso` at the drivers' `niter = 10000 / burn = 2000`

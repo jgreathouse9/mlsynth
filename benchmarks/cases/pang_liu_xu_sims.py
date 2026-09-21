@@ -17,7 +17,10 @@ unpinned instead of run against a guessed specification.
 
 The published cells sit in ``benchmarks/reference/dmlfm_germany``, extracted
 from the authors' own saved ``tempdata/sim_single_{X,r8}.RData``. The companion
-case ``dmlfm_germany`` is the empirical half of the same paper.
+case ``dmlfm_germany`` is the empirical half of the same paper. This is the one
+case in the suite that reads another's reference directory, and it does so
+because the cells belong to the paper and not to either case; moving them would
+break that case's README instead.
 
 The designs generate no treatment effect
 ----------------------------------------
@@ -75,6 +78,31 @@ chain lengths, where the width climbed 9.79, 10.19, 10.50 over 1000, 2000 and
 5000 draws. Eight panels put that sequence inside one chain's own scatter. Had
 the case been built on it, the coverage cells below would carry a downward
 correction with nothing behind it.
+
+What sixty replications can say about a gap
+-------------------------------------------
+The two RMSE comparisons below are the paper's own claim -- DM-LFM ahead where
+the factors are many and weak, level with gsynth where they are few and strong
+-- and sixty replications is a quarter of the precision the paper had. Running
+each design at a second seed says how much of that claim survives the count:
+
+=======  ====  ============  ===========  =======  ========  =============
+design   seed  gsynth RMSE   DM-LFM RMSE  gap      paired    published gap
+                                                   boot SE
+=======  ====  ============  ===========  =======  ========  =============
+A6       A     3.709         2.868        +0.841   0.295     +0.361
+A6       B     3.535         2.952        +0.582   0.326     +0.361
+A7       A     3.268         2.855        +0.412   0.287     -0.020
+A7       B     3.576         3.507        +0.070   0.282     -0.020
+=======  ====  ============  ===========  =======  ========  =============
+
+Both claims survive. A6 gives DM-LFM the lead at both seeds, 2.9 and 1.8
+standard errors from zero, either side of the published 0.361. A7 gives +0.412
+and +0.070 against a published tie, and the first of those on its own reads as
+a real gap -- 0.41 where the paper printed 0.02 -- until the second seed puts
+the pair astride the published value at well under one standard error each.
+That is what the plus or minus 0.75 on both metrics is sized for, and the first
+seed alone would have been a finding that is not there.
 
 The generator is transcribed here, not read from R, and pinned against the
 authors' own on six moments at four panel sizes. Both sides average over the
@@ -169,7 +197,8 @@ EXPECTED = {
     "published_coverage_denominator_agrees": (1.0, 0.0),
     # ---- what the designs are for ----
     # A6 is where the paper claims DM-LFM's advantage: many weak factors. The
-    # published pair is 3.087 against 3.448, a 10% edge.
+    # published pair is 3.087 against 3.448, a 10% edge. See the module
+    # docstring for what sixty replications can and cannot say about a gap.
     "r8_dmlfm_rmse_edge": (0.36, 0.75),
     # A7 has three strong factors and the published pair is a tie: 3.693 to 3.713.
     "X_rmse_gap_abs": (0.02, 0.75),
