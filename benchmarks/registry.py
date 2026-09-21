@@ -118,7 +118,8 @@ CASES = {
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "gpits": "benchmarks.cases.gpits",                        # Path A: GP-ITS (Heller, no donors)
     "botosaru_ferman_covariates": "benchmarks.cases.botosaru_ferman_covariates",  # Path A: Botosaru-Ferman 2019 Table 1 -- a no-covariate SC matches West German GDP to 0.02% and misses inflation by 92%
-    "xu_gsynth_properties": "benchmarks.cases.xu_gsynth_properties",  # cross-val vs gsynth 1.0 on Xu (2017) sim_TN.R and sim_coverage.R: identical ATT at a given rank, and the Algorithm 2 bootstrap covers at nominal
+    "xu_gsynth_properties": "benchmarks.cases.xu_gsynth_properties",  # Path B: Xu (2017) Table A1 bias/SD/RMSE at T0=15, Nco=40, plus cross-val vs gsynth 1.0 on sim_TN.R and sim_coverage.R -- identical ATT at a given rank, and the Algorithm 2 bootstrap covers at nominal
+    "shi_fine_grained_sc": "benchmarks.cases.shi_fine_grained_sc",  # Path B + property: Shi et al. 2022 Table 2 exactly, the |S| blow-up under OLS, and why the simplex fails differently (convex-hull membership, not |S|)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
     "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design

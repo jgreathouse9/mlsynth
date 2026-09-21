@@ -269,10 +269,19 @@ Path B — Monte Carlo / simulation
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
    * - ``xu_gsynth_properties``
-     - Xu (2017) ``sim_TN.R`` and ``sim_coverage.R`` against ``gsynth 1.0``.
-       With the rank given the two implementations are the same computation, so
-       bias, standard deviation and RMSE agree to solver precision; the
-       Algorithm 2 parametric bootstrap covers at nominal over the post periods
+     - Xu (2017) Table A1 at ``T0 = 15``, ``Nco = 40``: bias 0.023, 0.053, 0.013
+       and SD 1.163, 0.589, 0.375 as the treated group grows, with SD and RMSE
+       coinciding because ``sim_TN.R`` holds the effect fixed. Also cross-
+       validated against ``gsynth 1.0`` -- with the rank given the two
+       implementations are the same computation, so bias, standard deviation and
+       RMSE agree to solver precision -- and the Algorithm 2 parametric bootstrap
+       covers at nominal over the post periods
+   * - ``shi_fine_grained_sc``
+     - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
+       ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
+       that under the simplex the ``|S|`` story is replaced by convex-hull
+       membership, which the design satisfies in 30-60% of draws and which is
+       not monotone in ``|S|``
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
