@@ -303,6 +303,14 @@ Path B — Monte Carlo / simulation
        that under the simplex the ``|S|`` story is replaced by convex-hull
        membership, which the design satisfies in 30-60% of draws and which is
        not monotone in ``|S|``
+   * - ``illenberger_rtm``
+     - Illenberger-Small-Shaw (2020) Tables 1 and 2: regression to the mean
+       inflates the synthetic control's placebo test to 0.51 against a nominal
+       0.05 under the paper's level-matching specification and to 0.41 under
+       the path matching ``VanillaSC`` solves, while the unmatched
+       difference-in-differences holds 0.05 in all twenty cells. Inflation
+       grows with the treated unit's distance from the donor cloud and falls
+       with the serial correlation
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
