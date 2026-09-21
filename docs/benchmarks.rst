@@ -268,6 +268,13 @@ Path B — Monte Carlo / simulation
        inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
+   * - ``xu_gsynth_vs_scm``
+     - Xu (2017) Table A4: the factor model against the convex hull. As the
+       treated unit's factor loadings leave the donors' support the synthetic
+       control's bias climbs 0.71, 1.33, 1.63, 2.13 while GSYNTH's stays in the
+       third decimal at every rank, and GSYNTH is the tighter of the two in all
+       eight cells. Records that the archive's ``sim_adh.R`` reproduces the
+       table only at ``p = 0``
    * - ``shi_fine_grained_sc``
      - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
        ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
