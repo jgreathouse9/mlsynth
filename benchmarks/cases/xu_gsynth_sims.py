@@ -11,18 +11,18 @@ script              target      what it varies
 ``sim_TN.R``        Table A1    finite-sample bias over ``T0``/``Nco``/``Ntr``
 ``sim_DID.R``       Table A2    against difference-in-differences, over ``w``
 ``sim_inter.R``     Table A3    against interactive fixed effects
-``sim_adh.R``       Table A3    against ADH synthetic control, over ``r``, ``w``
+``sim_adh.R``       Table A4    against ADH synthetic control, over ``r``, ``w``
 ``sim_factor.R``    Table A5    does cross-validation find the factor count
 ``sim_coverage.R``  --          parametric bootstrap interval coverage
 ``sim_sampling.R``  --          the shared data-generating process
 ==================  ==========  ===============================================
 
-The Online Appendix is not in the archive, so none of those tables is available
-as a target here. What is available is better for this purpose: the author's own
-implementation, at the version the paper ran, which the case installs and runs
-on the author's own data-generating process. The comparison is paired -- both
-sides see the same panels, written out by the reference script -- so the
-residual is implementation difference and not Monte Carlo noise.
+The case runs ``sim_factor.R``'s design against Table A5, and cross-validates
+both implementations against each other on the way. The cross-validation is the
+sharper of the two: the author's own implementation, at the version the paper
+ran, on the author's own data-generating process, with both sides seeing the
+same panels, so its residual is implementation difference and not Monte Carlo
+noise. Table A5 supplies the level the rates should sit at.
 
 The design is ``sim_factor.R``'s: a Bai (2009) interactive fixed-effects panel
 with two factors, two covariates, unit and time effects, treated/control loading
@@ -40,7 +40,7 @@ The two implementations are the same estimator up to one constant.
   and not a difference in the estimator.
 * Every one of the fifteen disagreements is the guard, and nothing else.
 
-That last point is what makes the case worth having. Algorithm 1 does not take
+That last point is the mechanism. Algorithm 1 does not take
 the rank that minimises cross-validated MSPE; it walks upward and takes a larger
 rank only when the improvement beats the running minimum by a relative margin::
 
@@ -65,20 +65,38 @@ which is why the guard is a modelling choice and not a formality. The Monte
 Carlo means still agree to about 0.004, since the disagreements are rare and
 unsigned.
 
-Table A5's quantity, reproduced
--------------------------------
+Table A5, reproduced
+--------------------
 
 ``sim_factor.R`` reports how often cross-validation recovers the true rank of
-two. Run through gsynth 1.0 here, that is 0.84 to 0.92 across the four cells,
-and mlsynth's own rate sits within 0.04 of it in every cell. The published
-Table A5 numbers would be the sharper target; this stands in until the
-Online Appendix is to hand.
+two. Table A5's ``Ntr = 5`` column, over 5,000 samples a cell, against sixty
+here through gsynth 1.0:
+
+==============  ========  ==========  ========
+cell            Table A5  gsynth 1.0   mlsynth
+==============  ========  ==========  ========
+T0=10, Nco=40      0.801       0.840     0.847
+T0=30, Nco=40      0.921       0.920     0.887
+T0=15, Nco=80      0.896       0.893     0.867
+T0=15, Nco=120     0.895       0.880     0.867
+==============  ========  ==========  ========
+
+Every cell is inside its Monte Carlo error. A rate near 0.9 on a hundred and
+fifty draws carries a standard error of 0.027; the largest gap to the published
+value is 0.039 for gsynth 1.0 and 0.046 for mlsynth, so under two of those. The
+expectations below are the published numbers with bands of 0.12, which leaves
+room for the count without leaving room for a drift in the cross-validation.
+
+The shape reproduces too. Table A5 has recovery rising with ``T0`` (0.801 at ten
+pre-periods against 0.921 at thirty) and with the donor pool, because both give
+the validation step more to work with; the measured cells move the same way.
 
 Provenance
 ----------
 
-* Paper: Xu (2017), Political Analysis 25(1):57-76. The empirical side is
-  already covered by ``gsynth_xu_turnout`` (Table 2 columns 3 and 4).
+* Paper: Xu (2017), Political Analysis 25(1):57-76, with the Online Appendix
+  supplying Table A5. The empirical side is already covered by
+  ``gsynth_xu_turnout`` (Table 2 columns 3 and 4).
 * Archive: Dataverse replication files, ``gsynth_1.0.tar.gz`` plus the seven
   simulation scripts. ``benchmarks/R/xu_gsynth_sims.R`` carries the relevant
   part of ``sim_sampling.R``'s generator and the ``sim_factor.R`` call.
@@ -101,9 +119,11 @@ _R_SCRIPT = _ROOT / "benchmarks" / "R" / "xu_gsynth_sims.R"
 
 # Replications per cell. The quantities that decide the case -- the ATT
 # agreement at a shared rank, and whether every disagreement is the guard -- are
-# per-draw and need few; the rank-recovery rates are proportions and carry the
-# Monte Carlo error the tolerances below absorb.
-SIMS = 60
+# per-draw and need few. The rank-recovery rates are proportions measured
+# against Table A5, and there the count is what decides how tight the band can
+# be: at sixty a rate near 0.9 carries a standard error of 0.046, at a hundred
+# and fifty it carries 0.029. The whole case runs in about a minute either way.
+SIMS = 150
 
 # gsynth 1.0 accepts a larger rank on a 1% improvement, mlsynth on 0.1%.
 GUARD_GSYNTH_10 = 0.01
@@ -219,6 +239,7 @@ def run() -> dict:
     # Table A5's quantity: how often cross-validation recovers the true rank.
     for case, g in d.groupby("case", sort=False):
         out[f"gs_correct_{case}"] = round(float(np.mean(g.r_gs == 2)), 3)
+        out[f"my_correct_{case}"] = round(float(np.mean(g.r_my == 2)), 3)
     out["mlsynth_correct_rank_min"] = round(
         float(min(np.mean(g.r_my == 2) for _, g in d.groupby("case"))), 3)
     out["correct_rank_max_case_gap"] = round(float(max(
@@ -231,21 +252,29 @@ def run() -> dict:
 # build. The rate tolerances absorb Monte Carlo error at 60 draws a cell, where
 # a proportion near 0.9 carries a standard error of about 0.04.
 EXPECTED = {
-    "n_draws": (240.0, 0.0),
+    "n_draws": (600.0, 0.0),
     "rank_agreement": (0.975, 0.045),
     # A shared rank makes the two the same computation.
     "att_max_gap_same_rank": (0.0, 1e-8),
     # Every disagreement sits between the two guards. This is the mechanism, so
     # it is pinned at exactly 1 with no slack.
     "disagreements_in_guard_band": (1.0, 0.0),
-    "n_disagreements": (6.0, 6.0),
+    "n_disagreements": (15.0, 9.0),
     "att_max_gap_diff_rank": (0.50, 0.45),
     "att_mean_gap_max": (0.004, 0.030),
-    # gsynth 1.0's own rank-recovery rate, the Table A5 quantity.
-    "gs_correct_T10_Nco40": (0.840, 0.12),
-    "gs_correct_T30_Nco40": (0.920, 0.12),
-    "gs_correct_T15_Nco80": (0.893, 0.12),
-    "gs_correct_T15_Nco120": (0.880, 0.12),
+    # Table A5, Ntr = 5, taken as the target. A proportion near 0.9 on sixty
+    # draws has a standard error of about 0.04; the bands are three of those.
+    # gsynth 1.0's measured rates are beside each.
+    "gs_correct_T10_Nco40": (0.801, 0.12),   # measured 0.840
+    "gs_correct_T30_Nco40": (0.921, 0.12),   # measured 0.920
+    "gs_correct_T15_Nco80": (0.896, 0.12),   # measured 0.893
+    "gs_correct_T15_Nco120": (0.895, 0.12),  # measured 0.880
+    # and mlsynth's own, against the same table. It differs from gsynth 1.0 only
+    # where the guard splits them, so it is held to the same band.
+    "my_correct_T10_Nco40": (0.801, 0.12),
+    "my_correct_T30_Nco40": (0.921, 0.12),
+    "my_correct_T15_Nco80": (0.896, 0.12),
+    "my_correct_T15_Nco120": (0.895, 0.12),
     "mlsynth_correct_rank_min": (0.847, 0.12),
     "correct_rank_max_case_gap": (0.033, 0.060),
 }

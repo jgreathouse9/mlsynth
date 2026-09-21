@@ -269,10 +269,13 @@ Path B — Monte Carlo / simulation
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
    * - ``xu_gsynth_sims``
-     - Xu (2017) ``sim_factor.R``, cross-validated against the ``gsynth 1.0``
-       the archive ships. At a shared rank the two agree to 3.6e-14; all
-       fifteen rank disagreements over 600 draws fall between gsynth 1.0's 1%
-       cross-validation guard and mlsynth's 0.1%, and none outside
+     - Xu (2017) Table A5 on ``sim_factor.R``: cross-validation recovers the
+       true rank at 0.801, 0.921, 0.896 and 0.895 in the paper's four
+       ``Ntr = 5`` cells, and at 0.847, 0.887, 0.867 and 0.867 here. Also
+       cross-validated against the ``gsynth 1.0`` the archive ships -- at a
+       shared rank the two agree to solver precision, and all fifteen rank
+       disagreements over 600 draws fall between gsynth 1.0's 1%
+       cross-validation guard and mlsynth's 0.1%, none outside
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``

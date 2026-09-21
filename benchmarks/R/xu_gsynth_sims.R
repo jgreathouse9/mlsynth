@@ -8,17 +8,20 @@
 #   sim_TN.R        Table A1   finite-sample bias
 #   sim_DID.R       Table A2   against difference-in-differences
 #   sim_inter.R     Table A3   against interactive fixed effects
-#   sim_adh.R       Table A3   against ADH synthetic control
+#   sim_adh.R       Table A4   against ADH synthetic control
 #   sim_factor.R    Table A5   does cross-validation find the factor count
 #   sim_coverage.R  --         parametric bootstrap CI coverage
 #   sim_sampling.R  --         the shared data-generating process
 #
 # This script covers the two that exercise machinery mlsynth has and nothing in
 # the suite pins: the factor-count choice (Algorithm 1) and the parametric
-# bootstrap (Algorithm 2). The Online Appendix is not in the archive, so these
-# are cross-validated against gsynth itself -- the author's own implementation,
-# run on the author's own data-generating process, on panels shared with the
-# Python side so the comparison is paired, not distributional.
+# bootstrap (Algorithm 2). Both sides are also cross-validated against gsynth
+# itself -- the author's own implementation, run on the author's own
+# data-generating process, on panels shared with the Python side so the
+# comparison is paired, not distributional. Table A5 is the published target for
+# the rank-recovery rates; its Ntr = 5 column reads 0.801 at T0 = 10, Nco = 40,
+# 0.921 at T0 = 30, Nco = 40, 0.896 at T0 = 15, Nco = 80 and 0.895 at
+# T0 = 15, Nco = 120, each over 5,000 samples at w = 0.5.
 #
 # The data-generating process is sim_sampling.R's `simulate`, reproduced here so
 # the script stands alone: a Bai (2009) interactive fixed-effects panel with
