@@ -268,6 +268,11 @@ Path B — Monte Carlo / simulation
        inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
+   * - ``xu_gsynth_properties``
+     - Xu (2017) ``sim_TN.R`` and ``sim_coverage.R`` against ``gsynth 1.0``.
+       With the rank given the two implementations are the same computation, so
+       bias, standard deviation and RMSE agree to solver precision; the
+       Algorithm 2 parametric bootstrap covers at nominal over the post periods
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
