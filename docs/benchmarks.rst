@@ -268,6 +268,12 @@ Path B — Monte Carlo / simulation
        inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
+   * - ``shi_fine_grained_sc``
+     - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
+       ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
+       that under the simplex the ``|S|`` story is replaced by convex-hull
+       membership, which the design satisfies in 30-60% of draws and which is
+       not monotone in ``|S|``
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
