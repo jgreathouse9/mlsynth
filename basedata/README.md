@@ -252,6 +252,20 @@ dimension. Table 1 of Wan, Xie & Hsiao describes the pool as `j = 1, ..., 143`,
 while the file carries 157 values and the authors' own scripts sample `1:157`;
 the scripts are what `benchmarks/R/wan_pda_vs_scm.R` follows.
 
+## Fixed factors and loadings for Xu (2017)'s simulations
+
+| File | What it is | Used by |
+|---|---|---|
+| `xu_gsynth_FLSource.RData` | three 1000x20 matrices of factors and loadings | `xu_gsynth_vs_scm` |
+
+Xu's `sim_adh.R` calls its generator with `fixF = TRUE, fixL = TRUE`, which reads
+the factors and loadings from this file instead of drawing them. That holds the
+treated/donor geometry still across replications so the only Monte Carlo
+variation is the idiosyncratic error, which is what lets the design isolate the
+effect of loading overlap. `F.source` and `F.u.source` hold normal and uniform
+factors; `L.source` holds the loadings, with column 20 serving as the unit fixed
+effect. The file is the archive's own, unmodified.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
