@@ -15,8 +15,36 @@ script              target      what it measures
                                 interval covers the realised effect
 ==================  ==========  ===============================================
 
-The Online Appendix is not in the archive, so Table A1 is not a target. Both
-sides see the same panels, written out by ``benchmarks/R/xu_gsynth_properties.R``.
+Table A1 is a target here: the Online Appendix supplies it, and the relevant row
+(``T0 = 15``, ``Nco = 40``) reads
+
+======  ======  =====  =====
+Ntr     Bias    SD     RMSE
+======  ======  =====  =====
+1        0.023  1.163  1.163
+5        0.053  0.589  0.591
+20       0.013  0.375  0.375
+======  ======  =====  =====
+
+Both sides see the same panels, written out by
+``benchmarks/R/xu_gsynth_properties.R``.
+
+Reading the design off the table
+--------------------------------
+
+``sim_TN.R`` draws one panel per cell outside its replication loop, at
+``fixF = TRUE`` and ``fixL = TRUE``, and redraws only the outcome. Table A1
+confirms it without anyone reading the script: its SD is the dispersion of the
+ATT and its RMSE is taken around the realised effect, and the two coincide in
+every row. They could only separate if the effect moved between replications.
+
+``sim_adh.R`` is the opposite. There the same two columns stand apart by exactly
+``D.sd^2`` in all eight cells, which is the signature of an effect redrawn every
+replication -- and the appendix says so in words. So the two designs differ in
+what they hold fixed, and the published SD/RMSE relation says which is which
+without opening either file. The first version of this case regenerated the
+whole panel each replication, which put a unit of effect variance into the SD
+that Table A1's does not carry.
 
 The point estimator
 -------------------
@@ -185,6 +213,7 @@ def run() -> dict:
 
     # Table A1's quantities, from gsynth, and mlsynth's own beside them.
     worst_b = worst_s = 0.0
+    sd_rmse_gaps = []
     for case, g in tn.groupby("case", sort=False):
         b_my = float(np.nanmean(g.att_my - g["true"]))
         b_gs = float(np.nanmean(g.att_gs - g["true"]))
@@ -192,12 +221,17 @@ def run() -> dict:
         s_gs = float(np.nanstd(g.att_gs, ddof=1))
         out[f"bias_{case}"] = round(b_gs, 4)
         out[f"sd_{case}"] = round(s_gs, 4)
+        rmse_gs = float(np.sqrt(np.nanmean((g.att_gs - g["true"]) ** 2)))
+        sd_rmse_gaps.append(abs(s_gs - rmse_gs))
         worst_b = max(worst_b, abs(b_my - b_gs))
         worst_s = max(worst_s, abs(s_my - s_gs))
     out["bias_max_gap"] = float(worst_b)
     out["sd_max_gap"] = float(worst_s)
     # dispersion falls as the treated group grows, which is Table A1's shape
     out["sd_falls_with_ntr"] = float(out["sd_Ntr20"] < out["sd_Ntr5"] < out["sd_Ntr1"])
+    # Table A1's SD and RMSE coincide; that is the design signature, and unlike
+    # the levels it does not depend on which panel the cell drew.
+    out["sd_rmse_max_gap"] = round(float(max(sd_rmse_gaps)), 4)
 
     # The bootstrap. Independent random streams, so rates and not draws.
     out["cover_post_gsynth"] = round(float(ref_cov.cover_post.mean()), 3)
@@ -225,14 +259,21 @@ EXPECTED = {
     "tn_att_max_gap": (0.0, 1e-8),
     "bias_max_gap": (0.0, 1e-8),
     "sd_max_gap": (0.0, 1e-8),
-    # Table A1's shape: dispersion falls as the treated group grows
-    "sd_Ntr1": (1.280, 0.45),
-    "sd_Ntr5": (0.691, 0.30),
-    "sd_Ntr20": (0.385, 0.20),
+    # Table A1 at T0 = 15, Nco = 40: SD 1.163 / 0.589 / 0.375.
+    # The archive holds one panel per cell, so a cell's dispersion is
+    # conditional on that panel and does not converge to the published value
+    # with more replications; the bands below carry that, not just Monte Carlo
+    # error. What is not panel-specific is the SD/RMSE coincidence, pinned
+    # separately as ``sd_rmse_max_gap``.
+    "sd_Ntr1": (1.155, 0.35),      # paper 1.163
+    "sd_Ntr5": (0.685, 0.25),      # paper 0.589
+    "sd_Ntr20": (0.431, 0.20),     # paper 0.375
     "sd_falls_with_ntr": (1.0, 0.0),
-    "bias_Ntr1": (0.232, 0.55),
-    "bias_Ntr5": (-0.057, 0.35),
-    "bias_Ntr20": (-0.051, 0.25),
+    "bias_Ntr1": (-0.113, 0.55),   # paper 0.023
+    "bias_Ntr5": (0.125, 0.35),    # paper 0.053
+    "bias_Ntr20": (-0.088, 0.25),  # paper 0.013
+    # Table A1's SD and RMSE coincide because the effect is held fixed.
+    "sd_rmse_max_gap": (0.005, 0.030),
     # the bootstrap
     "cover_post_gsynth": (0.920, 0.10),
     "cover_post_mlsynth": (0.908, 0.10),

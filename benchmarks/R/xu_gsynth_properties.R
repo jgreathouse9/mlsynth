@@ -13,10 +13,13 @@
 #                              interval covers the realised average effect on
 #                              the treated
 #
-# The Online Appendix is not in the archive, so Table A1 is not available as a
-# target. What is available is the author's own implementation at the version
-# the paper ran, and both sides here see the same panels, so the residual is
-# implementation difference and not Monte Carlo noise.
+# Both sides here see the same panels, so the residual between them is
+# implementation difference and not Monte Carlo noise. Table A1 itself is a
+# target for the Python case, at the row T0 = 15, Nco = 40.
+#
+# The factor and loading matrices come from the archive's FLSource.RData, kept
+# as basedata/xu_gsynth_FLSource.RData; sim_TN.R runs at fixF = TRUE and
+# fixL = TRUE and so reads its factors and loadings from that file.
 #
 # The companion script benchmarks/R/xu_gsynth_sims.R covers sim_factor.R, where
 # the rank is chosen, not given. The generator below is the same
@@ -40,23 +43,38 @@ argval <- function(flag, default = NULL) {
 outdir <- argval("--out", "xuprop")
 sims <- as.integer(argval("--sims", "30"))
 boots <- as.integer(argval("--boots", "200"))
+fl <- argval("--fl", "basedata/xu_gsynth_FLSource.RData")
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
+if (!file.exists(fl)) stop("FLSource.RData not found; pass --fl")
+load(fl)   # F.source, L.source -- sim_TN.R runs at fixF = TRUE, fixL = TRUE
+
+T_of <- function(T0) T0 + 10
 
 # ---------------------------------------------------------------------------
 # sim_sampling.R's generator, restricted to the settings these designs use.
 # ---------------------------------------------------------------------------
 simulate <- function(Ntr, Nco, T0, p, r, w = 1, D.sd = 1, att = c(1:10),
-                     beta = NULL, mu = 0, fsize = 1, FE = 0) {
+                     beta = NULL, mu = 0, fsize = 1, FE = 0, fixFL = FALSE) {
   N <- Ntr + Nco
   T <- T0 + length(att)
   ss <- sqrt(3)
-  lambda <- matrix(runif(N * r, min = -ss, max = ss), N, r)
+  if (fixFL) {
+    lambda <- L.source[c(1:Ntr, 501:(500 + Nco)), 1:r]
+    factor <- F.source[(nrow(F.source) - T + 1):nrow(F.source), 1:r]
+  } else {
+    lambda <- matrix(runif(N * r, min = -ss, max = ss), N, r)
+    factor <- matrix(rnorm(T * r), T, r)
+  }
   lambda[1:Ntr, ] <- lambda[1:Ntr, ] + (1 - w) * 2 * ss
-  factor <- matrix(rnorm(T * r), T, r)
   if (FE == 1) {
-    alpha <- runif(N, min = -ss, max = ss)
+    if (fixFL) {
+      alpha <- L.source[c(1:Ntr, 501:(500 + Nco)), 20]
+      xi <- F.source[(nrow(F.source) - T + 1):nrow(F.source), 20]
+    } else {
+      alpha <- runif(N, min = -ss, max = ss)
+      xi <- rnorm(T, 0, 1)
+    }
     alpha[1:Ntr] <- alpha[1:Ntr] + (1 - w) * 2 * ss
-    xi <- rnorm(T, 0, 1)
   }
   e <- matrix(rnorm(T * N), T, N)
   if (p != 0) {
@@ -82,14 +100,30 @@ simulate <- function(Ntr, Nco, T0, p, r, w = 1, D.sd = 1, att = c(1:10),
   for (i in 1:p) panel[[paste0("X", i)]] <- c(X[, , i])
   attr(panel, "effect") <-
     apply(as.matrix(matrix(eff, T, N)[, 1:Ntr]), 1, sum) / Ntr
+  attr(panel, "Ybar") <- Y - e      # the mean surface, error removed
   panel
 }
 
 # ---------------------------------------------------------------------------
-# sim_TN.R: bias / sd / RMSE of the ATT with the rank given.
-# Its grid is 36 cells, crossing T0, Nco and Ntr. Three are run here, holding
-# T0 and Nco fixed so the only thing that moves is the size of the treated
-# group; otherwise a change in dispersion could not be attributed to it.
+# sim_TN.R: bias / sd / RMSE of the ATT with the rank given, against Table A1.
+#
+# The archive draws one panel per cell, outside the replication loop, at
+# fixF = TRUE and fixL = TRUE, and then redraws only the outcome:
+# `panel$Y <- panel$Ybar + rnorm(N*T)`. So the factors, loadings, covariates
+# and the treatment effect are all held and the only variation is the error.
+#
+# Table A1 confirms that reading: its SD column is the dispersion of the ATT and
+# its RMSE column is taken around the realised effect, and the two coincide in
+# every row -- 1.163 and 1.163, 0.589 and 0.591, 0.375 and 0.375. They could
+# only differ if the effect moved between replications.
+#
+# This is the opposite of sim_adh.R, where the same two columns stand apart by
+# exactly D.sd^2 and the effect is redrawn. The published table says which
+# design is which, without reading either script.
+#
+# Its grid is 36 cells, crossing T0, Nco and Ntr at w = 0.8. Three are run here,
+# holding T0 and Nco fixed so the only thing that moves is the size of the
+# treated group; otherwise a change in dispersion could not be attributed to it.
 # ---------------------------------------------------------------------------
 TN_CASES <- list(
   list(tag = "Ntr1",  Ntr = 1,  Nco = 40, T0 = 15),
@@ -100,23 +134,26 @@ TN_CASES <- list(
 set.seed(123)
 rows <- list()
 for (cs in TN_CASES) {
+  N <- cs$Ntr + cs$Nco
   panels <- list()
   t0 <- Sys.time()
+  # one panel for the cell, as the archive does
+  base <- simulate(Ntr = cs$Ntr, Nco = cs$Nco, T0 = cs$T0, p = 2, r = 2,
+                   w = 0.8, D.sd = 1, beta = c(1, 3), mu = 5,
+                   att = c(1:10), fsize = 1, FE = 1, fixFL = TRUE)
+  eff <- attr(base, "effect")
+  Ybar <- attr(base, "Ybar")
+  k <- cs$T0 + 5
   for (i in 1:sims) {
-    panel <- simulate(Ntr = cs$Ntr, Nco = cs$Nco, T0 = cs$T0, p = 2, r = 2,
-                      w = 0.8, D.sd = 1, beta = c(1, 3), mu = 5,
-                      att = c(1:10), fsize = 1, FE = 1)
-    eff <- attr(panel, "effect")
+    panel <- base
+    panel$Y <- c(Ybar) + rnorm(N * T_of(cs$T0))   # only the error is redrawn
     out <- tryCatch(gsynth(Y ~ D + X1 + X2, data = panel, index = c("id", "time"),
                            force = "two-way", se = FALSE, r = 2, CV = FALSE),
                     error = function(e) NULL)
-    # sim_TN.R reports the fifth post period, its ATT_15
-    k <- cs$T0 + 5
     rows[[length(rows) + 1]] <- data.frame(
       case = cs$tag, rep = i, Ntr = cs$Ntr, Nco = cs$Nco, T0 = cs$T0,
       att_k = if (is.null(out)) NA_real_ else out$att[k],
       true_k = eff[k],
-      beta2 = if (is.null(out)) NA_real_ else out$beta[2],
       stringsAsFactors = FALSE)
     panel$rep <- i
     panels[[i]] <- panel
@@ -125,7 +162,7 @@ for (cs in TN_CASES) {
             row.names = FALSE)
   tbl <- do.call(rbind, rows); tbl <- tbl[tbl$case == cs$tag, ]
   b <- tbl$att_k - tbl$true_k
-  cat(sprintf("TN %-6s Ntr=%2d Nco=%3d  bias %+.4f  sd %.4f  rmse %.4f  (%.0fs)\n",
+  cat(sprintf("TN %-6s Ntr=%2d Nco=%3d  bias %+.4f  SD %.4f  RMSE %.4f  (%.0fs)\n",
               cs$tag, cs$Ntr, cs$Nco, mean(b, na.rm = TRUE),
               sd(tbl$att_k, na.rm = TRUE), sqrt(mean(b^2, na.rm = TRUE)),
               as.numeric(difftime(Sys.time(), t0, units = "secs"))))
