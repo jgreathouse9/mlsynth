@@ -62,7 +62,7 @@ The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depth
 | File | What it is | Used by |
 |---|---|---|
 | `germany_augmented.csv` | the superset (106 cols) | SCMO multi-outcome replication |
-| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / west-Germany cases |
+| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / `botosaru_ferman_covariates` / west-Germany cases |
 | `german_reunification.csv` | `gdp` + the `Reunification` flag | ClusterSC / SpotSynth / several west-Germany cases |
 
 ## Basque Country — Abadie & Gardeazabal (2003)
@@ -237,6 +237,20 @@ reads as a chain abbreviation. The
 `treat` column flags treated-group municipalities from 2016-10-18 onward.
 `benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
 which is the series the authors' `arco.m` explains.
+
+## Simulation donor pools
+
+| File | What it is | Used by |
+|---|---|---|
+| `gvb_rgdpl1980.csv` | 157 countries' 1980 log real GDP per capita, from PWT | `wan_pda_vs_scm_ref` |
+
+Gardeazabal & Vega-Bayo's replication files ship this pool as `rgdpl1980.txt`,
+and Wan, Xie & Hsiao's simulation scripts sample it to build unit fixed effects
+and a covariate for their Designs 1b and 2d. It is a donor pool for a
+data-generating process, not a panel: there is one value per country and no time
+dimension. Table 1 of Wan, Xie & Hsiao describes the pool as `j = 1, ..., 143`,
+while the file carries 157 values and the authors' own scripts sample `1:157`;
+the scripts are what `benchmarks/R/wan_pda_vs_scm.R` follows.
 
 ## Other datasets
 

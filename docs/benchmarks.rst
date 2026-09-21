@@ -262,6 +262,12 @@ Path B — Monte Carlo / simulation
        post-intervention period is correctly sized; the LASSO arm rejects at
        2.2 times their reported rate, and the case records the five checks
        that localise the gap to the first stage
+   * - ``botosaru_ferman_covariates``
+     - Botosaru-Ferman (2019) Table 1 on West Germany: a synthetic control fit
+       on pre-treatment GDP alone matches the outcome to 0.02% and misses
+       inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
+       weighting of standardized predictors, so it is not the plain
+       outcome-only fit
    * - ``shi_fine_grained_sc``
      - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
        ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
@@ -276,6 +282,17 @@ Path B — Monte Carlo / simulation
      - Jiang et al. 2025 prediction-interval coverage (Tables 2-5)
    * - ``pda_wheeler_lassosynth``
      - the resampled cumulative band reduces to Wheeler's LassoSynth at ``block=1``
+   * - ``wan_pda_vs_scm``
+     - Wan-Xie-Hsiao (2018) Table 2, Design 6a: PDA against SCM over five
+       ``(J, T0)`` cells under both of the paper's aggregation rules. Nineteen
+       of the twenty cells land on the printed values; the ``(5,5)`` MAE-rule
+       PDA cell does not, and the case records the measurement that accounts
+       for it
+   * - ``wan_pda_vs_scm_ref``
+     - the same paper's other five design variants, cross-validated against
+       ``pampe`` and ``Synth`` on shared R-generated panels. PDA agrees to
+       machine precision on all eight designs; the SCM gap at ``T0 = 5`` is
+       traced to Synth's outer search over ``V``
    * - ``fspda_table1``
      - all 108 cells of Shi-Huang Table 1, vs the paper and their own code
    * - ``pda_table1``
