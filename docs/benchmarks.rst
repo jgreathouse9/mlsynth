@@ -61,6 +61,12 @@ Path A — empirical replications
      - CWZ 2021 (JASA) conformal test inversion against the authors' own scinference, on their Section 5 Rhode Island application: the moving-block p-value, all six pointwise intervals on the paper's grid, and the three placebo specification tests, all exact
    * - ``cwz_conformal_mc``
      - CWZ 2021 (JASA) Section 4 size, run live from the authors' own simulation design: ten seed-matched panels per error structure reproduced exactly, and the size cells for four weight vectors at rho = 0 and rho = 0.6
+   * - ``cwz_conformal_nonstationary``
+     - CWZ 2021 supplement Tables I.2 and I.4, and Figure I.2's oracle power
+       bound. With trending factors the conformal test keeps its level under
+       the specifications the simplex can represent and loses it under the two
+       it cannot: size 0.53, 0.83 and 0.98 as the pre-period grows under DGP3,
+       against 0.10 at the same cell with stationary factors
    * - ``cwz_rae``
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest``
@@ -275,6 +281,14 @@ Path B — Monte Carlo / simulation
        third decimal at every rank, and GSYNTH is the tighter of the two in all
        eight cells. Records that the archive's ``sim_adh.R`` reproduces the
        table only at ``p = 0``
+   * - ``xu_gsynth_sims``
+     - Xu (2017) Table A5 on ``sim_factor.R``: cross-validation recovers the
+       true rank at 0.801, 0.921, 0.896 and 0.895 in the paper's four
+       ``Ntr = 5`` cells, and at 0.847, 0.887, 0.867 and 0.867 here. Also
+       cross-validated against the ``gsynth 1.0`` the archive ships -- at a
+       shared rank the two agree to solver precision, and all fifteen rank
+       disagreements over 600 draws fall between gsynth 1.0's 1%
+       cross-validation guard and mlsynth's 0.1%, none outside
    * - ``shi_fine_grained_sc``
      - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
        ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
