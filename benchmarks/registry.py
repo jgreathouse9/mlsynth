@@ -48,6 +48,7 @@ CASES = {
     "rrsc_reference": "benchmarks.cases.rrsc_reference",  # cross-val: mlsynth RRSC vs reference R (He-Li-Shi-Miao 2026), both regimes value-for-value; skips without R
     "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
     "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
+    "tssc_tables2_5": "benchmarks.cases.tssc_tables2_5",       # Path B + cross-val vs the authors' MATLAB under Octave: Li-Shankar Tables 2-5, the Step-1 restriction tests. Size is nominal at every level under DGP1 (0.050/0.100/0.208 at 5/10/20%), each DGP fires only the test it violates, and the four variant ATTs match core Octave's qp to 1e-4 on shared panels
     "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
     "sbc_hongkong": "benchmarks.cases.sbc_hongkong",          # cross-val vs authors' SBC_HK.R (HK handover): detrend exact, mlsynth cyclical SSE < ipop
     "sbc_mc": "benchmarks.cases.sbc_mc",                      # Path B: Shi-Xi-Xie MSE ratios
@@ -86,6 +87,7 @@ CASES = {
     "nsc_mc": "benchmarks.cases.nsc_mc",                        # Path B: nonlinear coverage + error-shrinks-with-J
     "vanillasc_prop99": "benchmarks.cases.vanillasc_prop99",  # Path A: canonical ADH 2010 Prop 99
     "dmlfm_germany": "benchmarks.cases.dmlfm_germany",  # cross-val vs pinned pblasso 1.0.8 (Pang, Liu & Xu 2022, German reunification): design objects exact, covariate scaling exact, ATT on a mean across seeds since the sampler spread is wide
+    "pang_liu_xu_sims": "benchmarks.cases.pang_liu_xu_sims",  # Path B + cross-val: Pang, Liu & Xu (2022) Tables A6/A7 single-treated-unit cells, plus mlsynth GSYNTH/DMLFM against gsynth 1.0 and pblasso 1.0.8 on shared R-drawn panels -- the designs generate no effect, so their bias column is the mean estimate and their coverage column is coverage of zero
     "vanillasc_olympics": "benchmarks.cases.vanillasc_olympics",  # Path A (Yoneoka et al. 2022 BMJ Open, Tokyo 2020 Olympics -> COVID cases: 143072/89210 cumulative exact) + cross-val vs pinned tidysynth 0.2.0; records that the authors' donor weights are no longer reproducible (0.183) while the p-value is
     "ibex_dap": "benchmarks.cases.ibex_dap",                  # cross-val vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price (Haro Ruiz-Schult-Wunder 2024), weights value-for-value
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
@@ -93,6 +95,7 @@ CASES = {
     "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
     "cwz_conformal": "benchmarks.cases.cwz_conformal",    # cross-val vs scinference conformal (CWZ 2021 JASA Sec 5 application)
     "cwz_conformal_mc": "benchmarks.cases.cwz_conformal_mc",  # Path B: CWZ 2021 JASA Sec 4 size, live against the authors' simulation design
+    "cwz_conformal_nonstationary": "benchmarks.cases.cwz_conformal_nonstationary",  # Path B: CWZ 2021 supplement Tables I.2/I.4 -- under trending factors the conformal test stops being exact for a misspecified SC (size 0.98 at DGP3, T0=100, against 0.10 with stationary factors), plus Figure I.2 power against the closed-form oracle bound
     "cwz_ttest_mc": "benchmarks.cases.cwz_ttest_mc",          # Path B: CWZ Table 3, live against the authors' calibrated design
     "cwz_rae": "benchmarks.cases.cwz_rae",                    # Path B: CWZ Table 1 relative efficiency, the formula behind ttest_K="auto"
     "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2025 Table 3 application-based Monte Carlo
@@ -119,6 +122,8 @@ CASES = {
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
     "gpits": "benchmarks.cases.gpits",                        # Path A: GP-ITS (Heller, no donors)
     "botosaru_ferman_covariates": "benchmarks.cases.botosaru_ferman_covariates",  # Path A: Botosaru-Ferman 2019 Table 1 -- a no-covariate SC matches West German GDP to 0.02% and misses inflation by 92%
+    "xu_gsynth_properties": "benchmarks.cases.xu_gsynth_properties",  # Path B: Xu (2017) Table A1 bias/SD/RMSE at T0=15, Nco=40, plus cross-val vs gsynth 1.0 on sim_TN.R and sim_coverage.R -- identical ATT at a given rank, and the Algorithm 2 bootstrap covers at nominal
+    "xu_gsynth_sims": "benchmarks.cases.xu_gsynth_sims",  # Path B: Xu (2017) Table A5 rank recovery on sim_factor.R (0.801/0.921/0.896/0.895 at Ntr=5), plus cross-val vs the gsynth 1.0 the archive ships -- same estimator to solver precision at a shared rank, and every rank disagreement is the 0.1%-vs-1% CV guard
     "shi_fine_grained_sc": "benchmarks.cases.shi_fine_grained_sc",  # Path B + property: Shi et al. 2022 Table 2 exactly, the |S| blow-up under OLS, and why the simplex fails differently (convex-hull membership, not |S|)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
@@ -190,6 +195,7 @@ CASES = {
     "augsynth_calibrated": "benchmarks.cases.augsynth_calibrated",  # Path B: ASCM near-nominal coverage + bias reduction (BMR 2021 Sec 7)
     "gsynth_xu_turnout": "benchmarks.cases.gsynth_xu_turnout",  # Path A (Xu 2017 PA Table 2 cols 3-4) + cross-val vs live fect 2.4.5: GSYNTH on the EDR/turnout panel, r=0..5 grid and Algorithm 1
     "gsynth_av_laws": "benchmarks.cases.gsynth_av_laws",  # cross-val vs pinned gsynth 1.2.1 (Lang et al. 2026 age-verification laws): 96-fit outcome x force x rank grid, Algorithm 1 criterion and selected rank, published Table 2 loose
+    "xu_gsynth_vs_scm": "benchmarks.cases.xu_gsynth_vs_scm",  # Path B: Xu (2017) Table A4 -- the factor model against the convex hull. Synth's bias climbs 0.71/1.33/1.63/2.13 as the loading supports separate while GSC stays in the third decimal at any rank; also records that the archive's sim_adh.R needs p=0 to reproduce its own table
     "bilgel_turkey_lockdown": "benchmarks.cases.bilgel_turkey_lockdown",  # Path A (Bilgel 2022 EctJ Table 3 col.1): PPSCM vs multisynth nu=0.5, six mobility outcomes, Turkey lockdowns
     "song_ml_ascm": "benchmarks.cases.song_ml_ascm",          # Path A (Song et al. 2023 published main_result.csv, loose) + cross-val vs live augsynth 0.2.0 (tight): China clean winter heating, 30 stratified cells
     "pensynth_prop99": "benchmarks.cases.pensynth_prop99",  # cross-val vs LIVE pensynth wsoll1 (Rscript+LowRankQP) on Prop 99 penalized SC (skips if absent)
@@ -218,6 +224,7 @@ CASES = {
     "wiltshire_walmart": "benchmarks.cases.wiltshire_walmart",
     "conformal_inversion_prop99": "benchmarks.cases.conformal_inversion_prop99",  # cross-val vs Facure's "Conformal Inference for Synthetic Controls" notebook, transcribed: the CWZ block-permutation p-value agrees value-for-value on the Prop 99 panel, and the cumulative band that inverts it is pinned under both searches -- the accepted set is two islands, so the bisecting search excludes zero where the grid search (and the p-value itself) accepts it  # Path A (geometry, not cells): Wiltshire 2023 sec 4.2 stacked SCM on 566 Walmart counties -- the paper's prose claims (pre-fit, no effect at entry, decline from e=2, large negative at e=5) plus the base-period indexing identity; magnitudes not claimed, see docs/replications/stackedsc.rst
     "conformal_window_count": "benchmarks.cases.conformal_window_count",  # design calibration (no external referent): the cumulative band's coverage is bounded by the number of calibration WINDOWS, not periods -- 0.86 at m=3, 0.94 at m=26, with exchangeability and normality granted throughout 
+    "illenberger_rtm": "benchmarks.cases.illenberger_rtm",  # Path B: Illenberger-Small-Shaw 2020 Tables 1-2 -- regression to the mean inflates the SC placebo test to 0.51 at nominal 0.05 under the paper's level-matching spec and 0.41 under VanillaSC's path matching, while unmatched DiD holds 0.05
     "pcr_shen_estimator_coverage": "benchmarks.cases.pcr_shen_estimator_coverage",  # design calibration (no external referent): coverage of the intervals shen_inference actually returns, on the paper's own DGP -- per period the shipped path is calibrated for all three variance estimators, but the multi-period ATT interval is the library's own construction and its VT arm falls from 0.95 at one post-period to 0.46 at ten, understated by almost exactly the sqrt(T1) it assumes
     "ppscm_geo_conformal_coverage": "benchmarks.cases.ppscm_geo_conformal_coverage",  # design calibration (no external referent): PPSCM's per-unit cumulative band on a synthetic top-30 geo panel covers at the rank its order statistic implies -- 10 windows at h=8 cannot reach 95% at any width, 21 at h=4 can, and the gap to the exchangeable prediction is zero in both
 }
@@ -319,6 +326,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "ctsc_powell_mc":                 ("B", "simulated"),
     "cwz_conformal":                  ("X", "empirical"),
     "cwz_conformal_mc":               ("B", "simulated"),
+    "cwz_conformal_nonstationary":    ("B", "simulated"),
     "cwz_mc":                         ("B", "both"),
     "cwz_rae":                        ("B", "simulated"),
     "cwz_ttest":                      ("A", "empirical"),
@@ -338,7 +346,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "eiv_coverage_mc":                ("AB", "simulated"),
     "esc_prop99":                     ("A", "empirical"),
     "esc_saopaulo":                   ("A", "empirical"),
-    "fdid_hongkong":                  ("A", "empirical"),
+    "fdid_hongkong":                  ("AX", "empirical"),
     "fdid_normality_mc":              ("C", "simulated"),
     "fdid_selection_mc":              ("C", "simulated"),
     "fdid_serial_correlation_mc":     ("C", "simulated"),
@@ -366,6 +374,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "hsc_hongkong":                   ("A", "empirical"),
     "hsc_mc":                         ("B", "simulated"),
     "ibex_dap":                       ("X", "empirical"),
+    "illenberger_rtm":                ("B", "simulated"),
     "lamba_tigers":                   ("X", "empirical"),
     "lexscm_design_mc":               ("B", "simulated"),
     "lexscm_walmart":                 ("A", "empirical"),
@@ -397,6 +406,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "nsc_prop99":                     ("AX", "empirical"),
     "orthsc_carbontax":               ("A", "empirical"),
     "orthsc_size_power":              ("B", "simulated"),
+    "pang_liu_xu_sims":               ("BX", "simulated"),
     "pangeo_supergeo_mc":             ("B", "simulated"),
     "pcr_rsc_ref":                    ("X", "empirical"),
     "pcr_shen_estimator_coverage":    ("C", "both"),
@@ -487,6 +497,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "th_prop99":                      ("A", "empirical"),
     "tssc_brooklyn":                  ("A", "empirical"),
     "tssc_figure2":                   ("B", "simulated"),
+    "tssc_tables2_5":                 ("BX", "simulated"),
     "twsf_coverage_mc":               ("B", "simulated"),
     "vanillasc_carbontax":            ("A", "empirical"),
     "vanillasc_olympics":             ("AX", "empirical"),
@@ -497,6 +508,9 @@ _RAW: dict[str, tuple[str, str]] = {
     "wied_nj_minwage":                ("A", "empirical"),
     "wiltshire_walmart":              ("A", "empirical"),
     "wine_tennessee":                 ("A", "empirical"),
+    "xu_gsynth_properties":           ("BX", "simulated"),
+    "xu_gsynth_sims":                 ("BX", "simulated"),
+    "xu_gsynth_vs_scm":               ("BX", "simulated"),
 }
 
 LABELS: dict[str, Label] = {

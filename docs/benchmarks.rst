@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 214 registered cases. ``paths`` is what the case
+All 221 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
 * ``A`` -- empirical replication (74 cases)
-* ``B`` -- Monte Carlo / simulation (54 cases)
+* ``B`` -- Monte Carlo / simulation (61 cases)
 * ``C`` -- theoretical property or design calibration (10 cases)
-* ``X`` -- cross-validation against a reference implementation (98 cases)
+* ``X`` -- cross-validation against a reference implementation (104 cases)
 
-By data: 68 simulated, 131 empirical, 15 both -- so 83 cases fit at least one generated panel.
+By data: 75 simulated, 131 empirical, 15 both -- so 90 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -178,6 +178,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``cwz_conformal_mc``
      - B
      - simulated
+   * - ``cwz_conformal_nonstationary``
+     - B
+     - simulated
    * - ``cwz_mc``
      - B
      - both
@@ -236,7 +239,7 @@ This table is generated. To change a label, edit ``LABELS`` in
      - A
      - empirical
    * - ``fdid_hongkong``
-     - A
+     - A X
      - empirical
    * - ``fdid_normality_mc``
      - C
@@ -319,6 +322,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``ibex_dap``
      - X
      - empirical
+   * - ``illenberger_rtm``
+     - B
+     - simulated
    * - ``lamba_tigers``
      - X
      - empirical
@@ -411,6 +417,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - empirical
    * - ``orthsc_size_power``
      - B
+     - simulated
+   * - ``pang_liu_xu_sims``
+     - B X
      - simulated
    * - ``pangeo_supergeo_mc``
      - B
@@ -682,6 +691,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``tssc_figure2``
      - B
      - simulated
+   * - ``tssc_tables2_5``
+     - B X
+     - simulated
    * - ``twsf_coverage_mc``
      - B
      - simulated
@@ -712,6 +724,15 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``wine_tennessee``
      - A
      - empirical
+   * - ``xu_gsynth_properties``
+     - B X
+     - simulated
+   * - ``xu_gsynth_sims``
+     - B X
+     - simulated
+   * - ``xu_gsynth_vs_scm``
+     - B X
+     - simulated
 
 .. BENCHMARK-INDEX-END
 
@@ -919,12 +940,43 @@ Path B — Monte Carlo / simulation
        post-intervention period is correctly sized; the LASSO arm rejects at
        2.2 times their reported rate, and the case records the five checks
        that localise the gap to the first stage
+   * - ``xu_gsynth_vs_scm``
+     - Xu (2017) Table A4: the factor model against the convex hull. As the
+       treated unit's factor loadings leave the donors' support the synthetic
+       control's bias climbs 0.71, 1.33, 1.63, 2.13 while GSYNTH's stays in the
+       third decimal at every rank, and GSYNTH is the tighter of the two in all
+       eight cells. Records that the archive's ``sim_adh.R`` reproduces the
+       table only at ``p = 0``
+   * - ``xu_gsynth_properties``
+     - Xu (2017) Table A1 at ``T0 = 15``, ``Nco = 40``: bias 0.023, 0.053, 0.013
+       and SD 1.163, 0.589, 0.375 as the treated group grows, with SD and RMSE
+       coinciding because ``sim_TN.R`` holds the effect fixed. Also cross-
+       validated against ``gsynth 1.0`` -- with the rank given the two
+       implementations are the same computation, so bias, standard deviation and
+       RMSE agree to solver precision -- and the Algorithm 2 parametric bootstrap
+       covers at nominal over the post periods
+   * - ``xu_gsynth_sims``
+     - Xu (2017) Table A5 on ``sim_factor.R``: cross-validation recovers the
+       true rank at 0.801, 0.921, 0.896 and 0.895 in the paper's four
+       ``Ntr = 5`` cells, and at 0.847, 0.887, 0.867 and 0.867 here. Also
+       cross-validated against the ``gsynth 1.0`` the archive ships -- at a
+       shared rank the two agree to solver precision, and all fifteen rank
+       disagreements over 600 draws fall between gsynth 1.0's 1%
+       cross-validation guard and mlsynth's 0.1%, none outside
    * - ``shi_fine_grained_sc``
      - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
        ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
        that under the simplex the ``|S|`` story is replaced by convex-hull
        membership, which the design satisfies in 30-60% of draws and which is
        not monotone in ``|S|``
+   * - ``illenberger_rtm``
+     - Illenberger-Small-Shaw (2020) Tables 1 and 2: regression to the mean
+       inflates the synthetic control's placebo test to 0.51 against a nominal
+       0.05 under the paper's level-matching specification and to 0.41 under
+       the path matching ``VanillaSC`` solves, while the unmatched
+       difference-in-differences holds 0.05 in all twenty cells. Inflation
+       grows with the treated unit's distance from the donor cloud and falls
+       with the serial correlation
    * - ``pda_l2_sim``
      - Shi-Wang Table 2 L2-relaxation size/power
    * - ``pda_lasso_sim``
@@ -943,6 +995,18 @@ Path B — Monte Carlo / simulation
      - mlsynth's default PDA path on the Table-1 design
    * - ``proximal_surrogates_mc``
      - PI/PIS/PIPost vs SC under trending factor (Liu et al.)
+   * - ``pang_liu_xu_sims``
+     - Pang-Liu-Xu (2022) Appendix Tables A6 and A7, the single-treated-unit
+       designs, at ``Nco = 30`` and ``T0 = 20``. Records that both designs
+       generate no treatment effect at all -- ``simulateCalib.R`` builds the
+       effect matrix as zeros and the block that would fill it is commented out
+       -- so the tables' bias column is the mean estimate and their coverage
+       column is coverage of zero. Also records that the Table A7 driver hands
+       gsynth ``r + 4 = 7`` where the true factor count is 3, and that the
+       Bayesian arm is passed ``Xname = NULL`` in both, so it never sees the
+       covariates. Cross-validated against ``gsynth 1.0`` and ``pblasso 1.0.8``
+       on shared R-drawn panels, and the generator itself pinned against the
+       authors' on six moments at four panel sizes
    * - ``rescm_relax_mc``
      - latent-group MC, relaxations beat SCM
    * - ``rsc_synth_error``
@@ -977,6 +1041,12 @@ Path B — Monte Carlo / simulation
      - Figure 2 MSE-ratio grid
    * - ``cwz_conformal_mc``
      - CWZ 2021 (JASA) Section 4 size, run live from the authors' own simulation design: ten seed-matched panels per error structure reproduced exactly, and the size cells for four weight vectors at rho = 0 and rho = 0.6
+   * - ``cwz_conformal_nonstationary``
+     - CWZ 2021 supplement Tables I.2 and I.4, and Figure I.2's oracle power
+       bound. With trending factors the conformal test keeps its level under
+       the specifications the simplex can represent and loses it under the two
+       it cannot: size 0.53, 0.83 and 0.98 as the pre-period grows under DGP3,
+       against 0.10 at the same cell with stationary factors
    * - ``cwz_rae``
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest_mc``
@@ -986,6 +1056,14 @@ Path B — Monte Carlo / simulation
    * - ``ppscm_bfr_mc``
      - BFR sharp-null designs: ATT coverage for both inference paths, plus the
        cumulative conformal band in two calibration regimes
+   * - ``tssc_tables2_5``
+     - Li-Shankar (2023) Tables 2 to 5, cross-validated against the authors'
+       MATLAB run under Octave. The Step-1 restriction tests that choose
+       between SC, MSC(a), MSC(b) and MSC(c) hold their nominal size at every
+       level under the null (0.050 at 5%, 0.100 at 10%, 0.208 at 20%), and each
+       data-generating process fires only the test whose restriction it
+       violates. The four constrained fits agree with core Octave's ``qp`` to
+       1e-4 on shared panels
 
 Path C — theoretical properties
 -------------------------------
