@@ -65,6 +65,8 @@ def run_rpca(
     fgrc_k: Optional[int] = None,
     fgrc_knots: Optional[int] = None,
     fgrc_order: int = 4,
+    fgrc_n_random: int = 40,
+    fgrc_nstart: int = 40,
     # HSVT denoiser knobs (rpca_method="HSVT")
     hsvt_rank_method: str = "usvt",
     hsvt_rank: Optional[int] = None,
@@ -192,6 +194,7 @@ def run_rpca(
         labels, fgrc_loss = _fgrc_cluster(
             full_pre_panel, c1=fgrc_c1, c2=fgrc_c2, k=k,
             n_knots=knots, order=fgrc_order, seed=random_state,
+            n_random=fgrc_n_random, nstart=fgrc_nstart,
         )
         treated_cluster = int(labels[0])
         donor_col_idx = np.where(labels[1:] == treated_cluster)[0]
@@ -199,6 +202,7 @@ def run_rpca(
             "cluster_method": "fgrc",
             "fgrc_c1": int(fgrc_c1), "fgrc_c2": int(fgrc_c2), "fgrc_k": int(k),
             "fgrc_knots": int(knots), "fgrc_order": int(fgrc_order),
+            "fgrc_n_random": int(fgrc_n_random), "fgrc_nstart": int(fgrc_nstart),
             "fgrc_loss": float(fgrc_loss),
             "treated_cluster": treated_cluster,
             "cluster_labels": labels.tolist(),
@@ -346,6 +350,8 @@ def run_rpca(
                 fgrc_k=fgrc_k,
                 fgrc_knots=fgrc_knots,
                 fgrc_order=fgrc_order,
+                fgrc_n_random=fgrc_n_random,
+                fgrc_nstart=fgrc_nstart,
                 hsvt_rank_method=hsvt_rank_method,
                 hsvt_rank=hsvt_rank,
                 hsvt_cumvar=hsvt_cumvar,

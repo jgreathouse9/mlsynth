@@ -552,6 +552,18 @@ treated unit, not a full partition of the panel; the subspace dimensions
 machine precision against the authors' compiled ``OptimGRC`` routine
 (``mlsynth/tests/test_fgrc.py``).
 
+The fGRC objective has local optima, and how many depends on the data:
+Yamamoto and Hwang report that the count varies across their simulation
+conditions and recommend running the method from many random initial
+starts. Two settings control that. ``fgrc_n_random`` restarts the loading
+matrix and ``fgrc_nstart`` restarts the k-means step inside each of
+those, and the lowest-loss solution is the one kept. Both default to
+``40``, which is already more generous than the authors' own R package,
+whose ``N.random`` defaults to ``1``. Raise them when the cluster
+assignment moves between runs on a panel: the restarts minimise over
+starting points, so spending more of them can only lower the retained
+loss, never change what is being optimised.
+
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

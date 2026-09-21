@@ -8,6 +8,25 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- `fgrc_n_random` and `fgrc_nstart` on `CLUSTERSCConfig`: the two restart counts
+  for fGRC clustering (`cluster_method="fgrc"`), both defaulting to 40, which is
+  what the port already used. They were not reachable from the config, so a user
+  whose cluster assignment moved between runs had no way to spend more restarts
+  on it.
+
+  Yamamoto and Hwang (2017, Section 5) report that the number of local optima of
+  the fGRC objective varies with the data condition and recommend implementing
+  the method with many random initial starts. `fgrc_n_random` restarts the
+  loading matrix; `fgrc_nstart` restarts the k-means step within each of those;
+  the lowest-loss solution is retained. The defaults are more generous than the
+  authors' own R package, whose `N.random` defaults to 1.
+
+  The restarts minimise over starting points, so raising them cannot raise the
+  retained loss, and a test asserts that ordering instead of a fixed number.
+  Passing the defaults explicitly reproduces not passing them, on both the ATT
+  and the cluster labels.
+
 ### Fixed
 - The GEOX engine property suite skips an engine whose optional dependency is
   absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
