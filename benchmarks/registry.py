@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+from typing import NamedTuple
 
 # name -> "benchmarks.cases.<module>"  (pure-Python unless noted needs_reference)
 CASES = {
@@ -238,3 +239,300 @@ NEEDS_REFERENCE = set()
 def load(name: str):
     mod = importlib.import_module(CASES[name])
     return mod
+
+# ---------------------------------------------------------------------------
+# What each case validates, and what it runs on.
+#
+# ``paths`` is a set, because a case can establish more than one thing at once:
+# ``gsynth_xu_turnout`` reproduces Xu (2017) Table 2 *and* cross-validates
+# against a live ``fect`` run. The old single-label comment forced a choice, so
+# whichever half was written down was the half that survived.
+#
+#   A  the paper's empirical result, on the authors' data
+#   B  the paper's Monte Carlo or simulation table
+#   C  a theoretical property, or a design calibration with no external
+#      referent -- the case asserts something about the method itself
+#   X  cross-validation against an authoritative reference implementation
+#
+# ``data`` is independent of ``paths``, because the path does not say what the
+# case runs on: ``gsynth_av_laws`` cross-validates on a real panel and
+# ``cwz_conformal_mc`` cross-validates on a generated one.
+#
+#   simulated  every panel the case fits comes from a data-generating process
+#   empirical  every panel comes from a dataset on disk
+#   both       the case has arms of each kind, or calibrates a DGP from a real
+#              panel and then fits the draws
+#
+# A captured reference dump under ``benchmarks/reference/`` says nothing about
+# this axis -- many of them hold simulated panels.
+#
+# benchmarks/tests/test_registry_labels.py is the gate: a case that is missing
+# here, carries a value outside the vocabulary, or is filed on the docs page
+# under a path it does not claim, fails CI.
+# ---------------------------------------------------------------------------
+
+PATH_NAMES = {
+    "A": "empirical replication",
+    "B": "Monte Carlo / simulation",
+    "C": "theoretical property or design calibration",
+    "X": "cross-validation against a reference implementation",
+}
+
+DATA_KINDS = ("simulated", "empirical", "both")
+
+
+class Label(NamedTuple):
+    """What a benchmark case establishes, and what it runs on."""
+
+    paths: frozenset          # a non-empty subset of PATH_NAMES
+    data: str                 # one of DATA_KINDS
+
+
+# name -> (paths, data)
+_RAW: dict[str, tuple[str, str]] = {
+    "arco_resampling_mc":             ("B", "simulated"),
+    "arco_retail":                    ("A", "empirical"),
+    "ascm_jackknife_plus":            ("X", "empirical"),
+    "ascm_kansas":                    ("X", "empirical"),
+    "ascm_mixtape":                   ("X", "empirical"),
+    "augsynth_calibrated":            ("B", "both"),
+    "bayesian_rsc_ref":               ("X", "empirical"),
+    "beast_prop99":                   ("X", "empirical"),
+    "bfsc_germany":                   ("AX", "empirical"),
+    "bfsc_prop99":                    ("X", "empirical"),
+    "bilgel_turkey_lockdown":         ("A", "empirical"),
+    "botosaru_ferman_covariates":     ("A", "empirical"),
+    "bpscs_synthetic":                ("C", "simulated"),
+    "brabander_brexit_insample":      ("A", "empirical"),
+    "brabander_brexit_table1":        ("A", "empirical"),
+    "brabander_mc":                   ("BX", "simulated"),
+    "brazil_vaccine_scm_vs_proximal": ("X", "empirical"),
+    "bscm_china_watches":             ("X", "empirical"),
+    "bvss_watches":                   ("X", "empirical"),
+    "cast_aca":                       ("AX", "empirical"),
+    "cfm":                            ("A", "empirical"),
+    "clustersc_rpca_germany":         ("X", "empirical"),
+    "clustersc_subgroups":            ("B", "simulated"),
+    "clustersc_subgroups_ref":        ("X", "simulated"),
+    "cmbsts_supermarket":             ("AX", "empirical"),
+    "cmbsts_vignette":                ("X", "both"),
+    "compsc_pennsylvania":            ("A", "empirical"),
+    "compsc_pennsylvania_r":          ("X", "empirical"),
+    "conformal_inversion_prop99":     ("AX", "empirical"),
+    "conformal_window_count":         ("C", "simulated"),
+    "cscipca_brexit":                 ("A", "empirical"),
+    "cscipca_mc":                     ("B", "simulated"),
+    "cscm_viszero":                   ("X", "empirical"),
+    "ctsc_powell_mc":                 ("B", "simulated"),
+    "cwz_conformal":                  ("X", "empirical"),
+    "cwz_conformal_mc":               ("B", "simulated"),
+    "cwz_conformal_nonstationary":    ("B", "simulated"),
+    "cwz_mc":                         ("B", "both"),
+    "cwz_rae":                        ("B", "simulated"),
+    "cwz_ttest":                      ("A", "empirical"),
+    "cwz_ttest_mc":                   ("B", "simulated"),
+    "disco_tenure":                   ("AX", "empirical"),
+    "dmlfm_germany":                  ("X", "empirical"),
+    "dpsc_prop99":                    ("X", "both"),
+    "dr_proximal_brazil":             ("X", "empirical"),
+    "dr_proximal_mc":                 ("B", "simulated"),
+    "dr_proximal_scenarios":          ("X", "simulated"),
+    "drosc_basque":                   ("X", "empirical"),
+    "dsc_disco_xval":                 ("X", "empirical"),
+    "dsc_dube":                       ("A", "empirical"),
+    "dsc_mc":                         ("B", "simulated"),
+    "dscar_beijing":                  ("A", "empirical"),
+    "dtwsc_basque":                   ("X", "empirical"),
+    "eiv_coverage_mc":                ("AB", "simulated"),
+    "esc_prop99":                     ("A", "empirical"),
+    "esc_saopaulo":                   ("A", "empirical"),
+    "fdid_hongkong":                  ("AX", "empirical"),
+    "fdid_normality_mc":              ("C", "simulated"),
+    "fdid_selection_mc":              ("C", "simulated"),
+    "fdid_serial_correlation_mc":     ("C", "simulated"),
+    "fdid_table5":                    ("B", "simulated"),
+    "ferman_demeaned_basque":         ("AX", "empirical"),
+    "ferman_manyperiods":             ("B", "simulated"),
+    "ferman_pinto_mc":                ("BX", "simulated"),
+    "fgrc_toy_subspace":              ("B", "simulated"),
+    "fma_coverage_mc":                ("B", "simulated"),
+    "fsc_estimator":                  ("A", "empirical"),
+    "fsc_okano":                      ("A", "empirical"),
+    "fscm_prop99":                    ("A", "empirical"),
+    "fspda_dense_mc":                 ("X", "simulated"),
+    "fspda_sparse_mc":                ("X", "empirical"),
+    "fspda_table1":                   ("B", "simulated"),
+    "geox_augsynth_geolift":          ("X", "empirical"),
+    "geox_augsynth_recast":           ("BX", "simulated"),
+    "geox_mc":                        ("C", "both"),
+    "geox_mvbbsc_equivalence":        ("X", "empirical"),
+    "geox_sdid_equivalence":          ("X", "empirical"),
+    "gmmsce_carbontax":               ("X", "empirical"),
+    "gpits":                          ("A", "empirical"),
+    "gsynth_av_laws":                 ("AX", "empirical"),
+    "gsynth_xu_turnout":              ("AX", "empirical"),
+    "hsc_hongkong":                   ("A", "empirical"),
+    "hsc_mc":                         ("B", "simulated"),
+    "ibex_dap":                       ("X", "empirical"),
+    "illenberger_rtm":                ("B", "simulated"),
+    "lamba_tigers":                   ("X", "empirical"),
+    "lexscm_design_mc":               ("B", "simulated"),
+    "lexscm_walmart":                 ("A", "empirical"),
+    "linf_crossval_ref":              ("X", "simulated"),
+    "linf_prop99":                    ("A", "empirical"),
+    "linf_sim":                       ("B", "simulated"),
+    "lpca_kansas":                    ("X", "empirical"),
+    "lpca_mc":                        ("X", "simulated"),
+    "lto_refined_placebo":            ("X", "empirical"),
+    "malo_basque":                    ("X", "empirical"),
+    "malo_prop99":                    ("A", "empirical"),
+    "marex_scdesign_sim":             ("X", "simulated"),
+    "marex_section5_mc":              ("AB", "simulated"),
+    "marex_table3":                   ("B", "simulated"),
+    "marex_walmart":                  ("AX", "empirical"),
+    "masc_basque":                    ("A", "empirical"),
+    "masc_crossval":                  ("X", "empirical"),
+    "mcnnm_prop99":                   ("X", "empirical"),
+    "medsc_prop99":                   ("A", "empirical"),
+    "microsynth_baltimore":           ("X", "empirical"),
+    "microsynth_seattle":             ("X", "empirical"),
+    "mlsc_bottmer":                   ("X", "simulated"),
+    "mscmt_basque":                   ("X", "empirical"),
+    "mscmt_solver":                   ("X", "both"),
+    "msqrt_sim":                      ("B", "simulated"),
+    "mtgp_california":                ("X", "empirical"),
+    "mvbbsc_germany":                 ("AX", "empirical"),
+    "nsc_mc":                         ("B", "simulated"),
+    "nsc_prop99":                     ("AX", "empirical"),
+    "orthsc_carbontax":               ("A", "empirical"),
+    "orthsc_size_power":              ("B", "simulated"),
+    "pang_liu_xu_sims":               ("BX", "simulated"),
+    "pangeo_supergeo_mc":             ("B", "simulated"),
+    "pcr_rsc_ref":                    ("X", "empirical"),
+    "pcr_shen_estimator_coverage":    ("C", "both"),
+    "pda_brexit":                     ("A", "empirical"),
+    "pda_hcw_hongkong":               ("A", "empirical"),
+    "pda_hongkong":                   ("A", "empirical"),
+    "pda_l2_sim":                     ("B", "simulated"),
+    "pda_lasso_sim":                  ("B", "simulated"),
+    "pda_luxurywatch":                ("A", "empirical"),
+    "pda_pi_coverage":                ("B", "simulated"),
+    "pda_ppi":                        ("A", "empirical"),
+    "pda_table1":                     ("B", "simulated"),
+    "pda_wheeler_lassosynth":         ("X", "simulated"),
+    "pensynth_prop99":                ("X", "empirical"),
+    "pioid_overid_jtest":             ("B", "simulated"),
+    "ppscm_bfr_mc":                   ("B", "simulated"),
+    "ppscm_cs_real_panels":           ("X", "empirical"),
+    "ppscm_geo_conformal_coverage":   ("C", "simulated"),
+    "ppscm_paglayan":                 ("X", "empirical"),
+    "ppscm_paglayan_covs":            ("X", "empirical"),
+    "propsc_spain":                   ("AX", "empirical"),
+    "proximal_germany_oid":           ("X", "empirical"),
+    "proximal_oid_mc":                ("B", "simulated"),
+    "proximal_panic1907":             ("AX", "empirical"),
+    "proximal_surrogates_mc":         ("B", "simulated"),
+    "rescm_balanced_gdp":             ("X", "both"),
+    "rescm_brexit":                   ("A", "empirical"),
+    "rescm_brexit_2020":              ("A", "empirical"),
+    "rescm_relax_mc":                 ("B", "simulated"),
+    "rescm_relax_ref":                ("X", "simulated"),
+    "rolldid_lw":                     ("A", "empirical"),
+    "ronczewski_cannabis":            ("A", "empirical"),
+    "rrsc_reference":                 ("X", "simulated"),
+    "rsc_rank_condition_mc":          ("C", "simulated"),
+    "rsc_shen_coverage":              ("X", "simulated"),
+    "rsc_synth_error":                ("B", "simulated"),
+    "sbc_germany":                    ("A", "empirical"),
+    "sbc_hongkong":                   ("X", "empirical"),
+    "sbc_mc":                         ("B", "simulated"),
+    "scd_cps":                        ("X", "empirical"),
+    "scmo_averaged_mc":               ("B", "simulated"),
+    "scmo_concatenated_mc":           ("B", "simulated"),
+    "scmo_covid_sweden":              ("A", "empirical"),
+    "scmo_demeaned_mc":               ("B", "simulated"),
+    "scmo_germany":                   ("A", "empirical"),
+    "scpi_germany_pi":                ("X", "empirical"),
+    "scpi_ridge_germany":             ("X", "empirical"),
+    "scpi_staggered":                 ("X", "empirical"),
+    "scpi_staggered_covariate":       ("X", "empirical"),
+    "scpi_staggered_pi":              ("X", "empirical"),
+    "scul_prop99":                    ("A", "empirical"),
+    "sdid_ddd_hpv":                   ("A", "empirical"),
+    "sdid_euets":                     ("AX", "empirical"),
+    "sdid_prop99":                    ("X", "empirical"),
+    "secession_scm":                  ("A", "empirical"),
+    "seq_sdid_mc":                    ("B", "both"),
+    "shc_recovery_mc":                ("B", "simulated"),
+    "shi_fine_grained_sc":            ("B", "simulated"),
+    "si_prop99":                      ("X", "empirical"),
+    "siv_syria_mc":                   ("B", "simulated"),
+    "snn_prop99":                     ("X", "empirical"),
+    "song_ml_ascm":                   ("AX", "empirical"),
+    "sparse_sc_prop99":               ("A", "empirical"),
+    "spcd_prop99":                    ("A", "both"),
+    "spillsynth_grossi_germany":      ("A", "empirical"),
+    "spillsynth_iscm_germany":        ("A", "empirical"),
+    "spillsynth_iscm_xval":           ("X", "empirical"),
+    "spillsynth_iterative_germany":   ("A", "empirical"),
+    "spillsynth_prop99":              ("X", "empirical"),
+    "spillsynth_prop99_sar":          ("X", "empirical"),
+    "spillsynth_sar_mc":              ("B", "simulated"),
+    "spillsynth_sudan":               ("X", "empirical"),
+    "spotsynth_panic1907":            ("C", "empirical"),
+    "spotsynth_real_data":            ("A", "both"),
+    "spsc_ifem_mc":                   ("B", "simulated"),
+    "spsc_panic":                     ("A", "empirical"),
+    "spsc_prop99":                    ("A", "empirical"),
+    "spsydid_lawa_diff":              ("X", "empirical"),
+    "spsydid_state_mc":               ("X", "both"),
+    "src_basque":                     ("AX", "empirical"),
+    "ssc_guanajuato":                 ("X", "empirical"),
+    "syndes_bls":                     ("B", "both"),
+    "syndes_exact_vs_mip":            ("X", "both"),
+    "synth_jhai_prop99":              ("X", "empirical"),
+    "synth_prop99":                   ("X", "empirical"),
+    "tasc_mc":                        ("B", "simulated"),
+    "tasc_prop99":                    ("X", "empirical"),
+    "th_prop99":                      ("A", "empirical"),
+    "tssc_brooklyn":                  ("A", "empirical"),
+    "tssc_figure2":                   ("B", "simulated"),
+    "tssc_tables2_5":                 ("BX", "simulated"),
+    "twsf_coverage_mc":               ("B", "simulated"),
+    "vanillasc_carbontax":            ("A", "empirical"),
+    "vanillasc_olympics":             ("AX", "empirical"),
+    "vanillasc_prop99":               ("A", "empirical"),
+    "vanillasc_xval_references":      ("X", "empirical"),
+    "wan_pda_vs_scm":                 ("B", "simulated"),
+    "wan_pda_vs_scm_ref":             ("X", "both"),
+    "wied_nj_minwage":                ("A", "empirical"),
+    "wiltshire_walmart":              ("A", "empirical"),
+    "wine_tennessee":                 ("A", "empirical"),
+    "xu_gsynth_properties":           ("BX", "simulated"),
+    "xu_gsynth_sims":                 ("BX", "simulated"),
+    "xu_gsynth_vs_scm":               ("BX", "simulated"),
+}
+
+LABELS: dict[str, Label] = {
+    name: Label(frozenset(paths), data) for name, (paths, data) in _RAW.items()
+}
+
+
+def paths_of(name: str) -> frozenset:
+    """The set of validation paths ``name`` establishes."""
+    return LABELS[name].paths
+
+
+def data_of(name: str) -> str:
+    """Whether ``name`` runs on simulated data, empirical data, or both."""
+    return LABELS[name].data
+
+
+def by_path(path: str) -> list:
+    """Every case claiming ``path``, sorted. ``by_path("B")`` is the simulations."""
+    return sorted(n for n, label in LABELS.items() if path in label.paths)
+
+
+def by_data(kind: str) -> list:
+    """Every case whose data is ``kind``, sorted."""
+    return sorted(n for n, label in LABELS.items() if label.data == kind)
