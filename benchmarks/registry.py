@@ -47,6 +47,7 @@ CASES = {
     "rrsc_reference": "benchmarks.cases.rrsc_reference",  # cross-val: mlsynth RRSC vs reference R (He-Li-Shi-Miao 2026), both regimes value-for-value; skips without R
     "tssc_brooklyn": "benchmarks.cases.tssc_brooklyn",        # Path A: Brooklyn showroom (Li-Shankar)
     "tssc_figure2": "benchmarks.cases.tssc_figure2",          # Path B: Figure 2 MSE-ratio grid
+    "tssc_tables2_5": "benchmarks.cases.tssc_tables2_5",       # Path B + cross-val vs the authors' MATLAB under Octave: Li-Shankar Tables 2-5, the Step-1 restriction tests. Size is nominal at every level under DGP1 (0.050/0.100/0.208 at 5/10/20%), each DGP fires only the test it violates, and the four variant ATTs match core Octave's qp to 1e-4 on shared panels
     "sbc_germany": "benchmarks.cases.sbc_germany",            # Path A: SBC German reunification
     "sbc_hongkong": "benchmarks.cases.sbc_hongkong",          # cross-val vs authors' SBC_HK.R (HK handover): detrend exact, mlsynth cyclical SSE < ipop
     "sbc_mc": "benchmarks.cases.sbc_mc",                      # Path B: Shi-Xi-Xie MSE ratios
