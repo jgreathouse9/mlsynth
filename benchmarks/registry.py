@@ -87,6 +87,7 @@ CASES = {
     "nsc_mc": "benchmarks.cases.nsc_mc",                        # Path B: nonlinear coverage + error-shrinks-with-J
     "vanillasc_prop99": "benchmarks.cases.vanillasc_prop99",  # Path A: canonical ADH 2010 Prop 99
     "dmlfm_germany": "benchmarks.cases.dmlfm_germany",  # cross-val vs pinned pblasso 1.0.8 (Pang, Liu & Xu 2022, German reunification): design objects exact, covariate scaling exact, ATT on a mean across seeds since the sampler spread is wide
+    "pang_liu_xu_sims": "benchmarks.cases.pang_liu_xu_sims",  # Path B + cross-val: Pang, Liu & Xu (2022) Tables A6/A7 single-treated-unit cells, plus mlsynth GSYNTH/DMLFM against gsynth 1.0 and pblasso 1.0.8 on shared R-drawn panels -- the designs generate no effect, so their bias column is the mean estimate and their coverage column is coverage of zero
     "vanillasc_olympics": "benchmarks.cases.vanillasc_olympics",  # Path A (Yoneoka et al. 2022 BMJ Open, Tokyo 2020 Olympics -> COVID cases: 143072/89210 cumulative exact) + cross-val vs pinned tidysynth 0.2.0; records that the authors' donor weights are no longer reproducible (0.183) while the p-value is
     "ibex_dap": "benchmarks.cases.ibex_dap",                  # cross-val vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price (Haro Ruiz-Schult-Wunder 2024), weights value-for-value
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
