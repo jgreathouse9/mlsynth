@@ -328,6 +328,18 @@ Path B — Monte Carlo / simulation
      - mlsynth's default PDA path on the Table-1 design
    * - ``proximal_surrogates_mc``
      - PI/PIS/PIPost vs SC under trending factor (Liu et al.)
+   * - ``pang_liu_xu_sims``
+     - Pang-Liu-Xu (2022) Appendix Tables A6 and A7, the single-treated-unit
+       designs, at ``Nco = 30`` and ``T0 = 20``. Records that both designs
+       generate no treatment effect at all -- ``simulateCalib.R`` builds the
+       effect matrix as zeros and the block that would fill it is commented out
+       -- so the tables' bias column is the mean estimate and their coverage
+       column is coverage of zero. Also records that the Table A7 driver hands
+       gsynth ``r + 4 = 7`` where the true factor count is 3, and that the
+       Bayesian arm is passed ``Xname = NULL`` in both, so it never sees the
+       covariates. Cross-validated against ``gsynth 1.0`` and ``pblasso 1.0.8``
+       on shared R-drawn panels, and the generator itself pinned against the
+       authors' on six moments at four panel sizes
    * - ``rescm_relax_mc``
      - latent-group MC, relaxations beat SCM
    * - ``rsc_synth_error``
