@@ -46,6 +46,28 @@ without opening either file. The first version of this case regenerated the
 whole panel each replication, which put a unit of effect variance into the SD
 that Table A1's does not carry.
 
+How close the levels get
+------------------------
+
+The case runs twenty-five replications a cell, which is enough for the paired
+quantities and not for a standard deviation: at that count the standard error of
+an SD estimate is about ``SD / sqrt(2 * 24)``, so 0.17 at one treated unit and
+0.07 at five. The measured cells are 1.18, 0.48 and 0.37, and it takes more
+draws to say whether that is the count or the estimator.
+
+Run the reference at ``--sims 400`` and it is the count. The three cells settle
+at 1.126, 0.575 and 0.375 against Table A1's 1.163, 0.589 and 0.375, with SD and
+RMSE agreeing to three decimals in every one. The expectations below are
+therefore centred on the published values, with bands sized to the twenty-five
+draw standard error and not to a suspected bias.
+
+A residual stays, because sim_TN.R walks thirty-six cells off one seed while
+this script runs three, so the fixed panel a cell draws here is not the panel
+the author's cell drew. The 400-draw run above draws its own panel for the five
+and twenty unit cells, a third one different from both, and still lands within
+3% of the published SD -- so that effect sits below the sampling error the bands
+already carry.
+
 The point estimator
 -------------------
 
@@ -57,11 +79,12 @@ sharpest form this comparison can take, and it isolates the one constant that
 separated the two implementations in ``xu_gsynth_sims`` -- with the rank given,
 nothing separates them at all.
 
-Table A1's content reproduces as a direction: dispersion falls as the treated
-group grows, 1.28 to 0.69 to 0.39 from one treated unit to five to twenty. The
-three cells hold ``T0`` and the donor pool fixed so the only thing moving is the
-size of the treated group; the archive's grid crosses all three, and a cell that
-moved two of them at once could not support the claim.
+Table A1's shape reproduces as well as its levels: dispersion falls as the
+treated group grows, 1.18 to 0.48 to 0.37 from one treated unit to five to
+twenty against the paper's 1.163, 0.589 and 0.375. The three cells hold ``T0``
+and the donor pool fixed so the only thing moving is the size of the treated
+group; the archive's grid crosses all three, and a cell that moved two of them
+at once could not support the claim.
 
 The bootstrap
 -------------
@@ -259,19 +282,19 @@ EXPECTED = {
     "tn_att_max_gap": (0.0, 1e-8),
     "bias_max_gap": (0.0, 1e-8),
     "sd_max_gap": (0.0, 1e-8),
-    # Table A1 at T0 = 15, Nco = 40: SD 1.163 / 0.589 / 0.375.
-    # The archive holds one panel per cell, so a cell's dispersion is
-    # conditional on that panel and does not converge to the published value
-    # with more replications; the bands below carry that, not just Monte Carlo
-    # error. What is not panel-specific is the SD/RMSE coincidence, pinned
-    # separately as ``sd_rmse_max_gap``.
-    "sd_Ntr1": (1.155, 0.35),      # paper 1.163
-    "sd_Ntr5": (0.685, 0.25),      # paper 0.589
-    "sd_Ntr20": (0.431, 0.20),     # paper 0.375
+    # Table A1 at T0 = 15, Nco = 40, taken as the target. At twenty-five draws
+    # an SD estimate carries a standard error of SD/sqrt(48) -- 0.17, 0.07 and
+    # 0.05 for the three cells -- and the bands are about three of those. The
+    # levels are the paper's, not a self-calibration: at 400 draws the cells
+    # settle at 1.126, 0.575 and 0.375.
+    "sd_Ntr1": (1.163, 0.45),      # measured at 25 draws: 1.180
+    "sd_Ntr5": (0.589, 0.25),      # measured at 25 draws: 0.477
+    "sd_Ntr20": (0.375, 0.20),     # measured at 25 draws: 0.366
     "sd_falls_with_ntr": (1.0, 0.0),
-    "bias_Ntr1": (-0.113, 0.55),   # paper 0.023
-    "bias_Ntr5": (0.125, 0.35),    # paper 0.053
-    "bias_Ntr20": (-0.088, 0.25),  # paper 0.013
+    # Bias, same table. Its standard error is SD/5 at this count.
+    "bias_Ntr1": (0.023, 0.55),    # measured at 25 draws: -0.062
+    "bias_Ntr5": (0.053, 0.35),    # measured at 25 draws:  0.149
+    "bias_Ntr20": (0.013, 0.25),   # measured at 25 draws:  0.106
     # Table A1's SD and RMSE coincide because the effect is held fixed.
     "sd_rmse_max_gap": (0.005, 0.030),
     # the bootstrap

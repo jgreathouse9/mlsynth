@@ -17,6 +17,15 @@
 # implementation difference and not Monte Carlo noise. Table A1 itself is a
 # target for the Python case, at the row T0 = 15, Nco = 40.
 #
+# The case runs --sims 25, which is enough for the paired quantities and not for
+# a standard deviation. At --sims 400 the three cells settle at
+#
+#   Ntr= 1  bias -0.0067  SD 1.1261  RMSE 1.1247   (A1: 0.023 1.163 1.163)
+#   Ntr= 5  bias +0.1028  SD 0.5747  RMSE 0.5831   (A1: 0.053 0.589 0.591)
+#   Ntr=20  bias +0.0278  SD 0.3749  RMSE 0.3755   (A1: 0.013 0.375 0.375)
+#
+# so the levels are the paper's and the gap at 25 draws is the count.
+#
 # The factor and loading matrices come from the archive's FLSource.RData, kept
 # as basedata/xu_gsynth_FLSource.RData; sim_TN.R runs at fixF = TRUE and
 # fixL = TRUE and so reads its factors and loadings from that file.
