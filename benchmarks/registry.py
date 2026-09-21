@@ -119,6 +119,7 @@ CASES = {
     "gpits": "benchmarks.cases.gpits",                        # Path A: GP-ITS (Heller, no donors)
     "botosaru_ferman_covariates": "benchmarks.cases.botosaru_ferman_covariates",  # Path A: Botosaru-Ferman 2019 Table 1 -- a no-covariate SC matches West German GDP to 0.02% and misses inflation by 92%
     "xu_gsynth_properties": "benchmarks.cases.xu_gsynth_properties",  # Path B: Xu (2017) Table A1 bias/SD/RMSE at T0=15, Nco=40, plus cross-val vs gsynth 1.0 on sim_TN.R and sim_coverage.R -- identical ATT at a given rank, and the Algorithm 2 bootstrap covers at nominal
+    "xu_gsynth_sims": "benchmarks.cases.xu_gsynth_sims",  # Path B: Xu (2017) Table A5 rank recovery on sim_factor.R (0.801/0.921/0.896/0.895 at Ntr=5), plus cross-val vs the gsynth 1.0 the archive ships -- same estimator to solver precision at a shared rank, and every rank disagreement is the 0.1%-vs-1% CV guard
     "shi_fine_grained_sc": "benchmarks.cases.shi_fine_grained_sc",  # Path B + property: Shi et al. 2022 Table 2 exactly, the |S| blow-up under OLS, and why the simplex fails differently (convex-hull membership, not |S|)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
