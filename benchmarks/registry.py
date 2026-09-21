@@ -436,6 +436,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "rescm_balanced_gdp":             ("X", "both"),
     "rescm_brexit":                   ("A", "empirical"),
     "rescm_brexit_2020":              ("A", "empirical"),
+    "rescm_relax_behavior":           ("BC", "simulated"),
     "rescm_relax_mc":                 ("B", "simulated"),
     "rescm_relax_ref":                ("X", "simulated"),
     "rolldid_lw":                     ("A", "empirical"),
