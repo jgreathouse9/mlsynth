@@ -18,10 +18,19 @@ directional guard. Three calibration points matter (full derivation in
   treated unit's idiosyncratic noise, an irreducible floor added to every
   method's error equally that compresses all ratios toward 1 (median ~0.87 vs
   ~0.43 against the oracle).
-* **Median, not mean.** ``tau`` is cross-validated on a coarse grid, so an
-  occasional rep selects a loose ``tau`` (weights collapse toward uniform) and
-  blows up its ratio; the median rep shows the paper's effect while a few
-  outliers drag the mean to ~1.
+* **Median, not mean.** A replication whose selected ``tau`` leaves the balance
+  constraint slack returns weights at or near ``1/J`` and blows up its ratio, so
+  the mean is pulled toward 1 by a minority of reps while the median shows the
+  paper's effect.
+
+  This used to happen far more often, and the reason given here was a coarse
+  grid. That was wrong. The grid was built from ``||X'y||_inf`` down to a
+  hard-coded ``1e-5`` -- a Lasso penalty path, not this program's feasible range
+  -- which put most of its points either above ``eta_bar``, where the constraint
+  is vacuous, or below ``eta_low``, where the program is infeasible. Refining
+  such a grid would not have helped. Since the bounds were corrected the
+  collapse rate on the paper's own cells runs 0.00-0.08 where it ran 0.16-0.44,
+  and the bands below have room they no longer need.
 * **L2 only, for tractability.** The entropy/EL relaxations are exp-cone; their
   DPP solve carries a J-by-J Gram parameter, which is inefficient for DPP at the
   large ``J`` this regime needs (cvxpy warns), so a CV-``tau`` multi-rep MC over
