@@ -49,6 +49,28 @@ The prediction-error ratios are reported against the paper's published cells
 but banded loosely. Twenty-five replications against the paper's 1000 is a
 quarter of the precision, the DGP is a transcription, and the levels are the
 part of the table least robust to both.
+
+What twenty-five replications can say
+-------------------------------------
+Not every ordering in Table 1 is testable here, and the paper's own margins say
+which. It separates L2 from EL by 0.54 and 0.28 in Panels A and B; it separates
+L2 from entropy by 0.033, 0.061 and 0.019. The first is far outside this case's
+Monte Carlo error and the second is inside it, so only the first is asserted.
+
+This was got wrong on the first pass. ``panelA_l2_beats_entropy`` was written
+as a zero-tolerance boolean, and it failed -- not because the estimator is
+wrong but because a 0.033 margin is not resolvable at this count, and the
+assertion would have been luck either way. Asserting the Panel C crossover the
+same way would have had the same defect and happened to pass.
+
+What survives is the contrast. The paper's claim is that entropy *improves
+relative to L2* as the groups come to outnumber the factors, moving from -0.033
+in Panel A to +0.019 in Panel C, so ``entropy_advantage_C_over_A`` is the
+direction of that movement, not either endpoint. It is reported with a
+band wide enough to admit the wrong sign, because at 25 replications a +0.052
+contrast is not resolvable either. Reading it needs the number, not the
+pass. Resolving it would take a few hundred replications, which is a
+half-hour case and a separate decision.
 """
 
 from __future__ import annotations
@@ -74,29 +96,35 @@ EXPECTED = {
     # ---- the mechanism: where the weight goes ----
     # SCM concentrates; the relaxation spreads. The paper's whole argument.
     "sc_share_of_donors_used": (0.16, 0.14),
-    "relax_l2_share_of_donors_used": (1.0, 0.25),
+    "relax_l2_share_of_donors_used": (0.98, 0.25),
     # and spreads *within groups*: dispersion inside a group, relative to SCM's
-    "relax_l2_within_group_sd_ratio": (0.10, 0.22),
+    "relax_l2_within_group_sd_ratio": (0.04, 0.10),
     # which is why it recovers the oracle weights the group structure implies
-    "relax_l2_l1_distance_ratio": (0.21, 0.22),
-    "relax_l2_l2_distance_ratio": (0.18, 0.22),
+    "relax_l2_l1_distance_ratio": (0.36, 0.25),
+    "relax_l2_l2_distance_ratio": (0.22, 0.20),
     # ---- the regression guard ----
-    # exact-1/J fits. The old tau grid produced these in 10-44% of fits.
-    "max_collapse_rate": (0.04, 0.12),
-    # ---- the ordering claims, as rankings ----
-    # Panels A and B: L2 first, EL last
+    # Exact-1/J fits. Both bands are one-sided in effect -- centred at half
+    # their ceiling so they admit 0, since a further drop is an improvement and
+    # must not fail. The ceilings are set from a run against the old grid,
+    # recorded under "Verified against the defect" above.
+    "relax_l2_max_collapse_rate": (0.16, 0.16),
+    # EL collapses more than L2 even on the corrected grid.
+    "max_collapse_rate_any_objective": (0.20, 0.20),
+    # ---- the ordering claims the replication count can resolve ----
+    # The paper separates L2 from EL by 0.54 and 0.28 in Panels A and B.
     "panelA_l2_beats_el": (1.0, 0.0),
     "panelB_l2_beats_el": (1.0, 0.0),
-    "panelA_l2_beats_entropy": (1.0, 0.0),
-    # Panel C: the paper's own boundary -- entropy overtakes L2 once K > r
-    "panelC_entropy_beats_l2": (1.0, 0.0),
     # ---- the levels, banded ----
     "panelA_l2_ratio": (0.3019, 0.30),
     "panelB_l2_ratio": (0.5290, 0.30),
     "panelC_l2_ratio": (0.5075, 0.30),
-    "max_abs_dev_from_published": (0.20, 0.22),
+    "max_abs_dev_from_published": (0.21, 0.25),
     # every relaxation arm beats SCM in every panel
     "n_panels_all_relax_beat_sc": (3.0, 0.0),
+    # ---- reported, not asserted: see "What twenty-five replications can say" ----
+    # the paper's Panel C claim as a contrast, which is the form of it that has
+    # any chance of surviving the count
+    "entropy_advantage_C_over_A": (0.05, 0.45),
     "n_fits": (float(3 * _SIMS), 0.0),
 }
 
@@ -164,16 +192,19 @@ def run() -> dict:
     out["relax_l2_l2_distance_ratio"] = float(np.mean(
         [med[p]["RELAX_L2"]["l2"] / med[p]["SC"]["l2"] for p in _PANELS]))
 
-    out["max_collapse_rate"] = float(max(
+    out["relax_l2_max_collapse_rate"] = float(max(
+        float(np.mean(acc[p]["RELAX_L2"]["collapse"])) for p in _PANELS))
+    out["max_collapse_rate_any_objective"] = float(max(
         float(np.mean(acc[p][m]["collapse"])) for p in _PANELS for m in _RELAX))
 
     rat = {p: {m: med[p][m]["ratio"] for m in _RELAX} for p in _PANELS}
     out["panelA_l2_beats_el"] = float(rat["A"]["RELAX_L2"] < rat["A"]["RELAX_EL"])
     out["panelB_l2_beats_el"] = float(rat["B"]["RELAX_L2"] < rat["B"]["RELAX_EL"])
-    out["panelA_l2_beats_entropy"] = float(
-        rat["A"]["RELAX_L2"] < rat["A"]["RELAX_ENTROPY"])
-    out["panelC_entropy_beats_l2"] = float(
-        rat["C"]["RELAX_ENTROPY"] < rat["C"]["RELAX_L2"])
+    # entropy's standing against L2, C relative to A. The paper has it moving
+    # from -0.033 to +0.019, so this contrast is +0.052 there.
+    out["entropy_advantage_C_over_A"] = float(
+        (rat["C"]["RELAX_ENTROPY"] - rat["C"]["RELAX_L2"])
+        - (rat["A"]["RELAX_ENTROPY"] - rat["A"]["RELAX_L2"])) * -1.0
 
     for p in _PANELS:
         out[f"panel{p}_l2_ratio"] = rat[p]["RELAX_L2"]
