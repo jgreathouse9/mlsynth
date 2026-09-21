@@ -268,6 +268,14 @@ Path B — Monte Carlo / simulation
        inflation by 92%. Records that Synth's ``customV(1, ..., 1)`` is a flat
        weighting of standardized predictors, so it is not the plain
        outcome-only fit
+   * - ``xu_gsynth_sims``
+     - Xu (2017) Table A5 on ``sim_factor.R``: cross-validation recovers the
+       true rank at 0.801, 0.921, 0.896 and 0.895 in the paper's four
+       ``Ntr = 5`` cells, and at 0.847, 0.887, 0.867 and 0.867 here. Also
+       cross-validated against the ``gsynth 1.0`` the archive ships -- at a
+       shared rank the two agree to solver precision, and all fifteen rank
+       disagreements over 600 draws fall between gsynth 1.0's 1%
+       cross-validation guard and mlsynth's 0.1%, none outside
    * - ``shi_fine_grained_sc``
      - Shi-Sridhar-Misra-Blei (2022) Table 2, reproduced cell for cell, plus the
        ``|S|`` blow-up of Figure 3 under the paper's own least squares. Records
