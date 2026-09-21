@@ -25,7 +25,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.exceptions import (MlsynthConfigError, MlsynthDataError,
+                                MlsynthEstimationError)
 
 
 # --------------------------------------------------------------------------
@@ -228,3 +229,62 @@ def test_selector_rejects_invalid_configuration(kw):
     base = dict(c1=2, c2=0, n_ref=5, seed=0, n_random=2, nstart=2)
     with pytest.raises(MlsynthConfigError):
         select_fgrc_k(X, **{**base, **kw})
+
+
+# --------------------------------------------------------------------------
+# Layer 4: every way the caller can be wrong, and how it is told
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("args", [
+    (np.zeros(8), range(1, 4)),                        # not a matrix
+    (np.zeros((1, 2)), range(1, 4)),                   # one unit
+    (np.zeros((30, 2)) + 1.0, []),                     # no k to evaluate
+    (np.zeros((30, 2)) + 1.0, [0, 1]),                 # k below one
+])
+def test_gap_rejects_malformed_arguments(args):
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    with pytest.raises(MlsynthConfigError):
+        gap_statistic(args[0], args[1], n_ref=3, seed=0)
+
+
+def test_gap_rejects_a_score_matrix_with_holes_in_it():
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    F = np.random.default_rng(0).standard_normal((30, 2))
+    F[7, 1] = np.nan
+    with pytest.raises(MlsynthDataError):
+        gap_statistic(F, range(1, 4), n_ref=3, seed=0)
+
+
+def test_one_se_falls_through_to_the_largest_k_when_no_k_qualifies():
+    """A Gap curve that keeps climbing by more than a standard error has no
+    smallest adequate k, and the reading is then the end of the grid -- which
+    is the boundary condition the caller is told about separately."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import one_se_k
+    gap = np.array([0.0, 1.0, 2.0, 3.0])
+    se = np.zeros(4)
+    assert one_se_k(gap, se, [1, 2, 3, 4]) == 4
+
+
+@pytest.mark.parametrize("kw", [
+    dict(trajectories=np.zeros(8)),                    # not a panel
+    dict(c2=-1),                                       # negative disturbing dimension
+    dict(c1=30, n_knots=4),                            # wider than the B-spline basis
+])
+def test_selector_rejects_more_invalid_configuration(kw):
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X = kw.pop("trajectories", None)
+    if X is None:
+        X = np.random.default_rng(0).standard_normal((12, 30))
+    base = dict(c1=2, c2=0, n_ref=3, seed=0, n_random=2, nstart=2)
+    with pytest.raises(MlsynthConfigError):
+        select_fgrc_k(X, k_candidates=(2, 3), **{**base, **kw})
+
+
+def test_a_panel_no_candidate_can_be_fitted_on_says_so():
+    """Identical trajectories centre to a zero basis matrix, so every restart
+    of every candidate hits a degenerate partition. The failure is reported;
+    it is not a silent fall-through to some default k."""
+    from mlsynth.utils.clustersc_helpers.rpca.selection import select_fgrc_k
+    X = np.tile(np.linspace(0.0, 1.0, 30), (12, 1))
+    with pytest.raises(MlsynthEstimationError):
+        select_fgrc_k(X, k_candidates=(2, 3), c1=2, c2=0,
+                      n_ref=3, seed=0, n_random=2, nstart=2)
