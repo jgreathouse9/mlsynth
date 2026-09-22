@@ -563,6 +563,55 @@ whose ``N.random`` defaults to ``1``. Raise them when the cluster
 assignment moves between runs on a panel: the restarts minimise over
 starting points, so spending more of them can only lower the retained
 loss, never change what is being optimised.
+Choosing :math:`K` is harder than it looks, and the rule the authors
+propose for it does not survive contact with panels this size. Yamamoto
+and Hwang give a self-consistency check: for a candidate :math:`K`, fit
+the method, compute the Gap statistic of Tibshirani, Walther and Hastie
+(2001) on the resulting component scores over a wider grid of :math:`k`,
+and accept :math:`K` when
+
+.. math:: \operatorname*{argmax}_k \operatorname{Gap}(k \mid L_C, L_D, K) = K.
+
+mlsynth implements it in ``mlsynth.utils.clustersc_helpers.rpca.selection``,
+and leaves it there. No configuration wires it to ``fgrc_k``, for two
+measured reasons.
+
+The acceptance is not independent evidence. The Gap is read on
+:math:`\mathbf{G}\mathbf{A}_1`, the subspace fGRC chose *under the
+assumption of* :math:`K` clusters by minimising within-cluster scatter in
+exactly those coordinates, against reference clouds drawn inside that
+same fixed subspace, which never pay the cost of having chosen it. On
+white noise at :math:`N = 30` with :math:`L_D = 1`, the fitted subspace
+puts its Gap maximum at :math:`K` in 10 to 11 replications out of 12; a
+random two-dimensional projection of the same basis matrix does so in 0
+to 2, which is chance. The acceptance rate on data with nothing to find
+is accordingly uncontrolled, and it is worst in the small-:math:`N`,
+:math:`L_D = 1` regime panel data lives in: on structureless panels of 18
+units, every replication accepted a candidate.
+
+A maximum at an end of the evaluation grid is a property of the grid. On
+the 17-unit Basque panel the Gap maximum moves with the grid it is read
+over -- 1, 6, 8, 10, 12 and 16 for grids :math:`1\ldots4` through
+:math:`1\ldots16` -- so the ranks the relaxation step reads off are the
+candidate list sorted by distance from the edge, and the :math:`K` it
+returns changes the donor pool from 15 units to 9 and the ATT from
+:math:`-0.365` to :math:`-1.212`.
+
+The selector reports both conditions. ``boundary`` lists the candidates
+whose curve peaked at an end of the grid, they are excluded from the
+accepted set and from the relaxation, and when that leaves nothing
+``selected_k`` is ``None``. ``one_se`` carries Tibshirani's
+one-standard-error reading of the same curves, which is the conservative
+instrument of the two: across 18 structureless panels it answered
+:math:`k = 1` on all 54 candidate curves, and on the paper's planted
+design it answers 3. On Basque it answers 1 for every candidate.
+
+So ``fgrc_k`` stays yours to set, and the diagnostic is something to run
+deliberately and read, not a number to accept. Only this stage of the
+authors' Algorithm 1 is implemented: the smoothing :math:`\lambda` by
+generalised cross-validation and the penalties
+:math:`(\rho_1, \rho_2)` by the Calinski-Harabasz pseudo-F index are
+taken from the configuration instead of searched.
 
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

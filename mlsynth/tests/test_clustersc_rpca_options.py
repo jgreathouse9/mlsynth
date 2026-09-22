@@ -122,3 +122,31 @@ def test_defaults_are_unchanged_by_the_new_fields(germany_df):
                        fgrc_n_random=40, fgrc_nstart=40)).fit().rpca
     assert a.att == pytest.approx(b.att, rel=1e-12)
     assert a.metadata["cluster_labels"] == b.metadata["cluster_labels"]
+
+
+# --------------------------------------------------------------------------
+# The Gap-statistic selector is not a configuration option
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("kw", [
+    dict(fgrc_k_selection="gap"),
+    dict(fgrc_k_selection="fixed"),
+    dict(fgrc_k_candidates=[2, 3]),
+    dict(fgrc_gap_n_ref=5),
+])
+def test_the_gap_selector_is_not_reachable_from_the_config(germany_df, kw):
+    """A root-cause analysis (see ``rpca/selection.py``) found the selection
+    rule's acceptance rate under the null uncontrolled in the regime this
+    library runs in, so no configuration wires it to ``fgrc_k``. The keys are
+    refused by ``extra="forbid"`` and the selector stays a diagnostic the
+    caller invokes deliberately."""
+    with pytest.raises(MlsynthConfigError):
+        CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", **kw))
+
+
+def test_fgrc_k_comes_only_from_the_configured_value(germany_df):
+    a = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc")).fit().rpca
+    b = CLUSTERSC(_cfg(germany_df, cluster_method="fgrc", fgrc_k=2)).fit().rpca
+    assert a.metadata["fgrc_k"] == 2
+    assert a.att == pytest.approx(b.att, rel=1e-12)
+    assert "fgrc_k_selection" not in a.metadata
+    assert "fgrc_gap_curves" not in a.metadata

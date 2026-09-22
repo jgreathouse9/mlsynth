@@ -26,7 +26,45 @@ now returns and the back-compat guarantee.
   retained loss, and a test asserts that ordering instead of a fixed number.
   Passing the defaults explicitly reproduces not passing them, on both the ATT
   and the cluster labels.
+- `mlsynth.utils.clustersc_helpers.rpca.selection`: the number-of-clusters stage
+  of Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
+  authors' own R package previously implemented -- as a diagnostic. It is
+  deliberately not a configuration option: `fgrc_k` stays whatever you set, and
+  nothing in `CLUSTERSCConfig` reaches the rule.
 
+  The rule is a self-consistency check. For a candidate K the method is fitted,
+  the Gap statistic (Tibshirani, Walther and Hastie 2001) is computed on the
+  resulting component scores over a wider grid of k, and K is accepted when
+  `argmax_k Gap(k | L_C, L_D, K) = K`. Two measurements say why the number it
+  produces is not something to act on unread.
+
+  The acceptance is not independent of the fit it checks. The Gap is read on the
+  subspace fGRC chose under the assumption of K clusters, against references
+  drawn inside that same fixed subspace. On white noise at N=30 with c2=1 the
+  fitted subspace puts its Gap maximum at K in 10 to 11 replications out of 12,
+  against 0 to 2 for a random projection of the same basis, which is chance. On
+  structureless 18-unit panels with c2=1, every replication accepted a
+  candidate.
+
+  A maximum at an end of the evaluation grid is a property of the grid. On the
+  17-unit Basque panel it moves with the grid -- 1, 6, 8, 10, 12, 16 for grids
+  1..4 through 1..16 -- and the K that follows moves the donor pool from 15
+  units to 9 and the ATT from -0.365 to -1.212.
+
+  `FGRCSelection` reports both: `boundary` names the candidates whose curve
+  peaked at an end of the grid, they are excluded from acceptance and from the
+  relaxation, and `selected_k` is `None` when that leaves nothing. `one_se`
+  carries Tibshirani's one-standard-error reading, which is the conservative
+  instrument: across 18 structureless panels it answered k=1 on all 54 candidate
+  curves, and on the paper's planted design it answers 3. The evaluation grid
+  must now extend past the largest candidate, and a panel too small for such a
+  grid is refused instead of silently truncated -- on five units the old
+  truncation reported two candidates as accepted on pure noise.
+
+  Validation is against the planted design of the paper's Section 5 and against
+  the null of that same design with the separation removed. Only this stage of
+  Algorithm 1 is implemented; the smoothing lambda by GCV and the penalties by
+  pseudo-F are taken from the caller.
 ### Fixed
 - The GEOX engine property suite skips an engine whose optional dependency is
   absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
