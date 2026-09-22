@@ -215,6 +215,41 @@ migration or refactor PR.
 - Commit author/committer email: `noreply@anthropic.com`.
 - Don't create a PR unless asked.
 
+### Never `git add -A` while a tool holds the working tree
+
+`tools/mutation/run_mutants.py` edits source files **in place**: it writes a
+mutant, runs the tests, restores the file, and moves to the next one. A
+formatter, a codemod or a `--fix` linter does the same. While any of those is
+running, the tree is not yours.
+
+`git status` is a snapshot, not a lock. A clean status one second and
+`git add -A` the next can stage whatever the other process wrote in between,
+and this has already happened once: commit `4c836c51` on
+`claude/focused-cray-8d0vkh` shipped the mutant
+`the-draws-are-made-and-thrown-away` into `sweep_lambda`'s forward pass,
+
+```
+-        res, f_true = _solve(lam, starts + _restarts(idx, 0))
++        res, f_true = _solve(lam, starts)
+```
+
+which left `outer_restarts` accepted, recorded on the result and documented,
+while the draws were built and discarded. A planted defect, pushed, reading as
+a feature. It survived until the next `git diff` because nothing fails when a
+mutant is merely *present* -- that is the whole design of a mutant.
+
+So:
+
+- Stage named paths (`git add path/to/file`), not `-A` or `.`, whenever a
+  background job could be writing to the repository.
+- Before committing, check the diff of what you are about to stage, not just
+  `git status`. `git diff --cached` after staging costs one command.
+- Prefer waiting for a mutation run to finish over committing beside it. If the
+  commit cannot wait, stage the exact files the change touches and confirm the
+  staged diff contains only intended lines.
+- A commit whose message says a verification run is still in progress is a
+  commit made inside exactly the window this rule is about.
+
 ### One estimator, one branch, one scope
 
 Every new estimator gets its **own branch** and its **own scope**. Do not add a
