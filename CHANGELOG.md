@@ -9,6 +9,30 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `anchor_predictor` and `anchor_selection` on `SparseSCConfig`: which predictor
+  carries the ex-post normalisation `v_k0 = 1` of Vives-i-Bastida (2023)
+  Algorithm 1. The normalisation is what makes `V` identified, and the paper's
+  appendix states that every `k0` gives slightly different donor weights and
+  that the anchored predictor enters the model with probability one. Until now
+  it was whichever column the caller listed first, with nothing saying so.
+
+  `anchor_predictor` names it, taking a covariate column or an outcome lag as
+  `"<outcome>@<period>"`. `anchor_selection="sweep"` takes the appendix's other
+  route, refitting once per candidate and keeping the lowest validation MSE.
+  Both default to current behaviour, which matches the authors' MATLAB driver
+  (`loss_function.m`, `v = [1; v2]`), so nothing moves unless asked.
+
+  It is not a small knob on a small panel: on the 17-region Basque panel with
+  the thirteen Abadie-Gardeazabal predictors, the anchor alone moves the ATT
+  from -0.277 to -0.529. The chosen anchor, the mode and every candidate's score
+  are reported on `method_details.parameters_used`.
+
+  The sweep warns below five validation periods, the split of the authors' own
+  Prop 99 application. Shorter than that the criterion cannot separate
+  candidates: on the 15-period Basque pre-window the default leaves four, and
+  there it prefers `popdens` -- the most dispersed predictor, and the one with
+  the worst pre-treatment fit -- which loses at every longer split.
+
 - `fgrc_n_random` and `fgrc_nstart` on `CLUSTERSCConfig`: the two restart counts
   for fGRC clustering (`cluster_method="fgrc"`), both defaulting to 40, which is
   what the port already used. They were not reachable from the config, so a user

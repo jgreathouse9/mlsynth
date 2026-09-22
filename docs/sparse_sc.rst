@@ -25,9 +25,10 @@ pre-period MSE), SparseSC
   block of the pre-period (a 75/25 train/validation split by
   default, which matches the 14/5-year split Vives used in the
   empirical Prop 99 application); and
-* anchors the first predictor's :math:`v_p`-weight at 1, which fixes
+* anchors one predictor's :math:`v_p`-weight at 1, which fixes
   the overall scale and removes the trivial :math:`\mathbf{v} = \mathbf{0}` minimum
-  that the L1 penalty would otherwise admit.
+  that the L1 penalty would otherwise admit. Which predictor carries it is
+  ``anchor_predictor``; see Choosing the anchored predictor below.
 
 The donor weights :math:`\mathbf{w}` solve the usual SCM simplex QP given
 :math:`\mathbf{v}`.
@@ -282,6 +283,38 @@ modes are available, controlled by ``use_analytical_grad``:
   True``, the L-BFGS-B ``ftol`` auto-tightens to ``1e-12`` because
   the clean gradient converges in many fewer iterations and the
   default ``1e-8`` terminates the loop before convergence.
+
+Choosing the anchored predictor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The normalisation :math:`v_{k_0} = 1` is what makes :math:`\mathbf{v}`
+identified at all, and the scale of the remaining weights is relative to
+:math:`\mathbf{x}_{k_0}`. Vives-i-Bastida derives this in the appendix and
+states its consequence: every :math:`k_0` gives slightly different donor
+weights, and the anchored predictor enters the model with probability one.
+
+So the anchor is a modelling choice, and on a small panel it is a
+consequential one. On the 17-region Basque panel with the thirteen
+Abadie-Gardeazabal predictors, moving the anchor across all thirteen moves
+the estimated ATT from :math:`-0.277` to :math:`-0.529`.
+
+``anchor_predictor`` names it, taking a column from ``covariates`` or an
+outcome lag written ``"<outcome>@<period>"``. Set it when domain knowledge
+says a predictor has to be in the model. The default is the first predictor,
+which is what the authors' MATLAB driver does.
+
+``anchor_selection="sweep"`` takes the appendix's other route and treats
+:math:`k_0` as a hyper-parameter, refitting once per candidate and keeping
+the one with the lowest validation MSE. It costs a full fit per predictor.
+The chosen anchor and every candidate's score are reported on
+``result.method_details.parameters_used``.
+
+The sweep is only as good as the block it scores on. Below five validation
+periods -- the split of the authors' own Prop 99 application -- the
+validation MSE cannot separate candidates, and the sweep warns. On the
+15-period Basque pre-window the default split leaves four, and there the
+criterion prefers ``popdens``, the most dispersed predictor in the set and
+the one with the worst pre-treatment fit, which loses at every longer split.
 
 Lambda selection
 ^^^^^^^^^^^^^^^^
