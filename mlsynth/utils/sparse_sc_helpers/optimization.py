@@ -258,7 +258,7 @@ def sweep_lambda(
             warm_start=warm_start, multi_start=multi_start, include_warm_first=idx > 0,
             champion=champion_v2,
         )
-        res, f_true = _solve(lam, starts + _restarts(idx, 0))
+        res, f_true = _solve(lam, starts)
         v2_hat = np.clip(res.x, 0.0, None)
         outer_curve[idx] = f_true
         val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
