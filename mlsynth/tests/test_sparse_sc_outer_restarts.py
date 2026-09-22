@@ -257,7 +257,44 @@ class TestEdges:
 
 
 # ---------------------------------------------------------------------------
-# Layer 3: failure modes -- reported, not swallowed
+# Layer 3: the regression -- panels where a cold start is measurably worse
+# ---------------------------------------------------------------------------
+
+class TestRegression:
+    """Without restarts the sweep settles wherever ``default_v20`` leads.
+
+    On 38 of 60 factor panels drawn this way the restarted solve lowers the
+    outer objective by more than 2%; the four pinned below cut it by 86% to
+    98%. The cold solution is not always the low-|A| one -- on these panels it
+    carries more active donors than the restarted solution, not fewer -- so
+    what the restarts buy is a different basin, not a particular donor count.
+    """
+
+    PANELS = (11, 19, 34, 53)
+
+    @pytest.mark.parametrize("panel", PANELS)
+    def test_restarts_reach_a_materially_better_critical_point(self, panel):
+        _, _, _, cold, _, _ = _sweep(panel, restarts=0, grid=ONE)
+        _, _, _, rs, _, _ = _sweep(panel, restarts=8, restart_seed=0, grid=ONE)
+        assert rs[0] < cold[0]
+        # measured cuts are 86-98%; assert half that so the test survives a
+        # different BLAS kernel without going vacuous
+        assert rs[0] <= 0.5 * cold[0]
+
+    def test_the_cold_start_is_what_is_being_escaped(self):
+        """The restarted solve must beat the cold start's own critical point,
+        not merely differ from it -- otherwise the draws are just noise."""
+        worse = 0
+        for panel in self.PANELS:
+            _, _, _, cold, _, _ = _sweep(panel, restarts=0, grid=ONE)
+            _, _, _, rs, _, _ = _sweep(panel, restarts=8, restart_seed=0,
+                                       grid=ONE)
+            worse += int(cold[0] > rs[0] * 2.0)
+        assert worse == len(self.PANELS)
+
+
+# ---------------------------------------------------------------------------
+# Layer 4: failure modes -- reported, not swallowed
 # ---------------------------------------------------------------------------
 
 class TestFailures:

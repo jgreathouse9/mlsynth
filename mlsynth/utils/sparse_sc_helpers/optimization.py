@@ -27,9 +27,10 @@ Two performance refinements over a naive implementation are in place:
   donors is a stationary point of it almost for free: ``w*(v)`` has
   ``|A| - 1`` degrees of freedom there, so the envelope gradient says
   nothing about the donors that are out, and at ``|A| = 1`` the gradient
-  is identically zero. A single cold start settles at whichever such
-  point it is nearest. On the augmented Vives California specification
-  (40 predictors, 38 donors) that is a two-donor point with a training
+  is identically zero, so such points are plentiful. A single cold start
+  settles at whichever critical point it is nearest -- not necessarily a
+  low-|A| one, but on the augmented Vives California specification
+  (40 predictors, 38 donors) it is: a two-donor point with a training
   loss of 77.42, against the 1.45 the author's own stored V attains, and
   an ATT of -29.04 against the paper's -18.2. The deterministic heuristic
   starts do not help -- ``1``, ``0.1 * 1`` and the warm start all lie in
