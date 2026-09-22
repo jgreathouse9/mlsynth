@@ -22,7 +22,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from ...exceptions import MlsynthDataError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..datautils import balance, dataprep
 from .structures import SparseSCInputs
 
@@ -91,6 +91,7 @@ def prepare_sparse_sc_inputs(
     outcome_lag_periods: Optional[Sequence[Any]] = None,
     T0_train: Optional[int] = None,
     standardize: bool = True,
+    anchor_predictor: Optional[str] = None,
 ) -> SparseSCInputs:
     """Build SparseSC inputs from a single long-format panel.
 
@@ -184,6 +185,19 @@ def prepare_sparse_sc_inputs(
                                lag_period, unit_order)
         )
         predictor_names.append(f"{outcome}@{lag_period}")
+
+    if anchor_predictor is not None:
+        # The optimiser pins row 0 to v = 1 (Vives-i-Bastida Algorithm 1 line
+        # 1), so anchoring a predictor is moving it to the front. Order is the
+        # only thing that changes; predictor_weights stays keyed by name.
+        if anchor_predictor not in predictor_names:
+            raise MlsynthConfigError(
+                f"anchor_predictor {anchor_predictor!r} is not among the "
+                f"predictors built here: {predictor_names}."
+            )
+        k0 = predictor_names.index(anchor_predictor)
+        predictor_rows.insert(0, predictor_rows.pop(k0))
+        predictor_names.insert(0, predictor_names.pop(k0))
 
     big = np.vstack(predictor_rows)            # shape (P, N+1)
     X_treated = big[:, 0].astype(float)        # (P,)

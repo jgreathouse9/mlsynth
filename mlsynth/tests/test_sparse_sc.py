@@ -558,11 +558,16 @@ def test_the_sweep_reports_which_anchor_it_chose_and_what_it_scored():
     assert set(details.get("anchor_scores", {})) == {"p0", "p1", "p2", "p3"}
 
 
-def test_the_sweep_on_a_single_predictor_matches_the_fixed_fit():
+def test_the_sweep_equals_the_fixed_fit_at_the_anchor_it_chose():
+    """The sweep is anchor selection and nothing else: once it has picked, the
+    fit must be bit-identical to naming that anchor directly."""
     df = _factor_panel()
-    a = SparseSC(_anchor_cfg(df, covariates=["p0"])).fit()
-    b = SparseSC(_anchor_cfg(df, covariates=["p0"], anchor_selection="sweep")).fit()
-    assert a.effects.att == pytest.approx(b.effects.att, rel=1e-12)
+    swept = SparseSC(_anchor_cfg(df, anchor_selection="sweep")).fit()
+    chosen = swept.inputs.predictor_names[0]
+    fixed = SparseSC(_anchor_cfg(df, anchor_predictor=chosen)).fit()
+    assert swept.effects.att == pytest.approx(fixed.effects.att, rel=1e-12)
+    assert swept.predictor_weights == fixed.predictor_weights
+    assert swept.inputs.predictor_names == fixed.inputs.predictor_names
 
 
 def test_naming_an_anchor_and_asking_for_a_sweep_is_refused():

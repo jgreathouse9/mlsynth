@@ -7,7 +7,7 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, List, Literal, Optional
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...config_models import BaseEstimatorConfig
 
 
@@ -52,6 +52,31 @@ class SparseSCConfig(BaseEstimatorConfig):
             "End of the training block within the pre-treatment period "
             "(exclusive). Validation runs on [T0_train, T0_total). "
             "Defaults to floor(T0_total * 0.75)."
+        ),
+    )
+    anchor_predictor: Optional[str] = Field(
+        default=None,
+        description=(
+            "Predictor whose weight is pinned to 1 -- the ex-post "
+            "normalisation of Vives-i-Bastida (2023) Algorithm 1, v_k0 = 1, "
+            "which the appendix shows is needed for V to have a unique "
+            "solution. Names a column in ``covariates`` or an outcome lag as "
+            "``'<outcome>@<period>'``. The anchored predictor enters the "
+            "model with probability one and each choice gives slightly "
+            "different donor weights, so set it when domain knowledge says "
+            "which predictor must be in. Defaults to the first predictor, "
+            "matching the reference MATLAB driver."
+        ),
+    )
+    anchor_selection: Literal["fixed", "sweep"] = Field(
+        default="fixed",
+        description=(
+            "How the anchored predictor is chosen. 'fixed' uses "
+            "``anchor_predictor``, or the first predictor when that is unset. "
+            "'sweep' treats it as a hyper-parameter -- the appendix's second "
+            "remedy -- refitting once per candidate and keeping the one with "
+            "the lowest validation MSE. It costs one full fit per predictor, "
+            "so it is opt-in."
         ),
     )
     lambda_grid: Optional[List[float]] = Field(
@@ -216,3 +241,24 @@ class SparseSCConfig(BaseEstimatorConfig):
         default="gaussian",
         description="Out-of-sample tabulation for the scpi prediction intervals.",
     )
+
+    @model_validator(mode="after")
+    def _check_anchor(self) -> "SparseSCConfig":
+        """The anchored predictor must name one that will exist, and naming one
+        contradicts asking for a sweep over all of them."""
+        if self.anchor_predictor is not None and self.anchor_selection == "sweep":
+            raise ValueError(
+                "anchor_predictor names the anchor and anchor_selection='sweep' "
+                "searches for it; set one or the other, not both."
+            )
+        if self.anchor_predictor is None:
+            return self
+        known = list(self.covariates or [])
+        known += [f"{self.outcome}@{p}" for p in (self.outcome_lag_periods or [])]
+        if self.anchor_predictor not in known:
+            raise ValueError(
+                f"anchor_predictor {self.anchor_predictor!r} is not among the "
+                f"predictors this config builds: {known}. Name a covariate "
+                f"column, or an outcome lag as '<outcome>@<period>'."
+            )
+        return self

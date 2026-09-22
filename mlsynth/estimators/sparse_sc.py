@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from pydantic import ValidationError
@@ -49,6 +51,11 @@ from ..utils.sparse_sc_helpers.structures import (
     SparseSCInference,
     SparseSCResults,
 )
+
+
+# Below this many validation periods the upper-level loss cannot separate
+# candidate anchors; the reference driver uses 5 (Te=14 of T=19).
+_MIN_VALIDATION_BLOCK = 5
 
 
 class SparseSC:
@@ -117,6 +124,8 @@ class SparseSC:
             if config.lambda_grid is not None else None
         )
         self.standardize: bool = config.standardize
+        self.anchor_predictor: Any = config.anchor_predictor
+        self.anchor_selection: str = config.anchor_selection
         self.outer_loss_window: str = config.outer_loss_window
         self.solver: Any = config.solver
         self.max_outer_iter: int = config.max_outer_iter
@@ -143,14 +152,51 @@ class SparseSC:
     def fit(self) -> SparseSCResults:
         """Run the lambda sweep, recover W-weights, and return results."""
         try:
-            inputs = prepare_sparse_sc_inputs(
-                df=self.df, outcome=self.outcome, treat=self.treat,
-                unitid=self.unitid, time=self.time,
-                covariates=self.covariates,
-                outcome_lag_periods=self.outcome_lag_periods,
-                T0_train=self.T0_train,
-                standardize=self.standardize,
-            )
+            def _inputs(anchor):
+                return prepare_sparse_sc_inputs(
+                    df=self.df, outcome=self.outcome, treat=self.treat,
+                    unitid=self.unitid, time=self.time,
+                    covariates=self.covariates,
+                    outcome_lag_periods=self.outcome_lag_periods,
+                    T0_train=self.T0_train,
+                    standardize=self.standardize,
+                    anchor_predictor=anchor,
+                )
+
+            anchor_scores: Dict[str, float] = {}
+            anchor = self.anchor_predictor
+            if self.anchor_selection == "sweep":
+                # The appendix's second remedy: treat k0 as a hyper-parameter
+                # and keep the one minimising the upper-level loss.
+                candidates = list(_inputs(None).predictor_names)
+                for cand in candidates:
+                    probe = _inputs(cand)
+                    _v, _l, _g, _t, cand_val, _vp = sweep_lambda(
+                        X1=probe.X1, X0=probe.X0, Y1=probe.Y1, Y0=probe.Y0,
+                        T0_total=probe.T0_total, T0_train=probe.T0_train,
+                        lambda_grid=self.lambda_grid, solver=self.solver,
+                        max_outer_iter=self.max_outer_iter,
+                        outer_loss_window=self.outer_loss_window,
+                        use_analytical_grad=self.use_analytical_grad,
+                        warm_start=self.warm_start,
+                        robust=self.robust_selection,
+                    )
+                    anchor_scores[str(cand)] = float(np.nanmin(cand_val))
+                anchor = min(anchor_scores, key=anchor_scores.__getitem__)
+
+            inputs = _inputs(anchor)
+            n_val = inputs.T0_total - inputs.T0_train
+            if self.anchor_selection == "sweep" and n_val < _MIN_VALIDATION_BLOCK:
+                warnings.warn(
+                    f"anchor_selection='sweep' is choosing between "
+                    f"{len(anchor_scores)} predictors on a validation block of "
+                    f"{n_val} periods. The upper-level loss has little power to "
+                    f"discriminate that short, and the anchor it returns may be "
+                    f"an artifact of the split; raise T0_train's complement or "
+                    f"set anchor_predictor from domain knowledge.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
             optv, opt_lambda, grid, train_curve, val_curve, v_path = sweep_lambda(
                 X1=inputs.X1, X0=inputs.X0,
@@ -316,6 +362,14 @@ class SparseSC:
                 inputs=inputs, design=design, inference_detail=inference,
                 predictor_weights=predictor_weights, scpi=scpi_obj,
             )
+            # Which predictor carried v = 1, and -- when it was searched for --
+            # what every candidate scored, so the choice is auditable.
+            details = dict(results.method_details.parameters_used or {})
+            details["anchor_predictor"] = str(inputs.predictor_names[0])
+            details["anchor_selection"] = str(self.anchor_selection)
+            if anchor_scores:
+                details["anchor_scores"] = anchor_scores
+            object.__setattr__(results.method_details, "parameters_used", details)
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
         except Exception as exc:
