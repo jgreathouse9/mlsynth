@@ -2269,7 +2269,7 @@ timeout = 900.0
   id = "the-draws-are-made-and-thrown-away"
   find = "        res = _solve(lam, starts + _restarts(idx, 0))"
   replace = "        res = _solve(lam, starts)"
-  models = "the shipped sweep until 2026-09, which offered L-BFGS-B only the cold MATLAB init, the two heuristic constants and the warm start. All four lie in one region, so the solve settled at whichever critical point that region contains. On Vives's 40-predictor California spec that is a two-donor point with a training loss of 77.42 against the 1.45 his own stored V attains, and an ATT of -29.0 against the paper's -18.2; on 38 of 60 factor panels it costs more than 2% of the outer objective. The mutant keeps the config field, the seed and the documentation, and quietly restores the single-basin search"
+  models = "the shipped sweep until 2026-09, which offered L-BFGS-B only the cold MATLAB init, the two heuristic constants and the warm start. All four lie in one region, so the solve settled at whichever critical point that region contains. On Vives's 40-predictor California spec that is a two-donor point with a training loss of 77.42 against the 1.45 his own stored V attains, and an ATT of -29.0 against the paper's -18.2; on 51 of 80 factor panels it costs more than 2% of the outer objective, with cuts up to 86%. The mutant keeps the config field, the seed and the documentation, and restores the single-basin search with nothing in the result to show it"
 
   [[target.mutant]]
   id = "the-draws-are-too-timid-to-leave-the-basin"
