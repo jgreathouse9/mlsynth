@@ -2258,3 +2258,33 @@ timeout = 300.0
   replace = """    ks = [int(k) for k in k_values]
     return ks[int(np.argmax(gap))]"""
   models = "discarding gap_se and reporting the argmax twice. The two readings disagree exactly where it matters: across 18 structureless panels the 1-SE rule answered k=1 on all 54 candidate curves while the argmax accepted a candidate on 4 of them, and on Basque the 1-SE rule answers 1 for every candidate against an argmax of 6. A selector whose conservative reading is a copy of its permissive one reports one instrument as two"
+
+[[target]]
+name = "sparse-sc-outer-restarts"
+module-path = "mlsynth/utils/sparse_sc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outer_restarts.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-draws-are-made-and-thrown-away"
+  find = "        res = _solve(lam, starts + _restarts(idx, 0))"
+  replace = "        res = _solve(lam, starts)"
+  models = "the shipped sweep until 2026-09, which offered L-BFGS-B only the cold MATLAB init, the two heuristic constants and the warm start. All four lie in one region, so the solve settled at whichever critical point that region contains. On Vives's 40-predictor California spec that is a two-donor point with a training loss of 77.42 against the 1.45 his own stored V attains, and an ATT of -29.0 against the paper's -18.2; on 38 of 60 factor panels it costs more than 2% of the outer objective. The mutant keeps the config field, the seed and the documentation, and quietly restores the single-basin search"
+
+  [[target.mutant]]
+  id = "the-draws-are-too-timid-to-leave-the-basin"
+  find = "_RESTART_LOG_SD = 2.0"
+  replace = "_RESTART_LOG_SD = 0.1"
+  models = "a spread chosen to look conservative. The draws are multiplicative around the cold init, so the spread is what decides whether they can reach a different active set at all; at 0.1 every draw lands inside the cold start's own basin and the restart loop becomes an expensive no-op that still reports outer_restarts=4 on the result. This is the failure mode a caller cannot see, because the diagnostic says the restarts ran"
+
+  [[target.mutant]]
+  id = "the-cold-start-stops-being-a-candidate"
+  find = "        res = _solve(lam, starts + _restarts(idx, 0))"
+  replace = "        res = _solve(lam, _restarts(idx, 0) or starts)"
+  models = "restarts that replace the deterministic starts instead of joining them. It looks like the same search and is not: the guarantee that the answer is never worse than the cold start comes from the cold start remaining in the candidate set, and without it a run can be beaten by the previous release on a panel where the cold init was already right -- which is most of them, since finite differences landed in the good basin unaided on this machine"
+
+  [[target.mutant]]
+  id = "an-undefined-predictor-spread-passes-through"
+  find = "    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)"
+  replace = "    sd = np.where(sd == 0, 1.0, sd)"
+  models = "the shipped guard until 2026-09. ddof=1 leaves the predictor standard deviation undefined on a single-donor panel, and NaN is not zero, so the guard passed it through into the start point. Alone it produced a NaN start; with the restart draws, which are v20 * exp(...), it produces NaN at every start and the whole sweep returns NaN without raising"
