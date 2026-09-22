@@ -99,6 +99,14 @@ def _simulate_relaxation_groups(
         r = max(1, int(np.floor(np.log(T0))))
     if K is None:
         K = r
+    if K > J:
+        # groups = arange(J) % K leaves groups J..K-1 empty, and an empty
+        # group's weight is dropped from w_star -- the oracle would stop
+        # being a convex combination of the donors while still looking drawn.
+        raise ValueError(
+            f"cannot place {K} groups over {J} donors: groups {J}..{K - 1} "
+            f"would be empty and their oracle weight dropped from w_star."
+        )
     T = T0 + T1
 
     F = np.zeros((T, r))
@@ -122,12 +130,12 @@ def _simulate_relaxation_groups(
     eps = rng.uniform(-0.1 / np.sqrt(r), 0.1 / np.sqrt(r), size=r)
     lam0 = Lam_co.T @ wG + eps
 
-    # Oracle control weights: spread each group's weight equally over its members.
+    # Oracle control weights: spread each group's weight equally over its
+    # members. K <= J is enforced above, so every group has at least one.
     w_star = np.zeros(J)
     for k in range(K):
         members = np.where(groups == k)[0]
-        if members.size:
-            w_star[members] = wG[k] / members.size
+        w_star[members] = wG[k] / members.size
 
     Yc = Lam @ F.T + rng.normal(size=(J, T))       # (J, T)
     y0 = lam0 @ F.T + rng.normal(size=T)           # (T,)
