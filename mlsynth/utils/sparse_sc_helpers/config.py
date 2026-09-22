@@ -191,6 +191,30 @@ class SparseSCConfig(BaseEstimatorConfig):
             "matters more than exact reproducibility."
         ),
     )
+    outer_restarts: int = Field(
+        default=4, ge=0,
+        description=(
+            "Additional random starts for the outer V-solve at each lambda, "
+            "drawn log-normally around the cold MATLAB init. The outer "
+            "objective is non-convex and a face of the donor simplex with "
+            "few active donors is a stationary point of it almost for free, "
+            "so a single cold start settles wherever it happens to land: on "
+            "the augmented Vives California specification that is a "
+            "two-donor point giving an ATT of -29.0 against the paper's "
+            "-18.2, and which point it is varies with the BLAS kernel. Four "
+            "restarts recover -18.6 and make the selected optimum stable "
+            "across numerical stacks. Set 0 for the single cold start, "
+            "which is faster and reproduces pre-0.3 results."
+        ),
+    )
+    outer_restart_seed: int = Field(
+        default=0, ge=0,
+        description=(
+            "Seed for the outer restart draws. Separate from ``seed`` so "
+            "that re-seeding the placebo inference cannot move the point "
+            "estimate."
+        ),
+    )
     compute_scpi_pi: bool = Field(
         default=False,
         description=(

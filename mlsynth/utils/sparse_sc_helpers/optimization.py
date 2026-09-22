@@ -22,12 +22,27 @@ Two performance refinements over a naive implementation are in place:
   lambda_{i+1}. A failed warm start falls back to the cold MATLAB
   init ``default_v20``.
 
+* **Random restarts** (``outer_restarts``). The outer objective is not
+  convex, and a face of the donor simplex carrying only a few active
+  donors is a stationary point of it almost for free: ``w*(v)`` has
+  ``|A| - 1`` degrees of freedom there, so the envelope gradient says
+  nothing about the donors that are out, and at ``|A| = 1`` the gradient
+  is identically zero. A single cold start settles at whichever such
+  point it is nearest. On the augmented Vives California specification
+  (40 predictors, 38 donors) that is a two-donor point with a training
+  loss of 77.42, against the 1.45 the author's own stored V attains, and
+  an ATT of -29.04 against the paper's -18.2. The deterministic heuristic
+  starts do not help -- ``1``, ``0.1 * 1`` and the warm start all lie in
+  the same region -- but a handful of log-normal draws around the cold
+  init do, recovering -18.64.
+
 The outer V-objective window is controlled by ``outer_loss_window``:
 
-* ``"validation"`` (default, paper) -- outer V minimises validation-
-  block MSE + lambda * ||V||_1. Matches Vives-i-Bastida (2023) Algorithm 1.
+* ``"validation"`` -- outer V minimises validation-block MSE +
+  lambda * ||V||_1. Matches Vives-i-Bastida (2023) Algorithm 1.
 * ``"training"`` -- outer V minimises training-block MSE + lambda *
   ||V||_1. Matches the unpublished MATLAB driver ``sparse_synth.m``.
+  This is what ``SparseSCConfig`` selects by default.
 """
 
 from __future__ import annotations
@@ -41,15 +56,28 @@ from .inner import solve_w
 from .objective import outer_loss_and_grad, selection_mse
 
 
+# Spread of the log-normal restart draws around the cold init, in log units.
+# Calibrated on the Vives k=40 California spec: 2.0 reaches the basin the
+# author's stored V sits in, 1.0 is too timid to leave the cold start's.
+_RESTART_LOG_SD = 2.0
+
+
 def default_lambda_grid(size: int = 51) -> np.ndarray:
     """Return ``[0, logspace(-4, 0, size - 1)]`` (matches MATLAB)."""
     return np.concatenate([[0.0], np.logspace(-4, 0, size - 1)])
 
 
 def default_v20(X0: np.ndarray) -> np.ndarray:
-    """MATLAB starting v_2 = (sd_1 / sd_k)^2 for k > 1."""
+    """MATLAB starting v_2 = (sd_1 / sd_k)^2 for k > 1.
+
+    A predictor row that is constant across donors has sd 0, and with a
+    single donor ``ddof=1`` makes the sd undefined rather than zero, so
+    both are folded to 1. Guarding only ``sd == 0`` let the single-donor
+    case return all-NaN, which the restart draws then multiply into every
+    start.
+    """
     sd = X0.std(axis=1, ddof=1)
-    sd = np.where(sd == 0, 1.0, sd)
+    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)
     return (sd[0] / sd[1:]) ** 2
 
 
@@ -69,6 +97,8 @@ def sweep_lambda(
     warm_start: bool = False,
     multi_start: int = 1,
     robust: bool = True,
+    outer_restarts: int = 0,
+    outer_restart_seed: int = 0,
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Sweep lambda and return the best V-weights.
 
@@ -92,6 +122,15 @@ def sweep_lambda(
         MSE point and is reproducible across numerical stacks rather than
         depending on which critical point a single cold start lands in.
         Roughly doubles the sweep cost; set False for the fast single pass.
+    outer_restarts : int, default 0
+        Number of additional random starts for the outer solve at each
+        lambda, drawn log-normally around ``default_v20``. Zero reproduces
+        the cold-start-only sweep exactly. Costs one extra outer solve per
+        restart per grid point.
+    outer_restart_seed : int, default 0
+        Seed for those draws. The RNG is re-derived per grid point and per
+        pass, so the result does not depend on grid length or on whether
+        the backward continuation pass runs.
 
     Returns
     -------
@@ -108,6 +147,12 @@ def sweep_lambda(
     v_path : np.ndarray
         Per-grid-point V-weights, shape ``(len(grid), P)``.
     """
+    outer_restarts = int(outer_restarts)
+    if outer_restarts < 0:
+        raise ValueError(
+            f"outer_restarts must be non-negative, got {outer_restarts}."
+        )
+
     if outer_loss_window not in {"validation", "training"}:
         raise ValueError(
             "outer_loss_window must be 'validation' or 'training', "
@@ -143,6 +188,21 @@ def sweep_lambda(
     v20_cold = default_v20(X0)
     bounds = [(0.0, None)] * (P - 1)
 
+    def _restarts(idx: int, phase: int) -> list:
+        """Log-normal restart draws around the cold init for one grid point.
+
+        Seeded from ``(outer_restart_seed, idx, phase)`` so each grid point
+        and each pass gets its own independent draws while the whole sweep
+        stays reproducible. Drawing from a single stream instead would make
+        the answer depend on grid length and on whether ``robust`` ran.
+        """
+        if outer_restarts <= 0:
+            return []
+        rng = np.random.default_rng(
+            [int(outer_restart_seed), int(idx), int(phase)])
+        return [v20_cold * np.exp(rng.normal(0.0, _RESTART_LOG_SD, P - 1))
+                for _ in range(outer_restarts)]
+
     outer_curve = np.full(lambda_grid.size, np.nan)
     val_curve = np.full(lambda_grid.size, np.nan)
     v_path = np.zeros((lambda_grid.size, P))
@@ -177,7 +237,7 @@ def sweep_lambda(
             warm_start=warm_start, multi_start=multi_start, include_warm_first=idx > 0,
             champion=champion_v2,
         )
-        res = _solve(lam, starts)
+        res = _solve(lam, starts + _restarts(idx, 0))
         v2_hat = np.clip(res.x, 0.0, None)
         outer_curve[idx] = float(res.fun)
         val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
@@ -200,7 +260,7 @@ def sweep_lambda(
         for idx in range(lambda_grid.size - 2, -1, -1):
             lam = float(lambda_grid[idx])
             starts = [v_path[idx + 1, 1:].copy(), champion_v2.copy(), v_path[idx, 1:].copy()]
-            res = _solve(lam, starts)
+            res = _solve(lam, starts + _restarts(idx, 1))
             if np.isfinite(res.fun) and res.fun < outer_curve[idx] - 1e-12:
                 v2_hat = np.clip(res.x, 0.0, None)
                 outer_curve[idx] = float(res.fun)

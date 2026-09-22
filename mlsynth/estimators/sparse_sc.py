@@ -33,7 +33,12 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import InferenceResults, SparseSCConfig, WeightsResults
+from ..config_models import (
+    InferenceResults,
+    MethodDetailsResults,
+    SparseSCConfig,
+    WeightsResults,
+)
 from ..utils.results_helpers import build_effect_submodels
 from ..exceptions import (
     MlsynthConfigError,
@@ -123,6 +128,8 @@ class SparseSC:
         self.use_analytical_grad: bool = config.use_analytical_grad
         self.warm_start: bool = config.warm_start
         self.robust_selection: bool = config.robust_selection
+        self.outer_restarts: int = config.outer_restarts
+        self.outer_restart_seed: int = config.outer_restart_seed
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
         self.conformal_window: str = config.conformal_window
@@ -163,6 +170,8 @@ class SparseSC:
                 use_analytical_grad=self.use_analytical_grad,
                 warm_start=self.warm_start,
                 robust=self.robust_selection,
+                outer_restarts=self.outer_restarts,
+                outer_restart_seed=self.outer_restart_seed,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
@@ -310,6 +319,20 @@ class SparseSC:
                                    else inputs.time_labels[-1]),
                 prediction_interval=(scpi_obj.to_prediction_interval_spec()
                                      if scpi_obj is not None else None),
+            )
+            # The outer solve is non-convex, so which critical point was
+            # reached is a property of the run the caller may need to act on.
+            submodels["method_details"] = MethodDetailsResults(
+                method_name="SparseSC",
+                is_recommended=True,
+                parameters_used={
+                    "outer_loss_window": self.outer_loss_window,
+                    "outer_restarts": int(self.outer_restarts),
+                    "outer_restart_seed": int(self.outer_restart_seed),
+                    "robust_selection": bool(self.robust_selection),
+                    "warm_start": bool(self.warm_start),
+                    "opt_lambda": float(opt_lambda),
+                },
             )
             results = SparseSCResults(
                 **submodels,
