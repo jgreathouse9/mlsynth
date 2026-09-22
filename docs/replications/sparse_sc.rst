@@ -89,16 +89,16 @@ Results
      - SparseSC (augmented)
      - Vives-i-Bastida (2023) Table 1
    * - ATT, 1989-2000 (packs)
-     - **-18.2**
+     - **-18.1**
      - **-18.2** (Sparse SCM+)
    * - 95% conformal CI
-     - ``[-21.0, -15.4]``
+     - ``[-21.1, -15.1]``
      - excludes 0
    * - pre-treatment RMSE
-     - 2.14
+     - 2.10
      - n/a
    * - predictors kept (of 33)
-     - **5**
+     - **6**
      - sparse
    * - donor pool
      - Utah / Nevada / Connecticut / Colorado carry ~all the weight
@@ -106,13 +106,27 @@ Results
 
 The outer V-objective is non-convex, so which critical point a single cold
 L-BFGS-B start lands in depends on finite-difference / BLAS rounding and drifts
-across numerical stacks. The default ``robust_selection=True`` adds a backward
-continuation pass (a homotopy from the heavily penalised, trivially-sparse end
-of the :math:`\lambda` grid), which tracks the sparse solution path mechanically
-and so selects the true minimum-validation-MSE optimum reproducibly. The
-selected :math:`\lambda` itself is not reported here: it floats among adjacent
-grid points on the flat sparse plateau (all giving the same :math:`-18.2` fit),
-so it is not a stack-invariant quantity; the ATT is.
+across numerical stacks. Two defaults address this. ``robust_selection=True``
+adds a backward continuation pass, a homotopy from the heavily penalised,
+trivially-sparse end of the :math:`\lambda` grid, which tracks the sparse
+solution path mechanically. ``outer_restarts=4`` draws four extra starting
+points per :math:`\lambda`, log-normally around the cold initialiser, and keeps
+the best.
+
+The restarts are what reach the paper's own optimum on the wider predictor
+sets. A face of the donor simplex carrying few active donors is a stationary
+point of the outer objective almost for free: :math:`\mathbf{w}^\ast(v)` has
+:math:`|\mathcal{A}| - 1` degrees of freedom there, so the gradient says
+nothing about the donors that are out, and at :math:`|\mathcal{A}| = 1` it
+vanishes. On Vives's own 40-predictor specification a single cold start settles
+on such a point, two donors with a training loss of 77.42 where the author's
+stored :math:`V` attains 1.45, and returns an ATT of :math:`-29.0`. Neither the
+deterministic heuristic starts nor Nelder-Mead nor basinhopping escape it; four
+random draws reach :math:`-18.6`.
+
+The selected :math:`\lambda` is not reported here: it floats among adjacent
+grid points on the flat sparse plateau, all giving the same fit, so it is not a
+stack-invariant quantity; the ATT is.
 
 What it confirms
 ----------------

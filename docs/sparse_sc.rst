@@ -236,6 +236,47 @@ Each evaluation of the outer objective invokes the inner QP, so the
 outer problem is a smooth bound-constrained NLP solved with
 L-BFGS-B (``scipy.optimize``).
 
+Where the outer solve starts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The outer problem is not convex, and its stationary points are easy to
+reach for a reason that has nothing to do with fit. On a face of the
+donor simplex where only :math:`|\mathcal{A}|` donors are active,
+:math:`\mathbf{w}^\ast(\mathbf{v})` has :math:`|\mathcal{A}| - 1`
+degrees of freedom, so the gradient carries no information about the
+donors that are out; at :math:`|\mathcal{A}| = 1` it is identically
+zero. Such points are plentiful, and a single start from the MATLAB
+initialiser :math:`v_{2,k} = (s_1 / s_k)^2` settles at whichever one it
+is nearest.
+
+On Vives's own 40-predictor California specification that is a
+two-donor point with a training loss of 77.42, where the author's
+stored :math:`\mathbf{v}` attains 1.45, and it returns an ATT of
+:math:`-29.0` against the paper's :math:`-18.2`. The deterministic
+alternatives do not escape it: the heuristic starts :math:`\mathbf{1}`
+and :math:`0.1 \cdot \mathbf{1}`, the warm start from the neighbouring
+:math:`\lambda`, Nelder-Mead and basinhopping all return the same
+77.42.
+
+``outer_restarts`` (default 4) draws that many additional starts per
+:math:`\lambda`, log-normally around the initialiser with a spread of 2
+in log units, and keeps whichever lands lowest. Four of them recover
+:math:`-18.6`. ``outer_restart_seed`` fixes the draws; it is separate
+from ``seed`` so that re-seeding the placebo inference cannot move the
+point estimate. Set ``outer_restarts=0`` for the single cold start,
+which is faster and reproduces pre-0.3 results.
+
+The restarts cost one extra outer solve each per grid point, so the
+sweep runs roughly :math:`1 + \texttt{outer\_restarts}` times as long.
+
+One caveat on reading the :math:`\lambda` path: raising
+``outer_restarts`` does not lower the outer objective at every grid
+point. A better solution at :math:`\lambda_i` becomes the champion and
+the warm start for :math:`\lambda_{i+1}`, so a strictly better solve
+upstream can move a later one into a different basin. The guarantee is
+per solve, and the sweep still minimises validation MSE over the whole
+grid.
+
 Gradient computation
 ~~~~~~~~~~~~~~~~~~~~
 
