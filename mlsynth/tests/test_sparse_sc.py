@@ -473,3 +473,99 @@ class TestRobustSweep:
             time="year", covariates=COVS,
         )
         assert cfg.robust_selection is True
+
+
+# --------------------------------------------------------------------------
+# The anchored predictor: Vives-i-Bastida (2023) Algorithm 1 line 1, v_{k0} = 1
+#
+# The normalisation is necessary -- the appendix derives why V has no unique
+# solution without it -- but the paper is equally explicit that which predictor
+# carries it is a modelling choice: "every k0 will yield slightly different
+# w*_j and the predictor k0 will be included with probability one in the
+# model." Until now that choice was whichever column the caller listed first.
+# --------------------------------------------------------------------------
+def _anchor_cfg(df, **kw):
+    base = dict(df=df, outcome="y", treat="tr", unitid="unit", time="year",
+                covariates=["p0", "p1", "p2", "p3"], display_graphs=False,
+                run_inference=False, seed=0)
+    base.update(kw)
+    return base
+
+
+def test_the_anchor_defaults_to_the_first_predictor():
+    """Current behaviour, pinned: with no anchor named, position 0 carries it."""
+    r = SparseSC(_anchor_cfg(_factor_panel())).fit()
+    assert r.inputs.predictor_names[0] == "p0"
+    assert r.predictor_weights["p0"] == 1.0
+
+
+def test_naming_the_anchor_moves_it_to_the_front_and_pins_it():
+    r = SparseSC(_anchor_cfg(_factor_panel(), anchor_predictor="p2")).fit()
+    assert r.inputs.predictor_names[0] == "p2"
+    assert r.predictor_weights["p2"] == 1.0
+    assert set(r.inputs.predictor_names) == {"p0", "p1", "p2", "p3"}
+
+
+def test_naming_the_default_anchor_explicitly_changes_nothing():
+    df = _factor_panel()
+    a = SparseSC(_anchor_cfg(df)).fit()
+    b = SparseSC(_anchor_cfg(df, anchor_predictor="p0")).fit()
+    assert a.effects.att == pytest.approx(b.effects.att, rel=1e-12)
+    assert a.predictor_weights == b.predictor_weights
+
+
+def test_the_anchor_choice_changes_the_fit():
+    """The property that makes exposing it necessary. On the Basque panel this
+    moves the ATT from -0.277 to -0.529 across the thirteen AG predictors."""
+    df = _factor_panel()
+    a = SparseSC(_anchor_cfg(df, anchor_predictor="p0")).fit()
+    b = SparseSC(_anchor_cfg(df, anchor_predictor="p3")).fit()
+    assert a.predictor_weights != b.predictor_weights
+
+
+def test_an_outcome_lag_can_carry_the_anchor():
+    r = SparseSC(_anchor_cfg(_factor_panel(), outcome_lag_periods=[2005, 2008],
+                             anchor_predictor="y@2005")).fit()
+    assert r.inputs.predictor_names[0] == "y@2005"
+    assert r.predictor_weights["y@2005"] == 1.0
+
+
+@pytest.mark.parametrize("bad", ["not_a_predictor", "y@1999", ""])
+def test_an_unknown_anchor_is_refused_at_config_time(bad):
+    with pytest.raises(MlsynthConfigError):
+        SparseSC(_anchor_cfg(_factor_panel(), anchor_predictor=bad))
+
+
+# --------------------------------------------------------------------------
+# Treating the anchor as a hyper-parameter, the appendix's second remedy
+# --------------------------------------------------------------------------
+def test_the_sweep_picks_the_anchor_minimising_the_upper_level_loss():
+    df = _factor_panel()
+    swept = SparseSC(_anchor_cfg(df, anchor_selection="sweep")).fit()
+    scores = {
+        a: float(np.nanmin(SparseSC(_anchor_cfg(df, anchor_predictor=a))
+                           .fit().design.val_mse_curve))
+        for a in ("p0", "p1", "p2", "p3")
+    }
+    assert swept.inputs.predictor_names[0] == min(scores, key=scores.__getitem__)
+
+
+def test_the_sweep_reports_which_anchor_it_chose_and_what_it_scored():
+    r = SparseSC(_anchor_cfg(_factor_panel(), anchor_selection="sweep")).fit()
+    details = r.method_details.parameters_used or {}
+    assert details.get("anchor_predictor") == r.inputs.predictor_names[0]
+    assert details.get("anchor_selection") == "sweep"
+    assert set(details.get("anchor_scores", {})) == {"p0", "p1", "p2", "p3"}
+
+
+def test_the_sweep_on_a_single_predictor_matches_the_fixed_fit():
+    df = _factor_panel()
+    a = SparseSC(_anchor_cfg(df, covariates=["p0"])).fit()
+    b = SparseSC(_anchor_cfg(df, covariates=["p0"], anchor_selection="sweep")).fit()
+    assert a.effects.att == pytest.approx(b.effects.att, rel=1e-12)
+
+
+def test_naming_an_anchor_and_asking_for_a_sweep_is_refused():
+    with pytest.raises(MlsynthConfigError):
+        SparseSC(_anchor_cfg(_factor_panel(), anchor_predictor="p1",
+                             anchor_selection="sweep"))
