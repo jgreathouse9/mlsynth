@@ -54,7 +54,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from .inner import solve_w
-from .objective import outer_loss_and_grad, selection_mse
+from .objective import outer_loss, outer_loss_and_grad, selection_mse
 
 
 # Spread of the log-normal restart draws around the cold init, in log units.
@@ -209,8 +209,22 @@ def sweep_lambda(
     v_path = np.zeros((lambda_grid.size, P))
 
     def _solve(lam, starts):
-        """Best (lowest outer-objective) critical point over the given starts."""
-        best_res = None
+        """Best critical point over the given starts, ranked on the objective
+        recomputed at each returned point.
+
+        Not on ``res.fun``. L-BFGS-B can end in
+        ABNORMAL_TERMINATION_IN_LNSRCH (status 2), and scipy then returns
+        ``fun`` and ``x`` from different iterates. On a kinked objective like
+        this one that is common, not exotic: on the Vives k=40 specification
+        it happens at 10 of 26 grid points under finite differences and 19 of
+        26 under the analytic gradient, with gaps up to 1818 -- and in one
+        case the reported value was *below* the truth, which is the direction
+        that silently wins a comparison. Ranking starts, filling
+        ``outer_curve`` and deciding the backward pass all need a number that
+        belongs to the point being described, so each candidate is rescored
+        with one extra inner QP.
+        """
+        best_res, best_f = None, np.inf
         for x0 in starts:
             res = _minimize_outer(
                 x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
@@ -218,9 +232,15 @@ def sweep_lambda(
                 max_outer_iter=max_outer_iter, ftol=ftol,
                 use_analytical_grad=use_analytical_grad,
             )
-            if (best_res is None) or (np.isfinite(res.fun) and res.fun < best_res.fun):
-                best_res = res
-        return best_res
+            x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
+            f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
+                                solver=solver)
+            if np.isfinite(f_true) and f_true < best_f:
+                best_res, best_f = res, float(f_true)
+        if best_res is None:                    # every start returned non-finite
+            best_res = res
+            best_f = float("inf")
+        return best_res, best_f
 
     # ---- Forward pass (ascending lambda) ------------------------------------
     # Multi-start: try several deterministic init points and keep the one with
@@ -238,9 +258,9 @@ def sweep_lambda(
             warm_start=warm_start, multi_start=multi_start, include_warm_first=idx > 0,
             champion=champion_v2,
         )
-        res = _solve(lam, starts + _restarts(idx, 0))
+        res, f_true = _solve(lam, starts + _restarts(idx, 0))
         v2_hat = np.clip(res.x, 0.0, None)
-        outer_curve[idx] = float(res.fun)
+        outer_curve[idx] = f_true
         val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
         v_path[idx, :] = np.concatenate([[1.0], v2_hat])
         if val_curve[idx] < best_val_fwd:
@@ -261,10 +281,10 @@ def sweep_lambda(
         for idx in range(lambda_grid.size - 2, -1, -1):
             lam = float(lambda_grid[idx])
             starts = [v_path[idx + 1, 1:].copy(), champion_v2.copy(), v_path[idx, 1:].copy()]
-            res = _solve(lam, starts + _restarts(idx, 1))
-            if np.isfinite(res.fun) and res.fun < outer_curve[idx] - 1e-12:
+            res, f_true = _solve(lam, starts + _restarts(idx, 1))
+            if np.isfinite(f_true) and f_true < outer_curve[idx] - 1e-12:
                 v2_hat = np.clip(res.x, 0.0, None)
-                outer_curve[idx] = float(res.fun)
+                outer_curve[idx] = f_true
                 val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
                 v_path[idx, :] = np.concatenate([[1.0], v2_hat])
                 if val_curve[idx] <= np.nanmin(val_curve):

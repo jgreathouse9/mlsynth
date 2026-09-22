@@ -28,7 +28,7 @@ import pytest
 from mlsynth import SparseSC
 from mlsynth.config_models import SparseSCConfig
 from mlsynth.exceptions import MlsynthConfigError
-from mlsynth.utils.sparse_sc_helpers.objective import selection_mse
+from mlsynth.utils.sparse_sc_helpers.objective import outer_loss, selection_mse
 from mlsynth.utils.sparse_sc_helpers.optimization import (
     default_lambda_grid,
     sweep_lambda,
@@ -257,29 +257,90 @@ class TestEdges:
 
 
 # ---------------------------------------------------------------------------
+# Layer 2b: the reported objective must belong to the reported V
+# ---------------------------------------------------------------------------
+
+class TestReportedObjectiveMatchesReportedV:
+    """``scipy.optimize.minimize`` can return ``fun`` and ``x`` from different
+    iterates when L-BFGS-B ends in ABNORMAL_TERMINATION_IN_LNSRCH (status 2),
+    which on a kinked objective like this one is common, not exotic: on the
+    Vives k=40 specification it happens at 10 of 26 grid points under finite
+    differences and 19 of 26 under the analytic gradient, with gaps up to 1818.
+
+    The sweep used ``res.fun`` to rank candidate starts, to fill
+    ``outer_curve`` and to decide whether the backward pass accepts a
+    candidate. A number that belongs to a different point cannot do any of
+    those jobs.
+    """
+
+    @pytest.mark.parametrize("panel", [0, 3, 11])
+    @pytest.mark.parametrize("restarts", [0, 4])
+    def test_outer_curve_is_the_objective_at_the_reported_v(self, panel, restarts):
+        Y1, Y0, X1, X0, T0_total = _arrays(panel)
+        T0_train = 10
+        _, _, grid, outer, _, v_path = sweep_lambda(
+            X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=T0_train,
+            lambda_grid=GRID, outer_loss_window="training",
+            use_analytical_grad=True, robust=False,
+            outer_restarts=restarts, outer_restart_seed=0)
+        Z1, Z0 = Y1[:T0_train], Y0[:T0_train]
+        for i, lam in enumerate(grid):
+            recomputed = outer_loss(v_path[i, 1:], X1, X0, Z1, Z0, float(lam))
+            assert outer[i] == pytest.approx(recomputed, rel=1e-6, abs=1e-8), (
+                f"grid point {i} (lambda={lam:g}) reports {outer[i]:.6f} but the "
+                f"V it returned scores {recomputed:.6f}")
+
+    def test_the_selected_start_is_the_one_with_the_lowest_true_objective(self):
+        """Ranking starts on a stale ``fun`` can keep the worse one."""
+        Y1, Y0, X1, X0, T0_total = _arrays(3)
+        T0_train = 10
+        Z1, Z0 = Y1[:T0_train], Y0[:T0_train]
+        kw = dict(X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
+                  T0_train=T0_train, lambda_grid=GRID,
+                  outer_loss_window="training", use_analytical_grad=True,
+                  robust=False)
+        _, _, grid, _, _, few = sweep_lambda(**kw, outer_restarts=0)
+        _, _, _, _, _, many = sweep_lambda(**kw, outer_restarts=8,
+                                           outer_restart_seed=1)
+        for i, lam in enumerate(grid):
+            f_few = outer_loss(few[i, 1:], X1, X0, Z1, Z0, float(lam))
+            f_many = outer_loss(many[i, 1:], X1, X0, Z1, Z0, float(lam))
+            assert f_many <= f_few + 1e-8, (
+                f"grid point {i}: 8 restarts returned a V scoring {f_many:.6f}, "
+                f"worse than the cold start's {f_few:.6f}")
+
+
+# ---------------------------------------------------------------------------
 # Layer 3: the regression -- panels where a cold start is measurably worse
 # ---------------------------------------------------------------------------
 
 class TestRegression:
     """Without restarts the sweep settles wherever ``default_v20`` leads.
 
-    On 38 of 60 factor panels drawn this way the restarted solve lowers the
-    outer objective by more than 2%; the four pinned below cut it by 86% to
-    98%. The cold solution is not always the low-|A| one -- on these panels it
-    carries more active donors than the restarted solution, not fewer -- so
-    what the restarts buy is a different basin, not a particular donor count.
+    The cuts pinned here are measured against the objective recomputed at the
+    returned V. An earlier version of this file compared ``res.fun`` instead
+    and reported cuts of 86% to 98% on four panels; two of those were the
+    stale-``res.fun`` defect inflating the cold-start number, not the restarts
+    doing work. Re-measured, seed 11 cuts 47.3% (not 97.9%), seed 34 cuts
+    94.9%, seed 53 cuts 85.9%, and seed 19 -- previously reported at 93.5% --
+    shows no improvement at all and has been dropped.
+
+    The cold solution is not always the low-|A| one: on these panels it
+    carries more active donors than the restarted solution, not fewer, so what
+    the restarts buy is a different basin, not a particular donor count.
     """
 
-    PANELS = (11, 19, 34, 53)
+    PANELS = (11, 34, 53)
 
     @pytest.mark.parametrize("panel", PANELS)
     def test_restarts_reach_a_materially_better_critical_point(self, panel):
         _, _, _, cold, _, _ = _sweep(panel, restarts=0, grid=ONE)
         _, _, _, rs, _, _ = _sweep(panel, restarts=8, restart_seed=0, grid=ONE)
         assert rs[0] < cold[0]
-        # measured cuts are 86-98%; assert half that so the test survives a
-        # different BLAS kernel without going vacuous
-        assert rs[0] <= 0.5 * cold[0]
+        # measured cuts are 47%, 86% and 95%; assert 25%, about half the
+        # smallest, so the test survives a different BLAS kernel without
+        # going vacuous
+        assert rs[0] <= 0.75 * cold[0]
 
     def test_the_cold_start_is_what_is_being_escaped(self):
         """The restarted solve must beat the cold start's own critical point,
@@ -289,7 +350,7 @@ class TestRegression:
             _, _, _, cold, _, _ = _sweep(panel, restarts=0, grid=ONE)
             _, _, _, rs, _, _ = _sweep(panel, restarts=8, restart_seed=0,
                                        grid=ONE)
-            worse += int(cold[0] > rs[0] * 2.0)
+            worse += int(cold[0] > rs[0] * 1.5)
         assert worse == len(self.PANELS)
 
 
