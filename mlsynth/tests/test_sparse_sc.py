@@ -574,3 +574,15 @@ def test_naming_an_anchor_and_asking_for_a_sweep_is_refused():
     with pytest.raises(MlsynthConfigError):
         SparseSC(_anchor_cfg(_factor_panel(), anchor_predictor="p1",
                              anchor_selection="sweep"))
+
+
+def test_prepare_inputs_rejects_an_unknown_anchor_on_its_own():
+    """The config validator catches this first through the public API, so the
+    helper's own guard is only reachable by calling it directly -- which callers
+    do, and which is why it validates instead of trusting the caller."""
+    df = _factor_panel()
+    with pytest.raises(MlsynthConfigError):
+        prepare_sparse_sc_inputs(
+            df=df, outcome="y", treat="tr", unitid="unit", time="year",
+            covariates=["p0", "p1"], anchor_predictor="p9",
+        )
