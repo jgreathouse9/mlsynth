@@ -70,14 +70,14 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         description="Frequentist QP or Bayesian posterior for the PCR family.",
     )
     rpca_method: Literal["PCP", "HQF", "HSVT", "FGRC"] = Field(
-        default="PCP",
+        default="HSVT",
         description="Robust-PCA / low-rank denoiser for the RPCA family: 'PCP' "
                     "(Candes et al. 2011, default), 'HQF' (Wang et al. 2023), or "
                     "'HSVT' (hard singular-value truncation, RSC/PCR-native; the "
                     "rank is chosen by hsvt_rank_method).",
     )
     cluster_method: Literal["fpca", "fgrc"] = Field(
-        default="fpca",
+        default="fgrc",
         description="Donor-clustering step for the RPCA family: 'fpca' (FPCA + "
                     "silhouette k-means, Bayani 2021, default) or 'fgrc' "
                     "(functional generalized reduced clustering, Yamamoto-Hwang "
@@ -85,7 +85,7 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
                     "grouping).",
     )
     weight_objective: Literal["nnls", "simplex"] = Field(
-        default="nnls",
+        default="simplex",
         description="Weight objective against the denoised donors: 'nnls' "
                     "(non-negative LS, Bayani 2021, default) or 'simplex' (the "
                     "Abadie-Diamond-Hainmueller sum-to-one convex-hull constraint).",

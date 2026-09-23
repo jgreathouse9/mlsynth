@@ -54,9 +54,9 @@ def run_rpca(
     donor_names: Sequence[str],
     T0: int,
     *,
-    rpca_method: str = "PCP",
-    cluster_method: str = "fpca",
-    weight_objective: str = "nnls",
+    rpca_method: str = "HSVT",
+    cluster_method: str = "fgrc",
+    weight_objective: str = "simplex",
     # FPCA / clustering knobs
     fpca_cumvar: float = 0.95,
     k_clusters: Optional[int] = None,
