@@ -264,7 +264,15 @@ in log units, and keeps whichever lands lowest. Four of them recover
 :math:`-18.6`. ``outer_restart_seed`` fixes the draws; it is separate
 from ``seed`` so that re-seeding the placebo inference cannot move the
 point estimate. Set ``outer_restarts=0`` for the single cold start,
-which is faster and reproduces pre-0.3 results.
+which is faster.
+
+That setting recovers the pre-0.3 *search*, not always the pre-0.3
+*answer*. Candidate starts are now ranked on the objective recomputed at
+each returned point instead of on ``scipy``'s ``res.fun``, which can
+belong to a different iterate, and that ranking applies at every restart
+count. Across 25 factor panels at ``outer_restarts=0``, 23 reproduce the
+earlier V exactly and 2 do not, in both cases because the earlier
+ranking had preferred a worse point.
 
 The restarts cost one extra outer solve each per grid point, so the
 sweep runs roughly :math:`1 + \texttt{outer\_restarts}` times as long.

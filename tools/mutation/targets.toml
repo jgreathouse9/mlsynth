@@ -2309,12 +2309,6 @@ timeout = 900.0
   models = "scoring a lambda that lost every start as though the cold init had been chosen there. The validation MSE is finite, so the lambda re-enters the argmin and can win it, and the caller reads a selected lambda, a predictor set and an ATT off a point no solve ever returned. Leaving val_curve NaN is what keeps it out of nanargmin and out of the champion update; a finite placeholder is a fit nobody asked for dressed as a fit"
 
   [[target.mutant]]
-  id = "the-single-predictor-case-goes-back-to-the-sweep"
-  find = "    if P == 1:"
-  replace = "    if P == 0:"
-  models = "the shipped sweep until 2026-09, in which one predictor was a crash. The normalisation pins v_1 = 1 and the outer problem optimises v[1:], which is empty at P = 1, so L-BFGS-B was handed a zero-length x0 and scipy raised out of its own bound check. The case is well posed and closed form -- V = [1] by construction, no free weight is left for the L1 term, every lambda gives the same point -- and matching on one index or one lagged outcome is a specification a user reaches for when narrowing a predictor set down"
-
-  [[target.mutant]]
   id = "an-undefined-predictor-spread-passes-through"
   find = "    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)"
   replace = "    sd = np.where(sd == 0, 1.0, sd)"
@@ -2355,3 +2349,15 @@ timeout = 900.0
   find = "        k0 = predictor_names.index(anchor_covariate)"
   replace = "        k0 = 0"
   models = "a config option that validates, reports itself on the result and changes nothing. anchor_covariate would be accepted, checked against the predictor set, echoed as anchor_predictor in parameters_used, and the pinned weight would stay on whichever predictor the caller listed first. On the Basque panel the anchor moves the ATT from -0.277 to -0.529, a factor of 1.9, so an option that silently does not apply hands the caller a number they believe they chose"
+
+[[target]]
+name = "sparse-sc-single-predictor"
+module-path = "mlsynth/utils/sparse_sc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-single-predictor-case-goes-back-to-the-sweep"
+  find = "    if P == 1:"
+  replace = "    if P == 0:"
+  models = "the shipped sweep until 2026-09, in which one predictor was a crash. The normalisation pins v_1 = 1 and the outer problem optimises v[1:], which is empty at P = 1, so L-BFGS-B was handed a zero-length x0 and scipy raised out of its own bound check. The case is well posed and closed form -- V = [1] by construction, no free weight is left for the L1 term, every lambda gives the same point -- and matching on one index or one lagged outcome is a specification a user reaches for when narrowing a predictor set down. It lived in the sparse-sc-outer-restarts target and survived there, because that target runs test_sparse_sc_outer_restarts.py while the tests covering it are in test_sparse_sc.py -- a mutant whose covering tests are not in its target's test command measures nothing"

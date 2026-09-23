@@ -29,8 +29,15 @@ now returns and the back-compat guarantee.
 
   On the Prop 99 benchmark the ATT moves from a value that varied across BLAS
   kernels to -18.06 against the paper's -18.2. The sweep runs roughly
-  `1 + outer_restarts` times as long; `outer_restarts=0` reproduces the previous
-  behaviour exactly, and a test pins that.
+  `1 + outer_restarts` times as long.
+
+  `outer_restarts=0` does *not* reproduce the previous behaviour exactly. The
+  restart feature rides on the fix that ranks candidate starts on the objective
+  recomputed at the returned point instead of on scipy's `res.fun`, and that
+  ranking runs at every restart count, zero included. Measured across 25 factor
+  panels with `outer_restarts=0`: 23 give a bit-identical V, 2 do not. On seed 7
+  the selected lambda moves from 1 to 0.398, on seed 19 from 1 to 0. Both are
+  cases where `res.fun` had ranked a worse point first.
 
   Raising `outer_restarts` does not lower the outer objective at every grid
   point, and no test claims it does. A better solution at one lambda becomes the
