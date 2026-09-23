@@ -28,6 +28,7 @@ import pytest
 from mlsynth import SparseSC
 from mlsynth.config_models import SparseSCConfig
 from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.utils.sparse_sc_helpers import optimization
 from mlsynth.utils.sparse_sc_helpers.objective import outer_loss, selection_mse
 from mlsynth.utils.sparse_sc_helpers.optimization import (
     default_lambda_grid,
@@ -290,24 +291,110 @@ class TestReportedObjectiveMatchesReportedV:
                 f"grid point {i} (lambda={lam:g}) reports {outer[i]:.6f} but the "
                 f"V it returned scores {recomputed:.6f}")
 
-    def test_the_selected_start_is_the_one_with_the_lowest_true_objective(self):
-        """Ranking starts on a stale ``fun`` can keep the worse one."""
-        Y1, Y0, X1, X0, T0_total = _arrays(3)
+    @pytest.mark.parametrize("panel", [0, 3, 11])
+    def test_each_grid_point_keeps_the_best_candidate_it_tried(self, panel,
+                                                               monkeypatch):
+        """Ranking starts on a stale ``fun`` can keep the worse one.
+
+        The contract is a statement about one solve: among the starts a grid
+        point was given, the one kept is the one with the lowest objective
+        recomputed at its own returned point. Spying on ``_minimize_outer``
+        records every candidate; ``lam`` identifies the grid point, since the
+        grid is strictly increasing and ``robust=False`` visits each once.
+
+        The power comes from ``res.fun`` disagreeing with that objective often
+        enough to change the argmin. Over the 29 solves this sweep performs it
+        disagrees at 7 of them on panel 3 (worst gap 144,672 against a true
+        10.06) and at 17 on panel 11, twice reporting BELOW the truth, which is
+        the direction that wins a comparison it should lose. Panel 0 sees no
+        disagreement and is kept as the case where the two agree.
+        """
+        Y1, Y0, X1, X0, T0_total = _arrays(panel)
         T0_train = 10
         Z1, Z0 = Y1[:T0_train], Y0[:T0_train]
-        kw = dict(X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
-                  T0_train=T0_train, lambda_grid=GRID,
-                  outer_loss_window="training", use_analytical_grad=True,
-                  robust=False)
-        _, _, grid, _, _, few = sweep_lambda(**kw, outer_restarts=0)
-        _, _, _, _, _, many = sweep_lambda(**kw, outer_restarts=8,
-                                           outer_restart_seed=1)
+
+        tried: dict = {}
+        real = optimization._minimize_outer
+
+        def spy(**kw):
+            res = real(**kw)
+            x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
+            tried.setdefault(float(kw["lam"]), []).append(x)
+            return res
+
+        monkeypatch.setattr(optimization, "_minimize_outer", spy)
+        _, _, grid, _, _, v_path = sweep_lambda(
+            X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=T0_train,
+            lambda_grid=GRID, outer_loss_window="training",
+            use_analytical_grad=True, robust=False,
+            outer_restarts=4, outer_restart_seed=0)
+
         for i, lam in enumerate(grid):
-            f_few = outer_loss(few[i, 1:], X1, X0, Z1, Z0, float(lam))
-            f_many = outer_loss(many[i, 1:], X1, X0, Z1, Z0, float(lam))
-            assert f_many <= f_few + 1e-8, (
-                f"grid point {i}: 8 restarts returned a V scoring {f_many:.6f}, "
-                f"worse than the cold start's {f_few:.6f}")
+            candidates = tried[float(lam)]
+            assert len(candidates) > 1, (
+                f"grid point {i} tried {len(candidates)} start(s); the ranking "
+                f"rule is untested with fewer than two")
+            f_kept = outer_loss(v_path[i, 1:], X1, X0, Z1, Z0, float(lam))
+            for j, x in enumerate(candidates):
+                f_cand = outer_loss(x, X1, X0, Z1, Z0, float(lam))
+                if not np.isfinite(f_cand):
+                    continue
+                assert f_kept <= f_cand + 1e-8, (
+                    f"grid point {i} (lambda={lam:g}) kept a V scoring "
+                    f"{f_kept:.6f} over candidate {j}, which scores {f_cand:.6f}")
+
+    @pytest.mark.parametrize("panel", [3, 11])
+    def test_restarts_cannot_lose_ground_at_any_single_lambda(self, panel):
+        """Adding restarts is monotone only where the candidate set nests.
+
+        An earlier version asserted that one sweep with restarts returns a V no
+        worse than a sweep without them at EVERY point of a shared grid, and
+        that is false by construction. ``sweep_lambda`` seeds grid point ``i``
+        from the running validation-MSE champion, which has already diverged
+        between the two runs, so from ``i = 1`` on they are handed different
+        candidate sets, not nested ones. Measured on panel 3, the base start
+        lists are identical at ``i = 0`` and differ at all four later points.
+        A restart run can then land in a worse basin with nothing wrong. That
+        assertion passed on one machine, where both chains re-converged to the
+        same V at the last two grid points, and failed on CI for Python 3.10,
+        3.11 and 3.12 alike.
+
+        Running each lambda as its own one-point sweep removes the coupling
+        without giving up any lambda. Every lambda is then the first grid
+        point: the champion is ``None`` and there is no previous solution, so
+        ``_build_starts`` returns ``[v20_cold]`` in both runs and the restart
+        run's candidates are that list plus the draws. ``_solve`` keeps the
+        argmin of the objective recomputed at each returned point, so the
+        comparison is guaranteed at every lambda.
+
+        Keeping the whole grid is what gives this power. Restricting it to the
+        first point of the shared grid does not: that point is ``lambda = 0``,
+        the one lambda with no L1 term and so no kink, where ``res.fun`` agrees
+        with the recomputed objective to 6e-12. Against
+        ``the-reported-objective-comes-from-a-different-iterate`` a
+        first-point-only assertion passed 12 of 12 times over four panels and
+        three seeds; per-lambda catches it on panel 3 at ``lambda = 1`` and on
+        panel 11 at ``lambda = 1e-4``.
+        """
+        Y1, Y0, X1, X0, T0_total = _arrays(panel)
+        T0_train = 10
+        Z1, Z0 = Y1[:T0_train], Y0[:T0_train]
+
+        def solve(lam, restarts):
+            _, _, _, _, _, v = sweep_lambda(
+                X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
+                T0_train=T0_train, lambda_grid=np.array([lam], dtype=float),
+                outer_loss_window="training", use_analytical_grad=True,
+                robust=False, outer_restarts=restarts, outer_restart_seed=1)
+            return outer_loss(v[0, 1:], X1, X0, Z1, Z0, float(lam))
+
+        for lam in GRID:
+            f_cold = solve(float(lam), 0)
+            f_restarted = solve(float(lam), 8)
+            assert f_restarted <= f_cold + 1e-8, (
+                f"lambda={lam:g}: the restart run's candidates are the cold "
+                f"run's plus the draws, so its V cannot score worse; it scores "
+                f"{f_restarted:.6f} against {f_cold:.6f}")
 
 
 # ---------------------------------------------------------------------------
