@@ -240,3 +240,46 @@ def test_an_unknown_rpca_method_is_still_refused():
                rpca_method="NOPE", display_graphs=False)
     with pytest.raises(MlsynthConfigError):
         CLUSTERSC(cfg).fit()
+
+
+@_NEEDS_BASQUE
+def test_dropping_the_disturbing_block_puts_the_treated_unit_outside_the_hull():
+    """The mechanism behind the wrong-signed ATT at ``fgrc_keep="cluster"``.
+
+    Diagnosed rather than asserted in prose. On Basque the projection leaves
+    the mean level untouched (3.6622 before and after, so the reconstruction's
+    mean handling is not at fault) and removes 75% of the between-donor
+    spread. The donor envelope shrinks from [1.243, 7.973] to [1.763, 5.740]
+    while the treated unit reaches 7.105, so it sits above every donor in
+    every pre-period. A convex combination is bounded by the largest donor, so
+    no feasible fit exists: the solver pins all the weight on one donor and the
+    counterfactual falls short at every date. The ATT that comes back is that
+    shortfall, not an effect.
+    """
+    from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_lowrank, fgrc_subspace
+
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    treated = "Basque Country (Pais Vasco)"
+    wide = df.pivot(index="year", columns="regionname", values="gdpcap").dropna(axis=1)
+    T0 = int((wide.index < 1975).sum())
+    y = wide[treated].values[:T0].astype(float)
+    Y = wide[[c for c in wide.columns if c != treated]].values.T.astype(float)
+
+    sub = fgrc_subspace(Y, c1=2, c2=1, k=2, n_knots=max(4, T0 // 2 - 2),
+                        order=4, seed=0)
+    keep_all = fgrc_lowrank(sub, keep="all")[:, :T0]
+    keep_c1 = fgrc_lowrank(sub, keep="cluster")[:, :T0]
+    raw = Y[:, :T0]
+
+    # the level survives -- this is not a mean-handling bug
+    assert keep_c1.mean() == pytest.approx(raw.mean(), rel=1e-9)
+    assert keep_all.mean() == pytest.approx(raw.mean(), rel=1e-9)
+
+    # the spread does not
+    assert keep_all.std(axis=0).mean() > 0.9 * raw.std(axis=0).mean()
+    assert keep_c1.std(axis=0).mean() < 0.4 * raw.std(axis=0).mean()
+
+    # and that is what puts the treated unit out of reach
+    assert float((y > raw.max(axis=0)).mean()) == 0.0
+    assert float((y > keep_all.max(axis=0)).mean()) == 0.0
+    assert float((y > keep_c1.max(axis=0)).mean()) == 1.0
