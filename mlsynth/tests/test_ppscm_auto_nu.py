@@ -168,8 +168,16 @@ def test_the_two_scalings_agree_on_the_effect():
 
 def test_the_estimator_reaches_this_through_its_own_entry_point():
     """The clamp sits in the engine, and the config's ``nu="auto"`` is the path
-    a caller actually takes to it."""
-    Xy, trt, t0 = _panel()
+    a caller actually takes to it.
+
+    Two treated units, not the helper's default of one. ``fit()`` runs the
+    delete-one jackknife, which refuses a panel where no replicate removes a
+    treated unit -- with a single treated unit its own deletion leaves none and
+    is skipped, so every replicate is a control deletion and the spread measured
+    is donor substitution. That guard is about inference and not about ``nu``;
+    the second treated unit is what lets this test reach the clamp it is for.
+    """
+    Xy, trt, t0 = _panel(n_trt=2)
     res = PPSCM(dict(df=_long(Xy, trt, t0), unitid="unit", time="time",
                      outcome="y", treat="treat", display_graphs=False)).fit()
     assert np.isfinite(res.effects.att)
