@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-09-12T08:30:00Z",
+  "command": "Rscript benchmarks/reference/fp_confidence_sets/reference_authors.R <supplement_dir> <outdir>",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "Synth": "1.2.0",
+    "kernlab": "0.9.32",
+    "optimx": "2023.10.21",
+    "rgenoud": "5.9.0.10"
+  },
+  "install_route": "apt r-cran-{kernlab,optimx,rgenoud} + git clone github.com/j-hai/Synth + R CMD INSTALL; CRAN itself is unreachable from this sandbox, see benchmarks/R/install_sc_references.sh",
+  "reference_source": {
+    "origin": "Firpo & Possebom (2018) JCI 6(2) 20160026, supplementary material",
+    "sha256_function_script": "cb3f7f7960557203fcbf24f7934a4df73719546f696e921b8f620485ac2a1b68",
+    "sha256_driver_script": "15cc25596bf96de45ae80f5694ed378a8cfd7bd4bcc91c29c66948208158ffb8",
+    "sha256_supplement_archive": "5fd21125b39689099d560328101b855835825073f5b4ba7a5df8def9ccbee626",
+    "vendored": false,
+    "note": "function_SCM-CS_v07.R and smoking_dataset.csv are not redistributed here; reference_authors.R takes their directory as its first argument. The driver script california_beta_testing_2018-08-12.R is reproduced in reference_authors.R with the working directory and the doParallel backend dropped."
+  },
+  "data": [
+    {"path": "<supplement>/smoking_dataset.csv",
+     "sha256": "3c2cd32893f7ecdcfaf274bd9e6938f9b4d5250d8f58d809e5825d416a678fd9"},
+    {"path": "Ymat_authors.csv",
+     "sha256": "8ca266314c81cbc8cdeb18a561e0705ce6c4b2f5b2a4c725de4aa4718e735cb7"},
+    {"path": "weightsmat_authors.csv",
+     "sha256": "31060aecee524a9e24919cb43bfe46638b9b0ab71f504ce9068ad8c106080fcc"}
+  ],
+  "spec": {
+    "treated": 3, "treated_name": "California", "T0": 19,
+    "precision": 30, "significance": "4/39",
+    "weights": "R Synth 1.2.0, synth(method = 'BFGS'), one fit per unit with the other 38 as controls",
+    "predictors": "lnincome, beer, age15to24, retprice; mean over 1980-1988",
+    "special_predictors": "cigsale 1975, cigsale 1980, cigsale 1988",
+    "time_optimize_ssr": "1970-1988",
+    "note": "This is the driver's specification, which is not ADH 2010's: ADH gives beer a special predictor over 1984-1988, the driver averages it with the other predictors over 1980-1988."
+  },
+  "max_abs_deviation_vs_mlsynth": 7.105427357601002e-15
+}

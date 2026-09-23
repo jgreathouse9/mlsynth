@@ -16,9 +16,10 @@ Two estimates are always returned side by side:
   donors (the average of every control unit). This is the natural
   benchmark the forward search improves upon.
 
-Both carry Li (2023) analytical standard errors. The three layers below
-(inputs, per-method fit, top-level results) mirror the CLUSTERSC /
-PROXIMAL container design used elsewhere in ``mlsynth``.
+Both carry Li (2023) analytical standard errors, or the
+serial-correlation-robust alternative when the config asks for it. The three
+layers below (inputs, per-method fit, top-level results) mirror the
+CLUSTERSC / PROXIMAL container design used elsewhere in ``mlsynth``.
 """
 
 from __future__ import annotations
@@ -40,6 +41,13 @@ from ..results_helpers import build_effect_submodels
 # Public method names.
 FDID = "FDID"
 DID = "DID"
+
+
+def _inference_label(method: str, lag: Optional[int]) -> str:
+    """Human-readable name of the reported standard error."""
+    if method == "hac":
+        return f"HAC (pre-period autocovariances, lag {lag})"
+    return "analytic (Li 2023)"
 
 
 @dataclass(frozen=True)
@@ -130,6 +138,12 @@ class FDIDMethodFit:
         R^2 after each forward-selection step (FDID only; ``None`` for DID).
     intermediary : list or None
         Per-step diagnostics when ``verbose`` (FDID only).
+    inference_method : str
+        Which standard error ``att_se`` is -- ``"analytic"`` (Li 2023,
+        Proposition 2.1) or ``"hac"``.
+    lrvar_lag : int or None
+        Truncation lag used by the HAC standard error; ``None`` under the
+        analytic formula.
     metadata : dict
         Free-form per-method diagnostics.
     """
@@ -151,6 +165,8 @@ class FDIDMethodFit:
     donor_weights: Dict[Any, float]
     r2_path: Optional[np.ndarray] = None
     intermediary: Optional[list] = None
+    inference_method: str = "analytic"
+    lrvar_lag: Optional[int] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -212,7 +228,7 @@ class FDIDResults(BaseEstimatorResults):
                     ci_lower=float(p.ci[0]),
                     ci_upper=float(p.ci[1]),
                     standard_error=float(p.att_se),
-                    method="analytic (Li 2023)",
+                    method=_inference_label(p.inference_method, p.lrvar_lag),
                 ),
                 method_name=p.name,
                 is_recommended=True,

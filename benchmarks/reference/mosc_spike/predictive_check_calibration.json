@@ -1,0 +1,46 @@
+{
+  "sweep": [
+    {
+      "holdout_fraction": 0.005,
+      "n_heldout_cells": 13,
+      "p_pop": 0.075,
+      "accepted": true
+    },
+    {
+      "holdout_fraction": 0.02,
+      "n_heldout_cells": 34,
+      "p_pop": 0.025,
+      "accepted": true
+    },
+    {
+      "holdout_fraction": 0.05,
+      "n_heldout_cells": 101,
+      "p_pop": 0.11666666666666667,
+      "accepted": true
+    },
+    {
+      "holdout_fraction": 0.1,
+      "n_heldout_cells": 181,
+      "p_pop": 0.0,
+      "accepted": false
+    },
+    {
+      "holdout_fraction": 0.25,
+      "n_heldout_cells": 420,
+      "p_pop": 0.0,
+      "accepted": false
+    }
+  ],
+  "false_rejection_rate_on_correct_model": 0.4,
+  "paper_stated_false_rejection_rate": 0.05,
+  "heldout_log_density": {
+    "cumulative (as shipped)": {
+      "GAP": -3.71073272889984,
+      "PPCA": -6582.487764699032
+    },
+    "daily (first difference)": {
+      "GAP": -2.5371202633536396,
+      "PPCA": -14.106714575708187
+    }
+  }
+}

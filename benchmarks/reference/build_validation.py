@@ -86,6 +86,20 @@ def _ref_link(impl: str) -> str:
     return f"`{impl} <{url}>`__" if url else impl
 
 
+def _note(case: str) -> str:
+    """The bundle's stated reason for a deviation, if it has one.
+
+    ``documented`` tells the reader to see the notes, so a row carrying that
+    verdict and no note points at nothing. ``manifest.json`` may set ``note``;
+    it is rendered under the estimator's table, and :func:`_warn_dangling_notes`
+    names the rows still missing one.
+    """
+    man = REF_DIR / case / "manifest.json"
+    if not man.exists():
+        return ""
+    return str(json.loads(man.read_text()).get("note", "")).strip()
+
+
 def _bundle_meta(case: str) -> dict:
     out = {}
     man = REF_DIR / case / "manifest.json"
@@ -316,6 +330,10 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
                 f"     - `{r['case']} <{GH}/benchmarks/cases/{r['case']}.py>`__",
             ]
         L.append("")
+        notes = [(r["case"], _note(r["case"])) for r in recs]
+        notes = [(case, note) for case, note in notes if note]
+        for case, note in notes:
+            L += [f"Notes ({case}): {note}", ""]
 
     # Honesty: cross-validation cases whose comparison.csv is not captured yet.
     if pend and not only:
@@ -332,9 +350,25 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
     return "\n".join(L) + "\n"
 
 
+def _warn_dangling_notes(by_est: dict) -> None:
+    """Name every ``documented`` row whose bundle carries no note.
+
+    The verdict says "see notes". Where there are none, the page sends the
+    reader looking for an explanation that was never written, and it does so
+    silently. This prints them at build time so the gap is visible to whoever
+    regenerates the page.
+    """
+    dangling = sorted(r["case"] for recs in by_est.values() for r in recs
+                      if r["verdict"] == "documented" and not _note(r["case"]))
+    if dangling:
+        print(f"[note] {len(dangling)} documented row(s) with no note in "
+              f"manifest.json: {', '.join(dangling)}")
+
+
 def main() -> None:
     only = sys.argv[1] if len(sys.argv) > 1 else None
     by_est = collect()
+    _warn_dangling_notes(by_est)
     rst = to_rst(by_est, only=only, pend=pending())
     out = ROOT / "docs" / "validation.rst"
     out.write_text(rst)

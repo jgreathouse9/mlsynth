@@ -1,0 +1,25 @@
+Vendored reference code and data for the `scmo_covid_sweden` benchmark.
+
+  reference.R            mlsynth's runner: the numeric core of the authors'
+                         COVID_analysis.R (fn_W synthetic-control QP via
+                         quadprog::solve.QP, the three domains, the permutation
+                         test, the aggregate index and the six robustness
+                         variants), with every plotting call removed and the
+                         objects the plots were drawn from printed instead.
+                         Produces the captured bundle.
+  COVID_analysis_orig.R  The authors' original script, vendored verbatim for
+                         provenance (reference.R reproduces its computation).
+  covid_panel.csv        The authors' assembled COVID panel (their
+                         Data_COVID/data.csv), cut to the 27 countries, the
+                         window 2019-01-01 to 2020-09-30, and the twelve
+                         outcomes the three domains use. Written from
+                         basedata/tlp_covid_sweden.parquet, which the Python
+                         case reads, so both sides see the same numbers.
+
+Source
+  Tian, Wei, Seojeong Lee & Valentyn Panchenko (2026), "Synthetic Control with
+  Multiple Outcomes," Econometrics Journal, Online Appendix B.3. Files taken
+  from the authors' replication package (COVID_analysis.R, Data_COVID/).
+  Vendored so the reference run is reproducible offline; all credit to the
+  authors. These files produce the captured reference bundle only and are not
+  part of the mlsynth library.

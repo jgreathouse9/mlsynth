@@ -34,3 +34,7 @@ benchmarks/report.json
 
 # Hypothesis example database (local, machine-specific)
 .hypothesis/
+
+# Sphinx-Gallery generated output
+docs/auto_examples/
+docs/sg_execution_times.rst

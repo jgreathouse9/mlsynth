@@ -1254,14 +1254,170 @@ its nominal level. One shared critical value
 Plagborg-Moller) restores the level for the path as a whole; on the Oregon panel
 it is 2.54 where the pointwise normal quantile would be 1.96.
 
-The band reuses the replicate paths the prediction-interval bootstrap already
-produced, so it costs no extra refits, and it therefore requires
+The multiplier is referred to the law of the statistic it is a quantile of. The
+sup-t construction divides each horizon error by a standard error, and if that
+standard error were the true one the ratio would be normal. It is estimated from
+the same replicates, so the ratio is a Student-t, and its maximum sits wider than
+the normal law says -- by more as the ensemble shrinks. ``supt_critical_value``
+simulates the ratio in full, drawing the errors and their estimated variances
+jointly, so the multiplier reaches :math:`1 - \alpha` at any ensemble size and
+not only asymptotically. See :doc:`ppscm` for the construction; the two
+estimators share the function. ``reference="normal"`` restores the older
+behaviour for a caller reproducing a number from an earlier release.
+
+By default the band reuses the replicate paths the prediction-interval bootstrap
+already produced, so it costs no extra refits, and on that setting it requires
 ``prediction_intervals=True``. Asking for it without the bootstrap raises rather
 than returning an empty field, since a caller reading a missing band as an
 absent effect is the one failure worth ruling out. PPSCM's ``cumulative_band``
 is the same object built the same way, sharing
 :mod:`mlsynth.utils.supt`, so the two estimators cannot drift apart in what the
 phrase means.
+
+Resampling the calibration errors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Reusing the bootstrap's paths is free only once the bootstrap has run, and the
+bootstrap is the expensive part: ``pi_n_boot`` refits of the whole selection,
+999 at the default. ``cumulative_method="resample"`` builds the same band from a
+rolling-origin calibration pass instead -- one refit per origin, roughly ten at
+the panel lengths PDA is used on -- and needs no bootstrap at all:
+
+.. code-block:: python
+
+   res = PDA({..., "cumulative_band": True, "cumulative_method": "resample"}).fit()
+   band = res.fits["lasso"].cumulative_band
+   band.method            # "resample"
+
+The construction is Andrew Wheeler's, from his ``LassoSynth`` post: take
+out-of-sample conformity scores, draw from them, accumulate the draws, and read
+the band off the accumulated paths. mlsynth generalises it in one respect. Wheeler
+draws one score per post period independently, which assumes the period errors are
+uncorrelated. The variance of an :math:`L`-period total is
+
+.. math::
+
+   L\gamma_0 + 2\sum_{k=1}^{L-1} (L-k)\gamma_k,
+
+so positive autocorrelation makes the total more variable than :math:`L`
+independent draws imply, and an independent draw is too narrow by a factor that
+grows with the horizon. mlsynth therefore draws whole blocks of consecutive errors,
+flipping each block's sign to symmetrise -- which is Wheeler's mirrored pool
+generalised from a period to a block, and coincides with it exactly at
+``cumulative_block=1``. ``cumulative_block=0``, the default, uses the whole
+horizon; ``cumulative_n_sim`` sets how many paths are drawn, and unlike
+``pi_n_boot`` those cost no refits.
+
+How long a block the calibration series can support is settled by an identity, not
+by taste. The series is centred, so the circular sum over a :math:`b`-block is
+minus the sum over the complementary :math:`(n-b)`-block the two partition it into;
+their spreads are exactly equal, and the drawn spread is symmetric about
+:math:`b = n/2`. Past the midpoint a longer block draws a narrower total, mirroring
+a shorter one, and at :math:`b = n` every path sums to zero and the band has no
+width. The draw refuses past :math:`n/2`, since block length has stopped meaning
+how much serial correlation is carried. With :math:`m` rolling origins the series
+is :math:`m \times L` periods, so a whole-horizon block asks for :math:`m \geq 2`
+and a block of :math:`b` asks for :math:`m \geq 2L/b`.
+
+Short of that midpoint the same constraint costs spread instead of meaning, and
+the draw corrects for it. Since the centred series sums to zero its circular
+autocovariances do too, so a :math:`b`-block carries
+
+.. math::
+
+   \operatorname{Var}(S_b) = \sum_{|k|<b} (b-|k|)\,\hat\gamma_k
+                           = b\,v\left(1 - \frac{b-1}{n-1}\right),
+
+and the drawn totals come out narrow by :math:`\sqrt{(n-b)/(n-1)}` -- sixteen
+percent for a thirteen-period block drawn from forty-seven calibration periods.
+The draw multiplies by the inverse. The factor is exactly one at :math:`b = 1`, so
+the single-period construction and the reference parity pinned on it are
+unchanged, and it is exact for a horizon made of whole blocks, which the default
+:math:`b = L` always is.
+
+What the correction does not repair is the attenuation of the sample
+autocovariances themselves. A short calibration series understates persistence,
+and a scalar factor cannot recover it, so a band drawn from few windows still runs
+narrow on a strongly persistent panel. More rolling origins is the only remedy.
+
+The level, and the fluctuation about it
+"""""""""""""""""""""""""""""""""""""""
+
+A cumulative band has a second term, and it is the larger one. The total over
+:math:`L` periods is :math:`L` times the mean error over those periods, so what
+drives it is the calibration window's *level*, not the fluctuation about that
+level. Drawn from one flat series the level is invisible: every block shares it, so
+it contributes nothing to their spread, and centring removes it outright. Drawn
+from :math:`m` windows laid end to end the level is present but diluted, since a
+block of length :math:`L` usually straddles a boundary and averages two windows'
+levels.
+
+So the draw separates them. Each path takes one window's level, sign-flipped like
+everything else and held across the whole horizon, and blocks of the within-window
+residuals on top of it. The window means are deviations from the grand mean and
+carry :math:`m - 1` degrees of freedom, so they are scaled by
+:math:`\sqrt{m/(m-1)}` before being drawn from. Because each window's residuals now
+sum to zero, the zero-sum constraint binds at the window length instead of the
+series length, and the block is capped at half a window and corrected against it.
+
+The level is shrunk before it is drawn from. The :math:`m` window means scatter even
+when every window shares a level, since each is an average of :math:`L` noisy
+periods, so their variance estimates :math:`\sigma^2_{\text{level}} +
+\sigma^2_{\text{within}}/L`. Drawing from them whole charges the band for a level
+that may not be there -- on a series with none it inflates the total by about 1.40
+at any number of windows, the spurious level variance and the fluctuation variance
+being equal by construction. So the noise floor is subtracted, giving the one-way
+random-effects estimator
+
+.. math::
+
+   \hat\sigma^2_{\text{level}}
+       = \max\left(0,\ s^2_{\text{between}} - s^2_{\text{within}}/L\right),
+
+which leaves a strongly levelled series almost untouched. The floor is not free:
+truncating the negative side of an estimator whose mean is zero biases it up, so on
+a level-free series the total still runs about 1.12 times wide at six windows,
+falling to 1.04 at forty. More windows is what buys that back.
+
+Measured on panels built from real weekly market data -- 104 pre-periods, a
+13-period horizon, a treated unit the donors can reproduce -- the realised coverage
+of the total moves from 0.85 to 0.94 for VanillaSC and from 0.72 to 0.94 for a
+blank-window design, against a nominal 0.95. PDA reads 0.98 on the same panels, and
+that is its band working as specified and not conservatism: its cumulative band is
+simultaneous over the whole horizon path, so any single horizon is covered at more
+than :math:`1-\alpha` by construction.
+
+Where the scores come from differs from Wheeler as well, and the difference has a
+direction. He calibrates on leave-one-out residuals: each is scored by a model
+that saw every pre-period point but one, so it measures interpolation. mlsynth
+calibrates on rolling origins, each scored by a model trained only on what came
+before it, over a window of exactly the reported horizon. That is the harder
+question and gives the larger errors, so the resampled band runs wider than his --
+about 1.4 times on the benchmark panel. The two calibration sets are not
+interchangeable for a cumulative horizon.
+
+The choice does not change what comes back. The same
+:class:`~mlsynth.utils.pda_helpers.structures.PDACumulativeBand` is returned,
+built by the same simultaneous machinery, with only its ``method`` field recording
+which construction produced it. One reader serves all four PDA variants, since it
+asks the estimator for its counterfactual instead of a weight vector, which
+LASSO's intercept and the modified-BIC path's donor scaling would otherwise
+complicate and which forward selection and HCW do not expose at all.
+
+Verification (reference implementation). The durable case
+`benchmarks/cases/pda_wheeler_lassosynth.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pda_wheeler_lassosynth.py>`__
+runs Wheeler's construction and mlsynth's on one shared score vector and pins that
+they agree at ``block=1`` to four tenths of a percent of band width, which is
+Monte Carlo noise on 200,000 draws. It measures that from horizon two, because at
+horizon one the band is a quantile of :math:`2m` discrete atoms and both
+implementations land exactly on one; the case records that those atoms are
+adjacent, so the difference there is discreteness and not disagreement. It also
+records the 1.4 width ratio above, and that a whole-horizon block widens the band
+by 1.58 on an AR(0.7) panel, which is the generalisation doing its work. The
+AR(1) closed form for those eight periods is 1.96; three rolling origins give a
+24-period calibration series, and the sample autocovariances of 24 points
+understate the persistence, so the drawn band does not reach it.
 
 ``hcw`` produces these same intervals, with one practical caveat: the bootstrap
 refits the entire selection on every draw, and HCW's refit re-runs the

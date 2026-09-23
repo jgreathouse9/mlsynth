@@ -1,0 +1,60 @@
+Reference implementation: SucreRouge/synth_control (Bayesian Robust Synthetic Control)
+=====================================================================================
+
+This benchmark cross-validates mlsynth's Bayesian Robust Synthetic Control
+posterior -- the ``estimator="bayesian"`` path of ClusterSC's PCR family
+(``mlsynth.utils.clustersc_helpers.pcr.bayesian``) -- against an independent
+Python reference:
+
+    https://github.com/SucreRouge/synth_control
+    Implements: the Bayesian branch of Robust Synthetic Control,
+                Amjad, Shah & Shen, "Robust Synthetic Control",
+                Journal of Machine Learning Research 19(22):1-51, 2018.
+
+The branch used is ``synth_functions.learn(method="bayesian")``: rank-k hard
+singular-value thresholding (HSVT) of the donor matrix, a data-driven prior
+precision (a forward-chaining ridge-CV penalty times the inverse pre-period
+variance), and the closed-form Gaussian-conjugate posterior over the donor
+weights -- unconstrained weights, no intercept, no simplex.
+
+The repository carries no LICENSE file. Rather than vendoring un-licensed source
+into mlsynth, the reference is fetched on demand at a pinned commit and imported
+from a local cache; nothing from it is redistributed in this tree.
+
+Fetch (performed automatically by benchmarks/reference/clone_synth_control.py):
+
+    pinned commit: a55ee1482d5db8cda32e18327de0072e7ba5e0b6  (master)
+    git clone is proxy-blocked in the build sandbox (HTTP 403), so the helper
+    falls back to the codeload tarball of the same pinned commit:
+
+        curl -sL -o synth_control.tar.gz \
+          https://codeload.github.com/SucreRouge/synth_control/tar.gz/a55ee1482d5db8cda32e18327de0072e7ba5e0b6
+
+    It extracts into benchmarks/reference/.cache/synth_control/ (gitignored) and
+    runs the genuine Bayesian RSC fit from there.
+
+Dependencies: numpy, scikit-learn, scipy, matplotlib.
+
+Faithfulness note: build_bayesian_rsc (clone_synth_control.py) reproduces
+learn(method="bayesian") using the upstream threshold() and forward_chain()
+unmodified and the same posterior algebra, so it can return the two data-driven
+plug-ins (sigma^2 and the prior precision) the case needs; the algorithm itself
+is the upstream source. No modifications are made to the reference source.
+
+What the case pins (see benchmarks/cases/bayesian_rsc_ref.py)
+------------------------------------------------------------
+mlsynth and this reference compute the IDENTICAL Bayesian RSC posterior:
+posterior covariance inv(prior_precision I + (1/sigma^2) A'A) and mean
+(1/sigma^2) Sigma A'y. The case denoises the donor matrix with mlsynth's own
+HSVT (which reproduces the reference's rank-k truncation to ~1e-12 on this fully
+observed panel), feeds mlsynth's BayesSCM the reference's data-driven sigma^2 and
+prior precision, and pins that the posterior-mean donor weights, the
+counterfactual, and the ATT match the captured reference to ~1e-8.
+
+Convention note. mlsynth's DEFAULT public path (CLUSTERSC estimator="bayesian")
+sets sigma^2 from the OLS fit residual and uses a fixed prior precision, not the
+reference's total-variance sigma^2 and forward-chaining ridge-CV prior. Those are
+deliberate plug-in choices, so the default public path does not reproduce the
+reference to 1e-8; the shared object the two implementations agree on is the
+posterior kernel and the HSVT denoiser, which is what this case cross-validates,
+holding sigma^2 and the prior precision fixed across the two.

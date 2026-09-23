@@ -89,6 +89,7 @@ At a glance
    Interpolation across dissimilar donors? ─► MASC
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
    Different ESTIMAND / treatment type? ─► DSC (dist.) · DRSC (cond. dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
+   Forecasting a unit that has NOT adopted yet? ─► TWSF (prospective, past the end of the panel)
 
    PART 2 — MANY treated units   (easy ─────────────────────► hard)
    ─────────────────────────────────────────────────────────────────
@@ -122,7 +123,16 @@ Q0.1 · Are you designing the experiment? Has the treatment *not yet* been
 assigned, and you are choosing whom to treat?
 
 * Yes -- jump to Part 3 (experimental design).
-* No -- the treatment already happened; continue.
+* No, and some units have already adopted while the one you care about has
+  not -- you are asking a *prospective* question: what will this unit do if it
+  adopts next month? That is a different estimand from everything below, which
+  imputes a cell inside the observed window. Go to :doc:`twsf`, which forecasts
+  the treated outcome of a never-treated unit past the end of the panel by
+  learning the treated regime's dynamics from the units already in it. It needs
+  donors that have run under the intervention long enough to show how it
+  behaves, and a short horizon.
+* No, and you want to know what the units that *did* adopt would have done
+  otherwise -- the treatment already happened; continue.
 
 Q0.2 · Is assignment randomized (or as-good-as-random)?
 
@@ -137,9 +147,20 @@ Q0.2 · Is assignment randomized (or as-good-as-random)?
 
 Q0.3 · Do control units exist at all?
 
-* No -- every unit is treated (a nationwide policy, a global shock like
-  COVID-19), so there is no donor pool -- :doc:`shc` rebuilds the comparison
-  from overlapping historical blocks of the treated unit's own series.
+* No -- every unit is treated (a nationwide policy, a court ruling, a global
+  shock like COVID-19), so there is no donor pool and the comparison has to
+  come from the treated unit's own past. Two estimators do this, and they
+  divide on whether you can name the cycle in the series. :doc:`shc` rebuilds
+  the comparison from overlapping historical blocks of the same series, so it
+  needs recurring local structure but not strict periodicity, and it infers by
+  conformal permutation. :doc:`gpits` puts a Gaussian-process prior on the
+  trend with a kernel you specify -- a seasonal component at a period you give
+  it, plus a linear trend -- and its interval widens with the forecast horizon
+  instead of staying flat. Reach for :doc:`gpits` when the series is seasonal
+  at a known period or the horizon is long enough that a flat interval would
+  understate the extrapolation; reach for :doc:`shc` when the structure
+  recurs but no single period describes it. Both are most credible over short
+  post-treatment windows.
 * Yes -- continue.
 
 Q0.4 · Is the treatment endogenous in a way SC cannot absorb? This is the home
@@ -499,6 +520,45 @@ unconstrained. The sixth, :doc:`bpscs`, puts the prior on *donor coefficients*
 but scales it by an external covariate-and-distance utility -- reach for it, at
 Q1.1, when the concern is spatial spillover contaminating the donor pool and you
 want close-by donors down-weighted, not trusted or dropped.
+
+*When the outcome is not Gaussian.* Every estimator above puts its prior
+somewhere -- on the weights, on the factors, on the donor coefficients -- and all
+of them assume the outcome itself is well described by a Gaussian model. For a
+count that is often wrong: case counts, crime incidents, claims and conversions
+are non-negative integers whose spread grows with their level, and a
+least-squares fit to them can return a counterfactual with negative values in it.
+:doc:`mosc` (Wang, Schein, Shou and Blei) is the entry point that lets you choose
+the likelihood instead, fitting a gamma-Poisson factor model to the panel and
+adjusting for the per-unit loadings it returns as though they were observed
+confounders. Its justification is what makes this legitimate: it replaces the
+linear factor model with an argument from negative control outcomes -- every
+pre-intervention observation and every untreated unit is one -- so nothing in the
+identification requires linearity. Reach for it when the panel is wide, the
+pre-period long, and the outcome's distribution is what your other options are
+getting wrong. Two things bound it. Like :doc:`bfsc` and :doc:`mtgp` it reports no
+donor weights at all, since the counterfactual is a regression prediction from
+latent loadings, not a weighted average of donors. And it needs a real
+donor pool -- the outcome model fits a coefficient per latent factor across
+units, so it refuses a panel with fewer than ``n_factors + 3`` of them. With a
+small pool and a Gaussian outcome, :doc:`gsynth` or :doc:`mcnnm` remain the
+better tools. The neighbouring choice for counts is :doc:`cscm`, which keeps the
+donor-weight story and enforces non-negativity at the weighting step; prefer it
+when the weights are the deliverable and the pool is small, and :doc:`mosc` when
+the likelihood is the thing you need to get right. The sharper comparison,
+though, is against :doc:`clustersc`'s robust synthetic control, and it is a
+comparison of assumptions and not of flexibility. Robust SC already permits an
+arbitrary nonlinear latent function; what it requires is that the treated unit's
+mean path lie in the linear span of the donors', carrying to the post-period
+under a rank condition, and it requires nothing whatsoever about how treatment
+was assigned. :doc:`mosc` drops the span requirement and pays for it with
+unconfoundedness given a latent recovered from the outcomes -- a much stronger
+claim, in a literature usually applied where assignment is plainly not
+ignorable. Robust SC also carries a finite-sample error bound and imputes
+missing cells, neither of which :doc:`mosc` offers. What robust SC assumes and a
+count panel denies is a single noise variance common to every unit and period,
+since a Poisson variance equals its mean; that, and not linearity, is the reason
+to switch. So: :doc:`clustersc` unless the outcome's distribution is what is
+going wrong, and a placebo run under either.
 
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
@@ -983,7 +1043,10 @@ left over -- as in a geo roll-out?
 * Scoring by simulated power on your own history -- :doc:`geox` slides a
   pretend treatment window backwards through the panel, injects a lift of known
   size, and ranks candidate test regions by the smallest lift it reliably
-  detects. The design is chosen by the estimator that will analyse the result,
+  detects. The same backtests report how far each design's estimate lands from
+  the lift that was injected, so a region that detects small effects and
+  misstates them is visible as such. The design is chosen by the estimator that
+  will analyse the result,
   and which estimator that is is a setting: ``engine="sdid"`` differences out a
   level gap between the test region and its donors instead of having to match
   it, ``engine="augsynth"`` is the augmented synthetic control GeoLift scores
@@ -1033,7 +1096,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Complication
      - Reach for
    * - No control group (everyone treated)
-     - :doc:`shc`
+     - :doc:`shc`, :doc:`gpits`
    * - Randomized, few large units
      - :doc:`musc`
    * - Endogenous treatment, have an instrument

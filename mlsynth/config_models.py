@@ -658,6 +658,7 @@ _RELOCATED_CONFIGS = {
     "CSCMConfig": "mlsynth.utils.cscm_helpers.config",
     "SequentialSDIDConfig": "mlsynth.utils.seq_sdid_helpers.config",
     "SHCConfig": "mlsynth.utils.shc_helpers.config",
+    "GPITSConfig": "mlsynth.utils.gpits_helpers.config",
     "MLSCConfig": "mlsynth.utils.mlsc_helpers.config",
     "RESCMConfig": "mlsynth.utils.laxscm_helpers.config",
     "SYNDESConfig": "mlsynth.utils.syndes_helpers.config",
@@ -681,6 +682,7 @@ _RELOCATED_CONFIGS = {
     "SCTAConfig": "mlsynth.utils.scta_helpers.config",
     "SCULConfig": "mlsynth.utils.scul_helpers.config",
     "SIConfig": "mlsynth.utils.si_helpers.config",
+    "TWSFConfig": "mlsynth.utils.twsf_helpers.config",
     "FMAConfig": "mlsynth.utils.fma_helpers.config",
     "CFMConfig": "mlsynth.utils.cfm_helpers.config",
     "GSYNTHConfig": "mlsynth.utils.gsynth_helpers.config",
@@ -705,6 +707,7 @@ _RELOCATED_CONFIGS = {
     "RRSCConfig": "mlsynth.utils.rrsc_helpers.config",
     "ESCConfig": "mlsynth.utils.esc_helpers.config",
     "LPCAConfig": "mlsynth.utils.lpca_helpers.config",
+    "MOSCConfig": "mlsynth.utils.mosc_helpers.config",
 }
 
 

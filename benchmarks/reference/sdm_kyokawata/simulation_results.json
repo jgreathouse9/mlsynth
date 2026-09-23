@@ -1,0 +1,63 @@
+{
+  "design": {
+    "T0": 20,
+    "n_reps": 300,
+    "j_grid": [
+      5,
+      10,
+      20,
+      50
+    ],
+    "seed": 0
+  },
+  "paper_reported": {
+    "5": {
+      "sc": 4.454,
+      "sdm_lo": 1.7,
+      "sdm_hi": 1.91
+    },
+    "50": {
+      "sc": 5.43,
+      "sdm_lo": 1.7,
+      "sdm_hi": 1.91
+    }
+  },
+  "rows": [
+    {
+      "J": 5,
+      "rmspe_sc": 4.2414113226293635,
+      "rmspe_mscb": 1.943916335348102,
+      "rmspe_mscc": 1.6431049579134862,
+      "max_reachable_loading": 0.30701675285686064,
+      "treated_loading": 1.0,
+      "saturated": false
+    },
+    {
+      "J": 10,
+      "rmspe_sc": 5.028875867951414,
+      "rmspe_mscb": 2.220476328686441,
+      "rmspe_mscc": 1.6420234414308934,
+      "max_reachable_loading": 0.13298168099747126,
+      "treated_loading": 1.0,
+      "saturated": false
+    },
+    {
+      "J": 20,
+      "rmspe_sc": 5.251951277510424,
+      "rmspe_mscb": 1.9068517324375585,
+      "rmspe_mscc": 1.3477334496784736,
+      "max_reachable_loading": 0.0707487826276741,
+      "treated_loading": 1.0,
+      "saturated": true
+    },
+    {
+      "J": 50,
+      "rmspe_sc": 5.367052763855236,
+      "rmspe_mscb": 0.24442317177640363,
+      "rmspe_mscc": 0.13574075490294074,
+      "max_reachable_loading": 0.029389580952782043,
+      "treated_loading": 1.0,
+      "saturated": true
+    }
+  ]
+}

@@ -14,7 +14,12 @@ from .structures import (
 )
 from .setup import prepare_fdid_inputs
 from .estimation import did_from_mean, forward_did_select
-from .inference import did_inference
+from .inference import (
+    block_mean_variance,
+    did_inference,
+    hac_lag,
+    residual_autocovariances,
+)
 from .results_assembly import assemble_fdid_results
 from .plotter import plot_fdid
 
@@ -27,7 +32,10 @@ __all__ = [
     "prepare_fdid_inputs",
     "did_from_mean",
     "forward_did_select",
+    "block_mean_variance",
     "did_inference",
+    "hac_lag",
+    "residual_autocovariances",
     "assemble_fdid_results",
     "plot_fdid",
 ]

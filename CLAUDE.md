@@ -58,6 +58,35 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
 6. **Match the nearest existing estimator** before inventing a pattern.
    Canonical references: `MAREXConfig`, `LEXSCMConfig`, `RESCMConfig`, the
    `BaseEstimatorResults` hierarchy, and `mcnnm`/`vanillasc` for layout.
+7. **Computation and presentation are separate.** Estimators and helpers compute
+   and return; displaying, saving, formatting and printing are the caller's.
+   A `plot_*` helper returns its `Figure` and does not call `plt.show()`; library
+   code does not `print`. A diagnostic the caller might act on becomes a typed
+   field on the result (usually `MethodDetailsResults`) or a `warnings.warn` —
+   never stdout, and never discarded.
+
+## Design doctrine (the Unix rules)
+
+`agents/agents_unix.md` settles which of the Unix design rules bind here, which
+are re-implemented in a typed medium, and which are refused — with the citations,
+the measured backlog, and the checks. Read it before arguing that a structure is
+or is not idiomatic. Three results from it are already invariants above:
+invariant 3 is the Rule of Composition (the result contract is this library's
+universal interface, and `mlsynth/spec.py` is its text boundary), invariant 4 is
+the Rule of Modularity, and invariant 7 is the Rule of Separation plus the Rule
+of Silence.
+
+One rule is refused on purpose: Postel's "be liberal in what you accept". A
+lenient validator turns a malformed panel into a number that looks like an
+estimate, so `extra="forbid"` and fail-early validation stand.
+
+Sweeping the two code rules (documentation-level checks, not gates — the
+baseline counts and the AST versions are in `agents/agents_unix.md`):
+
+```bash
+grep -rn "^\s*print(" mlsynth/ --include=*.py | grep -v /tests/   # Rule of Silence
+grep -rn "plt.show()" mlsynth/ --include=*.py | grep -v /tests/    # Rule of Separation
+```
 
 ## Testing & TDD (test-first is mandatory)
 
@@ -75,7 +104,9 @@ covered — defensive / unreachable branches get `# pragma: no cover` with a
 stated reason, never an untested gap. The layered architecture, patterns,
 exception contract, and the instrument-selection contract — which of
 `coverage` / `pytest` / `hypothesis` / `cosmic-ray` answers which question, and
-why two of them are complements — live in `agents/agents_tests.md`.
+why two of them are complements — live in `agents/agents_tests.md`, along with
+the Unix rules applied to tests (a hard-to-test function is a design report;
+generous fixtures and strict assertions; the failure names the invariant).
 
 ## The replication contract
 
@@ -241,6 +272,26 @@ Reusable, codified workflows live in `.claude/commands/`:
   port → validate vs reference → decide build).
 - `/new-estimator <name>` — scaffold a new estimator to the contract above.
 - `/ai-review` — cross-model review of the working diff before a PR.
+- `/rca <failure>` — diagnose a failure to its root cause, leaving the five-why
+  ladder behind as tests (`agents/agents_tests.md`).
+
+### Root-cause analyses belong in the PR body
+
+When a change comes out of an `/rca`, the whole ladder goes in the pull request
+description, not only in the commit message. Every rung, with its measurement and
+whether it passed, including the hypotheses that were eliminated and any mutant
+that survived a first run.
+
+The reason is that the ladder's most valuable output is usually a negative
+result — a construction that cannot work, an invariant that does not hold, an
+explanation that measured out wrong — and a negative result nobody can find gets
+rediscovered the expensive way. A commit message is read once, by whoever
+reviews that commit. The PR is what a person finds a year later when they reach
+for the same approach, and it is where the reasoning has to be waiting for them.
+
+Include the wrong turns explicitly. "The obvious explanation was X, measured at
+Y, and X is not the cause" is worth as much as the cause itself, because it is
+the branch the next person would otherwise take.
 
 Optional plan-gate: `.claude/hooks/check-plan-review.sh` (wire via
 `.claude/settings.json`) blocks plan approval until a plan review exists.

@@ -1,0 +1,9 @@
+{
+  "case": "bayesian_rsc_ref",
+  "title": "Bayesian Robust Synthetic Control posterior vs SucreRouge/synth_control on Proposition 99",
+  "paper": "Amjad, Shah & Shen, \"Robust Synthetic Control\", JMLR 19(22):1-51, 2018 (Bayesian branch)",
+  "reference_impl": "SucreRouge/synth_control (live run, codeload @ a55ee14)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/bayesian_rsc_ref/reference.py",
+  "data": ["basedata/smoking_data.csv"]
+}

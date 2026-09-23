@@ -6,7 +6,9 @@ Method*, Marketing Science. FDID greedily grows the control group one
 donor at a time, keeping the subset that maximises pre-treatment fit,
 and reports both the forward-selected estimate (``FDID``) and the
 textbook all-donor difference-in-differences benchmark (``DID``), each
-with Li (2023) analytical standard errors.
+with Li (2023) analytical standard errors. Set ``inference="hac"`` for a
+standard error robust to a serially correlated parallel-trends residual,
+which Li's formula does not price in.
 
 The estimator is a thin orchestration layer over
 :mod:`mlsynth.utils.fdid_helpers`: it validates configuration, prepares
@@ -41,7 +43,7 @@ class FDID:
         :class:`mlsynth.utils.fdid_helpers.config.FDIDConfig` for the available
         fields (``df``, ``outcome``, ``treat``, ``unitid``, ``time``,
         ``display_graphs``, ``save``, ``counterfactual_color``,
-        ``treated_color``, ``verbose``).
+        ``treated_color``, ``verbose``, ``inference``, ``lrvar_lag``).
 
     References
     ----------
@@ -81,6 +83,8 @@ class FDID:
         self.display_graphs: bool = config.display_graphs
         self.save: Union[bool, dict] = config.save
         self.verbose: bool = config.verbose
+        self.inference: str = config.inference
+        self.lrvar_lag = config.lrvar_lag
 
     def fit(self) -> FDIDResults:
         """Run forward selection and return the typed FDID results.
@@ -116,6 +120,8 @@ class FDID:
                 inputs.pre_periods,
                 donor_names=list(inputs.donor_names),
                 verbose=self.verbose,
+                inference=self.inference,
+                lrvar_lag=self.lrvar_lag,
             )
         except Exception as e:  # noqa: BLE001 - surface as estimation failure
             raise MlsynthEstimationError(

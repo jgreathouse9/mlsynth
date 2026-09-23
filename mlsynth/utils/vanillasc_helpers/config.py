@@ -22,8 +22,8 @@ from ...config_models import BaseEstimatorConfig
 # source of truth so an unknown/misspelled value fails loudly at config time
 # rather than silently returning no inference.
 VALID_INFERENCE_METHODS = frozenset(
-    {"placebo", "scpi", "conformal", "conformal_split", "conformal_cumulative",
-     "lto", "ttest", "eiv", "jackknife_plus", "none"}
+    {"placebo", "placebo_cs", "scpi", "conformal", "conformal_split",
+     "conformal_cumulative", "lto", "ttest", "eiv", "jackknife_plus", "none"}
 )
 
 #: Spellings normalised onto a canonical method name. ``augsynth`` writes
@@ -273,7 +273,55 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "error-in-variables normal/t prediction intervals), "
                     "'jackknife_plus' (augsynth's ``inf_type=\"jackknife+\"`` for "
                     "ridge ASCM -- leave-one-pre-period-out refits; requires "
-                    "augment='ridge'), or False.",
+                    "augment='ridge'), 'placebo_cs' (Firpo-Possebom 2018 "
+                    "confidence sets: the placebo test inverted over a constant "
+                    "or linear effect path, with an optional "
+                    "assignment-probability sensitivity sweep), or False.",
+    )
+    placebo_cs_class: Literal["constant", "linear"] = Field(
+        default="linear",
+        description="With inference='placebo_cs', the one-parameter family the "
+                    "test is inverted over: a constant post-treatment effect, or "
+                    "one linear in periods since treatment (the parameter is "
+                    "then the per-period slope).",
+    )
+    placebo_cs_precision: int = Field(
+        default=20, ge=1, le=60,
+        description="With inference='placebo_cs', the number of bisection "
+                    "levels. Each level halves the bracket, so the bound is "
+                    "located to about 2**-precision of the point estimate. The "
+                    "authors suggest 20 to 30.",
+    )
+    placebo_cs_phi: float = Field(
+        default=0.0, ge=0.0,
+        description="With inference='placebo_cs', the assignment-probability "
+                    "tilt. Zero is the uniform-assignment test; larger values "
+                    "move probability toward the units flagged in "
+                    "``placebo_cs_v``, weakening the test.",
+    )
+    placebo_cs_v: Optional[List[float]] = Field(
+        default=None,
+        description="With inference='placebo_cs', the 0/1 vector over units "
+                    "naming which the design might have favoured, ordered "
+                    "treated-unit-first then donors as in the fitted panel. "
+                    "None marks the treated unit alone, which is the direction "
+                    "that weakens the test.",
+    )
+    placebo_cs_sweep: Optional[List[float]] = Field(
+        default=None,
+        description="With inference='placebo_cs', a sweep of tilts to report "
+                    "alongside the set, so the breakdown point is visible. "
+                    "None runs no sweep.",
+    )
+    placebo_cs_horizon: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="With inference='placebo_cs', how many post-treatment "
+                    "periods the reported cumulative and average scales "
+                    "accumulate. None uses the whole post-period. Set it to the "
+                    "``conformal_horizon`` of a cumulative conformal band to "
+                    "read the two over the same window; a horizon longer than "
+                    "the panel's post-period is refused.",
     )
     @field_validator("inference")
     @classmethod
@@ -456,6 +504,53 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "long horizon leaves few non-overlapping calibration windows "
                     "in the pre-period, and the band widens accordingly.",
     )
+
+    conformal_method: Literal["split", "resample"] = Field(
+        default="split",
+        description="How the cumulative band is calibrated. 'split' (default) "
+                    "takes the finite-sample order statistic of the m "
+                    "rolling-origin window sums, which exists only once m reaches "
+                    "ceil(1/alpha) - 1 and otherwise returns an infinite "
+                    "half-width. 'resample' keeps the same windows per period, "
+                    "giving m * horizon values, and block-resamples them into "
+                    "accumulated paths; the band is then the quantile of those "
+                    "totals. It stays finite on pre-periods where the order "
+                    "statistic does not exist, and it carries the serial "
+                    "correlation of the period errors into the total instead of "
+                    "reading it off a single summed score.",
+    )
+    conformal_block: int = Field(
+        default=0,
+        description="conformal_method='resample' only: block length in periods "
+                    "for the circular block bootstrap. 0 (default) means the whole "
+                    "horizon; 1 draws periods independently, which understates the "
+                    "spread of a total whenever the period errors are positively "
+                    "autocorrelated.",
+    )
+    conformal_n_sim: int = Field(
+        default=2000,
+        description="conformal_method='resample' only: number of accumulated paths "
+                    "to draw. These cost no refits -- the refits are the "
+                    "calibration origins -- so this buys quantile precision "
+                    "cheaply.",
+    )
+    conformal_seed: int = Field(
+        default=0,
+        description="conformal_method='resample' only: seed for the draw, so the "
+                    "band is reproducible.",
+    )
+
+    @field_validator("conformal_block", "conformal_n_sim", "conformal_seed",
+                     mode="before")
+    @classmethod
+    def _validate_conformal_draw(cls, v, info):
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(f"{info.field_name} must be an integer.")
+        if info.field_name == "conformal_block" and v < 0:
+            raise ValueError("conformal_block must be >= 0 (0 means the horizon).")
+        if info.field_name == "conformal_n_sim" and v < 2:
+            raise ValueError("conformal_n_sim must be >= 2 to take a quantile.")
+        return v
 
     @field_validator("conformal_horizon")
     @classmethod

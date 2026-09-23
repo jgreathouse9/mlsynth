@@ -1,0 +1,26 @@
+# case: scmo_covid_sweden
+# generated_at: 2026-09-15T12:43:06Z
+# mlsynth_version: 2.0.0
+# estimator: SCMO
+# config: {"demean": true, "inference": "placebo", "metric_weighting": "outcome", "schemes": ["concatenated"], "spec": "three domains, twelve outcomes at four frequencies"}
+# reference_impl: Tian-Lee-Panchenko COVID_analysis.R (fn_W solve.QP, live run, captured)
+# reference_version: Tian, Lee & Panchenko (2026), Econometrics Journal, Online Appendix B.3
+quantity,mlsynth,reference,abs_diff
+tau_agg/health,1.1036,1.1036,0.0
+tau_agg/labour,0.4465,0.4465,0.0
+tau_agg/economic,0.0719,0.0719,0.0
+p_agg/health,0.0769,0.0769,0.0
+p_agg/labour,0.0769,0.0769,0.0
+p_agg/economic,0.5185,0.5185,0.0
+p/covid_cases,0.0385,0.0385,0.0
+p/covid_deaths,0.1154,0.1154,0.0
+p/deaths_TOTAL,0.1538,0.1538,0.0
+p/labour_employ,0.7692,0.7692,0.0
+p/labour_absence,0.1154,0.1154,0.0
+p/labour_hours,0.0385,0.0385,0.0
+p/gdp_a,0.5556,0.5556,0.0
+p/import,0.7407,0.7407,0.0
+p/export,0.5926,0.5926,0.0
+p/industrial,0.5185,0.5185,0.0
+p/retail_both,0.2222,0.2222,0.0
+p/CPI,0.4815,0.4815,0.0

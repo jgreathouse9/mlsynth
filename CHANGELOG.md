@@ -9,6 +9,209 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `fgrc_n_random` and `fgrc_nstart` on `CLUSTERSCConfig`: the two restart counts
+  for fGRC clustering (`cluster_method="fgrc"`), both defaulting to 40, which is
+  what the port already used. They were not reachable from the config, so a user
+  whose cluster assignment moved between runs had no way to spend more restarts
+  on it.
+
+  Yamamoto and Hwang (2017, Section 5) report that the number of local optima of
+  the fGRC objective varies with the data condition and recommend implementing
+  the method with many random initial starts. `fgrc_n_random` restarts the
+  loading matrix; `fgrc_nstart` restarts the k-means step within each of those;
+  the lowest-loss solution is retained. The defaults are more generous than the
+  authors' own R package, whose `N.random` defaults to 1.
+
+  The restarts minimise over starting points, so raising them cannot raise the
+  retained loss, and a test asserts that ordering instead of a fixed number.
+  Passing the defaults explicitly reproduces not passing them, on both the ATT
+  and the cluster labels.
+- `mlsynth.utils.clustersc_helpers.rpca.selection`: the number-of-clusters stage
+  of Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
+  authors' own R package previously implemented -- as a diagnostic. It is
+  deliberately not a configuration option: `fgrc_k` stays whatever you set, and
+  nothing in `CLUSTERSCConfig` reaches the rule.
+
+  The rule is a self-consistency check. For a candidate K the method is fitted,
+  the Gap statistic (Tibshirani, Walther and Hastie 2001) is computed on the
+  resulting component scores over a wider grid of k, and K is accepted when
+  `argmax_k Gap(k | L_C, L_D, K) = K`. Two measurements say why the number it
+  produces is not something to act on unread.
+
+  The acceptance is not independent of the fit it checks. The Gap is read on the
+  subspace fGRC chose under the assumption of K clusters, against references
+  drawn inside that same fixed subspace. On white noise at N=30 with c2=1 the
+  fitted subspace puts its Gap maximum at K in 10 to 11 replications out of 12,
+  against 0 to 2 for a random projection of the same basis, which is chance. On
+  structureless 18-unit panels with c2=1, every replication accepted a
+  candidate.
+
+  A maximum at an end of the evaluation grid is a property of the grid. On the
+  17-unit Basque panel it moves with the grid -- 1, 6, 8, 10, 12, 16 for grids
+  1..4 through 1..16 -- and the K that follows moves the donor pool from 15
+  units to 9 and the ATT from -0.365 to -1.212.
+
+  `FGRCSelection` reports both: `boundary` names the candidates whose curve
+  peaked at an end of the grid, they are excluded from acceptance and from the
+  relaxation, and `selected_k` is `None` when that leaves nothing. `one_se`
+  carries Tibshirani's one-standard-error reading, which is the conservative
+  instrument: across 18 structureless panels it answered k=1 on all 54 candidate
+  curves, and on the paper's planted design it answers 3. The evaluation grid
+  must now extend past the largest candidate, and a panel too small for such a
+  grid is refused instead of silently truncated -- on five units the old
+  truncation reported two candidates as accepted on pure noise.
+
+  Validation is against the planted design of the paper's Section 5 and against
+  the null of that same design with the separation removed. Only this stage of
+  Algorithm 1 is implemented; the smoothing lambda by GCV and the penalties by
+  pseudo-F are taken from the caller.
+### Fixed
+- The GEOX engine property suite skips an engine whose optional dependency is
+  absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
+  needs numpyro into a registry that `tests/test_geox_engine_properties.py`
+  parametrizes over unconditionally, so in any environment installing
+  `requirements.txt` alone the eight mvbbsc cases raised
+  `MlsynthEstimationError: MVBBSC requires NumPyro` instead of reporting the
+  engine absent.
+
+  The pull request gate did not see it. `build.yml` runs `pip install numpyro`
+  explicitly, so both PRs were green; `coverage-badge.yml` and `mutation.yml` do
+  not, and the daily badge went red on main with exactly those eight failures.
+
+  `Engine` now carries `requires`, the optional imports an engine cannot fit
+  without, and the suite reads it from the registry instead of naming engines,
+  so a later engine inherits the behaviour. An engine module still imports its
+  dependency inside `fit_once` and never at module scope, which is what lets the
+  registry be resolved without it.
+
+  `mutation.yml` installs numpyro too, and that one was the worse exposure: the
+  bayes tests `importorskip`, so a target whose tests all skip exits 0 and the
+  harness reads the mutant as having survived. That reports confidence nobody
+  measured, which is the one outcome `tools/mutation/run_mutants.py` is written
+  to refuse.
+
+### Fixed
+- `test_scale_invariance_of_weights` no longer asserts against a constant the
+  sampler's own spread can exceed. MVBBSC standardizes internally, so rescaling
+  every series leaves the posterior weights alone -- exactly, in arithmetic. The
+  sampler is where that stops being exact: `(1000*y - mean(1000*y))/std(1000*y)`
+  is not bitwise `(y - mean(y))/std(y)`, the two standardized panels differ by
+  about 1e-14 in float64, and NUTS carries that into the draws. In single
+  precision, NumPyro's default, the difference rounds away and the check comes
+  back at 0.0; MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so which of the two happens depends on what else the process
+  imported.
+
+  At the 80-draw chains the check used, the measured numbers say the 0.05
+  constant was never a bound. Across eight panels under x64 a rescale moved the
+  posterior-mean weights by a median of 0.0211 and at most 0.0374, and refitting
+  the same panel at another seed moved them by a median of 0.0213 and at most
+  0.0384 -- the same distribution, which is the invariance holding. A constant
+  1.4x above that floor passes on luck, and on one CI build it drew 0.0587 and
+  failed.
+
+  The check now bounds the movement by the sampler's own re-run spread, measured
+  in the same process on the same panel, with 0.05 kept as a floor since two
+  seeds can land close by chance. That comparison is build-independent where a
+  constant is not. The chains are also lengthened to 400 draws, which halves
+  both quantities (0.0072 median movement against 0.0102 median spread) and
+  costs no measurable time, since compilation dominates. A mutant that drops the
+  scale divisor is killed, so the looser bound still catches the defect the
+  check exists for.
+- MVBBSC no longer depends on the order its donors arrive in. Donor column order
+  carries no information about the effect -- the pool is a set -- but NUTS walks
+  a parameter vector, so permuting the simplex coordinates changes the
+  trajectory and two runs at one seed disagree by however far it diverges. On
+  the German reunification panel, permuting the 16 donors moved the
+  posterior-mean weights by 7.2e-3 and the mean post-1990 ATT by 6.03, which is
+  0.29% of the estimate: an answer that changed because somebody sorted a
+  dataframe. `run_mvbbsc` now sorts the donor columns lexicographically on the
+  pre-period before sampling and maps the draws back, so every permutation of
+  one donor set presents the sampler with one input and the weights still come
+  back against the columns the caller passed. The relation is exact, so the
+  tests carry no tolerance. `mvbbsc_germany` still passes on its existing pins
+  (mean_att -2078 against -2080 +/- 500, pre_rmse 61.8 against 62.2 +/- 20).
+
+  The tests are parametrized over `target_accept`, and that is not incidental.
+  It defaults to 0.8 and moves the ATT on this panel by 5.92, the same size as
+  the 6.03 the donor order moved it, so a check at one setting is a check where
+  two effects of equal magnitude can cancel. The pre-fix natural order at 0.9
+  and the post-fix canonical order at 0.8 agree to 0.1 by coincidence, which is
+  enough to make a working fix look inert. Two mutants in
+  `tools/mutation/targets.toml` pin both halves: dropping the canonicalisation,
+  and returning the weights in the sampler's internal order so every weight is
+  attributed to the wrong donor while the ATT stays correct.
+
+### Added
+- `engine="mvbbsc"` on GEOX: the Bayesian synthetic control of Martinez and
+  Vives-i-Bastida (2024) in the slot augsynth occupies, needing the `[bayes]`
+  optional dependency. Nomination, backtest windows, effect injection, the power
+  sweep, the MDE rule and the composite rank are untouched, so the engine
+  supplies the fit and the null and nothing else. Two things differ from calling
+  `mlsynth.MVBBSC` on the same panel, and both follow from what a scoring loop
+  asks. The ATT interval carries the pre-period AR(1): a
+  design's readout averages a post window, so under an iid shock its variance
+  falls as sigma^2/h while under positive autocorrelation it falls more slowly.
+  On Meta's GeoLift panel, every one of its 40 locations taken in turn as an
+  untreated placebo, a nominal 90% interval on the iid shock covers 65% and this
+  one covers 87.5%, against augsynth's conformal 89.7% at 1.7x the width. Donor
+  order is handled in `run_mvbbsc` (see Fixed), so the engine inherits that
+  invariance instead of re-imposing it, and it is exact. Scale and location
+  equivariance are not exact and hold at the engine's declared `fit_tolerance`
+  (see Changed).
+- `Engine.fit_tolerance`: the relative precision at which an engine reproduces
+  itself on one panel, declared on the engine and read by the metamorphic
+  property suite. `sdid` and `augsynth` solve deterministic programs and keep
+  the 1e-6 default; `mvbbsc` samples and declares 5e-2.
+
+  The number exists because the suite's fixed 1e-6 was asserting a rounding
+  accident. Rescaling or shifting a panel is exactly equivariant in arithmetic
+  and the model's standardization is not bit-exact in floating point: the
+  standardized arrays reaching the sampler differ in the last ulps, 1.3e-14 on
+  a rescale and 6.7e-15 on a shift. NumPyro samples in single precision by
+  default, where that difference rounds away and the relations held to 0.0
+  exactly. MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so in a full-suite run the difference survives and NUTS carries
+  it into the draws -- 4.3e-03 on a rescale, 2.1e-03 on a shift. The engine was
+  green on its own file and red in the suite, and which it was depended on what
+  had been imported first.
+
+  5e-2 is measured. Over six generated panels a rescale moved the posterior
+  weights by at most 5.7e-3 and a shift by 1.1e-2, while refitting the same
+  panel at another seed moved them by 1.2e-2 -- the transformation costs no more
+  than running the sampler again, which is the claim the relation is making, and
+  5e-2 is twice the worst of those. `test_a_transformation_moves_the_fit_no_more_than_refitting_does`
+  asserts that sharp form directly, and
+  `test_the_metamorphic_relations_hold_in_double_precision` re-runs the relations
+  in a subprocess with x64 on, since a single process cannot test both modes.
+  The donor-order relation is unaffected and stays at 1e-6.
+
+  The global-state leak itself is untouched here: whether a NumPyro estimator
+  runs in single or double precision still depends on whether MTGP or BPSCS was
+  imported earlier in the process, and on one panel at one seed that moves
+  MVBBSC's posterior-mean weights by 6.4e-3. That is a shared-helper fix and
+  belongs on its own branch.
+- `inference="bayes"` in the GEOX vocabulary: the posterior predictive of the
+  Bayesian engine. Available on `mvbbsc` alone, and also the only null that
+  engine admits, since substituting a placebo or conformal procedure would
+  report a quantity the estimator did not produce -- the argument by which
+  `sdid` already refuses conformal. The readout is a credible interval and a
+  posterior tail probability, carrying `max_rhat` and `n_divergent` so a design
+  scored on an unconverged chain is visible as such. The other engines' defaults
+  are unchanged: placebo for `sdid`, conformal for `augsynth`.
+- `benchmarks/cases/geox_mvbbsc_equivalence.py`: certification by equivalence.
+  The engine and the estimator agree identically on West Germany -- the
+  posterior-mean counterfactual, the ATT and the donor weights all to 0.0
+  maximum absolute difference, pinned without a tolerance because the two are
+  one sampler call on one standardized panel and anything else would mean the
+  wrapper introduced a transformation. Both sides are compared at float64:
+  NumPyro samples in x32, so measuring the engine's upcast draws against the raw
+  output reads as a 1.8e-08 disagreement that is precision and not computation,
+  and the counterfactual hides it because a matrix product promotes implicitly
+  where a mean over draws does not. Reversing the donor columns changes nothing
+  the engine reports. The agreed ATT sits inside the band `mvbbsc_germany`
+  already pins and beside bsynth's -2075, so the equivalence is anchored to the
+  external reference and not only to itself.
 - `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
   CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
   `cumulative_lower`, `cumulative_upper` and `cumulative_windows`. PPSCM reported the

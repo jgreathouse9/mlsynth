@@ -111,7 +111,10 @@ class PDA:
                        cumulative_band=self.config.cumulative_band,
                        pi_n_boot=self.config.pi_n_boot,
                        pi_dependent=self.config.pi_dependent,
-                       pi_seed=self.config.pi_seed)
+                       pi_seed=self.config.pi_seed,
+                       cumulative_method=self.config.cumulative_method,
+                       cumulative_block=self.config.cumulative_block,
+                       cumulative_n_sim=self.config.cumulative_n_sim)
         results = assemble_pda_results(inputs, fits, selected_variant=methods[0])
 
         if self.display_graphs:

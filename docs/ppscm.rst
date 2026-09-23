@@ -140,6 +140,22 @@ pooled SCM.
    weight on a squared norm, and the same panel measured in dollars and in
    thousands of dollars can land on opposite sides of the boundary.
 
+The program is posed on residuals divided by a power of two that brings them to
+unit magnitude, and the answer is read back in the caller's units. Synthetic
+control is scale-equivariant, so this leaves the estimand alone: multiplying
+every series by a constant leaves the weights where they were and scales the
+effect with them. What it changes is what the solver is asked for. The separate
+fit normalizes by one, because it is the fit that produces
+:math:`\text{norm}_{\text{pool}}` and :math:`\text{norm}_{\text{sep}}`, so its
+objective carries the square of whatever units the outcome happens to be in,
+while the solver's convergence test is an absolute tolerance. On a panel running
+at :math:`10^5` that fit takes twenty times as long as the identical problem at
+unit scale, and past about :math:`10^3` it stops converging at all and a fallback
+solver answers to a looser standard. The divisor is the median absolute
+residual: stage 1 has already removed the level, and a panel of markets spans an
+order of magnitude in size, so the typical residual and not the largest sets the
+scale. Residuals already within :math:`2^3` of unit magnitude are left alone.
+
 Assumptions / Remarks.
 
 *Assumption 1 (no anticipation, parallel residual trends).* After removing the
@@ -421,6 +437,31 @@ for the overall ATT and each relative-time horizon, with Wald intervals.
 ``inference_method="bootstrap"`` swaps in augsynth's default Mammen wild
 bootstrap, which reweights the single fit instead of refitting.
 
+What the jackknife varies, and what it therefore prices
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dropping a control and dropping a treated unit are not the same experiment.
+Removing a control moves the synthetic counterfactual a little. Removing a
+treated unit removes one of the few draws the effect is averaged over, and that
+is the sampling variability of the pooled estimand. A jackknife ensemble made
+entirely of control deletions measures donor substitution.
+
+That distinction bites with a single treated unit. Deleting it leaves no treated
+unit, so the estimator cannot be refit and the replicate is skipped: every
+survivor is a control deletion, and the reported standard error cannot be moved
+by the treated unit's own outcomes at all. Raising a planted effect from 2.0 to
+52.0 on such a panel moves the ATT by 50 and leaves the standard error
+bit-identical.
+
+``PPSCM`` therefore refuses instead of reporting that number. The refusal names
+how many replicates were admitted and how many removed a treated unit, so the
+distinction is visible in the message. Two treated units give one treated
+deletion, which is a thin ensemble but not a vacuous one, and it is allowed.
+
+With one treated unit, reach for an inference method that does not rest on
+deleting treated units --- ``inference_method="bootstrap"`` reweights a single
+fit --- or report the point estimate without an interval.
+
 Analytical standard errors under the Callaway-Sant'Anna conventions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -635,6 +676,117 @@ leaving eight windows, which no longer supports a 90% band. Read
   120          0.5    8          below the 90% threshold
   ===========  =====  =========  ===============================================
 
+Which calibration set: ``conformal_method``
+-------------------------------------------
+
+The band above calibrates on non-overlapping windows of the pre-period, and that
+reference set is small. With :math:`m \approx 0.7\,T_0/L` windows, a finite
+:math:`1-\alpha` band needs :math:`\lceil (m+1)(1-\alpha) \rceil \le m`, which
+puts a floor of about :math:`12.8\,L` pre-periods under it. Past the floor, at
+whatever level a given :math:`m` just supports, the required rank equals
+:math:`m` itself, so the order statistic never trims anything and the half-width
+is simply the largest calibration score:
+
+  ===========  =====  =========  ================  ===================
+  :math:`T_0`  L      windows    tightest level    rank
+  ===========  =====  =========  ================  ===================
+  120          8      10         90%               10 of 10
+  120          4      21         95%               21 of 21
+  104          13     5          80%               5 of 5
+  156          8      13         90%               13 of 13
+  ===========  =====  =========  ================  ===================
+
+On a thirty-market weekly panel with 120 pre-weeks, an eight-week horizon and
+:math:`\alpha = 0.05`, that leaves ten windows against a rank of eleven, and
+every treated unit's band is infinite. Marketing geo-lift panels sit here
+routinely: the horizon is a campaign flight and the pre-period is however much
+history the advertiser has.
+
+``conformal_method="cyclic"`` calibrates instead against the :math:`T` cyclic
+shifts of the residual path, a reference set whose size is the length of the
+panel and not a count of windows. Neither the floor nor the rank-never-trims
+regime applies to it. On the same panel, 118 of 120 unit-fits return a finite
+band and 114 of those 118 cover, against 0 of 120 finite for the split band::
+
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "cyclic"}).fit()
+   for label, uf in res.per_unit.items():
+       print(label, uf.cumulative_effect,
+             (uf.cumulative_lower, uf.cumulative_upper), uf.cumulative_p_value)
+
+The price is a shape assumption. Inverting a test needs a null to subtract, and
+the null here is a constant per-period effect: a candidate :math:`\theta` is
+subtracted from the treated unit's post-period, the panel is refitted, and the
+adjusted residual path is compared against its own cyclic shifts by a
+moving-block statistic. The reported band is :math:`L` times the range of the
+candidates the test accepts. An effect that ramps is outside that null family,
+and the honest outcome is an empty accepted set, reported as ``nan`` bounds --
+distinct from ``None``, which means no band was asked for at all. The split
+band assumes only that the calibration windows are exchangeable with the
+post-period window, and reports the accumulated effect directly, so it makes no
+claim about the effect's shape.
+
+``conformal_method="resample"`` attacks the same shortage from a third
+direction, and it is the cheapest of the three. The split band runs a rolling
+pass over the pre-period and reduces each window to its total, so :math:`m`
+windows give :math:`m` numbers. The same pass computes an :math:`L`-period path
+on the way to each of those totals, and the resample band keeps them: its
+reference set is the :math:`m \times L` per-period errors rather than the
+:math:`m` totals. Each draw assembles a post-period path from circular blocks of
+a unit's own errors, flipping each block's sign with probability one half, and
+the band is the :math:`1-\alpha` quantile of the absolute accumulated draw::
+
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "resample"}).fit()
+
+Because the reference set counts periods, the window floor does not apply, and a
+panel with seven windows against a required rank of eight -- infinite under the
+split band -- returns a finite one. It buys that without the cyclic band's shape
+assumption: nothing is subtracted, no null family is posited, and an effect that
+ramps is as admissible as a flat one. It also refits nothing beyond the rolling
+pass the split band already pays for, where the cyclic band pays a refit per
+candidate in its grid.
+
+What it does assume is that ``conformal_block`` is long enough to carry the
+serial correlation of the period errors. The variance of an :math:`H`-period
+total is :math:`H\gamma_0 + 2\sum_k (H-k)\gamma_k`, so drawing periods
+independently -- ``conformal_block=1``, Wheeler's original construction -- keeps
+only the first term and reports a band too narrow whenever the errors are
+positively autocorrelated. The default, ``0``, means the whole horizon, the
+longest block the accumulated total is sensitive to. A block longer than the
+horizon is clamped to it.
+
+The three report the same estimand, so ``conformal_method`` selects between them
+the way ``inference_method`` selects the bootstrap or the jackknife behind the
+ATT, and there is one set of bounds whichever is chosen. Their diagnostics
+differ and so occupy separate fields: ``cumulative_windows`` counts calibration
+windows and is filled by the split and resample bands, ``cumulative_p_value`` is
+the cyclic band's permutation p-value of the no-effect null, and the unused one
+is ``None``. ``cumulative_method`` says which produced the bounds. A window count
+means different things to the two bands that report it -- the split band's order
+statistic is taken over exactly those windows, while the resample band draws from
+the :math:`L` periods inside each -- which is what ``cumulative_method`` is there
+to disambiguate.
+
+Their parameters differ too, and a parameter belonging to a method not chosen is
+refused by name at config time: ``conformal_n_nulls`` and ``conformal_grid_scale``
+are the cyclic band's, ``conformal_block`` and ``conformal_n_sim`` are the
+resample band's, and ``conformal_min_train_frac`` is shared by the split and
+resample bands, which run the same pass and differ only in how they read it.
+The grid is an approximation and it errs in one direction: the band is the range
+of accepted candidates, so a coarse grid samples fewer of them and reports a band
+too narrow, converging upward as ``conformal_n_nulls`` rises -- measured on a
+two-unit panel, a width of 3.14 at five candidates against 5.86 at thirty-one.
+Coarse is anti-conservative here, the opposite of the usual intuition about
+discretisation. An accepted set reaching an end of the grid is bounded by
+``conformal_grid_scale`` and not by the data, and that end is reported as
+infinite.
+
+Every candidate is a refit, so the cyclic band costs about fourteen times the
+split one -- 9.6s against 0.7s per fit at the geometry above. Reach for it when
+the split band comes back infinite, or when the pre-period is too short for the
+floor.
+
 The cumulative effect overall
 -----------------------------
 
@@ -668,6 +820,37 @@ and a pointwise band read that way covers at well below its nominal level, by
 more as the number of horizons grows. One shared critical value
 (:func:`mlsynth.utils.supt.supt_critical_value`, the sup-t construction of
 Montiel Olea and Plagborg-Moller) restores the level for the whole path.
+
+That multiplier is the :math:`1 - \alpha` quantile of
+:math:`\max_h |z_h| / s_h`, where :math:`z` is the vector of horizon errors and
+:math:`s_h` the standard error each is divided by. The construction assumes
+:math:`s_h` is the true standard error, in which case the ratio is normal and its
+maximum has a known law. Here :math:`s_h` is estimated from the same replicates
+that supply :math:`z`, so the ratio is a Student-t and not a :math:`z`, and its
+maximum is wider -- by more as the ensemble shrinks. Reading the multiplier off
+the normal law would therefore hand back a band narrower than :math:`1 - \alpha`
+at every finite ensemble size, and by a margin that grows exactly where the
+ensemble is small enough to make it matter.
+
+``supt_critical_value`` simulates the whole statistic instead. It draws
+:math:`z \sim N(0, R)` and an independent :math:`Q \sim \text{Wishart}(n - 1, R)`
+for the estimated variances, which is exact for Gaussian replicates because a
+sample mean and a sample covariance are independent, and takes the quantile of
+:math:`\max_h |z_h| / \sqrt{Q_{hh} / (n - 1)}`. At one horizon this reduces to a
+Student-t on :math:`n - 1` degrees of freedom, which is what a single-horizon
+interval should have been all along. Passing ``reference="normal"`` restores the
+older behaviour for a caller reproducing a number from an earlier release.
+
+How much it changes depends on the ensemble, and the two ensembles PPSCM offers
+sit at opposite ends. A wild bootstrap draws as many replicates as it is asked
+for -- at 999 and thirteen horizons the correction is a tenth of a percent, so
+the two references agree to the digit. A delete-one jackknife has one replicate
+per treated unit, and a design with a handful of treated units is where the
+correction is the whole story: at :math:`n = 50` it widens the multiplier by
+4 percent, at :math:`n = 20` by 13. Simulated against a known zero over 3000
+draws at thirteen horizons, a nominal 95 percent band read off the normal law
+covers at 0.932 with fifty replicates and 0.910 with twenty; the studentized
+reference returns 0.949 and 0.957 on the same draws.
 
 Which ensemble produced the band is recorded on ``band.method``, because the two
 are not interchangeable. The wild bootstrap reweights each unit's residual by an
@@ -730,6 +913,15 @@ Verification
    (0.020) is close to augsynth's default wild-bootstrap SE (0.022); they differ
    only by inference procedure. This is locked in by
    ``test_matches_augsynth_vignette`` in ``mlsynth/tests/test_ppscm.py``.
+
+A cross-package case on real data covers both modes at once: the
+cannabis-alcohol panel of Ronczewski (2026), which runs ``augsynth`` and
+``did`` side by side on one sample. PPSCM's default reproduces the published
+``multisynth`` ATT to 8.2e-08 and its ``callaway_santanna`` mode reproduces
+the published ``did::aggte`` simple aggregate to 4.9e-17, with all six
+dynamic event-study coefficients to 2.0e-16. Both need ``n_leads = 6``, which
+the paper sets against a default of 2. See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
 
 Core API
 --------

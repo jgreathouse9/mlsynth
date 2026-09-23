@@ -91,6 +91,20 @@ def run_mvbbsc(
     X = np.asarray(X, dtype=float)
     T, N = X.shape
 
+    # Canonical donor order. Column order carries no information about the
+    # effect -- the donor pool is a set -- but NUTS walks a parameter vector, so
+    # permuting the simplex coordinates changes the trajectory and two runs at
+    # one seed disagree by however far it diverges. On the German reunification
+    # panel that was 7.2e-3 in the posterior-mean weights and 6.03 in the ATT,
+    # which is a number that moves because somebody sorted a dataframe. Sorting
+    # the columns lexicographically on the pre-period presents every permutation
+    # of one donor set to the sampler as one input; the draws are mapped back
+    # below, so the caller sees weights against the columns it passed.
+    donor_order = np.lexsort(X[:T0][::-1])
+    donor_inverse = np.empty_like(donor_order)
+    donor_inverse[donor_order] = np.arange(N)
+    X = X[:, donor_order]
+
     # Standardize by pre-period moments (ddof=1 to match the reference sd()).
     my = float(y[:T0].mean())
     sy = float(y[:T0].std(ddof=1))
@@ -146,7 +160,7 @@ def run_mvbbsc(
 
     return {
         "counterfactual": cf,
-        "weights": W,
+        "weights": W[:, donor_inverse],
         "sigma": S,
         "accept_prob": accept,
         "n_divergent": n_div,

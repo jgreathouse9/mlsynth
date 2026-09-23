@@ -277,6 +277,16 @@ def jackknife_inference(
     # NaN on would trip ``run_multisynth``'s finiteness guard on every replicate.
     nu_refit = float(nu_used) if np.isfinite(nu_used) else None
 
+    # Which replicates removed a treated unit, as opposed to a control. The two
+    # are different quantities: deleting a control moves the synthetic
+    # counterfactual a little, deleting a treated unit removes one of the few
+    # draws the effect is averaged over, and only the second is the sampling
+    # variability of the pooled estimand. This is recorded from the loop and not
+    # derived from ``trt`` afterwards, because a treated refit can also raise and
+    # be skipped -- which rows are present is not which units are treated.
+    treated_loo = np.zeros(n, dtype=bool)
+    was_treated = np.isfinite(trt)
+
     for i in range(n):
         keep = np.ones(n, dtype=bool); keep[i] = False
         trt_i = trt[keep]
@@ -291,6 +301,7 @@ def jackknife_inference(
         except Exception:
             continue
         att_loo[i] = fit_i["att"]
+        treated_loo[i] = bool(was_treated[i])
         pt = fit_i["per_time"]
         pt_loo[i, : len(pt)] = pt
 
@@ -308,6 +319,20 @@ def jackknife_inference(
             f"out of {n} units; at least 2 are needed for a standard error. Every "
             "leave-one-out refit raised, so there is no inference to report -- "
             "returning NaN here is what hid #467.")
+    n_treated_loo = int(treated_loo.sum())
+    if n_treated_loo == 0:
+        n_treated = int(was_treated.sum())
+        raise MlsynthEstimationError(
+            f"the delete-one jackknife admitted {usable} replicate(s), and none of "
+            f"them removed a treated unit; the panel has "
+            f"{n_treated} treated unit{'' if n_treated == 1 else 's'}. Every "
+            "replicate is a control deletion, so the spread being measured is "
+            "donor substitution and not the sampling variability of the effect -- "
+            "the treated unit's own outcomes cannot move the standard error at "
+            "all. With a single treated unit its deletion leaves no treated unit "
+            "and is skipped, which is why counting usable replicates does not "
+            "catch this. Use an inference method that does not rest on deleting "
+            "treated units, or report the point estimate without an interval.")
     se = _se(att_loo)
     per_time_se = np.array([_se(pt_loo[:, h]) for h in range(H)])
     z = float(norm.ppf(1.0 - alpha / 2.0))
@@ -319,27 +344,34 @@ def jackknife_inference(
     return float(att_full), se, ci, per_time_se, per_time_ci
 
 
-def rolling_pooled_block_sums(
+def _rolling_pooled_paths(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
     solver: Any, horizon: int, min_train_frac: float = 0.3,
     conventions: Conventions = Conventions(),
 ) -> List[np.ndarray]:
-    """Per-unit cumulative out-of-sample errors, one pooled solve per origin.
+    """Per-unit out-of-sample effect paths, one pooled solve per origin.
 
     Slides an origin across the pre-period and, at each one, pretends every treated
     unit adopted there: a single partially-pooled fit on the data before the origin
-    yields *every* unit's weights at once, and each unit's summed effect over the next
-    ``horizon`` periods is one conformity score for it. So a pass costs one solve per
-    origin, not one per unit per origin.
+    yields *every* unit's weights at once, and each unit's effect over the next
+    ``horizon`` periods is one calibration window for it. So a pass costs one solve
+    per origin, not one per unit per origin.
 
-    Origins step by ``horizon``, so the windows do not overlap and the scores stay
+    Origins step by ``horizon``, so the windows do not overlap and their totals stay
     exchangeable, and each fit sees only data strictly before the window it scores.
+
+    The two public readings of this pass -- :func:`rolling_pooled_block_sums` for the
+    split band's window totals, :func:`rolling_pooled_period_errors` for the resample
+    band's per-period errors -- differ only in how they reduce these paths. Keeping
+    the pass itself in one place means the origin schedule, which decides how much
+    calibration a panel affords, has a single definition.
 
     Returns
     -------
     list of numpy.ndarray
-        One array of finite scores per treated cohort, in ``groups`` order.
+        One ``(m, horizon)`` array per treated cohort, in ``groups`` order, holding
+        the ``m`` windows whose fit converged with a finite path.
     """
     from ..conformal import MIN_TRAIN_PERIODS
 
@@ -361,7 +393,7 @@ def rolling_pooled_block_sums(
     earliest = int(np.min(trt[adopted]))
     start = max(MIN_TRAIN_PERIODS, int(earliest * float(min_train_frac)))
 
-    scores: Dict[int, List[float]] = {}
+    paths: Dict[int, List[np.ndarray]] = {}
     n_groups = 0
     for origin in range(start, earliest - horizon + 1, horizon):
         trt_o = trt.copy()
@@ -379,8 +411,67 @@ def rolling_pooled_block_sums(
         for k in range(len(fo["groups"])):
             path = np.asarray(fo["tau_rel"][k], dtype=float)[:horizon]
             if path.size == horizon and np.isfinite(path).all():
-                scores.setdefault(k, []).append(float(path.sum()))
-    return [np.asarray(scores.get(k, []), dtype=float) for k in range(n_groups)]
+                paths.setdefault(k, []).append(path)
+    return [
+        (np.vstack(paths[k]) if k in paths
+         else np.empty((0, horizon), dtype=float))
+        for k in range(n_groups)
+    ]
+
+
+def rolling_pooled_block_sums(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, horizon: int, min_train_frac: float = 0.3,
+    conventions: Conventions = Conventions(),
+) -> List[np.ndarray]:
+    """Each calibration window reduced to its total -- the split band's scores.
+
+    One number per window, which is the estimand's own scale, so the order
+    statistic in :func:`mlsynth.utils.conformal.cumulative_conformal_interval` is
+    taken over quantities directly comparable with the reported cumulative effect.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        One array of ``m`` finite window totals per treated cohort, in ``groups``
+        order.
+    """
+    return [p.sum(axis=1) for p in _rolling_pooled_paths(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu_used=nu_used, lam=lam, solver=solver, horizon=horizon,
+        min_train_frac=min_train_frac, conventions=conventions)]
+
+
+def rolling_pooled_period_errors(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, horizon: int, min_train_frac: float = 0.3,
+    conventions: Conventions = Conventions(),
+) -> List[np.ndarray]:
+    """The same windows left unreduced -- the resample band's calibration series.
+
+    :func:`rolling_pooled_block_sums` throws away the cross-period structure inside
+    each window on its way to the total. A band for a running total needs it: the
+    spread of an ``H``-period sum depends on how the period errors move together,
+    and the totals alone cannot say. So this returns the paths, and the caller
+    block-resamples them.
+
+    The reference set is the ``m * horizon`` periods instead of the ``m`` totals,
+    which is why this construction stays finite on a pre-period that leaves the
+    split band's order statistic undefined.
+
+    Returns
+    -------
+    list of numpy.ndarray
+        One ``(m, horizon)`` array per treated cohort, in ``groups`` order. Row
+        ``i`` is the effect path over window ``i``; ``arr.sum(axis=1)`` is exactly
+        what :func:`rolling_pooled_block_sums` returns for the same panel.
+    """
+    return _rolling_pooled_paths(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu_used=nu_used, lam=lam, solver=solver, horizon=horizon,
+        min_train_frac=min_train_frac, conventions=conventions)
 
 
 def cumulative_conformal_per_unit(
@@ -463,3 +554,275 @@ def cumulative_conformal_per_unit(
             point[k], s, alpha=float(alpha), horizon=horizon)
         lower[k], upper[k] = band.lower, band.upper
     return point, lower, upper, n_scores
+
+
+def resample_cumulative_per_unit(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, alpha: float, horizon: int, min_train_frac: float = 0.3,
+    block: int = 0, n_sim: int = 2000, seed: int = 0,
+    conventions: Conventions = Conventions(),
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit cumulative band from block-resampled rolling-origin errors.
+
+    The third calibration set behind PPSCM's per-unit cumulative band, alongside
+    :func:`cumulative_conformal_per_unit` (a disjoint split of the pre-period) and
+    :func:`cwz_cumulative_per_unit` (the cyclic shifts of the residual path). All
+    three report the same estimand -- the total a treated unit gained over
+    ``horizon`` periods -- so ``conformal_method`` chooses between them.
+
+    It runs the rolling pass the split band already pays for and reads the
+    ``m * horizon`` per-period errors inside those windows instead of the ``m``
+    totals. Each draw assembles a post-period path from circular blocks of a
+    unit's own errors, flipping each block's sign with probability one half, and
+    the band is the ``1 - alpha`` quantile of the absolute accumulated draw.
+
+    Two things follow, and they are the reason to reach for it. The split band
+    needs ``ceil((m+1)(1-alpha)) <= m`` before its order statistic exists, a floor
+    of roughly ``12.8 * horizon`` pre-periods; drawing from periods rather than
+    totals has no such floor, so a panel that leaves the split band infinite still
+    gets a finite one. And unlike the cyclic band it assumes no shape for the
+    effect and refits nothing beyond the pass itself, where cyclic pays a refit
+    per candidate in its grid.
+
+    What it does assume is that a unit's pre-period errors are exchangeable with
+    its post-period ones, which is the same assumption the split band makes, and
+    that ``block`` is long enough to carry their serial correlation. Drawing
+    periods independently (``block = 1``) is Wheeler's original construction and
+    understates the spread of the total whenever the period errors are positively
+    autocorrelated -- the variance of an ``H``-period total is
+    ``H * gamma_0 + 2 * sum_k (H - k) * gamma_k``, and independent draws keep only
+    the first term.
+
+    Parameters
+    ----------
+    block : int, optional
+        Block length in periods. ``0`` (default) means the whole horizon, the
+        longest block the accumulated total is sensitive to. Clamped to the
+        horizon; see :func:`mlsynth.utils.conformal.resolve_block`.
+    n_sim : int, optional
+        Paths drawn per unit (default 2000). These cost no refits -- the pass is
+        the cost -- so precision here is cheap.
+    seed : int, optional
+        Base seed. Each unit draws from ``seed + k`` so a unit's band does not
+        depend on how many other units the panel happens to carry.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(point, lower, upper, n_windows)``, each of shape ``(J,)`` in ``groups``
+        order. ``n_windows`` counts the calibration windows the pass realised, the
+        same number :func:`cumulative_conformal_per_unit` reports; the draw itself
+        uses the ``n_windows * horizon`` periods inside them. A unit whose pass
+        realised no window gets an infinite band, not a narrow one that does not
+        cover.
+    """
+    from ..conformal import block_error_paths, resolve_block
+
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating)):
+        raise MlsynthConfigError(f"alpha must be a number in (0, 1); got {alpha!r}.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise MlsynthConfigError(
+            f"alpha must lie in the open interval (0, 1); got {alpha!r}.")
+    horizon = int(horizon)
+    if not np.isfinite(np.asarray(trt, dtype=float)).any():
+        raise MlsynthDataError(
+            "cumulative conformal inference needs at least one treated unit; "
+            "no unit has a finite adoption time."
+        )
+
+    full = run_multisynth(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu=(float(nu_used) if np.isfinite(nu_used) else None),
+        lam=lam, solver=solver, conventions=conventions,
+    )
+    n_units = len(full["groups"])
+    point = np.array(
+        [float(np.sum(np.asarray(full["tau_rel"][k], dtype=float)[:horizon]))
+         for k in range(n_units)], dtype=float,
+    )
+
+    per_unit_paths = rolling_pooled_period_errors(
+        Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff, time_cohort=time_cohort,
+        nu_used=nu_used, lam=lam, solver=solver, horizon=horizon,
+        min_train_frac=min_train_frac, conventions=conventions,
+    )
+
+    b = resolve_block(block, horizon)
+    lower = np.full(n_units, np.nan)
+    upper = np.full(n_units, np.nan)
+    n_windows = np.zeros(n_units, dtype=int)
+    for k in range(n_units):
+        w = (per_unit_paths[k] if k < len(per_unit_paths)
+             else np.empty((0, horizon), dtype=float))
+        n_windows[k] = int(w.shape[0])
+        if w.shape[0] == 0:
+            lower[k], upper[k] = -np.inf, np.inf
+            continue
+        # The windows are handed over as one series with their count alongside, so
+        # the draw can take a window's own level and block within it. A horizon
+        # total is driven by the level, and a block drawn across a boundary
+        # averages two of them.
+        draws = block_error_paths(
+            w.ravel(), horizon=horizon, block=b, n_sim=int(n_sim),
+            rng=np.random.default_rng(int(seed) + k),
+            n_windows=int(w.shape[0]),
+        )
+        total = draws.sum(axis=1)
+        half = float(np.quantile(np.abs(total - total.mean()), 1.0 - float(alpha)))
+        lower[k], upper[k] = point[k] - half, point[k] + half
+    return point, lower, upper, n_windows
+
+
+def cwz_cumulative_per_unit(
+    Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
+    *, fixedeff: bool, time_cohort: bool, nu_used: float, lam: float,
+    solver: Any, alpha: float, horizon: int, n_nulls: int = 25,
+    grid_scale: float = 3.0, conventions: Conventions = Conventions(),
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per-unit cumulative band by inverting a moving-block conformal test.
+
+    The counterpart of :func:`cumulative_conformal_per_unit`, calibrated against
+    the ``T`` cyclic shifts of the residual path instead of a disjoint split of
+    the pre-period. The split version's window count is roughly ``0.7 * T0 / L``
+    and a finite ``1 - alpha`` band needs ``ceil((m+1)(1-alpha)) <= m``, so at the
+    90 percent level it needs nine windows -- a floor of about ``12.8 * L``
+    pre-periods before a band exists at all, and every feasible design then sits
+    in the regime where the rank never trims and the half-width is simply the
+    largest score. The cyclic reference set does not depend on the horizon, so
+    neither the floor nor that regime applies.
+
+    The price is a shape assumption. Test inversion needs a null to subtract, so
+    the null here is a constant per-period effect and the reported band is
+    ``horizon`` times the accepted range of that effect. An effect that ramps is
+    not in the null family, and the honest outcome then is an empty accepted set,
+    which :func:`~mlsynth.utils.conformal.confidence_set_bounds` returns as
+    ``(nan, nan)``.
+
+    Two construction details decide the answer, both established by measurement;
+    the full account is in
+    :func:`~mlsynth.utils.conformal.moving_block_pvalue`.
+
+    The statistic is ``mean_abs``, the reference implementation's. The absolute
+    block sum is the intuitive choice for a running total and is invalid here:
+    the quadratic program leaves end-of-window residuals sign-coherent, so block
+    sums ramp toward the end of the window while magnitudes stay flat, and the
+    trailing block always occupies the most inflated position. It is not a
+    compromise -- displacing a mean-zero block by ``delta`` raises the mean of its
+    absolute values, so the test has power against precisely the constant shift
+    being inverted.
+
+    The null refit balances every period. Under the null the adjusted series is
+    an untreated series, so all of it is fitting data, and leaving a period out
+    would put the trailing block partly outside the fit its reference blocks come
+    from. Balancing the whole window requires an explicit ``nu``: the automatic
+    rule sits exactly on its boundary when one unit is treated, and cvxpy refuses
+    the program. That is why ``nu_used`` is a parameter, not a default.
+
+    The grid is an approximation and it errs in one direction. The band is the
+    range of accepted candidates, so a coarse grid samples fewer of them and
+    reports a band that is too narrow, converging upward as ``n_nulls`` rises --
+    measured on a two-unit panel, a width of 3.14 at five candidates against 5.86
+    at thirty-one. Coarse is anti-conservative here, not conservative, which is
+    the opposite of the usual intuition about discretisation.
+
+    ``conventions`` reaches both refits, the observed fit and each null one, so
+    the band is calibrated on the estimator the caller configured. The default
+    is augsynth's, so a call that says nothing gets what it always got.
+
+    An accepted set that reaches an end of the grid is bounded by ``grid_scale``
+    and not by the data, and that end is returned as infinite. Reporting the
+    endpoint instead would understate the band silently, since it looks like any
+    other number.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(point, lower, upper, p_zero)``, each of shape ``(J,)`` in ``groups``
+        order. ``lower`` and ``upper`` are on the cumulative scale and may be
+        infinite; ``p_zero`` is the permutation p-value of the no-effect null.
+    """
+    from ..conformal import confidence_set_bounds, moving_block_pvalue
+
+    if (isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating))
+            or not 0.0 < float(alpha) < 1.0):
+        raise MlsynthConfigError(
+            f"alpha must be a number in the open interval (0, 1); got {alpha!r}.")
+    if (isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer))
+            or int(horizon) < 1):
+        raise MlsynthConfigError(
+            f"horizon must be a positive integer; got {horizon!r}.")
+    if (isinstance(n_nulls, bool) or not isinstance(n_nulls, (int, np.integer))
+            or int(n_nulls) < 3):
+        raise MlsynthConfigError(
+            f"n_nulls must be an integer of at least 3; got {n_nulls!r}. A "
+            "two-point grid cannot express an interval -- it can only return its "
+            "own endpoints, which would read as a band and be an artifact of the "
+            "grid.")
+    horizon, n_nulls = int(horizon), int(n_nulls)
+    if horizon > int(n_leads):
+        raise MlsynthDataError(
+            f"horizon ({horizon}) exceeds the {int(n_leads)} post-period lead(s) "
+            "estimated; there is no full window to accumulate.")
+
+    Xy = np.asarray(Xy, dtype=float)
+    trt = np.asarray(trt, dtype=float)
+    adopted = np.isfinite(trt)
+    if not adopted.any():
+        raise MlsynthDataError(
+            "cumulative conformal inference needs at least one treated unit; no "
+            "unit has a finite adoption time.")
+
+    full = run_multisynth(Xy, trt, d, n_leads, n_lags, fixedeff=fixedeff,
+                          time_cohort=time_cohort, nu=nu_used, lam=lam,
+                          solver=solver, conventions=conventions)
+    tau = np.asarray(full["tau_rel"], dtype=float)
+    groups = full["groups"]
+    t0 = int(np.min(trt[adopted]))
+    T = Xy.shape[1]
+
+    # Under the null every period is fitting data, so the refit balances all T.
+    trt_null = np.full(trt.shape, np.inf)
+    trt_null[adopted] = T
+
+    def _resid(fit, k):
+        g = fit["groups"][k]
+        res = np.asarray(fit["res"][fit["adopt_of"][g]], dtype=float)
+        row = fit["members"][g][0]
+        return res[row] - np.asarray(fit["weights"][g], dtype=float) @ res
+
+    def _pvalue(theta, row, k):
+        adj = Xy.copy()
+        adj[row, t0:t0 + horizon] -= theta
+        f = run_multisynth(adj, trt_null, T, 1, T, fixedeff=fixedeff,
+                           time_cohort=time_cohort, nu=nu_used, lam=lam,
+                           solver=solver, conventions=conventions)
+        return moving_block_pvalue(_resid(f, k)[:t0 + horizon], block=horizon,
+                                   statistic="mean_abs")
+
+    J = len(groups)
+    point = np.empty(J)
+    lower = np.empty(J)
+    upper = np.empty(J)
+    p_zero = np.empty(J)
+    for k, g in enumerate(groups):
+        row = int(full["members"][g][0])
+        total = float(np.nansum(tau[k, :horizon]))
+        point[k] = total
+        per_period = total / horizon
+        pre = _resid(full, k)[:t0]
+        half = max(float(grid_scale) * float(np.std(pre, ddof=1)), 1e-9)
+        grid = np.linspace(per_period - half, per_period + half, n_nulls)
+        pv = np.array([_pvalue(theta, row, k) for theta in grid], dtype=float)
+        lo, hi = confidence_set_bounds(grid, pv, float(alpha))
+        # An accepted set reaching an end of the grid is bounded by the grid, not
+        # by the data: the test would have gone on accepting had it been asked.
+        # Reporting the endpoint would understate the band by an amount set by
+        # ``grid_scale``, and silently, since it looks like any other number.
+        if np.isfinite(lo) and lo <= grid[0]:
+            lo = -np.inf
+        if np.isfinite(hi) and hi >= grid[-1]:
+            hi = np.inf
+        lower[k], upper[k] = lo * horizon, hi * horizon
+        p_zero[k] = _pvalue(0.0, row, k)
+    return point, lower, upper, p_zero

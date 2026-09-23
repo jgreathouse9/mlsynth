@@ -19,7 +19,11 @@ sphinx:
   # citations). Turning this on before then will fail the RTD build.
   # fail_on_warning: true
 
-# Install dependencies listed in docs/requirements.txt
+# Install dependencies listed in docs/requirements.txt, then mlsynth itself so
+# the executable Sphinx-Gallery examples can ``import mlsynth`` with its full
+# runtime dependency set (pulled from pyproject.toml, the authoritative list).
 python:
   install:
     - requirements: docs/requirements.txt
+    - method: pip
+      path: .

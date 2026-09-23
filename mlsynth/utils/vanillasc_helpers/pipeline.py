@@ -706,11 +706,36 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
         T1_post = int(len(y) - pre)
         horizon = int(config.conformal_horizon or T1_post)
-        band = cumulative_conformal_from_refit(
-            y, Y0, pre_periods=int(pre), horizon=horizon,
-            weight_fn=_refit_weight_fn, alpha=config.alpha,
-        )
-        if not np.isfinite(band.half_width):
+        resampled = config.conformal_method == "resample"
+        if resampled:
+            # The same windows, kept per period and drawn from as blocks. The
+            # half-width is the quantile of the accumulated totals; the draws are
+            # centred and sign-symmetric, so their absolute quantile is the
+            # symmetric half-width the band reports.
+            from mlsynth.utils.conformal import (
+                CumulativeConformalBand, origin_schedule,
+                resample_cumulative_paths_from_weights)
+
+            paths = resample_cumulative_paths_from_weights(
+                y, Y0, int(pre), horizon, _refit_weight_fn,
+                block=config.conformal_block, n_sim=config.conformal_n_sim,
+                seed=config.conformal_seed)
+            point = float(np.sum(gap[pre:pre + horizon]))
+            half = float(np.quantile(np.abs(paths.sum(axis=1)), 1.0 - config.alpha))
+            # The periods drawn from, not the windows: m * horizon of them, which
+            # is why this is finite where the order statistic is not. Read off the
+            # schedule, which costs nothing -- the refits already happened above.
+            n_periods = len(list(origin_schedule(int(pre), horizon, 0.3))) * horizon
+            band = CumulativeConformalBand(
+                point=point, lower=point - half, upper=point + half,
+                half_width=half, n_scores=int(n_periods),
+                alpha=float(config.alpha), horizon=horizon)
+        else:
+            band = cumulative_conformal_from_refit(
+                y, Y0, pre_periods=int(pre), horizon=horizon,
+                weight_fn=_refit_weight_fn, alpha=config.alpha,
+            )
+        if not resampled and not np.isfinite(band.half_width):
             warnings.warn(
                 "cumulative conformal band is uninformative (half-width=inf): "
                 f"{band.n_scores} non-overlapping calibration window(s) of length "
@@ -728,7 +753,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             ci_lower=(band.lower / horizon) if spans_post else None,
             ci_upper=(band.upper / horizon) if spans_post else None,
             confidence_level=1.0 - config.alpha,
-            method="split-conformal cumulative-effect band (rolling origin)",
+            method=("block-resampled cumulative-effect band (rolling origin)"
+                    if resampled else
+                    "split-conformal cumulative-effect band (rolling origin)"),
             details={
                 "cumulative_effect": band.point,
                 "cumulative_lower": band.lower,
@@ -797,6 +824,105 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "rank": int(np.sum(all_ratios >= ratio_tr)),
             },
         )
+
+    # Firpo-Possebom (2018) confidence sets: the same placebo test, inverted
+    # over a one-parameter family of effect paths instead of evaluated at zero.
+    # The weights every placebo needs are the ones this estimator already fits,
+    # so the branch assembles them and hands them to the inversion.
+    if mode == "placebo_cs" and J >= 2 and gap[pre:].size:
+        from .placebo_cs import (breakdown_phi, confidence_set,
+                                 sensitivity_sweep)
+
+        # Panel in the layout the inversion expects: treated unit first, then
+        # the donors. Unlike the plain placebo refits above, each donor's own
+        # synthetic control is fitted against a pool that CONTAINS the treated
+        # unit -- that is what the procedure's donor-pool correction acts on,
+        # and excluding it would invert a different test.
+        Ymat = np.column_stack([y, Y0])
+        n_units = Ymat.shape[1]
+        Wmat = np.empty((n_units - 1, n_units))
+        Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
+        ok = True
+        for j in range(1, n_units):
+            others = [k for k in range(n_units) if k != j]
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rj = engine.fit(Ymat[:pre, j], Ymat[:pre, others])
+                Wmat[:, j] = np.asarray(rj.W, dtype=float).ravel()
+            except Exception:  # pragma: no cover - defensive refit guard
+                ok = False
+                break
+        if ok:
+            v = (np.asarray(config.placebo_cs_v, dtype=float)
+                 if config.placebo_cs_v is not None
+                 else np.eye(1, n_units, 0).ravel())
+            # A horizon longer than the panel is the caller's mistake, not a
+            # property of the data, so it is refused before the search runs
+            # instead of arriving as an unavailable set.
+            horizon = config.placebo_cs_horizon
+            if horizon is not None and int(horizon) > int(len(y) - pre):
+                raise MlsynthEstimationError(
+                    f"placebo_cs_horizon={int(horizon)} exceeds the "
+                    f"{int(len(y) - pre)} post-treatment periods the panel has")
+            try:
+                cs = confidence_set(
+                    Ymat, Wmat, 0, pre, kind=config.placebo_cs_class,
+                    alpha=config.alpha, precision=config.placebo_cs_precision,
+                    phi=config.placebo_cs_phi, v=v)
+                # ``ci_lower``/``ci_upper`` are on the path parameter's scale
+                # (a level for the constant class, a slope for the linear one).
+                # The cumulative and average scales are strictly increasing
+                # functions of it, so they are the same set read differently and
+                # cost nothing to report; the average one is comparable with
+                # ``effects.att``.
+                cum_lower, cum_upper = cs.cumulative_over(horizon)
+                att_lower, att_upper = cs.average_over(horizon)
+                details = {
+                    "effect_class": cs.kind,
+                    "point_estimate": cs.point_estimate,
+                    "contains_zero": cs.contains_zero,
+                    "precision": cs.precision,
+                    "phi": cs.phi,
+                    "cumulative_lower": cum_lower,
+                    "cumulative_upper": cum_upper,
+                    "att_lower": att_lower,
+                    "att_upper": att_upper,
+                    "n_post_periods": cs.n_post,
+                    "horizon": cs.n_post if horizon is None else int(horizon),
+                    "lower_path": cs.lower_path.tolist(),
+                    "upper_path": cs.upper_path.tolist(),
+                }
+                if config.placebo_cs_sweep:
+                    rows = sensitivity_sweep(
+                        Ymat, Wmat, 0, pre, phis=config.placebo_cs_sweep, v=v,
+                        kind=config.placebo_cs_class, alpha=config.alpha,
+                        precision=config.placebo_cs_precision)
+                    details["sensitivity"] = [
+                        {"phi": r.phi,
+                         "lower": None if r.confidence_set is None else r.confidence_set.lower,
+                         "upper": None if r.confidence_set is None else r.confidence_set.upper,
+                         "contains_zero": r.contains_zero,
+                         "reason": r.reason}
+                        for r in rows]
+                    details["breakdown_phi"] = breakdown_phi(rows)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    ci_lower=cs.lower, ci_upper=cs.upper,
+                    details=details,
+                )
+            except MlsynthEstimationError as exc:
+                # An empty or unbounded set is a result about the panel, not a
+                # crash: report it and say which level produced it.
+                warnings.warn(str(exc), UserWarning)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    details={"effect_class": config.placebo_cs_class,
+                             "phi": config.placebo_cs_phi,
+                             "unavailable_reason": str(exc)},
+                )
 
     # Never leave a requested-but-uncomputable inference as a silent ``None``: a
     # valid mode whose preconditions were not met (too few donors, no

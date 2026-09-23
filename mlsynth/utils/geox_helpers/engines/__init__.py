@@ -24,6 +24,14 @@ An engine supplies five things.
     be recomputed per effect size. Keeping the grid here keeps that cost
     decision inside the module that owns it.
 
+    The dict carries ``tau``, ``p_value`` and ``sigma`` (``None`` where the
+    procedure has no standard error), plus ``tau0`` -- the ATT with nothing
+    injected. ``tau0`` is the backtest's estimation error: the injected truth is
+    ``e * mean(y[post])`` and the estimate is ``tau0 + e * mean(y[post])``, so
+    the difference is ``tau0`` at every effect size. It is returned instead of
+    being read off the grid because the grid is user-supplied and need not
+    contain zero.
+
 ``point_inference(fit, y, Y0, n_pre, start, end, ...) -> (p_value, details)``
     A single window's test, for the realized readout.
 
@@ -31,12 +39,18 @@ An engine supplies five things.
     The effect sizes at which this backtest starts detecting, in each
     direction. Closed form where the p-value is analytic in the effect, and
     ``(nan, nan)`` where it is not -- reported absent instead of guessed.
+
+It also declares two things about itself: ``fit_tolerance``, because the seam
+carries engines of two kinds -- a convex program that returns the same answer
+every time, and a sampler that returns a draw -- and ``requires``, because an
+engine may need an optional dependency that the rest of the library does not.
+See :class:`Engine`.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -63,7 +77,25 @@ class EngineFit:
 
 @dataclass(frozen=True)
 class Engine:
-    """One resolved scoring engine: its name and its five functions."""
+    """One resolved scoring engine: its name, its five functions, its precision.
+
+    ``fit_tolerance`` is the relative precision at which two fits of the same
+    panel agree. A deterministic program reproduces itself to solver precision,
+    which is the 1e-6 default; a Monte Carlo estimator reproduces itself only to
+    its posterior sampling error, which is several orders of magnitude wider.
+    It sits on the engine because no equality an engine satisfies can hold
+    tighter than the engine repeats itself, so it is the scale at which the
+    metamorphic relations in ``tests/test_geox_engine_properties.py`` are
+    asserted. An engine that samples sets it from measurement.
+
+    ``requires`` names the optional imports the engine cannot fit without, so
+    the registry can be read without them. An engine module never imports its
+    optional dependency at module scope -- resolving an engine must not depend
+    on whether it can run -- and the property suite skips an engine whose
+    requirements are absent instead of failing it. Declaring them here, instead
+    of naming engines in the suite, is what makes a later engine inherit that
+    by construction.
+    """
 
     name: str
     fit_once: Callable[..., EngineFit]
@@ -71,6 +103,8 @@ class Engine:
     sweep_p_values: Callable[..., Dict[str, Any]]
     point_inference: Callable[..., Any]
     detection_boundary: Callable[..., Any]
+    fit_tolerance: float = 1e-6
+    requires: Tuple[str, ...] = ()
 
 
 def placebo_detection_boundary(att_0: float, baseline: float, sigma, alpha: float):
@@ -129,11 +163,14 @@ def resolve_engine(name: str) -> Engine:
     if name == "augsynth":
         from .augsynth import ENGINE as _augsynth
         return _augsynth
+    if name == "mvbbsc":
+        from .mvbbsc import ENGINE as _mvbbsc
+        return _mvbbsc
     raise MlsynthConfigError(
         f"unknown engine {name!r}; available engines are {sorted(ENGINE_NAMES)}.")
 
 
-ENGINE_NAMES = frozenset({"sdid", "augsynth"})
+ENGINE_NAMES = frozenset({"sdid", "augsynth", "mvbbsc"})
 
 __all__ = ["Engine", "EngineFit", "ENGINE_NAMES", "resolve_engine",
            "placebo_interval", "placebo_detection_boundary"]
