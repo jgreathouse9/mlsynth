@@ -2206,7 +2206,192 @@ outcomes that plausibly diffuse.
 
 ---
 
-## 21. The FSCM forward scan -- a performance hunt that turned out to be a bug
+## 22. SDM -- Kyo & Kawata (2026) sequential deviation minimization -- assessed, NOT worth building
+
+**Status: Closed as not-worth-doing. Paper reviewed in full; the authors'
+replication package obtained and ported; the demo application and the Section 4
+Monte Carlo both re-run. Recorded so the assessment is not repeated. Spike:
+`benchmarks/reference/sdm_kyokawata/`.**
+
+### Source
+
+> Kyo, K., & Kawata, Y. (2026). "Sequential deviation minimization for improving
+> the estimation in synthetic control methods." *Journal of Applied Statistics*.
+> https://doi.org/10.1080/02664763.2026.2717163
+
+Reference implementation: the authors' package (`code_demo_F.txt`,
+`code_demo_F_co.txt`, `data_demo_F.txt`), supplied privately -- the article says
+only that code is available on request. Not committed; checksummed in the
+spike's `provenance.json`, ported in its `sdm_port.py`.
+
+### The idea in one line
+
+Build SC weights by rescaling one donor at a time -- centre each unit's
+pre-period outcome, keep `w_j >= 0`, drop sum-to-one, initialise from clamped
+univariate slopes, then iterate `w_j <- a_j w_j` with
+`a_j = max(0, <r_j, y~_j> / <y~_j, y~_j>)` until the `a_j` settle near one --
+and restore the intercept as `alpha = mean(y_1) - sum_j w_j mean(y_j)`.
+
+### Why it is not a gap: the fixed point is MSCc
+
+Concentrating the intercept out of `min_{alpha, w >= 0} ||y_1 - alpha - Y_0 w||^2`
+gives exactly the centred problem SDM solves. That is MSCc (Li & Shankar 2023),
+which `TSSC` already fits exactly by convex solve
+(`TSSCConfig.method="MSCc"`, `mlsynth/utils/tssc_helpers/estimation.py`).
+
+SDM is coordinate descent on that objective with a multiplicative update, so a
+weight driven to zero -- or one whose initial univariate slope was non-positive
+-- never returns. It is non-negative least squares on a greedily and irreversibly
+chosen support: weakly worse than MSCc by construction, equal only when the
+greedy support contains the optimal one. On the authors' demo panel MSCc reaches
+pre-MSPE 4,370,135 against SDM's own best iterate at 4,632,462.
+
+Closest existing estimators: `TSSC` (same estimand, better solver, plus a
+formal pre-trends test that chooses among SC / MSCa / MSCb / MSCc instead of
+assuming the relaxation); `FSCM` for the greedy donor screening, which validates
+its sparsity out of sample where SDM does not; `mlsynth.utils.conformal.*` and
+`inferutils.debiased_sc_ttest` for the diagnostic SDM gestures at.
+
+### Learnings from the port (keep these)
+
+Three findings, each reproducible from the spike bundle.
+
+1. The released script does not implement the article's Equation (14). The
+   iteration converges to weights summing to 0.6307; the final block
+   renormalises them to sum to one and builds the counterfactual from that.
+   Pre-period MSPE goes from 4,632,462 to 45,733,960 and the ATT from 51,078 to
+   66,880. The script prints both fit statistics and they disagree by 3.1x in
+   RMSE terms; Section 5.2 reports the first, Table 2's weights (summing to
+   0.9938) are consistent with the second. The shipped estimator is 6.7x worse
+   than plain SC, the baseline the article sets out to beat.
+
+2. The convergence index is not Equation (13). `NO <- which(a > 0)` reads the
+   scalar `a` left over from the inner loop, so the stopping statistic is
+   `(a_last - 1)^2` for one donor. On the demo panel it stops at 9.25e-05 while
+   Equation (13) over the substantial set stands at 4.39e-03, with 8 donors
+   still being updated. Figure 3 plots that scalar. A related latent hazard:
+   `Reg1` leaves `V` unassigned for a zeroed column and R resolves it lexically
+   to the previous step's global `V` -- silent, and zero occurrences here.
+
+3. Section 4's Monte Carlo separates constrained from unconstrained, not
+   sequential from joint. The DGP fixes the treated loading at 1 and draws donor
+   loadings summing to one, so a convex combination reaches at most
+   `max_j w_j ~ 1.5/J` and the simplex arm cannot track the factor -- worsening
+   in `J` as the loadings shrink. Reproduced at 300 reps: SC 4.2414 (J=5) to
+   5.3671 (J=50) against the article's 4.4540 to 5.4300, while plain NNLS lands
+   at 1.91-2.22, inside the 1.7000-1.9100 band the article claims for its own
+   method, and MSCc beats it. Section 4.1 also scores RMSPE on the pre-period
+   only, so it measures in-sample fit; at `J = 50` with `T0 = 20` the relaxed
+   arms carry more parameters than observations and drive it toward zero.
+
+The package implements one of the article's three contributions. There is no
+scale-adjustment parameter `theta` (the covariate script stacks raw centred
+covariates, i.e. Section 3.3 with `theta` fixed at 1), no cross-validation, and
+no simulation code.
+
+### What would reopen this
+
+A performance claim, not an accuracy one. Fixed, SDM is a competent approximate
+MSCc solver built from inner products with no convex solver in the loop, and it
+agrees with the exact solve on the ATT. If a large-`J` panel ever makes the
+cvxpy path in `TSSC` a bottleneck, the shape of the answer is
+`TSSCConfig.solver="sdm"` -- an alternative solver for an objective already in
+the library, never a new estimator. Nothing in the benchmark suite is currently
+solver-bound.
+
+Section 3.1.2, insight 4 is the part the article gets right and does not
+resolve: placebo inference assumes the construction procedure transfers across
+units, and scale mismatch breaks that assumption. The proposed answer is a
+statistic whose denominator is the number of resamples, so it grows with
+computational effort and has no scale. If someone calibrates that idea, review
+the result.
+
+---
+
+## 23. GP-ITS -- Cho (2026) Gaussian-process interrupted time series -- BUILT
+
+**Status: BUILT and merged (#547), shipped as `mlsynth.GPITS`. Path A reproduces
+exactly and the NumPy port matches the author's R to ~1e-11 on every quantity.
+Spike: `benchmarks/reference/gpits_heller/` (run `verify.py`); estimator:
+`mlsynth/estimators/gpits.py` with `docs/gpits.rst`,
+`docs/replications/gpits.rst` and `benchmarks/cases/gpits.py`.**
+
+### Source
+
+> Cho, S. (2026). "Let Time Tell: Identification and Gaussian Process Estimation
+> for Interrupted Time Series." arXiv:2608.20610v1.
+
+Reference: `gpss::gp_its` (doeun-kim/gpss, GPL-3, CRAN) for the estimator;
+`soonhong-cho/gpits` (MIT) for the pipeline, and it ships the NICS and census
+data, so Path A needs nothing bought or requested.
+
+### The idea in one line
+
+When a treatment reaches every unit at once there is no donor pool, so estimate
+the untreated counterfactual by Gaussian-process regression on the unit's own
+pre-treatment history, with a Gaussian + periodic + linear kernel whose
+posterior variance widens as the forecast leaves the data.
+
+### What reproduced
+
+- Path A. D.C.'s cumulative four-month effect after *Heller*: port gives
+  15.1323 per 100k, 95% CI [12.9687, 17.2960], against the paper's 15.1
+  [13.0, 17.3]. Exact at reported precision.
+- Cross-validation. Port vs `gpss` run live in R 4.3.3: `b` 2.0e-12, `s2`
+  5.5e-11, counterfactual 9.6e-11, `tau_cum` 4.8e-12, placebo `tau` 2.1e-11,
+  all relative. The residual is the Brent optimizer's path, not the arithmetic.
+- Figure 4A. D.C. rank 1 of 50 on the paper's standardised scale (36.99 against
+  8.73 for the next highest), the other 49 at median 0.91.
+- Section 5 coverage, 200 reps: GP 0.986-1.000 across all 15 cells, segmented
+  regression 0.201-0.844. Not a weak-baseline artifact.
+
+### Findings to carry into the build
+
+1. The intervals are conservative, not calibrated. GP coverage is pinned at
+   1.000 in most cells with intervals a median of 2.3x wider than segmented
+   regression's (up to 4.9x at the shortest pre-periods). That is the worst-case
+   bound working as Section 4 intends, and the paper says so, but the docs page
+   must say it too: the method buys coverage in power, and an effect small
+   relative to the band will not be detected. The Heller effect survives because
+   it is roughly 20x the pre-period SD.
+2. Figure 4A's separation is the standardisation. On the raw per-100k scale D.C.
+   ranks 25th of 50 and six other jurisdictions are significant at 95% (Alaska
+   +200.2, Missouri -193.1, both larger in magnitude than D.C.'s 15.1). D.C.'s
+   pre-treatment SD is 0.41 against a median of 19.8, a factor of ~48. The paper
+   discloses this; the estimator should surface the pre-period SD alongside any
+   standardised effect so a user cannot read the figure without it.
+3. Four reference conventions a from-the-paper implementation gets wrong, all
+   flagged at their sites in `gpits_port.py`: the periodic and linear components
+   run over every design column including the one-hot month dummies, not time
+   alone; one-hot columns are multiplied by `sqrt(0.5)` and never scaled; the
+   period is rescaled by the SD of the first continuous column; the marginal
+   likelihood uses `sum(log(diag(L)))`, half the log-determinant.
+4. `b` is chosen by a covariate-only rule (max variance of the off-diagonal
+   kernel entries) and `s2` by marginal likelihood with `b` fixed. R's
+   `optimize()` tolerances are part of the reference's definition of `b`; the
+   port matches them. A tighter tolerance moves `tau_cum` by ~3e-7, which
+   changes nothing, but pin it so cross-validation stays exact.
+
+### Architecture
+
+Built as a new top-level estimator `GPITS`, riding
+`dataprep(..., allow_no_donors=True)` -- already used by `SHC`, `TWSF`,
+`CMBSTS`, `COMPSC`. Closed-form posterior, pure NumPy/SciPy, no MCMC and no
+cvxpy, so lighter than `MTGP`. Returns an `EffectResult` with counterfactual
+plus bands and no donor weights.
+
+Both build decisions went the way this entry proposed. The single-treated-unit
+path shipped; aggregation over an all-treated panel is still a separate utility
+if anyone wants it, which keeps the result contract unchanged. And
+`docs/choose.rst` Q0.3 now divides the no-donor branch: `SHC` matches historical
+blocks and infers by conformal permutation, `GPITS` puts a kernel prior on the
+trend and widens with horizon, so reach for `SHC` when the cycle cannot be named
+and `GPITS` when it can.
+
+Licensing: `gpss` is GPL-3 and `mlsynth` is MIT. `gpits_port.py` was written
+from the paper's equations and the reference's structure; no `gpss` source is
+copied. Keep it that way and use `gpss` only as a run-separately reference.
+## 24. The FSCM forward scan -- a performance hunt that turned out to be a bug
 
 **Status: the scan solves each candidate exactly with the active-set QP,
 warm-started along the chain (`scan_candidates`,
@@ -2421,8 +2606,166 @@ tighter than about 1e-07 would pin the oracle's error.
   converges.** Check the objective against an independent exact solve before
   concluding an iteration budget is being wasted.
 
+
 ---
 
 ## Done
 
-*(empty -- move completed items here, preserving their Learnings subsection.)*
+## 21. MOSC -- Wang, Schein, Shou & Blei, many-outcomes synthetic control -- BUILT
+
+**Status: Shipped as `MOSC`. The spike recommended build and the estimator
+followed; spike, port and placebo sweep live in
+`benchmarks/reference/mosc_spike/`, docs at `docs/mosc.rst`. Issue #535.**
+
+A fourth defect surfaced after the spike, on the authors' own control panels.
+Their posterior band -- what Figures 4 and 5 plot -- covers zero on 4 of 10
+placebos at a nominal 95 percent, so six of ten teams that never admitted fans
+register a significant effect. Section 3.4 prescribes a bootstrap over units
+instead and states that its coverage is evaluated in Section 5; that evaluation
+does not appear, and "bootstrap" occurs three times in the paper, twice in that
+paragraph and once in the bibliography. The bootstrap reaches 9 of 10 and is what
+`MOSC` ships. Its one failure, Minnesota, has a point estimate that misses by 21
+percent of the outcome, which is a wrong counterfactual and not a narrow
+interval.
+
+### Source
+
+> Wang, Y., Schein, A., Shou, J., & Blei, D. M. "A Many-outcomes Perspective on
+> the Synthetic Control Method." Unpublished JMLR submission. No arXiv posting.
+
+Reference implementation and data:
+`Joshuashou/Synthetic-Control-Paper-Model`, by the third author. No licence file.
+This is the repository §17 records while assessing Shen (2026), where it is named
+as "a *different* paper ... which reuses the same setting". §17 paid the discovery
+cost; this entry is what it is worth.
+
+Confirmed across all 4,476 commits: no NFL data has ever been in `basedata/`. The
+only genuine NFL reference in the history is §17's own commit. Every other
+`-S "NFL"` hit is the `_NO_CONFLICT` substring, which is the trap §17's learnings
+note already flagged.
+
+### The idea in one line
+
+Fit a probabilistic factor model to the units-by-time matrix, then use the
+per-unit latent loadings as an estimated confounder in a downstream outcome
+regression -- which frees the analyst to choose the likelihood, so a count panel
+gets a Poisson model instead of a Gaussian one.
+
+### What the spike established
+
+The paper's claim reproduces. Over 48 semi-synthetic cells the gamma-Poisson arm
+beats both Gaussian arms on mean relative error, at 25 pre-periods as well as
+100. That last point is the one that matters here: the identification is
+asymptotic in the pre-period, and panels in this library carry 12-30.
+
+The undocumented lagged-outcome regressor runs the other way from the concern
+that motivated checking it. Upstream hardcodes `Y_{i,-1}` into the design in the
+script that produced Figure 8, gives the rSC baseline no equivalent, and never
+mentions it in equations 40-41. Removing it improves the paper's own case: GAP's
+margin over PPCA is 0.0014 in the published specification and 0.0138 without it,
+because the lag was propping up the Gaussian arm (PPCA 0.0462 -> 0.0357) and
+slightly hurting the Poisson one (GAP 0.0324 -> 0.0343).
+
+Three findings cut against the paper as written.
+
+**The head-to-head against rSC is close.** GAP takes 28 of 48 cells outright and
+beats rSC in 29 of 48. The averages read as a larger effect than the per-cell
+record supports. Splitting by departure from the factor model, rSC is *ahead*
+where the factor model is exactly right (rho=0: GAP 0.0385, rSC 0.0354) and GAP
+wins where it is violated (rho=0.5: 0.0227 against 0.0376). The advantage is
+robustness to departures, not fidelity.
+
+**The paper's pre-period claim does not reproduce.** It reports the gap widening
+with more pre-periods. Measured, the GAP-over-PPCA margin is 0.0183 at 25
+pre-periods and 0.0092 at 100 -- it narrows.
+
+**The model criticism is degenerate.** Section 3.4 makes it the step that
+licenses `Z` to stand in for the unobserved confounder, and 4.3.1 claims a false
+rejection rate of alpha. On data drawn from the model being checked, the measured
+rate is 0.40. Equation 36 sums the discrepancy over held-out cells and equation 35
+scores a replicate and the real data at the same posterior draw; the replicate
+matches that rate exactly while the data carries its estimation error, so the
+per-cell gap grows like `n` while its spread grows like `sqrt(n)`. `p_pop`
+collapses onto 0 or 1 once the held-out set passes roughly 100 cells. The paper
+holds out about 1,660. Its own reported numbers carry the signature -- PPCA at
+1.0 almost everywhere, GAP passing but "rarely for all masks". Scored instead by
+held-out predictive log density, with no calibration claim, the comparison the
+check was reached for comes out decisively the paper's way.
+
+**The panels are cumulative counts.** Each series climbs from 1 to about 70,000,
+non-decreasing at 98.5% of steps. Against a rank-10 fit on held-out cells, Pearson
+dispersion is 13.0 (Indianapolis) and 193.8 (Baltimore) where Poisson needs 1, and
+residual lag-1 autocorrelation is 0.45 and 0.20 where equations 12 and 19 need 0.
+Differencing moves those to 1.7-2.6 and 0.07-0.17. The method is run on the scale
+that fits its own assumptions worst. This is the same cumulative-versus-daily
+ambiguity §17 hit on this data.
+
+### Cost, measured and not estimated
+
+The sampler is not the problem. Upstream runs NUTS on a cluster; the conjugate
+multinomial augmentation that its own dead `gibbs_sample` sketches draws the same
+posterior in 7 seconds of pure NumPy, so a build needs no `[bayes]` extra. The
+cost is the downstream regression: upstream refits a 5-fold cross-validated Ridge
+over a 4-point grid for every posterior draw -- 29.5 seconds against the sampler's
+7 -- and page 23 explains why, since label switching makes averaging draws
+ill-defined. That per-draw refit is intrinsic to Algorithm 1 and is what a build
+should attack first.
+
+### Architecture
+
+New top-level estimator, not a mode on an existing one: no weight solve, no donor
+selection, no balancing. Name it for the mechanism (`MOSC`), since "nonlinear
+synthetic control" collides with `NSC` (Tian 2023). `WeightsResults` has nothing
+to populate, which MCNNM already precedents. Closest existing estimator is
+GSYNTH, which the paper itself names alongside Gobillon & Magnac; the delta is a
+non-Gaussian likelihood, a posterior, and a model-criticism gate.
+
+Deviations a build should make from the paper, all established above: drop the
+lagged outcome; drop `p_pop` and report held-out predictive log density; default
+to differencing and expose the scale, with dispersion and residual
+autocorrelation as diagnostics on the result.
+
+### Carve-out to take separately
+
+Held-out predictive log density is a general model-comparison score that BFSC,
+MVBBSC, MTGP, BSCM, BVSS and BPSCS could all report and none currently do. Own
+branch, per the one-scope-one-branch rule.
+
+### Learnings
+
+* **A reference implementation can disagree with its own paper about the claim.**
+  Reading the code changed three things reading the paper could not: which
+  regressors carry the reported result, which effect sizes the figure labels
+  correspond to, and that the check licensing the whole procedure is degenerate.
+  Port before assessing, whenever code exists.
+* **Validate a screen by what it accepts, not only by what it rejects.** The
+  predictive check rejected every model at every rank on the real panels, which
+  looked like a finding about the data. Running it on data drawn from the model
+  being checked showed it also rejects that, and the sweep over held-out set size
+  showed why. A screen that never accepts is not a screen.
+* **Two `var/mean` numbers can both be wrong in opposite directions.** A pooled
+  variance-to-mean ratio mostly measures rate heterogeneity, which the factor
+  model exists to explain; a rank-10 fit to a 17-column panel interpolates and
+  reports dispersion near 1 whatever the data does. The statistic that answers
+  the question is held-out and median-summarised.
+* **`pkill -f <script>.py` kills its own shell** when the pattern appears in the
+  command line running it. It silently dropped two patches here, and the second
+  one left a comparison that appeared to validate a rewire against itself. Kill
+  by PID, and assert the patch landed.
+* **§17 earned its keep.** The repository, the data and the date-column
+  warning were all recorded a month earlier while assessing a different paper.
+  Check `future_integrations.md` before searching for a paper's artifacts.
+* **Interval width is not evidence about a resampling mechanism.** Three
+  catalogued defects in the bootstrap all survived a suite that checked the
+  interval was wider than the posterior band. Measured, the correct resampling
+  gives width 17.5, permuting the pool 13.2, and reusing one seed 19.8 -- the
+  broken one is wider. The assertions that killed them test the resampling
+  itself: the treated unit is kept, donors repeat within a replicate, and each
+  replicate draws a fresh seed.
+* **Real data finds what fixtures cannot.** Running the estimator on the
+  authors' own panel exposed a 301-label axis, a pre-period RMSE of zero that
+  read as a perfect fit, and six places calling a frequentist interval
+  "credible" -- including the plot legend. All three had full line coverage.
+
+---
+

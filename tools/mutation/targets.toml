@@ -541,6 +541,60 @@ timeout = 600.0
   models = "the ranking tolerance relaxed past the point where the sweep can order its candidates, which is the shape a tolerance takes when it is widened for speed without checking what it costs. Every solve still returns a finite beta and the fit still looks ordinary; what breaks is the ordering, and with it the tau the caller is handed -- across the four Hong Kong windows it moves the winner on three and the validation errors by 0.32 to 4.99 relative, against 3.9e-3 at the shipped value"
 
 [[target]]
+name = "conformal-window-level-split"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_resample_paths.py mlsynth/tests/test_pda_resample_band.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "centring-shrinkage-uncorrected"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = 1.0"
+  models = "the pre-fix state: block sums drawn from a centred series come out narrow by sqrt((n-b)/(n-1)), because the centred series' circular autocovariances sum to zero. Sixteen percent at a thirteen-period block drawn from forty-seven calibration periods, and every band built on those draws is narrow by the same factor. The draw still returns finite, symmetric, right-shaped paths, so nothing about the band's appearance shows it"
+
+  [[target.mutant]]
+  id = "level-never-drawn"
+  find = "        lvl = rng.choice(mu, size=(n_sim, 1))"
+  replace = "        lvl = np.zeros((n_sim, 1))"
+  models = "the pre-fix state with the window structure known but unused. A horizon total is H times the mean error over the horizon, so it is the between-window level and not the fluctuation that sizes it; drawing only the fluctuation gave 0.72 coverage on a blank-window design and 0.85 on a simplex fit, against a nominal 0.95, while the band stayed finite, symmetric and right-shaped throughout"
+
+  [[target.mutant]]
+  id = "window-width-from-the-series-not-the-horizon"
+  find = "    width = int(horizon)\n    m = min(int(n_windows), e.size // width)"
+  replace = "    width = e.size // int(n_windows)\n    m = int(n_windows)"
+  models = "the width derived by splitting the series into n_windows equal chunks. A horizon total is H times the mean error over H periods, so the level must be a level over H periods; splitting a 47-period blank window three ways measures it over 15 instead, and rescales the block cap and the zero-sum correction against 15 too. Callers whose series is exactly m horizons long are unaffected, which is why this hid"
+
+  [[target.mutant]]
+  id = "calibrates-on-the-earliest-periods"
+  find = "    panel = e[e.size - used:].reshape(m, width)"
+  replace = "    panel = e[:used].reshape(m, width)"
+  models = "keeping the oldest periods when the series holds more than the windows need, instead of the ones nearest the horizon being predicted. On a blank window of 47 against a horizon of 13 that is a different eight periods dropped, and the level is read off a stretch further from the post period"
+
+  [[target.mutant]]
+  id = "level-noise-floor-not-subtracted"
+  find = "        s2_level = max(0.0, s2_between - s2_within / width)"
+  replace = "        s2_level = s2_between"
+  models = "the level charged at the full scatter of the window means, with no allowance for the fact that each mean is an average of `width` noisy periods and would scatter even if every window shared a level. On a series with no level at all this inflates the total by about 1.40 at any number of windows, since the spurious level variance then equals the fluctuation variance exactly"
+
+  [[target.mutant]]
+  id = "level-variance-allowed-negative"
+  find = "        s2_level = max(0.0, s2_between - s2_within / width)"
+  replace = "        s2_level = s2_between - s2_within / width"
+  models = "the floor removed from a variance estimator that can go negative by chance. Sampling puts s2_between below the noise floor often at small m, and a negative variance makes the scale a NaN, which propagates silently into every drawn path and then into the band"
+
+  [[target.mutant]]
+  id = "block-capped-against-the-series-not-the-window"
+  find = "        b = min(b, max(1, width // 2))"
+  replace = "        b = min(b, max(1, e.size // 2))"
+  models = "the zero-sum constraint located at the wrong length. Once window means are removed each window's residuals sum to zero, so the constraint binds at the window length; capping against the whole concatenated series lets a block as long as a window through, and such a block sums to nearly zero, which silently narrows the fluctuation"
+
+  [[target.mutant]]
+  id = "correction-applied-at-block-one"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt(span / (span - b))"
+  models = "a correction that also folds in the sample-variance bias, which widens the single-period draw by sqrt(n/(n-1)) where the centring costs it nothing. Block one is Wheeler's construction exactly, and the reference parity benchmark is pinned on it, so a factor that is not exactly one there breaks the one comparison that certifies the port"
+
+[[target]]
 name = "conformal-cumulative-scores"
 module-path = "mlsynth/utils/conformal/scores.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_cumulative.py mlsynth/tests/test_conformal_cumulative_properties.py -q -p no:cacheprovider"
@@ -596,9 +650,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "cumulative-scores-average-instead-of-accumulate"
-  find = "scores.setdefault(k, []).append(float(path.sum()))"
-  replace = "scores.setdefault(k, []).append(float(path.mean()))"
-  models = "calibrating on each unit's average post-period error rather than its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
+  find = "    return [p.sum(axis=1) for p in _rolling_pooled_paths("
+  replace = "    return [p.mean(axis=1) for p in _rolling_pooled_paths("
+  models = "calibrating on each unit's average post-period error instead of its accumulated error, so the band is sized for the wrong estimand and comes out roughly a factor of the horizon too narrow"
 
   [[target.mutant]]
   id = "cumulative-calibration-origins-overlap"
@@ -628,9 +682,35 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "supt-collapses-to-the-pointwise-critical-value"
-  find = "    m = np.max(np.abs(z / scale), axis=1)"
-  replace = "    m = np.abs(z / scale)[:, 0]"
+  find = """        out[done:done + b] = np.max(
+            np.abs(z) / np.sqrt(np.clip(s2, 1e-300, None)), axis=1)"""
+  replace = """        out[done:done + b] = (
+            np.abs(z) / np.sqrt(np.clip(s2, 1e-300, None)))[:, 0]"""
   models = "taking one horizon's deviation instead of the largest across horizons, which is the pointwise critical value wearing a simultaneous band's name. Every shape, sign and monotonicity assertion still passes; what fails is the coverage the band claims, and only a test that compares the correction against its own simulation error can see it"
+
+  [[target.mutant]]
+  id = "supt-method-silently-ignored"
+  find = "    if method not in (\"gaussian\", \"empirical\"):"
+  replace = "    if False:"
+  models = "dropping the guard, so a misspelled method falls through to the gaussian default instead of being refused. A caller asking for the empirical multiplier on a bootstrap ensemble would silently get the simulated one -- the exact confusion the parameter exists to remove, and invisible because the returned number is a perfectly plausible multiplier"
+
+  [[target.mutant]]
+  id = "supt-empirical-forgets-to-standardise"
+  find = "        m = np.nanmax(np.abs(z), axis=1)"
+  replace = "        m = np.nanmax(np.abs(centred), axis=1)"
+  models = "reading the largest raw deviation instead of the largest standardised one. The multiplier is then in the units of whichever horizon happens to be widest -- usually the last, since a cumulative path's spread grows -- so it stops being a multiplier at all and the band it produces has no stated level"
+
+  [[target.mutant]]
+  id = "supt-few-replicate-warning-never-fires"
+  find = "    elif n < 2 * H:"
+  replace = "    elif False:"
+  models = "silencing the guard on replicates per horizon, which puts the band back to claiming a level it does not reach without saying so. At n = H the multiplier is short by 0.05 and simultaneous coverage falls to 0.89; below that it degrades fast, reaching 0.67 at three replicates over twelve horizons. The returned number stays a plausible multiplier throughout, so nothing downstream can tell"
+
+  [[target.mutant]]
+  id = "supt-ledoit-wolf-is-a-noop"
+  find = "            R = cov / np.outer(d, d)"
+  replace = "            R = R"
+  models = "accepting the shrinkage argument and then ignoring it, so a caller who took the corrective action gets the uncorrected multiplier. Worse than not offering the option, because the caller now believes the problem is handled"
 
   [[target.mutant]]
   id = "jackknife-inflation-dropped"
@@ -729,14 +809,15 @@ timeout = 400.0
   [[target.mutant]]
   id = "drop-the-flag-on-the-floor"
   find = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
-                dependent=pi_dependent)"""
-  replace = "                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed)"
+                dependent=pi_dependent, cumulative_block=cumulative_block)"""
+  replace = """                alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
+                cumulative_block=cumulative_block)"""
   models = "the defect the plumbing removes, and the one that was actually there: a config field the caller can set that never reaches the bootstrap. Every fit still succeeds and the default behaviour is unchanged, so nothing looks wrong -- the flag simply does nothing, which is worse than its absence because it invites a caller to believe they chose Remark 2.2 when they are still running Algorithm 2.1"
 
   [[target.mutant]]
   id = "invert-the-flag"
-  find = "                dependent=pi_dependent)"
-  replace = "                dependent=not pi_dependent)"
+  find = "                dependent=pi_dependent, cumulative_block=cumulative_block)"
+  replace = "                dependent=not pi_dependent, cumulative_block=cumulative_block)"
   models = "passing the flag through backwards. The result then records the opposite of what was run, so a band built under the i.i.d. multipliers is labelled as the paper's algorithm -- the one failure that survives being written down"
 
 [[target]]
@@ -1178,6 +1259,119 @@ timeout = 900.0
   models = "the pool measured at its narrowest, so one late cohort with few admissible donors masks an early one with hundreds. Whether the program could interpolate is decided by the widest pool any cohort was given, not the tightest"
 
 [[target]]
+name = "ppscm-solve-conditioning"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_solve_conditioning.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "scale-read-off-the-largest-residual"
+  find = "    exponent = int(np.round(np.log2(float(np.median(vals)))))"
+  replace = "    exponent = int(np.round(np.log2(float(np.max(vals)))))"
+  models = "the scale set by the largest residual instead of the typical one. A panel of markets spans an order of magnitude in size, so the biggest market alone would decide the divisor and push every other market's residuals below the tolerance the solver is working to"
+
+  [[target.mutant]]
+  id = "scale-rounded-off-the-power-of-two-grid"
+  find = "    return float(2.0 ** exponent)"
+  replace = "    return float(np.median(vals))"
+  models = "a divisor that is not a power of two, so dividing out and multiplying back rounds in binary floating point and the answer at one magnitude no longer agrees with the answer at another in the last digits"
+
+  [[target.mutant]]
+  id = "near-unit-panels-rescaled-anyway"
+  find = "    if abs(exponent) <= _SCALE_EXPONENT_TOL:"
+  replace = "    if abs(exponent) < 0:"
+  models = "every panel divided by something, including the ones already at unit scale. The arithmetic of every pinned fit in the library changes for no gain, since those solves were never near the tolerance"
+
+  [[target.mutant]]
+  id = "separate-fits-ridge-left-at-the-callers-scale"
+  find = "        lam_sep = lam / scale ** 2"
+  replace = "        lam_sep = lam"
+  models = "a ridge left in the caller's units while the imbalance it trades against is divided by the square of the scale, so the penalty dominates the fit it was meant to regularize and the weights collapse toward the uniform barycenter"
+
+  [[target.mutant]]
+  id = "pooled-fits-norms-left-at-the-callers-scale"
+  find = "                        nu_used, (global_l2 / scale) ** 2, (ind_l2 / scale) ** 2,"
+  replace = "                        nu_used, global_l2 ** 2, ind_l2 ** 2,"
+  models = "norms read off the unscaled imbalance matrix but applied to scaled residuals, so the pooled objective shrinks by the fourth power of the scale and terminates at the first iterate the tolerance accepts"
+
+[[target]]
+name = "ppscm-conformal-method"
+module-path = "mlsynth/estimators/ppscm.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py mlsynth/tests/test_ppscm_resample_cumulative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-method-field-ignored-at-the-branch"
+  find = "                if self.conformal_method == \"cyclic\":"
+  replace = "                if False:"
+  models = "a config field the fit reads and then does not act on. Every refusal still fires and every result field is still populated, so only a test that compares the two bands notices the caller was given the one they did not ask for"
+
+  [[target.mutant]]
+  id = "the-resample-branch-falls-through-to-split"
+  find = '                elif self.conformal_method == "resample":'
+  replace = '                elif False:'
+  models = "a caller asking for the resample band and silently getting the split one. Every field is still populated and cumulative_method still reads 'resample', so only a test that asserts the band is finite where split is infinite catches it"
+
+  [[target.mutant]]
+  id = "the-reported-method-taken-from-the-field-alone"
+  find = """                    cumulative_method=(self.conformal_method
+                                       if self.conformal_horizon is not None else None),"""
+  replace = "                    cumulative_method=self.conformal_method,"
+  models = "a fit with no horizon reporting 'split' as the method that produced its bounds, when it produced none. The label would then read as a band that was computed and came back empty"
+
+[[target]]
+name = "ppscm-conformal-method-config"
+module-path = "mlsynth/utils/ppscm_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_conformal_method.py mlsynth/tests/test_ppscm_resample_cumulative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-stray-parameter-check-reads-the-chosen-method"
+  find = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method not in m]"""
+  replace = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method in m]"""
+  models = "the refusal firing on the parameters the chosen band does read and passing the ones it ignores, so every correct configuration is rejected and every mistaken one accepted"
+
+  [[target.mutant]]
+  id = "the-refusal-asked-of-the-field-instead-of-the-caller"
+  find = """        stray = [f for f, m in readers.items()
+                 if f in fields and self.conformal_method not in m]"""
+  replace = """        stray = [f for f, m in readers.items()
+                 if self.conformal_method not in m]"""
+  models = "a refusal that fires on the other methods' parameters whether or not the caller set them. Every method's defaults are always present on the model, so this rejects every fit that asks for a band at all"
+
+  [[target.mutant]]
+  id = "the-training-fraction-owned-by-the-split-band-alone"
+  find = '            "conformal_min_train_frac": ("split", "resample"),'
+  replace = '            "conformal_min_train_frac": ("split",),'
+  models = "the shared parameter treated as the split band's private one, so a resample fit that sets where its own rolling pass starts is refused. The two bands run the same pass; only a test that sets the fraction under resample notices"
+
+  [[target.mutant]]
+  id = "the-block-length-read-after-coercion"
+  find = '    @field_validator("conformal_block", mode="before")'
+  replace = '    @field_validator("conformal_block")'
+  models = "the block length checked after pydantic has coerced it, so True arrives as 1 -- Wheeler's independent-period draw -- and reports a band too narrow under exactly the serial correlation the block exists to carry"
+
+  [[target.mutant]]
+  id = "the-draw-count-read-after-coercion"
+  find = '    @field_validator("conformal_n_sim", mode="before")'
+  replace = '    @field_validator("conformal_n_sim")'
+  models = "the draw count checked after coercion, so True arrives as 1 and the quantile is taken over a single path"
+
+  [[target.mutant]]
+  id = "a-method-named-without-a-horizon-accepted"
+  find = '        if "conformal_method" in fields and self.conformal_horizon is None:'
+  replace = '        if False:'
+  models = "a caller who names a method and forgets the horizon getting a fit with no band and no complaint, which reads as the method having been applied"
+
+  [[target.mutant]]
+  id = "the-null-grid-read-after-coercion"
+  find = '    @field_validator("conformal_n_nulls", mode="before")'
+  replace = '    @field_validator("conformal_n_nulls")'
+  models = "the grid size checked after pydantic has coerced it, so True and \"9\" arrive as integers and the bool check they exist for never fires"
+
+[[target]]
 name = "weights-container-contract"
 module-path = "mlsynth/config_models.py"
 test-command = "python -m pytest mlsynth/tests/test_weights_container.py mlsynth/tests/test_result_contract.py -q -p no:cacheprovider"
@@ -1582,3 +1776,560 @@ timeout = 300.0
   find = "    n_blocks = int(np.ceil(h / b))"
   replace = "    n_blocks = max(1, int(h // b))"
   models = "the block count floored, so a horizon that is not a multiple of the block assembles too few periods and the reshape yields a path shorter than the horizon. The failure is a shape error at the caller rather than a wrong number, which is the best case, but only because the truncation would otherwise be silent"
+
+[[target]]
+name = "sbc-cyclical-solve"
+module-path = "mlsynth/utils/bilevel/simplex.py"
+test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "cyclical-solve-stops-before-it-converges"
+  find = "    max_iter: int = 2000,"
+  replace = "    max_iter: int = 200,"
+  models = "a simplex solve that returns a point it has not converged to. This is the defect the SBC benchmark's tolerances were said to absorb, and at 200 iterations it moves the German cycle weights by 1.2e-3 and the ATT by 0.38 -- through the old +/-0.06 weight band and +/-25 ATT band without a mark, and through the old |SSE - 1266162.6| < 5 pin too, since the objective is flat near its optimum. What sees it is the attained objective pinned at the precision it is written, and the optimality certificate, which reads the gradient and so does not flatten out"
+
+[[target]]
+name = "sbc-hamilton-filter"
+module-path = "mlsynth/utils/sbc_helpers/hamilton.py"
+test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py mlsynth/tests/test_sbc_hongkong_reference.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "detrending-drifts-in-the-eleventh-digit"
+  find = "    coefs, *_ = np.linalg.lstsq(X, target, rcond=None)"
+  replace = "    coefs, *_ = np.linalg.lstsq(X, target * (1.0 + 1e-12), rcond=None)"
+  models = "a relative perturbation of 1e-12 in the detrending regression, standing for any arithmetic change that is not a difference between least-squares kernels. The old 1e-5 band could not see a defect three orders larger than this; the full-precision capture and the 1e-12-of-scale floor put the comparison where the two implementations actually sit, so a drift of this size fails"
+
+[[target]]
+name = "sbc-optimality-certificate"
+module-path = "benchmarks/cases/sbc_hongkong.py"
+test-command = "python benchmarks/run_benchmarks.py --case sbc_hongkong"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "certificate-reads-the-largest-gradient"
+  find = "    lower_bound = attained + float(gradient.min() - gradient @ w)"
+  replace = "    lower_bound = attained + float(gradient.max() - gradient @ w)"
+  models = "the convexity bound minimised over the wrong vertex of the simplex, which turns a lower bound into a quantity above the attained objective. The certificate then reports a negative gap, and an assertion that only bounds it from above would accept a solve that never converged as optimal"
+
+[[target]]
+name = "conformal-centring-shrinkage"
+module-path = "mlsynth/utils/conformal/resample.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_centring_shrinkage.py mlsynth/tests/test_conformal_resample_paths.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "centring-shrinkage-uncorrected"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = 1.0"
+  models = "the pre-fix state: block sums drawn from a centred series come out narrow by sqrt((n - b) / (n - 1)), because the centred series' circular autocovariances sum to zero. Sixteen percent at a thirteen-period block drawn from forty-seven calibration periods, and every band built on those draws is narrow by the same factor. The draw still returns finite, symmetric, right-shaped paths, so nothing about the band's appearance shows it -- only a measurement against the series' own variance does"
+
+  [[target.mutant]]
+  id = "correction-scaled-by-the-block-not-its-complement"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt((span - 1) / b) if b > 1 else 1.0"
+  models = "the denominator taken as the block rather than its complement. The shrinkage centring imposes is (n - b) / (n - 1), so undoing it needs the complement; using b instead gives 1.88 where 1.16 is correct at a 13-block of 47 periods, and the band is then over half again too wide. Erring wide never fails a coverage check, which is what makes an over-correction harder to notice than an under-correction"
+
+  [[target.mutant]]
+  id = "correction-inverted"
+  find = "    scale = np.sqrt((span - 1) / (span - b)) if b > 1 else 1.0"
+  replace = "    scale = np.sqrt((span - b) / (span - 1)) if b > 1 else 1.0"
+  models = "the factor upside down, so the draw shrinks the block sums a second time instead of restoring them. The band is then narrow by (n - b) / (n - 1) rather than by its square root -- twice the under-coverage the fix exists to remove, and still finite, symmetric and the right shape"
+
+[[target]]
+name = "ppscm-cwz-cumulative"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_cwz_cumulative.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "null-subtracted-past-the-horizon"
+  find = "        adj[row, t0:t0 + horizon] -= theta"
+  replace = "        adj[row, t0:] -= theta"
+  models = "the candidate null subtracted from every post period instead of the horizon being tested. The band then inverts a test about a longer window than the one it reports, and on a panel whose post-period is exactly the horizon the two coincide, so the defect hides wherever the horizon happens to fill the window"
+
+  [[target.mutant]]
+  id = "band-reported-per-period-not-cumulative"
+  find = "        lower[k], upper[k] = lo * horizon, hi * horizon"
+  replace = "        lower[k], upper[k] = lo, hi"
+  models = "the accepted range of the per-period effect reported as if it were the total. The band is then narrower by a factor of the horizon and sits around a point estimate on the cumulative scale, so it is not merely small but centred wrongly -- and at horizon one the two scales agree, which is where a smoke test would look"
+
+  [[target.mutant]]
+  id = "grid-bounded-end-reported-as-a-number"
+  find = "        if np.isfinite(lo) and lo <= grid[0]:"
+  replace = "        if False and np.isfinite(lo) and lo <= grid[0]:"
+  models = "an accepted set that runs off the low end of the grid reported as if the data had bounded it there. The test would have gone on accepting had it been asked, so the endpoint is an artifact of grid_scale; printed as a number it is indistinguishable from a real bound, and it always errs narrow"
+
+  [[target.mutant]]
+  id = "null-refit-leaves-the-window-out"
+  find = "    trt_null[adopted] = T"
+  replace = "    trt_null[adopted] = t0"
+  models = "the null refit treating the window as post-treatment instead of as fitting data. Under the null the adjusted series is an untreated series, so all of it should balance; leaving the window out puts the trailing block partly outside the fit its reference blocks come from, and the shifts are then no longer exchangeable with it"
+
+  [[target.mutant]]
+  id = "statistic-is-the-block-sum"
+  find = "                                statistic=\"mean_abs\")"
+  replace = "                                statistic=\"abs_sum\")"
+  models = "the absolute block sum in place of the mean absolute residual. The quadratic program leaves end-of-window residuals sign-coherent, so block sums ramp toward the end of the window while magnitudes stay flat and the trailing block always occupies the most inflated position -- the p-value is then driven by where the block sits, not by the effect"
+
+  [[target.mutant]]
+  id = "grid-sized-from-the-treated-window-too"
+  find = "        pre = _resid(full, k)[:t0]"
+  replace = "        pre = _resid(full, k)"
+  models = "the grid half-width sized from residuals that include the treated window. A real effect inflates that spread, so the grid widens exactly when there is something to detect and the band widens with the effect it is measuring -- an interval whose width reports the treatment"
+
+[[target]]
+name = "ppscm-jackknife-treated-deletions"
+module-path = "mlsynth/utils/ppscm_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_jackknife_treated_deletions.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treated-deletions-never-counted"
+  find = "        treated_loo[i] = bool(was_treated[i])"
+  replace = "        treated_loo[i] = True"
+  models = "every admitted replicate counted as a treated deletion, which is the pre-fix state wearing the new guard's clothes. The count is then the survivor count the old guard already used, so a single-treated panel passes again and reports a standard error its treated unit cannot move. Nothing about the number looks wrong -- it is finite, positive, and brackets the point estimate"
+
+  [[target.mutant]]
+  id = "treated-mask-read-from-trt-not-the-loop"
+  find = "        treated_loo[i] = bool(was_treated[i])"
+  replace = "        pass"
+  models = "the mask left empty in the loop, so the guard fires on every panel including ones with many treated units. A refusal that never lifts is at least visible, unlike the defect it replaces, but it removes jackknife inference from PPSCM entirely"
+
+  [[target.mutant]]
+  id = "guard-accepts-a-single-treated-deletion-as-none"
+  find = "    if n_treated_loo == 0:"
+  replace = "    if n_treated_loo < 0:"
+  models = "the guard made unreachable while still appearing to exist. Two treated units, the thinnest ensemble that is not vacuous, still work either way, so only a single-treated panel distinguishes this from the fix -- which is exactly the case the guard was written for"
+
+[[target]]
+name = "pda-cumulative-post-dependence"
+module-path = "mlsynth/utils/inferutils.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_cumulative_post_dependence.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cumulative-block-collapses-to-the-independent-draw"
+  find = "    cum_block = T1 if cumulative_block == 0 else min(int(cumulative_block), T1)"
+  replace = "    cum_block = 1"
+  models = "the argument accepted and then ignored, so every cumulative band is built from independently drawn post-period errors again. This is the pre-fix defect wearing the fix's interface, and it is the worst shape it could take: a caller who asked for the whole horizon is told nothing and gets a band too narrow by the AR inflation, while the parameter's presence is evidence to them that the dependence is handled"
+
+  [[target.mutant]]
+  id = "blocks-drawn-without-wrapping"
+  find = "                resid_centered[(st + np.arange(cum_block)) % T0] for st in starts"
+  replace = "                resid_centered[st:st + cum_block] for st in starts"
+  models = "the circular wrap dropped, so a start near the end of the residual series yields a block shorter than cum_block. The concatenation is then short of T1 and the paths ragged; where it does not raise, residuals at the end of the series are drawn less often than those in the middle, which biases the resampled dependence toward whatever the interior of the calibration window happens to show"
+
+  [[target.mutant]]
+  id = "the-block-draw-shares-the-main-rng"
+  find = "        e_post_cum = rng_cum.choice(resid_centered, size=T1, replace=True)"
+  replace = "        e_post_cum = rng.choice(resid_centered, size=T1, replace=True)"
+  models = "the block draw taking from the main stream, so the block length perturbs every later draw and the per-period intervals move as a side effect of an argument that is documented to leave them alone. Algorithm 2.1's output then silently depends on a cumulative-band setting, which is the failure the separate stream exists to prevent"
+
+[[target]]
+name = "supt-studentized-reference"
+module-path = "mlsynth/utils/supt.py"
+test-command = "python -m pytest mlsynth/tests/test_supt.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "studentized-reference-is-a-noop"
+  find = """    df = n - 1
+    Lu = L / scale[:, None]                     # unit-diagonal factor of R"""
+  replace = """    df = 10 ** 9
+    Lu = L / scale[:, None]                     # unit-diagonal factor of R"""
+  models = "the correction accepted and then discarded: at a billion degrees of freedom the Wishart is degenerate at R and the studentized reference returns the normal one. This is the pre-fix defect wearing the fix's interface, which is the worst shape it could take -- the parameter's presence tells a caller the estimated standard error is accounted for while the band goes back to claiming a level it does not reach"
+
+  [[target.mutant]]
+  id = "degrees-of-freedom-off-by-one"
+  find = "    df = n - 1"
+  replace = "    df = n"
+  models = "one degree of freedom too many, from counting replicates instead of deviations about their mean. The multiplier comes back slightly small at every ensemble size and the error is largest exactly where the correction matters most. Nothing about the returned number looks wrong; it is a plausible multiplier drawn from the wrong law"
+
+  [[target.mutant]]
+  id = "reference-argument-not-validated"
+  find = """    if reference not in ("studentized", "normal"):
+        raise MlsynthConfigError(
+            f"reference must be 'studentized' or 'normal'; got {reference!r}."
+        )"""
+  replace = "    pass"
+  models = "a misspelled reference falling through to the default instead of raising. A caller who asked for the normal route and got the studentized one has no way to notice, since both return a perfectly plausible multiplier and neither reports which law it came from"
+
+[[target]]
+name = "mosc-pipeline"
+module-path = "mlsynth/utils/mosc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc.py mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treatment-dummy-marks-the-wrong-unit"
+  find = "        treatment[0] = 1.0                       # the treated unit is column 0"
+  replace = "        treatment[-1] = 1.0"
+  models = "an outcome model that identifies the effect off the last donor instead of the treated unit, so the counterfactual is predicted with the treated unit's own treated outcome still in the design and the reported effect is whatever the last donor did"
+
+  [[target.mutant]]
+  id = "counterfactual-keeps-the-treatment-on"
+  find = "    counterfactual_design, _ = _regression_arrays(\n        loadings, panel, pre_periods, treated_on=False\n    )"
+  replace = "    counterfactual_design, _ = _regression_arrays(\n        loadings, panel, pre_periods, treated_on=True\n    )"
+  models = "a counterfactual predicted with the treatment indicator left switched on, which returns the factual path and drives every estimated effect to zero"
+
+  [[target.mutant]]
+  id = "differencing-anchors-on-the-first-period"
+  find = "    anchor = float(panel[pre_periods - 1, 0])"
+  replace = "    anchor = float(panel[0, 0])"
+  models = "a differenced fit re-integrated from the start of the panel instead of the last observed pre-intervention level, so the counterfactual is offset by the treated unit's entire pre-period movement while keeping the right shape"
+
+  [[target.mutant]]
+  id = "differencing-forgets-a-period"
+  find = "    return pre_periods - 1 if outcome_scale == \"difference\" else pre_periods"
+  replace = "    return pre_periods"
+  models = "a differenced fit that treats the pre-period as one step longer than differencing left it, so the first post-intervention difference is used to fit the model that is supposed to predict it"
+
+  [[target.mutant]]
+  id = "dispersion-averages-instead-of-taking-the-median"
+  find = "    dispersion = float(np.median(ratio)) if ratio.size else float(\"nan\")"
+  replace = "    dispersion = float(np.mean(ratio)) if ratio.size else float(\"nan\")"
+  models = "a dispersion statistic set by a handful of cells whose fitted rate is near the floor, so the reported number tracks the worst-fit cells and not the panel"
+
+  [[target.mutant]]
+  id = "autocorrelation-uses-the-raw-series"
+  find = "    pearson = (pre_panel - fitted) / np.sqrt(scale)"
+  replace = "    pearson = pre_panel / np.sqrt(scale)"
+  models = "a conditional-independence check computed before conditioning on the factors, which reports near-perfect correlation for any trending panel and so never distinguishes a cumulative series from a differenced one"
+
+[[target]]
+name = "mosc-factor"
+module-path = "mlsynth/utils/mosc_helpers/factor.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "gibbs-ignores-the-holdout-mask"
+  find = "    counts = np.where(observed > 0, counts, 0)"
+  replace = "    counts = counts"
+  models = "a sampler that fits the cells it is meant to be scored on, so the held-out predictive density reports in-sample fit and cannot detect a misspecified likelihood"
+
+  [[target.mutant]]
+  id = "gibbs-collects-the-warmup"
+  find = "        if sweep >= n_warmup:"
+  replace = "        if sweep >= 0:"
+  models = "a posterior that keeps its own warm-up sweeps, so the draws include the chain walking in from the prior and the credible band is inflated by transient state"
+
+  [[target.mutant]]
+  id = "heldout-score-reads-the-observed-cells"
+  find = "    heldout = ~np.asarray(mask, dtype=bool)"
+  replace = "    heldout = np.asarray(mask, dtype=bool)"
+  models = "a model score computed on the cells the model was fit to, which rewards rank instead of fit and inverts the comparison it exists to make"
+
+  [[target.mutant]]
+  id = "poisson-log-density-drops-the-rate-penalty"
+  find = "    return counts * np.log(rate) - rate - gammaln(counts + 1.0)"
+  replace = "    return counts * np.log(rate) - gammaln(counts + 1.0)"
+  models = "a Poisson log density missing its normalising term, so a model can raise its score without bound by inflating every fitted rate"
+
+[[target]]
+name = "mosc-bootstrap"
+module-path = "mlsynth/utils/mosc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mosc.py mlsynth/tests/test_mosc_properties.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "bootstrap-resamples-without-replacement"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return np.concatenate([[0], 1 + rng.permutation(n_donors)])"
+  models = "a bootstrap that permutes the donor pool instead of resampling it, so every replicate holds exactly the same units in a different order and the interval collapses to the posterior spread it was introduced to widen"
+
+  [[target.mutant]]
+  id = "bootstrap-drops-the-treated-unit"
+  find = "    return np.concatenate([[0], 1 + rng.integers(0, n_donors, size=n_donors)])"
+  replace = "    return rng.integers(0, n_donors + 1, size=n_donors + 1)"
+  models = "a bootstrap that resamples every unit as the paper's sentence reads literally, so a replicate can drop the treated unit and the counterfactual is read off whichever donor happened to land in column zero"
+
+  [[target.mutant]]
+  id = "bootstrap-reuses-one-resample"
+  find = "            config.seed + replicate,"
+  replace = "            config.seed,"
+  models = "every replicate fitting its factor model at the same seed, so the only variation left across replicates is the resampled pool and the factor model's contribution to the interval silently vanishes"
+
+[[target]]
+name = "twsf"
+module-path = "mlsynth/utils/twsf_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_twsf_properties.py mlsynth/tests/test_twsf.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "page-training-consumes-the-held-back-block"
+  find = "        for b in range(n_blocks - 1):"
+  replace = "        for b in range(n_blocks):"
+  models = "a Page construction that trains on the final block as well, so the forecast state W is also a training observation and the temporal rule is fitted on the very window it is asked to extrapolate from"
+
+  [[target.mutant]]
+  id = "response-is-the-last-lag-not-the-future-value"
+  find = "            resp.append(seg[-1])"
+  replace = "            resp.append(seg[L - 1])"
+  models = "a temporal regression whose response is the last entry of its own lag vector, so the rule predicts the present from the present instead of one step ahead -- it fits almost perfectly and forecasts nothing"
+
+  [[target.mutant]]
+  id = "forecast-starts-at-the-wrong-end-of-the-treated-window"
+  find = "    W = Y_post[:, T1 - L:]                  # N1 x L"
+  replace = "    W = Y_post[:, :L]                       # N1 x L"
+  models = "a forecast state taken from the opening of the treated window instead of its close, so the recursion is launched from the donors' oldest treated observations and the horizon is effectively shifted by the whole window"
+
+  [[target.mutant]]
+  id = "recursive-variance-drops-the-jacobian"
+  find = "            q_a = Zk_pinv @ (J_m.T @ state)"
+  replace = "            q_a = Zk_pinv @ state"
+  models = "a recursive interval that ignores how one-step estimation error propagates through the recursion. The point forecast is untouched and the band only narrows at longer horizons, so nothing that checks forecasts can see it"
+  expected = "survived"
+  accepted-because = "the shift is 1-3% of the standard error on the calibration fixture, and separating it by Monte Carlo needs replication counts a pull-request suite cannot carry. The term is pinned structurally instead: lead_jacobian has its own property tests, including that it is the identity at lead one. Measurements in the comment below."
+
+  # Accepted survivor, and not an equivalent mutant: it does change the answer.
+  # Measured against the true term by monkeypatching the Jacobian to the
+  # identity, the plug-in standard error inflates by 1.00x, 1.01x, 1.02x and
+  # 1.03x at leads 2, 5, 8 and 12 on the calibration fixture. Making the treated
+  # regime persistent (an AR(1) at phi = 0.97, where the companion powers grow)
+  # raises that to 1.08x at lead 6 and 1.22x at lead 12 -- but the leading-order
+  # variance is itself badly calibrated in that regime, empirical SD over plug-in
+  # SE running 4.3 to 5.9, so an assertion there would be measuring the wrong
+  # thing. A Monte Carlo that separates a 1-3% shift in the standard error needs
+  # replication counts far beyond what a pull-request suite can carry, so this
+  # is left live and documented, and not killed by a tolerance loose enough to
+  # be meaningless. The term is pinned structurally instead: lead_jacobian has
+  # its own property tests, including that it is the identity at lead one.
+
+  [[target.mutant]]
+  id = "pooled-variance-ignores-the-time-side"
+  find = "    sigma2 = float((np.sum(ru ** 2) + np.sum(rt ** 2)) / dof)"
+  replace = "    sigma2 = float(np.sum(ru ** 2) / dof)"
+  models = "a noise estimate built from the unit-side residual alone. On panels where the donors are larger in scale than the target the time side dominates the pooled variance, so this understates every interval while leaving every point estimate exact"
+
+  [[target.mutant]]
+  id = "prediction-interval-adds-no-future-noise"
+  find = "            var += sigma2                                    # future innovation"
+  replace = "            var += 0.0                                       # future innovation"
+  models = "a prediction interval that silently equals the confidence interval, so a caller validating against a realised trajectory is given a band for a conditional mean"
+
+[[target]]
+name = "marex-treated-assignment"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_treated_assignment.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "infer-the-treated-group-from-support-size"
+  find = """    def _labelling_is_free(lab, n_members, m_sel):
+        \"\"\"Whether ``(v, w, 1 - z)`` is feasible at the same cost as ``(w, v, z)``.\"\"\"
+        if design != "standard":"""
+  replace = """    def _labelling_is_free(lab, n_members, m_sel):
+        \"\"\"Whether ``(v, w, 1 - z)`` is feasible at the same cost as ``(w, v, z)``.\"\"\"
+        return True
+        if design != "standard":"""
+  models = "the convention applied everywhere, including where the program has already settled the labels. Whichever weight vector has the smaller support is called treated, so an experimenter who asked for six treated markets is handed three -- the control synthetic's, the group the cardinality does not constrain and the cost bound does not price -- and the estimated effect comes back negated, since it is the treated synthetic minus the control one. Every fit statistic is unchanged and the design returned is still an optimum of the program solved, so nothing about it looks wrong"
+
+  [[target.mutant]]
+  id = "never-let-the-convention-apply"
+  find = "        return complement >= 1"
+  replace = "        return False"
+  models = "the over-correction: reading the labels off w even where either labelling is optimal. With m_min=1 and m_max=N-1 under the symmetric objective the complement is an admissible treated set too, so the solver's choice between them is arbitrary and the reported treated count stops being comparable to Abadie & Zhao's, whose own code takes the smaller set. The Section 5 Monte Carlo cell moved from 6.83 treated units to 7.5 against a 0.8 tolerance when this was the behaviour"
+
+[[target]]
+name = "mvbbsc-donor-order"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc_donor_order.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "donor-order-left-to-the-caller"
+  find = "    X = X[:, donor_order]"
+  replace = "    pass  # donor order left as the caller supplied it"
+  models = "the defect this canonicalisation exists to remove: NUTS walks a parameter vector, so permuting the simplex coordinates changes the trajectory and the posterior moves. On the German reunification panel that was 7.2e-3 in the posterior-mean weights and 6.03 in the ATT -- an answer that changes because somebody sorted a dataframe"
+
+  [[target.mutant]]
+  id = "weights-returned-in-the-samplers-order"
+  find = '        "weights": W[:, donor_inverse],'
+  replace = '        "weights": W,'
+  models = "weights handed back in the sampler's internal order while the caller reads them against its own columns, so every weight is attributed to the wrong donor. The counterfactual and the ATT are untouched, which is what makes it survive any check that looks only at the effect"
+
+[[target]]
+name = "mvbbsc-scale-invariance"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc.py -q -p no:cacheprovider -k scale_invariance"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-treated-series-keeps-its-own-scale"
+  find = "    sy = sy if sy > 0 else 1.0"
+  replace = "    sy = 1.0"
+  models = "standardisation that centres but does not scale. The invariance this estimator advertises is that the units of the outcome do not matter, and dropping the divisor removes it: the same panel in dollars and in thousands of dollars is then two different fits. It is the defect test_scale_invariance_of_weights exists to catch, and the check has to catch it while tolerating the sampler's own spread, which on this panel is 0.02 to 0.04 in the posterior-mean weights"
+
+[[target]]
+name = "geox-mvbbsc-engine"
+module-path = "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_geox_mvbbsc_engine.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "a-samplers-relations-held-to-solver-precision"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary,\n                requires=(\"numpyro\",))"
+  models = "the bar this engine was first certified against: the property suite's 1e-6, which a sampler cannot meet. It passed only because NumPyro draws in single precision by default and the 1e-14 difference a rescale makes to the standardized inputs rounds away there. Once MTGP or BPSCS enables x64 earlier in a run the difference survives, NUTS amplifies it to 1e-2, and the relations fail -- so the engine was green in isolation and red in the suite"
+
+  [[target.mutant]]
+  id = "an-optional-dependency-left-undeclared"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary, fit_tolerance=5e-2)"
+  models = "the regression that took the daily coverage badge red on main. The engine property suite parametrises over every registered engine, so an engine needing an optional dependency has to say so or the suite fails it where the dependency is absent instead of reporting it missing. The pull request gate installs numpyro explicitly and cannot see this; the badge and the mutation matrix install requirements.txt alone and go red with eight failures"
+
+  [[target.mutant]]
+  id = "an-iid-shock-on-an-averaged-estimand"
+  find = "    draws = att_posterior(fit, start, end, autocorr=autocorr)\n    p = 2.0 * min("
+  replace = "    draws = att_posterior(fit, start, end, autocorr=False)\n    p = 2.0 * min("
+  models = "MVBBSC's shipped predictive shock used on a window average. Under iid the variance of the mean falls as sigma^2/h; under the positive autocorrelation a geo panel actually has it falls more slowly, so the interval is too narrow. On Meta's GeoLift panel, with each of its 40 locations taken as a placebo, this covers 65% of a nominal 90% against 87.5% for the AR(1) form"
+
+[[target]]
+name = "power-calibration"
+module-path = "mlsynth/utils/post_fit.py"
+test-command = "python -m pytest mlsynth/tests/test_power_calibration.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "noise-scale-discards-the-designs-blank-period-bias"
+  find = "        bias = float(placebo.mean())"
+  replace = "        bias = 0.0"
+  models = "the noise scale taken as the spread about the placebo window's own mean, so a design that misses on the periods it was not fitted to is charged nothing for that miss. The offset is real and it lands in the post window on top of the effect being measured. Every shape assertion passes -- the MDE is finite, positive and falls with the horizon -- and only the empirical size of the test it claims to describe moves, which no assertion on the number itself can see"
+
+  [[target.mutant]]
+  id = "serial-correlation-read-off-an-uncentred-series"
+  find = "    r = r - r.mean()\n    num = float(r[:-1] @ r[1:])"
+  replace = "    num = float(r[:-1] @ r[1:])"
+  models = "the lag-1 autocorrelation estimated without removing the mean. On a series with mean b and noise sigma the estimator tends to b^2 / (b^2 + sigma^2), so a biased design reports strong persistence it does not have and the AR(1) variance inflation built on it is measuring the offset twice. rho stays inside (-1, 1) and the MDE stays finite, so only a test that knows the true rho of a simulated process can tell"
+
+  [[target.mutant]]
+  id = "gaussian-quantile-against-an-estimated-scale"
+  find = "    t_a = float(t_dist.ppf(1.0 - alpha / 2.0, df))"
+  replace = "    t_a = float(norm.ppf(1.0 - alpha / 2.0))"
+  models = "sigma treated as known when it was estimated from the placebo window. This is the textbook reason a nominal 5% test is not one, and on the short persistent windows these designs have it is not a rounding difference: at rho = 0.7 on a 24-period window the Gaussian quantile gives a true size above 10 percent. The reported MDE only shrinks by a few percent, which is why no assertion on its value catches it"
+
+  [[target.mutant]]
+  id = "effective-sample-size-uncapped-at-the-period-count"
+  find = "    return float(min(float(n), max(2.0, n * (1.0 - r) / (1.0 + r))))"
+  replace = "    return float(max(2.0, n * (1.0 - r) / (1.0 + r)))"
+  models = "the Bartlett effective sample size allowed to exceed the number of periods. It does so whenever the sample autocorrelation is negative, which is an ordinary draw on a 20-period window: rho-hat = -0.42 turns 20 periods into 48 degrees of freedom, narrowing both the t quantile and sigma's chi-square interval on the windows where they should be widest"
+
+  [[target.mutant]]
+  id = "squared-bias-plugged-in-without-removing-its-own-noise"
+  find = "    bias_sq = max(0.0, bias ** 2 - var_bias)"
+  replace = "    bias_sq = bias ** 2"
+  models = "the plug-in b^2 used for the squared bias. Since E[b_hat^2] = beta^2 + Var(b_hat), a design that is genuinely unbiased is charged for the sampling noise in measuring its own bias, and its MDE is inflated for no reason. The direction is conservative, so nothing over-rejects and no size assertion fires -- it costs power silently, and only a test that pins the standard error against sigma/sqrt(n_post) on an unbiased design notices"
+
+[[target]]
+name = "pda-hcw-empty-model"
+module-path = "mlsynth/utils/pda_helpers/hcw/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_hcw_empty_model.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "furnival-wilson-seeded-with-the-intercept-only-model"
+  find = "    best_ic = [np.inf]\n    best_idx: List[int] = []"
+  replace = "    best_ic = [info_criterion(tss, n, 1, criterion)]\n    best_idx: List[int] = []"
+  models = "the incumbent seeded with the size-zero model, so an intercept-only counterfactual competes against the donor subsets. HCW Section 5 and pampe's regsubsets both enumerate sizes 1..nvmax, so the reference cannot return it. It is invisible at the pre-period lengths the suite otherwise uses -- AICc's 2K(K+1)/(n-K-1) correction is 0.75 against 0.35 at T0 = 20 and the empty model never wins -- and decisive at T0 = 5, where it is 6.0 against 1.33 and wins on over half of draws. Against pampe on Wan, Xie & Hsiao's own Design 6a it inflated mean MSE from 0.910 to 6.238, the paper's published cell being 0.91"
+
+  [[target.mutant]]
+  id = "exhaustive-search-seeded-with-the-intercept-only-model"
+  find = "    best_idx: List[int] = []\n    best_ic = np.inf\n    for r in range(1, r_max + 1):"
+  replace = "    best_idx: List[int] = []\n    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)\n    for r in range(1, r_max + 1):"
+  models = "the same defect in the brute-force reference search that the branch-and-bound engine is validated against. Left here it would make the oracle agree with a faulty incumbent, so the backend-agreement test would pass while both were wrong -- the reason this mutant is listed separately from the Furnival-Wilson one"
+
+[[target]]
+name = "rescm-tau-grid"
+module-path = "mlsynth/utils/laxscm_helpers/crossval.py"
+test-command = "python -m pytest mlsynth/tests/test_cv.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "tau-upper-bound-is-a-lasso-penalty-path"
+  find = "        upper_limit = float(v.max() - v.min()) / 2.0 * 1.01"
+  replace = "        upper_limit = float(np.linalg.norm(X.T @ y, np.inf))"
+  models = "the shipped bound until 2026-09, which topped the grid at ||X'y||_inf -- the smallest Lasso penalty giving an all-zero fit, not the smallest relaxation at which the equal weights become feasible. It omits the 1/T in Sigma and Upsilon, so it also grows with the pre-period: measured 76x, 67x and 172x above eta_bar at T0 = 25, 50 and 100 on the Liao-Shi-Zheng design. Grid points above eta_bar leave the balance constraint vacuous, and there the L2, entropy and empirical-likelihood objectives all return their unconstrained simplex minimiser, which is the equal weights -- so the fit silently reports 1/J and three different objectives return bit-identical counterfactuals"
+
+  [[target.mutant]]
+  id = "tau-lower-bound-is-a-hard-coded-constant"
+  find = "        lower_limit = float(problem.value) * 1.01"
+  replace = "        lower_limit = 1e-5"
+  models = "the shipped bound until 2026-09, which floored the grid at a constant instead of the smallest relaxation admitting any simplex weight. Points below that floor are infeasible and get skipped at fit time, so the usable grid is shorter than n_taus without saying so. With the Lasso upper bound this left 0 of 10 points inside [eta_low, eta_bar] on a J=20, T0=10 panel; the two faults are independent and their span inflations multiply to 6.4e5"
+
+[[target]]
+name = "fgrc-cluster-count-selection"
+module-path = "mlsynth/utils/clustersc_helpers/rpca/selection.py"
+test-command = "python -m pytest mlsynth/tests/test_fgrc_selection.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "boundary-candidates-are-ranked-like-any-other"
+  find = "    eligible = [K for K in gaps if K not in boundary]"
+  replace = "    eligible = [K for K in gaps]"
+  models = "the shipped rule until the Basque root-cause analysis: the relaxation step ranks a candidate inside a Gap curve whose maximum sits at an end of k_eval. On a monotone curve that ranking is the candidate list sorted by distance from the edge, so on 17 Basque units it returned K=4 with an empty accepted set, cutting the donor pool from 15 to 9 and the ATT from -0.365 to -1.212. The mutant reintroduces exactly that: nothing is ever excluded, so the rule always produces a number and never declines"
+
+  [[target.mutant]]
+  id = "evaluation-grid-reaches-far-past-the-candidates"
+  find = "            else tuple(range(1, max(cands) + 3)))"
+  replace = "            else tuple(range(1, max(cands) + 9)))"
+  models = "a wider default aperture. It looks harmless and is not: the Gap maximum on these panels tracks whichever k is largest in the grid -- measured at 1, 6, 8, 10, 12 and 16 on Basque for grids 1..4 through 1..16 -- so widening the grid changes the answer without touching the data. This mutant survived the suite as it stood before the analysis, which is what put the grid under an assertion"
+
+  [[target.mutant]]
+  id = "a-grid-that-cannot-reject-a-candidate-is-accepted"
+  find = "    if not grid or max(grid) <= max(cands):"
+  replace = "    if not grid:"
+  models = "the shipped validation until the analysis, where trimming k_eval to fit the panel could leave max(k_eval) at the largest candidate. The check asks whether K is the argmax of its own curve, and a grid stopping at K cannot answer it -- K can then only win at the edge. On five units of pure white noise the old form reported two candidates as accepted"
+
+  [[target.mutant]]
+  id = "the-rule-answers-even-when-it-has-nothing-to-go-on"
+  find = """    if not eligible:
+        return FGRCSelection(selected_k=None, confident=(), relaxation_level=0,
+                             **common)"""
+  replace = """    if not eligible:
+        return FGRCSelection(selected_k=max(gaps), confident=(), relaxation_level=0,
+                             **common)"""
+  models = "an abstention that still hands back a number. The caller sees selected_k set and relaxation_level 0, and the diagnostic saying the rule had nothing to rank is one field away from the answer it contradicts. This is how the Basque number reached an ATT in the first place: the pipeline read selected_k and ignored the empty accepted set"
+
+  [[target.mutant]]
+  id = "the-one-standard-error-reading-is-just-the-argmax"
+  find = """    ks = [int(k) for k in k_values]
+    for j in range(len(ks) - 1):
+        if gap[j] >= gap[j + 1] - gap_se[j + 1]:
+            return ks[j]
+    return ks[-1]"""
+  replace = """    ks = [int(k) for k in k_values]
+    return ks[int(np.argmax(gap))]"""
+  models = "discarding gap_se and reporting the argmax twice. The two readings disagree exactly where it matters: across 18 structureless panels the 1-SE rule answered k=1 on all 54 candidate curves while the argmax accepted a candidate on 4 of them, and on Basque the 1-SE rule answers 1 for every candidate against an argmax of 6. A selector whose conservative reading is a copy of its permissive one reports one instrument as two"
+
+[[target]]
+name = "cluster-spannability"
+module-path = "mlsynth/utils/clustersc_helpers/spannability.py"
+test-command = "python -m pytest mlsynth/tests/test_spannability.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "diagnostic-measures-the-cluster-against-itself"
+  find = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool[:, idx], target, scale)"
+  replace = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool, target, scale)"
+  models = "a diagnostic that compares the pool against the pool, so the ratio is 1.0 for every cluster and nothing is ever flagged. This is the state the library was in before this module: donor selection could drop the donors carrying 0.549 of West Germany's pool-optimal convex weight and no surface reported it. A check that cannot fail is the defect the ladder was written to catch"
+
+  [[target.mutant]]
+  id = "zero-detection-tighter-than-the-solver"
+  find = "    negligible = 1e-5 * scale"
+  replace = "    negligible = 1e-12"
+  models = "the first draft's cutoff, which was absolute and far below what CLARABEL delivers. On an exactly solvable panel the solver leaves ~1e-5 relative residual, so a treated unit sitting exactly on a donor reported pool_rmse 9.0e-05 against cluster_rmse 1.2e-04 and a ratio of 1.35 -- a spurious 35% penalty on a cluster that gives up nothing, and the near-zero branch never fired"
+
+  [[target.mutant]]
+  id = "solve-left-at-panel-scale"
+  find = "    donors_u = donors / scale"
+  replace = "    donors_u = donors"
+  models = "the un-normalised program. Outcome magnitudes span five orders across the reference panels (Basque GDP ~10, Prop 99 pack sales ~300, German GDP ~38000) and at the top of that range CLARABEL returns infeasible on a simplex, which is never empty. The diagnostic then raises on exactly the panel it exists to flag"
+
+  [[target.mutant]]
+  id = "excluded-mass-counts-the-donors-that-were-kept"
+  find = "    excluded_mass = float(np.clip(pool_weights[~kept], 0.0, None).sum())"
+  replace = "    excluded_mass = float(np.clip(pool_weights[kept], 0.0, None).sum())"
+  models = "an inverted mask, reporting the weight the cluster retained instead of the weight it threw away. The two agree only when the cluster is the whole pool, so the number would read 0.451 for West Germany where the answer is 0.549 and a reader would conclude the opposite about which donors mattered"

@@ -34,7 +34,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from mlsynth.utils.conformal import block_error_paths
+from mlsynth.utils.conformal import block_error_paths, resolve_block
 
 _SETTINGS = settings(
     max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow]
@@ -71,10 +71,19 @@ def test_the_shape_is_always_simulations_by_horizon(series, horizon, block, seed
 @_SETTINGS
 def test_every_drawn_value_is_a_signed_entry_of_the_centred_series(
         series, horizon, block, seed):
-    """The draw resamples; it does not interpolate, smooth or rescale."""
+    """The draw resamples; it does not interpolate or smooth.
+
+    It applies one uniform scalar, the centring correction, which is divided
+    back out here so the membership question is about the values themselves.
+    """
     e = np.asarray(series, dtype=float)
+    # The draw resolves the block against the horizon, so a block longer than
+    # the horizon is cut down to it and carries the shorter block's factor.
+    b = resolve_block(_admissible(series, block), horizon)
     paths = block_error_paths(e, horizon=horizon, block=_admissible(series, block),
                               n_sim=16, rng=np.random.default_rng(seed))
+    scale = np.sqrt((e.size - 1) / (e.size - b)) if b > 1 else 1.0
+    paths = paths / scale
     pool = np.concatenate([e - e.mean(), -(e - e.mean())])
     for value in np.unique(paths):
         assert np.isclose(np.abs(pool - value).min(), 0.0, atol=1e-9)

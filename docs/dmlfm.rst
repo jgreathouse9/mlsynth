@@ -188,6 +188,15 @@ paper's figures, on the German reunification panel. See
 `benchmarks/cases/dmlfm_germany.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/dmlfm_germany.py>`_.
 
+The paper's simulation half is
+`benchmarks/cases/pang_liu_xu_sims.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pang_liu_xu_sims.py>`_,
+which runs the single-treated-unit designs of Appendix Tables A6 and A7 against
+their published cells and cross-validates both arms against ``gsynth`` 1.0 and
+``pblasso`` 1.0.8 on shared panels. Those designs generate no treatment effect,
+so their bias column is the mean estimate and their coverage column is coverage
+of zero.
+
 Core API
 --------
 

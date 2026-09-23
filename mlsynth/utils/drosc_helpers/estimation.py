@@ -52,8 +52,16 @@ def drosc_point(Y0: np.ndarray, Y1: np.ndarray, X0: np.ndarray, X1: np.ndarray,
     The ``nu`` term is inflated until the band is feasible (the R feasibility
     retry).
 
+    Minimising the squared post-treatment gap is minimising the squared effect,
+    so ``b`` is the adversarial weighting driving the effect closest to zero and
+    ``tau`` is the projection of the origin onto the effects the band admits.
+    This is the computational form of the paper's max-min problem, not its
+    definition; Theorem 1 is what makes the two the same.
+
     Returns ``(tau, beta)``. ``tau = mean(Y1) - mean(X1)'beta`` is unique even
-    when ``beta`` is not (the post objective is rank one).
+    when ``beta`` is not (the post objective is rank one), which is the
+    non-uniqueness the method exists to tolerate: it declines to report a
+    weighting and still reports an effect.
     """
     Y0 = np.asarray(Y0, float).ravel()
     Y1 = np.asarray(Y1, float).ravel()

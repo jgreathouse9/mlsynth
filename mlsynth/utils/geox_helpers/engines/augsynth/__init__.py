@@ -168,7 +168,7 @@ def sweep_p_values(
                 finite_sample=finite_sample)))
     up, down = (placebo_detection_boundary(tau0, baseline, sigma, alpha)
                 if inference == "placebo" else (float("nan"), float("nan")))
-    return {"tau": taus, "p_value": ps, "sigma": sigma,
+    return {"tau": taus, "p_value": ps, "sigma": sigma, "tau0": tau0,
             "boundary_up": up, "boundary_down": down}
 
 

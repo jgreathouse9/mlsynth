@@ -743,7 +743,56 @@ for, and confirm it is killed.
 Rungs branch. One why can have several answers, and each answer is its own
 descent -- the malformed objective below has two independent faults that both
 reach rung 3. Follow every branch; a ladder with one rung per level is usually a
-ladder that stopped at the first plausible story.
+ladder that stopped at the first plausible story. The next section makes that
+branching systematic instead of opportunistic.
+
+## Breadth: the dependency chain
+
+The rungs above are the depth axis. Used alone they find one cause and stop,
+which is the failure mode the anti-pattern list names and the one hardest to
+notice, because a single cause always reads as a complete explanation.
+
+The breadth axis is the fix. Before descending, write down what the reported
+number is a function of, in order, each stage depending only on the ones to its
+right:
+
+```
+reported number  <-  aggregation  <-  effect series  <-  counterfactual
+                 <-  weights  <-  objective + constraints  <-  code / data
+```
+
+The chain is what makes breadth finite. Each link has a small, listable set of
+ways to be wrong, so at each depth the question stops being "what went wrong"
+and becomes "which of these five things went wrong", which is answerable by
+test. The standing enumeration for the estimation link is in
+`.claude/commands/rca.md`; it runs intercept, simplex constraint, non-negativity
+versus strict positivity, objective form, solver status, cheapest first.
+
+Three rules govern the descent.
+
+1. **Clear a link before leaving it.** Record the result for every candidate,
+   including the ones that pass. A cleared link is a finding: it is what
+   licenses ruling out the whole stage and moving down.
+2. **Clearing requires power.** A design where two candidates coincide
+   numerically cannot separate them. A single post period makes a total and an
+   average the same number, so a units check passes there for a reason that has
+   nothing to do with the code being right. Ask what the check would have to see
+   in order to fail before believing it passed.
+3. **Count the causes, and check the count against the magnitude.** Independent
+   faults on different links contribute multiplicatively. Decompose the observed
+   error into one factor per link and confirm the factors reproduce it. A ladder
+   that reports one cause for a number wrong by a large factor, and cannot say
+   where the rest of the factor went, is unfinished.
+4. **Position bounds blast radius.** A fault reaches only what is downstream of
+   where it occurs, so locating a corruption in the chain settles what it can
+   have damaged before any of it is measured. Everything to its left is untouched
+   by construction. This retires whole branches of the ladder at no cost, and it
+   is the cheapest step in the procedure: it is a question about line order, not
+   about the estimator.
+
+The number of causes is itself a measured quantity, not something read off the
+source. Two suspicious things on one line may be one fault with two symptoms;
+the way to find out is to correct each independently and see what moves.
 
 ## Confirming you have reached the bottom
 
@@ -758,7 +807,7 @@ an invariant nobody wrote down -- which is why rung 3 and rung 5 are where the
 real causes live. Faults of commission are found by running the code; absent
 assertions are not, and no amount of running finds them.
 
-## The four ways this goes wrong
+## The ways this goes wrong
 
 The failure modes of the procedure itself, in the order they are usually hit:
 
@@ -767,6 +816,17 @@ The failure modes of the procedure itself, in the order they are usually hit:
 * **Taking the docstring's word for it.** A comment saying what the code does is
   hearsay from someone who was not present at the failure. Read the executed
   path -- the objective actually built, the solver actually called.
+* **Skipping the obvious candidates.** Constraints, signs and solver status take
+  a minute each to check. Skipping them turns the rest of the diagnosis from an
+  elimination into a guess, because nothing licenses ruling the stage out.
+* **Descending past a link that was never cleared.** Moving to the objective
+  before establishing that the constraints are the ones the method specifies
+  leaves an untested stage above the one being blamed.
+* **Clearing a link on a design with no power.** A check that could not have
+  failed under this specification has not passed.
+* **Reporting one cause without accounting for the magnitude.** If the number is
+  wrong by a factor of sixty and the cause found explains five, the ladder is
+  unfinished.
 * **Diagnosing only what surfaced.** A defect found on one estimator usually
   lives in a shared helper; check who else calls it before scoping the fix.
 * **Declaring victory without data.** The corrective action needs evidence, and
@@ -846,6 +906,149 @@ record it as such and retire it. A floor set at half the donor pool bites only o
 the last two. Everything between changes which units the fit rests on while
 clearing every property in the file. Knowing which rung a class of fault is
 visible from is the point of building the ladder instead of guessing at a fix.
+
+## Worked example: a hand-rolled synthetic control on Proposition 99
+
+Basque shows the depth axis on a fault that hides. This one shows the breadth
+axis on a fault that does not hide at all, and is still misdiagnosed by a ladder
+that only descends.
+
+The subject is a short outcome-only SCM: weights on the simplex, no covariates,
+run on the Proposition 99 panel (`basedata/P99data.csv`, California treated, 38
+donor states, 1970-2000, intervention 1989).
+
+Rung 0 fails for once. The reported treatment effect is `-1176.00` against a
+literature band of roughly `-14` to `-22` packs. The ratio is `60.28`, and that
+number is the instrument for the rest of the ladder.
+
+The chain: reported number <- aggregation <- weights <- objective <- code.
+
+**Aggregation.** One candidate: the reported scalar is not the estimand its name
+claims. It fails. The field is called `average_treatment_effect` and is assigned
+`np.sum(post_effects)` over 12 post periods. Correcting only this gives `-98.00`.
+Factor: `12.0000`.
+
+**Estimation.** Five candidates, cheapest first, four of them cleared:
+
+| # | Candidate | Result |
+| --- | --- | --- |
+| 1 | intercept fitted where the formulation forbids one | cleared -- the program holds 38 donor weights and no constant |
+| 2 | simplex constraint missing or misstated | cleared -- `cp.sum(weights) == 1`, and `sum(w) = 1.0` at the solution |
+| 3 | non-negativity strengthened to strict positivity | cleared -- `weights >= 0`, and `w = 0` is attained for 37 donors |
+| 4 | objective is not the one the method specifies | FAILS |
+| 5 | solver returned without converging | cleared -- `problem.status` is `optimal` |
+
+Candidates 1, 2, 3 and 5 are the ones people skip because they are obvious. They
+are also the ones that take a minute each, and skipping them is what makes the
+remaining diagnosis a guess instead of an elimination. Clearing them is what
+licenses the claim that the objective is the only estimation-stage fault.
+
+**The objective, and how many faults it carries.** The line is
+`cp.Minimize(cp.sum(residuals))`. Reading it suggests two independent defects --
+the criterion is signed, and it is linear in `w`, so on a simplex the optimum is
+a vertex. Correcting each independently settles it:
+
+| objective | ATT | pre-RMSE | donors carrying weight |
+| --- | --- | --- | --- |
+| `cp.sum(r)` as written | `-98.00` | `133.52` | 1 (New Hampshire 1.00) |
+| `cp.sum(cp.abs(r))` | `-19.81` | `1.76` | 6 |
+| `cp.sum_squares(r)` | `-19.51` | `1.66` | 6 (Utah .39, Montana .23, Nevada .20) |
+
+Taking absolute values recovers essentially the whole answer, so the vertex
+collapse is a symptom of signedness and not a second fault. One cause, two
+symptoms. The remaining `L1` versus `L2` gap is `0.30` packs and is an estimand
+choice, not a defect. The reading was wrong about the count and the test was
+right, which is the third rule above in action.
+
+What signedness does is invert the criterion relative to fit. On this panel the
+sum of residuals scores its own optimum at `-2496.80`, where the pre-period RMSE
+is `133.52`, and scores the least-squares weights at `-1.95`, where the RMSE is
+`1.66`. It strictly prefers the fit that is eighty times worse, because negative
+residuals are rewarded without bound inside the simplex. The solution is a fixed
+selection rule -- take the donor with the largest pre-period mean, here New
+Hampshire at 247.62 packs against California's 116.21 -- that never consults the
+shape of the treated series. Factor: `98.00 / 19.51 = 5.0231`.
+
+**The count checks out.** `12.0000 x 5.0231 = 60.28`, which is the ratio rung 0
+measured. Two causes, on two links, accounting for the whole discrepancy with
+nothing left over. Either one alone leaves a wrong number that still looks like
+an answer: fix the aggregation and the estimate is `-98.00`; fix the objective
+and it is `-234.16`. Both are the kind of number a reader argues with instead of
+rejecting.
+
+**Rung 5.** Neither fault is reachable from the ATT alone, and neither needs a
+clever instrument. A units assertion -- the reported scalar equals
+`post_effects.mean()` -- kills the first. A pre-period fit assertion -- RMSE
+within a small multiple of the donor pool's own dispersion -- kills the second,
+and would also have caught the collapse to one donor. Both are absent, so both
+faults are faults of omission, and the mutants that reintroduce them
+(`sum_squares` to `sum`, `mean` to `sum`) survive any suite that checks only that
+the ATT is finite and negative.
+
+## Worked example: a corruption with no blast radius
+
+Prop 99 shows two faults compounding. This one shows the opposite -- a fault
+that looks alarming, damages nothing, and is accompanied by a hypothesis about
+the cause that is wrong on every count.
+
+The subject is an outcome-only SCM on simulated data (20 donors, 100 periods,
+intervention at 70, true effect 5.0, noise 0.5), reported by its author as: the
+ATT is biased, the fit is off, and the weights are the problem. It prints
+
+```
+ATT    : 4.7760          (true per-period effect 5.0)
+RMSE   : 7.0606          (noise_std 0.5)
+Weights: [1. 1. 1. 1.3665 1. 1.1297 ...]   min 1.0, sum 21.0
+```
+
+The weights are visibly wrong -- non-negative weights on a simplex cannot have a
+minimum of 1 and sum to 21 -- so the stated hypothesis has something going for
+it. Position settles it anyway, and settles it first:
+
+```python
+fitted = y_donors @ weights.value          # line N
+...
+return {"weights": weights.value + 1, ...} # line N+3
+```
+
+The corruption is downstream of every quantity computed from the weights.
+`fitted`, and therefore the ATT and the residuals, are computed from
+`weights.value` before the `+1` exists. Nothing to the left of the return can
+have moved. That is one reading of line order, and it eliminates the entire
+weights branch before a single seed is run. Had the same `+1` been applied one
+line earlier the ATT would be `5.989` instead of `4.7760`, which is the measure
+of how much position matters.
+
+The estimation link then clears on all five candidates: no intercept,
+`cp.sum(weights) == 1` with the solution summing to 1.0000, `weights >= 0` with
+17 of 20 donors at exactly zero, `cp.sum_squares` as the objective, and a solver
+status of `optimal`. The solver weights are donor 12 at 0.5038, donor 3 at
+0.3665, donor 5 at 0.1297 -- a well-behaved sparse solution.
+
+So both stated symptoms dissolve. Over 400 seeds the estimator's bias is
+`-0.0087` with a Monte Carlo standard error of `0.0074` and an ATT standard
+deviation of `0.1490`; the reported 4.7760 is 1.45 standard deviations below the
+mean, an ordinary draw. The true pre-period RMSE is `0.8439` against a
+cross-seed mean of `0.7234`.
+
+One cause survives, and it is neither of the two the author named:
+`np.sqrt(np.sum(pre_residuals ** 2))` is a residual 2-norm, not a root mean
+square. The missing division by `T0` inflates 0.8439 to 7.0606, a factor of
+8.3666, which is `sqrt(70)` to four decimals. Against a noise floor of 0.5 that
+is the difference between a fit nobody questions and a fit that looks broken --
+and it is the whole reason the weights came under suspicion.
+
+Two lessons, and the second is the one that generalises. The reporter's
+hypothesis about which link is at fault is evidence about where they looked, not
+about where the fault is; the ladder owes it the same treatment as any other
+candidate, which here means clearing the estimation link on its merits and
+finding it clean. And a value being wrong is not the same as a value doing
+damage. The `+1` is a real fault and belongs in the fix, because a returned
+weight vector that violates the constraints the solver was given is a defect
+whatever it touches -- an assertion that `results["weights"].sum() == 1` kills
+it, and would have killed it wherever on the return path it appeared. It is
+simply not the reason any number is wrong.
+
 
 # Four Instruments, Four Questions
 
@@ -1003,6 +1206,138 @@ where property testing earns its keep here:
 * **Equivalent mutants are real.** A surviving mutant is a question, not a
   defect. Do not chase a perfect score. Record accepted survivors and the reason
   they are accepted, the way `# pragma: no cover` records unreachable branches.
+
+---
+
+# The Unix Rules, Applied to Tests
+
+The doctrine — which of Raymond's seventeen rules `mlsynth` adopts, adapts, or
+refuses, and why — is in `agents_unix.md`. This section is the testing half, and
+it is here because this file is where testing practice is decided.
+
+Five of the rules say something about tests that the sections above do not
+already say. The other twelve either govern production code or are already
+argued here under another name: Diversity is the four-instrument section,
+Generation is `hypothesis` and `parametrize`, Economy is the minimal-fixture
+rule, and Extensibility is the result-contract conformance test.
+
+## Separation: a hard-to-test function is a design report
+
+Raymond gives the testing consequence of the Rule of Separation directly (§1.6):
+separating policy from mechanism "make[s] it much easier to write good tests for
+the mechanism (policy, because it ages so quickly, often does not justify the
+investment)."
+
+Read that backwards and it becomes a diagnostic. When a function resists testing,
+the usual cause is not a missing fixture — it is policy fused into the mechanism,
+and the fix belongs in the source, not in the test.
+
+The plotting layer is the worked case, and `agents_utils.md`'s standing rule
+already states the fix: a plotter builds and returns a `Figure`; displaying and
+saving are the caller's. The difference this makes to a test is total.
+
+```python
+# fused: the only assertion available is "it did not raise"
+def test_plot_runs():
+    plot_bvss(results)          # calls plt.show(), returns None
+
+# separated: the mechanism's output is in hand
+def test_plot_draws_observed_and_counterfactual():
+    fig = plot_bvss(results)
+    ax, = fig.axes
+    drawn = {line.get_label(): line.get_ydata() for line in ax.get_lines()}
+    assert "Observed" in drawn and "Counterfactual" in drawn
+    npt.assert_allclose(drawn["Counterfactual"], results.time_series.counterfactual)
+    assert ax.get_xlabel() and ax.get_ylabel()
+```
+
+The first test passes on a figure that plots the counterfactual twice, labels
+neither axis, and draws the treatment line in the wrong period. It is the
+coverage number in miniature: the line executed, and nothing was checked.
+
+The same reading applies past plotting. A helper that can only be tested through
+`fit()` has a seam missing; a helper that reads a config field it does not need
+has taken on policy. Both are reported by the difficulty of writing the test.
+
+## Silence: a test that prints is a test that is not asserting
+
+The Rule of Silence (§1.6) applies to the suite twice over.
+
+Diagnostic output in a test is an assertion someone declined to write. If the
+value matters enough to print, it matters enough to assert on, and if the reader
+needs it to interpret a failure it belongs in the assertion message, where
+`pytest` will show it only when it is relevant:
+
+```python
+assert abs(att - expected) < tol, f"ATT {att:.4f} vs paper {expected:.4f} (tol {tol})"
+```
+
+A passing suite should also be quiet. Prints from library code (`agents_unix.md`
+counts them) surface once in a script and once per call across the 426 test
+modules here, which is how real output gets lost. A warning a test provokes on
+purpose is asserted on with `pytest.warns`, not allowed to scroll past.
+
+## Postel, inverted: generous fixtures, strict assertions
+
+`agents_unix.md` records that `mlsynth` refuses the first half of Postel's
+Prescription in production code — a liberal validator turns a malformed panel
+into an invalid estimate. Tests invert it, and each half does work in its own
+direction.
+
+Be generous in what the fixtures generate. Henry Spencer's note in §1.6 is the
+argument: "input generated by other programs is notorious for stress-testing
+software... accepting empty lists/strings/etc., even in places where a human
+would seldom or never supply an empty string, avoids having to special-case such
+situations when generating the input mechanically." That is the case for the edge
+level and for `hypothesis` in one sentence — the generator supplies the single
+donor, the collinear block, the zero-length post window that no human fixture
+author would have thought to write down.
+
+Be strict in what the assertions accept. A tolerance widened until the test
+passes is a live mutant with the paperwork pre-filed: the mutation section above
+defines a survivor as a corruption no assertion separates from correct behaviour,
+and a loosened bound manufactures them. Tolerances come from measured solver
+spread, and a tolerance that has to grow is a finding to record, not a constant
+to edit.
+
+## Representation: fold the case list into data
+
+Pike's rule 5, by way of §1.6 — data is more tractable than logic. A table of
+cases can be read, diffed, and extended; six near-identical test functions can
+only be compared by eye.
+
+```python
+@pytest.mark.parametrize("n_donors,n_pre,expect", [
+    (1,  10, "single donor: weight is exactly 1.0"),
+    (0,  10, MlsynthDataError),
+    (5,   0, MlsynthDataError),
+    (5,   1, "one pre-period: fit is exact and meaningless"),
+])
+```
+
+The existing parametrization rule below says to do this; the Unix framing says
+why it is more than a convenience. The same move at the next level up is the
+benchmark case that returns a record instead of printing a table — the record is
+data, so it can be compared against a stored one, aggregated across cases, and
+re-reported by a different runner.
+
+## Transparency: the failure names the invariant
+
+§1.6 asks that a program "be able to both demonstrate its own correctness and
+communicate to future developers the original developer's mental model of the
+problem it solves." A test suite is the artifact where that is literally
+achievable, and it is achieved through names.
+
+- Name a test for the invariant, not the function: `test_weights_sum_to_one`,
+  not `test_pcr_weights_2`.
+- One behavior per test. When a failure message cannot say which claim broke
+  without the reader opening the file, the test is asserting several things.
+- The five-why ladder above is the same rule applied after a failure: each rung
+  is a test that names one link in the causal chain, so the ladder reads as the
+  explanation.
+
+Compactness (§4.2) sets the ceiling: a reader who has to hold more than a handful
+of facts to know what a test claims will not check whether the claim is right.
 
 ---
 

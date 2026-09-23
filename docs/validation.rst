@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **83 cross-validation checks** against original
-implementations across **44 estimators** -- 31 reproduce the reference to display precision, 29 to
+Coverage: **88 cross-validation checks** against original
+implementations across **45 estimators** -- 35 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -46,8 +46,8 @@ Summary
      - 1 tight
      - 0.00041
    * - :ref:`CLUSTERSC <val-clustersc>`
-     - 4
-     - 3 exact · 1 tight
+     - 5
+     - 4 exact · 1 tight
      - 0.036
    * - :ref:`COMPSC <val-compsc>`
      - 2
@@ -77,6 +77,10 @@ Summary
      - 1
      - 1 close
      - 0.71
+   * - :ref:`GEOX engine <val-geox-engine>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -146,16 +150,16 @@ Summary
      - 1 exact
      - 0
    * - :ref:`SBC <val-sbc>`
-     - 1
-     - 1 close
+     - 2
+     - 1 close · 1 documented
      - 1e+06
    * - :ref:`SCD <val-scd>`
      - 1
      - 1 exact
      - 0
    * - :ref:`SCMO <val-scmo>`
-     - 1
-     - 1 tight
+     - 2
+     - 1 exact · 1 tight
      - 0.011
    * - :ref:`SCUL <val-scul>`
      - 1
@@ -198,8 +202,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 19
-     - 5 exact · 7 tight · 6 close · 1 documented
+     - 20
+     - 6 exact · 7 tight · 6 close · 1 documented
      - 4.1
    * - :ref:`mlsynth.utils.inferutils.rae <val-mlsynth-utils-inferutils-rae>`
      - 1
@@ -315,6 +319,12 @@ CLUSTERSC
      - max \|Δ\|
      - Verdict
      - Case
+   * - SucreRouge/synth_control learn(method='bayesian') (live run, captured), num_sv=3
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 8
+     - 0
+     - exact — matches to display precision
+     - `bayesian_rsc_ref <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/bayesian_rsc_ref.py>`__
    * - Bayani RPCA-SC -- the author's own code, vendored verbatim (vendor/bayani_rpca_synth: FPCA.R + RPCA_2.py)
      - —
      - 9
@@ -499,6 +509,28 @@ GEOX
      - 0.71
      - close
      - `geox_sdid_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`__
+
+.. _val-geox-engine:
+
+GEOX engine
+-----------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - mlsynth.utils.mvbbsc_helpers.model.run_mvbbsc (the estimator the engine wraps)
+     - —
+     - 4
+     - 0
+     - exact — matches to display precision
+     - `geox_mvbbsc_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_mvbbsc_equivalence.py>`__
 
 .. _val-linf:
 
@@ -955,12 +987,22 @@ SBC
      - max \|Δ\|
      - Verdict
      - Case
+   * - authors' Germany.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
+     - ``german_reunification.csv`` (f431666efbf3…)
+     - 15
+     - 3.3e+04
+     - documented — see notes
+     - `sbc_germany <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_germany.py>`__
    * - authors' SBC_HK.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
      - ``hong_kong_handover.csv`` (4f3fea9b93ba…)
-     - 6
+     - 11
      - 1e+06
      - close
      - `sbc_hongkong <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sbc_hongkong.py>`__
+
+Notes (sbc_germany): The deviation is the reference solver's, and it is in one place: the cyclical weight solve. The detrending and trend-forecast rows agree to 1.7e-14 of each series' scale (R's lm QR against numpy's lstsq). On the weight solve the program is strictly convex with a unique optimum, mlsynth attains it -- certified to 1.4e-6 by the convexity of the objective, and a cyclical sum of squares 2.6% lower than the authors' Synth::synth ipop reaches at any tolerance -- so the ATT and weight rows differ because the reference does not converge to the optimum. See docs/replications/sbc.rst.
+
+Notes (sbc_hongkong): Same shape as the German panel. The detrending rows agree to 2.6e-14 of each series' scale; the ATT, objective and weight rows differ because the authors' Synth::synth ipop converges to a point about 6% worse in cyclical SSE on the identical strictly-convex program, where mlsynth attains the optimum (certified to 9.8e-8). See docs/replications/sbc.rst.
 
 .. _val-scd:
 
@@ -999,6 +1041,12 @@ SCMO
      - max \|Δ\|
      - Verdict
      - Case
+   * - Tian-Lee-Panchenko COVID_analysis.R (fn_W solve.QP, live run, captured)
+     - ``covid_panel.csv`` (505cae38fc0c…)
+     - 18
+     - 0
+     - exact — matches to display precision
+     - `scmo_covid_sweden <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scmo_covid_sweden.py>`__
    * - Tian-Lee-Panchenko Germany.R (fn_W solve.QP, live run, captured)
      - ``repgermany.csv`` (61a624e307e6…)
      - 6
@@ -1256,6 +1304,8 @@ TSSC
      - tight
      - `ferman_demeaned_basque <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ferman_demeaned_basque.py>`__
 
+Notes (ferman_demeaned_basque): MSCa (TSSC's simplex+intercept variant) IS Ferman-Pinto's demeaned SC. Treatment 1975 is the identified regime (20 pre-periods > 16 donors); at 1970 (C>n) the demeaned-SC weights are non-unique and the two implementations legitimately diverge -- see docs.
+
 .. _val-vanillasc:
 
 VanillaSC
@@ -1277,6 +1327,12 @@ VanillaSC
      - 0.0091
      - tight
      - `ascm_kansas <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_kansas.py>`__
+   * - augsynth 0.2.0 (R, commit 7a90ea48)
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 10
+     - 0.0085
+     - exact — matches to display precision
+     - `ascm_mixtape <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_mixtape.py>`__
    * - R package scinference (conformal, live run, captured), cross-checked against the JASA supplement's own functions
      - ``logfemrate.txt`` (fcdf30c41522…)
      - 17

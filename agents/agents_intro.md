@@ -7,7 +7,7 @@ mlsynth is a strongly-typed causal inference and synthetic control library.
 Architectural consistency, explicit validation, and standardized estimator interfaces
 are core design principles.
 
-Agents should extend existing repository conventions rather than invent new patterns.
+Agents should extend existing repository conventions instead of inventing new patterns.
 
 ---
 
@@ -95,7 +95,20 @@ Docstrings should be clear, technical, and publication-quality.
 
 ---
 
-### 6. Preserve stable APIs during refactors
+### 6. Separate computation from presentation
+
+Estimators and helpers compute and return. Displaying, saving, formatting, and
+printing are policy, applied by the caller.
+
+Concretely: a `plot_*` helper returns its figure and does not call `plt.show()`;
+library code does not `print`; a diagnostic the caller might act on becomes a
+typed field on the result or a `warnings.warn`, never stdout.
+
+The reasoning, the measured backlog, and the checks are in `agents_unix.md`.
+
+---
+
+### 7. Preserve stable APIs during refactors
 
 Refactors should:
 - preserve public interfaces unless explicitly instructed otherwise
@@ -118,3 +131,17 @@ The following modules should be treated as architectural references:
 - BaseEstimatorResults hierarchy
 
 Study these implementations before introducing new architecture.
+
+---
+
+## Companion Documents
+
+- `agents_unix.md` — which Unix design rules bind here, which are re-implemented
+  in a typed medium, and which are refused. Read it before arguing that a
+  structure is or is not idiomatic.
+- `agents_utils.md` — module and helper decomposition.
+- `agents_estimators.md` — estimator architecture and the replication contract.
+- `agents_results.md` — the two-family result contract.
+- `agents_tests.md` — testing philosophy, instruments, and the four levels.
+- `agents_docs.md` — documentation conventions and the notation canon.
+- `agents_benchmarking.md` — definitions of done for benchmark cases.

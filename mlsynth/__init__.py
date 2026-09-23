@@ -25,6 +25,7 @@ from .estimators.scul import SCUL
 from .estimators.esc import ESC
 from .estimators.scd import SCD                                # noqa: F401
 from .estimators.si import SI ## Check
+from .estimators.twsf import TWSF
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
@@ -95,10 +96,12 @@ from .estimators.stackedsc import STACKEDSC
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
+from .estimators.mosc import MOSC
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.rolldid import ROLLDID
 from .estimators.lpca import LPCA
+from .estimators.gpits import GPITS
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -122,6 +125,7 @@ __all__ = [
     "plot_detectability",
     "ROLLDID",
     "LPCA",
+    "GPITS",
     "HSC",
     "TSSC",
     "FMA",
@@ -145,6 +149,7 @@ __all__ = [
     "ESC",
     "SCD",
     "SI",
+    "TWSF",
     "NSC",
     "MUSC",
     "MASC",
@@ -204,5 +209,6 @@ __all__ = [
     "CTSC",
     "SNN",
     "MCNNM",
+    "MOSC",
     "PANGEO",
 ]

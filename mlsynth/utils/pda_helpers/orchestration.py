@@ -176,7 +176,7 @@ def run_pda(
                 y, X, T0, counterfactual=cf, support=support_idx,
                 refit=_build_refit(m, X, T0, **refit_kw),
                 alpha=alpha, n_boot=pi_n_boot, seed=pi_seed,
-                dependent=pi_dependent)
+                dependent=pi_dependent, cumulative_block=cumulative_block)
 
         if cumulative_band:
             if resampled_band:

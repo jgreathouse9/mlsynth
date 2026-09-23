@@ -382,14 +382,120 @@ not on a certificate of global optimality. LEXSCM therefore:
   ``FEASIBLE``.
 
 Because the local search has no MIP optimality gap, LEXSCM reports a
-consensus diagnostic in its place: the fraction of independent starts
-that converged to the incumbent (``consensus_rate``), the number of
-distinct local optima seen, and the incumbent-improvement trail. High
-consensus across many random starts is the practical confidence signal
-that the incumbent is the global optimum. (A convex hull lower bound is
-*also* reported, but only as advisory information -- for the reason above
-it is :math:`\approx 0` and is deliberately not turned into an
-optimality gap.)
+consensus block in its place: the number of independent starts run, how
+many of them ended on the incumbent (``starts_reaching_incumbent``, and
+its share ``consensus_rate``), the number of distinct local optima seen,
+and the incumbent-improvement trail. (A convex hull lower bound is *also*
+reported, but only as advisory information -- for the reason above it is
+:math:`\approx 0` and is deliberately not turned into an optimality gap.)
+
+What the consensus block does and does not tell you
+"""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The block records what the search did. It does not measure whether the
+incumbent is the global optimum, and ``consensus_rate`` in particular
+should not be read that way.
+
+The measurement: 18 instances built from a 211-market DMA panel
+(three population bands,
+:math:`m \in \{3, 4\}`, three constraint regimes), each solved exactly by
+enumeration, against 1,350 multi-start runs over
+``n_starts`` :math:`\in \{1, 2, 4, 8, 16\}` and fifteen seeds. Within a
+fixed ``n_starts`` -- the only situation an analyst is ever in, since
+``n_starts`` is set before the number is read -- ``consensus_rate``
+separates a suboptimal run from an exact one with an AUC of 0.44 to 0.54.
+Half of that range is on the wrong side of a coin flip.
+
+Pooled across ``n_starts`` the AUC is 0.38, which is worse than
+uninformative: it runs backwards. The rate divides by the quantity that
+determines accuracy. More starts explore more basins, so the share
+reaching the incumbent falls while the answer improves:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 22 28 28
+
+   * - ``n_starts``
+     - share exact
+     - mean ``consensus_rate``
+     - mean starts on incumbent
+   * - 1
+     - 0.51
+     - 0.64
+     - 1.2
+   * - 4
+     - 0.90
+     - 0.44
+     - 3.1
+   * - 16
+     - 1.00
+     - 0.40
+     - 11.0
+
+A low ``consensus_rate`` is therefore not evidence of a miss, and two runs
+at different ``n_starts`` cannot be compared on it. No threshold is usable
+either: ``consensus_rate <= 0.5`` catches three quarters of the suboptimal
+runs but fires on 70% of the exact ones, and tightening it to
+:math:`0.2` drops the false-alarm rate to 16% while catching 3% of the
+misses.
+
+That corpus needs an exact solve per instance, so the suite pins the
+structure behind it instead, on three small enumerable designs:
+``mlsynth/tests/test_lexscm_heuristic_consensus.py`` holds accuracy rising
+with ``n_starts`` while the rate falls, the underlying count rising, and the
+rate on wrong answers overlapping the rate on right ones -- including runs
+where every start agreed and the answer was still not the optimum.
+
+What does predict accuracy is ``n_starts``, which the analyst sets. On
+that corpus the share of runs landing on the certified optimum was 0.51,
+0.76, 0.90, 0.98 and 1.00 at ``n_starts`` of 1, 2, 4, 8 and 16, and the
+suboptimal runs missed by 3.4% of imbalance on average. The default of 16
+was exact on every returned run. Constraints are what makes the landscape
+hard: the spillover-plus-budget regime accounts for most of the misses at
+low ``n_starts``, so raise ``n_starts`` when a budget or an adjacency graph
+is active, and enumerate when :math:`\binom{M}{m}` allows it.
+
+What ``OPTIMAL`` certifies, and how it is checked
+"""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The status is a statement about the algorithm and not a quantity measured on
+the instance: ``OPTIMAL`` is reported because the enumeration branch was taken.
+The claim it stands for is that the returned ``top_designs`` are the ``top_K``
+feasible treated :math:`m`-tuples of smallest :math:`L(\mathcal{S})` over the
+entire feasible region -- the candidate pool intersected with the budget,
+spillover, stratum-quota and forced-unit constraints -- and that each design's
+weights are the exact minimiser of its own inner QP.
+
+``mlsynth/tests/test_lexscm_optimality_certificate.py`` checks that claim
+against a reference sharing no code with the search: an inner solver that
+enumerates the :math:`2^{m} - 1` faces of the simplex instead of running
+Wolfe's active set, and an outer brute force that scores every feasible tuple
+behind plain-Python constraint predicates. The two agree tuple for tuple and
+loss for loss across ten constraint regimes, the weak-targeting ridge, and
+Grams that are rank deficient, dominated by one factor, or carrying duplicate
+donors.
+
+Three further things are pinned there. The weights carry a per-instance
+certificate: with :math:`g = G_{\mathcal{S}\mathcal{S}} \mathbf{w}` and
+:math:`\nu = \mathbf{w}' G_{\mathcal{S}\mathcal{S}} \mathbf{w}`, the
+conditions :math:`g_j \ge \nu` for every :math:`j`, with equality on the
+support, are the KKT conditions of the inner program and are computed from the
+Gram alone, so they hold whatever solver produced :math:`\mathbf{w}`. The
+number of tuples scored equals the size of the feasible region counted
+independently. And the batched solver that ranks the candidates agrees with the
+high-precision re-solve to :math:`5 \times 10^{-16}` relative on the measured
+instances, which is the step that would otherwise seat the wrong ``K`` in a
+pool whose reported losses are all correct.
+
+The checks are themselves checked. With the enumeration made to drop the
+optimum, to rank on perturbed losses, or to skip the budget filter, the
+comparison has to fail, and a test asserts that it does: a verification that
+passes on a broken search verifies nothing.
+
+Ties are the one place the word is weaker than it sounds. Duplicate donors put
+several tuples at the same minimum, and the search returns ``K`` of that tied
+class. Any ``K`` of them are global minimisers, so the certificate holds on the
+losses and not on the labels.
 
 Building tuples in the heuristic regime
 """""""""""""""""""""""""""""""""""""""
@@ -901,6 +1007,19 @@ the same module powers all three estimators.
    p.curve                                     # tuple of MDEPoint per horizon
    p.sigma_placebo                             # σ̂ used (B window in LEXSCM)
    p.serial_correlation                        # ρ̂ AR(1) of the B residuals
+   p.placebo_bias                              # mean B gap; 0 for an unbiased design
+   p.placebo_bias_pvalue                       # is that offset distinguishable from 0?
+   p.n_placebo, p.sigma_ci                     # periods σ̂ rests on, and its interval
+   p.headline.critical_value                   # t quantile the MDE is built at
+   p.headline.mde_ci                           # MDE at the ends of p.sigma_ci
+
+The MDE is what a constant effect has to clear to be detected by a two-sided
+test on the mean post-period gap. Compare an observed effect against
+``p.headline.critical_value``, not 1.96: σ̂ comes from the B window, so the
+pivot is Student-t on that window's effective degrees of freedom. A non-zero
+``placebo_bias`` says the synthetic control misses on periods it was not fitted
+to, and that offset is carried into the standard error, since it lands in the
+post window on top of whatever effect is there.
 
 Two MDEs, complementary roles
 """""""""""""""""""""""""""""
@@ -909,10 +1028,48 @@ Two MDEs, complementary roles
   null on the B window, used to *rank designs against each other*. Aggregated
   to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
   ``early_mean``) and consumed by Stage 4's lexicographic gate.
-* Post-fit MDE (``res.power``) -- analytical Gaussian +
-  AR(1) MDE consumed *after* a design has been chosen, on the same surface
-  that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
-  detectability number alongside the realised ATE / CI.
+* Post-fit MDE (``res.power``) -- closed-form AR(1) MDE for a two-sided
+  Student-t test on the *mean* post-period gap, consumed *after* a design has
+  been chosen, on the same surface that MAREX / SYNDES / PANGEO produce. Use
+  this when reporting a single detectability number alongside the realised
+  ATE / CI.
+
+The two answer different questions and need not agree. Stage 3 tests
+:math:`\frac{1}{|post|}\sum_t |e_t|` against a moving-block placebo null;
+the post-fit MDE tests the signed mean against a t quantile. A design whose
+``res.power`` headline sits below its realised ATE can still return a
+non-significant p-value from the permutation test the design search ranked it
+by, and the ``method`` field on ``res.power`` names which test its number
+refers to.
+
+Ranking on the B window, and why it is allowed
+"""""""""""""""""""""""""""""""""""""""""""""
+
+Stage 4 ranks candidates by their B-window MDE and the inference is then built
+from those same B-window residuals, which looks like the thing Vives-i-Bastida
+(2022, Section 4) rules out: "we can't decide the outcome pair on the basis of
+the fit in the blank period (otherwise we would bias our statistical
+analysis)." The concern is a winner's curse -- if the ranking sorts on noise,
+the winner's B residuals are a minimum over candidates and the null built from
+them is too narrow.
+
+Measured on simulated panels with a known factor structure, it does not bite.
+Against a control that never consults the B window, the ranked design is 24
+percent better on the post window -- periods no design was ranked on -- so what
+Stage 4 finds is real donor-fit stability and not a lucky draw. Stage 1 is what
+makes this hold: it hands Stage 4 designs that already meet the balance
+objective, so the candidates differ in true quality by more than they differ by
+noise. Remove that and the property goes with it. On a panel whose units share
+one noise scale, where the candidates are equal in truth, the same ranking buys
+nothing (a post-window ratio of 0.98 against 1.00). Both arms are pinned in
+``mlsynth/tests/test_lexscm_selection_validity.py``, the second as the positive
+control that gives the first the power to fail.
+
+What the B window does understate is the post-window error, by about a sixth on
+that configuration. This is a horizon effect and not a selection one -- B
+periods sit adjacent to the estimation window and post periods sit beyond them,
+so the gap is the same size for a design chosen without ever consulting B. It
+is priced by the terms on ``res.power``, not by the ranking rule.
 
 Power-analysis failures (e.g. degenerate B-window residuals) never break a
 fit; ``res.power`` is simply left as ``None``. To compute on a

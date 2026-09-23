@@ -171,7 +171,8 @@ def test_time_state_step_posterior_moments(fx2):
                            atol=TOL), f"mean t={t}"
 
 
-FIX3 = pathlib.Path(__file__).parent / "fixtures" / "dmlfm" / "covariate_scaling.json"
+FIX3 = (pathlib.Path(__file__).resolve().parents[2] / "benchmarks"
+        / "reference" / "dmlfm_germany" / "covariate_scaling.json")
 
 
 @pytest.fixture(scope="module")

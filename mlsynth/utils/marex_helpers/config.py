@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 import warnings
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ...config_models import BaseMAREXConfig
 
@@ -89,6 +89,40 @@ class MAREXConfig(BaseMAREXConfig):
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
+
+    # --- cumulative-effect band ---
+    # The blank window is a contiguous stretch the fit never saw, so the effects
+    # there are an out-of-sample error series already. That is what a band for a
+    # running total needs, and it costs no refits: VanillaSC and PDA have to slide
+    # an origin across the pre-period to manufacture the same thing.
+    cumulative_band: bool = Field(
+        default=False,
+        description="Whether to add a band for the TOTAL post-period effect, "
+                    "drawn from the blank-period effects. Requires "
+                    "inference=True and a blank window. The existing pointwise "
+                    "band answers 'how big was the effect in week 7'; this "
+                    "answers 'how much did the intervention add in total', which "
+                    "is not obtainable by arithmetic on the pointwise endpoints.",
+    )
+    cumulative_block: int = Field(
+        default=0,
+        description="cumulative_band only: block length in periods for the "
+                    "circular block bootstrap of the blank-period effects. 0 "
+                    "(default) means the whole horizon; 1 draws periods "
+                    "independently, which understates the spread of a total "
+                    "whenever the period errors are positively autocorrelated.",
+    )
+    cumulative_n_sim: int = Field(
+        default=2000,
+        description="cumulative_band only: number of accumulated paths to draw. "
+                    "These cost no solves, so this buys quantile precision "
+                    "cheaply.",
+    )
+    cumulative_seed: int = Field(
+        default=0,
+        description="cumulative_band only: seed for the draw, so the band is "
+                    "reproducible.",
+    )
 
     # --- geographic design restrictions ---
     # MAREX already covers region-clustering (`cluster`), stratum quotas
@@ -178,6 +212,30 @@ class MAREXConfig(BaseMAREXConfig):
         default=0.80, gt=0.0, lt=1.0,
         description="Target power (1 - beta) for the MDE.",
     )
+
+    @field_validator("cumulative_band", mode="before")
+    @classmethod
+    def _validate_cumulative_request(cls, v):
+        if not isinstance(v, bool):
+            raise MlsynthConfigError(
+                f"cumulative_band must be True or False; got {v!r}.")
+        return v
+
+    @field_validator("cumulative_block", "cumulative_n_sim", "cumulative_seed",
+                     mode="before")
+    @classmethod
+    def _validate_cumulative_draw(cls, v, info):
+        # ``mode="before"`` so pydantic does not coerce "3" to 3 first: a string
+        # where an integer belongs is a caller error, not a formatting detail.
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise MlsynthConfigError(f"{info.field_name} must be an integer.")
+        if info.field_name == "cumulative_block" and v < 0:
+            raise MlsynthConfigError(
+                "cumulative_block must be >= 0 (0 means the horizon).")
+        if info.field_name == "cumulative_n_sim" and v < 2:
+            raise MlsynthConfigError(
+                "cumulative_n_sim must be >= 2 to take a quantile.")
+        return v
 
     @model_validator(mode="after")
     def _validate_geo_quota(self) -> "MAREXConfig":

@@ -1,0 +1,65 @@
+{
+  "published_source": "GeoLift_Walkthrough BestMarkets",
+  "augsynth": {
+    "n_designs": 20,
+    "mean_abs_rank_error": 0.0,
+    "own_top": [
+      "chicago",
+      "portland"
+    ],
+    "own_top_duration": 15
+  },
+  "bscm": {
+    "n_designs": 47,
+    "mean_abs_rank_error": 15.2,
+    "own_top": [
+      "atlanta",
+      "chicago",
+      "cleveland",
+      "las vegas",
+      "reno"
+    ],
+    "own_top_duration": 10
+  },
+  "mvbbsc": {
+    "n_designs": 44,
+    "mean_abs_rank_error": 10.6,
+    "own_top": [
+      "chicago",
+      "portland"
+    ],
+    "own_top_duration": 15
+  },
+  "ranks": {
+    "chicago+portland@15": {
+      "published": 1,
+      "augsynth": 1,
+      "bscm": 21,
+      "mvbbsc": 1
+    },
+    "chicago+cincinnati+houston+portland@15": {
+      "published": 1,
+      "augsynth": 1,
+      "bscm": 8,
+      "mvbbsc": 2
+    },
+    "chicago+portland@10": {
+      "published": 3,
+      "augsynth": 3,
+      "bscm": 36,
+      "mvbbsc": 14
+    },
+    "chicago+cincinnati+houston+portland@10": {
+      "published": 3,
+      "augsynth": 3,
+      "bscm": 16,
+      "mvbbsc": 20
+    },
+    "chicago+houston+portland@10": {
+      "published": 5,
+      "augsynth": 5,
+      "bscm": 2,
+      "mvbbsc": 29
+    }
+  }
+}

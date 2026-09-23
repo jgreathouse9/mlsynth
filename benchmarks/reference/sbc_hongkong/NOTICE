@@ -1,0 +1,46 @@
+Reference for the `sbc_hongkong` benchmark — Synthetic Business Cycle (SBC),
+Shi, Xi & Xie (2025), "A Synthetic Business Cycle Approach to Counterfactual
+Analysis with Nonstationary Macroeconomic Data," arXiv:2505.22388, Sec. 5.2.
+Authors' code: github.com/jinxi-atlas/Synthetic-business-cycle-code (no licence).
+
+Files
+- reference.R       The authors' SBC_HK.R method (lsq detrending + trend_predict
+                    forecast + Synth::synth ipop on the cycle and on levels),
+                    run on the in-repo basedata/hong_kong_handover.csv. Needs
+                    Synth and kernlab.
+- golden_steps.R    The detrending half of the same run, emitted per step for
+                    the unit tests in
+                    mlsynth/tests/test_sbc_hongkong_reference.py. Base R only,
+                    so it regenerates without CRAN:
+                      Rscript benchmarks/reference/sbc_hongkong/golden_steps.R \
+                        > benchmarks/reference/sbc_hongkong/golden_steps.txt
+- golden_steps.txt  Its captured output (committed so the tests need no R).
+                    Each quantity appears twice: the %.8f line, and a "hi:" line
+                    at %.17g. The tests read the "hi:" line and compare at one
+                    unit in its last recorded place, so the capture decides how
+                    tight the comparison is. The %.8f form resolves 1e-8, three
+                    orders coarser than the real difference between the
+                    implementations.
+- reference.json / reference.out / provenance.json / comparison.csv
+                    Captured run of reference.R, version-pinned.
+
+What the cross-validation found
+- The detrending is the same computation on both sides. mlsynth's Hamilton
+  filter reproduces the authors' lsq trend coefficients, the pre-handover cycle,
+  the donor full-sample cycles and the trend_predict forecast to 2.6e-14 of each
+  series' scale — the distance between R's lm QR (dqrls) and numpy's lstsq
+  (gelsd), the same order as the German panel's 1.7e-14.
+- Until golden_steps.R existed, this bundle captured only what Synth::synth
+  produces (ATT, cyclical SSE, weights), so the case's detrending claim rested
+  on a base-numpy rebuild of the authors' design rather than on R. Both checks
+  now run: the numpy rebuild is a bitwise zero, and R is pinned per step.
+- The synthetic-control step is the one divergence, and mlsynth is the more
+  accurate implementation: the cyclical simplex least-squares is strictly
+  convex, so its optimum is unique, and mlsynth attains it (cyclical SSE
+  ~1.648e7, certified to 9.8e-8 relative by the convexity of the objective)
+  while the authors' Synth::synth (kernlab ipop) converges to a point ~6% worse
+  (~1.749e7) at any tolerance. Both recover an Italy/Germany-dominant cyclical
+  synthetic Hong Kong and a negative post-handover effect.
+
+The authors' code/data are reproduced here for offline replication of this
+benchmark only; all credit to the authors.

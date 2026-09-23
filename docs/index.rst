@@ -206,7 +206,10 @@ empirical Table value on the authors' own data ("Path A") or by
 reproducing a Monte Carlo from the paper's simulation section
 ("Path B"), or against an authoritative reference implementation.
 See the :doc:`replications` page for the full catalogue with
-headline numbers.
+headline numbers. Where a paper also proves something about how its
+estimator behaves as the sample grows -- a selection converging on the
+right subset, a bound holding uniformly -- the :doc:`properties` page
+measures that claim directly, which a reproduced number cannot.
 
 .. toctree::
    :hidden:
@@ -217,8 +220,16 @@ headline numbers.
    identification
    validation
    replications
+   properties
    benchmarks
+   cumulative_calibration
    references
+
+.. toctree::
+   :hidden:
+   :caption: Examples
+
+   auto_examples/index
 
 .. toctree::
    :hidden:
@@ -252,6 +263,7 @@ headline numbers.
    scd
    drosc
    si
+   twsf
    microsynth
 
 .. toctree::
@@ -267,6 +279,7 @@ headline numbers.
    :caption: Observational: No Donors
 
    shc
+   gpits
 
 .. toctree::
    :hidden:
@@ -331,6 +344,7 @@ headline numbers.
    :caption: Observational: missing data
 
    mcnnm
+   mosc
    snn
    rmsi
    lpca

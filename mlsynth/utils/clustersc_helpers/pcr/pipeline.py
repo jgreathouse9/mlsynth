@@ -28,6 +28,7 @@ from ....exceptions import MlsynthEstimationError
 from ..structures import MethodFit
 from .bayesian import solve_bayesian
 from .clustering import ClusterPartition, assign_target, cluster_donors
+from ..spannability import assess_spannability, warn_if_poorly_spanned
 from .convex import solve_simplex
 from .frequentist import solve_ols
 from .hsvt import hsvt, select_rank
@@ -147,6 +148,7 @@ def run_pcr(
     selected_names = donor_names
     cluster_info: Optional[ClusterPartition] = None
     target_cluster: Optional[int] = None
+    spannability_meta: dict = {}
 
     if clustering:
         # Paper convention: rows = donors. Transpose so cluster_donors
@@ -174,6 +176,23 @@ def run_pcr(
         selected_names = [donor_names[i] for i in donor_idx]
         cluster_info = partition
         target_cluster = cluster_id
+
+        # Clustering optimises trajectory similarity and carries no
+        # spannability term, so the surviving donors need not still reach the
+        # treated unit. Measured and reported; see `..spannability`.
+        if donor_idx.size < donor_outcomes.shape[1]:
+            report = assess_spannability(
+                donor_pre_pool=donor_outcomes[:T0],
+                treated_pre=pre_target,
+                cluster_index=donor_idx,
+            )
+            warn_if_poorly_spanned(report)
+            spannability_meta = {
+                "spannability_ratio": report.ratio,
+                "spannability_excluded_mass": report.excluded_mass,
+                "spannability_cluster_rmse": report.cluster_rmse,
+                "spannability_pool_rmse": report.pool_rmse,
+            }
 
     # ------------------------------------------------------------------
     # Algorithm 2 Step 1-2 (Amjad, Shah, Shen 2018 convention):
@@ -296,6 +315,7 @@ def run_pcr(
         "lambda_penalty": lambda_penalty,
         "p": p,
         "q": q,
+        **spannability_meta,
     }
     if shen_obj is not None:
         metadata["shen_inference"] = shen_obj

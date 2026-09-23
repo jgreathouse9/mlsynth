@@ -391,3 +391,189 @@ class TestSdidShapedFamily:
         assert info["converged"].all()
         assert support_density(W_warm).mean() > 0.3, (
             "fixture must reproduce the dense-support regime the issue is about")
+
+
+# =========================================================================== #
+# the counter, driven directly
+# =========================================================================== #
+class TestBatchCounterMechanics:
+    """The two rules the batch counter runs on, tested where they bite.
+
+    Which iteration the stop fires at is a property of the counter and not of
+    any Gram, and on an easy family the right rule and a wrong one land in the
+    same place -- which is what the scalar loop's own mechanics tests exist for
+    (``test_fista_support_patience.py``). These drive the batch loop with a
+    scripted sequence of iterates and assert the firing iteration directly.
+
+    The batch adds the rule the scalar loop has no need of: every stopping
+    question is asked across the whole stack, so the loop ends when the last row
+    has settled. A batch is paced by its hardest member, as the solve it seeds
+    already is.
+    """
+
+    MAX_ITER = 400
+
+    @staticmethod
+    def _run(script, **kwargs):
+        """Run the batch loop on ``script[i]`` as the i-th iterate; return the
+        number of iterations it took."""
+        S, J = script[0].shape
+        G = np.repeat(np.eye(J)[None, :, :], S, axis=0)
+        calls = {"n": 0}
+        real = ACC.simplex_project_batch
+
+        def scripted(_v):
+            i = calls["n"]
+            calls["n"] += 1
+            return script[min(i, len(script) - 1)].copy()
+
+        ACC.simplex_project_batch = scripted
+        try:
+            fista_warm_start_batch(G, **kwargs)
+        finally:
+            ACC.simplex_project_batch = real
+        return calls["n"]
+
+    @staticmethod
+    def _rows(supports, J, jitter):
+        """One iterate of the batch: row ``s`` supported on ``supports[s]``,
+        moved by ``jitter`` so the ``tol`` rule never fires and only the support
+        rule is under test."""
+        W = np.zeros((len(supports), J))
+        for s, support in enumerate(supports):
+            W[s, list(support)] = 1.0 / len(support)
+            W[s, support[0]] += jitter
+            W[s, support[-1]] -= jitter
+        return W
+
+    def test_the_uniform_plateau_does_not_count(self):
+        """Every coordinate of every row positive is the state the batch
+        *starts* in. Counting it means firing on a support that has not moved
+        because it has not started, and handing back the whole pool -- the
+        uniform start renamed."""
+        J = 6
+        full = list(range(J))
+        script = [self._rows([full, full], J, 0.01 * (1 + k % 3))
+                  for k in range(self.MAX_ITER)]
+        assert self._run(script, max_iter=self.MAX_ITER,
+                         support_patience=30) == self.MAX_ITER
+
+    def test_the_stop_waits_for_the_slowest_row(self):
+        """One row pinning a coordinate says nothing about the rest of the
+        stack. Every row runs the same iterations, so a stop read across the
+        batch with "any" stops it at its easiest member and seeds the others
+        with a support they had not reached."""
+        J = 6
+        full, settled = list(range(J)), [0, 1]
+        script = [self._rows([settled, full], J, 0.01 * (1 + k % 3))
+                  for k in range(self.MAX_ITER)]
+        assert self._run(script, max_iter=self.MAX_ITER,
+                         support_patience=30) == self.MAX_ITER
+
+    def test_holds_must_be_consecutive(self):
+        """A support that keeps changing in any row must reset the counter.
+        Accumulating holds instead lets a flickering batch reach the threshold
+        while rows are still moving, and each of those rows is seeded with the
+        wrong support for the exact solver to pay to fix.
+        """
+        J = 6
+        steady, settled, flicker = [0, 1, 2], [0, 1], [0, 1, 2]
+        full = list(range(J))
+        pattern = ([full] * 10 + [settled] * 20 + [flicker] * 10
+                   + [settled] * 10 + [flicker] * 10 + [settled] * 340)
+        script = [self._rows([steady, pattern[k]], J, 0.001 * (1 + k % 5))
+                  for k in range(self.MAX_ITER)]
+        # holds_needed = 3 at patience 30, sampled every 10 iterations. Row 0
+        # never moves; row 1's sampled supports run full, {0,1}, {0,1},
+        # {0,1,2}, {0,1}, {0,1,2}, {0,1}, {0,1}, ... The first sample is the
+        # uniform plateau and does not arm, and the two flickers each break the
+        # run, so the third consecutive hold lands at iteration 90. Counting
+        # holds cumulatively reaches three at 80 -- ten iterations early, on a
+        # support that has changed twice since the first of them.
+        assert self._run(script, max_iter=self.MAX_ITER,
+                         support_patience=30) == 91
+
+    def test_sampling_interval_is_honoured(self):
+        """The support is read every ``SUPPORT_CHECK_EVERY`` iterations, so a
+        patience of one interval fires on the second sample -- the first has
+        nothing to compare against."""
+        J = 5
+        settled = [0, 1]
+        script = [self._rows([settled, settled], J, 0.001 * (1 + k % 4))
+                  for k in range(self.MAX_ITER)]
+        stopped = self._run(script, max_iter=self.MAX_ITER,
+                            support_patience=ACC.SUPPORT_CHECK_EVERY)
+        assert stopped == ACC.SUPPORT_CHECK_EVERY + 1
+
+
+# =========================================================================== #
+# the step the seed takes
+# =========================================================================== #
+class TestSpectralBound:
+    """FISTA's step is ``1 / L`` for an ``L`` at least ``lambda_max``.
+
+    Power iteration approaches the largest eigenvalue from below, so what it
+    returns is not a bound; the ten percent margin is what makes it one.
+    Without the margin the step is too long and the iterate oscillates, and
+    since the projection keeps every iterate feasible and the exact solver
+    certifies whatever it is handed, nothing about the answer says so -- only
+    the seed's quality, and so the pivot count, degrades. That is why the
+    margin is asserted on the estimate and not through a fit.
+
+    How far three iterations get depends on the spectrum. On a tall unridged
+    family they reach 0.999 of the largest eigenvalue and the margin carries
+    the rest; on a well-separated one they reach it to five figures. On the
+    ridged SDID-shaped family they do not: the estimate lands at 0.82 to 1.00
+    of it even after the margin, because the ridge flattens the top of the
+    spectrum. The module's contract covers that -- a loose or invalid bound
+    costs iterations and cannot move a certified answer -- and it is measured
+    here so the margin's reach is stated with its limit.
+    """
+
+    SEPARATED = staticmethod(lambda: np.array([
+        (lambda Q, d: (Q * d) @ Q.T)(
+            np.linalg.qr(np.random.default_rng(s).standard_normal((20, 20)))[0],
+            np.concatenate([[10.0, 1.0], np.full(18, 0.5)]))
+        for s in range(4)]))
+
+    @staticmethod
+    def _largest(G):
+        return np.array([np.linalg.eigvalsh(g)[-1] for g in G])
+
+    @pytest.mark.parametrize("name,make", [
+        ("sparse", lambda: sparse_batch(S=6, J=40, T=90, seed=4)),
+        ("separated", lambda: TestSpectralBound.SEPARATED()),
+    ])
+    def test_the_estimate_bounds_the_largest_eigenvalue(self, name, make):
+        G = make()
+        got = ACC._spectral_bound_batch(G)
+        assert np.all(got >= self._largest(G)), (name, got / self._largest(G))
+
+    def test_the_margin_is_what_carries_it(self):
+        """On the tall unridged family three iterations stop just short, so the
+        bound holds because of the margin and not because the iteration had
+        already arrived. Without this the test above would pass on slack."""
+        G = sparse_batch(S=6, J=40, T=90, seed=4)
+        raw = ACC._spectral_bound_batch(G) / 1.1
+        assert np.all(raw < self._largest(G))
+
+    def test_the_scalar_bound_carries_the_same_margin(self):
+        """The two routines size the same step for the same reason, and only
+        the batch one is on a budget of three iterations."""
+        G = sparse_batch(S=1, J=40, T=90, seed=5)[0]
+        assert ACC._spectral_bound(G) >= np.linalg.eigvalsh(G)[-1]
+
+    def test_the_ridged_family_is_not_bounded_at_three_iterations(self):
+        """Measured, so raising ``SEED_SPECTRAL_ITERS`` is a decision someone
+        takes with the number in front of them. The seed stays correct here
+        because correctness never rested on the bound."""
+        G = ridged_batch(S=6, J=40, T=20, seed=3)
+        ratio = ACC._spectral_bound_batch(G) / self._largest(G)
+        assert ratio.min() < 1.0
+        assert ratio.min() > 0.8
+
+    def test_a_zero_gram_estimates_zero_and_not_a_margin_on_zero(self):
+        """The margin is on a positive estimate. A flat objective has no step
+        to take, and ``L = 0`` is what routes the row to the uniform point."""
+        G = np.zeros((2, 5, 5))
+        assert np.array_equal(ACC._spectral_bound_batch(G), np.zeros(2))

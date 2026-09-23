@@ -1,0 +1,16 @@
+{
+  "gap_rate_mean_relative_error": 0.05098183763357352,
+  "gap_rate_correlation": 0.9953273209824778,
+  "intercept_only_relative_error": 0.7866174905635999,
+  "gap_underparameterised_K1_relative_error": 0.1139146625298078,
+  "gap_heldout_relative_error": 0.055911652723999304,
+  "ppca_rate_correlation": 0.9974871709006868,
+  "checks": {
+    "recovers the generating rate (rel err < 0.15)": true,
+    "beats the intercept-only fit": true,
+    "K=1 fits strictly worse than the true rank": true,
+    "recovers held-out cells (rel err < 0.25)": true,
+    "ppca EM recovers a Gaussian panel (corr > 0.99)": true
+  },
+  "all_passed": true
+}

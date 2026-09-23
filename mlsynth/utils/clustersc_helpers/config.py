@@ -111,6 +111,20 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default=4, ge=2,
         description="fGRC B-spline order (cluster_method='fgrc'; 4 = cubic).",
     )
+    fgrc_n_random: int = Field(
+        default=40, ge=1,
+        description="fGRC restarts of the loading matrix, keeping the "
+                    "lowest-loss solution (cluster_method='fgrc'). Yamamoto and "
+                    "Hwang (2017) report that the number of local optima varies "
+                    "with the data and recommend many random starts; raise this "
+                    "on a panel whose labels move between runs.",
+    )
+    fgrc_nstart: int = Field(
+        default=40, ge=1,
+        description="fGRC k-means starts within each loading restart "
+                    "(cluster_method='fgrc'). Raise it alongside fgrc_n_random "
+                    "when the cluster assignment is unstable.",
+    )
     hsvt_rank_method: Literal["usvt", "cumvar", "fixed"] = Field(
         default="usvt",
         description="Rank rule for rpca_method='HSVT': 'usvt' (Donoho-Gavish "

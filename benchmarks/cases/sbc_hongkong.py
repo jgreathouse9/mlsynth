@@ -20,9 +20,17 @@ full sample, exactly as ``SBC_HK.R`` does.
 
 Two independent checks (matching the German-reunification finding)
 ------------------------------------------------------------------
-1. Detrending is shared and exact. mlsynth's Hamilton filter reproduces the
-   authors' ``lsq`` trend coefficients and cyclical residuals to ~5e-11 -- the
-   SBC-specific machinery (detrend, then SC the cycle) is the same on both sides.
+1. Detrending is shared. Two checks say so, and they say different things.
+   ``detrend_max_abs_diff`` compares mlsynth's Hamilton filter to an independent
+   base-numpy build of the authors' ``lsq`` design and is bit for bit zero,
+   pinned as 0.0: the two Python readings of "detrend at horizon h with p lags"
+   are one computation. Against R, ``mlsynth/tests/test_sbc_hongkong_reference.py``
+   pins each step -- the trend coefficients, the pre-handover cycle, four donor
+   cycles and the trend forecast -- to the authors' own ``lsq`` and
+   ``trend_predict``, captured at full precision in
+   ``benchmarks/reference/sbc_hongkong/golden_steps.R``. The two sides agree to
+   2.6e-14 of each series' scale, the same order as the German panel's 1.7e-14
+   and for the same reason: R's ``lm`` QR against numpy's ``lstsq``.
 
 2. On the synthetic-control step the two diverge, and mlsynth is the more
    accurate one -- the same result the German case documents. The cyclical
@@ -46,7 +54,7 @@ provenance, and this case reads the captured ``reference.json`` via
 ``python benchmarks/reference/generate.py sbc_hongkong``.
 
 The upstream repo carries no licence, so the authors' method is reproduced on the
-in-repo public FRED data rather than vendored (mirroring ``sbc_germany``).
+in-repo public FRED data instead of vendoring it (mirroring ``sbc_germany``).
 
 Provenance
 ----------
@@ -111,6 +119,78 @@ def _cyclical(df):
     return treated_fit, c1, c0
 
 
+def _golden_steps() -> dict:
+    """The authors' lsq / trend_predict output, per step, at the precision the
+    capture records (``golden_steps.R`` in this case's reference bundle)."""
+    path = (Path(__file__).resolve().parents[1] / "reference" / "sbc_hongkong"
+            / "golden_steps.txt")
+    out: dict = {}
+    if not path.exists():
+        return out
+    for line in path.read_text().splitlines():
+        if "\t" not in line:
+            continue
+        key, val = line.split("\t", 1)
+        values = np.array([float(x) for x in val.split(",") if x.strip()])
+        if key.startswith("hi:"):
+            out[key[3:]] = values
+        elif key not in out:
+            out[key] = values
+    return out
+
+
+def _detrending_rows(df):
+    """mlsynth's Hamilton filter against the authors' ``lsq`` and
+    ``trend_predict``, step by step.
+
+    The rest of this table compares against what ``Synth::synth`` produces,
+    where the two implementations part company over the solver. These rows are
+    the steps before it, where they do not.
+    """
+    from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
+    from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
+
+    golden = _golden_steps()
+    if not golden:
+        return []
+    wide = df.pivot(index="year", columns="country", values="gdp").sort_index()
+    T0 = int((wide.index < _TREAT_YEAR).sum())
+    fit = fit_hamilton_filter(wide[_TREATED].to_numpy()[:T0], h=_H, p=_P)
+    cycle = fit.cycle_pre[~np.isnan(fit.cycle_pre)]
+    forecast = forecast_treated_trend(y_target=wide[_TREATED].to_numpy(),
+                                      treated_fit=fit, T0=T0, horizon=_H)
+    italy = fit_hamilton_filter(wide["Italy"].to_numpy(), h=_H, p=_P).cycle_pre
+    italy = italy[~np.isnan(italy)]
+    pairs = [
+        ("Hamilton trend coef (intercept)", fit.coefficients[0],
+         golden["treated_trend_coef"][0]),
+        ("treated cycle (first pre-period)", cycle[0],
+         golden["treated_cycle_pre"][0]),
+        ("treated cycle (last pre-period)", cycle[-1],
+         golden["treated_cycle_pre"][-1]),
+        ("donor cycle Italy (first)", italy[0],
+         golden["donor_cycle_full:Italy"][0]),
+        ("trend forecast (first post period)", forecast[0],
+         golden["trend_forecast"][0]),
+    ]
+    return [{"quantity": q, "mlsynth": round(float(m), 6),
+             "reference": round(float(r), 6)} for q, m, r in pairs]
+
+
+def _optimality_gap(c1, c0, w):
+    """Relative distance from the global optimum of the cyclical program.
+
+    The objective is convex, so linearising it at ``w`` bounds every feasible
+    point from below: ``f(v) >= f(w) + g'(v - w)``, minimised over the simplex
+    by putting all mass on the smallest gradient coordinate. The gap between the
+    attained objective and that bound certifies the solve.
+    """
+    attained = float(np.sum((c1 - c0 @ w) ** 2))
+    gradient = 2.0 * (c0.T @ (c0 @ w - c1))
+    lower_bound = attained + float(gradient.min() - gradient @ w)
+    return (attained - lower_bound) / attained
+
+
 def _detrend_max_abs_diff(df):
     """Max abs diff of mlsynth's treated Hamilton coefs+cycle vs the R lsq (the
     R values are captured; here we recompute the authors' lsq to compare)."""
@@ -159,6 +239,9 @@ def run() -> dict:
         # on the strictly-convex cyclical program.
         "mls_sse_le_ipop": 1.0 if mls_sse <= ipop_sse_on_same + 1.0 else 0.0,
         "ipop_sse_excess_frac": float((ipop_sse_on_same - mls_sse) / mls_sse),
+        # how far the returned weights sit from the global optimum, certified by
+        # the convexity of the cyclical objective (see the note below EXPECTED).
+        "mls_cyc_optimality_gap": _optimality_gap(c1, c0, w_cyc),
         # detrending is the shared, exact SBC-specific machinery.
         "detrend_max_abs_diff": _detrend_max_abs_diff(df),
         # top cyclical donors mlsynth loads (Italy/Germany-dominant, as R).
@@ -185,7 +268,8 @@ def comparison() -> dict:
     _ft, c1, c0 = _cyclical(df)
     mls_sse = float(np.sum((c1 - c0 @ simplex_lstsq(c0, c1)) ** 2))
 
-    rows = [
+    rows = list(_detrending_rows(df))
+    rows += [
         {"quantity": "ATT (post-handover)", "mlsynth": round(att_ml, 3),
          "reference": round(REF_ATT, 3)},
         {"quantity": "cyclical pre-SSE (lower=better)",
@@ -211,23 +295,30 @@ def comparison() -> dict:
     }
 
 
-# Detrending is deterministic and shared: mlsynth's Hamilton filter reproduces
-# the authors' lsq coefficients + cyclical residuals to ~5e-11. On the cyclical
-# SC step the strictly-convex simplex program has a unique optimum; mlsynth's
-# projected-gradient solver attains it (~1.648e7 SSE), strictly better than the
-# authors' Synth::synth ipop (~1.749e7, +6%). Both give an Italy/Germany-dominant
-# cyclical synthetic HK and a negative post-handover ATT. Targets are pinned from
-# the live captured R run (benchmarks/reference/sbc_hongkong/) via
-# reference_value/load_reference. mls_att is the mlsynth headline (it differs
-# from the R ATT only through ipop's sub-optimal weights, so it is anchored with
-# a band, not to the R value).
+# What each tolerance is. The three claims that are true or false -- a negative
+# ATT, an objective no worse than ipop's, eleven donors -- are pinned exactly,
+# and so is the detrending agreement, which is a bitwise zero.
+# ``mls_cyc_optimality_gap`` is a certificate, not a pin: linearising the convex
+# cyclical objective at the returned weights bounds every feasible point's
+# objective from below, and the distance to that bound proves how close the
+# solve is to the global optimum without trusting a recorded number. mlsynth
+# certifies to 9.8e-8 here; the assertion allows 1e-5.
+# The remaining four are mlsynth's own deterministic output, reproduced bit for
+# bit across runs, pinned as values at 1e-6 relative -- six orders above the
+# floating-point movement a different platform would introduce, and far below
+# the shift an under-converged cyclical solve produces. The authors' ipop values
+# are read from the live captured R run (benchmarks/reference/sbc_hongkong/) via
+# reference_value/load_reference; mlsynth's ATT differs from the R ATT through
+# ipop's sub-optimal weights, so it is pinned as mlsynth's value and compared to
+# R in comparison().
 EXPECTED = {
-    "mls_att": (-5110.78, 5.0),                 # mlsynth headline ATT (per-capita PPP USD)
+    "mls_att": (-5110.7755843056475, 5.11e-3),  # mlsynth headline ATT (per-capita PPP USD)
     "att_negative": (1.0, 0.0),                 # negative post-handover effect
-    "mls_cyc_sse": (16484515.7, 5000.0),        # mlsynth attains the verified optimum
+    "mls_cyc_sse": (16484515.698343469, 16.5),  # mlsynth attains the verified optimum
+    "mls_cyc_optimality_gap": (0.0, 1e-5),      # certified: how close to that optimum
     "mls_sse_le_ipop": (1.0, 0.0),              # <= authors' ipop on the same program
-    "ipop_sse_excess_frac": (0.061, 0.02),      # ipop is ~6% worse
-    "detrend_max_abs_diff": (0.0, 1e-6),        # shared exact detrending
-    "italy_plus_germany": (0.770, 0.05),        # Italy+Germany carry the cyclical mass
+    "ipop_sse_excess_frac": (0.06116224016772239, 6.12e-8),   # ipop is ~6% worse
+    "detrend_max_abs_diff": (0.0, 0.0),         # shared detrending, bit for bit
+    "italy_plus_germany": (0.7700474919523621, 7.7e-7),
     "n_donors": (11.0, 0.0),
 }
