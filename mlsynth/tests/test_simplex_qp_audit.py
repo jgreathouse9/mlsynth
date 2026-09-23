@@ -25,19 +25,28 @@ from tools.simplex_qp_audit import audit
 # solve_simplex_qp solves the same program they do.
 ELIGIBLE = {
     ("bilevel/ridge_augment.py", "w"): 1,
+    ("clustersc_helpers/spannability.py", "w"): 1,
     ("drosc_helpers/estimation.py", "w"): 1,
     ("dsc_helpers/weights.py", "w"): 2,
     ("dtwsc_helpers/pipeline.py", "w"): 1,
     ("inferutils.py", "w"): 1,
-    ("iscm_helpers/weights.py", "w"): 1,
     ("masc_helpers/estimation.py", "w"): 1,
     ("mlsc_helpers/optimization.py", "w"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
     ("scmo_helpers/estimation.py", "lam"): 1,
     ("scmo_helpers/solvers.py", "w"): 1,
-    ("spillsynth_helpers/cd/scm_core.py", "w"): 1,
     ("spotsynth_helpers/sc.py", "w"): 1,
     ("ssc_helpers/weights.py", "b"): 1,
+}
+
+# Sites this library has already moved onto ``solve_simplex_qp``. They are not
+# in ELIGIBLE because they are no longer cvxpy problems at all, and the audit
+# cannot see them. Pinned so a migration cannot be undone without a test
+# saying so -- reintroducing cvxpy at one of these fails
+# ``test_a_migrated_site_stays_migrated``.
+MIGRATED = {
+    ("iscm_helpers/weights.py", "w"),
+    ("spillsynth_helpers/cd/scm_core.py", "w"),
 }
 
 # The probability simplex, but minimising something else. Swapping the solver
@@ -77,7 +86,7 @@ INELIGIBLE = {
     ("musc_helpers/estimation.py", "W"):
         "a matrix with a unit diagonal and off-diagonals in [-1, 0]",
     ("orthsc_helpers/regularized.py", "?"):
-        "eta, pinned at its last entry rather than summing to one",
+        "eta, pinned at its last entry instead of summing to one",
     ("pangeo_helpers/mip.py", "?"):
         "an assignment constraint M @ x == 1, not a simplex",
     ("shc_helpers/kernels.py", "w"):
@@ -153,7 +162,23 @@ def test_non_negativity_is_read_from_the_variable_too(sites):
     and halves the count, which is the error this test exists to prevent.
     """
     by = {_key(s): s for s in sites}
-    # iscm declares nonneg on the Variable and lists only the sum constraint.
-    s = by[("iscm_helpers/weights.py", "w")]
+    # dtwsc declares nonneg on the Variable and lists only the sum constraint.
+    s = by[("dtwsc_helpers/pipeline.py", "w")]
     assert s.verdict == "eligible"
     assert ">= 0" not in s.constraints
+
+
+def test_a_migrated_site_stays_migrated(sites):
+    """A site already on ``solve_simplex_qp`` must not reappear as a cvxpy problem.
+
+    The audit reads cvxpy call sites, so a migrated module is invisible to it
+    and its absence from ELIGIBLE says nothing on its own. This asserts the
+    absence directly: if someone reintroduces a cvxpy simplex solve at one of
+    these, it shows up here instead of restoring the fourth solver path
+    this branch exists to remove.
+    """
+    present = {_key(s) for s in sites}
+    assert MIGRATED.isdisjoint(present), (
+        f"these were migrated onto solve_simplex_qp and are cvxpy again: "
+        f"{sorted(MIGRATED & present)}"
+    )

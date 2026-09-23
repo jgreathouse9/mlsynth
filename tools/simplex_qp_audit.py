@@ -4,7 +4,7 @@
 probability simplex ``{w >= 0, sum(w) = 1}``. A cvxpy site can be moved onto it
 only if its feasible set is exactly that: a site with an extra constraint, or
 one whose weights may go negative, is a different problem and swapping the
-solver would change the answer rather than the speed.
+solver would change the answer, not the speed.
 
 Reading that off the source is easy to get wrong, and this module exists
 because it was got wrong twice. A text window around each ``sum(w) == 1``
