@@ -156,7 +156,79 @@ site to rediscover it. `WeightSolution` reporting whether the minimiser is uniqu
 costs one rank computation and tells a caller whether the weight vector is an
 answer or an arbitrary representative of one.
 
-### What Boyd does not license
+### The problem class has a monograph, and it names our constraint set
+
+Dostal (2009) studies exactly the class the layer would cover: quadratic
+programming under bound and equality constraints. Our program is his
+Chapter 6 verbatim -- `w >= 0` is the bound, `1'w = 1` is the equality -- and
+Chapter 5 covers the bound-only case, which is `nnls`.
+
+Two of his results bear directly on the design.
+
+Finite termination is a theorem, not a hope. He gives it for the working-set
+method with exact solutions (5.3.3), for Polyak's algorithm (5.4.2), and via
+an identification lemma for MPRGP (5.8.5), with a separate treatment of the
+dual degenerate case (5.8.6). That is the direct license for an exact
+active-set method on this class, and it is stronger than the argument by
+analogy from linear programming offered above: Spielman and Teng explain why
+pivoting survives its worst case, but Dostal proves termination for the
+constraint set we actually have.
+
+And his notion of optimality supplies a condition the design should carry.
+An algorithm is optimal in his sense when, over a class of problems whose
+Hessian spectrum is confined to a given positive interval, it reaches an
+approximate solution in a uniformly bounded number of matrix-vector
+products -- a bound on iterations that does not grow with the problem.
+
+The condition is that the spectrum sit in a positive interval, which for
+`||A - Bw||^2` means `2 B'B > 0`, which holds exactly when `B` has full
+column rank.
+
+That is the same condition Boyd's Example 3.2 gives for strict convexity and
+hence for a unique minimiser. One spectral fact governs both: whether the
+weights are an answer or an arbitrary representative of a continuum, and
+whether the solver has a convergence guarantee at all. A `WeightSolution`
+that reports it is reporting both things at once, which is a better argument
+for the field than the uniqueness case alone.
+
+It also fails already, on data that ships with the library. Measured on the
+raw pre-period donor blocks:
+
+| Panel | J | T0 | rank(B) | `B'B > 0` | cond(`B'B`) |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Basque | 16 | 20 | 16 | yes | 1.45e+09 |
+| West Germany | 16 | 30 | 16 | yes | 1.62e+06 |
+| Proposition 99 | 38 | 19 | 19 | no | singular |
+
+Proposition 99 has more donors than pre-periods, so its Hessian is singular
+and neither premise holds -- on one of the three canonical panels, before any
+clustering or denoising. Liao, Shi and Zheng's Monte Carlo is the same
+picture by construction at `J = 120`, `T0 = 40`, and it is the regime Rho et
+al. motivate ClusterSC by. Basque sits the other way: full rank, and a
+condition number of 1.4e9, which is where a conic solver's residual dust
+comes from.
+
+So the layer should report the rank condition and decline to claim a
+guarantee when it fails. Two of the three canonical panels are ill
+conditioned or singular; a design that assumes otherwise is designing for a
+regime this library does not occupy.
+
+### What these sources do not license
+
+Boyd is an argument for interior-point methods and is not a source for
+preferring an active set over one; he supplies the problem-class boundary and
+the optimality certificate, which are different claims.
+
+Dostal's scalability results are not ours either. His numerical work targets
+large sparse Hessians from PDE discretization -- FETI and TFETI domain
+decomposition, demonstrated at more than two million nodal variables -- where
+MPRGP and SMALBE earn their place against direct factorisation. mlsynth's
+donor blocks are dense with `J` in the tens to low hundreds, where a direct
+active set with a rank-revealing factorisation is the better fit. What
+transfers from Dostal is the termination theory and the spectral condition,
+not the recommendation of a specific iterative scheme. MPRGP and SMALBE are
+the path if `J` ever reaches a scale where dense factorisation stops paying,
+and that crossover has not been measured here.
 
 The book is an argument for interior-point methods, and it is not a source
 for preferring an active set over one. The algorithm choice above rests on
@@ -273,6 +345,10 @@ and not with the support, and the FISTA warm start is what holds that down.
 The crossover, if there is one, has not been measured.
 
 ## References
+
+Dostal, Z. (2009). Optimal Quadratic Programming Algorithms, with
+Applications to Variational Inequalities. Springer Optimization and Its
+Applications 23. Chapters 5 and 6.
 
 Cressie, N. and Read, T. R. C. (1984). Multinomial goodness-of-fit tests.
 Journal of the Royal Statistical Society B 46(3), 440-464.
