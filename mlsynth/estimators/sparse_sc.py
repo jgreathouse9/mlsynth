@@ -345,9 +345,12 @@ class SparseSC:
                     "n_anchor_only_grid": degeneracy.n_anchor_only_grid,
                     "n_distinct_supports": degeneracy.n_distinct_supports,
                     "n_grid": degeneracy.n_grid,
+                    "lambda_grid_max": degeneracy.lambda_grid_max,
                     "support_tol": degeneracy.support_tol,
                     "active_tol": degeneracy.active_tol,
                     "anchor_only": degeneracy.anchor_only,
+                    "nothing_pruned": degeneracy.nothing_pruned,
+                    "penalty_at_grid_edge": degeneracy.penalty_at_grid_edge,
                 },
             )
             results = SparseSCResults(

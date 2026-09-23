@@ -2313,3 +2313,21 @@ timeout = 900.0
   find = "    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)"
   replace = "    sd = np.where(sd == 0, 1.0, sd)"
   models = "the shipped guard until 2026-09. ddof=1 leaves the predictor standard deviation undefined on a single-donor panel, and NaN is not zero, so the guard passed it through into the start point. Alone it produced a NaN start; with the restart draws, which are v20 * exp(...), it produces NaN at every start and the whole sweep returns NaN without raising"
+
+[[target]]
+name = "sparse-sc-degeneracy"
+module-path = "mlsynth/utils/sparse_sc_helpers/diagnostics.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_degeneracy.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-penalty-that-pruned-nothing-is-only-named-at-the-grid-edge"
+  find = "    if degeneracy.nothing_pruned and degeneracy.lambda_selected > 0.0:"
+  replace = "    if degeneracy.nothing_pruned and degeneracy.lambda_selected >= degeneracy.lambda_grid_max:"
+  models = "requiring the two symptoms to coincide before either is reported. It reads like the conservative choice -- only speak up when the sweep both ran to the top of its grid and kept everything -- and it misses the case that motivated the check: a penalty selected strictly inside the grid that still removes no predictor. The library's own synthetic panel does exactly that, at lambda* = 0.39 with 4 of 4 predictors kept, and would come back silent"
+
+  [[target.mutant]]
+  id = "a-boundary-lambda-is-only-mentioned-in-the-degenerate-corner"
+  find = "    if degeneracy.penalty_at_grid_edge:"
+  replace = "    if degeneracy.penalty_at_grid_edge and degeneracy.anchor_only:"
+  models = "treating a lambda chosen at the top of the grid as unremarkable unless the fit also collapsed to the anchor. The two are separate statements: the corner says which predictors survived, the boundary says the search never tried a heavier penalty and so the selection is the edge of the grid and not an optimum. On the SCMO Germany panel lambda* is the grid maximum with 8 of 8 predictors kept and anchor_only False, so the conjunction reports nothing at all"

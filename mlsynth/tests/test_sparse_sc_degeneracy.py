@@ -32,12 +32,15 @@ from mlsynth.utils.sparse_sc_helpers.structures import (
 )
 
 
-def _design(v, w, v_path):
+def _design(v, w, v_path, opt_lambda=0.0, lambda_grid=None):
     n = len(np.atleast_2d(v_path))
+    grid = np.linspace(0.0, 1.0, n) if lambda_grid is None else np.asarray(
+        lambda_grid, float)
     return SparseSCDesign(
-        v=np.asarray(v, float), w=np.asarray(w, float), opt_lambda=0.0,
-        lambda_grid=np.zeros(n), train_loss_curve=np.zeros(n),
-        val_mse_curve=np.zeros(n), v_path=np.asarray(v_path, float))
+        v=np.asarray(v, float), w=np.asarray(w, float),
+        opt_lambda=float(opt_lambda), lambda_grid=grid,
+        train_loss_curve=np.zeros(n), val_mse_curve=np.zeros(n),
+        v_path=np.asarray(v_path, float))
 
 
 def _panel(seed=0, N=6, T=20, T0=14, P=4):
@@ -96,6 +99,104 @@ class TestReadings:
         assert g.dim_u == 1
 
 
+class TestThePenaltyDoingNothing:
+    """Two readings of "the L1 term selected nothing", both threshold-free.
+
+    ``w*(c v) = w*(v)``: the inner problem is positive-scale-invariant in
+    ``v``, so ``lambda ||v||_1`` can be made small by shrinking ``v`` without
+    moving a single donor weight. The penalty therefore bites only through the
+    anchor, which is pinned at 1. When it does not bite, the sweep runs to the
+    top of the grid and keeps every predictor, and the reported "selection" is
+    the predictor list it was handed.
+
+    Measured on the SCMO Germany panel (nine 1989 indicators as covariates):
+    lambda* = 1, the grid maximum, with 8 of 8 predictors kept and 2 distinct
+    supports over 51 grid points. Neither existing condition fires there --
+    ``anchor_only`` is False and ``|A|`` is 9 -- so the fit came back with
+    nothing said about it.
+    """
+
+    def test_nothing_pruned_is_dim_u_equal_to_the_predictor_count(self):
+        d = assess_degeneracy(_design([1.0, 0.4, 0.2], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.2]]))
+        assert d.nothing_pruned
+        d = assess_degeneracy(_design([1.0, 0.4, 0.0], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.0]]))
+        assert not d.nothing_pruned
+
+    def test_the_selected_lambda_and_the_grid_top_are_both_recorded(self):
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.2], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.2]] * 3,
+                                      opt_lambda=1.0, lambda_grid=grid))
+        assert d.lambda_selected == pytest.approx(1.0)
+        assert d.lambda_grid_max == pytest.approx(1.0)
+        assert d.penalty_at_grid_edge
+
+    def test_a_lambda_inside_the_grid_is_not_at_the_edge(self):
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.0], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.0]] * 3,
+                                      opt_lambda=0.1, lambda_grid=grid))
+        assert not d.penalty_at_grid_edge
+
+    def test_keeping_every_predictor_under_a_live_penalty_warns(self):
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.2], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.2]] * 3,
+                                      opt_lambda=0.1, lambda_grid=grid))
+        with pytest.warns(UserWarning, match="3 of 3"):
+            warn_if_degenerate(d)
+
+    def test_a_zero_penalty_keeping_everything_is_not_a_degeneracy(self):
+        """At lambda* = 0 there is no penalty, so pruning nothing is correct.
+
+        The warning is about a penalty that was applied and removed nothing,
+        not about a full predictor set.
+        """
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.2], [0.5, 0.3, 0.2],
+                                      [[1.0, 0.4, 0.2]] * 3,
+                                      opt_lambda=0.0, lambda_grid=grid))
+        assert d.nothing_pruned
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warn_if_degenerate(d)
+        assert [str(c.message) for c in caught] == []
+
+    def test_a_lambda_at_the_grid_top_warns_and_names_it(self):
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.0], [0.5, 0.5],
+                                      [[1.0, 0.4, 0.0]] * 3,
+                                      opt_lambda=1.0, lambda_grid=grid))
+        with pytest.warns(UserWarning, match="largest lambda"):
+            warn_if_degenerate(d)
+
+    def test_the_germany_signature_raises_both(self):
+        """lambda* at the grid top with the full predictor set kept."""
+        grid = np.concatenate([[0.0], np.logspace(-4, 0, 50)])
+        v = np.ones(8)
+        d = assess_degeneracy(_design(v, np.full(9, 1 / 9), [v] * 51,
+                                      opt_lambda=1.0, lambda_grid=grid))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warn_if_degenerate(d)
+        messages = [str(c.message) for c in caught]
+        assert len(messages) == 2, messages
+        assert any("8 of 8" in m for m in messages)
+        assert any("largest lambda" in m for m in messages)
+
+    def test_a_pruned_fit_inside_the_grid_warns_about_neither(self):
+        grid = np.array([0.0, 0.1, 1.0])
+        d = assess_degeneracy(_design([1.0, 0.4, 0.0], [0.5, 0.3, 0.2],
+                                      [[1.0, 0.4, 0.0]] * 3,
+                                      opt_lambda=0.1, lambda_grid=grid))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warn_if_degenerate(d)
+        assert [str(c.message) for c in caught] == []
+
+
 class TestWarnings:
     def test_anchor_only_warns_and_names_the_predictor(self):
         g = assess_degeneracy(_design([1.0, 0.0], [1.0, 0.0], [[1.0, 0.0]]))
@@ -127,6 +228,11 @@ class TestOnTheEstimator:
         assert p["n_grid"] == len(res.design.lambda_grid)
         assert 1 <= p["n_distinct_supports"] <= p["n_grid"]
         assert p["anchor_only"] == (p["dim_u"] == 1)
+        assert p["nothing_pruned"] == (p["dim_u"] == p["n_predictors"])
+        assert p["penalty_at_grid_edge"] == (
+            p["lambda_grid_max"] > 0.0 and p["opt_lambda"] >= p["lambda_grid_max"])
+        assert p["lambda_grid_max"] == pytest.approx(
+            float(max(res.design.lambda_grid)))
 
     def test_the_diagnostics_change_no_estimate(self):
         kw = {"df": _panel(1), "outcome": "y", "treat": "tr", "unitid": "unit",

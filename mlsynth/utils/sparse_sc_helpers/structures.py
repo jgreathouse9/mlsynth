@@ -152,6 +152,12 @@ class SparseSCDegeneracy:
         Distinct predictor supports along ``v_path``. One means the penalty
         never changed its mind across the grid; many means "which predictors
         matter" is not settled by the data.
+    lambda_selected : float
+        The lambda the sweep chose, ``design.opt_lambda``.
+    lambda_grid_max : float
+        The largest lambda the grid offered. When the selection equals it, a
+        heavier penalty was never tried, so the sweep ran to the edge of its
+        own search and the choice is a boundary, not an interior optimum.
     n_grid : int
         Rows of ``v_path``. Denominator for the two path counts.
     support_tol : float
@@ -166,6 +172,8 @@ class SparseSCDegeneracy:
     n_donors: int
     n_anchor_only_grid: int
     n_distinct_supports: int
+    lambda_selected: float
+    lambda_grid_max: float
     n_grid: int
     support_tol: float
     active_tol: float
@@ -179,6 +187,30 @@ class SparseSCDegeneracy:
         separately would create two values that can disagree.
         """
         return self.dim_u == 1
+
+    @property
+    def nothing_pruned(self) -> bool:
+        """Every predictor survived: the support is the whole list.
+
+        A property for the same reason as ``anchor_only``: it *is*
+        ``dim_u == n_predictors``. On its own this is a reading and not a
+        fault -- at ``lambda* = 0`` there is no penalty, so pruning nothing is
+        the correct answer. It becomes a statement about the method when a
+        positive penalty was selected and still removed nothing, which is what
+        ``warn_if_degenerate`` tests.
+        """
+        return self.dim_u == self.n_predictors
+
+    @property
+    def penalty_at_grid_edge(self) -> bool:
+        """The sweep chose the largest lambda it was offered.
+
+        A heavier penalty was never tried, so the choice is a boundary of the
+        search and not an interior optimum. A grid of one point, or one whose
+        largest entry is zero, offers no edge to run to and is excluded.
+        """
+        return (self.lambda_grid_max > 0.0
+                and self.lambda_selected >= self.lambda_grid_max)
 
 
 @dataclass(frozen=True)

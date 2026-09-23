@@ -359,6 +359,77 @@ This is what makes the method *Sparse* SC: the explanation of the
 treated unit's pre-trajectory is interpretable in terms of a small
 subset of predictors.
 
+When the penalty does not select
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+That selection is not guaranteed, and on some panels it does not happen.
+
+The inner QP is positive-scale-invariant in :math:`\mathbf{v}`: for any
+:math:`c > 0`, :math:`\mathbf{w}^\ast(c\,\mathbf{v}) =
+\mathbf{w}^\ast(\mathbf{v})`, since scaling every predictor weight by the
+same factor leaves their relative sizes — and so the minimizer — unchanged.
+The fit term is blind to the scale of :math:`\mathbf{v}`; the penalty
+:math:`\lambda \lVert \mathbf{v} \rVert_1` is not. The penalty can
+therefore be made small by shrinking :math:`\mathbf{v}` toward zero at no
+cost in fit. The :math:`v_1 = 1` anchor prevents that collapse, and the
+consequence is that the penalty binds only through the anchor: what it costs
+to keep predictor :math:`p` is that predictor's weight measured against the
+anchor's fixed 1, not its absolute size.
+
+Whether this leaves the L1 term anything to do depends on the panel. Two
+measurements, on predictor sets of the same order:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 14 10 20 20
+
+   * - Panel
+     - Predictors
+     - Kept
+     - :math:`\widehat{\lambda}`
+     - Distinct supports
+   * - Proposition 99, Vives's 7-predictor specification
+     - 7
+     - 5
+     - :math:`5.4 \times 10^{-4}`
+     - 4 of 51
+   * - West Germany, the nine 1989 indicators
+     - 8
+     - 8
+     - 1, the grid's largest
+     - 2 of 51
+
+On Proposition 99 the penalty selects. It settles at an interior
+:math:`\lambda`, removes two predictors, and returns an ATT of
+:math:`-18.52` against Vives-i-Bastida's published :math:`-18.5`. On West
+Germany it does not. The sweep runs to the top of the grid, keeps every free
+predictor at the most heavily penalized point available, and visits two
+supports across all 51 grid points. Reversing the order of the nine covariate
+names, which is not a modelling choice, moves the ATT from :math:`-2126` to
+:math:`-2229` — 4.9 percent — and takes the support from eight predictors to
+seven. What distinguishes the two panels is open; see
+`issue 608 <https://github.com/jgreathouse9/mlsynth/issues/608>`_.
+
+Two diagnostics report the condition on the result. Both stay silent on
+Proposition 99:
+
+``nothing_pruned``
+   Every predictor is in the support at the selected :math:`\lambda`. Alone
+   this is a reading and not a fault — at :math:`\widehat{\lambda} = 0`
+   there is no penalty, so keeping everything is correct. It warns when a
+   positive :math:`\lambda` was selected and removed nothing.
+
+``penalty_at_grid_edge``
+   :math:`\widehat{\lambda}` is the largest value the grid offered, so no
+   heavier penalty was tried and the selection is a boundary of the search,
+   not an interior optimum. Extend ``lambda_grid`` upward to see whether it
+   settles.
+
+Both are fields on ``method_details.parameters_used`` and both are issued as
+warnings. A fit that trips either is an unpenalized fit reported through a
+penalized interface: the predictor set it names is the list that was passed
+in, and the estimate can move when that list is reordered.
+
 ATT and Counterfactual
 ^^^^^^^^^^^^^^^^^^^^^^
 

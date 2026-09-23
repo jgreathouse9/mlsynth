@@ -27,7 +27,15 @@ simplex carrying ``|A|`` active donors, where it has ``|A| - 1`` degrees of
 freedom, so the envelope gradient carries no information about the donors that
 are out, and at ``|A| = 1`` it is identically zero.
 
-Two conditions warn rather than merely report, because a caller who does not
+A third reading is about the penalty and not the critical point. The inner
+problem is positive-scale-invariant in ``v`` -- ``w*(c v) = w*(v)`` for any
+``c > 0`` -- so ``lam ||v||_1`` can be lowered by shrinking ``v`` without
+moving a single donor weight, and the L1 term bites only through the anchor,
+whose weight is pinned at 1. When it does not bite, the sweep runs to the top
+of its grid and keeps every predictor, and the "selection" reported is the
+predictor list the caller passed in.
+
+Four conditions warn rather than merely report, because a caller who does not
 look will otherwise act on a number that does not mean what it appears to.
 """
 
@@ -84,6 +92,9 @@ def assess_degeneracy(
         n_anchor_only_grid=n_anchor_only,
         n_distinct_supports=int(np.unique(in_support, axis=0).shape[0]),
         n_grid=int(v_path.shape[0]),
+        lambda_selected=float(design.opt_lambda),
+        lambda_grid_max=float(np.max(np.asarray(design.lambda_grid, dtype=float)))
+        if np.size(design.lambda_grid) else 0.0,
         support_tol=float(support_tol),
         active_tol=float(active_tol),
     )
@@ -94,10 +105,12 @@ def warn_if_degenerate(
     predictor_names: Optional[Sequence[Any]] = None,
     stacklevel: int = 3,
 ) -> None:
-    """Warn on the two conditions a caller would otherwise act on unawares.
+    """Warn on the four conditions a caller would otherwise act on unawares.
 
-    Both are statements about what the returned fit *is*, not guesses about
-    whether it is good.
+    Each is a statement about what the returned fit *is*, not a guess about
+    whether it is good: the anchor-only corner, a penalty that pruned nothing,
+    a lambda chosen at the edge of its own grid, and a counterfactual resting
+    on one donor.
     """
     if degeneracy.anchor_only:
         who = ""
@@ -110,6 +123,28 @@ def warn_if_degenerate(
             f"predictor set is a consequence of which predictor is listed "
             f"first, not of the data. Reorder `covariates`, or lower the "
             f"lambda grid's upper end, to see whether the fit survives.",
+            UserWarning, stacklevel=stacklevel,
+        )
+    if degeneracy.nothing_pruned and degeneracy.lambda_selected > 0.0:
+        warnings.warn(
+            f"SparseSC: the selected penalty removed no predictor -- "
+            f"{degeneracy.dim_u} of {degeneracy.n_predictors} are in the "
+            f"support at lambda* = {degeneracy.lambda_selected:g}. The inner "
+            f"problem is positive-scale-invariant in v, so lambda * ||v||_1 "
+            f"can be lowered by shrinking v without moving any donor weight, "
+            f"and the penalty bites only through the anchor. When it does not "
+            f"bite, the predictor set reported is the one passed in. Treat "
+            f"this fit as unpenalised, and check whether reordering "
+            f"`covariates` moves the estimate.",
+            UserWarning, stacklevel=stacklevel,
+        )
+    if degeneracy.penalty_at_grid_edge:
+        warnings.warn(
+            f"SparseSC: the sweep selected the largest lambda on the grid "
+            f"({degeneracy.lambda_selected:g}), so a heavier penalty was "
+            f"never tried and the choice is a boundary of the search, not an "
+            f"interior optimum. Extend `lambda_grid` upward to find out "
+            f"whether the selection settles.",
             UserWarning, stacklevel=stacklevel,
         )
     if degeneracy.n_active_donors <= 1:
