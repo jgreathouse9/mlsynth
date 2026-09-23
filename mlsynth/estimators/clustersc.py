@@ -230,12 +230,22 @@ class CLUSTERSC:
         )
         method_name = (f"PCR-RSC ({self.estimator})" if selected == "pcr"
                        else f"RPCA-SC ({self.rpca_method})")
+        # Donor selection can cost the treated unit its convex reach without
+        # the fit showing it (see `clustersc_helpers.spannability`). The
+        # pipeline measures that; surface it so a caller can read the number
+        # and not only catch the warning.
+        params = {
+            "method": self.method, "clustering": self.clustering,
+            "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
+        }
+        if primary_fit is not None:
+            params.update({
+                k: v for k, v in (primary_fit.metadata or {}).items()
+                if k.startswith("spannability_")
+            })
         method_details = MethodDetailsResults(
             method_name=method_name,
-            parameters_used={
-                "method": self.method, "clustering": self.clustering,
-                "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
-            },
+            parameters_used=params,
         )
 
         return CLUSTERSCResults(

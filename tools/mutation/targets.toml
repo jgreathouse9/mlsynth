@@ -2258,3 +2258,33 @@ timeout = 300.0
   replace = """    ks = [int(k) for k in k_values]
     return ks[int(np.argmax(gap))]"""
   models = "discarding gap_se and reporting the argmax twice. The two readings disagree exactly where it matters: across 18 structureless panels the 1-SE rule answered k=1 on all 54 candidate curves while the argmax accepted a candidate on 4 of them, and on Basque the 1-SE rule answers 1 for every candidate against an argmax of 6. A selector whose conservative reading is a copy of its permissive one reports one instrument as two"
+
+[[target]]
+name = "cluster-spannability"
+module-path = "mlsynth/utils/clustersc_helpers/spannability.py"
+test-command = "python -m pytest mlsynth/tests/test_spannability.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "diagnostic-measures-the-cluster-against-itself"
+  find = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool[:, idx], target, scale)"
+  replace = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool, target, scale)"
+  models = "a diagnostic that compares the pool against the pool, so the ratio is 1.0 for every cluster and nothing is ever flagged. This is the state the library was in before this module: donor selection could drop the donors carrying 0.549 of West Germany's pool-optimal convex weight and no surface reported it. A check that cannot fail is the defect the ladder was written to catch"
+
+  [[target.mutant]]
+  id = "zero-detection-tighter-than-the-solver"
+  find = "    negligible = 1e-5 * scale"
+  replace = "    negligible = 1e-12"
+  models = "the first draft's cutoff, which was absolute and far below what CLARABEL delivers. On an exactly solvable panel the solver leaves ~1e-5 relative residual, so a treated unit sitting exactly on a donor reported pool_rmse 9.0e-05 against cluster_rmse 1.2e-04 and a ratio of 1.35 -- a spurious 35% penalty on a cluster that gives up nothing, and the near-zero branch never fired"
+
+  [[target.mutant]]
+  id = "solve-left-at-panel-scale"
+  find = "    donors_u = donors / scale"
+  replace = "    donors_u = donors"
+  models = "the un-normalised program. Outcome magnitudes span five orders across the reference panels (Basque GDP ~10, Prop 99 pack sales ~300, German GDP ~38000) and at the top of that range CLARABEL returns infeasible on a simplex, which is never empty. The diagnostic then raises on exactly the panel it exists to flag"
+
+  [[target.mutant]]
+  id = "excluded-mass-counts-the-donors-that-were-kept"
+  find = "    excluded_mass = float(np.clip(pool_weights[~kept], 0.0, None).sum())"
+  replace = "    excluded_mass = float(np.clip(pool_weights[kept], 0.0, None).sum())"
+  models = "an inverted mask, reporting the weight the cluster retained instead of the weight it threw away. The two agree only when the cluster is the whole pool, so the number would read 0.451 for West Germany where the answer is 0.549 and a reader would conclude the opposite about which donors mattered"

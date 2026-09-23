@@ -167,9 +167,10 @@ def warn_if_poorly_spanned(
         f"{report.ratio:.1f}x the value on the full donor pool "
         f"({report.cluster_rmse:.4g} vs {report.pool_rmse:.4g}), and donors "
         f"carrying {report.excluded_mass:.2f} of the pool-optimal weight were "
-        f"dropped. With weight_objective='simplex' this appears as a large "
-        f"pre-period error; with 'nnls' it is absorbed as extrapolation "
-        f"(sum(w) > 1). Widen the cluster or use the full donor pool.",
+        f"dropped. Under a convex weight objective this shows up as a large "
+        f"pre-period error; under an unconstrained one it is absorbed as "
+        f"extrapolation (sum(w) > 1) and the fit looks healthy. Widen the "
+        f"cluster or fit against the full donor pool.",
         UserWarning,
         stacklevel=3,
     )

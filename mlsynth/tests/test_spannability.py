@@ -20,7 +20,10 @@ level of the dependency chain.
 import warnings
 
 import numpy as np
+import pandas as pd
 import pytest
+
+from pathlib import Path
 
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.clustersc_helpers.spannability import (
@@ -229,3 +232,191 @@ def test_a_well_spanned_cluster_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         warn_if_poorly_spanned(rep)
+
+
+# ------------------------------------- the incident, on the panel it came from
+
+
+_BASEDATA = Path(__file__).resolve().parents[2] / "basedata"
+
+#: The 11 donors FPCA put in West Germany's cluster. The five it dropped --
+#: Greece, Portugal, Spain, Switzerland, USA -- carry 0.549 of the pool-optimal
+#: convex weight, the USA alone 0.343.
+_GERMANY_FPCA_CLUSTER = [
+    "Australia", "Austria", "Belgium", "Denmark", "France", "Italy", "Japan",
+    "Netherlands", "New Zealand", "Norway", "UK",
+]
+
+
+def _germany():
+    df = pd.read_csv(_BASEDATA / "german_reunification.csv")
+    wide = df.pivot(index="year", columns="country", values="gdp").dropna(axis=1)
+    pre = wide.loc[wide.index < 1990]
+    donors = [c for c in pre.columns if c != "West Germany"]
+    return pre[donors].values.astype(float), pre["West Germany"].values.astype(float), donors
+
+
+@pytest.mark.skipif(
+    not (_BASEDATA / "german_reunification.csv").exists(),
+    reason="german_reunification.csv not present",
+)
+def test_the_west_germany_cluster_is_flagged_as_unable_to_span():
+    """The incident: rmse_pre 510.4 under simplex, 78.2 under nnls.
+
+    The diagnostic has to separate this from a cluster that merely fits less
+    well, so both numbers are pinned: the ratio, and the optimal weight the
+    cluster threw away.
+    """
+    pool, treated, names = _germany()
+    idx = [names.index(n) for n in _GERMANY_FPCA_CLUSTER]
+    rep = assess_spannability(pool, treated, idx)
+    assert rep.n_cluster == 11
+    assert rep.ratio > 8.0
+    assert rep.excluded_mass > 0.5
+    assert rep.ratio > SPANNABILITY_WARN_RATIO
+    with pytest.warns(UserWarning, match="span"):
+        warn_if_poorly_spanned(rep)
+
+
+@pytest.mark.skipif(
+    not (_BASEDATA / "german_reunification.csv").exists(),
+    reason="german_reunification.csv not present",
+)
+def test_the_full_german_donor_pool_costs_nothing():
+    """The same panel with no selection scores 1.0, so the flag is the cluster."""
+    pool, treated, names = _germany()
+    rep = assess_spannability(pool, treated, list(range(len(names))))
+    assert rep.ratio == pytest.approx(1.0, abs=1e-6)
+    assert rep.excluded_mass == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.skipif(
+    not (_BASEDATA / "basque_data.csv").exists(),
+    reason="basque_data.csv not present",
+)
+def test_the_basque_cluster_is_not_flagged():
+    """Basque is the control: a three-donor cluster that gives up nothing.
+
+    Without it the Germany assertion has no power -- a diagnostic that fires
+    on every cluster would pass that test and be useless.
+    """
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    wide = df.pivot(index="year", columns="regionname", values="gdpcap").dropna(axis=1)
+    pre = wide.loc[wide.index < 1975]
+    treated_name = "Basque Country (Pais Vasco)"
+    names = [c for c in pre.columns if c != treated_name]
+    pool = pre[names].values.astype(float)
+    treated = pre[treated_name].values.astype(float)
+    idx = [names.index(n) for n in
+           ("Baleares (Islas)", "Cataluna", "Madrid (Comunidad De)")]
+    rep = assess_spannability(pool, treated, idx)
+    assert rep.ratio < SPANNABILITY_WARN_RATIO
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        warn_if_poorly_spanned(rep)
+
+
+# --------------------------------------- wired into the estimator, both families
+
+
+def _germany_long():
+    df = pd.read_csv(_BASEDATA / "german_reunification.csv")
+    s = df[["country", "year", "gdp"]].copy()
+    s["treat"] = ((s.country == "West Germany") & (s.year >= 1990)).astype(int)
+    return s
+
+
+def _basque_long():
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    t = "Basque Country (Pais Vasco)"
+    s = df[["regionname", "year", "gdpcap"]].copy()
+    s["treat"] = ((s.regionname == t) & (s.year >= 1975)).astype(int)
+    return s
+
+
+_NEEDS_GERMANY = pytest.mark.skipif(
+    not (_BASEDATA / "german_reunification.csv").exists(),
+    reason="german_reunification.csv not present",
+)
+
+
+@_NEEDS_GERMANY
+def test_clustersc_rpca_warns_on_the_west_germany_cluster():
+    from mlsynth import CLUSTERSC
+    cfg = dict(df=_germany_long(), outcome="gdp", treat="treat", unitid="country",
+               time="year", method="rpca", weight_objective="simplex",
+               display_graphs=False)
+    with pytest.warns(UserWarning, match="span"):
+        CLUSTERSC(cfg).fit()
+
+
+@_NEEDS_GERMANY
+def test_the_report_is_a_field_on_the_result_not_only_a_warning():
+    """A caller must be able to read the number, not only see it go by."""
+    from mlsynth import CLUSTERSC
+    cfg = dict(df=_germany_long(), outcome="gdp", treat="treat", unitid="country",
+               time="year", method="rpca", display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = CLUSTERSC(cfg).fit()
+    used = res.method_details.parameters_used or {}
+    assert "spannability_ratio" in used
+    assert used["spannability_ratio"] > 8.0
+    assert used["spannability_excluded_mass"] > 0.5
+
+
+@_NEEDS_GERMANY
+def test_the_unconstrained_default_reports_the_same_ratio():
+    """nnls hides the damage in the fit; the diagnostic still has to show it."""
+    from mlsynth import CLUSTERSC
+    base = dict(df=_germany_long(), outcome="gdp", treat="treat", unitid="country",
+                time="year", method="rpca", display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        a = CLUSTERSC({**base}).fit()
+        b = CLUSTERSC({**base, "weight_objective": "simplex"}).fit()
+    ra = (a.method_details.parameters_used or {})["spannability_ratio"]
+    rb = (b.method_details.parameters_used or {})["spannability_ratio"]
+    assert ra == pytest.approx(rb, rel=1e-6)
+
+
+@pytest.mark.skipif(
+    not (_BASEDATA / "basque_data.csv").exists(),
+    reason="basque_data.csv not present",
+)
+def test_clustersc_does_not_warn_on_basque():
+    from mlsynth import CLUSTERSC
+    cfg = dict(df=_basque_long(), outcome="gdpcap", treat="treat",
+               unitid="regionname", time="year", method="rpca",
+               weight_objective="simplex", display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = CLUSTERSC(cfg).fit()
+    used = res.method_details.parameters_used or {}
+    assert used["spannability_ratio"] < SPANNABILITY_WARN_RATIO
+
+
+@_NEEDS_GERMANY
+def test_the_pcr_family_reports_it_too():
+    """`cluster_donors` is shared, so the PCR path has the same exposure."""
+    from mlsynth import CLUSTERSC
+    cfg = dict(df=_germany_long(), outcome="gdp", treat="treat", unitid="country",
+               time="year", method="pcr", display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = CLUSTERSC(cfg).fit()
+    used = res.method_details.parameters_used or {}
+    assert "spannability_ratio" in used
+    assert np.isfinite(used["spannability_ratio"])
+
+
+@_NEEDS_GERMANY
+def test_turning_clustering_off_reports_no_restriction():
+    """With no selection there is nothing to give up, so no key and no warn."""
+    from mlsynth import CLUSTERSC
+    cfg = dict(df=_germany_long(), outcome="gdp", treat="treat", unitid="country",
+               time="year", method="pcr", clustering=False, display_graphs=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        res = CLUSTERSC(cfg).fit()
+    assert "spannability_ratio" not in (res.method_details.parameters_used or {})
