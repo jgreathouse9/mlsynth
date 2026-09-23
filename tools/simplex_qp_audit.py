@@ -38,6 +38,8 @@ class Site(NamedTuple):
     verdict: str          # "eligible" | "extra-constraints" | "no-nonnegativity"
     extras: Tuple[str, ...]
     constraints: str
+    objective: str        # source of the Minimize argument, name resolved
+    objective_kind: str   # "least-squares" | "gram" | "other"
 
 
 def _constraint_source(node: ast.AST, src: str, tree: ast.AST) -> str:
@@ -81,6 +83,22 @@ def _nonneg_variables(tree: ast.AST) -> Dict[str, bool]:
 # is still the probability simplex.
 _REDUNDANT = re.compile(r"^\s*[\w.]+\s*<=\s*1(\.0)?\s*$")
 
+# ``solve_simplex_qp`` minimises ``||A - Bw||^2`` and nothing else. A simplex
+# constraint set is only half of eligibility: a site minimising an infinity
+# norm, or a least-squares objective plus a ridge term, is a different program
+# and swapping the solver would change its answer.
+_LSQ = re.compile(r"^cp\.Minimize\(\s*cp\.sum_squares\([^()]*(?:\([^()]*\)[^()]*)*\)\s*\)$")
+_GRAM = re.compile(r"quad_form")
+
+
+def _classify_objective(text: str) -> str:
+    flat = re.sub(r"\s+", " ", text).strip()
+    if _LSQ.match(flat):
+        return "least-squares"
+    if _GRAM.search(flat):
+        return "gram"
+    return "other"
+
 
 def audit(root: pathlib.Path = ROOT) -> List[Site]:
     """Every cvxpy problem with a sum-to-one constraint, classified."""
@@ -111,6 +129,9 @@ def audit(root: pathlib.Path = ROOT) -> List[Site]:
             flat = re.sub(r"\s+", " ", _constraint_source(arg, src, tree))
             if "== 1" not in flat:
                 continue
+            obj_src = (_constraint_source(node.args[0], src, tree)
+                       if node.args else "")
+            obj_kind = _classify_objective(obj_src)
 
             m = re.search(r"sum\((?:cp\.multiply\()?([\w.\[\]]+)", flat)
             var = m.group(1) if m else "?"
@@ -126,26 +147,32 @@ def audit(root: pathlib.Path = ROOT) -> List[Site]:
                 and not re.fullmatch(rf"{re.escape(var)}\s*>=\s*0", c)
                 and not _REDUNDANT.match(c)
             )
-            verdict = ("eligible" if nonneg and not extras
+            verdict = ("eligible" if nonneg and not extras and
+                       obj_kind == "least-squares"
+                       else "wrong-objective" if nonneg and not extras
                        else "extra-constraints" if nonneg
                        else "no-nonnegativity")
             sites.append(Site(
                 str(path.relative_to(root.parent.parent)), node.lineno,
-                var, verdict, extras, flat[:120]))
+                var, verdict, extras, flat[:120],
+                re.sub(r"\s+", " ", obj_src)[:120], obj_kind))
     return sites
 
 
 def main() -> None:  # pragma: no cover - the entry point, exercised by hand
     sites = audit()
     for verdict, title in (
-        ("eligible", "exactly the probability simplex"),
+        ("eligible", "simplex constraints AND a plain least-squares objective"),
+        ("wrong-objective", "the probability simplex, but a different objective"),
         ("extra-constraints", "simplex plus a constraint solve_simplex_qp cannot carry"),
         ("no-nonnegativity", "weights may go negative -- a different feasible set"),
     ):
         rows = [s for s in sites if s.verdict == verdict]
         print(f"\n[{verdict}] {title}: {len(rows)}")
         for s in rows:
-            tail = f"   extra: {list(s.extras)}" if s.extras else ""
+            tail = (f"   extra: {list(s.extras)}" if s.extras
+                    else f"   obj: {s.objective[:62]}" if verdict == "wrong-objective"
+                    else "")
             print(f"    {s.path}:{s.lineno}  on {s.variable}{tail}")
     print(f"\n{len(sites)} cvxpy problems carry a sum-to-one constraint.")
 

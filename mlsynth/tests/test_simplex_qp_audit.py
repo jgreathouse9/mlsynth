@@ -21,34 +21,42 @@ import pytest
 
 from tools.simplex_qp_audit import audit
 
-# Sites whose feasible set is exactly the probability simplex.
+# Sites that are the probability simplex AND minimise ||A - Bw||^2, so
+# solve_simplex_qp solves the same program they do.
 ELIGIBLE = {
-    ("bilevel/penalized.py", "w"): 2,
     ("bilevel/ridge_augment.py", "w"): 1,
-    ("clustersc_helpers/pcr/convex.py", "w"): 1,
-    ("cscm_helpers/engine.py", "W"): 1,
     ("drosc_helpers/estimation.py", "w"): 1,
     ("dsc_helpers/weights.py", "w"): 2,
-    ("dscar_helpers/weights.py", "w"): 1,
     ("dtwsc_helpers/pipeline.py", "w"): 1,
-    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): 1,
-    ("fast_scm_helpers/fast_scm_control_helpers.py", "v_control"): 1,
-    ("hsc_helpers/formulation.py", "omega"): 1,
     ("inferutils.py", "w"): 1,
     ("iscm_helpers/weights.py", "w"): 1,
-    ("laxscm_helpers/crossval.py", "w"): 1,
     ("masc_helpers/estimation.py", "w"): 1,
-    ("mlsc_helpers/crossval.py", "w"): 1,
-    ("mlsc_helpers/crossval.py", "omega"): 1,
     ("mlsc_helpers/optimization.py", "w"): 1,
-    ("mlsc_helpers/optimization.py", "omega"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
     ("scmo_helpers/estimation.py", "lam"): 1,
     ("scmo_helpers/solvers.py", "w"): 1,
     ("spillsynth_helpers/cd/scm_core.py", "w"): 1,
     ("spotsynth_helpers/sc.py", "w"): 1,
-    ("spsydid_helpers/weights.py", "omega"): 2,
     ("ssc_helpers/weights.py", "b"): 1,
+}
+
+# The probability simplex, but minimising something else. Swapping the solver
+# here would drop the extra term, not speed it up. Three carry a Gram form
+# (``quad_form``) which may be the same program after substituting
+# ``Q = B'B``; that has to be checked per site, not assumed.
+WRONG_OBJECTIVE = {
+    ("bilevel/penalized.py", "w"): "a penalty term lam * (d2 @ w)",
+    ("clustersc_helpers/pcr/convex.py", "w"): "cp.norm(..., 2), not its square",
+    ("cscm_helpers/engine.py", "W"): "a V-weighted Gram form",
+    ("dscar_helpers/weights.py", "w"): "a composite loss built elsewhere",
+    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): "quad_form(w, Q)",
+    ("fast_scm_helpers/fast_scm_control_helpers.py", "v_control"): "built elsewhere",
+    ("hsc_helpers/formulation.py", "omega"): "Gram plus a linear term",
+    ("laxscm_helpers/crossval.py", "w"): "an infinity norm, which is the method",
+    ("mlsc_helpers/crossval.py", "w"): "least squares plus a ridge floor",
+    ("mlsc_helpers/crossval.py", "omega"): "least squares plus lambda",
+    ("mlsc_helpers/optimization.py", "omega"): "a sum of objective terms",
+    ("spsydid_helpers/weights.py", "omega"): "built elsewhere",
 }
 
 # Sites that carry a sum-to-one constraint and are NOT the probability simplex,
@@ -89,7 +97,7 @@ def _key(site):
 def test_every_site_gets_one_of_the_three_verdicts(sites):
     assert sites, "the audit found no cvxpy problems at all"
     assert {s.verdict for s in sites} <= {
-        "eligible", "extra-constraints", "no-nonnegativity"}
+        "eligible", "wrong-objective", "extra-constraints", "no-nonnegativity"}
 
 
 def test_the_eligible_set_is_the_one_that_was_classified(sites):
@@ -103,8 +111,24 @@ def test_the_eligible_set_is_the_one_that_was_classified(sites):
     )
 
 
+def test_a_simplex_site_with_another_objective_is_not_eligible(sites):
+    """Constraints are half of eligibility; the objective is the other half.
+
+    ``solve_simplex_qp`` minimises ``||A - Bw||^2``. LAXSCM minimises an
+    infinity norm, MLSC adds a ridge floor, BILEVEL's penalized path adds
+    ``lam * (d2 @ w)``. Reading only the constraint set counted 29 of these
+    as eligible; 14 of them are not.
+    """
+    found = {_key(s) for s in sites if s.verdict == "wrong-objective"}
+    assert found == set(WRONG_OBJECTIVE), (
+        "a simplex site's objective changed shape. solve_simplex_qp solves "
+        "||A - Bw||^2 and nothing else."
+    )
+
+
 def test_the_ineligible_sites_keep_their_reasons(sites):
-    found = {_key(s) for s in sites if s.verdict != "eligible"}
+    found = {_key(s) for s in sites
+             if s.verdict in ("extra-constraints", "no-nonnegativity")}
     assert found == set(INELIGIBLE), (
         "a site stopped being the probability simplex, or started being one. "
         "Either way the classification is a decision, not a count."
