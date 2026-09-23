@@ -110,7 +110,7 @@ def sweep_p_values(
         taus.append(tau)
         ps.append(normal_p_value(tau, sigma))
     up, down = placebo_detection_boundary(tau0, baseline, sigma, alpha)
-    return {"tau": taus, "p_value": ps, "sigma": sigma,
+    return {"tau": taus, "p_value": ps, "sigma": sigma, "tau0": tau0,
             "boundary_up": up, "boundary_down": down}
 
 

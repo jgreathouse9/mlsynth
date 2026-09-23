@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import chi2, norm, t as t_dist
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +109,14 @@ class MDEPoint:
     mde_pct: float                          # MDE as % of baseline
     se: float                               # implied standard error of mean(post gap)
     power_at_observed: Optional[float] = None  # power to detect the design's observed ATT
+    # Critical value the MDE and any power figure are computed at. Student-t on
+    # the placebo window's degrees of freedom, because ``sigma`` is estimated
+    # from that window, not known. Callers testing an observed effect
+    # must use this, not ``1.96``.
+    critical_value: float = float("nan")
+    # MDE recomputed at the ends of ``PowerAnalysis.sigma_ci`` -- how much the
+    # headline moves on the scale's own sampling uncertainty.
+    mde_ci: Tuple[float, float] = (float("nan"), float("nan"))
 
 
 @dataclass(frozen=True)
@@ -134,16 +142,34 @@ class PowerAnalysis:
     power_target : float
         Target power the MDEs are computed at (default 0.80).
     sigma_placebo : float
-        Standard deviation of the placebo gap series used as the noise scale.
+        Standard deviation of the placebo gap series, about that window's own
+        mean, used as the noise scale. The offset itself is reported separately
+        as ``placebo_bias`` and enters the standard error there.
     serial_correlation : float
-        Lag-1 (AR(1)) autocorrelation of the placebo gap residuals used to
-        inflate the variance for serial dependence.
+        Lag-1 (AR(1)) autocorrelation of the placebo gap residuals, estimated on
+        the demeaned series and small-sample corrected, used to inflate the
+        variance for serial dependence.
+    placebo_bias : float
+        Mean of the placebo gap. Zero for a design that is unbiased on the
+        window it was not fitted to; otherwise the offset the MDE must clear
+        alongside the noise.
+    placebo_bias_pvalue : float
+        Two-sided p-value for ``placebo_bias == 0``.
+    n_placebo : int
+        Periods ``sigma_placebo`` is estimated from.
+    sigma_ci : tuple of float
+        Chi-square confidence interval for ``sigma_placebo`` at ``alpha``, on
+        the placebo window's effective degrees of freedom.
     baseline : float
         Mean of the control trajectory on the post window (denominator for
         ``mde_pct``). NaN when no post window exists.
     method : str
-        ``"analytical_ar1"`` for the closed-form Gaussian + AR(1) MDE used
-        here. Reserved for future ``"monte_carlo"`` extensions.
+        ``"analytical_ar1_mean_gap"``: the closed-form MDE for a two-sided
+        test on the *mean* post-period gap, with AR(1) variance inflation and a
+        Student-t critical value. This is a different test from the moving-block
+        permutation on ``mean|e|`` that LEXSCM's design search ranks candidates
+        by (Vives-i-Bastida 2022, Section 2), so the two MDEs need not agree.
+        Reserved for future ``"monte_carlo"`` extensions.
     """
 
     headline: MDEPoint
@@ -153,7 +179,18 @@ class PowerAnalysis:
     sigma_placebo: float
     serial_correlation: float
     baseline: float
-    method: str = "analytical_ar1"
+    method: str = "analytical_ar1_mean_gap"
+    # Mean of the placebo gap. Zero for an unbiased design; when it is not, the
+    # offset carries into the post window and is part of the error the MDE has
+    # to clear.
+    placebo_bias: float = 0.0
+    # Two-sided p-value for ``placebo_bias == 0``, so a biased design is visible
+    # on the result object instead of being averaged away.
+    placebo_bias_pvalue: float = float("nan")
+    # Number of placebo periods ``sigma_placebo`` rests on, and its chi-square
+    # confidence interval at ``alpha``.
+    n_placebo: int = 0
+    sigma_ci: Tuple[float, float] = (float("nan"), float("nan"))
 
     def mde_by_horizon(self) -> Dict[int, float]:
         """``{post_periods: mde_pct}`` for quick lookup."""
@@ -501,15 +538,52 @@ def _safe_float(x) -> Optional[float]:
 # ---------------------------------------------------------------------------
 
 def _ar1_rho(residuals: np.ndarray) -> float:
-    """Lag-1 autocorrelation of a residual series, clipped to ``(-0.99, 0.99)``."""
+    """Lag-1 autocorrelation of a residual series, clipped to ``(-0.99, 0.99)``.
+
+    Estimated on the demeaned series. An uncentred estimator applied to a series
+    with mean ``b`` and noise ``sigma`` tends to ``b**2 / (b**2 + sigma**2)``,
+    so a design biased on its placebo window would report strong persistence it
+    does not have, and the AR(1) variance inflation built on it would be wrong.
+    The offset is handled separately, as a bias term in the error scale.
+    """
     r = np.asarray(residuals, dtype=float).flatten()
     if r.size < 2:
         return 0.0
+    r = r - r.mean()
     num = float(r[:-1] @ r[1:])
     den = float(r @ r)
     if den <= 1e-12:
         return 0.0
-    return float(np.clip(num / den, -0.99, 0.99))
+    rho = num / den
+    # Marriott-Pope / Kendall small-sample correction. The sample lag-1
+    # autocorrelation of a demeaned series is biased toward zero by about
+    # ``(1 + 3 rho) / n``, which on a 20-40 period placebo window is a large
+    # share of rho itself. Left uncorrected it understates the AR(1) variance
+    # inflation, and the standard error built on it comes out too small.
+    n = r.size
+    if n > 4:
+        rho = rho + (1.0 + 3.0 * rho) / n
+    return float(np.clip(rho, -0.99, 0.99))
+
+
+def _effective_n(n: int, rho: float) -> float:
+    """Bartlett effective sample size ``n (1 - rho) / (1 + rho)``, floored at 2.
+
+    The number of independent observations a serially correlated window is worth.
+    Used for the degrees of freedom of the t quantile and of ``sigma``'s
+    chi-square interval: a 24-period window at ``rho = 0.4`` carries about the
+    information of 10 independent ones, and a critical value that ignores that
+    is too small.
+    """
+    if n <= 1:
+        return float(max(n, 1))
+    r = float(np.clip(rho, -0.99, 0.99))
+    # Capped at ``n``: negative serial correlation genuinely lowers the variance
+    # of a mean, and ``_variance_inflation`` prices that, but it cannot make a
+    # window carry more independent observations than it has periods. Without
+    # the cap a draw whose sample autocorrelation lands at -0.42 on 20 periods
+    # is treated as 48 degrees of freedom.
+    return float(min(float(n), max(2.0, n * (1.0 - r) / (1.0 + r))))
 
 
 def _variance_inflation(n: int, rho: float) -> float:
@@ -566,9 +640,7 @@ def compute_power_analysis(
     PowerAnalysis
         Headline MDE + a curve over the requested horizons.
     """
-    z_a = float(norm.ppf(1.0 - alpha / 2.0))
     z_p = float(norm.ppf(power_target))
-    factor = z_a + z_p
 
     # Power analysis is a DESIGN quantity and must never depend on post-period
     # data being present. The "placebo" window -- periods on which the weights
@@ -576,8 +648,11 @@ def compute_power_analysis(
     # fit/pre window. BOTH the noise scale and the percentage baseline are taken
     # from this same placebo window, so the MDE is well-defined and identical
     # whether or not a post period exists (in design-only mode the blank periods
-    # play the role of the post period). Both windows are zero-mean under H0 so
-    # std() is the right noise estimator.
+    # play the role of the post period). The window is mean-zero under H0, but
+    # only when the design actually is unbiased on it, which is a property to
+    # measure and report (``placebo_bias``) instead of assuming: a synthetic
+    # control that misses on periods it was not fitted to carries that offset
+    # into the post window, where it adds to the effect being measured.
     if post_fit.n_blank > 0:
         placebo_slice = slice(post_fit.n_fit, post_fit.n_fit + post_fit.n_blank)
     else:
@@ -586,9 +661,34 @@ def compute_power_analysis(
     if placebo.size < 2 or not np.isfinite(placebo).all():
         sigma_placebo = float("nan")
         rho = 0.0
+        bias = 0.0
+        bias_p = float("nan")
+        n_placebo = int(placebo.size)
+        sigma_ci = (float("nan"), float("nan"))
     else:
+        n_placebo = int(placebo.size)
+        # Noise scale and persistence, both about the placebo window's own mean.
         sigma_placebo = float(placebo.std(ddof=1))
         rho = _ar1_rho(placebo)
+        # The offset itself. Under the design's null the placebo gap is
+        # mean-zero (Vives-i-Bastida 2022, Section 2: the blank-period residuals
+        # are what the permutation null is built from), so a non-zero mean says
+        # the synthetic control misses on periods it was not fitted to. That
+        # miss carries into the post window, where it adds to whatever effect is
+        # being measured, so it belongs in the scale the MDE has to clear.
+        bias = float(placebo.mean())
+        se_bias = sigma_placebo * float(np.sqrt(_variance_inflation(n_placebo, rho)))
+        bias_p = (float(2.0 * (1.0 - t_dist.cdf(
+                      abs(bias) / se_bias, max(_effective_n(n_placebo, rho) - 1.0, 1.0))))
+                  if se_bias > 0 else float("nan"))
+        # Chi-square interval for sigma on the placebo window's degrees of
+        # freedom, so a scale resting on 20 periods is not presented like one
+        # resting on 200.
+        df_sigma = max(_effective_n(n_placebo, rho) - 1.0, 1.0)
+        sigma_ci = (
+            sigma_placebo * float(np.sqrt(df_sigma / chi2.ppf(1.0 - alpha / 2.0, df_sigma))),
+            sigma_placebo * float(np.sqrt(df_sigma / chi2.ppf(alpha / 2.0, df_sigma))),
+        )
 
     # Baseline for percentage scaling: mean of the synthetic control over the
     # SAME placebo window (an untreated outcome level, computed without any
@@ -606,20 +706,45 @@ def compute_power_analysis(
     else:
         grid = sorted({int(h) for h in post_grid if int(h) >= 1})
 
+    # ``sigma`` is estimated from the placebo window, not known, so the pivot
+    # (mean post gap) / se follows a t distribution on that window's degrees of
+    # freedom. Using the Gaussian quantile here is the textbook reason a nominal
+    # 5% test is not one, and it bites hardest on the short blank windows these
+    # designs have.
+    # Serially correlated periods carry less information than independent ones,
+    # so the degrees of freedom are the effective sample size (Bartlett),
+    # ``n (1 - rho) / (1 + rho)``, not the raw period count.
+    df = max(_effective_n(n_placebo, rho) - 1.0, 1.0)
+    t_a = float(t_dist.ppf(1.0 - alpha / 2.0, df))
+    factor = t_a + z_p
+
+    # The design's squared bias, with the sampling noise in its own estimate
+    # removed: E[b_hat**2] = beta**2 + Var(b_hat), so the plug-in b_hat**2 would
+    # charge an unbiased design for the noise in measuring its own bias.
+    var_bias = (sigma_placebo ** 2 * _variance_inflation(n_placebo, rho)
+                if np.isfinite(sigma_placebo) else 0.0)
+    bias_sq = max(0.0, bias ** 2 - var_bias)
+
+    def _se_at(T: int, sigma: float) -> float:
+        return float(np.sqrt(bias_sq + sigma ** 2 * _variance_inflation(T, rho)))
+
     def _point(T: int) -> MDEPoint:
         if not np.isfinite(sigma_placebo) or sigma_placebo <= 0:
             return MDEPoint(T, float("nan"), float("nan"), float("nan"))
-        se = sigma_placebo * float(np.sqrt(_variance_inflation(T, rho)))
+        se = _se_at(T, sigma_placebo)
         mde_abs = factor * se
         mde_pct = (mde_abs / baseline * 100.0
                    if np.isfinite(baseline) and abs(baseline) > 1e-12
                    else float("nan"))
+        mde_ci = (factor * _se_at(T, sigma_ci[0]), factor * _se_at(T, sigma_ci[1])) \
+            if np.isfinite(sigma_ci[0]) else (float("nan"), float("nan"))
         # Power to detect the observed ATT, if there is one.
         power_at = None
         if post_fit.ate is not None and se > 0:
             z = abs(post_fit.ate) / se
-            power_at = float(norm.cdf(z - z_a) + norm.cdf(-z - z_a))
-        return MDEPoint(T, mde_abs, mde_pct, se, power_at_observed=power_at)
+            power_at = float(norm.cdf(z - t_a) + norm.cdf(-z - t_a))
+        return MDEPoint(T, mde_abs, mde_pct, se, power_at_observed=power_at,
+                        critical_value=t_a, mde_ci=mde_ci)
 
     headline_T = max(post_fit.n_post, 1)
     headline = _point(headline_T)
@@ -629,7 +754,9 @@ def compute_power_analysis(
         headline=headline, curve=curve,
         alpha=float(alpha), power_target=float(power_target),
         sigma_placebo=sigma_placebo, serial_correlation=rho,
-        baseline=baseline, method="analytical_ar1",
+        baseline=baseline, method="analytical_ar1_mean_gap",
+        placebo_bias=bias, placebo_bias_pvalue=bias_p,
+        n_placebo=n_placebo, sigma_ci=sigma_ci,
     )
 
 

@@ -279,6 +279,7 @@ measures that claim directly, which a reproduced number cannot.
    :caption: Observational: No Donors
 
    shc
+   gpits
 
 .. toctree::
    :hidden:

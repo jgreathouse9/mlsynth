@@ -11,10 +11,10 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-seven of the
-thirty-eight estimators are currently fully verified; ISCM carries a
-one-draw illustration only (its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce).
+This page catalogues those replications. Every estimator is verified
+along one of these paths except ISCM, which carries a one-draw
+illustration only (its paper relies on a non-public panel and provides
+no Monte Carlo to reproduce).
 
 The runnable cases that pin these numbers -- and guard against
 regressions -- live in the durable benchmark suite; see
@@ -51,6 +51,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    :caption: Dedicated replication pages
 
    replications/geox
+   replications/gpits
    replications/geox_sdid_equivalence
    replications/geox_augsynth_recast
    replications/drsc
@@ -83,6 +84,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ascm_kansas
    replications/ascm_jackknife_plus
    replications/ascm_ridge_cv
+   replications/ascm_mixtape
    replications/song_ml_ascm
    replications/bilgel_turkey_lockdown
    replications/pensynth
@@ -186,7 +188,7 @@ Canonical workhorses
   ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
   ``scpi_staggered_pi``).
   → dedicated page: :doc:`replications/vanillasc_staggered`.
-* :doc:`ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
+* :doc:`replications/ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
   (the ridge-augmentation layer on VanillaSC). Cross-validation vs
   ``augsynth``\ : the canonical Kansas tax-cut ladder reproduced
   value-for-value -- classic SCM (ATT :math:`-0.029`), ridge ASCM
@@ -197,16 +199,27 @@ Canonical workhorses
   and bias reduction across four Kansas-calibrated DGPs. Status: done.
   → dedicated page: :doc:`replications/ascm_kansas`; durable cases
   ``ascm_kansas`` and ``augsynth_calibrated``.
-* :doc:`ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
+* :doc:`replications/ascm_mixtape` -- ridge ASCM on the two Mixtape applications
+  (Cunningham): Proposition 99 and Texas prisons. Cross-validation vs a live
+  ``augsynth`` run through the public estimator -- ATT, pre-fit :math:`L_2` and
+  scaled imbalance, the jackknife+ interval and all 88 donor weights, worst
+  relative gap :math:`6.3\times 10^{-7}` on the ATT. The pair is chosen for
+  contrast: the augmentation halves the pre-fit error on Proposition 99
+  (:math:`\lambda = 430`) and switches itself off on Texas
+  (:math:`\lambda = 1.7\times 10^{10}`, pre-fit moved 0.2%), where only 8
+  pre-periods leave the cross-validation unable to justify it. Status: done.
+  → dedicated page: :doc:`replications/ascm_mixtape`; durable case
+  ``ascm_mixtape``.
+* :doc:`replications/ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
   ASCM, the leave-one-pre-period-out interval, cross-validated against a live
   augsynth run on the Kansas panel at the per-drop seam as well as end to end
   → dedicated page: :doc:`replications/ascm_jackknife_plus`; durable case
   ``ascm_jackknife_plus``.
-* :doc:`ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
+* :doc:`replications/ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
   cross-validation and 1-SE rule, cross-validated against augsynth on two panels
   chosen so that one of them cannot detect the defects the other does
   → dedicated page: :doc:`replications/ascm_ridge_cv`.
-* :doc:`song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
+* :doc:`replications/song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
   ridge-ASCM half of their two-stage ML-ASCM. Path A against the authors'
   published ``main_result.csv`` *and* cross-validation against a live augsynth
   0.2.0 run on the same cells, carried separately because they answer different
@@ -275,13 +288,29 @@ Generalising the estimand, treatment, or unit
 
 * :doc:`scmo` -- multi-outcome SC, both variants.
   Path A: Tian-Lee-Panchenko (2026) German reunification (nine
-  pre-1989 indicators) -- the concatenated synthetic reproduces their
-  Table 2 balance cell by cell (synthetic 1989 GDP per capita
-  :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
+  pre-1989 indicators) -- all 36 cells of their Table 2 balance, the two
+  synthetic controls and the two data columns (synthetic 1989 GDP per
+  capita :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
   :math:`34.1`), pre-RMSE :math:`= 110` (durable: ``scmo_germany``).
   Path B (concatenated): TLP Table 1 == Sun et al. ``Simulation1.R``
-  -- bias falls and pre-fit rises with the outcome count :math:`K` across
-  :math:`T_0 \in \{1, 5, 10\}` (durable: ``scmo_concatenated_mc``).
+  -- all 36 cells (fit, bias, SD for four estimators), bias falling and
+  pre-fit rising with the outcome count :math:`K` across
+  :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
+  ten-outcome bias further (durable: ``scmo_concatenated_mc``).
+  Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
+  light-touch NPIs, cross-validated against a captured run of their own
+  ``COVID_analysis.R`` -- all 76 cells of their Table B.3 donor weights, the
+  446 per-period permutation p-values across twelve outcomes, the aggregate
+  index and its p-values (Figures B.5 and B.7, which the paper prints only
+  inside the plots), and four robustness variants, together with the effect
+  magnitudes the text reports (COVID-19 cases :math:`-70\%`, deaths
+  :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,
+  retail :math:`-5` to :math:`-13\%`) (durable: ``scmo_covid_sweden``).
+  Path B (demeaned): TLP Online Appendix Table B.1 -- all 144 cells over
+  :math:`d \in \{1, 0.5, 0\}` and :math:`T_0 \in \{5, 10, 20\}`, with
+  demeaning improving the fit, the permutation test's size distorting as the
+  treated unit moves inside the donors' hull, and demeaning and more
+  outcomes pulling it back (durable: ``scmo_demeaned_mc``).
   Path B (averaged): Sun-Ben-Michael-Feller (2025) Appendix-D regime
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
@@ -345,6 +374,13 @@ Generalising the estimand, treatment, or unit
   post (``MSE_pre`` / ``MSE_post`` near zero, rising only mildly with
   the horizon, as the bias bound predicts; durable:
   ``shc_recovery_mc``).
+* :doc:`gpits` -- Cho (2026) Gaussian-process interrupted time series.
+  Path A: the *Heller* decision on D.C. handgun background checks --
+  cumulative four-month effect 15.1323 per 100k with a 95 percent
+  interval of [12.9687, 17.2960], against the paper's 15.1 [13.0, 17.3],
+  exact at the reported precision. Cross-validated cell-for-cell against
+  the author's R package ``gpss`` to :math:`\approx 10^{-11}` relative on
+  every quantity (durable: ``gpits``).
 * :doc:`dtwsc` -- Dynamic SC (speed warping). Cross-validation:
   Cao & Chadefaux's R package ``conflictlab/dsc`` on the Basque panel --
   pre-RMSE 0.0705 exact, ATT within 0.23 percent
@@ -865,66 +901,105 @@ Experimental design
 Coverage summary
 ----------------
 
+.. coverage-table-start
+
 .. list-table:: Verification coverage by family
    :header-rows: 1
-   :widths: 32 14 14 40
+   :widths: 26 10 10 54
 
    * - Family
      - Verified
      - In family
      - Status
    * - Canonical workhorses
-     - 2
-     - 2
-     - Complete (TSSC, FDID)
+     - 4
+     - 4
+     - Complete (FDID, MASC, TSSC, VanillaSC)
    * - Decomposition-first
      - 2
      - 2
      - Complete (HSC, SBC)
    * - Generalised estimand / treatment / unit
-     - 5
-     - 5
-     - Complete (SCMO, CTSC, DSC, SI, MicroSynth)
+     - 12
+     - 12
+     - Complete (CSCM, CTSC, DRSC, DSC, DTWSC, FSC, MEDSC, MOSC,
+       MicroSynth, SCMO, SCTA, SI)
    * - Convex-hull relaxation
-     - 1
      - 2
-     - NSC ✓ (cross-validated vs author's R + Path-B MC);
-       ISCM one-draw only (non-public panel, no MC)
+     - 3
+     - NSC, SRC verified;
+       ISCM -- one-draw illustration only: the paper relies on a
+       non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
-     - 7
-     - 7
-     - Complete (BVSS, CLUSTERSC, MLSC, PDA, RESCM, FSCM,
-       SPARSE_SC)
+     - 12
+     - 12
+     - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
+       PDA, RESCM, SCD, SCUL, SparseSC)
    * - Time-aware / factor models
-     - 2
-     - 2
-     - Complete (FMA, TASC)
+     - 5
+     - 5
+     - Complete (CFM, CSCIPCA, FMA, LPCA, TASC)
+   * - Bayesian
+     - 7
+     - 7
+     - Complete (BFSC, BPSCS, BSCM, CMBSTS, DMLFM, MTGP, MVBBSC)
    * - Staggered adoption
-     - 5
-     - 5
-     - Complete (SDID, SpSyDiD, PPSCM, SSC, SEQ_SDID)
+     - 10
+     - 10
+     - Complete (CAST, GSYNTH, PPSCM, ROLLDID, SDID, SPILLSYNTH, SSC,
+       STACKEDSC, SequentialSDID, SpSyDiD)
    * - Spillover-aware (donor screening)
-     - 1
-     - 1
-     - Complete (SPOTSYNTH; SpSyDiD counted under staggered)
+     - 2
+     - 2
+     - Complete (RRSC, SPOTSYNTH)
    * - Missing data
      - 3
      - 3
-     - Complete (MCNNM, SNN, RMSI)
+     - Complete (MCNNM, RMSI, SNN)
    * - Identification under endogeneity
+     - 3
+     - 3
+     - Complete (DSCAR, PROXIMAL, SIV)
+   * - Compositional outcomes
      - 2
      - 2
-     - Complete (SIV, PROXIMAL)
+     - Complete (COMPSC, PROPSC)
+   * - No control units
+     - 2
+     - 2
+     - Complete (GPITS, SHC)
+   * - Honest inference on the ATT
+     - 2
+     - 2
+     - Complete (ESC, ORTHSC)
+   * - Randomized assignment
+     - 1
+     - 1
+     - Complete (MUSC)
+   * - Prospective forecasting
+     - 1
+     - 1
+     - Complete (TWSF)
+   * - Privacy-constrained release
+     - 1
+     - 1
+     - Complete (DPSC)
    * - Experimental design
-     - 5
-     - 5
-     - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
+     - 6
+     - 6
+     - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
+   * - Total
+     - 77
+     - 78
+     - 77 of 78 estimators carry a replication.
 
-Of mlsynth's 36 estimators, 35 (97%) carry a strong or solid
-replication against their source paper or against an
-authoritative reference implementation. Only ISCM remains a
-one-draw illustration -- its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce.
+.. coverage-table-end
+
+Every estimator but ISCM carries a strong or solid replication
+against its source paper or against an authoritative reference
+implementation. ISCM remains a one-draw illustration -- its paper
+relies on a non-public panel and provides no Monte Carlo to
+reproduce.
 
 Contributing a replication
 --------------------------

@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **85 cross-validation checks** against original
-implementations across **44 estimators** -- 32 reproduce the reference to display precision, 29 to
+Coverage: **88 cross-validation checks** against original
+implementations across **45 estimators** -- 35 reproduce the reference to display precision, 29 to
 within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -77,6 +77,10 @@ Summary
      - 1
      - 1 close
      - 0.71
+   * - :ref:`GEOX engine <val-geox-engine>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -154,8 +158,8 @@ Summary
      - 1 exact
      - 0
    * - :ref:`SCMO <val-scmo>`
-     - 1
-     - 1 tight
+     - 2
+     - 1 exact · 1 tight
      - 0.011
    * - :ref:`SCUL <val-scul>`
      - 1
@@ -198,8 +202,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 19
-     - 5 exact · 7 tight · 6 close · 1 documented
+     - 20
+     - 6 exact · 7 tight · 6 close · 1 documented
      - 4.1
    * - :ref:`mlsynth.utils.inferutils.rae <val-mlsynth-utils-inferutils-rae>`
      - 1
@@ -505,6 +509,28 @@ GEOX
      - 0.71
      - close
      - `geox_sdid_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`__
+
+.. _val-geox-engine:
+
+GEOX engine
+-----------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - mlsynth.utils.mvbbsc_helpers.model.run_mvbbsc (the estimator the engine wraps)
+     - —
+     - 4
+     - 0
+     - exact — matches to display precision
+     - `geox_mvbbsc_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_mvbbsc_equivalence.py>`__
 
 .. _val-linf:
 
@@ -1015,6 +1041,12 @@ SCMO
      - max \|Δ\|
      - Verdict
      - Case
+   * - Tian-Lee-Panchenko COVID_analysis.R (fn_W solve.QP, live run, captured)
+     - ``covid_panel.csv`` (505cae38fc0c…)
+     - 18
+     - 0
+     - exact — matches to display precision
+     - `scmo_covid_sweden <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scmo_covid_sweden.py>`__
    * - Tian-Lee-Panchenko Germany.R (fn_W solve.QP, live run, captured)
      - ``repgermany.csv`` (61a624e307e6…)
      - 6
@@ -1295,6 +1327,12 @@ VanillaSC
      - 0.0091
      - tight
      - `ascm_kansas <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_kansas.py>`__
+   * - augsynth 0.2.0 (R, commit 7a90ea48)
+     - ``smoking_data.csv`` (a13dd4d5d6e4…)
+     - 10
+     - 0.0085
+     - exact — matches to display precision
+     - `ascm_mixtape <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ascm_mixtape.py>`__
    * - R package scinference (conformal, live run, captured), cross-checked against the JASA supplement's own functions
      - ``logfemrate.txt`` (fcdf30c41522…)
      - 17

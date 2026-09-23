@@ -1,4 +1,9 @@
 {
+ "arco_resampling_mc": [],
+ "arco_retail": [
+  "basedata/masini_retail_sales.parquet",
+  "mlsynth/utils/datautils.py"
+ ],
  "ascm_jackknife_plus": [
   "basedata/kansas_ascm.csv",
   "mlsynth/utils/bilevel/active_set.py",
@@ -9,6 +14,25 @@
   "basedata/kansas_ascm.csv",
   "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/bilevel/ridge_augment.py"
+ ],
+ "ascm_mixtape": [
+  "basedata/smoking_data.csv",
+  "basedata/texas_bmprison.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/vanillasc.py",
+  "mlsynth/utils/bilevel/accelerate.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/engine.py",
+  "mlsynth/utils/bilevel/jackknife_plus.py",
+  "mlsynth/utils/bilevel/minnorm.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/vanillasc_helpers/config.py",
+  "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
  "augsynth_calibrated": [
   "basedata/kansas_ascm.csv",
@@ -407,6 +431,13 @@
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
  "cwz_conformal_mc": [
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/bilevel/ridge_inference.py",
+  "mlsynth/utils/conformal/refit.py"
+ ],
+ "cwz_conformal_nonstationary": [
+  "mlsynth/utils/bilevel/accelerate.py",
   "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/bilevel/ridge_augment.py",
   "mlsynth/utils/bilevel/ridge_inference.py",
@@ -886,6 +917,13 @@
   "mlsynth/utils/geox_helpers/windows.py",
   "mlsynth/utils/sdid_helpers/weights.py"
  ],
+ "geox_mvbbsc_equivalence": [
+  "basedata/german_reunification.csv",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/geox_helpers/engines/__init__.py",
+  "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py",
+  "mlsynth/utils/mvbbsc_helpers/model.py"
+ ],
  "geox_sdid_equivalence": [
   "basedata/smoking_data.csv",
   "mlsynth/config_models.py",
@@ -930,6 +968,18 @@
   "mlsynth/utils/orthsc_helpers/gmm_sce/pipeline.py",
   "mlsynth/utils/orthsc_helpers/gmm_sce/solver.py",
   "mlsynth/utils/results_helpers.py"
+ ],
+ "gpits": [
+  "basedata/dc_handgun_heller.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/gpits.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/gpits_helpers/config.py",
+  "mlsynth/utils/gpits_helpers/kernels.py",
+  "mlsynth/utils/gpits_helpers/pipeline.py",
+  "mlsynth/utils/gpits_helpers/setup.py",
+  "mlsynth/utils/gpits_helpers/structures.py",
+  "mlsynth/utils/helperutils.py"
  ],
  "gsynth_av_laws": [
   "basedata/lang_av_laws.parquet",
@@ -1916,6 +1966,42 @@
  "scmo_concatenated_mc": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/scmo.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/scmo_helpers/config.py",
+  "mlsynth/utils/scmo_helpers/estimation.py",
+  "mlsynth/utils/scmo_helpers/inference.py",
+  "mlsynth/utils/scmo_helpers/matrix_builder.py",
+  "mlsynth/utils/scmo_helpers/orchestration.py",
+  "mlsynth/utils/scmo_helpers/results_assembly.py",
+  "mlsynth/utils/scmo_helpers/setup.py",
+  "mlsynth/utils/scmo_helpers/simulation.py",
+  "mlsynth/utils/scmo_helpers/solvers.py",
+  "mlsynth/utils/scmo_helpers/structures.py"
+ ],
+ "scmo_covid_sweden": [
+  "basedata/tlp_covid_sweden.parquet",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scmo.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/scmo_helpers/aggregate.py",
+  "mlsynth/utils/scmo_helpers/config.py",
+  "mlsynth/utils/scmo_helpers/estimation.py",
+  "mlsynth/utils/scmo_helpers/inference.py",
+  "mlsynth/utils/scmo_helpers/matrix_builder.py",
+  "mlsynth/utils/scmo_helpers/orchestration.py",
+  "mlsynth/utils/scmo_helpers/pcr_cv.py",
+  "mlsynth/utils/scmo_helpers/results_assembly.py",
+  "mlsynth/utils/scmo_helpers/setup.py",
+  "mlsynth/utils/scmo_helpers/solvers.py",
+  "mlsynth/utils/scmo_helpers/structures.py"
+ ],
+ "scmo_demeaned_mc": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scmo.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/scmo_helpers/config.py",
@@ -2583,6 +2669,31 @@
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/vanillasc_helpers/config.py",
+  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+ ],
+ "wan_pda_vs_scm": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/pda.py",
+  "mlsynth/estimators/vanillasc.py",
+  "mlsynth/utils/bilevel/active_set.py",
+  "mlsynth/utils/bilevel/engine.py",
+  "mlsynth/utils/bilevel/minnorm.py",
+  "mlsynth/utils/bilevel/ridge_augment.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/pda_helpers/config.py",
+  "mlsynth/utils/pda_helpers/hcw/estimation.py",
+  "mlsynth/utils/pda_helpers/hcw/inference.py",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/orchestration.py",
+  "mlsynth/utils/pda_helpers/results_assembly.py",
+  "mlsynth/utils/pda_helpers/setup.py",
+  "mlsynth/utils/pda_helpers/structures.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"

@@ -147,9 +147,20 @@ Q0.2 · Is assignment randomized (or as-good-as-random)?
 
 Q0.3 · Do control units exist at all?
 
-* No -- every unit is treated (a nationwide policy, a global shock like
-  COVID-19), so there is no donor pool -- :doc:`shc` rebuilds the comparison
-  from overlapping historical blocks of the treated unit's own series.
+* No -- every unit is treated (a nationwide policy, a court ruling, a global
+  shock like COVID-19), so there is no donor pool and the comparison has to
+  come from the treated unit's own past. Two estimators do this, and they
+  divide on whether you can name the cycle in the series. :doc:`shc` rebuilds
+  the comparison from overlapping historical blocks of the same series, so it
+  needs recurring local structure but not strict periodicity, and it infers by
+  conformal permutation. :doc:`gpits` puts a Gaussian-process prior on the
+  trend with a kernel you specify -- a seasonal component at a period you give
+  it, plus a linear trend -- and its interval widens with the forecast horizon
+  instead of staying flat. Reach for :doc:`gpits` when the series is seasonal
+  at a known period or the horizon is long enough that a flat interval would
+  understate the extrapolation; reach for :doc:`shc` when the structure
+  recurs but no single period describes it. Both are most credible over short
+  post-treatment windows.
 * Yes -- continue.
 
 Q0.4 · Is the treatment endogenous in a way SC cannot absorb? This is the home
@@ -1032,7 +1043,10 @@ left over -- as in a geo roll-out?
 * Scoring by simulated power on your own history -- :doc:`geox` slides a
   pretend treatment window backwards through the panel, injects a lift of known
   size, and ranks candidate test regions by the smallest lift it reliably
-  detects. The design is chosen by the estimator that will analyse the result,
+  detects. The same backtests report how far each design's estimate lands from
+  the lift that was injected, so a region that detects small effects and
+  misstates them is visible as such. The design is chosen by the estimator that
+  will analyse the result,
   and which estimator that is is a setting: ``engine="sdid"`` differences out a
   level gap between the test region and its donors instead of having to match
   it, ``engine="augsynth"`` is the augmented synthetic control GeoLift scores
@@ -1082,7 +1096,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Complication
      - Reach for
    * - No control group (everyone treated)
-     - :doc:`shc`
+     - :doc:`shc`, :doc:`gpits`
    * - Randomized, few large units
      - :doc:`musc`
    * - Endogenous treatment, have an instrument

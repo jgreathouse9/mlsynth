@@ -430,7 +430,7 @@ class TestPowerAnalysis:
         assert -1.0 <= power.serial_correlation <= 1.0
         assert power.alpha == 0.05
         assert power.power_target == 0.80
-        assert power.method == "analytical_ar1"
+        assert power.method == "analytical_ar1_mean_gap"
 
     def test_power_falls_back_to_pre_window_without_blank(self, panel):
         # No inference -> no carved-out blank window. Power still attaches,
@@ -784,21 +784,25 @@ class TestOrchestrationEdges:
     ``try/except`` shield around power analysis must both be exercised.
     """
 
-    def test_label_swap_picks_smaller_treated_set(self):
-        # Constructed example where the raw optimization yields a treated set
-        # of size 6 and a control set of size 2 — the orchestrator should swap
-        # so the *reported* treated set is the small one.
-        from mlsynth.utils.marex_helpers.orchestration import solve_marex
+    def test_m_eq_decides_the_treated_set_size(self):
+        """``m_eq`` treated units were asked for, so ``m_eq`` are reported.
+
+        This test used to assert the opposite. The orchestrator relabelled the
+        groups so the treated one had the smaller support, on the reading that
+        Abadie & Zhao prefer treating few units, and the assertion here was
+        ``n_t <= n_c`` -- with ``m_eq=6`` on eight units it reported the size-2
+        group. That group is the control synthetic: ``w`` is what
+        ``sum(z) == m_eq`` constrains and what the budget prices, ``v`` lives on
+        the complement and is bound by neither. A preference for few treated
+        units is expressed by choosing ``m_eq``, not by overriding it after the
+        solve. See ``test_marex_treated_assignment.py``.
+        """
         df = _panel(J=8, T=14)
-        # m_eq=6 forces the raw treated set to be the majority; the swap rule
-        # then reports the size-2 group as "treated".
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                      "T0": 10, "m_eq": 6}).fit()
-        # Post-swap, the reported "Treated" set is the smaller one.
         cluster = res.clusters["0"]
-        n_t = len(cluster.unit_weight_map["Treated"])
-        n_c = len(cluster.unit_weight_map["Control"])
-        assert n_t <= n_c
+        assert len(cluster.unit_weight_map["Treated"]) == 6
+        assert len(res.selected_units) == 6
 
     def test_power_analysis_failure_is_swallowed(self, monkeypatch):
         # Force compute_power_analysis to raise — the fit must still succeed

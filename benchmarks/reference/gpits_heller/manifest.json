@@ -1,0 +1,22 @@
+{
+  "case": "gpits_heller",
+  "title": "GP-ITS (Cho 2026) -- D.C. Heller replication and cross-validation against gpss",
+  "paper": "Cho, S. (2026), 'Let Time Tell: Identification and Gaussian Process Estimation for Interrupted Time Series', arXiv:2608.20610v1",
+  "reference_impl": "gpss::gp_its (doeun-kim/gpss, GPL-3, CRAN) run live in R 4.3.3; replication scripts soonhong-cho/gpits (MIT)",
+  "path_type": "Path A + cross-validation",
+  "verdict": "build -- headline reproduces exactly; port matches gpss to ~1e-11",
+  "command": "python benchmarks/reference/gpits_heller/verify.py",
+  "data": ["benchmarks/reference/gpits_heller/dc_series.csv"],
+  "path_a_target": {
+    "quantity": "D.C. cumulative 4-month effect, background checks per 100k",
+    "cumulative": 15.1,
+    "ci": [13.0, 17.3],
+    "source": "paper Section 6"
+  },
+  "simulation": {
+    "n_reps": 200,
+    "n_grid": [12, 36, 60, 96, 120],
+    "seed": 1,
+    "note": "paper uses 500 reps and n_pre 12..120 by 12; reduced here for runtime. C-ARIMA and CausalImpact arms omitted -- their R packages need CRAN, unreachable from this environment."
+  }
+}

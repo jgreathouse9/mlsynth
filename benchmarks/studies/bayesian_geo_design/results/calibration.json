@@ -1,0 +1,38 @@
+{
+  "nominal": 0.9,
+  "pre_periods": 75,
+  "panel": "geolift_market_data.csv",
+  "note": "40 locations each taken as a placebo treated unit; nothing happened to any of them",
+  "arms": {
+    "augsynth": {
+      "n": 39,
+      "coverage": 0.897,
+      "mean_width": 716,
+      "inference": "conformal iid, ns=400"
+    },
+    "sdid": {
+      "n": 40,
+      "coverage": 0.925,
+      "mean_width": 1323,
+      "inference": "placebo, 200 draws"
+    },
+    "bscm": {
+      "n": 40,
+      "coverage": 0.75,
+      "mean_width": 315,
+      "inference": "posterior predictive + AR(1)"
+    },
+    "mvbbsc_iid": {
+      "n": 40,
+      "coverage": 0.65,
+      "mean_width": 299,
+      "inference": "posterior predictive, iid shock (as shipped)"
+    },
+    "mvbbsc_ar": {
+      "n": 40,
+      "coverage": 0.875,
+      "mean_width": 418,
+      "inference": "posterior predictive + AR(1)"
+    }
+  }
+}

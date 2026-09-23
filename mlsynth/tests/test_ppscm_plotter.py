@@ -77,3 +77,49 @@ def test_fit_display_graphs(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     PPSCM(_cfg(_staggered_panel(), display_graphs=True)).fit()
     assert not any(p.suffix == ".png" for p in tmp_path.iterdir())
+
+
+# --------------------------------------------------------------------------- #
+# the legend has to name the interval that was actually computed
+# --------------------------------------------------------------------------- #
+# ``inference_method`` chooses between three intervals, and ``method=
+# 'callaway_santanna'`` switches it to the influence function without the
+# caller naming it. A legend that hardcodes one of the three reports whichever
+# it was written for, which is the failure #459 and #463 bottomed out at --
+# reached here through the plot instead of through the results object.
+def _legend_labels(res, **kw):
+    plot_ppscm(res, **kw)
+    ax = plt.gcf().axes[0]
+    legend = ax.get_legend()
+    return [t.get_text() for t in legend.get_texts()], ax
+
+
+def _panel_with_never_treated():
+    """``method='callaway_santanna'`` needs a never-treated pool."""
+    return _staggered_panel()
+
+
+@pytest.mark.parametrize("over,expected,forbidden", [
+    ({"inference_method": "jackknife"}, "jackknife", "influence-function"),
+    ({"inference_method": "bootstrap", "n_boot": 25}, "bootstrap", "jackknife"),
+    ({"method": "callaway_santanna"}, "influence-function", "jackknife"),
+])
+def test_the_legend_names_the_inference_that_ran(over, expected, forbidden):
+    res = PPSCM(_cfg(_panel_with_never_treated(), **over)).fit()
+    ran = res.design.conventions["inference_method"]
+    labels, _ = _legend_labels(res)
+    band = [t for t in labels if "CI" in t]
+    assert band, f"expected a band label, got {labels}"
+    assert expected in band[0], f"{ran!r} ran, legend said {band[0]!r}"
+    assert forbidden not in band[0], f"{ran!r} ran, legend said {band[0]!r}"
+
+
+def test_no_inference_claims_no_interval():
+    """With inference off the band is degenerate -- ``ci`` is the point path
+    twice over -- so drawing it and calling it a 95% CI reports an interval that
+    was never computed."""
+    res = PPSCM(_cfg(_panel_with_never_treated(), run_inference=False)).fit()
+    assert res.design.conventions["inference_method"] is None
+    labels, ax = _legend_labels(res)
+    assert not [t for t in labels if "CI" in t], labels
+    assert not ax.collections, "a degenerate band must not be drawn"

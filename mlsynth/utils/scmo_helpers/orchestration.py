@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import replace
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -10,7 +11,7 @@ import pandas as pd
 
 from ...exceptions import MlsynthDataError
 from .estimation import fit_scheme, model_average
-from .inference import conformal_inference
+from .inference import conformal_inference, permutation_inference
 from .structures import AVERAGED, CONCATENATED, MA, SEPARATE, SCMOInputs, SCMOMethodFit
 
 _METHOD_TO_SCHEMES = {
@@ -99,8 +100,18 @@ def run_scmo(
     pcr_cv_grid: Optional[List[float]] = None,
     pcr_cv_horizon: int = 1,
     pcr_cv_min_train: Optional[int] = None,
+    metric_weighting: str = "column",
+    inference: str = "conformal",
+    placebo_eta: float = 0.0,
+    placebo_alternative: str = "two-sided",
 ) -> Dict[str, SCMOMethodFit]:
-    """Fit each requested scheme and attach CWZ conformal inference to every fit."""
+    """Fit each requested scheme and attach inference to every fit.
+
+    ``inference="conformal"`` (default) attaches the CWZ test and its interval;
+    ``"placebo"`` attaches Abadie's permutation test instead, which reports a
+    rank and leaves the interval empty. The model average has no single
+    weighting scheme to permute, so it keeps the conformal test and says so.
+    """
     metric_weights, mw_info = _resolve_metric_weights(
         inputs, weights, pcr_metric_weights, pcr_cv_grid, pcr_cv_horizon,
         pcr_cv_min_train, pcr_rank, pcr_cumvar)
@@ -108,7 +119,8 @@ def run_scmo(
     base = [s for s in schemes if s != MA]
     fits: Dict[str, SCMOMethodFit] = {
         s: fit_scheme(inputs, s, demean, augment, ridge_lambda,
-                      weights, pcr_rank, pcr_cumvar, metric_weights) for s in base}
+                      weights, pcr_rank, pcr_cumvar, metric_weights,
+                      metric_weighting) for s in base}
     if mw_info and CONCATENATED in fits:
         f = fits[CONCATENATED]
         fits[CONCATENATED] = replace(f, metadata={**f.metadata, **mw_info})
@@ -122,9 +134,29 @@ def run_scmo(
 
     for name in list(fits):
         fit = fits[name]
+        if inference == "placebo" and name == MA:
+            warnings.warn(
+                "SCMO: the permutation test needs a single weighting scheme; the "
+                "model average keeps conformal inference.", stacklevel=2)
+        if inference == "placebo" and name != MA:
+            placebo = permutation_inference(
+                inputs, name, demean=demean, augment=augment,
+                ridge_lambda=ridge_lambda, weights=weights, pcr_rank=pcr_rank,
+                pcr_cumvar=pcr_cumvar, metric_weights=metric_weights,
+                metric_weighting=metric_weighting,
+                eta=placebo_eta, alternative=placebo_alternative,
+            )
+            fits[name] = replace(
+                fit, p_value=placebo.p_value, ci=(float("nan"), float("nan")),
+                placebo=placebo,
+                metadata={**fit.metadata,
+                          "inference_method": "placebo (post/pre RMSPE ratio)"})
+            continue
         _, p_value, ci = conformal_inference(
             inputs.y_treated, fit.counterfactual, inputs.T0,
             alpha=conformal_alpha, q=conformal_q,
         )
-        fits[name] = replace(fit, p_value=p_value, ci=ci)
+        fits[name] = replace(
+            fit, p_value=p_value, ci=ci,
+            metadata={**fit.metadata, "inference_method": "conformal (CWZ)"})
     return fits

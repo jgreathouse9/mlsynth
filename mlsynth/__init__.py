@@ -101,6 +101,7 @@ from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.rolldid import ROLLDID
 from .estimators.lpca import LPCA
+from .estimators.gpits import GPITS
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -124,6 +125,7 @@ __all__ = [
     "plot_detectability",
     "ROLLDID",
     "LPCA",
+    "GPITS",
     "HSC",
     "TSSC",
     "FMA",

@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-09-21T11:51:08Z",
+  "commands": [
+    "Rscript benchmarks/R/pang_liu_xu_sims.R --out benchmarks/reference/pang_liu_xu_sims --moment-draws 4000",
+    "Rscript benchmarks/R/pang_liu_xu_sims.R --out benchmarks/reference/pang_liu_xu_sims --only effect --effect-draws 500",
+    "Rscript benchmarks/R/pang_liu_xu_sims.R --out benchmarks/reference/pang_liu_xu_sims --only arsim"
+  ],
+  "seed": 20220301,
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "platform": "x86_64-pc-linux-gnu",
+  "packages": {"gsynth": "1.0", "pblasso": "1.0.8"},
+  "note": "each CSV carries its own draw count in a draws column",
+  "source": "Harvard Dataverse doi:10.7910/DVN/B6SWA1 -- code/simulateCalib.R, code/summary_function.R, 9_sim_single_r8.R, 10_sim_single_X.R"
+}
