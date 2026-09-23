@@ -6,12 +6,28 @@ clustering step already fit, instead of deriving a second one with PCP.
 projection: ``"all"`` keeps it (rank ``c1 + c2``), ``"cluster"`` projects onto
 ``A1`` alone (rank ``c1``).
 
-``"cluster"`` is the paper's own construction and it is the wrong default for
-this use, which is what the case pins. Projecting ``A2`` out removes most of
-the between-donor spread, and the weight step then has nothing left to combine:
-on Basque, West Germany and Proposition 99 alike it puts the entire weight on a
-single donor and the pre-period error is four to eleven times the
-disturbance-retained fit.
+``"cluster"`` is the paper's own construction and it is wrong for this use on
+every panel, for a reason in the construction and not in any dataset.
+
+fGRC splits the subspace by what discriminates clusters: ``A1`` holds the
+separating directions, ``A2`` the high-variance ones that do not separate. On
+the Basque pool ``A1``'s two columns are 70.6% and 70.3% between-cluster while
+carrying 1.93% and 1.76% of the variance; ``A2`` carries 95.4% of the variance
+with a 4.6% between-cluster share. The separation is doing its job -- it stops
+a variance-dominant direction swamping the grouping.
+
+A synthetic control combines the members of the treated unit's own cluster.
+Being one cluster they barely differ along ``A1``, so everything separating
+them sits in ``A2``, and projecting onto ``A1`` discards the whole of the
+variation the weights are fitted on. The fit then has nothing to combine: on
+Basque, West Germany and Proposition 99 alike it puts the entire weight on one
+donor, with pre-period error four to eleven times the disturbance-retained fit.
+Restricted to each panel's own cluster the spread falls to 0.231 of raw on
+Basque, 0.503 on West Germany and 0.106 on Proposition 99, against 0.96 to
+1.00 retained when ``A2`` stays.
+
+The rank is not the explanation. Top-2 PCA of the same coefficient matrix
+keeps 99% of the between-donor spread where ``A1`` at the same rank keeps 19%.
 
 Where the Basque account stops generalising
 -------------------------------------------
@@ -89,15 +105,22 @@ def _fit(spec, **kw):
             display_graphs=False, **kw)).fit()
 
 
-def _donor_matrices(spec):
-    """Raw, keep='all' and keep='cluster' pre-period donor matrices."""
+def _donor_matrices(spec, cluster):
+    """Raw, keep='all' and keep='cluster' pre-period donor matrices.
+
+    Restricted to ``cluster`` -- the donors the pipeline's fGRC selection
+    actually hands the denoiser. Measuring the full pool instead is close
+    on these panels (Basque spread ratio 0.25 against 0.23) but it is not
+    what runs, and the whole point of the mechanism is that the projection
+    is applied to the members of a single cluster.
+    """
     from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_lowrank, fgrc_subspace
     df = pd.read_csv(_basedata(spec["file"]))
     wide = df.pivot(index=spec["time"], columns=spec["unit"],
                     values=spec["outcome"]).dropna(axis=1)
     T0 = int((wide.index < spec["t0"]).sum())
     treated = wide[spec["treated"]].values[:T0].astype(float)
-    raw = wide[[c for c in wide.columns if c != spec["treated"]]].values.T.astype(float)
+    raw = wide[list(cluster)].values.T.astype(float)
     sub = fgrc_subspace(raw, c1=2, c2=1, k=2, n_knots=max(4, T0 // 2 - 2),
                         order=4, seed=0)
     return (treated, raw[:, :T0],
@@ -125,7 +148,8 @@ def run() -> dict:
         beats_pcp.append(keep_all.fit_diagnostics.rmse_pre
                          < pcp.fit_diagnostics.rmse_pre)
 
-        treated, raw, L_all, L_c1 = _donor_matrices(spec)
+        treated, raw, L_all, L_c1 = _donor_matrices(
+            spec, sorted((keep_all.weights.donor_weights or {}).keys()))
         spread_all.append(L_all.std(axis=0).mean() / raw.std(axis=0).mean())
         spread_cluster.append(L_c1.std(axis=0).mean() / raw.std(axis=0).mean())
         mean_preserved.append(
@@ -165,6 +189,11 @@ def run() -> dict:
 # `n_panels_treated_leaves_hull` is 2 of 3 and banded to admit 1 or 3 -- it is
 # recorded because the first diagnosis of this failure was Basque-only and read
 # the hull condition as the mechanism, which three panels do not support.
+# The two spread metrics are measured on each panel's own fGRC cluster, which
+# is what the pipeline denoises; the worst case is Germany's seven-donor
+# cluster at 0.503, and the band's ceiling of 0.703 still sits far below the
+# 0.96-1.00 that keeping `A2` retains, so a regression erasing the difference
+# fails the case.
 # `n_panels_fgrc_beats_cv_pcp_pre_fit` is 0 and pinned at zero tolerance: the
 # method does not beat cross-validated PCP on any panel, and a case that let
 # that drift unnoticed would be advertising something untrue.
@@ -172,8 +201,8 @@ EXPECTED = {
     "n_panels": (3.0, 0.0),
     "n_panels_cluster_collapses_to_one_donor": (3.0, 0.0),       # binding
     "min_rmse_ratio_cluster_over_all": (4.18, 1.2),              # binding, floor ~3
-    "max_spread_retained_by_cluster": (0.40, 0.15),
-    "min_spread_retained_by_all": (0.985, 0.03),
+    "max_spread_retained_by_cluster": (0.503, 0.20),
+    "min_spread_retained_by_all": (0.961, 0.05),
     "n_panels_mean_level_preserved": (3.0, 0.0),                 # binding
     "n_panels_treated_leaves_hull": (2.0, 1.0),
     "basque_max_gap_from_published_weights": (0.0137, 0.05),
