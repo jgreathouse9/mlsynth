@@ -962,6 +962,18 @@ counterfactual.
     its linear and convex controls as interchangeable on this panel
     and on Proposition 99.
 
+    ``spannability_span_saturated`` guards that third ratio. Dividing
+    by the best unconstrained fit is informative only while that fit
+    is constrained by something; once the denoised block's rank
+    reaches the number of pre-periods its columns span every vector
+    of that length, the unconstrained fit interpolates the treated
+    unit exactly, and the ratio is a hull distance over zero. When
+    the flag is set the ratio is reported as undefined, because at
+    that point it describes the denoiser's retained rank and not
+    what convexity costs. On the latent-group design of Liao, Shi
+    and Zheng at 120 donors and 40 pre-periods, HQF saturates while
+    HSVT, PCP and fGRC do not.
+
     *Diagnostic*: a selection ratio above about 1.5 means widen the
     cluster or fit the full pool. A denoise ratio above about 1.5
     means the opposite -- the donors are right and the denoising is

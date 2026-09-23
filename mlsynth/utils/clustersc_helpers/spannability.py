@@ -57,7 +57,9 @@ class DenoiseSpannabilityReport(NamedTuple):
     denoised_rmse: float     #: the same quantity after denoising
     ratio: float             #: ``denoised_rmse / raw_rmse``; below 1.0 the denoiser helped
     span_rmse: float         #: best UNCONSTRAINED pre-RMSE against the denoised donors
-    hull_span_ratio: float   #: ``denoised_rmse / span_rmse``; 1.0 when convexity is free
+    hull_span_ratio: float   #: ``denoised_rmse / span_rmse``; 1.0 when convexity is free,
+                             #: NaN when ``span_saturated``
+    span_saturated: bool     #: True when the denoised block spans all of R^T0
     weights_identified: bool  #: False when the denoised donors are affinely dependent
     n_donors: int
 
@@ -308,11 +310,23 @@ def assess_denoise_spannability(
     else:
         ratio = float(denoised_rmse / raw_rmse)
 
-    # Same 0/0 guard, one level down. A denoised block whose span already
-    # contains the treated unit drives the unconstrained solve to the
-    # least-squares floor; below it, report 1.0 when the hull reaches the
-    # unit too and infinity when only the span does.
-    if span_rmse <= negligible:
+    # Saturation. `hull_span_ratio` divides by the best unconstrained fit,
+    # which is informative only while that fit is constrained by something.
+    # Once the denoised block's rank reaches T0 its columns span every vector
+    # of length T0, the unconstrained fit interpolates the treated unit, and
+    # the ratio is a hull distance over zero -- infinite for any hull at all.
+    # That reports the denoiser's rank, not what convexity costs, so it is
+    # returned as undefined. Measured on Liao-Shi-Zheng's latent-group DGP at
+    # J=120, T0=40: HQF saturates while HSVT, PCP and FGRC do not.
+    n_periods = den.shape[0]
+    span_saturated = bool(np.linalg.matrix_rank(den / scale) >= n_periods)
+
+    # Same 0/0 guard, one level down. An unsaturated block whose span already
+    # contains the treated unit is the informative case and keeps infinity:
+    # the donors carry the unit and only convexity is in the way.
+    if span_saturated:
+        hull_span_ratio = float("nan")
+    elif span_rmse <= negligible:
         hull_span_ratio = 1.0 if denoised_rmse <= negligible else float("inf")
     else:
         hull_span_ratio = float(max(denoised_rmse / span_rmse, 1.0))
@@ -323,6 +337,7 @@ def assess_denoise_spannability(
         ratio=ratio,
         span_rmse=span_rmse,
         hull_span_ratio=hull_span_ratio,
+        span_saturated=span_saturated,
         weights_identified=weights_identified,
         n_donors=n_donors,
     )
@@ -376,7 +391,8 @@ def warn_if_denoising_shrank_the_hull(
             UserWarning,
             stacklevel=3,
         )
-    if report.hull_span_ratio > convexity_threshold:
+    if (not report.span_saturated
+            and report.hull_span_ratio > convexity_threshold):
         warnings.warn(
             f"The convex restriction is binding on these donors: the best "
             f"simplex fit is {report.hull_span_ratio:.1f}x the best "

@@ -437,3 +437,98 @@ def test_the_split_reaches_the_result_metadata(basque_arrays):
     for key in ("spannability_span_rmse", "spannability_hull_span_ratio"):
         assert key in fit.metadata, key
     assert fit.metadata["spannability_hull_span_ratio"] >= 1.0 - 1e-9
+
+
+# --------------------------------------------------------------------------
+# Saturation: when the denoised span is the whole pre-period space
+# --------------------------------------------------------------------------
+# `hull_span_ratio` divides by the best unconstrained fit. That comparison is
+# only meaningful while the unconstrained fit is actually constrained by
+# something. Once the denoised block's rank reaches T0 its columns span every
+# vector of length T0, the unconstrained fit interpolates the treated unit
+# exactly, and the ratio is hull over zero -- infinite for any hull at all.
+# Measured on Liao-Shi-Zheng's latent-group DGP at J=120, T0=40: HQF retains
+# enough rank to saturate (span_rmse 3e-15, ratio inf) while HSVT and FGRC
+# report a clean 1.0 and PCP 5.72. Reporting infinity there says only that
+# the block interpolates, which is a fact about the denoiser's rank and not
+# about convexity.
+
+
+def _saturating_block(T0, n_donors):
+    """A block whose columns span all of R^T0."""
+    rng = np.random.default_rng(21)
+    return rng.normal(size=(T0, n_donors)) * 3.0 + 20.0
+
+
+def test_a_saturated_span_is_reported_as_undefined_not_infinite(panel):
+    treated, _donors = panel
+    block = _saturating_block(_T0, _T0 + 6)      # rank T0: spans everything
+    rep = assess_denoise_spannability(block, block.copy(), treated)
+    assert rep.span_saturated is True
+    assert np.isnan(rep.hull_span_ratio)
+
+
+def test_a_saturated_block_does_not_warn_about_convexity(panel):
+    treated, _donors = panel
+    block = _saturating_block(_T0, _T0 + 6)
+    rep = assess_denoise_spannability(block, block.copy(), treated)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        warn_if_denoising_shrank_the_hull(rep)
+    assert not any("convex restriction" in str(w.message) for w in caught)
+
+
+def test_an_unsaturated_block_that_reaches_the_unit_still_reports_infinity(panel):
+    """The informative case the saturation guard must not swallow.
+
+    A low-rank block whose span happens to contain the treated unit says
+    something real: the donors carry the unit and only convexity is in the
+    way. That must stay distinguishable from a block that contains it because
+    it contains everything.
+    """
+    _treated, donors = panel
+    three = donors[:, :3]
+    target = 1.6 * three[:, 0] + 0.9 * three[:, 1] - 1.5 * three[:, 2]
+    rep = assess_denoise_spannability(three, three.copy(), target)
+    assert rep.span_saturated is False
+    assert rep.hull_span_ratio == float("inf")
+
+
+def test_an_ordinary_block_is_not_flagged_as_saturated(panel):
+    treated, donors = panel
+    rep = assess_denoise_spannability(donors, _rank_project(donors, 3), treated)
+    assert rep.span_saturated is False
+    assert np.isfinite(rep.hull_span_ratio)
+
+
+def test_saturation_reaches_the_result_metadata(basque_arrays):
+    from mlsynth.utils.clustersc_helpers.rpca.pipeline import run_rpca
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = run_rpca(**basque_arrays, rpca_method="PCP")
+    assert "spannability_span_saturated" in fit.metadata
+    assert fit.metadata["spannability_span_saturated"] is False
+
+
+def test_a_high_dimensional_panel_saturates_where_the_denoiser_keeps_rank():
+    """The case from Liao-Shi-Zheng's DGP that exposed this."""
+    from mlsynth.utils.laxscm_helpers.simulation import simulate_relaxation_groups
+    from mlsynth.utils.clustersc_helpers.rpca.pipeline import run_rpca
+    rng = np.random.default_rng(7)
+    Yc, y0, _oracle, t0 = simulate_relaxation_groups(rng, J=120, T0=40, T1=20)
+    D = np.asarray(Yc, float).T
+    y = np.asarray(y0, float).ravel()
+    names = [f"d{i}" for i in range(D.shape[1])]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        hqf = run_rpca(treated_outcome=y, donor_outcomes=D, donor_names=names,
+                       T0=t0, k_clusters=1, weight_objective="simplex",
+                       rpca_method="HQF")
+        hsvt = run_rpca(treated_outcome=y, donor_outcomes=D, donor_names=names,
+                        T0=t0, k_clusters=1, weight_objective="simplex",
+                        rpca_method="HSVT")
+    assert hqf.metadata["spannability_span_saturated"] is True
+    assert np.isnan(hqf.metadata["spannability_hull_span_ratio"])
+    # HSVT truncates hard enough not to saturate, and stays interpretable.
+    assert hsvt.metadata["spannability_span_saturated"] is False
+    assert np.isfinite(hsvt.metadata["spannability_hull_span_ratio"])
