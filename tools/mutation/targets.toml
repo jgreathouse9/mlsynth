@@ -2087,3 +2087,204 @@ timeout = 900.0
   find = "        return complement >= 1"
   replace = "        return False"
   models = "the over-correction: reading the labels off w even where either labelling is optimal. With m_min=1 and m_max=N-1 under the symmetric objective the complement is an admissible treated set too, so the solver's choice between them is arbitrary and the reported treated count stops being comparable to Abadie & Zhao's, whose own code takes the smaller set. The Section 5 Monte Carlo cell moved from 6.83 treated units to 7.5 against a 0.8 tolerance when this was the behaviour"
+
+[[target]]
+name = "mvbbsc-donor-order"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc_donor_order.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "donor-order-left-to-the-caller"
+  find = "    X = X[:, donor_order]"
+  replace = "    pass  # donor order left as the caller supplied it"
+  models = "the defect this canonicalisation exists to remove: NUTS walks a parameter vector, so permuting the simplex coordinates changes the trajectory and the posterior moves. On the German reunification panel that was 7.2e-3 in the posterior-mean weights and 6.03 in the ATT -- an answer that changes because somebody sorted a dataframe"
+
+  [[target.mutant]]
+  id = "weights-returned-in-the-samplers-order"
+  find = '        "weights": W[:, donor_inverse],'
+  replace = '        "weights": W,'
+  models = "weights handed back in the sampler's internal order while the caller reads them against its own columns, so every weight is attributed to the wrong donor. The counterfactual and the ATT are untouched, which is what makes it survive any check that looks only at the effect"
+
+[[target]]
+name = "mvbbsc-scale-invariance"
+module-path = "mlsynth/utils/mvbbsc_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mvbbsc.py -q -p no:cacheprovider -k scale_invariance"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-treated-series-keeps-its-own-scale"
+  find = "    sy = sy if sy > 0 else 1.0"
+  replace = "    sy = 1.0"
+  models = "standardisation that centres but does not scale. The invariance this estimator advertises is that the units of the outcome do not matter, and dropping the divisor removes it: the same panel in dollars and in thousands of dollars is then two different fits. It is the defect test_scale_invariance_of_weights exists to catch, and the check has to catch it while tolerating the sampler's own spread, which on this panel is 0.02 to 0.04 in the posterior-mean weights"
+
+[[target]]
+name = "geox-mvbbsc-engine"
+module-path = "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_geox_mvbbsc_engine.py -q -p no:cacheprovider"
+timeout = 1800.0
+
+  [[target.mutant]]
+  id = "a-samplers-relations-held-to-solver-precision"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary,\n                requires=(\"numpyro\",))"
+  models = "the bar this engine was first certified against: the property suite's 1e-6, which a sampler cannot meet. It passed only because NumPyro draws in single precision by default and the 1e-14 difference a rescale makes to the standardized inputs rounds away there. Once MTGP or BPSCS enables x64 earlier in a run the difference survives, NUTS amplifies it to 1e-2, and the relations fail -- so the engine was green in isolation and red in the suite"
+
+  [[target.mutant]]
+  id = "an-optional-dependency-left-undeclared"
+  find = "                detection_boundary=detection_boundary, fit_tolerance=5e-2,\n                requires=(\"numpyro\",))"
+  replace = "                detection_boundary=detection_boundary, fit_tolerance=5e-2)"
+  models = "the regression that took the daily coverage badge red on main. The engine property suite parametrises over every registered engine, so an engine needing an optional dependency has to say so or the suite fails it where the dependency is absent instead of reporting it missing. The pull request gate installs numpyro explicitly and cannot see this; the badge and the mutation matrix install requirements.txt alone and go red with eight failures"
+
+  [[target.mutant]]
+  id = "an-iid-shock-on-an-averaged-estimand"
+  find = "    draws = att_posterior(fit, start, end, autocorr=autocorr)\n    p = 2.0 * min("
+  replace = "    draws = att_posterior(fit, start, end, autocorr=False)\n    p = 2.0 * min("
+  models = "MVBBSC's shipped predictive shock used on a window average. Under iid the variance of the mean falls as sigma^2/h; under the positive autocorrelation a geo panel actually has it falls more slowly, so the interval is too narrow. On Meta's GeoLift panel, with each of its 40 locations taken as a placebo, this covers 65% of a nominal 90% against 87.5% for the AR(1) form"
+
+[[target]]
+name = "power-calibration"
+module-path = "mlsynth/utils/post_fit.py"
+test-command = "python -m pytest mlsynth/tests/test_power_calibration.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "noise-scale-discards-the-designs-blank-period-bias"
+  find = "        bias = float(placebo.mean())"
+  replace = "        bias = 0.0"
+  models = "the noise scale taken as the spread about the placebo window's own mean, so a design that misses on the periods it was not fitted to is charged nothing for that miss. The offset is real and it lands in the post window on top of the effect being measured. Every shape assertion passes -- the MDE is finite, positive and falls with the horizon -- and only the empirical size of the test it claims to describe moves, which no assertion on the number itself can see"
+
+  [[target.mutant]]
+  id = "serial-correlation-read-off-an-uncentred-series"
+  find = "    r = r - r.mean()\n    num = float(r[:-1] @ r[1:])"
+  replace = "    num = float(r[:-1] @ r[1:])"
+  models = "the lag-1 autocorrelation estimated without removing the mean. On a series with mean b and noise sigma the estimator tends to b^2 / (b^2 + sigma^2), so a biased design reports strong persistence it does not have and the AR(1) variance inflation built on it is measuring the offset twice. rho stays inside (-1, 1) and the MDE stays finite, so only a test that knows the true rho of a simulated process can tell"
+
+  [[target.mutant]]
+  id = "gaussian-quantile-against-an-estimated-scale"
+  find = "    t_a = float(t_dist.ppf(1.0 - alpha / 2.0, df))"
+  replace = "    t_a = float(norm.ppf(1.0 - alpha / 2.0))"
+  models = "sigma treated as known when it was estimated from the placebo window. This is the textbook reason a nominal 5% test is not one, and on the short persistent windows these designs have it is not a rounding difference: at rho = 0.7 on a 24-period window the Gaussian quantile gives a true size above 10 percent. The reported MDE only shrinks by a few percent, which is why no assertion on its value catches it"
+
+  [[target.mutant]]
+  id = "effective-sample-size-uncapped-at-the-period-count"
+  find = "    return float(min(float(n), max(2.0, n * (1.0 - r) / (1.0 + r))))"
+  replace = "    return float(max(2.0, n * (1.0 - r) / (1.0 + r)))"
+  models = "the Bartlett effective sample size allowed to exceed the number of periods. It does so whenever the sample autocorrelation is negative, which is an ordinary draw on a 20-period window: rho-hat = -0.42 turns 20 periods into 48 degrees of freedom, narrowing both the t quantile and sigma's chi-square interval on the windows where they should be widest"
+
+  [[target.mutant]]
+  id = "squared-bias-plugged-in-without-removing-its-own-noise"
+  find = "    bias_sq = max(0.0, bias ** 2 - var_bias)"
+  replace = "    bias_sq = bias ** 2"
+  models = "the plug-in b^2 used for the squared bias. Since E[b_hat^2] = beta^2 + Var(b_hat), a design that is genuinely unbiased is charged for the sampling noise in measuring its own bias, and its MDE is inflated for no reason. The direction is conservative, so nothing over-rejects and no size assertion fires -- it costs power silently, and only a test that pins the standard error against sigma/sqrt(n_post) on an unbiased design notices"
+
+[[target]]
+name = "pda-hcw-empty-model"
+module-path = "mlsynth/utils/pda_helpers/hcw/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_hcw_empty_model.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "furnival-wilson-seeded-with-the-intercept-only-model"
+  find = "    best_ic = [np.inf]\n    best_idx: List[int] = []"
+  replace = "    best_ic = [info_criterion(tss, n, 1, criterion)]\n    best_idx: List[int] = []"
+  models = "the incumbent seeded with the size-zero model, so an intercept-only counterfactual competes against the donor subsets. HCW Section 5 and pampe's regsubsets both enumerate sizes 1..nvmax, so the reference cannot return it. It is invisible at the pre-period lengths the suite otherwise uses -- AICc's 2K(K+1)/(n-K-1) correction is 0.75 against 0.35 at T0 = 20 and the empty model never wins -- and decisive at T0 = 5, where it is 6.0 against 1.33 and wins on over half of draws. Against pampe on Wan, Xie & Hsiao's own Design 6a it inflated mean MSE from 0.910 to 6.238, the paper's published cell being 0.91"
+
+  [[target.mutant]]
+  id = "exhaustive-search-seeded-with-the-intercept-only-model"
+  find = "    best_idx: List[int] = []\n    best_ic = np.inf\n    for r in range(1, r_max + 1):"
+  replace = "    best_idx: List[int] = []\n    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)\n    for r in range(1, r_max + 1):"
+  models = "the same defect in the brute-force reference search that the branch-and-bound engine is validated against. Left here it would make the oracle agree with a faulty incumbent, so the backend-agreement test would pass while both were wrong -- the reason this mutant is listed separately from the Furnival-Wilson one"
+
+[[target]]
+name = "rescm-tau-grid"
+module-path = "mlsynth/utils/laxscm_helpers/crossval.py"
+test-command = "python -m pytest mlsynth/tests/test_cv.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "tau-upper-bound-is-a-lasso-penalty-path"
+  find = "        upper_limit = float(v.max() - v.min()) / 2.0 * 1.01"
+  replace = "        upper_limit = float(np.linalg.norm(X.T @ y, np.inf))"
+  models = "the shipped bound until 2026-09, which topped the grid at ||X'y||_inf -- the smallest Lasso penalty giving an all-zero fit, not the smallest relaxation at which the equal weights become feasible. It omits the 1/T in Sigma and Upsilon, so it also grows with the pre-period: measured 76x, 67x and 172x above eta_bar at T0 = 25, 50 and 100 on the Liao-Shi-Zheng design. Grid points above eta_bar leave the balance constraint vacuous, and there the L2, entropy and empirical-likelihood objectives all return their unconstrained simplex minimiser, which is the equal weights -- so the fit silently reports 1/J and three different objectives return bit-identical counterfactuals"
+
+  [[target.mutant]]
+  id = "tau-lower-bound-is-a-hard-coded-constant"
+  find = "        lower_limit = float(problem.value) * 1.01"
+  replace = "        lower_limit = 1e-5"
+  models = "the shipped bound until 2026-09, which floored the grid at a constant instead of the smallest relaxation admitting any simplex weight. Points below that floor are infeasible and get skipped at fit time, so the usable grid is shorter than n_taus without saying so. With the Lasso upper bound this left 0 of 10 points inside [eta_low, eta_bar] on a J=20, T0=10 panel; the two faults are independent and their span inflations multiply to 6.4e5"
+
+[[target]]
+name = "fgrc-cluster-count-selection"
+module-path = "mlsynth/utils/clustersc_helpers/rpca/selection.py"
+test-command = "python -m pytest mlsynth/tests/test_fgrc_selection.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "boundary-candidates-are-ranked-like-any-other"
+  find = "    eligible = [K for K in gaps if K not in boundary]"
+  replace = "    eligible = [K for K in gaps]"
+  models = "the shipped rule until the Basque root-cause analysis: the relaxation step ranks a candidate inside a Gap curve whose maximum sits at an end of k_eval. On a monotone curve that ranking is the candidate list sorted by distance from the edge, so on 17 Basque units it returned K=4 with an empty accepted set, cutting the donor pool from 15 to 9 and the ATT from -0.365 to -1.212. The mutant reintroduces exactly that: nothing is ever excluded, so the rule always produces a number and never declines"
+
+  [[target.mutant]]
+  id = "evaluation-grid-reaches-far-past-the-candidates"
+  find = "            else tuple(range(1, max(cands) + 3)))"
+  replace = "            else tuple(range(1, max(cands) + 9)))"
+  models = "a wider default aperture. It looks harmless and is not: the Gap maximum on these panels tracks whichever k is largest in the grid -- measured at 1, 6, 8, 10, 12 and 16 on Basque for grids 1..4 through 1..16 -- so widening the grid changes the answer without touching the data. This mutant survived the suite as it stood before the analysis, which is what put the grid under an assertion"
+
+  [[target.mutant]]
+  id = "a-grid-that-cannot-reject-a-candidate-is-accepted"
+  find = "    if not grid or max(grid) <= max(cands):"
+  replace = "    if not grid:"
+  models = "the shipped validation until the analysis, where trimming k_eval to fit the panel could leave max(k_eval) at the largest candidate. The check asks whether K is the argmax of its own curve, and a grid stopping at K cannot answer it -- K can then only win at the edge. On five units of pure white noise the old form reported two candidates as accepted"
+
+  [[target.mutant]]
+  id = "the-rule-answers-even-when-it-has-nothing-to-go-on"
+  find = """    if not eligible:
+        return FGRCSelection(selected_k=None, confident=(), relaxation_level=0,
+                             **common)"""
+  replace = """    if not eligible:
+        return FGRCSelection(selected_k=max(gaps), confident=(), relaxation_level=0,
+                             **common)"""
+  models = "an abstention that still hands back a number. The caller sees selected_k set and relaxation_level 0, and the diagnostic saying the rule had nothing to rank is one field away from the answer it contradicts. This is how the Basque number reached an ATT in the first place: the pipeline read selected_k and ignored the empty accepted set"
+
+  [[target.mutant]]
+  id = "the-one-standard-error-reading-is-just-the-argmax"
+  find = """    ks = [int(k) for k in k_values]
+    for j in range(len(ks) - 1):
+        if gap[j] >= gap[j + 1] - gap_se[j + 1]:
+            return ks[j]
+    return ks[-1]"""
+  replace = """    ks = [int(k) for k in k_values]
+    return ks[int(np.argmax(gap))]"""
+  models = "discarding gap_se and reporting the argmax twice. The two readings disagree exactly where it matters: across 18 structureless panels the 1-SE rule answered k=1 on all 54 candidate curves while the argmax accepted a candidate on 4 of them, and on Basque the 1-SE rule answers 1 for every candidate against an argmax of 6. A selector whose conservative reading is a copy of its permissive one reports one instrument as two"
+
+[[target]]
+name = "cluster-spannability"
+module-path = "mlsynth/utils/clustersc_helpers/spannability.py"
+test-command = "python -m pytest mlsynth/tests/test_spannability.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "diagnostic-measures-the-cluster-against-itself"
+  find = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool[:, idx], target, scale)"
+  replace = "    _cluster_weights, cluster_rmse = _best_convex_fit(pool, target, scale)"
+  models = "a diagnostic that compares the pool against the pool, so the ratio is 1.0 for every cluster and nothing is ever flagged. This is the state the library was in before this module: donor selection could drop the donors carrying 0.549 of West Germany's pool-optimal convex weight and no surface reported it. A check that cannot fail is the defect the ladder was written to catch"
+
+  [[target.mutant]]
+  id = "zero-detection-tighter-than-the-solver"
+  find = "    negligible = 1e-5 * scale"
+  replace = "    negligible = 1e-12"
+  models = "the first draft's cutoff, which was absolute and far below what CLARABEL delivers. On an exactly solvable panel the solver leaves ~1e-5 relative residual, so a treated unit sitting exactly on a donor reported pool_rmse 9.0e-05 against cluster_rmse 1.2e-04 and a ratio of 1.35 -- a spurious 35% penalty on a cluster that gives up nothing, and the near-zero branch never fired"
+
+  [[target.mutant]]
+  id = "solve-left-at-panel-scale"
+  find = "    donors_u = donors / scale"
+  replace = "    donors_u = donors"
+  models = "the un-normalised program. Outcome magnitudes span five orders across the reference panels (Basque GDP ~10, Prop 99 pack sales ~300, German GDP ~38000) and at the top of that range CLARABEL returns infeasible on a simplex, which is never empty. The diagnostic then raises on exactly the panel it exists to flag"
+
+  [[target.mutant]]
+  id = "excluded-mass-counts-the-donors-that-were-kept"
+  find = "    excluded_mass = float(np.clip(pool_weights[~kept], 0.0, None).sum())"
+  replace = "    excluded_mass = float(np.clip(pool_weights[kept], 0.0, None).sum())"
+  models = "an inverted mask, reporting the weight the cluster retained instead of the weight it threw away. The two agree only when the cluster is the whole pool, so the number would read 0.451 for West Germany where the answer is 0.549 and a reader would conclude the opposite about which donors mattered"

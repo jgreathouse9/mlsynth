@@ -62,7 +62,7 @@ The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depth
 | File | What it is | Used by |
 |---|---|---|
 | `germany_augmented.csv` | the superset (106 cols) | SCMO multi-outcome replication |
-| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / west-Germany cases |
+| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / `botosaru_ferman_covariates` / west-Germany cases |
 | `german_reunification.csv` | `gdp` + the `Reunification` flag | ClusterSC / SpotSynth / several west-Germany cases |
 
 ## Basque Country — Abadie & Gardeazabal (2003)
@@ -217,6 +217,54 @@ through `nanoparquet`, so the R and Python sides of the comparison cannot run on
 different inputs. The authors' own committed outputs — weights, balance table
 and placebo p-values at all three intervention timings — are vendored beside it
 under `authors/`.
+
+## Retail price experiment in Brazil — Masini & Medeiros (2021)
+
+| File | What it is | Used by |
+|---|---|---|
+| `masini_retail_sales.parquet` | 233 Brazilian municipalities x 134 daily periods (2016-06-20 to 2016-10-31): quantity sold of one product, the treated-group flag, and the number of shops per municipality | ArCo/WLASSO replication (`arco_retail`) |
+
+The Section 6 application of Masini & Medeiros (2021), *"Counterfactual Analysis
+With Artificial Controls: Inference, High Dimensions, and Nonstationarity"*,
+JASA 116(536), converted from the panel in `codes/` of the authors' replication
+package (the `qtd`, `gtreat` and `shops` arrays, round-tripped exactly). A retail
+chain raised the product's price in 107 municipalities on 2016-10-18 and held it
+for 14 days; the other 126 stayed at the old price. The paper undertakes not to
+disclose the name of the product or of the chain, so nothing here carries either:
+municipalities are integer indices, no column is labelled with a product, and the
+file is renamed off the source archive's own name, which contains a token that
+reads as a chain abbreviation. The
+`treat` column flags treated-group municipalities from 2016-10-18 onward.
+`benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
+which is the series the authors' `arco.m` explains.
+
+## Simulation donor pools
+
+| File | What it is | Used by |
+|---|---|---|
+| `gvb_rgdpl1980.csv` | 157 countries' 1980 log real GDP per capita, from PWT | `wan_pda_vs_scm_ref` |
+
+Gardeazabal & Vega-Bayo's replication files ship this pool as `rgdpl1980.txt`,
+and Wan, Xie & Hsiao's simulation scripts sample it to build unit fixed effects
+and a covariate for their Designs 1b and 2d. It is a donor pool for a
+data-generating process, not a panel: there is one value per country and no time
+dimension. Table 1 of Wan, Xie & Hsiao describes the pool as `j = 1, ..., 143`,
+while the file carries 157 values and the authors' own scripts sample `1:157`;
+the scripts are what `benchmarks/R/wan_pda_vs_scm.R` follows.
+
+## Fixed factors and loadings for Xu (2017)'s simulations
+
+| File | What it is | Used by |
+|---|---|---|
+| `xu_gsynth_FLSource.RData` | three 1000x20 matrices of factors and loadings | `xu_gsynth_vs_scm` |
+
+Xu's `sim_adh.R` calls its generator with `fixF = TRUE, fixL = TRUE`, which reads
+the factors and loadings from this file instead of drawing them. That holds the
+treated/donor geometry still across replications so the only Monte Carlo
+variation is the idiosyncratic error, which is what lets the design isolate the
+effect of loading overlap. `F.source` and `F.u.source` hold normal and uniform
+factors; `L.source` holds the loadings, with column 20 serving as the unit fixed
+effect. The file is the archive's own, unmodified.
 
 ## Other datasets
 

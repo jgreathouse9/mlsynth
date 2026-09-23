@@ -1007,6 +1007,19 @@ the same module powers all three estimators.
    p.curve                                     # tuple of MDEPoint per horizon
    p.sigma_placebo                             # σ̂ used (B window in LEXSCM)
    p.serial_correlation                        # ρ̂ AR(1) of the B residuals
+   p.placebo_bias                              # mean B gap; 0 for an unbiased design
+   p.placebo_bias_pvalue                       # is that offset distinguishable from 0?
+   p.n_placebo, p.sigma_ci                     # periods σ̂ rests on, and its interval
+   p.headline.critical_value                   # t quantile the MDE is built at
+   p.headline.mde_ci                           # MDE at the ends of p.sigma_ci
+
+The MDE is what a constant effect has to clear to be detected by a two-sided
+test on the mean post-period gap. Compare an observed effect against
+``p.headline.critical_value``, not 1.96: σ̂ comes from the B window, so the
+pivot is Student-t on that window's effective degrees of freedom. A non-zero
+``placebo_bias`` says the synthetic control misses on periods it was not fitted
+to, and that offset is carried into the standard error, since it lands in the
+post window on top of whatever effect is there.
 
 Two MDEs, complementary roles
 """""""""""""""""""""""""""""
@@ -1015,10 +1028,48 @@ Two MDEs, complementary roles
   null on the B window, used to *rank designs against each other*. Aggregated
   to a representative scalar by ``mde_horizon`` (``late`` / ``early_min`` /
   ``early_mean``) and consumed by Stage 4's lexicographic gate.
-* Post-fit MDE (``res.power``) -- analytical Gaussian +
-  AR(1) MDE consumed *after* a design has been chosen, on the same surface
-  that MAREX / SYNDES / PANGEO produce. Use this when reporting a single
-  detectability number alongside the realised ATE / CI.
+* Post-fit MDE (``res.power``) -- closed-form AR(1) MDE for a two-sided
+  Student-t test on the *mean* post-period gap, consumed *after* a design has
+  been chosen, on the same surface that MAREX / SYNDES / PANGEO produce. Use
+  this when reporting a single detectability number alongside the realised
+  ATE / CI.
+
+The two answer different questions and need not agree. Stage 3 tests
+:math:`\frac{1}{|post|}\sum_t |e_t|` against a moving-block placebo null;
+the post-fit MDE tests the signed mean against a t quantile. A design whose
+``res.power`` headline sits below its realised ATE can still return a
+non-significant p-value from the permutation test the design search ranked it
+by, and the ``method`` field on ``res.power`` names which test its number
+refers to.
+
+Ranking on the B window, and why it is allowed
+"""""""""""""""""""""""""""""""""""""""""""""
+
+Stage 4 ranks candidates by their B-window MDE and the inference is then built
+from those same B-window residuals, which looks like the thing Vives-i-Bastida
+(2022, Section 4) rules out: "we can't decide the outcome pair on the basis of
+the fit in the blank period (otherwise we would bias our statistical
+analysis)." The concern is a winner's curse -- if the ranking sorts on noise,
+the winner's B residuals are a minimum over candidates and the null built from
+them is too narrow.
+
+Measured on simulated panels with a known factor structure, it does not bite.
+Against a control that never consults the B window, the ranked design is 24
+percent better on the post window -- periods no design was ranked on -- so what
+Stage 4 finds is real donor-fit stability and not a lucky draw. Stage 1 is what
+makes this hold: it hands Stage 4 designs that already meet the balance
+objective, so the candidates differ in true quality by more than they differ by
+noise. Remove that and the property goes with it. On a panel whose units share
+one noise scale, where the candidates are equal in truth, the same ranking buys
+nothing (a post-window ratio of 0.98 against 1.00). Both arms are pinned in
+``mlsynth/tests/test_lexscm_selection_validity.py``, the second as the positive
+control that gives the first the power to fail.
+
+What the B window does understate is the post-window error, by about a sixth on
+that configuration. This is a horizon effect and not a selection one -- B
+periods sit adjacent to the estimation window and post periods sit beyond them,
+so the gap is the same size for a design chosen without ever consulting B. It
+is priced by the terms on ``res.power``, not by the ranking rule.
 
 Power-analysis failures (e.g. degenerate B-window residuals) never break a
 fit; ``res.power`` is simply left as ``None``. To compute on a

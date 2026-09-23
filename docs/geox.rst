@@ -69,7 +69,54 @@ donors is absorbed. Synthetic DiD differences it out, so the donor pool
 does not have to contain the treated region's scale, only its shape.
 A two-city test region in a pool of small markets remains estimable.
 
-The two engines report different imbalance measures, because each
+``engine="mvbbsc"`` is the Bayesian synthetic control of Martinez and
+Vives-i-Bastida (2024): a uniform-Dirichlet simplex on the donor weights
+with a HalfNormal scale, sampled by NUTS. It needs the ``[bayes]``
+optional dependency. Pick it when the analysis that will be reported is
+Bayesian, or when the design's readout should be a credible interval on
+the effect instead of a test against a reassignment null.
+
+One thing about it differs from calling :class:`mlsynth.MVBBSC` on the
+same panel, and it follows from what a scoring loop asks of an engine.
+
+The interval carries the pre-period autocorrelation.
+MVBBSC's counterfactual adds a shock that is independent across
+periods, and a design's readout averages a whole post window, so under
+independence the variance of that mean falls as
+:math:`\sigma^2 / h` while under positive autocorrelation it falls more
+slowly. Measured on Meta's GeoLift panel, with each of its 40 locations
+taken in turn as an untreated placebo, a nominal 90% interval built on
+the independent shock covers 65% of the time and one carrying the
+pre-period AR(1) covers 87.5%, against augsynth's conformal 89.7% at
+1.7 times the width. A band read period by period looks acceptable
+either way; averaging is what separates them.
+
+Donor column order needs no handling in the design. MVBBSC canonicalises
+its own columns, so a design does not depend on the order nomination
+happened to hand its candidates over in, and the engine inherits that
+instead of re-imposing it.
+``benchmarks/cases/geox_mvbbsc_equivalence.py`` pins the consequence:
+the engine and the estimator agree identically on West Germany -- the
+posterior-mean counterfactual, the ATT and the donor weights all to
+zero difference, not to a tolerance -- and reversing the donor columns
+the design hands over changes nothing the engine reports.
+
+The fit is a posterior draw, so the scorer carries a little spread of its
+own. The sampler seed is fixed, so re-running one design reproduces its
+own numbers; at the engine's defaults of 600 warmup and 600 sampling
+iterations over two chains, two different seeds on one panel move the
+posterior-mean donor weights by around 1e-2. Rescaling the outcome or
+shifting it by a constant, neither of which changes the problem, moves
+them by about as much or less. Differences of that size between two runs
+are spread in the scorer, not a difference between designs; tighten them
+by raising ``n_samples`` through ``engine_kwargs``, at proportionate cost.
+NumPyro samples in single precision unless something else in the process
+has enabled double, which :class:`mlsynth.MTGP` and
+:class:`mlsynth.BPSCS` do when they are imported; on one panel at one
+seed that shifts the posterior-mean weights by 6.4e-3, the same order as
+the spread above.
+
+The two frequentist engines report different imbalance measures, because each
 reports its own estimator's. ``pre_rmspe`` on the SDID path is the
 root-mean-square pre-period gap; ``scaled_l2`` on the augsynth path is
 augsynth's ratio of the fitted imbalance to the imbalance uniform donor
@@ -211,7 +258,7 @@ Inference and Diagnostics
 ``inference`` chooses the null a detection is taken against, and it
 varies separately from ``engine``. Left unset, each engine takes its
 own default: placebo for ``sdid``, conformal for ``augsynth``, which is
-GeoLift's choice.
+GeoLift's choice, and ``"bayes"`` for ``mvbbsc``.
 
 Placebo reassignment is Arkhangelsky et al.'s Algorithm 4: reassign
 :math:`N_{\mathrm{tr}}` donors as pretend-treated, drop them from the
@@ -240,6 +287,17 @@ every time; ``finite_sample_p=True`` reports
 ``(1 + #{stat >= observed}) / (1 + ns)`` instead, which cannot. That
 correction is off by default so the GeoLift reproduction keeps augsynth's
 convention; turn it on for inference you intend to report.
+
+``"bayes"`` is the posterior predictive of the Bayesian engine, and it
+is available on ``mvbbsc`` alone. It is also the only null that engine
+admits. A placebo or conformal procedure substituted onto a Bayesian fit
+would report a quantity the estimator did not produce, which is the same
+argument by which ``sdid`` refuses conformal, and the error says so. The
+readout is a credible interval on the effect and a posterior tail
+probability in place of a p-value, with the shock carrying the
+pre-period AR(1) as described above. ``max_rhat`` and ``n_divergent``
+travel with it, so a design scored on a chain that did not converge is
+visible as such and not merely as a number.
 
 Holding one of the two fixed and varying the other separates the two
 sources of a difference between designs. Scoring one panel with both
