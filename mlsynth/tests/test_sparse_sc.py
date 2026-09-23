@@ -220,6 +220,48 @@ class TestOptimization:
         assert v_path.shape == (3, inputs.P)
         assert np.all(v_path[:, 0] == 1.0)
 
+    def test_a_single_predictor_needs_no_sweep(self, small_panel):
+        """``P = 1`` is the anchor alone, and its answer is closed form.
+
+        The ex-post normalisation pins ``v_1 = 1``, so the outer problem
+        optimises ``v[1:]``, which is empty at ``P = 1``. L-BFGS-B was handed
+        a zero-length ``x0`` and scipy raised from its own bound-checking.
+        Nothing about the case is ill-posed: ``V = [1]`` by construction,
+        there is no second weight left to penalise, so every lambda gives the
+        same answer and ``W`` follows from the inner QP.
+        """
+        inputs = prepare_sparse_sc_inputs(
+            df=small_panel, outcome="y", treat="tr",
+            unitid="unit", time="year", covariates=COVS[:1],
+        )
+        grid = np.array([0.0, 0.01, 0.1])
+        optv, opt_lam, grid_used, train, val, v_path = sweep_lambda(
+            X1=inputs.X1, X0=inputs.X0, Y1=inputs.Y1, Y0=inputs.Y0,
+            T0_total=inputs.T0_total, T0_train=inputs.T0_train,
+            lambda_grid=grid,
+        )
+        assert optv.shape == (1,)
+        assert optv[0] == 1.0
+        assert opt_lam in grid_used
+        assert v_path.shape == (3, 1)
+        assert np.all(v_path == 1.0)
+        # The penalty has nothing to act on, so the curves are flat in lambda.
+        assert np.all(np.isfinite(train)) and np.all(np.isfinite(val))
+        assert train.max() - train.min() == pytest.approx(0.0, abs=1e-12)
+        assert val.max() - val.min() == pytest.approx(0.0, abs=1e-12)
+
+    def test_a_single_predictor_fits_through_the_estimator(self, small_panel):
+        """The path a caller actually takes, end to end."""
+        res = SparseSC({"df": small_panel, "outcome": "y", "treat": "tr",
+                        "unitid": "unit", "time": "year",
+                        "covariates": COVS[:1], "run_inference": False,
+                        "display_graphs": False}).fit()
+        assert np.allclose(np.asarray(res.design.v), [1.0])
+        assert np.isfinite(res.att)
+        w = np.asarray(res.design.w, dtype=float)
+        assert w.min() >= -1e-9
+        assert w.sum() == pytest.approx(1.0, abs=1e-6)
+
 
 class TestSyntheticRecovery:
     def test_recovers_true_effect(self, small_panel):

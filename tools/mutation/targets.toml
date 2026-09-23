@@ -2309,6 +2309,12 @@ timeout = 900.0
   models = "scoring a lambda that lost every start as though the cold init had been chosen there. The validation MSE is finite, so the lambda re-enters the argmin and can win it, and the caller reads a selected lambda, a predictor set and an ATT off a point no solve ever returned. Leaving val_curve NaN is what keeps it out of nanargmin and out of the champion update; a finite placeholder is a fit nobody asked for dressed as a fit"
 
   [[target.mutant]]
+  id = "the-single-predictor-case-goes-back-to-the-sweep"
+  find = "    if P == 1:"
+  replace = "    if P == 0:"
+  models = "the shipped sweep until 2026-09, in which one predictor was a crash. The normalisation pins v_1 = 1 and the outer problem optimises v[1:], which is empty at P = 1, so L-BFGS-B was handed a zero-length x0 and scipy raised out of its own bound check. The case is well posed and closed form -- V = [1] by construction, no free weight is left for the L1 term, every lambda gives the same point -- and matching on one index or one lagged outcome is a specification a user reaches for when narrowing a predictor set down"
+
+  [[target.mutant]]
   id = "an-undefined-predictor-spread-passes-through"
   find = "    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)"
   replace = "    sd = np.where(sd == 0, 1.0, sd)"
@@ -2325,6 +2331,12 @@ timeout = 900.0
   find = "    if degeneracy.nothing_pruned and degeneracy.lambda_selected > 0.0:"
   replace = "    if degeneracy.nothing_pruned and degeneracy.lambda_selected >= degeneracy.lambda_grid_max:"
   models = "requiring the two symptoms to coincide before either is reported. It reads like the conservative choice -- only speak up when the sweep both ran to the top of its grid and kept everything -- and it misses the case that motivated the check: a penalty selected strictly inside the grid that still removes no predictor. The library's own synthetic panel does exactly that, at lambda* = 0.39 with 4 of 4 predictors kept, and would come back silent"
+
+  [[target.mutant]]
+  id = "a-lone-predictor-is-called-a-collapsed-corner"
+  find = "    if degeneracy.anchor_only and degeneracy.n_predictors > 1:"
+  replace = "    if degeneracy.anchor_only:"
+  models = "reading the anchor-only corner off dim_u alone. At P = 1 the anchor IS the model, so the support being the anchor is the definition and not a collapse. The warning then tells the caller that the predictor set follows from which predictor is listed first and to reorder `covariates` -- advice that cannot be followed on a one-element list, about a drop that did not happen"
 
   [[target.mutant]]
   id = "a-boundary-lambda-is-only-mentioned-in-the-degenerate-corner"

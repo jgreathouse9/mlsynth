@@ -203,6 +203,22 @@ class TestWarnings:
         with pytest.warns(UserWarning, match="anchor predictor"):
             warn_if_degenerate(g, ["p_cig", "loginc"])
 
+    def test_one_predictor_is_not_the_anchor_only_corner(self):
+        """At ``P = 1`` the anchor is the model, so there is no corner.
+
+        ``anchor_only`` stays a true reading -- the support is the anchor --
+        but the warning tells the caller to reorder ``covariates`` and says
+        the predictor set follows from the listing order. With one predictor
+        there is nothing to reorder and nothing was dropped, so the advice
+        does not apply.
+        """
+        d = assess_degeneracy(_design([1.0], [0.4, 0.6], [[1.0]]))
+        assert d.anchor_only
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warn_if_degenerate(d, ["p0"])
+        assert [str(c.message) for c in caught] == []
+
     def test_a_single_active_donor_warns(self):
         g = assess_degeneracy(_design([1.0, 2.0], [1.0, 0.0], [[1.0, 2.0]]))
         with pytest.warns(UserWarning, match="donor"):

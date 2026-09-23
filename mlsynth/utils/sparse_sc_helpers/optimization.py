@@ -202,6 +202,22 @@ def sweep_lambda(
     v20_cold = default_v20(X0)
     bounds = [(0.0, None)] * (P - 1)
 
+    if P == 1:
+        # The anchor is the whole of V. The normalisation pins v_1 = 1, so the
+        # outer problem optimises v[1:], which is empty here and handed
+        # L-BFGS-B a zero-length x0 -- scipy raised out of its own bound check.
+        # Nothing is ill-posed: V = [1] by construction, no free weight is left
+        # for the L1 term to act on, so every lambda gives the same point and
+        # the curves are flat. Solved once and broadcast.
+        v = np.ones(1, dtype=float)
+        train = float(outer_loss(np.empty(0), X1, X0, Z1_train, Z0_train, 0.0,
+                                 solver=solver))
+        val = float(selection_mse(np.empty(0), X1, X0, Z1_val, Z0_val,
+                                  solver=solver))
+        n = int(lambda_grid.size)
+        return (v, float(lambda_grid[0]), lambda_grid,
+                np.full(n, train), np.full(n, val), np.ones((n, 1)))
+
     def _restarts(idx: int, phase: int) -> list:
         """Log-normal restart draws around the cold init for one grid point.
 

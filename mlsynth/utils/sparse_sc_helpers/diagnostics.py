@@ -112,7 +112,7 @@ def warn_if_degenerate(
     a lambda chosen at the edge of its own grid, and a counterfactual resting
     on one donor.
     """
-    if degeneracy.anchor_only:
+    if degeneracy.anchor_only and degeneracy.n_predictors > 1:
         who = ""
         if predictor_names is not None and len(predictor_names):
             who = f" ({predictor_names[0]!r})"
