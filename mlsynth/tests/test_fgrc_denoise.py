@@ -283,3 +283,110 @@ def test_dropping_the_disturbing_block_puts_the_treated_unit_outside_the_hull():
     assert float((y > raw.max(axis=0)).mean()) == 0.0
     assert float((y > keep_all.max(axis=0)).mean()) == 0.0
     assert float((y > keep_c1.max(axis=0)).mean()) == 1.0
+
+
+# --------------------------------------- why keep="cluster" collapses the donors
+
+
+@_NEEDS_BASQUE
+def test_the_cluster_subspace_discriminates_groups_and_carries_no_variance():
+    """The structural reason ``fgrc_keep="cluster"`` flattens the donors.
+
+    fGRC splits the subspace by what discriminates clusters. ``A1`` holds the
+    separating directions, ``A2`` the high-variance ones that do not separate.
+    That split is the method working: it stops a variance-dominant direction
+    swamping the grouping.
+
+    It also means the two blocks are near-opposites in content. On Basque,
+    ``A1``'s columns are about 70% between-cluster while carrying under 4% of
+    the variance; ``A2`` carries over 90% of the variance and almost all of it
+    is within cluster.
+    """
+    from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_subspace
+
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    treated = "Basque Country (Pais Vasco)"
+    wide = df.pivot(index="year", columns="regionname",
+                    values="gdpcap").dropna(axis=1)
+    T0 = int((wide.index < 1975).sum())
+    X = wide[[c for c in wide.columns if c != treated]].values.T.astype(float)
+    sub = fgrc_subspace(X, c1=2, c2=1, k=2, n_knots=max(4, T0 // 2 - 2),
+                        order=4, seed=0)
+    scores = sub.G @ sub.A
+    labels = sub.labels
+
+    def between_share(v):
+        grand = v.mean()
+        between = sum(((v[labels == g].mean() - grand) ** 2) * (labels == g).sum()
+                      for g in np.unique(labels))
+        within = sum(((v[labels == g] - v[labels == g].mean()) ** 2).sum()
+                     for g in np.unique(labels))
+        return between / (between + within)
+
+    energy = (scores ** 2).sum(axis=0) / (sub.G ** 2).sum()
+
+    for j in range(sub.c1):                      # A1: discriminates, tiny variance
+        assert between_share(scores[:, j]) > 0.5
+        assert energy[j] < 0.10
+    for j in range(sub.c1, sub.A.shape[1]):      # A2: variance, no discrimination
+        assert between_share(scores[:, j]) < 0.2
+        assert energy[j] > 0.80
+
+
+@_NEEDS_BASQUE
+def test_the_collapse_is_the_direction_not_the_rank():
+    """A rank-2 projection is not the problem; *which* rank-2 subspace is.
+
+    Top-2 PCA of ``G`` keeps essentially all the between-donor spread at the
+    same rank fGRC's ``A1`` keeps a fifth of it. Without this the obvious
+    reading is that the donors simply need three dimensions, which would make
+    the cluster/disturbing split irrelevant to the failure.
+    """
+    from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_subspace
+
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    treated = "Basque Country (Pais Vasco)"
+    wide = df.pivot(index="year", columns="regionname",
+                    values="gdpcap").dropna(axis=1)
+    T0 = int((wide.index < 1975).sum())
+    X = wide[[c for c in wide.columns if c != treated]].values.T.astype(float)
+    sub = fgrc_subspace(X, c1=2, c2=1, k=2, n_knots=max(4, T0 // 2 - 2),
+                        order=4, seed=0)
+    G = sub.G
+    raw_spread = G.std(axis=0).mean()
+
+    def kept(basis):
+        return (G @ basis @ basis.T).std(axis=0).mean() / raw_spread
+
+    pca2 = np.linalg.svd(G, full_matrices=False)[2][:2].T
+    assert kept(sub.A[:, :sub.c1]) < 0.35      # fGRC's cluster subspace, rank 2
+    assert kept(pca2) > 0.90                   # plain PCA, same rank
+    assert kept(sub.A) > 0.90                  # fGRC's full subspace, rank 3
+
+
+@_NEEDS_BASQUE
+def test_the_reconstruction_preserves_the_spread_ratio_of_the_projection():
+    """The back-map is not where the spread goes.
+
+    ``fgrc_lowrank`` inverts the Gram root and the B-spline basis, either of
+    which could in principle shrink the panel. The ratio it produces in time
+    coordinates tracks the ratio the projection produced in ``G``, so the loss
+    is the projection's and the reconstruction is exonerated.
+    """
+    from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_lowrank, fgrc_subspace
+
+    df = pd.read_csv(_BASEDATA / "basque_data.csv")
+    treated = "Basque Country (Pais Vasco)"
+    wide = df.pivot(index="year", columns="regionname",
+                    values="gdpcap").dropna(axis=1)
+    T0 = int((wide.index < 1975).sum())
+    X = wide[[c for c in wide.columns if c != treated]].values.T.astype(float)
+    sub = fgrc_subspace(X, c1=2, c2=1, k=2, n_knots=max(4, T0 // 2 - 2),
+                        order=4, seed=0)
+
+    for keep, basis in (("all", sub.A), ("cluster", sub.A[:, :sub.c1])):
+        in_g = ((sub.G @ basis @ basis.T).std(axis=0).mean()
+                / sub.G.std(axis=0).mean())
+        in_time = (fgrc_lowrank(sub, keep=keep)[:, :T0].std(axis=0).mean()
+                   / X[:, :T0].std(axis=0).mean())
+        assert abs(in_time - in_g) < 0.10, f"{keep}: {in_g:.4f} vs {in_time:.4f}"
