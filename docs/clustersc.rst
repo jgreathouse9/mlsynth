@@ -762,6 +762,75 @@ denoising, and simplex weights -- each piece opt-in, with the default
 path (FPCA clustering, PCP at the Candes penalty, NNLS weights) left
 byte-for-byte identical to Bayani (2021).
 
+A third setting, ``"msca"``, keeps the simplex on the donor weights and
+adds a free intercept:
+
+.. math::
+
+   \min_{a,\; w \geq 0,\; \mathbf{1}^\top w = 1}
+       \| y^- - \mathbf{L}^- w - a\mathbf{1} \|_2 .
+
+This is the MSC(a) program of Li and Shankar [TSSC]_, which mlsynth also
+exposes through :py:class:`TSSC`. It belongs on this page because
+denoising shrinks the donors' convex hull -- that is what a denoiser is
+for -- so a treated unit that sat inside the hull of the raw donors can
+sit outside the hull of the denoised ones. The simplex then has nowhere
+to land, the pre-period error jumps, and the estimate can change sign.
+On the Basque panel under ``rpca_method="FGRC"`` with
+``fgrc_keep="cluster"``, the simplex fit reports an ATT of +1.62 where
+every other configuration reports about -0.8; adding the intercept
+returns -0.81. The same relaxation is what :py:class:`FDID` uses, where
+the counterfactual is an intercept plus the unweighted mean of the
+selected donors.
+
+The intercept is an assumption, not a free improvement. Under
+``simplex`` the treated unit has to lie inside the donors' convex hull.
+Under ``msca`` it has to lie parallel to a point in that hull, with a
+level gap that holds constant across the treatment date. When that gap
+drifts, the intercept fitted on the pre-period biases every post-period
+point by the drift. The pre-period fit cannot detect this, because
+adding a free parameter can only lower pre-period error: a smaller RMSE
+under ``msca`` is not evidence that the assumption holds.
+
+Held-out evidence, fitting on the first half to seventy percent of the
+pre-period and scoring the remainder, across the four denoisers on the
+Basque, West Germany and Proposition 99 panels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30
+
+   * - Denoiser
+     - ``msca`` better out of 9
+   * - PCP
+     - 5
+   * - HQF
+     - 6
+   * - HSVT
+     - 7
+   * - FGRC, ``fgrc_keep="all"``
+     - 5
+   * - FGRC, ``fgrc_keep="cluster"``
+     - 7
+
+Thirty of forty-five. The gains concentrate where the hull has collapsed,
+and elsewhere it can do harm: on Proposition 99 under fGRC it roughly
+doubles held-out error at every split. Reach for it when the spannability
+warning fires or the donors have visibly collapsed, not by default. The
+weight objective and the fitted intercept are both reported on
+``method_details.parameters_used`` as ``weight_objective`` and
+``weight_intercept``, because the counterfactual under ``msca`` is
+``donors @ weights + intercept`` and a reader working from the weights
+alone is off by that amount at every period.
+
+``compute_scpi_pi=True`` follows the objective. scpi re-estimates the
+weights under a constraint family of its own, so under ``msca`` it is
+given the intercept as an unconstrained column and refits simplex donors
+plus a free level -- the model that produced the estimate. The intervals
+it returns are centred on its own refit, not on the pipeline's point
+estimate, which is true of every objective and not particular to this
+one.
+
 When the assumptions bind: practical diagnostics
 -------------------------------------------------
 

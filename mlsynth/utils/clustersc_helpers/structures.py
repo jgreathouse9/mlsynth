@@ -111,6 +111,14 @@ class MethodFit:
     metadata : dict
         Free-form per-method diagnostics (e.g. cluster-id assignment,
         rank used by RPCA, posterior credible bounds for Bayesian PCR).
+    intercept : float
+        Level shift added to the donor combination, from the MSC(a) weight
+        objective (``weight_objective="msca"``). Zero for the objectives
+        that fit through the origin, which is every other one. It is part
+        of the fitted model, not a diagnostic: the counterfactual is
+        ``donors @ weights + intercept``, so a caller reconstructing the
+        fit from the weights alone is wrong by this amount at every
+        period.
     """
 
     name: str
@@ -121,6 +129,7 @@ class MethodFit:
     donor_weights: Dict[Any, float]
     selected_donors: np.ndarray
     metadata: Dict[str, Any] = field(default_factory=dict)
+    intercept: float = 0.0
 
 
 @dataclass(frozen=True)

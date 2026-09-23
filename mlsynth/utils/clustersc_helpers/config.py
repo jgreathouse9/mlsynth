@@ -84,11 +84,19 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
                     "2017, which projects out a shared disturbing trend before "
                     "grouping).",
     )
-    weight_objective: Literal["nnls", "simplex"] = Field(
+    weight_objective: Literal["nnls", "simplex", "msca"] = Field(
         default="nnls",
         description="Weight objective against the denoised donors: 'nnls' "
-                    "(non-negative LS, Bayani 2021, default) or 'simplex' (the "
-                    "Abadie-Diamond-Hainmueller sum-to-one convex-hull constraint).",
+                    "(non-negative LS, Bayani 2021, default), 'simplex' (the "
+                    "Abadie-Diamond-Hainmueller sum-to-one convex-hull "
+                    "constraint), or 'msca' (that simplex plus a free "
+                    "intercept, Li-Shankar 2023 MSC(a)). 'msca' changes what "
+                    "is assumed, not only how the weights are fitted: it "
+                    "drops the requirement that the treated unit lie inside "
+                    "the donors' hull in levels and assumes instead that the "
+                    "level gap is constant through the post period. Adding "
+                    "the intercept can only improve pre-period fit, so that "
+                    "fit cannot tell you whether the assumption holds.",
     )
     fgrc_c1: int = Field(
         default=2, ge=1,

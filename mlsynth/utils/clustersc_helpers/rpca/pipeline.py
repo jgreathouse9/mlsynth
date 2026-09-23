@@ -37,12 +37,12 @@ from .pcp import PCPResult, pcp_decompose
 from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
-from .weights import solve_nnls
+from .weights import solve_msca, solve_nnls
 from ..spannability import assess_spannability, warn_if_poorly_spanned
 
 _RPCA_METHODS = {"PCP", "HQF", "HSVT", "FGRC"}
 _CLUSTER_METHODS = {"fpca", "fgrc"}
-_WEIGHT_OBJECTIVES = {"nnls", "simplex"}
+_WEIGHT_OBJECTIVES = {"nnls", "simplex", "msca"}
 
 _MIN_PRE = 2
 _MIN_DONORS = 2
@@ -245,7 +245,7 @@ def run_rpca(
     # ------------------------------------------------------------------
     # Optional: leave-one-time-out CV for the dominant solver knob
     # (PCP lambda or HQF rank). Tunes the prediction-oriented value
-    # rather than the L/S identifiability default from Candes 2011.
+    # instead of the L/S identifiability default from Candes 2011.
     # See `tuning.py` for the algorithm.
     # ------------------------------------------------------------------
     cv_metadata: dict = {}
@@ -356,17 +356,33 @@ def run_rpca(
     # ------------------------------------------------------------------
     # Step 4: fit weights against the denoised pre-period donors. Default is
     # non-negative LS (Bayani 2021); "simplex" adds the Abadie-Diamond-
-    # Hainmueller sum-to-one convex-hull constraint on the denoised donors.
+    # Hainmueller sum-to-one convex-hull constraint on the denoised donors;
+    # "msca" keeps that constraint and frees the level (Li-Shankar 2023).
+    #
+    # Denoising shrinks the donors' convex hull -- that is what it is for --
+    # so the treated unit can end up outside a hull it was inside before the
+    # denoiser ran. `msca` is the response: it asks the treated unit to be
+    # parallel to the hull, not inside it. The cost is an assumption, since
+    # the intercept fitted pre-period biases every post-period point if the
+    # level gap drifts, and the pre-period fit cannot show that.
     # ------------------------------------------------------------------
+    intercept = 0.0
     if weight_objective == "simplex":
         beta = _solve_simplex(L_pre, treated_outcome[:T0])
+    elif weight_objective == "msca":
+        beta, intercept = solve_msca(
+            denoised_donor_pre=L_pre, target_pre=treated_outcome[:T0]
+        )
     else:
         beta = solve_nnls(denoised_donor_pre=L_pre, target_pre=treated_outcome[:T0])
 
     # ------------------------------------------------------------------
     # Step 5: project through the denoised donor matrix in both periods.
+    # The intercept carries into the post period with the weights; holding
+    # it back would bias every post-period point by exactly its value while
+    # leaving the pre-period fit looking correct.
     # ------------------------------------------------------------------
-    counterfactual = L_full @ beta
+    counterfactual = L_full @ beta + intercept
     gap = treated_outcome - counterfactual
     att = float(np.mean(gap[T0:])) if T > T0 else float("nan")
     pre_rmse = float(np.sqrt(np.mean(gap[:T0] ** 2)))
@@ -376,6 +392,7 @@ def run_rpca(
     metadata = {
         "rpca_method": rpca_method,
         "weight_objective": weight_objective,
+        "weight_intercept": float(intercept),
         **spannability_meta,
         **cluster_meta,
         **solver_metadata,
@@ -440,15 +457,22 @@ def run_rpca(
         )
         metadata["cft_inference"] = cft_obj
 
-    # scpi prediction intervals: run on the denoised donor design and the NNLS
-    # weights (counterfactual = L_full @ beta). Constraint chosen by the caller
-    # (simplex matches the RPCA non-negative weights).
+    # scpi prediction intervals: run on the denoised donor design and the
+    # fitted weights. Constraint chosen by the caller (simplex matches the
+    # RPCA non-negative weights). Under "msca" the counterfactual is
+    # `L_full @ beta + intercept`, so scpi gets the intercept as its own
+    # unconstrained column (its `KM` block, coefficient last); handing it
+    # the donor weights alone would centre every interval one intercept
+    # away from the counterfactual the caller is returned.
     if compute_scpi_pi and T > T0:
         from ..scpi_pi import scpi_pi_inference
+        scpi_constant = weight_objective == "msca"
+        scpi_weights = np.append(beta, intercept) if scpi_constant else beta
         try:
             metadata["scpi_inference"] = scpi_pi_inference(
-                treated_outcome, L_full, T0, beta,
-                constraint=scpi_constraint, sims=scpi_sims, alpha=scpi_alpha,
+                treated_outcome, L_full, T0, scpi_weights,
+                constraint=scpi_constraint, constant=scpi_constant,
+                sims=scpi_sims, alpha=scpi_alpha,
                 e_method=scpi_e_method, seed=random_state,
                 periods=list(range(T0, T)),
             )
@@ -464,4 +488,5 @@ def run_rpca(
         donor_weights=donor_weights,
         selected_donors=np.asarray(selected_names),
         metadata=metadata,
+        intercept=float(intercept),
     )
