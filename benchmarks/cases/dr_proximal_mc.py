@@ -33,8 +33,12 @@ In the **just-identified** case the DR and PIPW *point* estimates coincide
 exactly: the treatment bridge solves the balancing moment
 :math:`\\mathbb{E}_{\\text{pre}}[q\\,(1,W)] = \\mathbb{E}_{\\text{post}}[(1,W)]`,
 which makes the DR outcome-bridge correction cancel, so ``dr_bias`` equals
-``pipw_bias`` here. The two still differ in **inference** -- the sandwich SEs,
-and hence the Wald coverage, are not identical.
+``pipw_bias`` here. Their **inference** coincides for the same reason: the same
+estimator against the same moments has the same sandwich, so the SEs and the
+Wald coverage match too. This page previously recorded them as differing, and
+reported PIPW coverage of 0.99 as conservative; both were the off-by-one in
+``estimate_pipw``'s sandwich index, which handed back the standard error of a
+nuisance mean. Corrected, both estimators cover at 0.917.
 
 Path B (scenario 3, the authors' own DGP): the case asserts the geometry --
 both estimators unbiased with reasonable coverage, and DR robust to outcome-
@@ -129,7 +133,7 @@ EXPECTED = {
     "dr_bias": (0.0, 0.06),                 # DR recovers ATE=2
     "pipw_bias": (0.0, 0.06),               # PIPW recovers ATE=2
     "dr_coverage": (0.91, 0.12),            # near nominal 0.95
-    "pipw_coverage": (0.99, 0.08),          # conservative (high) coverage
+    "pipw_coverage": (0.92, 0.12),          # identical to dr_coverage; same estimator
     "pi_att_misspecified": (4.30, 0.6),     # PI collapses under nonlinear confounding
     "dr_att_misspecified": (2.0, 0.25),     # DR holds (correct treatment bridge)
     "dr_beats_pi_under_misspec": (1.0, 0.0),

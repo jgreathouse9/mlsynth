@@ -56,7 +56,7 @@ class VanillaSC:
         if isinstance(config, dict):
             try:
                 config = VanillaSCConfig(**config)
-            except ValidationError as exc:  # pragma: no cover - passthrough
+            except ValidationError as exc:
                 raise MlsynthConfigError(str(exc)) from exc
         if not isinstance(config, VanillaSCConfig):
             raise MlsynthConfigError(

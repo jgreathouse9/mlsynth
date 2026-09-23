@@ -151,6 +151,88 @@ chooses for you. Weighting by population avoids letting large percentage
 swings in tiny units drive the average; equal weighting treats each adoption
 as one observation. Say which you mean.
 
+How a Cohort's Weights Are Solved Together
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+That the cohort shares a design is not only a modelling point. It means the
+cohort's weight programs are one family, and solving them together costs a
+fraction of solving them one at a time.
+
+The simplex constraint removes the design matrix from the objective. With
+:math:`\mathbf{1}^\top\mathbf{w} = 1`,
+
+.. math::
+
+   \mathbf{A}\mathbf{w} - \mathbf{b}_j
+   \;=\; \mathbf{A}\mathbf{w} - \mathbf{b}_j\,(\mathbf{1}^\top\mathbf{w})
+   \;=\; (\mathbf{A} - \mathbf{b}_j\mathbf{1}^\top)\,\mathbf{w},
+
+so the program for unit :math:`j` is the quadratic form
+:math:`\mathbf{w}^\top \mathbf{G}_j \mathbf{w}` with :math:`\mathbf{G}_j =
+(\mathbf{A} - \mathbf{b}_j\mathbf{1}^\top)^\top(\mathbf{A} -
+\mathbf{b}_j\mathbf{1}^\top)`. Expanding it, and writing :math:`\mathbf{c}_j
+= \mathbf{A}^\top \mathbf{b}_j` and :math:`s_j = \mathbf{b}_j^\top
+\mathbf{b}_j`,
+
+.. math::
+
+   \mathbf{G}_j
+   \;=\; \mathbf{A}^\top\mathbf{A}
+   \;-\; \mathbf{c}_j \mathbf{1}^\top
+   \;-\; \mathbf{1} \mathbf{c}_j^\top
+   \;+\; s_j \mathbf{1}\mathbf{1}^\top .
+
+Only :math:`\mathbf{c}_j` and :math:`s_j` depend on the unit, and both come from
+:math:`\mathbf{A}^\top\mathbf{B}` and the column norms of :math:`\mathbf{B}`,
+each formed once. So a cohort of any size costs one Gram and one cross product,
+and no product with the data occurs per unit. The active set then runs the
+cohort in lockstep: each iteration is one batched linear solve over the current
+supports, so the cohort costs what its hardest unit costs. On a Wiltshire cohort
+of 89 counties against 39 donors that is 43ms where the one-at-a-time solve
+takes 396ms. A donor predicate that binds gives each pool its own batch, down to
+a batch of one per unit when no two units share a pool.
+
+The placebo layer poses the same question in a different shape, and it is where
+the estimator's time actually goes: casting each donor in a pool as treated and
+refitting against the rest is 566 x 39 = 22,074 programs on the Wiltshire panel.
+That family is a leave-one-out family over a single matrix -- deleting a column
+deletes a row and a column of :math:`\mathbf{M}^\top\mathbf{M}`, and each
+target is itself a column of :math:`\mathbf{M}` -- so no product with the data
+occurs per refit either. Under ``donors-only`` the matrix is the cohort's design
+and the family is shared by the whole cohort. Under ``permutation``, where the
+treated unit is itself a control, its column is appended: a donor to every
+placebo and a target to none. The layer runs in 21s where solving one at a time
+takes 101s, and the RMSPE-ranked p-values are identical.
+
+Two things have to hold before a batched answer may be reported in place of the
+one-at-a-time answer, and the weights make both strict. STACKEDSC reports
+:math:`\mathbf{w}_j^\ast` per unit and builds each counterfactual from it, so
+an equally optimal but different point is a changed answer, not a rounding
+difference.
+
+The first is that the point actually solves the program as posed on
+:math:`\mathbf{A}`. Forming :math:`\mathbf{G}` squares the design's condition
+number, so a design that is merely awkward at :math:`\operatorname{cond}
+(\mathbf{A}) \approx 10^{7}` gives a Gram at the edge of double precision. The
+batched solver then converges on that Gram to a point that does not solve the
+program the Gram came from, and nothing computed from the Gram reveals it. This
+is what covariate matching runs into: predictors measured in different units
+spread the spectrum, and on the covariate specification of the Wiltshire panel
+62 of 76 units in a cohort fail. So each answer is certified against
+:math:`\mathbf{A}` itself, from the first-order conditions
+(:func:`mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal`), and the units
+that fail are re-solved one at a time.
+
+The second is that the program has one solution. Where the minimiser is a face
+-- every point of it optimal -- two exact solvers have equal claim to different
+weights, and with 5 to 10 pre-treatment periods against 39 donors a face is not
+exotic. :func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles
+it on the solution's own support once a solution is in hand: the objective is
+flat along a direction only where that direction is feasible where the solution
+sits, which needs a support large relative to the design's rank. Synthetic
+control solutions are sparse, so most units qualify -- on the Wiltshire panel
+85.5 percent of 2264 solves do -- and the rest are re-solved.
+
 Diagnostics
 -----------
 

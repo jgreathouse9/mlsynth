@@ -42,12 +42,25 @@ Provenance / scope
   spurious effect"), which is a single bit -- a materially wrong DSC that still
   failed to reject would satisfy it.
 
-  ``DiSCos`` 0.1.4 *is* now installable here (``benchmarks/R/install_discos.sh``),
-  and running it on this same file shows donor weights disagreeing with mlsynth
-  by up to 0.074, with the two implementations reaching pre-period objective
-  values 4 percent apart. That is tracked in issue #304 and is why these rows are
-  not yet cross-validated: pinning agreement before the disagreement is
-  understood would pin the wrong thing.
+  That is a statement about this case, not about the estimator. DSC is
+  cross-validated twice over: ``disco_tenure`` reproduces the ``disco`` Stata
+  Journal article's published donor weights bit-for-bit at the reference's own
+  settings, and ``dsc_disco_xval`` compares against the ``DiSCos`` R package on
+  this very panel.
+
+  That second case also resolves issue #304, which recorded the R package
+  disagreeing with mlsynth here by up to 0.074 and stood as the reason these
+  rows were left un-cross-validated. The disagreement was a measurement
+  artifact. ``DiSCo_weights_reg`` draws its quadrature points with ``runif``, so
+  a single run's weights are a Monte Carlo estimate; the 0.074 was one seed at
+  the package's default draw count. At ``M = 10,000``, averaged over 40 seeds,
+  the gap is 0.0079 -- half the reference's own across-seed standard deviation
+  of 0.0160.
+
+  The rows here stay as they are. They are pinned at DSC's *default* settings on
+  the vignette's setup, which is what makes them a regression guard on the
+  configuration users actually get; ``dsc_disco_xval`` runs at a draw count
+  chosen to resolve the reference, which is a different question.
 """
 from __future__ import annotations
 

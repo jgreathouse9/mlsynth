@@ -52,9 +52,10 @@ def prepare_compsc_inputs(
         pre-treatment periods, negative shares, or zeros that cannot be
         repaired.
     """
-    balance(df, unitid, time)
+    keys = balance(df, unitid, time)
 
-    prep0 = dataprep(df, unitid, time, outcomes[0], treat, allow_no_donors=True)
+    prep0 = dataprep(df, unitid, time, outcomes[0], treat, allow_no_donors=True,
+                     keys=keys)
     Ywide0 = prep0["Ywide"]                       # (T, N) frame
     time_labels = np.asarray(prep0["time_labels"])
     units = list(Ywide0.columns)

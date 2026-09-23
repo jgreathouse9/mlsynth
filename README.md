@@ -44,7 +44,7 @@ pip install -U "mlsynth[bayes] @ git+https://github.com/jgreathouse9/mlsynth.git
 pip install -U "mlsynth[all] @ git+https://github.com/jgreathouse9/mlsynth.git"
 ```
 
-A few nuances worth knowing:
+A few nuances:
 
 - The two extra backends are imported lazily, so `import mlsynth` and importing
   any estimator class always works on the base install. The extra is consulted

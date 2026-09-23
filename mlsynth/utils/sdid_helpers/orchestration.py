@@ -11,7 +11,7 @@ Sequence:
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -97,6 +97,49 @@ def _assemble_cohort(period: int, raw_cohort_summary: Dict[str, Any],
         unit_weights=None if unit_w is None else np.asarray(unit_w, dtype=float),
         time_weights=None if time_w is None else np.asarray(time_w, dtype=float),
     )
+
+
+def lambda_weighted_pre_rmse(cohorts) -> Optional[float]:
+    """Pre-period fit dispersion under SDID's own time weights.
+
+    ``rmse_pre`` averages the pre-period gap over every pre-period equally.
+    Synthetic DiD does not fit that way: ``lambda`` selects which pre-periods
+    carry the comparison, and on a real panel most carry none, so the unweighted
+    statistic is dominated by periods the estimator set aside.
+
+    The gap is centred on its own ``lambda``-weighted mean before squaring.
+    SDID's level term ``lambda' y_pre - lambda' Y0_pre omega`` absorbs exactly
+    that mean, so centring measures what the fit leaves once the level is taken
+    out -- and it makes the statistic blind to whether the counterfactual
+    already carries the level term, which this estimator's does not.
+
+    Under staggered adoption each cohort has its own ``lambda`` over its own
+    pre-period, so the mean squared deviation is formed per cohort and combined
+    with the treated-unit weights the aggregate trajectory uses.
+
+    Returns ``None`` when no cohort reports time weights, since there is then no
+    weighting to apply and a uniform one would be a guess.
+    """
+    per, weights = [], []
+    for cohort in cohorts.values():
+        lam = getattr(cohort, "time_weights", None)
+        if lam is None:
+            continue
+        lam = np.asarray(lam, dtype=float).ravel()
+        actual = np.asarray(cohort.actual, dtype=float).ravel()
+        cf = np.asarray(cohort.counterfactual, dtype=float).ravel()
+        n_pre = lam.shape[0]
+        if n_pre == 0 or actual.shape[0] < n_pre:
+            continue
+        gap = actual[:n_pre] - cf[:n_pre]
+        if not np.isfinite(gap).all() or not np.isfinite(lam).all():
+            continue
+        centred = gap - float(lam @ gap)
+        per.append(float(lam @ (centred ** 2)))
+        weights.append(float(max(int(getattr(cohort, "n_treated", 1) or 1), 1)))
+    if not per:
+        return None
+    return float(np.sqrt(np.average(per, weights=weights)))
 
 
 def _donor_weight_map(inputs: SDIDInputs, cohorts: Dict[int, SDIDCohort]):
@@ -219,7 +262,10 @@ def assemble_results(inputs: SDIDInputs, raw: Dict[str, Any],
         weights=WeightsResults(
             donor_weights=_donor_weight_map(inputs, cohorts),
             summary_stats={"constraint": "SDID unit + time weights (per cohort)"}),
-        fit_diagnostics=FitDiagnosticsResults(rmse_pre=pre_rmse),
+        fit_diagnostics=FitDiagnosticsResults(
+            rmse_pre=pre_rmse,
+            additional_metrics={"rmse_pre_lambda": lambda_weighted_pre_rmse(cohorts)},
+        ),
         inference=std_inference,
         method_details=MethodDetailsResults(method_name=method_name, is_recommended=True),
     )

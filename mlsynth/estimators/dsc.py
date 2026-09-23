@@ -87,6 +87,7 @@ class DSC:
         self.time: str = config.time
         self.M = config.M
         self.grid_method: str = config.grid_method
+        self.weight_constraint: str = config.weight_constraint
         self.lambda_method: str = config.lambda_method
         self.lambda_decay: float = config.lambda_decay
         self.lambda_weights = config.lambda_weights
@@ -114,6 +115,7 @@ class DSC:
                 inputs=inputs,
                 M=self.M,
                 grid_method=self.grid_method,
+                weight_constraint=self.weight_constraint,
                 lambda_method=self.lambda_method,
                 lambda_decay=self.lambda_decay,
                 lambda_weights=self.lambda_weights,

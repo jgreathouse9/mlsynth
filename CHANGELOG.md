@@ -8,7 +8,388 @@ now returns and the back-compat guarantee.
 
 ## [Unreleased]
 
+### Added
+- `fgrc_n_random` and `fgrc_nstart` on `CLUSTERSCConfig`: the two restart counts
+  for fGRC clustering (`cluster_method="fgrc"`), both defaulting to 40, which is
+  what the port already used. They were not reachable from the config, so a user
+  whose cluster assignment moved between runs had no way to spend more restarts
+  on it.
+
+  Yamamoto and Hwang (2017, Section 5) report that the number of local optima of
+  the fGRC objective varies with the data condition and recommend implementing
+  the method with many random initial starts. `fgrc_n_random` restarts the
+  loading matrix; `fgrc_nstart` restarts the k-means step within each of those;
+  the lowest-loss solution is retained. The defaults are more generous than the
+  authors' own R package, whose `N.random` defaults to 1.
+
+  The restarts minimise over starting points, so raising them cannot raise the
+  retained loss, and a test asserts that ordering instead of a fixed number.
+  Passing the defaults explicitly reproduces not passing them, on both the ATT
+  and the cluster labels.
+- `mlsynth.utils.clustersc_helpers.rpca.selection`: the number-of-clusters stage
+  of Yamamoto and Hwang (2017) Algorithm 1, which neither this port nor the
+  authors' own R package previously implemented -- as a diagnostic. It is
+  deliberately not a configuration option: `fgrc_k` stays whatever you set, and
+  nothing in `CLUSTERSCConfig` reaches the rule.
+
+  The rule is a self-consistency check. For a candidate K the method is fitted,
+  the Gap statistic (Tibshirani, Walther and Hastie 2001) is computed on the
+  resulting component scores over a wider grid of k, and K is accepted when
+  `argmax_k Gap(k | L_C, L_D, K) = K`. Two measurements say why the number it
+  produces is not something to act on unread.
+
+  The acceptance is not independent of the fit it checks. The Gap is read on the
+  subspace fGRC chose under the assumption of K clusters, against references
+  drawn inside that same fixed subspace. On white noise at N=30 with c2=1 the
+  fitted subspace puts its Gap maximum at K in 10 to 11 replications out of 12,
+  against 0 to 2 for a random projection of the same basis, which is chance. On
+  structureless 18-unit panels with c2=1, every replication accepted a
+  candidate.
+
+  A maximum at an end of the evaluation grid is a property of the grid. On the
+  17-unit Basque panel it moves with the grid -- 1, 6, 8, 10, 12, 16 for grids
+  1..4 through 1..16 -- and the K that follows moves the donor pool from 15
+  units to 9 and the ATT from -0.365 to -1.212.
+
+  `FGRCSelection` reports both: `boundary` names the candidates whose curve
+  peaked at an end of the grid, they are excluded from acceptance and from the
+  relaxation, and `selected_k` is `None` when that leaves nothing. `one_se`
+  carries Tibshirani's one-standard-error reading, which is the conservative
+  instrument: across 18 structureless panels it answered k=1 on all 54 candidate
+  curves, and on the paper's planted design it answers 3. The evaluation grid
+  must now extend past the largest candidate, and a panel too small for such a
+  grid is refused instead of silently truncated -- on five units the old
+  truncation reported two candidates as accepted on pure noise.
+
+  Validation is against the planted design of the paper's Section 5 and against
+  the null of that same design with the separation removed. Only this stage of
+  Algorithm 1 is implemented; the smoothing lambda by GCV and the penalties by
+  pseudo-F are taken from the caller.
+### Fixed
+- The GEOX engine property suite skips an engine whose optional dependency is
+  absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
+  needs numpyro into a registry that `tests/test_geox_engine_properties.py`
+  parametrizes over unconditionally, so in any environment installing
+  `requirements.txt` alone the eight mvbbsc cases raised
+  `MlsynthEstimationError: MVBBSC requires NumPyro` instead of reporting the
+  engine absent.
+
+  The pull request gate did not see it. `build.yml` runs `pip install numpyro`
+  explicitly, so both PRs were green; `coverage-badge.yml` and `mutation.yml` do
+  not, and the daily badge went red on main with exactly those eight failures.
+
+  `Engine` now carries `requires`, the optional imports an engine cannot fit
+  without, and the suite reads it from the registry instead of naming engines,
+  so a later engine inherits the behaviour. An engine module still imports its
+  dependency inside `fit_once` and never at module scope, which is what lets the
+  registry be resolved without it.
+
+  `mutation.yml` installs numpyro too, and that one was the worse exposure: the
+  bayes tests `importorskip`, so a target whose tests all skip exits 0 and the
+  harness reads the mutant as having survived. That reports confidence nobody
+  measured, which is the one outcome `tools/mutation/run_mutants.py` is written
+  to refuse.
+
+### Fixed
+- `test_scale_invariance_of_weights` no longer asserts against a constant the
+  sampler's own spread can exceed. MVBBSC standardizes internally, so rescaling
+  every series leaves the posterior weights alone -- exactly, in arithmetic. The
+  sampler is where that stops being exact: `(1000*y - mean(1000*y))/std(1000*y)`
+  is not bitwise `(y - mean(y))/std(y)`, the two standardized panels differ by
+  about 1e-14 in float64, and NUTS carries that into the draws. In single
+  precision, NumPyro's default, the difference rounds away and the check comes
+  back at 0.0; MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so which of the two happens depends on what else the process
+  imported.
+
+  At the 80-draw chains the check used, the measured numbers say the 0.05
+  constant was never a bound. Across eight panels under x64 a rescale moved the
+  posterior-mean weights by a median of 0.0211 and at most 0.0374, and refitting
+  the same panel at another seed moved them by a median of 0.0213 and at most
+  0.0384 -- the same distribution, which is the invariance holding. A constant
+  1.4x above that floor passes on luck, and on one CI build it drew 0.0587 and
+  failed.
+
+  The check now bounds the movement by the sampler's own re-run spread, measured
+  in the same process on the same panel, with 0.05 kept as a floor since two
+  seeds can land close by chance. That comparison is build-independent where a
+  constant is not. The chains are also lengthened to 400 draws, which halves
+  both quantities (0.0072 median movement against 0.0102 median spread) and
+  costs no measurable time, since compilation dominates. A mutant that drops the
+  scale divisor is killed, so the looser bound still catches the defect the
+  check exists for.
+- MVBBSC no longer depends on the order its donors arrive in. Donor column order
+  carries no information about the effect -- the pool is a set -- but NUTS walks
+  a parameter vector, so permuting the simplex coordinates changes the
+  trajectory and two runs at one seed disagree by however far it diverges. On
+  the German reunification panel, permuting the 16 donors moved the
+  posterior-mean weights by 7.2e-3 and the mean post-1990 ATT by 6.03, which is
+  0.29% of the estimate: an answer that changed because somebody sorted a
+  dataframe. `run_mvbbsc` now sorts the donor columns lexicographically on the
+  pre-period before sampling and maps the draws back, so every permutation of
+  one donor set presents the sampler with one input and the weights still come
+  back against the columns the caller passed. The relation is exact, so the
+  tests carry no tolerance. `mvbbsc_germany` still passes on its existing pins
+  (mean_att -2078 against -2080 +/- 500, pre_rmse 61.8 against 62.2 +/- 20).
+
+  The tests are parametrized over `target_accept`, and that is not incidental.
+  It defaults to 0.8 and moves the ATT on this panel by 5.92, the same size as
+  the 6.03 the donor order moved it, so a check at one setting is a check where
+  two effects of equal magnitude can cancel. The pre-fix natural order at 0.9
+  and the post-fix canonical order at 0.8 agree to 0.1 by coincidence, which is
+  enough to make a working fix look inert. Two mutants in
+  `tools/mutation/targets.toml` pin both halves: dropping the canonicalisation,
+  and returning the weights in the sampler's internal order so every weight is
+  attributed to the wrong donor while the ATT stays correct.
+
+### Added
+- `engine="mvbbsc"` on GEOX: the Bayesian synthetic control of Martinez and
+  Vives-i-Bastida (2024) in the slot augsynth occupies, needing the `[bayes]`
+  optional dependency. Nomination, backtest windows, effect injection, the power
+  sweep, the MDE rule and the composite rank are untouched, so the engine
+  supplies the fit and the null and nothing else. Two things differ from calling
+  `mlsynth.MVBBSC` on the same panel, and both follow from what a scoring loop
+  asks. The ATT interval carries the pre-period AR(1): a
+  design's readout averages a post window, so under an iid shock its variance
+  falls as sigma^2/h while under positive autocorrelation it falls more slowly.
+  On Meta's GeoLift panel, every one of its 40 locations taken in turn as an
+  untreated placebo, a nominal 90% interval on the iid shock covers 65% and this
+  one covers 87.5%, against augsynth's conformal 89.7% at 1.7x the width. Donor
+  order is handled in `run_mvbbsc` (see Fixed), so the engine inherits that
+  invariance instead of re-imposing it, and it is exact. Scale and location
+  equivariance are not exact and hold at the engine's declared `fit_tolerance`
+  (see Changed).
+- `Engine.fit_tolerance`: the relative precision at which an engine reproduces
+  itself on one panel, declared on the engine and read by the metamorphic
+  property suite. `sdid` and `augsynth` solve deterministic programs and keep
+  the 1e-6 default; `mvbbsc` samples and declares 5e-2.
+
+  The number exists because the suite's fixed 1e-6 was asserting a rounding
+  accident. Rescaling or shifting a panel is exactly equivariant in arithmetic
+  and the model's standardization is not bit-exact in floating point: the
+  standardized arrays reaching the sampler differ in the last ulps, 1.3e-14 on
+  a rescale and 6.7e-15 on a shift. NumPyro samples in single precision by
+  default, where that difference rounds away and the relations held to 0.0
+  exactly. MTGP and BPSCS call `numpyro.enable_x64()` at import and it is
+  process-wide, so in a full-suite run the difference survives and NUTS carries
+  it into the draws -- 4.3e-03 on a rescale, 2.1e-03 on a shift. The engine was
+  green on its own file and red in the suite, and which it was depended on what
+  had been imported first.
+
+  5e-2 is measured. Over six generated panels a rescale moved the posterior
+  weights by at most 5.7e-3 and a shift by 1.1e-2, while refitting the same
+  panel at another seed moved them by 1.2e-2 -- the transformation costs no more
+  than running the sampler again, which is the claim the relation is making, and
+  5e-2 is twice the worst of those. `test_a_transformation_moves_the_fit_no_more_than_refitting_does`
+  asserts that sharp form directly, and
+  `test_the_metamorphic_relations_hold_in_double_precision` re-runs the relations
+  in a subprocess with x64 on, since a single process cannot test both modes.
+  The donor-order relation is unaffected and stays at 1e-6.
+
+  The global-state leak itself is untouched here: whether a NumPyro estimator
+  runs in single or double precision still depends on whether MTGP or BPSCS was
+  imported earlier in the process, and on one panel at one seed that moves
+  MVBBSC's posterior-mean weights by 6.4e-3. That is a shared-helper fix and
+  belongs on its own branch.
+- `inference="bayes"` in the GEOX vocabulary: the posterior predictive of the
+  Bayesian engine. Available on `mvbbsc` alone, and also the only null that
+  engine admits, since substituting a placebo or conformal procedure would
+  report a quantity the estimator did not produce -- the argument by which
+  `sdid` already refuses conformal. The readout is a credible interval and a
+  posterior tail probability, carrying `max_rhat` and `n_divergent` so a design
+  scored on an unconverged chain is visible as such. The other engines' defaults
+  are unchanged: placebo for `sdid`, conformal for `augsynth`.
+- `benchmarks/cases/geox_mvbbsc_equivalence.py`: certification by equivalence.
+  The engine and the estimator agree identically on West Germany -- the
+  posterior-mean counterfactual, the ATT and the donor weights all to 0.0
+  maximum absolute difference, pinned without a tolerance because the two are
+  one sampler call on one standardized panel and anything else would mean the
+  wrapper introduced a transformation. Both sides are compared at float64:
+  NumPyro samples in x32, so measuring the engine's upcast draws against the raw
+  output reads as a 1.8e-08 disagreement that is precision and not computation,
+  and the counterfactual hides it because a matrix product promotes implicitly
+  where a mean over draws does not. Reversing the donor columns changes nothing
+  the engine reports. The agreed ATT sits inside the band `mvbbsc_germany`
+  already pins and beside bsynth's -2075, so the equivalence is anchored to the
+  external reference and not only to itself.
+- `conformal_horizon` on `PPSCMConfig`: a conformal band on each treated unit's
+  CUMULATIVE effect, reported on `PPSCMUnitFit` as `cumulative_effect`,
+  `cumulative_lower`, `cumulative_upper` and `cumulative_windows`. PPSCM reported the
+  cumulative effect as a point estimate with no interval calibrated for it; its
+  per-unit bands carry only the CFPT out-of-sample term, and the in-sample bound
+  mlsynth ships assumes unconstrained weights where PPSCM's live on a simplex.
+  Calibration slides an origin across the pre-period and treats every unit as adopting
+  there: the partially-pooled fit produces all of them in one solve, so a pass costs
+  one solve per origin rather than one per unit per origin, and each unit's summed
+  out-of-sample error is one conformity score for it. The half-width is the shared
+  `conformal.cumulative_conformal_interval`, so the order statistic keeps a single
+  definition across estimators. The band is additional rather than a mode
+  (`inference_method` still selects the bootstrap or jackknife behind the ATT) and is
+  off unless the field is set. Too few non-overlapping windows for the requested level
+  gives an infinite band rather than one that does not cover.
+
+### Added
+- `inference="conformal_cumulative"` on `VanillaSC`: a prediction interval for the
+  cumulative (total) treatment effect over `conformal_horizon` post-periods,
+  defaulting to the whole post-period. mlsynth already reported the cumulative
+  effect as a point estimate, and the one existing "total" band rescaled a
+  per-period interval by the horizon; this calibrates a band for the sum itself.
+  The half-width is the split-conformal order statistic of *summed* out-of-sample
+  errors, collected by refitting at sliding non-overlapping origins across the
+  pre-period, so neither in-sample optimism nor an assumption about how
+  period-to-period errors accumulate enters. The figure lands in
+  `res.inference.details` (`cumulative_effect`, `cumulative_lower`,
+  `cumulative_upper`, `conformal_q`, `n_calibration_windows`);
+  `ci_lower`/`ci_upper` carry the per-period equivalent only when the horizon
+  spans the whole post-period, since a shorter window is not the ATT. Too few
+  non-overlapping windows for the requested level warns and returns an infinite
+  band rather than one that does not cover.
+- `mlsynth/utils/conformal/`, collecting the conformal machinery into one package
+  (following `utils/bilevel/`): `quantile.split_conformal_quantile` (moved from
+  `utils/inferutils.py`, which re-exports it, so existing imports are unaffected),
+  `scores.rolling_origin_block_sums`, `cumulative.cumulative_conformal_interval`
+  and `cumulative_conformal_from_refit`, and `structure.CumulativeConformalBand`.
+  The pure combiner takes precomputed scores, so an estimator whose refit produces
+  several treated units at once can build its own scores in a single pass and
+  reuse the same calibration.
+
+### Changed
+- A row whose unit or time key is missing is refused, at three points:
+  `BaseEstimatorConfig`, `datautils.balance`, and `datautils._fast_pivot`.
+  `balance` counted with `nunique` and `groupby`, both of which skip missing
+  values, so a panel whose blanks were symmetric across units satisfied every
+  check it made; `_wide_pivot` then pivoted the same frame and pandas kept the
+  blank as a level. The two disagreed about what a key is, and the consequence
+  moved the estimand: on a 3-unit, 4-period panel treated from period 3, rows
+  with a blank time key produced a fifth period sorted to the front and took
+  `pre_periods` from 2 to 3, with nothing raised. A blank unit key produced a
+  donor column named `nan`. `BaseMAREXConfig` has rejected these all along but
+  is referenced 14 times against `BaseEstimatorConfig`'s 150, and 38 modules
+  reach ingestion with neither a config nor `balance` in the call path, so the
+  refusal lives at all three. Scoped to the keys: a blank outcome still
+  constructs and still ingests, which is where this stays narrower than the
+  MAREX contract. Breaking for panels that previously passed with blank keys —
+  those results were computed against a shifted pre/post window.
+
+### Changed
+- `datautils.balance` answers from the panel's key codes instead of two hash
+  passes over the frame. Every estimator validates with `balance` and then reads
+  with `dataprep`, and between them the `(unit, time)` key structure was
+  established three times by three different methods: `duplicated` on the pair,
+  `groupby(unit)[time].nunique()`, and the `factorize` + `bincount` inside
+  `_fast_pivot` — which runs twice, once for the outcome and once for the
+  treatment. The third already answers the first two, and `balance` was 35 to 47
+  percent of ingestion cost, more than the pivot it precedes. Same three checks,
+  same order, same messages: the verdict is pinned differentially against a
+  verbatim copy of the previous implementation over a fixture corpus and over
+  generated panels damaged in composable ways. Two details decide correctness —
+  a missing key factorizes to `-1` and is left out of the levels, so `len(levels)`
+  equals the `nunique()` it replaces and a blank-keyed row is excluded exactly as
+  `groupby` excluded it, and the cell index shifts the codes so `-1` cannot
+  collide with a real pair; and the duplicate check counts cells only where the
+  grid is within twice the row count, the bound `_fast_pivot` already applies,
+  because an unbalanced panel is precisely where the grid is not — 4000 singleton
+  units would otherwise ask for 128 MB to report an error. Measured: 3.9x on
+  `balance` at 840 rows, 2.8x at 500k, 25–29 percent of total ingestion, and a
+  full SDID fit 1.05–1.22x faster with its ATT unchanged at `0.0e+00`.
+  One verdict deliberately changes, and it removes a version-dependence:
+  `groupby`'s `observed` default flipped from `False` to `True` in pandas
+  3.0, so a unit column typed as a Categorical carrying a level no row uses
+  was rejected as unbalanced below 3.0 and accepted from 3.0 -- different
+  answers for the same frame across the supported range. `factorize` reports
+  only levels that occur, so the answer is now the same everywhere, and it is
+  the right one: a category no row uses is an annotation on the dtype, not a
+  unit of the panel.
+
+### Added
+- `utils/bilevel/minnorm.py::ridged_gram_reduction_is_safe`: the Gram-reduction
+  guard for a design the caller is about to augment with `sqrt(ridge) * I`,
+  answered without building or factorising that matrix wherever the ridge
+  settles it. The augmented Gram is `X'X + ridge I`, so `lambda_min >= ridge`
+  and `lambda_max <= ||X||_F^2 + ridge`, giving
+  `sv_min / sv_max >= sqrt(ridge / (||X||_F^2 + ridge))` from one Frobenius
+  norm. The bound is one-sided in the safe direction -- clearing it proves the
+  answer is `True`, failing to clear it proves nothing and the spectrum runs --
+  so decisions are identical to asking `gram_reduction_is_safe` about the
+  augmented matrix, by construction rather than by tuning.
+
+### Changed
+- SDID's placebo loop asks the Gram-reduction guard through
+  `ridged_gram_reduction_is_safe`. A default `vce="placebo"` fit posed 1000
+  simplex programs and asked the guard about every one, each answer a full
+  singular spectrum, and on a 101x120 panel all 1000 came back `True` decided by
+  a ratio four to seven orders of magnitude clear of the 1e-8 tolerance. Nothing
+  said a guard must cost less than the solve it protects, so it had grown past
+  it: 4.25 s of a 16.6 s three-fit profile, against the batched solver's own
+  4.33 s. The unit-weight program carries a ridge and is now certified without a
+  factorisation; 1000 SVDs become 500 and the fit goes 4.28 s to 3.64 s with the
+  ATT and its standard error unchanged at `0.0e+00`. The time-weight program
+  carries no ridge, so the bound is vacuous there and it still pays -- asserted
+  in `test_sdid_placebo_guard_cost.py::TestReachOfTheFix` so the limit of the
+  fix is visible rather than assumed.
+
+### Changed
+- The FISTA warm start that seeds the exact simplex active set is computed in
+  `utils/bilevel/active_set.py::solve_simplex_qp` instead of in
+  `ridge_augment.simplex_qp`. Being accelerated was a property of one entry
+  point, and of the thirteen call sites in the library twelve never supplied a
+  warm start: MEDSC, SCD, COMPSC, StackedSC, mlSC, the proximal over-identified
+  weights, the two `minnorm` fallbacks and SDID's two simplex programs all
+  started from the uniform point. From there the active set sheds one donor per
+  pivot, so its work tracked the donor pool and not the support it ends on --
+  0.62 to 0.87 pivots per donor from J = 20 to J = 320, against a support that
+  grows 7 to 43. Seeded, the same problems take 0 or 1 pivot. That is why SDID
+  took 117 inner least-squares solves on a 101x120 panel where `VanillaSC`, which
+  entered through the accelerated door, took 31. Speed only: the exact active set
+  still determines the weights, and on SDID the two paths agree to 0.0e+00. Pass
+  `accelerate=False` for the cold path.
+- `fista_warm_start` stops once the seed's support has held for
+  `SUPPORT_PATIENCE` iterations (100, sampled every `SUPPORT_CHECK_EVERY`),
+  read at the `SUPPORT_TOL` the active set itself pins variables at. Its
+  `tol=1e-7` rule tests how far the iterate moved, which is the wrong question
+  for a seed whose job is to name the support: on the two SDID programs of a
+  101x120 panel the support was final by iteration ~150 and the loop ran to 400.
+  The stop now fires at 261 and 231 and takes those two programs from 50.0 ms to
+  36.7 ms. The counter arms only after the first coordinate is pinned, since
+  FISTA starts at the uniform point where the support is the whole pool and has
+  not moved because it has not started. Sizing: one saved iteration is worth
+  ~44 us and one pivot the seed fails to save costs about 27 of them, so the
+  default is set where the stop fires only on a support that has durably
+  settled -- across 27 designs it costs zero pivots against the full run. Pass
+  `support_patience=None` for the old behaviour.
+
+### Changed
+- `VanillaSC`'s per-fold refit closure is defined once and shared by
+  `inference="ttest"` and `inference="conformal_cumulative"`, and takes period
+  indices rather than sliced arrays so a covariate-aware refit can subset its
+  covariates by the same periods.
+
 ### Removed
+- `mode="two_way_global_annealed"` and its five `utils/syndes_helpers/relaxed_*.py`
+  modules (932 lines), the `relaxed_max_iter` / `relaxed_decay` fields, the
+  `RelaxedSolverResults` container, `permutation_test_relaxed_global` and
+  `plot_relaxed_design`. The annealed relaxation existed to dodge the two-way
+  MIP's cost on problems SCIP could not finish; the treated-set search finishes
+  those directly and exactly, so the slower approximate path has no remaining
+  use. Breaking: configurations naming that mode now raise `MlsynthConfigError`.
+- `utils/syndes_helpers/accelerate.py` and the `accelerate`, `accel_min_tuples`,
+  `accel_safety_margin` and `certify_sdp_n_max` fields. The warm start and SDP
+  objective cut only ever applied to the two-way branch-and-bound, which is no
+  longer the default route, and the certificate that consumed the same lift now
+  uses the closed-form Rayleigh bound. `_sdp_moment_bound_two_way` goes with
+  them. `utils/miqp_accel.py` stays: `solve_synthetic_design` still routes to it
+  when a caller supplies `warm_start_D` or `objective_lower_bound`, though
+  nothing in the library reaches it by default any more.
+- Donor-side restrictions under `mode="two_way_global"`: `donor_exclusion`,
+  `donor_region_col` and `exclude_bordering_donors` now raise for that mode, and
+  `donor_constraints` refuses `global_2way` directly. A donor rule reads
+  `w[j] - q[j] <= 1 - D[i]`, which ties the control weights to which units are
+  treated, so a design stops being scoreable from its treated set alone -- the
+  one restriction the search cannot express. `one_way_global` and `per_unit`
+  keep them unchanged. Every other restriction (forced, forbidden, cluster and
+  adjacency conflicts, stratum quotas, size eligibility, costs with a budget) is
+  a predicate on the treated set and is applied during the search.
+
 - The GeoLift market-selection estimators (`GEOLIFT`, `MULTICELLGEOLIFT`) and
   their `utils/geolift_helpers/` package are removed from the public library.
   The two size/attribute eligibility primitives that SYNDES borrowed
@@ -19,7 +400,38 @@ now returns and the back-compat guarantee.
   remain). The remaining design estimators cover market selection under a
   budget.
 
+
 ### Added
+- `PDAConfig.lasso_criterion` and `PDAConfig.lasso_mbic_const`: the L1 variant
+  can now select its penalty by Shi & Huang's modified BIC,
+  `log(sigma^2) + H log(log N) log(T1)/T1 k`, minimised over `fsPDA`'s grid
+  `seq(0.01, 1, by = 0.01)`. `lasso_criterion="mbic"` reproduces their
+  `lasso.BIC`, which means the fit conventions move with the criterion: no
+  intercept and `glmnet`'s column scaling, since the penalty is chosen by
+  scoring that fit. `fit_lasso` gains a `standardize` flag for it, and the
+  prediction-interval bootstrap refits under the same conventions at the same
+  fixed penalty. Checked against `glmnet` 4.1.8: the scaled path agrees to
+  5e-09, and on a 20-donor panel both implementations return a penalty of 0.32,
+  the same single donor, and a coefficient of 0.51838043. The default is
+  unchanged: `lasso_criterion="cv"` is the 5-fold cross-validated rule the
+  estimator has always used, and the point estimate it returns is bit-identical
+  to before.
+- `utils/syndes_helpers/enumeration.py`: the exact two-way backend now builds
+  candidate treated sets inside the structural restrictions instead of generating
+  every `C(N, K)` subset and testing each one. Forced units, forbidden units
+  (including size-ineligible ones) and stratum quotas decide which candidates
+  exist, and `design_restrictions` keys each unit to one stratum, so the
+  admissible designs are a product of per-group choices that `SearchSpace.size`
+  counts exactly without walking. `candidate_limit` is compared against that
+  count, so an instance whose unrestricted `C(N, K)` is past the limit is now
+  solved exactly whenever the restrictions leave few enough designs -- where
+  before it raised `MlsynthConfigError`. Conflict pairs, `costs` with a `budget`
+  and the pool's no-good sets do not decompose over a stratum, so they remain
+  tests on finished candidates and do not lower the count; an instance carrying
+  only those is still refused past the limit. With no restrictions the walk
+  reproduces `combinations(range(N), K)` term for term, including order, so no
+  existing result moves.
+
 - `mlsynth.save_spec` / `mlsynth.load_spec`: serialize an analysis specification
   to a portable JSON or YAML file and load it back into a ready-to-fit estimator.
   Because a configuration is plain, validated data, everything but the
@@ -30,6 +442,296 @@ now returns and the back-compat guarantee.
   (`load_spec(path, df=..., adjacency=...)`). Adds `PyYAML` as a dependency.
   Covered by `tests/test_spec.py`, including a parametrized check that `load_spec`
   resolves and behaves gracefully for every estimator the package ships.
+
+- `SYNDESConfig.backend` selects how `mode="two_way_global"` is solved (see
+  Changed for the default it now takes). `"exact"` searches
+  treated sets directly: naming the set removes the `q = w * D` coupling, so the
+  outer problem is a choice of treated set and the inner problem is convex. The
+  search scores every candidate with the closed form in
+  `utils/syndes_helpers/gram`, settles the candidates whose sign conditions are
+  slack, prunes the rest against the incumbent, and reaches the projected-
+  gradient solver in `utils/syndes_helpers/partition` only for the survivors --
+  nought or one design out of thousands on the panels used to develop it. A
+  candidate costs one row of a matrix product instead of a branch-and-bound
+  node, and `T` leaves the per-candidate cost once the Gram matrix is formed.
+  Above a candidate count the search falls back to a swap search reported
+  against the Rayleigh bound, and says so instead of claiming a certificate.
+
+  Comparing the two backends needs one caveat: `gap_limit` defaults to `0.05`,
+  so the MIP path may return a design 5 percent above the optimum, and does on
+  some panels. The two agree on the treated set once the MIP is asked to prove
+  optimality (`gap_limit=0.0`); otherwise the exact backend's design is the one
+  that is at least as good.
+
+  `backend="exact"` is rejected for `one_way_global` and `per_unit`, where the
+  reformulation does not apply. Every other restriction is a predicate on
+  the treated set and is applied during the search. `select_by_holdout` takes a
+  `pool_fn` so holdout and IC selection reach the new backend. Covered by
+  `tests/test_syndes_exact.py`, `tests/test_syndes_partition.py`,
+  `tests/test_syndes_backend.py`, `tests/test_syndes_exact_properties.py`, and
+  nine semantic mutants in `tools/mutation/targets.toml`.
+
+
+### Fixed
+- `pda_helpers/inference.hac_lrv` divided the lag-`l` autocovariance by its own
+  product count `n - l`; every standard HAC estimator, R's
+  `acf(type = "covariance")` among them, divides by `n`. The lagged terms were
+  inflated by `n / (n - l)`, which cost the autocovariance sequence its positive
+  semi-definiteness and broke the claim that `fs` and `hcw`'s `lrvar_lag` branch
+  reproduces Shi & Huang's released `fsPDA` package. On their dense simulation at
+  `T2 = 50, h = 1` the forward-selection t-statistic was wrong in its third
+  decimal; under the correct convention it agrees with their `FS()` to 2e-11.
+  The error grows with the truncation lag. Effects, weights and selected donor
+  sets are untouched -- only standard errors, t-statistics, p-values and
+  confidence intervals move, and only where a fixed lag is in play: `fs` and
+  `hcw` at their default `lrvar_lag=None` use the prewhitened Newey-West path and
+  are unaffected. The `l2` HAC t-statistic moves by about 1% (Hong Kong
+  7.799 -> 7.825, PPI 4.482 -> 4.547), inside the tolerances those benchmark
+  cases already carry.
+
+- `utils/miqp_accel.solve_warm_cut` wrote each warm-start bit to the wrong SCIP
+  variable on problems above roughly eleven units. cvxpy returns the boolean
+  columns as a `set`, and the accelerator iterated it directly, so `warm_bits[j]`
+  was paired with whichever column the hash table happened to yield, not with
+  entry `j` of the boolean variable. The two orders agree for short index
+  runs, which is why small problems behaved correctly and larger ones did not:
+  SCIP was started from a design the caller never named. At N=200, K=6 under a
+  60 s limit the start left the solver worse off than no start at all
+  (objective 0.2151 against 0.2070); it now returns the started design, 0.1812.
+  The positions are read in the variable's own order, which for one contiguous
+  boolean block is ascending column. No shipped estimator was affected: nothing
+  in the library passes `warm_start_D` or `objective_lower_bound` since the
+  SYNDES accelerator was removed, so this was a latent defect on a reachable but
+  unused path.
+- `AccelInfo.warm_applied` is set from what `addSol` returned instead of from
+  having called it, and its documentation no longer says the start was
+  "accepted". A stored partial start is one SCIP will try to complete over the
+  continuous variables, not one it has already adopted.
+
+### Changed
+- The fixed-penalty LASSO fit in `pda_helpers/lasso/estimation.py` runs to
+  `tol = 1e-12` instead of scikit-learn's default `1e-4`, which is what the
+  modified-BIC path needs to reach `glmnet`'s coefficients. The only existing
+  caller is the LASSO prediction-interval bootstrap; on Hong Kong its
+  counterfactual moves by 6e-06. The `LassoCV` point estimate is unaffected,
+  which leaves that bootstrap refitting the cross-validated fit's problem more
+  exactly than `LassoCV` solved it -- a gap of the same 6e-06, pinned in
+  `test_pda_lasso_mbic.py` and left alone, since closing it would move every
+  cross-validated LASSO result in the library.
+- `SYNDESConfig.backend` defaults to `"exact"`, so `mode="two_way_global"` is
+  solved by searching treated sets instead of by branch-and-bound. `"mip"`
+  remains selectable and `one_way_global` / `per_unit` are untouched -- the
+  default resolves to `"mip"` for them, since one-way pins the treated weights
+  and per-unit carries an `(N, N)` weight matrix, so neither reduces to a search
+  over treated sets. Asking for `backend="exact"` there is an error.
+
+  This changes what a two-way fit returns on some panels, and in one direction:
+  `gap_limit` defaults to `0.05`, so the MIP could stop at a design 5 percent
+  above the optimum, and on the panels in `tests/test_syndes_backend.py` it does.
+  The search has no early exit below its candidate limit, so where the two differ
+  the new default is the better design. Set `backend="mip"` to reproduce a prior
+  result exactly.
+- Version bumped to 2.0.0 for the removed public API.
+- The SYNDES two-way optimality certificate (`certify=True` with
+  `mode="two_way_global"`) now reports a closed-form bound on the Gram matrix
+  instead of the SDP / moment lift, and `result.certificate.method` reads
+  `"rayleigh"` in place of `"sdp_moment"`. Naming the treated set removes the
+  `q = w * D` coupling, leaving a convex program in `G = Y'Y / T`; the two weight
+  normalisations are then a pair of linear equalities, and dropping the sign
+  conditions gives `lb(S) = 4 alpha / (sigma' R sigma)` with
+  `R = alpha H - p p'`, `H = (G + lam I)^-1`, `p = H1`, `alpha = 1'H1`. Since
+  `R1 = 0`, Rayleigh's inequality bounds every size-`K` design at once. On the
+  panels used to develop it the bound reached 88.8 / 90.6 / 92.0 percent of the
+  true optimum at `K = 3 / 5 / 7`, against the lift's 83.2 / 84.9 / 86.2, in
+  about 0.1 ms against 0.1--0.23 s. Two consequences for callers: the two-way
+  certificate no longer consults `certify_sdp_n_max`, since there is no size at
+  which it needs to fall back to the loose continuous bound, and it no longer
+  goes absent because a conic solve hit its iteration cap. It does report
+  `lower_bound=None` when `G + lam I` is near-singular, which happens as `lam`
+  approaches zero on a panel with fewer pre-periods than units; the note names
+  the cause. New `mlsynth.utils.syndes_helpers.gram`, covered by
+  `tests/test_syndes_gram.py` and `tests/test_syndes_gram_properties.py`.
+- SDID solves its placebo draws' weights as one family. Placebo inference
+  (Arkhangelsky et al. 2021, Algorithm 4) refits both weight programs once per
+  draw and `B` defaults to 500, which is where an SDID fit spends its time: 84
+  percent of `sdid_prop99`'s wall clock was inside the simplex solver. The draws
+  differ only in which donors are in the design, what the target is, and how
+  large the ridge is, and none of that needs its own factorisation -- centring is
+  per column so it survives subsetting, and the ridge augmentation carries no
+  target rows so with the weights summing to one it enters the Gram as
+  `+ ridge I`. `estimate_placebo_variance` now draws every assignment first,
+  solves the family through the new
+  `mlsynth.utils.sdid_helpers.weights.solve_intercept_simplex_many`, then
+  replays; the draws are built in the order the old loop used them, so the RNG
+  stream is untouched and the same controls are cast as pseudo-treated. On
+  Prop 99 at `B = 500` a fit runs in 0.75s against 1.77s, with the ATT unchanged
+  bit for bit and the placebo standard error moving in its eleventh significant
+  figure. `sdid_prop99`, `sdid_ddd_hpv` and `seq_sdid_mc` all pass. Available to
+  SDID because its weight designs are overdetermined, so
+  `gram_reduction_is_safe` passes and the batched and one-at-a-time solvers
+  return the same weights and not merely the same fit; it is checked per problem
+  regardless. Pinned by `tests/test_sdid_weights_batch.py`.
+
+- mlSC scores its penalty grid in one pass under `lambda_est="cross-validation"`.
+  Folding a penalty into the design as a `sqrt(lambda sigma_y^2) R` augmentation
+  adds rows carrying no target, so with the weights summing to one the augmented
+  Gram is affine in the penalty, `G(p) = (X - Y 1')'(X - Y 1') + p R'R`, verified
+  against the assembled design to 1e-9 across the grid. The two matrices are
+  formed once, each grid point is a broadcast off them, and the batched active
+  set certifies the whole grid together: on the Bottmer et al. panel (108
+  training periods, 90 disaggregate controls, 56 grid points) 0.27s against
+  4.49s, the same penalty selected, and `mlsc_bottmer`'s agreement with the
+  author's `mlSC_estimator` unchanged at `path_a_cv_lambda_rel = 0`.
+
+  The reduction is guarded. Forming the Gram squares the design's condition
+  number, which is free only where the design has full column rank -- and this
+  grid runs the penalty to zero, where the augmentation is a `1e-8` uniqueness
+  ridge. On a rank-deficient training design that ridge is the only thing
+  separating the columns and squaring puts it below what float64 resolves: on a
+  9-period, 12-disaggregate panel the Gram form then finished 225 percent above
+  the optimum at `lambda = 1e-8` and selected a different penalty. The new
+  `mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from the
+  design before anything is solved, and a rank-deficient one keeps the
+  one-penalty-at-a-time solve. It states both failure modes the reduction has --
+  the other being a design whose minimiser is a face and not a point, where
+  both solvers are optimal but land in different places. Pinned by
+  `tests/test_mlsc_crossval_batch.py`.
+
+- VanillaSC solves its in-space placebo as one leave-one-out family when there
+  are no covariates. The refits fit each column of the donor matrix from the
+  others, so the family falls out of a single `Y0' Y0` -- deleting a donor
+  deletes a row and a column of it, and each target is itself a column -- and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_loo_exact` assembles them with no
+  product with the data per refit. The default no-covariate call is where this
+  lands: a Proposition 99 fit is 0.007s with inference off and 0.205s with it on,
+  94 percent of that in the solver.
+
+      38 donors x 19 pre     0.209s -> 0.025s     8.5x
+      48 donors x 89 pre     0.394s -> 0.038s    10.2x
+      119 donors x 30 pre    5.617s -> 0.137s    41.0x
+
+  The p-value is a rank statistic over these fits, so each member is verified
+  with `simplex_optimum_is_unique` and any whose minimiser is a face is
+  re-solved with the single-problem active set the loop used -- a different
+  exact solver has an equal claim there, and the published ranks came from that
+  one. p-value, rank, RMSPE ratio and ATT are identical on every panel tried.
+  Refits that are not a plain simplex fit keep the loop (covariates, ridge
+  augmentation, the penalized backend), which `tests/test_vanillasc_placebo_batch.py`
+  asserts by disabling the family solver and requiring the answer not to move.
+
+- STACKEDSC solves each cohort's weight programs as one shared-design family.
+  Every treated unit in a donor pool faces the same design and differs only in
+  its own pre-treatment target, so with `c_j = A' b_j` and `s_j = b_j' b_j` the
+  `j`-th Gram is `A'A - c_j 1' - 1 c_j' + s_j 1 1'`: one Gram and one cross
+  product carry the group, and
+  `mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design` runs it in
+  lockstep. A donor predicate that binds gives one batch per distinct pool, down
+  to a batch of one per unit. On a Wiltshire cohort of 89 units against 39
+  donors the outcome-only design goes 396ms -> 43ms, 9.3x. The covariate design
+  does not batch (see below) and is unchanged.
+
+- STACKEDSC's placebo layer solves each pool as a leave-one-out family. Casting
+  every donor as treated in turn and refitting against the rest is one matrix's
+  columns fitted against one another, which `solve_simplex_loo_exact` assembles
+  from a single `M' M`. Under `donors-only` that matrix is the cohort's design
+  and the family is shared by the cohort; under `permutation` -- the default,
+  following the reference implementation -- the treated unit's column is
+  appended, a donor to every placebo and a target to none. On the Walmart panel
+  that is 22,074 programs in 21s where the loop takes 101s, 4.8x, with the
+  RMSPE-ranked p-values bit-identical and every other reported statistic
+  unchanged to 1e-11.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal` certifies a simplex
+  weight vector against the design it claims to solve, from the KKT conditions
+  on `B'(Bw - A)`. The batched solvers now require it as well as uniqueness
+  before standing in for the one-at-a-time solve. Uniqueness alone was not
+  enough, and the gap is not academic: the Gram reduction squares the condition
+  number, so a design merely awkward at `cond(B) ~ 1e7` -- covariates measured
+  in different units -- gives a Gram at the edge of float64, and the batched
+  active set then converges on that Gram to a point that does not solve the
+  program it came from. On the covariate specification of the Wiltshire panel
+  that is 62 of 76 members of a cohort, with a KKT residual of 7e-3 where the
+  design-form solver leaves 6e-10; nothing computed from the Gram reveals it.
+  Those members now fall back and the reported effects are unchanged to 1e-9.
+
+- `solve_simplex_loo_exact` and `solve_simplex_shared_design` take a `fallback`
+  solver, since which one-at-a-time solve a batch stands in for is part of the
+  contract. STACKEDSC calls the primal active set directly; VanillaSC's engine
+  calls it through a wrapper that escalates to CVXPY when the active set reports
+  failure on itself, and on a design pathological enough to trip that hatch the
+  two disagree. Each call site now names its own.
+
+- `mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles, after
+  solving, whether a simplex least-squares minimiser is the only one -- the
+  question that decides whether the batched and one-at-a-time solvers can stand
+  in for each other. `gram_reduction_is_safe` answers it from the design's shape
+  and is sound but far from tight: rank deficiency is only a precondition for a
+  face, since the objective is flat along a direction only where that direction
+  is also feasible at the solution, which needs a support large relative to the
+  design's rank. Synthetic-control solutions are sparse, so the ordinary
+  geometry -- more donors than pre-treatment periods -- usually has a unique
+  minimiser after all. On the Proposition 99 placebo family all 38 solves do, at
+  37 donors against 19 pre-periods, and the shape test admits none of them; on
+  STACKEDSC's Walmart data 85.5 percent of 2264 real solves do, against the
+  blanket "not available" an earlier synthetic probe suggested. The predicate
+  checks the design restricted to the weakly-active set, costs nothing
+  measurable next to the solve, and is asserted against what the two solvers
+  actually return in `tests/test_simplex_uniqueness.py`.
+
+- VanillaSC's `mscmt` backend (the default when covariates are supplied) solves
+  its inner donor-weight program exactly, and for a whole outer-search
+  generation at once. Because the weights sum to one the design matrix drops out
+  of the inner objective: `X1 - X0 w = R w` for `R = X1 1' - X0`, so the
+  V-weighted predictor loss is the quadratic form `w' G(V) w` with
+  `G(V) = sum_p v_p r_p r_p'`, and the donor weights are the minimum-norm point
+  in the convex hull of the donors' predictor discrepancies (Wolfe 1976), which
+  an active set over the donors solves exactly and finitely. `G` is linear in
+  `V`, so the `P` rank-one pieces are formed once, a differential-evolution
+  generation of Grams is one matrix product against them, and the active set
+  certifies the generation in a handful of batched linear solves -- the data
+  never enters the search loop. This replaces a per-candidate Lawson-Hanson NNLS
+  whose sum-to-one constraint was a big-M penalty row, so the equality is now
+  exact and the inner solution exactly scale-free in `V`, as the outer objective
+  assumes. On the Abadie-Gardeazabal Basque specification the bilevel fit runs
+  in 1.0s against 1.7s and the default call (in-space placebo, 17 refits) in
+  22s against 26s, with the MSCMT reference weights unchanged
+  (`benchmarks/cases/mscmt_basque.py`). The new solver is
+  `mlsynth.utils.bilevel.minnorm` (`simplex_gram`, `solve_simplex_minnorm`,
+  `solve_simplex_minnorm_batch`), covered by `tests/test_simplex_minnorm.py` and
+  `tests/test_simplex_minnorm_perf.py`. `solve_mscmt` gains an `inner_max_iter`
+  cap and reports `metadata["inner_unconverged"]`, warning once when an inner
+  solve scored a candidate without certifying. MEDSC and `determine_v`, which
+  share the `_inner_weights` primitive, inherit the exact solve; their pinned
+  replications are unchanged.
+
+  Each generation is solved cold. Seeding each candidate's active set from the
+  previous generation's weights cuts the inner work by about a third, and it was
+  measured and rejected: where the inner optimum is a face and not a point, the
+  member returned would then depend on the search's history, and members of that
+  face tie on predictor fit while differing on outcome fit, so the outer
+  objective would stop being a function of `V`. On the Lamba et al. tiger
+  reserves that showed as a seed spread of 5e-2 ha on a 2825 ha effect, against
+  2e-6 ha cold (`tests/test_lamba_tigers.py`, which is the guard).
+
+- The `mscmt` outer search stops on a tolerance calibrated to the estimate, and
+  that tolerance is reachable: `VanillaSCConfig` gains `mscmt_tol`, and its
+  default (and `solve_mscmt`'s) moves from `1e-10` to `1e-6`. scipy ends
+  differential evolution when the population's spread in pre-fit MSPE falls
+  below `atol + tol * |mean|`, and with `atol = 0` that is purely relative. At
+  `1e-10`, on the Abadie-Gardeazabal Basque specification whose mean energy is a
+  pre-fit MSPE of 0.0043, the rule asked 195 candidate predictor weightings to
+  agree to 4.3e-13 -- thirteen significant figures. Tracing the search shows the
+  donor weights reach 1e-5 of their final position by generation 93 and move by
+  1e-8 over the 120 generations after that; many panels never reach the
+  threshold at all and simply exhaust `maxiter`. The new default stops around
+  generation 100, leaving the weights and the ATT within 5e-6 of where the old
+  one left them -- three orders finer than the four decimals the MSCMT
+  replication compares to. On Basque the default call runs in 12.7s against
+  22.5s (and 26.5s before both changes), the bilevel fit in 0.57s against 1.04s.
+  Agreement with the captured MSCMT R run is unchanged, marginally closer on
+  three of its four pinned quantities. MASC and MEDSC share `solve_mscmt` and
+  inherit the default; their replications are unchanged. Pinned by
+  `tests/test_mscmt_search_budget.py`.
 
 ## [1.0.0] - 2026-06-20
 
@@ -197,7 +899,7 @@ First stable release, published to PyPI (``pip install mlsynth``).
   standardized sub-models built from the observed target vs the smoother-based
   counterfactual; `att` / `counterfactual` / `gap` / `pre_rmse` resolve via the
   inherited accessors. TASC is a state-space / EM estimator with **no donor
-  weights**, so the `weights` slot records the method rather than per-donor
+  weights**, so the `weights` slot records the method, not per-donor
   weights. **Breaking surface change:** the raw inference object (counterfactual
   + per-period posterior bands: `.counterfactual` / `.ci_lower` / `.ci_upper` /
   `.posterior_variance` / `.alpha`) moved from `res.inference` to

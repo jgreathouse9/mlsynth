@@ -251,11 +251,6 @@ class TestSYNDESRestrictionsConfig:
         with pytest.raises(MlsynthConfigError):
             self._make(K=2, arm="region", not_to_be_treated=["u0"])
 
-    def test_restrictions_reject_annealed(self):
-        with pytest.raises(MlsynthConfigError):
-            self._make(K=2, mode="two_way_global_annealed",
-                       not_to_be_treated=["u0"])
-
     def test_forbidden_leaves_too_few_treatable(self):
         with pytest.raises(MlsynthConfigError):
             self._make(K=3, not_to_be_treated=[f"u{j}" for j in range(6)]).fit()

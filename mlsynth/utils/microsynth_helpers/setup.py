@@ -41,7 +41,7 @@ def _validate_time_invariant(
     unitid: str,
 ) -> None:
     """Raise if ``column`` varies within any unit."""
-    n_unique = df.groupby(unitid)[column].nunique(dropna=False)
+    n_unique = df.groupby(unitid, observed=True)[column].nunique(dropna=False)
     bad = n_unique[n_unique > 1]
     if not bad.empty:
         examples = bad.index[:5].tolist()
@@ -67,7 +67,7 @@ def _infer_cohort_time(
             "No treated rows found (no unit has ``treat = 1``). "
             "MicroSynth requires at least one treated user."
         )
-    first_treat_time = treated_rows.groupby(unitid)[time].min()
+    first_treat_time = treated_rows.groupby(unitid, observed=True)[time].min()
     distinct_cohorts = first_treat_time.unique()
     if len(distinct_cohorts) > 1:
         raise MlsynthDataError(
@@ -134,7 +134,7 @@ def prepare_microsynth_inputs(
     cohort_time = _infer_cohort_time(df, treat, time, unitid)
 
     # Identify treated vs control users by whether they ever had treat=1.
-    ever_treated = df.groupby(unitid)[treat].max()
+    ever_treated = df.groupby(unitid, observed=True)[treat].max()
     treated_units = ever_treated.index[ever_treated == 1].tolist()
     control_units = ever_treated.index[ever_treated == 0].tolist()
     if not treated_units:

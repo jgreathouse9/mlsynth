@@ -17,33 +17,138 @@ ATT=-0.011; time_cohort nu=0.3939, ATT=-0.017).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import cvxpy as cp
 import numpy as np
 
+from ...exceptions import MlsynthConfigError
+
 _EPS = 1e-12
 
 
-def fit_feff(Xy: np.ndarray, trt: np.ndarray, adopt_indices, fixedeff: bool) -> Dict[int, np.ndarray]:
+@dataclass(frozen=True)
+class Conventions:
+    """The three choices that decide which estimator a fit is.
+
+    Carried as one object because they travel together and are forgotten
+    separately: every place that refits the panel -- the jackknife, the
+    conformal calibration's rolling origins -- has to run the estimator the
+    caller configured, and three keyword arguments with defaults let a refit
+    site keep an older signature and silently pin itself to augsynth's. A
+    fourth convention added here reaches every refit without anyone editing
+    them.
+
+    The defaults are augsynth's ``multisynth``, so a fit that says nothing is
+    the port it has always been.
+    """
+
+    donor_weights: str = "scm"
+    base_period: str = "all_pre"
+    donor_pool: str = "window"
+
+
+def fit_feff(Xy: np.ndarray, trt: np.ndarray, adopt_indices, fixedeff: bool,
+             base_period: str = "all_pre") -> Dict[int, np.ndarray]:
     """Residualize ``Xy`` per cohort.
 
     Returns ``{adoption_index: residual_matrix (n, T)}``. With ``fixedeff`` the
-    time effect is the never-treated column mean and the unit effect is each
-    unit's mean residual over its pre-adoption window ``[:tj]``; without it,
-    only the time effect (control averages) is removed.
+    time effect is the never-treated column mean and the unit effect is a
+    pre-adoption baseline; without it, only the time effect (control averages)
+    is removed.
+
+    ``base_period`` selects the baseline, and the two are different estimators:
+
+    * ``"all_pre"`` -- each unit's mean over its whole pre-adoption window
+      ``[:tj]``. This is augsynth's ``fit_feff`` (``rowMeans(residuals[, 1:tj])``)
+      and the default, verified against it to 0.0 over 300 random panels.
+    * ``"pre_treatment"`` -- the single period ``tj - 1``, which is the base
+      period Callaway-Sant'Anna and Sun-Abraham normalise against. Choosing it
+      is one of the three conventions that make this estimator theirs (#465);
+      on its own it shifts each cohort's level without moving the event-study
+      shape.
     """
+    if base_period not in ("all_pre", "pre_treatment"):
+        raise ValueError(
+            f"base_period must be 'all_pre' or 'pre_treatment', got {base_period!r}.")
     ever = np.isfinite(trt)
     time_eff = np.nanmean(Xy[~ever], axis=0)
     base = Xy - time_eff[None, :]
     out: Dict[int, np.ndarray] = {}
     for tj in adopt_indices:
+        tj = int(tj)
         if fixedeff:
-            unit_eff = np.nanmean(base[:, : int(tj)], axis=1)
-            out[int(tj)] = base - unit_eff[:, None]
+            unit_eff = (np.nanmean(base[:, :tj], axis=1) if base_period == "all_pre"
+                        else base[:, tj - 1])
+            out[tj] = base - unit_eff[:, None]
         else:
-            out[int(tj)] = base
+            out[tj] = base
     return out
+
+
+def eligible_donors(trt: np.ndarray, adopt: int, n_leads: int, donor_pool: str) -> np.ndarray:
+    """Indices admissible as donors for a cohort adopting at ``adopt``.
+
+    Never-treated units carry a non-finite adoption time, so they satisfy every
+    rule below. The three differ only in which *later-adopting* units they also
+    admit, and that choice is what separates this estimator from
+    Callaway-Sant'Anna when a later cohort outlives an earlier one's window:
+
+    * ``"window"`` -- untreated through this cohort's whole estimation window,
+      ``trt > adopt + n_leads``. augsynth's rule, and the default.
+    * ``"never_treated"`` -- never treated at all, which is what CS and
+      Sun-Abraham use by default.
+    * ``"not_yet_treated"`` -- untreated as of this cohort's adoption.
+
+    ``"window"`` and ``"never_treated"`` coincide exactly when every other
+    cohort adopts inside the window, which is why the three estimators agree to
+    machine precision there and diverge otherwise.
+    """
+    if donor_pool == "window":
+        return np.where(trt > adopt + n_leads)[0]
+    if donor_pool == "never_treated":
+        return np.where(~np.isfinite(trt))[0]
+    if donor_pool == "not_yet_treated":
+        return np.where(trt > adopt)[0]
+    raise ValueError(
+        f"donor_pool must be 'window', 'never_treated' or 'not_yet_treated', "
+        f"got {donor_pool!r}.")
+
+
+def balance_shape(adopt_of, donors, groups, n_lags: int):
+    """The balance problem's shape: widest donor pool, and periods balanced.
+
+    ``balance_periods`` is capped by the cohort with the least pre-history,
+    because that cohort's block is what the padded design can actually
+    constrain -- asking for ten lags of a cohort adopting at t=4 balances
+    three. See ``PPSCMDesign.underdetermined``.
+    """
+    if not groups:                                # pragma: no cover - no treated
+        return 0, 0
+    widest = max(int(len(donors[g])) for g in groups)
+    periods = min(min(int(adopt_of[g]) for g in groups), int(n_lags))
+    return widest, max(periods, 0)
+
+
+def uniform_weights(donors, groups, n) -> Dict[Any, np.ndarray]:
+    """Equal weight on every admissible donor -- the CS/Sun-Abraham comparison.
+
+    The ``lam -> infinity`` limit of the partially-pooled program, in closed
+    form. The barycenter minimises ``sum_i w_i^2`` over the simplex, so the
+    solved weights approach it as the ridge grows -- at ``O(1/lam)``, for every
+    ``nu``, since the barycenter is interior and no non-negativity constraint
+    binds there. Setting this reaches the limit exactly and skips the program;
+    the QP would otherwise need a ``lam`` the caller has to guess, and would
+    still return the answer to within solver tolerance instead of exactly.
+    """
+    W: Dict[Any, np.ndarray] = {}
+    for g in groups:
+        Wg = np.zeros(n)
+        if len(donors[g]):
+            Wg[donors[g]] = 1.0 / len(donors[g])
+        W[g] = Wg
+    return W
 
 
 def _padded(bal: np.ndarray, members: List[int], donors: np.ndarray, tj: int, d: int):
@@ -65,6 +170,44 @@ def _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n) -> np
         Xc = np.zeros((n, d)); Xc[:, d - tj:] = bal[:, :tj]
         M[:, k] = xt - Xc.T @ (W[g] * n1[k])
     return M
+
+
+# The separate fit normalizes by 1.0, so its objective carries the square of
+# whatever units the caller's outcome is in, while OSQP is asked for an
+# absolute ``eps_abs=1e-8``. Past a residual magnitude of about 1e3 OSQP
+# returns nothing and the SCS fallback answers to a looser standard. Residuals
+# are rescaled to unit magnitude for the solve, by a power of two so the trip
+# out and back is exact in binary floating point, and left alone when they are
+# already there.
+_SCALE_EXPONENT_TOL = 3
+
+
+def solve_scale(res: Dict[Any, np.ndarray]) -> float:
+    """Power-of-two divisor bringing the residuals to unit magnitude.
+
+    The summary is the median absolute residual, not the panel's median
+    absolute level: the level is removed by ``fit_feff`` before anything
+    reaches the program, so a panel of markets with a large mean and small
+    variation would be divided by a factor its residuals never had, and the
+    objective would land under ``eps_abs`` instead of on it. The median is the
+    right summary of what is left because a panel of markets spans an order of
+    magnitude in size and one very large market should not set the scale.
+
+    Returns 1.0 when the residuals are already within ``2 ** 3`` of unit
+    magnitude, so the arithmetic of a fit that never had this problem is
+    untouched, and when there is nothing finite and non-zero to measure.
+    """
+    parts = [np.abs(np.asarray(r, dtype=float)).ravel() for r in res.values()]
+    if not parts:
+        return 1.0
+    vals = np.concatenate(parts)
+    vals = vals[np.isfinite(vals) & (vals > 0.0)]
+    if vals.size == 0:
+        return 1.0
+    exponent = int(np.round(np.log2(float(np.median(vals)))))
+    if abs(exponent) <= _SCALE_EXPONENT_TOL:
+        return 1.0
+    return float(2.0 ** exponent)
 
 
 def solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
@@ -156,13 +299,56 @@ def _scale_covariates(Z: np.ndarray, trt: np.ndarray, res_first: np.ndarray, d: 
     return sdx * (Z - mu) / sd
 
 
+def _uniform_fit(res, groups, adopt_of, members, donors, n1, d, n, n_leads,
+                 nu, lam) -> Dict[str, Any]:
+    """The fit with equal donor weights, where there is no QP to solve.
+
+    Every diagnostic the partially-pooled path reports is a property of the
+    solved weights relative to the uniform baseline, so with uniform weights the
+    scaled imbalances are 1 by construction and ``nu`` and ``lam`` describe a
+    program that was not posed. They are reported as such instead of being
+    given values that would read as if a QP had run.
+    """
+    W = uniform_weights(donors, groups, n)
+    _shape = balance_shape(adopt_of, donors, groups, d)
+    M = _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n)
+    J = len(groups)
+    nnz = [max(int((np.abs(M[:, k]) > 1e-12).sum()), 1) for k in range(J)]
+    fin_global = float(np.sqrt((M.mean(axis=1) ** 2).sum()) / np.sqrt(d))
+    fin_ind = float(np.sqrt(np.mean([(M[:, k] ** 2).sum() / nnz[k] for k in range(J)])))
+    tau_rel, per_time, att = predict_tau(
+        res, groups, adopt_of, members, donors, W, n1, n_leads, n)
+    return {
+        "groups": groups, "members": members, "adopt_of": adopt_of, "donors": donors,
+        "weights": W, "n1": n1, "tau_rel": tau_rel, "per_time": per_time, "att": att,
+        "nu_used": float("nan"), "global_l2": fin_global, "ind_l2": fin_ind,
+        "scaled_global_l2": 1.0, "scaled_ind_l2": 1.0,
+        "M": M, "nnz": np.asarray(nnz, dtype=float),
+        "res": res, "n": n, "n_leads": n_leads,
+        "max_donors": _shape[0], "balance_periods": _shape[1],
+    }
+
+
 def run_multisynth(
     Xy: np.ndarray, trt: np.ndarray, d: int, n_leads: int, n_lags: int,
     *, fixedeff: bool = True, time_cohort: bool = False,
     nu: Optional[float] = None, lam: float = 0.0, solver: Any = None,
     Z: Optional[np.ndarray] = None,
+    conventions: Conventions = Conventions(),
 ) -> Dict[str, Any]:
     """Run one multisynth fit; returns weights, event study, ATT, diagnostics."""
+    donor_weights = conventions.donor_weights
+    base_period = conventions.base_period
+    donor_pool = conventions.donor_pool
+    # A non-finite pooling level builds an objective CVXPY cannot recognise, and
+    # the solver's complaint is the first anyone hears of it. The uniform fit
+    # poses no program and records ``nu_used = NaN``, so a caller handing that
+    # value back to a refit is the path that produced #467.
+    if nu is not None and not np.isfinite(nu):
+        raise MlsynthConfigError(
+            f"nu must be finite or None (None selects augsynth's ratio); got {nu!r}. "
+            "A uniform-weight fit poses no quadratic program and reports "
+            "nu_used = NaN, which is not a pooling level a later fit can reuse.")
     n = Xy.shape[0]
     ever = np.where(np.isfinite(trt))[0]
 
@@ -176,8 +362,13 @@ def run_multisynth(
         adopt_of = {k: int(trt[ever[k]]) for k in groups}
     J = len(groups)
     n1 = np.array([len(members[g]) for g in groups], dtype=float)
-    donors = {g: np.where(trt > adopt_of[g] + n_leads)[0] for g in groups}
-    res = fit_feff(Xy, trt, set(adopt_of.values()), fixedeff)
+    donors = {g: eligible_donors(trt, adopt_of[g], n_leads, donor_pool)
+              for g in groups}
+    res = fit_feff(Xy, trt, set(adopt_of.values()), fixedeff, base_period)
+    _shape = balance_shape(adopt_of, donors, groups, n_lags)
+    if donor_weights not in ("scm", "uniform"):
+        raise ValueError(
+            f"donor_weights must be 'scm' or 'uniform', got {donor_weights!r}.")
 
     # scaled auxiliary-covariate target sums (zt) and donor blocks (Zc) per cohort
     zt = Zc = None
@@ -188,9 +379,30 @@ def run_multisynth(
         zt = [Zsc[members[g]].sum(axis=0) for g in groups]
         Zc = [Zsc[donors[g]] for g in groups]
 
+    if donor_weights == "uniform":
+        return _uniform_fit(res, groups, adopt_of, members, donors, n1, d, n,
+                            n_leads, nu, lam)
+
+    # The program is posed on residuals brought to unit magnitude and the
+    # answer read back in the caller's units, so what ``eps_abs=1e-8`` demands
+    # does not depend on how the outcome happens to be measured. Only the
+    # separate fit's objective changes: it normalizes by 1.0, so it carried the
+    # square of the panel's magnitude, while the pooled fit's norms carry those
+    # units already and divide them out. Both the objective and the ridge are
+    # divided by ``scale ** 2`` there, which leaves the minimizer where it was
+    # and moves the numbers the solver compares against its tolerance.
+    scale = solve_scale(res)
+    res_q, zt_q, Zc_q, lam_sep = res, zt, Zc, lam
+    if scale != 1.0:
+        res_q = {k: v / scale for k, v in res.items()}
+        lam_sep = lam / scale ** 2
+        if zt is not None:
+            zt_q = [z / scale for z in zt]
+            Zc_q = [z / scale for z in Zc]
+
     # separate fit (nu = 0) -> scaling norms + auto-nu
-    W0 = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                         0.0, 1.0, 1.0, lam, solver, zt=zt, Zc=Zc)
+    W0 = solve_cohort_qp(res_q, groups, adopt_of, members, donors, n1, d, n, n_lags,
+                         0.0, 1.0, 1.0, lam_sep, solver, zt=zt_q, Zc=Zc_q)
     M0 = _imbalance_matrix(res, groups, adopt_of, members, donors, W0, n1, d, n)
     avg_imbal = M0.mean(axis=1)
     global_l2 = float(np.sqrt((avg_imbal ** 2).sum()) / np.sqrt(d))
@@ -199,8 +411,12 @@ def run_multisynth(
     ind_l2 = float(np.sqrt(np.mean([(M0[:, k] ** 2).sum() / nnz[k] for k in range(J)])))
     nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)
 
-    W = solve_cohort_qp(res, groups, adopt_of, members, donors, n1, d, n, n_lags,
-                        nu_used, global_l2 ** 2, ind_l2 ** 2, lam, solver, zt=zt, Zc=Zc)
+    # The pooled fit's norms are read off ``M0`` in the caller's units, so they
+    # are divided by the same scale as the residuals: the two ratios are then
+    # the ones the unscaled program formed, and ``lam`` needs no adjustment.
+    W = solve_cohort_qp(res_q, groups, adopt_of, members, donors, n1, d, n, n_lags,
+                        nu_used, (global_l2 / scale) ** 2, (ind_l2 / scale) ** 2,
+                        lam, solver, zt=zt_q, Zc=Zc_q)
     M = _imbalance_matrix(res, groups, adopt_of, members, donors, W, n1, d, n)
 
     # uniform-weight baseline for scaled imbalance
@@ -222,6 +438,7 @@ def run_multisynth(
         "weights": W, "n1": n1, "tau_rel": tau_rel, "per_time": per_time, "att": att,
         "nu_used": nu_used, "global_l2": fin_global, "ind_l2": fin_ind,
         "scaled_global_l2": fin_global / unif_global, "scaled_ind_l2": fin_ind / unif_ind,
+        "max_donors": _shape[0], "balance_periods": _shape[1],
         # Per-cohort final imbalance columns ``M`` (d, J) and the ``nnz`` counts
         # from the separate fit -- the components of ``ind_l2`` (each cohort's
         # in-sample error is ``sqrt((M[:,k]**2).sum() / nnz[k])``), returned so the

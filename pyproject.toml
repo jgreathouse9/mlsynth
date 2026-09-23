@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlsynth"
-version = "1.0.0"
+version = "2.0.0"
 description = "Synthetic control and experimental-design estimators for causal inference on panel data."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,11 +32,13 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
-# Core runtime dependencies. The two heavy, estimator-specific dependencies are
-# optional extras (below): `pyscipopt` (the SCIP MIP solver, needed only by the
-# SYNDES / MAREX experimental designs) and `numpyro` (JAX-based, needed only by
-# SPOTSYNTH's Bayesian mode). Both are imported lazily, so the base install
-# imports and runs every other estimator without them.
+# Core runtime dependencies. The heavy, estimator-specific dependencies are
+# optional extras (below): `pyscipopt` (the SCIP MIP solver, needed by the
+# SYNDES / MAREX experimental designs and by HCW's best-subset certification),
+# `highspy` (needed only by PANGEO's exact-cover partition MIP), and `numpyro`
+# (JAX-based, needed only by SPOTSYNTH's Bayesian mode). All are imported
+# lazily, so the base install imports and runs every other estimator without
+# them.
 dependencies = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
@@ -60,6 +62,20 @@ design = ["pyscipopt>=4.4.0", "highspy>=1.7.0"]
 scip = ["pyscipopt>=4.4.0"]
 # SPOTSYNTH Bayesian synthetic control (NumPyro / JAX).
 bayes = ["numpyro"]
+# The test suite. Not needed to use the library -- the suite is a development
+# artifact and is not shipped in the wheel -- so this exists to make
+# ``pip install -e ".[test]"`` reproduce a working local test environment. The
+# CI workflows install the same set explicitly and must be kept in step.
+# ``hypothesis`` drives the property tests; the profiles that govern them are
+# registered in ``mlsynth/tests/conftest.py`` and the contract for when to
+# reach for it is in ``agents/agents_tests.md``.
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist",
+    "coverage",
+    "hypothesis>=6.100",
+]
 # Everything optional, for the full feature set.
 all = ["pyscipopt>=4.4.0", "highspy>=1.7.0", "numpyro"]
 

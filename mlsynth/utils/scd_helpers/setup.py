@@ -52,7 +52,7 @@ def prepare_scd_inputs(
         raise MlsynthDataError("Outcome column contains NaN values.")
 
     # Treated unit: identified from the treat column at the unit-time level.
-    treat_by_cell = df.groupby([unitid, time])[treat].max().reset_index()
+    treat_by_cell = df.groupby([unitid, time], observed=True)[treat].max().reset_index()
     treated_cells = treat_by_cell[treat_by_cell[treat] == 1]
     if treated_cells.empty:
         raise MlsynthDataError(

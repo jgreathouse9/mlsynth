@@ -43,12 +43,12 @@ def prepare_fdid_inputs(
         If fewer than two pre-treatment periods are available.
     """
     try:
-        balance(df, unitid, time)
+        keys = balance(df, unitid, time)
     except Exception as e:  # noqa: BLE001 - re-wrap as repository error
         raise MlsynthDataError(f"Error balancing panel data: {str(e)}") from e
 
     try:
-        prepped = dataprep(df, unitid, time, outcome, treat)
+        prepped = dataprep(df, unitid, time, outcome, treat, keys=keys)
     except MlsynthDataError:
         raise
     except Exception as e:  # noqa: BLE001

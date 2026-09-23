@@ -500,23 +500,12 @@ and defaults them to the production-friendly setting:
   result, computed without branch-and-bound. SCIP's own gap closes slowly because
   its dual bound is the continuous (McCormick) relaxation, loose for the two-way
   objective; ``certify`` instead builds a mode-appropriate lower bound directly --
-  a convex QP for one-way (already tight), the SDP/moment relaxation for two-way
-  (tight to ~2-3%, gated by ``certify_sdp_n_max`` since it is :math:`O(N^3)`) --
-  and reports ``result.certificate.optimality_gap`` with the guarantee
-  ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent. The per-unit
-  objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
-  it returns ``certified=False``, not a misleading number.
-* ``accelerate`` (default ``True``) -- inject that same two-way SDP lower bound
-  back into the solve *as a valid cut* (plus a deterministic LEXSCM warm start),
-  so SCIP's dual bound is lifted to the SDP bound and the ordinary ``gap_limit``
-  certifies against it instead of the loose McCormick relaxation. Size-gated and
-  automatic (see "Accelerating the solve" below): it engages only for
-  ``two_way_global`` with an explicit ``K`` when the treated-tuple count
-  :math:`\binom{N}{K}` exceeds ``accel_min_tuples`` and :math:`N \le`
-  ``certify_sdp_n_max``, and is a no-op otherwise (small problems solve exactly,
-  unchanged). Unlike ``certify`` (a passive diagnostic), this changes the *path*
-  the solver takes, not the problem: the returned design is certified to
-  ``gap_limit`` against the SDP bound.
+  a convex QP for one-way (already tight), and for two-way a closed-form bound on
+  the Gram matrix (see "The Gram reduction" below) -- and reports
+  ``result.certificate.optimality_gap`` with the guarantee ``lower_bound``
+  :math:`\le` optimum :math:`\le` incumbent. The per-unit objective has an
+  :math:`(N, N)` weight matrix, so no cheap tight bound exists; it returns
+  ``certified=False``, not a misleading number.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -666,52 +655,143 @@ the certificate and no lift is needed. In per-unit the weights form an
 :math:`O(N^2)` entries and the moment matrix is :math:`O(N^2) \times O(N^2)`,
 i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
 loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
-continuous bound. The two-way lift is :math:`O(N^3)`, which is what
-``certify_sdp_n_max`` guards.
+continuous bound. The two-way lift was :math:`O(N^3)`, and is described here
+because it is what the closed-form bound below replaced.
 
-Accelerating the solve
-~~~~~~~~~~~~~~~~~~~~~~~~
+The Gram reduction
+~~~~~~~~~~~~~~~~~~~~
 
-``certify`` reports the SDP gap *beside* the solver. ``accelerate`` (default
-``True`` for the large two-way solve) feeds the same bound *into* it. Because the
-canonical two-way objective is minimized as an epigraph variable :math:`t` (with
-:math:`t \ge` the quadratic), adding the single linear constraint
+The two-way certificate takes a shorter route than the lift. The reduction
+behind it also explains where the design problem's difficulty sits.
+
+Name the treated set :math:`S = \{i : D_i = 1\}`. The coupling
+:math:`q_i = w_i D_i` then says only that :math:`\mathbf{q} = \mathbf{w}` on
+:math:`S` and :math:`\mathbf{0}` off it, so the binary vector carries no
+information the set does not. Write :math:`\mathbf{a}` for the treated weights,
+:math:`\mathbf{b}` for the control weights and
+:math:`\mathbf{u} \coloneqq \mathbf{a} - \mathbf{b}`. Then
+:math:`2\mathbf{q} - \mathbf{w} = \mathbf{u}`, and because the two supports are
+disjoint :math:`\mathbf{w}^\top\mathbf{w} = \mathbf{u}^\top\mathbf{u}`. With
+:math:`\mathbf{G} \coloneqq \mathbf{Y}^\top\mathbf{Y} / T_0` the whole program
+collapses, for each :math:`S`, to a convex quadratic program:
 
 .. math::
 
-   t \;\ge\; L, \qquad L \coloneqq (1 - \varepsilon)\, p_{\mathrm{SDP}},
+   f(S) \;=\; \min \big\{ \mathbf{u}^\top (\mathbf{G} + \lambda \mathbf{I})\,
+   \mathbf{u} \;:\; \mathbf{u}_S \ge \mathbf{0},\; \textstyle\sum_{S} u_i = 1;
+   \;\; \mathbf{u}_{S^c} \le \mathbf{0},\; \textstyle\sum_{S^c} u_i = -1 \big\}.
 
-lifts every node relaxation -- and hence SCIP's global dual bound -- to :math:`L`.
-The cut is valid whenever :math:`L \le p^\star`: no feasible design has objective
-below the optimum, so none is removed. Since :math:`p_{\mathrm{SDP}} \le p^\star`,
-the small safety margin :math:`\varepsilon` (``accel_safety_margin``, default
-:math:`0.01`) keeps :math:`L` a valid lower bound even under the first-order SDP
-solver's tolerance -- a too-high :math:`L` would inflate :math:`t` and return a
-garbage design, so the margin is a correctness requirement, not a tuning knob.
-As a backstop, if a bad :math:`L` ever pushes the recovered objective below the
-cut floor, the solve drops the cut and re-solves, so correctness always holds.
+Geometrically :math:`f(S)` is the ridge-penalized distance between the convex
+hull of the treated units' pre-treatment columns and the hull of the control
+units' columns. Two things follow. The panel enters only through
+:math:`\mathbf{G}`, an :math:`N \times N` matrix formed once, so the length of
+the pre-period stops mattering after that step. And nothing integral is left:
+all of the combinatorial difficulty is the outer choice of :math:`S`.
 
-With the dual bound sitting at :math:`L`, the ordinary ``gap_limit`` now measures
-against a *tight* bound: SCIP terminates as soon as the incumbent (seeded by the
-LEXSCM warm start, the same primal MAREX uses) is within ``gap_limit`` of
-:math:`L` instead of climbing the McCormick bound for minutes to prove the same
-thing. The floor on the achievable gap is the SDP integrality gap itself
-(:math:`\sim 2\text{--}4\%`), so ``gap_limit`` below that will not terminate early
--- set it at or above the certified gap you saw from ``certify``.
+Now let :math:`\boldsymbol{\sigma} \in \{-1, +1\}^N` be the indicator of
+:math:`S`. The two normalizations are exactly
+:math:`\mathbf{1}^\top \mathbf{u} = 0` and
+:math:`\boldsymbol{\sigma}^\top \mathbf{u} = 2`, a pair of linear equalities.
+Dropping the sign conditions -- which Doudchenko et al. describe as not strictly
+required -- leaves a two-equality quadratic program with a closed form. Writing
+:math:`\mathbf{H} \coloneqq (\mathbf{G} + \lambda\mathbf{I})^{-1}`,
+:math:`\mathbf{p} \coloneqq \mathbf{H}\mathbf{1}` and
+:math:`\alpha \coloneqq \mathbf{1}^\top \mathbf{H}\mathbf{1}`,
 
-The mechanism only helps in the sense of an early, *certified* stop -- it does not
-make SCIP prove exact optimality faster (the dual bound cannot climb above
-:math:`L` on its own). So ``accelerate`` is a size-gated change to the returned
-design's *contract*: at :math:`\binom{N}{K}` below ``accel_min_tuples`` the exact
-MIP is small and solved directly (unchanged, proven-optimal); above it -- where
-the exact two-way MIP does not terminate at any practical size, since the
-McCormick dual never closes -- SYNDES returns a design certified to ``gap_limit``
-against the SDP bound. On a two-way :math:`N = 100,\ K = 5` panel this turns a 60s
-time-out (an uncertified incumbent) into a :math:`\sim 25\text{s}` solve that SCIP
-*terminates* with a certified :math:`\sim 3\%` gap. This is an mlsynth addition,
-not part of Doudchenko et al. (2021); the shared machinery lives in
-:mod:`mlsynth.utils.miqp_accel` so other exact designs (MAREX, and the GEDI
-experimentation wrapper) can adopt it.
+.. math::
+
+   f(S) \;\ge\; \mathrm{lb}(S) \;=\; \frac{4\alpha}
+   {\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}},
+   \qquad
+   \mathbf{R} \;\coloneqq\; \alpha \mathbf{H} - \mathbf{p}\mathbf{p}^\top,
+
+with equality whenever the minimizer it returns happens to satisfy the dropped
+sign conditions.
+
+Because :math:`\mathbf{p} = \mathbf{H}\mathbf{1}` and
+:math:`\mathbf{p}^\top\mathbf{1} = \alpha`, the matrix :math:`\mathbf{R}`
+annihilates the constant vector: :math:`\mathbf{R}\mathbf{1} = \mathbf{0}`. Any
+feasible :math:`\boldsymbol{\sigma}` splits into a piece along
+:math:`\mathbf{1}`, which :math:`\mathbf{R}` kills, and an orthogonal piece of
+squared norm :math:`4K(N-K)/N`. Rayleigh's inequality then caps the quadratic
+form over every size-:math:`K` design at once, giving the bound ``certify``
+reports:
+
+.. math::
+
+   p^\star \;\ge\; \frac{\alpha N}{K (N - K)\, \lambda_{\max}(\mathbf{R})}.
+
+One matrix inverse and one eigenvalue. There is no relaxation to solve, so
+there is no iteration cap to exhaust and no size gate. On the panels used to
+develop it the bound reached 88.8, 90.6 and 92.0 percent of the true optimum at
+:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment lift it replaced,
+and took about 0.1 ms against 0.1--0.23 s. It goes unavailable in one situation:
+:math:`\mathbf{G} + \lambda\mathbf{I}` is near-singular when :math:`\lambda`
+approaches zero on a panel with fewer pre-periods than units, and the certificate
+then reports ``lower_bound=None`` with a note naming the cause.
+
+Since :math:`4\alpha` is a constant, ranking designs by :math:`\mathrm{lb}`
+amounts to maximizing :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
+\boldsymbol{\sigma}` over sign vectors with :math:`K` positive entries -- a
+cardinality-constrained max-cut. That is where the design problem's hardness
+lives once the weights are optimized away.
+
+Solving it that way
+~~~~~~~~~~~~~~~~~~~~~
+
+``backend`` chooses how ``mode="two_way_global"`` is solved. The default,
+``"exact"``, searches treated sets using the reduction above. ``"mip"`` hands the
+mixed-integer program to ``solver`` instead. The other two modes resolve to
+``"mip"`` on their own, and asking them for ``"exact"`` is an error.
+
+The search scores every candidate design with one matrix product, since
+:math:`\mathrm{lb}` depends on the design only through
+:math:`\boldsymbol{\sigma}`. Candidates whose sign conditions turn out slack are
+solved outright by that same formula, and the best of them becomes the
+incumbent; any candidate whose bound already exceeds the incumbent is discarded,
+because its true value can only be higher. Whatever survives goes to a projected-
+gradient solve over the two simplices, which reports a Frank-Wolfe duality gap so
+the answer certifies itself. On the panels used to develop it, nought or one
+design out of thousands reached that last step.
+
+What changes is the price of a candidate, not the complexity class. Choosing the
+treated set is still a cardinality-constrained max-cut, and above a count of
+admissible designs the search stops enumerating, falls back to a swap search on
+:math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}`, and reports
+the design against the Rayleigh bound instead of claiming a certificate. What it
+buys is that a candidate costs one row of a matrix product instead of a
+branch-and-bound node, and that :math:`T` leaves the per-candidate cost entirely
+once :math:`\mathbf{G}` is formed, so a 300-period panel costs what a 20-period
+one does.
+
+One consequence matters when comparing the two backends. ``gap_limit``
+defaults to ``0.05``, so the MIP path may stop at a design 5 percent above the
+optimum, and ``time_limit`` can stop it sooner. The exact backend has no such
+early exit below its candidate limit, so the two agree on the treated set only
+once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
+search's design is the one that is at least as good.
+
+``backend="exact"`` applies to two-way only. One-way pins the treated weights at
+:math:`1/K` and per-unit carries an :math:`(N, N)` weight matrix, so neither
+reduces to a search over treated sets. Donor-side restrictions
+(``donor_exclusion``, ``donor_region_col``) are refused as well: they tie the
+control weights to which units are treated, so a design stops being scoreable
+from its treated set alone.
+
+Every other restriction is a predicate on the treated set, and the two kinds are
+handled differently. ``to_be_treated``, ``not_to_be_treated``, size eligibility
+and stratum quotas are structural: they decide which candidates exist, so the
+search builds candidates inside them and counts the admissible designs exactly.
+That count is what the candidate limit reads, so an instance with most of its
+units ineligible is enumerated on the designs it has, not on the
+:math:`\binom{N}{K}` it would have had without the rules. Cluster and adjacency
+conflicts and ``costs`` with a ``budget`` do not decompose over a stratum, so
+they are tested on finished candidates and leave the count alone; an instance
+carrying only those is refused past the limit, since the fallback searches the
+unrestricted space.
+
+``gap_limit``, ``time_limit``, ``solver`` describe branch-and-bound and are
+ignored by this path.
 
 Multiple Treatment Arms
 -----------------------
@@ -858,8 +938,10 @@ exactly, not by filtering enumerated candidates:
 The ``cluster_col`` / ``stratum_col`` / ``size_col`` columns must be constant
 within each unit. Restrictions compose with each other and with ``costs`` /
 ``budget``, and they flow through every selection rule (in-sample, ``holdout``,
-``ic``). They are not available with ``mode="two_way_global_annealed"`` (no MIP)
-or an ``arm`` column (restrictions are global, not per-arm). Infeasible
+``ic``). They are not available with an ``arm`` column (restrictions are global,
+not per-arm), and donor-side rules are unavailable under ``two_way_global``
+(they tie the control weights to the assignment; use ``one_way_global`` or
+``per_unit``). Infeasible
 combinations -- forcing more units than ``K``, or forbidding so many that fewer
 than ``K`` remain treatable -- raise a translated ``MlsynthConfigError``
 instead of leaking a solver ``INFEASIBLE``.
@@ -1174,7 +1256,7 @@ The returned ``results.pool`` is then ranked by this out-of-sample error (rank-1
 is the holdout winner kept on ``results.design``), and each entry carries an
 ``oos_rmse`` key alongside the in-sample ``pre_fit_rmse``. Holdout selection
 needs a candidate pool to choose among, so ``top_K >= 2`` is required, and it
-applies to the MIP modes only (not the annealed relaxation). Power and inference
+applies to every mode. Power and inference
 are computed exactly as in the in-sample path. ``holdout_frac=None`` (the
 default) leaves selection on the in-sample optimum, unchanged.
 
@@ -1529,8 +1611,6 @@ optimized :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESDesign`
 ``contrast_series`` and ``pre_fit_rmse``, objective value), the prepared
 :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESInputs`, and optional
 :class:`~mlsynth.utils.syndes_helpers.structures.SYNDESInference`. The
-``mode="two_way_global_annealed"`` path instead returns a
-:class:`~mlsynth.utils.syndes_helpers.relaxed_structures.RelaxedSolverResults`.
 
 .. automodule:: mlsynth.utils.syndes_helpers.structures
    :members:

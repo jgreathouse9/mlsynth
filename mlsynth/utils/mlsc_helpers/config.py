@@ -194,7 +194,7 @@ class MLSCConfig(BaseModel):
 
         # Each disaggregate unit must map to exactly one aggregate.
         per_unit_aggs = (
-            df_d.groupby(self.unitid_disagg)[self.agg_id]
+            df_d.groupby(self.unitid_disagg, observed=True)[self.agg_id]
             .nunique()
         )
         offenders = per_unit_aggs[per_unit_aggs > 1]

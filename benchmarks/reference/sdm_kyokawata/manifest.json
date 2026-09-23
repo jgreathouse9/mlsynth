@@ -1,0 +1,10 @@
+{
+  "case": "sdm_kyokawata",
+  "title": "SDM (sequential deviation minimization) vs exact SC-class least squares",
+  "paper": "Kyo, K., & Kawata, Y. (2026), 'Sequential deviation minimization for improving the estimation in synthetic control methods', Journal of Applied Statistics, doi:10.1080/02664763.2026.2717163",
+  "reference_impl": "Authors' replication package, supplied privately (code_demo_F.txt, code_demo_F_co.txt, data_demo_F.txt); ported to NumPy in sdm_port.py. Not committed -- see provenance.json.",
+  "path_type": "assessment (pre-build spike; no estimator added)",
+  "verdict": "pass -- SDM's fixed point is MSCc, already fit exactly by mlsynth.TSSC",
+  "command": "python benchmarks/reference/sdm_kyokawata/run_simulation.py",
+  "data": []
+}

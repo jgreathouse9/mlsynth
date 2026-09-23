@@ -305,13 +305,13 @@ class TestPlaceboVariance:
         real = inference_mod.estimate_cohort_sdid_effects
         seen: list[bool] = []
 
-        def spy(period, cohort_data, accumulator):
+        def spy(period, cohort_data, accumulator, **kwargs):
             y_col = np.asarray(cohort_data["y"])[:, 0]
             donor = np.asarray(cohort_data["donor_matrix"])
             # No donor column may equal the pseudo-treated outcome column.
             clash = any(np.allclose(y_col, donor[:, j]) for j in range(donor.shape[1]))
             seen.append(clash)
-            return real(period, cohort_data, accumulator)
+            return real(period, cohort_data, accumulator, **kwargs)
 
         monkeypatch.setattr(inference_mod, "estimate_cohort_sdid_effects", spy)
         estimate_placebo_variance(

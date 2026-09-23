@@ -683,7 +683,7 @@ def plot_weights_comparison(
     pivot: Dict[Any, Dict[str, float]] = {}
     totals: Dict[Any, float] = {}
     if w is not None and not w.empty:
-        for donor, grp in w.groupby("donor", sort=False):
+        for donor, grp in w.groupby("donor", sort=False, observed=True):
             by_method = dict(zip(grp["method"], grp["weight"]))
             if max(abs(v) for v in by_method.values()) < threshold:
                 continue

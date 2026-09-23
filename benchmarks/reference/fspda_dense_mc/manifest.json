@@ -1,0 +1,9 @@
+{
+  "case": "fspda_dense_mc",
+  "title": "PDA forward selection and modified-BIC LASSO against fsPDA's own dense Monte Carlo panels",
+  "paper": "Shi & Huang (2023), J. Econometrics 234(2) 512-535, the dense (nonsparse) simulation",
+  "reference_impl": "zhentaoshi/fsPDA @ 5f4542c (live run: simulation/nonsparse/{FS.R, lasso.BIC.R} verbatim on the DGP block of FS.simulation.dense.R, with their committed loading.RData)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/fspda_dense_mc/reference.R",
+  "data": []
+}

@@ -1,0 +1,31 @@
+{
+  "case": "dmlfm_germany",
+  "title": "DM-LFM West-German reunification gold from pblasso 1.0.8, plus the paper's single-treated-unit Monte Carlo",
+  "paper": "Pang, X., Liu, L., & Xu, Y. (2022), 'A Bayesian Alternative to Synthetic Control for Comparative Case Studies', Political Analysis 30(2):269-288; Abadie, Diamond & Hainmueller (2015) for the German reunification data",
+  "reference_impl": "R package pblasso 1.0.8, shipped in the authors' replication package (packages/pblasso_1.0.8.tar.gz). This is the version behind the published figures; the public liulch/bpCausal repository is a later rename and is NOT the same code.",
+  "path_type": "cross-validation",
+  "status": "active -- the oracle for mlsynth.DMLFM; the comparison lives in benchmarks/cases/dmlfm_germany.py",
+  "command": "Rscript benchmarks/reference/dmlfm_germany/reference.R",
+  "data": [
+    "basedata/repgermany.dta"
+  ],
+  "outputs": {
+    "gold_summary.csv": "per-seed overall ATT, credible interval, pre-treatment gap summaries, sigma2, runtime",
+    "gold_att_by_year.csv": "per-seed, per-year ATT with 95% credible bounds",
+    "gold_counterfactual.csv": "per-seed observed and posterior-mean counterfactual GDP for West Germany",
+    "gold_omega_gamma.csv": "per-seed posterior mean and deciles of |omega_gamma|, the factor-loading scales that drive factor selection",
+    "gold_covariates.csv": "the six time-invariant covariates as the authors construct them",
+    "montecarlo_single_treated.csv": "the authors' own saved Monte Carlo output (tempdata/sim_single_{X,r3,r8}.RData): bias, sd, RMSE, coverage and runtime for synth, gsynth and the Bayesian DM-LFM across 3 designs x 6 cases"
+  },
+  "targets": {
+    "att_1990_2003": -1597.9,
+    "att_sd_across_seeds": 38.7,
+    "att_range_across_seeds": [
+      -1639.4,
+      -1509.2
+    ],
+    "seeds": 10,
+    "pre_treatment_gap_maxabs": 117.0,
+    "tolerance_note": "MCMC noise only, ten seeds at niter=25000, burn=5000. The spread is wide relative to the effect: compare a port on means across several seeds, not on a single run. An eight-seed port run agreeing at Welch p=0.16 with variances agreeing at F-test p=0.42 reproduces the estimator."
+  }
+}

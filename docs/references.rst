@@ -331,6 +331,18 @@ References
 
 .. [Xu2017] Xu, Yiqing. “Generalized Synthetic Control Method: Causal Inference with Interactive Fixed Effects Models.” *Political Analysis* 25, no. 1 (2017): 57–76. https://doi.org/10.1017/pan.2016.2.
 
+.. [LPCA]
+    Feng, Yingjie.
+    "Optimal Estimation of Large-Dimensional Nonlinear Factor Models."
+    Working paper, 31 July 2024. arXiv:2311.07243.
+    https://arxiv.org/abs/2311.07243
+
+.. [ZLZ2017]
+    Zhang, Yuan, Levina, Elizaveta, and Zhu, Ji.
+    "Estimating network edge probabilities by neighbourhood smoothing."
+    *Biometrika*, 104(4): 771-783, 2017.
+    DOI: https://doi.org/10.1093/biomet/asx042
+
 .. [MCNNM]
     Athey, Susan, Bayati, Mohsen, Doudchenko, Nikolay, Imbens, Guido, and Khosravi, Khashayar.
     "Matrix Completion Methods for Causal Panel Data Models."
@@ -532,3 +544,5 @@ References
     *"The Equivalence of Optimal Perspective Formulation and Shor's SDP for Quadratic Programs with Indicator Variables."*
     *Operations Research Letters*, 50(2): 195-198, 2022.
     https://www.sciencedirect.com/science/article/pii/S0167637722000141
+
+.. [TWSF] Shen, Dennis. *"Causal Forecasting in Panel Data: A Two-Way Synthetic Forecasting Approach."* arXiv:2606.18512, 2026. https://arxiv.org/abs/2606.18512.

@@ -63,6 +63,14 @@ Do not use PPSCM when
   large and noisy. Partial pooling cannot manufacture a hull that does
   not contain the treated units; a factor-model (:doc:`fma`) or low-rank
   (:doc:`clustersc`, :doc:`mcnnm`) approach is better.
+* The pre-period is short relative to the donor pool. Synthetic control needs
+  enough pre-periods to pin the weights down; with more donors than periods to
+  balance, the simplex is wide enough that near-exact balance is available for
+  free and says nothing about how well the donors track the treated units. This
+  is the regime where difference in differences is the justified estimator --
+  it asks for many units and few periods, which is the opposite trade -- so
+  reach for :doc:`sdid`, or for PPSCM's own ``method="callaway_santanna"``.
+  ``design.underdetermined`` reports when a fit is in this regime.
 * Distributional effects (quantiles, tails) -- use :doc:`dsc`.
 
 Notation
@@ -119,6 +127,22 @@ pooled SCM.
    :math:`\nu = \text{global\_l2}\cdot\sqrt{T_0}/\text{avg\_l2}`
    from the separate fit; a float fixes it.
 
+The program is posed on residuals divided by a power of two that brings them to
+unit magnitude, and the answer is read back in the caller's units. Synthetic
+control is scale-equivariant, so this leaves the estimand alone: multiplying
+every series by a constant leaves the weights where they were and scales the
+effect with them. What it changes is what the solver is asked for. The separate
+fit normalizes by one, because it is the fit that produces
+:math:`\text{norm}_{\text{pool}}` and :math:`\text{norm}_{\text{sep}}`, so its
+objective carries the square of whatever units the outcome happens to be in,
+while the solver's convergence test is an absolute tolerance. On a panel running
+at :math:`10^5` that fit takes twenty times as long as the identical problem at
+unit scale, and past about :math:`10^3` it stops converging at all and a fallback
+solver answers to a looser standard. The divisor is the median absolute
+residual: stage 1 has already removed the level, and a panel of markets spans an
+order of magnitude in size, so the typical residual and not the largest sets the
+scale. Residuals already within :math:`2^3` of unit magnitude are left alone.
+
 Assumptions / Remarks.
 
 *Assumption 1 (no anticipation, parallel residual trends).* After removing the
@@ -162,6 +186,234 @@ This reproduces ``augsynth::multisynth``'s covariate mode
 ``ppscm_paglayan_covs`` benchmark for the cell-by-cell cross-check against a
 live ``augsynth 0.2.0`` run.
 
+.. _ppscm-cs-mode:
+
+Reaching Callaway-Sant'Anna and Sun-Abraham
+-------------------------------------------
+
+Ben-Michael, Feller and Rothstein (2022, p.369) observe that with uniform donor
+weights their intercept-shifted estimator "is equivalent to recent proposals for
+DiD estimators that allow for treatment effect heterogeneity with a fixed donor
+set per treatment time cohort (see Callaway & Sant'Anna, 2020; Sun & Abraham,
+2020)". Measured, that is not an approximation: three independent
+implementations agree to 1e-14 once three conventions are aligned.
+
+The three are separate settings, because each is independently meaningful:
+
+``donor_weights``
+   ``"scm"`` (default) solves the partially-pooled QP; ``"uniform"`` puts equal
+   weight on every admissible donor, which is the comparison Callaway-Sant'Anna
+   and Sun-Abraham make. It is the :math:`\lambda \to \infty` limit of the
+   same program, written in closed form; the derivation is below.
+
+``base_period``
+   ``"all_pre"`` (default) is augsynth's: each unit's mean over its whole
+   pre-adoption window. ``"pre_treatment"`` is the single period :math:`g-1`
+   that Callaway-Sant'Anna normalise against. On its own the choice shifts each
+   cohort's level without moving the event-study shape.
+
+``donor_pool``
+   ``"window"`` (default) admits any unit untreated through the cohort's whole
+   estimation window, :math:`g_i > g + H`. ``"never_treated"`` and
+   ``"not_yet_treated"`` are the Callaway-Sant'Anna comparison groups. The first
+   two coincide exactly when every other cohort adopts inside the window.
+
+``method="callaway_santanna"`` sets all three at once (and selects their
+standard error, below), leaving any convention the caller set explicitly alone:
+
+.. code-block:: python
+
+   res = PPSCM({"df": df, "outcome": "y", "treat": "d",
+                "unitid": "unit", "time": "period",
+                "method": "callaway_santanna"}).fit()
+
+The three estimators diverge in exactly one regime, and it is a documented
+difference and not a defect: when a later cohort outlives an earlier cohort's
+estimation window, augsynth admits it as a donor and Callaway-Sant'Anna do not.
+On four cohorts spread over a long window the gap is about 1.2e-02. A panel with
+adoptions spread widely lands there, so a difference of that size between
+``donor_pool="window"`` and ``donor_pool="never_treated"`` is the conventions
+disagreeing, not a bug.
+
+Why the two estimators meet: the ridge path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The equivalence is not a coincidence of two formulas. Callaway-Sant'Anna sits at
+the end of a path the partially-pooled program already contains, and the
+conventions above are the coordinates of that endpoint. Ben-Michael, Feller and
+Rothstein introduce the :math:`\lambda` term (their Section 3) as
+
+   a term that penalizes the weights towards uniformity, with hyperparameter
+   :math:`\lambda`. While we penalize the sum of the squared weights, there are
+   many options, for example, an entropy or elastic net penalty
+
+so uniformity is what the penalty is for. Following it to its limit is what
+produces the other estimator.
+
+Step 1: the barycenter is what any such penalty selects. Let
+:math:`\Omega : \Delta^{N_0} \to \mathbb{R}` be strictly convex and
+permutation-symmetric, so :math:`\Omega(\mathbf{P}\mathbf{w}) =
+\Omega(\mathbf{w})` for every permutation matrix :math:`\mathbf{P}`. Strict
+convexity gives a unique minimiser :math:`\mathbf{w}^\star`; symmetry makes
+:math:`\mathbf{P}\mathbf{w}^\star` a minimiser too, so
+:math:`\mathbf{P}\mathbf{w}^\star = \mathbf{w}^\star` for all :math:`\mathbf{P}`,
+and the only permutation-invariant point of the simplex is its barycenter:
+
+.. math::
+
+   \operatorname*{arg\,min}_{\mathbf{w} \in \Delta^{N_0}} \Omega(\mathbf{w})
+     = \bar{\mathbf{w}} \coloneqq \tfrac{1}{N_0}\mathbf{1}.
+
+The squared norm :math:`\sum_i w_i^2` and the negative entropy
+:math:`\sum_i w_i \log w_i` are both of this form, so the alternatives BFR list
+have the same endpoint. Geometrically :math:`\bar{\mathbf{w}}` is the point of
+the simplex nearest the origin, which is why the ridge sends the weights there.
+
+Step 2: the program converges to it, and forgets :math:`\nu`. Write the
+partially-pooled objective as :math:`f_\nu(\mathbf{w}) + \lambda
+\Omega(\mathbf{w})`, equivalently :math:`\lambda^{-1} f_\nu(\mathbf{w}) +
+\Omega(\mathbf{w})`. Since :math:`\Delta^{N_0}` is compact and :math:`f_\nu`
+continuous, :math:`\lambda^{-1} f_\nu \to 0` uniformly, so
+:math:`\mathbf{w}_\lambda \to \bar{\mathbf{w}}` for every :math:`\nu`. The
+pooling dial is inert in the limit: it weights a term that has been scaled away.
+
+Step 3: the rate, and what :math:`\nu` does instead. The barycenter has every
+coordinate :math:`1/N_0 > 0`, so it lies in the relative interior and no
+non-negativity constraint is active near it. For large :math:`\lambda` the
+program is therefore smooth on the affine hull :math:`\{\mathbf{1}'\mathbf{w} =
+1\}`, and stationarity :math:`\nabla f_\nu(\mathbf{w}_\lambda) + 2\lambda
+\mathbf{w}_\lambda + \mu\mathbf{1} = \mathbf{0}` linearised at
+:math:`\bar{\mathbf{w}}` gives
+
+.. math::
+
+   \mathbf{w}_\lambda = \bar{\mathbf{w}}
+     - \frac{1}{2\lambda}\,\mathbf{P}\,\nabla f_\nu(\bar{\mathbf{w}})
+     + O(\lambda^{-2}),
+   \qquad
+   \mathbf{P} \coloneqq \mathbf{I} - \tfrac{1}{N_0}\mathbf{1}\mathbf{1}' ,
+
+with :math:`\mathbf{P}` the projection onto the simplex's tangent space. So the
+approach is first order in :math:`\lambda^{-1}` -- not the :math:`\lambda^{-1/2}`
+a boundary solution would give -- along a fixed direction that is tangent to the
+simplex. That direction is where :math:`\nu` survives: it sets the direction in
+which partially pooled SCM departs from Callaway-Sant'Anna, having no say in
+where the path ends.
+
+Measured on a three-cohort panel with 41 never-treated donors, against the
+Callaway-Sant'Anna estimate:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 40 40
+
+   * - :math:`\lambda`
+     - :math:`|\widehat{\tau} - \widehat{\tau}_{\mathrm{CS}}|`
+     - :math:`\max_i |w_i - 1/N_0|`
+   * - 0
+     - 1.0e-01
+     - 2.6e-01
+   * - 1e6
+     - 7.7e-07
+     - 1.4e-07
+   * - 1e12
+     - 7.7e-13
+     - 1.4e-13
+
+A decade of :math:`\lambda` buys a decade of accuracy, in the weights and in the
+estimate alike, down to machine precision. The scaled departure
+:math:`\lambda(\mathbf{w}_\lambda - \bar{\mathbf{w}})` settles to a fixed vector
+(norms 0.410880, 0.411064, 0.411066 at :math:`\lambda = 10^4, 10^6, 10^8`;
+direction cosine 1.000000 to eight decimals), and its size moves with
+:math:`\nu` alone -- 0.2846, 0.6152, 0.9541 at :math:`\nu = 0, 0.5, 1` -- while
+the limit does not move at all.
+
+Step 4: the endpoint is the estimator. At :math:`\bar{\mathbf{w}}`, with
+``base_period="pre_treatment"`` subtracting :math:`Y_{i,g-1}` and
+``donor_pool="never_treated"`` supplying the comparison group
+:math:`\mathcal{C}`, cohort :math:`g`'s horizon-:math:`k` effect is
+
+.. math::
+
+   \widehat{\tau}_{g,g+k}
+     = \frac{1}{n_g}\sum_{i \in \mathcal{G}_g}\bigl(Y_{i,g+k} - Y_{i,g-1}\bigr)
+     - \frac{1}{n_{\mathcal{C}}}\sum_{i \in \mathcal{C}}
+         \bigl(Y_{i,g+k} - Y_{i,g-1}\bigr)
+     = \widehat{ATT}(g, g+k),
+
+the two-period, two-group difference in differences Callaway and Sant'Anna
+identify under their Assumptions 1-4 with a never-treated comparison group. The
+common time effect cancels between the two group means, so removing it changes
+nothing. This is BFR's own reading of their Equation (9): with uniform weights
+it "is the simple average over all two-period, two-group DiD estimates", which
+they call "equivalent to recent proposals ... (see Callaway & Sant'Anna, 2020;
+Sun & Abraham, 2020)".
+
+One difference hides in that sentence. BFR average over all pre-treatment lags,
+where Callaway-Sant'Anna normalise on :math:`g-1` alone -- which is exactly the
+``base_period`` setting, and why the equivalence needs all three conventions and
+not just uniform weights.
+
+Aggregation closes it. PPSCM averages cohorts by size at each horizon and then
+averages horizons,
+
+.. math::
+
+   \widehat{\theta} = \frac{1}{H}\sum_{h} \widehat{\theta}_h ,
+   \qquad
+   \widehat{\theta}_h = \sum_{k \in \mathcal{K}_h}
+     \frac{p_k}{S_h}\,\widehat{\tau}_{g_k, g_k + h} ,
+   \quad S_h = \sum_{k \in \mathcal{K}_h} p_k ,
+
+which is Callaway-Sant'Anna's dynamic aggregation followed by an average over
+event time. It coincides with their simple aggregation when every cohort is the
+same size and reaches every horizon, and not otherwise -- so equal-sized cohorts
+hide the distinction instead of establishing it.
+
+The event-study window decides which cells enter that sum. ``n_leads`` defaults
+to the last cohort's post window, which is the shortest, so every cohort reaches
+every horizon and :math:`\mathcal{K}_h` is the full set of cohorts at each
+:math:`h`. Raising it adds horizons that only the early cohorts observe: the
+late cohorts report ``NaN`` there and :math:`\mathcal{K}_h` thins as :math:`h`
+grows. The ceiling is the longest post window, since no cohort observes anything
+past the end of the panel, and a larger request is cut to it.
+
+That longer window is the one Callaway-Sant'Anna's simple aggregation runs over,
+and the per-unit paths carry it. The mean over their finite entries weights every
+unit-post-period cell equally, which is what ``did::aggte(type = "simple")``
+reports, while ``res.effects.att`` stays the dynamic aggregation above:
+
+.. code-block:: python
+
+   import numpy as np
+
+   res = PPSCM({"df": df, "outcome": "y", "treat": "d", "unitid": "unit",
+                "time": "period", "method": "callaway_santanna",
+                "n_leads": 6}).fit()
+
+   dynamic = res.effects.att                 # aggte(type="dynamic")$overall.att
+   paths = np.vstack([u.tau for u in res.per_unit.values()])
+   simple = np.nanmean(paths)                # aggte(type="simple")$overall.att
+
+Raising the window is not free with ``donor_pool="window"``, where a unit is a
+donor to a cohort only if it stays untreated through that cohort's estimation
+window: a longer window is a stricter pool. The Callaway-Sant'Anna comparison
+groups, ``never_treated`` and ``not_yet_treated``, do not depend on it.
+
+What this does not close is the donor pool. Uniform weights and the :math:`g-1`
+baseline are choices inside the program; :math:`\mathcal{C}` is the set the
+program ranges over. When a later cohort outlives an earlier cohort's estimation
+window the two sets genuinely differ, and no :math:`\lambda` reconciles them --
+which is the regime described above.
+
+In practice ``donor_weights="uniform"`` is the limit written down instead of
+approached: exact, with no quadratic program to solve and no :math:`\lambda` for
+the caller to guess. The path matters because it explains why the two estimators
+are the same object, and it is verified in
+`test_ppscm_cs_ridge_limit.py <https://github.com/jgreathouse9/mlsynth/blob/main/mlsynth/tests/test_ppscm_cs_ridge_limit.py>`_,
+which pins every number quoted above and checks the limit against ``diff-diff``
+itself where it is installed.
+
 Inference
 ---------
 
@@ -169,6 +421,137 @@ Inference
 full estimator (holding :math:`\nu` fixed), and form
 :math:`\widehat{\text{se}}^2 = \tfrac{N-1}{N}\sum_{j \in \mathcal{N}}(\widehat{\tau}_j - \bar{\tau})^2`
 for the overall ATT and each relative-time horizon, with Wald intervals.
+``inference_method="bootstrap"`` swaps in augsynth's default Mammen wild
+bootstrap, which reweights the single fit instead of refitting.
+
+What the jackknife varies, and what it therefore prices
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dropping a control and dropping a treated unit are not the same experiment.
+Removing a control moves the synthetic counterfactual a little. Removing a
+treated unit removes one of the few draws the effect is averaged over, and that
+is the sampling variability of the pooled estimand. A jackknife ensemble made
+entirely of control deletions measures donor substitution.
+
+That distinction bites with a single treated unit. Deleting it leaves no treated
+unit, so the estimator cannot be refit and the replicate is skipped: every
+survivor is a control deletion, and the reported standard error cannot be moved
+by the treated unit's own outcomes at all. Raising a planted effect from 2.0 to
+52.0 on such a panel moves the ATT by 50 and leaves the standard error
+bit-identical.
+
+``PPSCM`` therefore refuses instead of reporting that number. The refusal names
+how many replicates were admitted and how many removed a treated unit, so the
+distinction is visible in the message. Two treated units give one treated
+deletion, which is a thin ensemble but not a vacuous one, and it is allowed.
+
+With one treated unit, reach for an inference method that does not rest on
+deleting treated units --- ``inference_method="bootstrap"`` reweights a single
+fit --- or report the point estimate without an interval.
+
+Analytical standard errors under the Callaway-Sant'Anna conventions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``method="callaway_santanna"`` reaches their point estimate exactly, and an
+equal point estimate does not make an equal interval. The preset therefore
+also selects ``inference_method="influence_function"``, which is the standard
+error that goes with that estimate.
+
+Under those conventions each cell is a two-period, two-group difference in
+differences and its influence function is available in closed form:
+
+.. math::
+
+   \widehat{\phi}_i(g,t) =
+     \frac{\Delta_i - \bar{\Delta}_{\mathcal{G}_g}}{n_g}\ \ (i \in \mathcal{G}_g),
+   \qquad
+   \widehat{\phi}_i(g,t) =
+     -\frac{\Delta_i - \bar{\Delta}_{\mathcal{C}}}{n_{\mathcal{C}}}\ \ (i \in \mathcal{C}),
+
+with :math:`\Delta_i = Y_{it} - Y_{i,g-1}` and
+:math:`\widehat{\text{se}}(g,t) = \sqrt{\sum_i \widehat{\phi}_i(g,t)^2}`. A
+standard error then costs one pass over the panel, where the jackknife costs one
+refit per unit.
+
+PPSCM averages cohorts by size at each horizon and then averages horizons,
+:math:`\widehat{\theta} = \tfrac1H \sum_h \widehat{\theta}_h` with
+:math:`\widehat{\theta}_h = \sum_{k \in \mathcal{K}_h} p_k \widehat{\tau}_{kh} / S_h`
+and :math:`S_h = \sum_{k \in \mathcal{K}_h} p_k`. That is Callaway and
+Sant'Anna's dynamic aggregation followed by an average over event time, and it
+coincides with their simple aggregation when every cohort is the same size and
+reaches every horizon. The cohort shares :math:`p_k` are estimated from the same
+panel, so the aggregate carries their sampling error through
+:math:`\partial \theta_h / \partial p_j = (\tau_{jh} - \theta_h)/S_h` -- the term
+R's ``did::aggte`` calls ``wif``. Deleting it leaves a standard error that is
+finite, plausible and too small, so the test suite computes the aggregate both
+ways and pins the difference.
+
+``results.inference_detail`` then carries ``group_time_att`` and
+``group_time_se`` keyed by the public ``(adoption time, time)`` labels, the
+per-unit ``influence`` matrix every reported standard error is a functional of,
+and two bands on the event-time path. ``cband=True`` tabulates the second one:
+
+.. math::
+
+   c_{1-\alpha} = \text{quantile}_{1-\alpha}\ \max_h
+     \Bigl| \sum_i v_i \widehat{\psi}_{h,i} \Bigr| \big/ \widehat{\text{se}}_h ,
+
+with :math:`v_i` Mammen (1993) multipliers. One critical value covers every
+horizon at once, which is the level a reader assumes when they read the path as
+a path ("positive by horizon three and never back"); the pointwise band read
+that way covers less. No refit is involved -- the multipliers act on the
+influence functions the point estimate already produced.
+
+The derivation assumes the conventions that produce the Callaway-Sant'Anna
+estimate, so ``inference_method="influence_function"`` is available only with
+``donor_weights="uniform"``, ``base_period="pre_treatment"``,
+``donor_pool="never_treated"`` and ``fixedeff=True``. Solved SCM weights are
+estimated too and contribute a term of their own, and a not-yet-treated pool
+changes the comparison group's composition over time; outside the four the
+formula is wrong and not approximate, and the configuration raises
+``MlsynthConfigError`` naming the convention that broke it. Setting a convention
+explicitly alongside the preset is a coherent question whose answer is the
+jackknife, so the preset stands down instead of raising.
+
+Verification: the analytical standard errors are pinned cell by cell and in
+aggregate against
+`benchmarks/reference/ppscm_cs/reference.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/reference/ppscm_cs/reference.py>`_,
+a transcription of ``diff-diff`` 3.9.0 at commit ``d9cd475`` kept in-tree so the
+check runs without a runtime dependency. Measured agreement is 0.0 per cell and
+5.6e-17 on the aggregate.
+
+Reading the balance diagnostics
+-------------------------------
+
+``design.global_l2`` and ``design.ind_l2`` are the pre-treatment imbalance the
+fitted weights leave, and ``pct_improve_global`` / ``pct_improve_ind`` express
+them against the uniform-weight baseline. A residual near zero means a good fit
+only if the program could have done worse, so the design also reports the shape
+of the problem that produced it:
+
+``max_donors``
+   the widest admissible donor pool across cohorts.
+
+``balance_periods``
+   the pre-periods actually balanced, capped by the cohort with the least
+   history, since that cohort binds.
+
+``underdetermined``
+   whether ``max_donors - 1 > balance_periods``. Weights on the simplex carry
+   ``max_donors - 1`` degrees of freedom against ``balance_periods`` equations,
+   so past that point exact balance is generically attainable.
+
+Both panels ``diff-diff`` ships illustrate the difference. On ``mpdta`` -- 500
+counties over five years, the shape difference in differences is built for --
+the binding cohort adopts in the second period, leaving one pre-period against
+a pool of 480: ``global_l2`` comes to 3.4e-06 and 100 percent better than
+uniform, which describes the geometry. On ``castle_doctrine``, 32 donors
+against five periods cannot reach zero, and its 2.1e-02 is a fit.
+
+``underdetermined`` is a statement about the program's shape and not a verdict.
+The simplex is bounded, so a wide pool whose convex hull misses the treated path
+still leaves a large residual, and that residual is informative. What the flag
+rules out is reading a small one as evidence.
 
 Per-unit fits alongside the pooled report
 -----------------------------------------
@@ -216,6 +599,254 @@ estimates are the deliverable.
    res.effects.att                         # aggregate ATT
    for label, uf in res.per_unit.items():  # per-unit estimates + in-sample error
        print(label, uf.att, uf.prefit_rmspe)
+
+The cumulative effect per unit
+------------------------------
+
+The per-unit bands above cover a unit's effect in a single period, or its average
+across the post-period. A different question is what a unit gained in *total*: the
+sum of its effects over the periods since adoption. Setting ``conformal_horizon``
+adds a band for that total to every ``per_unit`` entry::
+
+   res = PPSCM({..., "conformal_horizon": 8}).fit()
+   for label, uf in res.per_unit.items():
+       print(label, uf.cumulative_effect,
+             (uf.cumulative_lower, uf.cumulative_upper), uf.cumulative_windows)
+
+An interval for a running total is not the running total of the per-period
+intervals. Adding endpoints up treats the period errors as moving in lockstep, so the
+width grows with the number of periods, not with its square root; rescaling a
+single period's interval by the horizon assumes the opposite. Which is right depends
+on how the errors accumulate, and neither assumption measures it.
+
+So the band measures it. An origin slides across the pre-period, and at each one every
+treated unit is treated as if it had adopted there: partially-pooled SCM fits them all
+in a single solve, so one pass yields each unit's summed error over the following
+window at the cost of one solve per origin, not one per unit per origin. Those sums are
+conformity scores for exactly the quantity being reported, and the half-width is the
+:math:`\lceil (m+1)(1-\alpha) \rceil`-th order statistic of the centred scores
+(:func:`mlsynth.utils.conformal.cumulative_conformal_interval`, shared with
+VanillaSC's ``inference="conformal_cumulative"``). Each fit sees only data before the
+window it scores, so the scores carry no in-sample optimism, and origins step by a
+whole horizon, so the windows do not overlap.
+
+Two things to note. The band is *additional*, not a mode: ``inference_method`` still
+chooses the bootstrap or jackknife behind the ATT, and leaving ``conformal_horizon``
+unset changes nothing. And it costs pre-period. Non-overlapping windows of length
+:math:`L` are scarce, so a :math:`1-\alpha` band needs at least
+:math:`\lceil 1/\alpha \rceil - 1` of them: roughly
+:math:`T_0 \gtrsim L/(0.7\,\alpha)` counting the training block held back at the
+start. When they run out, ``cumulative_lower``/``cumulative_upper`` are infinite and
+``cumulative_windows`` says how many were available, instead of a narrow band that
+does not cover.
+
+Where the roll starts is ``conformal_min_train_frac``, a fraction of the
+pre-period: the first origin sits at
+:math:`\max(10,\ \text{frac} \times T_0)`, so every calibration fit has that many
+periods to train on. The default 0.3 suits most panels, and two situations call
+for moving it. Periods spent on the warm-up are periods not available for
+calibration, so lowering it buys windows when the level is out of reach;
+against that, a fit trained on fewer periods than there are donors can
+interpolate its training window, and raising the fraction past the donor count
+removes those origins. The two pull opposite ways, so the choice belongs to
+whoever knows the panel. With :math:`T_0 = 120`, :math:`L = 7` and 60 donors,
+the default starts at period 36 and yields twelve windows, four of them trained
+on fewer periods than there are donors; 0.5 starts at 60 and removes all four,
+leaving eight windows, which no longer supports a 90% band. Read
+``cumulative_windows`` back off each unit to see what a given choice bought.
+
+  ===========  =====  =========  ===============================================
+  :math:`T_0`  frac   windows    at :math:`L = 7`
+  ===========  =====  =========  ===============================================
+  120          0.3    12         supports 90%, not 95%
+  120          0.4    10         supports 90%
+  120          0.5    8          below the 90% threshold
+  ===========  =====  =========  ===============================================
+
+Which calibration set: ``conformal_method``
+-------------------------------------------
+
+The band above calibrates on non-overlapping windows of the pre-period, and that
+reference set is small. With :math:`m \approx 0.7\,T_0/L` windows, a finite
+:math:`1-\alpha` band needs :math:`\lceil (m+1)(1-\alpha) \rceil \le m`, which
+puts a floor of about :math:`12.8\,L` pre-periods under it. Past the floor, at
+whatever level a given :math:`m` just supports, the required rank equals
+:math:`m` itself, so the order statistic never trims anything and the half-width
+is simply the largest calibration score:
+
+  ===========  =====  =========  ================  ===================
+  :math:`T_0`  L      windows    tightest level    rank
+  ===========  =====  =========  ================  ===================
+  120          8      10         90%               10 of 10
+  120          4      21         95%               21 of 21
+  104          13     5          80%               5 of 5
+  156          8      13         90%               13 of 13
+  ===========  =====  =========  ================  ===================
+
+On a thirty-market weekly panel with 120 pre-weeks, an eight-week horizon and
+:math:`\alpha = 0.05`, that leaves ten windows against a rank of eleven, and
+every treated unit's band is infinite. Marketing geo-lift panels sit here
+routinely: the horizon is a campaign flight and the pre-period is however much
+history the advertiser has.
+
+``conformal_method="cyclic"`` calibrates instead against the :math:`T` cyclic
+shifts of the residual path, a reference set whose size is the length of the
+panel and not a count of windows. Neither the floor nor the rank-never-trims
+regime applies to it. On the same panel, 118 of 120 unit-fits return a finite
+band and 114 of those 118 cover, against 0 of 120 finite for the split band::
+
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "cyclic"}).fit()
+   for label, uf in res.per_unit.items():
+       print(label, uf.cumulative_effect,
+             (uf.cumulative_lower, uf.cumulative_upper), uf.cumulative_p_value)
+
+The price is a shape assumption. Inverting a test needs a null to subtract, and
+the null here is a constant per-period effect: a candidate :math:`\theta` is
+subtracted from the treated unit's post-period, the panel is refitted, and the
+adjusted residual path is compared against its own cyclic shifts by a
+moving-block statistic. The reported band is :math:`L` times the range of the
+candidates the test accepts. An effect that ramps is outside that null family,
+and the honest outcome is an empty accepted set, reported as ``nan`` bounds --
+distinct from ``None``, which means no band was asked for at all. The split
+band assumes only that the calibration windows are exchangeable with the
+post-period window, and reports the accumulated effect directly, so it makes no
+claim about the effect's shape.
+
+``conformal_method="resample"`` attacks the same shortage from a third
+direction, and it is the cheapest of the three. The split band runs a rolling
+pass over the pre-period and reduces each window to its total, so :math:`m`
+windows give :math:`m` numbers. The same pass computes an :math:`L`-period path
+on the way to each of those totals, and the resample band keeps them: its
+reference set is the :math:`m \times L` per-period errors rather than the
+:math:`m` totals. Each draw assembles a post-period path from circular blocks of
+a unit's own errors, flipping each block's sign with probability one half, and
+the band is the :math:`1-\alpha` quantile of the absolute accumulated draw::
+
+   res = PPSCM({..., "conformal_horizon": 8,
+                     "conformal_method": "resample"}).fit()
+
+Because the reference set counts periods, the window floor does not apply, and a
+panel with seven windows against a required rank of eight -- infinite under the
+split band -- returns a finite one. It buys that without the cyclic band's shape
+assumption: nothing is subtracted, no null family is posited, and an effect that
+ramps is as admissible as a flat one. It also refits nothing beyond the rolling
+pass the split band already pays for, where the cyclic band pays a refit per
+candidate in its grid.
+
+What it does assume is that ``conformal_block`` is long enough to carry the
+serial correlation of the period errors. The variance of an :math:`H`-period
+total is :math:`H\gamma_0 + 2\sum_k (H-k)\gamma_k`, so drawing periods
+independently -- ``conformal_block=1``, Wheeler's original construction -- keeps
+only the first term and reports a band too narrow whenever the errors are
+positively autocorrelated. The default, ``0``, means the whole horizon, the
+longest block the accumulated total is sensitive to. A block longer than the
+horizon is clamped to it.
+
+The three report the same estimand, so ``conformal_method`` selects between them
+the way ``inference_method`` selects the bootstrap or the jackknife behind the
+ATT, and there is one set of bounds whichever is chosen. Their diagnostics
+differ and so occupy separate fields: ``cumulative_windows`` counts calibration
+windows and is filled by the split and resample bands, ``cumulative_p_value`` is
+the cyclic band's permutation p-value of the no-effect null, and the unused one
+is ``None``. ``cumulative_method`` says which produced the bounds. A window count
+means different things to the two bands that report it -- the split band's order
+statistic is taken over exactly those windows, while the resample band draws from
+the :math:`L` periods inside each -- which is what ``cumulative_method`` is there
+to disambiguate.
+
+Their parameters differ too, and a parameter belonging to a method not chosen is
+refused by name at config time: ``conformal_n_nulls`` and ``conformal_grid_scale``
+are the cyclic band's, ``conformal_block`` and ``conformal_n_sim`` are the
+resample band's, and ``conformal_min_train_frac`` is shared by the split and
+resample bands, which run the same pass and differ only in how they read it.
+The grid is an approximation and it errs in one direction: the band is the range
+of accepted candidates, so a coarse grid samples fewer of them and reports a band
+too narrow, converging upward as ``conformal_n_nulls`` rises -- measured on a
+two-unit panel, a width of 3.14 at five candidates against 5.86 at thirty-one.
+Coarse is anti-conservative here, the opposite of the usual intuition about
+discretisation. An accepted set reaching an end of the grid is bounded by
+``conformal_grid_scale`` and not by the data, and that end is reported as
+infinite.
+
+Every candidate is a refit, so the cyclic band costs about fourteen times the
+split one -- 9.6s against 0.7s per fit at the geometry above. Reach for it when
+the split band comes back infinite, or when the pre-period is too short for the
+floor.
+
+The cumulative effect overall
+-----------------------------
+
+The band above is per unit. The corresponding question about the pool is what the
+treated units gained in total over the first :math:`L` periods, and
+``cumulative_band=True`` answers it::
+
+   res = PPSCM({..., "cumulative_band": True}).fit()
+   band = res.inference_detail.cumulative
+   for L, point, lo, hi in zip(band.horizons, band.point, band.lower, band.upper):
+       print(L, point, (lo, hi))
+
+Both the jackknife and the wild bootstrap already fit the estimator many times and
+get a whole per-horizon path back from each fit. Those paths are kept on
+``res.inference_detail.replicate_paths``, and the band is built from them, so it
+costs no refits beyond the inference that was going to run anyway.
+
+Keeping them is what makes the band possible. Collapsing each replicate to one
+standard error per horizon -- which is all a per-period band needs -- discards how
+the horizons move together, and that covariance is the entire content of a
+cumulative interval. A caller with only the collapsed standard errors has to
+choose an assumption instead: adding period interval endpoints treats the errors
+as moving in lockstep and grows the width like :math:`L`, while rescaling a
+single period's interval assumes they are independent and grows it like
+:math:`\sqrt{L}`. Accumulating the replicates before taking the standard error
+measures which is true.
+
+The band is *simultaneous*. A cumulative path is read as a path -- "the total is
+positive by week six and stays there" is a claim about every horizon at once --
+and a pointwise band read that way covers at well below its nominal level, by
+more as the number of horizons grows. One shared critical value
+(:func:`mlsynth.utils.supt.supt_critical_value`, the sup-t construction of
+Montiel Olea and Plagborg-Moller) restores the level for the whole path.
+
+That multiplier is the :math:`1 - \alpha` quantile of
+:math:`\max_h |z_h| / s_h`, where :math:`z` is the vector of horizon errors and
+:math:`s_h` the standard error each is divided by. The construction assumes
+:math:`s_h` is the true standard error, in which case the ratio is normal and its
+maximum has a known law. Here :math:`s_h` is estimated from the same replicates
+that supply :math:`z`, so the ratio is a Student-t and not a :math:`z`, and its
+maximum is wider -- by more as the ensemble shrinks. Reading the multiplier off
+the normal law would therefore hand back a band narrower than :math:`1 - \alpha`
+at every finite ensemble size, and by a margin that grows exactly where the
+ensemble is small enough to make it matter.
+
+``supt_critical_value`` simulates the whole statistic instead. It draws
+:math:`z \sim N(0, R)` and an independent :math:`Q \sim \text{Wishart}(n - 1, R)`
+for the estimated variances, which is exact for Gaussian replicates because a
+sample mean and a sample covariance are independent, and takes the quantile of
+:math:`\max_h |z_h| / \sqrt{Q_{hh} / (n - 1)}`. At one horizon this reduces to a
+Student-t on :math:`n - 1` degrees of freedom, which is what a single-horizon
+interval should have been all along. Passing ``reference="normal"`` restores the
+older behaviour for a caller reproducing a number from an earlier release.
+
+How much it changes depends on the ensemble, and the two ensembles PPSCM offers
+sit at opposite ends. A wild bootstrap draws as many replicates as it is asked
+for -- at 999 and thirteen horizons the correction is a tenth of a percent, so
+the two references agree to the digit. A delete-one jackknife has one replicate
+per treated unit, and a design with a handful of treated units is where the
+correction is the whole story: at :math:`n = 50` it widens the multiplier by
+4 percent, at :math:`n = 20` by 13. Simulated against a known zero over 3000
+draws at thirteen horizons, a nominal 95 percent band read off the normal law
+covers at 0.932 with fifty replicates and 0.910 with twenty; the studentized
+reference returns 0.949 and 0.957 on the same draws.
+
+Which ensemble produced the band is recorded on ``band.method``, because the two
+are not interchangeable. The wild bootstrap reweights each unit's residual by an
+independent multiplier, which does not cancel the common factors the synthetic
+weights cancel in the point estimate, so its replicate variance is inflated where
+factor structure is strong. The delete-one jackknife refits the weights on each
+leave-one-out, so the factors re-cancel per replicate. The jackknife replicates
+also carry the delete-one inflation and the bootstrap draws do not, since the
+latter are already on the estimator's scale; the band applies whichever matches.
 
 Empirical Illustration: mandatory collective bargaining
 -------------------------------------------------------
@@ -269,6 +900,15 @@ Verification
    (0.020) is close to augsynth's default wild-bootstrap SE (0.022); they differ
    only by inference procedure. This is locked in by
    ``test_matches_augsynth_vignette`` in ``mlsynth/tests/test_ppscm.py``.
+
+A cross-package case on real data covers both modes at once: the
+cannabis-alcohol panel of Ronczewski (2026), which runs ``augsynth`` and
+``did`` side by side on one sample. PPSCM's default reproduces the published
+``multisynth`` ATT to 8.2e-08 and its ``callaway_santanna`` mode reproduces
+the published ``did::aggte`` simple aggregate to 4.9e-17, with all six
+dynamic event-study coefficients to 2.0e-16. Both need ``n_leads = 6``, which
+the paper sets against a default of 2. See `benchmarks/cases/ronczewski_cannabis.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ronczewski_cannabis.py>`_.
 
 Core API
 --------

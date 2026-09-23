@@ -1,0 +1,9 @@
+{
+  "case": "dr_proximal_scenarios",
+  "title": "PROXIMAL against every scenario in the DR_Proximal_SC simulation directory",
+  "paper": "Qiu, Shi, Miao, Dobriban & Tchetgen Tchetgen (2024), Biometrics 80(2) ujae055",
+  "reference_impl": "QIU-Hongxiang-David/DR_Proximal_SC (live run: each scenario's generate_data.R estimators verbatim, on the panel its own simulation.R preprocessing produces)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/dr_proximal_scenarios/reference.R",
+  "data": []
+}

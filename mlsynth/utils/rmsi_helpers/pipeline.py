@@ -64,7 +64,7 @@ def run_rmsi(inputs: RMSIInputs, *, J: int = 2, rank: Optional[int] = None,
         n_pre_periods=int(T0),
         n_post_periods=int(T - T0),
         time_periods=np.asarray(inputs.time_labels),
-        weights=WeightsResults(summary_stats={
+        weights=WeightsResults(donor_weights={}, summary_stats={
             "constraint": "matrix completion (no donor weights)",
             "rank": int(used_rank),
         }),

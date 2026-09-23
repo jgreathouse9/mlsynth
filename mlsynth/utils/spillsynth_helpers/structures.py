@@ -429,12 +429,19 @@ class IterativeFit:
 
     Each spillover-affected control is **cleaned** in turn: a synthetic control
     is built for it from the clean controls (and already-cleaned affected units,
-    excluding the treated unit), and its **post-treatment** outcomes are replaced
-    by that spillover-free synthetic (its pre-treatment outcomes are kept). The
-    treated unit's synthetic control is then refit on the cleaned donor pool, so
-    the affected donors no longer carry the treatment's spillover. Because the
-    pre-period outcomes are untouched, the refit weights equal the naive ones --
-    the correction enters only through the cleaned post-period counterfactual.
+    excluding the treated unit), and its outcomes are replaced by that
+    spillover-free synthetic. The treated unit's synthetic control is then refit
+    on the cleaned donor pool, so the affected donors no longer carry the
+    treatment's spillover.
+
+    How much of the donor's series is replaced is Melnychuk's
+    ``replacePreTreatData`` switch, carried here as ``replace_pre``. With
+    ``False`` (the default) only the post-treatment outcomes are replaced, the
+    pre-period is kept, and the treated unit's fitting data is unchanged -- so
+    the refit returns the naive weights and the correction enters only through
+    the cleaned post-period counterfactual. With ``True`` (what the reference's
+    own call sites use) the whole series is replaced, the cleaned donor becomes
+    a convex combination of the pool it was built from, and the weights move.
 
     Attributes
     ----------
@@ -448,6 +455,13 @@ class IterativeFit:
         Post-period counterfactuals (cleaned / naive).
     spillover_panel : dict
         Per-affected-unit cleaned synthetic post-period trajectory ``(T1,)``.
+    spillover_panel_pre : dict
+        Per-affected-unit cleaned synthetic *pre*-period trajectory ``(T0,)``.
+        Empty unless ``replace_pre`` is set, since otherwise the pre-period is
+        the observed one.
+    replace_pre : bool
+        Whether the affected donors' pre-period outcomes were replaced too
+        (Melnychuk's ``replacePreTreatData``).
     spillover_att : dict
         Per-affected-unit post-period mean of (observed - cleaned synthetic),
         i.e. the spillover removed from that donor.
@@ -459,6 +473,11 @@ class IterativeFit:
         Number of clean (never-affected) controls.
     pre_rmspe : float
         Treated unit's pre-treatment RMSPE on the cleaned pool.
+    naive_synthetic_pre : np.ndarray
+        Treated unit's pre-treatment synthetic fit on the *original* donor
+        outcomes, shape ``(T0,)``. Equals ``treated_synthetic_pre`` exactly when
+        ``replace_pre`` is False, and separates from it when it is set --
+        the observable that says whether the refit refit anything.
     treated_synthetic_pre : np.ndarray
         Treated unit's pre-treatment synthetic fit, shape ``(T0,)`` -- the same
         series ``ISCMFit`` and ``GrossiFit`` expose, so observed-vs-fitted plots
@@ -483,6 +502,9 @@ class IterativeFit:
     n_clean: int
     pre_rmspe: float
     treated_synthetic_pre: np.ndarray
+    naive_synthetic_pre: np.ndarray
+    spillover_panel_pre: Dict[Any, np.ndarray]
+    replace_pre: bool = False
     bilevel_solver: str = "mscmt"
 
     # SP-dialect aliases for the shared accessors / plotter.
@@ -664,7 +686,14 @@ class SpillSynthResults(BaseEstimatorResults):
                 rmse_pre=float(np.sqrt(np.mean(resid ** 2))),
             )
         if self.weights is None:
-            self.weights = WeightsResults()
+            # SPILLSYNTH's weights are the active sub-fit's spillover and SCM
+            # matrices -- alpha is (n, T0) and gamma (n_treated, T0) -- so no
+            # single face is the right shape. Name the sub-result instead of
+            # flattening them into a vector no unit used (#475).
+            self.weights = WeightsResults(
+                weights_at=[self.method],
+                summary_stats={"constraint":
+                               f"SPILLSYNTH/{self.method} spillover + SCM weights"})
         if self.method_details is None:
             self.method_details = MethodDetailsResults(
                 method_name=f"SPILLSYNTH/{self.method}",

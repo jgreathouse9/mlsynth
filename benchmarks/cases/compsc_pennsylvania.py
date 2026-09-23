@@ -17,10 +17,15 @@ baseline category -- ``COMPSC.fit()`` matches every published number:
   p-value 4/36 = 0.111, with Michigan, Louisiana and Florida the three placebos
   exceeding Pennsylvania.
 
-One immaterial numerical difference: the active-set QP leaves Arkansas at
-0.000924 where the paper's ``quadprog::solve.QP`` drives it to zero. No reported
-statistic changes; the gate below tolerates weights under 1e-3 that the paper
-reports as absent.
+One difference from the printed table: mlsynth gives Arkansas a weight of
+0.000924, and Table 1 lists nine donors. This was previously recorded here as a
+solver difference, on the assumption that ``quadprog::solve.QP`` drives that
+weight to zero. Running the author's replication script shows it does not --
+``quadprog`` returns 0.000924 for Arkansas too, agreeing with mlsynth to 6e-10,
+and reports ten active donors. The divergence is between the paper's table and
+the author's own code; see ``compsc_pennsylvania_r``, which pins mlsynth against
+that code. No reported statistic changes either way, and the gate below
+tolerates weights under 1e-3 that the table omits.
 
 The case also records the geometry correction that mlsynth ships as its default.
 The paper's additive log-ratio map is not the isometry for the Aitchison metric

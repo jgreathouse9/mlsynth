@@ -131,6 +131,7 @@ def run_mcnnm(
     *,
     est_u: bool = True,
     est_v: bool = True,
+    lam: Optional[float] = None,
     n_lam: int = 40,
     n_folds: int = 5,
     max_iter: int = 400,
@@ -147,6 +148,8 @@ def run_mcnnm(
     inputs : MCNNMInputs
     est_u, est_v : bool
         Estimate unit / time fixed effects (recommended; default True).
+    lam : float or None
+        Singular-value threshold. None cross-validates it over the grid below.
     n_lam : int
         Number of candidate thresholds in the CV grid.
     n_folds : int
@@ -157,9 +160,18 @@ def run_mcnnm(
     """
     Y, mask, D, T0 = inputs.Y, inputs.mask, inputs.D, inputs.T0
 
-    fit = mcnnm_cv(Y, mask, est_u=est_u, est_v=est_v, n_lam=n_lam,
-                   n_folds=n_folds, max_iter=max_iter, tol=tol,
-                   random_state=random_state)
+    # A given threshold skips the search entirely: no folds are drawn, so the
+    # fit does not depend on random_state (#484).
+    if lam is None:
+        fit = mcnnm_cv(Y, mask, est_u=est_u, est_v=est_v, n_lam=n_lam,
+                       n_folds=n_folds, max_iter=max_iter, tol=tol,
+                       random_state=random_state)
+        lambda_source = "cv"
+    else:
+        fit = mcnnm_fit(Y, mask, float(lam), est_u=est_u, est_v=est_v,
+                        max_iter=max_iter, tol=tol)
+        fit["best_lambda"] = float(lam)
+        lambda_source = "user"
     completed = fit["completed"]
     att, effects, att_by_period = _att_from_fit(
         Y, D, completed, T0, inputs.time_labels
@@ -217,7 +229,8 @@ def run_mcnnm(
         inputs=inputs, counterfactual_matrix=completed, effects_matrix=effects,
         att_by_period=att_by_period, cohort_att=cohort_att,
         event_study=event_study, L=fit["L"], gamma=fit["gamma"],
-        delta=fit["delta"], best_lambda=float(fit["best_lambda"]), rank=rank,
+        delta=fit["delta"], best_lambda=float(fit["best_lambda"]),
+        lambda_source=lambda_source, rank=rank,
         unit_factors=unit_factors, time_factors=time_factors,
         singular_values=singular_values, inference_jackknife=inf,
         metadata=metadata,

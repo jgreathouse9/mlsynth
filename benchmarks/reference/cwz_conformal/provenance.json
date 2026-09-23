@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-08-14T18:58:37Z",
+  "git_sha": "487a9db5653a89a421cd4cc2135818cd654cd277",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/cwz_conformal/reference.R",
+  "data": [
+    {
+      "path": "basedata/logfemrate.txt",
+      "sha256": "fcdf30c41522cbbbc7aa69d968a944b1b2239333fc6897c4e9fcbfb70ca87fbc"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "scinference": "0.0.0.9000",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "limSolve": "2.0.3",
+    "lpSolve": "5.6.20",
+    "quadprog": "1.5-8"
+  }
+}

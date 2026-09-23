@@ -120,7 +120,38 @@ The problem is solved by singular-value soft-thresholding [Mazumder2010]_
 re-fitting the fixed effects from their first-order conditions after each step
 until convergence. The regularization strength :math:`\lambda` is chosen by
 cross-validation over the observed cells (an ``n_lambda``-point grid,
-``n_folds`` folds).
+``n_folds`` folds), on a geometric grid running from the spectral norm of the
+demeaned observed matrix down to a thousandth of it.
+
+Pass ``lam`` to fix :math:`\lambda` instead. That is what reproduces a
+published fit, and what lets a comparison against another implementation say
+whether a disagreement is the estimator or the tuning: hold the threshold and
+the two either agree or they do not. The result reports which happened, as
+``lambda_source``, alongside the value in ``best_lambda`` --- so a
+cross-validated fit can be read off and replayed exactly.
+
+The scale is the outcome's. ``lam`` is an absolute threshold on the singular
+values of the demeaned outcome matrix, so a value another package reports on
+its own normalized grid does not transfer. ``gsynth``'s matrix-completion mode
+reports ``lambda.cv`` on a normalized scale of its own, and setting mlsynth's
+``lam`` to that number would regularize by an unrelated amount.
+
+Zero is refused. With no shrinkage the soft-threshold operator is the identity,
+so :math:`\mathbf{L}` is fit on the observed cells and never propagates to the
+unobserved ones, and the imputed counterfactual collapses to the fixed effects
+alone --- while :math:`\mathbf{L}` still reports a high rank. The
+cross-validation grid never reaches zero, so this is only reachable by asking
+for it, and asking for it is an error.
+
+.. code-block:: python
+
+   cv = MCNNM({"df": df, "outcome": "y", "treat": "d",
+               "unitid": "unit", "time": "period"}).fit()
+   cv.lambda_source        # "cv"
+
+   # the same fit, pinned
+   MCNNM({"df": df, "outcome": "y", "treat": "d", "unitid": "unit",
+          "time": "period", "lam": cv.best_lambda}).fit()
 
 Assumptions and remarks
 ~~~~~~~~~~~~~~~~~~~~~~~~

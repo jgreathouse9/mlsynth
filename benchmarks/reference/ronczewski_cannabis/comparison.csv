@@ -1,0 +1,22 @@
+# case: ronczewski_cannabis
+# generated_at: 2026-08-19T08:11:03Z
+# mlsynth_version: 2.0.0
+# estimator: PPSCM / SDID / GSYNTH
+# config: {"n_leads": 6, "r": 1}
+# reference_impl: Ronczewski (2026) replication package, Results/csv/
+# reference_version: augsynth 0.2.0, did 2.3.0, gsynth 1.4.0, synthdid 0.0.9
+quantity,mlsynth,reference,abs_diff
+Callaway-Sant'Anna ATT (aggte simple),0.012423150022341248,0.0124231500223412,0.0
+multisynth overall ATT,0.027565838376582007,0.0275659204188017,0.0
+SDID aggregate ATT,0.01805036634064558,0.0181113832098199,6.1e-05
+gsynth IFE ATT (r fixed at 1),0.017921380215628373,0.0179213802156284,0.0
+"CS event study, e = 0",0.017471628691788022,0.017471628691788,0.0
+"CS event study, e = 1",0.02048111230730069,0.0204811123073007,0.0
+"CS event study, e = 2",0.003680485810469089,0.00368048581046909,0.0
+"CS event study, e = 3",0.009570777490579224,0.00957077749057922,0.0
+"CS event study, e = 4",0.013779478901626695,0.0137794789016267,0.0
+"CS event study, e = 5",-0.0049848905671512015,-0.004984890567151,0.0
+SDID cohort 2014,0.008663488201651784,0.00867449914569538,1.1e-05
+SDID cohort 2015,0.016621577124722276,0.016854104123037,0.000233
+SDID cohort 2018,0.0479969872775311,0.0479936342606723,3e-06
+GSYNTH factor number selected,4,1,3.0

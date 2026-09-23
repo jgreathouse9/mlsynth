@@ -1,0 +1,11 @@
+# case: geox_sdid_equivalence
+# generated_at: 2026-08-11T08:13:16Z
+# mlsynth_version: 2.0.0
+# estimator: GEOX
+# config: {"engine": "sdid", "n_backtests": 2, "n_draws": 10, "post_col": "post", "seed": 0, "to_be_treated": ["California"], "treatment_size": 1}
+# reference_impl: mlsynth SDID (the engine GEOX wraps)
+# reference_version: same tree; differential, not external
+quantity,mlsynth,reference,abs_diff
+"ATT (California, 1989-2000)",-15.605399261,-15.605399261,0.0
+"donor weights, max |difference|",0.0,0.0,0.0
+ATT under engine='augsynth' (contrast),-14.891858639,-15.605399261,0.713541

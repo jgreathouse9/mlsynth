@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-14T19:04:18Z",
+  "git_sha": "b82abd51ed1623f8e2bce51cacf8408be2a9b11a",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/cwz_conformal_mc/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "scinference": "0.0.0.9000",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "limSolve": "2.0.3",
+    "lpSolve": "5.6.20",
+    "quadprog": "1.5-8"
+  }
+}

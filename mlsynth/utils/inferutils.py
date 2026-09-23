@@ -59,34 +59,10 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     return np.asarray(w.value).ravel()
 
 
-def split_conformal_quantile(residuals, alpha: float = 0.05) -> float:
-    r"""Split-conformal prediction-band half-width (Chernozhukov, Wuthrich & Zhu 2021).
-
-    Returns ``q``, the constant half-width of the symmetric prediction band
-    ``counterfactual +/- q``: the ``ceil((n+1)(1-alpha))``-th order statistic of
-    the absolute pre-period residuals (gaps). Under exchangeability of the
-    residuals this band has finite-sample :math:`(1-\alpha)` coverage. When
-    ``n < ceil(1/alpha) - 1`` the required order statistic does not exist and
-    ``q`` is ``+inf`` (an uninformative band).
-
-    This is the constant-width "split" construction used by R ``Synth``'s
-    ``synth_inference(method = "conformal")`` (Hainmueller's j-hai/Synth), as
-    distinct from the test-inversion conformal band (which widens over the
-    post-period).
-
-    Parameters
-    ----------
-    residuals : array-like
-        Pre-treatment gaps (treated minus synthetic), one per pre-period.
-    alpha : float
-        Miscoverage level in ``(0, 1)``; the band targets ``1 - alpha`` coverage.
-    """
-    r = np.sort(np.abs(np.asarray(residuals, dtype=float)))
-    n = r.size
-    if n == 0:
-        return float("inf")
-    k = int(np.ceil((n + 1) * (1.0 - alpha)))
-    return float(r[k - 1]) if k <= n else float("inf")
+# ``split_conformal_quantile`` now lives with the rest of the conformal machinery
+# in :mod:`mlsynth.utils.conformal`; re-exported here so existing imports keep
+# working.
+from .conformal.quantile import split_conformal_quantile  # noqa: E402,F401
 
 
 def debiased_sc_ttest(
@@ -348,6 +324,14 @@ def _hac_matrix(g: np.ndarray, K: int) -> np.ndarray:
     return phi
 
 
+# A fit that leaves this share or less of the reference variance has
+# interpolated its pre-period: there is no residual scale left to studentize
+# against. The separation is stark in practice -- a saturated OLS fit leaves a
+# relative residual variance of order 1e-30, while the sparse fits the method
+# assumes leave order 1e-1 -- so the exact cut-off is not delicate.
+_INTERPOLATION_TOL = 1e-12
+
+
 def _prediction_variance(
     X_pre_Q: np.ndarray, resid_pre: np.ndarray, X_post_Q: np.ndarray, K: int,
 ) -> Optional[np.ndarray]:
@@ -385,6 +369,7 @@ def pda_prediction_intervals(
     alpha: float = 0.05,
     n_boot: int = 999,
     dependent: bool = True,
+    cumulative_block: int = 0,
     seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     r"""Bootstrap prediction intervals for the panel data approach (Jiang 2025).
@@ -432,18 +417,51 @@ def pda_prediction_intervals(
         Use the dependent wild bootstrap for the pre-period error (Bartlett
         multipliers). ``False`` uses ordinary i.i.d. standard-normal multipliers
         (Remark 2.2, valid when the errors are independent).
+    cumulative_block : int, default 0
+        Block length in periods for the post-period draw behind ``error_paths``,
+        which a cumulative band accumulates. ``0`` means the whole horizon, the
+        longest block a running total over ``T1`` periods is sensitive to; ``1``
+        draws periods independently. A block longer than the horizon is clamped
+        to it.
+
+        Algorithm 2.1 draws the out-of-sample error i.i.d. from the centred
+        pre-period residuals, which is what a per-period interval needs: it
+        gives each post period the right marginal. A running total needs the
+        joint law across post periods as well, and an i.i.d. draw carries none,
+        so the accumulated standard error grows like ``sqrt(T1)`` however
+        persistent the series is -- 1.68 times too narrow over six periods at an
+        AR(0.6) error, 2.02 times at AR(0.8). Drawing in circular blocks from
+        the same residuals reproduces whatever dependence the series has, and
+        reduces to the i.i.d. draw when there is none.
+
+        This affects ``error_paths`` alone. The studentized statistic behind the
+        per-period intervals keeps Algorithm 2.1's i.i.d. draw, so those
+        intervals do not move with this argument.
     seed : int, optional
         Seed for the bootstrap RNG.
 
     Returns
     -------
     dict
-        ``alpha``, ``n_boot``, ``post_periods`` (``T1``), ``studentization``
-        (``"sandwich"`` | ``"sigma2"``), ``se`` ((T1,) :math:`\sqrt{V_t +
-        \sigma^2}`), and two blocks ``effect`` (for :math:`\Delta_t`) and
-        ``counterfactual`` (for :math:`Y_t`), each a dict of ``point``,
-        ``eq_lower``/``eq_upper`` (equal-tailed) and ``sy_lower``/``sy_upper``
-        (symmetric), all ``(T1,)`` arrays.
+        ``alpha``, ``n_boot`` (requested), ``n_degenerate`` and
+        ``n_boot_effective`` (see below), ``post_periods`` (``T1``),
+        ``studentization`` (``"sandwich"`` | ``"sigma2"``), ``se`` ((T1,)
+        :math:`\sqrt{V_t + \sigma^2}`), and two blocks ``effect`` (for
+        :math:`\Delta_t`) and ``counterfactual`` (for :math:`Y_t`), each a dict
+        of ``point``, ``eq_lower``/``eq_upper`` (equal-tailed) and
+        ``sy_lower``/``sy_upper`` (symmetric), all ``(T1,)`` arrays.
+
+    Notes
+    -----
+    A bootstrap draw whose refit saturates the pre-period -- a selected support
+    as large as ``T0``, which forward selection reaches on a few percent of
+    draws -- interpolates it, leaving a residual scale of order 1e-15 against an
+    O(1) post-period extrapolation error. The studentized statistic then reaches
+    ~1e15 and carries the quantiles with it, producing an interval wide enough
+    to cover unconditionally. Theorem 3.1 assumes the selected support stays
+    sparse relative to ``T0``, which such a draw violates, so it takes no part
+    in the quantiles and is counted in ``n_degenerate``; ``n_boot_effective`` is
+    the number that did. Reaching fewer than two usable draws raises.
 
     Raises
     ------
@@ -451,6 +469,10 @@ def pda_prediction_intervals(
         If ``n_boot < 2``, ``alpha`` is out of ``(0, 1)``, or ``T1 = T - T0 < 1``.
     MlsynthDataError
         If array shapes are inconsistent.
+    MlsynthEstimationError
+        If the point estimator interpolates the pre-period (no residual scale to
+        studentize against), or if fewer than two non-degenerate bootstrap draws
+        remain.
     """
     if not isinstance(n_boot, (int, np.integer)) or n_boot < 2:
         raise MlsynthConfigError(f"n_boot must be an integer >= 2; got {n_boot!r}.")
@@ -474,6 +496,23 @@ def pda_prediction_intervals(
 
     support = np.asarray(list(support), dtype=int)
     rng = np.random.default_rng(seed)
+    # The block draw behind ``error_paths`` takes its own stream. Sharing one
+    # would make every later draw depend on the block length, which would move
+    # the per-period intervals -- Algorithm 2.1's own output -- as a side effect
+    # of an argument that is supposed to reach only the accumulated paths.
+    rng_cum = np.random.default_rng(
+        None if seed is None else int(seed) ^ 0x5EEDC0DE)
+
+    if (isinstance(cumulative_block, bool)
+            or not isinstance(cumulative_block, (int, np.integer))
+            or cumulative_block < 0):
+        raise MlsynthConfigError(
+            "cumulative_block must be a non-negative integer; got "
+            f"{cumulative_block!r}."
+        )
+    # 0 means the whole horizon, which is the longest block a total over T1
+    # periods can be sensitive to; anything longer is clamped to it.
+    cum_block = T1 if cumulative_block == 0 else min(int(cumulative_block), T1)
 
     K = _hac_bandwidth(T0)
     ell = _dwb_bandwidth(T0)
@@ -481,6 +520,14 @@ def pda_prediction_intervals(
 
     resid_pre = y[:T0] - counterfactual[:T0]
     sigma2 = float(np.mean(resid_pre ** 2))
+    y_pre_var = float(np.var(y[:T0]))
+    if sigma2 <= _INTERPOLATION_TOL * max(y_pre_var, 1.0):
+        raise MlsynthEstimationError(
+            "the point estimator interpolates the pre-period (residual variance "
+            f"{sigma2:.3g} against outcome variance {y_pre_var:.3g}), so there "
+            "is no residual scale to studentize the bootstrap against. The "
+            "support is saturated: refit with fewer donors than pre-periods."
+        )
 
     # Original-sample studentization scale.
     s2 = sigma2
@@ -493,12 +540,35 @@ def pda_prediction_intervals(
     # Bootstrap.
     resid_centered = resid_pre - resid_pre.mean()
     S = np.empty((n_boot, T1))
+    # The unstudentized post-period prediction errors. The per-period
+    # intervals below need only the studentized ``S``, but a cumulative band
+    # has to accumulate the errors on their own scale before taking a
+    # standard error -- studentizing per period first would divide each
+    # horizon by a different number and destroy the correlation the running
+    # total depends on.
+    E = np.empty((n_boot, T1))
+    # A draw whose refit saturates the bootstrap pre-period leaves a residual
+    # scale of order 1e-15 while its post-period extrapolation error stays O(1),
+    # so the studentized statistic reaches ~1e15 and drags the quantiles with
+    # it. The theory assumes the selected support stays sparse relative to T0,
+    # which such a draw violates, so it is excluded and counted.
+    degenerate = np.zeros(n_boot, dtype=bool)
     for b in range(n_boot):
         if dependent:
             e_pre = (L @ rng.standard_normal(T0)) * resid_pre
         else:
             e_pre = rng.standard_normal(T0) * resid_pre
         e_post = rng.choice(resid_centered, size=T1, replace=True)
+        # The same residuals in circular blocks, for the accumulated paths only.
+        # Wrapping keeps every start position equally likely, so no residual is
+        # under-represented at the ends of the series.
+        if cum_block > 1:
+            starts = rng_cum.integers(0, T0, size=-(-T1 // cum_block))
+            e_post_cum = np.concatenate([
+                resid_centered[(st + np.arange(cum_block)) % T0] for st in starts
+            ])[:T1]
+        else:
+            e_post_cum = rng_cum.choice(resid_centered, size=T1, replace=True)
         y_star = counterfactual.copy()
         y_star[:T0] += e_pre
         y_star[T0:] += e_post
@@ -512,9 +582,32 @@ def pda_prediction_intervals(
         ) if supp_star.size else None
         se_star = np.sqrt((Vt_star if Vt_star is not None else 0.0) + s2_star)
         e_star_post = y_star[T0:] - cf_star[T0:]
+        if s2_star <= _INTERPOLATION_TOL * sigma2 or not np.all(
+            np.isfinite(se_star)
+        ):
+            degenerate[b] = True
+            S[b] = 0.0          # excluded below; keeps the array finite
+            E[b] = 0.0
+            continue
         S[b] = e_star_post / np.where(se_star > 0, se_star, np.inf)
+        # The refit reads only the bootstrap pre-period, so its extrapolation
+        # error is the same whichever post draw is added to it. Recombining it
+        # with the block draw costs no refit and leaves S untouched.
+        E[b] = (e_star_post - e_post) + e_post_cum
 
-    # Quantiles per post-period.
+    n_degenerate = int(degenerate.sum())
+    S = S[~degenerate]
+    E = E[~degenerate]
+    if S.shape[0] < 2:
+        raise MlsynthEstimationError(
+            f"{n_degenerate} of {n_boot} bootstrap draws were degenerate "
+            f"(the refit interpolated the bootstrap pre-period), leaving "
+            f"{S.shape[0]} from which no quantile can be formed. The support is "
+            "saturating: refit with fewer donors than pre-periods, or raise "
+            "n_boot."
+        )
+
+    # Quantiles per post-period, over the non-degenerate draws.
     xi_lo = np.quantile(S, alpha / 2.0, axis=0)
     xi_hi = np.quantile(S, 1.0 - alpha / 2.0, axis=0)
     zeta = np.quantile(np.abs(S), 1.0 - alpha, axis=0)
@@ -540,9 +633,20 @@ def pda_prediction_intervals(
     return {
         "alpha": float(alpha),
         "n_boot": int(n_boot),
+        "n_degenerate": n_degenerate,
+        "n_boot_effective": int(n_boot - n_degenerate),
         "post_periods": int(T1),
         "studentization": studentization,
+        # Which multiplier scheme produced these -- Algorithm 2.1's dependent
+        # wild bootstrap or Remark 2.2's i.i.d. one. A band built under each
+        # is not the same number, so the result has to say which it is.
+        "dependent": bool(dependent),
         "se": se if np.ndim(se) else np.full(T1, float(se)),
+        # Raw (unstudentized) post-period prediction errors, one row per usable
+        # draw. The per-period intervals do not need them -- a cumulative band
+        # does, because the running total's standard error has to come from
+        # accumulating the errors before scaling, not after.
+        "error_paths": E,
         "effect": eff_block,
         "counterfactual": cf_block,
     }

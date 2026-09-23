@@ -160,7 +160,7 @@ def _covariate_means(
     else:
         rows = []
         for cov, years in zip(covariates, year_sets):
-            g = df[df[time].isin(years)].groupby(unitid)[cov].mean()
+            g = df[df[time].isin(years)].groupby(unitid, observed=True)[cov].mean()
             rows.append([float(g.get(u, np.nan)) for u in units])
         X = np.asarray(rows, dtype=float)
 
@@ -367,6 +367,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             residualize=config.residualize,
             maxiter=config.mscmt_maxiter,
             popsize=config.mscmt_popsize,
+            tol=config.mscmt_tol,
             prune_shady=config.mscmt_prune_shady,
             cv=config.penalized_cv,
             **penalized_lam_kwargs,
@@ -431,15 +432,38 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Conformal test-inversion prediction intervals (Chernozhukov, Wuthrich &
     # Zhu 2021; augsynth's default ASCM inference). Reuses the fitted ridge
     # penalty across refits, matching augsynth.
+    #
+    # The refit rule follows the estimator, and must: the refit is the only
+    # place the test touches the fit, and an augmented refit -- unconstrained by
+    # construction -- can re-level a large post-period effect away, spreading it
+    # over the pre-period residuals that form the reference distribution. Both
+    # halves of the test then scale together and the p-value stalls. Against
+    # ``scinference`` on the Swedish carbon tax panel that ceiling is visible
+    # directly: an augmented refit gives 0.348 for an injected effect of 5 or of
+    # 100, where the simplex refit gives the authors' 1 / T = 0.0217 for both.
     if mode == "conformal" and gap[pre:].size:
         from ..bilevel import conformal_intervals
-        Z0 = X0.T if X0 is not None else None
-        z1 = X1 if X1 is not None else None
+        refit = "ridge" if config.augment == "ridge" else "sc"
+        if refit == "sc" and covariates:
+            raise MlsynthConfigError(
+                "inference='conformal' with covariates needs augment='ridge': "
+                "the null refit for a plain simplex SCM matches on outcomes "
+                "alone (as scinference's estimation_method='sc' does), so the "
+                f"covariates {list(covariates)} would not enter it. Set "
+                "augment='ridge' to match on them, or drop them."
+            )
+        Z0 = X0.T if X0 is not None and refit == "ridge" else None
+        z1 = X1 if X1 is not None and refit == "ridge" else None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             ci = conformal_intervals(
                 y, Y0, pre, lambda_=res.lambda_, Z0=Z0, z1=z1,
-                alpha=config.alpha, ns=config.scpi_sims, seed=config.seed,
+                alpha=config.alpha,
+                ns=int(config.conformal_n_perm or config.scpi_sims),
+                seed=config.seed, refit=refit,
+                conformal_type=config.conformal_type,
+                grid=config.conformal_grid,
+                finite_sample=config.conformal_finite_sample,
                 ridge_kwargs={"residualize": config.residualize},
             )
         # per-period counterfactual bands: gap tau in [lower, upper] => cf in
@@ -461,6 +485,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "counterfactual_upper": cf_upper,
                 "period_p_value": ci.p_value,
                 "joint_p_value": ci.joint_p_value,
+                "conformal_type": config.conformal_type,
+                "refit": refit,
+                "n_perm": int(config.conformal_n_perm or config.scpi_sims),
+                "finite_sample": config.conformal_finite_sample,
+                "grid": config.conformal_grid,
                 "lambda": res.lambda_,
             },
         )
@@ -614,31 +643,34 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2025).
     # The cross-fit refits the configured backend on each block-complement of
     # the pre-period; inferutils owns the blocking, rescale, and t_{K-1} CI.
+    # Refitting on a subset of the periods is how two modes recalibrate: the
+    # debiased t-test drops folds, the cumulative conformal band rolls an origin.
+    # One closure serves both so they cannot drift apart.
+    if oracle_w is not None:
+        # Oracle case: known weights, no per-fold refit (skip the solve).
+        def _refit_weight_fn(keep_idx):
+            return oracle_w
+    else:
+        def _refit_weight_fn(keep_idx):
+            keep_idx = np.asarray(keep_idx)
+            yk, Y0k = y[keep_idx], Y0[keep_idx]
+            X1k = X0k = None
+            if covariates:
+                kept_labels = list(time_labels[keep_idx])
+                Xk = _scale_unit_variance(_covariate_means(
+                    config.df, list(units.labels), covariates, windows,
+                    kept_labels, config.unitid, config.time))
+                X1k, X0k = Xk[:, 0], Xk[:, 1:]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
+                                donor_names=donor_names, predictor_names=pred_names)
+            return np.asarray(rk.W, dtype=float).ravel()
+
     if mode == "ttest" and gap[pre:].size:
         from scipy.stats import t as _tdist
 
         from mlsynth.utils.inferutils import debiased_sc_ttest, select_K
-
-        if oracle_w is not None:
-            # Oracle case: known weights, no per-fold refit (skip the solve).
-            def _ttest_weight_fn(keep_idx):
-                return oracle_w
-        else:
-            def _ttest_weight_fn(keep_idx):
-                keep_idx = np.asarray(keep_idx)
-                yk, Y0k = y[keep_idx], Y0[keep_idx]
-                X1k = X0k = None
-                if covariates:
-                    kept_labels = list(time_labels[keep_idx])
-                    Xk = _scale_unit_variance(_covariate_means(
-                        config.df, list(units.labels), covariates, windows,
-                        kept_labels, config.unitid, config.time))
-                    X1k, X0k = Xk[:, 0], Xk[:, 1:]
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    rk = engine.fit(yk, Y0k, X1=X1k, X0=X0k,
-                                    donor_names=donor_names, predictor_names=pred_names)
-                return np.asarray(rk.W, dtype=float).ravel()
 
         T1_post = int(len(y) - pre)
         if config.ttest_K == "auto":
@@ -647,7 +679,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             K_used, k_info = int(config.ttest_K), None
         tt = debiased_sc_ttest(
             y, Y0, T0=pre, T1=T1_post, K=K_used,
-            alpha=config.alpha, weight_fn=_ttest_weight_fn,
+            alpha=config.alpha, weight_fn=_refit_weight_fn,
         )
         p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
         inference = InferenceResults(
@@ -666,10 +698,103 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
+    # Cumulative-effect conformal band: the interval for the SUM of the effect
+    # over the horizon, calibrated on out-of-sample windows of the same length so
+    # the way period-to-period errors accumulate is measured, not assumed.
+    if mode == "conformal_cumulative" and gap[pre:].size:
+        from mlsynth.utils.conformal import cumulative_conformal_from_refit
+
+        T1_post = int(len(y) - pre)
+        horizon = int(config.conformal_horizon or T1_post)
+        resampled = config.conformal_method == "resample"
+        if resampled:
+            # The same windows, kept per period and drawn from as blocks. The
+            # half-width is the quantile of the accumulated totals; the draws are
+            # centred and sign-symmetric, so their absolute quantile is the
+            # symmetric half-width the band reports.
+            from mlsynth.utils.conformal import (
+                CumulativeConformalBand, origin_schedule,
+                resample_cumulative_paths_from_weights)
+
+            paths = resample_cumulative_paths_from_weights(
+                y, Y0, int(pre), horizon, _refit_weight_fn,
+                block=config.conformal_block, n_sim=config.conformal_n_sim,
+                seed=config.conformal_seed)
+            point = float(np.sum(gap[pre:pre + horizon]))
+            half = float(np.quantile(np.abs(paths.sum(axis=1)), 1.0 - config.alpha))
+            # The periods drawn from, not the windows: m * horizon of them, which
+            # is why this is finite where the order statistic is not. Read off the
+            # schedule, which costs nothing -- the refits already happened above.
+            n_periods = len(list(origin_schedule(int(pre), horizon, 0.3))) * horizon
+            band = CumulativeConformalBand(
+                point=point, lower=point - half, upper=point + half,
+                half_width=half, n_scores=int(n_periods),
+                alpha=float(config.alpha), horizon=horizon)
+        else:
+            band = cumulative_conformal_from_refit(
+                y, Y0, pre_periods=int(pre), horizon=horizon,
+                weight_fn=_refit_weight_fn, alpha=config.alpha,
+            )
+        if not resampled and not np.isfinite(band.half_width):
+            warnings.warn(
+                "cumulative conformal band is uninformative (half-width=inf): "
+                f"{band.n_scores} non-overlapping calibration window(s) of length "
+                f"{horizon} fit in the pre-period, but finite-sample coverage at "
+                f"alpha={config.alpha} needs at least "
+                f"{int(np.ceil(1.0 / config.alpha)) - 1}. Shorten "
+                "conformal_horizon or extend the pre-period.",
+                UserWarning, stacklevel=2,
+            )
+        # Dividing the band by the horizon gives the per-period mean over the same
+        # window; that is the ATT only when the horizon spans the whole post-period,
+        # so a partial window reports the cumulative figure alone.
+        spans_post = horizon == T1_post
+        inference = InferenceResults(
+            ci_lower=(band.lower / horizon) if spans_post else None,
+            ci_upper=(band.upper / horizon) if spans_post else None,
+            confidence_level=1.0 - config.alpha,
+            method=("block-resampled cumulative-effect band (rolling origin)"
+                    if resampled else
+                    "split-conformal cumulative-effect band (rolling origin)"),
+            details={
+                "cumulative_effect": band.point,
+                "cumulative_lower": band.lower,
+                "cumulative_upper": band.upper,
+                "conformal_q": band.half_width,
+                "n_calibration_windows": band.n_scores,
+                "horizon": horizon,
+                "spans_post_period": spans_post,
+                "alpha": band.alpha,
+            },
+        )
+
     # In-space placebo inference (Abadie): reassign treatment to each donor.
     if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
-        for j in range(J):
+        # The outcome-only refits are one leave-one-out family over the donor
+        # matrix, so they are solved together. Restricted to the case where a
+        # refit is exactly that one simplex QP: no covariates to weight, no
+        # augmentation layer over the base, and a backend that reduces to it.
+        # ``solve_simplex_loo_exact`` certifies each member and re-solves the
+        # rest with ``simplex_qp``, the same solver the engine calls below, so
+        # the ranks this p-value is built from are unchanged.
+        loo_W = None
+        if (engine is not None and not covariates and engine.augment != "ridge"
+                and str(config.backend) in ("auto", "outcome-only")):
+            from ..bilevel.minnorm import solve_simplex_loo_exact
+            from ..bilevel.ridge_augment import simplex_qp
+            try:
+                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
+            except Exception:  # pragma: no cover - fall back to the loop
+                loo_W = None
+        if loo_W is not None:
+            for j in range(J):
+                others = [k for k in range(J) if k != j]
+                cfj = Y0[:, others] @ loo_W[j, others]
+                _, _, ratio_j = _rmspe_ratio(Y0[:, j], cfj, pre)
+                if np.isfinite(ratio_j):
+                    ratios.append(ratio_j)
+        for j in ([] if loo_W is not None else range(J)):
             others = [k for k in range(J) if k != j]
             yj = Y0[:, j]
             Y0j = Y0[:, others]
@@ -699,6 +824,105 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "rank": int(np.sum(all_ratios >= ratio_tr)),
             },
         )
+
+    # Firpo-Possebom (2018) confidence sets: the same placebo test, inverted
+    # over a one-parameter family of effect paths instead of evaluated at zero.
+    # The weights every placebo needs are the ones this estimator already fits,
+    # so the branch assembles them and hands them to the inversion.
+    if mode == "placebo_cs" and J >= 2 and gap[pre:].size:
+        from .placebo_cs import (breakdown_phi, confidence_set,
+                                 sensitivity_sweep)
+
+        # Panel in the layout the inversion expects: treated unit first, then
+        # the donors. Unlike the plain placebo refits above, each donor's own
+        # synthetic control is fitted against a pool that CONTAINS the treated
+        # unit -- that is what the procedure's donor-pool correction acts on,
+        # and excluding it would invert a different test.
+        Ymat = np.column_stack([y, Y0])
+        n_units = Ymat.shape[1]
+        Wmat = np.empty((n_units - 1, n_units))
+        Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
+        ok = True
+        for j in range(1, n_units):
+            others = [k for k in range(n_units) if k != j]
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rj = engine.fit(Ymat[:pre, j], Ymat[:pre, others])
+                Wmat[:, j] = np.asarray(rj.W, dtype=float).ravel()
+            except Exception:  # pragma: no cover - defensive refit guard
+                ok = False
+                break
+        if ok:
+            v = (np.asarray(config.placebo_cs_v, dtype=float)
+                 if config.placebo_cs_v is not None
+                 else np.eye(1, n_units, 0).ravel())
+            # A horizon longer than the panel is the caller's mistake, not a
+            # property of the data, so it is refused before the search runs
+            # instead of arriving as an unavailable set.
+            horizon = config.placebo_cs_horizon
+            if horizon is not None and int(horizon) > int(len(y) - pre):
+                raise MlsynthEstimationError(
+                    f"placebo_cs_horizon={int(horizon)} exceeds the "
+                    f"{int(len(y) - pre)} post-treatment periods the panel has")
+            try:
+                cs = confidence_set(
+                    Ymat, Wmat, 0, pre, kind=config.placebo_cs_class,
+                    alpha=config.alpha, precision=config.placebo_cs_precision,
+                    phi=config.placebo_cs_phi, v=v)
+                # ``ci_lower``/``ci_upper`` are on the path parameter's scale
+                # (a level for the constant class, a slope for the linear one).
+                # The cumulative and average scales are strictly increasing
+                # functions of it, so they are the same set read differently and
+                # cost nothing to report; the average one is comparable with
+                # ``effects.att``.
+                cum_lower, cum_upper = cs.cumulative_over(horizon)
+                att_lower, att_upper = cs.average_over(horizon)
+                details = {
+                    "effect_class": cs.kind,
+                    "point_estimate": cs.point_estimate,
+                    "contains_zero": cs.contains_zero,
+                    "precision": cs.precision,
+                    "phi": cs.phi,
+                    "cumulative_lower": cum_lower,
+                    "cumulative_upper": cum_upper,
+                    "att_lower": att_lower,
+                    "att_upper": att_upper,
+                    "n_post_periods": cs.n_post,
+                    "horizon": cs.n_post if horizon is None else int(horizon),
+                    "lower_path": cs.lower_path.tolist(),
+                    "upper_path": cs.upper_path.tolist(),
+                }
+                if config.placebo_cs_sweep:
+                    rows = sensitivity_sweep(
+                        Ymat, Wmat, 0, pre, phis=config.placebo_cs_sweep, v=v,
+                        kind=config.placebo_cs_class, alpha=config.alpha,
+                        precision=config.placebo_cs_precision)
+                    details["sensitivity"] = [
+                        {"phi": r.phi,
+                         "lower": None if r.confidence_set is None else r.confidence_set.lower,
+                         "upper": None if r.confidence_set is None else r.confidence_set.upper,
+                         "contains_zero": r.contains_zero,
+                         "reason": r.reason}
+                        for r in rows]
+                    details["breakdown_phi"] = breakdown_phi(rows)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    ci_lower=cs.lower, ci_upper=cs.upper,
+                    details=details,
+                )
+            except MlsynthEstimationError as exc:
+                # An empty or unbounded set is a result about the panel, not a
+                # crash: report it and say which level produced it.
+                warnings.warn(str(exc), UserWarning)
+                inference = InferenceResults(
+                    method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                    confidence_level=1.0 - config.alpha,
+                    details={"effect_class": config.placebo_cs_class,
+                             "phi": config.placebo_cs_phi,
+                             "unavailable_reason": str(exc)},
+                )
 
     # Never leave a requested-but-uncomputable inference as a silent ``None``: a
     # valid mode whose preconditions were not met (too few donors, no

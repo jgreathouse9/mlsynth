@@ -89,6 +89,7 @@ At a glance
    Interpolation across dissimilar donors? ─► MASC
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
    Different ESTIMAND / treatment type? ─► DSC (dist.) · DRSC (cond. dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
+   Forecasting a unit that has NOT adopted yet? ─► TWSF (prospective, past the end of the panel)
 
    PART 2 — MANY treated units   (easy ─────────────────────► hard)
    ─────────────────────────────────────────────────────────────────
@@ -98,6 +99,8 @@ At a glance
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
      + want pooling / oracle efficiency  ─► PPSCM · SequentialSDID
+     + want the Callaway-Sant'Anna / Sun-Abraham group-time ATT ─► PPSCM (method="callaway_santanna")
+     + latent factors, unit-specific loadings, never-treated pool ─► GSYNTH
      + long pre-period, few never-treated, event study ─► SSC
      + spillovers                        ─► SpSyDiD
      + missing cells / gaps              ─► MCNNM
@@ -120,7 +123,16 @@ Q0.1 · Are you designing the experiment? Has the treatment *not yet* been
 assigned, and you are choosing whom to treat?
 
 * Yes -- jump to Part 3 (experimental design).
-* No -- the treatment already happened; continue.
+* No, and some units have already adopted while the one you care about has
+  not -- you are asking a *prospective* question: what will this unit do if it
+  adopts next month? That is a different estimand from everything below, which
+  imputes a cell inside the observed window. Go to :doc:`twsf`, which forecasts
+  the treated outcome of a never-treated unit past the end of the panel by
+  learning the treated regime's dynamics from the units already in it. It needs
+  donors that have run under the intervention long enough to show how it
+  behaves, and a short horizon.
+* No, and you want to know what the units that *did* adopt would have done
+  otherwise -- the treatment already happened; continue.
 
 Q0.2 · Is assignment randomized (or as-good-as-random)?
 
@@ -135,9 +147,20 @@ Q0.2 · Is assignment randomized (or as-good-as-random)?
 
 Q0.3 · Do control units exist at all?
 
-* No -- every unit is treated (a nationwide policy, a global shock like
-  COVID-19), so there is no donor pool -- :doc:`shc` rebuilds the comparison
-  from overlapping historical blocks of the treated unit's own series.
+* No -- every unit is treated (a nationwide policy, a court ruling, a global
+  shock like COVID-19), so there is no donor pool and the comparison has to
+  come from the treated unit's own past. Two estimators do this, and they
+  divide on whether you can name the cycle in the series. :doc:`shc` rebuilds
+  the comparison from overlapping historical blocks of the same series, so it
+  needs recurring local structure but not strict periodicity, and it infers by
+  conformal permutation. :doc:`gpits` puts a Gaussian-process prior on the
+  trend with a kernel you specify -- a seasonal component at a period you give
+  it, plus a linear trend -- and its interval widens with the forecast horizon
+  instead of staying flat. Reach for :doc:`gpits` when the series is seasonal
+  at a known period or the horizon is long enough that a flat interval would
+  understate the extrapolation; reach for :doc:`shc` when the structure
+  recurs but no single period describes it. Both are most credible over short
+  post-treatment windows.
 * Yes -- continue.
 
 Q0.4 · Is the treatment endogenous in a way SC cannot absorb? This is the home
@@ -498,6 +521,45 @@ but scales it by an external covariate-and-distance utility -- reach for it, at
 Q1.1, when the concern is spatial spillover contaminating the donor pool and you
 want close-by donors down-weighted, not trusted or dropped.
 
+*When the outcome is not Gaussian.* Every estimator above puts its prior
+somewhere -- on the weights, on the factors, on the donor coefficients -- and all
+of them assume the outcome itself is well described by a Gaussian model. For a
+count that is often wrong: case counts, crime incidents, claims and conversions
+are non-negative integers whose spread grows with their level, and a
+least-squares fit to them can return a counterfactual with negative values in it.
+:doc:`mosc` (Wang, Schein, Shou and Blei) is the entry point that lets you choose
+the likelihood instead, fitting a gamma-Poisson factor model to the panel and
+adjusting for the per-unit loadings it returns as though they were observed
+confounders. Its justification is what makes this legitimate: it replaces the
+linear factor model with an argument from negative control outcomes -- every
+pre-intervention observation and every untreated unit is one -- so nothing in the
+identification requires linearity. Reach for it when the panel is wide, the
+pre-period long, and the outcome's distribution is what your other options are
+getting wrong. Two things bound it. Like :doc:`bfsc` and :doc:`mtgp` it reports no
+donor weights at all, since the counterfactual is a regression prediction from
+latent loadings, not a weighted average of donors. And it needs a real
+donor pool -- the outcome model fits a coefficient per latent factor across
+units, so it refuses a panel with fewer than ``n_factors + 3`` of them. With a
+small pool and a Gaussian outcome, :doc:`gsynth` or :doc:`mcnnm` remain the
+better tools. The neighbouring choice for counts is :doc:`cscm`, which keeps the
+donor-weight story and enforces non-negativity at the weighting step; prefer it
+when the weights are the deliverable and the pool is small, and :doc:`mosc` when
+the likelihood is the thing you need to get right. The sharper comparison,
+though, is against :doc:`clustersc`'s robust synthetic control, and it is a
+comparison of assumptions and not of flexibility. Robust SC already permits an
+arbitrary nonlinear latent function; what it requires is that the treated unit's
+mean path lie in the linear span of the donors', carrying to the post-period
+under a rank condition, and it requires nothing whatsoever about how treatment
+was assigned. :doc:`mosc` drops the span requirement and pays for it with
+unconfoundedness given a latent recovered from the outcomes -- a much stronger
+claim, in a literature usually applied where assignment is plainly not
+ignorable. Robust SC also carries a finite-sample error bound and imputes
+missing cells, neither of which :doc:`mosc` offers. What robust SC assumes and a
+count panel denies is a single noise variance common to every unit and period,
+since a Poisson variance equals its mean; that, and not linearity, is the reason
+to switch. So: :doc:`clustersc` unless the outcome's distribution is what is
+going wrong, and a placebo run under either.
+
 *DSCAR -- a different beast.* :doc:`dscar` (Zheng and Chen, 2024) is not a variant
 of the synthetic control above; it is best understood by contrast with the vanilla
 method. Standard SC builds *fixed* weights that match the treated unit's whole
@@ -619,6 +681,8 @@ Q1.7 · Are there missing cells in the panel?
   exploits side information on both margins (a four-component sieve +
   nuclear-norm completion) to impute the treated counterfactual; it reduces to a
   low-rank completion when the covariates are uninformative.
+* Block-missing, the panel is wide in both dimensions, and you doubt the outcome
+  is *linear* in the latent factors -- :doc:`lpca`.
 
 *Which matrix-completion estimator -- and why the missingness mechanism decides.*
 The three estimators differ less in the imputation machinery than in what they
@@ -646,6 +710,20 @@ that travels across short, long, and square panels; prefer :doc:`snn` when the
 gaps are informative -- selected on the outcome itself -- and you need a credible
 counterfactual for specific cells; reach for :doc:`rmsi` when the missing block is
 the treated region and you have margin covariates that carry signal about it.
+
+:doc:`lpca` (Feng (2024)) splits from all three on a prior question: whether the
+outcome matrix is low rank at all. The other three assume the untreated outcome
+is a linear combination of a few common factors, which is what makes the matrix
+low rank and the completion machinery apply. Feng assumes only that outcomes are
+some smooth, possibly nonlinear function of a few latent variables -- which
+generally makes the matrix full rank, so nuclear-norm shrinkage and global
+principal components both misread it. The fix is locality: units matched to their
+nearest neighbours share a latent neighbourhood, and on that neighbourhood a
+first-order expansion makes the structure approximately linear, so principal
+components apply there even though they fail globally. The price is appetite for
+data -- neighbours are only close when many units compete to be one, and half the
+periods are spent finding them -- so :doc:`lpca` belongs on wide panels and not on
+a thirty-donor case study, where :doc:`mcnnm` remains the better bet.
 
 Q1.8 · Is your estimand or treatment effect non-standard (not a scalar mean ATT
 for one binary treatment)?
@@ -822,9 +900,38 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   already tracks the cohorts on levels -- keeping interpretable, non-extrapolating
   weights and the finite-sample CFPT intervals, with no DiD intercept or
   reweighted periods.
+* Staggered, with a never-treated pool, and you believe the units co-move
+  through *latent common factors* with unit-specific sensitivities --
+  :doc:`gsynth` (Xu 2017). It fits an interactive fixed effects model on the
+  never-treated units alone, then places each treated unit in that estimated
+  factor space using its own pre-adoption history, so the counterfactual comes
+  from a projection onto factors and not from a weighted average of donors. No
+  convex-hull condition binds and staggered dates need no special handling.
+  It selects the factor count by a deterministic leave-one-pre-period-out
+  cross-validation and reports a parametric-bootstrap interval. Prefer it over
+  :doc:`sdid` when the treated units' *responses* to common shocks differ (so
+  a common time effect is indefensible), and over staggered :doc:`vanillasc`
+  when the treated units sit outside the donors' hull; prefer either of those
+  when you want interpretable donor weights, which a factor projection does
+  not produce. It requires a never-treated pool and absorbing adoption.
+* A factor structure, but you want the *uncertainty* as a posterior and you do
+  not know which covariates matter or how many factors to use --
+  :doc:`dmlfm` (Pang, Liu & Xu 2022). It is the Bayesian sibling of
+  :doc:`gsynth`: the same latent-factor logic, but each covariate's coefficient
+  may vary by unit, by time, or neither, and a shrinkage prior on the loading
+  scales drops the factors the data will not support, so neither the covariate
+  set nor the factor count needs a cross-validation step. The counterfactual is
+  a posterior predictive draw, so the credible band is read off directly.
+  Choose it over :doc:`gsynth` for those features, not for accuracy: on the
+  authors' own simulations DMLFM has the lower RMSE in six of eighteen cells
+  and the higher in twelve, with coverage closer to nominal in seven against
+  gsynth's ten, at eleven to eighty seconds a fit against under two. It needs a
+  balanced panel, one treated unit in this implementation, and about twenty
+  pre-treatment periods before its frequentist properties settle.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
-* Staggered *and* missing cells / gaps -- :doc:`mcnnm` (matrix completion handles
-  staggered missingness natively).
+* Staggered *and* missing cells / gaps, or *every* unit eventually treated --
+  :doc:`mcnnm` (matrix completion handles staggered missingness natively and
+  needs no never-treated pool, which is where :doc:`gsynth` stops).
 * Exposure defined by a within-unit *subgroup* (a triple difference), and you
   distrust parallel trends across that third dimension -- :doc:`sdid` in its
   synthetic triple-difference mode (``subgroup`` / ``target_subgroup``; Zhuang
@@ -891,7 +998,9 @@ methods then split on two axes: the estimand they target, and how they solve the
 (NP-hard) assignment problem. Doudchenko et al. cast the joint choice of treated
 set and donor weights as a mixed-integer program that directly minimises the
 *ATT estimator's* mean squared error (:doc:`syndes`) -- provably optimal but
-combinatorial. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
+combinatorial. mlsynth solves its two-way form by searching treated sets over
+the Gram matrix instead, which is exact wherever the candidate count is
+enumerable and reports a bound where it is not. Lu, Li, Ying and Blanchet (2022) attack the same covariate-
 balancing design but reformulate it as a phase-synchronisation problem solved by
 a spectrally-initialised power method (:doc:`spcd`), trading the MIP's
 exactness for a *global* optimality guarantee under the linear factor model and
@@ -911,8 +1020,8 @@ budget is handled by the ATT/ATE designs above (:doc:`syndes`, :doc:`lexscm`,
 
 Q3.1 · Do you only care about the ATT (the effect on the treated units)?
 
-* Yes -- :doc:`syndes` (a MIP that minimises the *ATT estimator's* MSE, exactly
-  :math:`K` treated) or :doc:`spcd` (a fast spectral phase-synchronisation
+* Yes -- :doc:`syndes` (minimises the *ATT estimator's* MSE over exactly
+  :math:`K` treated units) or :doc:`spcd` (a fast spectral phase-synchronisation
   design). A weakly-targeted :doc:`marex` design can also be pointed at the
   treated set if you want a convex design that leans ATT-ward.
 
@@ -930,6 +1039,18 @@ left over -- as in a geo roll-out?
 * Yes -- :doc:`pangeo` groups geos into balanced *supergeos*, trims no unit, and
   matches on the full pre-period *trajectory* for a downstream
   difference-in-differences read.
+
+* Scoring by simulated power on your own history -- :doc:`geox` slides a
+  pretend treatment window backwards through the panel, injects a lift of known
+  size, and ranks candidate test regions by the smallest lift it reliably
+  detects. The same backtests report how far each design's estimate lands from
+  the lift that was injected, so a region that detects small effects and
+  misstates them is visible as such. The design is chosen by the estimator that
+  will analyse the result,
+  and which estimator that is is a setting: ``engine="sdid"`` differences out a
+  level gap between the test region and its donors instead of having to match
+  it, ``engine="augsynth"`` is the augmented synthetic control GeoLift scores
+  with.
 
 Q3.4 · Are you planning a marketing geo-lift test -- pick which markets to treat
 so the untreated markets form a clean control, often under a budget?
@@ -975,7 +1096,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Complication
      - Reach for
    * - No control group (everyone treated)
-     - :doc:`shc`
+     - :doc:`shc`, :doc:`gpits`
    * - Randomized, few large units
      - :doc:`musc`
    * - Endogenous treatment, have an instrument
@@ -1029,6 +1150,9 @@ A reverse lookup: the symptom, and the method named for it.
    * - Many treated, staggered adoption
      - :doc:`sdid`, :doc:`vanillasc` (simplex SC per unit, CFPT intervals),
        :doc:`rolldid`, :doc:`ppscm`, :doc:`seq_sdid`, :doc:`mcnnm`
+   * - Staggered, never-treated pool, latent factors with unit-specific
+       loadings
+     - :doc:`gsynth`
    * - Staggered, long pre-period, few never-treated (event study)
      - :doc:`ssc`
    * - Designing for the ATT
@@ -1038,7 +1162,7 @@ A reverse lookup: the symptom, and the method named for it.
    * - Designing a geo roll-out (no pure donors)
      - :doc:`pangeo`
    * - Designing a geo-lift test (pick markets, one or many cells)
-     - :doc:`syndes`, :doc:`lexscm`, :doc:`marex`
+     - :doc:`geox`, :doc:`syndes`, :doc:`lexscm`, :doc:`marex`
 
 When in doubt, fit two or three of the candidate methods and compare the
 counterfactuals and ATTs. Disagreement is itself diagnostic: it usually means

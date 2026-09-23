@@ -558,12 +558,15 @@ def test_wide_pivot_duplicate_keys_fall_back_and_raise():
         _wide_pivot(df, index="time", columns="unit", values="y")
 
 
-def test_wide_pivot_matches_on_nan_key():
+def test_wide_pivot_refuses_a_nan_key():
+    """A missing key used to send the pivot down the pandas fallback, which
+    kept the blank as a level named ``nan`` -- a phantom donor column, or a
+    phantom period that shifted ``pre_periods``. It is an error now, raised off
+    the codes the fast path had already computed to choose its route."""
     df = _long(5, 4, seed=9)
-    df.loc[0, "unit"] = np.nan                                # NaN key -> fall back
-    got = _wide_pivot(df, index="time", columns="unit", values="y")
-    exp = df.pivot(index="time", columns="unit", values="y")
-    assert got.equals(exp)
+    df.loc[0, "unit"] = np.nan
+    with pytest.raises(MlsynthDataError, match="Missing values"):
+        _wide_pivot(df, index="time", columns="unit", values="y")
 
 
 def test_wide_pivot_empty_frame_falls_back():
@@ -609,9 +612,9 @@ def test_wide_pivot_falls_back_when_fast_path_layout_differs(monkeypatch):
     exp = df.pivot(index="time", columns="unit", values="y")
     _real_fast_pivot = du._fast_pivot                        # capture before patching
 
-    def _f_contiguous_fast(d, index, columns, values):
+    def _f_contiguous_fast(d, index, columns, values, keys=None):
         # value-identical to the real fast path but F-contiguous .to_numpy()
-        frame = _real_fast_pivot(d, index, columns, values)
+        frame = _real_fast_pivot(d, index, columns, values, keys)
         return pd.DataFrame(
             np.asfortranarray(frame.to_numpy()),
             index=frame.index, columns=frame.columns)

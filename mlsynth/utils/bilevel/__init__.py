@@ -3,8 +3,10 @@
 A self-contained implementation of the optimistic bilevel program for jointly
 optimizing predictor weights ``V`` and donor weights ``W``, used as a drop-in
 replacement for ``Opt.SCopt`` inside FSCM's predictor mode. No external QP
-solver is used -- the lower-level problems are solved by the FISTA
-simplex-least-squares primitive in :mod:`simplex`.
+solver is used: the lower-level problems are solved by the active sets in
+:mod:`active_set` (one problem, design matrix at hand) and :mod:`minnorm` (a
+whole population at once, in Gram form), with the FISTA primitive of
+:mod:`simplex` for the first-order paths.
 
 Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
 

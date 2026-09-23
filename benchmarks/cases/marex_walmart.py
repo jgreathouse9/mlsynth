@@ -88,6 +88,13 @@ def _fit():
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "MAREX needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     return _fit()[0]
 
 

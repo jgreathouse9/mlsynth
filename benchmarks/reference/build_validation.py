@@ -86,6 +86,20 @@ def _ref_link(impl: str) -> str:
     return f"`{impl} <{url}>`__" if url else impl
 
 
+def _note(case: str) -> str:
+    """The bundle's stated reason for a deviation, if it has one.
+
+    ``documented`` tells the reader to see the notes, so a row carrying that
+    verdict and no note points at nothing. ``manifest.json`` may set ``note``;
+    it is rendered under the estimator's table, and :func:`_warn_dangling_notes`
+    names the rows still missing one.
+    """
+    man = REF_DIR / case / "manifest.json"
+    if not man.exists():
+        return ""
+    return str(json.loads(man.read_text()).get("note", "")).strip()
+
+
 def _bundle_meta(case: str) -> dict:
     out = {}
     man = REF_DIR / case / "manifest.json"
@@ -116,16 +130,34 @@ _ESTIMATOR_REMAP = {
 }
 
 
+def _exported_names() -> dict:
+    """``{lowercased export name: export name}`` for everything mlsynth exposes.
+
+    Case authors write the estimator field by hand, so the same estimator arrives
+    spelled two ways -- ``CLUSTERSC`` from one bundle and ``ClusterSC/PCR
+    (run_pcr ...)`` from another. Both name the class ``mlsynth.CLUSTERSC``, and
+    resolving against the package's own exports is what folds them together
+    without a hand-maintained list of spellings.
+    """
+    try:
+        import mlsynth
+    except ImportError:                       # pragma: no cover - packaging guard
+        return {}
+    return {name.lower(): name for name in getattr(mlsynth, "__all__", [])}
+
+
 def _canon(est: str) -> str:
     """Canonical estimator label: strip the descriptive backend/config suffix the
-    case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``) and map
-    the handful of function-name fields to the estimator a reader recognises."""
-    base = est.split("(")[0].split("/")[0].strip()
+    case authors append (``ClusterSC/PCR (run_pcr ...)`` -> ``ClusterSC``), map
+    the handful of function-name fields to the estimator a reader recognises, and
+    settle on the spelling mlsynth exports so case variants land in one section."""
+    base = (est or "?").split("(")[0].split("/")[0].strip() or "?"
     # A field may name a variant after the estimator ("TSSC MSCa"); the first
     # token is the estimator and the rest is the configuration.
     if " " in base and base not in _ESTIMATOR_REMAP:
         base = base.split()[0]
-    return _ESTIMATOR_REMAP.get(base, base)
+    base = _ESTIMATOR_REMAP.get(base, base)
+    return _exported_names().get(base.lower(), base)
 
 
 def _estimators_of(meta: dict, case: str) -> list:
@@ -258,6 +290,28 @@ def _slug(est: str) -> str:
     return "val-" + "".join(c.lower() if c.isalnum() else "-" for c in est)
 
 
+def _check_slugs(ests) -> None:
+    """Refuse to emit two sections that would claim the same anchor.
+
+    The slug lowercases, so two estimator spellings differing only in case
+    produce one label defined twice. Sphinx reports that as a duplicate label and
+    every ``:ref:`` to it as undefined, which is how ``CLUSTERSC`` and
+    ``ClusterSC`` broke the summary table's links: both rows pointed at
+    ``val-clustersc`` and neither resolved.
+    """
+    seen: dict = {}
+    for est in ests:
+        seen.setdefault(_slug(est), []).append(est)
+    clashes = {slug: names for slug, names in seen.items() if len(names) > 1}
+    if clashes:
+        detail = "; ".join(f"{slug} <- {names}" for slug, names in sorted(clashes.items()))
+        raise SystemExit(
+            "build_validation: estimator names collide on their anchor: "
+            f"{detail}. Add the canonical spelling to _ESTIMATOR_REMAP, or export "
+            "it from mlsynth so _canon can resolve it."
+        )
+
+
 def _verdict_mix(recs: list) -> str:
     """A compact honest summary like ``4 exact · 3 tight``."""
     counts = {}
@@ -270,6 +324,7 @@ def _verdict_mix(recs: list) -> str:
 def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> str:
     ests = [only] if only else sorted(by_est)
     ests = [e for e in ests if by_est.get(e)]
+    _check_slugs(ests)
     pend = pend or []
     n_checks = sum(len(by_est[e]) for e in ests)
     n_exact = sum(1 for e in ests for r in by_est[e] if r["verdict"] == "exact")
@@ -371,6 +426,10 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
                 f"     - `{r['case']} <{GH}/benchmarks/cases/{r['case']}.py>`__",
             ]
         L.append("")
+        notes = [(r["case"], _note(r["case"])) for r in recs]
+        notes = [(case, note) for case, note in notes if note]
+        for case, note in notes:
+            L += [f"Notes ({case}): {note}", ""]
 
     # Estimators validated by a paper replication instead of a cell-by-cell
     # cross-check. They belong here because they are benchmarked, and this page
@@ -422,9 +481,25 @@ def to_rst(by_est: dict, only: str | None = None, pend: list | None = None) -> s
     return "\n".join(L) + "\n"
 
 
+def _warn_dangling_notes(by_est: dict) -> None:
+    """Name every ``documented`` row whose bundle carries no note.
+
+    The verdict says "see notes". Where there are none, the page sends the
+    reader looking for an explanation that was never written, and it does so
+    silently. This prints them at build time so the gap is visible to whoever
+    regenerates the page.
+    """
+    dangling = sorted(r["case"] for recs in by_est.values() for r in recs
+                      if r["verdict"] == "documented" and not _note(r["case"]))
+    if dangling:
+        print(f"[note] {len(dangling)} documented row(s) with no note in "
+              f"manifest.json: {', '.join(dangling)}")
+
+
 def main() -> None:
     only = sys.argv[1] if len(sys.argv) > 1 else None
     by_est = collect()
+    _warn_dangling_notes(by_est)
     rst = to_rst(by_est, only=only, pend=pending())
     out = ROOT / "docs" / "validation.rst"
     out.write_text(rst)

@@ -10,7 +10,7 @@ differ in their covariate processing (column names, scales, unit pool). They are
 not interchangeable; consolidating them would break the replication contract.
 
 This manifest maps each family to its files and primary consumers so the
-redundancy is navigable rather than confusing.
+redundancy is navigable, not confusing.
 
 Note on packaging: these files are **not shipped in the PyPI wheel** (they live
 at the repo root, not inside the `mlsynth` package). Load them from a checkout,
@@ -18,6 +18,21 @@ or via the raw GitHub URL the doc galleries use
 (`https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/...`).
 The larger tables are stored as Parquet (needs `pyarrow`); read with
 `pd.read_parquet`.
+
+## COVID-19 in Europe — Tian, Lee & Panchenko (2026), Online Appendix B.3
+
+| File | What it is | Used by |
+|---|---|---|
+| `tlp_covid_sweden.parquet` | 27 European countries x 639 days (2019-01-01 to 2020-09-30), twelve outcomes at four frequencies: daily COVID-19 cases and deaths, weekly all-cause deaths, monthly industrial production / retail / imports / exports / CPI, quarterly GDP / employment / absence from work / hours worked | SCMO Sweden NPI replication (`scmo_covid_sweden`) |
+
+The authors' own assembled panel, from `Data_COVID/data.csv` of their
+replication package (built by their `COVID_prep.R` from Our World in Data and
+Eurostat), cut to the twelve outcomes the three domains use and stored as
+Parquet. Values are per million population or index levels exactly as the
+authors prepared them; nothing is rescaled. Sweden is the treated unit, with
+the treatment dated 2020-03-28 for the public-health domain and 2020-02-15 for
+the labour and economic domains, so that only pre-treatment observations of
+each frequency enter the matching.
 
 ## Proposition 99 (California tobacco control) — Abadie, Diamond & Hainmueller (2010)
 
@@ -47,7 +62,7 @@ The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depth
 | File | What it is | Used by |
 |---|---|---|
 | `germany_augmented.csv` | the superset (106 cols) | SCMO multi-outcome replication |
-| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / west-Germany cases |
+| `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / `botosaru_ferman_covariates` / west-Germany cases |
 | `german_reunification.csv` | `gdp` + the `Reunification` flag | ClusterSC / SpotSynth / several west-Germany cases |
 
 ## Basque Country — Abadie & Gardeazabal (2003)
@@ -65,6 +80,21 @@ Two near-identical 17-column regional panels that differ by a region/year block:
 |---|---|---|
 | `carbontax_data.dta` | the analysis sample (per-capita CO2 / GDP / fuel) | CWZ Monte Carlo / t-test, VanillaSC t-test |
 | `carbontax_fullsample_data.dta.txt` | the larger full sample | ORTHSC carbon-tax replication |
+
+## Rhode Island indoor prostitution decriminalization — Cunningham & Shah (2018)
+
+`logfemrate.txt` is the panel Chernozhukov, Wuthrich & Zhu use as the empirical
+application of their conformal method (JASA 2021, Section 5), shipped in their
+replication package as `replication_package_final/logfemrate.txt` and obtained
+by them from Scott Cunningham and Manisha Shah. Log female gonorrhea incidence
+per 100,000, 1985-2009, tab-separated, 25 rows by 51 columns with no time
+column: the first column is Rhode Island and the remaining fifty are the control
+states, in the authors' order. Rhode Island's courts decriminalized indoor
+prostitution in 2003, so `T0 = 19` (1985-2003) and `T1 = 6` (2004-2009).
+
+| File | What it is | Used by |
+|---|---|---|
+| `logfemrate.txt` | the CWZ conformal application panel | `cwz_conformal` benchmark case |
 
 ## MAREX go-dark experiment (simulated) — Abadie & Zhao (2026)
 
@@ -90,7 +120,7 @@ matches on the pre-launch sales and the seven covariates with `standardize=True`
 | `pa_aeps_generation.csv` | annual net generation in MWh by state and category, 1990–2023, for Pennsylvania plus the 42 donors surviving the paper's screens: three categories (`gas` = EIA Natural Gas + Other Gases; `fossil` = Coal + Petroleum; `renewables` = conventional hydro, wind, solar, geothermal, wood, other biomass, other, pumped storage), nuclear excluded | COMPSC Pennsylvania AEPS replication |
 
 Built from the EIA state historical table `annual_generation_state.xls` (Total
-Electric Power Industry). Raw megawatt hours are stored rather than shares, so
+Electric Power Industry). Raw megawatt hours are stored, not shares, so
 the file can be audited directly against the EIA source; COMPSC closes each row
 to the simplex on ingestion. The category assignment is not stated outright in
 the paper — it was recovered by matching its Table 1 balance row; see
@@ -113,6 +143,128 @@ Mortality Database, and UN Trade and Development. Note that the service file
 stores the plain half-vectorisation the authors use, with no √2 on the
 off-diagonals — see `benchmarks/cases/fsc_okano.py` for why that matters.
 
+## Election Day Registration and voter turnout — Xu (2017)
+
+| File | Contents | Used by |
+|---|---|---|
+| `xu_edr_turnout.parquet` | state-level turnout in US presidential elections, 1920–2012 (24 quadrennial periods × 47 states), with the `policy_edr` treatment and the `policy_mail_in` / `policy_motor` covariates | GSYNTH Table 2 replication and benchmark |
+
+The panel behind Xu (2017) Table 2, taken from `turnout.rda` in
+<https://github.com/xuyiqing/fect> and written to Parquet unchanged — no R is
+needed to rebuild it. Nine states adopt EDR (three in 1976, three in 1996, two in
+2008, one in 2012) and thirty-eight never do, which is the 9 / 38 / 1,128 split
+the table's header row reports. Adoption is absorbing, so the never-treated
+thirty-eight are the donor pool the estimator's factor space comes from.
+
+## Age verification laws and search behavior — Lang et al. (2026)
+
+| File | Contents | Used by |
+|---|---|---|
+| `lang_av_laws.parquet` | weekly Google Trends search interest by state, 2022-01-01 to 2024-10-31 (149 weeks × 46 states), for four search terms tagged by `outcome`: `pornhub`, `xvideos`, `vpn`, `porn`, with the `post_treat` adoption indicator | GSYNTH age-verification cross-validation benchmark |
+
+Sliced from `data/{pornhub,xvideos,vpn,porn}.csv` in
+<https://github.com/davidnathanlang/internet_regulation_synth_project> at commit
+`38ab54b`, restricted to the paper's analysis window (`time == "2022-01-01
+2024-10-31"`) and dropping the five states the authors' own
+`03_preregistered_hypotheses.R` drops (ND, MO, AZ, OH, GA). Each of the four
+frames is 46 × 149 and balanced; 14 states adopt across staggered dates and 32
+never do, and adoption is absorbing.
+
+The slice is byte-identical across the two committed vintages of the upstream
+data that contain this window, so it does not depend on which one is checked
+out. `benchmarks/reference/gsynth_av_laws/reference.R` reads this same file
+through `nanoparquet`, so the R and Python sides of the comparison cannot run on
+different inputs.
+
+## EU emissions trading system and air pollution — Basaglia, Grunau & Drupp (2024)
+
+| File | Contents | Used by |
+|---|---|---|
+| `euets_cobenefits.parquet` | annual `log(emissions)` of three air pollutants (SO2, PM2.5, NOx, tagged by `pollutant`) for EU-25 countries split into ETS-regulated and unregulated sectors, 1990–2021, with the `treat_post` indicator (regulated sectors from 2005) and the `log_gdp` / `log_gdp_2` controls | SDID EU ETS co-benefits replication and benchmark |
+
+Concatenated from `Stata_SDID/data_in/{so2,pm25,nox}_gscm_data.csv` in
+<https://github.com/ccs282/EU_ETS_Co_Benefits> and written to Parquet unchanged
+— no Stata or R is needed to rebuild it. Each pollutant is 50 units (25 countries
+× regulated/unregulated) by 32 years.
+
+The frame is unbalanced as shipped: Estonia, Latvia, Lithuania and Slovenia enter
+in 1995, Slovakia in 1992, Hungary in 1991, and the United Kingdom leaves after
+2019. The gaps are all leading or trailing, so nothing can be interpolated. The
+authors' generalized synthetic control runs on the panel as it stands; their SDID
+do-file drops the six late-entering countries and caps at 2019 to reach a
+balanced 38 × 30 sample, which is what `benchmarks/cases/sdid_euets.py`
+reconstructs.
+
+## Tokyo 2020 Olympics and COVID-19 — Yoneoka et al. (2022)
+
+| File | Contents | Used by |
+|---|---|---|
+| `yoneoka_olympics_covid.parquet` | daily COVID-19 confirmed cases per million (7-day moving average) by country and a 50-day integer time index (`date2` 25–74, ending 2021-08-13): Japan plus the 42 donor countries the paper lists, with the 30 predictor columns the authors' specification uses | VanillaSC Tokyo Olympics replication and benchmark |
+
+Sliced from `Synthetic_Olympic/data/df.csv` in
+<https://github.com/kingqwert/R> at commit `bde42e2`, restricted to the paper's
+analysis window (`date2 < 75`) and written to Parquet unchanged — no R is needed
+to rebuild it. The frame is 43 × 50 and balanced on the outcome; three predictor
+columns carry a few missing cells, which the authors' `mean(..., na.rm = TRUE)`
+predictors absorb.
+
+Japan is treated from the opening ceremony. The authors' `tidysynth` call sets
+`i_time = 53`, which in that package is the last pre-treatment period, so the
+treatment indicator built from this file is `date2 > 53`.
+
+`benchmarks/reference/vanillasc_olympics/reference.R` reads this same file
+through `nanoparquet`, so the R and Python sides of the comparison cannot run on
+different inputs. The authors' own committed outputs — weights, balance table
+and placebo p-values at all three intervention timings — are vendored beside it
+under `authors/`.
+
+## Retail price experiment in Brazil — Masini & Medeiros (2021)
+
+| File | What it is | Used by |
+|---|---|---|
+| `masini_retail_sales.parquet` | 233 Brazilian municipalities x 134 daily periods (2016-06-20 to 2016-10-31): quantity sold of one product, the treated-group flag, and the number of shops per municipality | ArCo/WLASSO replication (`arco_retail`) |
+
+The Section 6 application of Masini & Medeiros (2021), *"Counterfactual Analysis
+With Artificial Controls: Inference, High Dimensions, and Nonstationarity"*,
+JASA 116(536), converted from the panel in `codes/` of the authors' replication
+package (the `qtd`, `gtreat` and `shops` arrays, round-tripped exactly). A retail
+chain raised the product's price in 107 municipalities on 2016-10-18 and held it
+for 14 days; the other 126 stayed at the old price. The paper undertakes not to
+disclose the name of the product or of the chain, so nothing here carries either:
+municipalities are integer indices, no column is labelled with a product, and the
+file is renamed off the source archive's own name, which contains a token that
+reads as a chain abbreviation. The
+`treat` column flags treated-group municipalities from 2016-10-18 onward.
+`benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
+which is the series the authors' `arco.m` explains.
+
+## Simulation donor pools
+
+| File | What it is | Used by |
+|---|---|---|
+| `gvb_rgdpl1980.csv` | 157 countries' 1980 log real GDP per capita, from PWT | `wan_pda_vs_scm_ref` |
+
+Gardeazabal & Vega-Bayo's replication files ship this pool as `rgdpl1980.txt`,
+and Wan, Xie & Hsiao's simulation scripts sample it to build unit fixed effects
+and a covariate for their Designs 1b and 2d. It is a donor pool for a
+data-generating process, not a panel: there is one value per country and no time
+dimension. Table 1 of Wan, Xie & Hsiao describes the pool as `j = 1, ..., 143`,
+while the file carries 157 values and the authors' own scripts sample `1:157`;
+the scripts are what `benchmarks/R/wan_pda_vs_scm.R` follows.
+
+## Fixed factors and loadings for Xu (2017)'s simulations
+
+| File | What it is | Used by |
+|---|---|---|
+| `xu_gsynth_FLSource.RData` | three 1000x20 matrices of factors and loadings | `xu_gsynth_vs_scm` |
+
+Xu's `sim_adh.R` calls its generator with `fixF = TRUE, fixL = TRUE`, which reads
+the factors and loadings from this file instead of drawing them. That holds the
+treated/donor geometry still across replications so the only Monte Carlo
+variation is the idiosyncratic error, which is what lets the design isolate the
+effect of loading overlap. `F.source` and `F.u.source` hold normal and uniform
+factors; `L.source` holds the loadings, with column 20 serving as the unit fixed
+effect. The file is the archive's own, unmodified.
 ## Texas SB8 and monthly live births — Sun, Ben-Michael & Feller (2024)
 
 | File | Contents | Used by |

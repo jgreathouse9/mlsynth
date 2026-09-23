@@ -1,0 +1,23 @@
+# case: sbc_germany
+# generated_at: 2026-08-23T10:31:39Z
+# mlsynth_version: 2.0.0
+# estimator: SBC (Hamilton detrend + simplex SC on cycle)
+# config: {"estimator": "SBC", "h": 4, "outcome": "gdp", "p": 2, "time": "year", "treat": "treat", "unitid": "country", "weights_mode": "simplex"}
+# reference_impl: authors' Germany.R (lsq detrend + trend_predict + Synth::synth ipop), live run, captured
+# reference_version: jinxi-atlas/Synthetic-business-cycle-code (arXiv:2505.22388), run on the authoritative Abadie panel
+quantity,mlsynth,reference,abs_diff
+Hamilton trend coef (intercept),610.163145,610.163145,0.0
+Hamilton trend coef (lag 1),3.14324,3.14324,0.0
+Hamilton trend coef (lag 2),-2.038841,-2.038841,0.0
+treated cycle (first pre-period),-454.506582,-454.506582,0.0
+treated cycle (last pre-period),745.206689,745.206689,0.0
+donor cycle Greece (first),-533.521737,-533.521737,0.0
+trend forecast 1991,20418.878927,20418.878927,0.0
+trend forecast 1992,22509.994487,22509.994487,0.0
+trend forecast 1993,24050.030994,24050.030994,0.0
+trend forecast 1994,26210.816584,26210.816584,0.0
+cyclical pre-SSE (lower=better),1266162.575561,1299360.3329,33197.757339
+ATT (1991-1994),-952.201576,-1005.679151,53.477575
+weight[Greece],0.43651,0.333347,0.103163
+weight[Netherlands],0.365254,0.524389,0.159135
+weight[Italy],0.155179,0.09653,0.058649

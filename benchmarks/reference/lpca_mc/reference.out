@@ -1,0 +1,93 @@
+== REFERENCE VALUES ==
+model1_K14_mae	1.0774727471
+model1_K14_q1	0.2043811471
+model1_K14_q2	0.1341903816
+model1_K14_q3	0.0425732826
+model1_K28_mae	1.6910003266
+model1_K28_q1	0.1084387777
+model1_K28_q2	0.0752554155
+model1_K28_q3	0.2060765788
+model1_K42_mae	3.9834740849
+model1_K42_q1	0.0747198078
+model1_K42_q2	0.0285300902
+model1_K42_q3	1.0092929898
+model1_gpca_rank	8
+model1_gpca_mae	0.9309682027
+model1_gpca_q1	0.1329262423
+model1_gpca_q2	0.0968691414
+model1_gpca_q3	0.1670065243
+model1_K_grid_1	14
+model1_K_grid_2	28
+model1_K_grid_3	42
+model1_realised_neighbourhood	28
+model2_K14_mae	1.2216163975
+model2_K14_q1	0.2844727998
+model2_K14_q2	0.1703421512
+model2_K14_q3	0.0315642345
+model2_K28_mae	0.8677961733
+model2_K28_q1	0.1811892190
+model2_K28_q2	0.1615185982
+model2_K28_q3	0.1064249858
+model2_K42_mae	0.9601645824
+model2_K42_q1	0.1466097091
+model2_K42_q2	0.2543613309
+model2_K42_q3	0.0610947212
+model2_gpca_rank	3
+model2_gpca_mae	0.7743224469
+model2_gpca_q1	0.0684537163
+model2_gpca_q2	0.3042230633
+model2_gpca_q3	0.2327110371
+model2_K_grid_1	14
+model2_K_grid_2	28
+model2_K_grid_3	42
+model2_realised_neighbourhood	28
+model3_K14_mae	0.7990505797
+model3_K14_q1	0.1624498218
+model3_K14_q2	0.0674953226
+model3_K14_q3	0.1270038639
+model3_K28_mae	0.5706680487
+model3_K28_q1	0.1769187633
+model3_K28_q2	0.0647374765
+model3_K28_q3	0.1270038639
+model3_K42_mae	0.5288435092
+model3_K42_q1	0.1676911760
+model3_K42_q2	0.0576557433
+model3_K42_q3	0.1512877288
+model3_gpca_rank	1
+model3_gpca_mae	0.5108719281
+model3_gpca_q1	0.0651489035
+model3_gpca_q2	0.0468629704
+model3_gpca_q3	0.1657353051
+model3_K_grid_1	14
+model3_K_grid_2	28
+model3_K_grid_3	42
+model3_realised_neighbourhood	36
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] HDRFA_0.1.5        irlba_2.3.5.1      Matrix_1.6-5       Rfast_2.1.5.2     
+[5] RcppParallel_5.1.7 zigg_0.0.2         Rcpp_1.0.12       
+
+loaded via a namespace (and not attached):
+ [1] MASS_7.3-60.0.1    compiler_4.3.3     quantreg_5.97      SparseM_1.81      
+ [5] survival_3.5-8     MatrixModels_0.5-3 splines_4.3.3      grid_4.3.3        
+ [9] pracma_2.4.4       lattice_0.22-5    

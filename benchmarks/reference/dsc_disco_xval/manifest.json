@@ -1,0 +1,11 @@
+{
+  "case": "dsc_disco_xval",
+  "title": "Distributional SC vs Davidvandijcke/DiSCos (Dube minimum wage)",
+  "paper": "Gunsilius, F. (2023), \"Distributional Synthetic Controls\", Econometrica 91(3):1105-1117; algorithm as specified by Zhang, Zhang & Zhang (2026), arXiv:2405.00953v3",
+  "reference_impl": "Davidvandijcke/DiSCos DiSCo() (live run, mean of 40 seeds at M = 10,000)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/dsc_disco_xval/export_panel.py && Rscript benchmarks/reference/dsc_disco_xval/reference.R",
+  "data": [
+    "basedata/dube_minwage.parquet"
+  ]
+}

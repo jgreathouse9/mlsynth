@@ -1,0 +1,29 @@
+# case: cwz_ttest_mc
+# generated_at: 2026-08-15T07:34:01Z
+# mlsynth_version: 2.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "backend": "outcome-only", "inference": "ttest", "ttest_K": 3}
+# reference_impl: R package scinference (ttest) driven by the authors' own calibrated simulation design
+# reference_version: scinference v1.0.0 (567c688)
+quantity,mlsynth,reference,abs_diff
+"ATT, DGP 1, draw 1",-0.002804,-0.002804,0.0
+"SE, DGP 1, draw 1",0.026116,0.026116,0.0
+"ATT, DGP 1, draw 5",-0.013114,-0.013114,0.0
+"SE, DGP 1, draw 5",0.016169,0.016169,0.0
+"ATT, DGP 1, draw 10",0.001319,0.001319,0.0
+"SE, DGP 1, draw 10",0.032619,0.032619,0.0
+"ATT, DGP 8, draw 1",-0.080968,-0.080968,0.0
+"SE, DGP 8, draw 1",0.034515,0.034515,0.0
+"ATT, DGP 8, draw 5",-0.27051,-0.27051,0.0
+"SE, DGP 8, draw 5",0.082625,0.082625,0.0
+"ATT, DGP 8, draw 10",-0.196173,-0.196173,0.0
+"SE, DGP 8, draw 10",0.012753,0.012753,0.0
+"coverage, DGP 1",0.9167,0.88,0.0367
+"coverage, DGP 2",0.92,0.9067,0.0133
+"coverage, DGP 3",0.9167,0.89,0.0267
+"coverage, DGP 4",0.8833,0.89,0.0067
+"coverage, DGP 5",0.8667,0.89,0.0233
+"coverage, DGP 6",0.8233,0.8167,0.0066
+"coverage, DGP 7",0.9167,0.8933,0.0234
+"coverage, DGP 8",0.56,0.6333,0.0733
+"coverage, DGP 9",0.91,0.9333,0.0233

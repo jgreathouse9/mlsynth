@@ -1,0 +1,9 @@
+{
+  "case": "cwz_conformal",
+  "title": "Conformal test inversion vs scinference (CWZ 2021 JASA, Section 5 application)",
+  "paper": "Chernozhukov, Wuthrich & Zhu (2021), JASA 116(536), 1849-1864; scinference R package (kwuthrich/scinference @ v1.0.0, 567c688) and the JASA online supplement's functions_conformal_final.R",
+  "reference_impl": "R package scinference (conformal, live run), cross-checked against the supplement's own functions",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/cwz_conformal/reference.R",
+  "data": ["basedata/logfemrate.txt"]
+}

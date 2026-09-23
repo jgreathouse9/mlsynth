@@ -11,6 +11,17 @@ where ``rho_hat_(1)^2`` is the HAC long-run variance of the pre-period
 residuals and ``rho_hat_(2)^2`` is the HAC long-run variance of the de-meaned
 post-period effects. Both estimation uncertainty (pre) and post-period noise
 contribute.
+
+The kernel is Bartlett; Theorem 3 states the estimator with the uniform kernel,
+an unweighted two-sided sum ``sum_{l=-h}^{h}``, which the authors adopt "for
+simplicity" while noting the result "is compatible with the Bartlett kernel
+(Newey & West 1987)". The substitution is theirs to sanction and it is not free:
+on Hong Kong it moves the t-statistic from 7.69 to 7.83. Bartlett is what makes
+the estimate non-negative without a clamp, which is why it is the default here.
+
+The autocovariances divide by the length of the index set, matching the paper's
+``E_S(x_t) = |S|^{-1} sum_{t in S} x_t``. The truncation lag is Newey & West
+(1994), which is the rule the paper points to.
 """
 
 from __future__ import annotations

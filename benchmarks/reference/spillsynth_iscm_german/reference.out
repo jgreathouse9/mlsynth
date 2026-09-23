@@ -1,0 +1,57 @@
+
+ Missing data: treated unit; special predictor: special.industry.1981.1990 ; for period: 1990 
+ We ignore (na.rm = TRUE) all missing values for predictors.op.
+
+ Missing data: treated unit; special predictor: special.industry.1981.1990 ; for period: 1990 
+ We ignore (na.rm = TRUE) all missing values for predictors.op.
+
+ Missing data - control unit: 7 ; special predictor: special.industry.1981.1990 ; for period: 1990 
+ We ignore (na.rm = TRUE) all missing values for predictors.op.
+
+ Missing data: treated unit; special predictor: special.industry.1981.1990 ; for period: 1990 
+ We ignore (na.rm = TRUE) all missing values for predictors.op.
+
+ Missing data: treated unit; special predictor: special.industry.1981.1990 ; for period: 1990 
+ We ignore (na.rm = TRUE) all missing values for predictors.op.
+== REFERENCE VALUES ==
+nocov_regular_att	-1472.600010
+nocov_inclusive_att	-1651.522724
+nocov_iterative_att_replace_pre_false	-1651.522724
+nocov_iterative_att_replace_pre_true	-1651.524568
+nocov_w_austria_in_west_germany	0.176232
+nocov_w_west_germany_in_austria	0.487178
+nocov_omega_det	0.914144
+nocov_weight_sum_west_germany	0.966605
+nocov_weight_sum_austria	1.193265
+cov_regular_att	-1305.879589
+cov_inclusive_att	-1575.211574
+cov_iterative_att_replace_pre_false	-1801.536360
+cov_iterative_att_replace_pre_true	-1869.332122
+== SESSION ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] Synth_1.1-10    kernlab_0.9-32  MASS_7.3-60.0.1
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3      rgenoud_5.9-0.10    foreign_0.8-86     
+[4] nloptr_2.0.3        optimx_2023-10.21   numDeriv_2016.8-1.1
+[7] pracma_2.4.4       

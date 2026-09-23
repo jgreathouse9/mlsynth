@@ -33,10 +33,64 @@ from mlsynth.exceptions import (
 
 from .weights import (
     compute_regularization, fit_time_weights, match_unit_weights, unit_weights)
+
+
+def cohort_weight_problems(cohort_data_dict: Dict[str, Any]):
+    """The two weight programs a cohort implies, as ``(design, target, ridge)``.
+
+    Both are the same object :func:`estimate_cohort_sdid_effects` solves, and it
+    reads them from here, so a caller that wants to solve a family of them ahead
+    of time -- placebo inference refits them once per draw -- cannot drift from
+    what the estimator would have done.
+
+    Returns ``(zeta, unit_problem, time_problem)``. Either problem is ``None``
+    where the estimator would not have solved it: no pre-periods, no
+    post-periods, all-NaN post-period donor means, or (for the unit problem) a
+    cohort carrying covariates, whose weights come from the stacked
+    de Brabander et al. (2025) program instead.
+    """
+    donor = cohort_data_dict["donor_matrix"]
+    treated = cohort_data_dict["y"]
+    n_pre = cohort_data_dict["pre_periods"]
+    n_post = cohort_data_dict["post_periods"]
+
+    if n_pre == 0:
+        return np.nan, None, None
+
+    donor_pre = donor[:n_pre, :]
+    zeta_override = cohort_data_dict.get("zeta_override")
+    if zeta_override is not None:
+        zeta = float(zeta_override)
+    else:
+        zeta = compute_regularization(donor_pre, n_post,
+                                      num_treated_units=treated.shape[1])
+
+    unit_problem = None
+    has_covariates = (cohort_data_dict.get("donor_covariates") is not None
+                      and cohort_data_dict.get("treated_covariates") is not None)
+    if not has_covariates:
+        mean_treated_pre = treated.mean(axis=1)[:n_pre]
+        # unit_weights folds the ridge as T0 * zeta^2 (eq. 4); mirror it here.
+        unit_problem = (donor_pre, mean_treated_pre, n_pre * zeta ** 2)
+
+    time_problem = None
+    if n_post > 0:
+        post_block = donor[n_pre:, :]
+        if post_block.size == 0:
+            mean_post = np.full(donor.shape[1], np.nan)
+        else:
+            mean_post = post_block.mean(axis=0)
+        if not np.all(np.isnan(mean_post)):
+            time_problem = (donor_pre.T, mean_post, 0.0)
+
+    return zeta, unit_problem, time_problem
+
+
 def estimate_cohort_sdid_effects(
     cohort_adoption_period: int,
     cohort_data_dict: Dict[str, Any],
-    pooled_event_time_effects_accumulator: DefaultDict[float, List[Tuple[int, float]]]
+    pooled_event_time_effects_accumulator: DefaultDict[float, List[Tuple[int, float]]],
+    precomputed_weights: Optional[Tuple[Any, Any]] = None,
 ) -> Dict[str, Any]:
     """Estimate Synthetic Difference-in-Differences (SDID) effects for a specific cohort.
 
@@ -246,15 +300,8 @@ def estimate_cohort_sdid_effects(
         # A caller-supplied zeta replaces that quantity outright rather than
         # scaling it, so reproducing a published specification means passing the
         # number that paper used (commonly 0, which switches the ridge off).
-        zeta_override = cohort_data_dict.get("zeta_override")
-        if zeta_override is not None:
-            regularization_parameter_zeta = float(zeta_override)
-        else:
-            regularization_parameter_zeta = compute_regularization(
-                donor_outcomes_pre_treatment_cohort,
-                num_post_treatment_periods_cohort,
-                num_treated_units=cohort_treated_outcomes_matrix.shape[1],
-            )
+        regularization_parameter_zeta, _unit_problem, _time_problem = (
+            cohort_weight_problems(cohort_data_dict))
         # Estimate unit weights (omega) and intercept. When the caller asked for
         # covariates={"match": ...} the cohort payload carries per-unit
         # covariate summaries, and the weights come from the stacked program of
@@ -271,6 +318,9 @@ def estimate_cohort_sdid_effects(
                     pre_periods=cohort_data_dict.get("match_pre_periods"),
                 )
             )
+        elif precomputed_weights is not None and precomputed_weights[0] is not None:
+            optimal_unit_weight_intercept, optimal_unit_weights_vector = (
+                precomputed_weights[0])
         else:
             optimal_unit_weight_intercept, optimal_unit_weights_vector = unit_weights(
                 donor_outcomes_pre_treatment_cohort, mean_treated_outcome_pre_treatment_cohort, regularization_parameter_zeta
@@ -289,6 +339,9 @@ def estimate_cohort_sdid_effects(
             # Proceed with time weight estimation if mean post-treatment donor outcomes are not all NaN.
             if np.all(np.isnan(mean_donor_outcomes_post_treatment_cohort)):
                 pass # optimal_time_weights_vector remains None if all post-period donor means are NaN.
+            elif precomputed_weights is not None and precomputed_weights[1] is not None:
+                optimal_time_weight_intercept, optimal_time_weights_vector = (
+                    precomputed_weights[1])
             else:
                 optimal_time_weight_intercept, optimal_time_weights_vector = fit_time_weights(
                     donor_outcomes_pre_treatment_cohort, mean_donor_outcomes_post_treatment_cohort

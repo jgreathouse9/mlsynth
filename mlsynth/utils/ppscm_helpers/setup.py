@@ -41,7 +41,7 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
             )
 
     adopt = {}
-    for u, g in df.groupby(unitid):
+    for u, g in df.groupby(unitid, observed=True):
         yrs = g.loc[g[treat] == 1, time]
         adopt[u] = yrs.min() if len(yrs) else np.inf
     finite = [a for a in adopt.values() if _adopted(a)]
@@ -74,7 +74,7 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
         # augsynth cov_agg default: mean over periods before the FIRST adoption.
         first_adopt = min(finite)
         pre_first = df[df[time] < first_adopt]
-        agg = (pre_first.groupby(unitid)[list(covariates)].mean()
+        agg = (pre_first.groupby(unitid, observed=True)[list(covariates)].mean()
                .reindex(index=units))
         if agg.isna().any().any():
             bad = agg.index[agg.isna().any(axis=1)].tolist()

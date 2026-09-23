@@ -1,0 +1,9 @@
+{
+  "case": "cwz_conformal_mc",
+  "title": "Conformal test size vs the authors' simulation design (CWZ 2021 JASA, Section 4)",
+  "paper": "Chernozhukov, Wuthrich & Zhu (2021), JASA 116(536), 1849-1864; the online supplement's simulations_conformal_final.R / functions_conformal_final.R",
+  "reference_impl": "R package scinference (conformal, live run) driven by the authors' own simulation design",
+  "path_type": "Path B",
+  "command": "Rscript benchmarks/reference/cwz_conformal_mc/reference.R",
+  "data": []
+}

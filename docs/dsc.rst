@@ -16,9 +16,15 @@ treatment effect (QTE) at any quantile :math:`q \in (0, 1)`, and any
 functional of the distribution (Lorenz curves, Gini coefficients,
 interquartile ranges, stochastic-dominance comparisons).
 
-The method is due to Gunsilius (2023); mlsynth's implementation is
-validated against the author's reference ``DiSCo`` R package, and the
-large-sample theory is from Zhang, Zhang & Zhang (2026). The core idea is
+The method is due to Gunsilius (2023), and mlsynth implements the algorithm as
+Zhang, Zhang & Zhang (2026) specify it -- the paper that also supplies the
+large-sample theory. Validation is against the deterministic Stata command of
+Gunsilius & Van Dijcke, whose published weights mlsynth reproduces bit-for-bit
+(:doc:`replications/disco_tenure`), and against the ``DiSCo`` R package averaged
+over seeds (:doc:`replications/dsc_disco_xval`). The averaging is not optional:
+that package draws its quadrature points with ``runif``, so a single run's
+weights are a Monte Carlo estimate that moves with the seed, by up to 0.119 on
+the Dube panel. The core idea is
 the 2-Wasserstein barycenter: the natural
 generalization of a weighted average from points on the real line to
 probability distributions. Averaging quantile functions (not densities)
@@ -356,6 +362,21 @@ Koksma-Hlawka inequality the QMC approximation error is
 :math:`O(\log M / M)` for Halton / Sobol vs. :math:`O(M^{-1/2})` for i.i.d.
 draws.
 
+Relaxing the simplex. :math:`\Delta^{N_0}` is the set :math:`\mathcal{H}` of
+Zhang, Zhang & Zhang (2026), and it is the default because it keeps the
+synthetic unit a weighted average of observed donors, which is what makes the
+counterfactual interpretable. Setting ``weight_constraint="sum_to_one"`` drops
+non-negativity and keeps :math:`\sum_j w_j = 1` with :math:`w_j \le 1`, the
+feasible set the reference ``DiSCos`` package uses by default. The larger set
+can only lower the fitted loss, and it permits extrapolation beyond the donors'
+convex hull: a treated quantile function lying outside that hull becomes
+reachable, at the cost of a synthetic unit that subtracts one donor's
+distribution from another's. Zhang, Zhang & Zhang (2026) discuss the same
+relaxation as a bounded set :math:`[-C_L, C_U]^{N_0}`, noting that the
+sum-to-unity restriction is what continues to do the work once non-negativity
+goes. Reach for it when the pre-period fit under the simplex is poor and the
+diagnostics above point to the treated unit sitting outside the hull.
+
 Step 3 -- Aggregate over the pre-period. The final weight is a convex
 combination :math:`\widehat{\mathbf{w}} = \sum_{t \in \mathcal{T}_1} \lambda_t
 \mathbf{w}_t`, with :math:`\lambda_t \ge 0` and :math:`\sum_t \lambda_t = 1`.
@@ -424,12 +445,42 @@ run it with ``python benchmarks/run_benchmarks.py dsc_dube``.
    used a 250-observations-per-cell subsample, which for a *distributional*
    method distorted the very quantity being matched.
 
-   Five of the six pinned rows are regression pins on mlsynth's own output, not
-   external checks. ``DiSCos`` 0.1.4 is installable here
-   (``benchmarks/R/install_discos.sh``), and it disagrees with mlsynth on donor
-   weights by up to 0.074 on identical data -- tracked in issue #304. Until that
-   is resolved, treat the vignette's ``p > 0.05`` as the only externally
-   anchored quantity in this benchmark.
+   Five of the six pinned rows are regression pins on mlsynth's own output, so
+   within this case the vignette's ``p > 0.05`` is the only externally anchored
+   quantity. The external anchors live in the other two cases:
+   :doc:`replications/disco_tenure` reproduces the Stata command's published
+   weights bit-for-bit, and :doc:`replications/dsc_disco_xval` compares against
+   the ``DiSCos`` R package on this same panel.
+
+   Issue #304, which recorded the R package disagreeing with mlsynth here by up
+   to 0.074, is settled by that second case: the package draws its quadrature
+   points with ``runif``, and 0.074 was one seed at its default draw count. At
+   ``M = 10,000`` averaged over 40 seeds the gap is 0.0079, against the
+   reference's own across-seed standard deviation of 0.0160.
+
+A third benchmark (``benchmarks/cases/dsc_mc.py``) runs the Monte Carlo of the
+paper whose Algorithm 1 this estimator implements, Zhang, Zhang & Zhang (2026)
+Section 5.1, where the optimum is known in closed form and the empirical cases'
+lack of a ground truth does not bind.
+Across sixteen points it reproduces the geometry of both theorems -- the risk
+ratio :math:`\bar R_{T_1}(\widehat w) / \inf_w \bar R_{T_1}(w)` falling
+monotonically to 1 as the draw count grows, the weight error
+:math:`\| \widehat w - w^{\mathrm{opt}} \|` falling with it, and the larger
+donor pool converging more slowly -- and matches the published risk ratio to
+0.0017 at every cell with :math:`M \ge 200`. See :doc:`replications/dsc_mc`; run
+it with ``python benchmarks/run_benchmarks.py --case dsc_mc``.
+
+.. note::
+
+   Path B under scenario 1: the paper releases no code, no data, and no table,
+   so the design is reconstructed from prose and the targets are digitised from
+   the figures in its arXiv source. It is a partial cell match. The two
+   risk-ratio cells at :math:`M = 50` sit above the published curve, by 0.006
+   and 0.028, and the weight-error curve is steeper in the paper than in the
+   reconstruction. Both distances are reported by the case as numbers. The design also generates its pseudo-samples directly, so it
+   validates the weight solver and the :math:`\lambda_t` aggregation, not the
+   quantile-estimation step that :doc:`replications/dsc` and
+   :doc:`replications/disco_tenure` cover.
 
 Core API
 --------

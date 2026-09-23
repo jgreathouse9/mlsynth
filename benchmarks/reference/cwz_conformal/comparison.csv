@@ -1,0 +1,25 @@
+# case: cwz_conformal
+# generated_at: 2026-08-15T07:33:40Z
+# mlsynth_version: 2.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "backend": "outcome-only", "conformal_grid": "seq(-5, 2, 0.01)", "conformal_type": "block", "inference": "conformal", "outcome": "logfemrate", "time": "year", "treat": "treated", "unitid": "state"}
+# reference_impl: R package scinference (conformal, live run, captured), cross-checked against the JASA supplement's own functions
+# reference_version: scinference v1.0.0 (567c688)
+quantity,mlsynth,reference,abs_diff
+p_value (moving block),0.04,0.04,0.0
+CI_lower_90%_2004,-0.26,-0.26,0.0
+CI_upper_90%_2004,0.7,0.7,0.0
+CI_lower_90%_2005,-0.86,-0.86,0.0
+CI_upper_90%_2005,-0.01,-0.01,0.0
+CI_lower_90%_2006,-0.81,-0.81,0.0
+CI_upper_90%_2006,0.17,0.17,0.0
+CI_lower_90%_2007,-1.16,-1.16,0.0
+CI_upper_90%_2007,-0.33,-0.33,0.0
+CI_lower_90%_2008,-1.46,-1.46,0.0
+CI_upper_90%_2008,-0.33,-0.33,0.0
+CI_lower_90%_2009,-1.31,-1.31,0.0
+CI_upper_90%_2009,-0.19,-0.19,0.0
+"p_value (iid, 5000 draws)",0.022995,0.022795,0.0002
+placebo p_value (T1=1),0.315789,0.315789,0.0
+placebo p_value (T1=2),0.315789,0.315789,0.0
+placebo p_value (T1=3),0.263158,0.263158,0.0

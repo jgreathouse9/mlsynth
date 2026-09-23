@@ -33,7 +33,7 @@ import numpy as np
 
 from .aggregation import aggregate_period_weights
 from .quantiles import empirical_quantile, sample_quantile_grid
-from .weights import solve_simplex_weights
+from .weights import solve_simplex_weights, solve_sum_to_one_weights
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,7 @@ def _wasserstein_distance_path(
     grid: np.ndarray,
     lam: np.ndarray,
     eval_grid: np.ndarray,
+    weight_constraint: str = "simplex",
 ) -> np.ndarray:
     """Per-period squared 2-Wasserstein distance for one (target, donors) split.
 
@@ -96,7 +97,8 @@ def _wasserstein_distance_path(
         donor_mat = np.column_stack([
             empirical_quantile(inputs.cell_samples[(u, t)], grid) for u in donor_units
         ])
-        period_w[i] = solve_simplex_weights(donor_mat, treated_vec)
+        period_w[i] = (solve_simplex_weights if weight_constraint == "simplex"
+                       else solve_sum_to_one_weights)(donor_mat, treated_vec)
     w_hat = aggregate_period_weights(period_w, lam)
 
     dists = np.empty(inputs.time_labels.size)
@@ -116,6 +118,7 @@ def placebo_permutation_test(
     M: int,
     grid_method: str,
     lam: np.ndarray,
+    weight_constraint: str = "simplex",
     n_eval: int = 200,
     random_state: int = 0,
 ) -> DSCInference:
@@ -145,7 +148,7 @@ def placebo_permutation_test(
     donors = list(inputs.unit_names[1:])
 
     treated_distance = _wasserstein_distance_path(
-        inputs, treated, donors, grid, lam, eval_grid,
+        inputs, treated, donors, grid, lam, eval_grid, weight_constraint,
     )
 
     placebo_rows = []
@@ -154,7 +157,8 @@ def placebo_permutation_test(
         # other donor (DiSCo_per_iter): swap iota into the target slot.
         pool = [treated] + [u for u in donors if u != iota]
         placebo_rows.append(
-            _wasserstein_distance_path(inputs, iota, pool, grid, lam, eval_grid)
+            _wasserstein_distance_path(inputs, iota, pool, grid, lam, eval_grid,
+                                       weight_constraint)
         )
     placebo_distances = np.vstack(placebo_rows) if placebo_rows else np.empty((0, inputs.T))
 

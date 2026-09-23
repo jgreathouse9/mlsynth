@@ -50,7 +50,7 @@ def adoption_times(df: pd.DataFrame, unitid: str, time: str,
     if treated_rows.empty:
         raise MlsynthDataError(
             f"no rows have {treat} == 1, so there is nothing to estimate.")
-    return treated_rows.groupby(unitid)[time].min().to_dict()
+    return treated_rows.groupby(unitid, observed=True)[time].min().to_dict()
 
 
 def aggregation_weights(df: pd.DataFrame, unitid: str, column: Optional[str],
@@ -67,13 +67,13 @@ def aggregation_weights(df: pd.DataFrame, unitid: str, column: Optional[str],
         raise MlsynthDataError(
             f"agg_weights column {column!r} is not in the DataFrame.")
     sub = df[df[unitid].isin(units)]
-    spread = sub.groupby(unitid)[column].nunique(dropna=False)
+    spread = sub.groupby(unitid, observed=True)[column].nunique(dropna=False)
     varying = spread[spread > 1].index.tolist()
     if varying:
         raise MlsynthDataError(
             f"agg_weights column {column!r} varies within unit(s) "
             f"{varying[:5]}; an aggregation weight must be constant per unit.")
-    w = sub.groupby(unitid)[column].first().reindex(units).to_numpy(float)
+    w = sub.groupby(unitid, observed=True)[column].first().reindex(units).to_numpy(float)
     if not np.isfinite(w).all():
         raise MlsynthDataError(
             f"agg_weights column {column!r} has missing values for some "
@@ -99,7 +99,7 @@ def _covariate_block(df, unitid, time, units, covariates, windows,
             sub = sub[sub[time] >= lo]
         if hi is not None:
             sub = sub[sub[time] <= hi]
-        m = sub.groupby(unitid)[c].mean().reindex(units)
+        m = sub.groupby(unitid, observed=True)[c].mean().reindex(units)
         if m.isna().any():
             missing = m[m.isna()].index.tolist()[:5]
             raise MlsynthDataError(

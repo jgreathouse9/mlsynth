@@ -69,6 +69,16 @@ class DSCConfig(BaseEstimatorConfig):
                     "sequences; 'uniform' is the i.i.d. draw the paper writes "
                     "and the R package uses, whose weights vary with the seed.",
     )
+    weight_constraint: Literal["simplex", "sum_to_one"] = Field(
+        default="simplex",
+        description="Feasible set for the donor weights. 'simplex' (default) is "
+                    "the set H of Zhang, Zhang & Zhang (2026): non-negative and "
+                    "summing to one, so the synthetic unit is a weighted average "
+                    "of observed donors. 'sum_to_one' drops non-negativity and "
+                    "keeps the sum and an upper bound of one, which is the "
+                    "reference DiSCos package's default and permits "
+                    "extrapolation beyond the donors' convex hull.",
+    )
     lambda_method: Literal["uniform", "recency"] = Field(
         default="uniform",
         description="Default rule for pre-period aggregation weights lambda_t.",

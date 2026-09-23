@@ -51,83 +51,58 @@ from .conflict import is_independent
 from . import strata as _strata
 from .feasibility import audit_feasibility
 from ...exceptions import MlsynthConfigError
+from ...utils.bilevel.minnorm import (
+    solve_simplex_minnorm,
+    solve_simplex_minnorm_batch,
+)
 
 
 # ======================================================================
-# Inner simplex-QP solvers (Away-step Frank-Wolfe; pure numpy)
+# Inner simplex-QP solvers (Wolfe minimum-norm-point active set)
 # ======================================================================
 
 def _afw_single(Q: np.ndarray, iters: int = 300, tol: float = 1e-13):
-    """Exact-to-tolerance min_{w in simplex} w'Qw for one m x m PSD Q.
+    """``min_{w in simplex} w'Qw`` for one ``m x m`` PSD ``Q``, exactly.
 
-    Returns (loss, w, lower_bound) where lower_bound is the certified
-    Frank-Wolfe duality-gap bound (<= true minimum).
+    Returns ``(loss, w, lower_bound)``. The solve is Wolfe's minimum-norm-point
+    active set, which terminates finitely at the optimum, so the lower bound is
+    the loss: there is no gap left to report.
+
+    ``iters`` and ``tol`` are accepted and ignored. They were the Frank-Wolfe
+    budget and its duality-gap tolerance, and neither has a meaning for a method
+    that finishes.
     """
+    Q = np.asarray(Q, dtype=float)
     n = Q.shape[0]
     if n == 1:
         return float(Q[0, 0]), np.array([1.0]), float(Q[0, 0])
-    d = np.diag(Q)
-    w = np.zeros(n); w[int(np.argmin(d))] = 1.0
-    active = {int(np.argmax(w))}
-    best_lb = -np.inf
-    for _ in range(iters):
-        grad = 2.0 * (Q @ w)
-        f = float(w @ (Q @ w))
-        s = int(np.argmin(grad))
-        best_lb = max(best_lb, float(grad[s]) - f)   # FW lower bound
-        gap = float(grad @ w - grad[s])
-        if gap <= tol:
-            break
-        act = np.array(sorted(active))
-        a = int(act[np.argmax(grad[act])])
-        d_fw = -w.copy(); d_fw[s] += 1.0
-        d_aw = w.copy();  d_aw[a] -= 1.0
-        if float(grad @ d_fw) <= float(grad @ d_aw):
-            D, gmax, is_fw = d_fw, 1.0, True
-        else:
-            D = d_aw; gmax = w[a] / (1.0 - w[a]) if w[a] < 1.0 else 1e12; is_fw = False
-        QD = Q @ D
-        quad = float(D @ QD)
-        g = -float(2.0 * (w @ QD)) / (2.0 * quad) if quad > 1e-18 else gmax
-        g = max(0.0, min(g, gmax))
-        w = w + g * D
-        w[w < 1e-15] = 0.0
-        if g >= gmax and not is_fw:
-            active.discard(a)
-        active.add(s)
-        active = {j for j in active if w[j] > 0}
-    w = np.clip(w, 0.0, None); w /= w.sum() + 1e-18
-    return float(w @ (Q @ w)), w, float(best_lb)
+    w = solve_simplex_minnorm(Q)
+    loss = float(w @ (Q @ w))
+    return loss, w, loss
 
 
 def _afw_batched(Qs: np.ndarray, iters: int = 80) -> np.ndarray:
-    """Vectorised AFW losses for many tuples at once. Qs: (N, m, m)."""
-    N, m, _ = Qs.shape
-    if m == 1:
+    """``min_{w in simplex} w'Q w`` for every ``Q`` in an ``(N, m, m)`` stack.
+
+    Wolfe's active set over the whole stack in lockstep: each iteration solves
+    all the current corral systems as one batched LU and retires the candidates
+    whose optimality test has passed, so the arrays shrink as members certify
+    and the iteration count is set by the hardest member rather than by a budget.
+
+    This replaced a fixed number of away-step Frank-Wolfe iterations. Frank-Wolfe
+    converges sublinearly, and on a panel with one dominant factor -- which is
+    what a geo panel is, 97% of the DMA panel's two-way-demeaned variance in a
+    single component -- the columns are near-collinear and a fixed budget stops
+    short of the optimum. At 80 iterations the median relative error on that
+    panel was 9%, high on two thirds of subsets. Since these losses *rank*
+    candidate designs against one another, that error reorders the shortlist.
+
+    ``iters`` is accepted and ignored; see :func:`_afw_single`.
+    """
+    Qs = np.asarray(Qs, dtype=float)
+    if Qs.shape[1] == 1:
         return Qs[:, 0, 0].copy()
-    d = np.diagonal(Qs, axis1=1, axis2=2)
-    W = np.zeros((N, m)); W[np.arange(N), d.argmin(1)] = 1.0
-    rows = np.arange(N)
-    for _ in range(iters):
-        grad = 2.0 * np.einsum('nij,nj->ni', Qs, W)
-        s = grad.argmin(1)
-        ga = np.where(W > 1e-14, grad, -np.inf)
-        a = ga.argmax(1)
-        d_fw = -W.copy(); d_fw[rows, s] += 1.0
-        d_aw = W.copy();  d_aw[rows, a] -= 1.0
-        use_fw = np.einsum('ni,ni->n', grad, d_fw) <= np.einsum('ni,ni->n', grad, d_aw)
-        D = np.where(use_fw[:, None], d_fw, d_aw)
-        wa = W[rows, a]
-        gmax = np.where(use_fw, 1.0, np.where(wa < 1.0, wa / (1.0 - wa + 1e-18), 1e12))
-        QD = np.einsum('nij,nj->ni', Qs, D)
-        quad = np.einsum('ni,ni->n', D, QD)
-        lin = 2.0 * np.einsum('ni,ni->n', W, QD)
-        safe = quad > 1e-18
-        g = gmax.copy()
-        g[safe] = -lin[safe] / (2.0 * quad[safe])
-        g = np.clip(g, 0.0, gmax)
-        W = W + g[:, None] * D
-        W[W < 1e-14] = 0.0
+    W = solve_simplex_minnorm_batch(Qs)
     return np.einsum('ni,nij,nj->n', W, Qs, W)
 
 
@@ -178,6 +153,95 @@ def _budget_feasible_candidates(candidate_idx, m, unit_costs, budget):
         if unit_costs[i] + floor <= budget:
             keep.append(i)
     return np.asarray(keep)
+
+
+def _budget_allows_completion(S, free, unit_costs, budget, m, cheapest_first=None):
+    """Whether a partial tuple ``S`` can still be finished to size ``m`` on budget.
+
+    Spending is monotone, so a partial that fits the budget can still be
+    impossible to complete. Testing the partial alone is what let the greedy
+    construction walk into a dead end: it would buy the two markets that most
+    lowered the loss, find nothing affordable left, and give up with the region
+    still full of feasible designs.
+
+    The bound is the cheapest conceivable completion -- the ``m - |S|`` cheapest
+    remaining candidates, with the conflict graph ignored. Ignoring conflicts can
+    only make a completion look cheaper, so the bound never rejects a partial
+    that could have been finished. It admits some that cannot, which costs one
+    wasted step of the construction and never an answer.
+
+    ``cheapest_first`` is ``free`` pre-sorted by cost; passing it makes the check
+    ``O(m)`` instead of ``O(M log M)``, which matters because the construction
+    runs it once per candidate per step.
+    """
+    if unit_costs is None or budget is None or np.isinf(budget):
+        return True
+    S = [int(x) for x in S]
+    spent = float(np.asarray(unit_costs, dtype=float)[S].sum()) if S else 0.0
+    k = m - len(S)
+    if k <= 0:
+        return spent <= budget + 1e-12
+    order = (cheapest_first if cheapest_first is not None
+             else sorted((int(j) for j in free), key=lambda j: unit_costs[j]))
+    in_S = set(S)
+    need, taken = 0.0, 0
+    for j in order:
+        if int(j) in in_S:
+            continue
+        need += float(unit_costs[int(j)])
+        taken += 1
+        if taken == k:
+            break
+    if taken < k:
+        return False
+    return spent + need <= budget + 1e-12
+
+
+def _no_design_error(exact, m, M, cand, conflict, unit_costs, budget):
+    """The error for an empty result, claiming only what the path establishes.
+
+    Enumeration scores every tuple in the region, so an empty result from it is
+    a proof that the region is empty. The multi-start search only ever visits
+    part of the region, so an empty result from it is a failed search. Reporting
+    the second as the first told analysts to relax constraints that admitted
+    thousands of designs.
+
+    The spillover line states the inequality it has measured.
+    :func:`greedy_independent_set_size` is a *lower* bound on the maximum
+    independent set, so reaching ``m`` proves a conflict-free ``m``-tuple exists
+    and rules spillover out as the binding constraint on its own.
+    """
+    problems = []
+    if conflict is not None:
+        from .conflict import greedy_independent_set_size
+        largest = greedy_independent_set_size(conflict, cand)
+        if largest < m:
+            problems.append(
+                f"spillover: the largest conflict-free set found among the {M} "
+                f"candidates is {largest} < m={m}. Relax the cluster/adjacency "
+                f"constraint, widen the candidate pool, or reduce m.")
+        else:
+            problems.append(
+                f"spillover: not binding on its own -- a conflict-free set of "
+                f"{largest} candidates exists, covering m={m}. Any exclusion is "
+                f"from the constraints in combination.")
+    if unit_costs is not None and budget is not None and not np.isinf(budget):
+        cheapest = float(np.sort(np.asarray(unit_costs, dtype=float)[cand])[:m].sum())
+        problems.append(
+            f"budget: the {m} cheapest of the {M} candidates cost "
+            f"${cheapest:,.0f} against a ${budget:,.0f} budget.")
+    if exact:
+        head = (f"LEXSCM design is infeasible -- enumeration scored every candidate "
+                f"{m}-tuple and none satisfies the constraints together.")
+    else:
+        head = ("LEXSCM found no feasible design -- the multi-start search did not "
+                "construct one. This is not a proof that none exists; only "
+                "enumeration exhausts the region. Raise n_starts, set "
+                "method='enumerate' when C(M, m) is affordable, or relax the "
+                "constraint named below.")
+    if problems:
+        return MlsynthConfigError(head + "\n  - " + "\n  - ".join(problems))
+    return MlsynthConfigError(head)
 
 
 # ======================================================================
@@ -261,15 +325,56 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
                 and is_independent(conflict, S)
                 and _strata.within_max(strata, S, max_per))
     diag = np.diag(G)
+    cheapest_first = (None if unit_costs is None
+                      else sorted(free, key=lambda j: unit_costs[j]))
+    # Two dictionaries with two jobs. `pool` is the *solution* pool: the tuples
+    # the search actually visited, ranked at the end to produce the top-K. It
+    # must keep exactly the membership it had before, or the search returns a
+    # different answer. `memo` is the loss cache: every tuple ever solved,
+    # including the hundreds of thousands merely probed inside a neighbourhood
+    # and never adopted. Those belong in the cache and not in the pool.
     pool: Dict[tuple, float] = {}
+    memo: Dict[tuple, float] = {}
     work = [0]                      # total subsets scored ("simplex iterations")
     best = [np.inf]                 # global incumbent objective
     trail: List[tuple] = []         # (work, objective) at each incumbent improvement
 
     def score(subs):
+        """Losses for a batch of tuples, solving only the ones not seen before.
+
+        Swap neighbourhoods overlap heavily across descent steps and across
+        starts, so the same tuple is asked for repeatedly -- about twice on
+        average. Solving it once and remembering the answer is exact:
+        ``_afw_batched`` is deterministic and treats rows independently, so a
+        remembered loss is the loss that would have been recomputed. Tuples
+        arrive sorted from every caller, so the key is canonical.
+
+        The answer goes in ``memo``, never in ``pool``. Probing a tuple inside
+        a neighbourhood is not visiting it, and only visited tuples may compete
+        for the top-K.
+
+        ``work`` still counts every tuple requested, not every tuple solved: it
+        is the search's reported effort diagnostic, and the number of tuples
+        the search considered has not changed.
+        """
         arr = np.asarray(subs)
         work[0] += len(arr)
-        return _losses_for(G, arr, iters=iters)
+        keys = [tuple(r) for r in arr.tolist()]
+        out = np.empty(len(keys), dtype=float)
+        missing = []
+        for i, k in enumerate(keys):
+            v = memo.get(k)
+            if v is None:
+                missing.append(i)
+            else:
+                out[i] = v
+        if missing:
+            idx = np.asarray(missing, dtype=int)
+            vals = _losses_for(G, arr[idx], iters=iters)
+            out[idx] = vals
+            for i, v in zip(missing, vals.tolist()):
+                memo[keys[i]] = v
+        return out
 
     def loss_of(S):
         v = pool.get(tuple(S))
@@ -286,7 +391,13 @@ def _local_search(G, cand, m, top_K, unit_costs, budget, n_starts, rng, iters,
         if start not in forced_set and len(S) < m and _ok(sorted(S + [start])):
             S = sorted(S + [start])
         while len(S) < m:
-            rem = [j for j in free if j not in S and _ok(S + [j])]
+            # A partial that fits the budget is not the same as a partial that
+            # can be finished on it: without the completion bound the build
+            # spends on the loss-greedy picks and starves before reaching m.
+            rem = [j for j in free
+                   if j not in S and _ok(S + [j])
+                   and _budget_allows_completion(S + [j], free, unit_costs,
+                                                 budget, m, cheapest_first)]
             if not rem:
                 return None
             cands = [sorted(S + [j]) for j in rem]
@@ -495,21 +606,14 @@ def select_treated_designs(
     else:
         raise ValueError(f"unknown method {method!r}")
 
-    # Spillover feasibility: with the "No interference" constraint active, an
-    # admissible design must be a size-m independent set of the conflict graph.
-    # If the search found none, that constraint (alone or with the budget) is
-    # infeasible -- fail loudly, in the same ``have vs need`` shape as the audit,
-    # reporting the largest conflict-free set actually found.
-    if conflict is not None and not raw:
-        from .conflict import greedy_independent_set_size
-        largest = greedy_independent_set_size(conflict, cand)
-        raise MlsynthConfigError(
-            "LEXSCM design is infeasible -- the binding constraint(s):\n  - "
-            f"spillover: no conflict-free treated {m}-tuple exists among the {M} "
-            f"candidates (largest conflict-free set found is {largest} < m={m}). "
-            f"Relax the cluster/adjacency constraint, widen the candidate pool, or "
-            f"reduce m."
-        )
+    # An empty result means different things on the two paths. Enumeration
+    # exhausted the region, so nothing feasible exists. The multi-start search
+    # visited part of it, so it found nothing -- which is not the same claim,
+    # and reporting it as the same one sent analysts to relax constraints that
+    # admitted thousands of designs. ``_no_design_error`` says only what the
+    # path that produced the empty result establishes.
+    if not raw and (conflict is not None or not exact):
+        raise _no_design_error(exact, m, M, cand, conflict, unit_costs, budget)
 
     # Coverage feasibility backstop: ``_strata.check_feasible`` (and the budget
     # presolve) already reject infeasible quotas up front, so this post-search

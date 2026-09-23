@@ -17,15 +17,19 @@ rest of the FDID pipeline.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .inference import did_inference
+from .inference import did_inference, hac_lag
 
 
 def did_from_mean(
-    treated: np.ndarray, mean_ctrl: np.ndarray, pre_periods: int
+    treated: np.ndarray,
+    mean_ctrl: np.ndarray,
+    pre_periods: int,
+    inference: str = "analytic",
+    lrvar_lag: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Difference-in-differences estimate from a pre-computed donor average.
 
@@ -37,6 +41,11 @@ def did_from_mean(
         Average outcome of the selected donor pool, shape ``(T,)``.
     pre_periods : int
         Number of pre-treatment periods ``T0``.
+    inference : {"analytic", "hac"}, default "analytic"
+        Standard error to report; see
+        :func:`~mlsynth.utils.fdid_helpers.inference.did_inference`.
+    lrvar_lag : int, optional
+        Truncation lag for ``inference="hac"``.
 
     Returns
     -------
@@ -63,7 +72,16 @@ def did_from_mean(
     ss_res = np.sum(resid_pre ** 2)
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else np.nan
 
-    se, ci, pval, satt = did_inference(att, resid_pre, T0, T1)
+    # Resolve the truncation lag here so the reported "Lag" is the one the
+    # standard error actually used, and not a second guess at the default.
+    used_lag = (
+        (hac_lag(T0, T1) if lrvar_lag is None else int(lrvar_lag))
+        if inference == "hac"
+        else None
+    )
+    se, ci, pval, satt = did_inference(
+        att, resid_pre, T0, T1, method=inference, lrvar_lag=used_lag
+    )
     post_cf_mean = counterfactual[T0:].mean()
 
     return {
@@ -84,6 +102,8 @@ def did_from_mean(
             if not np.isnan(ci[0]) else (np.nan, np.nan),
             "SE": round(float(se), 4) if not np.isnan(se) else np.nan,
             "Intercept": round(float(intercept), 4),
+            "Method": inference,
+            "Lag": used_lag,
         },
         "Vectors": {
             "Observed": np.round(treated, 3),
@@ -141,10 +161,15 @@ def _compute_fdid_result(
     pre_periods: int,
     R2_path: np.ndarray,
     donor_names: List[Any],
+    inference: str = "analytic",
+    lrvar_lag: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Difference-in-differences result for the selected donor subset."""
     optimal_mean = control_outcomes[:, optimal_idxs].mean(axis=1)
-    result = did_from_mean(treated_outcome, optimal_mean, pre_periods)
+    result = did_from_mean(
+        treated_outcome, optimal_mean, pre_periods,
+        inference=inference, lrvar_lag=lrvar_lag,
+    )
     result.update(
         {
             "R2_at_each_step": R2_path,
@@ -161,6 +186,8 @@ def forward_did_select(
     pre_periods: int,
     donor_names: List[Any],
     verbose: bool = False,
+    inference: str = "analytic",
+    lrvar_lag: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run Li (2023) forward-selected difference-in-differences.
 
@@ -180,6 +207,13 @@ def forward_did_select(
         Donor labels; length must equal ``N``.
     verbose : bool, default False
         If True, attach per-step diagnostics under ``"intermediary"``.
+    inference : {"analytic", "hac"}, default "analytic"
+        Standard error to report. Inference is downstream of selection: the
+        forward search maximises pre-treatment R^2 and never consults a
+        standard error, so this changes the reported interval and nothing
+        else.
+    lrvar_lag : int, optional
+        Truncation lag for ``inference="hac"``.
 
     Returns
     -------
@@ -207,7 +241,9 @@ def forward_did_select(
     X_pre = control_outcomes[:T0]
 
     mean_all = control_outcomes.mean(axis=1)
-    did_all = did_from_mean(treated_outcome, mean_all, T0)
+    did_all = did_from_mean(
+        treated_outcome, mean_all, T0, inference=inference, lrvar_lag=lrvar_lag
+    )
 
     # --- constants precomputed once (independent of the selection step) ---
     # Adding donor j to k already-selected donors gives the candidate average
@@ -271,6 +307,8 @@ def forward_did_select(
         pre_periods=T0,
         R2_path=R2_path,
         donor_names=donor_names,
+        inference=inference,
+        lrvar_lag=lrvar_lag,
     )
 
     if verbose:

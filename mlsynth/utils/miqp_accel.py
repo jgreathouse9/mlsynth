@@ -22,7 +22,7 @@ Safety. A cut with an ``L`` above the true optimum would remove the optimum (a
 correctness bug, not a slowdown). Callers must margin ``L`` below the bound. As a
 backstop, if the cut renders the model infeasible (``L`` above *every* feasible
 objective), the solve falls back to the un-cut problem and reports ``fell_back``,
-so a bad bound degrades to a correct-but-unaccelerated solve rather than a wrong
+so a bad bound degrades to a correct-but-unaccelerated solve instead of a wrong
 or infeasible answer.
 
 Offset. The cut is written on the canonical objective vector ``c`` assuming the
@@ -39,6 +39,22 @@ import cvxpy as cp
 import cvxpy.settings as s
 import numpy as np
 from cvxpy.reductions.solvers.conic_solvers.scip_conif import SCIP as _CvxSCIP
+
+
+def _bool_positions(data) -> list:
+    """Canonical columns holding the boolean variable's entries, in its own order.
+
+    cvxpy returns ``data[BOOL_IDX]`` as a ``set``, so iterating it yields the hash
+    table's order. For a contiguous run of small integers that order is ascending
+    at some lengths and rotated at others, and it agreed with the variable's own
+    order often enough for small problems to look correct.
+
+    A single boolean variable occupies one contiguous ascending block of the
+    canonical vector, stacked column-major, which is the order
+    :func:`solve_warm_cut` flattens ``warm_bits`` into. Ascending column is
+    therefore that variable's own order, and sorting recovers it.
+    """
+    return sorted(data[s.BOOL_IDX])
 
 
 @dataclass(frozen=True)
@@ -60,8 +76,11 @@ class AccelInfo:
     cut_applied : bool
         Whether the objective lower-bound cut was added.
     warm_applied : bool
-        Whether the binary warm start was accepted (length matched the model's
-        boolean variables).
+        Whether SCIP stored the binary warm start: the length matched the model's
+        boolean variables and ``addSol`` reported it kept. The start is a partial
+        solution, so SCIP still has to complete it over the continuous variables
+        before it can become an incumbent; a stored start is one SCIP will try,
+        not one it has already adopted.
     fell_back : bool
         Whether the cut was dropped and the solve retried un-cut because the cut
         made the model infeasible (a too-high ``L``).
@@ -93,7 +112,7 @@ class _WarmCutSCIP(_CvxSCIP):
         self.warm_applied = False
         self.cut_applied = False
         # The built SCIP model, kept so the caller can read the dual bound / gap /
-        # status directly rather than through cvxpy's solution dict, whose keys
+        # status directly instead of through cvxpy's solution dict, whose keys
         # ("model", "scip_status") are internal and vary across cvxpy versions.
         self.model = None
 
@@ -118,15 +137,16 @@ class _WarmCutSCIP(_CvxSCIP):
                           >= float(self._L))
             self.cut_applied = True
 
-        # Binary warm start (partial MIP start on the boolean variables).
+        # Binary warm start (partial MIP start on the boolean variables). The
+        # positions must be read in the variable's own order, not the order the
+        # index set iterates in -- see _bool_positions.
         if self._warm is not None:
-            bidx = list(data[s.BOOL_IDX])
+            bidx = _bool_positions(data)
             if len(bidx) == len(self._warm):
                 sol = model.createPartialSol()
                 for pos, vpos in enumerate(bidx):
                     model.setSolVal(sol, variables[vpos], float(self._warm[pos]))
-                model.addSol(sol)
-                self.warm_applied = True
+                self.warm_applied = bool(model.addSol(sol))
 
         self.model = model
         return self._solve(model, variables, constraints, data, dims)

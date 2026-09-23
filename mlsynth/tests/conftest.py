@@ -1,5 +1,21 @@
 """Shared pytest configuration for the mlsynth test suite.
 
+Hypothesis profiles
+-------------------
+Property tests run under one of two profiles, selected by the
+``MLSYNTH_HYPOTHESIS_PROFILE`` environment variable and defaulting to ``ci``
+whenever ``CI`` is set:
+
+* ``ci`` -- ``derandomize=True``, a fixed example count, no deadline. The
+  determinism is not a preference: a flakily-killed mutant corrupts a mutation
+  score, and ``agents/agents_tests.md`` makes derandomization mandatory for any
+  run that feeds one. It also keeps a red CI reproducible from the commit alone.
+* ``dev`` -- more examples and randomized, for finding what ``ci`` will not.
+
+The deadline is disabled in both. Hypothesis times individual examples and
+fails those over 200 ms by default, which numerical code with a cold BLAS or a
+cvxpy solve trips for reasons that have nothing to do with the property.
+
 Optional-solver skip guard
 --------------------------
 Several estimators solve mixed-integer or conic programs through cvxpy and
@@ -27,9 +43,37 @@ skipped tests.
 
 from __future__ import annotations
 
+import os
 import re
 
 import pytest
+
+try:
+    from hypothesis import HealthCheck, Verbosity, settings
+except ImportError:  # pragma: no cover - hypothesis is in the `test` extra
+    settings = None
+
+if settings is not None:
+    settings.register_profile(
+        "ci",
+        max_examples=200,
+        derandomize=True,
+        deadline=None,
+        print_blob=True,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    settings.register_profile(
+        "dev",
+        max_examples=1000,
+        derandomize=False,
+        deadline=None,
+        verbosity=Verbosity.normal,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
+    settings.load_profile(
+        os.environ.get("MLSYNTH_HYPOTHESIS_PROFILE",
+                       "ci" if os.environ.get("CI") else "dev")
+    )
 
 # Direct "solver not installed" signatures (always safe to skip on).
 _MISSING_SOLVER = re.compile(
@@ -100,3 +144,12 @@ def pytest_runtest_makereport(item, call):
             report.outcome = "skipped"
             report.longrepr = (str(item.fspath), item.location[1] + 1,
                                f"Skipped: {reason}")
+
+
+# Shard selection lives in the ROOT conftest, not here. ``pytest_addoption`` is
+# only honoured from a plugin or a rootdir conftest, so registering it in this
+# subdirectory conftest works for ``pytest mlsynth/tests`` and fails for the
+# bare ``pytest`` that CI runs. Registering it in both places is worse than
+# either: pytest loads this file too when the command line names a path inside
+# it, and the second registration raises
+# ``ValueError: option names {'--num-shards'} already added``.

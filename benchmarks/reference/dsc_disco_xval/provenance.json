@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-08-08T22:47:34Z",
+  "git_sha": "784d9bdb8ba80d615df6c88499693aa3a643adb7",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "DiSCos": "0.1.4 @ ed2b3d948ed591ed2785e1d97acb567225432a60",
+    "CVXR": "1.0-15 @ 871a29e5f770a8479cc1aa77cf437e20dd16dc79"
+  },
+  "command": "Rscript benchmarks/reference/dsc_disco_xval/reference.R",
+  "settings": {
+    "M": 10000,
+    "G": 1000,
+    "n_seeds": 40,
+    "t0": 2003,
+    "id_col.target": 2,
+    "modes": [
+      "simplex",
+      "sum_to_one"
+    ]
+  },
+  "data": [
+    {
+      "path": "basedata/dube_minwage.parquet",
+      "sha256": "b93b3cbff5733639356c3552cd53f0569bfe92a4258ec72e4e1821b43549a069"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "benchmarks/reference/dsc_disco_xval/gold_weights.csv",
+      "sha256": "1dda5ab089d0ea426c29269f675a7bc5f363966535a90440d96e74cebbd43387"
+    }
+  ]
+}

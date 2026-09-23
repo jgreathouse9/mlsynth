@@ -32,7 +32,11 @@ from .quantiles import (
 )
 from .setup import prepare_dsc_inputs
 from .structures import DSCInputs, DSCResults, QTECurve
-from .weights import solve_simplex_weights, wasserstein_loss_at_weights
+from .weights import (
+    solve_simplex_weights,
+    solve_sum_to_one_weights,
+    wasserstein_loss_at_weights,
+)
 
 __all__ = [
     "DSCInference",
@@ -48,5 +52,6 @@ __all__ = [
     "run_dsc",
     "sample_quantile_grid",
     "solve_simplex_weights",
+    "solve_sum_to_one_weights",
     "wasserstein_loss_at_weights",
 ]

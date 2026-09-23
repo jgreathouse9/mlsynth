@@ -7,6 +7,7 @@ except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
 from .estimators.tssc import TSSC ## Check
 from .estimators.fma import FMA ## Check
 from .estimators.cfm import CFM ## Check
+from .estimators.gsynth import GSYNTH ## Check
 from .estimators.cscipca import CSCIPCA ## Check
 from .estimators.medsc import MEDSC ## Check
 from .estimators.pda import PDA ## Check
@@ -24,6 +25,7 @@ from .estimators.scul import SCUL
 from .estimators.esc import ESC
 from .estimators.scd import SCD                                # noqa: F401
 from .estimators.si import SI ## Check
+from .estimators.twsf import TWSF
 from .estimators.nsc import NSC # Check
 from .estimators.sdid import SDID # Check
 from .estimators.musc import MUSC                              # noqa: F401
@@ -55,6 +57,11 @@ from .utils.counterfactual_compare import (
     plot_counterfactual_comparison,
 )
 from .estimators.spcd import SPCD
+from .estimators.geox import GEOX
+from .utils.geox_helpers.plotter import (
+    plot_mde_ranking,
+    plot_geox_design,
+)
 from .estimators.tasc import TASC
 from .estimators.cmbsts import CMBSTS
 from .estimators.sbc import SBC
@@ -76,6 +83,7 @@ from .estimators.beast import BEAST
 from .estimators.dpsc import DPSC
 from .estimators.drsc import DRSC
 from .estimators.fsc import FSC
+from .estimators.dmlfm import DMLFM
 from .estimators.dsc import DSC
 from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
@@ -88,9 +96,12 @@ from .estimators.stackedsc import STACKEDSC
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
 from .estimators.mcnnm import MCNNM
+from .estimators.mosc import MOSC
 from .estimators.pangeo import PANGEO
 from .estimators.hsc import HSC
 from .estimators.rolldid import ROLLDID
+from .estimators.lpca import LPCA
+from .estimators.gpits import GPITS
 from .utils.spcd_helpers.plotter import (
     plot_spcd_design,
     plot_mde_bars,
@@ -113,10 +124,13 @@ __all__ = [
     "plot_power_curves",
     "plot_detectability",
     "ROLLDID",
+    "LPCA",
+    "GPITS",
     "HSC",
     "TSSC",
     "FMA",
     "CFM",
+    "GSYNTH",
     "CSCIPCA",
     "MEDSC",
     "PDA",
@@ -135,6 +149,7 @@ __all__ = [
     "ESC",
     "SCD",
     "SI",
+    "TWSF",
     "NSC",
     "MUSC",
     "MASC",
@@ -144,6 +159,9 @@ __all__ = [
     "MAREX",
     "LEXSCM",
     "SPCD",
+    "GEOX",
+    "plot_geox_design",
+    "plot_mde_ranking",
     "TASC",
     "CMBSTS",
     "SBC", "BVSS", "BSCM", "BFSC", "MVBBSC", "MTGP", "BPSCS",
@@ -178,6 +196,7 @@ __all__ = [
     "plot_compare_pareto",
     "DRSC",
     "FSC",
+    "DMLFM",
     "DSC",
     "DROSC",
     "SpSyDiD",
@@ -190,5 +209,6 @@ __all__ = [
     "CTSC",
     "SNN",
     "MCNNM",
+    "MOSC",
     "PANGEO",
 ]

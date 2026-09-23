@@ -82,6 +82,7 @@ class MCNNM:
         self.time: str = config.time
         self.estimate_unit_fe: bool = config.estimate_unit_fe
         self.estimate_time_fe: bool = config.estimate_time_fe
+        self.lam = config.lam
         self.n_lambda: int = config.n_lambda
         self.n_folds: int = config.n_folds
         self.inference: bool = config.inference
@@ -103,6 +104,7 @@ class MCNNM:
                 inputs=inputs,
                 est_u=self.estimate_unit_fe,
                 est_v=self.estimate_time_fe,
+                lam=self.lam,
                 n_lam=self.n_lambda,
                 n_folds=self.n_folds,
                 inference=self.inference,

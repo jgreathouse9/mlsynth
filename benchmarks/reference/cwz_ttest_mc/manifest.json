@@ -1,0 +1,9 @@
+{
+  "case": "cwz_ttest_mc",
+  "title": "Debiased SC t-test Table 3 Monte Carlo, live against the authors' own design",
+  "paper": "Chernozhukov, Wuthrich & Zhu, a t-test for synthetic controls (Table 3); the JPE replication package's calibration_dgps.R and common_functions.R",
+  "reference_impl": "R package scinference (ttest, live run) driven by the authors' own calibrated simulation design",
+  "path_type": "Path B",
+  "command": "Rscript benchmarks/reference/cwz_ttest_mc/reference.R",
+  "data": ["basedata/carbontax_data.dta"]
+}

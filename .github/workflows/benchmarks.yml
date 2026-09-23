@@ -38,14 +38,28 @@ on:
     # Eastern in summer (EDT). Runs every day regardless of whether code changed.
     - cron: "0 7 * * *"
   workflow_dispatch:
+  # Every pull request runs the pure-Python suite (see the pr-suite job), which
+  # gates its own shards on a paths filter so a change that cannot move a pinned
+  # value does not pay for them. The daily run is the full gate; the pull-request
+  # one is what fails a change before it lands. A regression that reaches main is
+  # otherwise invisible until 07:00 UTC.
+  #
+  # The filter is a step inside pr-suite and not a `paths:` here on purpose. A
+  # trigger-level filter stops the whole workflow, so the check never appears on
+  # the pull request at all; gating the step leaves the job reporting success,
+  # which is what a required check would need and what build.yml already does.
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
 
-# One benchmark run at a time; let an in-flight run finish rather than cancel it.
+# One scheduled/dispatched benchmark run at a time; let an in-flight run finish
+# rather than cancel it. Pull requests get a group per ref instead, so a PR never
+# queues behind the daily run, and a new push supersedes its own stale run.
 concurrency:
-  group: benchmarks
-  cancel-in-progress: false
+  group: benchmarks-${{ github.event_name == 'pull_request' && github.ref || 'default' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -53,6 +67,28 @@ env:
   MPLBACKEND: "Agg"          # headless matplotlib
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # A shard cancelled by its own timeout concludes "cancelled", not "failure",
+  # and GitHub marks the run cancelled -- which reads like somebody pressed
+  # stop rather than like a gap in coverage. The cases that shard holds simply
+  # go unvalidated, with nothing red to show for it. That is how four
+  # consecutive daily runs (2026-08-24 to -27) left 51 cases unchecked. This
+  # gate turns any shard outcome other than success into a failed run.
+  # ---------------------------------------------------------------------------
+  suite-gate:
+    if: always() && github.event_name != 'pull_request'
+    needs: suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every suite shard succeeded
+        if: needs.suite.result != 'success'
+        run: |
+          echo "::error::suite shards concluded '${{ needs.suite.result }}', not success." >&2
+          echo "A cancelled or failed shard neither passes nor fails on its own," >&2
+          echo "so the cases it holds went unvalidated. Check the shard logs." >&2
+          exit 1
+
   # ---------------------------------------------------------------------------
   # Main suite: mlsynth[all] + the R reference stack. Runs every registered case;
   # the R-backed live cross-checks execute because R is provisioned here.
@@ -62,6 +98,20 @@ jobs:
   # Each shard runs ~1/N of the cases, keeping every shard well under the
   # timeout. To change the shard count, edit BOTH the matrix list and NUM_SHARDS.
   #
+  # Round-robin balances shards by case COUNT, not by runtime, and the two are
+  # not the same thing: at four shards the benchmark steps took 15, 37, 37 and
+  # 66+ minutes. The split was not merely uneven, it was resonant -- a stride
+  # of four landed 12 of the 17 heaviest Monte Carlo and R-backed cases on
+  # shard 1 alone, because of where they sit in the registry. A stride of six
+  # breaks that up (0/6/2/5/1/3 of the same seventeen) and brings the slowest
+  # shard back to roughly 45 minutes. Each extra shard pays the R provisioning
+  # again, which is why this is 6 and not 8.
+  #
+  # It is still count-balanced, so a stride that resonates again is possible.
+  # The durable fix is to bin-pack by measured runtime rather than widen
+  # further; ``case-deps`` already walks every case and is the natural place
+  # to collect the timings that would need.
+  #
   # R CACHE: the CRAN references (requirements.R -> Synth/synthdid/did + their
   # dependencies -- the heaviest compiles) install into a user-writable
   # R_LIBS_USER that is cached across runs. requirements.R self-skips packages
@@ -70,14 +120,20 @@ jobs:
   # run (best-effort, into the system library).
   # ---------------------------------------------------------------------------
   suite:
+    # Reference-provisioning is the expensive half; pull requests get pr-suite.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The cap covers R provisioning (18-24 min) AND the shard, not the shard
+    # alone. At 90 it did not: on 2026-08-27 shard 1 was cancelled at 90m14s
+    # having had only ~67 minutes of benchmark budget, and the same happened
+    # on the three days before that.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     env:
-      NUM_SHARDS: "4"
+      NUM_SHARDS: "6"
       R_LIBS_USER: ${{ github.workspace }}/.rlibs
       # Pin BLAS/LAPACK to a single thread so the numerically-sensitive cases
       # reproduce deterministically. constraints.txt already fixes the
@@ -164,6 +220,144 @@ jobs:
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
+  # Pull-request suite: every registered case, no reference toolchain.
+  #
+  # NEEDS_REFERENCE is empty, so --with-reference gates nothing: all cases are
+  # selected either way, and the ones wanting an external reference raise
+  # BenchmarkSkipped when it is absent. So dropping the R stack costs coverage
+  # only of the live cross-checks, not of the estimators themselves -- the daily
+  # run remains the full gate. What is left is the pure-Python numerical suite,
+  # which is what a code change can actually break.
+  #
+  # Provisioning R is the slow half of `suite`; without it the wall-clock is the
+  # cases themselves, so the shard count goes up to buy the time back. Shard
+  # width and NUM_SHARDS are pinned together by
+  # benchmarks/tests/test_workflow_sharding.py.
+  # ---------------------------------------------------------------------------
+  pr-suite:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Matches the daily suite, which runs this registry to completion with R
+    # provisioning on top. Round-robin balances case count, not case cost: on
+    # the first PR run the shards' benchmark steps ranged from 6 to 19 minutes
+    # while shard 7, holding most of the Monte Carlo cases, exceeded a 45-minute
+    # cap and was cancelled -- and a cancelled shard neither passes nor fails
+    # its cases, writes no report, and leaves the run merely "unstable". Adding
+    # heavy cases moves the slowest shard, not the average, so raise the shard
+    # count when one next approaches this.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      NUM_SHARDS: "8"
+      # Same determinism pinning as `suite`; see the note there.
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      NUMEXPR_NUM_THREADS: "1"
+      VECLIB_MAXIMUM_THREADS: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth + optional backends (design + bayes)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all]' -c benchmarks/constraints.txt
+
+      # The benchmark shards are the slow half of a pull request, and most pull
+      # requests cannot move a pinned value. This is the same dorny/paths-filter
+      # gate build.yml already uses, with the same danger recorded there: a
+      # skipped step reports success, and a skipped success is indistinguishable
+      # from a real one on the pull request page. So the list is asserted in
+      # benchmarks/tests/test_workflow_sharding.py against what a case can read.
+      #
+      # It is build.yml's list minus two trees and one file. mlsynth/tests and
+      # benchmarks/tests are out because the registry loads only benchmarks.cases,
+      # so no case imports either -- the references to test modules in case
+      # docstrings are prose. This workflow is out because its own invariants are
+      # unit tested, and build.yml runs those tests; validating a YAML edit by
+      # running the whole registry is the cost this gate exists to remove.
+      #
+      # basedata is IN and must stay in: 127 case files read fixtures from it.
+      - name: Detect changes that could move a pinned value
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # `all` exists so case_deps sees the whole diff. The gating filter
+          # drops test trees on purpose, and a path missing from the list cannot
+          # be recognised as one no manifest entry claims -- which is the check
+          # that widens the selection when the map has a hole.
+          list-files: json
+          filters: |
+            all:
+              - '**'
+            benchmarked:
+              - 'mlsynth/**'
+              - '!mlsynth/tests/**'
+              - 'benchmarks/**'
+              - '!benchmarks/tests/**'
+              - 'basedata/**'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+            # The subset the diff creates. A file that did not exist cannot have
+            # been executed by a pre-existing case, so its absence from the map
+            # is not a hole -- and without this the selection widened to the
+            # whole registry on every pull request that added a file, which an
+            # estimator always does.
+            created:
+              - added: '**'
+
+      # The filter above decides whether the shards run at all; this decides
+      # which cases they run. case_deps widens on any doubt -- an unmapped case
+      # runs, and a changed file no entry claims runs everything -- so it can
+      # cost time and cannot silence a case. The map is refreshed nightly by the
+      # case-deps job below.
+      - name: Collect the changed files
+        if: steps.filter.outputs.benchmarked == 'true'
+        env:
+          CHANGED_JSON: ${{ steps.filter.outputs.all_files }}
+          ADDED_JSON: ${{ steps.filter.outputs.created_files }}
+        run: |
+          python - <<'EOF'
+          import json, os
+          files = json.loads(os.environ["CHANGED_JSON"] or "[]")
+          added = set(json.loads(os.environ["ADDED_JSON"] or "[]"))
+          with open("/tmp/changed.txt", "w") as fh:
+              fh.write("\n".join(files) + ("\n" if files else ""))
+          with open("/tmp/added.txt", "w") as fh:
+              fh.write("\n".join(sorted(added)) + ("\n" if added else ""))
+          print(f"{len(files)} changed file(s), {len(added)} of them new")
+          for f in files:
+              print("  +" if f in added else "   ", f)
+          EOF
+
+      - name: Run benchmark suite shard
+        if: steps.filter.outputs.benchmarked == 'true'
+        run: |
+          python -u benchmarks/run_benchmarks.py --all --report \
+            --changed-from /tmp/changed.txt --added-from /tmp/added.txt \
+            --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}"
+
+      - name: Upload benchmark report
+        if: always() && steps.filter.outputs.benchmarked == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-benchmark-report-shard-${{ matrix.shard }}
+          path: |
+            benchmarks/REPORT.md
+            benchmarks/report.json
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
   # Python reference cross-checks. These packages pull numpy<2 (incompatible with
   # the JAX backend in `suite`), so they get clean environments WITHOUT the bayes
   # extra and run only the cases that call them live. They are split into two jobs
@@ -179,6 +373,7 @@ jobs:
   # references, so they need no Python reference package and run in the main suite.)
   # ---------------------------------------------------------------------------
   python-refs-relax:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -215,6 +410,7 @@ jobs:
   # spsydid's spatial reference needs libpysal but NOT scmrelax -- isolating it
   # keeps mosek out of the env so cvxpy uses CLARABEL (see note above).
   python-refs-spsydid:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -248,7 +444,137 @@ jobs:
   # [all]+R provisioning only runs when a benchmark case/reference actually
   # changed, and commits only when the page changed.
   # ---------------------------------------------------------------------------
+
+  case-deps:
+    # Never on a pull request: measuring the map means running every case, and
+    # the combine job downstream commits the result to the default branch.
+    #
+    # The map is what lets a pull request run only the cases its diff can reach.
+    # It is measured, not written, because the cheaper routes fail here:
+    # cases import inside their functions, so a static scan sees entry points and
+    # not reach, and tracing imports returns the whole library because
+    # mlsynth/__init__.py loads every estimator. tools/benchmark_deps.py runs each
+    # case under coverage with the package already imported, which separates
+    # executing a module from loading one.
+    #
+    # SHARDED, because as one job it never finished. At 199 cases it reached its
+    # 350-minute cap on 23, 24, 25 and 26 August and was cancelled every time --
+    # the 26th ran 07:36 to 13:26 -- so the map stayed at the five entries that
+    # shipped with it and every pull request touching the library ran the whole
+    # registry, MIP and Monte Carlo cases included. The slice is round-robin, the
+    # same one run_benchmarks.py takes, because cost is not uniform across the
+    # registry. To change the shard count, edit BOTH the matrix and NUM_SHARDS.
+    #
+    # Each shard writes only what it measured and uploads it. Merging onto the
+    # shipped map and committing is the combine job's, once: four shards each
+    # rebasing and pushing the same file race, and the loser's slice disappears
+    # with no failure anywhere.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      NUM_SHARDS: "4"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[design,bayes]" coverage
+
+      - name: Measure what each case executes
+        run: |
+          python -u tools/benchmark_deps.py --all \
+            --shard "${{ matrix.shard }}" --num-shards "${NUM_SHARDS}" \
+            --out "case_deps.shard-${{ matrix.shard }}.json"
+
+      - name: Upload this shard's slice
+        uses: actions/upload-artifact@v4
+        with:
+          name: case-deps-slice-${{ matrix.shard }}
+          path: case_deps.shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Merge the slices and commit the map, once.
+  #
+  # always() so a shard that died costs its own slice and not the other three:
+  # --combine leaves a case no slice measured on its existing entry, and a case
+  # that loses its entry goes back to always running, which is the safe
+  # direction. A cancelled shard therefore delays part of the map by a day
+  # instead of discarding the rest of it.
+  # ---------------------------------------------------------------------------
+  case-deps-commit:
+    if: always() && github.event_name != 'pull_request'
+    needs: case-deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download every slice that was produced
+        uses: actions/download-artifact@v4
+        with:
+          pattern: case-deps-slice-*
+          path: slices
+          merge-multiple: true
+
+      - name: Merge the slices onto the shipped map
+        run: |
+          shopt -s nullglob
+          SLICES=(slices/case_deps.shard-*.json)
+          if [ ${#SLICES[@]} -eq 0 ]; then
+            echo "No slice was produced; leaving the map as it stands."
+            exit 0
+          fi
+          echo "Merging ${#SLICES[@]} slice(s)."
+          python -u tools/benchmark_deps.py --combine "${SLICES[@]}"
+
+      - name: Commit the map if it changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/case_deps.json
+          if git diff --cached --quiet; then
+            echo "Dependency map unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "benchmarks: refresh the case dependency map [skip ci]"
+          git pull --rebase --autostash origin main
+          git push
+
   validation-dashboard:
+    # Never on a pull request: this job commits the rebuilt dashboard
+    # back to the default branch.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:

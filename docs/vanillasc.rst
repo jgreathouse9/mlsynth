@@ -275,6 +275,39 @@ The covariate path exposes four reliable solvers via ``backend=``:
     ``"max.order"``) to report a canonical, reproducible :math:`\mathbf{V}` via the
     MSCMT ``determine_v`` step.
 
+    This is the expensive backend, because the outer search prices tens of
+    thousands of candidate :math:`\mathbf{V}`, each needing its own donor-weight
+    solve. Two identities make that affordable. Since the weights sum to one,
+    :math:`\mathbf{X}_1 - \mathbf{X}_0\mathbf{w} = \mathbf{R}\mathbf{w}` for
+    :math:`\mathbf{R} = \mathbf{X}_1\mathbf{1}^\top - \mathbf{X}_0`, whose
+    :math:`j`-th column is donor :math:`j`'s predictor discrepancy from the
+    treated unit; the lower level is then
+    :math:`\min_{\mathbf{w} \in \Delta^{N_0}} \mathbf{w}^\top
+    \mathbf{G}(\mathbf{V}) \mathbf{w}` with
+    :math:`\mathbf{G}(\mathbf{V}) = \sum_p v_p \mathbf{r}_p \mathbf{r}_p^\top`,
+    summed over the rows :math:`\mathbf{r}_p` of :math:`\mathbf{R}`. The donor
+    weights are the point of least :math:`\mathbf{V}`-norm in the convex hull of
+    the discrepancies -- Wolfe's (1976) problem, which an active set over the
+    donors solves exactly and in finitely many steps. And :math:`\mathbf{G}` is
+    linear in :math:`\mathbf{V}`, so the :math:`P` rank-one pieces
+    :math:`\mathbf{r}_p \mathbf{r}_p^\top` are formed once and a whole
+    generation of candidates is one matrix product away, after which the active
+    set certifies the entire generation in a handful of batched linear solves.
+    The data itself never enters the search loop.
+
+    How long the search runs is set by ``mscmt_tol``, which ends it once the
+    population's spread in pre-treatment MSPE falls below that fraction of its
+    mean. This is a statement about how precisely you want the estimate, so the
+    default is calibrated to what the estimate does. On the Basque
+    specification below the donor weights are within :math:`10^{-5}` of their
+    final position by generation 93, and the next 120 generations move them by
+    :math:`10^{-8}` -- past the last digit the weights are reported or
+    cross-validated at. The default stops around generation 100, within about
+    :math:`5 \times 10^{-6}` of an exhaustive search on both the weights and the
+    ATT. Tighten it to spend the budget on digits below that. A fit on the
+    Basque specification takes about half a second; the in-space placebo
+    multiplies that by the donor count.
+
 ``"malo"``
     Malo et al. (2024): a staged corner search. Fast and exact when the
     optimum is a predictor corner -- but when a *lagged outcome*
@@ -417,7 +450,8 @@ Several inference modes are available via ``inference=``:
 Each mode returns one kind of output, and the fit always tells you which.
 ``"placebo"``, ``"lto"`` and ``"ttest"`` are tests: they return a p-value (the
 t-test also returns an ATT confidence interval). ``"conformal"``,
-``"conformal_split"``, ``"scpi"``, ``"eiv"`` and ``"jackknife_plus"`` are
+``"conformal_split"``, ``"conformal_cumulative"``, ``"scpi"``, ``"eiv"`` and
+``"jackknife_plus"`` are
 prediction intervals: they
 return the per-period counterfactual
 bands on ``res.time_series`` (``counterfactual_lower`` / ``counterfactual_upper``)
@@ -443,6 +477,22 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     History check (:doc:`truncated_history`), which re-fits this estimator on
     truncated pre-treatment windows to see whether the effect is robust to how
     far back the fit reaches.
+
+    Without covariates the :math:`N_0` refits are solved together. Each one fits
+    a column of the donor matrix from the remaining columns, so the family is
+    carried by a single :math:`\mathbf{Y}_0^\top \mathbf{Y}_0`: deleting a donor
+    deletes a row and a column of it, and each target is itself a column, so no
+    product with the data is needed per refit. On a 38-donor, 19-period panel the
+    call runs in 0.025s against 0.205s, and on a 119-donor pool in 0.137s against
+    5.6s.
+
+    The p-value is a rank, so the refits have to come back where they were and
+    not merely optimal. Two exact solvers can differ on a refit whose minimiser
+    is a face -- the same fit, other weights -- so each is checked with
+    :func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` and any that
+    is not settled is re-solved with the solver the loop used. Refits that are
+    not a plain simplex fit keep the loop: covariate matching, and the ridge
+    layer of Augmented SCM.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
@@ -470,6 +520,67 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
     :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
+
+    Which control is refit under the null follows the estimator, and is reported
+    in ``res.inference.details["refit"]``. A plain synthetic control is refit as
+    one (``"sc"``, the rule the procedure was published on and the one the
+    authors' ``scinference`` package uses); with ``augment="ridge"`` the
+    ridge-augmented control is refit instead, matching ``augsynth``. The
+    distinction is not cosmetic. Refitting an unconstrained control under the
+    null lets it absorb the effect by re-levelling the series, and the level it
+    adds lands in the pre-treatment residuals the test calibrates against, so
+    both sides of the comparison grow together and the :math:`p`-value stops
+    responding to the effect size. Convex weights cannot do that, which is what
+    leaves the effect where the test can see it. Against ``scinference`` on the
+    Swedish carbon tax panel, the simplex refit returns the authors' 0.391 under
+    the null and :math:`1/T = 0.0217` for any injected effect from 1 upward.
+
+    ``conformal_type`` picks the permutation scheme: ``"iid"`` (the default)
+    draws random permutations of the residual path and assumes the errors are
+    exchangeable, while ``"block"`` uses the :math:`T` cyclic shifts, preserving
+    serial dependence. ``"block"`` is ``scinference``'s default and the one to
+    prefer on a panel with persistent errors; being a set of :math:`T` shifts,
+    one of which is the observed path, its :math:`p`-value cannot fall below
+    :math:`1/T`, and at :math:`\alpha < 1/T` it never rejects.
+
+    ``conformal_n_perm`` sets the draw count behind an ``"iid"`` :math:`p`-value
+    (``scinference`` draws 5000; the default reuses ``scpi_sims``, which is 200,
+    and at 200 the Monte-Carlo error on a :math:`p`-value near 0.02 is about
+    half its own size). ``"block"`` enumerates its reference set and draws
+    nothing, so the setting does not reach it. ``conformal_finite_sample``
+    switches the :math:`p`-value to
+    :math:`(1 + \#\{S \geq S_{\mathrm{obs}}\}) / (1 + B)`, which is
+    ``scinference``'s form for iid permutations and the one valid in finite
+    samples: :math:`B` draws cannot evidence a :math:`p`-value below
+    :math:`1/(B+1)`, which the plain mean reports as zero. The plain mean stays
+    the default because it is ``augsynth``'s, and the ASCM cases reproduce it.
+
+    ``conformal_grid`` supplies the candidate effects the per-period inversion
+    sweeps, ``scinference``'s ``ci_grid``. The interval's endpoints are grid
+    points, so the grid is the resolution of the answer; the automatic grid,
+    built per period from the panel's own noise scale, is the default because it
+    adapts where a fixed grid cannot, and a shared grid is what makes a
+    comparison against another implementation value-for-value.
+
+    A candidate is kept when :math:`p > \alpha`, so a candidate whose
+    :math:`p`-value equals :math:`\alpha` exactly is rejected and lies outside
+    the interval. For a continuous statistic that boundary is a technicality. A
+    conformal :math:`p`-value is discrete -- its reference set has
+    :math:`T_0 + 1` members for a single-period inversion -- so it takes only the
+    values :math:`k/(T_0+1)`, and whenever :math:`\alpha` is one of them the
+    boundary carries a whole level of the reference set. On the authors' own
+    application (:math:`T_0 + 1 = 20`, :math:`\alpha = 0.1`) the inclusive
+    reading widens every per-period interval by 15 to 40 percent; on the Swedish
+    carbon tax panel (:math:`T_0 + 1 = 31`) the two readings coincide. See
+    :func:`mlsynth.utils.conformal.inversion.confidence_set_bounds`.
+
+    Verification: the whole procedure is cross-validated against the authors'
+    own ``scinference`` on the panel their paper uses as its application, in
+    :doc:`replications/cwz_conformal` (durable case
+    `benchmarks/cases/cwz_conformal.py
+    <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cwz_conformal.py>`__).
+    The moving-block :math:`p`-value, all six pointwise intervals on the paper's
+    grid, and the three placebo specification tests reproduce exactly.
 
 ``"jackknife_plus"`` -- jackknife+ over pre-treatment periods (Ben-Michael, Feller & Rothstein 2021)
     ``augsynth``'s ``inf_type = "jackknife+"``, and only defined for the
@@ -685,6 +796,99 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     tallies. It shares the placebo test's assumptions but is far more powerful
     in small donor pools. See *The leave-two-out refined placebo test* and the
     two theory subsections below for the full treatment.
+
+``"conformal_cumulative"`` -- band for the cumulative (total) effect
+    The other modes report the effect period by period, or its average. This one
+    reports the interval for the *sum* over the post-period -- the total the
+    intervention added -- which is often the figure a decision rests on.
+
+    A confidence interval for a running total is not the running total of the
+    per-period intervals. Adding the endpoints up assumes the weekly errors move
+    in lockstep, so the width grows with the number of periods, not with
+    its square root; rescaling one period's interval by the horizon assumes the
+    opposite. Which is right depends on how the errors accumulate, so this mode
+    measures that directly: it slides an origin across the pre-period, refits the
+    control on the data strictly before each origin, and reads the *summed* error
+    over the next ``conformal_horizon`` periods. Those sums are conformity scores
+    for exactly the quantity being reported, and the half-width is the
+    :math:`\lceil (m+1)(1-\alpha) \rceil`-th order statistic of the centred
+    scores -- the same finite-sample construction ``conformal_split`` uses, over
+    blocks instead of single periods.
+
+    Because each refit sees only data before the window it scores, the scores
+    carry no in-sample optimism; because the origins step by a whole horizon, the
+    windows do not overlap and the scores stay exchangeable.
+
+    ``conformal_horizon`` sets the number of periods accumulated, defaulting to
+    the whole post-period. The cumulative figure and its band land in
+    ``res.inference.details`` (``cumulative_effect``, ``cumulative_lower``,
+    ``cumulative_upper``, ``conformal_q``, ``n_calibration_windows``);
+    ``res.inference.ci_lower``/``ci_upper`` carry the per-period equivalent only
+    when the horizon spans the whole post-period, since a shorter window is not
+    the ATT.
+
+    What it costs is pre-period. Non-overlapping windows of length :math:`L` are
+    scarce: a :math:`1-\alpha` band needs at least :math:`\lceil 1/\alpha
+    \rceil - 1` of them, so roughly :math:`T_0 \gtrsim L / (\alpha\,(1 -
+    \texttt{min\_train\_frac}))`. At :math:`\alpha = 0.1` that is about ten
+    windows: 104 pre-periods support an 8-period horizon, but not a 16-period one.
+    When the windows run out the band is ``±inf`` with a warning naming the
+    shortfall, not a narrow band that does not cover.
+
+    ``conformal_method="resample"`` spends that pre-period differently. It runs
+    the same rolling-origin pass, but keeps each window's errors period by period
+    instead of summing each window into a single score, so :math:`m` windows
+    supply :math:`m \times L` values where the order statistic had :math:`m`. The
+    half-width is then a quantile of totals accumulated from draws of those
+    values, and it is finite on pre-periods that leave the split band at
+    ``±inf``, which is the practical reason to reach for it.
+
+    The draw is a circular block bootstrap of the centred errors with each block's
+    sign flipped at random. ``conformal_block`` sets the block length: ``0``, the
+    default, is the whole horizon, and ``1`` draws periods independently, which
+    understates the spread of a total whenever the period errors are positively
+    autocorrelated. ``conformal_n_sim`` sets how many paths are drawn -- they cost
+    no refits, since the refits are the calibration origins -- and
+    ``conformal_seed`` fixes the draw. What comes back is the same object with the
+    same fields; ``res.inference.method`` records which construction produced it.
+
+    The block can be at most half the calibration series, and that binds exactly
+    where the pre-period is shortest. The series is centred, so the circular sum
+    over a :math:`b`-block is minus the sum over the complementary
+    :math:`(n-b)`-block that together with it partitions the series. The two have
+    exactly equal spread, so the drawn spread is symmetric about :math:`b = n/2`:
+    past the midpoint a longer block draws a narrower total, mirroring a shorter
+    one, and at :math:`b = n` every path sums to zero and the band has no width at
+    all. Block length has stopped meaning how much serial correlation is carried,
+    so the draw raises instead of honouring it.
+
+    The band separates two terms, and the block governs only the smaller one. A
+    total over :math:`L` periods is :math:`L` times the mean error over them, so what
+    sizes it is each calibration window's own level, not the fluctuation about that
+    level. Each drawn path therefore takes one window's level, held across the whole
+    horizon, plus blocks of the within-window residuals. Because those residuals sum
+    to zero inside every window, the zero-sum constraint above binds at the window
+    length: the block is capped at :math:`L/2` and its spread corrected against
+    :math:`L`. Two windows are needed before a level can be identified at all --
+    a single window's deviation from its own mean is zero by construction -- and
+    ``conformal_horizon`` is what buys them, since :math:`m` is how many
+    non-overlapping horizons the pre-period holds.
+
+    The level is shrunk against a noise floor before it is drawn from, since the
+    window means scatter even when every window shares a level; :doc:`pda` gives the
+    estimator. Measured on panels built from real weekly market data, with a treated
+    unit the donors can reproduce, separating the two and shrinking it moves the
+    realised coverage of the total from 0.85 to 0.94 against a nominal 0.95.
+
+    The construction is Andrew Wheeler's ``LassoSynth`` band, generalised from a
+    period to a block and split by window. :doc:`pda` develops it in full, including
+    the
+    :math:`L\gamma_0 + 2\sum_{k} (L-k)\gamma_k` variance of an :math:`L`-period
+    total that the block length is there to carry, and the reference-implementation
+    benchmark that pins the two constructions against each other.
+
+    Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`,
+    :func:`mlsynth.utils.conformal.resample_cumulative_paths_from_weights`.
 
 ``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
     A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic
@@ -1136,11 +1340,324 @@ assignment assumption is where care is needed.
   :math:`\alpha`. In the paper, Prop 99 tolerates :math:`\Gamma \approx 1.4`
   (robust) while German reunification flips at only :math:`\Gamma \approx 1.1`
   (fragile). The weighted p-value and :math:`\Gamma` search require solving a
-  non-convex (NP-hard) quadratic program and are not yet implemented in
+  non-convex (NP-hard) quadratic program and are not implemented in
   ``VanillaSC``; the uniform-assignment naive/powered p-values are.
 
+  A cheaper form of the same question is available through
+  ``inference="placebo_cs"``. Firpo and Possebom (2018) reweight the rank
+  p-value by :math:`\pi \propto \exp(\phi v)`, where :math:`v` is a 0/1 vector
+  the analyst declares, naming the units the design might have favoured.
+  Sweeping :math:`\phi` upward and watching where the confidence set first
+  admits zero answers "how far from uniform assignment does the conclusion
+  survive" without any optimisation: the direction is declared instead of
+  searched over, so the answer is a worst case *within that direction* and not
+  over the whole :math:`\Gamma` ball. It is the weaker statement, and it costs a
+  sweep instead of a non-convex program.
+
+Confidence sets by inverting the placebo test
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The placebo test above answers one hypothesis: that the effect is zero.
+``inference="placebo_cs"`` inverts it over a one-parameter family of effect
+paths and reports the parameters the test does not reject, which is a
+confidence set for the path. Set ``placebo_cs_class`` to ``"constant"`` (a flat
+post-treatment effect) or ``"linear"`` (the parameter is then the per-period
+slope).
+
+The candidate effect is imposed across the whole panel before any statistic is
+recomputed. For each placebo unit the path is added to its own outcome and
+subtracted from the treated unit's column inside its donor pool, because under
+a non-zero null the treated unit's observed series is not its untreated one and
+every donor pool containing it is wrong by exactly that path. Taking quantiles
+of a placebo distribution computed once at zero is a different object: the
+post/pre RMSPE ratio does not stay fixed as the null moves.
+
+That correction acts only on units whose synthetic control borrows from the
+treated one, and it shifts their gaps by exactly :math:`\text{path} \times w`.
+On Proposition 99 it moves eight of thirty-nine statistics, by up to two orders
+of magnitude, and moves the p-value at none of the candidates tried: the
+p-value is a rank comparison against the treated unit, none of the eight
+crosses it, and with 39 units the statistic only takes multiples of about
+:math:`1/39`. The mechanism and the p-value are separate claims.
+
+The search reports what it cannot do. A level at which the point estimate
+itself is rejected has an empty set; a level at which nothing is ever rejected
+has an unbounded one. Both raise inside the routine and both surface as an
+``InferenceResults`` carrying ``unavailable_reason`` plus a warning, so an
+unusable level does not take the fit down.
+
+``placebo_cs_precision`` is a resolution, not a taste. The search walks outward
+from the point estimate halving its step, so it approaches each bound from
+inside the set and an under-set precision reports a set that is too narrow and
+under-covers. On Proposition 99 the linear set is 3.607 wide at ``precision=4``
+and 3.718 at 30; the default of 20 is converged to about 1e-5. The authors
+suggest 20 to 30.
+
+.. code-block:: python
+
+   res = VanillaSC({
+       "df": df, "outcome": "cigsale", "treat": "treat",
+       "unitid": "state", "time": "year",
+       "inference": "placebo_cs", "alpha": 4 / 39,
+       "placebo_cs_class": "linear",
+       "placebo_cs_sweep": [0.0, 0.5, 1.0],
+   }).fit()
+
+   res.inference.ci_lower, res.inference.ci_upper
+   res.inference.details["breakdown_phi"]     # where the sign is lost
+
+On Proposition 99 this gives a linear-slope set excluding zero, and a sweep
+showing the sign absorbing a tilt of :math:`\phi = 0.5` toward California and
+losing it at :math:`\phi = 1.0`.
+
+*The set depends on the weights.* They are an input to the procedure, not part
+of it, so two implementations that invert identically still report different
+bounds if they fit the donors differently. mlsynth's bilevel backends reach a
+better optimum than R ``Synth``'s predictor weighting does, as
+``benchmarks/cases/malo_prop99.py`` documents, and the bounds above are for the
+weights the chosen backend produces.
+
+Handing the inversion the authors' own weights closes the comparison.
+``benchmarks/reference/fp_confidence_sets/reference_authors.R`` is Firpo and
+Possebom's California script: ``Synth`` fits all thirty-nine placebo units under
+their predictor specification, and ``SCM.CS`` inverts on the result. On those
+inputs mlsynth agrees with the authors' code to 7.1e-15 across every
+configuration, and refuses on the same one:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 22 22 21
+
+   * - class
+     - :math:`\phi`
+     - authors' ``SCM.CS``
+     - mlsynth
+     - deviation
+   * - constant
+     - 0
+     - :math:`[-27.881, -9.588]`
+     - :math:`[-27.881, -9.588]`
+     - 7.1e-15
+   * - linear
+     - 0
+     - :math:`[-3.984, -1.239]`
+     - :math:`[-3.984, -1.239]`
+     - 3.1e-15
+   * - linear
+     - 0.5
+     - :math:`[-4.140, -1.079]`
+     - :math:`[-4.140, -1.079]`
+     - 2.4e-15
+   * - linear
+     - 1.0
+     - :math:`[-4.322, -0.902]`
+     - :math:`[-4.322, -0.902]`
+     - 2.2e-15
+   * - linear
+     - 2.0
+     - search fails
+     - raises
+     - --
+
+The sensitivity verdict is the part that moves with the weights. Under the
+authors' specification the sign survives a tilt of :math:`\phi = 1.0`; on
+mlsynth's outcome-only fit it is lost there. Both are the same procedure
+applied to different donor fits, and a sweep reported without the weights it
+was computed on says less than it appears to.
+
+Is it calibrated
+^^^^^^^^^^^^^^^^
+
+The test is exact by the randomization argument, and Firpo and Possebom's
+Monte Carlo (their Table 1, column 1) confirms it: all five permutation
+statistics come in at a size of 0.10 against a nominal 0.10. Three conditions
+carry that exactness to the confidence set, and each can fail on real data.
+
+1. Assignment is exchangeable across the :math:`J+1` units. This is what
+   :math:`\phi` exists to relax, and the breakdown :math:`\phi` reports how far
+   it can fail before the conclusion turns over.
+2. The true effect path lies in the class being inverted. Outside it, the test
+   is answering a different question and coverage does not transfer.
+3. The level is attainable. A rank p-value over :math:`J+1` units lives on
+   multiples of :math:`1/(J+1)`, so only :math:`\alpha \in \{1/(J+1),
+   2/(J+1), \ldots\}` are exact. Proposition 99 uses :math:`4/39 \approx
+   0.1026`, not 0.10.
+
+A fourth condition is not the paper's and belongs to any implementation of the
+search. The reported interval is the connected component of :math:`\{c : p(c)
+> \alpha\}` containing the point estimate, and the point estimate is not
+guaranteed to survive the test. Running the paper's own design (equations 21 and
+22, :math:`J+1 = 20`, :math:`T = 25`, :math:`T_0 = 15`, 250 replications at
+:math:`\alpha = 2/20`) separates the two:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 25 15
+
+   * - test accepts the truth
+     - accepts the point estimate
+     - search returns
+     - n
+   * - yes
+     - yes
+     - the interval, covering
+     - 221
+   * - no
+     - no
+     - empty
+     - 17
+   * - no
+     - yes
+     - the interval, excluding
+     - 1
+   * - yes
+     - no
+     - empty
+     - 11
+
+The test rejects the true parameter in 18 of 250, a size of 0.072 against a
+nominal 0.10. Every one of the remaining 11 misses is the last row: the search
+starts at a rejected point, so it reports an empty set even though the test
+accepts the truth. Raising ``placebo_cs_precision`` from 8 to 40 does not move
+this, which rules the resolution out as the cause.
+
+Two things follow for reading output. An empty set means the search had nowhere
+to start, not that no parameter survives the test. And an unavailable set is not
+a neutral outcome to discard: treating it as "no information" discards the
+replications where the procedure missed, and the measured coverage rises from
+0.884 to near one.
+
+Restricting the placebo pool to donors with good pre-treatment fit, a common
+convention, breaks the exactness in the other direction. The paper's Table 2
+(pre-treatment MSPE at most five times the treated unit's) puts
+:math:`\hat\theta_1` at 0.13 and :math:`\hat\theta_2`, :math:`\hat\theta_3`
+at 0.06 against a nominal 0.10. ``placebo_cs`` does no such filtering.
+
+Reading the set on other scales
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``ci_lower`` and ``ci_upper`` are on the parameter's own scale: a level for the
+constant class, a per-period slope for the linear one. A slope is awkward to
+report, so the result also carries the set as a cumulative and as an average
+effect:
+
+.. code-block:: python
+
+   d = res.inference.details
+   d["cumulative_lower"], d["cumulative_upper"]   # total post-treatment effect
+   d["att_lower"], d["att_upper"]                 # per-period average
+
+These cost nothing and give up no coverage. Within a one-parameter family the
+total effect is a strictly increasing function of the parameter -- :math:`cK`
+for the constant class and :math:`\tilde c K(K+1)/2` for the linear one, over
+:math:`K` post-treatment periods -- and the average is that divided by
+:math:`K`. Test inversion commutes with a strictly increasing reparametrisation,
+so the image of the set is the set you would get by inverting on the new scale,
+at the same level. Both are the drawn effect path summed, which is why they
+agree with the figure.
+
+On Proposition 99, with twelve post-treatment periods, the linear set
+:math:`[-4.50, -0.78]` packs per capita per year becomes a cumulative
+:math:`[-350.8, -61.0]` packs per capita over 1989--2000 and an average
+:math:`[-29.2, -5.1]` per year, which is on the same scale as the reported
+``effects.att``. Under the authors' own weights the same set is
+:math:`[-3.98, -1.24]`, a cumulative :math:`[-310.7, -96.6]`.
+
+``placebo_cs_horizon`` accumulates only the first :math:`L` post-treatment
+periods, which is what makes the set comparable with a cumulative conformal band
+over the same window::
+
+   res = VanillaSC({..., "inference": "placebo_cs",
+                    "placebo_cs_horizon": 10}).fit()
+   res.inference.details["cumulative_lower"], res.inference.details["horizon"]
+
+The two answer different questions and rest on different exchangeability
+assumptions, so they can disagree. On GeoLift's own daily test panel -- forty
+metro markets, 105 days, Chicago treated, a ten-day campaign -- both report a
+point estimate of :math:`-2211` incremental units, and at
+:math:`\alpha = 0.10`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 28 20 18
+
+   * - interval
+     - over the same ten days
+     - width
+     - excludes zero
+   * - ``conformal_cumulative``, split
+     - :math:`(-\infty, \infty)`
+     - --
+     - no
+   * - ``conformal_cumulative``, resample
+     - :math:`[-3221, -1201]`
+     - 2020
+     - yes
+   * - ``placebo_cs``, constant
+     - :math:`[-9397, 4975]`
+     - 14372
+     - no
+
+The split band is infinite because ninety-five pre-period days hold only six
+non-overlapping ten-day windows, and a 90% band needs the seventh of six order
+statistics. That is the construction saying it cannot do the job at this level,
+and it is the same arithmetic that governs PPSCM's per-unit band. The resample
+band spends the same windows period by period, so it draws on sixty residuals
+where the order statistic had six. The inverted set uses neither: its reference
+distribution is the thirty-nine other markets.
+
+The coverage statement travels with the family. This covers the total effect of
+every path the test does not reject within the class, so it is a statement about
+the cumulative effect given that the true path is constant, or linear, in time.
+It is not a family-free interval for :math:`\sum_t \tau_t`. The paper defines
+the general set over all of :math:`\mathbb{R}^{T}` (its equation 14) and calls
+estimating it computationally infeasible; two-parameter families are
+straightforward and expensive, and the implemented classes are the one-parameter
+ones.
+
+Drawing the set
+^^^^^^^^^^^^^^^
+
+``mlsynth.utils.vanillasc_helpers.placebo_cs_plotter`` renders the two things
+the inversion produces. Both functions take the fitted result, and both return
+their ``Figure`` without displaying or saving it:
+
+.. code-block:: python
+
+   from mlsynth.utils.vanillasc_helpers.placebo_cs_plotter import (
+       plot_confidence_set, plot_sensitivity)
+
+   fig = plot_confidence_set(res)     # the gap, with the set shaded around it
+   fig.savefig("cs.png")
+
+   fig = plot_sensitivity(res)        # the swept bounds against the tilt
+                                      # (needs placebo_cs_sweep)
+
+``plot_confidence_set`` is the figure the authors' own ``SCM.CS`` draws when
+called with ``plot = TRUE``. The shaded region is the pair of effect paths the
+bounds generate, so it closes to zero width over the pre-period, where every
+candidate path is zero, and opens after treatment: flat at the bound for the
+constant class, a fan at the bound's slope for the linear one.
+
+That band is a set of paths, not a per-period interval on the gap, and the two
+are different objects. The estimated gap can sit outside it -- on Proposition 99
+it does in 1989 and 1990, two of the twelve post-treatment periods -- because
+the set collects the parameters of the family the test does not reject, and no
+member of a one-parameter family is obliged to track a noisy trajectory year by
+year. For a band the realised gap is meant to fall inside, use ``inference="scpi"``
+or ``"conformal"``.
+
+``plot_sensitivity`` puts one bar per tilt against a zero line, marks the
+breakdown :math:`\phi` where the set first covers zero, and marks a tilt whose
+search failed with the reason it failed, so a hole in the sweep is not read as a
+hole in the evidence.
+
+Both accept the objects the helper returns directly, for a call that did not go
+through ``fit()``: ``plot_confidence_set(cs, gap)`` on what ``confidence_set``
+returned, and ``plot_sensitivity(rows)`` on what ``sensitivity_sweep`` returned.
+
 Choosing among placebo, LTO, and SCPI
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * Prefer LTO over the ordinary placebo whenever the donor pool is small --
   especially in the :math:`\alpha < 1/N` regime (e.g. :math:`N \le 20` at
@@ -1170,6 +1687,15 @@ Madrid :math:`\approx 0.2`, ATT :math:`\approx -0.68`). See the dedicated
 replication page, :doc:`replications/vanillasc`, for the full datasets, code and
 donor-weight tables. These are locked as regression tests in
 ``mlsynth/tests/test_vanillasc_replications.py``.
+
+A daily, noisier study checks the same machinery outside the annual panels:
+Yoneoka et al. (2022) estimate the effect of the Tokyo 2020 Olympics on
+COVID-19 incidence in Japan, from 42 donor countries and 34 predictors. The
+paper's cumulative figures reproduce to the digit (143,072 observed against
+89,210 counterfactual) and its placebo p-value exactly, at a six-fold better
+pre-treatment fit than the reference. Its donor weights do not reproduce, in
+either implementation, and :doc:`replications/vanillasc_olympics` sets out what
+that does and does not change (``benchmarks/cases/vanillasc_olympics.py``).
 
 A fourth, more demanding check runs the estimator over a staggered,
 per-unit-donor-pool design: Lamba et al. (2023) fit one synthetic control
@@ -1526,6 +2052,20 @@ in ``mlsynth/tests/test_vanillasc_ascm.py::test_augsynth_kansas_ladder_public_ap
 vs augsynth) and ``augsynth_calibrated`` (Path B), locked in
 ``mlsynth/tests/test_bilevel_ridge.py``.
 
+Two further applications are cross-validated against the same package on panels
+of a different shape -- Proposition 99 and the Texas prison study from
+Cunningham's Mixtape -- and they are paired because the augmentation behaves
+oppositely on them. On Proposition 99 it halves the pre-treatment error; on
+Texas, where only 8 pre-periods are available, the cross-validation selects a
+penalty of :math:`1.7\times 10^{10}` and the fit reverts to plain SCM. See the
+dedicated page :doc:`replications/ascm_mixtape`; durable case ``ascm_mixtape``.
+
+The solver underneath the covariate backends is validated on its own terms by
+`mscmt_solver <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/mscmt_solver.py>`__,
+which checks the batched active set against cvxpy's interior-point solver on the
+Basque predictor weightings, pins its work as iteration counts, and records what
+the default ``mscmt_tol`` costs the estimate against an exhaustive search.
+
 Core API
 --------
 
@@ -1747,3 +2287,6 @@ Refined Placebo Tests." *arXiv:2401.07152*.
 Malo, P., Eskelinen, J., Zhou, X., & Kuosmanen, T. (2024). "Computing
 Synthetic Controls Using Bilevel Optimization." *Computational Economics*
 64:1113-1136.
+
+Wolfe, P. (1976). "Finding the Nearest Point in a Polytope."
+*Mathematical Programming* 11:128-149.

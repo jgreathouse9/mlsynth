@@ -44,7 +44,7 @@ def unit_rescale_factors(
             "DTWSC: rescaling needs at least one pre-treatment period; none "
             f"of the panel's {time} values are <= {last_pre_period}."
         )
-    ranges = pre.groupby(unitid)[outcome].agg(["min", "max"])
+    ranges = pre.groupby(unitid, observed=True)[outcome].agg(["min", "max"])
     spans = ranges["max"] - ranges["min"]
     mean_span = float(spans.mean())
     factors = {}

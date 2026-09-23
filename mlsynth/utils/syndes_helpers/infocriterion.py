@@ -42,7 +42,7 @@ def _control_weights(design: Any) -> Optional[np.ndarray]:
     """Aggregate ``(N,)`` control-side weights for any SYNDES design mode.
 
     Mirrors the contrast bookkeeping in the estimator: the two-way / equal-weight
-    / annealed modes store the control simplex in ``control_weights`` directly,
+    modes store the control simplex in ``control_weights`` directly,
     whereas ``per_unit`` leaves it ``None`` and keeps the per-treated-unit
     synthetic controls in the ``(K, N)`` ``treated_weights`` matrix, whose column
     sum is the aggregate control side.

@@ -1,19 +1,37 @@
 """Public dispatcher for the Iterative ("waterfall") SCM (Melnychuk 2024).
 
-Pipeline (a faithful port of Melnychuk's ``runIterativeSCM`` /
-``runIterativeSCMwithCov``):
+Pipeline (a port of Melnychuk's ``runIterativeSCM`` /
+``runIterativeSCMwithCov`` in waterfall mode):
 
 1. **Clean** each spillover-affected control in turn. A synthetic control is
    built for the affected unit from the *clean* controls plus any
    already-cleaned affected units (the treated unit and not-yet-cleaned affected
-   units are excluded). The affected unit's **post-treatment** outcomes are
-   replaced by this spillover-free synthetic; its pre-treatment outcomes are
-   kept (``replacePreTreatData = FALSE``). In waterfall mode each cleaning step
-   may reuse the donors cleaned before it.
+   units are excluded). The affected unit's outcomes are replaced by this
+   spillover-free synthetic. In waterfall mode each cleaning step may reuse the
+   donors cleaned before it.
 2. **Refit** the treated unit's synthetic control on the cleaned donor pool, so
-   the affected donors no longer carry the treatment's spillover. Because the
-   pre-period outcomes are untouched, the refit weights equal the naive ones --
-   the correction enters only through the cleaned post-period counterfactual.
+   the affected donors no longer carry the treatment's spillover.
+
+``replace_pre`` is Melnychuk's ``replacePreTreatData``, and it decides how much
+of the affected donor's series step 1 overwrites. The two settings are
+different estimators, so the choice is not cosmetic:
+
+``False`` (the default)
+    Only the post-treatment outcomes are replaced. The treated unit's fitting
+    data is bit-identical to the naive fit's, so the refit returns the naive
+    weights and the correction reaches the estimate only through the cleaned
+    post-period counterfactual.
+``True``
+    The whole series is replaced. The cleaned donor's pre-period is then an
+    exact convex combination of the pool it was built from, so the refit has no
+    reason to load on it and the weights move -- on German reunification
+    (outcome-only) Austria's weight goes 0.46 to 0.00 and the ATT moves by
+    ~320 USD.
+
+The reference's function signature defaults to ``FALSE``, but its call sites --
+``runAllMethods`` and ``runAllMethodsWithCov``, which produce the paper's tables
+-- pass ``TRUE``. The default here stays ``False`` for backward compatibility;
+set ``iterative_replace_pre=True`` to reproduce the published configuration.
 
 The per-unit SCM backend is the caller's choice: outcome-only (optionally
 demeaned-with-intercept) or covariate matching through the FSCM/MASC bilevel
@@ -25,12 +43,14 @@ from __future__ import annotations
 
 import numpy as np
 
+from ....exceptions import MlsynthDataError
 from ..structures import IterativeFit, SpillSynthInputs
 from ..iscm.weights import build_unit_sc
 
 
 def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
-                  bias_correct: bool = False, intercept: bool = False) -> IterativeFit:
+                  bias_correct: bool = False, intercept: bool = False,
+                  replace_pre: bool = False) -> IterativeFit:
     """Run the Iterative ("waterfall") SCM and assemble an :class:`IterativeFit`.
 
     Parameters
@@ -45,6 +65,10 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         mode only).
     intercept : bool
         Use the demeaned simplex SCM with a level shift (outcome-only mode).
+    replace_pre : bool
+        Melnychuk's ``replacePreTreatData``. False replaces each affected
+        donor's post-treatment outcomes only; True replaces its whole series,
+        which is what the reference's call sites do. See the module docstring.
     """
     Y = np.array(inputs.Y, dtype=float)               # working copy (N, T)
     Y_orig = inputs.Y
@@ -59,20 +83,36 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
     clean = list(range(p + 1, N))
     cleaned: list = []
     spillover_panel: dict = {}
+    spillover_panel_pre: dict = {}
     spillover_att: dict = {}
 
-    # --- waterfall: clean each affected control's post-treatment outcomes ----
+    # The waterfall bootstraps off units that carry no spillover: the first
+    # affected donor can only be cleaned against the clean controls, and every
+    # later one against those plus the donors already cleaned. With no clean
+    # control there is no first step, and proceeding would fit an affected
+    # donor against another affected donor's contaminated outcomes.
+    if affected and not clean:
+        raise MlsynthDataError(
+            "SPILLSYNTH method='iterative': every control is declared "
+            f"affected ({len(affected)} of {N - 1}), so there is no clean "
+            "control to build the spillover-free synthetics from. Leave at "
+            "least one control out of affected_units, or use method='cd', "
+            "which imposes a spillover structure instead of needing a clean "
+            "pool."
+        )
+
+    # --- waterfall: clean each affected control's outcomes ------------------
     for i in affected:
         donors = np.array(sorted(clean + cleaned))
-        if donors.size == 0:                          # nothing clean to learn from
-            cleaned.append(i)
-            continue
         _, cf, _, _, _ = build_unit_sc(
             i, donors, Y, T0, predictors=P, predictor_names=pnames,
             solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept)
         spillover_panel[names[i]] = cf[T0:]
         spillover_att[names[i]] = float(np.mean(Y_orig[i, T0:] - cf[T0:]))
-        Y[i, T0:] = cf[T0:]                           # replace post (keep pre)
+        Y[i, T0:] = cf[T0:]
+        if replace_pre:                               # replacePreTreatData=TRUE
+            spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
+            Y[i, :T0] = cf[:T0]
         cleaned.append(i)
 
     # --- refit the treated unit on the cleaned pool -------------------------
@@ -81,8 +121,10 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         0, donors_final, Y, T0, predictors=P, predictor_names=pnames,
         solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept)
 
-    # The pre-period is untouched, so the weights equal the naive ones; the
-    # naive counterfactual reuses them on the original (contaminated) outcomes.
+    # The naive counterfactual reuses the refit weights on the original
+    # (contaminated) outcomes. Without replace_pre the treated unit's fitting
+    # data never changed, so those weights *are* the naive ones and the two
+    # pre-period fits coincide; with it they separate.
     cf_naive = Y_orig[donors_final].T @ w_f
     if intercept and P is None:                       # add back the level shift
         mu1 = Y_orig[0, :T0].mean()
@@ -101,11 +143,14 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         counterfactual=cf_f[T0:],
         counterfactual_scm=cf_naive[T0:],
         spillover_panel=spillover_panel,
+        spillover_panel_pre=spillover_panel_pre,
         spillover_att=spillover_att,
         donor_weights=donor_weights,
         cleaned_units=[names[i] for i in affected],
         n_clean=len(clean),
         pre_rmspe=float(pre_rmspe),
         treated_synthetic_pre=np.asarray(cf_f[:T0]),
+        naive_synthetic_pre=np.asarray(cf_naive[:T0]),
+        replace_pre=replace_pre,
         bilevel_solver=solver_label,
     )

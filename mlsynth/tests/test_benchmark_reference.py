@@ -62,6 +62,16 @@ class TestCIRunsWhenTheSuiteCanBreak:
         assert blocks, "could not locate any paths-filter block in build.yml"
         return [set(re.findall(r"-\s*'([^']+)'", b)) for b in blocks]
 
+    def test_a_benchmarks_workflow_edit_still_runs_the_unit_tests(self):
+        """benchmarks.yml gates its shards on its own filter, so a change to it
+        skips them. The invariants that gate rests on -- the shard count, which
+        jobs a pull request may run -- are asserted in
+        benchmarks/tests/test_workflow_sharding.py, which runs here. Without this
+        entry a pull request touching only benchmarks.yml would skip both, and
+        nothing would check it at all."""
+        for block in self._filter_blocks():
+            assert ".github/workflows/benchmarks.yml" in block
+
     def test_the_workflow_still_has_the_two_filter_copies(self):
         """If a copy is added or removed, re-read the test below before trusting it."""
         assert len(self._filter_blocks()) == 2
@@ -252,6 +262,32 @@ def test_comparison_csv_is_self_consistent():
             assert rf == pytest.approx(ref["weights"].get(donor, 0.0), abs=1e-6)
         elif r["quantity"] == "pre_period_SSR":
             assert rf == pytest.approx(ref["values"]["synth_pre_ssr"], abs=1e-6)
+
+
+class TestTheSbcMonteCarloPanelsAreCommitted:
+    """``sbc_mc`` estimates on R-drawn panels, and they ship with the repo.
+
+    The panels are captured from the authors' own DGP (``reference.R``, base R)
+    so that the simulator sits on the reference side of the comparison. That
+    only holds while the case can find them: a broken path would make the case
+    fall back to a skip, and ``--all`` reports a skip as success. Same failure
+    mode the Brabander cases hit below, asserted the same way.
+    """
+
+    def test_the_panels_are_reachable_from_the_case(self):
+        from benchmarks import registry
+        from benchmarks.cases.sbc_mc import PANELS
+
+        assert os.path.exists(PANELS), (
+            f"sbc_mc reads committed panels that are not where it looks for "
+            f"them ({PANELS}); the case would skip, not fail.")
+        assert "sbc_mc" in registry.CASES
+
+    def test_the_capture_script_ships_with_the_panels(self):
+        """A fixture nobody can regenerate is a number with no provenance."""
+        bundle = _ROOT / "benchmarks" / "reference" / "sbc_mc"
+        assert (bundle / "reference.R").exists()
+        assert (bundle / "versions.txt").exists()
 
 
 class TestTheBrabanderCasesActuallyRun:

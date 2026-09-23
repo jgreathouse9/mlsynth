@@ -217,12 +217,6 @@ class TestSYNDESHoldoutConfig:
             SYNDES({"df": df, **self._BASE, "mode": "two_way_global",
                     "holdout_frac": 0.3, "top_K": 1})
 
-    def test_rejects_annealed_mode(self):
-        df = _panel()
-        with pytest.raises(MlsynthConfigError):
-            SYNDES({"df": df, **self._BASE, "mode": "two_way_global_annealed",
-                    "holdout_frac": 0.3, "top_K": 4})
-
     @pytest.mark.parametrize("bad", [0.0, 1.0, 1.5, -0.2])
     def test_rejects_out_of_range_frac(self, bad):
         df = _panel()

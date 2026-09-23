@@ -195,13 +195,25 @@ def test_mscmt_canonical_v_preserves_donor_weights():
 def test_mscmt_canonical_v_reduces_predictor_weight_spread():
     # Across seeds the raw optimiser V wobbles in the non-identified null space;
     # the canonical V should be markedly more stable.
-    prob = _problem(seed=8)
+    #
+    # The precondition below is part of the test. Canonicalisation only replaces
+    # the optimiser's V when the canonical vector certifies; where it does not,
+    # the reported V *is* the raw one and the comparison degenerates into raw
+    # against raw. On such a problem the inequality is decided by which member
+    # of the V polytope each seed's search happened to stop at -- differences in
+    # the fourth decimal of a quantity the data do not identify -- and it can
+    # land either way while the donor weights and the fit are identical. So
+    # assert that every seed canonicalised, then assert the reduction.
+    prob = _problem(seed=0)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        raw = np.array([solve_bilevel(prob, method="mscmt", seed=s, maxiter=60).V
-                        for s in range(4)])
-        can = np.array([solve_bilevel(prob, method="mscmt", seed=s, maxiter=60,
-                                      canonical_v=True).V for s in range(4)])
-    raw_spread = float(np.max(raw.max(0) - raw.min(0)))
-    can_spread = float(np.max(can.max(0) - can.min(0)))
-    assert can_spread <= raw_spread + 1e-9
+        raw = [solve_bilevel(prob, method="mscmt", seed=s, maxiter=60)
+               for s in range(4)]
+        can = [solve_bilevel(prob, method="mscmt", seed=s, maxiter=60,
+                             canonical_v=True) for s in range(4)]
+    assert all(c.metadata["v_method"] == "min.loss.w" for c in can)
+    raw_v = np.array([r.V for r in raw])
+    can_v = np.array([c.V for c in can])
+    raw_spread = float(np.max(raw_v.max(0) - raw_v.min(0)))
+    can_spread = float(np.max(can_v.max(0) - can_v.min(0)))
+    assert can_spread < 0.75 * raw_spread

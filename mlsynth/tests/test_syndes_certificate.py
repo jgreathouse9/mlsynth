@@ -1,10 +1,10 @@
 """Tests for the SYNDES optimality certificate (mode-aware lower bound).
 
 Contract: the returned lower bound is always valid (LB <= the design's
-objective), it is a *tight* certificate for one-way (continuous QP) and in-range
-two-way (SDP moment), and it is honestly flagged ``certified=False`` for per-unit
-and out-of-range two-way. ``certify=True`` on the estimator attaches it; the
-default leaves the result untouched.
+objective), it is a *tight* certificate for one-way (continuous QP) and two-way
+(the closed-form Rayleigh bound), and it is flagged ``certified=False`` for
+per-unit, where the only cheap bound is loose. ``certify=True`` on the estimator
+attaches it; the default leaves the result untouched.
 """
 from __future__ import annotations
 
@@ -63,11 +63,11 @@ class TestModes:
                                          _incumbent(Y, 3, "global_equal_weights"))
         assert c.certified is True and c.method == "continuous_relaxation"
 
-    def test_two_way_certified_sdp(self):
+    def test_two_way_certified_rayleigh(self):
         Y = _Y(); c = syndes_certificate(Y, 3, "global_2way",
                                          _incumbent(Y, 3, "global_2way"))
-        assert c.certified is True and c.method == "sdp_moment"
-        # SDP is tight on the two-way objective
+        assert c.certified is True and c.method == "rayleigh"
+        # the closed-form bound is tight on the two-way objective
         assert c.optimality_gap < 0.15
 
     def test_per_unit_uncertified(self):
@@ -76,13 +76,26 @@ class TestModes:
         assert c.certified is False
         assert "per-unit" in c.note
 
-    def test_two_way_size_gate_falls_back(self):
-        # N above sdp_n_max -> continuous fallback, certified=False, note explains.
-        Y = _Y(N=12); c = syndes_certificate(Y, 3, "global_2way",
-                                             _incumbent(Y, 3, "global_2way"),
-                                             sdp_n_max=5)
-        assert c.certified is False and c.method == "continuous_relaxation"
-        assert "sdp_n_max" in c.note
+    @pytest.mark.parametrize("N", [8, 12, 40])
+    def test_two_way_has_no_size_gate(self, N):
+        """The Rayleigh bound is one eigenvalue, so no N forces a fallback."""
+        Y = _Y(N=N)
+        c = syndes_certificate(Y, 3, "global_2way", _incumbent(Y, 3, "global_2way"))
+        assert c.method == "rayleigh"
+        assert c.certified is True
+        assert c.note == ""
+
+    def test_two_way_bound_is_tight_and_valid(self):
+        """What the moment lift it replaced was for: a bound close to the optimum."""
+        from mlsynth.utils.syndes_helpers.certificate import _rayleigh_bound_two_way
+        from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
+
+        Y = _Y(); K = 3
+        bound = _rayleigh_bound_two_way(Y, K, float(estimate_lambda(Y)))
+        inc = _incumbent(Y, K, "global_2way")
+        assert bound is not None
+        assert bound <= inc + 1e-9                    # a valid lower bound
+        assert bound >= 0.8 * inc                     # and a tight one
 
     def test_unknown_mode_raises(self):
         with pytest.raises(MlsynthConfigError):
@@ -112,7 +125,7 @@ class TestEstimator:
         c = res.certificate
         assert c is not None
         assert c.lower_bound <= float(res.design.objective_value) + 1e-6
-        assert c.method == "sdp_moment" and c.certified is True
+        assert c.method == "rayleigh" and c.certified is True
 
     def test_default_off_no_certificate(self):
         assert self._fit("two_way_global").certificate is None

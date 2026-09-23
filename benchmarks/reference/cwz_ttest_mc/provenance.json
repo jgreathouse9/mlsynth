@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-08-14T19:11:06Z",
+  "git_sha": "b82abd51ed1623f8e2bce51cacf8408be2a9b11a",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/cwz_ttest_mc/reference.R",
+  "data": [
+    {
+      "path": "basedata/carbontax_data.dta",
+      "sha256": "815787c1e448f536d11472155ae0f7d52cd7c5c934abd19fadc9e52df6faf9f6"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "scinference": "0.0.0.9000",
+    "foreign": "0.8-86",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "limSolve": "2.0.3",
+    "lpSolve": "5.6.20",
+    "quadprog": "1.5-8"
+  }
+}

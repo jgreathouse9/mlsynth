@@ -1,0 +1,39 @@
+{
+  "upstream": {
+    "name": "diff-diff",
+    "version": "3.9.0",
+    "commit": "d9cd475fec8e67ceea1772896e2b29501cb90485",
+    "repository": "https://github.com/igerber/diff-diff",
+    "license": "MIT",
+    "license_file": "LICENSE.diff-diff",
+    "copyright": "Copyright (c) 2025-2026 Isaac Gerber",
+    "transcribed_from": [
+      "diff_diff/staggered.py -- per-cell ATT(g,t) and influence function",
+      "diff_diff/staggered_aggregation.py -- wif-corrected aggregation and se_from_psi"
+    ]
+  },
+  "scope": {
+    "restrictions": [
+      "balanced panel",
+      "never-treated comparison group",
+      "no covariates",
+      "no survey design",
+      "no clustering",
+      "no anticipation"
+    ],
+    "note": "Transcribed, not copied wholesale: the distribution is 95 modules and only the panel / never-treated / no-covariate path is what PPSCM's callaway_santanna mode must agree with. Outside the restrictions the vendored path raises; it does not approximate."
+  },
+  "verified": {
+    "how": "Every quantity compared against an installed diff-diff 3.9.0 over six staggered panels (278 group-time cells).",
+    "max_abs_diff_att_gt": 0.0,
+    "max_abs_diff_se_gt": 0.0,
+    "max_abs_diff_aggregated_se": 5.551115123125783e-17
+  },
+  "sha256": {
+    "reference.py": "2055668f82a181136428c42a66830d8950adb7b8936e51cf8b79d04257cd28d7",
+    "LICENSE.diff-diff": "c1d2ae2763c44346f93d73b4885a2cd1d030e5a413e243b75f128a2f222e2726"
+  },
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "python": "3.11.15",
+  "numpy": "2.4.6"
+}

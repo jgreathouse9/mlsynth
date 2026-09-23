@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-08-16T19:23:31Z",
+  "git_sha": "cdd35c880f5a7204a72853511285206948e19328",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/spillsynth_iscm_german/run_reference.py",
+  "data": [
+    {
+      "path": "basedata/repgermany.dta",
+      "sha256": "afa8cbb2812c11b45243c3523c8801b4450b5c18ab2149a3fa07f4cd7005c24e"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "Synth": "1.1-10",
+    "kernlab": "0.9-32",
+    "MASS": "7.3-60.0.1",
+    "compiler": "4.3.3",
+    "rgenoud": "5.9-0.10",
+    "foreign": "0.8-86",
+    "nloptr": "2.0.3",
+    "optimx": "2023-10.21",
+    "numDeriv": "2016.8-1.1",
+    "pracma": "2.4.4"
+  }
+}

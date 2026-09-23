@@ -82,9 +82,9 @@ def _sc_via_vanillasc(y, warped, ctx, backend, covariates,
     # A warp that compresses a donor past the panel end leaves NaN; VanillaSC
     # needs a balanced frame, so carry the donor's last observed value forward
     # rather than dropping the period for every unit.
-    panel["__y"] = panel.groupby("__unit")["__y"].ffill()
+    panel["__y"] = panel.groupby("__unit", observed=True)["__y"].ffill()
     if panel["__y"].isna().any():
-        panel["__y"] = panel.groupby("__unit")["__y"].bfill()
+        panel["__y"] = panel.groupby("__unit", observed=True)["__y"].bfill()
 
     if covariates:
         src = ctx.get("covariate_frame")

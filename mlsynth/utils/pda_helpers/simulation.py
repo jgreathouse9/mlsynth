@@ -5,31 +5,54 @@ vs LASSO). Re-implements the four-factor data-generating process of Shi & Huang
 (2023), *"Forward-selected panel data approach for program evaluation,"* Journal
 of Econometrics 234(2), 512-535, Table 1.
 
+Provenance
+----------
+The parameterization is traced to the authors' released code, ``zhentaoshi/fsPDA``
+at ``5f4542c``: ``simulation/nonsparse/FS.simulation.dense.R`` (the functions
+``FS.simulation.dense``, ``DGP.Lambda`` and ``DGP.Delta``) and the
+``loading.RData`` that ``Run.simulation.dense.R`` loads before calling them.
+Where the paper's prose and that code differ, the code is what Table 1 was run
+on, and the code is what this module follows; the two places they differ are
+recorded below.
+
 The DGP
 -------
 One treated unit and ``N`` controls are observed over ``T = T1 + T2`` periods
 (the paper sets ``T1 = T2``). Each outcome is a noisy combination of four common
-factors plus idiosyncratic noise ``N(0, 0.5)``,
+factors plus idiosyncratic noise,
 
 .. math::
 
-   y_{it} = \lambda_i' f_t + \varepsilon_{it}.
+   y_{it} = \lambda_i' f_t + \varepsilon_{it},
+   \qquad \varepsilon_{it} \sim N(0, 0.5^2),
+
+so the noise has standard deviation ``0.5`` (``sigma.eta = 0.5``), not variance
+0.5.
 
 The paper studies two factor structures. Under the **i.i.d.** structure
-(``dynamic_factors=False``, the benchmark default) all four factors are
-independent ``N(0, 1)``. Under the **dynamic** structure the factors carry
-distinct serial dependence: ``f1`` i.i.d. ``N(0,1)``; ``f2`` AR(1) 0.9; ``f3``
-MA(2) (0.8, 0.4); ``f4`` ARMA(1,1) (0.5, 0.5). The benchmark uses the i.i.d.
-structure because that is the regime in which Shi & Huang's Table 1 reports
-forward selection *and* their (modified-BIC) Lasso as **both correctly sized** --
-so the size comparison isolates the estimator, not factor dynamics.
+(``dynamic_factors=False``) factor :math:`\ell` is drawn ``N(0, \ell^2)`` for
+:math:`\ell = 1, \dots, 4` -- their ``rnorm(Tn, sd = k * sigma.u)``, so the
+fourth factor carries sixteen times the variance of the first. The paper's
+Section 4.1 prints this as ``N(0, I^2)``, which is the index :math:`\ell` set in
+an upright font. Under the **dynamic** structure the factors carry distinct
+serial dependence with unit innovations: ``f1`` i.i.d. ``N(0,1)``; ``f2`` AR(1)
+0.9; ``f3`` MA(2) (0.8, 0.4); ``f4`` ARMA(1,1) (0.5, 0.5), giving unconditional
+variances ``(1, 5.26, 1.8, 2.33)``.
 
 The factor loadings :math:`\lambda_i \in \mathbb{R}^4` separate the donor pool:
 the treated unit and the **first four** controls draw their loadings from
 ``U(1, 2)`` (the *relevant* donors), while the remaining ``N - 4`` controls draw
-from ``U(-0.1, 0.1)`` (near-zero loadings -- the *irrelevant* donors). Forward
-selection should recover roughly the handful of relevant donors; LASSO
-over-selects into the irrelevant pool.
+from ``U(-h, h)`` (the *irrelevant* donors). The paper's Section 4.1 gives
+``h = 0.1``; the committed ``loading.RData`` behind Table 1 has ``h = 0.5``, and
+that is the default here (``irrelevant_loading``). The wider block is the
+paper's own point -- the irrelevant donors carry real signal, so the regression
+is dense and no method can select its way to a sparse truth. Forward selection
+recovers a handful of donors; LASSO takes in more.
+
+Their driver loads one fixed ``loading.RData`` and reuses it across every
+replication. Pass that matrix as ``loadings=`` to reproduce their cells; leaving
+it ``None`` redraws the loadings with each replication, which makes each draw an
+independent sample from the DGP.
 
 The post-period treatment effect follows one of the paper's seven shock
 processes :math:`\Delta_t` (``shock=`` one of ``"D1"``..``"D7"``), added to the
@@ -43,15 +66,23 @@ treated unit over the ``T2`` post periods:
 * ``D6`` -- :math:`\Delta_t = 0.35 + 0.3\,\Delta_{t-1} + w_t` (power);
 * ``D7`` -- :math:`\Delta_t = 0.7 + 0.3\,\Delta_{t-1} + w_t` (power).
 
-The null is true under ``D1``-``D3`` and false under ``D4``-``D7``.
+The null is true under ``D1``-``D3`` and false under ``D4``-``D7``. All six
+non-degenerate processes are built from one innovation sequence
+:math:`w_t` (their ``DGP.Delta`` draws it once), so ``D4`` sits exactly ``0.5``
+above ``D2`` period by period and ``D6`` exactly ``0.5`` above ``D3`` -- the
+autoregressive columns are burned in, so they start at their stationary mean
+:math:`\mu / (1 - \rho)` and not at zero. :func:`simulate_pda_shocks` returns all
+seven columns of one draw, which is what a size-and-power table needs; ``shock=``
+on :func:`simulate_pda_panel` takes one column of such a draw.
 
 Determinism
 -----------
 Loadings, factor innovations, and idiosyncratic noise are drawn from the *same*
-generator, so a fixed ``seed`` reproduces a draw bit-for-bit. Loadings are
-redrawn with the shocks, so each replication is an independent draw from the DGP
--- the correct design for a size/power study (size and power are properties of
-the sampling distribution over draws).
+generator, so a fixed ``seed`` reproduces a draw bit-for-bit. With ``loadings``
+left ``None`` they are redrawn alongside the shocks, so each replication is an
+independent draw from the DGP; supplying them holds the design matrix fixed
+across replications, which is what their driver does and what reproducing Table
+1 requires.
 """
 from __future__ import annotations
 
@@ -61,15 +92,22 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-__all__ = ["PDASimSample", "simulate_pda_panel"]
+__all__ = ["PDASimSample", "simulate_pda_panel", "simulate_pda_shocks"]
 
 _N_RELEVANT = 4                  # relevant controls (plus the treated unit)
 _N_FACTORS = 4
-_NOISE_SD = float(np.sqrt(0.5))  # idiosyncratic N(0, 0.5)
+_NOISE_SD = 0.5                  # sigma.eta: idiosyncratic N(0, 0.5^2)
 _AR1 = 0.9                        # f2: AR(1)
 _MA2 = (0.8, 0.4)                # f3: MA(2)
 _ARMA = (0.5, 0.5)               # f4: ARMA(1,1) (ar, ma)
 _NULL_SHOCKS = frozenset({"D1", "D2", "D3"})
+_SHOCK_COLUMN = {f"D{j + 1}": j for j in range(7)}
+#: ``DGP.Delta``'s ``mu`` and ``rho``, in the order it builds its columns
+#: (which is D3, D4, D5, D6, D7 -- D2 is the innovation sequence itself).
+_SHOCK_MU = (0.0, 0.5, 1.0, 0.35, 0.7)
+_SHOCK_RHO = (0.3, 0.0, 0.0, 0.3, 0.3)
+_SHOCK_BURN = 1000               # their DGP.Delta burn-in
+_FACTOR_BURN = 1000              # their arima.sim n.start
 
 
 @dataclass(frozen=True)
@@ -86,6 +124,14 @@ class PDASimSample:
         Treated path ``(T,)`` (incl. effect) and control matrix ``(N, T)``.
     relevant_donors : list of str
         Labels of the 4 relevant controls.
+    loadings : np.ndarray
+        The factor loadings used, shape ``(N + 1, 4)``; row 0 is the treated
+        unit and rows ``1..N`` the controls in label order.
+    factors : np.ndarray
+        The latent factor paths, shape ``(T, 4)``. Recovering them from the
+        panel by least squares projects the noise as well, so the residual of
+        that fit is short of the true noise by the rank of the loading matrix;
+        carrying the paths makes the DGP's second moments checkable exactly.
     T1, T2 : int
         Pre- / post-treatment period counts.
     shock : str
@@ -98,6 +144,8 @@ class PDASimSample:
     Y_treated: np.ndarray
     Y_controls: np.ndarray
     relevant_donors: List[str]
+    loadings: np.ndarray
+    factors: np.ndarray
     T1: int
     T2: int
     shock: str
@@ -105,15 +153,17 @@ class PDASimSample:
 
 
 def _factors(T: int, rng: np.random.Generator, dynamic: bool,
-             burn: int = 100) -> np.ndarray:
+             burn: int = _FACTOR_BURN) -> np.ndarray:
     """Four common factor paths, shape ``(T, 4)``.
 
-    ``dynamic=False`` returns four i.i.d. ``N(0,1)`` factors; ``dynamic=True``
-    returns the paper's (i.i.d., AR(1), MA(2), ARMA(1,1)) structure. A burn-in
+    ``dynamic=False`` draws factor ``l`` from ``N(0, l^2)`` for ``l = 1..4``,
+    their ``rnorm(Tn, sd = k * sigma.u)``; ``dynamic=True`` returns the
+    (i.i.d., AR(1), MA(2), ARMA(1,1)) structure with unit innovations. A burn-in
     washes out the zero initial condition for the serially-dependent factors.
     """
     if not dynamic:
-        return rng.standard_normal((T, _N_FACTORS))
+        return rng.standard_normal((T, _N_FACTORS)) * np.arange(
+            1.0, _N_FACTORS + 1.0)
 
     L = T + burn
     v = rng.standard_normal((L, _N_FACTORS))   # innovations
@@ -132,26 +182,57 @@ def _factors(T: int, rng: np.random.Generator, dynamic: bool,
     return f[burn:]
 
 
+def simulate_pda_shocks(
+    T2: int,
+    rng: Optional[np.random.Generator] = None,
+    seed: Optional[int] = None,
+    burn: int = _SHOCK_BURN,
+) -> np.ndarray:
+    """All seven treatment-shock processes of one draw, shape ``(T2, 7)``.
+
+    Column ``j`` is ``D{j+1}``: ``D1`` is identically zero, ``D2`` is the
+    innovation sequence :math:`w_t \\sim N(0,1)` itself, and ``D3``-``D7`` are
+    ``mu + rho * lag + w`` for the paper's five ``(mu, rho)`` pairs. Their
+    ``DGP.Delta`` draws ``w`` once and builds every column from it, so the seven
+    columns of a draw are the seven treatment effects the *same* replication
+    would have produced -- which is what lets one fit answer the size and the
+    power cells of Table 1 together.
+
+    The autoregressive columns run through ``burn`` extra periods that are then
+    discarded, so they enter the returned window at their stationary mean
+    ``mu / (1 - rho)``. Without that the first periods sit below it and the
+    finite-sample mean of the effect is not the ``mu / (1 - rho)`` the power
+    cells are read against.
+
+    Raises
+    ------
+    ValueError
+        If ``T2`` is not positive.
+    """
+    if T2 <= 0:
+        raise ValueError(f"T2 must be positive; got {T2}.")
+    if rng is None:
+        rng = np.random.default_rng(seed)
+    w = rng.standard_normal(T2 + burn)
+    out = np.zeros((T2, 7))
+    out[:, 1] = w[burn:]
+    for k, (mu, rho) in enumerate(zip(_SHOCK_MU, _SHOCK_RHO), start=2):
+        if rho == 0.0:
+            out[:, k] = mu + w[burn:]
+            continue
+        d, path = 0.0, np.empty(T2 + burn)
+        for t in range(T2 + burn):
+            d = mu + rho * d + w[t]
+            path[t] = d
+        out[:, k] = path[burn:]
+    return out
+
+
 def _shock(name: str, T2: int, rng: np.random.Generator) -> np.ndarray:
     """The post-period treatment shock :math:`\\Delta_t`, length ``T2``."""
-    w = rng.standard_normal(T2)
-    if name == "D1":
-        return np.zeros(T2)
-    if name == "D2":
-        return w
-    if name == "D4":
-        return 0.5 + w
-    if name == "D5":
-        return 1.0 + w
-    if name in ("D3", "D6", "D7"):
-        const = {"D3": 0.0, "D6": 0.35, "D7": 0.7}[name]
-        d = np.empty(T2)
-        prev = 0.0
-        for t in range(T2):
-            prev = const + 0.3 * prev + w[t]
-            d[t] = prev
-        return d
-    raise ValueError(f"unknown shock {name!r}; expected D1..D7.")
+    if name not in _SHOCK_COLUMN:
+        raise ValueError(f"unknown shock {name!r}; expected D1..D7.")
+    return simulate_pda_shocks(T2, rng=rng)[:, _SHOCK_COLUMN[name]]
 
 
 def simulate_pda_panel(
@@ -163,6 +244,8 @@ def simulate_pda_panel(
     effect: Optional[float] = None,
     rng: Optional[np.random.Generator] = None,
     seed: Optional[int] = None,
+    loadings: Optional[np.ndarray] = None,
+    irrelevant_loading: float = 0.5,
 ) -> PDASimSample:
     """Draw one sample from the Shi & Huang (2023) Table-1 factor DGP.
 
@@ -187,6 +270,20 @@ def simulate_pda_panel(
         RNG; takes precedence over ``seed``.
     seed : int, optional
         Convenience seed used to build a default generator when ``rng`` is None.
+    loadings : np.ndarray, optional
+        Fixed ``(N + 1, 4)`` loading matrix, row 0 the treated unit. Their
+        driver loads one ``loading.RData`` and holds it across replications;
+        pass it here to reproduce their cells. ``None`` redraws per call.
+    irrelevant_loading : float, default 0.5
+        Half-width of the ``U(-h, h)`` range the ``N - 4`` irrelevant controls
+        draw from. The default is the committed ``loading.RData``'s; the paper's
+        Section 4.1 says ``0.1``. Ignored when ``loadings`` is given.
+
+    Raises
+    ------
+    ValueError
+        If ``N``, ``T1`` or ``T2`` is out of range, if ``shock`` is not one of
+        ``D1``..``D7``, or if ``loadings`` is not ``(N + 1, 4)``.
     """
     if N <= _N_RELEVANT:
         raise ValueError(f"N must exceed {_N_RELEVANT} relevant controls; got {N}.")
@@ -201,11 +298,22 @@ def simulate_pda_panel(
 
     f = _factors(T, rng, dynamic=dynamic_factors)            # (T, 4)
 
-    lam_treated = rng.uniform(1.0, 2.0, size=_N_FACTORS)
-    lam_ctrl = np.empty((N, _N_FACTORS))
-    lam_ctrl[:_N_RELEVANT] = rng.uniform(1.0, 2.0, size=(_N_RELEVANT, _N_FACTORS))
-    lam_ctrl[_N_RELEVANT:] = rng.uniform(
-        -0.1, 0.1, size=(N - _N_RELEVANT, _N_FACTORS))
+    if loadings is None:
+        # DGP.Lambda: K + 1 major rows (the treated unit and the relevant
+        # controls) stacked on N - K minor rows.
+        lam = np.empty((N + 1, _N_FACTORS))
+        lam[:_N_RELEVANT + 1] = rng.uniform(
+            1.0, 2.0, size=(_N_RELEVANT + 1, _N_FACTORS))
+        lam[_N_RELEVANT + 1:] = rng.uniform(
+            -irrelevant_loading, irrelevant_loading,
+            size=(N - _N_RELEVANT, _N_FACTORS))
+    else:
+        lam = np.asarray(loadings, dtype=float)
+        if lam.shape != (N + 1, _N_FACTORS):
+            raise ValueError(
+                f"loadings must have shape {(N + 1, _N_FACTORS)} (row 0 the "
+                f"treated unit); got {lam.shape}.")
+    lam_treated, lam_ctrl = lam[0], lam[1:]
 
     y_tr = f @ lam_treated + _NOISE_SD * rng.standard_normal(T)
     if effect is not None:
@@ -225,7 +333,8 @@ def simulate_pda_panel(
     df = pd.DataFrame(rows)
     relevant = [f"c{i:03d}" for i in range(_N_RELEVANT)]
     return PDASimSample(df=df, Y_treated=y_tr, Y_controls=y_ctrl,
-                        relevant_donors=relevant, T1=T1, T2=T2,
+                        relevant_donors=relevant, loadings=lam, factors=f,
+                        T1=T1, T2=T2,
                         shock=label, is_null=is_null)
 
 

@@ -1,0 +1,22 @@
+# case: cwz_conformal_mc
+# generated_at: 2026-08-15T07:33:45Z
+# mlsynth_version: 2.0.0
+# estimator: VanillaSC
+# config: {"alpha": 0.1, "conformal_type": "block", "inference": "conformal"}
+# reference_impl: R package scinference (conformal) driven by the authors' own simulation design
+# reference_version: scinference v1.0.0 (567c688)
+quantity,mlsynth,reference,abs_diff
+"p-value, rho=0.0, draw 1",0.238095,0.238095,0.0
+"p-value, rho=0.0, draw 5",0.333333,0.333333,0.0
+"p-value, rho=0.0, draw 10",0.619048,0.619048,0.0
+"p-value, rho=0.6, draw 1",0.238095,0.238095,0.0
+"p-value, rho=0.6, draw 5",0.380952,0.380952,0.0
+"p-value, rho=0.6, draw 10",0.238095,0.238095,0.0
+"size, DGP 1, rho=0.0",0.1,0.08,0.02
+"size, DGP 2, rho=0.0",0.082,0.094,0.012
+"size, DGP 3, rho=0.0",0.08,0.094,0.014
+"size, DGP 4, rho=0.0",0.094,0.102,0.008
+"size, DGP 1, rho=0.6",0.118,0.12,0.002
+"size, DGP 2, rho=0.6",0.13,0.118,0.012
+"size, DGP 3, rho=0.6",0.088,0.098,0.01
+"size, DGP 4, rho=0.6",0.098,0.096,0.002

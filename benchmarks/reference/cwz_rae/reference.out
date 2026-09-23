@@ -1,0 +1,37 @@
+== REFERENCE VALUES ==
+rae_K2	0.3265124229
+rae_K3	0.6356259353
+rae_K4	0.7586279262
+rae_K5	0.8208240368
+rae_K6	0.8578631027
+rae_K7	0.8823249838
+rae_K8	0.8996500498
+rae_K9	0.9125503755
+rae_K10	0.9225232139
+gain_K4_over_K3	12.3001990859
+gain_K5_over_K3	18.5198101489
+gain_K6_over_K3	22.2237167393
+c0	1.8750000000
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

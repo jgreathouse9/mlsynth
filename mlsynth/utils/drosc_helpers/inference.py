@@ -114,8 +114,23 @@ def drosc_union_ci(Y0, Y1, X0, X1, robustness_lambda=0.0, alpha=0.05, alpha0=0.0
                    dependent=False, seed=0) -> List[List[float]]:
     """Perturbation union confidence interval for the DROSC ATT.
 
+    A normal interval is invalid here for two reasons the paper separates. The
+    optimum typically sits on the boundary of the compatibility band, and small
+    sampling changes flip which constraints are active, giving a mixture limit
+    (non-regularity). And correlated controls make the band nearly flat in some
+    directions, so small errors in the estimated moments move it a lot
+    (instability). The two arrive together.
+
+    The remedy: perturb the moments and the post-treatment means from their
+    sampling distributions, re-solve for each draw, and form a normal interval
+    around each. Some draw nearly recovers the population problem, and for that
+    one the residual uncertainty is almost all in ``mean(Y1)``, which is
+    asymptotically normal. Since that draw cannot be identified, the plausible
+    ones are kept and their intervals unioned.
+
     Returns a sorted list of disjoint ``[lo, hi]`` intervals (their union is the
-    confidence set). Deterministic given ``seed``.
+    confidence set, so read it as the effects the data cannot reject, not as a
+    point estimate plus symmetric error). Deterministic given ``seed``.
     """
     rng = np.random.default_rng(seed)
     Y0 = np.asarray(Y0, float).ravel()

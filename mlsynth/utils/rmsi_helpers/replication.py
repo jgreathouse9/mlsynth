@@ -164,7 +164,7 @@ def replicate_prop99(data: Union[str, pd.DataFrame, None] = None, *,
     d = pd.read_csv(data) if isinstance(data, str) else data.copy()
     covs = ["lnincome", "beer", "age15to24", "retprice"]
     for c in covs:
-        d[c] = d.groupby("state")[c].transform(lambda s: s.fillna(s.mean()))
+        d[c] = d.groupby("state", observed=True)[c].transform(lambda s: s.fillna(s.mean()))
         d[c] = d[c].fillna(d[c].mean())
     d["treated"] = ((d["state"] == "California") & (d["year"] >= 1989)).astype(int)
 

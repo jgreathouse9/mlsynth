@@ -18,7 +18,6 @@ from mlsynth.utils.syndes_helpers.plotter import (
     plot_syndes_design,
     plot_global_design,
     plot_per_unit_design,
-    plot_relaxed_design,
     _stack_pre_post,
 )
 
@@ -60,11 +59,6 @@ def test_dispatch_per_unit():
     res = _fit("per_unit")
     plot_syndes_design(res)
 
-
-def test_dispatch_annealed():
-    res = _fit("two_way_global_annealed")
-    assert res.mode == "two_way_global_annealed"
-    plot_syndes_design(res)
 
 
 def test_dispatch_unknown_mode_raises():
@@ -169,20 +163,7 @@ def test_per_unit_design_missing_q_raises():
         plot_per_unit_design(res2)
 
 
-# --------------------------------------------------------------------------
-# plot_relaxed_design
-# --------------------------------------------------------------------------
 
-def test_relaxed_design_direct():
-    res = _fit("two_way_global_annealed")
-    plot_relaxed_design(res)
-
-
-def test_relaxed_design_no_inputs_raises():
-    res = _fit("two_way_global_annealed")
-    res2 = dataclasses.replace(res, inputs=None)
-    with pytest.raises(MlsynthPlottingError, match="requires inputs"):
-        plot_relaxed_design(res2)
 
 
 # --------------------------------------------------------------------------

@@ -1,0 +1,247 @@
+================================================================
+  Compositional Synthetic Controls -- Replication
+================================================================
+
+Structural-zero states excluded:  
+Policy/outlier states excluded:  OH, WV, VT 
+Donor pool size:  42 
+
+--- Donor Weights ---
+ Donor Weight
+    IL  0.233
+    WY  0.208
+    IA  0.168
+    NE  0.149
+    MA  0.102
+    CT  0.048
+    NJ  0.043
+    IN  0.032
+    MT  0.016
+    AR  0.001
+Active donors: 10 
+Stacked sample: (p-1)*T0 = 2 * 14 = 28 
+
+--- Pre-treatment Balance ---
+                  PA      Synthetic
+Natural gas:     3.6%        3.6%
+Coal & oil:     93.2%       93.2%
+Renewables:      3.2%        3.2%
+
+Aitchison pre-treatment RMSPE: 0.187
+Euclidean share RMSPE (pp):    1.34
+
+--- Estimated Compositional Treatment Effects ---
+Year  ATT_gas  ATT_fos  ATT_ren     LRTE_g/f     LRTE_g/r  delta_A
+------------------------------------------------------------------------ 
+2004    +4.6     -4.8     +0.2       +0.98       +0.87     0.76
+2006    +2.7     -1.9     -0.7       +0.34       +0.49     0.36
+2008    +7.1     -5.7     -1.4       +0.82       +1.04     0.78
+2010   +16.5    -10.5     -6.0       +1.46       +2.18     1.57
+2012   +25.3    -13.7    -11.6       +1.41       +2.43     1.73
+2014   +30.4    -18.8    -11.6       +1.94       +2.69     1.96
+2016   +37.3    -20.8    -16.5       +1.68       +2.54     1.82
+2018   +39.9    -22.4    -17.5       +1.66       +2.33     1.70
+2020   +52.1    -15.8    -36.3       +1.79       +3.08     2.19
+2022   +60.4    -24.5    -35.9       +2.37       +3.50     2.53
+2023   +59.1    -18.9    -40.2       +2.35       +3.35     2.43
+
+--- Placebo Permutation Test ---
+Running 42 placebo estimations...
+PA: RMSPE_pre = 0.187, RMSPE_post = 1.714, R = 9.18
+Donors retained (pre-RMSPE <= 5x PA): 35 / 42
+Total M (incl PA): 36
+
+Top placebo ratios (retained):
+       MI        LA        FL        GA        MA        NY 
+10.462164 10.223337 10.065098  7.932050  7.808460  7.093465 
+
+Exact p-value: 4 / 36 = 0.111
+
+================================================================
+                    REPLICATION SUMMARY
+================================================================
+Treated unit:          Pennsylvania
+Treatment date:        T0 = 2003  (Act 213 of 2004)
+Pre-treatment:         14 periods  (1990-2003)
+Post-treatment:        20 periods  (2004-2023)
+Donor pool:            42 states
+Stacked sample:        (p-1)*T0 = 28
+Donors with wt > 0:    10
+Aitchison pre-RMSPE:   0.187
+Share pre-RMSPE (pp):  1.34
+Gas ATT in 2022:       +60.4 pp
+LRTE gas/fos 2022:     2.37
+PA RMSPE ratio:        9.18
+Placebo p-value:       4/36 = 0.111
+================================================================
+
+== REFERENCE VALUES ==
+weight	AR	0.0009244918
+weight	CT	0.0475465739
+weight	IA	0.1677293963
+weight	IL	0.2332814419
+weight	IN	0.0324991287
+weight	MA	0.1018529048
+weight	MT	0.0161818120
+weight	NE	0.1488603980
+weight	NJ	0.0429413689
+weight	WY	0.2081824837
+n_donors	42
+n_active_donors	10
+aitchison_rmspe_pre	0.1867482449
+share_rmspe_pre_pp	1.3394078957
+pre_share_gas_pct	3.6096354230
+pre_share_fos_pct	93.1615150568
+pre_share_ren_pct	3.2288495202
+att_gas_2004	4.5889922903
+att_fos_2004	-4.8296541656
+att_ren_2004	0.2406618753
+lrte_gf_2004	0.9834267041
+lrte_gr_2004	0.8681587704
+delta_A_2004	0.7602881975
+att_gas_2005	1.2467815720
+att_fos_2005	-0.7099182011
+att_ren_2005	-0.5368633708
+lrte_gf_2005	0.1773282370
+lrte_gr_2005	0.3230960503
+delta_A_2005	0.2288264384
+att_gas_2006	2.6666212639
+att_fos_2006	-1.9434787065
+att_ren_2006	-0.7231425574
+lrte_gf_2006	0.3389851162
+lrte_gr_2006	0.4943098945
+delta_A_2006	0.3574814529
+att_gas_2007	4.6112614416
+att_fos_2007	-3.8502756969
+att_ren_2007	-0.7609857447
+lrte_gf_2007	0.4720828975
+lrte_gr_2007	0.6385654437
+delta_A_2007	0.4684529597
+att_gas_2008	7.1066111462
+att_fos_2008	-5.7246719626
+att_ren_2008	-1.3819391836
+lrte_gf_2008	0.8178815291
+lrte_gr_2008	1.0438495020
+delta_A_2008	0.7766624113
+att_gas_2009	15.2761305162
+att_fos_2009	-11.3705231214
+att_ren_2009	-3.9056073948
+lrte_gf_2009	1.4592994693
+lrte_gr_2009	1.9634183698
+delta_A_2009	1.4420705602
+att_gas_2010	16.5433309988
+att_fos_2010	-10.5496947111
+att_ren_2010	-5.9936362877
+lrte_gf_2010	1.4569811489
+lrte_gr_2010	2.1790880524
+delta_A_2010	1.5697831260
+att_gas_2011	21.0220544684
+att_fos_2011	-11.4167334081
+att_ren_2011	-9.6053210602
+lrte_gf_2011	1.5413813710
+lrte_gr_2011	2.4422057801
+delta_A_2011	1.7465881235
+att_gas_2012	25.3470419767
+att_fos_2012	-13.7334793074
+att_ren_2012	-11.6135626693
+lrte_gf_2012	1.4141590801
+lrte_gr_2012	2.4305725860
+delta_A_2012	1.7263280312
+att_gas_2013	26.5217837234
+att_fos_2013	-15.6610123738
+att_ren_2013	-10.8607713496
+lrte_gf_2013	1.7292169343
+lrte_gr_2013	2.5532215688
+delta_A_2013	1.8428343408
+att_gas_2014	30.3997798210
+att_fos_2014	-18.8471441349
+att_ren_2014	-11.5526356861
+lrte_gf_2014	1.9427488003
+lrte_gr_2014	2.6906728891
+delta_A_2014	1.9641269426
+att_gas_2015	33.9234493302
+att_fos_2015	-20.9576935951
+att_ren_2015	-12.9657557351
+lrte_gf_2015	1.7819653211
+lrte_gr_2015	2.5156370610
+delta_A_2015	1.8295814139
+att_gas_2016	37.3219120676
+att_fos_2016	-20.8413663850
+att_ren_2016	-16.4805456826
+lrte_gf_2016	1.6767033377
+lrte_gr_2016	2.5373448558
+delta_A_2016	1.8248430821
+att_gas_2017	40.7760601849
+att_fos_2017	-22.4811295669
+att_ren_2017	-18.2949306180
+lrte_gf_2017	1.7817933252
+lrte_gr_2017	2.5645679692
+delta_A_2017	1.8587211075
+att_gas_2018	39.8818394218
+att_fos_2018	-22.3935660237
+att_ren_2018	-17.4882733981
+lrte_gf_2018	1.6590165908
+lrte_gr_2018	2.3287686260
+delta_A_2018	1.6954907992
+att_gas_2019	43.9201881835
+att_fos_2019	-17.0517449427
+att_ren_2019	-26.8684432408
+lrte_gf_2019	1.5511051067
+lrte_gr_2019	2.7159896806
+delta_A_2019	1.9269564143
+att_gas_2020	52.1440323980
+att_fos_2020	-15.8015009256
+att_ren_2020	-36.3425314723
+lrte_gf_2020	1.7882424609
+lrte_gr_2020	3.0775520428
+delta_A_2020	2.1856697580
+att_gas_2021	55.3695992350
+att_fos_2021	-20.2154299214
+att_ren_2021	-35.1541693136
+lrte_gf_2021	2.0322697533
+lrte_gr_2021	3.3030913639
+delta_A_2021	2.3562343173
+att_gas_2022	60.3869518803
+att_fos_2022	-24.4535158949
+att_ren_2022	-35.9334359854
+lrte_gf_2022	2.3733893154
+lrte_gr_2022	3.5029797401
+delta_A_2022	2.5284922008
+att_gas_2023	59.1291763605
+att_fos_2023	-18.9130235384
+att_ren_2023	-40.2161528221
+lrte_gf_2023	2.3482134838
+lrte_gr_2023	3.3532158049
+delta_A_2023	2.4336661278
+rmspe_pre_pa	0.1867482449
+rmspe_post_pa	1.7142688564
+rmspe_ratio_pa	9.1795714444
+placebo_n_retained	36
+placebo_n_exceed	4
+placebo_p_value	0.1111111111
+== SESSION ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
+LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quadprog_1.5-8
+
+loaded via a namespace (and not attached):
+[1] compiler_4.3.3

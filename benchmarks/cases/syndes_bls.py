@@ -87,6 +87,13 @@ def _run_cell(Y, K, n_sims, seed):
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "SYNDES needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     Y = np.loadtxt(_DATA, delimiter=",")                # (40 months, 50 states)
     out = {}
     with warnings.catch_warnings():

@@ -1,0 +1,602 @@
+"""Property tests for the effect and fit primitives every estimator reports through.
+
+``mlsynth.utils.effectutils`` and ``mlsynth.utils.fitutils`` are the bedrock of
+estimator reporting: ATT, total effect, percent ATT, standardized ATT, the
+per-period gap, RMSE and R-squared. Every estimator's headline numbers come out
+of these ten functions, and ``resultutils.effects.calculate`` composes them into
+the display dictionaries. A defect here is a defect in every estimator at once,
+which is why they are asserted over their domain instead of at a fixture.
+
+Coverage before this file: the primitives had no direct tests at all, and
+``effects.calculate`` had three (a smoke test and the two empty-segment cases).
+
+Most of what these functions promise is metamorphic -- how an output must
+respond to rescaling or shifting the input -- which needs no oracle and is
+exactly the shape that survives generation. Three of the relations are the ones
+a reader should care about most:
+
+* ``percent_att`` and ``standardized_att`` are scale invariant. They are ratios,
+  so changing the outcome's units must not move them; if either picked up a
+  dimension the estimator would report a different number for the same study
+  measured in cents instead of dollars.
+* ``rmse`` and ``std`` are linked by an exact identity, ``rmse^2 = mean^2 +
+  std^2``. ``effects.calculate`` reports ``std(post_gap)`` under the label
+  "T1 RMSE", so the two are not interchangeable and the identity is what says
+  by how much they differ.
+* ``total_effect == att * T1`` exactly. Both are reported, and a reader who
+  divides one by the other is entitled to get the post-period count back.
+"""
+
+from __future__ import annotations
+
+import warnings
+
+import numpy as np
+import pytest
+from hypothesis import assume, example, given, settings
+from hypothesis import strategies as st
+
+from mlsynth.utils import effectutils as eff
+from mlsynth.utils import fitutils as fit
+from mlsynth.utils.resultutils import effects
+
+_FINITE = dict(allow_nan=False, allow_infinity=False,
+               min_value=-1e6, max_value=1e6, width=64)
+
+
+def _series(min_size: int = 1, max_size: int = 60):
+    return st.lists(st.floats(**_FINITE), min_size=min_size, max_size=max_size
+                    ).map(np.asarray)
+
+
+def _approx(expected, rel=1e-9, abs=1e-9):
+    """`pytest.approx` under a shorter name; used throughout this module."""
+    return pytest.approx(expected, rel=rel, abs=abs)
+
+
+_nonzero_scale = st.floats(min_value=0.01, max_value=1e3,
+                           allow_nan=False, allow_infinity=False)
+_shift = st.floats(min_value=-1e4, max_value=1e4,
+                   allow_nan=False, allow_infinity=False)
+
+
+# ---------------------------------------------------------------------------
+# gap
+# ---------------------------------------------------------------------------
+
+@given(obs=_series(), shift=_shift)
+def test_gap_is_invariant_to_a_common_level_shift(obs, shift):
+    """Moving observed and counterfactual together cannot change the effect."""
+    cf = obs * 0.5 + 1.0
+    np.testing.assert_allclose(eff.gap(obs + shift, cf + shift), eff.gap(obs, cf),
+                               atol=1e-9, rtol=1e-9)
+
+
+@given(obs=_series(), scale=_nonzero_scale)
+def test_gap_scales_with_the_outcome(obs, scale):
+    cf = obs * 0.5 + 1.0
+    np.testing.assert_allclose(eff.gap(scale * obs, scale * cf),
+                               scale * eff.gap(obs, cf), rtol=1e-9, atol=1e-9)
+
+
+@given(obs=_series(), cf=_series())
+def test_gap_is_antisymmetric_and_length_preserving(obs, cf):
+    assume(obs.size == cf.size)
+    np.testing.assert_allclose(eff.gap(cf, obs), -eff.gap(obs, cf), atol=0)
+    assert eff.gap(obs, cf).shape == (obs.size,)
+
+
+# ---------------------------------------------------------------------------
+# split_pre_post
+# ---------------------------------------------------------------------------
+
+@given(arr=_series(min_size=0), n_pre=st.integers(0, 70), n_post=st.integers(0, 70))
+@example(arr=np.array([1.0, 2.0, 3.0]), n_pre=0, n_post=3)
+@example(arr=np.array([1.0, 2.0, 3.0]), n_pre=3, n_post=0)
+def test_split_partitions_without_overlap_or_gap(arr, n_pre, n_post):
+    """The two segments are adjacent, in order, and never share an element."""
+    pre, post = eff.split_pre_post(arr, n_pre, n_post)
+    assert pre.size == min(n_pre, arr.size)
+    assert post.size == max(0, min(n_pre + n_post, arr.size) - n_pre)
+    np.testing.assert_allclose(np.concatenate([pre, post]),
+                               arr[: n_pre + n_post], atol=0)
+
+
+# ---------------------------------------------------------------------------
+# att / total_effect
+# ---------------------------------------------------------------------------
+
+@given(post_gap=_series())
+def test_total_effect_is_att_times_the_post_period_count(post_gap):
+    """Both are reported; dividing one by the other must give T1 back."""
+    assert eff.total_effect(post_gap) == \
+        _approx(eff.att(post_gap) * post_gap.size)
+
+
+@given(value=st.floats(**_FINITE), size=st.integers(1, 40))
+def test_att_of_a_constant_gap_is_that_constant(value, size):
+    assert eff.att(np.full(size, value)) == _approx(value)
+
+
+def _sum_floor(values, scale=1.0):
+    """Absolute rounding floor of a scaled sum of ``values``.
+
+    Summing in floating point commits an error bounded by
+    ``n * eps * sum |x_i|`` (pairwise summation, which numpy uses, brings the
+    factor down to about ``log2(n)``, so this is generous). Scaling first and
+    summing after rounds a different set of numbers than summing and scaling
+    after, and the two answers may differ by that much.
+
+    The distinction only bites when the sum nearly cancels. At
+    ``[952340.651988865, -952340.6519888667]`` the terms are seven decimal
+    orders larger than their sum, and ``att(s * g)`` and ``s * att(g)`` come out
+    at ``-4.768e-07`` and ``-5.360e-07`` -- a gap of ``5.9e-08``, below this
+    floor of ``1.3e-07`` and far above the fixed ``1e-9`` this test used to
+    demand. Nothing is wrong with the mean; a fixed absolute tolerance was the
+    wrong model for a quantity whose own magnitude is set by the data.
+    """
+    v = np.abs(np.asarray(values, dtype=float))
+    return float(np.finfo(float).eps * abs(scale) * v.sum() * max(v.size, 1))
+
+
+# A pair whose sum cancels to 1 part in 1e15, and the scale that separates the
+# two orders of operation. Carried as an explicit example so the tolerance model
+# is exercised on every run and not only when generation happens to find it.
+_CANCELLING = np.array([952340.651988865, -952340.6519888667])
+
+
+@given(post_gap=_series(), scale=_nonzero_scale)
+@example(post_gap=_CANCELLING, scale=613.8451517287889)
+def test_att_and_total_effect_scale_with_the_gap(post_gap, scale):
+    """Scaling commutes with averaging, to the precision the data allows.
+
+    The tolerance tracks the summation's own rounding floor. A real defect --
+    summing where it should average, dropping a term, applying the scale twice
+    -- moves the answer by a factor of the data, which this still catches; what
+    it no longer calls a failure is the last bit of a sum that has cancelled
+    away its own significance.
+    """
+    floor = _sum_floor(post_gap, scale)
+    assert eff.att(scale * post_gap) == \
+        pytest.approx(scale * eff.att(post_gap), rel=1e-9, abs=1e-9 + floor)
+    assert eff.total_effect(scale * post_gap) == \
+        pytest.approx(scale * eff.total_effect(post_gap), rel=1e-9,
+                      abs=1e-9 + floor)
+
+
+def test_att_and_total_effect_are_nan_on_an_empty_post_period():
+    assert np.isnan(eff.att(np.array([])))
+    assert np.isnan(eff.total_effect(np.array([])))
+
+
+# ---------------------------------------------------------------------------
+# percent_att / percent_gap -- the ratios
+# ---------------------------------------------------------------------------
+
+@given(post_gap=_series(), cf=_series(), scale=_nonzero_scale)
+def test_percent_att_is_scale_invariant(post_gap, cf, scale):
+    """A percent is dimensionless: the same study in cents and in dollars must
+    report the same number."""
+    assume(cf.size > 0 and abs(float(cf.mean())) > 1e-3)
+    base = eff.percent_att(eff.att(post_gap), cf)
+    scaled = eff.percent_att(eff.att(scale * post_gap), scale * cf)
+    assume(np.isfinite(base))
+    assert scaled == _approx(base, rel=1e-6)
+
+
+@given(att_value=st.floats(min_value=0.1, max_value=1e4,
+                           allow_nan=False, allow_infinity=False),
+       cf=_series())
+def test_percent_att_keeps_the_sign_of_the_counterfactual_denominator(att_value, cf):
+    """A negative counterfactual level flips the sign of the percent effect.
+
+    Scale invariance alone does not pin this: taking the absolute value of the
+    denominator preserves it, and that mutation survives every other test here.
+    A treated series whose counterfactual sits below zero -- a net balance, a
+    deficit, a temperature anomaly -- is where the two differ.
+    """
+    assume(cf.size > 0 and float(cf.mean()) < -1e-3)
+    assert eff.percent_att(att_value, cf) < 0.0
+    assert eff.percent_att(-att_value, cf) > 0.0
+
+
+@given(post_gap=_series())
+def test_percent_att_is_nan_when_the_counterfactual_averages_to_zero(post_gap):
+    assert np.isnan(eff.percent_att(eff.att(post_gap), np.array([-1.0, 1.0])))
+    assert np.isnan(eff.percent_att(eff.att(post_gap), np.array([])))
+
+
+@given(post_gap=_series(), cf=_series())
+def test_percent_gap_is_nan_exactly_where_the_counterfactual_is_zero(post_gap, cf):
+    assume(post_gap.size == cf.size)
+    out = eff.percent_gap(post_gap, cf)
+    np.testing.assert_array_equal(np.isnan(out), cf == 0)
+
+
+# ---------------------------------------------------------------------------
+# standardized_att
+# ---------------------------------------------------------------------------
+
+def _is_faithfully_scalable(values) -> bool:
+    """Whether every element carries a full significand, so rescaling is exact.
+
+    Scale invariance is a statement about *relative* precision, and doubles only
+    have uniform relative precision down to the smallest normal,
+    ``2.2251e-308``. Below it the significand shrinks toward a single bit and the
+    grid becomes absolute, so multiplying no longer moves a value to the
+    corresponding place -- ``1.9 * 2^-1074`` is 2 ULP, not 1.9, a 5.3% error in
+    the input before the function is called at all. Measured on the three cases
+    that reached this assertion, the statistic's answers differed by 5.000e-02,
+    6.270e-04 and 1.349e-04 against input errors of 5.263e-02, 6.274e-04 and
+    1.349e-04: it is as accurate as what it was handed.
+
+    A rescaling that cannot be represented is not the same study in different
+    units, so those inputs are outside what this property can ask about. What
+    the function does down there is asserted directly instead, by
+    ``test_standardized_att_at_one_significant_bit``,
+    ``test_scaling_a_subnormal_gap_to_zero_has_no_standardized_att`` and the
+    whole-float-range parametrization.
+    """
+    v = np.abs(np.asarray(values, dtype=float))
+    return bool(np.all(np.isfinite(v) & ((v == 0.0) | (v >= np.finfo(float).tiny))))
+
+
+def _mean_is_well_conditioned(values, limit: float = 1e9) -> bool:
+    """Whether the mean of ``values`` survives being computed at all.
+
+    The condition number of a sum is ``sum |x_i| / |sum x_i|``, and the relative
+    error of the computed mean is about ``eps`` times that. ``standardized_att``
+    divides by a quantity built from the pre-period, so whatever relative error
+    the post-period mean carries passes straight into the statistic.
+
+    At the default limit the mean is good to ``eps * 1e9 = 2.2e-07``, which is
+    what makes a ``1e-6`` relative comparison meaningful. Past it the ATT is
+    rounding and nothing else: on a post-period with a condition number of
+    ``1.26e+16`` the statistic reads ``-5.258e+192`` at one scale and ``0.0`` at
+    another, and both are correct readings of a number that has cancelled away
+    its own significance. The same measure sets the tolerance on
+    ``test_att_and_total_effect_scale_with_the_gap``.
+    """
+    v = np.asarray(values, dtype=float)
+    total = abs(float(v.sum()))
+    return total > 0.0 and float(np.abs(v).sum()) <= limit * total
+
+
+@given(pre_gap=_series(), post_gap=_series(), scale=_nonzero_scale)
+@example(pre_gap=np.array([4.196e-160]),
+         post_gap=np.array([1.0, 2.0, 3.0]),
+         scale=491.3785877010134)
+def test_standardized_att_is_scale_invariant(pre_gap, post_gap, scale):
+    """Numerator and denominator carry the same units, so the ratio is free of
+    them -- the property that makes SATT comparable across studies.
+
+    The explicit example is the one that found the underflow: squaring a
+    pre-period gap of ``4.196e-160`` lands in the subnormal range, where the
+    significand has fewer bits than the answer needs, so the ratio moved in its
+    sixth digit under rescaling.
+    """
+    base = eff.standardized_att(pre_gap, post_gap)
+    assume(np.isfinite(base))
+    scaled_pre, scaled_post = scale * pre_gap, scale * post_gap
+    assume(_is_faithfully_scalable(pre_gap) and _is_faithfully_scalable(post_gap))
+    assume(_is_faithfully_scalable(scaled_pre)
+           and _is_faithfully_scalable(scaled_post))
+    assume(_mean_is_well_conditioned(post_gap)
+           and _mean_is_well_conditioned(scaled_post))
+    scaled = eff.standardized_att(scaled_pre, scaled_post)
+    assert scaled == _approx(base, rel=1e-6)
+
+
+def test_scaling_a_subnormal_gap_to_zero_has_no_standardized_att():
+    """What the assumption above steps around, asserted rather than assumed.
+
+    ``2^-1074`` is the smallest positive double, so multiplying it by anything
+    below 1 rounds to zero. The rescaled pre-period gap is then all zeros, which
+    is the one input with nothing to standardize by -- so ``nan`` here is the
+    right answer to a different question, not a failure of scale invariance.
+    """
+    tiny = np.array([4.940656458412465e-324])
+    assert np.isfinite(eff.standardized_att(tiny, tiny))
+    assert np.all(0.01 * tiny == 0.0)
+    assert np.isnan(eff.standardized_att(0.01 * tiny, 0.01 * tiny))
+
+
+def test_standardized_att_at_one_significant_bit():
+    """The bottom of the range, where the input has a single significant bit.
+
+    ``4.940656458412465e-324`` is ``2^-1074``, the smallest positive double. With
+    ``T0 = T1 = 1`` and the same value in both segments the statistic is
+    ``x / (x * sqrt(2)) = 1/sqrt(2)``, whatever ``x`` is. Reaching it by forming
+    the denominator first asks for ``sqrt(2) * 2^-1074``, which is not a double
+    -- the neighbours are ``2^-1074`` and ``2^-1073`` -- so the rounding lands on
+    ``1.0``, off by 41%. Dividing the two like-scaled quantities before applying
+    the O(1) factor never forms that intermediate.
+    """
+    tiny = np.array([4.940656458412465e-324])
+    assert eff.standardized_att(tiny, tiny) == _approx(1.0 / np.sqrt(2), rel=1e-12)
+    # and it is the same answer the ordinary-magnitude version gives
+    assert eff.standardized_att(np.array([1.0]), np.array([1.0])) == \
+        _approx(eff.standardized_att(tiny, tiny), rel=1e-12)
+
+
+# 1e-320 is the smallest magnitude at which this four-element pattern is still
+# itself: one ULP down there is 5e-324, so [1, -2, 3, -1.5] * 1e-320 lands on
+# exact multiples of it. A decade lower the input cannot carry the ratios at all
+# -- at 5e-324 the vector is 33% away from the pattern before the function sees
+# it -- so the bottom of the range is exercised by the one-element case above,
+# where the pattern is representable at 2^-1074.
+@pytest.mark.parametrize("magnitude", [1e-320, 1e-315, 1e-170, 4.196e-160,
+                                       1e-30, 1.0, 1e30, 1e170, 1e300])
+def test_standardized_att_survives_the_whole_float_range(magnitude):
+    """The statistic is a ratio of like-dimensioned quantities, so it is the
+    same number at every scale -- including scales where the *square* of the
+    pre-period gap is not representable.
+
+    ``s^2 = r_pre . r_pre / T0`` squares before it takes a root. Below about
+    ``1e-154`` that square is subnormal or zero and the denominator collapses,
+    which returned ``nan`` for a gap of ``1e-170``; above about ``1e154`` it
+    overflows to infinity and the statistic returned ``0``. Both inputs have a
+    perfectly ordinary answer -- the same one -- and the two failures are silent,
+    since ``nan`` and ``0.0`` are what an honestly tiny effect would also look
+    like.
+    """
+    pre = np.array([1.0, -2.0, 3.0, -1.5]) * magnitude
+    post = np.array([2.0, 4.0]) * magnitude
+    got = eff.standardized_att(pre, post)
+    reference = eff.standardized_att(np.array([1.0, -2.0, 3.0, -1.5]),
+                                     np.array([2.0, 4.0]))
+    assert np.isfinite(got), f"not finite at magnitude {magnitude:g}"
+    assert got == _approx(reference, rel=1e-12)
+
+
+def test_standardized_att_is_nan_only_when_the_pre_period_is_flat():
+    """The one input that genuinely has no answer: a pre-period gap of exactly
+    zero leaves nothing to standardize by.
+
+    It reaches that answer without dividing by zero on the way. A perfect
+    pre-period fit is an ordinary thing for an estimator to produce, and the
+    ``nan`` a bare ``0 / 0`` returns is the same ``nan`` -- so the only trace of
+    the difference is a ``RuntimeWarning`` on a routine call, which is asserted
+    here because nothing about the returned value can see it.
+    """
+    post = np.array([1.0, 2.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        assert np.isnan(eff.standardized_att(np.zeros(4), post))
+        # ... and a gap that is merely very small still has an answer
+        assert np.isfinite(eff.standardized_att(np.full(4, 1e-200), post))
+
+
+@given(pre_gap=_series(), post_gap=_series())
+def test_standardized_att_carries_the_sign_of_the_att(pre_gap, post_gap):
+    satt = eff.standardized_att(pre_gap, post_gap)
+    assume(np.isfinite(satt) and satt != 0.0)
+    assert np.sign(satt) == np.sign(eff.att(post_gap))
+
+
+def test_standardized_att_is_nan_when_either_segment_is_empty():
+    assert np.isnan(eff.standardized_att(np.array([]), np.array([1.0])))
+    assert np.isnan(eff.standardized_att(np.array([1.0]), np.array([])))
+
+
+@given(pre_gap=_series(min_size=2), post_gap=_series(min_size=2))
+def test_standardized_att_matches_the_documented_formula(pre_gap, post_gap):
+    """``sqrt(T1) * att / sqrt((T1/T0) * s^2 + s^2)``, transcribed independently.
+
+    Scale invariance and the sign both survive swapping ``sqrt(T1)`` for
+    ``sqrt(T0)`` in the numerator, so neither pins the statistic's magnitude.
+    Writing the docstring's formula out is what does, and it is the quantity a
+    reader compares across studies with different post-period lengths.
+    """
+    t0, t1 = pre_gap.size, post_gap.size
+    mean_sq_resid = float(pre_gap @ pre_gap) / t0
+    denom = np.sqrt((t1 / t0) * mean_sq_resid + mean_sq_resid)
+    assume(denom > 1e-8)
+
+    expected = float(np.sqrt(t1) * post_gap.mean() / denom)
+    assume(np.isfinite(expected))
+    assert eff.standardized_att(pre_gap, post_gap) == _approx(expected, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# fitutils
+# ---------------------------------------------------------------------------
+
+@given(residuals=_series())
+def test_rmse_and_std_satisfy_the_bias_variance_identity(residuals):
+    """``rmse^2 = mean^2 + std^2``.
+
+    ``effects.calculate`` labels ``std(post_gap)`` as "T1 RMSE", so the two are
+    not the same quantity; this pins the exact amount by which they differ.
+    """
+    r = residuals
+    assert fit.rmse(r) ** 2 == _approx(
+        float(r.mean()) ** 2 + fit.std(r) ** 2, rel=1e-8, abs=1e-8
+    )
+
+
+@given(residuals=_series(), scale=_nonzero_scale)
+@example(residuals=np.full(3, 263862.5), scale=170.2006956476681)
+def test_rmse_and_std_are_non_negative_and_scale_by_the_magnitude(residuals, scale):
+    """Both are homogeneous of degree one, to float64 precision.
+
+    The precision qualifier is the whole content of the tolerance here.
+    Equivariance is exact in real arithmetic but only holds to about
+    ``eps * max|c r|`` in float64, because scaling shifts where the centering
+    inside ``np.std`` loses bits: ``std([263862.5] * 3)`` is exactly 0, while
+    ``std(170.2 * [263862.5] * 3)`` is 7.5e-9. An absolute tolerance ignores
+    the data's magnitude and calls that a failure, so the bound is taken
+    relative to the scaled data instead.
+    """
+    assert fit.rmse(residuals) >= 0.0
+    assert fit.std(residuals) >= 0.0
+
+    magnitude = float(scale * np.abs(residuals).max(initial=0.0))
+    tol = 1e-9 * max(1.0, magnitude)
+    assert fit.rmse(scale * residuals) == _approx(
+        scale * fit.rmse(residuals), abs=tol)
+    assert fit.std(scale * residuals) == _approx(
+        scale * fit.std(residuals), abs=tol)
+
+
+@given(residuals=_series(), shift=_shift)
+def test_std_is_shift_invariant_and_rmse_is_not(residuals, shift):
+    assert fit.std(residuals + shift) == _approx(fit.std(residuals), abs=1e-6)
+
+
+@given(size=st.integers(1, 40))
+def test_rmse_of_a_perfect_fit_is_zero(size):
+    assert fit.rmse(np.zeros(size)) == 0.0
+
+
+@given(observed=_series(min_size=2), residuals=_series(min_size=2))
+def test_r_squared_never_exceeds_one(observed, residuals):
+    assume(observed.size == residuals.size)
+    value = fit.r_squared(observed, residuals)
+    assume(np.isfinite(value))
+    assert value <= 1.0 + 1e-9
+
+
+@given(
+    observed=st.lists(st.floats(min_value=-1e3, max_value=1e3, allow_nan=False,
+                                allow_infinity=False, width=64),
+                      min_size=2, max_size=60).map(np.asarray),
+    scale=_nonzero_scale,
+    shift=st.floats(min_value=-1e3, max_value=1e3,
+                    allow_nan=False, allow_infinity=False),
+)
+def test_r_squared_is_invariant_to_the_units_of_the_outcome(observed, scale, shift):
+    """R-squared is a variance ratio, so rescaling and shifting the observed
+    series (with the residuals rescaled to match) cannot move it.
+
+    The spread has to survive the shift in float64 for the claim to mean
+    anything -- adding 1.0 to a series whose spread is 1e-70 leaves a constant
+    array, and comparing a ratio computed on that against one computed on the
+    original is a statement about floating point, not about R-squared.
+    """
+    assume(float(np.std(observed)) > 1e-6 * (1.0 + abs(shift)))
+    residuals = observed * 0.1 - 0.3
+    base = fit.r_squared(observed, residuals)
+    assume(np.isfinite(base))
+    moved = fit.r_squared(scale * observed + shift, scale * residuals)
+    assert moved == _approx(base, rel=1e-6, abs=1e-9)
+
+
+@given(observed=_series(min_size=2))
+def test_r_squared_of_a_zero_residual_fit_is_one(observed):
+    assume(float(np.var(observed)) > 1e-6)
+    assert fit.r_squared(observed, np.zeros(observed.size)) == _approx(1.0)
+
+
+@given(size=st.integers(2, 20), value=st.floats(**_FINITE))
+def test_r_squared_is_nan_when_the_observed_series_has_no_variance(size, value):
+    assert np.isnan(fit.r_squared(np.full(size, value), np.zeros(size)))
+
+
+@pytest.mark.parametrize("residuals_value", [0.0, 1e-6, 0.5])
+def test_r_squared_on_a_flat_series_that_does_not_center_to_exactly_zero(
+    residuals_value,
+):
+    """Regression: the exact case the generated tests turned up.
+
+    ``np.full(17, 493447.830355742)`` is constant, but subtracting its mean
+    leaves residue with a centered sum of squares of 5.8e-20 instead of 0. An
+    exact ``denom != 0`` guard admitted that, and the reported R-squared was
+    1.0, -2.9e8 or -7.4e19 depending only on the residuals -- a silent wrong
+    answer with no warning. A flat pre-period is an ordinary panel, so the
+    guard now compares against the noise floor of the centering.
+    """
+    y = np.full(17, 493447.830355742)
+    assert 0.0 < float((y - y.mean()) @ (y - y.mean())) < 1e-15   # not exactly flat
+    assert np.isnan(fit.r_squared(y, np.full(17, residuals_value)))
+
+
+def test_r_squared_still_reports_a_series_with_real_but_small_variance():
+    """The guard must not swallow a genuinely varying series.
+
+    A spread of 1 on a level of 1e6 is a ratio of 1e-13 -- far below anything a
+    naive relative tolerance would keep, and far above the 1e-32 floor that
+    centering noise sits at.
+    """
+    y = 1e6 + np.arange(20.0)
+    value = fit.r_squared(y, np.full(20, 0.1))
+    assert np.isfinite(value) and value < 1.0
+
+
+# ---------------------------------------------------------------------------
+# effects.calculate -- the composition
+# ---------------------------------------------------------------------------
+
+@st.composite
+def _panels(draw):
+    n_pre = draw(st.integers(min_value=1, max_value=25))
+    n_post = draw(st.integers(min_value=1, max_value=25))
+    total = n_pre + n_post
+    obs = np.asarray(draw(st.lists(st.floats(**_FINITE),
+                                   min_size=total, max_size=total)))
+    cf = np.asarray(draw(st.lists(st.floats(**_FINITE),
+                                  min_size=total, max_size=total)))
+    return obs, cf, n_pre, n_post
+
+
+@given(panel=_panels())
+@settings(max_examples=150)
+def test_calculate_reports_the_primitives_it_delegates_to(panel):
+    """The display dictionaries must agree with the functions underneath."""
+    obs, cf, n_pre, n_post = panel
+    eff_dict, fit_dict, _ = effects.calculate(obs, cf, n_pre, n_post)
+
+    gap_series = eff.gap(obs, cf)
+    pre_gap, post_gap = eff.split_pre_post(gap_series, n_pre, n_post)
+
+    assert eff_dict["ATT"] == _approx(round(eff.att(post_gap), 3))
+    assert eff_dict["TTE"] == _approx(round(eff.total_effect(post_gap), 3))
+    assert fit_dict["T0 RMSE"] == _approx(round(fit.rmse(pre_gap), 3))
+    assert fit_dict["T1 RMSE"] == _approx(round(fit.std(post_gap), 3))
+    assert fit_dict["Pre-Periods"] == n_pre
+    assert fit_dict["Post-Periods"] == n_post
+
+
+@given(panel=_panels(), shift=_shift)
+@settings(max_examples=150)
+def test_calculate_att_is_invariant_to_a_common_level_shift(panel, shift):
+    """Shifting observed and counterfactual together leaves the effect alone."""
+    obs, cf, n_pre, n_post = panel
+    base, _, _ = effects.calculate(obs, cf, n_pre, n_post)
+    moved, _, _ = effects.calculate(obs + shift, cf + shift, n_pre, n_post)
+    assert moved["ATT"] == _approx(base["ATT"], abs=1e-3)
+
+
+@given(panel=_panels())
+@settings(max_examples=150)
+def test_calculate_relative_time_column_puts_zero_on_the_last_pre_period(panel):
+    """Pins the convention the gap plots depend on.
+
+    ``relative_time = arange(T) - n_pre + 1``, so index ``n_pre - 1`` -- the
+    last pre-treatment period -- carries 0 and the first post-treatment period
+    carries 1. The comment above that line in ``resultutils`` reads "0 at
+    treatment start", which is off by one against this if "treatment start"
+    means the first treated period. The behaviour is pinned here as-is because
+    every gap plot in the library is drawn on it; the comment is the thing that
+    disagrees.
+    """
+    obs, cf, n_pre, n_post = panel
+    _, _, vectors = effects.calculate(obs, cf, n_pre, n_post)
+    rel = vectors["Gap"][:, 1]
+
+    assert rel[n_pre - 1] == 0.0
+    assert rel[n_pre] == 1.0
+    assert rel.shape[0] == obs.size
+    np.testing.assert_allclose(np.diff(rel), 1.0, atol=0)
+
+
+@given(panel=_panels())
+@settings(max_examples=100)
+def test_calculate_time_series_vectors_keep_the_input_length(panel):
+    obs, cf, n_pre, n_post = panel
+    _, _, vectors = effects.calculate(obs, cf, n_pre, n_post)
+    assert vectors["Observed Unit"].shape == (obs.size, 1)
+    assert vectors["Counterfactual"].shape == (obs.size, 1)
+    assert vectors["Gap"].shape == (obs.size, 2)
+
+

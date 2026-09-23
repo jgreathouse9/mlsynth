@@ -62,15 +62,44 @@ def percent_att(att_value: float, counterfactual_post: np.ndarray) -> float:
 
 
 def standardized_att(pre_gap: np.ndarray, post_gap: np.ndarray) -> float:
-    """Standardized ATT ``sqrt(T1) * att / sqrt((T1/T0) * s^2 + s^2)``."""
+    """Standardized ATT ``sqrt(T1) * att / sqrt((T1/T0) * s^2 + s^2)``.
+
+    The denominator is ``s * sqrt(T1/T0 + 1)`` with ``s`` the root mean square
+    of the pre-period gap. Two things about how that is evaluated, both of which
+    only matter at the ends of the floating-point range and both of which return
+    a plausible number when they go wrong.
+
+    ``s`` factors out the largest absolute gap before squaring. Forming
+    ``r_pre . r_pre`` directly squares before it takes a root: a pre-period gap
+    around ``1e-160`` squares into the subnormals and loses significand bits,
+    below about ``1e-154`` it squares to zero and the statistic came back
+    ``nan``, and above about ``1e154`` it overflows and the statistic came back
+    ``0``.
+
+    The whole ratio is then formed in that normalized domain, so no quantity
+    carrying the data's own scale is ever multiplied by anything. Reconstituting
+    ``s`` and then multiplying by ``sqrt(T1/T0 + 1)`` lands back on the
+    subnormal grid, where the spacing is absolute: at a gap of
+    ``2^-1074``, the smallest positive double, the denominator wants
+    ``sqrt(2) * 2^-1074``, whose neighbours are ``2^-1074`` and ``2^-1073``, and
+    rounding to one of them put the statistic at ``1.0`` where the answer is
+    ``1/sqrt(2)``. Dividing the two like-scaled means instead is well-behaved
+    wherever the statistic itself is.
+
+    Returns ``nan`` when either segment is empty or the pre-period gap is
+    identically zero -- the one case with nothing to standardize by.
+    """
     r_pre = _ravel(pre_gap)
     r_post = _ravel(post_gap)
     t0, t1 = r_pre.size, r_post.size
     if t0 == 0 or t1 == 0:
         return float("nan")
-    mean_sq_resid = float(r_pre @ r_pre / t0)
-    denom = np.sqrt((t1 / t0) * mean_sq_resid + mean_sq_resid)
-    return float(np.sqrt(t1) * r_post.mean() / denom) if denom != 0 else float("nan")
+    largest = float(np.max(np.abs(r_pre)))
+    if not (largest > 0.0) or not np.isfinite(largest):
+        return float("nan")
+    rms_norm = float(np.sqrt(np.mean((r_pre / largest) ** 2)))
+    post_norm = float(r_post.mean()) / largest
+    return float(np.sqrt(t1 / (t1 / t0 + 1.0)) * post_norm / rms_norm)
 
 
 def percent_gap(post_gap: np.ndarray, counterfactual_post: np.ndarray) -> np.ndarray:

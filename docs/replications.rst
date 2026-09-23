@@ -11,10 +11,10 @@ from the paper's simulation section ("Path B"), or matching the
 output of an authoritative reference implementation
 ("cross-validation").
 
-This page catalogues those replications. Thirty-seven of the
-thirty-eight estimators are currently fully verified; ISCM carries a
-one-draw illustration only (its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce).
+This page catalogues those replications. Every estimator is verified
+along one of these paths except ISCM, which carries a one-draw
+illustration only (its paper relies on a non-public panel and provides
+no Monte Carlo to reproduce).
 
 The runnable cases that pin these numbers -- and guard against
 regressions -- live in the durable benchmark suite; see
@@ -50,20 +50,29 @@ below; the catalogue entries link to a dedicated page where one exists.
    :hidden:
    :caption: Dedicated replication pages
 
+   replications/geox
+   replications/gpits
+   replications/geox_sdid_equivalence
+   replications/geox_augsynth_recast
    replications/drsc
    replications/fsc
    replications/fdid
+   replications/twsf
    replications/wine_tennessee
    replications/cast
    replications/rrsc
    replications/src
    replications/bscm
    replications/bfsc
+   replications/dmlfm
    replications/mvbbsc
    replications/mtgp
    replications/bpscs
    replications/tssc
+   replications/cwz_conformal
+   replications/cwz_ttest
    replications/vanillasc
+   replications/vanillasc_olympics
    replications/lamba_tigers
    replications/vanillasc_staggered
    replications/synth_jhai_prop99
@@ -75,13 +84,17 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/ascm_kansas
    replications/ascm_jackknife_plus
    replications/ascm_ridge_cv
+   replications/ascm_mixtape
    replications/song_ml_ascm
+   replications/bilgel_turkey_lockdown
    replications/pensynth
    replications/sparse_sc
    replications/nsc
    replications/sdid
+   replications/sdid_euets
    replications/brabander_brexit
    replications/mcnnm
+   replications/lpca
    replications/spsydid
    replications/seq_sdid
    replications/clustersc
@@ -112,13 +125,18 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cmbsts
    replications/marex
    replications/dsc
+   replications/dsc_mc
+   replications/dsc_disco_xval
    replications/disco_tenure
    replications/dtwsc
    replications/microsynth
    replications/microsynth_baltimore
    replications/cfm
+   replications/gsynth
+   replications/gsynth_av_laws
    replications/cscipca
    replications/medsc
+   replications/fspda_table1
 
 .. _replications-canonical:
 
@@ -145,6 +163,23 @@ Canonical workhorses
   Connecticut 0.068, each within 0.005 of the paper; durable:
   ``vanillasc_prop99``).
   → dedicated page: :doc:`replications/vanillasc`.
+* :doc:`vanillasc` (debiased t-test) -- Chernozhukov, Wuthrich & Zhu.
+  Path A on the authors' carbon tax panel (ATT -0.273903, 90% CI
+  [-0.406425, -0.141380], cross-validated against their scinference), Path B
+  on their Table 3 simulation design run live from the JPE replication
+  package, and Table 1's efficiency formula -- the rule behind
+  ``ttest_K="auto"`` -- matched to 1e-9.
+  -> dedicated page: :doc:`replications/cwz_ttest`; durable cases
+  ``cwz_ttest``, ``cwz_ttest_mc``, ``cwz_rae``, ``cwz_mc``.
+* :doc:`vanillasc` (conformal inference) -- Chernozhukov, Wuthrich &
+  Zhu (2021, JASA). Cross-validation against the authors' own R
+  (``scinference`` v1.0.0, cross-checked against the JASA supplement's
+  functions) on the panel their Section 5 uses: Rhode Island's 2003
+  decriminalization of indoor prostitution. The moving-block p-value
+  (0.040000), all six pointwise 90% intervals on the paper's own grid, and
+  the three placebo specification tests reproduce exactly.
+  -> dedicated page: :doc:`replications/cwz_conformal`; durable case
+  ``cwz_conformal``.
 * :doc:`vanillasc` (staggered adoption) -- Cattaneo, Feng, Palomba &
   Titiunik (2025) multiple-treated-unit prediction intervals. Cross-validation
   vs the ``scpi`` package on the Germany reunification panel: the event-time
@@ -153,7 +188,7 @@ Canonical workhorses
   ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
   ``scpi_staggered_pi``).
   → dedicated page: :doc:`replications/vanillasc_staggered`.
-* :doc:`ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
+* :doc:`replications/ascm_kansas` -- Ben-Michael, Feller & Rothstein (2021) Augmented SCM
   (the ridge-augmentation layer on VanillaSC). Cross-validation vs
   ``augsynth``\ : the canonical Kansas tax-cut ladder reproduced
   value-for-value -- classic SCM (ATT :math:`-0.029`), ridge ASCM
@@ -164,16 +199,27 @@ Canonical workhorses
   and bias reduction across four Kansas-calibrated DGPs. Status: done.
   → dedicated page: :doc:`replications/ascm_kansas`; durable cases
   ``ascm_kansas`` and ``augsynth_calibrated``.
-* :doc:`ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
+* :doc:`replications/ascm_mixtape` -- ridge ASCM on the two Mixtape applications
+  (Cunningham): Proposition 99 and Texas prisons. Cross-validation vs a live
+  ``augsynth`` run through the public estimator -- ATT, pre-fit :math:`L_2` and
+  scaled imbalance, the jackknife+ interval and all 88 donor weights, worst
+  relative gap :math:`6.3\times 10^{-7}` on the ATT. The pair is chosen for
+  contrast: the augmentation halves the pre-fit error on Proposition 99
+  (:math:`\lambda = 430`) and switches itself off on Texas
+  (:math:`\lambda = 1.7\times 10^{10}`, pre-fit moved 0.2%), where only 8
+  pre-periods leave the cross-validation unable to justify it. Status: done.
+  → dedicated page: :doc:`replications/ascm_mixtape`; durable case
+  ``ascm_mixtape``.
+* :doc:`replications/ascm_jackknife_plus` -- augsynth's ``inf_type="jackknife+"`` for ridge
   ASCM, the leave-one-pre-period-out interval, cross-validated against a live
   augsynth run on the Kansas panel at the per-drop seam as well as end to end
   → dedicated page: :doc:`replications/ascm_jackknife_plus`; durable case
   ``ascm_jackknife_plus``.
-* :doc:`ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
+* :doc:`replications/ascm_ridge_cv` -- the ridge penalty's leave-one-pre-period-out
   cross-validation and 1-SE rule, cross-validated against augsynth on two panels
   chosen so that one of them cannot detect the defects the other does
   → dedicated page: :doc:`replications/ascm_ridge_cv`.
-* :doc:`song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
+* :doc:`replications/song_ml_ascm` -- Song et al. (2023) clean winter heating in China, the
   ridge-ASCM half of their two-stage ML-ASCM. Path A against the authors'
   published ``main_result.csv`` *and* cross-validation against a live augsynth
   0.2.0 run on the same cells, carried separately because they answer different
@@ -183,6 +229,15 @@ Canonical workhorses
   ridge penalty, not the fit. Status: done; the drift is quantified.
   → dedicated page: :doc:`replications/song_ml_ascm`; durable case
   ``song_ml_ascm``.
+* :doc:`ppscm` -- Bilgel (2022, Econometrics Journal), Covid-19 lockdowns and
+  social distancing in Turkey. Path A on the author's deposited replication
+  package: all six mobility ATTs of Table 3, column 1, from ``multisynth`` at
+  ``nu = 0.5``. PPSCM reproduces every one to within half the paper's last
+  printed digit -- the largest distance is 0.0023, on estimates spanning -53.10
+  to +12.02 -- with wild-bootstrap standard errors agreeing to 0.8-3.2 percent.
+  Status: done.
+  → dedicated page: :doc:`replications/bilgel_turkey_lockdown`; durable case
+  ``bilgel_turkey_lockdown``.
 * :doc:`masc` -- Kellogg, Mogstad, Pouliot & Torgovitsky (2020)
   matching + synthetic control. Path A: the KMPT Section-5
   Basque Country / ETA-terrorism study on ``basque_jasa.csv``,
@@ -233,13 +288,29 @@ Generalising the estimand, treatment, or unit
 
 * :doc:`scmo` -- multi-outcome SC, both variants.
   Path A: Tian-Lee-Panchenko (2026) German reunification (nine
-  pre-1989 indicators) -- the concatenated synthetic reproduces their
-  Table 2 balance cell by cell (synthetic 1989 GDP per capita
-  :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
+  pre-1989 indicators) -- all 36 cells of their Table 2 balance, the two
+  synthetic controls and the two data columns (synthetic 1989 GDP per
+  capita :math:`19029.8`; CPI :math:`3.1`; trade :math:`59.1`; tax
   :math:`34.1`), pre-RMSE :math:`= 110` (durable: ``scmo_germany``).
   Path B (concatenated): TLP Table 1 == Sun et al. ``Simulation1.R``
-  -- bias falls and pre-fit rises with the outcome count :math:`K` across
-  :math:`T_0 \in \{1, 5, 10\}` (durable: ``scmo_concatenated_mc``).
+  -- all 36 cells (fit, bias, SD for four estimators), bias falling and
+  pre-fit rising with the outcome count :math:`K` across
+  :math:`T_0 \in \{1, 5, 10\}`, and the ridge-augmented SC cutting the
+  ten-outcome bias further (durable: ``scmo_concatenated_mc``).
+  Path A (COVID): Tian-Lee-Panchenko Online Appendix B.3, Sweden's
+  light-touch NPIs, cross-validated against a captured run of their own
+  ``COVID_analysis.R`` -- all 76 cells of their Table B.3 donor weights, the
+  446 per-period permutation p-values across twelve outcomes, the aggregate
+  index and its p-values (Figures B.5 and B.7, which the paper prints only
+  inside the plots), and four robustness variants, together with the effect
+  magnitudes the text reports (COVID-19 cases :math:`-70\%`, deaths
+  :math:`-68\%`, absence from work :math:`+76\%`, hours :math:`-12\%`,
+  retail :math:`-5` to :math:`-13\%`) (durable: ``scmo_covid_sweden``).
+  Path B (demeaned): TLP Online Appendix Table B.1 -- all 144 cells over
+  :math:`d \in \{1, 0.5, 0\}` and :math:`T_0 \in \{5, 10, 20\}`, with
+  demeaning improving the fit, the permutation test's size distorting as the
+  treated unit moves inside the donors' hull, and demeaning and more
+  outcomes pulling it back (durable: ``scmo_demeaned_mc``).
   Path B (averaged): Sun-Ben-Michael-Feller (2025) Appendix-D regime
   contrast -- averaging beats the separate SC under a common factor and
   hurts under purely idiosyncratic factors (durable: ``scmo_averaged_mc``).
@@ -310,15 +381,29 @@ Generalising the estimand, treatment, or unit
   post (``MSE_pre`` / ``MSE_post`` near zero, rising only mildly with
   the horizon, as the bias bound predicts; durable:
   ``shc_recovery_mc``).
+* :doc:`gpits` -- Cho (2026) Gaussian-process interrupted time series.
+  Path A: the *Heller* decision on D.C. handgun background checks --
+  cumulative four-month effect 15.1323 per 100k with a 95 percent
+  interval of [12.9687, 17.2960], against the paper's 15.1 [13.0, 17.3],
+  exact at the reported precision. Cross-validated cell-for-cell against
+  the author's R package ``gpss`` to :math:`\approx 10^{-11}` relative on
+  every quantity (durable: ``gpits``).
 * :doc:`dtwsc` -- Dynamic SC (speed warping). Cross-validation:
   Cao & Chadefaux's R package ``conflictlab/dsc`` on the Basque panel --
   pre-RMSE 0.0705 exact, ATT within 0.23 percent
   (:doc:`replications/dtwsc`).
-* :doc:`dsc` -- Distributional SC. Path B: Gunsilius (2023)
-  Figure 4 reproduction -- the 2-Wasserstein-squared distance
-  collapses at :math:`J = 30` against the rough fit at
-  :math:`J = 4`, and a location-shift planted effect of
-  :math:`+1.5` is recovered.
+* :doc:`dsc` -- Distributional SC. Path A: the ``DiSCo`` vignette's Dube (2019)
+  minimum-wage application, Alaska treated in 2003 -- pre-period 2-Wasserstein
+  fit 0.038 and the vignette's stated failure to reject at both post years
+  (:doc:`replications/dsc`). Path B: the Zhang, Zhang & Zhang (2026) asymptotics
+  Monte Carlo, whose Algorithm 1 the estimator implements -- both theorems'
+  geometry reproduces across sixteen points, and the risk ratio matches the
+  published figure to 0.0017 at every cell with :math:`M \ge 200`
+  (:doc:`replications/dsc_mc`). Cross-validation: against the authors' ``DiSCos``
+  R package on the Dube panel, in both feasible sets -- mlsynth sits 0.0079
+  (simplex) and 0.0103 (sum-to-one) from the mean of 40 reference seeds, inside
+  the reference's own across-seed spread of 0.0160 and 0.0300, which settles
+  issue #304 (:doc:`replications/dsc_disco_xval`).
 * :doc:`si` -- Synthetic Interventions. Path A: California
   Proposition 99 multi-arm counterfactual reproduces the paper's
   reported control/tax-only/full-program values 75.8 / 57.5 / 59.1.
@@ -342,10 +427,11 @@ Convex-hull relaxation
 * :doc:`nsc` -- Nonlinear SC. Cross-validation: matched to
   Tian's (2023) own R implementation on the Proposition 99 panel
   (Table 2) -- per-donor NSC weights track the author's to
-  correlation 0.989 (max :math:`|\Delta| = 0.024`), recovering the
-  same signed donor pool, with an average effect :math:`-19.1` and
-  an effect path (:math:`-9.1/-22.6/-27.0` in 1990/1995/2000)
-  matching the paper's :math:`-9.5/-24.5/-28.7`. Path B: the
+  correlation 1.000 (max :math:`|\Delta| = 0.0005`, the author's own
+  3-decimal rounding), recovering the same signed donor pool, with an
+  average effect :math:`-20.59` and an effect path
+  (:math:`-9.51/-24.50/-28.70` in 1990/1995/2000) reproducing the
+  paper's :math:`-9.5/-24.5/-28.7`. Path B: the
   nonlinear-outcome Monte Carlo (Section 4, Table 1) -- on the
   :math:`r = 2` panel NSC's 95% CI covers near nominal
   (:math:`0.93/0.97` at :math:`J = 25/50`, paper
@@ -404,15 +490,21 @@ High-dimensional donor pools
   reproducing Shi & Wang's Appendix-E.1 headline of
   :math:`+2.65\%` (:math:`t = 8.35`); LASSO and forward
   selection bracket it at 3.3% and 3.9% (durable:
-  ``pda_hongkong``). Path B: Table-1 size/power geometry on
-  the four-factor DGP -- forward selection stays parsimonious
-  (~4 donors) and correctly sized (≈ 0.08-0.09) under both
-  factor structures, while LASSO over-selects (9-15) and its
-  size inflates under *dynamic* factors (0.14 vs 0.065 i.i.d.),
-  matching the paper; both fully powered at ``D5`` (durable:
-  ``pda_table1``). mlsynth's LASSO is cross-validated, not the
-  paper's modified-BIC, so its LASSO cells are a CV variant, not
-  a cell-by-cell match. Path B (LASSO): Li & Bell (2017) Table 2
+  ``pda_hongkong``). Path B: Table 1 in full, all 108 cells
+  (durable: ``fspda_table1``, and see
+  :doc:`replications/fspda_table1`) -- the median donor count is
+  the published integer in eleven of the twelve rows and one donor
+  low in the twelfth, RMSPE lands within 0.005 for forward
+  selection, and all 84 rejection deviations are within 0.033.
+  The same design at mlsynth's *defaults* -- cross-validated
+  penalty, Li & Bell variance -- is ``pda_table1``, which is where
+  the cost of those defaults is measured. The panel-level check is
+  a cross-validation case: ``fspda_dense_mc`` drives ``PDA`` on
+  panels from their ``FS.simulation.dense.R`` and compares against
+  their ``FS()`` and ``lasso.BIC()`` -- forward selection matches
+  to :math:`10^{-13}` on all eight panels, and the modified-BIC
+  LASSO matches their selected donors, penalty and t-statistic on
+  all eight once ``glmnet`` is run to convergence. Path B (LASSO): Li & Bell (2017) Table 2
   on a dense three-factor DGP with :math:`N=31 > T_1=25` -- the LASSO
   control-unit selection stays parsimonious (~7 of 30) and its
   out-of-sample PMSE scales with the idiosyncratic noise
@@ -743,17 +835,30 @@ Identification under endogeneity
 Experimental design
 -------------------
 
-* :doc:`syndes` -- Abadie & Zhao (2025) synthetic design.
+* :doc:`syndes` -- Doudchenko et al. (2021) synthetic design.
   Path B: Section 5 ablation across the three design types
   (``per_unit`` / ``two_way_global`` / ``one_way_global``) at 40
   reps under AR(1) factors; ``per_unit`` design RMSE = 0.098
   against a random-DiM baseline of 0.982, power = 0.50 at
   MDE = 0.157.
-* :doc:`marex` -- Abadie & Zhao (2025) market-exclusion design.
+* :doc:`marex` -- Abadie & Zhao (2024) market-exclusion design.
   Path A: Walmart 45-store weekly-sales placebo design --
   pre-fit RMSE 2.2%, placebo ATT :math:`-1.0%`, p-value 0.937
   against the paper's 0.933. Path B: Lin-factor DGP recovers
-  the treatment effect across the MAE-vs-effect-scale sweep.
+  the treatment effect across the MAE-vs-effect-scale sweep;
+  and the paper's own Section 5 / Table 2 simulation --- MAE
+  3.02 / 1.33 / 0.75 at :math:`m = 1 / 3 /` unconstrained
+  against the paper's 2.93 / 1.26 / 0.83, with the
+  unconstrained design selecting 6.83 units against 6.76, on panels
+  captured from the authors' own DGP under their driver's seeding
+  --- which reproduces Table 2's effect path to 0.004 (durable:
+  ``marex_section5_mc``). Cross-validation: on twelve of those
+  panels the authors' cardinality-constrained R routine and MAREX
+  select the same treated units every time and agree on the weights
+  to 7.0e-05 (durable: ``marex_scdesign_sim``). Table 3: MAREX
+  computes the SC column on those panels and beats the strongest
+  published randomized alternative at every cardinality, by a
+  factor of two to four (durable: ``marex_table3``).
 * :doc:`pangeo` -- Parallel-Trends Supergeo Design. Path B:
   seasonal-sales panel with up-trend, down-trend, and cyclical
   trajectories; PANGEO RMSE :math:`\approx 0.2` against scalar-
@@ -777,69 +882,131 @@ Experimental design
   for the single-treated-unit design falling to :math:`\approx 0.16` at
   :math:`m=2` (Table-2 monotonicity).
   → dedicated page: :doc:`replications/lexscm`.
-  Coverage summary
-  ----------------
+* :doc:`geox` -- geo experiment design by simulated power
+  (GeoLift's market-selection loop; Arkhangelsky et al. 2021 or
+  Ben-Michael et al. 2021 scoring it). Cross-validation: under
+  ``engine="augsynth"`` the design reproduces the market selection
+  GeoLift publishes on its walkthrough panel, fourteen quantities
+  value for value. Differential: with the region forced, the readout
+  equals ``SDID(...).fit()`` on Proposition 99 exactly -- ATT and all
+  38 donor weights -- over six treated units and seven design-knob
+  settings, so the harness does not perturb the estimator it wraps and
+  the authors' ``synthdid`` agreement is inherited at 1.6e-3.
+  Calibration: an imposed-truth Monte Carlo measures size at the null
+  (0.135 against a nominal 0.10) and out-of-sample power at the
+  reported MDE (0.770 against a claimed 0.80).
+  Cross-validation of the engine's inference: against
+  `getrecast/geolift-simulation-study`, whose GeoLift arm is the same
+  augmented SC with block conformal, bias agrees on all four stress
+  scenarios within :math:`|z| \le 1.1` and the false-positive rate
+  within 0.021 -- including the outlier scenario's +3.2 point
+  convex-hull signature.
+  → dedicated pages: :doc:`replications/geox`,
+  :doc:`replications/geox_sdid_equivalence`,
+  :doc:`replications/geox_augsynth_recast`.
+
+Coverage summary
+----------------
+
+.. coverage-table-start
 
 .. list-table:: Verification coverage by family
    :header-rows: 1
-   :widths: 32 14 14 40
+   :widths: 26 10 10 54
 
    * - Family
      - Verified
      - In family
      - Status
    * - Canonical workhorses
-     - 2
-     - 2
-     - Complete (TSSC, FDID)
+     - 4
+     - 4
+     - Complete (FDID, MASC, TSSC, VanillaSC)
    * - Decomposition-first
      - 2
      - 2
      - Complete (HSC, SBC)
    * - Generalised estimand / treatment / unit
-     - 5
-     - 5
-     - Complete (SCMO, CTSC, DSC, SI, MicroSynth)
+     - 12
+     - 12
+     - Complete (CSCM, CTSC, DRSC, DSC, DTWSC, FSC, MEDSC, MOSC,
+       MicroSynth, SCMO, SCTA, SI)
    * - Convex-hull relaxation
-     - 1
      - 2
-     - NSC ✓ (cross-validated vs author's R + Path-B MC);
-       ISCM one-draw only (non-public panel, no MC)
+     - 3
+     - NSC, SRC verified;
+       ISCM -- one-draw illustration only: the paper relies on a
+       non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
-     - 7
-     - 7
-     - Complete (BVSS, CLUSTERSC, MLSC, PDA, RESCM, FSCM,
-       SPARSE_SC)
+     - 12
+     - 12
+     - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
+       PDA, RESCM, SCD, SCUL, SparseSC)
    * - Time-aware / factor models
-     - 2
-     - 2
-     - Complete (FMA, TASC)
+     - 5
+     - 5
+     - Complete (CFM, CSCIPCA, FMA, LPCA, TASC)
+   * - Bayesian
+     - 7
+     - 7
+     - Complete (BFSC, BPSCS, BSCM, CMBSTS, DMLFM, MTGP, MVBBSC)
    * - Staggered adoption
-     - 5
-     - 5
-     - Complete (SDID, SpSyDiD, PPSCM, SSC, SEQ_SDID)
+     - 10
+     - 10
+     - Complete (CAST, GSYNTH, PPSCM, ROLLDID, SDID, SPILLSYNTH, SSC,
+       STACKEDSC, SequentialSDID, SpSyDiD)
    * - Spillover-aware (donor screening)
-     - 1
-     - 1
-     - Complete (SPOTSYNTH; SpSyDiD counted under staggered)
+     - 2
+     - 2
+     - Complete (RRSC, SPOTSYNTH)
    * - Missing data
      - 3
      - 3
-     - Complete (MCNNM, SNN, RMSI)
+     - Complete (MCNNM, RMSI, SNN)
    * - Identification under endogeneity
+     - 3
+     - 3
+     - Complete (DSCAR, PROXIMAL, SIV)
+   * - Compositional outcomes
      - 2
      - 2
-     - Complete (SIV, PROXIMAL)
+     - Complete (COMPSC, PROPSC)
+   * - No control units
+     - 2
+     - 2
+     - Complete (GPITS, SHC)
+   * - Honest inference on the ATT
+     - 2
+     - 2
+     - Complete (ESC, ORTHSC)
+   * - Randomized assignment
+     - 1
+     - 1
+     - Complete (MUSC)
+   * - Prospective forecasting
+     - 1
+     - 1
+     - Complete (TWSF)
+   * - Privacy-constrained release
+     - 1
+     - 1
+     - Complete (DPSC)
    * - Experimental design
-     - 5
-     - 5
-     - Complete (LEXSCM, MAREX, SYNDES, PANGEO, SPCD)
+     - 6
+     - 6
+     - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
+   * - Total
+     - 77
+     - 78
+     - 77 of 78 estimators carry a replication.
 
-Of mlsynth's 36 estimators, 35 (97%) carry a strong or solid
-replication against their source paper or against an
-authoritative reference implementation. Only ISCM remains a
-one-draw illustration -- its paper relies on a non-public panel
-and provides no Monte Carlo to reproduce.
+.. coverage-table-end
+
+Every estimator but ISCM carries a strong or solid replication
+against its source paper or against an authoritative reference
+implementation. ISCM remains a one-draw illustration -- its paper
+relies on a non-public panel and provides no Monte Carlo to
+reproduce.
 
 Contributing a replication
 --------------------------

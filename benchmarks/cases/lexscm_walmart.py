@@ -33,6 +33,13 @@ _BASE = Path(__file__).resolve().parents[2] / "basedata"
 
 
 def run() -> dict:
+    try:
+        import pyscipopt  # noqa: F401
+    except ImportError as exc:
+        from benchmarks.compare import BenchmarkSkipped
+        raise BenchmarkSkipped(
+            "LEXSCM needs the SCIP MIP solver (pip install 'mlsynth[design]')."
+        ) from exc
     from mlsynth import LEXSCM
 
     df = pd.read_csv(_BASE / "walmart_weekly_sales.csv")

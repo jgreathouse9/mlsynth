@@ -37,6 +37,7 @@ from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
+from ..spannability import assess_spannability, warn_if_poorly_spanned
 
 _RPCA_METHODS = {"PCP", "HQF", "HSVT"}
 _CLUSTER_METHODS = {"fpca", "fgrc"}
@@ -65,6 +66,8 @@ def run_rpca(
     fgrc_k: Optional[int] = None,
     fgrc_knots: Optional[int] = None,
     fgrc_order: int = 4,
+    fgrc_n_random: int = 40,
+    fgrc_nstart: int = 40,
     # HSVT denoiser knobs (rpca_method="HSVT")
     hsvt_rank_method: str = "usvt",
     hsvt_rank: Optional[int] = None,
@@ -192,6 +195,7 @@ def run_rpca(
         labels, fgrc_loss = _fgrc_cluster(
             full_pre_panel, c1=fgrc_c1, c2=fgrc_c2, k=k,
             n_knots=knots, order=fgrc_order, seed=random_state,
+            n_random=fgrc_n_random, nstart=fgrc_nstart,
         )
         treated_cluster = int(labels[0])
         donor_col_idx = np.where(labels[1:] == treated_cluster)[0]
@@ -199,6 +203,7 @@ def run_rpca(
             "cluster_method": "fgrc",
             "fgrc_c1": int(fgrc_c1), "fgrc_c2": int(fgrc_c2), "fgrc_k": int(k),
             "fgrc_knots": int(knots), "fgrc_order": int(fgrc_order),
+            "fgrc_n_random": int(fgrc_n_random), "fgrc_nstart": int(fgrc_nstart),
             "fgrc_loss": float(fgrc_loss),
             "treated_cluster": treated_cluster,
             "cluster_labels": labels.tolist(),
@@ -210,6 +215,30 @@ def run_rpca(
         )
     selected_donor_full = donor_outcomes[:, donor_col_idx]
     selected_names = [donor_names[i] for i in donor_col_idx]
+
+    # ------------------------------------------------------------------
+    # Did donor selection cost the treated unit its convex reach? The
+    # clustering objective is trajectory similarity and carries no
+    # spannability term, so a tight cluster can drop the donors the treated
+    # unit needs. Under `simplex` that surfaces as a large pre-period error;
+    # under `nnls` it is absorbed as extrapolation and the fit looks healthy,
+    # which is why it went unnoticed. Measured either way. See
+    # `..spannability` for the West Germany case this guards.
+    # ------------------------------------------------------------------
+    spannability_meta: dict = {}
+    if donor_col_idx.size < donor_outcomes.shape[1]:
+        report = assess_spannability(
+            donor_pre_pool=donor_outcomes[:T0],
+            treated_pre=treated_outcome[:T0],
+            cluster_index=donor_col_idx,
+        )
+        warn_if_poorly_spanned(report)
+        spannability_meta = {
+            "spannability_ratio": report.ratio,
+            "spannability_excluded_mass": report.excluded_mass,
+            "spannability_cluster_rmse": report.cluster_rmse,
+            "spannability_pool_rmse": report.pool_rmse,
+        }
 
     # ------------------------------------------------------------------
     # Optional: leave-one-time-out CV for the dominant solver knob
@@ -323,6 +352,7 @@ def run_rpca(
     metadata = {
         "rpca_method": rpca_method,
         "weight_objective": weight_objective,
+        **spannability_meta,
         **cluster_meta,
         **solver_metadata,
         **cv_metadata,
@@ -346,6 +376,8 @@ def run_rpca(
                 fgrc_k=fgrc_k,
                 fgrc_knots=fgrc_knots,
                 fgrc_order=fgrc_order,
+                fgrc_n_random=fgrc_n_random,
+                fgrc_nstart=fgrc_nstart,
                 hsvt_rank_method=hsvt_rank_method,
                 hsvt_rank=hsvt_rank,
                 hsvt_cumvar=hsvt_cumvar,

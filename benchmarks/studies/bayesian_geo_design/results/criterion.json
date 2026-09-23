@@ -1,0 +1,80 @@
+{
+  "panel": "walmart_weekly_sales_covariates.csv",
+  "engine": "sdid",
+  "origins": [
+    {
+      "T0": 100,
+      "rho_mde": -0.113,
+      "rho_neg_power_5": 0.596,
+      "rho_neg_power_10": 0.595,
+      "rho_centred_mde": 0.558,
+      "rho_bt_rmse": 0.306,
+      "rho_contrast": 0.85,
+      "pick_mde": 0.0795,
+      "pick_neg_power_5": 0.0825,
+      "pick_neg_power_10": 0.0795,
+      "pick_centred_mde": 0.2621,
+      "pick_bt_rmse": 0.0912,
+      "pick_contrast": 0.0281,
+      "best": 0.0159
+    },
+    {
+      "T0": 114,
+      "rho_mde": 0.108,
+      "rho_neg_power_5": 0.408,
+      "rho_neg_power_10": 0.448,
+      "rho_centred_mde": 0.374,
+      "rho_bt_rmse": 0.147,
+      "rho_contrast": 0.899,
+      "pick_mde": 0.064,
+      "pick_neg_power_5": 0.018,
+      "pick_neg_power_10": 0.0682,
+      "pick_centred_mde": 0.5339,
+      "pick_bt_rmse": 0.0565,
+      "pick_contrast": 0.0266,
+      "best": 0.0132
+    },
+    {
+      "T0": 128,
+      "rho_mde": -0.05,
+      "rho_neg_power_5": 0.401,
+      "rho_neg_power_10": 0.528,
+      "rho_centred_mde": 0.309,
+      "rho_bt_rmse": 0.277,
+      "rho_contrast": 0.837,
+      "pick_mde": 0.2146,
+      "pick_neg_power_5": 0.0287,
+      "pick_neg_power_10": 0.059,
+      "pick_centred_mde": 0.5304,
+      "pick_bt_rmse": 0.1941,
+      "pick_contrast": 0.0333,
+      "best": 0.0129
+    }
+  ],
+  "mechanism": {
+    "rho_tau0_over_sigma_vs_mde": {
+      "sdid": -0.793,
+      "tasc": -0.934
+    },
+    "rho_sigma_vs_mde": {
+      "sdid": 0.565,
+      "tasc": -0.311
+    },
+    "boundary_asymmetry_up_over_down": {
+      "sdid": 0.73,
+      "tasc": 6.64
+    },
+    "sign_mde_equals_sign_tau0": {
+      "sdid": 0.96,
+      "tasc": 0.65
+    },
+    "tau0_sign_consistency_8_backtests": {
+      "sdid": 0.767,
+      "tasc": 0.992
+    },
+    "tau0_between_over_within_sd": {
+      "sdid": 2.58,
+      "tasc": 4.23
+    }
+  }
+}

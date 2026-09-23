@@ -454,9 +454,11 @@ linear one.
 
    Verification. NSC is validated two ways: a cross-validation
    against Tian's own R implementation on Proposition 99 (weights match
-   to correlation 0.989; effect path :math:`-9.1/-22.6/-27.0` vs the
-   paper's :math:`-9.5/-24.5/-28.7`) and the Path-B nonlinear Monte
-   Carlo (near-nominal coverage; error shrinking with the donor pool).
+   to correlation 1.000, with the largest single weight differing by
+   5e-4 -- the author's 3-decimal rounding of its own output -- and the
+   effect path :math:`-9.51/-24.50/-28.70` reproducing the paper's to
+   1e-6 packs) and the Path-B nonlinear Monte Carlo (near-nominal
+   coverage; error shrinking with the donor pool).
    See the dedicated page :doc:`replications/nsc`; durable checks
    ``nsc_prop99`` and ``nsc_mc``.
 
@@ -581,12 +583,10 @@ a pack or two of the paper's reported numbers.
 Output::
 
    selected (a*, b*) = (0.3, 0.7)        # matches the paper exactly
-   pre-RMSE          = 1.2450
-   ATT (1989-2000)   = -19.1313  packs/capita
-   ATT 95% CI        = (-25.51, -12.75)
-     1990: gap =  -9.05  CI=(-26.38, +8.27)        # paper: -9.5
-     1995: gap = -22.62  CI=(-46.03, +0.78)        # paper: -24.5
-     2000: gap = -27.01  CI=(-54.31, +0.29)        # paper: -28.7
+   ATT (1989-2000)   = -20.5897  packs/capita
+     1990: gap =  -9.51        # paper: -9.5
+     1995: gap = -24.50        # paper: -24.5
+     2000: gap = -28.70        # paper: -28.7
 
 Two things about this replication:
 

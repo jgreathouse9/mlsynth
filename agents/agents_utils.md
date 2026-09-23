@@ -4,6 +4,11 @@ The guiding principle for MLSynth modules and helper systems is:
 
 > Every function should do one thing well.
 
+That is McIlroy's, and the rest of the Unix design rules apply here too. Which
+ones `mlsynth` adopts, which it re-implements in a typed medium, and which it
+refuses are settled in `agents_unix.md`; this file is where the module and helper
+consequences are spelled out.
+
 Modules should not contain giant monolithic estimation pipelines where all logic is embedded into a single `.fit()` function. Instead, estimation should be decomposed into:
 
 1. High-level module orchestration
@@ -363,6 +368,50 @@ Helpers should ideally:
 * Return explicit outputs
 
 Avoid hidden state.
+
+---
+
+## Separate Policy From Mechanism
+
+A helper computes. Deciding what to display, where to save, how to format, and
+how verbose to be is policy, and it belongs to the caller.
+
+The rule for plotting, binding on new and refactored code:
+
+* A `plot_*` helper builds a figure and returns it (`Figure`, or `(fig, ax)`).
+* It does not call `plt.show()`, and it does not call `plt.savefig()` on its own
+  authority.
+* Displaying and saving are applied by the caller from `display_graphs` / `save`,
+  or by `result.plot()`.
+
+A plotter that displays unconditionally and returns `None` has thrown its own
+output away: no caller can compose the axes into a two-panel comparison, and no
+test can assert on anything but the absence of an exception. `agents_unix.md`
+carries the measured backlog and the check that finds these.
+
+The same split governs the rest of the helper layer. A helper that reads a
+config field it does not compute with has taken on policy; pass it the value.
+
+---
+
+## Helpers Do Not Print
+
+Library code emits results and raises exceptions. It does not write to stdout.
+
+A `print` in a helper destroys the information twice over: a caller scripting
+over a hundred panels cannot recover it, and a test cannot assert on it. Route it
+by kind:
+
+* A diagnostic the caller might act on — a solver that fell back, a column that
+  was inferred, a donor that was dropped — becomes a typed field on the result
+  (`MethodDetailsResults` is the usual home).
+* A condition the caller should notice now becomes `warnings.warn`.
+* An announcement of what the caller already asked for ("Plot saved to ...")
+  is deleted, and the path is returned.
+
+Driver modules (`*_helpers/replication.py`) print, and the separation rule still
+applies: the computation returns the table, `main()` prints it. Then the same
+table can be asserted on by a test and consumed by a benchmark case.
 
 ---
 

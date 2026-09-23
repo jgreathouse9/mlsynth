@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cvxpy as cp
 import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.model_selection import TimeSeriesSplit
@@ -46,9 +47,60 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
         self.solver = solver
         self.relaxation_type = relaxation_type
 
-    def _generate_tau_grid(self, X: np.ndarray, y: np.ndarray):
-        lower_limit = 1e-5
+    def _tau_feasibility_bounds(self, X: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
+        """The relaxation's own feasible range for ``tau``.
 
+        ``tau`` bounds ``||Sigma w - Upsilon + gamma 1||_inf`` where
+        ``Sigma = X'X / T`` and ``Upsilon = X'y / T`` (Liao, Shi & Zheng 2026,
+        eq. 9-10), so both ends of the grid are feasibility statements about
+        that constraint and not penalty magnitudes:
+
+        * the upper end is the smallest ``tau`` at which the equal weights
+          ``1/J`` are feasible -- past it the constraint is vacuous and every
+          objective returns its own unconstrained minimiser over the simplex,
+          which is ``1/J`` for the L2, entropy and empirical-likelihood
+          objectives alike;
+        * the lower end is the smallest ``tau`` at which *any* simplex weight
+          is feasible -- below it the program is infeasible.
+
+        The upper bound is closed form. ``min_gamma ||v + gamma 1||_inf`` is
+        attained at ``gamma = -(max v + min v) / 2`` and equals half the range
+        of ``v``, so no solve is needed. The lower bound minimises the same
+        norm over the simplex as well, which has no closed form.
+
+        Both are widened by 1% to keep the endpoints strictly feasible under
+        solver tolerance, matching the authors' ``scmrelax`` reference
+        implementation (``_get_tau_upper_limit`` / ``_get_tau_lower_limit``).
+        """
+        T, J = X.shape
+        Sigma = X.T @ X / T
+        Upsilon = X.T @ y / T
+
+        v = Sigma @ np.full(J, 1.0 / J) - Upsilon
+        upper_limit = float(v.max() - v.min()) / 2.0 * 1.01
+
+        w = cp.Variable(J)
+        gamma = cp.Variable()
+        problem = cp.Problem(
+            cp.Minimize(cp.norm_inf(Sigma @ w - Upsilon + gamma * np.ones(J))),
+            [cp.sum(w) == 1, w >= 0],
+        )
+        try:
+            problem.solve(solver=self.solver)
+        except Exception as e:
+            raise MlsynthEstimationError(
+                "Failed to solve for the lower tau bound (minimum feasible "
+                f"relaxation over the simplex): {e}"
+            ) from e
+        if problem.value is None or not np.isfinite(problem.value):
+            raise MlsynthEstimationError(
+                "The lower tau bound is not finite; the relaxation constraint "
+                f"has no feasible simplex weight (solver status: {problem.status})."
+            )
+        lower_limit = float(problem.value) * 1.01
+        return upper_limit, lower_limit
+
+    def _generate_tau_grid(self, X: np.ndarray, y: np.ndarray):
         # -------------------------
         # Parameter validation
         # -------------------------
@@ -70,38 +122,42 @@ class RelaxationCV(BaseEstimator, RegressorMixin):
                 f"Shape mismatch: X has {X.shape[0]} rows but y has length {y.shape[0]}."
             )
 
-        # -------------------------
-        # Compute upper bound safely
-        # -------------------------
-        try:
-            upper_limit = np.linalg.norm(X.T @ y, np.inf)
-        except Exception as e:
+        if not (np.all(np.isfinite(X)) and np.all(np.isfinite(y))):
             raise MlsynthEstimationError(
-                "Failed to compute ||X.T @ y||_inf due to invalid inputs."
-            ) from e
-
-        # -------------------------
-        # Numerical validity
-        # -------------------------
-        if not np.isfinite(upper_limit):
-            raise MlsynthEstimationError(
-                "Upper bound ||X.T @ y||_inf is not finite."
+                "X and y must be finite to construct a tau grid."
             )
 
+        # -------------------------
+        # Feasible range
+        # -------------------------
+        upper_limit, lower_limit = self._tau_feasibility_bounds(X, y)
+
+        if not (np.isfinite(upper_limit) and np.isfinite(lower_limit)):
+            raise MlsynthEstimationError(
+                "The tau bounds are not finite."
+            )
+
+        if upper_limit <= 0:
+            raise MlsynthEstimationError(
+                "No identifying signal: the equal weights already satisfy the "
+                "balance conditions exactly, so every tau >= 0 is vacuous."
+            )
+
+        # ``upper_limit >= lower_limit`` holds by construction, since the equal
+        # weights are one point of the simplex the lower bound minimises over.
+        # Equality means the equal weights *are* that minimiser, which leaves no
+        # interior to search; a solver can also land marginally the wrong side.
         if upper_limit <= lower_limit:
             raise MlsynthEstimationError(
-                "No identifying signal: ||X.T @ y||_inf is too small to construct a tau grid."
+                "Empty tau range: the smallest relaxation admitting any simplex "
+                f"weight ({lower_limit:.6g}) is not below the one admitting the "
+                f"equal weights ({upper_limit:.6g}), so no tau constrains the fit."
             )
 
         # -------------------------
         # Construct grid
         # -------------------------
         self.taus_ = np.geomspace(upper_limit, lower_limit, self.n_taus)
-
-
-
-
-
 
     def _process_tau_grid(self, X: np.ndarray, y: np.ndarray):
         """

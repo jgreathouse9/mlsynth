@@ -1,0 +1,51 @@
+== REFERENCE VALUES ==
+weight	Alabama	-0.0302982615
+weight	Arkansas	-0.0244788663
+weight	Colorado	0.0620926601
+weight	Connecticut	0.0568138211
+weight	Delaware	-0.0358767686
+weight	Georgia	0.0153865560
+weight	Idaho	0.0399238856
+weight	Illinois	0.0805513179
+weight	Indiana	-0.0506584396
+weight	Iowa	0.0057873787
+weight	Kansas	0.0402441325
+weight	Kentucky	-0.0356698518
+weight	Louisiana	0.0101603397
+weight	Maine	0.0480005986
+weight	Minnesota	0.0341539923
+weight	Mississippi	-0.0280767324
+weight	Missouri	-0.0348756680
+weight	Montana	0.0216117998
+weight	Nebraska	0.0169188990
+weight	Nevada	0.1171821302
+weight	New Hampshire	0.0923812956
+weight	New Mexico	0.0494979502
+weight	North Carolina	0.0789652913
+weight	North Dakota	0.0466892371
+weight	Ohio	-0.0068690946
+weight	Oklahoma	-0.0062930728
+weight	Pennsylvania	0.0128733807
+weight	Rhode Island	0.0870109291
+weight	South Carolina	-0.0250492306
+weight	South Dakota	-0.0002737976
+weight	Tennessee	-0.0517843537
+weight	Texas	0.0825784354
+weight	Utah	0.0297763037
+weight	Vermont	0.0670529648
+weight	Virginia	0.0400976009
+weight	West Virginia	-0.0555794519
+weight	Wisconsin	0.0066505182
+weight	Wyoming	0.0387793222
+obs_noise_var	136.4932163743
+prior_precision	0.2197911427
+pre_rmse	2.2478257229
+post_cf_mean	69.3228795767
+att	-8.9728795767
+k	3.0
+== SESSION INFO ==
+python 3.11.15
+numpy 2.4.6
+pandas 3.0.5
+scikit-learn 1.9.0
+reference: SucreRouge/synth_control @ a55ee1482d5db8cda32e18327de0072e7ba5e0b6 (learn method='bayesian', codeload tarball)

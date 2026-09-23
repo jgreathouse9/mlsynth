@@ -1,0 +1,4 @@
+R: R version 4.3.3 (2024-02-29)
+source: jinxi-atlas/Synthetic-business-cycle-code, simulation/simulation_nonnegative.R (arXiv:2505.22388)
+cell: T0=100 phi=0.5 N=12 h=2 Fh=2 reps=60 seed=20250522
+panels: 18360 rows x 12 units

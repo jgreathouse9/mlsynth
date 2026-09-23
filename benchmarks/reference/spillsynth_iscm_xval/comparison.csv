@@ -1,12 +1,18 @@
 # case: spillsynth_iscm_xval
-# generated_at: 2026-06-24T20:09:47Z
-# mlsynth_version: 1.0.0
+# generated_at: 2026-08-16T19:31:25Z
+# mlsynth_version: 2.0.0
 # estimator: SPILLSYNTH
 # config: {"affected_units": ["Austria"], "iscm_intercept": true, "method": "iscm", "outcome": "gdp", "time": "year", "treat": "treat", "unitid": "country"}
-# reference_impl: Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights/runInclusiveSCM), transcribed to NumPy
+# reference_impl: Melnychuk-Andrii/Spillover-SCM inclusive SCM (scm_weights / runInclusiveSCM). The first four rows solve the same program to the simplex; the rows marked 'reference as shipped' are the authors' ipop output, whose weights sum to 0.9666 and 1.1933
 # reference_version: git 282b621
 quantity,mlsynth,reference,abs_diff
 weight[Austria in West Germany],0.463661,0.454248,0.009413
 weight[West Germany in Austria],0.352566,0.355042,0.002476
 naive_ATT,-1482.011685,-1474.451116,7.560569
 inclusive_ATT,-1278.785513,-1275.530404,3.255109
+"weight[Austria in West Germany], reference as shipped",0.463661,0.176232,0.287429
+"weight[West Germany in Austria], reference as shipped",0.352566,0.487178,0.134612
+"naive_ATT, reference as shipped",-1482.011685,-1472.60001,9.411675
+"inclusive_ATT, reference as shipped",-1278.785513,-1651.522724,372.737211
+"sum of donor weights, West Germany fit (1 = on the simplex)",1.0,0.966605,0.033395
+"sum of donor weights, Austria fit (1 = on the simplex)",1.0,1.193265,0.193265

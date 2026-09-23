@@ -27,9 +27,16 @@ Two deliberate method differences, both documented:
   the counterfactual fit. The sequential CV selects slightly less regularisation,
   giving -5.95% rather than the paper's -6.40% (with their leaky CV mlsynth
   reproduces -6.40% exactly). The sign, magnitude, and 1%-significance agree.
-* **Long-run variance.** mlsynth's Newey-West bandwidth (``newey_west_lag``)
-  differs from R ``sandwich``'s automatic one, so the t-statistic (-4.48) differs
-  from the paper's -3.61; both reject the zero-ATE null well below 1%.
+* **Long-run variance.** The difference is the kernel, not the bandwidth. Shi &
+  Wang's Theorem 3 writes the HAC as an unweighted two-sided sum
+  ``sum_{l=-h}^{h}`` -- the uniform kernel, which they adopt "for simplicity"
+  while noting the result "is compatible with the Bartlett kernel (Newey & West
+  1987)". mlsynth uses the Bartlett kernel. The bandwidth rules agree: the paper
+  points to Newey & West (1994) for the truncation lag, which is what
+  ``newey_west_lag`` implements. On Hong Kong the kernel alone moves the
+  t-statistic from 7.69 to 7.83, so the same mechanism explains the gap here
+  between mlsynth's -4.55 and the paper's -3.61; both reject the zero-ATE null
+  well below 1%.
 
 Live cross-validation (fixed tau)
 ---------------------------------
@@ -152,8 +159,9 @@ def comparison() -> dict:
 # Deterministic (convex L2-relaxation solve + deterministic sequential CV). The
 # ATE is pinned to mlsynth's time-respecting-CV value (-5.95%, vs the paper's
 # -6.40% under its future-leaking K-fold); the tolerance keeps it close to the
-# paper while guarding regressions. The t-stat is pinned loosely (the NW
-# bandwidth differs from sandwich's) but must stay well past 5% significance.
+# paper while guarding regressions. The t-stat is pinned loosely -- mlsynth uses
+# the Bartlett kernel where the paper's Theorem 3 states the uniform one, and the
+# paper sanctions the substitution -- but must stay well past 5% significance.
 # SEPARATELY, l2_fixedtau_beta_max_abs_diff is a SOLVER cross-validation on the
 # unique QP at a fixed matched tau: mlsynth (OSQP) vs the authors' L2relax
 # program (cvxpy/ECOS, captured in benchmarks/reference/pda_ppi/). They agree to

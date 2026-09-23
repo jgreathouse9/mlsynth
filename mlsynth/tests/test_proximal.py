@@ -411,8 +411,53 @@ def test_proximal_spsc_basis_degree_must_be_positive(
 
 # --- DR + PIPW (doubly robust proximal) ---
 
-def test_proximal_dr_pipw_path(sample_proximal_data: pd.DataFrame) -> None:
+def _solvable_proximal_panel(T: int = 200, T0: int = 100) -> pd.DataFrame:
+    """A panel long enough for the treatment bridge to have a solution.
+
+    ``sample_proximal_data`` gives six pre-periods against four post ones, and
+    the bridge moment ``E_pre[q (1,W)] = E_post[(1,W)]`` has no root there --
+    ``fit_treatment_bridge`` raises on it, which is asserted separately below.
+    The DR/PIPW plumbing still needs exercising, so it gets a panel where the
+    fit exists.
+    """
+    rng = np.random.default_rng(11)
+    U = np.zeros((T, 2))
+    U[0] = rng.standard_normal(2)
+    for t in range(1, T):
+        U[t] = 0.1 * U[t - 1] + 0.9 * rng.standard_normal(2)
+    post = np.arange(T) >= T0
+    rows = []
+    y = 2.0 * post + 2 * U.sum(1) + rng.standard_normal(T)
+    for t in range(T):
+        rows.append({"UnitIdentifier": 1, "TimeIdx": t + 1, "OutcomeValue": y[t],
+                     "DonorProxyVar1": 0.0, "IsTreated": int(post[t])})
+    for j in range(2):
+        w = 2 * U[:, j] + rng.standard_normal(T)
+        z = 2 * U[:, j] + rng.standard_normal(T)
+        for t in range(T):
+            rows.append({"UnitIdentifier": j + 2, "TimeIdx": t + 1,
+                         "OutcomeValue": w[t], "DonorProxyVar1": z[t],
+                         "IsTreated": 0})
+    return pd.DataFrame(rows)
+
+
+def test_proximal_dr_pipw_raises_when_the_bridge_has_no_solution(
+        sample_proximal_data: pd.DataFrame) -> None:
+    """Six pre-periods against four post ones does not admit a bridge.
+
+    Before ``fit_treatment_bridge`` checked its own solve, this returned an
+    ordinary-looking ATT built from a moment residual of 0.219.
+    """
+    from mlsynth.exceptions import MlsynthEstimationError
+    with pytest.raises(MlsynthEstimationError, match="treatment bridge"):
+        PROXIMAL(PROXIMALConfig(**_base(
+            sample_proximal_data, methods=["DR", "PIPW"],
+            vars={"donorproxies": ["DonorProxyVar1"]}))).fit()
+
+
+def test_proximal_dr_pipw_path() -> None:
     """Methods=['DR','PIPW'] run off donors + donorproxies (W, Z)."""
+    sample_proximal_data = _solvable_proximal_panel()
     results = PROXIMAL(PROXIMALConfig(**_base(
         sample_proximal_data, methods=["DR", "PIPW"],
         vars={"donorproxies": ["DonorProxyVar1"]}))).fit()

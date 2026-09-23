@@ -1,0 +1,74 @@
+# case: dsc_disco_xval
+# generated_at: 2026-08-08T22:48:27Z
+# mlsynth_version: 1.0.0
+# estimator: DSC
+# config: {"M": 10000, "grid_method": "equidistant", "outcome": "y_col", "t0": 2003, "time": "time_col", "unitid": "id_col", "weight_constraint": "simplex | sum_to_one"}
+# reference_impl: Davidvandijcke/DiSCos DiSCo(), mean of 40 seeds at M = 10,000 (the package's runif quadrature makes a single run a Monte Carlo draw)
+# reference_version: DiSCos 0.1.4 @ ed2b3d94 (benchmarks/reference/dsc_disco_xval/)
+quantity,mlsynth,reference,abs_diff
+w[simplex][fips=1],0.023767,0.019967,0.0038
+w[simplex][fips=4],0.0,0.0,0.0
+w[simplex][fips=5],0.0,0.0,0.0
+w[simplex][fips=8],0.038668,0.034332,0.004336
+w[simplex][fips=13],0.0,0.0,0.0
+w[simplex][fips=16],0.060086,0.05621,0.003876
+w[simplex][fips=18],0.013588,0.017333,0.003745
+w[simplex][fips=19],0.087743,0.079799,0.007944
+w[simplex][fips=20],0.0,0.0,0.0
+w[simplex][fips=21],0.0,0.0,0.0
+w[simplex][fips=22],0.033081,0.032744,0.000337
+w[simplex][fips=24],0.119028,0.120909,0.001881
+w[simplex][fips=26],0.086089,0.082764,0.003325
+w[simplex][fips=28],0.0,0.0,0.0
+w[simplex][fips=29],0.053363,0.051086,0.002277
+w[simplex][fips=30],0.0,-0.0,0.0
+w[simplex][fips=31],0.035255,0.035191,6.4e-05
+w[simplex][fips=32],0.000432,0.00293,0.002498
+w[simplex][fips=33],0.079091,0.079541,0.00045
+w[simplex][fips=35],0.063063,0.0655,0.002437
+w[simplex][fips=37],0.035047,0.033195,0.001852
+w[simplex][fips=38],0.002416,0.009903,0.007487
+w[simplex][fips=39],0.0,0.00221,0.00221
+w[simplex][fips=40],0.0,4.6e-05,4.6e-05
+w[simplex][fips=42],0.0,0.002981,0.002981
+w[simplex][fips=45],0.036083,0.042234,0.006151
+w[simplex][fips=46],0.018976,0.013884,0.005092
+w[simplex][fips=47],0.030777,0.028315,0.002462
+w[simplex][fips=48],0.0,0.005346,0.005346
+w[simplex][fips=49],0.050827,0.05006,0.000767
+w[simplex][fips=51],0.090373,0.090093,0.00028
+w[simplex][fips=54],0.0,0.000522,0.000522
+w[simplex][fips=56],0.042245,0.042904,0.000659
+w[sum_to_one][fips=1],0.088748,0.079261,0.009487
+w[sum_to_one][fips=4],-0.015028,-0.022009,0.006981
+w[sum_to_one][fips=5],0.006879,0.013808,0.006929
+w[sum_to_one][fips=8],0.067345,0.069247,0.001902
+w[sum_to_one][fips=13],-0.027586,-0.028573,0.000987
+w[sum_to_one][fips=16],-0.014011,-0.008299,0.005712
+w[sum_to_one][fips=18],0.11286,0.117999,0.005139
+w[sum_to_one][fips=19],0.154938,0.149597,0.005341
+w[sum_to_one][fips=20],0.097013,0.098441,0.001428
+w[sum_to_one][fips=21],-0.107655,-0.098105,0.00955
+w[sum_to_one][fips=22],-0.010028,-0.011466,0.001438
+w[sum_to_one][fips=24],-0.063334,-0.062509,0.000825
+w[sum_to_one][fips=26],0.139074,0.130809,0.008265
+w[sum_to_one][fips=28],0.028741,0.025981,0.00276
+w[sum_to_one][fips=29],0.102884,0.101868,0.001016
+w[sum_to_one][fips=30],-0.051134,-0.050106,0.001028
+w[sum_to_one][fips=31],0.172956,0.171589,0.001367
+w[sum_to_one][fips=32],0.004654,0.009671,0.005017
+w[sum_to_one][fips=33],0.029385,0.027045,0.00234
+w[sum_to_one][fips=35],0.152289,0.151399,0.00089
+w[sum_to_one][fips=37],0.208816,0.219137,0.010321
+w[sum_to_one][fips=38],-0.045157,-0.047063,0.001906
+w[sum_to_one][fips=39],-0.033426,-0.023404,0.010022
+w[sum_to_one][fips=40],0.070783,0.062203,0.00858
+w[sum_to_one][fips=42],0.095518,0.093578,0.00194
+w[sum_to_one][fips=45],-0.042399,-0.044671,0.002272
+w[sum_to_one][fips=46],0.089943,0.098568,0.008625
+w[sum_to_one][fips=47],-0.024896,-0.026446,0.00155
+w[sum_to_one][fips=48],0.008008,0.003641,0.004367
+w[sum_to_one][fips=49],-0.176342,-0.176768,0.000426
+w[sum_to_one][fips=51],0.129237,0.126334,0.002903
+w[sum_to_one][fips=54],-0.067815,-0.064461,0.003354
+w[sum_to_one][fips=56],-0.081262,-0.086294,0.005032

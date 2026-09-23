@@ -1,0 +1,9 @@
+{
+  "case": "fspda_table1",
+  "title": "Shi & Huang (2023) Table 1, reproduced with their own FS.R and lasso.BIC.R",
+  "paper": "Shi & Huang (2023), J. Econometrics 234(2) 512-535, Table 1 (p. 521)",
+  "reference_impl": "zhentaoshi/fsPDA @ 5f4542c (live run: simulation/nonsparse/{FS.R, lasso.BIC.R, FS.simulation.dense.R} verbatim, with their committed loading.RData, at 2000 replications per cell)",
+  "path_type": "Path B",
+  "command": "Rscript benchmarks/reference/fspda_table1/reference.R",
+  "data": []
+}

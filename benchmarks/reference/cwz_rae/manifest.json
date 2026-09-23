@@ -1,0 +1,9 @@
+{
+  "case": "cwz_rae",
+  "title": "Relative asymptotic efficiency of the K-fold debiased CI (CWZ Table 1)",
+  "paper": "Chernozhukov, Wuthrich & Zhu, a t-test for synthetic controls, Table 1; the JPE replication package's code/auxiliary scripts/RAE.R",
+  "reference_impl": "the authors' own RAE.R, run live",
+  "path_type": "Path B",
+  "command": "Rscript benchmarks/reference/cwz_rae/reference.R",
+  "data": []
+}

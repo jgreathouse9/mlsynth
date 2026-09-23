@@ -1,0 +1,16 @@
+{
+  "case": "lpca_mc",
+  "title": "Local PCA vs Feng's own R on the three Section 5 designs",
+  "paper": "Feng, Y. (2024), 'Optimal Estimation of Large-Dimensional Nonlinear Factor Models', arXiv:2311.07243 (working paper dated 31 July 2024)",
+  "reference_impl": "The author's simulation harness, yingjieum/Replication_NonlinearFactorModel_2023 @ ca34fba (Simulation/Feng-2024_LPCA_simul_suppfuns.R, run live), with HDRFA::PCA_FN for the global-PCA baseline",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/lpca_mc/reference.R",
+  "data": [
+    "benchmarks/reference/lpca_mc/panel_model1.csv.gz",
+    "benchmarks/reference/lpca_mc/panel_model2.csv.gz",
+    "benchmarks/reference/lpca_mc/panel_model3.csv.gz",
+    "benchmarks/reference/lpca_mc/latent_model1.csv",
+    "benchmarks/reference/lpca_mc/latent_model2.csv",
+    "benchmarks/reference/lpca_mc/latent_model3.csv"
+  ]
+}

@@ -10,17 +10,18 @@ SCMO — Synthetic Control with Multiple Outcomes (Tian et al. 2026; Sun et al. 
    Improve the Synthetic Control Method,"* Review of Economics and Statistics
    (the **averaged** variant).
 :Replication type: **Path A** — Tian et al.'s German-reunification balance
-   table reproduced cell by cell — **and Path B** — the concatenated simulation
-   (Tian Table 1, also the Sun et al. ``Simulation1.R`` output) and the averaged
-   regime contrast (Sun et al. Appendix D).
-:Status: **Verified** — empirical balance and both simulations reproduced.
+   table and their Sweden NPI application, both reproduced cell by cell — **and
+   Path B** — the concatenated simulation (Tian Table 1, also the Sun et al.
+   ``Simulation1.R`` output), the demeaned simulation (Tian Table B.1) and the
+   averaged regime contrast (Sun et al. Appendix D).
+:Status: **Verified** — both applications and all three simulations reproduced.
 
 Validation strategy
 -------------------
 
 The two SCMO papers share the German-reunification illustration and tell the
 same story from two angles: matching the synthetic control on *several related
-outcomes* —, not a single long outcome trajectory — sharpens the
+outcomes* — not a single long outcome trajectory — sharpens the
 identification of the latent factors and reduces post-treatment bias. The
 ``concatenated`` scheme (Tian-Lee-Panchenko, following the same stacking as Sun
 et al.) stacks the standardized pre-period outcomes; the ``averaged`` scheme
@@ -31,49 +32,205 @@ Path A — German reunification balance (Tian et al. Table 2)
 -----------------------------------------------------------
 
 On ``basedata/germany_augmented.csv`` (West Germany + 16 OECD donors), SCMO
-matches West Germany to the donors on **nine economic indicators in the single
-year 1989**. The fitted synthetic West Germany reproduces Tian et al.'s printed
-1989 balance table cell by cell — for the concatenated (multiple-outcomes)
-synthetic, reconstructed from ``res.donor_weights``:
+matches West Germany to the donors on nine economic indicators in the single
+year 1989. The fit reproduces all 36 cells of Tian et al.'s printed 1989 balance
+table — the treated unit, the synthetic West Germany built on the nine outcomes,
+the one built on 30 years of GDP per capita, and the comparison-group simple
+average:
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 18 22 14
+   :widths: 30 16 18 18 14
 
    * - Outcome (1989)
      - West Germany
      - Synthetic (multiple)
-     - mlsynth
-   * - GDP per capita
-     - 18994.0
-     - 19029.8
-     - 19029.8
-   * - CPI
-     - 2.8
-     - 3.1
-     - 3.06
-   * - Trade openness
-     - 57.7
-     - 59.1
-     - 59.06
-   * - Total tax revenue
-     - 36.2
-     - 34.1
-     - 34.07
+     - Synthetic (single)
+     - Sample mean
+   * - Private social expenditure
+     - 3.4
+     - 3.5
+     - 3.7
+     - 2.0
+   * - Energy supply per GDP
+     - 0.2
+     - 0.1
+     - 0.1
+     - 0.1
+   * - Electricity generation
+     - 9.0
+     - 8.7
+     - 10.1
+     - 7.6
+   * - Triadic patent families
+     - 0.1
+     - 0.1
+     - 0.0
+     - 0.0
    * - Real GDP growth
      - 3.9
      - 4.1
-     - 4.12
+     - 3.5
+     - 3.5
+   * - CPI
+     - 2.8
+     - 3.1
+     - 4.0
+     - 5.5
+   * - Trade openness
+     - 57.7
+     - 59.1
+     - 59.3
+     - 60.4
+   * - Total tax revenue
+     - 36.2
+     - 34.1
+     - 32.9
+     - 33.7
+   * - GDP per capita
+     - 18994.0
+     - 19029.8
+     - 19075.9
+     - 16493.8
 
-The single-outcome synthetic reproduces the "Synthetic (single outcome)" column
-(1989 GDP per capita :math:`19075.9`). The concatenated SC — fit on one year's
-nine indicators, never shown the GDP path — tracks West Germany's pre-1990 GDP to
-a root-mean-squared error of :math:`110` (vs. :math:`74` for the conventional SC
-fit directly to 30 years of GDP). The post-1990 effect is reported only
-graphically in the paper (Tian et al. Figure 1), so no ATT number is asserted
-against the paper; mlsynth's deterministic ATTs (concatenated :math:`-1463`,
-averaged :math:`-1720`) ride along as regression guards. Durable case:
-``scmo_germany``.
+The reference side is a live captured run of the authors' own ``Germany.R``
+(their ``fn_W`` :math:`\texttt{solve.QP}` program), kept under
+``benchmarks/reference/scmo_germany/`` with its provenance pinned. mlsynth's two
+synthetic-control columns, reconstructed from ``res.donor_weights``, agree with
+that run to :math:`1.8 \times 10^{-4}` relative at the worst cell; the two data
+columns — West Germany's own values and the donor average — agree to floating
+point, which ties mlsynth's spec transforms (the per-capita normalizations, the
+GDP and trade joins) to the authors' read of ``all.xlsx``.
+
+The paper reads the table as both synthetic controls sitting much closer to West
+Germany than the simple average does. Counted over the nine outcomes, the
+multiple-outcomes synthetic is closer on all nine and the single-outcome
+synthetic on eight, missing on total tax revenue; and the multiple-outcomes
+synthetic is closer than the single-outcome one on all nine. Matching on the
+nine 1989 outcomes balances every one of them better than matching on 30 years
+of the GDP path.
+
+The concatenated SC — fit on one year's nine indicators, never shown the GDP
+path — tracks West Germany's pre-1990 GDP to a root-mean-squared error of
+:math:`110` (vs. :math:`74` for the conventional SC fit directly to 30 years of
+GDP). The post-1990 effect is reported only graphically in the paper (Tian et
+al. Figure 1), so no ATT number is asserted against the paper; mlsynth's
+deterministic ATTs (concatenated :math:`-1463`, averaged :math:`-1720`) ride
+along as regression guards. Durable case: ``scmo_germany``.
+
+Path A — Sweden's light-touch NPIs (Tian et al. Appendix B.3)
+--------------------------------------------------------------
+
+The paper's second application, and the one the method was built for. Sweden
+did not impose the strict non-pharmaceutical interventions its neighbours
+adopted in March 2020, so a synthetic Sweden built from countries that did
+estimates what those interventions would have done. There is no long
+pre-treatment series to match on — the pandemic is weeks old — so the synthetic
+control is matched on several outcomes at once, in three domains estimated
+separately: public health (COVID-19 cases, COVID-19 deaths, deaths from all
+causes), the labour market (employment, absence from work, hours worked), and
+the economy (GDP, imports, exports, industrial production, retail sales, CPI).
+
+The application exercises everything the appendix adds to the main text:
+outcomes observed at four frequencies share one panel (daily cases matched
+alongside quarterly GDP), each outcome is matched after centering on its own
+pre-treatment mean (``demean=True``), each outcome carries the same total
+weight however often it is observed (``metric_weighting="outcome"``), inference
+is the permutation test on the post-to-pre-treatment RMSPE ratio
+(``inference="placebo"``, one-sided, with the guard :math:`\eta = 0.01\sigma_k`),
+and the domain is summarized by the Kling index and its own permutation test.
+
+Most of the appendix is reported through figures, so the reference is a live
+captured run of the authors' own ``COVID_analysis.R`` with the plotting removed
+and the objects the plots were drawn from printed instead
+(``benchmarks/reference/scmo_covid_sweden/``, 1,687 values, re-runnable and
+byte-identical). Against it, mlsynth agrees to far inside the printed
+precision:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 46 30 24
+
+   * - Quantity
+     - How many
+     - Largest disagreement
+   * - Donor weights (Table B.3)
+     - 76 cells, 3 domains
+     - :math:`5 \times 10^{-5}`
+   * - Per-period permutation p-values
+     - 446, across 12 outcomes
+     - :math:`5 \times 10^{-7}`
+   * - Aggregate index (Figure B.5)
+     - 33 windows, 3 domains
+     - :math:`5 \times 10^{-7}`
+   * - Aggregate p-values (Figure B.7)
+     - 33 windows
+     - 30 of 33 identical
+   * - Robustness variants (Figures B.9–B.11, B.13)
+     - 4 variants, 12 outcomes
+     - :math:`7 \times 10^{-7}` relative
+
+The printed Table B.3 is pinned alongside, cell by cell at its own two
+decimals: Sweden's public-health synthetic is the Netherlands :math:`0.31`,
+Denmark :math:`0.26`, Finland :math:`0.20`, Poland :math:`0.09`, Norway
+:math:`0.07`, France and Greece :math:`0.03`, Italy :math:`0.02`, and the other
+two domains reproduce the same way. So do the effect magnitudes the text
+reports, at the dates their script prints them:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 44 28 28
+
+   * - Quantity
+     - Tian et al.
+     - mlsynth
+   * - Cumulative COVID-19 cases by July, per million
+     - −5,300 (−70%)
+     - −5,279.8 (−70.29%)
+   * - Cumulative COVID-19 deaths by July, per million
+     - −390 (−68%)
+     - −388.1 (−68.11%)
+   * - Cumulative all-cause deaths since April, per million
+     - −364 (−11%)
+     - −363.7
+   * - Absence from work, 2020 Q2
+     - +76%
+     - +75.89%
+   * - Hours worked, 2020 Q2
+     - −12%
+     - −12.24%
+   * - Retail sales, March to May
+     - −5% to −13%
+     - −6.64%, −13.39%, −5.05%
+
+The aggregate index, which the paper prints only inside its figures, comes out
+at :math:`1.10` for public health, :math:`0.45` for the labour market and
+:math:`0.07` for the economy, with permutation p-values of :math:`0.077`,
+:math:`0.077` and :math:`0.519`. The public-health path rises from
+:math:`-0.04` in late March to :math:`1.38` by the end of June and then
+flattens, which is the appendix's reading of Figure B.5; the labour market is
+significant in the second quarter alone and the economy in the first, which is
+its reading of Figure B.7.
+
+Two divergences are recorded, both established against the authors' script:
+
+1. COVID-19 deaths reach the significance threshold in April. Their own run
+   puts that series at exactly :math:`\alpha = 3/26` from 25 April and never
+   below it, so the text's "significant from May" is a reading of where the
+   figure's dotted line falls. mlsynth agrees with the script, not the reading.
+2. Three of the 33 window p-values differ. Footnote 14 puts the guard
+   :math:`\eta` on both sides of the ratio and mlsynth does that everywhere;
+   their script does it for the per-outcome and overall tests but leaves
+   :math:`\eta` off the numerator when aggregating inside a window. All three
+   are windows whose aggregate index is about zero, where the guard reorders the
+   bottom of the ranking.
+
+One variant is computed but not pinned: single-outcome matching (Figure B.12).
+Their script filters constant columns before centering there and after
+centering everywhere else, and with three or four pre-treatment columns against
+twenty-five donors the program has many optimal weight vectors, so the two
+solvers land on different ones without either being wrong. Durable case:
+``scmo_covid_sweden``.
 
 Path B — concatenated simulation (Tian et al. Table 1)
 ------------------------------------------------------
@@ -81,14 +238,59 @@ Path B — concatenated simulation (Tian et al. Table 1)
 Tian et al.'s Section-3 factor model — identical to the Sun et al. replication
 package's ``Simulation1.R`` — draws :math:`N = 30` units whose outcomes share the
 unit predictors. As the number of related outcomes :math:`K` grows, the
-post-treatment **bias falls** while the **pre-treatment fit rises** toward the
-true noise floor (not overfitting to near-zero). mlsynth reproduces all
-nine cells of Table 1 across :math:`T_0 \in \{1, 5, 10\}` and
-:math:`K \in \{1, 5, 10\}` (e.g. at :math:`T_0 = 5` the bias is
-:math:`1.21 / 1.04 / 1.00`, pre-fit :math:`0.46 / 0.95 / 1.02`), at
-:math:`M = 250` draws (the paper uses 5,000). The DGP lives in
+post-treatment bias falls while the pre-treatment fit rises toward the true
+noise floor (not overfitting to near-zero). mlsynth reproduces all 36 cells of
+Table 1 — the pre-treatment fit, the average absolute bias, and the standard
+deviation of the post-period gap, for each of the four estimators at
+:math:`T_0 \in \{1, 5, 10\}`. At :math:`T_0 = 5`, across the conventional SC,
+the five- and ten-outcome SC and the augmented SC, the bias is
+:math:`1.21 / 1.04 / 1.00 / 0.97`, the pre-fit :math:`0.46 / 0.95 / 1.02 / 0.95`
+and the gap's standard deviation :math:`1.53 / 1.31 / 1.26 / 1.22`. The run uses
+:math:`M = 250` draws (the paper uses 5,000).
+
+The fourth estimator is the paper's augmented SC: the same ten-outcome design
+under a ridge-augmented fit (``augment="ridge"``, the penalty chosen by
+cross-validation), which the paper reports as cutting the bias further where the
+pre-treatment fit is imperfect. mlsynth lands every cell of that column within
+:math:`0.07` of the printed value, the same distance as the three plain columns,
+though the two implementations differ in one step: mlsynth standardizes the
+matching columns by their cross-unit SD and ``augsynth``, which the authors
+call, works on the raw stacked series. On identical draws the augmentation
+lowers the ten-outcome SC's bias at all three :math:`T_0` (by
+:math:`0.014 / 0.023 / 0.030`, the size of the gain the paper prints) and leaves
+the pre-treatment fit above the single-outcome floor. The DGP lives in
 :func:`mlsynth.utils.scmo_helpers.simulation.simulate_tian`. Durable case:
 ``scmo_concatenated_mc``.
+
+Path B — demeaned simulation (Tian et al. Table B.1)
+----------------------------------------------------
+
+The Online Appendix repeats the Monte Carlo under a DGP where matching on
+levels fails: each outcome carries a large mean of its own, and a parameter
+:math:`d` places the treated unit, which at :math:`d = 1` is as likely as a
+donor to take an extreme predictor value and so to fall outside the donors'
+convex hull. Four estimators — one outcome in levels, one demeaned, and three
+and ten demeaned outcomes — are compared over :math:`d \in \{1, 0.5, 0\}` and
+:math:`T_0 \in \{5, 10, 20\}`, on four statistics: pre-treatment fit, average
+absolute bias, the standard deviation of the gap, and the rejection rate of the
+10% permutation test. Under the null DGP that last column is the test's size,
+and anything above :math:`0.10` is size distortion.
+
+mlsynth reproduces all 144 cells at :math:`M = 100` draws (the paper uses
+5,000), and the appendix's three readings of them hold exactly:
+
+1. demeaning improves the pre-treatment fit in all nine settings, and lowers the
+   bias at :math:`d = 1`, where the treated unit is as extreme as the donors;
+2. the test holds its nominal size at :math:`d = 1`, and distorts as :math:`d`
+   falls — the treated unit fits its donors better, its pre-treatment RMSPE
+   shrinks and its ratio grows — while demeaning and more outcomes pull the size
+   back toward 10%;
+3. more pre-treatment periods reduce the distortion too.
+
+The DGP lives in
+:func:`mlsynth.utils.scmo_helpers.simulation.simulate_tian_demeaned` and the
+test in :func:`mlsynth.utils.scmo_helpers.inference.permutation_inference`.
+Durable case: ``scmo_demeaned_mc``.
 
 Path B — averaged regime contrast (Sun et al. Appendix D)
 ---------------------------------------------------------

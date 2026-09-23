@@ -37,6 +37,52 @@ from mlsynth.exceptions import (
 )
 
 from .cohort import estimate_cohort_sdid_effects
+def _solve_placebo_weights(
+    payloads: List[Dict[int, Dict[str, Any]]]
+) -> Dict[Tuple[int, int], Tuple[Any, Any]]:
+    """Unit and time weights for every placebo draw, solved family by family.
+
+    Each draw poses the same two programs on a different column subset of the
+    same donor matrix, and the whole set is the shape the batched active set
+    wants: ``(design, target, ridge)`` triples, grouped by shape, with the ridge
+    varying by draw and entering the Gram affinely.
+
+    The programs are read from
+    :func:`~mlsynth.utils.sdid_helpers.cohort.cohort_weight_problems`, the same
+    function :func:`~mlsynth.utils.sdid_helpers.cohort.estimate_cohort_sdid_effects`
+    reads them from, so what is solved here cannot drift from what the estimator
+    would have solved. A draw whose design fails
+    :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` falls back to
+    the one-at-a-time solve inside
+    :func:`~mlsynth.utils.sdid_helpers.weights.solve_intercept_simplex_many`, and
+    a cohort carrying covariates yields no unit problem at all and is left to the
+    estimator's own stacked solve.
+
+    Returns ``{(iteration, cohort_period): (unit_weights, time_weights)}`` with
+    either entry ``None`` where there was no program to solve.
+    """
+    from .cohort import cohort_weight_problems
+    from .weights import solve_intercept_simplex_many
+
+    problems: List[Tuple[np.ndarray, np.ndarray, float]] = []
+    slots: List[Tuple[Tuple[int, int], int]] = []
+    out: Dict[Tuple[int, int], List[Any]] = {}
+
+    for iteration_idx, cohorts in enumerate(payloads):
+        for cohort_period, cohort_data in cohorts.items():
+            key = (iteration_idx, cohort_period)
+            out[key] = [None, None]
+            _, unit_problem, time_problem = cohort_weight_problems(cohort_data)
+            for which, problem in enumerate((unit_problem, time_problem)):
+                if problem is not None:
+                    problems.append(problem)
+                    slots.append((key, which))
+
+    for (key, which), solved in zip(slots, solve_intercept_simplex_many(problems)):
+        out[key][which] = solved
+    return {key: (value[0], value[1]) for key, value in out.items()}
+
+
 def estimate_placebo_variance(
     prepped_event_study_data: Dict[str, Any], num_placebo_iterations: int, seed: int
 ) -> Dict[str, Any]:
@@ -174,7 +220,12 @@ def estimate_placebo_variance(
             "Consider if units can be controls for multiple cohorts or if data is limited."
             )
 
-    # Perform placebo iterations.
+    # Draw every placebo assignment first, then solve every draw's weights as one
+    # family, then replay. The draws are built in exactly the order the
+    # one-iteration-at-a-time version used them, so the RNG stream -- and
+    # therefore which controls are cast as pseudo-treated -- is unchanged; only
+    # when the weights are computed moves. See ``_solve_placebo_weights``.
+    placebo_iteration_payloads: List[Dict[int, Dict[str, Any]]] = []
     for iteration_idx in range(num_placebo_iterations):
         # Create a deep copy of the original cohort data for this placebo iteration to avoid modifying original data.
         current_placebo_iteration_cohorts_data: Dict[int, Dict[str, Any]] = deepcopy(original_cohorts_data_dict)
@@ -220,6 +271,13 @@ def estimate_placebo_variance(
                 axis=1,
             )
 
+        placebo_iteration_payloads.append(current_placebo_iteration_cohorts_data)
+
+    # Every draw's unit and time weights, solved as one family per shape.
+    placebo_weights = _solve_placebo_weights(placebo_iteration_payloads)
+
+    for iteration_idx, current_placebo_iteration_cohorts_data in enumerate(
+            placebo_iteration_payloads):
         # Estimate effects for this placebo iteration.
         current_placebo_iteration_pooled_effects_accumulator: DefaultDict[float, List[Tuple[int, float]]] = defaultdict(list)
         current_placebo_iteration_cohort_atts: Dict[int, float] = {} # Stores ATTs for each cohort in this placebo iteration.
@@ -227,7 +285,8 @@ def estimate_placebo_variance(
         # Estimate SDID effects for each placebo cohort.
         for current_placebo_cohort_period, current_placebo_cohort_data in current_placebo_iteration_cohorts_data.items():
             current_placebo_cohort_result = estimate_cohort_sdid_effects(
-                current_placebo_cohort_period, current_placebo_cohort_data, current_placebo_iteration_pooled_effects_accumulator
+                current_placebo_cohort_period, current_placebo_cohort_data, current_placebo_iteration_pooled_effects_accumulator,
+                precomputed_weights=placebo_weights[(iteration_idx, current_placebo_cohort_period)],
             )
             current_placebo_iteration_cohort_atts[current_placebo_cohort_period] = current_placebo_cohort_result["att"]
 

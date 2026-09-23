@@ -105,9 +105,12 @@ class TestScipBackend:
         assert abs(_ic(G, Zty, yty, T0, sc, "AICc")
                    - _ic(G, Zty, yty, T0, ex, "AICc")) < 1e-4
 
-    def test_scip_intercept_only_when_donors_useless(self):
-        # Donors uncorrelated with a near-constant treated series: no donor earns
-        # its penalty, so both engines fall back to the intercept-only model.
+    def test_engines_agree_when_donors_useless(self):
+        # Donors uncorrelated with a near-constant treated series. No donor earns
+        # its penalty, but the search runs over sizes 1..nvmax (HCW Section 5,
+        # pampe's regsubsets), so both engines pick the same least-bad single
+        # donor rather than the intercept-only model. What is asserted is that
+        # they agree; see test_pda_hcw_empty_model.py for why size zero is out.
         rng = np.random.default_rng(11)
         T0, N = 15, 4
         X = rng.standard_normal((T0, N))

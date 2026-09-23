@@ -12,6 +12,8 @@ from __future__ import annotations
 import numpy as np
 from scipy.stats import norm
 
+from ...exceptions import MlsynthConfigError, MlsynthDataError
+
 
 def newey_west_lag(n: int) -> int:
     """Newey-West (1994) automatic truncation lag ``floor(4 (n/100)^(2/9))``."""
@@ -43,6 +45,13 @@ def hac_lrv(z: np.ndarray, lag: int | None = None, kernel: str = "bartlett") -> 
     ``lrv = gamma_0 + sum_{l=1}^{L} k(l) * 2 * gamma_l`` with ``gamma_l`` the
     sample autocovariance and ``k`` the Bartlett (``1 - l/(L+1)``) or uniform
     kernel. The series is de-meaned first.
+
+    Every autocovariance divides by ``n``, including the lagged ones, which have
+    only ``n - l`` products to sum. This is R's ``acf(type = "covariance")`` and
+    the Newey-West convention, so the fixed-lag branch reproduces the released
+    ``fsPDA`` package; dividing the lag-``l`` term by ``n - l`` instead inflates
+    it by ``n / (n - l)`` and costs the sequence its positive semi-definiteness,
+    which is what makes the weighted sum a variance in the first place.
     """
     z = np.asarray(z, dtype=float)
     n = z.shape[0]
@@ -53,7 +62,7 @@ def hac_lrv(z: np.ndarray, lag: int | None = None, kernel: str = "bartlett") -> 
     gamma0 = float(np.mean(zc * zc))
     lrv = gamma0
     for l in range(1, min(L, n - 1) + 1):
-        gl = float(np.mean(zc[l:] * zc[:-l]))
+        gl = float(np.sum(zc[l:] * zc[:-l]) / n)
         w = (1.0 - l / (L + 1.0)) if kernel == "bartlett" else 1.0
         lrv += 2.0 * w * gl
     return max(lrv, 0.0)
@@ -119,3 +128,81 @@ def normal_test(att: float, se: float, alpha: float = 0.05):
     p = 2.0 * (1.0 - norm.cdf(abs(z)))
     crit = norm.ppf(1.0 - alpha / 2.0)
     return float(p), (att - crit * se, att + crit * se)
+
+
+def cumulative_supt_band(
+    effect_path, error_paths, *, alpha: float = 0.05,
+    n_sims: int = 200_000, seed=0, method: str = "bootstrap",
+):
+    """Simultaneous band for the running total, from the bootstrap's own paths.
+
+    The counterpart of :func:`mlsynth.utils.ppscm_helpers.inference.cumulative_supt_band`
+    for PDA, sharing :mod:`mlsynth.utils.supt` so the two estimators cannot drift
+    apart in what "cumulative band" means.
+
+    An interval for a cumulative effect is not the running total of the
+    per-period intervals. Adding endpoints treats the period errors as moving in
+    lockstep, so the width grows like ``L`` whatever the data does; rescaling one
+    period's interval by ``sqrt(L)`` assumes they are independent. Here each
+    replicate's error path is accumulated first and the standard error taken
+    after, so the correlation the errors actually have is the correlation the
+    band inherits.
+
+    The band is simultaneous over horizons, because a cumulative path is read as
+    a path -- "positive by period six and never back" is a statement about all of
+    them at once, which a pointwise band does not cover at its nominal level.
+
+    Parameters
+    ----------
+    effect_path : array-like, shape (H,)
+        The per-period effect from the full fit; the band centres on its cumsum.
+    error_paths : array-like, shape (B, H)
+        One post-period prediction-error path per bootstrap replicate, as
+        returned in ``error_paths`` by
+        :func:`mlsynth.utils.inferutils.pda_prediction_intervals`. Rows holding a
+        non-finite entry are dropped, so a draw whose refit failed is absent
+        rather than counted as a zero that would shrink the band.
+    alpha : float, default 0.05
+        The band is simultaneous at ``1 - alpha``.
+    n_sims, seed
+        Tabulation of the sup-t critical value.
+    method : str, default "bootstrap"
+        Recorded on the result; PDA's replicates are bootstrap draws, already on
+        the estimator's scale, so no delete-one inflation is applied.
+
+    Returns
+    -------
+    PDACumulativeBand
+    """
+    from ..supt import cumulative_from_paths, jackknife_se, supt_critical_value
+    from .structures import PDACumulativeBand
+
+    if (isinstance(alpha, bool) or not isinstance(alpha, (int, float, np.floating))
+            or not 0.0 < float(alpha) < 1.0):
+        raise MlsynthConfigError(
+            f"alpha must be a number in the open interval (0, 1); got {alpha!r}."
+        )
+    pt = np.asarray(effect_path, dtype=float).ravel()
+    R = np.asarray(error_paths, dtype=float)
+    if R.ndim != 2 or R.shape[1] != pt.size:
+        raise MlsynthDataError(
+            f"error_paths must be (n_replicates, {pt.size}); got shape {R.shape}."
+        )
+    R = R[np.isfinite(R).all(axis=1)]
+    if R.shape[0] < 2:
+        raise MlsynthDataError(
+            "need at least 2 complete replicate paths to form a cumulative band; "
+            f"got {R.shape[0]}. The bootstrap support is saturating -- refit with "
+            "fewer donors than pre-periods, or raise pi_n_boot."
+        )
+
+    cum = cumulative_from_paths(R)
+    se = jackknife_se(cum, jackknife=False)      # bootstrap draws, no LOO inflation
+    q = supt_critical_value(cum, alpha=float(alpha), n_sims=n_sims, seed=seed)
+    point = np.cumsum(pt)
+    return PDACumulativeBand(
+        horizons=np.arange(1, pt.size + 1),
+        point=point, lower=point - q * se, upper=point + q * se, se=se,
+        critical_value=float(q), alpha=float(alpha),
+        n_replicates=int(R.shape[0]), method=str(method),
+    )

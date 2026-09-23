@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+import traceback
 from pathlib import Path
 
 # allow "python benchmarks/run_benchmarks.py" from the repo root
@@ -25,15 +26,29 @@ _REF = Path(__file__).resolve().parent / "reference"
 
 def run_one(name: str):
     """Run a single case. Returns a structured result dict (status in
-    pass/fail/skip, per-metric rows, timing) -- and prints the usual summary."""
-    mod = registry.load(name)
+    pass/fail/skip/error, per-metric rows, timing) -- and prints the usual
+    summary.
+
+    A case that raises anything other than :class:`BenchmarkSkipped` is reported
+    as ``error`` against its own name and the suite carries on. The suite is a
+    survey: a case that raises is a result about that case, and the remaining
+    cases are still worth collecting. ``error`` counts against the exit code
+    exactly as ``fail`` does, so containing it is reporting rather than
+    swallowing -- the traceback is printed in full.
+    """
     t0 = time.time()
+    try:
+        mod = registry.load(name)
+    except Exception as exc:                       # unimportable case module
+        return _error(name, exc, t0)
     try:
         got = mod.run()
     except BenchmarkSkipped as exc:
         print(f"\n[SKIP] {name}   ({exc})")
         return {"name": name, "status": "skip", "reason": str(exc),
                 "seconds": round(time.time() - t0, 1), "metrics": []}
+    except Exception as exc:
+        return _error(name, exc, t0)
     expected = mod.EXPECTED
     ok, report = compare(got, expected)
     rows = []
@@ -46,6 +61,20 @@ def run_one(name: str):
     return {"name": name, "status": "pass" if ok else "fail",
             "seconds": round(time.time() - t0, 1), "metrics": rows,
             **_case_meta(name)}
+
+
+def _error(name: str, exc: BaseException, t0: float) -> dict:
+    """Report a case that raised, name it, and keep going.
+
+    The name is printed on its own line before the traceback because the log is
+    read by grepping for the status tags: without it a raising case is
+    anonymous, which is how the 2026-08-13 shard failure hid which case broke it.
+    """
+    print(f"\n[ERROR] {name}   ({time.time() - t0:.0f}s)")
+    traceback.print_exc()
+    return {"name": name, "status": "error",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "seconds": round(time.time() - t0, 1), "metrics": []}
 
 
 def _case_meta(name: str) -> dict:
@@ -80,7 +109,8 @@ def write_report(results: list, out_dir: Path) -> None:
              "the exact reference run and its provenance.", "",
              "| Case | Status | Type | Reference | Bundle | Side-by-side |",
              "|------|--------|------|-----------|--------|--------------|"]
-    icon = {"pass": "PASS", "fail": "FAIL", "skip": "skip"}
+    icon = {"pass": "PASS", "fail": "FAIL", "skip": "skip",
+            "error": "ERROR"}
     for r in results:
         bundle = (f"[`{r['reference_bundle']}`]({r['reference_bundle']})"
                   if r.get("reference_bundle") else "—")
@@ -91,7 +121,14 @@ def write_report(results: list, out_dir: Path) -> None:
     n_pass = sum(r["status"] == "pass" for r in results)
     n_fail = sum(r["status"] == "fail" for r in results)
     n_skip = sum(r["status"] == "skip" for r in results)
-    lines += ["", f"{n_pass} passed, {n_fail} failed, {n_skip} skipped.", ""]
+    n_error = sum(r["status"] == "error" for r in results)
+    lines += ["", f"{n_pass} passed, {n_fail} failed, {n_skip} skipped, "
+                  f"{n_error} errored.", ""]
+    if n_error:
+        lines += ["Cases that raised before producing metrics:", ""]
+        lines += [f"- `{r['name']}`: {r.get('reason', '')}"
+                  for r in results if r["status"] == "error"]
+        lines += [""]
     (out_dir / "REPORT.md").write_text("\n".join(lines) + "\n")
     print(f"\nwrote {report_json} and {out_dir / 'REPORT.md'}")
 
@@ -113,7 +150,22 @@ def select_cases(names, needs_reference, *, with_reference, shard, num_shards):
     return names
 
 
-def main() -> int:
+
+def _read_changed(path) -> list:
+    """Repository-relative paths, one per line, as ``git diff --name-only`` gives.
+
+    Blank lines are dropped. An empty file is an empty diff, which is not the
+    same as omitting the flag: an empty diff reaches no mapped case, while no
+    flag runs everything.
+    """
+    from pathlib import Path as _Path
+
+    text = _Path(path).read_text()
+    return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, built apart from ``main`` so the tests can read it."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--case", default=None)
@@ -124,15 +176,48 @@ def main() -> int:
     ap.add_argument("--num-shards", type=int, default=1,
                     help="split the selected cases into this many shards "
                          "(round-robin), for parallel CI jobs")
+    ap.add_argument("--changed-from", default=None, metavar="FILE",
+                    help="a file of repository-relative changed paths, one per "
+                         "line; run only the cases that diff can reach")
+    ap.add_argument("--added-from", default=None, metavar="FILE",
+                    help="a file of repository-relative paths the diff creates, "
+                         "one per line; a subset of --changed-from. A file that "
+                         "did not exist cannot have been executed by an existing "
+                         "case, so its absence from the map is not a hole")
     ap.add_argument("--shard", type=int, default=0,
                     help="0-based index of the shard to run (with --num-shards)")
-    args = ap.parse_args()
+    return ap
+
+
+def _check_args(ap: argparse.ArgumentParser, args) -> None:
+    """Reject a command line that cannot mean what it says."""
     if args.num_shards < 1:
         ap.error("--num-shards must be >= 1")
     if not (0 <= args.shard < args.num_shards):
         ap.error("--shard must be in [0, num_shards)")
+    if args.added_from is not None and args.changed_from is None:
+        ap.error("--added-from names a subset of --changed-from; give both")
+
+
+def main() -> int:
+    ap = build_parser()
+    args = ap.parse_args()
+    _check_args(ap, args)
 
     base = [args.case] if args.case else list(registry.CASES)
+    if args.changed_from is not None:
+        # Narrow to the cases the diff can reach before sharding, so the shards
+        # split the work that is actually going to run. case_deps widens on any
+        # doubt: an unmapped case runs, and a changed file no entry claims runs
+        # everything.
+        from benchmarks import case_deps
+
+        changed = _read_changed(args.changed_from)
+        added = _read_changed(args.added_from) if args.added_from else []
+        picked = case_deps.select(changed, base, added=added)
+        print(f"changed files: {len(changed)} ({len(added)} added); "
+              f"cases selected: {len(picked)}/{len(base)}")
+        base = picked
     names = select_cases(
         base, registry.NEEDS_REFERENCE, with_reference=args.with_reference,
         shard=args.shard, num_shards=args.num_shards)
@@ -141,11 +226,19 @@ def main() -> int:
     n_pass = sum(r["status"] == "pass" for r in results)
     n_skip = sum(r["status"] == "skip" for r in results)
     n_fail = sum(r["status"] == "fail" for r in results)
+    n_error = sum(r["status"] == "error" for r in results)
     if args.report:
         write_report(results, Path(__file__).resolve().parent)
-    tail = f" ({n_skip} skipped)" if n_skip else ""
-    print(f"\n==== {n_pass}/{n_pass + n_fail} benchmarks passed{tail} ====")
-    return 0 if n_fail == 0 else 1
+    notes = ([f"{n_skip} skipped"] if n_skip else []) + \
+            ([f"{n_error} errored"] if n_error else [])
+    tail = f" ({', '.join(notes)})" if notes else ""
+    print(f"\n==== {n_pass}/{n_pass + n_fail + n_error} benchmarks "
+          f"passed{tail} ====")
+    if n_error:
+        for r in results:
+            if r["status"] == "error":
+                print(f"  ERROR  {r['name']}: {r['reason']}")
+    return 0 if (n_fail == 0 and n_error == 0) else 1
 
 
 if __name__ == "__main__":

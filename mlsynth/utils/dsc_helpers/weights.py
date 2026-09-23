@@ -171,6 +171,74 @@ def _refine_exact(A: np.ndarray, b: np.ndarray, warm: np.ndarray) -> np.ndarray:
         return warm
 
 
+def solve_sum_to_one_weights(
+    donor_matrix: np.ndarray,
+    treated_vec: np.ndarray,
+) -> np.ndarray:
+    """Least-squares weights that sum to one, without the non-negativity bound.
+
+    Solves
+
+    .. math::
+
+       \\widehat w = \\arg\\min_{w} \\| \\widetilde Y_t\\, w
+                     - \\widehat Y_{1t} \\|_2^2,
+       \\qquad \\mathbf 1^\\top w = 1, \\quad w \\le 1,
+
+    the feasible set the reference ``DiSCos`` package uses by default:
+    ``DiSCo_weights_reg`` passes ``lb = NULL`` unless ``simplex = TRUE`` and
+    ``ub = 1`` in either case, so a weight may go negative but none may exceed
+    one. Zhang, Zhang & Zhang (2026) frame the same relaxation as a bounded
+    extrapolation set :math:`[-C_L, C_U]^J`, which contains the simplex, so the
+    fitted loss here is never above what :func:`solve_simplex_weights` attains.
+
+    Allowing negative weights buys fit when the treated quantile function sits
+    outside the donors' convex hull, and costs the interpretability the simplex
+    provides: the synthetic unit is no longer a weighted average of observed
+    donors. The simplex remains the default.
+
+    Parameters
+    ----------
+    donor_matrix : np.ndarray
+        :math:`(M, J)` design matrix -- donor quantile functions on the grid.
+    treated_vec : np.ndarray
+        Length-``M`` target quantile function.
+
+    Returns
+    -------
+    np.ndarray
+        Length-``J`` weight vector with ``sum(w) == 1`` and ``w <= 1``.
+    """
+    if donor_matrix.ndim != 2 or treated_vec.ndim != 1:
+        raise MlsynthEstimationError(
+            "donor_matrix must be 2-D and treated_vec must be 1-D."
+        )
+    if donor_matrix.shape[0] != treated_vec.shape[0]:
+        raise MlsynthEstimationError(
+            "donor_matrix and treated_vec must have the same number of rows."
+        )
+    A = np.asarray(donor_matrix, dtype=float)
+    b = np.asarray(treated_vec, dtype=float)
+    J = A.shape[1]
+    if J == 1:
+        return np.ones(1)
+    try:
+        import cvxpy as cp
+    except Exception as exc:  # pragma: no cover - cvxpy is a declared dependency
+        raise MlsynthEstimationError(
+            "weight_constraint='sum_to_one' needs cvxpy, which is not importable."
+        ) from exc
+    w = cp.Variable(J)
+    cp.Problem(cp.Minimize(cp.sum_squares(A @ w - b)),
+               [cp.sum(w) == 1, w <= 1]).solve(solver=cp.CLARABEL)
+    if w.value is None:  # pragma: no cover - degenerate
+        raise MlsynthEstimationError("The sum-to-one weight solve did not converge.")
+    out = np.asarray(w.value, dtype=float).ravel()
+    # Renormalise against solver slack on the equality; the residual is ~1e-12
+    # and left uncorrected it would surface as weights that do not sum to one.
+    return out / out.sum()
+
+
 def wasserstein_loss_at_weights(
     donor_matrix: np.ndarray,
     treated_vec: np.ndarray,

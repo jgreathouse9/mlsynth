@@ -1,0 +1,11 @@
+{
+  "generated_at": "2026-08-14T19:12:27Z",
+  "git_sha": "b82abd51ed1623f8e2bce51cacf8408be2a9b11a",
+  "platform": "Linux-6.18.5-fc-v20-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/cwz_rae/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "compiler": "4.3.3"
+  }
+}

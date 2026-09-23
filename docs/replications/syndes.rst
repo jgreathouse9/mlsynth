@@ -65,3 +65,32 @@ The durable case is ``benchmarks/cases/syndes_bls.py``; broader Monte-Carlo
 coverage (effects, sizes, power across all three designs vs the randomized
 baseline) lives in the estimator's own simulation harness — see the Verification
 note on :doc:`../syndes`.
+
+The treated-set search against SCIP
+------------------------------------
+
+``mode="two_way_global"`` defaults to ``backend="exact"``. Naming the treated set
+removes every binary from the design MIP, leaving a convex program, so the design
+is found by searching treated sets instead of by branch-and-bound. That default
+rests on the search reaching the design SCIP would prove optimal, which is a
+solver question and not a replication of any published number.
+
+``syndes_exact_vs_mip`` pins it on the same BLS panel used above: eight cells
+across two sub-panel shapes, two draws and two treated-set sizes, with SCIP asked
+to prove optimality (``gap_limit=0``). The two select the same treated set in
+every cell, the search's objective never exceeds SCIP's, and the largest
+disagreement in objective is 2.1e-09 — the solvers' numerical tolerance, on
+outcomes that are unemployment rates in :math:`[0.01, 0.17]`.
+
+One caveat governs how the comparison is set up. ``gap_limit`` defaults to
+``0.05``, so the MIP path may stop at a design five percent above the optimum,
+and on some panels it does. The two agree on the treated set only once the MIP is
+asked to prove optimality; otherwise the search's design is the one that is at
+least as good.
+
+`benchmarks/cases/syndes_exact_vs_mip.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/syndes_exact_vs_mip.py>`_
+
+.. code-block:: bash
+
+   python benchmarks/run_benchmarks.py --case syndes_exact_vs_mip

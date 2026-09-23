@@ -6,7 +6,7 @@ import numpy as np
 
 from .fast_scm_bb_helpers import Solution
 from .structure import SEDCandidate, WeightVectors, PredictionVectors, Losses, Identification
-from .fast_scm_control_helpers import solve_control_qp
+from .fast_scm_control_helpers import solve_control_qp, solve_control_qps
 from .fast_scm_setup import IndexSet
 from .conflict import neighbours
 from ...exceptions import MlsynthConfigError
@@ -113,20 +113,33 @@ def evaluate_candidates(
     J = Y.shape[1] if Y.ndim > 1 else 1
     target = X[:, :J] @ f[:J]
 
+    # Every shortlisted design solves the same donor program against a different
+    # synthetic treated series, so they go through the active set as one batch:
+    # the cost is set by the hardest design, not by how many were shortlisted.
+    treated_idx_all: List[np.ndarray] = []
+    treated_w_all: List[np.ndarray] = []
+    spill_all: List[Optional[np.ndarray]] = []
+    treated_vecs: List[np.ndarray] = []
     for sol in candidates:
         treated_idx = np.asarray(sol.indices, dtype=int)
         m = len(treated_idx)
-
         w = sol.weights[treated_idx] if len(sol.weights) != m else sol.weights
-
         # Spillover "exclusion restriction": drop the treated units' conflict
         # neighbours N(S) from the donor pool so the treatment cannot contaminate
         # the synthetic control.
         spill = neighbours(conflict, treated_idx) if conflict is not None else None
+        treated_idx_all.append(treated_idx)
+        treated_w_all.append(w)
+        spill_all.append(spill)
+        treated_vecs.append(X_E[:, treated_idx] @ w)
 
-        treated_vec_E = X_E[:, treated_idx] @ w
-        v = solve_control_qp(X_E, treated_vec_E, treated_idx, lambda_penalty,
-                             exclude_idx=spill)
+    control_weights_all = solve_control_qps(
+        X_E, treated_vecs, treated_idx_all, lambda_penalty,
+        exclude_idx_list=spill_all)
+
+    for sol, treated_idx, w, spill, v in zip(
+            candidates, treated_idx_all, treated_w_all, spill_all,
+            control_weights_all):
         if v is None:
             # The exclusions (treated + N(S)) emptied / over-constrained the donor
             # pool for this candidate; skip it rather than crash.
