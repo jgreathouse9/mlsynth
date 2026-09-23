@@ -98,6 +98,7 @@ class CLUSTERSC:
         self.fgrc_order: int = config.fgrc_order
         self.fgrc_n_random: int = config.fgrc_n_random
         self.fgrc_nstart: int = config.fgrc_nstart
+        self.fgrc_keep: str = config.fgrc_keep
         self.hsvt_rank_method: str = config.hsvt_rank_method
         self.hsvt_rank = config.hsvt_rank
         self.hsvt_cumvar: float = config.hsvt_cumvar
@@ -230,12 +231,20 @@ class CLUSTERSC:
         )
         method_name = (f"PCR-RSC ({self.estimator})" if selected == "pcr"
                        else f"RPCA-SC ({self.rpca_method})")
+        # The solver's own settings belong on the result: which subspace the
+        # FGRC denoiser kept is not recoverable from the weights or the fit.
+        params = {
+            "method": self.method, "clustering": self.clustering,
+            "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
+        }
+        if primary_fit is not None:
+            params.update({
+                k: v for k, v in (primary_fit.metadata or {}).items()
+                if k.startswith("fgrc_")
+            })
         method_details = MethodDetailsResults(
             method_name=method_name,
-            parameters_used={
-                "method": self.method, "clustering": self.clustering,
-                "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
-            },
+            parameters_used=params,
         )
 
         return CLUSTERSCResults(
@@ -334,6 +343,7 @@ class CLUSTERSC:
                     fgrc_order=self.fgrc_order,
                     fgrc_n_random=self.fgrc_n_random,
                     fgrc_nstart=self.fgrc_nstart,
+                    fgrc_keep=self.fgrc_keep,
                     hsvt_rank_method=self.hsvt_rank_method,
                     hsvt_rank=self.hsvt_rank,
                     hsvt_cumvar=self.hsvt_cumvar,
