@@ -231,8 +231,12 @@ class CLUSTERSC:
         )
         method_name = (f"PCR-RSC ({self.estimator})" if selected == "pcr"
                        else f"RPCA-SC ({self.rpca_method})")
-        # The solver's own settings belong on the result: which subspace the
-        # FGRC denoiser kept is not recoverable from the weights or the fit.
+        # Two kinds of fit metadata belong on the result. The solver's own
+        # settings, because which subspace the FGRC denoiser kept is not
+        # recoverable from the weights or the fit; and the spannability
+        # report, because donor selection can cost the treated unit its
+        # convex reach without the fit showing it (see
+        # `clustersc_helpers.spannability`). Both are read, not only warned.
         params = {
             "method": self.method, "clustering": self.clustering,
             "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
@@ -240,7 +244,7 @@ class CLUSTERSC:
         if primary_fit is not None:
             params.update({
                 k: v for k, v in (primary_fit.metadata or {}).items()
-                if k.startswith("fgrc_")
+                if k.startswith(("fgrc_", "spannability_"))
             })
         method_details = MethodDetailsResults(
             method_name=method_name,
