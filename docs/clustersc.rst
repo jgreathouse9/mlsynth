@@ -939,13 +939,40 @@ counterfactual.
     otherwise low-rank panel -- takes a plurality of 0.538, and the
     ATT moves to -0.9204.
 
+    Both of those are deltas: each compares one donor block against
+    another and says nothing about whether the convex restriction
+    costs anything. ``spannability_hull_span_ratio`` is the level.
+    It divides the best achievable convex fit against the denoised
+    donors by the best achievable unconstrained fit against the same
+    donors, so it reports what the simplex alone is responsible for.
+    It is 1.0 when the treated unit is no further from the donors'
+    hull than from their span, and it grows as the hull becomes the
+    binding restriction.
+
+    The two disagree in both directions, which is why both are
+    reported. On the raw Basque cluster the treated unit sits at
+    0.0070 from the donors' span and 0.3767 from their hull, a
+    convexity cost of 54, while the denoise ratio reads 1.00 --
+    correctly, since no denoiser ran. Conversely, denoising the full
+    Basque pool to a single singular value gives a denoise ratio of
+    3.72 and a hull-span ratio of exactly 1.00: rank-one denoising
+    confines the unconstrained fit to the same one direction the
+    hull nearly fills, so every weight objective returns the same
+    answer. That second case is Amjad (2018), whose thesis reports
+    its linear and convex controls as interchangeable on this panel
+    and on Proposition 99.
+
     *Diagnostic*: a selection ratio above about 1.5 means widen the
     cluster or fit the full pool. A denoise ratio above about 1.5
     means the opposite -- the donors are right and the denoising is
     too aggressive, so raise the retained rank, weaken the penalty,
-    or drop the denoiser. Neither is repaired by changing the
-    weight objective, which is fitting against a hull that has
-    already moved.
+    or drop the denoiser. Neither is repaired by changing the weight
+    objective. A hull-span ratio above about 2.0 is the one that the
+    weight objective does speak to: the treated unit is much closer
+    to the donors' span than to their hull, and the gap is paid as
+    pre-period error under ``simplex`` or absorbed as extrapolation
+    under ``nnls``. Which of those you see is a choice; whether it is
+    there is not.
 
     ``spannability_weights_identified`` is reported alongside and
     does not warn. It is False whenever the denoised donors are

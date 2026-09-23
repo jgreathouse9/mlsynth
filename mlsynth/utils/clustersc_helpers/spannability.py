@@ -35,6 +35,13 @@ from ...exceptions import MlsynthDataError, MlsynthEstimationError
 #: Germany scores 8.6 and Prop 99 scores 2.2; Basque scores 1.00.
 SPANNABILITY_WARN_RATIO: float = 1.5
 
+#: Ratio of the best simplex fit to the best unconstrained fit, against the
+#: same donors, above which the convex restriction is reported as binding.
+#: The `fgrc_keep="cluster"` blocks score 18.4, 13.6 and 4.1 on Basque,
+#: Proposition 99 and West Germany; HSVT and PCP on the same clusters score
+#: 1.0 to 2.7; Amjad's full-pool rank-1 blocks score exactly 1.0.
+CONVEXITY_WARN_RATIO: float = 2.0
+
 
 class DenoiseSpannabilityReport(NamedTuple):
     """How much convex reach the denoising step gave up.
@@ -49,6 +56,8 @@ class DenoiseSpannabilityReport(NamedTuple):
     raw_rmse: float          #: best achievable simplex pre-RMSE on the raw cluster
     denoised_rmse: float     #: the same quantity after denoising
     ratio: float             #: ``denoised_rmse / raw_rmse``; below 1.0 the denoiser helped
+    span_rmse: float         #: best UNCONSTRAINED pre-RMSE against the denoised donors
+    hull_span_ratio: float   #: ``denoised_rmse / span_rmse``; 1.0 when convexity is free
     weights_identified: bool  #: False when the denoised donors are affinely dependent
     n_donors: int
 
@@ -193,6 +202,21 @@ def warn_if_poorly_spanned(
     )
 
 
+def _best_unconstrained_fit(donors: np.ndarray, target: np.ndarray, scale: float) -> float:
+    """Return the pre-RMSE of the best fit in the donors' span.
+
+    No sign or adding-up restriction, so this is the floor every linear
+    weight objective shares: whatever distance remains here, the simplex,
+    the cone and ridge all pay it alike. Comparing it against the simplex
+    solve separates the denoiser's effect on the span from the part of the
+    distance that convexity alone is responsible for.
+    """
+    n_periods = donors.shape[0]
+    coef, *_ = np.linalg.lstsq(donors / scale, target / scale, rcond=None)
+    resid = target / scale - (donors / scale) @ coef
+    return float(np.sqrt(float(resid @ resid) / n_periods)) * scale
+
+
 def assess_denoise_spannability(
     raw_cluster_pre: np.ndarray,
     denoised_cluster_pre: np.ndarray,
@@ -260,6 +284,7 @@ def assess_denoise_spannability(
     )
     _w_raw, raw_rmse = _best_convex_fit(raw, target, scale)
     _w_den, denoised_rmse = _best_convex_fit(den, target, scale)
+    span_rmse = _best_unconstrained_fit(den, target, scale)
 
     # Affine independence of the denoised donors. The weights solving the
     # simplex program are unique only if no donor is an affine combination
@@ -283,10 +308,21 @@ def assess_denoise_spannability(
     else:
         ratio = float(denoised_rmse / raw_rmse)
 
+    # Same 0/0 guard, one level down. A denoised block whose span already
+    # contains the treated unit drives the unconstrained solve to the
+    # least-squares floor; below it, report 1.0 when the hull reaches the
+    # unit too and infinity when only the span does.
+    if span_rmse <= negligible:
+        hull_span_ratio = 1.0 if denoised_rmse <= negligible else float("inf")
+    else:
+        hull_span_ratio = float(max(denoised_rmse / span_rmse, 1.0))
+
     return DenoiseSpannabilityReport(
         raw_rmse=raw_rmse,
         denoised_rmse=denoised_rmse,
         ratio=ratio,
+        span_rmse=span_rmse,
+        hull_span_ratio=hull_span_ratio,
         weights_identified=weights_identified,
         n_donors=n_donors,
     )
@@ -295,8 +331,24 @@ def assess_denoise_spannability(
 def warn_if_denoising_shrank_the_hull(
     report: DenoiseSpannabilityReport,
     threshold: float = SPANNABILITY_WARN_RATIO,
+    convexity_threshold: float = CONVEXITY_WARN_RATIO,
 ) -> None:
-    """Warn when the denoiser cost the treated unit convex reach.
+    """Warn when the denoiser moved the donors, and when convexity binds.
+
+    The two are separate questions and each is silent on the other.
+    ``ratio`` is a delta: it compares the denoised donors against the raw
+    ones and says nothing about whether the simplex costs anything. On the
+    raw Basque cluster it reads 1.00 -- correctly, no denoiser ran -- while
+    the treated unit sits at 0.0070 from the donors' span and 0.3767 from
+    their hull, a convexity cost of 54. ``hull_span_ratio`` is that level,
+    and it is the one that distinguishes the weight objectives.
+
+    They also disagree the other way. Amjad's full-pool rank-1 blocks score
+    3.72 on Basque and 3.99 on Proposition 99 for ``ratio`` and exactly 1.00
+    for ``hull_span_ratio``: rank-1 denoising confines the unconstrained fit
+    to the same single direction the hull nearly exhausts, so no objective
+    can do better than any other. That is the thesis finding its linear and
+    convex controls interchangeable.
 
     ``weights_identified`` is reported on the result and deliberately does
     not warn. Across the three in-repo panels and the six denoiser and
@@ -311,14 +363,30 @@ def warn_if_denoising_shrank_the_hull(
     """
     if report.ratio > threshold:
         warnings.warn(
-            f"Denoising moved the donors' convex hull away from the treated "
-            f"unit: the best achievable convex pre-period RMSE against the "
-            f"denoised donors is {report.ratio:.1f}x the value against the raw "
-            f"ones ({report.denoised_rmse:.4g} vs {report.raw_rmse:.4g}). The "
-            f"donor selection is not the problem here -- these are the same "
-            f"donors either way -- so widening the cluster will not help. "
-            f"Reduce the denoising (a higher retained rank, a weaker penalty) "
-            f"or fit against the raw donors.",
+            f"Denoising moved the donors away from the treated unit: the best "
+            f"achievable convex pre-period RMSE against the denoised donors is "
+            f"{report.ratio:.1f}x the value against the raw ones "
+            f"({report.denoised_rmse:.4g} vs {report.raw_rmse:.4g}). Donor "
+            f"selection is not the problem -- these are the same donors either "
+            f"way -- so widening the cluster will not help. Most of this "
+            f"distance is usually to the donors' span, which every weight "
+            f"objective pays alike; see `hull_span_ratio` for the part "
+            f"convexity is responsible for. Raise the retained rank, weaken "
+            f"the penalty, or fit against the raw donors.",
+            UserWarning,
+            stacklevel=3,
+        )
+    if report.hull_span_ratio > convexity_threshold:
+        warnings.warn(
+            f"The convex restriction is binding on these donors: the best "
+            f"simplex fit is {report.hull_span_ratio:.1f}x the best "
+            f"unconstrained fit against the same denoised donors "
+            f"({report.denoised_rmse:.4g} vs {report.span_rmse:.4g}). The "
+            f"treated unit lies much closer to the donors' span than to their "
+            f"hull. Under `weight_objective=\"simplex\"` that gap is paid as "
+            f"pre-period error; under `nnls` it is absorbed as extrapolation "
+            f"and the fit looks healthy, so the objective decides whether you "
+            f"see it, not whether it is there.",
             UserWarning,
             stacklevel=3,
         )

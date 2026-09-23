@@ -29,6 +29,7 @@ import pytest
 
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.clustersc_helpers.spannability import (
+    CONVEXITY_WARN_RATIO,
     SPANNABILITY_WARN_RATIO,
     assess_denoise_spannability,
     warn_if_denoising_shrank_the_hull,
@@ -176,12 +177,21 @@ def test_a_constant_denoised_block_is_reported_not_crashed(panel):
 # --------------------------------------------------------------------------
 # The warning
 # --------------------------------------------------------------------------
-def test_a_harmless_denoiser_is_silent(panel):
+def test_a_harmless_denoiser_says_nothing_about_denoising(panel):
+    """The identity denoiser cannot have moved anything.
+
+    It may still warn about convexity, and on this fixture it does: the
+    treated unit is a convex combination lifted by a constant, so it sits
+    inside the donors' span and outside their hull by construction. That
+    is a statement about the panel, not about the denoiser.
+    """
     treated, donors = panel
     rep = assess_denoise_spannability(donors, donors.copy(), treated)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
+    assert rep.ratio == pytest.approx(1.0, abs=1e-6)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         warn_if_denoising_shrank_the_hull(rep)
+    assert not any("Denoising moved" in str(w.message) for w in caught)
 
 
 def test_a_damaging_denoiser_warns_and_names_the_numbers(panel):
@@ -316,3 +326,114 @@ def test_the_check_runs_even_when_no_donors_were_dropped(basque_arrays):
         fit = run_rpca(**basque_arrays, rpca_method="PCP", k_clusters=1)
     assert "spannability_ratio" not in fit.metadata      # no donors dropped
     assert "spannability_denoise_ratio" in fit.metadata  # but denoising ran
+
+
+# --------------------------------------------------------------------------
+# The span / hull split: is the convex restriction binding at all?
+# --------------------------------------------------------------------------
+# `ratio` is a delta -- did the denoiser make the donors worse. It answers
+# nothing about whether the simplex costs anything, and the two come apart
+# in both directions.
+#
+# On the raw Basque cluster the treated unit sits essentially inside the
+# donors' span (best unconstrained pre-RMSE 0.0070) and 54 times further
+# from their hull (0.3767). Convexity costs a factor of 54 and `ratio`
+# reads 1.00, because no denoiser ran and nothing got worse.
+#
+# In Amjad's own regime -- full donor pool, HSVT at the top singular value
+# -- `ratio` reads 3.72 on Basque and 3.99 on Proposition 99 while the hull
+# and the span coincide exactly. Rank-1 denoising confines the
+# unconstrained fit to the same one-dimensional space the hull nearly
+# exhausts, so every objective pays the same and the simplex costs nothing.
+# That is the thesis reporting linear and convex as interchangeable.
+
+
+def test_the_span_is_never_further_than_the_hull(panel):
+    """The hull is a subset of the span, so its best fit cannot be better."""
+    treated, donors = panel
+    for r in (1, 2, 4, 6):
+        rep = assess_denoise_spannability(donors, _rank_project(donors, r), treated)
+        assert rep.span_rmse <= rep.denoised_rmse + 1e-9
+        assert rep.hull_span_ratio >= 1.0 - 1e-9
+
+
+def test_a_rank_one_block_makes_convexity_free(panel):
+    """Amjad's r=1 case. One direction, and the hull nearly fills it."""
+    treated, donors = panel
+    rep = assess_denoise_spannability(donors, _rank_project(donors, 1), treated)
+    assert rep.hull_span_ratio == pytest.approx(1.0, abs=0.05)
+
+
+def test_convexity_binds_when_the_unit_is_in_the_span_but_not_the_hull(panel):
+    """The Basque raw-cluster shape, which `ratio` cannot see.
+
+    An affine combination with a negative coefficient is inside the span by
+    construction and outside the hull. `ratio` compares a block against
+    itself and reads 1.0; the split reports the real cost.
+    """
+    treated, donors = panel
+    a, b, c = donors[:, 0], donors[:, 1], donors[:, 2]
+    block = np.column_stack([a, b, c])
+    target = 1.6 * a + 0.9 * b - 1.5 * c          # sums to 1, not non-negative
+    rep = assess_denoise_spannability(block, block.copy(), target)
+    assert rep.ratio == pytest.approx(1.0, abs=1e-6)     # blind, correctly
+    assert rep.span_rmse < 1e-6                          # exactly in the span
+    assert rep.hull_span_ratio > 10.0                    # and far outside the hull
+
+
+def test_a_target_inside_the_hull_makes_the_split_read_one(panel):
+    _treated, donors = panel
+    inside = donors @ np.array([0.4, 0.0, 0.25, 0.0, 0.35, 0.0])
+    rep = assess_denoise_spannability(donors, donors.copy(), inside)
+    assert rep.hull_span_ratio == pytest.approx(1.0, abs=1e-6)
+
+
+def test_the_split_is_invariant_to_a_common_rescaling(panel):
+    treated, donors = panel
+    base = assess_denoise_spannability(donors, _rank_project(donors, 3), treated)
+    for factor in (1e-3, 1e4):
+        got = assess_denoise_spannability(
+            donors * factor, _rank_project(donors, 3) * factor, treated * factor)
+        assert got.hull_span_ratio == pytest.approx(base.hull_span_ratio, rel=1e-4)
+
+
+def test_a_binding_convex_restriction_warns(panel):
+    treated, donors = panel
+    a, b, c = donors[:, 0], donors[:, 1], donors[:, 2]
+    block = np.column_stack([a, b, c])
+    target = 1.6 * a + 0.9 * b - 1.5 * c
+    rep = assess_denoise_spannability(block, block.copy(), target)
+    assert rep.hull_span_ratio > CONVEXITY_WARN_RATIO
+    with pytest.warns(UserWarning, match="convex restriction"):
+        warn_if_denoising_shrank_the_hull(rep)
+
+
+def test_a_free_convex_restriction_is_silent_about_convexity(panel):
+    """The r=1 case must not warn: the simplex costs nothing there."""
+    treated, donors = panel
+    rep = assess_denoise_spannability(donors, _rank_project(donors, 1), treated)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        warn_if_denoising_shrank_the_hull(rep)
+    assert not any("convex restriction" in str(w.message) for w in caught)
+
+
+def test_the_denoise_warning_no_longer_calls_itself_a_hull_statement(panel):
+    """It measures how far the denoiser moved the donors, which is mostly
+    span movement -- every objective pays it, not only the simplex."""
+    treated, donors = panel
+    rep = assess_denoise_spannability(donors, _rank_project(donors, 1), treated)
+    with pytest.warns(UserWarning) as caught:
+        warn_if_denoising_shrank_the_hull(rep)
+    text = " ".join(str(w.message) for w in caught)
+    assert "convex hull away" not in text
+
+
+def test_the_split_reaches_the_result_metadata(basque_arrays):
+    from mlsynth.utils.clustersc_helpers.rpca.pipeline import run_rpca
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = run_rpca(**basque_arrays, rpca_method="PCP")
+    for key in ("spannability_span_rmse", "spannability_hull_span_ratio"):
+        assert key in fit.metadata, key
+    assert fit.metadata["spannability_hull_span_ratio"] >= 1.0 - 1e-9

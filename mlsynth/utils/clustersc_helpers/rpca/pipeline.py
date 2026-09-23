@@ -379,6 +379,8 @@ def run_rpca(
         "spannability_denoise_ratio": denoise_report.ratio,
         "spannability_denoise_raw_rmse": denoise_report.raw_rmse,
         "spannability_denoise_rmse": denoise_report.denoised_rmse,
+        "spannability_span_rmse": denoise_report.span_rmse,
+        "spannability_hull_span_ratio": denoise_report.hull_span_ratio,
         "spannability_weights_identified": denoise_report.weights_identified,
     }
 
