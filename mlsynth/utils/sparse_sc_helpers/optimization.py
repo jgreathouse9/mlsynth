@@ -22,12 +22,28 @@ Two performance refinements over a naive implementation are in place:
   lambda_{i+1}. A failed warm start falls back to the cold MATLAB
   init ``default_v20``.
 
+* **Random restarts** (``outer_restarts``). The outer objective is not
+  convex, and a face of the donor simplex carrying only a few active
+  donors is a stationary point of it almost for free: ``w*(v)`` has
+  ``|A| - 1`` degrees of freedom there, so the envelope gradient says
+  nothing about the donors that are out, and at ``|A| = 1`` the gradient
+  is identically zero, so such points are plentiful. A single cold start
+  settles at whichever critical point it is nearest -- not necessarily a
+  low-|A| one, but on the augmented Vives California specification
+  (40 predictors, 38 donors) it is: a two-donor point with a training
+  loss of 77.42, against the 1.45 the author's own stored V attains, and
+  an ATT of -29.04 against the paper's -18.2. The deterministic heuristic
+  starts do not help -- ``1``, ``0.1 * 1`` and the warm start all lie in
+  the same region -- but a handful of log-normal draws around the cold
+  init do, recovering -18.64.
+
 The outer V-objective window is controlled by ``outer_loss_window``:
 
-* ``"validation"`` (default, paper) -- outer V minimises validation-
-  block MSE + lambda * ||V||_1. Matches Vives-i-Bastida (2023) Algorithm 1.
+* ``"validation"`` -- outer V minimises validation-block MSE +
+  lambda * ||V||_1. Matches Vives-i-Bastida (2023) Algorithm 1.
 * ``"training"`` -- outer V minimises training-block MSE + lambda *
   ||V||_1. Matches the unpublished MATLAB driver ``sparse_synth.m``.
+  This is what ``SparseSCConfig`` selects by default.
 """
 
 from __future__ import annotations
@@ -37,8 +53,15 @@ from typing import Any, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize
 
+from ...exceptions import MlsynthEstimationError
 from .inner import solve_w
-from .objective import outer_loss_and_grad, selection_mse
+from .objective import outer_loss, outer_loss_and_grad, selection_mse
+
+
+# Spread of the log-normal restart draws around the cold init, in log units.
+# Calibrated on the Vives k=40 California spec: 2.0 reaches the basin the
+# author's stored V sits in, 1.0 is too timid to leave the cold start's.
+_RESTART_LOG_SD = 2.0
 
 
 def default_lambda_grid(size: int = 51) -> np.ndarray:
@@ -47,10 +70,29 @@ def default_lambda_grid(size: int = 51) -> np.ndarray:
 
 
 def default_v20(X0: np.ndarray) -> np.ndarray:
-    """MATLAB starting v_2 = (sd_1 / sd_k)^2 for k > 1."""
+    """MATLAB starting v_2 = (sd_1 / sd_k)^2 for k > 1.
+
+    A predictor row that is constant across donors has sd 0, and with a
+    single donor ``ddof=1`` makes the sd undefined rather than zero, so
+    both are folded to 1. Guarding only ``sd == 0`` let the single-donor
+    case return all-NaN, which the restart draws then multiply into every
+    start.
+    """
     sd = X0.std(axis=1, ddof=1)
-    sd = np.where(sd == 0, 1.0, sd)
+    sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)
     return (sd[0] / sd[1:]) ** 2
+
+
+def _no_lambda_solved(lambda_grid: np.ndarray, failures: list) -> str:
+    """Message for a sweep in which no lambda produced a usable solve.
+
+    Names the size of the grid and carries the last solver error, so the
+    caller sees which library refused and why instead of an mlsynth error
+    with the cause thrown away.
+    """
+    tail = f" The last solver failure was {failures[-1]}." if failures else ""
+    return (f"SparseSC outer sweep: no candidate start converged at any of the "
+            f"{lambda_grid.size} lambda values on the grid.{tail}")
 
 
 def sweep_lambda(
@@ -69,6 +111,8 @@ def sweep_lambda(
     warm_start: bool = False,
     multi_start: int = 1,
     robust: bool = True,
+    outer_restarts: int = 0,
+    outer_restart_seed: int = 0,
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Sweep lambda and return the best V-weights.
 
@@ -92,6 +136,15 @@ def sweep_lambda(
         MSE point and is reproducible across numerical stacks rather than
         depending on which critical point a single cold start lands in.
         Roughly doubles the sweep cost; set False for the fast single pass.
+    outer_restarts : int, default 0
+        Number of additional random starts for the outer solve at each
+        lambda, drawn log-normally around ``default_v20``. Zero reproduces
+        the cold-start-only sweep exactly. Costs one extra outer solve per
+        restart per grid point.
+    outer_restart_seed : int, default 0
+        Seed for those draws. The RNG is re-derived per grid point and per
+        pass, so the result does not depend on grid length or on whether
+        the backward continuation pass runs.
 
     Returns
     -------
@@ -108,6 +161,12 @@ def sweep_lambda(
     v_path : np.ndarray
         Per-grid-point V-weights, shape ``(len(grid), P)``.
     """
+    outer_restarts = int(outer_restarts)
+    if outer_restarts < 0:
+        raise ValueError(
+            f"outer_restarts must be non-negative, got {outer_restarts}."
+        )
+
     if outer_loss_window not in {"validation", "training"}:
         raise ValueError(
             "outer_loss_window must be 'validation' or 'training', "
@@ -143,23 +202,86 @@ def sweep_lambda(
     v20_cold = default_v20(X0)
     bounds = [(0.0, None)] * (P - 1)
 
+    if P == 1:
+        # The anchor is the whole of V. The normalisation pins v_1 = 1, so the
+        # outer problem optimises v[1:], which is empty here and handed
+        # L-BFGS-B a zero-length x0 -- scipy raised out of its own bound check.
+        # Nothing is ill-posed: V = [1] by construction, no free weight is left
+        # for the L1 term to act on, so every lambda gives the same point and
+        # the curves are flat. Solved once and broadcast.
+        v = np.ones(1, dtype=float)
+        train = float(outer_loss(np.empty(0), X1, X0, Z1_train, Z0_train, 0.0,
+                                 solver=solver))
+        val = float(selection_mse(np.empty(0), X1, X0, Z1_val, Z0_val,
+                                  solver=solver))
+        n = int(lambda_grid.size)
+        return (v, float(lambda_grid[0]), lambda_grid,
+                np.full(n, train), np.full(n, val), np.ones((n, 1)))
+
+    def _restarts(idx: int, phase: int) -> list:
+        """Log-normal restart draws around the cold init for one grid point.
+
+        Seeded from ``(outer_restart_seed, idx, phase)`` so each grid point
+        and each pass gets its own independent draws while the whole sweep
+        stays reproducible. Drawing from a single stream instead would make
+        the answer depend on grid length and on whether ``robust`` ran.
+        """
+        if outer_restarts <= 0:
+            return []
+        rng = np.random.default_rng(
+            [int(outer_restart_seed), int(idx), int(phase)])
+        return [v20_cold * np.exp(rng.normal(0.0, _RESTART_LOG_SD, P - 1))
+                for _ in range(outer_restarts)]
+
+    _failures: list = []                    # solver refusals, for the message
+
     outer_curve = np.full(lambda_grid.size, np.nan)
     val_curve = np.full(lambda_grid.size, np.nan)
     v_path = np.zeros((lambda_grid.size, P))
 
     def _solve(lam, starts):
-        """Best (lowest outer-objective) critical point over the given starts."""
-        best_res = None
+        """Best critical point over the given starts, ranked on the objective
+        recomputed at each returned point.
+
+        Not on ``res.fun``. L-BFGS-B can end in
+        ABNORMAL_TERMINATION_IN_LNSRCH (status 2), and scipy then returns
+        ``fun`` and ``x`` from different iterates. On a kinked objective like
+        this one that is common, not exotic: on the Vives k=40 specification
+        it happens at 10 of 26 grid points under finite differences and 19 of
+        26 under the analytic gradient, with gaps up to 1818 -- and in one
+        case the reported value was *below* the truth, which is the direction
+        that silently wins a comparison. Ranking starts, filling
+        ``outer_curve`` and deciding the backward pass all need a number that
+        belongs to the point being described, so each candidate is rescored
+        with one extra inner QP.
+        """
+        best_res, best_f = None, np.inf
         for x0 in starts:
-            res = _minimize_outer(
-                x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
-                lam=float(lam), solver=solver, bounds=bounds,
-                max_outer_iter=max_outer_iter, ftol=ftol,
-                use_analytical_grad=use_analytical_grad,
-            )
-            if (best_res is None) or (np.isfinite(res.fun) and res.fun < best_res.fun):
-                best_res = res
-        return best_res
+            try:
+                res = _minimize_outer(
+                    x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
+                    lam=float(lam), solver=solver, bounds=bounds,
+                    max_outer_iter=max_outer_iter, ftol=ftol,
+                    use_analytical_grad=use_analytical_grad,
+                )
+                x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
+                f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
+                                    solver=solver)
+            except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+                # A start the solver refuses is a start, not a sweep. L-BFGS-B
+                # can walk to an iterate outside [0, inf) and scipy's
+                # approx_derivative then raises "`x0` violates bound
+                # constraints"; seen on the Vives k=40 specification in the
+                # backward pass with four restarts. Multi-start exists so a
+                # start can be bad, and outer_restarts offers more of them, so
+                # letting one abort the sweep makes the robustness feature the
+                # thing that breaks the fit. Discarded like a non-finite score,
+                # with the reason kept for the message if nothing survives.
+                _failures.append(f"{type(exc).__name__}: {exc}")
+                continue
+            if np.isfinite(f_true) and f_true < best_f:
+                best_res, best_f = res, float(f_true)
+        return best_res, best_f
 
     # ---- Forward pass (ascending lambda) ------------------------------------
     # Multi-start: try several deterministic init points and keep the one with
@@ -177,9 +299,17 @@ def sweep_lambda(
             warm_start=warm_start, multi_start=multi_start, include_warm_first=idx > 0,
             champion=champion_v2,
         )
-        res = _solve(lam, starts)
+        res, f_true = _solve(lam, starts + _restarts(idx, 0))
+        if res is None:
+            # No candidate finished here. Leaving val_curve NaN keeps this
+            # lambda out of the argmin and out of the champion update, so the
+            # sweep continues over the lambdas that did solve instead of
+            # reporting the cold init as if it had been chosen.
+            outer_curve[idx] = np.inf
+            v_path[idx, :] = np.concatenate([[1.0], v20_cold])
+            continue
         v2_hat = np.clip(res.x, 0.0, None)
-        outer_curve[idx] = float(res.fun)
+        outer_curve[idx] = f_true
         val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
         v_path[idx, :] = np.concatenate([[1.0], v2_hat])
         if val_curve[idx] < best_val_fwd:
@@ -196,19 +326,23 @@ def sweep_lambda(
     # never worsen the path.
     if robust:
         # ensure the champion is the global validation-MSE winner from the forward pass
+        if np.all(np.isnan(val_curve)):
+            raise MlsynthEstimationError(_no_lambda_solved(lambda_grid, _failures))
         champion_v2 = v_path[int(np.nanargmin(val_curve)), 1:].copy()
         for idx in range(lambda_grid.size - 2, -1, -1):
             lam = float(lambda_grid[idx])
             starts = [v_path[idx + 1, 1:].copy(), champion_v2.copy(), v_path[idx, 1:].copy()]
-            res = _solve(lam, starts)
-            if np.isfinite(res.fun) and res.fun < outer_curve[idx] - 1e-12:
+            res, f_true = _solve(lam, starts + _restarts(idx, 1))
+            if res is not None and np.isfinite(f_true) and f_true < outer_curve[idx] - 1e-12:
                 v2_hat = np.clip(res.x, 0.0, None)
-                outer_curve[idx] = float(res.fun)
+                outer_curve[idx] = f_true
                 val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
                 v_path[idx, :] = np.concatenate([[1.0], v2_hat])
                 if val_curve[idx] <= np.nanmin(val_curve):
                     champion_v2 = v2_hat.copy()
 
+    if np.all(np.isnan(val_curve)):
+        raise MlsynthEstimationError(_no_lambda_solved(lambda_grid, _failures))
     best_idx = int(np.nanargmin(val_curve))
     best_lambda = float(lambda_grid[best_idx])
     best_v = v_path[best_idx, :].copy()

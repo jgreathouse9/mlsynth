@@ -88,6 +88,7 @@ def prepare_sparse_sc_inputs(
     unitid: str,
     time: str,
     covariates: Optional[Sequence[str]] = None,
+    anchor_covariate: Optional[str] = None,
     outcome_lag_periods: Optional[Sequence[Any]] = None,
     T0_train: Optional[int] = None,
     standardize: bool = True,
@@ -101,6 +102,14 @@ def prepare_sparse_sc_inputs(
         the outcome, a binary treatment indicator, and any covariates.
     outcome, treat, unitid, time : str
         Column names in ``df``.
+    anchor_covariate : str, optional
+        Name of the predictor whose V-weight is pinned to 1. Any name in the
+        assembled predictor set is allowed, covariates and outcome lags
+        alike. Defaults to the first predictor, which is what the reference
+        MATLAB driver pins. Vives-i-Bastida's appendix, after the Lemma 1
+        proof, calls the choice meaningful: "every k0 will yield slightly
+        different w*_j and the predictor k0 will be included with probability
+        one in the model."
     covariates : Sequence[str], optional
         Columns in ``df`` whose per-unit pre-treatment mean becomes a
         predictor row. The first covariate is the anchor (V-weight
@@ -184,6 +193,20 @@ def prepare_sparse_sc_inputs(
                                lag_period, unit_order)
         )
         predictor_names.append(f"{outcome}@{lag_period}")
+
+    if anchor_covariate is not None:
+        if anchor_covariate not in predictor_names:
+            raise MlsynthDataError(
+                f"anchor_covariate {anchor_covariate!r} is not one of the "
+                f"predictors: {predictor_names}."
+            )
+        # A pure reindex: the anchor moves to the front and everything else
+        # keeps its relative order, so the only thing that changes is which
+        # predictor carries the pinned weight.
+        k0 = predictor_names.index(anchor_covariate)
+        order = [k0] + [i for i in range(len(predictor_names)) if i != k0]
+        predictor_rows = [predictor_rows[i] for i in order]
+        predictor_names = [predictor_names[i] for i in order]
 
     big = np.vstack(predictor_rows)            # shape (P, N+1)
     X_treated = big[:, 0].astype(float)        # (P,)
