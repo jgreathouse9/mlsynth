@@ -1,23 +1,27 @@
-"""All four simplex-QP paths on the same problems: do they agree, and which is fastest?
-
-The headline is not the speed ranking. Where the donor pool is larger than the
-pre-period the fit is exact and the optimal face is flat, so the minimiser is
-not unique and each solver lands on a different point of it. The objectives
-agree to 1e-18; the weights differ by up to 1.9e-2. Weights are what a
-synthetic control reports, and `docs/choose.rst` sends exactly this regime --
-"Donor pool N >~ T0" -- to CLUSTERSC, SparseSC, PDA, RESCM, FSCM and BVSS. So
-the choice of solver decides which synthetic control those estimators return.
-
-min_w ||A - B w||^2  s.t.  w >= 0, sum(w) = 1
+"""All four simplex-QP paths on the same problems: do they agree, and which is exact?
 
   active set   bilevel/active_set.py::solve_simplex_qp   exact, warm-startable
   FISTA        bilevel/simplex.py::simplex_lstsq         projected gradient
   cvxpy        cp.Problem(...).solve()                   interior point + canonicalisation
   Clarabel     sparse_sc_helpers/inner.py::solve_w       interior point, direct
 
-All four solve a convex problem to optimality, so a disagreement in weights is
-a bug in one of them and is the first thing to look for. Sizes span the donor
-pools this library sees, both well-conditioned and rank-deficient (J > T0).
+Two regimes, and only one of them says anything about this library.
+
+On a random Gaussian design with the target inside the donor hull, the fit is
+exact -- residual ~4e-16 -- so the optimal face is flat, the minimiser is not
+unique, and the four paths land on different points of it. That is real, and it
+is not synthetic-control geometry. minnorm.simplex_optimum_is_unique reports
+False on those designs.
+
+On real panels the fit is imperfect and the minimiser is unique:
+
+  Basque        J=16 T0=15  residual 0.29   unique
+  West Germany  J=16 T0=30  residual 333    unique
+  Prop 99       J=38 T0=19  residual 7.2    unique
+
+all three True, including the two with more donors than pre-periods. So a
+disagreement there is not a tie-break -- it is a solver failing to reach the
+one minimiser, and the objective at each returned point says which.
 """
 import warnings; warnings.filterwarnings("ignore")
 import time
