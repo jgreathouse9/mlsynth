@@ -49,6 +49,10 @@ from ..exceptions import (
 from ..utils.sparse_sc_helpers.inference import conformal_inference, run_placebo
 from ..utils.sparse_sc_helpers.optimization import recover_w, sweep_lambda
 from ..utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
+from ..utils.sparse_sc_helpers.diagnostics import (
+    assess_degeneracy,
+    warn_if_degenerate,
+)
 from ..utils.sparse_sc_helpers.structures import (
     SparseSCDesign,
     SparseSCInference,
@@ -322,6 +326,8 @@ class SparseSC:
             )
             # The outer solve is non-convex, so which critical point was
             # reached is a property of the run the caller may need to act on.
+            degeneracy = assess_degeneracy(design)
+            warn_if_degenerate(degeneracy, inputs.predictor_names)
             submodels["method_details"] = MethodDetailsResults(
                 method_name="SparseSC",
                 is_recommended=True,
@@ -332,6 +338,16 @@ class SparseSC:
                     "robust_selection": bool(self.robust_selection),
                     "warm_start": bool(self.warm_start),
                     "opt_lambda": float(opt_lambda),
+                    "dim_u": degeneracy.dim_u,
+                    "n_predictors": degeneracy.n_predictors,
+                    "n_active_donors": degeneracy.n_active_donors,
+                    "n_donors": degeneracy.n_donors,
+                    "n_anchor_only_grid": degeneracy.n_anchor_only_grid,
+                    "n_distinct_supports": degeneracy.n_distinct_supports,
+                    "n_grid": degeneracy.n_grid,
+                    "support_tol": degeneracy.support_tol,
+                    "active_tol": degeneracy.active_tol,
+                    "anchor_only": degeneracy.anchor_only,
                 },
             )
             results = SparseSCResults(
