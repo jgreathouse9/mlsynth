@@ -36,6 +36,23 @@ from ...exceptions import MlsynthDataError, MlsynthEstimationError
 SPANNABILITY_WARN_RATIO: float = 1.5
 
 
+class DenoiseSpannabilityReport(NamedTuple):
+    """How much convex reach the denoising step gave up.
+
+    The companion to :class:`SpannabilityReport`, which measures the
+    selection step. The two catch opposite failures and neither implies
+    the other: West Germany loses a factor of 8.6 at selection and
+    nothing at denoising; Basque loses nothing at selection and a factor
+    of 3.3 at denoising.
+    """
+
+    raw_rmse: float          #: best achievable simplex pre-RMSE on the raw cluster
+    denoised_rmse: float     #: the same quantity after denoising
+    ratio: float             #: ``denoised_rmse / raw_rmse``; below 1.0 the denoiser helped
+    weights_identified: bool  #: False when the denoised donors are affinely dependent
+    n_donors: int
+
+
 class SpannabilityReport(NamedTuple):
     """How much convex reach the donor-selection step gave up."""
 
@@ -174,3 +191,134 @@ def warn_if_poorly_spanned(
         UserWarning,
         stacklevel=3,
     )
+
+
+def assess_denoise_spannability(
+    raw_cluster_pre: np.ndarray,
+    denoised_cluster_pre: np.ndarray,
+    treated_pre: np.ndarray,
+) -> DenoiseSpannabilityReport:
+    """Measure what the denoising step cost in convex reach.
+
+    :func:`assess_spannability` compares the selected cluster against the
+    whole donor pool on raw outcomes, so it answers whether selection
+    dropped donors the treated unit needed. It runs before the denoiser and
+    is blind to what happens next.
+
+    Basque is the case this function was written for. Its three-donor FPCA
+    cluster costs nothing against the full sixteen-donor pool -- the best
+    achievable convex pre-period RMSE is 0.0842 either way -- and
+    undenoised it reproduces Abadie-Gardeazabal's published weights
+    (Cataluna 0.840, Madrid 0.160, zero on Baleares) and their ATT of
+    -0.6996 to within 0.002, from outcomes alone. Running the default PCP
+    over that cluster moves the best achievable fit to 0.2786, hands
+    Baleares -- the outlier -- a plurality of 0.538, and takes the ATT to
+    -0.9204. Selection was right and denoising spoiled it.
+
+    Parameters
+    ----------
+    raw_cluster_pre : np.ndarray
+        Pre-period outcomes for the selected donors, shape ``(T0, J)``.
+    denoised_cluster_pre : np.ndarray
+        The same donors after the denoiser, same shape.
+    treated_pre : np.ndarray
+        Treated unit's pre-period outcomes, shape ``(T0,)``.
+
+    Returns
+    -------
+    DenoiseSpannabilityReport
+        ``ratio`` is 1.0 when denoising changed nothing, below 1.0 when it
+        moved the hull towards the treated unit, and above when it moved
+        the hull away. ``weights_identified`` is False when the denoised
+        donors are affinely dependent, in which case the fitted weights are
+        one arbitrary point of a continuum and should not be read as the
+        donor composition.
+    """
+    raw = np.asarray(raw_cluster_pre, dtype=float)
+    den = np.asarray(denoised_cluster_pre, dtype=float)
+    target = np.asarray(treated_pre, dtype=float).ravel()
+    if raw.ndim != 2 or den.ndim != 2:
+        raise MlsynthDataError(
+            "raw_cluster_pre and denoised_cluster_pre must be 2D (T0, J)."
+        )
+    if raw.shape != den.shape:
+        raise MlsynthDataError(
+            f"The raw and denoised donor blocks must have the same shape; "
+            f"got {raw.shape} and {den.shape}."
+        )
+    if raw.shape[0] != target.shape[0]:
+        raise MlsynthDataError(
+            f"Pre-period length mismatch: donors have {raw.shape[0]} rows "
+            f"but the treated unit has {target.shape[0]}."
+        )
+
+    scale = max(
+        float(np.abs(target).max(initial=0.0)),
+        float(np.abs(raw).max(initial=0.0)),
+        float(np.abs(den).max(initial=0.0)),
+        1e-12,
+    )
+    _w_raw, raw_rmse = _best_convex_fit(raw, target, scale)
+    _w_den, denoised_rmse = _best_convex_fit(den, target, scale)
+
+    # Affine independence of the denoised donors. The weights solving the
+    # simplex program are unique only if no donor is an affine combination
+    # of the others; a low-rank denoiser applied to a handful of donors
+    # routinely destroys that, and the solver then returns one point of a
+    # continuum with nothing to mark it as such.
+    n_donors = int(raw.shape[1])
+    if n_donors <= 1:
+        weights_identified = True
+    else:
+        diffs = den[:, 1:] - den[:, [0]]
+        weights_identified = bool(
+            np.linalg.matrix_rank(diffs / scale) == n_donors - 1
+        )
+
+    # Same 0/0 guard as `assess_spannability`: a cluster the treated unit
+    # already sits on drives the solve to CLARABEL's floor, not to zero.
+    negligible = 1e-5 * scale
+    if raw_rmse <= negligible:
+        ratio = 1.0 if denoised_rmse <= negligible else float("inf")
+    else:
+        ratio = float(denoised_rmse / raw_rmse)
+
+    return DenoiseSpannabilityReport(
+        raw_rmse=raw_rmse,
+        denoised_rmse=denoised_rmse,
+        ratio=ratio,
+        weights_identified=weights_identified,
+        n_donors=n_donors,
+    )
+
+
+def warn_if_denoising_shrank_the_hull(
+    report: DenoiseSpannabilityReport,
+    threshold: float = SPANNABILITY_WARN_RATIO,
+) -> None:
+    """Warn when the denoiser cost the treated unit convex reach.
+
+    ``weights_identified`` is reported on the result and deliberately does
+    not warn. Across the three in-repo panels and the six denoiser and
+    clustering combinations it is False in eleven of twelve, because a
+    low-rank denoiser applied to ``J`` donors makes them affinely dependent
+    whenever the retained rank is below ``J - 1`` -- which is what a
+    denoiser is for. It is the normal state of RPCA-SC, not an anomaly, and
+    a warning that fires on eleven runs in twelve teaches the reader to
+    ignore the one in ``ratio`` that does discriminate: Basque under the
+    default PCP scores 3.31 against 0.99 to 1.35 for the configurations
+    that leave the hull alone.
+    """
+    if report.ratio > threshold:
+        warnings.warn(
+            f"Denoising moved the donors' convex hull away from the treated "
+            f"unit: the best achievable convex pre-period RMSE against the "
+            f"denoised donors is {report.ratio:.1f}x the value against the raw "
+            f"ones ({report.denoised_rmse:.4g} vs {report.raw_rmse:.4g}). The "
+            f"donor selection is not the problem here -- these are the same "
+            f"donors either way -- so widening the cluster will not help. "
+            f"Reduce the denoising (a higher retained rank, a weaker penalty) "
+            f"or fit against the raw donors.",
+            UserWarning,
+            stacklevel=3,
+        )

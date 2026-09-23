@@ -38,7 +38,12 @@ from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
-from ..spannability import assess_spannability, warn_if_poorly_spanned
+from ..spannability import (
+    assess_denoise_spannability,
+    assess_spannability,
+    warn_if_denoising_shrank_the_hull,
+    warn_if_poorly_spanned,
+)
 
 _RPCA_METHODS = {"PCP", "HQF", "HSVT", "FGRC"}
 _CLUSTER_METHODS = {"fpca", "fgrc"}
@@ -245,7 +250,7 @@ def run_rpca(
     # ------------------------------------------------------------------
     # Optional: leave-one-time-out CV for the dominant solver knob
     # (PCP lambda or HQF rank). Tunes the prediction-oriented value
-    # rather than the L/S identifiability default from Candes 2011.
+    # instead of the L/S identifiability default from Candes 2011.
     # See `tuning.py` for the algorithm.
     # ------------------------------------------------------------------
     cv_metadata: dict = {}
@@ -354,6 +359,30 @@ def run_rpca(
     L_pre = L_full[:T0]
 
     # ------------------------------------------------------------------
+    # Did the denoising step cost the treated unit its convex reach? The
+    # selection check above runs on raw outcomes and cannot see this: the
+    # donors are the same either way, so a cluster that spans perfectly
+    # can be denoised into one that does not. Basque is the case -- its
+    # FPCA cluster costs nothing at selection and reproduces
+    # Abadie-Gardeazabal's weights undenoised, and the default PCP then
+    # moves the best achievable convex fit by a factor of 3.3 and gives
+    # the outlier a plurality. Runs unconditionally, because denoising
+    # happens whether or not any donor was dropped.
+    # ------------------------------------------------------------------
+    denoise_report = assess_denoise_spannability(
+        raw_cluster_pre=selected_donor_full[:T0],
+        denoised_cluster_pre=L_pre,
+        treated_pre=treated_outcome[:T0],
+    )
+    warn_if_denoising_shrank_the_hull(denoise_report)
+    denoise_meta = {
+        "spannability_denoise_ratio": denoise_report.ratio,
+        "spannability_denoise_raw_rmse": denoise_report.raw_rmse,
+        "spannability_denoise_rmse": denoise_report.denoised_rmse,
+        "spannability_weights_identified": denoise_report.weights_identified,
+    }
+
+    # ------------------------------------------------------------------
     # Step 4: fit weights against the denoised pre-period donors. Default is
     # non-negative LS (Bayani 2021); "simplex" adds the Abadie-Diamond-
     # Hainmueller sum-to-one convex-hull constraint on the denoised donors.
@@ -377,6 +406,7 @@ def run_rpca(
         "rpca_method": rpca_method,
         "weight_objective": weight_objective,
         **spannability_meta,
+        **denoise_meta,
         **cluster_meta,
         **solver_metadata,
         **cv_metadata,

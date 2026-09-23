@@ -913,6 +913,50 @@ counterfactual.
     appear, the convex-combination restriction is binding and
     RPCA-SC is throwing away identification.
 
+(h) Convex reach, at both steps. The pipeline selects donors and
+    then denoises them, and each step can move the donors' convex
+    hull away from the treated unit. They fail independently, so
+    both are measured and both are reported on
+    ``method_details.parameters_used``.
+
+    Selection is reported by ``spannability_ratio``: the best
+    achievable convex pre-period fit inside the cluster, over the
+    same quantity on the whole donor pool. West Germany scores 8.6
+    -- its FPCA cluster drops the USA, Switzerland and Greece,
+    carrying 0.549 of the pool-optimal weight -- and the fit is
+    then unreachable no matter what the weight step does.
+
+    Denoising is reported by ``spannability_denoise_ratio``: the
+    best achievable convex fit against the denoised donors, over
+    the same quantity against the raw ones. The donors are the same
+    on both sides, so this isolates the denoiser. Basque is the
+    case. Its three-donor FPCA cluster scores 1.00 on selection,
+    and undenoised it reproduces Abadie and Gardeazabal's published
+    weights (Cataluna 0.840, Madrid 0.160, nothing on Baleares) and
+    their ATT of -0.6996 to within 0.002, from outcomes alone. The
+    default PCP over that cluster scores 3.31: the best achievable
+    fit moves from 0.0843 to 0.2786, Baleares -- an outlier in an
+    otherwise low-rank panel -- takes a plurality of 0.538, and the
+    ATT moves to -0.9204.
+
+    *Diagnostic*: a selection ratio above about 1.5 means widen the
+    cluster or fit the full pool. A denoise ratio above about 1.5
+    means the opposite -- the donors are right and the denoising is
+    too aggressive, so raise the retained rank, weaken the penalty,
+    or drop the denoiser. Neither is repaired by changing the
+    weight objective, which is fitting against a hull that has
+    already moved.
+
+    ``spannability_weights_identified`` is reported alongside and
+    does not warn. It is False whenever the denoised donors are
+    affinely dependent, which a low-rank denoiser produces whenever
+    the retained rank falls below one less than the donor count --
+    eleven of the twelve panel-denoiser-clustering combinations in
+    this repository. The counterfactual and the ATT are unaffected;
+    what is not determinate is the donor composition, so the weight
+    vector in those cases is one point of a continuum and should
+    not be read as the donor mix.
+
 When to use PCR-SC, RPCA-SC, or neither
 ---------------------------------------
 
