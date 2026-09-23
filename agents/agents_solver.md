@@ -105,6 +105,66 @@ with that profile is the right default for `gamma = 1`; a general conic
 interior-point solver is not, and the dust and the spurious infeasibility
 above are what paying for generality looks like.
 
+### Slater holds on the simplex unconditionally, so KKT certifies
+
+Boyd and Vandenberghe (2004, 5.5.3) state the result the certificate rests
+on: for a convex problem with differentiable objective and affine
+constraints, any point satisfying the KKT conditions is primal and dual
+optimal with zero duality gap, and under Slater's condition those conditions
+are necessary as well as sufficient.
+
+Every program in the hierarchy above qualifies, and it qualifies always.
+The objective at `gamma = 1` is `||A - Bw||^2`, differentiable with Hessian
+`2 B'B >= 0`. The constraints are affine. And Slater's condition -- a
+strictly feasible point -- is satisfied on `Delta_J` by the uniform weights
+`1_J / J`, whose coordinates are all strictly positive and which satisfies
+the equality. The probability simplex has nonempty relative interior for
+every `J`, so there is no instance of this problem where Slater fails.
+
+Two consequences follow, and the design rests on both.
+
+A residual computed from the returned weights is a complete certificate of
+optimality, not a heuristic check. It needs no appeal to what the backend
+reported about itself, which is what makes a dispatching layer safe: the
+layer can verify any backend's answer in the same currency.
+
+And CLARABEL's INFEASIBLE verdict at 1000x the West German GDP scale is
+definitively a defect, not a hard instance. Strong duality holds for every
+instance of this program; a solver reporting infeasibility is reporting
+something that cannot be true of the feasible set. The earlier note in this
+document that "a simplex is never empty" understated it.
+
+### Uniqueness has a textbook condition, and the library already needs it
+
+Boyd and Vandenberghe (2004, Example 3.2): a quadratic `f(x) = (1/2)x'Px +
+q'x + r` is convex if and only if `P >= 0` and strictly convex if and only if
+`P > 0`. For `||A - Bw||^2` the Hessian is `2 B'B`, positive definite exactly
+when `B` has full column rank.
+
+So the minimiser is unique if and only if the donor block has full column
+rank, and otherwise the solver returns one point of a continuum that all
+achieve the same fit. This is not a corner case in this library. Under
+`J > T0` -- the regime Rho et al. (2025) motivate ClusterSC by, and the one
+Liao, Shi and Zheng work in -- it never holds. Nor does it hold after a
+low-rank denoiser: `spannability.py` already reports
+`weights_identified` for exactly this reason, and measured across three
+panels and six denoiser-clustering combinations it is False in eleven of
+twelve.
+
+A solver layer should carry that condition instead of leaving each call
+site to rediscover it. `WeightSolution` reporting whether the minimiser is unique
+costs one rank computation and tells a caller whether the weight vector is an
+answer or an arbitrary representative of one.
+
+### What Boyd does not license
+
+The book is an argument for interior-point methods, and it is not a source
+for preferring an active set over one. The algorithm choice above rests on
+Spielman and Teng plus this repository's own pivot measurements, and on the
+exactness of finite termination; Boyd supplies the problem-class boundary and
+the optimality certificate, which are different claims. Citing it for the
+algorithm would be citing it for something it does not say.
+
 ## What the layer covers, and what it refuses
 
 Covers: `gamma = 1` on any of the six polyhedral sets, with an optional
@@ -225,6 +285,9 @@ functional. Biometrika 75(2), 237-249.
 
 Hainmueller, J. (2012). Entropy balancing for causal effects. Political
 Analysis 20(1), 25-46.
+
+Boyd, S. and Vandenberghe, L. (2004). Convex Optimization. Cambridge
+University Press. Sections 4.4, 5.5.3 and Example 3.2.
 
 Spielman, D. A. and Teng, S.-H. (2004). Smoothed analysis of algorithms: why
 the simplex algorithm usually takes polynomial time. Journal of the ACM
