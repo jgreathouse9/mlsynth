@@ -37,6 +37,7 @@ from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
+from ..spannability import assess_spannability, warn_if_poorly_spanned
 
 _RPCA_METHODS = {"PCP", "HQF", "HSVT"}
 _CLUSTER_METHODS = {"fpca", "fgrc"}
@@ -216,6 +217,30 @@ def run_rpca(
     selected_names = [donor_names[i] for i in donor_col_idx]
 
     # ------------------------------------------------------------------
+    # Did donor selection cost the treated unit its convex reach? The
+    # clustering objective is trajectory similarity and carries no
+    # spannability term, so a tight cluster can drop the donors the treated
+    # unit needs. Under `simplex` that surfaces as a large pre-period error;
+    # under `nnls` it is absorbed as extrapolation and the fit looks healthy,
+    # which is why it went unnoticed. Measured either way. See
+    # `..spannability` for the West Germany case this guards.
+    # ------------------------------------------------------------------
+    spannability_meta: dict = {}
+    if donor_col_idx.size < donor_outcomes.shape[1]:
+        report = assess_spannability(
+            donor_pre_pool=donor_outcomes[:T0],
+            treated_pre=treated_outcome[:T0],
+            cluster_index=donor_col_idx,
+        )
+        warn_if_poorly_spanned(report)
+        spannability_meta = {
+            "spannability_ratio": report.ratio,
+            "spannability_excluded_mass": report.excluded_mass,
+            "spannability_cluster_rmse": report.cluster_rmse,
+            "spannability_pool_rmse": report.pool_rmse,
+        }
+
+    # ------------------------------------------------------------------
     # Optional: leave-one-time-out CV for the dominant solver knob
     # (PCP lambda or HQF rank). Tunes the prediction-oriented value
     # rather than the L/S identifiability default from Candes 2011.
@@ -327,6 +352,7 @@ def run_rpca(
     metadata = {
         "rpca_method": rpca_method,
         "weight_objective": weight_objective,
+        **spannability_meta,
         **cluster_meta,
         **solver_metadata,
         **cv_metadata,
