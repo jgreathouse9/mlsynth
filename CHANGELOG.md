@@ -66,6 +66,27 @@ now returns and the back-compat guarantee.
   Algorithm 1 is implemented; the smoothing lambda by GCV and the penalties by
   pseudo-F are taken from the caller.
 ### Fixed
+- FDID's reported standardised ATT carried a stray factor of
+  `sqrt(post_periods)`. Li (2023) Proposition 2.1 gives the statistic as
+  `sqrt(T2) * ATT / sqrt(Omega_1 + Omega_2)`, and this module's standard error
+  is `sqrt(Omega_1 + Omega_2) / sqrt(T2)`, so the statistic is `att / se` and
+  the scaling was applied twice. On Li's own Hong Kong panel `SATT` read 22.65
+  where her MATLAB prints 5.49, a factor of `sqrt(17)`.
+
+  Only that field moved. The confidence interval and the p-value are built from
+  `att / se` directly and already matched Li's released values, so a result
+  carried a test statistic and a p-value that disagreed about the same fit: on a
+  panel near the significance boundary, `P-Value` 0.216 beside a `SATT` of 3.911,
+  whose two-sided tail is 0.000092. Anything read off `Effects.SATT` on a
+  borderline effect could have been the opposite conclusion from the p-value
+  beside it.
+
+  The suite had the correct statistic in three places and compared none of them
+  to the reported one: the p-value, the confidence interval, and
+  `benchmarks/cases/fdid_normality_mc.py`, which rebuilds `r.att / r.att_se` by
+  hand and never reads `r.satt`. The regression tests assert the identity from
+  four directions, one of which -- that the p-value is the two-sided tail of the
+  statistic printed beside it -- needs no reference at all.
 - The GEOX engine property suite skips an engine whose optional dependency is
   absent instead of failing it. Registering `engine="mvbbsc"` put an engine that
   needs numpyro into a registry that `tests/test_geox_engine_properties.py`

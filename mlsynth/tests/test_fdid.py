@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from mlsynth.estimators.fdid import FDID
 from mlsynth.config_models import FDIDConfig
@@ -21,6 +22,7 @@ from mlsynth.utils.fdid_helpers.estimation import (
     _record_verbose_step,
 )
 from mlsynth.utils.fdid_helpers.inference import did_inference
+from mlsynth.utils.effectutils import standardized_att
 
 
 @pytest.fixture
@@ -216,6 +218,170 @@ def test_did_inference_degenerate():
     se, ci, pval, satt = did_inference(2.0, np.array([0.0, 0.0]), 0, 0)
     assert np.isnan(se)
     assert np.isnan(ci[0]) and np.isnan(ci[1])
+
+
+# -----------------------------
+# inference.did_inference -- the standardised ATT
+#
+# Four sources agree on what this quantity is, which is why these tests assert
+# an equality and not a range.
+#
+#   1. Proposition 2.1: sqrt(T2) * (ATT_hat - ATT) / sqrt(omega_1 + omega_2)
+#      is asymptotically standard normal.
+#   2. Li's replication package (MKSC 2022.0212, FDID_Matlab.m line 45):
+#          ATT_std_FDID = sqrt(t2) * ATT_FDID / std_Omega_hat_FDID
+#      annotated "it is N(0,1) under H0, ATT=0", with std_Omega_hat_FDID =
+#      sqrt(Omega_1 + Omega_2). Her CI on line 49 is ATT +/- 1.96 *
+#      std_Omega_hat_FDID / sqrt(t2), so her standard error is the one this
+#      module returns and her statistic is the estimate over it.
+#   3. effectutils.standardized_att, which computes the same quantity for the
+#      library at large.
+#   4. This module's own p-value, which is the two-sided normal tail of
+#      att / se and so already encodes the statistic.
+#
+# All four reduce to att / se. Source 4 is what test_satt_agrees_with_its_own
+# _p_value rests on: it needs no reference at all, because a result that
+# reports a statistic and a p-value which disagree is inconsistent with itself
+# whatever the right scaling turns out to be.
+# -----------------------------
+_SATT_SHAPES = [(10, 5), (20, 10), (30, 12), (50, 25), (100, 40)]
+
+
+def _mean_zero_residuals(n: int, seed: int) -> np.ndarray:
+    """Pre-period residuals of a fitted DiD: mean zero by construction."""
+    e = np.random.default_rng(seed).normal(0.0, 1.0, n)
+    return e - e.mean()
+
+
+@pytest.mark.parametrize("method", ["analytic", "hac"])
+@pytest.mark.parametrize(("pre_periods", "post_periods"), _SATT_SHAPES)
+def test_satt_agrees_with_its_own_p_value(method, pre_periods, post_periods):
+    """The p-value is the two-sided normal tail of the statistic reported beside it."""
+    residuals = _mean_zero_residuals(pre_periods, seed=pre_periods)
+    _se, _ci, p_value, satt = did_inference(
+        0.35, residuals, pre_periods, post_periods, method=method
+    )
+    assert p_value == pytest.approx(2.0 * (1.0 - norm.cdf(abs(satt))), abs=1e-12)
+
+
+@pytest.mark.parametrize("method", ["analytic", "hac"])
+@pytest.mark.parametrize(("pre_periods", "post_periods"), _SATT_SHAPES)
+def test_satt_is_the_estimate_over_its_standard_error(method, pre_periods, post_periods):
+    """SATT is att / se -- the scaling Li's own code and the CI both use."""
+    residuals = _mean_zero_residuals(pre_periods, seed=pre_periods + 1)
+    att = 2.5
+    se, _ci, _p, satt = did_inference(
+        att, residuals, pre_periods, post_periods, method=method
+    )
+    assert satt == pytest.approx(att / se, rel=1e-12)
+
+
+@pytest.mark.parametrize(("pre_periods", "post_periods"), _SATT_SHAPES)
+def test_satt_matches_proposition_2_1_written_out(pre_periods, post_periods):
+    """sqrt(T2) * ATT / sqrt(omega_1 + omega_2), the paper's and the MATLAB's form."""
+    residuals = _mean_zero_residuals(pre_periods, seed=pre_periods + 2)
+    att = 2.5
+    omega2 = float(np.mean(residuals ** 2))
+    omega1 = (post_periods / pre_periods) * omega2
+    expected = np.sqrt(post_periods) * att / np.sqrt(omega1 + omega2)
+
+    _se, _ci, _p, satt = did_inference(att, residuals, pre_periods, post_periods)
+    assert satt == pytest.approx(expected, rel=1e-12)
+
+
+@pytest.mark.parametrize(("pre_periods", "post_periods"), _SATT_SHAPES)
+def test_satt_matches_the_library_wide_primitive(pre_periods, post_periods):
+    """effectutils.standardized_att computes this statistic for every estimator.
+
+    FDID fits an intercept so the pre-period gap has mean zero and the post-period
+    gap has mean att, which is the input that primitive expects.
+    """
+    residuals = _mean_zero_residuals(pre_periods, seed=pre_periods + 3)
+    att = 2.5
+    _se, _ci, _p, satt = did_inference(att, residuals, pre_periods, post_periods)
+    assert satt == pytest.approx(
+        standardized_att(residuals, np.full(post_periods, att)), rel=1e-10
+    )
+
+
+@pytest.mark.parametrize("method", ["analytic", "hac"])
+def test_satt_is_invariant_to_the_outcome_scale(method):
+    """Rescaling the outcome rescales att and the residuals together, so the
+    statistic -- a ratio of two quantities in the outcome's units -- must not move."""
+    residuals = _mean_zero_residuals(40, seed=7)
+    _se, _ci, _p, satt = did_inference(2.5, residuals, 40, 16, method=method)
+    _se_s, _ci_s, _p_s, satt_scaled = did_inference(
+        2.5 * 1000.0, residuals * 1000.0, 40, 16, method=method
+    )
+    assert satt_scaled == pytest.approx(satt, rel=1e-10)
+
+
+@pytest.fixture
+def borderline_fdid_panel() -> pd.DataFrame:
+    """A panel whose effect sits near the significance boundary.
+
+    The four-period ``sample_fdid_data`` fixture cannot test this: it has two
+    pre-periods and a near-exact fit, so the statistic is enormous and both
+    p-values saturate at zero whatever the scaling. The assertion would pass
+    against the defect. Here the ATT is 0.2898 against a standard error of
+    0.2344, so the correct statistic is 1.236 and the two readings of it are
+    0.216 and 0.000092 -- opposite conclusions about the same fit, which is
+    what gives the assertion power.
+    """
+    rng = np.random.default_rng(42)
+    pre_periods, post_periods, n_donors, noise, effect = 24, 10, 3, 0.7, 0.5
+    T = pre_periods + post_periods
+    common = 10.0 + 0.3 * np.arange(T, dtype=float)
+
+    rows = []
+    for j in range(n_donors):
+        y = common + rng.normal(0.0, noise, T) + 0.5 * j
+        rows += [{"unit": f"C{j}", "time": i + 1, "y": y[i], "d": 0}
+                 for i in range(T)]
+    y = common + 2.0 + rng.normal(0.0, noise, T)
+    y[pre_periods:] += effect
+    rows += [{"unit": "T", "time": i + 1, "y": y[i],
+              "d": int(i >= pre_periods)} for i in range(T)]
+    return pd.DataFrame(rows)
+
+
+def test_satt_on_the_public_surface_is_att_over_its_standard_error(
+    borderline_fdid_panel,
+):
+    """The reported SATT, att and att_se are one statement, not three."""
+    fit = FDID(
+        FDIDConfig(
+            df=borderline_fdid_panel, outcome="y", treat="d",
+            unitid="unit", time="time", display_graphs=False,
+        )
+    ).fit().fdid
+    # Both are rounded on the way out -- SATT to 3 dp, att and att_se to 4 --
+    # so the ratio of the rounded pair carries up to a percent of error when
+    # att_se is small. A relative tolerance absorbs that and still has ample
+    # power here: the defect this pins scaled SATT by sqrt(post_periods), a
+    # factor of 3.16 on this panel.
+    assert fit.satt == pytest.approx(fit.att / fit.att_se, rel=1e-2)
+
+
+def test_satt_reported_by_the_estimator_agrees_with_its_p_value(
+    borderline_fdid_panel,
+):
+    """The same invariant on the public surface, not only inside the helper."""
+    fit = FDID(
+        FDIDConfig(
+            df=borderline_fdid_panel, outcome="y", treat="d",
+            unitid="unit", time="time", display_graphs=False,
+        )
+    ).fit().fdid
+    assert fit.p_value == pytest.approx(
+        2.0 * (1.0 - norm.cdf(abs(fit.satt))), abs=5e-3
+    )
+
+
+def test_satt_is_nan_when_the_panel_has_no_post_period():
+    """The degenerate panel returns nan, not a scaled zero."""
+    _se, _ci, _p, satt = did_inference(2.0, np.array([0.0, 0.0]), 0, 0)
+    assert np.isnan(satt)
 
 
 # -----------------------------
