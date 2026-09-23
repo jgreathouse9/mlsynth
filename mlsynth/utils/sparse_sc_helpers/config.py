@@ -162,15 +162,18 @@ class SparseSCConfig(BaseEstimatorConfig):
         default=False,
         description=(
             "Use the envelope-theorem closed-form Jacobian inside the "
-            "outer L-BFGS-B sweep. The analytical Jacobian is exact "
-            "(verified against finite differences to ~1e-7) and yields "
-            "a 5-10x speedup, but the clean gradient lets L-BFGS-B "
-            "settle at the first critical point near the cold init "
-            "on the non-convex L1-penalized V-objective; the FD path's "
-            "implicit gradient noise tends to find better local optima "
-            "at non-zero lambda. Off by default for correctness; opt in "
-            "when running large placebo sweeps where exact local optimum "
-            "matters less than throughput."
+            "outer L-BFGS-B sweep. The analytical Jacobian is exact -- "
+            "its cosine against central differences is 1.0000 at every "
+            "lambda tested, at the cold init and at a random interior "
+            "point -- and yields a 5-10x speedup. The two paths still "
+            "end in different places at lambda >= 0.1, because the "
+            "outer objective is smooth only within each cone of "
+            "v-space on which the active donor set is constant, and "
+            "solvers taking different steps stop in different cones. "
+            "Off by default because finite differences empirically "
+            "stops in better ones, not because it is more accurate; "
+            "opt in when throughput matters more than which critical "
+            "point is reached."
         ),
     )
     warm_start: bool = Field(

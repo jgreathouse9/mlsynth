@@ -311,13 +311,24 @@ modes are available, controlled by ``use_analytical_grad``:
      =
      \begin{pmatrix} \mathbf{Z}_0[:, \mathcal{A}]^\top \mathbf{r}_{\text{outer}} \\ 0 \end{pmatrix}.
 
-  The analytical gradient is exact (verified against central FD to
-  ~1e-7 at random interior points). It yields a ~5–10× speedup on
-  the outer sweep, but the cleaner gradient lets L-BFGS-B settle at
-  the first critical point near the cold init on the non-convex L1-
-  penalized V-objective. The FD path's implicit gradient noise tends
-  to find better local optima at non-zero lambda, so the default
-  is FD for correctness. Opt in to the analytical path when
+  The analytical gradient is exact. Measured against central
+  differences at :math:`\lambda \in \{0, 10^{-4}, 10^{-2}, 0.1, 1\}`,
+  at the cold init and at a random interior point, the cosine between
+  the two gradients is 1.0000 everywhere and their norms agree to the
+  same precision. It yields a ~5–10× speedup on the outer sweep.
+
+  The two paths still land in different places at
+  :math:`\lambda \ge 0.1` — 18.86 against 78.87 at
+  :math:`\lambda = 0.1` on the k=40 specification. The cause is not a
+  difference between the gradients, which agree exactly. The outer
+  objective is piecewise smooth: :math:`\mathbf{w}^\ast(\mathbf{v})`
+  solves a linear system on each polyhedral cone of
+  :math:`\mathbf{v}`-space where the active donor set is constant, so
+  it is smooth within a cone and its derivative jumps across cone
+  boundaries. Two solvers taking different step sequences cross
+  different boundaries and stop in different cones. The default is FD
+  because it empirically stops in better ones, not because it is more
+  accurate. Opt in to the analytical path when
   running large placebo sweeps where throughput matters more than
   exact local-optimum reproducibility. When ``use_analytical_grad =
   True``, the L-BFGS-B ``ftol`` auto-tightens to ``1e-12`` because
@@ -591,10 +602,12 @@ matter:
   call). Speedup applies universally; no correctness tradeoff.
 * Analytical gradient (opt-in via ``use_analytical_grad=True``)
   removes the :math:`2(P-1)` finite-difference factor (~5-10× on
-  the outer loop). Tradeoff: the cleaner gradient can settle in
-  worse local optima of the non-convex L1-penalized outer
-  objective; FD's implicit gradient noise tends to escape them.
-  Default off for correctness.
+  the outer loop). Tradeoff: the two paths cross different
+  boundaries between the cones on which the active donor set is
+  constant, and stop in different ones; FD empirically stops in
+  better ones at :math:`\lambda \ge 0.1`. The gradients themselves
+  agree to a cosine of 1.0000. Default off on that empirical
+  basis.
 
 Empirically, the combination puts the canonical ADH-7 California
 Prop 99 fit at ~5 s with analytical gradient and ~23 s with FD

@@ -97,12 +97,19 @@ Results
    * - pre-treatment RMSE
      - 2.10
      - n/a
-   * - predictors kept (of 33)
+   * - predictors kept of 33, counting :math:`v_p > 10^{-6}`
      - **6**
      - sparse
    * - donor pool
      - Utah / Nevada / Connecticut / Colorado carry ~all the weight
      - Utah / Nevada / Connecticut / Colorado / Montana
+
+The count above applies :math:`v_p > 10^{-6}`, which is the script's own
+threshold and the one ``benchmarks/cases/sparse_sc_prop99.py`` pins. The
+``dim_u`` reported on ``method_details.parameters_used`` counts the support at
+:math:`10^{-10}` instead, so the two can differ by any predictor whose weight
+sits between them. Neither is more correct; they answer different questions,
+and a count carries its threshold or it is not a measurement.
 
 The outer V-objective is non-convex, so which critical point a single cold
 L-BFGS-B start lands in depends on finite-difference / BLAS rounding and drifts
