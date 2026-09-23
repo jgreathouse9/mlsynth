@@ -128,6 +128,57 @@ class TestSetup:
         assert 1 < inputs.T0_train < inputs.T0_total
         assert list(inputs.predictor_names) == COVS
 
+    def test_the_anchor_defaults_to_the_first_predictor(self, small_panel):
+        inputs = prepare_sparse_sc_inputs(
+            df=small_panel, outcome="y", treat="tr", unitid="unit",
+            time="year", covariates=COVS)
+        assert inputs.predictor_names[0] == COVS[0]
+
+    def test_naming_an_anchor_moves_it_to_the_front(self, small_panel):
+        """``k0`` is a modelling choice, so it has to be nameable.
+
+        Vives-i-Bastida's appendix, after the Lemma 1 proof: "the choice of k0
+        is meaningful as every k0 will yield slightly different w*_j and the
+        predictor k0 will be included with probability one in the model."
+        Until now it was whichever column the caller listed first. The move is
+        a pure reindex: the anchor goes to the front and the rest keep their
+        relative order.
+        """
+        inputs = prepare_sparse_sc_inputs(
+            df=small_panel, outcome="y", treat="tr", unitid="unit",
+            time="year", covariates=COVS, anchor_covariate=COVS[2])
+        assert list(inputs.predictor_names) == [COVS[2]] + [
+            c for c in COVS if c != COVS[2]]
+        base = prepare_sparse_sc_inputs(
+            df=small_panel, outcome="y", treat="tr", unitid="unit",
+            time="year", covariates=COVS)
+        # The rows are the same rows, in a different order.
+        j = list(base.predictor_names).index(COVS[2])
+        np.testing.assert_allclose(inputs.X0[0], base.X0[j])
+        np.testing.assert_allclose(inputs.X1[0], base.X1[j])
+
+    def test_an_anchor_that_is_not_a_predictor_is_rejected(self, small_panel):
+        with pytest.raises(MlsynthDataError, match="anchor_covariate"):
+            prepare_sparse_sc_inputs(
+                df=small_panel, outcome="y", treat="tr", unitid="unit",
+                time="year", covariates=COVS, anchor_covariate="not_a_column")
+
+    def test_an_outcome_lag_can_be_the_anchor(self, small_panel):
+        """The anchor is chosen among predictors, and lags are predictors."""
+        inputs = prepare_sparse_sc_inputs(
+            df=small_panel, outcome="y", treat="tr", unitid="unit",
+            time="year", covariates=COVS, outcome_lag_periods=[2003],
+            anchor_covariate="y@2003")
+        assert inputs.predictor_names[0] == "y@2003"
+
+    def test_the_anchor_reaches_the_estimator_and_is_pinned(self, small_panel):
+        res = SparseSC({"df": small_panel, "outcome": "y", "treat": "tr",
+                        "unitid": "unit", "time": "year", "covariates": COVS,
+                        "anchor_covariate": COVS[2], "run_inference": False,
+                        "display_graphs": False}).fit()
+        assert res.inputs.predictor_names[0] == COVS[2]
+        assert float(np.asarray(res.design.v)[0]) == pytest.approx(1.0)
+
     def test_outcome_lag_periods_add_predictor_rows(self, small_panel):
         inputs = prepare_sparse_sc_inputs(
             df=small_panel, outcome="y", treat="tr",

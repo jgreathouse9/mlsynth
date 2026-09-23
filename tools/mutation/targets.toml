@@ -2343,3 +2343,15 @@ timeout = 900.0
   find = "    if degeneracy.penalty_at_grid_edge:"
   replace = "    if degeneracy.penalty_at_grid_edge and degeneracy.anchor_only:"
   models = "treating a lambda chosen at the top of the grid as unremarkable unless the fit also collapsed to the anchor. The two are separate statements: the corner says which predictors survived, the boundary says the search never tried a heavier penalty and so the selection is the edge of the grid and not an optimum. On the SCMO Germany panel lambda* is the grid maximum with 8 of 8 predictors kept and anchor_only False, so the conjunction reports nothing at all"
+
+[[target]]
+name = "sparse-sc-anchor"
+module-path = "mlsynth/utils/sparse_sc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-anchor-choice-is-accepted-and-ignored"
+  find = "        k0 = predictor_names.index(anchor_covariate)"
+  replace = "        k0 = 0"
+  models = "a config option that validates, reports itself on the result and changes nothing. anchor_covariate would be accepted, checked against the predictor set, echoed as anchor_predictor in parameters_used, and the pinned weight would stay on whichever predictor the caller listed first. On the Basque panel the anchor moves the ATT from -0.277 to -0.529, a factor of 1.9, so an option that silently does not apply hands the caller a number they believe they chose"

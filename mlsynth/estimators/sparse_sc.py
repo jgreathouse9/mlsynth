@@ -120,6 +120,7 @@ class SparseSC:
 
         self.covariates = config.covariates
         self.outcome_lag_periods = config.outcome_lag_periods
+        self.anchor_covariate = config.anchor_covariate
         self.T0_train = config.T0_train
         self.lambda_grid = (
             np.asarray(config.lambda_grid, dtype=float)
@@ -158,6 +159,7 @@ class SparseSC:
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
                 covariates=self.covariates,
+                anchor_covariate=self.anchor_covariate,
                 outcome_lag_periods=self.outcome_lag_periods,
                 T0_train=self.T0_train,
                 standardize=self.standardize,
@@ -333,6 +335,9 @@ class SparseSC:
                 is_recommended=True,
                 parameters_used={
                     "outer_loss_window": self.outer_loss_window,
+                    "anchor_predictor": (
+                        inputs.predictor_names[0]
+                        if len(inputs.predictor_names) else None),
                     "outer_restarts": int(self.outer_restarts),
                     "outer_restart_seed": int(self.outer_restart_seed),
                     "robust_selection": bool(self.robust_selection),

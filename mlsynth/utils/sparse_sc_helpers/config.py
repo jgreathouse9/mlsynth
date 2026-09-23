@@ -36,6 +36,17 @@ class SparseSCConfig(BaseEstimatorConfig):
             "V-weight is pinned to 1."
         ),
     )
+    anchor_covariate: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name of the predictor whose V-weight is pinned to 1 -- the "
+            "anchor, ``k0`` in Vives-i-Bastida (2023) Algorithm 1. May name "
+            "a covariate or an outcome-lag predictor. Defaults to the first "
+            "predictor, matching the reference MATLAB driver. The choice is "
+            "a modelling one: the anchor enters the model with probability "
+            "one and every anchor gives slightly different donor weights."
+        ),
+    )
     outcome_lag_periods: Optional[List[Any]] = Field(
         default=None,
         description=(
