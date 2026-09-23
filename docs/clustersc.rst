@@ -815,9 +815,57 @@ Basque, West Germany and Proposition 99 panels:
 
 Thirty of forty-five. The gains concentrate where the hull has collapsed,
 and elsewhere it can do harm: on Proposition 99 under fGRC it roughly
-doubles held-out error at every split. Reach for it when the spannability
-warning fires or the donors have visibly collapsed, not by default. The
-weight objective and the fitted intercept are both reported on
+doubles held-out error at every split.
+
+Two situations put the treated unit outside the donors' hull and only one
+of them is what this objective is for. Cluster selection can drop donors
+the treated unit needed, in which case the hull is wrong and a better
+donor set is the fix; denoising can shrink a hull that was the right one,
+in which case no donor set recovers it and the intercept is the
+relaxation. The spannability check reports the first, by comparing the
+best convex fit inside the cluster against the one on the full pool.
+When it fires, widen the cluster -- do not reach for ``msca``, which
+improves the fit without repairing the donor set.
+
+West Germany on the default path shows why that distinction matters.
+FPCA clustering there drops donors carrying 0.55 of the pool-optimal
+convex mass, and the spannability check says so: the best achievable
+convex fit inside the cluster costs 8.6 times what it costs on the full
+pool. Against that cluster:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 18 18 18
+
+   * - Objective
+     - ATT
+     - Pre-period RMSE
+     - Intercept
+   * - ``nnls``
+     - -1500.9
+     - 88.6
+     - 0.0
+   * - ``simplex``
+     - 35.1
+     - 496.1
+     - 0.0
+   * - ``msca``
+     - -835.5
+     - 209.9
+     - 709.7
+
+The reference value is about -1540. ``simplex`` fails visibly, with the
+wrong sign and a pre-period error of 496. ``msca`` cuts that error by a
+factor of 2.4 and still reports an effect 45 percent too small, on a
+single donor with a 709.7 intercept carrying the level. The improvement
+in fit is real and the estimate is still wrong, which is the failure this
+objective is most likely to produce: it looks like the diagnostic
+recovered. Clustering with ``cluster_method="fgrc"`` and denoising with
+``rpca_method="HSVT"`` puts every objective within 50 of the reference,
+``msca`` included, because that configuration keeps the donors the
+treated unit needs.
+
+The weight objective and the fitted intercept are both reported on
 ``method_details.parameters_used`` as ``weight_objective`` and
 ``weight_intercept``, because the counterfactual under ``msca`` is
 ``donors @ weights + intercept`` and a reader working from the weights

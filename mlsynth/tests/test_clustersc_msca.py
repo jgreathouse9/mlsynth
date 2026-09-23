@@ -424,3 +424,47 @@ def test_scpi_gets_no_constant_for_the_origin_objectives(
              compute_scpi_pi=True, scpi_constraint="simplex", scpi_sims=50)
     assert seen["constant"] is False
     assert seen["weights"].size == seen["n_donor_cols"]
+
+
+# --------------------------------------------------------------------------
+# A better pre-period fit is not a better estimate
+# --------------------------------------------------------------------------
+_GERMANY_REFERENCE_ATT = -1543.5
+
+
+def test_msca_matches_the_reference_on_a_well_spanned_cluster(germany_df):
+    """fGRC clustering plus HSVT keeps the donors West Germany needs, and
+    there every objective agrees to within 60 of the pinned prototype."""
+    from mlsynth import CLUSTERSC
+    good = dict(rpca_method="HSVT", cluster_method="fgrc", fgrc_k=2)
+    for objective in ("nnls", "simplex", "msca"):
+        r = CLUSTERSC(_cfg(germany_df, weight_objective=objective, **good)).fit()
+        assert r.effects.att == pytest.approx(_GERMANY_REFERENCE_ATT, abs=60.0), (
+            f"{objective} drifted from the reference on a well-spanned cluster")
+
+
+def test_msca_improves_the_fit_without_repairing_a_bad_donor_set(germany_df):
+    """The failure this objective is most likely to produce.
+
+    FPCA clustering on West Germany drops donors carrying 0.55 of the
+    pool-optimal convex mass, which the spannability check reports. Against
+    that cluster the intercept cuts the pre-period error well below the
+    simplex's and still leaves the effect far short, because a level shift
+    cannot stand in for donors that are missing. A reader treating the
+    improved fit as a sign the problem went away gets an ATT roughly half
+    the reference.
+    """
+    from mlsynth import CLUSTERSC
+    fits = {o: CLUSTERSC(_cfg(germany_df, weight_objective=o)).fit()
+            for o in ("nnls", "simplex", "msca")}
+    rmse = {o: f.fit_diagnostics.rmse_pre for o, f in fits.items()}
+    err = {o: abs(f.effects.att - _GERMANY_REFERENCE_ATT) for o, f in fits.items()}
+
+    # Better fit than the simplex ...
+    assert rmse["msca"] < 0.6 * rmse["simplex"]
+    # ... and further from the reference than the objective that extrapolates.
+    assert err["msca"] > 3.0 * err["nnls"]
+    assert err["msca"] > 500.0
+    # The level shift is doing the work a missing donor should do.
+    params = fits["msca"].method_details.parameters_used
+    assert params["weight_intercept"] > 300.0

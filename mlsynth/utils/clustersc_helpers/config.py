@@ -96,7 +96,12 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
                     "the donors' hull in levels and assumes instead that the "
                     "level gap is constant through the post period. Adding "
                     "the intercept can only improve pre-period fit, so that "
-                    "fit cannot tell you whether the assumption holds.",
+                    "fit cannot tell you whether the assumption holds. Use "
+                    "it when denoising has collapsed the donors' hull, not "
+                    "when the spannability check reports that clustering "
+                    "dropped donors the treated unit needed -- against a "
+                    "badly selected cluster it improves the fit and leaves "
+                    "the effect wrong.",
     )
     fgrc_c1: int = Field(
         default=2, ge=1,
