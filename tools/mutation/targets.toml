@@ -2285,11 +2285,28 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-reported-objective-comes-from-a-different-iterate"
-  find = """            x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
-            f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
-                                solver=solver)"""
-  replace = "            f_true = res.fun"
+  find = """                x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
+                f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
+                                    solver=solver)"""
+  replace = "                f_true = res.fun"
   models = "the shipped sweep until 2026-09, which ranked candidate starts, filled outer_curve and decided the backward pass on scipy's res.fun. L-BFGS-B ends in ABNORMAL_TERMINATION_IN_LNSRCH on this kinked objective and scipy then returns fun and x from different iterates: on the Vives k=40 spec they disagree at 10 of 26 grid points under finite differences and 19 of 26 under the analytic gradient, gaps to 1818, and once with the reported value BELOW the truth, which is the direction that wins a comparison it should lose. A number belonging to a different point cannot rank a start, and the restart feature is exactly a ranking of starts"
+
+  [[target.mutant]]
+  id = "a-refused-start-takes-down-the-sweep"
+  find = "            except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:"
+  replace = "            except () as exc:"
+  models = "the shipped _solve until 2026-09, which let a solver refusal propagate out of the whole sweep. L-BFGS-B can walk to an iterate outside [0, inf) and scipy's approx_derivative then raises \"`x0` violates bound constraints\"; it happened on the Vives k=40 specification in the backward pass with four restarts, ending the fit with a raw scipy error. Multi-start exists so that a start can be bad, so this makes outer_restarts strictly more dangerous than no restarts at all: more draws are more chances to hit the refusal, and the feature sold as robustness becomes the thing that breaks the estimator"
+
+  [[target.mutant]]
+  id = "a-lost-lambda-is-reported-as-if-it-were-solved"
+  find = """            outer_curve[idx] = np.inf
+            v_path[idx, :] = np.concatenate([[1.0], v20_cold])
+            continue"""
+  replace = """            outer_curve[idx] = np.inf
+            v_path[idx, :] = np.concatenate([[1.0], v20_cold])
+            val_curve[idx] = selection_mse(v20_cold, X1, X0, Z1_val, Z0_val, solver=solver)
+            continue"""
+  models = "scoring a lambda that lost every start as though the cold init had been chosen there. The validation MSE is finite, so the lambda re-enters the argmin and can win it, and the caller reads a selected lambda, a predictor set and an ATT off a point no solve ever returned. Leaving val_curve NaN is what keeps it out of nanargmin and out of the champion update; a finite placeholder is a fit nobody asked for dressed as a fit"
 
   [[target.mutant]]
   id = "an-undefined-predictor-spread-passes-through"

@@ -53,6 +53,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 from scipy.optimize import minimize
 
+from ...exceptions import MlsynthEstimationError
 from .inner import solve_w
 from .objective import outer_loss, outer_loss_and_grad, selection_mse
 
@@ -80,6 +81,18 @@ def default_v20(X0: np.ndarray) -> np.ndarray:
     sd = X0.std(axis=1, ddof=1)
     sd = np.where(np.isfinite(sd) & (sd > 0), sd, 1.0)
     return (sd[0] / sd[1:]) ** 2
+
+
+def _no_lambda_solved(lambda_grid: np.ndarray, failures: list) -> str:
+    """Message for a sweep in which no lambda produced a usable solve.
+
+    Names the size of the grid and carries the last solver error, so the
+    caller sees which library refused and why instead of an mlsynth error
+    with the cause thrown away.
+    """
+    tail = f" The last solver failure was {failures[-1]}." if failures else ""
+    return (f"SparseSC outer sweep: no candidate start converged at any of the "
+            f"{lambda_grid.size} lambda values on the grid.{tail}")
 
 
 def sweep_lambda(
@@ -204,6 +217,8 @@ def sweep_lambda(
         return [v20_cold * np.exp(rng.normal(0.0, _RESTART_LOG_SD, P - 1))
                 for _ in range(outer_restarts)]
 
+    _failures: list = []                    # solver refusals, for the message
+
     outer_curve = np.full(lambda_grid.size, np.nan)
     val_curve = np.full(lambda_grid.size, np.nan)
     v_path = np.zeros((lambda_grid.size, P))
@@ -226,20 +241,30 @@ def sweep_lambda(
         """
         best_res, best_f = None, np.inf
         for x0 in starts:
-            res = _minimize_outer(
-                x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
-                lam=float(lam), solver=solver, bounds=bounds,
-                max_outer_iter=max_outer_iter, ftol=ftol,
-                use_analytical_grad=use_analytical_grad,
-            )
-            x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
-            f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
-                                solver=solver)
+            try:
+                res = _minimize_outer(
+                    x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
+                    lam=float(lam), solver=solver, bounds=bounds,
+                    max_outer_iter=max_outer_iter, ftol=ftol,
+                    use_analytical_grad=use_analytical_grad,
+                )
+                x = np.clip(np.asarray(res.x, dtype=float), 0.0, None)
+                f_true = outer_loss(x, X1, X0, Z1_outer, Z0_outer, float(lam),
+                                    solver=solver)
+            except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+                # A start the solver refuses is a start, not a sweep. L-BFGS-B
+                # can walk to an iterate outside [0, inf) and scipy's
+                # approx_derivative then raises "`x0` violates bound
+                # constraints"; seen on the Vives k=40 specification in the
+                # backward pass with four restarts. Multi-start exists so a
+                # start can be bad, and outer_restarts offers more of them, so
+                # letting one abort the sweep makes the robustness feature the
+                # thing that breaks the fit. Discarded like a non-finite score,
+                # with the reason kept for the message if nothing survives.
+                _failures.append(f"{type(exc).__name__}: {exc}")
+                continue
             if np.isfinite(f_true) and f_true < best_f:
                 best_res, best_f = res, float(f_true)
-        if best_res is None:                    # every start returned non-finite
-            best_res = res
-            best_f = float("inf")
         return best_res, best_f
 
     # ---- Forward pass (ascending lambda) ------------------------------------
@@ -259,6 +284,14 @@ def sweep_lambda(
             champion=champion_v2,
         )
         res, f_true = _solve(lam, starts + _restarts(idx, 0))
+        if res is None:
+            # No candidate finished here. Leaving val_curve NaN keeps this
+            # lambda out of the argmin and out of the champion update, so the
+            # sweep continues over the lambdas that did solve instead of
+            # reporting the cold init as if it had been chosen.
+            outer_curve[idx] = np.inf
+            v_path[idx, :] = np.concatenate([[1.0], v20_cold])
+            continue
         v2_hat = np.clip(res.x, 0.0, None)
         outer_curve[idx] = f_true
         val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
@@ -277,12 +310,14 @@ def sweep_lambda(
     # never worsen the path.
     if robust:
         # ensure the champion is the global validation-MSE winner from the forward pass
+        if np.all(np.isnan(val_curve)):
+            raise MlsynthEstimationError(_no_lambda_solved(lambda_grid, _failures))
         champion_v2 = v_path[int(np.nanargmin(val_curve)), 1:].copy()
         for idx in range(lambda_grid.size - 2, -1, -1):
             lam = float(lambda_grid[idx])
             starts = [v_path[idx + 1, 1:].copy(), champion_v2.copy(), v_path[idx, 1:].copy()]
             res, f_true = _solve(lam, starts + _restarts(idx, 1))
-            if np.isfinite(f_true) and f_true < outer_curve[idx] - 1e-12:
+            if res is not None and np.isfinite(f_true) and f_true < outer_curve[idx] - 1e-12:
                 v2_hat = np.clip(res.x, 0.0, None)
                 outer_curve[idx] = f_true
                 val_curve[idx] = selection_mse(v2_hat, X1, X0, Z1_val, Z0_val, solver=solver)
@@ -290,6 +325,8 @@ def sweep_lambda(
                 if val_curve[idx] <= np.nanmin(val_curve):
                     champion_v2 = v2_hat.copy()
 
+    if np.all(np.isnan(val_curve)):
+        raise MlsynthEstimationError(_no_lambda_solved(lambda_grid, _failures))
     best_idx = int(np.nanargmin(val_curve))
     best_lambda = float(lambda_grid[best_idx])
     best_v = v_path[best_idx, :].copy()

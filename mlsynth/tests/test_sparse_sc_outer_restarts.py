@@ -27,7 +27,7 @@ import pytest
 
 from mlsynth import SparseSC
 from mlsynth.config_models import SparseSCConfig
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.sparse_sc_helpers import optimization
 from mlsynth.utils.sparse_sc_helpers.objective import outer_loss, selection_mse
 from mlsynth.utils.sparse_sc_helpers.optimization import (
@@ -457,6 +457,64 @@ class TestFailures:
                 "display_graphs": False}
         base.update(kw)
         return base
+
+    def test_a_start_the_solver_rejects_does_not_abort_the_sweep(self, monkeypatch):
+        """One start the solver rejects is not a reason to lose the sweep.
+
+        Observed on the Vives k=40 specification with ``robust=True`` and four
+        restarts: L-BFGS-B reached an iterate outside ``[0, inf)`` and scipy's
+        ``approx_derivative`` raised ``ValueError("`x0` violates bound
+        constraints.")``, which propagated out of ``sweep_lambda`` and ended
+        the fit. Multi-start exists so that a start can be bad, and
+        ``outer_restarts`` makes a bad one more likely by offering more of
+        them, so a raising start is discarded like a non-finite one.
+        """
+        Y1, Y0, X1, X0, T0_total = _arrays(3)
+        real = optimization._minimize_outer
+        calls = {"n": 0}
+
+        def flaky(**kw):
+            calls["n"] += 1
+            if calls["n"] % 3 == 0:
+                raise ValueError("`x0` violates bound constraints.")
+            return real(**kw)
+
+        monkeypatch.setattr(optimization, "_minimize_outer", flaky)
+        best_v, lam, grid, outer, val, v_path = sweep_lambda(
+            X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
+            lambda_grid=GRID, outer_loss_window="training", robust=False,
+            outer_restarts=4, outer_restart_seed=0)
+
+        assert calls["n"] > 3, "the injected failure never fired"
+        assert np.all(np.isfinite(best_v))
+        assert np.all(np.isfinite(outer))
+        assert (v_path >= 0).all()
+        assert best_v[0] == pytest.approx(1.0)
+
+    def test_a_lambda_where_every_start_fails_is_reported_not_swallowed(
+            self, monkeypatch):
+        """Losing every start at one lambda is a failure, and it is named.
+
+        The fallback for "no candidate finished" returned the last solve's
+        result with an infinite objective, which is a fit nobody asked for
+        dressed as a fit. With every start raising there is no last result at
+        all, so the sweep reports the lambda it lost and the number of starts
+        it tried, as an mlsynth error and not as scipy's.
+        """
+        Y1, Y0, X1, X0, T0_total = _arrays(3)
+
+        def always(**kw):
+            raise ValueError("`x0` violates bound constraints.")
+
+        monkeypatch.setattr(optimization, "_minimize_outer", always)
+        with pytest.raises(MlsynthEstimationError) as excinfo:
+            sweep_lambda(X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
+                         T0_train=10, lambda_grid=GRID,
+                         outer_loss_window="training", robust=False,
+                         outer_restarts=4, outer_restart_seed=0)
+        message = str(excinfo.value)
+        assert "lambda" in message.lower()
+        assert "5" in message, "the message should say how many starts were tried"
 
     def test_a_negative_restart_count_is_rejected(self):
         with pytest.raises(MlsynthConfigError):
