@@ -28,7 +28,7 @@ from tools.simplex_qp_audit import audit
 # the `linear` argument instead of folding it into the target, which a wide
 # donor block does not permit.
 ELIGIBLE = {
-    ("bilevel/penalized.py", "w"): 2,
+    ("bilevel/penalized.py", "w"): 1,   # _simplex_qp; penalized_weights migrated
     ("bilevel/ridge_augment.py", "w"): 1,
     ("clustersc_helpers/spannability.py", "w"): 1,
     ("drosc_helpers/estimation.py", "w"): 1,
@@ -54,6 +54,13 @@ MIGRATED = {
     ("spillsynth_helpers/cd/scm_core.py", "w"),
     ("tssc_helpers/estimation.py", "w"),
 }
+
+# ``bilevel/penalized.py`` is in both lists and that is the point. Its two
+# programs are the same shape and only one of them was migrated:
+# ``penalized_weights`` takes the residual form and is on the active set, while
+# ``_simplex_qp`` takes the Gram form, whose linear term carries the data fit
+# and not only the penalty, and has no caller in the library. The count above is
+# what remains visible to the audit.
 
 # The probability simplex, but minimising something else. Swapping the solver
 # here would drop the extra term, not speed it up. Three carry a Gram form

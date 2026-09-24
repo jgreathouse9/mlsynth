@@ -99,7 +99,16 @@ def _assert_optimal_with_linear(B, A, w, linear, tol):
     if not on.any():                          # pragma: no cover - w sums to 1
         return
     nu = float(g[on].mean())
-    scale = max(float(np.abs(g).max()), 1e-12)
+    # Scale by the curvature, not by the gradient. A fit that is close to exact
+    # has a gradient near zero, and dividing by it turns rounding noise into an
+    # apparent violation: on a 4-by-12 design whose treated unit lies in the
+    # donor span the gradient is around 1e-17 and the reading came out at
+    # 1.5e-04 for a point attaining the optimum. The sum-to-one constraint
+    # annihilates the donors' common level, so that direction comes out of the
+    # scale too, leaving a quantity the program is invariant with.
+    core = B - B.mean(axis=1, keepdims=True)
+    scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))
+    scale = max(scale, 1e-300)
     stat = float(np.abs(g[on] - nu).max()) / scale
     dual = 0.0 if on.all() else -min(0.0, float((g[~on] - nu).min()) / scale)
     if max(stat, dual) > 1e-6:
