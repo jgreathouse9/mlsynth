@@ -26,9 +26,13 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.bilevel.active_set import (
+    solve_simplex_qp,
+    solve_simplex_qp_least_norm,
+)
 from mlsynth.utils.bilevel.minnorm import (
     simplex_gram,
+    simplex_optimum_is_unique,
     solve_simplex_minnorm,
     solve_simplex_minnorm_batch,
 )
@@ -500,3 +504,56 @@ def test_rejects_non_finite_gram():
     G[1, 1] = np.nan
     with pytest.raises(ValueError, match="finite"):
         solve_simplex_minnorm(G)
+
+
+def test_the_least_norm_tie_break_does_not_claim_the_program_is_identified():
+    """Choosing a point of the face is not the same as the face collapsing.
+
+    One matching moment against six donors: every ``w`` on the simplex with
+    ``sum_j j w_j == 3`` fits exactly, so the minimiser is a face. The uniform
+    point gives 3.5 and is not on it, which is what gives this design power --
+    the plain active set starts from uniform weights, so a face centred there
+    is reached without pivoting and the two programs would agree for a reason
+    that has nothing to do with the tie-break.
+
+    The rule picks the least-norm point of that face and so depends on the data
+    alone; the plain solve picks whichever vertex its pivots reach. What the
+    rule must not do is report the program as identified. Uniqueness is a
+    property of the program, and the face is still a face --
+    ``simplex_optimum_is_unique`` answering True would say the data determines
+    the counterfactual when it does not, which is the reading SSC's Guanajuato
+    panel turns on.
+    """
+    B = np.arange(1.0, 7.0).reshape(1, 6)
+    A = np.array([3.0])
+    obj = lambda v: float(np.sum((A - B @ v) ** 2))
+
+    w = solve_simplex_qp_least_norm(B, A)
+    plain = solve_simplex_qp(B, A)
+
+    # Both are on the simplex and both are minimisers: this is one face.
+    for v in (w, plain):
+        assert v.min() >= -1e-12 and abs(v.sum() - 1.0) < 1e-9
+        assert obj(v) < 1e-18
+
+    # The rule binds -- it is a different point, and it is the shorter one.
+    assert np.abs(plain - w).max() > 1e-2
+    assert float(w @ w) < float(plain @ plain) - 1e-6
+
+    # And it is a rule: relabelling the donors does not move it, where it
+    # moves the plain solve by two orders of magnitude more.
+    rng = np.random.default_rng(7)
+    moved_rule = moved_plain = 0.0
+    for _ in range(20):
+        q = rng.permutation(B.shape[1])
+        wr = solve_simplex_qp_least_norm(B[:, q], A)
+        pr = solve_simplex_qp(B[:, q], A)
+        back_r = np.empty_like(wr); back_r[q] = wr
+        back_p = np.empty_like(pr); back_p[q] = pr
+        moved_rule = max(moved_rule, float(np.abs(back_r - w).max()))
+        moved_plain = max(moved_plain, float(np.abs(back_p - plain).max()))
+    assert moved_rule < 1e-9, moved_rule
+    assert moved_plain > 1e-2, moved_plain
+
+    # None of which makes the program identified.
+    assert not simplex_optimum_is_unique(B, A, w)
