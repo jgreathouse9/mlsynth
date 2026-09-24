@@ -2469,3 +2469,95 @@ timeout = 240.0
   find = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,"
   replace = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice], WeightConstraint(nonneg=False, sum_to_one=False)).weights,"
   models = "trajectory weights fitted without the simplex, which buys a better pre-period fit by extrapolating past the donor cloud and gives a counterfactual with no out-of-sample content"
+
+[[target]]
+name = "active-set-linear-ray"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_active_set_linear.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "unbounded-subproblem-solved-as-if-bounded"
+  find = "                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):"
+  replace = "                if False:"
+  models = "a free-set subproblem that is unbounded along a null direction of the design, solved as though its minimum were interior. The residual shift reproduces only the part of the term in the row space, so the point returned is not stationary -- 54 percent above the optimum on a 3 by 12 design, reported as converged"
+
+  [[target.mutant]]
+  id = "ray-taken-in-the-wrong-direction"
+  find = "                    d[:nF - 1] = -qn\n                    d[nF - 1] = float(qn.sum())"
+  replace = "                    d[:nF - 1] = qn\n                    d[nF - 1] = -float(qn.sum())"
+  models = "the ray followed uphill. The quadratic is flat along it either way and the sum-to-one constraint still holds, so the step looks legitimate and only the objective gives it away"
+
+  [[target.mutant]]
+  id = "ray-step-overshoots-its-blocking-bound"
+  find = "                        cur = cur + float(ratios.min()) * d"
+  replace = "                        cur = cur + float(ratios.max()) * d"
+  models = "the ray stepped to the last blocking bound instead of the first, which leaves the simplex through a coordinate that passed zero on the way"
+
+  [[target.mutant]]
+  id = "returned-point-is-not-checked"
+  find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
+  equivalent = true
+  equivalent-reason = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
+
+[[target]]
+name = "simplex-qp-audit-classifier"
+module-path = "tools/simplex_qp_audit.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_audit.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "names-resolved-across-function-boundaries"
+  find = "            scope = _enclosing(tree, node.lineno)"
+  replace = "            scope = tree"
+  models = "a name followed by walking the whole module and keeping the last assignment. SpSyDiD binds objective and constraints in two functions, so its time-weight solve reads as its unit-weight one; DSC binds w in two, one non-negative and one not, so a sum-to-one solve reads as the probability simplex and the audit says swap the solver on weights that may go negative"
+
+  [[target.mutant]]
+  id = "any-callable-named-problem-is-a-solve"
+  find = "                    and ast.unparse(node.func).split(\".\")[-1] == \"Problem\"):"
+  replace = "                    and ast.unparse(node.func).endswith(\"Problem\")):"
+  models = "a class matched as cp.Problem. LAXSCM caches compiled programs behind _PenalizedProblem and _RelaxedProblem, and both constructors enter the audit as solves whose second positional argument is not a constraint list"
+
+  [[target.mutant]]
+  id = "a-conditional-constraint-establishes-non-negativity"
+  find = "            nonneg = bool(re.search(rf\"\\b{re.escape(var)}\\s*>=\\s*0\", always)) \\"
+  replace = "            nonneg = bool(re.search(rf\"\\b{re.escape(var)}\\s*>=\\s*0\", flat)) \\"
+  models = "non-negativity read off a constraint appended inside an if. SHC appends w >= 0 under one, so the site reads as the probability simplex on the strength of a flag's default"
+
+  [[target.mutant]]
+  id = "a-non-squared-norm-is-a-different-objective"
+  find = "        return (\"quad\", _SQUARE) if _unwrap(inner) == var else (\"fit\", _SQUARE)"
+  replace = "        return None"
+  models = "the objective matched on its syntax. ||r|| and ||r||^2 have the same minimiser, and TSSC's four variants were migrated on exactly that reading, so rejecting it files a site as a different objective that the library has already moved elsewhere"
+
+  [[target.mutant]]
+  id = "a-gram-form-is-a-different-objective"
+  find = "        if _unwrap(parts[0]) == var:"
+  replace = "        if False:"
+  models = "quad_form(w, Q) read as something other than least squares. It is a factorisation: Q = R'R gives B = R with no target, and with a linear term alongside it gives the target too"
+
+  [[target.mutant]]
+  id = "a-recognised-ridge-reports-no-transform"
+  find = "            steps.append(_SQRT_FACTOR if q == _FACTOR else _IDENTITY)"
+  replace = "            pass"
+  models = "a ridge term recognised and then dropped from the transform. The site reads as a direct swap, so a migrator hands the design over unaugmented and silently solves the unpenalised program"
+
+  [[target.mutant]]
+  id = "a-concave-term-is-carried"
+  find = "        if shape is None or sign < 0:"
+  replace = "        if shape is None:"
+  models = "a subtracted quadratic accepted as a fit or a ridge. There is no real square root to stack, and the program is not the convex one the solver assumes"
+
+  [[target.mutant]]
+  id = "an-unread-objective-is-reported-as-a-different-one"
+  find = "                verdict = \"unreadable\""
+  replace = "                verdict = \"wrong-objective\""
+  models = "an objective the audit cannot read, filed as one it checked and rejected. Four sites carried that label and three of them were the simplex least-squares program"
+
+  [[target.mutant]]
+  id = "a-cvxpy-parameter-is-read-as-an-intercept"
+  find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
+  replace = "                    n != base and _mentions(obj_src, n)"
+  models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"

@@ -227,12 +227,34 @@ def test_penalized_weights_raises_rather_than_returning_uniform_on_breakdown():
     rng = np.random.default_rng(3)
     X0 = rng.normal(size=(3, 6)); X1 = rng.normal(size=3)
 
-    # A no-op solve leaves the variable unset, which is what a broken solve
-    # looks like from the caller's side.
-    import cvxpy as cp
+    # The solve moved off cvxpy onto the active set, so the failure is injected
+    # where it now happens. The active set raises when it cannot certify the
+    # point it reached, and the contract under test is that penalized_weights
+    # translates that into its own error and never into weights.
+    import mlsynth.utils.bilevel.penalized as mod
 
-    with patch.object(cp.Problem, "solve", lambda self, **kw: None):
+    def broken(*a, **k):
+        raise ValueError("did not reach the minimiser on this design")
+
+    with patch.object(mod, "solve_simplex_qp", broken):
         with pytest.raises(MlsynthEstimationError, match="did not solve"):
+            penalized_weights(X1, X0, lam=0.1)
+
+
+def test_a_non_finite_solve_is_reported_and_not_returned():
+    """The other half of the same contract: a finite-looking failure."""
+    from unittest.mock import patch
+
+    from mlsynth.exceptions import MlsynthEstimationError
+
+    rng = np.random.default_rng(3)
+    X0 = rng.normal(size=(3, 6)); X1 = rng.normal(size=3)
+
+    import mlsynth.utils.bilevel.penalized as mod
+
+    with patch.object(mod, "solve_simplex_qp",
+                      lambda *a, **k: np.full(X0.shape[1], np.nan)):
+        with pytest.raises(MlsynthEstimationError, match="non-finite"):
             penalized_weights(X1, X0, lam=0.1)
 
 
