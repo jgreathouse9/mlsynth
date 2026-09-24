@@ -2561,3 +2561,45 @@ timeout = 180.0
   find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
   replace = "                    n != base and _mentions(obj_src, n)"
   models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"
+
+[[target]]
+name = "dtwsc-warp-tail"
+module-path = "mlsynth/utils/dtwsc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_dtwsc_warp_tail.py mlsynth/tests/test_dtwsc.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "support-read-at-zero-instead-of-a-tolerance"
+  find = "    used = weights > _NEGLIGIBLE_WEIGHT"
+  replace = "    used = weights > 0"
+  models = "an excluded donor read as support because an interior-point solver left it at 1e-9 instead of 0. A denormal then decides whether a period has a counterfactual, and on a 28-period panel that moved the ATT by 1.53"
+
+  [[target.mutant]]
+  id = "warp-tail-not-carried-forward"
+  find = "    block = _carry_forward(warped)[:, used]"
+  replace = "    block = warped[:, used]"
+  models = "the warp's tail reported as no counterfactual, which is what the reference implementation does. Measured against a planted constant effect over twelve panels it costs a mean absolute error of 1.67 against 0.52, with the wrong sign on two of them, because the tail is where a mis-timed gap path is largest. It also makes the two sc_backend options cover different post windows, since only one of them completes the block"
+
+  [[target.mutant]]
+  id = "carry-forward-runs-backwards"
+  find = "        np.maximum.accumulate(seen, out=seen)"
+  replace = "        np.minimum.accumulate(seen, out=seen)"
+  models = "the completion taking the first observed value instead of the last, so a donor's whole post-period path is pinned at its pre-period level"
+
+  [[target.mutant]]
+  id = "the-synthetic-control-is-not-renormalised"
+  find = "    w = weights[used] / weights[used].sum()"
+  replace = "    w = weights[used]"
+  models = "weights that no longer sum to one over the donors actually used, so the counterfactual is a scaled-down combination wherever a negligible weight was dropped"
+
+  [[target.mutant]]
+  id = "a-lost-period-is-filled-with-zero-instead-of-reported"
+  find = "    usable = np.isfinite(block).all(axis=1)"
+  replace = "    usable = np.isfinite(block).any(axis=1)"
+  models = "a period kept when only some of the weighted donors reach it. The nan_to_num that guards the matmul then contributes a zero for the missing donor, so the counterfactual is that donor's path scaled down -- a number where there should be none"
+
+  [[target.mutant]]
+  id = "lost-post-periods-not-counted-for-the-caller"
+  find = '        "n_post_periods_undefined": int(inputs.n_post - n_post_defined),'
+  replace = '        "n_post_periods_undefined": 0,'
+  models = "an ATT taken over a short post window with nothing on the result saying so. This contract was already enforced when the ladder reached it -- the count is on DTWSC own metadata, not on effects or fit_diagnostics -- and the mutant is here because reading only the standard sub-models made it look unenforced"
