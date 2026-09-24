@@ -35,6 +35,17 @@ def sc_weights_one(y: np.ndarray, X: np.ndarray) -> Tuple[float, np.ndarray]:
     b : np.ndarray, shape (N-1,)
         Simplex weights on the donors.
     """
+    # Kept on cvxpy deliberately. This program is not identified on the
+    # authors' panel: 32 donors against 15 pre-periods at rank 7, so the
+    # treated unit is exactly reproducible by a whole face of the simplex and
+    # the pre-period fit does not pin down a weight vector. The active set
+    # reaches an exact fit (objective 3.1e-33 against CLARABEL's 1.1e-09) and
+    # lands on a vertex with support 5 where CLARABEL lands in the interior
+    # with support 32. In sample the two agree to 2e-05; out of sample they
+    # diverge, and the paper's cartel-outcome estimates move by up to 0.03 --
+    # six times the Path-A tolerance. Matching the published numbers means
+    # reproducing the reference solver's choice among a continuum, so the
+    # solver stays as it is until the identification question is settled.
     import cvxpy as cp
 
     yd = y - y.mean()
@@ -44,8 +55,7 @@ def sc_weights_one(y: np.ndarray, X: np.ndarray) -> Tuple[float, np.ndarray]:
     prob = cp.Problem(cp.Minimize(cp.sum_squares(yd - Xd @ b)),
                       [b >= 0, cp.sum(b) == 1])
     prob.solve(solver=cp.CLARABEL)
-    bv = np.asarray(b.value, dtype=float)
-    bv = np.clip(bv, 0.0, None)
+    bv = np.clip(np.asarray(b.value, dtype=float), 0.0, None)
     s = bv.sum()
     bv = bv / s if s > 0 else np.full(n, 1.0 / n)
     a = float(y.mean() - X.mean(axis=0) @ bv)

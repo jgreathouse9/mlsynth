@@ -208,56 +208,34 @@ class TestSimplexWeights:
         with pytest.raises(MlsynthEstimationError, match="No donors"):
             simplex_weights(y, D, 6)
 
-    def test_solver_returns_none(self):
-        # A solve that leaves w.value None -> the "no solution" guard fires.
+    def test_a_failed_solve_is_reported_as_a_translated_error(self):
+        """A raw exception out of the solver would reach the caller untyped."""
         y = np.arange(10, dtype=float)
         D = np.random.default_rng(0).normal(size=(10, 3))
         with mock.patch(
-            "mlsynth.utils.spotsynth_helpers.sc.cp.Problem.solve",
-            lambda self, *a, **k: None,
+            "mlsynth.utils.spotsynth_helpers.sc.solve_simplex_qp",
+            side_effect=RuntimeError("degenerate donor block"),
         ):
-            with pytest.raises(MlsynthEstimationError, match="no solution"):
+            with pytest.raises(MlsynthEstimationError, match="SC solver failed"):
                 simplex_weights(y, D, 6)
 
-    def test_all_zero_weights_branch(self):
-        # weights sum to 0 after clipping -> the s>0 normalisation is skipped.
-        y = np.arange(10, dtype=float)
-        D = np.random.default_rng(1).normal(size=(10, 3))
+    def test_the_weights_are_on_the_simplex_and_build_the_counterfactual(self):
+        """What the two solver-fallback tests here used to approximate.
 
-        def fake_solve(self, *a, **k):
-            self.variables()[0].value = np.zeros(3)
-
-        with mock.patch(
-            "mlsynth.utils.spotsynth_helpers.sc.cp.Problem.solve",
-            fake_solve,
-        ):
-            w, cf = simplex_weights(y, D, 6)
-        assert w.sum() == 0.0
-
-    def test_clarabel_failure_falls_back_to_scs(self):
-        y = np.arange(12, dtype=float)
-        D = np.random.default_rng(2).normal(size=(12, 4))
-        real_solve = simplex_weights.__globals__["cp"].Problem.solve
-        calls = {"n": 0}
-
-        def flaky_solve(self, solver=None, **k):
-            calls["n"] += 1
-            if calls["n"] == 1:  # first (CLARABEL) attempt fails
-                raise RuntimeError("clarabel boom")
-            # Pass the solver through. Dropping it sent the retry to cvxpy's
-            # default instead of the SCS the code under test asked for, so the
-            # test exercised whichever solver happened to outrank SCS in the
-            # environment -- and raised when that one was installed without a
-            # licence, which is not what this test is about.
-            return real_solve(self, solver=solver, **k)
-
-        with mock.patch(
-            "mlsynth.utils.spotsynth_helpers.sc.cp.Problem.solve",
-            flaky_solve,
-        ):
+        SPOTSYNTH tried CLARABEL and then SCS because a large-magnitude panel
+        made the first return no solution, and it carried a branch for weights
+        that clipped to all zeros. On the active set neither happens: the
+        solve returns a point on the simplex or raises. So the pin is the
+        property, on the magnitudes that used to break it.
+        """
+        rng = np.random.default_rng(2)
+        for scale in (1.0, 1e7):
+            D = scale * rng.normal(size=(12, 4))
+            y = D @ rng.dirichlet(np.ones(4))
             w, cf = simplex_weights(y, D, 8)
-        assert calls["n"] >= 2
-        assert abs(w.sum() - 1.0) < 1e-6
+            assert w.min() >= 0.0
+            assert abs(w.sum() - 1.0) < 1e-9
+            np.testing.assert_allclose(cf, D @ w, rtol=0, atol=0)
 
 
 # ----------------------------------------------------------------------
