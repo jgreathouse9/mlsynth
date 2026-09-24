@@ -109,7 +109,8 @@ def scan_candidates(
     candidates: List[int],
     *,
     warm: Optional[np.ndarray] = None,
-) -> Tuple[int, float, np.ndarray]:
+    certify: bool = False,
+):
     """Score every candidate donor and return the best.
 
     Each candidate is solved exactly by the active-set QP, not by the
@@ -131,6 +132,19 @@ def scan_candidates(
     The RMSPE is formed from the residual directly. Expanding it in Gram space
     as ``y'y - 2 w'A'y + w'A'A w`` cancels catastrophically once the fit is
     close, which is exactly the regime the scan ends in.
+
+    ``certify`` re-solves the winning set through
+    :func:`~mlsynth.utils.weights.solve_weights` and appends the resulting
+    :class:`WeightSolution` to the return, carrying the optimality certificate,
+    the uniqueness verdict and the identification check. The weights are the
+    same either way; only the diagnostics are added.
+
+    It is off by default because the layer costs a fixed 0.2 ms per call for the
+    certificate and the face null space, which is 6.1x the primitive at two
+    donors and 1.0x at thirty-eight. A losing candidate needs a score and
+    nothing else, so paying that per candidate would add roughly 0.15 s to a
+    0.57 s Proposition 99 fit for diagnostics nothing reads. Paying it for the
+    winner is ``J`` calls against ``J^2/2``.
     """
     if not candidates:
         raise MlsynthEstimationError("scan_candidates got no candidate donors.")
@@ -148,6 +162,9 @@ def scan_candidates(
         r = float(np.sqrt(np.mean((y_pre - X_pre[:, idx] @ w) ** 2)))
         if r < best_r:
             best_j, best_r, best_w = j, r, w
+    if certify:
+        return best_j, best_r, best_w, solve_weights(
+            X_pre[:, list(selected) + [best_j]], y_pre)
     return best_j, best_r, best_w
 
 

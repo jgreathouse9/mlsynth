@@ -2606,3 +2606,20 @@ timeout = 180.0
   find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
   replace = "                    n != base and _mentions(obj_src, n)"
   models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"
+[[target]]
+name = "fscm-scan-certified"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_scan_certified.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "certificate-taken-for-a-losing-candidate"
+  find = "        return best_j, best_r, best_w, solve_weights(\n            X_pre[:, list(selected) + [best_j]], y_pre)"
+  replace = "        return best_j, best_r, best_w, solve_weights(\n            X_pre[:, list(selected) + [candidates[0]]], y_pre)"
+  models = "the winner's certificate computed on the first candidate instead of the winning one, so the weights reported and the weights certified are different vectors whenever the first candidate loses"
+
+  [[target.mutant]]
+  id = "certifying-changes-which-donor-wins"
+  find = "        if r < best_r:\n            best_j, best_r, best_w = j, r, w"
+  replace = "        if r <= best_r:\n            best_j, best_r, best_w = j, r, w"
+  models = "a non-strict improvement test, which past saturation hands the step to the last candidate evaluated instead of the first. Every score is then still optimal and the fit identical, so only the selected donor gives it away"
