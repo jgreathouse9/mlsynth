@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
+from scipy.linalg import null_space
 from scipy.optimize import lsq_linear, nnls
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
@@ -204,38 +205,44 @@ def kkt_residual(
     return max(stationarity, max(primal))
 
 
-def _is_unique(B, A, w, intercept, constraint, objective) -> bool:
-    """Whether the minimiser is the only one.
+def _face_null_space(B, A, w, intercept, constraint, objective):
+    """Directions the solution can move along at no cost, and stay feasible.
 
-    On the face the solution sits on, another optimum exists exactly when some
-    direction both preserves feasibility to first order and leaves the fit
-    unchanged. Stacking the design's free columns over the active equality row
-    makes that set the matrix's null space, so uniqueness is a rank test. A
-    positive ridge makes the objective strictly convex and settles it outright.
+    Another optimum exists exactly when some direction both preserves
+    feasibility to first order and leaves the fit unchanged. Stacking the
+    design's free columns over the active equality row makes that set the
+    matrix's null space, so the whole question is one rank-revealing
+    factorisation. A positive ridge makes the objective strictly convex and
+    leaves nothing free.
 
-    Which columns count as free is the whole difficulty. An exact method returns
-    a *vertex* of the optimal face, so a coordinate can sit at its bound not
+    Which columns count as free is the difficulty. An exact method returns a
+    *vertex* of the optimal face, so a coordinate can sit at its bound not
     because the optimum rejects it but because the backend had to stop
     somewhere. Two duplicated donors are the plain case: the active set puts the
     whole weight on one and leaves the other at zero, yet weight can be moved
     between them at no cost. The coordinates that belong to the face are those
     at a bound whose *reduced gradient vanishes* -- they can enter the support
     free of charge -- so the test keys on that and not on the weight being zero.
-    Otherwise the verdict would record which optimum a backend happened to land
+    Otherwise the answer would record which optimum a backend happened to land
     on.
 
     ``rank(B) < J`` is necessary for a continuum but not sufficient: the
     constraint can cut out precisely the flat directions. Proposition 99 has 38
     donors over 19 pre-periods, a rank-19 design, and a unique simplex optimum.
 
-    The test is exact when nothing is weakly active, and conservative
-    otherwise: a null direction on the face can be infeasible in both signs,
-    which reads here as a continuum when it is not one. For a diagnostic whose
-    job is to warn that weights carry no interpretation, that is the safe
-    direction to err in.
+    Returns ``(directions, intercepts)``: an orthonormal basis of those
+    directions, shape ``(J, k)``, and their intercept components, shape
+    ``(k,)``. ``k == 0`` is a unique minimiser.
+
+    The basis is exact when nothing is weakly active, and conservative
+    otherwise: a direction here can be infeasible in both signs, which reads as
+    a continuum when it is not one. For a diagnostic whose job is to warn that
+    weights carry no interpretation, that is the safe direction to err in.
     """
+    n = w.size
+    empty = (np.zeros((n, 0)), np.zeros(0))
     if objective.ridge > 0.0:
-        return True
+        return empty
 
     reduced, scale, at_lower, at_upper, interior = _reduced_gradient(
         B, A - B @ w - intercept, w, constraint, objective
@@ -244,7 +251,7 @@ def _is_unique(B, A, w, intercept, constraint, objective) -> bool:
     free = interior | weakly_active
     k = int(free.sum())
     if k == 0:
-        return True
+        return empty
 
     M = B[:, free]
     if constraint.intercept:
@@ -255,8 +262,17 @@ def _is_unique(B, A, w, intercept, constraint, objective) -> bool:
         M = np.vstack([M, row])
     norm = float(np.abs(M).max(initial=0.0))
     if norm == 0.0:
-        return False
-    return int(np.linalg.matrix_rank(M / norm)) == M.shape[1]
+        M = np.zeros_like(M)
+    else:
+        M = M / norm
+
+    basis = null_space(M)
+    if basis.size == 0:
+        return empty
+    directions = np.zeros((n, basis.shape[1]))
+    directions[free] = basis[:k]
+    intercepts = basis[k] if constraint.intercept else np.zeros(basis.shape[1])
+    return directions, np.asarray(intercepts, dtype=float).ravel()
 
 
 # ---------------------------------------------------------------------------
@@ -345,12 +361,15 @@ def solve_weights(
         value += objective.ridge * float(gap @ gap)
 
     residual = kkt_residual(B, A, w, a, constraint, objective)
+    directions, intercepts = _face_null_space(B, A, w, a, constraint, objective)
     return WeightSolution(
         weights=w,
         intercept=a,
         objective=value,
         kkt_residual=residual,
-        unique=_is_unique(B, A, w, a, constraint, objective),
+        unique=directions.shape[1] == 0,
+        free_directions=directions,
+        free_intercepts=intercepts,
         solver=f"{constraint.describe()}:{method}",
         status="optimal" if residual < KKT_TOL else "inaccurate",
         n_donors=n,
