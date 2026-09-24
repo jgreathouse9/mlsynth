@@ -349,3 +349,54 @@ def solve_simplex_qp(
         pivots += 1
 
     return _finish(w, pivots, converged)
+
+
+_LEAST_NORM_RIDGE: float = 1e-10
+
+
+def solve_simplex_qp_least_norm(
+    B: np.ndarray, A: np.ndarray, *, ridge: float = _LEAST_NORM_RIDGE
+) -> np.ndarray:
+    """``solve_simplex_qp``, with the tie broken by the smallest ``||w||``.
+
+    ``min ||A - B w||^2`` over the simplex has a unique minimiser only when the
+    design restricted to the solution's weakly-active set, with the sum-to-one
+    row appended, has full column rank (:func:`minnorm.simplex_optimum_is_unique`
+    decides it). When it does not, the minimisers are a face and which point of
+    that face a solver returns is a property of its pivot order, not of the
+    panel -- relabelling the donors moves the answer.
+
+    A vanishing ridge selects the least-norm point of that face, and Zou &
+    Hastie (2005, Lemma 1) turn it into a design augmentation, so the same
+    active set solves it: stacking ``sqrt(lambda) I`` under ``B`` and zeros
+    under ``A`` adds exactly ``lambda ||w||^2`` to the objective.
+
+    ``ridge`` is relative to the design's mean column energy, so the answer does
+    not move when the matching columns are rescaled. The constant is far below
+    the point where the selection stops changing -- on SCMO's German averaged
+    problem every lambda from 1e-14 to 9e-7 returns the same weights -- which is
+    what makes this a selection rule and not a penalty.
+
+    This is the term Tian, Lee & Panchenko's ``fn_W`` carries as
+    ``Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J)``; their constant is
+    absolute and calibrated to the sd-scaled columns their script builds, and
+    the two land on the same point where that scaling holds.
+
+    On the simplex ``||w - c*1||^2 = ||w||^2 - 2c + J c^2``, so the centre of
+    the ridge only shifts the objective by a constant: least norm and least
+    distance to the uniform weights are the same selection.
+    """
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    J = B.shape[1]
+    scale = float(np.mean(np.sum(B * B, axis=0)))
+    if not np.isfinite(scale) or scale <= 0.0:
+        # No scale to set a ridge from -- an all-zero or non-finite design.
+        # Every feasible point is then a minimiser of a constant objective and
+        # the plain solver's answer is as good as any.
+        return solve_simplex_qp(B, A)
+    lam = float(ridge) * scale
+    return solve_simplex_qp(
+        np.vstack([B, np.sqrt(lam) * np.eye(J)]),
+        np.concatenate([A, np.zeros(J)]),
+    )

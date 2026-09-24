@@ -149,26 +149,17 @@ def solve_simplex_weights(
 def _refine_exact(A: np.ndarray, b: np.ndarray, warm: np.ndarray) -> np.ndarray:
     """Exact simplex least squares, falling back to ``warm`` if unavailable.
 
-    ``cvxpy`` is already required by the DSC test path and the bilevel engine
-    keeps an equivalent fallback (``_simplex_qp_cvxpy``), so this adds no new
-    dependency. The fallback exists so that an environment without a working
-    solver degrades to the previous behaviour rather than failing outright.
+    The fallback exists so that a degenerate design returns the warm start
+    instead of failing outright.
     """
+    from ..bilevel.active_set import solve_simplex_qp
+
     try:
-        import cvxpy as cp
-    except Exception:  # pragma: no cover - cvxpy is a declared dependency
+        out = np.clip(solve_simplex_qp(A, b), 0.0, None)
+    except Exception:  # pragma: no cover - solver failure on a degenerate design
         return warm
-    try:
-        w = cp.Variable(A.shape[1], nonneg=True)
-        cp.Problem(cp.Minimize(cp.sum_squares(A @ w - b)),
-                   [cp.sum(w) == 1]).solve(solver=cp.CLARABEL)
-        if w.value is None:  # pragma: no cover - degenerate
-            return warm
-        out = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
-        total = out.sum()
-        return out / total if total > 0 else warm
-    except Exception:  # pragma: no cover - solver failure
-        return warm
+    total = out.sum()
+    return out / total if total > 0 else warm
 
 
 def solve_sum_to_one_weights(
