@@ -47,10 +47,22 @@ jobs:
     # '2561 passed'.
     #
     # The cap has to clear the SLOWEST shard on the slowest interpreter, not the
-    # average, so 50 leaves headroom over today's 30 while still bounding a
-    # hang. Balancing the shards by duration is the actual fix and is tracked
-    # separately; this stops healthy runs being reported as cancelled meanwhile.
-    timeout-minutes: 50
+    # average. Balancing the shards by duration was the actual fix and has
+    # landed: `mlsynth/tests/_shard.py` now packs modules longest-first against
+    # `_shard_durations.json` instead of slicing the sorted names, which takes
+    # the four build shards from 1026/1205s of modelled work to 1115s each --
+    # the spread is zero and the slowest shard, which is what the cap has to
+    # clear, drops 7%.
+    #
+    # The cap moves from 50 to 75 because the measurement that prompted this
+    # also showed the cancellations were never about the suite's size. On
+    # 2026-09-24 shard 0 was cancelled at the cap while three pull requests
+    # shared the runners, took 49:26 on the next run under the same contention,
+    # and took 15:32 once it had the runners to itself. A cap tight enough to
+    # kill a queued-but-healthy run is measuring the queue, not a hang, and a
+    # cancelled shard neither passes nor fails. 75 still bounds a genuine hang
+    # at five times the uncontended run.
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -166,7 +178,7 @@ jobs:
     # work, so they were the ones killed at 99%.
     # Same cap and the same measurement as `build` above (#479); these are the
     # jobs that lost shards.
-    timeout-minutes: 50
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:

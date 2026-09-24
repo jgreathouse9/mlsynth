@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from typing import Tuple
 
-import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.active_set import solve_simplex_qp
 
 
 def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -49,22 +49,10 @@ def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, 
     scale = float(np.sqrt(np.mean(np.square(D[pre]))))
     if not np.isfinite(scale) or scale <= 0.0:
         scale = 1.0
-    w = cp.Variable(n, nonneg=True)
-    objective = cp.Minimize(cp.sum_squares(y[pre] / scale - (D[pre] / scale) @ w))
-    problem = cp.Problem(objective, [cp.sum(w) == 1])
     try:
-        problem.solve(solver=cp.CLARABEL)
-    except Exception as exc:  # pragma: no cover - solver fallback
-        try:
-            problem.solve(solver=cp.SCS)
-        except Exception as exc2:
-            raise MlsynthEstimationError(f"SC solver failed: {exc2}") from exc
-    if w.value is None:
-        raise MlsynthEstimationError("SC solver returned no solution.")
-    weights = np.asarray(w.value, dtype=float).ravel()
-    weights[weights < 0] = 0.0
-    s = weights.sum()
-    if s > 0:
-        weights = weights / s
+        weights = np.clip(solve_simplex_qp(D[pre] / scale, y[pre] / scale), 0.0, None)
+    except Exception as exc:
+        raise MlsynthEstimationError(f"SC solver failed: {exc}") from exc
+    weights = weights / weights.sum()   # float dust: the sum is 1 to ~1e-12
     return weights, D @ weights
 
