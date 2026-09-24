@@ -44,6 +44,8 @@ from typing import Optional, Sequence
 
 import numpy as np
 
+from .active_set import solve_simplex_qp
+
 from ...exceptions import MlsynthEstimationError
 from .simplex import mspe, project_simplex, simplex_lstsq
 from .structure import BilevelProblem, BilevelSolution
@@ -103,8 +105,6 @@ def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
     if n == 1:
         return np.array([1.0])
 
-    import cvxpy as cp
-
     # Factor Q = R'R and minimise ||R w||^2 + c'w rather than the quadratic form
     # in Q directly: Q is a Gram matrix, so posing the problem in Q squares the
     # condition number and costs the solver several digits on exactly the
@@ -124,6 +124,20 @@ def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
         out = np.zeros(n)
         out[int(np.argmin(c))] = 1.0
         return out
+
+    # Left on cvxpy, deliberately. The program here is the Gram form,
+    # ``w'Qw + c'w``, and ``c`` carries the data-fit part ``-2 X0' X1`` and not
+    # only the penalty -- at ``lam = 0`` its norm is 291 on the test design,
+    # where the penalty contributes nothing. That is the form
+    # :func:`penalized_weights` documents as numerically ruinous and avoids,
+    # and handing it to the active set asks that solver to recover a near-zero
+    # optimum from the difference of two large numbers.
+    #
+    # It also has no caller. Three test modules import it and nothing in the
+    # library does, so migrating it would bend the shared solver around a shape
+    # no estimator produces. :func:`penalized_weights`, which does have callers,
+    # is on the active set and keeps the residual form.
+    import cvxpy as cp
 
     w = cp.Variable(n, nonneg=True)
     objective = cp.Minimize(cp.sum_squares(R @ w) + c @ w)
@@ -150,6 +164,8 @@ def _simplex_qp(Q: np.ndarray, c: np.ndarray, *, max_iter: int = 2000,
     out = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
     total = out.sum()
     return out / total if total > 0 else np.full(n, 1.0 / n)
+
+
 
 
 def penalized_weights(X1: np.ndarray, X0: np.ndarray, lam: float, *,
@@ -220,32 +236,27 @@ def penalized_weights(X1: np.ndarray, X0: np.ndarray, lam: float, *,
     # digit -- twelve donors carrying weight, and the objective 6.5 percent above
     # the optimum -- while the residual form recovers the generating weights
     # exactly. Keeping ``X1`` in the objective keeps the problem well scaled.
-    import cvxpy as cp
-
-    w = cp.Variable(J, nonneg=True)
-    objective = cp.Minimize(cp.sum_squares(X1 - X0 @ w) + float(lam) * (d2 @ w))
-    problem = cp.Problem(objective, [cp.sum(w) == 1])
-    problem.solve(solver=cp.CLARABEL)
-
-    if w.value is None:
-        # The feasible set is a non-empty compact simplex and the objective is
-        # convex and continuous, so a minimiser exists: no status other than
-        # optimal is meaningful here, and any such verdict means the solve broke
-        # down numerically. Raise rather than return uniform weights -- a silent
-        # fallback here is indistinguishable from a legitimate dense fit and
-        # would quietly corrupt whatever consumed it.
+    # The penalty is linear in the weights, which the active set carries; see
+    # its ``linear`` argument for why it is carried and not folded into ``X1``.
+    # The residual form is kept for the reason above, so the quadratic part is
+    # still posed in ``X1`` and ``X0`` and never in their Gram.
+    try:
+        out = solve_simplex_qp(X0, X1, linear=float(lam) * d2)
+    except ValueError as exc:
+        # The solver raises when it cannot certify the point it reached. Report
+        # that as an estimation failure and never as weights: a silent fallback
+        # here is indistinguishable from a legitimate dense fit.
         raise MlsynthEstimationError(
-            f"penalized simplex QP did not solve (solver status: "
-            f"{problem.status}). The program is a convex objective over a "
-            f"compact simplex, so this indicates numerical breakdown rather "
-            f"than an infeasible or unbounded problem. Inputs were normalised "
+            f"penalized simplex QP did not solve: {exc} Inputs were normalised "
             f"by {sigma:.3e} before solving; check the predictor block for "
             f"non-finite values or extreme conditioning."
+        ) from exc
+    if not np.all(np.isfinite(out)):
+        raise MlsynthEstimationError(
+            f"penalized simplex QP returned non-finite weights. Inputs were "
+            f"normalised by {sigma:.3e}; check the predictor block."
         )
-
-    out = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
-    total = out.sum()
-    return out / total if total > 0 else np.full(J, 1.0 / J)
+    return out
 
 
 def _build_block(prob: BilevelProblem, periods: slice, use_outcomes: bool,
