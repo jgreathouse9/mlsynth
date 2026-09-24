@@ -244,7 +244,12 @@ class TestSimplexWeights:
             calls["n"] += 1
             if calls["n"] == 1:  # first (CLARABEL) attempt fails
                 raise RuntimeError("clarabel boom")
-            return real_solve(self, **k)
+            # Pass the solver through. Dropping it sent the retry to cvxpy's
+            # default instead of the SCS the code under test asked for, so the
+            # test exercised whichever solver happened to outrank SCS in the
+            # environment -- and raised when that one was installed without a
+            # licence, which is not what this test is about.
+            return real_solve(self, solver=solver, **k)
 
         with mock.patch(
             "mlsynth.utils.spotsynth_helpers.sc.cp.Problem.solve",
