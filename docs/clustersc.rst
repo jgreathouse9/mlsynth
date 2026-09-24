@@ -30,12 +30,41 @@ control behind a single estimator.
   (Candes, Li, Ma & Wright 2011) or half-quadratic non-convex
   regularisation (Wang, Li, So & Liu 2023), then non-negative least
   squares against the low-rank donor matrix. On top of this default
-  path mlsynth adds three opt-in pieces, each documented below:
+  path mlsynth adds four opt-in pieces, each documented below:
   subspace-separation clustering (fGRC, Yamamoto and Hwang 2017) in
   place of the FPCA silhouette step, a signal-recovery HSVT denoiser
   whose rank is read from the donor spectrum in place of the fixed
-  Candes penalty, and simplex weights in place of non-negative least
-  squares.
+  Candes penalty, an FGRC denoiser that reuses the subspace that same
+  clustering already fit, and simplex weights in place of non-negative
+  least squares.
+
+Denoising with the clustering's own subspace
+--------------------------------------------
+
+``rpca_method="FGRC"`` denoises the donors with the subspace the fGRC
+clustering step already estimated, instead of deriving a second one.
+
+Yamamoto and Hwang estimate the cluster subspace :math:`\mathbf{A}_1`, the
+disturbing subspace :math:`\mathbf{A}_2` and the partition together; their
+routine returns all three. The other denoisers ignore that and fit a fresh
+low-rank structure, so a pipeline running fGRC clustering followed by PCP
+answers the same question twice with two unrelated answers. Setting
+``rpca_method="FGRC"`` alongside ``cluster_method="fgrc"`` uses one.
+
+``fgrc_keep`` decides whether the disturbing block survives the projection.
+The default, ``"all"``, keeps it: the denoised donors are
+:math:`\mathbf{G}\mathbf{A}\mathbf{A}^{\top}` at rank :math:`c_1 + c_2`.
+Setting ``"cluster"`` projects onto :math:`\mathbf{A}_1` alone.
+
+Keep the default unless you have measured otherwise. :math:`\mathbf{A}_2`
+carries between-donor spread, and removing it flattens the donors toward a
+common profile. On the Basque panel that raises out-of-sample error from
+0.242 to 0.449 across eight placebo windows, and under simplex weights no
+convex combination of the flattened donors reaches the treated unit at all:
+the fit collapses onto the single richest donor and returns an effect of the
+wrong sign. A direction can be disturbing for clustering and still carry what
+a counterfactual needs, which is why the two subspaces are reported
+separately instead of one being assumed redundant.
 
 Either family can be selected via :py:attr:`CLUSTERSCConfig.method`
 (``"pcr"``, ``"rpca"``, or ``"both"``); when both run, the

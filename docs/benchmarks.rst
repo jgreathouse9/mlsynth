@@ -47,7 +47,7 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 224 registered cases. ``paths`` is what the case
+All 225 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
@@ -55,9 +55,9 @@ calibrated from a real one.
 * ``A`` -- empirical replication (75 cases)
 * ``B`` -- Monte Carlo / simulation (63 cases)
 * ``C`` -- theoretical property or design calibration (11 cases)
-* ``X`` -- cross-validation against a reference implementation (104 cases)
+* ``X`` -- cross-validation against a reference implementation (105 cases)
 
-By data: 77 simulated, 132 empirical, 15 both -- so 92 cases fit at least one generated panel.
+By data: 78 simulated, 132 empirical, 15 both -- so 93 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -261,6 +261,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - simulated
    * - ``ferman_pinto_mc``
      - B X
+     - simulated
+   * - ``fgrc_grc_crossval``
+     - X
      - simulated
    * - ``fgrc_toy_subspace``
      - B
@@ -897,8 +900,6 @@ Path A — empirical replications
      - VanillaSC malo + mscmt reproduce Andersson (2019) carbon-tax ATT/2005-gap (paper predictor spec)
    * - ``wiltshire_walmart``
      - STACKEDSC on Wiltshire (2023) Section 4.2: 566 Walmart counties in six cohorts against 39 never-treated donors. Geometry, not cells -- the paper's prose claims (excellent pre-fit, no effect at entry, decline from the following year, large negative at five years), the base-period indexing identity at 6e-16, and the per-cohort batching. Its Table 4 magnitudes are not claimed, and :doc:`replications/stackedsc` says why
-   * - ``hz_germany``
-     - Hsiao & Zhou (2024) Section 7 German reunification. Their replication package ships data and no code, and the section prints no number, so the referent is digitised from their vector Figures 1 and 2 (see ``benchmarks/reference/hz_germany``). The LP half is a cross-validation that passes: ``PDA(method="fs")`` lands 0.009 log points from their plotted linear projection. The FB half is a pinned negative result: their plotted factor path misses the observed series in sample by 54 times what a correct principal-component fit misses by, and that miss is what widens its intervals enough to cover zero
 
 Path B — Monte Carlo / simulation
 ---------------------------------
@@ -1060,8 +1061,6 @@ Path B — Monte Carlo / simulation
        against 0.10 at the same cell with stationary factors
    * - ``cwz_rae``
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
-   * - ``hz_table1_mc``
-     - Hsiao & Zhou (2024) Table 1 (DGP1, Case 1), rebuilt from Section 6 since the replication package has no code. Their LP column reproduces to about a tenth at the median; their FB column does not, and is low in all twelve cells, not scattered. Their Propositions 1-3 ordering reverses once the factor predictor is implemented correctly -- LP wins a minority of cells, not all twelve, and prediction averaging beats FB in a minority of the six, not all of them. Two claims survive: both predictors beat the univariate baseline everywhere, and prediction averaging beats the plain LP in five of six cells, matching the exception their own table shows
    * - ``cwz_ttest_mc``
      - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
    * - ``marex_table3``
