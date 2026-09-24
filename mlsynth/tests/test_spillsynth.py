@@ -857,12 +857,25 @@ class TestReproducibility:
         )
 
     def test_dict_path_passes_through_new_options(self, panel):
-        # Verify the dict-config code path honours spillover_structure,
-        # unit_distances, and weighting.
+        """The dict-config path honours spillover_structure, unit_distances
+        and weighting.
+
+        The distances are distinct. Giving every unit the same one declares a
+        spillover structure that is not identified: A itself stays full rank
+        (cond 1.77), but the weighted estimator inverts ``A' M_W A`` with
+        ``M_W = (I - B)' W (I - B)``, and at equal distances ``(I - B) A``
+        collapses to rank 1 of 2 -- its second singular value is 7.7e-17,
+        which is zero. Whether ``np.linalg.inv`` then raises or returns noise
+        is decided by the LAPACK path, so the test passed on one interpreter
+        and failed on another. Distinct distances put that singular value at
+        0.207. They also give the assertion something to hold: a constant
+        distance map carries no distance information, so it cannot show that
+        ``unit_distances`` was honoured at all.
+        """
         res = SPILLSYNTH(_cfg(
             panel,
             spillover_structure="distance_decay",
-            unit_distances={f"u{i}": 0.4 for i in range(1, 8)},
+            unit_distances={f"u{i}": 0.2 + 0.1 * i for i in range(1, 8)},
             weighting="efficient",
         )).fit()
         assert res.inputs.A.shape == (8, 2)
