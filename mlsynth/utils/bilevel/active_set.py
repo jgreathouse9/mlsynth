@@ -76,6 +76,44 @@ def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
     return x[:n, 0]
 
 
+def _assert_optimal_with_linear(B, A, w, linear, tol):
+    """Check the returned point against the conditions, when a linear term is set.
+
+    The pivot loop tests primal feasibility of the free set and dual
+    feasibility of the pinned variables. It never tests stationarity on the
+    free variables, because it assumes the free-set subproblem solved them
+    exactly -- which is true for a plain least squares and is not guaranteed
+    with a linear term. Folding the term into the residual needs it to lie in
+    the row space of the free block, and an intermediate free set can be wider
+    than the design has rows, in which case the subproblem is unbounded along a
+    null direction and the point the loop accepts is not the minimiser.
+
+    On a panel this never bites: the loop sheds donors until the free set fits,
+    and the accepted point is stationary to machine precision. On the rank-K
+    factor of a wide Gram it bites at a stationarity residual of 0.35, reported
+    as converged. Until the unbounded-ray branch exists, the guarantee is that
+    a wrong answer is not returned silently.
+    """
+    g = 2.0 * (B.T @ (B @ w - A)) + linear
+    on = w > tol
+    if not on.any():                          # pragma: no cover - w sums to 1
+        return
+    nu = float(g[on].mean())
+    scale = max(float(np.abs(g).max()), 1e-12)
+    stat = float(np.abs(g[on] - nu).max()) / scale
+    dual = 0.0 if on.all() else -min(0.0, float((g[~on] - nu).min()) / scale)
+    if max(stat, dual) > 1e-6:
+        raise ValueError(
+            f"linear term: the active set did not reach the minimiser on this "
+            f"design (stationarity {stat:.2e}, dual feasibility {dual:.2e}). "
+            f"The free-set subproblem is unbounded along a null direction of "
+            f"the design, which happens when the free set is wider than the "
+            f"design has rows and the term does not lie in its row space. A "
+            f"panel does not meet that condition; the rank-K factor of a wide "
+            f"Gram does."
+        )
+
+
 def solve_simplex_qp(
     B: np.ndarray,
     A: np.ndarray,
@@ -161,6 +199,8 @@ def solve_simplex_qp(
         total = w.sum()
         if total > 0:
             w = w / total
+        if linear is not None:
+            _assert_optimal_with_linear(B, A, w, linear, tol)
         if return_info:
             return w, {"pivots": int(pivots), "converged": bool(converged)}
         return w
