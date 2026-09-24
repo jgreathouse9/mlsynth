@@ -112,6 +112,17 @@ class WeightObjective:
     toward : np.ndarray, optional
         The shrinkage target. ``None`` means uniform weights ``1_J / J``, which
         is the Bregman reference point the Cressie-Read family is built around.
+    linear : np.ndarray, optional
+        Coefficients of a linear term added to the objective. On the
+        non-negative orthant an L1 penalty is linear, so this is how a weighted
+        non-negative lasso is expressed; Abadie and L'Hour's penalised SCM
+        prices each donor by its distance from the treated unit this way.
+
+        It stays a linear term and does not become data. Zou and Hastie (2005,
+        Lemma 1) turn an L2 penalty into augmented rows and leave the L1 term
+        standing, and their transformation is exact because the augmented design
+        has full column rank. A wide donor block does not, so the term is
+        carried by the backend.
     divergence : str
         Which Cressie-Read member. Only ``"quadratic"`` (``gamma = 1``) is
         solved here; the others are exponential-cone programs and raise.
@@ -119,6 +130,7 @@ class WeightObjective:
 
     ridge: float = 0.0
     toward: Optional[np.ndarray] = None
+    linear: Optional[np.ndarray] = None
     divergence: str = QUADRATIC_DIVERGENCE
 
     def __post_init__(self) -> None:
@@ -139,6 +151,13 @@ class WeightObjective:
             raise MlsynthConfigError(
                 f"ridge must be a finite non-negative coefficient; got {self.ridge!r}."
             )
+        if self.linear is not None:
+            lin = np.asarray(self.linear, dtype=float).ravel()
+            if lin.size == 0 or not np.all(np.isfinite(lin)):
+                raise MlsynthConfigError(
+                    "linear must be a finite, non-empty coefficient vector."
+                )
+            object.__setattr__(self, "linear", lin)
         if self.toward is not None:
             tgt = np.asarray(self.toward, dtype=float).ravel()
             if tgt.size == 0 or not np.all(np.isfinite(tgt)):

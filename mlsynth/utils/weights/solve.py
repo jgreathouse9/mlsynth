@@ -42,24 +42,26 @@ SUPPORT_TOL: float = 1e-9
 WEAK_ACTIVE_TOL: float = 1e-9
 
 ConstraintShape = Tuple[bool, bool, bool]
+#: Polyhedra whose backend carries a linear term. The others refuse it by name.
+_LINEAR_BACKENDS = {(True, True, False)}
 Backend = Callable[[np.ndarray, np.ndarray, WeightConstraint, Optional[np.ndarray]], Tuple[np.ndarray, str]]
 
 
 # ---------------------------------------------------------------------------
 # The four primitives
 # ---------------------------------------------------------------------------
-def _simplex(B, A, con, warm_start):
+def _simplex(B, A, con, warm_start, linear=None):
     """Exact primal active set over ``{w >= 0, 1'w = 1}`` (Dostal 2009, ch. 6)."""
-    return solve_simplex_qp(B, A, warm_start=warm_start), "active-set"
+    return solve_simplex_qp(B, A, warm_start=warm_start, linear=linear), "active-set"
 
 
-def _cone(B, A, con, warm_start):
+def _cone(B, A, con, warm_start, linear=None):
     """Lawson-Hanson non-negative least squares over ``{w >= 0}``."""
     w, _ = nnls(B, A)
     return w, "nnls"
 
 
-def _affine(B, A, con, warm_start):
+def _affine(B, A, con, warm_start, linear=None):
     """Equality-constrained least squares, solved on the null space of ``1'``.
 
     Writing ``w = 1_J/J + Z v`` with ``Z`` an orthonormal basis of
@@ -76,13 +78,13 @@ def _affine(B, A, con, warm_start):
     return w0 + Z @ v, "null-space"
 
 
-def _free(B, A, con, warm_start):
+def _free(B, A, con, warm_start, linear=None):
     """Ordinary least squares, minimum-norm on a rank-deficient design."""
     w, *_ = np.linalg.lstsq(B, A, rcond=None)
     return w, "lstsq"
 
 
-def _box(B, A, con, warm_start):
+def _box(B, A, con, warm_start, linear=None):
     """Bounded-variable least squares, the two-sided Lawson-Hanson."""
     lower = 0.0 if con.nonneg else -np.inf
     method = "bvls" if B.shape[0] >= B.shape[1] else "trf"
@@ -115,6 +117,8 @@ def _reduced_gradient(B, resid, w, constraint, objective, *, tol=1e-8):
     """
     n = w.size
     grad = -2.0 * (B.T @ resid)
+    if objective.linear is not None:
+        grad = grad + objective.linear
     if objective.ridge > 0.0:
         grad = grad + 2.0 * objective.ridge * (w - objective.target(n))
 
@@ -342,13 +346,28 @@ def solve_weights(
     else:
         Bs, As = B, A
 
+    lin = objective.linear
+    if lin is not None:
+        if lin.size != n:
+            raise MlsynthConfigError(
+                f"linear has {lin.size} entries but there are {n} donors."
+            )
+        if constraint.shape not in _LINEAR_BACKENDS:
+            raise MlsynthConfigError(
+                f"A linear term is not covered on the {constraint.describe()} "
+                f"polyhedron; it is carried on the simplex. On the cone it is "
+                f"the weighted non-negative lasso, which needs an active-set "
+                f"NNLS that prices on the shifted gradient (Cobb et al. 2025) "
+                f"and is not built here."
+            )
+
     # The ridge penalty is absorbed into the least-squares data.
     if objective.ridge > 0.0:
         root = float(np.sqrt(objective.ridge))
         Bs = np.vstack([Bs, root * np.eye(n)])
         As = np.concatenate([As, root * objective.target(n)])
 
-    w, method = backend(Bs, As, constraint, warm_start)
+    w, method = backend(Bs, As, constraint, warm_start, lin)
     w = np.asarray(w, dtype=float).ravel()
     if constraint.nonneg:
         w[w <= 0.0] = 0.0
@@ -356,6 +375,8 @@ def solve_weights(
 
     resid = A - B @ w - a
     value = float(resid @ resid)
+    if lin is not None:
+        value += float(lin @ w)
     if objective.ridge > 0.0:
         gap = w - objective.target(n)
         value += objective.ridge * float(gap @ gap)
