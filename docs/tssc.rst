@@ -324,6 +324,42 @@ linear combination of donors can track them; the positive-definite Gram
 condition rules out perfectly collinear donors so the weights are
 well-defined. Both are mild for typical marketing and macro panels.
 
+The Gram condition is checkable once a variant is fitted, and each variant
+reports the result. ``weights_unique`` on a variant's fit is ``False`` when
+some other coefficient vector attains the same pre-treatment fit, which happens
+when two donors are collinear over the pre-period or when the pool spans it.
+Every minimiser of a least-squares program reproduces the same fitted values on
+the periods it was fitted to, so a continuum leaves no trace in the
+pre-treatment RMSE that Step 1 compares variants on.
+
+Whether it leaves a trace in the ATT is a second question, and the answer is
+not the same one. The weights move along a direction the pre-period donors
+annihilate; the ATT is built from the periods after treatment, and it moves
+only if the post-period donors fail to annihilate that same direction. Two
+donors that are duplicates throughout give a genuine continuum whose
+counterfactual never budges, so the ATT is identified and only the attribution
+between the twins is not. Two donors collinear before treatment and separating
+after give the identical verdict with the opposite consequence: pre-treatment
+fits agreeing to twelve digits, counterfactuals diverging, and an ATT that
+depends on which minimiser the solver returned. A ``weights_unique`` of
+``False`` is therefore necessary for the ATT to be undetermined and not
+sufficient. The fitted solution answers the second question directly through
+``identifies``, which takes the post-treatment donor block and reports whether
+every minimiser agrees on the counterfactual.
+
+The intercept variants add a case of their own. With :math:`\beta_1` free, a
+donor and that donor plus a constant are interchangeable -- weight trades
+between them and the intercept absorbs the difference -- so MSCa and MSCc can
+carry a continuum that SC and MSCb would not, and it is one whose effect on the
+counterfactual cancels exactly.
+
+``kkt_residual`` reports the violation of the optimality conditions at the
+returned coefficients. Each variant's constraint set has non-empty relative
+interior, so these conditions are necessary and sufficient and a residual at
+machine precision establishes that the reported coefficients minimise the
+variant's program. ``solver`` names the polyhedron and the method that produced
+them.
+
 Parallel trends. Two nonlinear series have *parallel trends* if their
 difference is a zero-mean stationary process. The SC pre-trends
 assumption is that :math:`y_{1t}` and :math:`\mathbf{x}_t'\widehat{\boldsymbol{\beta}}_{\mathrm{SC}}`

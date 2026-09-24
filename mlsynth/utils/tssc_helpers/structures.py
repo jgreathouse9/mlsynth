@@ -171,6 +171,27 @@ class TSSCVariantFit:
         Pre/post RMSE of the gap.
     r2_pre : float
         Pre-treatment R-squared of the fit.
+    weights_unique : bool or None
+        Whether the variant's coefficient vector is the only minimiser of its
+        program. Step 1 compares variants on fit, and a variant whose optimum is
+        a continuum posts a competitive fit with weights that carry no
+        interpretation, so the verdict travels with the fit.
+
+        ``False`` does not by itself impugn the ATT. The weights are fitted on
+        the pre-treatment periods and the ATT is built from the periods after
+        them, so a continuum reaches the estimate only where the post-treatment
+        donors fail to annihilate the direction the weights move along.
+        Duplicated donors are the case where they do not, and the ATT is
+        identified. ``WeightSolution.identifies`` asks the question of the
+        post-treatment block.
+    kkt_residual : float or None
+        Scale-free violation of the optimality conditions at the returned
+        coefficients. Each variant's constraint set has non-empty relative
+        interior, so this settles optimality (Boyd and Vandenberghe 2004,
+        section 5.5.3).
+    solver : str or None
+        Which polyhedron and backend produced the fit, as
+        ``"<polyhedron>:<method>"``.
     """
 
     method: str
@@ -185,6 +206,9 @@ class TSSCVariantFit:
     rmse_post: float
     r2_pre: float
     scpi: Optional[object] = None     # ScpiPIInference band, when computed
+    weights_unique: Optional[bool] = None
+    kkt_residual: Optional[float] = None
+    solver: Optional[str] = None
 
 
 class TSSCResults(BaseEstimatorResults):
@@ -209,7 +233,7 @@ class TSSCResults(BaseEstimatorResults):
     selection : TSSCSelection or None
         The Step-1 recommendation and its underlying tests. None when the
         caller forced a variant via ``TSSCConfig.method``, in which case Step 1
-        was skipped rather than run and overridden.
+        was skipped, not run and overridden.
     summary : BaseEstimatorResults, optional
         Standardized result bundle for the recommended variant.
     """
