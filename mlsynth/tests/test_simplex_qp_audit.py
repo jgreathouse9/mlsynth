@@ -55,7 +55,6 @@ ELIGIBLE = {
     ("mlsc_helpers/optimization.py", "w"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
     ("scmo_helpers/estimation.py", "lam"): 1,
-    ("scmo_helpers/solvers.py", "w"): 1,
     ("spotsynth_helpers/sc.py", "w"): 1,
     ("spsydid_helpers/weights.py", "lam"): 1,
     ("spsydid_helpers/weights.py", "omega"): 1,
@@ -95,6 +94,7 @@ TRANSFORMS = {
 
 MIGRATED = {
     ("iscm_helpers/weights.py", "w"),
+    ("scmo_helpers/solvers.py", "w"),
     ("spillsynth_helpers/cd/scm_core.py", "w"),
     ("tssc_helpers/estimation.py", "w"),
 }

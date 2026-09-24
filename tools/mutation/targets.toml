@@ -2561,3 +2561,46 @@ timeout = 180.0
   find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
   replace = "                    n != base and _mentions(obj_src, n)"
   models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"
+
+[[target]]
+name = "scmo-reference-ridge"
+module-path = "mlsynth/utils/scmo_helpers/solvers.py"
+test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py mlsynth/tests/test_scmo_solver_robustness.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-reference-ridge-is-dropped"
+  find = "from ..bilevel.active_set import solve_simplex_qp_least_norm"
+  replace = "from ..bilevel.active_set import solve_simplex_qp as solve_simplex_qp_least_norm"
+  models = "the port as it shipped: the authors' fn_W builds Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J) and mlsynth solved the first term alone. Where the imbalance has one minimiser nothing moves -- 1.5e-7 in the German concatenated weights, 4e-3 in the separate ATT -- so every balance cell against the authors' captured run still passes and the omission is invisible to the whole cross-validation. Where it has a face of minimisers the term is the only thing choosing a point: on the averaged scheme, one equation in sixteen donors, relabelling the donors moves the weights by 0.419 and the reported ATT between -1720 and -2596"
+
+[[target]]
+name = "simplex-least-norm"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-ridge-is-absolute-instead-of-relative"
+  find = "    lam = float(ridge) * scale"
+  replace = "    lam = float(ridge)"
+  models = "the authors' constant taken literally instead of as a rule. Theirs is calibrated to the sd-scaled columns their script builds; dropped onto an arbitrary design it stops being a tie-break. Rescaling the matching columns by 1e-3 then moves the answer by 2.4e-2, where the design-scaled ridge holds it to 3.2e-16"
+
+  [[target.mutant]]
+  id = "the-ridge-is-dropped-and-the-tie-is-left-to-the-solver"
+  find = "    lam = float(ridge) * scale"
+  replace = "    lam = 0.0"
+  models = "the augmentation reduced to zero rows, which is the plain program again. The returned point is still an exact minimiser and still on the simplex, so feasibility, optimality and sum-to-one all hold; what is lost is that the answer stops being a function of the panel and becomes a function of the pivot order"
+
+  [[target.mutant]]
+  id = "the-ridge-is-large-enough-to-move-an-identified-answer"
+  find = "_LEAST_NORM_RIDGE: float = 1e-10"
+  replace = "_LEAST_NORM_RIDGE: float = 1e-2"
+  models = "a selection rule turned into a penalty. On a face it picks the same point, so every uniqueness and permutation test still passes; on a problem that already had one minimiser it pulls the weights toward uniform and the fit it reaches is no longer the unridged optimum"
+
+  # Recorded, not carried: augmenting toward ones instead of zeros
+  # ("np.concatenate([A, np.ones(J)])") is an equivalent mutant. On the simplex
+  # ||w - c*1||^2 = ||w||^2 - 2c + J c^2, so shifting the ridge's centre adds a
+  # constant to the objective and leaves the argmin alone -- least norm and
+  # least distance to the uniform weights are the same selection. It survived,
+  # correctly, and is retired here so nobody re-adds it expecting a kill.
