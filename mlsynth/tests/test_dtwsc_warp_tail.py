@@ -191,3 +191,56 @@ def test_a_donor_that_carries_no_weight_cannot_lose_a_period():
     warped = np.array([[np.nan, 1.0], [np.nan, 2.0], [np.nan, 3.0]])
     np.testing.assert_allclose(
         P._counterfactual(warped, np.array([0.0, 1.0])), [1.0, 2.0, 3.0])
+
+
+# --- rung 5: the gaps mutation found in the rungs above ---------------------
+
+def test_the_weights_are_renormalised_over_the_donors_actually_used():
+    """Dropping a negligible donor leaves the rest summing to just under one.
+
+    The shortfall is at most J times the tolerance, so on real weights this is
+    invisible -- which is why a mutant removing the renormalisation survived
+    the whole DTWSC suite. Asserted here on weights that do not sum to one, so
+    the contract holds regardless of what the caller passes.
+    """
+    warped = np.array([[1.0, 100.0], [2.0, 200.0], [3.0, 300.0]])
+    np.testing.assert_allclose(
+        P._counterfactual(warped, np.array([0.5, 0.25])),
+        [1.0 * (2 / 3) + 100.0 * (1 / 3),
+         2.0 * (2 / 3) + 200.0 * (1 / 3),
+         3.0 * (2 / 3) + 300.0 * (1 / 3)])
+
+
+def test_one_missing_weighted_donor_loses_the_period_for_all_of_them():
+    """Every weight-carrying donor has to reach the period, not just one.
+
+    With a single weighted donor ``all`` and ``any`` agree, which is what let
+    a mutant swapping them survive. Here two donors carry weight and only one
+    reaches t=0: keeping the period would contribute a zero for the missing
+    donor and report a counterfactual that is the other donor's path halved.
+    """
+    warped = np.array([[np.nan, 1.0], [10.0, 2.0], [11.0, 3.0]])
+    out = P._counterfactual(warped, np.array([0.5, 0.5]))
+    assert not np.isfinite(out[0]), (
+        f"kept a period with a weighted donor missing, giving {out[0]}")
+    np.testing.assert_allclose(out[1:], [6.0, 7.0])
+
+
+def test_the_count_of_lost_post_periods_is_the_number_actually_lost(monkeypatch):
+    """The seed-60 panel loses none, so ``count == lost`` passes at 0 == 0.
+
+    That is a check with no power, and a mutant pinning the count to zero
+    survived it. Forcing two post periods to have no counterfactual separates
+    the two.
+    """
+    real = P._counterfactual
+
+    def drop_two(warped, weights):
+        out = real(warped, weights)
+        out[-2:] = np.nan
+        return out
+
+    monkeypatch.setattr(P, "_counterfactual", drop_two)
+    res = _fit()
+    assert int((~np.isfinite(_cf(res)[T_TREAT:])).sum()) == 2
+    assert res.metadata["n_post_periods_undefined"] == 2

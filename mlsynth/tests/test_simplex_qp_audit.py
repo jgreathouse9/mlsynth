@@ -51,6 +51,7 @@ ELIGIBLE = {
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
     ("spsydid_helpers/weights.py", "lam"): 1,
     ("spsydid_helpers/weights.py", "omega"): 1,
+    ("ssc_helpers/weights.py", "b"): 1,
 }
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
@@ -87,6 +88,9 @@ KEPT_ON_CVXPY = {
         "the warm start the escape hatch seeds its solver with",
     ("orthsc_helpers/gmm_sce/solver.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",
+    ("ssc_helpers/weights.py", "b"):
+        "not identified on the authors' panel; the Path-A replication matches "
+        "the reference solver's choice among a continuum of exact fits",
 }
 
 # What a caller does to the data before the swap, for the sites that need
@@ -131,7 +135,6 @@ MIGRATED = {
     ("scmo_helpers/solvers.py", "w"),
     ("spillsynth_helpers/cd/scm_core.py", "w"),
     ("spotsynth_helpers/sc.py", "w"),
-    ("ssc_helpers/weights.py", "b"),
     ("tssc_helpers/estimation.py", "w"),
 }
 

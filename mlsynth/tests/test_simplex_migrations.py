@@ -137,16 +137,16 @@ def _spotsynth(rng):
             _lsq(X[:T0], y[:T0]))
 
 
-@case("ssc/weights::sc_weights_one")
-def _ssc(rng):
-    """Demeaned, which is how this site profiles out its intercept."""
-    from mlsynth.utils.ssc_helpers.weights import sc_weights_one
-
-    X, y = _panel(rng)
-    y = y + 3.2
-    _, got = sc_weights_one(y, X)
-    Xd, yd = X - X.mean(axis=0), y - y.mean()
-    return got, _cvxpy_simplex(Xd, yd), _lsq(Xd, yd)
+# ``ssc/weights::sc_weights_one`` is absent on purpose. It is the simplex
+# least-squares program and the active set solves it better -- an exact fit at
+# 3.1e-33 where CLARABEL stops at 1.1e-09 -- but on the authors' Guanajuato
+# panel the program does not identify a weight vector: 32 donors against 15
+# pre-periods at rank 7, so a whole face of the simplex reproduces the treated
+# unit exactly. The two solvers pick different points of that face, support 5
+# against support 32, agreeing to 2e-05 in sample and diverging out of it. The
+# paper's cartel-outcome estimates move by up to 0.03, six times the Path-A
+# tolerance in ``test_ssc.py``. So the site keeps its cvxpy call and the
+# reason is recorded in KEPT_ON_CVXPY.
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
