@@ -41,7 +41,7 @@ econometrics library owes its user.
 | 10 | Least Surprise | binding | `CLAUDE.md` invariant 6 |
 | 11 | Silence — say nothing when there is nothing surprising | adopted | see "Silence" below; 36 `print` calls are the open case |
 | 12 | Repair — fail early and diagnosably | partly refused | the exception contract; Postel's half is refused, see below |
-| 13 | Economy — programmer time over machine time | binding | `cvxpy` / `osqp` over hand-rolled solvers |
+| 13 | Economy — programmer time over machine time | binding | a solver is chosen, not hand-rolled; which solver is evidence, see "Economy" below |
 | 14 | Generation — write programs to write programs | binding | `hypothesis`, `parametrize`, `tools/gen_llms_txt.py`, `tools/mutation/targets.toml` |
 | 15 | Optimization — prototype before polishing | binding | the demonstrate-first loop in `.claude/commands/replicate.md` |
 | 16 | Diversity — distrust one true way | binding | four instruments (`agents_tests.md`); cross-implementation differential testing |
@@ -235,6 +235,49 @@ supply, and they mean three things for new work.
 Detachment (§4.3) is the tool for the config case: before generalizing an
 option, see how many of the accidental conditions of the paper that motivated it
 can be dropped. Options survive that.
+
+---
+
+# Economy: which solver, and on what evidence
+
+The rule (§1.6) trades programmer time for machine time. This file used to
+instantiate it as "cvxpy / osqp over hand-rolled solvers". That instance is
+withdrawn. The principle stands; the example was wrong for one class of
+problem, and stating it as doctrine invited the wrong reading.
+
+What the measurement showed. Against `utils/bilevel/active_set.py` on the
+three canonical panels, cvxpy with CLARABEL returns an identical objective to
+six significant figures, and also returns weights as low as `-2.17e-09` where
+the active set returns exact zeros. At 1000x and 1e6x the West German GDP
+scale it reports the simplex INFEASIBLE. Slater's condition holds on the
+probability simplex unconditionally -- `1_J / J` is strictly feasible for
+every `J` -- so strong duality holds for every instance and that verdict
+reports something that cannot be true of the feasible set.
+
+Economy does not cover this. It is about not spending programmer time, and
+the exact solver already exists, is tested, and carries cvxpy-parity and KKT
+certificates. Nothing is being hand-rolled. What is being withdrawn is a
+default that sends every weight solve to a general conic solver, including
+the instances where it is measurably wrong.
+
+Two rules constrain the replacement, and both are served.
+
+SPOT (below) is the actual argument for consolidating. Three implementations
+of simplex-constrained least squares live in `bilevel/` -- `active_set`,
+`ridge_augment` and `penalized` -- and they agree to 1e-10 or better on
+well-conditioned panels, on `J > T0`, at 1e4 scale and on collinear donors.
+Three representations of one piece of knowledge is the violation; solver
+quality is secondary to it.
+
+Diversity (rule 16) keeps cvxpy. It remains the differential-testing oracle
+for the exact path, and the backend for everything outside the quadratic
+corner -- the exponential-cone, semidefinite and integer work that an exact
+active set cannot express. Distrusting one true way means keeping the second
+implementation to check the first, not routing production through it.
+
+The standing rule: pick the solver by measurement against the problem class,
+and record the measurement. A general solver is the right default until
+something shows it returning wrong answers on the library's own data.
 
 ---
 
