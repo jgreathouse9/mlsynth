@@ -35,17 +35,12 @@ def sc_weights_one(y: np.ndarray, X: np.ndarray) -> Tuple[float, np.ndarray]:
     b : np.ndarray, shape (N-1,)
         Simplex weights on the donors.
     """
-    import cvxpy as cp
+    from ..bilevel.active_set import solve_simplex_qp
 
     yd = y - y.mean()
     Xd = X - X.mean(axis=0, keepdims=True)
     n = X.shape[1]
-    b = cp.Variable(n)
-    prob = cp.Problem(cp.Minimize(cp.sum_squares(yd - Xd @ b)),
-                      [b >= 0, cp.sum(b) == 1])
-    prob.solve(solver=cp.CLARABEL)
-    bv = np.asarray(b.value, dtype=float)
-    bv = np.clip(bv, 0.0, None)
+    bv = np.clip(solve_simplex_qp(Xd, yd), 0.0, None)
     s = bv.sum()
     bv = bv / s if s > 0 else np.full(n, 1.0 / n)
     a = float(y.mean() - X.mean(axis=0) @ bv)

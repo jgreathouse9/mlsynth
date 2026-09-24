@@ -9,9 +9,9 @@ exactly the Tian-Lee-Panchenko / Abadie program.
 from __future__ import annotations
 
 import numpy as np
-import cvxpy as cp
 
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.active_set import solve_simplex_qp
 
 
 def simplex_weights(Z_treated: np.ndarray, Z_donors: np.ndarray) -> np.ndarray:
@@ -29,23 +29,12 @@ def simplex_weights(Z_treated: np.ndarray, Z_donors: np.ndarray) -> np.ndarray:
     np.ndarray
         Donor weights, shape ``(J,)``; non-negative and summing to one.
     """
-    J = Z_donors.shape[0]
-    w = cp.Variable(J)
-    objective = cp.Minimize(cp.sum_squares(Z_treated - Z_donors.T @ w))
-    problem = cp.Problem(objective, [w >= 0, cp.sum(w) == 1])
-    problem.solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-9, max_iter=20000)
-    if w.value is None:
-        # OSQP can terminate without a primal solution on ill-conditioned or
-        # near-degenerate matching matrices (status "infeasible"/"unbounded" or
-        # a numerical failure), leaving ``w.value is None``. Fall back to
-        # CLARABEL, a robust interior-point solver, before giving up.
-        problem.solve(solver=cp.CLARABEL)
-    if w.value is None:
+    try:
+        w_hat = np.clip(solve_simplex_qp(Z_donors.T, Z_treated), 0.0, None)
+    except Exception as exc:
         raise MlsynthEstimationError(
-            "SCMO simplex weight solve failed: the solver returned no solution "
-            f"(status: {problem.status}). The donor matching matrix may be "
-            "degenerate or ill-conditioned."
-        )
-    w_hat = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
+            "SCMO simplex weight solve failed: the donor matching matrix may "
+            f"be degenerate or ill-conditioned ({exc})."
+        ) from exc
     total = w_hat.sum()
     return w_hat / total if total > 0 else w_hat            # exact simplex (sum == 1)

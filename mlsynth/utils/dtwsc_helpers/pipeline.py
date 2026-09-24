@@ -9,6 +9,7 @@ import pandas as pd
 
 from ...config_models import InferenceResults, WeightsResults
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.active_set import solve_simplex_qp
 from ..results_helpers import build_effect_submodels
 from .dtw import PATTERNS
 from .inference import (
@@ -29,8 +30,6 @@ def _simplex_weights(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
     dropped rather than imputed, because a compressed warp leaves genuinely
     unobserved cells.
     """
-    import cvxpy as cp
-
     ok = np.isfinite(donors).all(axis=1) & np.isfinite(target)
     A, b = donors[ok], target[ok]
     if A.shape[0] == 0:  # pragma: no cover - warp_series only ever pads the
@@ -42,16 +41,11 @@ def _simplex_weights(target: np.ndarray, donors: np.ndarray) -> np.ndarray:
     J = A.shape[1]
     if J == 1:
         return np.ones(1)
-    w = cp.Variable(J, nonneg=True)
-    problem = cp.Problem(cp.Minimize(cp.sum_squares(A @ w - b)),
-                         [cp.sum(w) == 1])
     try:
-        problem.solve(solver=cp.ECOS, abstol=1e-9, reltol=1e-9)
-    except Exception:                       # pragma: no cover - solver fallback
-        problem.solve()
-    if w.value is None:                     # pragma: no cover - infeasible
-        raise MlsynthEstimationError("DTWSC: the donor weight solve failed.")
-    weights = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
+        weights = np.clip(solve_simplex_qp(A, b), 0.0, None)
+    except Exception as exc:                # pragma: no cover - degenerate design
+        raise MlsynthEstimationError(
+            f"DTWSC: the donor weight solve failed: {exc}") from exc
     total = weights.sum()
     return weights / total if total > 0 else np.full(J, 1.0 / J)
 
