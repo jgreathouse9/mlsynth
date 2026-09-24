@@ -1,7 +1,7 @@
 """Measurement behind agents/agents_fscm_complexity.md.
 
-How much of FSCM's forward scan can be skipped without solving, using a bound
-rather than an approximation. Run: python agents/spike_fscm_pruning.py
+How much of FSCM's forward scan can be skipped without solving, using a bound,
+not an approximation. Run: python agents/spike_fscm_pruning.py
 """
 from __future__ import annotations
 
