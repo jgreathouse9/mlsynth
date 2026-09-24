@@ -263,7 +263,42 @@ def solve_simplex_qp(
                 # difference basis, so Z' l_F is l_F[:-1] - l_F[-1].
                 lF = linear[free]
                 q = 0.5 * (lF[:nF - 1] - lF[nF - 1])
-                rhs = rhs - np.linalg.lstsq(M.T, q, rcond=None)[0]
+                u = np.linalg.lstsq(M.T, q, rcond=None)[0]
+                # What the shift cannot reproduce is exactly q's component in
+                # null(M): R^(nF-1) splits as range(M') + null(M), and u solves
+                # in range(M'), so the least-squares residual q - M'u is the
+                # null part and no further work is needed to find it.
+                #
+                # A nonzero null part means the subproblem is unbounded. Moving
+                # v along -qn leaves M v fixed, so the quadratic does not
+                # change, while the linear term falls by 2||qn||^2 per unit
+                # step. The minimum is therefore not interior to this free set
+                # and the loop must reach a bound instead of solving for one.
+                qn = q - M.T @ u
+                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):
+                    # Z maps the ray into weight space, where it sums to zero
+                    # and so stays on the hyperplane. The simplex is compact,
+                    # so some coordinate blocks: step to the first one and pin
+                    # it, which is the same move the loop makes for an
+                    # infeasible full step.
+                    d = np.empty(nF)
+                    d[:nF - 1] = -qn
+                    d[nF - 1] = float(qn.sum())
+                    cur = w[free]
+                    blocking = d < -tol
+                    if blocking.any():
+                        ratios = np.where(
+                            blocking, cur / np.maximum(-d, tol), np.inf)
+                        cur = cur + float(ratios.min()) * d
+                        w = np.zeros(J)
+                        w[free] = np.maximum(cur, 0.0)
+                        hit = free[cur <= tol]
+                        if hit.size == 0:         # pragma: no cover - numerical
+                            hit = free[[int(np.argmin(cur))]]
+                        active[hit] = True
+                        pivots += 1
+                        continue
+                rhs = rhs - u
             v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)
             wF[:nF - 1] = 1.0 / nF + v

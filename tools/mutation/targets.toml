@@ -2469,3 +2469,35 @@ timeout = 240.0
   find = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,"
   replace = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice], WeightConstraint(nonneg=False, sum_to_one=False)).weights,"
   models = "trajectory weights fitted without the simplex, which buys a better pre-period fit by extrapolating past the donor cloud and gives a counterfactual with no out-of-sample content"
+
+[[target]]
+name = "active-set-linear-ray"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_active_set_linear.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "unbounded-subproblem-solved-as-if-bounded"
+  find = "                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):"
+  replace = "                if False:"
+  models = "a free-set subproblem that is unbounded along a null direction of the design, solved as though its minimum were interior. The residual shift reproduces only the part of the term in the row space, so the point returned is not stationary -- 54 percent above the optimum on a 3 by 12 design, reported as converged"
+
+  [[target.mutant]]
+  id = "ray-taken-in-the-wrong-direction"
+  find = "                    d[:nF - 1] = -qn\n                    d[nF - 1] = float(qn.sum())"
+  replace = "                    d[:nF - 1] = qn\n                    d[nF - 1] = -float(qn.sum())"
+  models = "the ray followed uphill. The quadratic is flat along it either way and the sum-to-one constraint still holds, so the step looks legitimate and only the objective gives it away"
+
+  [[target.mutant]]
+  id = "ray-step-overshoots-its-blocking-bound"
+  find = "                        cur = cur + float(ratios.min()) * d"
+  replace = "                        cur = cur + float(ratios.max()) * d"
+  models = "the ray stepped to the last blocking bound instead of the first, which leaves the simplex through a coordinate that passed zero on the way"
+
+  [[target.mutant]]
+  id = "returned-point-is-not-checked"
+  find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
+  equivalent = true
+  equivalent-reason = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."

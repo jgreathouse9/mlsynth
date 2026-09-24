@@ -261,41 +261,85 @@ def test_it_is_optimal_when_the_design_admits_the_free_set(m, J):
     assert obj(got) <= obj(np.asarray(v.value, float).ravel()) + 1e-8
 
 
-@pytest.mark.parametrize("m,J", [(3, 12), (2, 6)])
-def test_a_design_too_short_for_the_free_set_is_refused_not_guessed(m, J):
-    """The free-set subproblem is unbounded along a null direction of the
-    design, so its optimum is on a boundary this loop does not visit. Before
-    this was caught it returned a point up to 54 percent above the optimum,
-    reporting converged=True with a stationarity residual of 0.35.
-
-    The guard is on the point and not on the shape, so a short design that the
-    loop does happen to solve is not refused -- see the test below."""
-    rng = np.random.default_rng(0)
-    B = rng.normal(size=(m, J)); A = np.zeros(m); lin = np.abs(rng.normal(size=J))
-    with pytest.raises(ValueError, match="unbounded|not solvable"):
-        solve_simplex_qp(B, A, linear=lin)
-
-
-def test_the_refusal_does_not_fire_on_a_panel(wide):
-    """T0 is around 20 and the support a handful, so a panel never meets the
-    condition that triggers it."""
-    B, A, d2 = wide
-    for lam in (1e-6, 1e-3, 0.1, 1.0, 10.0, 1e6):
-        w = solve_simplex_qp(B, A, linear=lam * d2)
-        assert w.sum() == pytest.approx(1.0, abs=1e-9)
-
-
-def test_a_short_design_the_loop_does_solve_is_not_refused():
-    """The guard tests the answer, not the shape. Four rows over twelve donors
-    is short by the same reading as the refused cases, and the active set does
-    reach the minimiser on it, at an objective 1.9e-09 below CLARABEL's.
-    Refusing on shape alone would have lost that."""
+@pytest.mark.parametrize("m,J", [
+    (1, 8), (2, 6), (2, 20), (3, 12), (4, 12), (5, 40),
+    (6, 6), (8, 12), (12, 12), (20, 12),
+])
+def test_it_reaches_the_minimiser_whatever_the_design_shape(m, J):
+    """A free set wider than the design has rows makes the subproblem unbounded
+    along a null direction, which the loop answers by stepping the ray to its
+    blocking bound. Before that branch existed, 3 by 12 came back 54 percent
+    above the optimum reporting convergence."""
     import cvxpy as cp
     rng = np.random.default_rng(0)
-    B = rng.normal(size=(4, 12)); A = np.zeros(4); lin = np.abs(rng.normal(size=12))
-    w = solve_simplex_qp(B, A, linear=lin)
-    v = cp.Variable(12, nonneg=True)
+    B = rng.normal(size=(m, J)); A = np.zeros(m); lin = np.abs(rng.normal(size=J))
+
+    got = solve_simplex_qp(B, A, linear=lin)
+    v = cp.Variable(J, nonneg=True)
     cp.Problem(cp.Minimize(cp.sum_squares(A - B @ v) + lin @ v),
                [cp.sum(v) == 1]).solve(solver=cp.CLARABEL)
+
     obj = lambda x: float(np.sum((A - B @ x) ** 2) + lin @ x)
-    assert obj(w) <= obj(np.asarray(v.value, float).ravel()) + 1e-9
+    assert got.min() >= 0.0
+    assert got.sum() == pytest.approx(1.0, abs=1e-9)
+    assert obj(got) <= obj(np.asarray(v.value, float).ravel()) + 1e-8
+
+
+@pytest.mark.parametrize("seed", range(12))
+def test_it_reaches_the_minimiser_on_random_wide_designs(seed):
+    """The regime the branch exists for, swept: far more donors than rows."""
+    import cvxpy as cp
+    rng = np.random.default_rng(seed)
+    m, J = int(rng.integers(1, 6)), int(rng.integers(8, 30))
+    B = rng.normal(size=(m, J)); A = rng.normal(size=m)
+    lin = np.abs(rng.normal(size=J)) * float(rng.choice([1e-3, 1.0, 10.0]))
+
+    got = solve_simplex_qp(B, A, linear=lin)
+    v = cp.Variable(J, nonneg=True)
+    cp.Problem(cp.Minimize(cp.sum_squares(A - B @ v) + lin @ v),
+               [cp.sum(v) == 1]).solve(solver=cp.CLARABEL)
+
+    obj = lambda x: float(np.sum((A - B @ x) ** 2) + lin @ x)
+    assert obj(got) <= obj(np.asarray(v.value, float).ravel()) + 1e-8
+    assert got.min() >= 0.0 and got.sum() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_the_ray_step_keeps_the_weights_on_the_hyperplane():
+    """The ray is mapped through the difference basis, so it sums to zero and
+    the step cannot leave the sum-to-one constraint."""
+    rng = np.random.default_rng(3)
+    B = rng.normal(size=(2, 15)); A = np.zeros(2); lin = np.abs(rng.normal(size=15))
+    w = solve_simplex_qp(B, A, linear=lin)
+    assert w.sum() == pytest.approx(1.0, abs=1e-12)
+    assert w.min() >= 0.0
+
+
+
+# --------------------------------------------------------------------------
+# The guard itself. The ray branch is what stops a non-stationary point being
+# produced, so the guard never fires in practice and no input distinguishes
+# removing it -- its mutant is recorded equivalent. It is still tested here, so
+# that "never fires" is a measured property of the pair and not an untested
+# assumption about one of them.
+# --------------------------------------------------------------------------
+def test_the_guard_accepts_a_stationary_point(wide):
+    from mlsynth.utils.bilevel.active_set import _assert_optimal_with_linear
+    B, A, d2 = wide
+    lin = 0.3 * d2
+    w = solve_simplex_qp(B, A, linear=lin)
+    _assert_optimal_with_linear(B, A, w, lin, 1e-9)      # does not raise
+
+
+def test_the_guard_rejects_a_point_that_is_not_stationary(wide):
+    from mlsynth.utils.bilevel.active_set import _assert_optimal_with_linear
+    B, A, d2 = wide
+    lin = 0.3 * d2
+    w = np.array(solve_simplex_qp(B, A, linear=lin))
+    moved = w.copy()
+    lead = int(np.argmax(moved))
+    other = int(np.argmin(np.where(moved > 0, moved, np.inf)))
+    shift = min(0.25, moved[lead])
+    moved[lead] -= shift
+    moved[other] += shift
+    with pytest.raises(ValueError, match="did not reach the minimiser"):
+        _assert_optimal_with_linear(B, A, moved, lin, 1e-9)
