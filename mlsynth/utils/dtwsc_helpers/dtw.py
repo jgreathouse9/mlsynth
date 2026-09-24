@@ -18,9 +18,9 @@ distance is accumulated, with their coefficients. The recursion is
 
 ``warp`` deliberately reproduces R's ``dtw::warp``, which *averages* the tied
 indices of the many-to-one alignment map and therefore returns fractional
-positions. That behaviour is load-bearing: :func:`ref_too_short` rounds the
+positions. That averaging decides the answer: :func:`ref_too_short` rounds the
 maximum of the warp, so an averaged 7.5 rounds up to 8 where a truncated 7 does
-not, and the two give different answers about whether a window is usable.
+not, and the two disagree about whether a window is usable.
 """
 
 from __future__ import annotations
