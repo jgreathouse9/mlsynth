@@ -213,6 +213,53 @@ guarantee when it fails. Two of the three canonical panels are ill
 conditioned or singular; a design that assumes otherwise is designing for a
 regime this library does not occupy.
 
+### The problem has a name, and the library's solvers are instances of it
+
+Fujishige, Kitahara and Vegh (2025) study the minimum-norm-point problem over
+polyhedra: minimise `(1/2)||Ax - b||^2` subject to `0 <= x <= u`. Projecting
+the treated path onto the donors' convex hull -- the quantity `spannability.py`
+computes and the one this whole design is organised around -- is exactly an
+MNP instance over the polytope `conv{B_1, ..., B_J}`, which is Wolfe's (1976)
+problem.
+
+Three things follow for the design.
+
+The Lawson-Hanson algorithm is a special instantiation of their framework,
+and they derive convergence bounds for it as a consequence. That algorithm is
+what `scipy.optimize.nnls` implements and what `bilevel/nnls.py` wraps, so the
+library's `nnls` path acquires a complexity bound without anything changing.
+
+The bound is `poly(n, log kappa(A))` in the circuit imbalance measure, not in
+the spectral condition number, and the algorithm needs neither knowledge nor
+an estimate of `kappa`. That refines the caveat recorded above. Dostal's
+optimality requires the Hessian spectrum inside a positive interval, which
+Proposition 99 fails outright and which Basque satisfies only nominally at a
+condition number of 1.4e9. Circuit imbalance is a different measure, and a
+problem can be combinatorially benign while spectrally dreadful. Which of the
+two governs these panels has not been measured here, and it is the sharper
+open question than the tie-break rule.
+
+Their framework alternates first-order update steps with stabilising
+projections that hold the tight inequalities fixed. `bilevel/active_set.py`
+already does one round of that: a Gram-collapsed FISTA warm start names the
+support, then exact pivots stabilise, and the measured pivot count falls from
+0.6-0.9 per donor to 0 or 1. One round is not their algorithm -- the bounds
+come from iterating -- but the existing design is the same idea, which is
+some evidence it was the right shape.
+
+### A constraint set the library does not yet have
+
+Rontsis, Goulart and Nakatsukasa (2022) give an active-set algorithm for
+quadratic minimisation under linear inequalities and a two-sided bound on the
+solution's 2-norm, solving a sequence of trust-region subproblems. Our
+objectives are convex, so the nonconvex machinery is not needed.
+
+It matters for one member of the lineage. Amjad (2018) bounds the weights by
+`||f||_2 <= eta`, and mlsynth implements no norm-constrained weight
+objective, so that family is currently unavailable. If it is ever added, this
+is the algorithm for it, and the constraint hierarchy above gains a seventh
+row. Recorded as the path, not proposed as work.
+
 ### What these sources do not license
 
 Boyd is an argument for interior-point methods and is not a source for
@@ -349,6 +396,17 @@ The crossover, if there is one, has not been measured.
 Dostal, Z. (2009). Optimal Quadratic Programming Algorithms, with
 Applications to Variational Inequalities. Springer Optimization and Its
 Applications 23. Chapters 5 and 6.
+
+Fujishige, S., Kitahara, T. and Vegh, L. A. (2025). An update-and-stabilize
+framework for the minimum-norm-point problem. Mathematical Programming
+210, 281-311.
+
+Rontsis, N., Goulart, P. J. and Nakatsukasa, Y. (2022). An active-set
+algorithm for norm constrained quadratic problems. Mathematical Programming
+193, 447-483.
+
+Wolfe, P. (1976). Finding the nearest point in a polytope. Mathematical
+Programming 11, 128-149.
 
 Cressie, N. and Read, T. R. C. (1984). Multinomial goodness-of-fit tests.
 Journal of the Royal Statistical Society B 46(3), 440-464.
