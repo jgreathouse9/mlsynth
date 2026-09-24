@@ -368,14 +368,28 @@ def fgrc_lowrank(subspace: FGRCSubspace, keep: str = "all") -> np.ndarray:
     ``keep="all"`` projects onto the whole of ``A`` -- rank ``c1 + c2``, the
     disturbing block retained. ``keep="cluster"`` projects onto ``A1`` alone.
 
-    The default keeps the disturbing block, and it is not a free choice.
-    ``A2`` carries between-donor spread; removing it flattens the donors
-    toward a common profile, and a convex weight step then cannot reach a
-    treated unit sitting away from that profile. Measured on the Basque panel
-    over eight placebo windows, out-of-sample RMSE is 0.2419 keeping all of
-    ``A`` against 0.4490 keeping only ``A1``, and under a simplex objective
-    the cluster-only fit returns an effect of the wrong sign. A direction can
-    be disturbing for clustering and still carry what a counterfactual needs.
+    The default is not a free choice, and ``"cluster"`` fails for a structural
+    reason, not a panel-specific one.
+
+    fGRC splits the subspace by what discriminates clusters: ``A1`` separates
+    the groups, ``A2`` holds the high-variance directions that do not. On the
+    Basque pool ``A1``'s columns are 70% between-cluster while carrying 3.7%
+    of the variance; ``A2`` carries 95.4% of the variance, 95.4% of it within
+    cluster. The donors a synthetic control combines are the members of one
+    cluster, so they barely differ along ``A1`` and everything separating them
+    lives in ``A2``. Projecting onto ``A1`` alone discards the whole of the
+    variation the weights are fitted on. Measured on Basque, West Germany and
+    Proposition 99, between-donor spread drops to 18-40% of raw and the weight
+    step lands on a single donor on all three.
+
+    Where the flattened envelope also falls below the treated unit no convex
+    combination reaches it and the effect returns with the wrong sign (Basque:
+    +1.617 against about -0.70). That part is panel-dependent -- Proposition
+    99 stays inside the hull and collapses anyway. The flattening is
+    structural; leaving the hull is what makes it wrong-signed.
+
+    A direction can be disturbing for one task and the entire signal for the
+    next. Here they are the same subspace.
     """
     if keep not in ("all", "cluster"):
         raise MlsynthConfigError(
