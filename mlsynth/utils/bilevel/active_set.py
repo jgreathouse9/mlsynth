@@ -81,6 +81,7 @@ def solve_simplex_qp(
     A: np.ndarray,
     *,
     warm_start: Optional[np.ndarray] = None,
+    linear: Optional[np.ndarray] = None,
     tol: float = 1e-9,
     max_iter: Optional[int] = None,
     return_info: bool = False,
@@ -94,6 +95,23 @@ def solve_simplex_qp(
         Donor / design matrix (e.g. pre-period donor outcomes).
     A : np.ndarray, shape (m,)
         Target vector (e.g. the treated unit's pre-period outcomes).
+    linear : np.ndarray, shape (J,), optional
+        Coefficients of a linear term, minimising ``||A - B w||^2 + linear' w``.
+        On the non-negative orthant an L1 penalty is linear, so this is the
+        weighted non-negative lasso; Abadie and L'Hour's penalised SCM is the
+        case where ``linear`` prices each donor by its distance from the treated
+        unit. ``None`` leaves the plain least-squares program untouched, bit for
+        bit.
+
+        It is carried here and not folded into ``A`` because folding needs
+        ``linear`` to lie in ``range(B')``. Zou and Hastie (2005, Lemma 1)
+        identify that as a rank condition -- their augmented design has full
+        column rank and that is what makes their transformation exact -- and a
+        wide donor block does not meet it: on Proposition 99, 19 by 38 with rank
+        19, 40 percent of the centred penalty lies outside the row space. The
+        condition does hold on each free set, which is small and of full column
+        rank, so the inner solve keeps its residual form and never forms normal
+        equations.
     warm_start : np.ndarray, shape (J,), optional
         A feasible initial weight vector (e.g. the solution of a neighbouring
         problem in a conformal / market-selection sweep) used to seed the
@@ -124,6 +142,19 @@ def solve_simplex_qp(
         raise ValueError(f"len(A)={A.shape[0]} must equal B's row count {m}.")
     if J == 0:
         raise ValueError("B has no columns: at least one donor is required.")
+    if linear is not None:
+        # Validated here, with B and A, and not beside the pricing shift it
+        # feeds: a single donor is forced to weight 1 whatever the linear term
+        # says, so a check further down would let a malformed one through on
+        # exactly the input where it changes no number.
+        linear = np.asarray(linear, dtype=float).ravel()
+        if linear.shape != (J,):
+            raise ValueError(
+                f"linear must have one coefficient per donor: expected ({J},), "
+                f"got {linear.shape}."
+            )
+        if not np.all(np.isfinite(linear)):
+            raise ValueError("linear must be finite.")
 
     def _finish(w, pivots, converged):
         w = np.maximum(np.asarray(w, dtype=float), 0.0)
@@ -141,6 +172,8 @@ def solve_simplex_qp(
         max_iter = 50 * J
     G = B.T @ B                                   # (J, J) Gram
     c = B.T @ A
+    if linear is not None:
+        c = c - 0.5 * linear
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
     # otherwise the uniform point. A wide pool with nothing from the caller
@@ -181,7 +214,17 @@ def solve_simplex_qp(
             # matmul. Rank-revealing QR (LAPACK gelsy) is ~3x faster than SVD
             # lstsq and robust to a rank-deficient system (collinear free donors).
             M = BF[:, :nF - 1] - BF[:, nF - 1:nF]
-            v = _gelsy_lstsq(M, A - BF.mean(axis=1))
+            rhs = A - BF.mean(axis=1)
+            if linear is not None:
+                # In v the objective gains (Z' l_F)' v, so stationarity reads
+                # M'M v = M' rhs - Z' l_F / 2. Shifting the residual by any u
+                # with M'u = Z' l_F / 2 reproduces that exactly, which keeps the
+                # solve a least squares on M and never forms M'M. Z is the
+                # difference basis, so Z' l_F is l_F[:-1] - l_F[-1].
+                lF = linear[free]
+                q = 0.5 * (lF[:nF - 1] - lF[nF - 1])
+                rhs = rhs - np.linalg.lstsq(M.T, q, rcond=None)[0]
+            v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)
             wF[:nF - 1] = 1.0 / nF + v
             wF[nF - 1] = 1.0 / nF - v.sum()
