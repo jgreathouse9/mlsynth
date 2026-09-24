@@ -28,7 +28,7 @@ unlike the :math:`2^N` exhaustive subset search.
 The donor (and predictor) weights are computed by the bilevel optimization
 of Malo, Eskelinen, Zhou and Kuosmanen [malo2023computing]_, implemented from
 scratch in :mod:`mlsynth.utils.fscm_helpers.bilevel` -- no external QP solver
-is used. Two switches control the estimator:
+is used; the simplex programs go through the library's own exact active set. Two switches control the estimator:
 
 * ``forward_selection`` (default ``True``) -- when ``True``, run the greedy
   forward selection with rolling-origin out-of-sample validation, fitting each
@@ -108,12 +108,25 @@ certified (the paper notes the optimum is usually a corner found early):
 3. Tykhonov-regularized descent (Section 3.3) -- only if a gap remains,
    descend over :math:`\mathbf{V}` for a vanishing regularization sequence.
 
-The lower-level (and the trajectory-mode) simplex problems are solved by a
-self-contained FISTA projected-gradient routine
-(:func:`~mlsynth.utils.fscm_helpers.bilevel.simplex_lstsq`), which matches a
-reference QP solver to ~1e-8. In predictor mode the optimal :math:`\mathbf{V}`
-is computed once on the full donor pool and reused through forward
-selection.
+Both the lower-level and the trajectory-mode simplex problems are solved
+exactly, by the primal active-set method behind
+:func:`~mlsynth.utils.weights.solve_weights`. It terminates finitely at the
+minimiser and returns a Karush-Kuhn-Tucker residual with each answer, so the
+weights come with a proof of optimality and donors off the support come back at
+exactly zero.
+
+A projected-gradient routine was used here previously and stops short on a wide
+pool. On the full 38-donor Proposition 99 panel it lands 3.9e-2 above the
+minimum pre-treatment sum of squares with weights off by 0.011, and at a
+ten-period window 1.6e-1 above with weights off by 0.080. Forward selection
+refits on expanding windows at every rolling origin, so that error entered
+every term of the criterion the donors are ranked by. Its effect on the final
+estimate is small, because selection hands the solver a two- or three-donor
+pool where the routine converged to 1e-10; its effect on the cost is not, and
+the exact solve runs the Proposition 99 fit about fifty times faster.
+
+In predictor mode the optimal :math:`\mathbf{V}` is computed once on the full
+donor pool and reused through forward selection.
 
 The forward stepwise algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -321,12 +334,16 @@ Verification
    optimum of Malo et al. [malo2023computing]_ exactly (:math:`R^2 = 0.979`,
    Table 1 donor weights), which the *Synth* package does not reach.
 
-   Solver. The self-contained FISTA simplex solver agrees with a reference
-   QP solver to ~1e-8 over random problems; the bilevel ``unconstrained``
-   feasibility certificate, corner-solution bounds, and a determinism check are
-   unit-tested (``mlsynth/tests/test_fscm_bilevel.py``). All four
-   ``forward_selection`` x ``covariates`` combinations are exercised in
-   ``mlsynth/tests/test_fscm.py``.
+   Solver. Every simplex solve carries a KKT residual below 1e-9, which
+   settles optimality outright: the constraint set has non-empty relative
+   interior, so the conditions are necessary and sufficient. Moving the
+   trajectory path onto the exact solver changed the Proposition 99 ATT from
+   -20.150227 to -20.151918 and left the Basque ATT unmoved, and selected the
+   same donors on both; ``mlsynth/tests/test_fscm_weight_solver.py`` pins that.
+   The bilevel ``unconstrained`` feasibility certificate, corner-solution
+   bounds, and a determinism check are unit-tested
+   (``mlsynth/tests/test_fscm_bilevel.py``). All four ``forward_selection`` x
+   ``covariates`` combinations are exercised in ``mlsynth/tests/test_fscm.py``.
 
 Core API
 --------
