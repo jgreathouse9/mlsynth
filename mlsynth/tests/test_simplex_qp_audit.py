@@ -21,9 +21,14 @@ import pytest
 
 from tools.simplex_qp_audit import audit
 
-# Sites that are the probability simplex AND minimise ||A - Bw||^2, so
-# solve_simplex_qp solves the same program they do.
+# Sites that are the probability simplex AND minimise ||A - Bw||^2, optionally
+# plus a term linear in the weights, so solve_simplex_qp solves the same
+# program they do. The linear case is Abadie and L'Hour's penalised SCM: on the
+# non-negative orthant an L1 penalty is linear, and the solver carries it as of
+# the `linear` argument instead of folding it into the target, which a wide
+# donor block does not permit.
 ELIGIBLE = {
+    ("bilevel/penalized.py", "w"): 2,
     ("bilevel/ridge_augment.py", "w"): 1,
     ("clustersc_helpers/spannability.py", "w"): 1,
     ("drosc_helpers/estimation.py", "w"): 1,
@@ -47,14 +52,20 @@ ELIGIBLE = {
 MIGRATED = {
     ("iscm_helpers/weights.py", "w"),
     ("spillsynth_helpers/cd/scm_core.py", "w"),
+    ("tssc_helpers/estimation.py", "w"),
 }
 
 # The probability simplex, but minimising something else. Swapping the solver
 # here would drop the extra term, not speed it up. Three carry a Gram form
 # (``quad_form``) which may be the same program after substituting
 # ``Q = B'B``; that has to be checked per site, not assumed.
+#
+# ``clustersc_helpers/pcr/convex.py`` is the one entry here that is arguably a
+# misclassification: ``cp.norm(r, 2)`` and ``cp.sum_squares(r)`` have the same
+# minimiser, and TSSC's four variants were migrated on exactly that reading.
+# Left as it stands, because reclassifying it is a decision about that site and
+# not a consequence of the solver gaining a linear term.
 WRONG_OBJECTIVE = {
-    ("bilevel/penalized.py", "w"): "a penalty term lam * (d2 @ w)",
     ("clustersc_helpers/pcr/convex.py", "w"): "cp.norm(..., 2), not its square",
     ("cscm_helpers/engine.py", "W"): "a V-weighted Gram form",
     ("dscar_helpers/weights.py", "w"): "a composite loss built elsewhere",

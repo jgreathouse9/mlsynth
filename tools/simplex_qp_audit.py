@@ -83,17 +83,35 @@ def _nonneg_variables(tree: ast.AST) -> Dict[str, bool]:
 # is still the probability simplex.
 _REDUNDANT = re.compile(r"^\s*[\w.]+\s*<=\s*1(\.0)?\s*$")
 
-# ``solve_simplex_qp`` minimises ``||A - Bw||^2`` and nothing else. A simplex
-# constraint set is only half of eligibility: a site minimising an infinity
-# norm, or a least-squares objective plus a ridge term, is a different program
-# and swapping the solver would change its answer.
-_LSQ = re.compile(r"^cp\.Minimize\(\s*cp\.sum_squares\([^()]*(?:\([^()]*\)[^()]*)*\)\s*\)$")
+# ``solve_simplex_qp`` minimises ``||A - Bw||^2``, optionally plus a term
+# linear in the weights. A simplex constraint set is only half of eligibility:
+# a site minimising an infinity norm, or a least-squares objective plus a ridge
+# term, is a different program and swapping the solver would change its answer.
+#
+# The linear case reads as eligible because the solver carries it instead of
+# folding it into the target, which a wide donor block does not permit. A term
+# is linear in ``w`` when it is a coefficient vector contracted with the
+# variable once -- ``d2 @ w``, possibly scaled -- and the pattern is written
+# to require that contraction, so a quadratic like ``sum_squares(w)`` or a
+# norm like ``norm(w, 1)`` stays out.
+_SUM_SQ = r"cp\.sum_squares\([^()]*(?:\([^()]*\)[^()]*)*\)"
+_LINEAR = (r"(?:[\w.()\[\], *]*?\*\s*)?\(?\s*[\w.\[\]]+\s*@\s*{var}\s*\)?"
+           r"|(?:[\w.()\[\], *]*?\*\s*)?\(?\s*{var}\s*@\s*[\w.\[\]]+\s*\)?")
+_LSQ = re.compile(rf"^cp\.Minimize\(\s*{_SUM_SQ}\s*\)$")
 _GRAM = re.compile(r"quad_form")
 
 
-def _classify_objective(text: str) -> str:
+def _is_lsq_plus_linear(flat: str, var: str) -> bool:
+    """``cp.Minimize(cp.sum_squares(...) + <linear in var>)``."""
+    lin = _LINEAR.format(var=re.escape(var))
+    return bool(re.fullmatch(
+        rf"cp\.Minimize\(\s*{_SUM_SQ}\s*\+\s*(?:{lin})\s*\)", flat
+    ))
+
+
+def _classify_objective(text: str, var: str = "") -> str:
     flat = re.sub(r"\s+", " ", text).strip()
-    if _LSQ.match(flat):
+    if _LSQ.match(flat) or (var and _is_lsq_plus_linear(flat, var)):
         return "least-squares"
     if _GRAM.search(flat):
         return "gram"
@@ -131,10 +149,12 @@ def audit(root: pathlib.Path = ROOT) -> List[Site]:
                 continue
             obj_src = (_constraint_source(node.args[0], src, tree)
                        if node.args else "")
-            obj_kind = _classify_objective(obj_src)
 
             m = re.search(r"sum\((?:cp\.multiply\()?([\w.\[\]]+)", flat)
             var = m.group(1) if m else "?"
+            # Read the objective after the variable is known: recognising a
+            # linear term means recognising a contraction with *this* variable.
+            obj_kind = _classify_objective(obj_src, var)
             base = var.split("[")[0].split(".")[-1]
             nonneg = bool(re.search(rf"\b{re.escape(var)}\s*>=\s*0", flat)) \
                 or nonneg_vars.get(base, False)
@@ -162,7 +182,7 @@ def audit(root: pathlib.Path = ROOT) -> List[Site]:
 def main() -> None:  # pragma: no cover - the entry point, exercised by hand
     sites = audit()
     for verdict, title in (
-        ("eligible", "simplex constraints AND a plain least-squares objective"),
+        ("eligible", "simplex constraints AND least squares, optionally plus a linear term"),
         ("wrong-objective", "the probability simplex, but a different objective"),
         ("extra-constraints", "simplex plus a constraint solve_simplex_qp cannot carry"),
         ("no-nonnegativity", "weights may go negative -- a different feasible set"),
