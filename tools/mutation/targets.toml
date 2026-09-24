@@ -2561,3 +2561,87 @@ timeout = 180.0
   find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
   replace = "                    n != base and _mentions(obj_src, n)"
   models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"
+
+[[target]]
+name = "dtwsc-warp-tail"
+module-path = "mlsynth/utils/dtwsc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_dtwsc_warp_tail.py mlsynth/tests/test_dtwsc.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "support-read-at-zero-instead-of-a-tolerance"
+  find = "    used = weights > _NEGLIGIBLE_WEIGHT"
+  replace = "    used = weights > 0"
+  models = "an excluded donor read as support because an interior-point solver left it at 1e-9 instead of 0. A denormal then decides whether a period has a counterfactual, and on a 28-period panel that moved the ATT by 1.53"
+
+  [[target.mutant]]
+  id = "warp-tail-not-carried-forward"
+  find = "    block = _carry_forward(warped)[:, used]"
+  replace = "    block = warped[:, used]"
+  models = "the warp's tail reported as no counterfactual, which is what the reference implementation does. Measured against a planted constant effect over twelve panels it costs a mean absolute error of 1.67 against 0.52, with the wrong sign on two of them, because the tail is where a mis-timed gap path is largest. It also makes the two sc_backend options cover different post windows, since only one of them completes the block"
+
+  [[target.mutant]]
+  id = "carry-forward-runs-backwards"
+  find = "        np.maximum.accumulate(seen, out=seen)"
+  replace = "        np.minimum.accumulate(seen, out=seen)"
+  models = "the completion taking the first observed value instead of the last, so a donor's whole post-period path is pinned at its pre-period level"
+
+  [[target.mutant]]
+  id = "the-synthetic-control-is-not-renormalised"
+  find = "    w = weights[used] / weights[used].sum()"
+  replace = "    w = weights[used]"
+  models = "weights that no longer sum to one over the donors actually used, so the counterfactual is a scaled-down combination wherever a negligible weight was dropped"
+
+  [[target.mutant]]
+  id = "a-lost-period-is-filled-with-zero-instead-of-reported"
+  find = "    usable = np.isfinite(block).all(axis=1)"
+  replace = "    usable = np.isfinite(block).any(axis=1)"
+  models = "a period kept when only some of the weighted donors reach it. The nan_to_num that guards the matmul then contributes a zero for the missing donor, so the counterfactual is that donor's path scaled down -- a number where there should be none"
+
+  [[target.mutant]]
+  id = "lost-post-periods-not-counted-for-the-caller"
+  find = '        "n_post_periods_undefined": int(inputs.n_post - n_post_defined),'
+  replace = '        "n_post_periods_undefined": 0,'
+  models = "an ATT taken over a short post window with nothing on the result saying so. This contract was already enforced when the ladder reached it -- the count is on DTWSC own metadata, not on effects or fit_diagnostics -- and the mutant is here because reading only the standard sub-models made it look unenforced"
+[[target]]
+name = "scmo-reference-ridge"
+module-path = "mlsynth/utils/scmo_helpers/solvers.py"
+test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py mlsynth/tests/test_scmo_solver_robustness.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-reference-ridge-is-dropped"
+  find = "from ..bilevel.active_set import solve_simplex_qp_least_norm"
+  replace = "from ..bilevel.active_set import solve_simplex_qp as solve_simplex_qp_least_norm"
+  models = "the port as it shipped: the authors' fn_W builds Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J) and mlsynth solved the first term alone. Where the imbalance has one minimiser nothing moves -- 1.5e-7 in the German concatenated weights, 4e-3 in the separate ATT -- so every balance cell against the authors' captured run still passes and the omission is invisible to the whole cross-validation. Where it has a face of minimisers the term is the only thing choosing a point: on the averaged scheme, one equation in sixteen donors, relabelling the donors moves the weights by 0.419 and the reported ATT between -1720 and -2596"
+
+[[target]]
+name = "simplex-least-norm"
+module-path = "mlsynth/utils/bilevel/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-ridge-is-absolute-instead-of-relative"
+  find = "    lam = float(ridge) * scale"
+  replace = "    lam = float(ridge)"
+  models = "the authors' constant taken literally instead of as a rule. Theirs is calibrated to the sd-scaled columns their script builds; dropped onto an arbitrary design it stops being a tie-break. Rescaling the matching columns by 1e-3 then moves the answer by 2.4e-2, where the design-scaled ridge holds it to 3.2e-16"
+
+  [[target.mutant]]
+  id = "the-ridge-is-dropped-and-the-tie-is-left-to-the-solver"
+  find = "    lam = float(ridge) * scale"
+  replace = "    lam = 0.0"
+  models = "the augmentation reduced to zero rows, which is the plain program again. The returned point is still an exact minimiser and still on the simplex, so feasibility, optimality and sum-to-one all hold; what is lost is that the answer stops being a function of the panel and becomes a function of the pivot order"
+
+  [[target.mutant]]
+  id = "the-ridge-is-large-enough-to-move-an-identified-answer"
+  find = "_LEAST_NORM_RIDGE: float = 1e-10"
+  replace = "_LEAST_NORM_RIDGE: float = 1e-2"
+  models = "a selection rule turned into a penalty. On a face it picks the same point, so every uniqueness and permutation test still passes; on a problem that already had one minimiser it pulls the weights toward uniform and the fit it reaches is no longer the unridged optimum"
+
+  # Recorded, not carried: augmenting toward ones instead of zeros
+  # ("np.concatenate([A, np.ones(J)])") is an equivalent mutant. On the simplex
+  # ||w - c*1||^2 = ||w||^2 - 2c + J c^2, so shifting the ridge's centre adds a
+  # constant to the objective and leaves the argmin alone -- least norm and
+  # least distance to the uniform weights are the same selection. It survived,
+  # correctly, and is retired here so nobody re-adds it expecting a kill.

@@ -19,6 +19,8 @@ Layered per agents/agents_tests.md:
 
 from __future__ import annotations
 
+import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -727,12 +729,66 @@ class TestEdgeCaseStructures:
 
     def test_distance_decay_ignores_treated_in_dict(self, panel):
         # Treated unit u0's distance is ignored (its row is always (1, 0)).
-        distances = {"u0": 99.0, **{f"u{i}": 0.5 for i in range(1, 8)}}
+        # The control distances have to differ from one another: equal
+        # distances give every control the same decay weight, so A's second
+        # column is constant across controls and the demeaned SC projection
+        # annihilates it. See test_equal_distances_are_a_near_violation.
+        distances = {"u0": 99.0, **{f"u{i}": 0.2 + 0.1 * i for i in range(1, 8)}}
         res = SPILLSYNTH(_cfg(
             panel, spillover_structure="distance_decay",
             unit_distances=distances,
         )).fit()
         np.testing.assert_array_equal(res.inputs.A[0], [1, 0])
+
+    def test_equal_distances_are_a_near_violation_of_assumption_1d(self, panel):
+        """Equal control distances leave the spillover structure unidentified.
+
+        ``distance_decay`` maps each control's distance to a weight, so equal
+        distances give every control the same one and ``A``'s second column is
+        constant across controls. The Cao-Dowd estimator works in the residual
+        space of the leave-one-out synthetic controls, and those absorb level,
+        so a constant column is close to annihilated: ``A' M_W A`` comes out at
+        the estimator's own ill-conditioning threshold. Over eight seeds of
+        this panel the median condition number is 8.0e+07 with equal distances
+        and 1.9e+01 with distances that differ, and two of the eight seeds fail
+        outright.
+
+        That is the estimator reporting a real near-violation, so this asserts
+        it instead of arranging not to see it. It is also why the two tests
+        above pass distinct distances: on a knife edge, which side a solve
+        lands on is decided by the LAPACK build, and both of them were failing
+        in CI while passing locally.
+
+        Which is the trap this test fell into. An earlier version asserted the
+        warning specifically, and the same knife edge decides warn against
+        raise: the estimator warns when ``A' M_W A`` is merely ill-conditioned
+        and raises when it crosses into singular, and on Python 3.13 in CI the
+        condition number came out 1.499e+16, over that line, where locally it
+        sat under it. Pinning one side of an edge whose position is a property
+        of LAPACK is pinning the platform.
+
+        So the assertion is the invariant that holds on both sides: the
+        estimator reports the near-violation, through whichever channel, and
+        names it. What it may not do is return a fit in silence.
+        """
+        equal = {f"u{i}": 0.4 for i in range(1, 8)}
+        reported: list[str] = []
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            try:
+                SPILLSYNTH(_cfg(panel, spillover_structure="distance_decay",
+                                unit_distances=equal, weighting="efficient")).fit()
+            except MlsynthEstimationError as exc:
+                reported.append(str(exc))
+        reported += [str(w.message) for w in caught
+                     if issubclass(w.category, RuntimeWarning)]
+        assert any(re.search(r"ill-conditioned|Assumption 1|singular", m)
+                   for m in reported), (
+            "equal control distances leave the spillover structure "
+            "unidentified, and the estimator must say so -- by warning if "
+            f"A' M_W A is merely ill-conditioned, by raising if it is "
+            f"singular. It reported: {reported!r}"
+        )
 
     def test_distance_decay_missing_controls_get_zero_weight(self, panel):
         # Only u1 has a finite distance; the rest get exp(-d)=0 weight.
@@ -862,7 +918,7 @@ class TestReproducibility:
         res = SPILLSYNTH(_cfg(
             panel,
             spillover_structure="distance_decay",
-            unit_distances={f"u{i}": 0.4 for i in range(1, 8)},
+            unit_distances={f"u{i}": 0.2 + 0.1 * i for i in range(1, 8)},
             weighting="efficient",
         )).fit()
         assert res.inputs.A.shape == (8, 2)
