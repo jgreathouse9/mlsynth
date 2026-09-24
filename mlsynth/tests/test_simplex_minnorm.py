@@ -26,9 +26,13 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.bilevel.active_set import (
+    solve_simplex_qp,
+    solve_simplex_qp_least_norm,
+)
 from mlsynth.utils.bilevel.minnorm import (
     simplex_gram,
+    simplex_optimum_is_unique,
     solve_simplex_minnorm,
     solve_simplex_minnorm_batch,
 )
@@ -42,13 +46,21 @@ def _reference(B: np.ndarray, A: np.ndarray):
     w = cp.Variable(B.shape[1])
     prob = cp.Problem(cp.Minimize(cp.sum_squares(B @ w - A)),
                       [w >= 0, cp.sum(w) == 1])
-    try:
-        prob.solve()
-    except Exception:  # pragma: no cover - oracle failure is handled, not asserted
-        return None
-    if w.value is None:  # pragma: no cover - same
-        return None
-    return np.asarray(w.value, dtype=float).ravel()
+    # cvxpy dispatches to the highest-ranked installed solver, and an installed
+    # solver is not a working one: MOSEK outranks the rest and raises
+    # ``err_missing_license_file`` when it has no licence, which made every
+    # parity check in this file collapse to "oracle unavailable". Ask each
+    # candidate in turn and take the first that returns a point.
+    for _solver in (None, "CLARABEL", "SCS", "ECOS", "OSQP"):
+        if _solver is not None and _solver not in cp.installed_solvers():
+            continue
+        try:
+            prob.solve() if _solver is None else prob.solve(solver=_solver)
+        except Exception:
+            continue
+        if w.value is not None:
+            return np.asarray(w.value, dtype=float).ravel()
+    return None
 
 
 def _objective(G, w):
@@ -84,6 +96,36 @@ def assert_kkt_optimal(G, w, tol=1e-6):
     if (~support).any():
         assert np.all(g[~support] >= nu - tol * scale), \
             "an off-support donor would improve the fit"
+
+
+def _reference_or_skip(B, A):
+    """The oracle, or a skip saying it was not available.
+
+    ``_reference`` returns ``None`` when cvxpy cannot solve the instance, and
+    the module already treats that as "oracle unavailable, the KKT certificate
+    is authoritative" -- ``assert_no_worse_than_reference`` returns early on it.
+    The call sites that use the reference weights directly did not, so an
+    unavailable oracle arrived at ``B @ None`` and surfaced as
+
+        ValueError: matmul: Input operand 1 does not have enough dimensions
+
+    which names neither the solver nor the contract. A skip does, and a skipped
+    test is visibly not run where a silent early return is indistinguishable
+    from a check that passed.
+
+    Unavailability is not hypothetical. cvxpy dispatches to the highest-ranked
+    installed solver, so installing MOSEK without a licence makes every
+    unqualified ``prob.solve()`` raise, and these parity checks are the only
+    part of the suite that notices.
+    """
+    w = _reference(B, A)
+    if w is None:
+        pytest.skip(
+            "the cvxpy oracle could not solve this instance, so parity with it "
+            "cannot be checked; the KKT certificate above is the authoritative "
+            "optimality proof"
+        )
+    return w
 
 
 def assert_no_worse_than_reference(B, A, w, rtol=1e-6):
@@ -273,7 +315,7 @@ def test_kkt_certifier_validates_the_reference():
     """Cross-validate the certifier itself on cvxpy's solution."""
     rng = np.random.default_rng(7)
     B, A = _rand(rng, 9, 6)
-    assert_kkt_optimal(simplex_gram(B, A), _reference(B, A))
+    assert_kkt_optimal(simplex_gram(B, A), _reference_or_skip(B, A))
 
 
 @pytest.mark.parametrize("seed", range(6))
@@ -284,7 +326,7 @@ def test_parity_with_cvxpy(seed):
     w = solve_simplex_minnorm(G)
     assert_kkt_optimal(G, w)
     assert_no_worse_than_reference(B, A, w)
-    assert np.allclose(B @ w, B @ _reference(B, A), atol=1e-6)
+    assert np.allclose(B @ w, B @ _reference_or_skip(B, A), atol=1e-6)
 
 
 @pytest.mark.parametrize("seed", range(6))
@@ -375,7 +417,7 @@ def test_collinear_donors_nonunique_weights():
     G = simplex_gram(B, A)
     w = solve_simplex_minnorm(G)
     assert_kkt_optimal(G, w, tol=1e-5)
-    assert np.allclose(B @ w, B @ _reference(B, A), atol=1e-6)
+    assert np.allclose(B @ w, B @ _reference_or_skip(B, A), atol=1e-6)
 
 
 def test_identical_donors_leave_every_weight_optimal():
@@ -500,3 +542,56 @@ def test_rejects_non_finite_gram():
     G[1, 1] = np.nan
     with pytest.raises(ValueError, match="finite"):
         solve_simplex_minnorm(G)
+
+
+def test_the_least_norm_tie_break_does_not_claim_the_program_is_identified():
+    """Choosing a point of the face is not the same as the face collapsing.
+
+    One matching moment against six donors: every ``w`` on the simplex with
+    ``sum_j j w_j == 3`` fits exactly, so the minimiser is a face. The uniform
+    point gives 3.5 and is not on it, which is what gives this design power --
+    the plain active set starts from uniform weights, so a face centred there
+    is reached without pivoting and the two programs would agree for a reason
+    that has nothing to do with the tie-break.
+
+    The rule picks the least-norm point of that face and so depends on the data
+    alone; the plain solve picks whichever vertex its pivots reach. What the
+    rule must not do is report the program as identified. Uniqueness is a
+    property of the program, and the face is still a face --
+    ``simplex_optimum_is_unique`` answering True would say the data determines
+    the counterfactual when it does not, which is the reading SSC's Guanajuato
+    panel turns on.
+    """
+    B = np.arange(1.0, 7.0).reshape(1, 6)
+    A = np.array([3.0])
+    obj = lambda v: float(np.sum((A - B @ v) ** 2))
+
+    w = solve_simplex_qp_least_norm(B, A)
+    plain = solve_simplex_qp(B, A)
+
+    # Both are on the simplex and both are minimisers: this is one face.
+    for v in (w, plain):
+        assert v.min() >= -1e-12 and abs(v.sum() - 1.0) < 1e-9
+        assert obj(v) < 1e-18
+
+    # The rule binds -- it is a different point, and it is the shorter one.
+    assert np.abs(plain - w).max() > 1e-2
+    assert float(w @ w) < float(plain @ plain) - 1e-6
+
+    # And it is a rule: relabelling the donors does not move it, where it
+    # moves the plain solve by two orders of magnitude more.
+    rng = np.random.default_rng(7)
+    moved_rule = moved_plain = 0.0
+    for _ in range(20):
+        q = rng.permutation(B.shape[1])
+        wr = solve_simplex_qp_least_norm(B[:, q], A)
+        pr = solve_simplex_qp(B[:, q], A)
+        back_r = np.empty_like(wr); back_r[q] = wr
+        back_p = np.empty_like(pr); back_p[q] = pr
+        moved_rule = max(moved_rule, float(np.abs(back_r - w).max()))
+        moved_plain = max(moved_plain, float(np.abs(back_p - plain).max()))
+    assert moved_rule < 1e-9, moved_rule
+    assert moved_plain > 1e-2, moved_plain
+
+    # None of which makes the program identified.
+    assert not simplex_optimum_is_unique(B, A, w)
