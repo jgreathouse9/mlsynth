@@ -36,29 +36,61 @@ from tools.simplex_qp_audit import VERDICTS, _classify_objective, audit
 # penalised SCM is an L1 penalty, which is linear on the non-negative orthant,
 # and folding it into the target is not available when the donor block is wide.
 ELIGIBLE = {
-    ("bilevel/penalized.py", "w"): 1,   # _simplex_qp; penalized_weights migrated
+    ("bilevel/penalized.py", "w"): 1,
     ("bilevel/ridge_augment.py", "w"): 1,
     ("clustersc_helpers/pcr/convex.py", "w"): 1,
-    ("clustersc_helpers/spannability.py", "w"): 1,
     ("cscm_helpers/engine.py", "W"): 1,
-    ("drosc_helpers/estimation.py", "w"): 1,
-    ("dsc_helpers/weights.py", "w"): 1,
     ("dscar_helpers/weights.py", "w"): 1,
-    ("dtwsc_helpers/pipeline.py", "w"): 1,
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): 1,
     ("hsc_helpers/formulation.py", "omega"): 1,
-    ("inferutils.py", "w"): 1,
     ("masc_helpers/estimation.py", "w"): 1,
     ("mlsc_helpers/crossval.py", "omega"): 1,
     ("mlsc_helpers/crossval.py", "w"): 1,
     ("mlsc_helpers/optimization.py", "omega"): 1,
     ("mlsc_helpers/optimization.py", "w"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
-    ("scmo_helpers/estimation.py", "lam"): 1,
-    ("spotsynth_helpers/sc.py", "w"): 1,
     ("spsydid_helpers/weights.py", "lam"): 1,
     ("spsydid_helpers/weights.py", "omega"): 1,
     ("ssc_helpers/weights.py", "b"): 1,
+}
+
+# Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
+REMAINING = {
+    ("clustersc_helpers/pcr/convex.py", "w"),
+    ("cscm_helpers/engine.py", "W"),
+    ("dscar_helpers/weights.py", "w"),
+    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"),
+    ("hsc_helpers/formulation.py", "omega"),
+    ("spsydid_helpers/weights.py", "lam"),
+    ("spsydid_helpers/weights.py", "omega"),
+}
+
+# Eligible and staying on cvxpy, with the reason. Eligibility says the active
+# set solves the same program; it does not say the cvxpy call should go. Two
+# of these are the reference the native path is checked against, four are
+# escape hatches a caller reaches by naming a solver, and one has no caller.
+# Without this split, "eligible" reads as a to-do list of 15 when 8 of them
+# are finished, and the next reader re-derives which.
+KEPT_ON_CVXPY = {
+    ("bilevel/penalized.py", "w"):
+        "the Gram form, whose linear term carries the data fit; no caller",
+    ("bilevel/ridge_augment.py", "w"):
+        "the cvxpy reference the active-set path is checked against",
+    ("masc_helpers/estimation.py", "w"):
+        "reached only by naming a non-Clarabel solver; the default is native",
+    ("mlsc_helpers/crossval.py", "omega"):
+        "the cvxpy escape hatch's Parameter grid sweep",
+    ("mlsc_helpers/crossval.py", "w"):
+        "the escape hatch's lambda = 0 branch",
+    ("mlsc_helpers/optimization.py", "omega"):
+        "the cvxpy escape hatch",
+    ("mlsc_helpers/optimization.py", "w"):
+        "the warm start the escape hatch seeds its solver with",
+    ("orthsc_helpers/gmm_sce/solver.py", "w"):
+        "reached only by naming a non-Clarabel solver; the default is native",
+    ("ssc_helpers/weights.py", "b"):
+        "not identified on the authors' panel; the Path-A replication matches "
+        "the reference solver's choice among a continuum of exact fits",
 }
 
 # What a caller does to the data before the swap, for the sites that need
@@ -93,13 +125,24 @@ TRANSFORMS = {
 }
 
 MIGRATED = {
+    ("clustersc_helpers/spannability.py", "w"),
+    ("drosc_helpers/estimation.py", "w"),
+    ("dsc_helpers/weights.py", "w"),
+    ("dtwsc_helpers/pipeline.py", "w"),
+    ("inferutils.py", "w"),
     ("iscm_helpers/weights.py", "w"),
+    ("scmo_helpers/estimation.py", "lam"),
     ("scmo_helpers/solvers.py", "w"),
     ("spillsynth_helpers/cd/scm_core.py", "w"),
+    ("spotsynth_helpers/sc.py", "w"),
     ("tssc_helpers/estimation.py", "w"),
 }
 
-# ``bilevel/penalized.py`` is in both lists and that is the point. Its two
+# ``dsc_helpers/weights.py`` keys appear in MIGRATED and in INELIGIBLE, for
+# the same reason they used to appear in ELIGIBLE and INELIGIBLE: the module
+# has two weight options and only ``_refine_exact`` takes the simplex.
+#
+# ``bilevel/penalized.py`` is in both ELIGIBLE and MIGRATED and that is the point. Its two
 # programs are the same shape and only one of them was migrated:
 # ``penalized_weights`` takes the residual form and is on the active set, while
 # ``_simplex_qp`` takes the Gram form, whose linear term carries the data fit
@@ -245,12 +288,14 @@ def test_the_ineligible_sites_keep_their_reasons(sites):
 def test_a_redundant_upper_bound_does_not_disqualify(sites):
     """``w <= 1`` follows from ``w >= 0`` and ``sum(w) == 1``.
 
-    Both MASC and DSC write it explicitly. Reading it as an extra constraint
-    would exclude two sites that are the probability simplex.
+    MASC writes it explicitly. Reading it as an extra constraint would
+    exclude a site that is the probability simplex. DSC used to be the second
+    example here and is now on the active set.
     """
     by = {_key(s): s for s in sites}
-    for k in (("masc_helpers/estimation.py", "w"), ("dsc_helpers/weights.py", "w")):
-        assert by[k].verdict == "eligible"
+    s = by[("masc_helpers/estimation.py", "w")]
+    assert s.verdict == "eligible"
+    assert "<= 1" in s.constraints
 
 
 def test_non_negativity_is_read_from_the_variable_too(sites):
@@ -260,10 +305,31 @@ def test_non_negativity_is_read_from_the_variable_too(sites):
     and halves the count, which is the error this test exists to prevent.
     """
     by = {_key(s): s for s in sites}
-    # dtwsc declares nonneg on the Variable and lists only the sum constraint.
-    s = by[("dtwsc_helpers/pipeline.py", "w")]
+    # SpSyDiD declares nonneg on the Variable and lists only the sum
+    # constraint. DTWSC used to be this example and is now on the active set.
+    s = by[("spsydid_helpers/weights.py", "omega")]
     assert s.verdict == "eligible"
     assert ">= 0" not in s.constraints
+
+
+def test_every_eligible_site_is_either_work_or_a_decision(sites):
+    """"Eligible" is not a to-do list until the finished ones are named.
+
+    A site can solve the same program the active set solves and still keep its
+    cvxpy call: two of these are the reference that path is checked against,
+    four are escape hatches a caller reaches by naming a solver, and one has
+    no caller. Asserting the split here means a new eligible site is work
+    until someone writes down why it is not.
+    """
+    eligible = {_key(s) for s in sites if s.verdict == "eligible"}
+    assert set(KEPT_ON_CVXPY) <= eligible, (
+        "a site kept on cvxpy on purpose is no longer eligible: it changed "
+        "shape, or it was migrated and the reason should go with it."
+    )
+    assert eligible - set(KEPT_ON_CVXPY) == REMAINING, (
+        "an eligible site is neither listed as remaining work nor given a "
+        "reason for staying on cvxpy. Both are decisions; a count is not."
+    )
 
 
 def test_a_migrated_site_stays_migrated(sites):
@@ -274,8 +340,14 @@ def test_a_migrated_site_stays_migrated(sites):
     absence directly: if someone reintroduces a cvxpy simplex solve at one of
     these, it shows up here instead of restoring the fourth solver path
     this branch exists to remove.
+
+    Only the sites the audit reads as the probability simplex count. A key is
+    ``(file, variable)`` and a file can hold more than one solve under the
+    same variable name: DSC keeps ``solve_sum_to_one_weights`` on cvxpy, which
+    is a different feasible set and is pinned as such in INELIGIBLE.
     """
-    present = {_key(s) for s in sites}
+    simplex = ("eligible", "wrong-objective", "unreadable")
+    present = {_key(s) for s in sites if s.verdict in simplex}
     assert MIGRATED.isdisjoint(present), (
         f"these were migrated onto solve_simplex_qp and are cvxpy again: "
         f"{sorted(MIGRATED & present)}"
