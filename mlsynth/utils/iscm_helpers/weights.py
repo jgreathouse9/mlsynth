@@ -17,10 +17,10 @@ treatment-effect regression are built on top of them.
 
 from __future__ import annotations
 
-import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..bilevel.active_set import solve_simplex_qp
 
 
 def _one_unit_weights(donor_pre: np.ndarray, target_pre: np.ndarray) -> np.ndarray:
@@ -28,21 +28,13 @@ def _one_unit_weights(donor_pre: np.ndarray, target_pre: np.ndarray) -> np.ndarr
 
     ``donor_pre`` is ``(T0, N-1)``; ``target_pre`` is ``(T0,)``.
     """
-    n_donors = donor_pre.shape[1]
-    w = cp.Variable(n_donors, nonneg=True)
-    objective = cp.Minimize(cp.sum_squares(donor_pre @ w - target_pre))
-    problem = cp.Problem(objective, [cp.sum(w) == 1])
     try:
-        problem.solve(solver=cp.CLARABEL)
-    except cp.error.SolverError as exc:
+        w = solve_simplex_qp(donor_pre, target_pre)
+    except Exception as exc:
         raise MlsynthEstimationError(
             f"ISCM unit-weight solver failed: {exc}"
         ) from exc
-    if problem.status not in {"optimal", "optimal_inaccurate"}:
-        raise MlsynthEstimationError(
-            f"ISCM unit-weight QP did not converge (status={problem.status})."
-        )
-    return np.asarray(w.value, dtype=float)
+    return np.asarray(w, dtype=float)
 
 
 def all_units_weights(Y: np.ndarray, T0: int) -> np.ndarray:

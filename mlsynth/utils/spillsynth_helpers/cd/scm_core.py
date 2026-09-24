@@ -16,14 +16,14 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-import cvxpy as cp
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
+from ...bilevel.active_set import solve_simplex_qp
 
 
 def fit_demeaned_sc(
-    Y_block: np.ndarray, *, solver: Optional[str] = None,
+    Y_block: np.ndarray, *, solver: Optional[str] = None,  # noqa: ARG001
 ) -> Tuple[float, np.ndarray]:
     """Fit a single demeaned simplex SCM (eq. 2 of Cao-Dowd 2023).
 
@@ -55,23 +55,13 @@ def fit_demeaned_sc(
     y_d = y_t - y_t_mean                                     # (T,)
     X_d = (Y_u.T - Y_u_mean[None, :])                        # (T, N - 1)
 
-    w = cp.Variable(N - 1, nonneg=True)
-    problem = cp.Problem(
-        cp.Minimize(cp.sum_squares(y_d - X_d @ w)),
-        [cp.sum(w) == 1],
-    )
     try:
-        problem.solve(solver=solver or "CLARABEL")
-    except Exception as exc:                                # pragma: no cover
+        w_value = solve_simplex_qp(X_d, y_d)
+    except Exception as exc:
         raise MlsynthEstimationError(
             f"SPILLSYNTH/cd: simplex QP failed ({type(exc).__name__})."
         ) from exc
-    if w.value is None:
-        raise MlsynthEstimationError(
-            f"SPILLSYNTH/cd: simplex QP returned no solution "
-            f"(status={problem.status!r})."
-        )
-    b_hat = np.clip(np.asarray(w.value).flatten(), 0.0, None)
+    b_hat = np.clip(np.asarray(w_value).flatten(), 0.0, None)
     s = b_hat.sum()
     if s <= 0:                                              # pragma: no cover
         raise MlsynthEstimationError(
