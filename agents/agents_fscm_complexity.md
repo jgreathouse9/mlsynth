@@ -89,8 +89,29 @@ found the greedy order reordering from step 6 under a 1e-5 change in the solver
 and put it down to near-ties at depth. It is not near-ties. It is exact
 saturation, and the divergence begins precisely at the first tied step.
 
-Both panels choose a size well inside the determined region, so nothing
-reported depends on this. What depends on it is how `selection_path` reads.
+Both panels choose a size well inside the determined region, so neither
+estimate moves. What the tie reaches is how `selection_path` reads -- and, as
+below, the donor count itself.
+
+### The tie is in sample only
+
+"Nothing reported depends on this" holds for the in-sample score and fails for
+the number the estimator picks. `optimal_size` is the argmin of the rolling
+cross-validation curve, and that curve refits on windows shorter than the
+pre-period, where the added donor is not rejected. So it keeps moving across
+sizes the in-sample score cannot separate at all:
+
+| size | in-sample SSE | rolling CV |
+| ---: | ---: | ---: |
+| 6 | 52.129583433 | 2.816021810 |
+| 7 | 52.129583433 | 2.892861947 |
+| 8 | 52.129583433 | 2.894976120 |
+
+Running past saturation therefore lets evaluation order reach the chosen donor
+count through the CV curve. That makes the stop a correctness change and not
+the speed win this note first called it. #628 implements it; both panels still
+choose three and two, so the estimates are unchanged and the exposure was to
+the selection, not to these two results.
 
 ## Not measured
 
@@ -109,14 +130,16 @@ Three further reductions, none of which change the order:
   same. Stopping when the best score stops improving would remove them outright,
   and it is a larger saving than the pruning above. It changes what
   `selection_path` contains, which is a decision about the reported object and
-  not only about cost.
+  not only about cost -- and, per the correction above, about which donor count
+  is chosen.
 
 ## Recommendation
 
-Take the saturation stop first. It is the largest of the four, it is the
-simplest, and the measurement above says the steps it removes carry no
-information. It needs a decision about `selection_path`'s contract, which is why
-it is a recommendation and not a patch.
+Take the saturation stop first. It is the largest of the four and the
+simplest, and the steps it removes carry no in-sample information. Leaving them
+in is not free, though: the CV curve still separates them, so evaluation order
+reaches `optimal_size`. It needs a decision about `selection_path`'s contract,
+which is why it is a recommendation and not a patch.
 
 Take Gram reuse and the rank-one updates second. Both are mechanical, neither
 touches the answer, and they compose with everything else.
