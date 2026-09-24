@@ -9,6 +9,56 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `outer_restarts` and `outer_restart_seed` on `SparseSCConfig`: extra starting
+  points for the outer V-solve at each lambda, drawn log-normally around the
+  MATLAB initialiser, with `outer_restarts` defaulting to 4.
+
+  The outer V-objective is not convex, and its stationary points are cheap to
+  reach for a reason unrelated to fit. On a face of the donor simplex where only
+  a few donors are active, `w*(v)` has that many degrees of freedom minus one,
+  so the gradient says nothing about the donors that are out; where one donor is
+  active it is identically zero. A single start settles at whichever such point
+  it is nearest. On Vives-i-Bastida's own 40-predictor California specification
+  that is a two-donor point with a training loss of 77.42, against the 1.45 his
+  stored V attains, and an ATT of -29.0 where the paper reports -18.2. The
+  heuristic starts `1` and `0.1 * 1`, the warm start from the neighbouring
+  lambda, Nelder-Mead and basinhopping all return the same 77.42; four random
+  draws reach -18.6. Feeding the author's stored V through the same pipeline
+  reproduces -18.206, which is what localises the fault to the outer solve and
+  not to the data, the inner QP or the lambda selection.
+
+  On the Prop 99 benchmark the ATT moves from a value that varied across BLAS
+  kernels to -18.06 against the paper's -18.2. The sweep runs roughly
+  `1 + outer_restarts` times as long.
+
+  `outer_restarts=0` does *not* reproduce the previous behaviour exactly. The
+  restart feature rides on the fix that ranks candidate starts on the objective
+  recomputed at the returned point instead of on scipy's `res.fun`, and that
+  ranking runs at every restart count, zero included. Measured across 25 factor
+  panels with `outer_restarts=0`: 23 give a bit-identical V, 2 do not. On seed 7
+  the selected lambda moves from 1 to 0.398, on seed 19 from 1 to 0. Both are
+  cases where `res.fun` had ranked a worse point first.
+
+  Raising `outer_restarts` does not lower the outer objective at every grid
+  point, and no test claims it does. A better solution at one lambda becomes the
+  champion and the warm start for the next, so a strictly better solve upstream
+  can move a later one into a different basin -- measured at 1.75632 against
+  1.75548 on a four-point grid. The per-solve ordering does hold and is asserted.
+
+- `SparseSC` now populates `method_details.parameters_used`, which was never
+  filled: the outer loss window, the restart count and seed, `robust_selection`,
+  `warm_start` and the selected lambda. Which critical point a non-convex solve
+  reached is a property of the run a caller may need to act on.
+
+### Fixed
+- `mlsynth.utils.sparse_sc_helpers.optimization.default_v20` returned all-NaN
+  for a single-donor panel. With one donor `ddof=1` leaves the predictor
+  standard deviation undefined, and the guard folded only `sd == 0`, so the NaN
+  passed into the start point. Non-finite standard deviations now fold to 1
+  alongside zero.
+- The `optimization` module docstring labelled `outer_loss_window="validation"`
+  as the paper default when `SparseSCConfig` selects `"training"`.
+
 - `fgrc_n_random` and `fgrc_nstart` on `CLUSTERSCConfig`: the two restart counts
   for fGRC clustering (`cluster_method="fgrc"`), both defaulting to 40, which is
   what the port already used. They were not reachable from the config, so a user

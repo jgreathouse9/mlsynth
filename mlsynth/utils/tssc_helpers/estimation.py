@@ -19,17 +19,25 @@ normalized statistic's subsampling distribution.
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Tuple
 
-import cvxpy as cp
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..resultutils import effects
+from ..weights import WeightConstraint, WeightSolution, solve_weights
 from .structures import MSCA, MSCB, MSCC, SC, TSSCInputs, TSSCVariantFit
 
-# Map the paper's method names to the solver's model-type strings.
-_SCOPT_MODEL = {SC: "SIMPLEX", MSCA: "MSCa", MSCB: "MSCb", MSCC: "MSCc"}
+# Li and Shankar (2023) define the four variants by their constraint set and
+# nothing else, so each variant is one WeightConstraint and the choice among
+# them is the whole method.
+_CONSTRAINT = {
+    SC:   WeightConstraint(),                                      # w >= 0, sum w = 1
+    MSCA: WeightConstraint(intercept=True),                        # + free intercept
+    MSCB: WeightConstraint(sum_to_one=False),                      # w >= 0 only
+    MSCC: WeightConstraint(sum_to_one=False, intercept=True),      # + free intercept
+}
 # Which variants carry a free intercept (beta_1).
 _HAS_INTERCEPT = {SC: False, MSCA: True, MSCB: False, MSCC: True}
 # scpi weight-constraint family per variant. SC / MSCa map exactly (simplex, with
@@ -42,51 +50,50 @@ _SCPI_CONSTRAINT = {SC: "simplex", MSCA: "simplex", MSCB: "ols", MSCC: "ols"}
 _ATT_CI_SUBSAMPLE_ADJUSTMENT = 5
 
 
+def _solve_certified(
+    method: str, donor_pre: np.ndarray, y_pre: np.ndarray, n_pre: int, n_donors: int
+) -> Optional[WeightSolution]:
+    """Solve one SC-class variant, with its optimality certificate.
+
+    The four variants differ only in which polyhedron the weights are drawn
+    from, so the solve is :func:`~mlsynth.utils.weights.solve_weights` under
+    the variant's :class:`WeightConstraint`. Each polyhedron here has non-empty
+    relative interior, so the returned KKT residual settles optimality outright
+    (Boyd and Vandenberghe 2004, section 5.5.3).
+
+    The intercept of MSCa and MSCc is a field on the constraint set, not a
+    donor column carrying hand-written slices. It is free in sign and profiled
+    out by centring, which is what it means for the treated unit to be allowed
+    to sit below its donors.
+
+    Returns ``None`` when the panel cannot be solved at all, which is the
+    contract the subsampling loop and Step-1 selection branch on to skip a bad
+    refit instead of losing the whole interval.
+    """
+    try:
+        return solve_weights(
+            np.asarray(donor_pre, dtype=float)[:n_pre],
+            np.asarray(y_pre, dtype=float)[:n_pre],
+            _CONSTRAINT[method],
+        )
+    except (MlsynthEstimationError, MlsynthConfigError):
+        return None
+
+
 def _solve(
     method: str, donor_pre: np.ndarray, y_pre: np.ndarray, n_pre: int, n_donors: int
 ) -> Optional[np.ndarray]:
-    """Solve one SC-class variant; return its coefficient vector or ``None``.
+    """One variant's coefficient vector, intercept first, or ``None``.
 
-    Standalone constrained least-squares (cvxpy/CLARABEL) for the four
-    SC-class variants -- no dependency on the legacy ``estutils.Opt``:
-
-    * ``SC`` (SIMPLEX): ``min ||y - Xw||_2`` s.t. ``w >= 0``, ``sum(w) == 1``;
-    * ``MSCa``: free intercept + donor weights ``>= 0`` summing to 1;
-    * ``MSCb``: donor weights ``>= 0`` (no intercept, no sum constraint);
-    * ``MSCc``: free intercept + donor weights ``>= 0`` (no sum constraint).
-
-    For the intercept variants (MSCa/MSCc) the returned vector has the
-    intercept as its first element, matching ``_features``.
+    The flat layout matches :func:`_features`: length ``n_donors + 1`` with the
+    intercept leading for MSCa and MSCc, length ``n_donors`` otherwise.
     """
-    model = _SCOPT_MODEL[method]
-    X = np.asarray(donor_pre, dtype=float)[:n_pre]
-    y = np.asarray(y_pre, dtype=float)[:n_pre]
-    if model in ("MSCa", "MSCc"):
-        X = np.c_[np.ones((X.shape[0], 1)), X]   # prepend intercept column
-        dim = n_donors + 1
-    else:
-        dim = n_donors
-
-    w = cp.Variable(dim)
-    objective = cp.Minimize(cp.norm(y - X @ w, 2))
-    # The intercept variants (MSCa/MSCc) carry a FREE intercept -- its sign is
-    # unconstrained (Ferman & Pinto's "demeaning"). Non-negativity applies to the
-    # donor weights only, i.e. w[1:]; constraining w[0] >= 0 would wrongly clamp a
-    # negative intercept to zero whenever the treated unit sits below its donors.
-    if model == "SIMPLEX":
-        constraints = [w >= 0, cp.sum(w) == 1]
-    elif model == "MSCa":
-        constraints = [w[1:] >= 0, cp.sum(w[1:]) == 1]   # donors: simplex; intercept free
-    elif model == "MSCc":
-        constraints = [w[1:] >= 0]                       # donors >= 0; intercept free
-    else:  # MSCb -- no intercept column, bare non-negativity
-        constraints = [w >= 0]
-
-    problem = cp.Problem(objective, constraints)
-    problem.solve(solver=cp.CLARABEL)
-    if w.value is None or problem.status not in ("optimal", "optimal_inaccurate"):
+    solution = _solve_certified(method, donor_pre, y_pre, n_pre, n_donors)
+    if solution is None:
         return None
-    return np.asarray(w.value, dtype=float).ravel()
+    if _HAS_INTERCEPT[method]:
+        return np.r_[solution.intercept, solution.weights]
+    return np.array(solution.weights, dtype=float)
 
 
 def fit_mscc_beta(
@@ -98,6 +105,42 @@ def fit_mscc_beta(
     workhorse re-fit inside the subsampling loop.
     """
     return _solve(MSCC, donor_pre, y_pre, n_pre, n_donors)
+
+
+def warn_if_the_att_is_not_identified(
+    method: str, solution: WeightSolution, donor_post: np.ndarray
+) -> Optional[bool]:
+    """Whether every minimiser of this variant agrees on the counterfactual.
+
+    The coefficients are fitted on the pre-treatment periods, so
+    ``solution.unique`` rules on those. The ATT is built from the periods after
+    treatment, and a continuum in the coefficients reaches it only where the
+    post-treatment donors fail to annihilate the directions the coefficients
+    are free to move along. Duplicated donors are the case where they do not:
+    weight trades between the twins and no reported quantity moves. Donors
+    collinear before treatment and separating after are the case where they do,
+    and there the reported ATT is whichever one the solver happened to return.
+
+    Returns ``None`` when there are no post-treatment periods to rule on, and
+    warns when the answer is no.
+    """
+    if donor_post.shape[0] == 0:
+        return None
+    identified = solution.identifies(donor_post)
+    if not identified:
+        warnings.warn(
+            f"TSSC {method}: the ATT is not identified. The donors admit "
+            f"{solution.free_directions.shape[1]} direction(s) that leave the "
+            f"pre-treatment fit unchanged and move the post-treatment "
+            f"counterfactual, so a different minimiser of the same program "
+            f"would give a different ATT with the same pre-treatment RMSE. "
+            f"This happens when donors are collinear over the pre-period and "
+            f"separate afterwards. Drop a redundant donor, shorten the donor "
+            f"pool, or add a ridge penalty to pin the coefficients.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return identified
 
 
 def _features(method: str, donor_matrix: np.ndarray) -> np.ndarray:
@@ -232,21 +275,25 @@ def fit_variant(
     donor_pre = inputs.donor_matrix[:T0]
     y_pre = inputs.y[:T0]
 
-    weights = _solve(method, donor_pre, y_pre, T0, n)
-    if weights is None:
+    solution = _solve_certified(method, donor_pre, y_pre, T0, n)
+    if solution is None:
         raise MlsynthEstimationError(
             f"TSSC: optimization failed for variant {method!r}."
         )
 
     has_intercept = _HAS_INTERCEPT[method]
+    donor_coefs = np.array(solution.weights, dtype=float)
     if has_intercept:
-        intercept = float(weights[0])
-        donor_coefs = weights[1:]
+        intercept = float(solution.intercept)
+        weights = np.r_[intercept, donor_coefs]
     else:
         intercept = None
-        donor_coefs = weights
+        weights = donor_coefs
 
     counterfactual = _features(method, inputs.donor_matrix) @ weights
+    att_identified = warn_if_the_att_is_not_identified(
+        method, solution, inputs.donor_matrix[T0:]
+    )
 
     att_results, fit_diag, _ = effects.calculate(
         observed_outcome_series=inputs.y,
@@ -292,4 +339,8 @@ def fit_variant(
         rmse_post=float(fit_diag["T1 RMSE"]),
         r2_pre=float(fit_diag["R-Squared"]),
         scpi=scpi_band,
+        weights_unique=solution.unique,
+        att_identified=att_identified,
+        kkt_residual=solution.kkt_residual,
+        solver=solution.solver,
     )
