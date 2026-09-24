@@ -14,13 +14,14 @@ solver a table lookup, so a call site names the econometrics and nothing else.
 The design and its sources are in ``agents/agents_solver.md``.
 """
 from .solution import WeightSolution
-from .solve import KKT_TOL, SUPPORT_TOL, kkt_residual, solve_weights
+from .solve import KKT_TOL, SUPPORT_TOL, WEAK_ACTIVE_TOL, kkt_residual, solve_weights
 from .spec import QUADRATIC_DIVERGENCE, WeightConstraint, WeightObjective
 
 __all__ = [
     "KKT_TOL",
     "QUADRATIC_DIVERGENCE",
     "SUPPORT_TOL",
+    "WEAK_ACTIVE_TOL",
     "WeightConstraint",
     "WeightObjective",
     "WeightSolution",

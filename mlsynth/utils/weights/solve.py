@@ -36,6 +36,9 @@ from .spec import WeightConstraint, WeightObjective
 KKT_TOL: float = 1e-7
 #: Weight below which a donor is off the support.
 SUPPORT_TOL: float = 1e-9
+#: Relative size below which a reduced gradient at a bound counts as zero,
+#: making that coordinate free to enter the support at no cost.
+WEAK_ACTIVE_TOL: float = 1e-9
 
 ConstraintShape = Tuple[bool, bool, bool]
 Backend = Callable[[np.ndarray, np.ndarray, WeightConstraint, Optional[np.ndarray]], Tuple[np.ndarray, str]]
@@ -101,6 +104,45 @@ _BACKENDS: Dict[ConstraintShape, Backend] = {
 # ---------------------------------------------------------------------------
 # The certificate
 # ---------------------------------------------------------------------------
+
+def _reduced_gradient(B, resid, w, constraint, objective, *, tol=1e-8):
+    """Gradient with the equality multiplier removed, and its curvature scale.
+
+    Shared by the optimality certificate and the uniqueness verdict, which ask
+    two questions of the same quantity: whether it vanishes where it must, and
+    which coordinates it leaves free to move.
+    """
+    n = w.size
+    grad = -2.0 * (B.T @ resid)
+    if objective.ridge > 0.0:
+        grad = grad + 2.0 * objective.ridge * (w - objective.target(n))
+
+    core = B
+    if constraint.sum_to_one:
+        core = core - core.mean(axis=1, keepdims=True)
+    if constraint.intercept:
+        core = core - core.mean(axis=0, keepdims=True)
+    scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))
+    scale = max(scale + 2.0 * objective.ridge, 1e-300)
+
+    at_lower = w <= tol if constraint.nonneg else np.zeros(n, dtype=bool)
+    at_upper = (
+        w >= constraint.upper - tol
+        if constraint.upper is not None
+        else np.zeros(n, dtype=bool)
+    )
+    interior = ~(at_lower | at_upper)
+
+    # The equality multiplier is free; take the value the interior coordinates
+    # agree on, which is exactly where stationarity must hold with equality.
+    if constraint.sum_to_one:
+        pool = grad[interior] if interior.any() else grad
+        nu = -float(np.mean(pool))
+    else:
+        nu = 0.0
+    return grad + nu, scale, at_lower, at_upper, interior
+
+
 def kkt_residual(
     B: np.ndarray,
     A: np.ndarray,
@@ -140,33 +182,9 @@ def kkt_residual(
     n = w.size
 
     resid = A - B @ w - intercept
-    grad = -2.0 * (B.T @ resid)
-    if objective.ridge > 0.0:
-        grad = grad + 2.0 * objective.ridge * (w - objective.target(n))
-    core = B
-    if constraint.sum_to_one:
-        core = core - core.mean(axis=1, keepdims=True)
-    if constraint.intercept:
-        core = core - core.mean(axis=0, keepdims=True)
-    scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))
-    scale = max(scale + 2.0 * objective.ridge, 1e-300)
-
-    at_lower = np.zeros(n, dtype=bool) if not constraint.nonneg else w <= tol
-    at_upper = (
-        np.zeros(n, dtype=bool)
-        if constraint.upper is None
-        else w >= constraint.upper - tol
+    reduced, scale, at_lower, at_upper, interior = _reduced_gradient(
+        B, resid, w, constraint, objective, tol=tol
     )
-    interior = ~(at_lower | at_upper)
-
-    # The equality multiplier is free; take the value the interior coordinates
-    # agree on, which is exactly where stationarity must hold with equality.
-    if constraint.sum_to_one:
-        pool = grad[interior] if interior.any() else grad
-        nu = -float(np.mean(pool))
-    else:
-        nu = 0.0
-    reduced = grad + nu
 
     viol = [
         float(np.abs(reduced[interior]).max(initial=0.0)),
@@ -186,7 +204,7 @@ def kkt_residual(
     return max(stationarity, max(primal))
 
 
-def _is_unique(B, w, constraint, objective) -> bool:
+def _is_unique(B, A, w, intercept, constraint, objective) -> bool:
     """Whether the minimiser is the only one.
 
     On the face the solution sits on, another optimum exists exactly when some
@@ -195,33 +213,50 @@ def _is_unique(B, w, constraint, objective) -> bool:
     makes that set the matrix's null space, so uniqueness is a rank test. A
     positive ridge makes the objective strictly convex and settles it outright.
 
+    Which columns count as free is the whole difficulty. An exact method returns
+    a *vertex* of the optimal face, so a coordinate can sit at its bound not
+    because the optimum rejects it but because the backend had to stop
+    somewhere. Two duplicated donors are the plain case: the active set puts the
+    whole weight on one and leaves the other at zero, yet weight can be moved
+    between them at no cost. The coordinates that belong to the face are those
+    at a bound whose *reduced gradient vanishes* -- they can enter the support
+    free of charge -- so the test keys on that and not on the weight being zero.
+    Otherwise the verdict would record which optimum a backend happened to land
+    on.
+
     ``rank(B) < J`` is necessary for a continuum but not sufficient: the
     constraint can cut out precisely the flat directions. Proposition 99 has 38
     donors over 19 pre-periods, a rank-19 design, and a unique simplex optimum.
+
+    The test is exact when nothing is weakly active, and conservative
+    otherwise: a null direction on the face can be infeasible in both signs,
+    which reads here as a continuum when it is not one. For a diagnostic whose
+    job is to warn that weights carry no interpretation, that is the safe
+    direction to err in.
     """
     if objective.ridge > 0.0:
         return True
-    free = np.ones(w.size, dtype=bool)
-    if constraint.nonneg:
-        free &= w > SUPPORT_TOL
-    if constraint.upper is not None:
-        free &= w < constraint.upper - SUPPORT_TOL
+
+    reduced, scale, at_lower, at_upper, interior = _reduced_gradient(
+        B, A - B @ w - intercept, w, constraint, objective
+    )
+    weakly_active = (at_lower | at_upper) & (np.abs(reduced) <= WEAK_ACTIVE_TOL * scale)
+    free = interior | weakly_active
     k = int(free.sum())
     if k == 0:
         return True
 
-    blocks = [B[:, free]]
+    M = B[:, free]
     if constraint.intercept:
-        blocks[0] = np.column_stack([blocks[0], np.ones(B.shape[0])])
-    M = blocks[0]
+        M = np.column_stack([M, np.ones(B.shape[0])])
     if constraint.sum_to_one:
         row = np.zeros(M.shape[1])
         row[:k] = 1.0
         M = np.vstack([M, row])
-    scale = float(np.abs(M).max(initial=0.0))
-    if scale == 0.0:
+    norm = float(np.abs(M).max(initial=0.0))
+    if norm == 0.0:
         return False
-    return int(np.linalg.matrix_rank(M / scale)) == M.shape[1]
+    return int(np.linalg.matrix_rank(M / norm)) == M.shape[1]
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +350,7 @@ def solve_weights(
         intercept=a,
         objective=value,
         kkt_residual=residual,
-        unique=_is_unique(B, w, constraint, objective),
+        unique=_is_unique(B, A, w, a, constraint, objective),
         solver=f"{constraint.describe()}:{method}",
         status="optimal" if residual < KKT_TOL else "inaccurate",
         n_donors=n,

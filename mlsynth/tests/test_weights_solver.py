@@ -188,11 +188,35 @@ def test_full_rank_donors_give_a_unique_minimiser(panel):
 
 
 def test_a_duplicated_donor_is_reported_as_not_unique(panel):
+    """An exact method returns a *vertex* of the optimal face, so it typically
+    puts the whole weight on one twin and leaves the other at zero. The verdict
+    must not depend on which of the two the backend happened to pick."""
     B, A = panel
-    Bd = np.column_stack([B, B[:, 0]])
+    lead = int(np.argmax(solve_weights(B, A).weights))
+    Bd = np.column_stack([B, B[:, lead]])
     sol = solve_weights(Bd, A)
-    if (sol.weights[[0, -1]] > 1e-8).all():
-        assert sol.unique is False
+    assert sol.weights[-1] == 0.0                     # the copy is off the support
+    assert sol.unique is False                        # and it is still a continuum
+
+
+def test_moving_weight_between_duplicated_donors_leaves_the_objective_alone(panel):
+    """What `unique is False` is claiming, measured directly."""
+    B, A = panel
+    lead = int(np.argmax(solve_weights(B, A).weights))
+    Bd = np.column_stack([B, B[:, lead]])
+    w = np.array(solve_weights(Bd, A).weights)
+    moved = w.copy(); moved[lead] -= 0.2; moved[-1] += 0.2
+    ssr = lambda v: float(np.sum((A - Bd @ v) ** 2))
+    assert ssr(moved) == pytest.approx(ssr(w), rel=1e-12)
+
+
+def test_a_donor_the_optimum_strictly_rejects_does_not_make_it_a_continuum(panel):
+    """The test keys on a *zero* reduced gradient at the bound, not on the
+    weight being zero. A donor that is off the support because admitting it
+    would cost objective leaves the minimiser unique."""
+    B, A = panel
+    sol = solve_weights(B, A)
+    assert sol.weights.min() == 0.0 and sol.unique is True
 
 
 def test_more_donors_than_periods_need_not_be_non_unique():
@@ -445,3 +469,14 @@ def test_basque_solves_identically_at_a_million_times_scale(basque):
     big = solve_weights(D[:T0] * 1e6, y[:T0] * 1e6)
     assert big.status == "optimal"
     assert big.weights == pytest.approx(base.weights, abs=1e-9)
+
+
+def test_the_origin_is_a_unique_cone_optimum_when_every_donor_is_rejected(panel):
+    """A target pointing away from every donor puts the cone's minimiser at the
+    origin, with no coordinate free to move and the reduced gradient strictly
+    positive everywhere. Nothing can shift, so it is unique."""
+    B, _ = panel
+    sol = solve_weights(B, -B.sum(axis=1), WeightConstraint(sum_to_one=False))
+    assert np.all(sol.weights == 0.0)
+    assert sol.support.size == 0
+    assert sol.unique is True
