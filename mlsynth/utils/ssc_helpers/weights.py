@@ -46,6 +46,24 @@ def sc_weights_one(y: np.ndarray, X: np.ndarray) -> Tuple[float, np.ndarray]:
     # six times the Path-A tolerance. Matching the published numbers means
     # reproducing the reference solver's choice among a continuum, so the
     # solver stays as it is until the identification question is settled.
+    #
+    # A least-norm tie-break is the obvious alternative and was measured. It
+    # does better than the plain active set and still does not replicate:
+    # reporting the minimiser of least Euclidean norm moves the worst cell of
+    # the cartel-count outcome (co_num) from 1.01e-03 to 9.07e-03 against the
+    # committed reference, where `benchmarks/cases/ssc_guanajuato.py` pins
+    # att_max_abs_diff at 0.001 +/- 0.0015. Two traps sit around that number.
+    # The rate outcomes barely move (1.87e-04 to 2.08e-04), so a check reading
+    # only those reports agreement; and `war`, which is a cartel outcome, moves
+    # only 8.1e-05 to 8.3e-05, so quoting one cartel series in place of the
+    # worst one reports agreement too. co_num is the cell that decides it.
+    #
+    # The rule also fails to deliver what it promises here. This block is 33
+    # units by 15 clean periods at demeaned rank 7, with two sets of exactly
+    # coincident demeaned paths (four units and five, the latter constant
+    # before treatment), so the face is approached only to the conditioning of
+    # that block. Relabelling the donors still moves a weight by 0.03 under
+    # least norm, against 0.48 under the plain active set.
     import cvxpy as cp
 
     yd = y - y.mean()
