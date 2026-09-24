@@ -142,6 +142,19 @@ def solve_simplex_qp(
         raise ValueError(f"len(A)={A.shape[0]} must equal B's row count {m}.")
     if J == 0:
         raise ValueError("B has no columns: at least one donor is required.")
+    if linear is not None:
+        # Validated here, with B and A, and not beside the pricing shift it
+        # feeds: a single donor is forced to weight 1 whatever the linear term
+        # says, so a check further down would let a malformed one through on
+        # exactly the input where it changes no number.
+        linear = np.asarray(linear, dtype=float).ravel()
+        if linear.shape != (J,):
+            raise ValueError(
+                f"linear must have one coefficient per donor: expected ({J},), "
+                f"got {linear.shape}."
+            )
+        if not np.all(np.isfinite(linear)):
+            raise ValueError("linear must be finite.")
 
     def _finish(w, pivots, converged):
         w = np.maximum(np.asarray(w, dtype=float), 0.0)
@@ -160,16 +173,6 @@ def solve_simplex_qp(
     G = B.T @ B                                   # (J, J) Gram
     c = B.T @ A
     if linear is not None:
-        linear = np.asarray(linear, dtype=float).ravel()
-        if linear.shape != (J,):
-            raise ValueError(
-                f"linear must have one coefficient per donor: expected ({J},), "
-                f"got {linear.shape}."
-            )
-        if not np.all(np.isfinite(linear)):
-            raise ValueError("linear must be finite.")
-        # The gradient of ||A - Bw||^2 + l'w is 2(Gw - c) + l, so the whole of
-        # the pricing side is this shift.
         c = c - 0.5 * linear
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;

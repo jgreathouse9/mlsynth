@@ -217,3 +217,23 @@ def test_a_non_finite_linear_term_raises_in_the_solver(wide):
     bad = d2.copy(); bad[0] = np.inf
     with pytest.raises(ValueError, match="finite"):
         solve_simplex_qp(B, A, linear=bad)
+
+
+# --------------------------------------------------------------------------
+# Validation runs before any shortcut. A single donor is forced to weight 1
+# whatever the linear term says, so a malformed one changes no number -- and
+# is still refused, because accepting it silently is the leniency this library
+# declines on purpose.
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("bad", [np.zeros(5), np.array([np.nan]), np.array([np.inf])])
+def test_a_malformed_linear_term_is_refused_even_for_a_single_donor(bad):
+    B = np.array([[1.0], [2.0], [3.0]])
+    A = np.array([1.0, 2.0, 3.5])
+    with pytest.raises(ValueError, match="linear"):
+        solve_simplex_qp(B, A, linear=bad)
+
+
+def test_a_well_formed_linear_term_still_forces_the_lone_donor():
+    B = np.array([[1.0], [2.0], [3.0]])
+    A = np.array([1.0, 2.0, 3.5])
+    assert solve_simplex_qp(B, A, linear=np.array([7.0])) == pytest.approx([1.0])
