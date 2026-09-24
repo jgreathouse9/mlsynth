@@ -177,6 +177,27 @@ support. On both canonical panels the set at the chosen size is the exhaustive
 optimum, so nothing reported here depends on the distinction; whether it can
 invert a size choice on some other panel is open, and tracked.
 
+*The scan stops where the in-sample score stops improving.* Past that point
+every remaining candidate scores identically -- 32 of 38 on Proposition 99, to
+the last digit -- and each gives a unique optimum that puts exactly zero on the
+donor it adds. They are one model under many labels, and which one the scan
+takes is decided by the order candidates happen to be evaluated in. The
+out-of-sample score does not follow, because the rolling windows are shorter
+than the full pre-period and the donor is not rejected on them: on Proposition
+99 the validation score moves from 2.816 to 2.893 to 2.895 over sizes 6 to 8
+while the in-sample sum of squares is pinned. Since :math:`k^\ast` is the argmin
+of that curve, continuing past saturation would let the tie-break choose the
+donor count. The scan therefore stops, ``selection_path.saturated_at`` records
+where, and a :math:`k^\ast` at the boundary raises a warning. Proposition 99
+saturates after six donors and Basque after three, both well past the size each
+selects.
+
+Where the scan saturates also measures how well the inner problems are solved.
+An approximate solver stops short of each optimum, and as the fit improves that
+shortfall shrinks, so steps that buy nothing register as gains: the
+projected-gradient routine used previously saturates after eight donors on
+Proposition 99 where the exact solver saturates after six.
+
 When ``forward_selection=False`` the selection and cross-validation are skipped:
 the estimator returns the single full bilevel solve over all donors (the
 global SCM optimum), reporting the weight-bearing donors. This is faster and is

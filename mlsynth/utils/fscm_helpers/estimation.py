@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
 
+import warnings
+
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
@@ -236,6 +238,7 @@ def _forward_select(
     order: List[Any] = []
     train_rmspe: List[float] = []
     test_rmspe: List[float] = []
+    saturated_at: Optional[int] = None
 
     Xp = yp = warm = None
     if Pt is None:
@@ -257,6 +260,18 @@ def _forward_select(
                 score = _outcome_rmspe(inputs, cand, w, full_pre)
                 if score < best_score:
                     best_j, best_score, best_idx_list = j, score, cand
+        # Stop before recording a step that buys nothing in sample. Every
+        # remaining candidate then scores identically and puts zero on the donor
+        # it adds, so they are one model under many labels and the pick among
+        # them is evaluation order. The out-of-sample score does not follow: the
+        # rolling CV refits on shorter windows where the donor is not rejected,
+        # so it keeps moving. That is the reason to stop and not to continue --
+        # those numbers vary with the tie-break and not with the panel, and
+        # optimal_size is their argmin.
+        if train_rmspe and train_rmspe[-1] - best_score <= 1e-12:
+            saturated_at = len(train_rmspe)
+            break
+
         selected.append(best_j)
         remaining.remove(best_j)
         order.append(inputs.donor_labels[best_j])
@@ -267,12 +282,24 @@ def _forward_select(
 
     test_arr = np.asarray(test_rmspe)
     optimal_size = int(np.argmin(test_arr)) + 1
+    if saturated_at is not None and optimal_size >= saturated_at:
+        warnings.warn(
+            f"FSCM: the donor count was chosen at the point the scan saturated "
+            f"(size {optimal_size} of {saturated_at} kept). The in-sample score "
+            f"stops improving there, so the donors after it were picked from a "
+            f"set that scores identically and the cross-validation numbers at "
+            f"this size depend on which of them was reached first. Treat the "
+            f"count as a lower bound and check the selection path.",
+            UserWarning,
+            stacklevel=3,
+        )
     path = FSCMSelectionPath(
-        sizes=np.arange(1, cap + 1),
+        sizes=np.arange(1, len(train_rmspe) + 1),
         order=order,
         train_rmspe=np.asarray(train_rmspe),
         test_rmspe=test_arr,
         optimal_size=optimal_size,
+        saturated_at=saturated_at,
     )
     return selected[:optimal_size], path
 

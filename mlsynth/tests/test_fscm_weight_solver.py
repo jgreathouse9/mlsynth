@@ -254,17 +254,30 @@ def test_the_chosen_size_and_set_survive_the_migration(monkeypatch):
            [str(s) for s in new.selection_path.order][:3]
 
 
-def test_the_greedy_order_diverges_only_past_the_chosen_size(monkeypatch):
-    """The claim this narrows: selection is not wholly unaffected. The order
-    agrees through step 6 of 38 and parts there, with `optimal_size` at 3."""
+def test_an_inexact_solver_saturates_later_because_its_error_looks_like_gain(monkeypatch):
+    """The scan stops when a step buys nothing, so where it stops measures how
+    well the inner problems are solved.
+
+    On Proposition 99 the exact solver saturates after six donors. The
+    projected-gradient routine saturates after eight: it stops short of each
+    optimum by around 1e-5, and that shortfall shrinks as the fit improves, so
+    two steps that buy nothing register as gains. Both agree on the six steps
+    the exact solver retains, and both choose three donors, so the estimate does
+    not move -- what moves is how much of the path is presented as determined.
+    """
+    import warnings as _w
     old = _fit_with_fista("prop99", monkeypatch)
     monkeypatch.undo()
-    new = _fit("prop99")
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        new = _fit("prop99")
+
+    assert new.selection_path.saturated_at == 6
+    assert old.selection_path.saturated_at == 8
     oo = [str(s) for s in old.selection_path.order]
     on = [str(s) for s in new.selection_path.order]
-    assert oo != on
-    split = next(i for i, (a, b) in enumerate(zip(oo, on)) if a != b)
-    assert split > new.selection_path.optimal_size
+    assert oo[:len(on)] == on
+    assert old.selection_path.optimal_size == new.selection_path.optimal_size == 3
 
 
 def test_the_att_change_is_entirely_the_weight_change(prop99):
