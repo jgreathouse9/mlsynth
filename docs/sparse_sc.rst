@@ -236,6 +236,55 @@ Each evaluation of the outer objective invokes the inner QP, so the
 outer problem is a smooth bound-constrained NLP solved with
 L-BFGS-B (``scipy.optimize``).
 
+Where the outer solve starts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The outer problem is not convex, and its stationary points are easy to
+reach for a reason that has nothing to do with fit. On a face of the
+donor simplex where only :math:`|\mathcal{A}|` donors are active,
+:math:`\mathbf{w}^\ast(\mathbf{v})` has :math:`|\mathcal{A}| - 1`
+degrees of freedom, so the gradient carries no information about the
+donors that are out; at :math:`|\mathcal{A}| = 1` it is identically
+zero. Such points are plentiful, and a single start from the MATLAB
+initialiser :math:`v_{2,k} = (s_1 / s_k)^2` settles at whichever one it
+is nearest.
+
+On Vives's own 40-predictor California specification that is a
+two-donor point with a training loss of 77.42, where the author's
+stored :math:`\mathbf{v}` attains 1.45, and it returns an ATT of
+:math:`-29.0` against the paper's :math:`-18.2`. The deterministic
+alternatives do not escape it: the heuristic starts :math:`\mathbf{1}`
+and :math:`0.1 \cdot \mathbf{1}`, the warm start from the neighbouring
+:math:`\lambda`, Nelder-Mead and basinhopping all return the same
+77.42.
+
+``outer_restarts`` (default 4) draws that many additional starts per
+:math:`\lambda`, log-normally around the initialiser with a spread of 2
+in log units, and keeps whichever lands lowest. Four of them recover
+:math:`-18.6`. ``outer_restart_seed`` fixes the draws; it is separate
+from ``seed`` so that re-seeding the placebo inference cannot move the
+point estimate. Set ``outer_restarts=0`` for the single cold start,
+which is faster.
+
+That setting recovers the pre-0.3 *search*, not always the pre-0.3
+*answer*. Candidate starts are now ranked on the objective recomputed at
+each returned point instead of on ``scipy``'s ``res.fun``, which can
+belong to a different iterate, and that ranking applies at every restart
+count. Across 25 factor panels at ``outer_restarts=0``, 23 reproduce the
+earlier V exactly and 2 do not, in both cases because the earlier
+ranking had preferred a worse point.
+
+The restarts cost one extra outer solve each per grid point, so the
+sweep runs roughly :math:`1 + \texttt{outer\_restarts}` times as long.
+
+One caveat on reading the :math:`\lambda` path: raising
+``outer_restarts`` does not lower the outer objective at every grid
+point. A better solution at :math:`\lambda_i` becomes the champion and
+the warm start for :math:`\lambda_{i+1}`, so a strictly better solve
+upstream can move a later one into a different basin. The guarantee is
+per solve, and the sweep still minimises validation MSE over the whole
+grid.
+
 Gradient computation
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -270,13 +319,24 @@ modes are available, controlled by ``use_analytical_grad``:
      =
      \begin{pmatrix} \mathbf{Z}_0[:, \mathcal{A}]^\top \mathbf{r}_{\text{outer}} \\ 0 \end{pmatrix}.
 
-  The analytical gradient is exact (verified against central FD to
-  ~1e-7 at random interior points). It yields a ~5–10× speedup on
-  the outer sweep, but the cleaner gradient lets L-BFGS-B settle at
-  the first critical point near the cold init on the non-convex L1-
-  penalized V-objective. The FD path's implicit gradient noise tends
-  to find better local optima at non-zero lambda, so the default
-  is FD for correctness. Opt in to the analytical path when
+  The analytical gradient is exact. Measured against central
+  differences at :math:`\lambda \in \{0, 10^{-4}, 10^{-2}, 0.1, 1\}`,
+  at the cold init and at a random interior point, the cosine between
+  the two gradients is 1.0000 everywhere and their norms agree to the
+  same precision. It yields a ~5–10× speedup on the outer sweep.
+
+  The two paths still land in different places at
+  :math:`\lambda \ge 0.1` — 18.86 against 78.87 at
+  :math:`\lambda = 0.1` on the k=40 specification. The cause is not a
+  difference between the gradients, which agree exactly. The outer
+  objective is piecewise smooth: :math:`\mathbf{w}^\ast(\mathbf{v})`
+  solves a linear system on each polyhedral cone of
+  :math:`\mathbf{v}`-space where the active donor set is constant, so
+  it is smooth within a cone and its derivative jumps across cone
+  boundaries. Two solvers taking different step sequences cross
+  different boundaries and stop in different cones. The default is FD
+  because it empirically stops in better ones, not because it is more
+  accurate. Opt in to the analytical path when
   running large placebo sweeps where throughput matters more than
   exact local-optimum reproducibility. When ``use_analytical_grad =
   True``, the L-BFGS-B ``ftol`` auto-tightens to ``1e-12`` because
@@ -317,6 +377,77 @@ drops out of the fit. The selected predictor set is
 This is what makes the method *Sparse* SC: the explanation of the
 treated unit's pre-trajectory is interpretable in terms of a small
 subset of predictors.
+
+When the penalty does not select
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+That selection is not guaranteed, and on some panels it does not happen.
+
+The inner QP is positive-scale-invariant in :math:`\mathbf{v}`: for any
+:math:`c > 0`, :math:`\mathbf{w}^\ast(c\,\mathbf{v}) =
+\mathbf{w}^\ast(\mathbf{v})`, since scaling every predictor weight by the
+same factor leaves their relative sizes — and so the minimizer — unchanged.
+The fit term is blind to the scale of :math:`\mathbf{v}`; the penalty
+:math:`\lambda \lVert \mathbf{v} \rVert_1` is not. The penalty can
+therefore be made small by shrinking :math:`\mathbf{v}` toward zero at no
+cost in fit. The :math:`v_1 = 1` anchor prevents that collapse, and the
+consequence is that the penalty binds only through the anchor: what it costs
+to keep predictor :math:`p` is that predictor's weight measured against the
+anchor's fixed 1, not its absolute size.
+
+Whether this leaves the L1 term anything to do depends on the panel. Two
+measurements, on predictor sets of the same order:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 14 10 20 20
+
+   * - Panel
+     - Predictors
+     - Kept
+     - :math:`\widehat{\lambda}`
+     - Distinct supports
+   * - Proposition 99, Vives's 7-predictor specification
+     - 7
+     - 5
+     - :math:`5.4 \times 10^{-4}`
+     - 4 of 51
+   * - West Germany, the nine 1989 indicators
+     - 8
+     - 8
+     - 1, the grid's largest
+     - 2 of 51
+
+On Proposition 99 the penalty selects. It settles at an interior
+:math:`\lambda`, removes two predictors, and returns an ATT of
+:math:`-18.52` against Vives-i-Bastida's published :math:`-18.5`. On West
+Germany it does not. The sweep runs to the top of the grid, keeps every free
+predictor at the most heavily penalized point available, and visits two
+supports across all 51 grid points. Reversing the order of the nine covariate
+names, which is not a modelling choice, moves the ATT from :math:`-2126` to
+:math:`-2229` — 4.9 percent — and takes the support from eight predictors to
+seven. What distinguishes the two panels is open; see
+`issue 608 <https://github.com/jgreathouse9/mlsynth/issues/608>`_.
+
+Two diagnostics report the condition on the result. Both stay silent on
+Proposition 99:
+
+``nothing_pruned``
+   Every predictor is in the support at the selected :math:`\lambda`. Alone
+   this is a reading and not a fault — at :math:`\widehat{\lambda} = 0`
+   there is no penalty, so keeping everything is correct. It warns when a
+   positive :math:`\lambda` was selected and removed nothing.
+
+``penalty_at_grid_edge``
+   :math:`\widehat{\lambda}` is the largest value the grid offered, so no
+   heavier penalty was tried and the selection is a boundary of the search,
+   not an interior optimum. Extend ``lambda_grid`` upward to see whether it
+   settles.
+
+Both are fields on ``method_details.parameters_used`` and both are issued as
+warnings. A fit that trips either is an unpenalized fit reported through a
+penalized interface: the predictor set it names is the list that was passed
+in, and the estimate can move when that list is reordered.
 
 ATT and Counterfactual
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -479,10 +610,12 @@ matter:
   call). Speedup applies universally; no correctness tradeoff.
 * Analytical gradient (opt-in via ``use_analytical_grad=True``)
   removes the :math:`2(P-1)` finite-difference factor (~5-10× on
-  the outer loop). Tradeoff: the cleaner gradient can settle in
-  worse local optima of the non-convex L1-penalized outer
-  objective; FD's implicit gradient noise tends to escape them.
-  Default off for correctness.
+  the outer loop). Tradeoff: the two paths cross different
+  boundaries between the cones on which the active donor set is
+  constant, and stop in different ones; FD empirically stops in
+  better ones at :math:`\lambda \ge 0.1`. The gradients themselves
+  agree to a cosine of 1.0000. Default off on that empirical
+  basis.
 
 Empirically, the combination puts the canonical ADH-7 California
 Prop 99 fit at ~5 s with analytical gradient and ~23 s with FD

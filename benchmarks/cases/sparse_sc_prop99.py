@@ -81,12 +81,13 @@ def run() -> dict:
     }
 
 
-# The fit uses no RNG, but SparseSC's predictor-importance search is *not*
-# convex: it minimises validation MSE over the ``v`` vector by a non-convex
-# descent, and its optimum is sensitive to floating-point rounding at the
-# LAPACK-kernel level. Different environments (CPU microarchitecture -> OpenBLAS
-# kernel selection, hence LAPACK path) reproducibly land the search in one of
-# two adjacent basins on the flat sparse plateau:
+# The fit uses no RNG of its own, but SparseSC's predictor-importance search is
+# *not* convex: it minimises validation MSE over the ``v`` vector by a
+# non-convex descent whose optimum is sensitive to floating-point rounding at
+# the LAPACK-kernel level. Before ``outer_restarts`` existed, different
+# environments (CPU microarchitecture -> OpenBLAS kernel selection, hence LAPACK
+# path) reproducibly landed the search in one of two adjacent basins on the flat
+# sparse plateau:
 #
 #   * the paper/local optimum -- att ~= -18.2 packs (Vives-i-Bastida 2023,
 #     Table 1, "Sparse SCM+" = -18.2), ~5 predictors kept, ci_upper ~= -15.4;
@@ -94,15 +95,22 @@ def run() -> dict:
 #     ~7 predictors, ci_upper ~= -17.6 (its runs emit DLASCL scaling warnings
 #     the local stack does not, the tell-tale of the different kernel).
 #
-# Both recover the ADH story (large negative effect, the Utah/Nevada/
-# Connecticut/Colorado donor pool, a conformal CI excluding zero); they differ
-# only in how far down the plateau the search settles. Pinning BLAS threads to 1
-# does NOT collapse the two -- single-threaded CI still lands on -19.8, so the
-# divergence is kernel selection, not a thread race. Absent a stabler covariate-
-# selection solver (a genuine open problem, left to future work), the honest fix
-# is to widen the affected tolerances so they admit both basins while still
-# catching a real regression (a sign flip, a collapsed donor pool, a CI that
-# spans zero). The looser cells are flagged inline below.
+# Pinning BLAS threads to 1 did not collapse the two -- single-threaded CI still
+# landed on -19.8, so the divergence was kernel selection, not a thread race.
+#
+# ``outer_restarts`` (default 4) attacks the cause: which critical point one
+# cold start reaches is exactly what rounding decides, and drawing several
+# starts and keeping the best makes that choice depend on the objective instead.
+# This case now measures att = -18.06 against the paper's -18.2, with 6
+# predictors kept and ci_upper = -15.08.
+#
+# The tolerances below are NOT tightened to match. That measurement is from one
+# stack, and the failure being fixed is by definition a cross-stack one, so
+# narrowing them on local evidence would be asserting the thing that has not
+# been checked. They stay wide enough to admit the old -19.8 basin until CI has
+# run green on the hosted runners often enough to show it no longer occurs, at
+# which point they can be tightened. They still catch a real regression: a
+# sign flip, a collapsed donor pool, a CI spanning zero.
 #
 # opt_lambda is NOT gated: the paper does not report the penalty value, and the
 # selected lambda floats among several adjacent grid points along the flat sparse

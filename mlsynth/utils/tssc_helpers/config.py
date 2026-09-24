@@ -62,7 +62,7 @@ class TSSCConfig(BaseEstimatorConfig):
         default=None,
         description=(
             "Fit one named SC-class variant instead of all four. This is an "
-            "override, not a preference: Step 1 is skipped entirely rather than "
+            "override, not a preference: Step 1 is skipped entirely, not "
             "run and ignored, so no recommendation is produced and "
             "``results.selection`` is None. Reach for it when the variant is "
             "already decided -- 'MSCa' is the demeaned synthetic control of "
