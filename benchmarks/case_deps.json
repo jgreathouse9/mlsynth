@@ -123,7 +123,10 @@
   "mlsynth/utils/tssc_helpers/setup.py",
   "mlsynth/utils/tssc_helpers/structures.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
-  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+  "mlsynth/utils/vanillasc_helpers/pipeline.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "brabander_brexit_table1": [
   "mlsynth/config_models.py",
@@ -158,7 +161,10 @@
   "mlsynth/utils/tssc_helpers/setup.py",
   "mlsynth/utils/tssc_helpers/structures.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
-  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+  "mlsynth/utils/vanillasc_helpers/pipeline.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "brabander_mc": [
   "mlsynth/config_models.py",
@@ -193,7 +199,10 @@
   "mlsynth/utils/tssc_helpers/setup.py",
   "mlsynth/utils/tssc_helpers/structures.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
-  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+  "mlsynth/utils/vanillasc_helpers/pipeline.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "brazil_vaccine_scm_vs_proximal": [
   "basedata/pnas_brazil_age9.csv",
@@ -283,6 +292,7 @@
   "mlsynth/utils/clustersc_helpers/rpca/pipeline.py",
   "mlsynth/utils/clustersc_helpers/rpca/weights.py",
   "mlsynth/utils/clustersc_helpers/setup.py",
+  "mlsynth/utils/clustersc_helpers/spannability.py",
   "mlsynth/utils/datautils.py"
  ],
  "clustersc_subgroups": [
@@ -295,6 +305,7 @@
   "mlsynth/utils/clustersc_helpers/pcr/pipeline.py",
   "mlsynth/utils/clustersc_helpers/setup.py",
   "mlsynth/utils/clustersc_helpers/simulation.py",
+  "mlsynth/utils/clustersc_helpers/spannability.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/pcr/core.py",
   "mlsynth/utils/pcr/rank.py"
@@ -751,6 +762,9 @@
   "mlsynth/utils/bilevel/engine.py",
   "mlsynth/utils/bilevel/ridge_augment.py"
  ],
+ "fgrc_grc_crossval": [
+  "mlsynth/utils/clustersc_helpers/rpca/fgrc.py"
+ ],
  "fgrc_toy_subspace": [
   "mlsynth/utils/clustersc_helpers/rpca/fgrc.py"
  ],
@@ -796,12 +810,15 @@
   "basedata/smoking_data.csv",
   "mlsynth/config_models.py",
   "mlsynth/estimators/fscm.py",
-  "mlsynth/utils/bilevel/simplex.py",
+  "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/fscm_helpers/estimation.py",
   "mlsynth/utils/fscm_helpers/setup.py",
-  "mlsynth/utils/fscm_helpers/structures.py"
+  "mlsynth/utils/fscm_helpers/structures.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "fspda_dense_mc": [
   "mlsynth/config_models.py",
@@ -2289,6 +2306,7 @@
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/sparse_sc_helpers/diagnostics.py",
   "mlsynth/utils/sparse_sc_helpers/inference.py",
   "mlsynth/utils/sparse_sc_helpers/inner.py",
   "mlsynth/utils/sparse_sc_helpers/objective.py",
@@ -2374,6 +2392,7 @@
   "basedata/prop99_with_dc.csv",
   "mlsynth/config_models.py",
   "mlsynth/estimators/spillsynth.py",
+  "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/spillsynth_helpers/cd/estimation.py",
   "mlsynth/utils/spillsynth_helpers/cd/inference.py",
@@ -2595,6 +2614,7 @@
   "basedata/Data.csv",
   "mlsynth/config_models.py",
   "mlsynth/estimators/tssc.py",
+  "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
@@ -2604,11 +2624,18 @@
   "mlsynth/utils/tssc_helpers/results_assembly.py",
   "mlsynth/utils/tssc_helpers/selection.py",
   "mlsynth/utils/tssc_helpers/setup.py",
-  "mlsynth/utils/tssc_helpers/structures.py"
+  "mlsynth/utils/tssc_helpers/structures.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "tssc_figure2": [
+  "mlsynth/utils/bilevel/active_set.py",
   "mlsynth/utils/tssc_helpers/estimation.py",
-  "mlsynth/utils/tssc_helpers/simulation.py"
+  "mlsynth/utils/tssc_helpers/simulation.py",
+  "mlsynth/utils/weights/solution.py",
+  "mlsynth/utils/weights/solve.py",
+  "mlsynth/utils/weights/spec.py"
  ],
  "twsf_coverage_mc": [
   "mlsynth/config_models.py",
