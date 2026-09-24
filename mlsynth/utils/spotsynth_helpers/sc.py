@@ -50,12 +50,9 @@ def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, 
     if not np.isfinite(scale) or scale <= 0.0:
         scale = 1.0
     try:
-        weights = solve_simplex_qp(D[pre] / scale, y[pre] / scale)
-    except Exception as exc:  # pragma: no cover - degenerate donor block
+        weights = np.clip(solve_simplex_qp(D[pre] / scale, y[pre] / scale), 0.0, None)
+    except Exception as exc:
         raise MlsynthEstimationError(f"SC solver failed: {exc}") from exc
-    weights[weights < 0] = 0.0
-    s = weights.sum()
-    if s > 0:
-        weights = weights / s
+    weights = weights / weights.sum()   # float dust: the sum is 1 to ~1e-12
     return weights, D @ weights
 
