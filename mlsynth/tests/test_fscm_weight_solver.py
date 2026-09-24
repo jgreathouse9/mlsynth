@@ -212,3 +212,57 @@ def test_each_rolling_origin_seeds_the_next_with_a_feasible_point(monkeypatch):
     for s in carried:
         assert s.min() >= 0.0
         assert s.sum() == pytest.approx(1.0, abs=1e-9)
+
+
+# --------------------------------------------------------------------------
+# What the migration moved in the selection, precisely. The chosen set is
+# unchanged on both panels, but the greedy order past the chosen size is not:
+# candidates that far down are near-tied, and a criterion correct to 1e-5
+# reorders them. The divergence is strictly beyond `optimal_size`, so it does
+# not reach any reported number here -- on a panel that selected deeper, it
+# would.
+# --------------------------------------------------------------------------
+def _fit_with_fista(panel, monkeypatch):
+    import mlsynth.utils.fscm_helpers.estimation as estimation
+    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+
+    class _Shim:
+        def __init__(self, w): self.weights = w
+
+    def fista(B, A, *args, **kwargs):
+        return _Shim(simplex_lstsq(np.asarray(B, float), np.asarray(A, float)))
+
+    monkeypatch.setattr(estimation, "solve_weights", fista)
+    return _fit(panel)
+
+
+def test_the_chosen_size_and_set_survive_the_migration(monkeypatch):
+    old = _fit_with_fista("prop99", monkeypatch)
+    monkeypatch.undo()
+    new = _fit("prop99")
+    assert old.selection_path.optimal_size == new.selection_path.optimal_size == 3
+    assert [str(s) for s in old.selection_path.order][:3] == \
+           [str(s) for s in new.selection_path.order][:3]
+
+
+def test_the_greedy_order_diverges_only_past_the_chosen_size(monkeypatch):
+    """The claim this narrows: selection is not wholly unaffected. The order
+    agrees through step 6 of 38 and parts there, with `optimal_size` at 3."""
+    old = _fit_with_fista("prop99", monkeypatch)
+    monkeypatch.undo()
+    new = _fit("prop99")
+    oo = [str(s) for s in old.selection_path.order]
+    on = [str(s) for s in new.selection_path.order]
+    assert oo != on
+    split = next(i for i, (a, b) in enumerate(zip(oo, on)) if a != b)
+    assert split > new.selection_path.optimal_size
+
+
+def test_the_att_change_is_entirely_the_weight_change(prop99):
+    """The whole of it: -0.001691 observed, and -mean(Y_post @ dw) reproduces
+    it to 1e-15 on a donor set that did not move. There is no second cause."""
+    Y, y, T0, names = prop99
+    idx = [names.index(n) for n in ("Montana", "Nevada", "Utah")]
+    sol = solve_weights(Y[:T0][:, idx], y[:T0])
+    assert sol.unique is True and sol.identifies(Y[T0:][:, idx]) is True
+    assert sol.kkt_residual < 1e-12
