@@ -359,3 +359,89 @@ def test_the_returned_weights_are_read_only(panel):
     B, A = panel
     with pytest.raises(ValueError):
         solve_weights(B, A).weights[0] = 99.0
+
+
+# --------------------------------------------------------------------------
+# Abadie-Gardeazabal (2003), outcome only. Terrorism in the Basque Country,
+# treated 1975, 16 donor regions over 20 pre-periods, no covariates. The
+# published weights come from a covariate-matched fit, so the outcome-only
+# weights are close and not identical; the ATT is the thing to hold.
+# --------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def basque():
+    import pandas as pd
+    from pathlib import Path
+    from mlsynth.utils.datautils import dataprep
+    root = Path(__file__).resolve().parents[2]
+    df = pd.read_csv(root / "basedata" / "basque_data.csv")
+    df = df[df["regionname"] != "Spain (Espana)"]
+    df["treat"] = (
+        (df["regionname"] == "Basque Country (Pais Vasco)") & (df["year"] >= 1975)
+    ).astype(int)
+    p = dataprep(df, "regionname", "year", "gdpcap", "treat")
+    T0 = int(p["pre_periods"])
+    return (
+        np.asarray(p["donor_matrix"], float),
+        np.asarray(p["y"], float).ravel(),
+        T0,
+        list(p["donor_names"]),
+    )
+
+
+#: Post-1975 mean gap from the authors' own Synth package (github.com/j-hai/Synth).
+BASQUE_ATT = -0.6996
+
+
+def _att(D, y, T0, sol):
+    return float(np.mean(y[T0:] - sol.fitted(D)[T0:]))
+
+
+def test_basque_simplex_recovers_the_published_donors_and_att(basque):
+    D, y, T0, names = basque
+    sol = solve_weights(D[:T0], y[:T0])
+    carried = {names[j]: round(float(sol.weights[j]), 3) for j in sol.support}
+    assert carried["Cataluna"] == pytest.approx(0.826, abs=0.01)
+    assert carried["Madrid (Comunidad De)"] == pytest.approx(0.168, abs=0.01)
+    assert _att(D, y, T0, sol) == pytest.approx(BASQUE_ATT, abs=0.02)
+    assert sol.unique and sol.status == "optimal" and sol.kkt_residual < 1e-12
+
+
+def test_basque_leaves_thirteen_donors_at_exactly_zero(basque):
+    D, y, T0, _ = basque
+    sol = solve_weights(D[:T0], y[:T0])
+    assert sol.support.size == 3
+    assert np.all(sol.weights[sol.weights < 1e-8] == 0.0)
+
+
+def test_basque_unconstrained_fits_the_pre_period_better_and_the_att_worse(basque):
+    """Sixteen donors over twenty pre-periods nearly saturate the design, so
+    dropping the hull buys an almost exact pre-fit with no out-of-sample content:
+    the ATT flips sign. Amjad's Theorem 4.2.1 carries a rank condition alongside
+    the span condition, and this is what its failure looks like."""
+    D, y, T0, _ = basque
+    sx = solve_weights(D[:T0], y[:T0])
+    fr = solve_weights(D[:T0], y[:T0], WeightConstraint(nonneg=False, sum_to_one=False))
+    assert fr.objective < sx.objective / 100.0
+    assert _att(D, y, T0, fr) > 1.0
+    assert abs(_att(D, y, T0, sx) - BASQUE_ATT) < abs(_att(D, y, T0, fr) - BASQUE_ATT)
+
+
+def test_basque_intercept_improves_the_pre_fit_and_moves_the_att_away(basque):
+    """A free intercept is not free: it takes a 0.59 level shift on a series
+    near 5, halves Cataluna's weight, and pushes the ATT past the reference."""
+    D, y, T0, _ = basque
+    sol = solve_weights(D[:T0], y[:T0], WeightConstraint(intercept=True))
+    plain = solve_weights(D[:T0], y[:T0])
+    assert sol.objective < plain.objective
+    assert sol.intercept > 0.5
+    assert abs(_att(D, y, T0, sol) - BASQUE_ATT) > abs(_att(D, y, T0, plain) - BASQUE_ATT)
+
+
+def test_basque_solves_identically_at_a_million_times_scale(basque):
+    """CLARABEL declares this same simplex infeasible at 1e6 and leaves a
+    2.9e-4 KKT residual at unit scale, with no weight exactly zero."""
+    D, y, T0, _ = basque
+    base = solve_weights(D[:T0], y[:T0])
+    big = solve_weights(D[:T0] * 1e6, y[:T0] * 1e6)
+    assert big.status == "optimal"
+    assert big.weights == pytest.approx(base.weights, abs=1e-9)
