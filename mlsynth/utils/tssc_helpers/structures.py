@@ -184,6 +184,12 @@ class TSSCVariantFit:
         Duplicated donors are the case where they do not, and the ATT is
         identified. ``WeightSolution.identifies`` asks the question of the
         post-treatment block.
+    att_identified : bool or None
+        Whether every minimiser of this variant's program agrees on the
+        post-treatment counterfactual, and so on the ATT. ``None`` when there
+        are no post-treatment periods. This is the verdict the reported ATT
+        depends on; ``weights_unique`` is the pre-period question and the two
+        come apart in both directions.
     kkt_residual : float or None
         Scale-free violation of the optimality conditions at the returned
         coefficients. Each variant's constraint set has non-empty relative
@@ -207,6 +213,7 @@ class TSSCVariantFit:
     r2_pre: float
     scpi: Optional[object] = None     # ScpiPIInference band, when computed
     weights_unique: Optional[bool] = None
+    att_identified: Optional[bool] = None
     kkt_residual: Optional[float] = None
     solver: Optional[str] = None
 

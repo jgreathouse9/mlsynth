@@ -343,9 +343,11 @@ after give the identical verdict with the opposite consequence: pre-treatment
 fits agreeing to twelve digits, counterfactuals diverging, and an ATT that
 depends on which minimiser the solver returned. A ``weights_unique`` of
 ``False`` is therefore necessary for the ATT to be undetermined and not
-sufficient. The fitted solution answers the second question directly through
-``identifies``, which takes the post-treatment donor block and reports whether
-every minimiser agrees on the counterfactual.
+sufficient, and each variant reports the second question separately as
+``att_identified``. That is the verdict the reported ATT rests on: ``False``
+means a different minimiser of the same program would have given a different
+number with the same pre-treatment RMSE, and the fit emits a warning saying so.
+It is ``None`` when there are no post-treatment periods to rule on.
 
 The intercept variants add a case of their own. With :math:`\beta_1` free, a
 donor and that donor plus a constant are interchangeable -- weight trades

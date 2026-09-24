@@ -2433,3 +2433,21 @@ timeout = 180.0
   find = "        shift = B @ self.free_directions + self.free_intercepts"
   replace = "        shift = B @ self.free_directions"
   models = "a free direction whose intercept component is dropped, so a continuum that moves the level while leaving the weighted donor path fixed is reported as harmless"
+
+[[target]]
+name = "tssc-identification"
+module-path = "mlsynth/utils/tssc_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_tssc_weight_solver.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "att-verdict-read-off-the-pre-period"
+  find = "    identified = solution.identifies(donor_post)"
+  replace = "    identified = solution.unique"
+  models = "an ATT identification verdict taken from the pre-period uniqueness of the coefficients, which is the question the post-treatment donors decide: duplicated donors, whose continuum every counterfactual annihilates, are then reported as leaving the estimate undetermined and warned about"
+
+  [[target.mutant]]
+  id = "att-verdict-skips-the-warning"
+  find = "    if not identified:"
+  replace = "    if False:"
+  models = "an identification failure recorded on the result and never surfaced, so a caller reading only the ATT sees a number that a different minimiser of the same program would have contradicted"

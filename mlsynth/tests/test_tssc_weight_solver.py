@@ -429,3 +429,96 @@ def test_collinearity_that_ends_at_treatment_leaves_the_att_undetermined():
     alt[0] -= shift; alt[1] += shift
     assert pre @ alt == pytest.approx(pre @ w, abs=1e-10)          # same pre-fit
     assert np.abs(post @ alt - post @ w).max() > 0.5               # different ATT
+
+
+# --------------------------------------------------------------------------
+# The identification verdict, wired onto the variant record
+# --------------------------------------------------------------------------
+def _inputs_from(y, donors, T0):
+    from mlsynth.utils.tssc_helpers.structures import TSSCInputs
+    T = donors.shape[0]
+    return TSSCInputs(
+        y=np.asarray(y, float).ravel(),
+        donor_matrix=np.asarray(donors, float),
+        donor_names=[f"d{j}" for j in range(donors.shape[1])],
+        T0=T0, T2=T - T0, T=T,
+        time_labels=np.arange(T), treated_unit_name="treated",
+    )
+
+
+@pytest.fixture
+def twins_after_treatment_too(basque_full):
+    """A donor duplicated in every period: a continuum the ATT never feels."""
+    D, y, T0 = basque_full
+    from mlsynth.utils.weights import solve_weights
+    lead = int(np.argmax(solve_weights(D[:T0], y[:T0]).weights))
+    return _inputs_from(y, np.column_stack([D, D[:, lead]]), T0)
+
+
+@pytest.fixture
+def twins_only_before_treatment():
+    """Donors identical before treatment and separating after: the ATT depends
+    on which minimiser the solver returned."""
+    rng = np.random.default_rng(2)
+    T0, T2, J = 12, 10, 4
+    donors = rng.normal(size=(T0 + T2, J)) * 2 + 10
+    donors[:T0, 1] = donors[:T0, 0]
+    truth = np.array([0.3, 0.2, 0.3, 0.2])
+    y = donors @ truth + rng.normal(scale=0.01, size=T0 + T2)
+    return _inputs_from(y, donors, T0)
+
+
+def _fit(inputs, method):
+    from mlsynth.utils.tssc_helpers.estimation import fit_variant
+    return fit_variant(inputs, method, n_bootstrap=2, confidence_level=0.95,
+                       rng=np.random.default_rng(0), compute_ci=False)
+
+
+@pytest.mark.parametrize("method", VARIANTS)
+def test_a_clean_panel_reports_the_att_as_identified(tssc_inputs, method):
+    fit = _fit(tssc_inputs, method)
+    assert fit.weights_unique is True
+    assert fit.att_identified is True
+
+
+def test_duplicated_donors_leave_the_att_identified(twins_after_treatment_too):
+    """`weights_unique` and `att_identified` disagree here, and the second is
+    the one the reported number depends on."""
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")           # no warning may fire
+        fit = _fit(twins_after_treatment_too, "SC")
+    assert fit.weights_unique is False
+    assert fit.att_identified is True
+
+
+def test_collinearity_ending_at_treatment_is_reported_and_warned(twins_only_before_treatment):
+    with pytest.warns(UserWarning, match="ATT is not identified"):
+        fit = _fit(twins_only_before_treatment, "SC")
+    assert fit.weights_unique is False
+    assert fit.att_identified is False
+
+
+def test_the_warning_names_the_variant_and_what_moves(twins_only_before_treatment):
+    with pytest.warns(UserWarning) as caught:
+        _fit(twins_only_before_treatment, "MSCb")
+    text = str(caught[0].message)
+    assert "MSCb" in text
+    assert "pre-treatment fit" in text and "counterfactual" in text
+
+
+def test_with_no_post_periods_there_is_no_verdict_to_give(basque_full):
+    D, y, T0 = basque_full
+    inputs = _inputs_from(y[:T0], D[:T0], T0)
+    assert inputs.T2 == 0
+    fit = _fit(inputs, "SC")
+    assert fit.att_identified is None
+
+
+def test_the_verdict_survives_a_full_fit_through_the_estimator(twins_only_before_treatment):
+    """Reached through fit_variant, not by calling the helper directly."""
+    fits = {m: None for m in VARIANTS}
+    for m in VARIANTS:
+        with pytest.warns(UserWarning):
+            fits[m] = _fit(twins_only_before_treatment, m)
+    assert all(f.att_identified is False for f in fits.values())

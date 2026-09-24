@@ -19,6 +19,7 @@ normalized statistic's subsampling distribution.
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Tuple
 
 import numpy as np
@@ -104,6 +105,42 @@ def fit_mscc_beta(
     workhorse re-fit inside the subsampling loop.
     """
     return _solve(MSCC, donor_pre, y_pre, n_pre, n_donors)
+
+
+def warn_if_the_att_is_not_identified(
+    method: str, solution: WeightSolution, donor_post: np.ndarray
+) -> Optional[bool]:
+    """Whether every minimiser of this variant agrees on the counterfactual.
+
+    The coefficients are fitted on the pre-treatment periods, so
+    ``solution.unique`` rules on those. The ATT is built from the periods after
+    treatment, and a continuum in the coefficients reaches it only where the
+    post-treatment donors fail to annihilate the directions the coefficients
+    are free to move along. Duplicated donors are the case where they do not:
+    weight trades between the twins and no reported quantity moves. Donors
+    collinear before treatment and separating after are the case where they do,
+    and there the reported ATT is whichever one the solver happened to return.
+
+    Returns ``None`` when there are no post-treatment periods to rule on, and
+    warns when the answer is no.
+    """
+    if donor_post.shape[0] == 0:
+        return None
+    identified = solution.identifies(donor_post)
+    if not identified:
+        warnings.warn(
+            f"TSSC {method}: the ATT is not identified. The donors admit "
+            f"{solution.free_directions.shape[1]} direction(s) that leave the "
+            f"pre-treatment fit unchanged and move the post-treatment "
+            f"counterfactual, so a different minimiser of the same program "
+            f"would give a different ATT with the same pre-treatment RMSE. "
+            f"This happens when donors are collinear over the pre-period and "
+            f"separate afterwards. Drop a redundant donor, shorten the donor "
+            f"pool, or add a ridge penalty to pin the coefficients.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return identified
 
 
 def _features(method: str, donor_matrix: np.ndarray) -> np.ndarray:
@@ -254,6 +291,9 @@ def fit_variant(
         weights = donor_coefs
 
     counterfactual = _features(method, inputs.donor_matrix) @ weights
+    att_identified = warn_if_the_att_is_not_identified(
+        method, solution, inputs.donor_matrix[T0:]
+    )
 
     att_results, fit_diag, _ = effects.calculate(
         observed_outcome_series=inputs.y,
@@ -300,6 +340,7 @@ def fit_variant(
         r2_pre=float(fit_diag["R-Squared"]),
         scpi=scpi_band,
         weights_unique=solution.unique,
+        att_identified=att_identified,
         kkt_residual=solution.kkt_residual,
         solver=solution.solver,
     )
