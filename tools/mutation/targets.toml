@@ -2603,6 +2603,7 @@ timeout = 400.0
   find = '        "n_post_periods_undefined": int(inputs.n_post - n_post_defined),'
   replace = '        "n_post_periods_undefined": 0,'
   models = "an ATT taken over a short post window with nothing on the result saying so. This contract was already enforced when the ladder reached it -- the count is on DTWSC own metadata, not on effects or fit_diagnostics -- and the mutant is here because reading only the standard sub-models made it look unenforced"
+[[target]]
 name = "scmo-reference-ridge"
 module-path = "mlsynth/utils/scmo_helpers/solvers.py"
 test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py mlsynth/tests/test_scmo_solver_robustness.py -q -p no:cacheprovider"
