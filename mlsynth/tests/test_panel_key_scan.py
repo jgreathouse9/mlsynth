@@ -184,6 +184,32 @@ class DerivationCounter:
         return self.scans[0]
 
 
+class DuplicateCheckCounter:
+    """Counts ``np.bincount`` calls -- the duplicate-key verdict.
+
+    ``has_duplicate`` counts the cell index to rule out a repeated
+    ``(unit, time)`` pair, and holds the answer. The count is over the whole
+    grid, which is the one derivation whose cost grows with the panel's
+    sparsity and not its length, so paying it twice is the most expensive way
+    to recompute something already known.
+
+    ``DerivationCounter`` cannot see this one. It watches the three memo slots
+    the scan exposes, and the duplicate verdict is not among them, so a
+    verdict recounted on every read leaves those counts at one.
+    """
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        real = np.bincount
+
+        def traced(*args, **kwargs):
+            self.calls += 1
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(np, "bincount", traced)
+        monkeypatch.setattr(DU.np, "bincount", traced)
+
+
 # =========================================================================== #
 # work assertions -- these start red
 # =========================================================================== #
@@ -295,6 +321,20 @@ class TestDerivationCount:
         dataprep(make_panel(covariates=names), *ARGS, covariates=names)
         keys = counter.only
         assert keys.builds == {"cell": 1, "unit_order": 1, "time_order": 1}
+
+    def test_the_duplicate_check_runs_once_per_panel(self, monkeypatch):
+        """The grid count is held like the rest, and nothing else sees it."""
+        df = make_panel()
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter.calls == 1, (
+            f"the grid is counted once per panel: {counter.calls} counts")
+
+    def test_covariates_do_not_recount_the_grid(self, monkeypatch):
+        df = make_panel(covariates=["x1", "x2"])
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=["x1", "x2"])
+        assert counter.calls == 1
 
     def test_a_second_read_is_the_first_answer(self):
         """Stated on the object, without a ``dataprep`` around it: a derived
