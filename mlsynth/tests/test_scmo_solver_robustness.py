@@ -71,8 +71,12 @@ def test_a_degenerate_matching_matrix_still_returns_a_simplex_point():
 
 
 def test_the_duplicated_donors_are_given_the_same_weight():
-    """The tie the old chain left to the solver. Donors 0 and 1 are identical,
-    so any split of their shared mass is optimal and the ridge splits it."""
+    """Donors 0 and 1 are identical, so any split of their shared mass is
+    optimal and the returned one is even. This holds with or without the ridge
+    -- the solve starts from the uniform weights and nothing here breaks the
+    symmetry -- so it pins the behaviour and is not evidence about the ridge.
+    The check that separates the two programs is in
+    ``test_scmo_reference_ridge.py``, on a one-column match."""
     Z_donors = np.array([[1.0, 0.0, 0.0],
                          [1.0, 0.0, 0.0],
                          [0.0, 1.0, 0.0]])

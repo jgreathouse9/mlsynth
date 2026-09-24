@@ -158,10 +158,31 @@ def test_a_face_centred_on_the_uniform_mix_cannot_separate_the_two_programs():
         assert np.abs(back - w0).max() == pytest.approx(0.0, abs=1e-12)
 
 
+def test_the_scmo_call_site_is_order_invariant_on_a_one_column_match():
+    """The defect, at the site it was found: ``simplex_weights`` on the shape
+    the averaged scheme produces -- J donors, one matching column, a target off
+    the uniform mix. Without the ridge relabelling the donors moves the answer
+    by 1.5e-1 here and by 0.419 on the German panel."""
+    J = 6
+    Z_donors = np.arange(1.0, J + 1.0).reshape(J, 1)     # (J, P=1)
+    Z_treated = np.array([3.0])
+    w0 = solvers.simplex_weights(Z_treated, Z_donors)
+    rng = np.random.default_rng(7)
+    for _ in range(25):
+        perm = rng.permutation(J)
+        wp = solvers.simplex_weights(Z_treated, Z_donors[perm])
+        back = np.empty_like(wp)
+        back[perm] = wp
+        assert np.abs(back - w0).max() < 1e-9
+
+
 def test_two_identical_donors_are_split_evenly():
-    """Any split of their shared mass is optimal; least norm splits it in two.
-    This is the tie the Abadie-L'Hour penalty cannot break, since a linear
-    penalty on the non-negative orthant selects a face and not a point."""
+    """Recorded as an invariant, not as a guard. Both programs satisfy it: the
+    active set starts from the uniform weights and nothing in the plain solve
+    breaks the symmetry, so this passes with the ridge dropped. The tie that
+    separates them is the one above. (It is still the tie the Abadie-L'Hour
+    penalty cannot break, since a linear penalty on the non-negative orthant
+    selects a face and not a point.)"""
     col = np.array([[1.0], [2.0], [0.5]])
     B = np.hstack([col, col])
     w = solve_simplex_qp_least_norm(B, (col * 1.0).ravel())
