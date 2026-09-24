@@ -224,7 +224,7 @@ running, the tree is not yours.
 
 `git status` is a snapshot, not a lock. A clean status one second and
 `git add -A` the next can stage whatever the other process wrote in between,
-and this has already happened once: commit `4c836c51` on
+and this has already happened twice. Commit `4c836c51` on
 `claude/focused-cray-8d0vkh` shipped the mutant
 `the-draws-are-made-and-thrown-away` into `sweep_lambda`'s forward pass,
 
@@ -237,6 +237,20 @@ which left `outer_restarts` accepted, recorded on the result and documented,
 while the draws were built and discarded. A planted defect, pushed, reading as
 a feature. It survived until the next `git diff` because nothing fails when a
 mutant is merely *present* -- that is the whole design of a mutant.
+
+Commit `591beb0b` on `claude/simplex-swaps-direct` did it again, through
+`git reset --soft` followed by `git add -A` while the runner held the tree. It
+shipped `warp-tail-not-carried-forward` into DTWSC's `_counterfactual`,
+
+```
+-    block = _carry_forward(warped)[:, used]
++    block = warped[:, used]
+```
+
+so the docstring described a carried-forward warp tail and the code read the
+raw one. The second time is the argument for the rule: the first incident was
+diagnosed, written up, and the same window caught the next commit anyway, which
+is what a habit does that a memory of an incident does not.
 
 So:
 
