@@ -36,6 +36,17 @@ class SparseSCConfig(BaseEstimatorConfig):
             "V-weight is pinned to 1."
         ),
     )
+    anchor_covariate: Optional[str] = Field(
+        default=None,
+        description=(
+            "Name of the predictor whose V-weight is pinned to 1 -- the "
+            "anchor, ``k0`` in Vives-i-Bastida (2023) Algorithm 1. May name "
+            "a covariate or an outcome-lag predictor. Defaults to the first "
+            "predictor, matching the reference MATLAB driver. The choice is "
+            "a modelling one: the anchor enters the model with probability "
+            "one and every anchor gives slightly different donor weights."
+        ),
+    )
     outcome_lag_periods: Optional[List[Any]] = Field(
         default=None,
         description=(
@@ -151,15 +162,18 @@ class SparseSCConfig(BaseEstimatorConfig):
         default=False,
         description=(
             "Use the envelope-theorem closed-form Jacobian inside the "
-            "outer L-BFGS-B sweep. The analytical Jacobian is exact "
-            "(verified against finite differences to ~1e-7) and yields "
-            "a 5-10x speedup, but the clean gradient lets L-BFGS-B "
-            "settle at the first critical point near the cold init "
-            "on the non-convex L1-penalized V-objective; the FD path's "
-            "implicit gradient noise tends to find better local optima "
-            "at non-zero lambda. Off by default for correctness; opt in "
-            "when running large placebo sweeps where exact local optimum "
-            "matters less than throughput."
+            "outer L-BFGS-B sweep. The analytical Jacobian is exact -- "
+            "its cosine against central differences is 1.0000 at every "
+            "lambda tested, at the cold init and at a random interior "
+            "point -- and yields a 5-10x speedup. The two paths still "
+            "end in different places at lambda >= 0.1, because the "
+            "outer objective is smooth only within each cone of "
+            "v-space on which the active donor set is constant, and "
+            "solvers taking different steps stop in different cones. "
+            "Off by default because finite differences empirically "
+            "stops in better ones, not because it is more accurate; "
+            "opt in when throughput matters more than which critical "
+            "point is reached."
         ),
     )
     warm_start: bool = Field(
@@ -189,6 +203,30 @@ class SparseSCConfig(BaseEstimatorConfig):
             "default; it roughly doubles the sweep cost, so set it False "
             "(optionally with use_analytical_grad=True) when throughput "
             "matters more than exact reproducibility."
+        ),
+    )
+    outer_restarts: int = Field(
+        default=4, ge=0,
+        description=(
+            "Additional random starts for the outer V-solve at each lambda, "
+            "drawn log-normally around the cold MATLAB init. The outer "
+            "objective is non-convex and a face of the donor simplex with "
+            "few active donors is a stationary point of it almost for free, "
+            "so a single cold start settles wherever it happens to land: on "
+            "the augmented Vives California specification that is a "
+            "two-donor point giving an ATT of -29.0 against the paper's "
+            "-18.2, and which point it is varies with the BLAS kernel. Four "
+            "restarts recover -18.6 and make the selected optimum stable "
+            "across numerical stacks. Set 0 for the single cold start, "
+            "which is faster and reproduces pre-0.3 results."
+        ),
+    )
+    outer_restart_seed: int = Field(
+        default=0, ge=0,
+        description=(
+            "Seed for the outer restart draws. Separate from ``seed`` so "
+            "that re-seeding the placebo inference cannot move the point "
+            "estimate."
         ),
     )
     compute_scpi_pi: bool = Field(
