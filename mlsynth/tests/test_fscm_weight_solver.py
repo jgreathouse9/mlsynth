@@ -198,13 +198,13 @@ def test_each_rolling_origin_seeds_the_next_with_a_feasible_point(monkeypatch):
     import mlsynth.utils.fscm_helpers.estimation as estimation
 
     seeds = []
-    real = estimation.solve_weights
+    real = estimation.solve_simplex_qp
 
     def spy(B, A, *args, warm_start=None, **kwargs):
         seeds.append(None if warm_start is None else np.asarray(warm_start, float))
         return real(B, A, *args, warm_start=warm_start, **kwargs)
 
-    monkeypatch.setattr(estimation, "solve_weights", spy)
+    monkeypatch.setattr(estimation, "solve_simplex_qp", spy)
     _fit("basque")
 
     carried = [s for s in seeds if s is not None]
@@ -223,16 +223,25 @@ def test_each_rolling_origin_seeds_the_next_with_a_feasible_point(monkeypatch):
 # would.
 # --------------------------------------------------------------------------
 def _fit_with_fista(panel, monkeypatch):
+    """The fully inexact baseline.
+
+    Two seams reach the solver now: `_fit_weights` weights the chosen donors
+    through `solve_weights`, and `scan_candidates` and the rolling CV choose
+    them through `solve_simplex_qp`. Reproducing the pre-migration behaviour
+    means replacing both, not the one this file used to know about.
+    """
     import mlsynth.utils.fscm_helpers.estimation as estimation
     from mlsynth.utils.bilevel.simplex import simplex_lstsq
 
     class _Shim:
         def __init__(self, w): self.weights = w
 
-    def fista(B, A, *args, **kwargs):
-        return _Shim(simplex_lstsq(np.asarray(B, float), np.asarray(A, float)))
+    def solve(B, A, *args, **kwargs):
+        return simplex_lstsq(np.asarray(B, float), np.asarray(A, float))
 
-    monkeypatch.setattr(estimation, "solve_weights", fista)
+    monkeypatch.setattr(estimation, "solve_weights",
+                        lambda B, A, *a, **k: _Shim(solve(B, A)))
+    monkeypatch.setattr(estimation, "solve_simplex_qp", solve)
     return _fit(panel)
 
 
