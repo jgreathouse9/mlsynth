@@ -43,6 +43,7 @@ CASES = {
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # cross-val vs Bayani's RPCA-SC code (West Germany reunification, value-for-value)
+    "fgrc_grc_crossval": "benchmarks.cases.fgrc_grc_crossval",  # cross-val vs Yamamoto's own R grc package: the GRC objective value-for-value on the reference's own solution (2e-15), and the port's ALS never worse from the same start
     "fgrc_toy_subspace": "benchmarks.cases.fgrc_toy_subspace",  # Path B: fGRC subspace separation recovers cluster structure invisible to k-means (Yamamoto-Hwang GRC.Rd toy example)
     "cast_aca": "benchmarks.cases.cast_aca",  # Path A + cross-val vs authors' CAST-panel (Xia-Yan-Wainwright 2025): ACA Medicaid expansion, entrywise point estimates value-for-value + Table 1; skips without the package/data
     "rrsc_reference": "benchmarks.cases.rrsc_reference",  # cross-val: mlsynth RRSC vs reference R (He-Li-Shi-Miao 2026), both regimes value-for-value; skips without R
@@ -78,6 +79,7 @@ CASES = {
     "rescm_relax_ref": "benchmarks.cases.rescm_relax_ref",      # cross-val vs scmrelax toy panel (skips if absent)
     "rescm_balanced_gdp": "benchmarks.cases.rescm_balanced_gdp",  # cross-val vs scmrelax on authors' balanced-GDP Brexit panel (UK 2016Q3; skips if absent)
     "rescm_relax_mc": "benchmarks.cases.rescm_relax_mc",        # Path B: latent-group MC, relaxations beat SCM
+    "rescm_relax_behavior": "benchmarks.cases.rescm_relax_behavior",  # Path B + property: Liao-Shi-Zheng (2026) Tables 1-2 as behaviour -- the relaxation spreads weight within groups where SCM concentrates (L1 distance to the oracle weights 0.21x SCM's), the objective ordering holds in all three panels including the paper's entropy-over-L2 crossover at K > r, and the exact-1/J collapse rate is pinned as a regression guard on the tau grid
     "linf_crossval_ref": "benchmarks.cases.linf_crossval_ref",  # cross-val: LINF vs LinfinitySC (skips if absent)
     "linf_prop99": "benchmarks.cases.linf_prop99",              # Path A: dense L-inf vs sparse SC (Prop 99)
     "linf_sim": "benchmarks.cases.linf_sim",                    # Path B: L-inf vs SC (Wang-Xing-Ye Table 4)
@@ -354,6 +356,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "ferman_demeaned_basque":         ("AX", "empirical"),
     "ferman_manyperiods":             ("B", "simulated"),
     "ferman_pinto_mc":                ("BX", "simulated"),
+    "fgrc_grc_crossval":              ("X", "simulated"),
     "fgrc_toy_subspace":              ("B", "simulated"),
     "fma_coverage_mc":                ("B", "simulated"),
     "fsc_estimator":                  ("A", "empirical"),
@@ -435,6 +438,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "rescm_balanced_gdp":             ("X", "both"),
     "rescm_brexit":                   ("A", "empirical"),
     "rescm_brexit_2020":              ("A", "empirical"),
+    "rescm_relax_behavior":           ("BC", "simulated"),
     "rescm_relax_mc":                 ("B", "simulated"),
     "rescm_relax_ref":                ("X", "simulated"),
     "rolldid_lw":                     ("A", "empirical"),

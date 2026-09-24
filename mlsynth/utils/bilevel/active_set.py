@@ -76,11 +76,59 @@ def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
     return x[:n, 0]
 
 
+def _assert_optimal_with_linear(B, A, w, linear, tol):
+    """Check the returned point against the conditions, when a linear term is set.
+
+    The pivot loop tests primal feasibility of the free set and dual
+    feasibility of the pinned variables. It never tests stationarity on the
+    free variables, because it assumes the free-set subproblem solved them
+    exactly -- which is true for a plain least squares and is not guaranteed
+    with a linear term. Folding the term into the residual needs it to lie in
+    the row space of the free block, and an intermediate free set can be wider
+    than the design has rows, in which case the subproblem is unbounded along a
+    null direction and the point the loop accepts is not the minimiser.
+
+    On a panel this never bites: the loop sheds donors until the free set fits,
+    and the accepted point is stationary to machine precision. On the rank-K
+    factor of a wide Gram it bites at a stationarity residual of 0.35, reported
+    as converged. Until the unbounded-ray branch exists, the guarantee is that
+    a wrong answer is not returned silently.
+    """
+    g = 2.0 * (B.T @ (B @ w - A)) + linear
+    on = w > tol
+    if not on.any():                          # pragma: no cover - w sums to 1
+        return
+    nu = float(g[on].mean())
+    # Scale by the curvature, not by the gradient. A fit that is close to exact
+    # has a gradient near zero, and dividing by it turns rounding noise into an
+    # apparent violation: on a 4-by-12 design whose treated unit lies in the
+    # donor span the gradient is around 1e-17 and the reading came out at
+    # 1.5e-04 for a point attaining the optimum. The sum-to-one constraint
+    # annihilates the donors' common level, so that direction comes out of the
+    # scale too, leaving a quantity the program is invariant with.
+    core = B - B.mean(axis=1, keepdims=True)
+    scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))
+    scale = max(scale, 1e-300)
+    stat = float(np.abs(g[on] - nu).max()) / scale
+    dual = 0.0 if on.all() else -min(0.0, float((g[~on] - nu).min()) / scale)
+    if max(stat, dual) > 1e-6:
+        raise ValueError(
+            f"linear term: the active set did not reach the minimiser on this "
+            f"design (stationarity {stat:.2e}, dual feasibility {dual:.2e}). "
+            f"The free-set subproblem is unbounded along a null direction of "
+            f"the design, which happens when the free set is wider than the "
+            f"design has rows and the term does not lie in its row space. A "
+            f"panel does not meet that condition; the rank-K factor of a wide "
+            f"Gram does."
+        )
+
+
 def solve_simplex_qp(
     B: np.ndarray,
     A: np.ndarray,
     *,
     warm_start: Optional[np.ndarray] = None,
+    linear: Optional[np.ndarray] = None,
     tol: float = 1e-9,
     max_iter: Optional[int] = None,
     return_info: bool = False,
@@ -94,6 +142,23 @@ def solve_simplex_qp(
         Donor / design matrix (e.g. pre-period donor outcomes).
     A : np.ndarray, shape (m,)
         Target vector (e.g. the treated unit's pre-period outcomes).
+    linear : np.ndarray, shape (J,), optional
+        Coefficients of a linear term, minimising ``||A - B w||^2 + linear' w``.
+        On the non-negative orthant an L1 penalty is linear, so this is the
+        weighted non-negative lasso; Abadie and L'Hour's penalised SCM is the
+        case where ``linear`` prices each donor by its distance from the treated
+        unit. ``None`` leaves the plain least-squares program untouched, bit for
+        bit.
+
+        It is carried here and not folded into ``A`` because folding needs
+        ``linear`` to lie in ``range(B')``. Zou and Hastie (2005, Lemma 1)
+        identify that as a rank condition -- their augmented design has full
+        column rank and that is what makes their transformation exact -- and a
+        wide donor block does not meet it: on Proposition 99, 19 by 38 with rank
+        19, 40 percent of the centred penalty lies outside the row space. The
+        condition does hold on each free set, which is small and of full column
+        rank, so the inner solve keeps its residual form and never forms normal
+        equations.
     warm_start : np.ndarray, shape (J,), optional
         A feasible initial weight vector (e.g. the solution of a neighbouring
         problem in a conformal / market-selection sweep) used to seed the
@@ -124,12 +189,27 @@ def solve_simplex_qp(
         raise ValueError(f"len(A)={A.shape[0]} must equal B's row count {m}.")
     if J == 0:
         raise ValueError("B has no columns: at least one donor is required.")
+    if linear is not None:
+        # Validated here, with B and A, and not beside the pricing shift it
+        # feeds: a single donor is forced to weight 1 whatever the linear term
+        # says, so a check further down would let a malformed one through on
+        # exactly the input where it changes no number.
+        linear = np.asarray(linear, dtype=float).ravel()
+        if linear.shape != (J,):
+            raise ValueError(
+                f"linear must have one coefficient per donor: expected ({J},), "
+                f"got {linear.shape}."
+            )
+        if not np.all(np.isfinite(linear)):
+            raise ValueError("linear must be finite.")
 
     def _finish(w, pivots, converged):
         w = np.maximum(np.asarray(w, dtype=float), 0.0)
         total = w.sum()
         if total > 0:
             w = w / total
+        if linear is not None:
+            _assert_optimal_with_linear(B, A, w, linear, tol)
         if return_info:
             return w, {"pivots": int(pivots), "converged": bool(converged)}
         return w
@@ -141,6 +221,8 @@ def solve_simplex_qp(
         max_iter = 50 * J
     G = B.T @ B                                   # (J, J) Gram
     c = B.T @ A
+    if linear is not None:
+        c = c - 0.5 * linear
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
     # otherwise the uniform point. A wide pool with nothing from the caller
@@ -181,7 +263,52 @@ def solve_simplex_qp(
             # matmul. Rank-revealing QR (LAPACK gelsy) is ~3x faster than SVD
             # lstsq and robust to a rank-deficient system (collinear free donors).
             M = BF[:, :nF - 1] - BF[:, nF - 1:nF]
-            v = _gelsy_lstsq(M, A - BF.mean(axis=1))
+            rhs = A - BF.mean(axis=1)
+            if linear is not None:
+                # In v the objective gains (Z' l_F)' v, so stationarity reads
+                # M'M v = M' rhs - Z' l_F / 2. Shifting the residual by any u
+                # with M'u = Z' l_F / 2 reproduces that exactly, which keeps the
+                # solve a least squares on M and never forms M'M. Z is the
+                # difference basis, so Z' l_F is l_F[:-1] - l_F[-1].
+                lF = linear[free]
+                q = 0.5 * (lF[:nF - 1] - lF[nF - 1])
+                u = np.linalg.lstsq(M.T, q, rcond=None)[0]
+                # What the shift cannot reproduce is exactly q's component in
+                # null(M): R^(nF-1) splits as range(M') + null(M), and u solves
+                # in range(M'), so the least-squares residual q - M'u is the
+                # null part and no further work is needed to find it.
+                #
+                # A nonzero null part means the subproblem is unbounded. Moving
+                # v along -qn leaves M v fixed, so the quadratic does not
+                # change, while the linear term falls by 2||qn||^2 per unit
+                # step. The minimum is therefore not interior to this free set
+                # and the loop must reach a bound instead of solving for one.
+                qn = q - M.T @ u
+                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):
+                    # Z maps the ray into weight space, where it sums to zero
+                    # and so stays on the hyperplane. The simplex is compact,
+                    # so some coordinate blocks: step to the first one and pin
+                    # it, which is the same move the loop makes for an
+                    # infeasible full step.
+                    d = np.empty(nF)
+                    d[:nF - 1] = -qn
+                    d[nF - 1] = float(qn.sum())
+                    cur = w[free]
+                    blocking = d < -tol
+                    if blocking.any():
+                        ratios = np.where(
+                            blocking, cur / np.maximum(-d, tol), np.inf)
+                        cur = cur + float(ratios.min()) * d
+                        w = np.zeros(J)
+                        w[free] = np.maximum(cur, 0.0)
+                        hit = free[cur <= tol]
+                        if hit.size == 0:         # pragma: no cover - numerical
+                            hit = free[[int(np.argmin(cur))]]
+                        active[hit] = True
+                        pivots += 1
+                        continue
+                rhs = rhs - u
+            v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)
             wF[:nF - 1] = 1.0 / nF + v
             wF[nF - 1] = 1.0 / nF - v.sum()

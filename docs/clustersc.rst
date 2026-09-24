@@ -30,12 +30,65 @@ control behind a single estimator.
   (Candes, Li, Ma & Wright 2011) or half-quadratic non-convex
   regularisation (Wang, Li, So & Liu 2023), then non-negative least
   squares against the low-rank donor matrix. On top of this default
-  path mlsynth adds three opt-in pieces, each documented below:
+  path mlsynth adds four opt-in pieces, each documented below:
   subspace-separation clustering (fGRC, Yamamoto and Hwang 2017) in
   place of the FPCA silhouette step, a signal-recovery HSVT denoiser
   whose rank is read from the donor spectrum in place of the fixed
-  Candes penalty, and simplex weights in place of non-negative least
-  squares.
+  Candes penalty, an FGRC denoiser that reuses the subspace that same
+  clustering already fit, and simplex weights in place of non-negative
+  least squares.
+
+Denoising with the clustering's own subspace
+--------------------------------------------
+
+``rpca_method="FGRC"`` denoises the donors with the subspace the fGRC
+clustering step already estimated, instead of deriving a second one.
+
+Yamamoto and Hwang estimate the cluster subspace :math:`\mathbf{A}_1`, the
+disturbing subspace :math:`\mathbf{A}_2` and the partition together; their
+routine returns all three. The other denoisers ignore that and fit a fresh
+low-rank structure, so a pipeline running fGRC clustering followed by PCP
+answers the same question twice with two unrelated answers. Setting
+``rpca_method="FGRC"`` alongside ``cluster_method="fgrc"`` uses one.
+
+``fgrc_keep`` decides whether the disturbing block survives the projection.
+The default, ``"all"``, keeps it: the denoised donors are
+:math:`\mathbf{G}\mathbf{A}\mathbf{A}^{\top}` at rank :math:`c_1 + c_2`.
+Setting ``"cluster"`` projects onto :math:`\mathbf{A}_1` alone.
+
+Keep the default. Setting ``"cluster"`` is structurally wrong for this use,
+and the reason is a property of the construction, not of any panel.
+
+fGRC splits the subspace by what discriminates clusters.
+:math:`\mathbf{A}_1` holds the directions that separate the groups, and
+:math:`\mathbf{A}_2` holds the high-variance directions that do not. On the
+Basque donor pool the two columns of :math:`\mathbf{A}_1` are 70% between
+cluster but carry 3.7% of the variance between them, while
+:math:`\mathbf{A}_2` carries 95.4% of the variance and 95.4% of that is
+within cluster. That is the separation doing its job: it keeps a
+variance-dominant direction from swamping the grouping.
+
+The donors a synthetic control combines are the members of the treated
+unit's own cluster. Being one cluster, they barely differ along
+:math:`\mathbf{A}_1` -- there is nothing left for it to discriminate --
+so everything distinguishing them sits in :math:`\mathbf{A}_2`. Projecting
+onto :math:`\mathbf{A}_1` alone therefore discards the whole of the
+variation the weights are fitted on. Measured on Basque, West Germany and
+Proposition 99, between-donor spread falls to between 18% and 40% of raw and
+the weight step puts all the weight on one donor on every one of them.
+
+The collapse is not the same as the sign flip. Where the flattened envelope
+also falls below the treated unit, no convex combination can reach it and the
+returned effect comes back with the wrong sign -- Basque gives +1.617 against
+about -0.70. That needs the treated unit to leave the hull, which happens on
+Basque and West Germany but not on Proposition 99, where the fit collapses
+onto one donor anyway. The flattening is structural; leaving the hull is what
+turns it from a much worse answer into a wrong-signed one.
+
+The setting stays because it is the paper's own construction and the
+separation is correct for the clustering it was designed for. A direction can
+be disturbing for one task and the entire signal for the next, and here the
+two are the same subspace.
 
 Either family can be selected via :py:attr:`CLUSTERSCConfig.method`
 (``"pcr"``, ``"rpca"``, or ``"both"``); when both run, the

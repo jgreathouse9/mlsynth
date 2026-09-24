@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 221 registered cases. ``paths`` is what the case
+All 223 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
 * ``A`` -- empirical replication (74 cases)
-* ``B`` -- Monte Carlo / simulation (61 cases)
-* ``C`` -- theoretical property or design calibration (10 cases)
-* ``X`` -- cross-validation against a reference implementation (104 cases)
+* ``B`` -- Monte Carlo / simulation (62 cases)
+* ``C`` -- theoretical property or design calibration (11 cases)
+* ``X`` -- cross-validation against a reference implementation (105 cases)
 
-By data: 75 simulated, 131 empirical, 15 both -- so 90 cases fit at least one generated panel.
+By data: 77 simulated, 131 empirical, 15 both -- so 92 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -261,6 +261,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - simulated
    * - ``ferman_pinto_mc``
      - B X
+     - simulated
+   * - ``fgrc_grc_crossval``
+     - X
      - simulated
    * - ``fgrc_toy_subspace``
      - B
@@ -505,6 +508,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``rescm_brexit_2020``
      - A
      - empirical
+   * - ``rescm_relax_behavior``
+     - B C
+     - simulated
    * - ``rescm_relax_mc``
      - B
      - simulated

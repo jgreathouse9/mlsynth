@@ -30,6 +30,7 @@ from ..pcr.convex import solve_simplex as _solve_simplex
 from ..structures import MethodFit
 from .clustering import FPCACluster, assign_clusters
 from .fgrc import fgrc_cluster as _fgrc_cluster
+from .fgrc import fgrc_lowrank, fgrc_subspace
 from .fpca import FPCAFeatures, compute_fpca_features
 from .hqf import HQFResult, hqf_decompose
 from .pcp import PCPResult, pcp_decompose
@@ -37,8 +38,9 @@ from .inference import cft_prediction_intervals
 from .tuning import cv_hqf_rank as _cv_hqf_rank
 from .tuning import cv_pcp_lambda
 from .weights import solve_nnls
+from ..spannability import assess_spannability, warn_if_poorly_spanned
 
-_RPCA_METHODS = {"PCP", "HQF", "HSVT"}
+_RPCA_METHODS = {"PCP", "HQF", "HSVT", "FGRC"}
 _CLUSTER_METHODS = {"fpca", "fgrc"}
 _WEIGHT_OBJECTIVES = {"nnls", "simplex"}
 
@@ -67,6 +69,7 @@ def run_rpca(
     fgrc_order: int = 4,
     fgrc_n_random: int = 40,
     fgrc_nstart: int = 40,
+    fgrc_keep: str = "all",
     # HSVT denoiser knobs (rpca_method="HSVT")
     hsvt_rank_method: str = "usvt",
     hsvt_rank: Optional[int] = None,
@@ -216,6 +219,30 @@ def run_rpca(
     selected_names = [donor_names[i] for i in donor_col_idx]
 
     # ------------------------------------------------------------------
+    # Did donor selection cost the treated unit its convex reach? The
+    # clustering objective is trajectory similarity and carries no
+    # spannability term, so a tight cluster can drop the donors the treated
+    # unit needs. Under `simplex` that surfaces as a large pre-period error;
+    # under `nnls` it is absorbed as extrapolation and the fit looks healthy,
+    # which is why it went unnoticed. Measured either way. See
+    # `..spannability` for the West Germany case this guards.
+    # ------------------------------------------------------------------
+    spannability_meta: dict = {}
+    if donor_col_idx.size < donor_outcomes.shape[1]:
+        report = assess_spannability(
+            donor_pre_pool=donor_outcomes[:T0],
+            treated_pre=treated_outcome[:T0],
+            cluster_index=donor_col_idx,
+        )
+        warn_if_poorly_spanned(report)
+        spannability_meta = {
+            "spannability_ratio": report.ratio,
+            "spannability_excluded_mass": report.excluded_mass,
+            "spannability_cluster_rmse": report.cluster_rmse,
+            "spannability_pool_rmse": report.pool_rmse,
+        }
+
+    # ------------------------------------------------------------------
     # Optional: leave-one-time-out CV for the dominant solver knob
     # (PCP lambda or HQF rank). Tunes the prediction-oriented value
     # rather than the L/S identifiability default from Candes 2011.
@@ -290,6 +317,28 @@ def run_rpca(
             "hqf_ip": result.ip_used,
             "hqf_iterations": result.iterations,
         }
+    elif rpca_method == "FGRC":
+        # Yamamoto-Hwang estimate the subspace and the partition together, and
+        # the clustering step above already fit one. Denoising with PCP after
+        # that derives a second, unrelated low-rank structure and discards
+        # theirs; this keeps it. `fgrc_keep` decides whether the disturbing
+        # block survives -- see `fgrc.fgrc_lowrank` for why the default is to
+        # keep it.
+        k_d = int(fgrc_k) if fgrc_k is not None else 2
+        knots_d = int(fgrc_knots) if fgrc_knots is not None else max(4, T0 // 2 - 2)
+        sub = fgrc_subspace(
+            donor_matrix, c1=fgrc_c1, c2=fgrc_c2, k=min(k_d, donor_matrix.shape[0]),
+            n_knots=knots_d, order=fgrc_order, seed=random_state,
+            n_random=fgrc_n_random, nstart=fgrc_nstart,
+        )
+        L_full = fgrc_lowrank(sub, keep=fgrc_keep).T
+        solver_metadata = {
+            "fgrc_keep": fgrc_keep,
+            "fgrc_c1": int(fgrc_c1),
+            "fgrc_c2": int(fgrc_c2),
+            "fgrc_rank": int(fgrc_c1 + (fgrc_c2 if fgrc_keep == "all" else 0)),
+            "fgrc_denoise_loss": float(sub.loss),
+        }
     else:  # rpca_method == "HSVT" -- hard singular-value truncation (RSC/PCR-native)
         if hsvt_rank_method == "fixed":
             r_hsvt = _select_rank(donor_matrix, method="fixed", r=hsvt_rank)
@@ -327,6 +376,7 @@ def run_rpca(
     metadata = {
         "rpca_method": rpca_method,
         "weight_objective": weight_objective,
+        **spannability_meta,
         **cluster_meta,
         **solver_metadata,
         **cv_metadata,
