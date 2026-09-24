@@ -2451,3 +2451,21 @@ timeout = 180.0
   find = "    if not identified:"
   replace = "    if False:"
   models = "an identification failure recorded on the result and never surfaced, so a caller reading only the ATT sees a number that a different minimiser of the same program would have contradicted"
+
+[[target]]
+name = "fscm-trajectory-weights"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_weight_solver.py -q -p no:cacheprovider"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "rolling-origin-warm-start-carried-across-donor-pools"
+  find = "    errs = []\n    warm = None\n    for t in origins:"
+  replace = "    errs = []\n    warm = np.zeros(len(idx))\n    for t in origins:"
+  models = "a warm start that is not a point of the simplex, so every origin's seed is discarded and the rolling criterion silently falls back to cold solves -- the answer is unchanged and only the work moves, which no assertion on the weights can see"
+
+  [[target.mutant]]
+  id = "trajectory-fit-drops-the-simplex"
+  find = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,"
+  replace = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice], WeightConstraint(nonneg=False, sum_to_one=False)).weights,"
+  models = "trajectory weights fitted without the simplex, which buys a better pre-period fit by extrapolating past the donor cloud and gives a counterfactual with no out-of-sample content"

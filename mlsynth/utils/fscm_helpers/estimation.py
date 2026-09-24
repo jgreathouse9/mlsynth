@@ -30,7 +30,8 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
-from ..bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
+from ..bilevel import BilevelProblem, lower_level_weights, solve_bilevel
+from ..weights import solve_weights
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
 _EPS = 1e-12
@@ -82,7 +83,9 @@ def _fit_weights(
 
     Predictor mode solves the bilevel lower-level problem for the fixed global
     ``V`` over the full pre-period; trajectory mode matches the outcome over
-    ``fit_slice``. Both use the self-contained FISTA simplex solver.
+    ``fit_slice``. Both reach the exact simplex minimiser: the predictor path
+    through ``simplex_qp`` in :mod:`..bilevel.stages`, this one through
+    :func:`~mlsynth.utils.weights.solve_weights`.
     """
     if Pt is not None:
         subprob = BilevelProblem(
@@ -91,7 +94,10 @@ def _fit_weights(
             X1=Pt, X0=Pd[:, idx],
         )
         return lower_level_weights(subprob, v, _LOWER_EPS)
-    return simplex_lstsq(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice])
+    return np.asarray(
+        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,
+        dtype=float,
+    )
 
 
 def _outcome_rmspe(
@@ -122,8 +128,16 @@ def _rolling_origin_rmspe(
         errs = [(inputs.y[t] - inputs.Y[t, idx] @ w) ** 2 for t in origins]
         return float(np.sqrt(np.mean(errs)))
     errs = []
+    warm = None
     for t in origins:
-        w = simplex_lstsq(inputs.Y[:t][:, idx], inputs.y[:t])
+        # Consecutive origins differ by one row, so the previous answer names
+        # the support this one starts from. It is a seed only: the active set
+        # still determines the weights, and an infeasible seed is discarded.
+        solution = solve_weights(
+            inputs.Y[:t][:, idx], inputs.y[:t], warm_start=warm
+        )
+        w = np.asarray(solution.weights, dtype=float)
+        warm = w
         errs.append((inputs.y[t] - inputs.Y[t, idx] @ w) ** 2)
     return float(np.sqrt(np.mean(errs)))
 
@@ -257,7 +271,7 @@ def run_fscm(
     metadata = {
         "forward_selection": forward_selection,
         "matching_mode": "predictor" if inputs.has_predictors else "trajectory",
-        "solver": "bilevel" if inputs.has_predictors else "simplex_lstsq",
+        "solver": "bilevel" if inputs.has_predictors else "simplex:active-set",
         "covariates": list(inputs.covariate_names),
         "match_periods": list(inputs.match_periods),
     }
