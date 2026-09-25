@@ -44,19 +44,14 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     ``scinference``'s ``estimators.R::sc`` (``limSolve::lsei``). Used as the
     default per-fold solver when the caller supplies no ``weight_fn``.
     """
-    import cvxpy as cp
+    from .bilevel.active_set import solve_simplex_qp
 
-    J = Y0.shape[1]
-    w = cp.Variable(J)
-    cp.Problem(
-        cp.Minimize(cp.sum_squares(Y0 @ w - y)),
-        [cp.sum(w) == 1, w >= 0],
-    ).solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-9, max_iter=200000)
-    if w.value is None:  # pragma: no cover - defensive: OSQP non-convergence
+    try:
+        return solve_simplex_qp(Y0, y)
+    except Exception as exc:  # pragma: no cover - defensive: degenerate fold
         raise MlsynthEstimationError(
             "outcome-only simplex SC failed to solve in debiased_sc_ttest"
-        )
-    return np.asarray(w.value).ravel()
+        ) from exc
 
 
 # ``split_conformal_quantile`` now lives with the rest of the conformal machinery

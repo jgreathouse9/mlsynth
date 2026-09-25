@@ -19,6 +19,7 @@ Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
 """
 
 from .structure import BilevelProblem, BilevelSolution
+from .active_set import solve_simplex_qp, solve_simplex_qp_least_norm
 from .simplex import (project_simplex, project_simplex_cols,
                       simplex_lstsq, simplex_lstsq_batch,
                       simplex_lstsq_loo, mspe)
@@ -51,6 +52,8 @@ from .ridge_inference import (
 )
 
 __all__ = [
+    "solve_simplex_qp",
+    "solve_simplex_qp_least_norm",
     "regression_v",
     "solve_regression",
     "project_simplex_cols",
