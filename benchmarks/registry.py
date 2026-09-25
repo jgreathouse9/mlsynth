@@ -130,6 +130,7 @@ CASES = {
     "shi_fine_grained_sc": "benchmarks.cases.shi_fine_grained_sc",  # Path B + property: Shi et al. 2022 Table 2 exactly, the |S| blow-up under OLS, and why the simplex fails differently (convex-hull membership, not |S|)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
+    "pda_hcw_cepa": "benchmarks.cases.pda_hcw_cepa",  # Path A / X: HCW CEPA 2004 headline, AICc over all 24 candidates
     "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
     "arco_retail": "benchmarks.cases.arco_retail",                # Path A: Masini-Medeiros 2021 Table 5a -- WLASSO + partial resampling on their Brazilian retail price experiment, value-for-value
     "arco_resampling_mc": "benchmarks.cases.arco_resampling_mc",  # Path B: Masini-Medeiros 2021 Tables 2-3 size -- True/Oracle arms reproduce, LASSO arm over-rejects 2.2x, with the five checks that localise it
@@ -417,6 +418,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "pcr_shen_estimator_coverage":    ("C", "both"),
     "pda_brexit":                     ("A", "empirical"),
     "pda_hcw_hongkong":               ("A", "empirical"),
+    "pda_hcw_cepa":                   ("A", "empirical"),
     "pda_hongkong":                   ("A", "empirical"),
     "pda_l2_sim":                     ("B", "simulated"),
     "pda_lasso_sim":                  ("B", "simulated"),
