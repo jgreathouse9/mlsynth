@@ -522,3 +522,254 @@ def test_the_verdict_survives_a_full_fit_through_the_estimator(twins_only_before
         with pytest.warns(UserWarning):
             fits[m] = _fit(twins_only_before_treatment, m)
     assert all(f.att_identified is False for f in fits.values())
+
+
+# ----------------------------------------------------------------------
+# The subsample size m reaches the ATT interval
+# ----------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def wide_inputs():
+    """A panel wide enough for m to vary: T_0 = 90 against 10 donors.
+
+    The Basque fixture has T_0 = 20 with 16 donors, so the only
+    admissible subsample sizes are 18 to 20 and m barely moves. Li
+    (2020)'s own design is T_1 = 90, T_2 = 20, N = 11.
+    """
+    from mlsynth.utils.tssc_helpers.structures import TSSCInputs
+
+    rng = np.random.default_rng(0)
+    T0, T2, J = 90, 20, 10
+    T = T0 + T2
+    f = rng.standard_normal((T, 3))
+    B = np.zeros((J + 1, 3))
+    B[:7] = 1.0
+    Y = 1.0 + f @ B.T + rng.uniform(-np.sqrt(3), np.sqrt(3), (T, J + 1))
+    return TSSCInputs(
+        y=Y[:, 0], donor_matrix=Y[:, 1:],
+        donor_names=[f"d{j}" for j in range(J)],
+        T0=T0, T2=T2, T=T, time_labels=np.arange(T),
+        treated_unit_name="treated",
+    )
+
+
+class TestTheSubsampleSizeReachesTheAttInterval:
+    """``m`` is a parameter of Li (2020)'s procedure, not a constant.
+
+    The paper's Table 1 reports coverage at ``m`` in {20, 40, 60, 80, 90}
+    and at ``m = T_1`` (the bootstrap special case of Remark 4.3), so a
+    replication of it needs the size settable. ``subsample_size`` already
+    existed on the config and reached only the Step-1 restriction tests;
+    ``bootstrap_att_ci`` computed its own ``m = T_0 - 5`` and ignored it.
+
+    These tests pin that ``m`` reaches the computation and that the
+    default is unmoved. They deliberately do not pin a direction for the
+    interval width in ``m``: measured across {20, 40, 60, 80, 90} at 600
+    draws on the fixture below, the width is flat at 0.99 to 1.05 with no
+    ordering, because the ``sqrt(T_2 m / T_0)`` rescaling of the weight
+    term and the larger sampling spread of ``w*`` at small ``m`` roughly
+    cancel. Li tabulates coverage across ``m`` precisely because it moves
+    for him, so whether it moves here is a question for the replication
+    to answer, not something to assert in advance.
+    """
+
+    def _fit(self, inputs, method="MSCc"):
+        from mlsynth.utils.tssc_helpers import estimation
+
+        return estimation.fit_variant(
+            inputs, method, n_bootstrap=10, confidence_level=0.95,
+            rng=np.random.default_rng(0), compute_ci=False,
+        )
+
+    def test_the_default_is_unchanged(self, wide_inputs):
+        """None keeps T_0 - 5, so every existing call is byte-identical."""
+        from mlsynth.utils.tssc_helpers import estimation
+
+        fit = self._fit(wide_inputs)
+        kw = dict(inputs=wide_inputs, method="MSCc", weights=fit.weights,
+                  counterfactual=fit.counterfactual, att=fit.att,
+                  n_bootstrap=30, confidence_level=0.95)
+        default = estimation.bootstrap_att_ci(
+            rng=np.random.default_rng(7), **kw
+        )
+        explicit = estimation.bootstrap_att_ci(
+            rng=np.random.default_rng(7),
+            subsample_size=wide_inputs.T0 - 5, **kw
+        )
+        assert default == explicit
+
+    def test_a_different_m_gives_a_different_interval(self, wide_inputs):
+        from mlsynth.utils.tssc_helpers import estimation
+
+        fit = self._fit(wide_inputs)
+        kw = dict(inputs=wide_inputs, method="MSCc", weights=fit.weights,
+                  counterfactual=fit.counterfactual, att=fit.att,
+                  n_bootstrap=200, confidence_level=0.95)
+        seen = {}
+        for m in (20, 60, wide_inputs.T0):
+            seen[m] = estimation.bootstrap_att_ci(
+                rng=np.random.default_rng(1), subsample_size=m, **kw
+            )
+            assert all(np.isfinite(v) for v in seen[m])
+        assert len(set(seen.values())) == 3
+
+    def test_m_above_the_pre_period_is_refused(self, wide_inputs):
+        from mlsynth.exceptions import MlsynthConfigError
+        from mlsynth.utils.tssc_helpers import estimation
+
+        fit = self._fit(wide_inputs, "SC")
+        with pytest.raises(MlsynthConfigError, match="subsample_size"):
+            estimation.bootstrap_att_ci(
+                inputs=wide_inputs, method="SC", weights=fit.weights,
+                counterfactual=fit.counterfactual, att=fit.att,
+                n_bootstrap=10, confidence_level=0.95,
+                rng=np.random.default_rng(0),
+                subsample_size=wide_inputs.T0 + 1,
+            )
+
+    def test_the_estimator_passes_it_through(self):
+        """End to end: the config field changes the reported att_ci."""
+        import warnings as _w
+
+        import pandas as pd
+
+        from mlsynth import TSSC
+
+        rng = np.random.default_rng(3)
+        T0, T2, J = 90, 20, 10
+        T = T0 + T2
+        f = rng.standard_normal((T, 3))
+        B = np.zeros((J + 1, 3))
+        B[:7] = 1.0
+        Y = 1.0 + f @ B.T + rng.uniform(-np.sqrt(3), np.sqrt(3), (T, J + 1))
+        units = ["treated"] + [f"c{j}" for j in range(J)]
+        df = pd.DataFrame({
+            "unit": np.repeat(units, T),
+            "time": np.tile(np.arange(T), J + 1),
+            "y": Y.T.ravel(),
+            "D": np.concatenate([(np.arange(T) >= T0).astype(int),
+                                 np.zeros(J * T, dtype=int)]),
+        })
+        cfg = dict(df=df, outcome="y", treat="D", unitid="unit", time="time",
+                   display_graphs=False, method="MSCc", draws=150, seed=4)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            small = TSSC({**cfg, "subsample_size": 20}).fit()
+            default = TSSC({**cfg}).fit()
+        assert small.att == pytest.approx(default.att, rel=1e-12)
+        assert small.att_ci != default.att_ci
+
+
+class TestTheSubsamplingMatchesLi2020:
+    """Equations (22) and (23), the construction the interval is named for.
+
+    Section 4 decomposes ``sqrt(T2)(ATT_hat - ATT)`` into a term carrying the
+    constrained estimator and a term that does not,
+
+        A = -sqrt(T2/T1) xbar_post' sqrt(T1)(beta_hat - beta_0)
+            + T2^(-1/2) sum_{t>T1} v_1t,
+
+    and is explicit that the two get different treatments: "apply the
+    subsampling method only to the sqrt(T1)(beta_hat - beta_0) term and apply
+    the bootstrap method to the remaining term". So the separate Gaussian
+    post-period term is the paper's prescription, not an approximation of it.
+
+    What the subsample itself must be is equally explicit: "For t = 1, ..., m,
+    we randomly draw (y*_1t, x*_t) from {y_1t, x_t} with replacement". The
+    pairs are the observed data. Drawing without replacement, or rebuilding
+    y* parametrically from the fitted weights, is a different procedure.
+    """
+
+    def _pieces(self, inputs, method="MSCc"):
+        from mlsynth.utils.tssc_helpers import estimation
+
+        fit = estimation.fit_variant(
+            inputs, method, n_bootstrap=10, confidence_level=0.95,
+            rng=np.random.default_rng(0), compute_ci=False,
+        )
+        return estimation, fit
+
+    def test_the_subsample_draws_the_observed_pairs(self, wide_inputs, monkeypatch):
+        """Every y* handed to the solver is an observed pre-period outcome."""
+        estimation, fit = self._pieces(wide_inputs)
+        seen = []
+        real = estimation._solve
+
+        def capture(method, donor_pre, y_pre, n_pre, n_donors):
+            seen.append(np.asarray(y_pre, dtype=float).copy())
+            return real(method, donor_pre, y_pre, n_pre, n_donors)
+
+        monkeypatch.setattr(estimation, "_solve", capture)
+        estimation.bootstrap_att_ci(
+            inputs=wide_inputs, method="MSCc", weights=fit.weights,
+            counterfactual=fit.counterfactual, att=fit.att, n_bootstrap=25,
+            confidence_level=0.95, rng=np.random.default_rng(0),
+            subsample_size=30,
+        )
+        observed = set(np.round(wide_inputs.y[:wide_inputs.T0], 12))
+        assert seen, "the solver was never called"
+        for y_star in seen:
+            assert set(np.round(y_star, 12)) <= observed
+
+    def test_the_subsample_is_drawn_with_replacement(self, wide_inputs, monkeypatch):
+        """With replacement, a draw of m repeats rows; without, it cannot."""
+        estimation, fit = self._pieces(wide_inputs)
+        seen = []
+        real = estimation._solve
+
+        def capture(method, donor_pre, y_pre, n_pre, n_donors):
+            seen.append(np.asarray(y_pre, dtype=float).copy())
+            return real(method, donor_pre, y_pre, n_pre, n_donors)
+
+        monkeypatch.setattr(estimation, "_solve", capture)
+        m = 60
+        estimation.bootstrap_att_ci(
+            inputs=wide_inputs, method="MSCc", weights=fit.weights,
+            counterfactual=fit.counterfactual, att=fit.att, n_bootstrap=40,
+            confidence_level=0.95, rng=np.random.default_rng(0),
+            subsample_size=m,
+        )
+        # P(no repeat in 60 draws from 90) is about 1e-9, so over 40 draws a
+        # without-replacement scheme is the only way to see none.
+        repeated = sum(len(set(np.round(s, 12))) < m for s in seen)
+        assert repeated > 0.9 * len(seen)
+
+    def test_the_statistic_is_equation_22(self, wide_inputs):
+        """Rebuild A* by hand from the same draws and compare the interval."""
+        estimation, fit = self._pieces(wide_inputs)
+        T0, T2 = wide_inputs.T0, wide_inputs.T2
+        m, J, alpha = 40, 120, 0.05
+
+        lo, hi = estimation.bootstrap_att_ci(
+            inputs=wide_inputs, method="MSCc", weights=fit.weights,
+            counterfactual=fit.counterfactual, att=fit.att, n_bootstrap=J,
+            confidence_level=1 - alpha, rng=np.random.default_rng(11),
+            subsample_size=m,
+        )
+
+        donor_pre = wide_inputs.donor_matrix[:T0]
+        y_pre = wide_inputs.y[:T0]
+        feats_pre = estimation._features("MSCc", donor_pre)
+        feats_post = estimation._features("MSCc", wide_inputs.donor_matrix[T0:])
+        gap_post = wide_inputs.y[T0:] - fit.counterfactual[T0:]
+        sigma_v = float(np.sqrt(np.mean((gap_post - gap_post.mean()) ** 2)))
+
+        rng = np.random.default_rng(11)
+        stats = []
+        for _ in range(J):
+            idx = rng.integers(0, T0, m)
+            w_star = estimation._solve(
+                "MSCc", donor_pre[idx], y_pre[idx], m, wide_inputs.n_donors
+            )
+            if w_star is None or not np.all(np.isfinite(w_star)):
+                continue
+            a1 = -np.mean(feats_post @ (w_star - fit.weights)) * np.sqrt(
+                (T2 * m) / T0
+            )
+            a2 = np.sqrt(T2) * np.mean(sigma_v * rng.standard_normal(T2))
+            stats.append((a1 + a2) / np.sqrt(T2))
+        expected_lo = fit.att - float(np.quantile(stats, 1 - alpha / 2))
+        expected_hi = fit.att - float(np.quantile(stats, alpha / 2))
+        assert lo == pytest.approx(expected_lo, rel=1e-12)
+        assert hi == pytest.approx(expected_hi, rel=1e-12)
