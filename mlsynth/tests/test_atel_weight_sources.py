@@ -401,3 +401,47 @@ def test_tiling_refuses_malformed_input():
         tile_unit_weights(np.ones(5), 3)
     with pytest.raises(MlsynthDataError, match="at least one period"):
         tile_unit_weights(np.ones((5, 2)), 0)
+
+
+# ------------------------------- what the conditioning diagnostic returns
+def test_the_conditioning_diagnostic_returns_the_smallest_eigenvalue():
+    """Not merely a positive number: the weakest direction, by identity.
+
+    Two weight series that nearly coincide give a spectrum with a large and a
+    small eigenvalue, and the diagnostic has to report the small one -- reading
+    the other way round would call a degenerate weight matrix healthy.
+    """
+    from mlsynth.utils.atel_helpers.sieve import tile_unit_weights, weight_conditioning
+
+    n_donors, T = 12, 5
+    rng = np.random.default_rng(0)
+    first = rng.normal(size=n_donors)
+    W_unit = np.column_stack([first, first + 1e-3 * rng.normal(size=n_donors)])
+    spectrum = np.linalg.eigvalsh(W_unit.T @ W_unit / n_donors)
+
+    got = weight_conditioning(tile_unit_weights(W_unit, T), 2, T)
+    assert got == pytest.approx(float(spectrum.min()), rel=1e-12)
+    assert float(spectrum.min()) < 1e-3 * float(spectrum.max())   # the test has power
+
+
+def test_the_conditioning_diagnostic_reports_the_worst_period():
+    """With time-varying weights it is a minimum over periods, not an average."""
+    from mlsynth.utils.atel_helpers.sieve import weight_conditioning
+
+    n_donors, T = 10, 4
+    rng = np.random.default_rng(1)
+    healthy = rng.normal(size=(n_donors, 2))
+    blocks = np.zeros((n_donors, 2 * T))
+    per_period = []
+    for t in range(T):
+        W_t = healthy.copy()
+        if t == 2:
+            W_t[:, 1] = W_t[:, 0]          # one period where the series coincide
+        blocks[:, 0 * T + t] = W_t[:, 0]
+        blocks[:, 1 * T + t] = W_t[:, 1]
+        per_period.append(float(np.linalg.eigvalsh(W_t.T @ W_t / n_donors).min()))
+
+    got = weight_conditioning(blocks, 2, T)
+    assert got == pytest.approx(min(per_period), rel=1e-12)
+    assert got == pytest.approx(per_period[2], rel=1e-12)
+    assert per_period[2] < 1e-8 < min(p for i, p in enumerate(per_period) if i != 2)
