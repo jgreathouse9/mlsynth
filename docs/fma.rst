@@ -194,7 +194,7 @@ treated unit by
    for every period; the ATT is the mean post-treatment gap.
 
 The paper's distinctive contribution is valid statistical inference
-for the ATT. FMA in :mod:`mlsynth` exposes three procedures in
+for the ATT. FMA in :mod:`mlsynth` exposes four procedures in
 parallel; the user picks any subset via
 :py:attr:`FMAConfig.inference_methods`:
 
@@ -204,6 +204,10 @@ parallel; the user picks any subset via
   + \widehat{\Omega}_2`.
 * ``"bootstrap"`` -- Web Appendix F residual bootstrap for per-period
   :math:`\tau_t` CIs.
+* ``"percentile_t"`` -- Wang, Racine & Wang (2025) studentized
+  bootstrap CI for the ATT. Same estimand as ``"asymptotic"``, and it
+  keeps its nominal coverage when the pre-period is short, where the
+  normal interval does not.
 * ``"placebo"`` -- Web Appendix G control-as-pseudo-treated band.
 
 Notation
@@ -424,6 +428,136 @@ bootstrap therefore drives the per-period CI:
             \widehat{\tau}_{1t}
               - \tau^\ast_{1t, (\alpha B / 2)}\bigr].
 
+Studentized bootstrap for the ATT (Wang, Racine & Wang 2025)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The normal interval above is correct in large samples. Short of them
+it is too narrow, and Wang, Racine and Wang (2025) measure how much:
+with ten pre-periods and fifteen controls, an interval built to cover
+the ATT 95% of the time covers it about 80% of the time.
+
+The cause is in the statistic the interval is built from. Write
+
+.. math::
+
+   \widehat{S} \coloneqq \sqrt{T - T_0}\;
+       \frac{\widehat{\tau} - \tau}{\sqrt{\widehat{\Omega}}},
+
+which the normal interval treats as a draw from a standard normal.
+With a short pre-period it is not one. Both :math:`\widehat{\tau}` and
+:math:`\widehat{\Omega}` are built from the same handful of pre-period
+residuals, and dividing by an estimate that moves with the numerator
+spreads the tails of :math:`\widehat{S}` and thins its middle -- the
+same reason a t-statistic on few observations has fatter tails than a
+z-statistic. Critical values read off the normal table are then too
+small, and the interval they produce is too short at both ends.
+
+The remedy is to estimate the distribution of :math:`\widehat{S}`
+instead of assuming it. The three steps, from the paper's Section 3.1:
+
+1. From the fitted model take :math:`\widehat{\boldsymbol{\lambda}}_1`,
+   :math:`\widehat{\tau}`, :math:`\widehat{\Omega}`, and the treated
+   unit's residual variance
+   :math:`\widehat{\sigma}^2_{\text{tr}} = T_0^{-1} \sum_{t \in
+   \mathcal{T}_1} \widehat{e}_{1t}^{\,2}`.
+2. For each of :math:`M` draws, sample
+   :math:`e^\ast_{1t} \sim \mathcal{N}(0,
+   \widehat{\sigma}^2_{\text{tr}})` for every
+   :math:`t \in \mathcal{T}`, build a bootstrap treated series
+   :math:`y^\ast_{1t} = \widetilde{\mathbf{f}}_t^\top
+   \widehat{\boldsymbol{\lambda}}_1 + e^\ast_{1t}`, re-estimate the
+   loading on its pre-period, and form the bootstrap ATT
+
+   .. math::
+
+      \widehat{\tau}^\ast = \widehat{\tau}
+        - \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2}
+            \widetilde{\mathbf{f}}_t^\top
+            (\widehat{\boldsymbol{\lambda}}^\ast_1
+             - \widehat{\boldsymbol{\lambda}}_1)
+        + \frac{1}{T - T_0} \sum_{t \in \mathcal{T}_2} e^\ast_{1t},
+
+   then the studentized statistic
+   :math:`\widehat{S}^\ast = \sqrt{T - T_0}\,(\widehat{\tau}^\ast
+   - \widehat{\tau}) / \sqrt{\widehat{\Omega}^\ast}`, where
+   :math:`\widehat{\Omega}^\ast` is :math:`\widehat{\Omega}` recomputed
+   on the bootstrap residuals. The factors are held fixed across draws
+   at :math:`\mathbf{f}^\ast_t = \widehat{\mathbf{f}}_t`.
+3. Sort the :math:`M` statistics and invert them:
+
+   .. math::
+
+      \bigl[\widehat{\tau} - \widehat{S}^\ast_{((1 - \alpha/2)M)}
+              \sqrt{\widehat{\Omega} / (T - T_0)},\;
+            \widehat{\tau} - \widehat{S}^\ast_{(\alpha M / 2)}
+              \sqrt{\widehat{\Omega} / (T - T_0)}\bigr].
+
+The upper bound subtracts the lower order statistic, which is what
+inverting an interval for :math:`\widehat{S}` into one for
+:math:`\tau` does to the two tails. The result is asymmetric around
+:math:`\widehat{\tau}` whenever the bootstrap distribution is skewed,
+and that asymmetry is the correction.
+
+Where the draws come from is the second half of the argument. Xu's
+(2017) bootstrap takes the treated unit's errors from the estimated
+residuals of the control group, which assumes the treated and control
+units share an idiosyncratic variance. In both of Li and Sonnier's
+applications the ratio :math:`\sigma^2_{\text{tr}} /
+\sigma^2_{\text{co}}` exceeds 10, and at that ratio the paper measures
+Xu's 95% interval covering between 41% and 56% of the time. Drawing
+from :math:`\mathcal{N}(0, \widehat{\sigma}^2_{\text{tr}})`, estimated
+on the treated unit alone, removes the assumption.
+
+The studentization is what carries that immunity. The numerator of
+:math:`\widehat{S}^\ast` is linear in the draws and
+:math:`\widehat{\Omega}^\ast` is quadratic in them, so their ratio is
+free of the draw scale: the interval this estimator returns is
+identical whatever variance the errors are drawn from, and
+:math:`\widehat{\sigma}^2_{\text{tr}}` reaches the result only through
+the requirement that it be non-zero. Xu's interval is a percentile
+interval on :math:`\widehat{\tau}^\ast` itself, with no such division,
+so its width carries the scale of whichever residuals were resampled
+-- which is the failure the 41% to 56% figures record.
+
+Two points of contact with the rest of the page. The procedure shares
+its estimand with ``"asymptotic"`` -- both are intervals for the
+post-period average :math:`\tau` -- and shares neither with
+``"bootstrap"``, which bands each :math:`\tau_t` separately. And the
+:math:`\widehat{\Omega}` used here is the heteroskedasticity-robust
+form of Appendix A.1,
+
+.. math::
+
+   \widehat{\Omega}_1 = \frac{T - T_0}{T_0}\,
+       \widehat{\boldsymbol{\eta}}^\top \widehat{A}^{-1} \widehat{V}
+       \widehat{A}^{-1} \widehat{\boldsymbol{\eta}}, \qquad
+   \widehat{V} = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+       \widehat{e}_{1t}^{\,2}\, \widetilde{\mathbf{f}}_t
+       \widetilde{\mathbf{f}}_t^\top,
+
+with :math:`\widehat{A} = T_0^{-1} \sum_{t \in \mathcal{T}_1}
+\widetilde{\mathbf{f}}_t \widetilde{\mathbf{f}}_t^\top` and
+:math:`\widehat{\boldsymbol{\eta}}` the post-period mean of the
+factors. When :math:`\widehat{e}_{1t}^{\,2}` is constant over the
+pre-period this collapses to the
+:math:`\widehat{\sigma}^2 \widehat{A}^{-1}` form the Theorem 3.1
+interval uses, so the two standard errors agree in that case and
+separate when the large squared residuals sit at periods whose factor
+values carry the most weight in the post-period projection. The
+Theorem 3.1 path additionally divides the residual sum of squares by
+:math:`T_0 - (r + 1)` where Appendix A.1 divides by :math:`T_0`, so
+the two reported standard errors differ by that factor even on
+homoskedastic data. At :math:`T_0 = 10` with three factors it is
+:math:`\sqrt{10/6} \approx 1.29`.
+
+``percentile_t_att_se`` is
+:math:`\sqrt{\widehat{\Omega} / (T - T_0)}`, so it is a standard error
+for the ATT and not a half-width: the interval is not
+:math:`\widehat{\tau}` plus and minus a multiple of it. The reported
+p-value inverts the same statistics at :math:`H_0: \tau = 0` and is
+bounded below by :math:`2 / (M + 1)`, so :math:`M` draws never report
+a p-value finer than they can resolve.
+
 Placebo inference (Web Appendix G)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -611,6 +745,27 @@ is zero in every draw; the paper's centred statistic
 :math:`\sqrt{T - T_0}\,(\widehat{\tau} - \tau)` is invariant to
 :math:`\tau` (see the equation following 4.2), so coverage doesn't
 depend on its value.
+
+The ``"percentile_t"`` option is validated separately, against Wang,
+Racine and Wang's own Tables 1 and 2. At their configuration -- 2,000
+simulations, 1,000 bootstrap draws per simulation, :math:`T_2 = 10`,
+:math:`T_1 \in \{10, 20, 30\}`, :math:`N \in \{15, 30\}` and
+:math:`\sigma^2_{\text{co}} \in \{1, 1/4, 1/10\}` -- all 18 cells
+reproduce within 0.017. The studentized interval covers between 0.939
+and 0.956 across the grid; the normal interval covers 0.79 to 0.81 at
+:math:`T_1 = 10` and climbs to 0.92 to 0.93 by :math:`T_1 = 30`. The
+durable case is
+`benchmarks/cases/fma_percentile_t_mc.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fma_percentile_t_mc.py>`_,
+which runs two of those cells at a size the daily suite can carry.
+
+The paper's asymptotic column is Appendix A.1's
+:math:`\widehat{\Omega}` with normal critical values, and reproducing
+it requires the :math:`T_0` normalisation; with the
+:math:`T_0 - (r + 1)` correction the ``"asymptotic"`` option applies,
+the same cells cover at 0.88 to 0.90 instead of 0.79 to 0.81. The
+correction widens the interval at short pre-periods and recovers some
+of the missing coverage without closing the gap.
 
 Replicating the headline coverage findings is a 15-line script:
 

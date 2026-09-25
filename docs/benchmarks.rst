@@ -274,6 +274,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``fma_coverage_mc``
      - B
      - simulated
+   * - ``fma_percentile_t_mc``
+     - B
+     - simulated
    * - ``fsc_estimator``
      - A
      - empirical
@@ -931,6 +934,8 @@ Path B — Monte Carlo / simulation
      - simulation
    * - ``fma_coverage_mc``
      - FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+   * - ``fma_percentile_t_mc``
+     - FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang Tables 1-2)
    * - ``hsc_mc``
      - HSC regime adaptation
    * - ``lexscm_design_mc``

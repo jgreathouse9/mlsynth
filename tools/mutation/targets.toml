@@ -2846,3 +2846,39 @@ timeout = 300.0
   find = "        block = donor_weights[:, j * T : (j + 1) * T]"
   replace = "        block = donor_weights[:, 0 : T]"
   models = "the block index ignored, so every factor is built from the same weight series and the factor matrix is rank one -- a design the pseudo-inverse absorbs without complaint"
+
+[[target]]
+name = "fma-percentile-t"
+module-path = "mlsynth/utils/fma_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fma_percentile_t.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-tails-not-reversed"
+  find = "    lower = att - float(S_sorted[k_hi]) * root\n    upper = att - float(S_sorted[k_lo]) * root"
+  replace = "    lower = att - float(S_sorted[k_lo]) * root\n    upper = att - float(S_sorted[k_hi]) * root"
+  models = "the percentile-t inversion done without swapping the tails, which returns an interval of plausible width and roughly the right location whenever the bootstrap distribution is near symmetric, and is wrong in exactly the skewed cases the procedure exists to handle"
+
+  [[target.mutant]]
+  id = "omega-assumes-homoskedastic-residuals"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (T2 / max(T0, 1)) * squared.mean(axis=-1) * g2.mean(axis=-1)"
+  models = "Appendix A.1's sandwich collapsed to the Theorem 3.1 plug-in, dropping the pairing of each squared residual with its own period's factor values; identical under homoskedasticity, so it survives any test whose residuals have constant variance"
+
+  [[target.mutant]]
+  id = "omega1-loses-the-sample-ratio"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (squared * g2).mean(axis=-1)"
+  models = "phi_hat = T2/T1 dropped from Omega1, so the loading-estimation term is not scaled by the relative length of the two periods and the variance is wrong by that ratio"
+
+  [[target.mutant]]
+  id = "bootstrap-residuals-skip-the-residual-maker"
+  find = "    resid_star = u_pre - shift @ F_pre.T             # (M, T0)"
+  replace = "    resid_star = u_pre                               # (M, T0)"
+  models = "Appendix A.2's u*_0t = y*_0t - f_t' lambda*_0 replaced by the raw draw, so Omega* ignores that the bootstrap loading was fitted on those same draws and is biased up by the projection it forgot to remove"
+
+  [[target.mutant]]
+  id = "bootstrap-att-drops-the-post-period-shock"
+  find = "    att_star_gap = -(shift @ eta) + u_post.mean(axis=1)"
+  replace = "    att_star_gap = -(shift @ eta)"
+  models = "the third term of Equation 7 dropped, leaving only the loading-estimation error; the statistic then reflects how well lambda*_0 was estimated and not the post-period noise the ATT is actually exposed to, which understates the spread"

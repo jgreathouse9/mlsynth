@@ -597,6 +597,12 @@ Time-aware and factor models
   equals 0.947 against the nominal 0.95 -- and stays near nominal
   across the equal / treated-smaller / treated-larger variance
   regimes where Xu's interval fails (durable: ``fma_coverage_mc``).
+  Path B for the ``percentile_t`` inference option: Wang, Racine &
+  Wang (2025) Tables 1-2 -- at the paper's own configuration (2,000
+  simulations, 1,000 bootstrap draws) all 18 cells reproduce within
+  0.017, with the studentized interval at 0.939-0.956 where the
+  normal interval covers 0.79-0.81 (durable:
+  ``fma_percentile_t_mc``).
 * :doc:`tasc` -- Rho et al. (2026) time-aware SC. Path A:
   Proposition 99 -- pre-RMSE 0.767, ATT -16.793, gap of -24
   packs by 2000 against the paper's Figure 10 gap of -25 to -30.

@@ -42,15 +42,26 @@ class FMAConfig(BaseEstimatorConfig):
         Upper bound passed to the factor-selection routine.
     alpha : float
         Two-sided significance level for CIs.
-    inference_methods : list of {"asymptotic", "bootstrap", "placebo"}
+    inference_methods : list of {"asymptotic", "bootstrap", \
+"percentile_t", "placebo"}
         Inference procedures to run. Defaults to ``["asymptotic"]``,
         which gives the paper's Theorem 3.1 normal CI for the ATT.
         Add ``"bootstrap"`` to get per-period ATT_t CIs via the Web
-        Appendix F residual bootstrap, and ``"placebo"`` to get the
-        Web Appendix G control-as-pseudo-treated band.
+        Appendix F residual bootstrap, ``"percentile_t"`` to get the
+        Wang, Racine & Wang (2025) studentized-bootstrap CI for the
+        average ATT, and ``"placebo"`` to get the Web Appendix G
+        control-as-pseudo-treated band.
+
+        ``"asymptotic"`` and ``"percentile_t"`` are two intervals for
+        the same estimand: the normal interval is cheaper, the
+        studentized one holds its size in short pre-periods, where the
+        normal interval covers at about 80% for a nominal 95%
+        (Wang, Racine & Wang 2025, Table 1, T_1 = 10).
     n_bootstrap : int
-        Number of bootstrap replicates (Web Appendix F). Ignored when
-        ``"bootstrap"`` is not in ``inference_methods``.
+        Number of bootstrap replicates, shared by ``"bootstrap"`` (Web
+        Appendix F) and ``"percentile_t"``. The latter's source uses
+        1,000, which is the default here. Ignored when neither is in
+        ``inference_methods``.
     bootstrap_seed : int
         Seed for the bootstrap RNG.
     """
@@ -81,7 +92,10 @@ class FMAConfig(BaseEstimatorConfig):
     )
     n_bootstrap: int = Field(
         default=1000, ge=100,
-        description="Number of bootstrap replicates (Web Appendix F).",
+        description=(
+            "Number of bootstrap replicates, shared by the Web Appendix F "
+            "and percentile-t procedures."
+        ),
     )
     bootstrap_seed: int = Field(
         default=0,
@@ -90,7 +104,7 @@ class FMAConfig(BaseEstimatorConfig):
 
     @model_validator(mode="after")
     def check_fma_params(cls, values: Any) -> Any:
-        allowed = {"asymptotic", "bootstrap", "placebo"}
+        allowed = {"asymptotic", "bootstrap", "percentile_t", "placebo"}
         for m in values.inference_methods:
             if m not in allowed:
                 raise MlsynthConfigError(
