@@ -2846,3 +2846,45 @@ timeout = 300.0
   find = "        block = donor_weights[:, j * T : (j + 1) * T]"
   replace = "        block = donor_weights[:, 0 : T]"
   models = "the block index ignored, so every factor is built from the same weight series and the factor matrix is rank one -- a design the pseudo-inverse absorbs without complaint"
+
+[[target]]
+name = "atel-weight-sources"
+module-path = "mlsynth/utils/atel_helpers/sieve.py"
+test-command = "python -m pytest mlsynth/tests/test_atel_weight_sources.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "hadamard-columns-lose-their-alternation"
+  find = "        W[:, k - 1] = np.where((rows // (k - 1)) % 2 == 0, 1.0, -1.0)"
+  replace = "        W[:, k - 1] = np.ones(len(rows))"
+  models = "every Hadamard column collapsing to ones, so the weight series are identical, the second moment is singular, and the projection has one usable direction while reporting several"
+
+  [[target.mutant]]
+  id = "tiled-weights-cover-one-period-only"
+  find = "    return np.hstack([np.repeat(W[:, [j]], n_periods, axis=1)"
+  replace = "    return np.hstack([np.repeat(W[:, [j]], 1, axis=1)"
+  models = "a unit-constant weight laid out one column wide instead of one block per period, so the projection's period slice reads past the end of its own block"
+
+  [[target.mutant]]
+  id = "conditioning-reports-the-strongest-direction"
+  find = "        worst = min(worst, float(np.linalg.eigvalsh(block.T @ block / n_donors).min()))"
+  replace = "        worst = min(worst, float(np.linalg.eigvalsh(block.T @ block / n_donors).max()))"
+  models = "the conditioning diagnostic reading the largest eigenvalue instead of the smallest, so a degenerate weight matrix reports as healthy"
+
+[[target]]
+name = "atel-initial-holdout"
+module-path = "mlsynth/utils/atel_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_atel_weight_sources.py mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 420.0
+
+  [[target.mutant]]
+  id = "initial-weights-keep-the-period-they-came-from"
+  find = "        outcomes = outcomes[:, 1:]"
+  replace = "        outcomes = outcomes[:, 0:]"
+  models = "the period the weights are built from left in the estimation sample, which is the endogeneity Fan-Liao Assumption 2.1(iii) forbids and the whole reason the holdout exists"
+
+  [[target.mutant]]
+  id = "pre-period-guard-allows-an-exact-fit"
+  find = "    if n_pre <= 2 * int(n_factors):"
+  replace = "    if n_pre < 2 * int(n_factors):"
+  models = "the guard back to non-strict, so a pre-period exactly as long as the design is accepted, the fit is exact, every residual is zero and the standard error collapses to numerical noise"

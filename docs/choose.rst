@@ -498,10 +498,12 @@ Mechanically it also differs from :doc:`fma` in letting the factor loading vary
 with time -- holding a moving loading fixed recovers a time-average of it -- and
 from :doc:`cscipca` in what the covariates do: ``cscipca`` projects the loadings
 onto them, ``atel`` uses a sieve basis in them to build the projection weights
-that estimate the factors, with no eigendecomposition anywhere. It requires
-time-varying covariates, at least two post-periods, and a factor count you
-supply; that count must be a multiple of the covariate count, and its page
-explains why.
+that estimate the factors, with no eigendecomposition anywhere -- and unlike
+``cscipca`` it does not need covariates at all, since the projection weights can
+come from each unit's first outcome or from a deterministic sign matrix instead.
+It needs at least two post-periods and a factor count you supply; take that count
+a little above what you think the panel supports, since over-estimating it is
+proved safe and under-estimating it is not.
 
 *Factor SC with covariate-instrumented loadings.* :doc:`cscipca` (Wang, 2024)
 is the factor estimator to reach for when you observe many time-varying
