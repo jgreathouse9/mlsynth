@@ -220,13 +220,13 @@ is what covariate matching runs into: predictors measured in different units
 spread the spectrum, and on the covariate specification of the Wiltshire panel
 62 of 76 units in a cohort fail. So each answer is certified against
 :math:`\mathbf{A}` itself, from the first-order conditions
-(:func:`mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal`), and the units
+(:func:`mlsynth.utils.solvers.minnorm.simplex_point_is_optimal`), and the units
 that fail are re-solved one at a time.
 
 The second is that the program has one solution. Where the minimiser is a face
 -- every point of it optimal -- two exact solvers have equal claim to different
 weights, and with 5 to 10 pre-treatment periods against 39 donors a face is not
-exotic. :func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles
+exotic. :func:`mlsynth.utils.solvers.minnorm.simplex_optimum_is_unique` settles
 it on the solution's own support once a solution is in hand: the objective is
 flat along a direction only where that direction is feasible where the solution
 sits, which needs a support large relative to the design's rank. Synthetic
@@ -265,7 +265,7 @@ solver's answer. Read ``per_unit`` for diagnosis and spread, not as a claim
 about which donors resemble a particular unit.
 
 The weights themselves come from a primal active-set method
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which terminates on
+(:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`), which terminates on
 a Karush-Kuhn-Tucker certificate, not on an iteration budget. That matters
 here: on this design a first-order method does not converge at all, leaving 20 of
 39 leave-one-out columns still improving after 20,000 iterations at any

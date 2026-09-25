@@ -26,8 +26,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.minnorm import simplex_point_is_optimal
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.minnorm import simplex_point_is_optimal
 
 
 def _design(rng, m, J):
@@ -93,7 +93,7 @@ def test_rejects_a_point_optimal_for_a_different_target():
 def test_rejects_the_squared_condition_number_failure_mode():
     """The case this exists for: a design whose Gram is singular in float64, where
     solving in Gram form lands somewhere feasible and wrong."""
-    from mlsynth.utils.bilevel.minnorm import simplex_gram, solve_simplex_minnorm
+    from mlsynth.utils.solvers.minnorm import simplex_gram, solve_simplex_minnorm
 
     rng = np.random.default_rng(5)
     B = _design(rng, 8, 20)

@@ -71,7 +71,7 @@ def test_warm_start_parity_on_wide_and_narrow_pools(J, pre, post):
 def test_warm_start_collapses_solver_work(monkeypatch):
     """Machine-independent proxy: LAPACK least-squares calls issued by the
     active set. Each pivot costs one, so this counts the pivots the seed saves."""
-    from mlsynth.utils.bilevel import active_set
+    from mlsynth.utils.solvers import active_set
 
     calls = {"n": 0}
     inner = active_set._gelsy_lstsq

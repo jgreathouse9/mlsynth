@@ -44,7 +44,7 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     ``scinference``'s ``estimators.R::sc`` (``limSolve::lsei``). Used as the
     default per-fold solver when the caller supplies no ``weight_fn``.
     """
-    from .bilevel.active_set import solve_simplex_qp
+    from .solvers.active_set import solve_simplex_qp
 
     try:
         return solve_simplex_qp(Y0, y)

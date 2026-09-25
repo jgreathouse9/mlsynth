@@ -36,7 +36,7 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthEstimationError
-from mlsynth.utils.bilevel.active_set import (
+from mlsynth.utils.solvers.active_set import (
     solve_simplex_qp,
     solve_simplex_qp_least_norm,
 )

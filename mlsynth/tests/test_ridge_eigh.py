@@ -29,14 +29,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.ridge_augment import (
+from mlsynth.utils.solvers.ridge_augment import (
     _HoldoutSplitter,
     cross_validate,
     simplex_qp,
     solve_ridge,
     solve_ridge_path,
 )
-from mlsynth.utils.bilevel.ridge_inference import _reference_stats, _stat
+from mlsynth.utils.conformal.ridge_inference import _reference_stats, _stat
 
 
 def _naive_reference_stats(resids, post_slice, q, ns, seed):

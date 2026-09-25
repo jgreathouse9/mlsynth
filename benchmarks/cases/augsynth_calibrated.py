@@ -98,7 +98,7 @@ def _gen(rng, dgp, c):
 
 
 def _fast_lambda(B, A):
-    from mlsynth.utils.bilevel.ridge_augment import simplex_qp, generate_lambdas, best_lambda
+    from mlsynth.utils.solvers.ridge_augment import simplex_qp, generate_lambdas, best_lambda
     W0 = simplex_qp(B, A); r = A - B @ W0
     d, V = np.linalg.eigh(B @ B.T); Vr = V.T @ r; V2 = V ** 2
     lam = generate_lambdas(B); f = d[None, :] / (d[None, :] + lam[:, None])
@@ -108,8 +108,9 @@ def _fast_lambda(B, A):
 
 
 def _one(rng, dgp, c):
-    from mlsynth.utils.bilevel import conformal_pvalue, simplex_qp, ridge_augment_weights
-    from mlsynth.utils.bilevel.ridge_augment import build_matching
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
+    from mlsynth.utils.solvers.ridge_augment import simplex_qp, ridge_augment_weights
+    from mlsynth.utils.solvers.ridge_augment import build_matching
     Ysim, pi = _gen(rng, dgp, c); i = rng.choice(c["N"], p=pi); T0 = c["T0"]
     y = Ysim[i, :T0 + 1]; Y0 = np.delete(Ysim, i, 0)[:, :T0 + 1].T
     y_pre, Y0_pre, truth = y[:T0], Y0[:T0], y[T0]

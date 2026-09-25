@@ -19,6 +19,6 @@
   "spec": {
     "treated": 3, "treated_name": "California", "T0": 19,
     "precision": 30, "significance": "4/39",
-    "weights": "outcome-only simplex over 1970-1988, computed by mlsynth.utils.bilevel.simplex.simplex_lstsq"
+    "weights": "outcome-only simplex over 1970-1988, computed by mlsynth.utils.solvers.simplex.simplex_lstsq"
   }
 }

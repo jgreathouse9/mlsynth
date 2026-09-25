@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 from scipy.linalg import lstsq as scipy_lstsq
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 
 def _reference(M, b):
@@ -41,7 +41,7 @@ SHAPES = [
 class TestTheLapackCallMatchesScipyExactly:
     @pytest.mark.parametrize("m,n", SHAPES)
     def test_bit_identical_on_well_posed_systems(self, m, n):
-        from mlsynth.utils.bilevel.active_set import _gelsy_lstsq
+        from mlsynth.utils.solvers.active_set import _gelsy_lstsq
 
         rng = np.random.default_rng(m * 100 + n)
         M = rng.normal(size=(m, n))
@@ -53,7 +53,7 @@ class TestTheLapackCallMatchesScipyExactly:
     def test_bit_identical_on_a_rank_deficient_system(self):
         # Collinear donors are the case the free-set solve must survive without
         # an epsilon-I fudge; gelsy is rank-revealing and both paths must agree.
-        from mlsynth.utils.bilevel.active_set import _gelsy_lstsq
+        from mlsynth.utils.solvers.active_set import _gelsy_lstsq
 
         rng = np.random.default_rng(7)
         M = rng.normal(size=(10, 4))
@@ -62,7 +62,7 @@ class TestTheLapackCallMatchesScipyExactly:
         assert np.array_equal(_gelsy_lstsq(M, b), _reference(M, b))
 
     def test_bit_identical_on_a_zero_matrix(self):
-        from mlsynth.utils.bilevel.active_set import _gelsy_lstsq
+        from mlsynth.utils.solvers.active_set import _gelsy_lstsq
 
         M = np.zeros((5, 3))
         b = np.arange(5, dtype=float)
@@ -71,7 +71,7 @@ class TestTheLapackCallMatchesScipyExactly:
     def test_alternating_shapes_do_not_poison_the_workspace_cache(self):
         # The workspace size is cached per shape. Interleaving shapes must not
         # let one shape's cached lwork or pivot array be used for another.
-        from mlsynth.utils.bilevel.active_set import _gelsy_lstsq
+        from mlsynth.utils.solvers.active_set import _gelsy_lstsq
 
         rng = np.random.default_rng(3)
         problems = [(rng.normal(size=(m, n)), rng.normal(size=m))
@@ -82,7 +82,7 @@ class TestTheLapackCallMatchesScipyExactly:
     def test_the_input_matrix_is_not_overwritten(self):
         # gelsy overwrites its arguments in place when told to; the solver slices
         # a fresh M each pivot but the helper must not mutate what it is handed.
-        from mlsynth.utils.bilevel.active_set import _gelsy_lstsq
+        from mlsynth.utils.solvers.active_set import _gelsy_lstsq
 
         rng = np.random.default_rng(11)
         M = rng.normal(size=(9, 4))
@@ -102,7 +102,7 @@ class TestTheSolverAnswerIsUnchanged:
 
     @staticmethod
     def _solve_via_scipy(B, A, monkeypatch):
-        import mlsynth.utils.bilevel.active_set as mod
+        import mlsynth.utils.solvers.active_set as mod
 
         monkeypatch.setattr(mod, "_gelsy_lstsq",
                             lambda M, b: _reference(M, b))

@@ -50,6 +50,24 @@ now returns and the back-compat guarantee.
   `warm_start` and the selected lambda. Which critical point a non-convex solve
   reached is a property of the run a caller may need to act on.
 
+### Changed
+- The general convex solvers moved out of `mlsynth.utils.bilevel` into a new
+  `mlsynth.utils.solvers` package: `active_set`, `minnorm`, `simplex`, `nnls`,
+  `accelerate` and `ridge_augment`. `bilevel.ridge_inference` moved to
+  `mlsynth.utils.conformal.ridge_inference`, joining `inversion` and `refit`,
+  and `bilevel.jackknife_plus` to `mlsynth.utils.jackknife_plus`. `penalized`
+  stays in `bilevel`, which is where it belongs.
+
+  None of the six moved solvers reaches for the V machinery, while 56 modules
+  import `active_set`, 28 `minnorm`, 24 `simplex` and 22 `ridge_augment`. The
+  typed layer in `mlsynth.utils.weights`, this library's general interface for
+  weight solving, imported from one estimator family's package.
+
+  `mlsynth.utils.bilevel` no longer re-exports the moved symbols, so
+  `from mlsynth.utils.bilevel import solve_simplex_qp` and the other moved
+  names raise `ImportError`. Import them from `mlsynth.utils.solvers`.
+  `mlsynth.utils.fscm_helpers.bilevel` is a different package and is unchanged.
+
 ### Fixed
 - `mlsynth.utils.sparse_sc_helpers.optimization.default_v20` returned all-NaN
   for a single-donor panel. With one donor `ddof=1` leaves the predictor

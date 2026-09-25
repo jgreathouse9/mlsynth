@@ -28,7 +28,7 @@ from scipy.linalg import null_space
 from scipy.optimize import lsq_linear, nnls
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 from .solution import WeightSolution
 from .spec import WeightConstraint, WeightObjective

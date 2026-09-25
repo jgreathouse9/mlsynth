@@ -18,10 +18,10 @@ layer.
 Because the units in a pool share their design, the cohort's programs are one
 family: they differ only in the target, so their Gram matrices differ by
 rank-one pieces of a single cross product. The batched active set
-(:func:`mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design`) solves them
+(:func:`mlsynth.utils.solvers.minnorm.solve_simplex_shared_design`) solves them
 together, verifies each, and re-solves the ambiguous ones with the
 single-problem active set
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`) so the weights are
+(:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`) so the weights are
 the same points the loop returned.
 
 Exactness pins the objective, not the answer. With fewer rows than donors the
@@ -48,7 +48,7 @@ from ...config_models import (
     WeightsResults,
 )
 from ..bilevel import bias_corrected_gaps, regression_v
-from ..bilevel.minnorm import solve_simplex_shared_design
+from ..solvers.minnorm import solve_simplex_shared_design
 from .inference import placebo_inference
 from .plotter import plot_stackedsc
 from .setup import aggregation_weights, build_cohorts, event_window
@@ -108,7 +108,7 @@ def _weights_for_cohort(cohort, A, B, allowed):
     target, which is one batch: their Grams are ``A'A`` shifted by rank-one
     pieces of ``A'B``, so the whole group costs one Gram and one cross product
     and the active set runs it in lockstep
-    (:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_shared_design`). With no
+    (:func:`~mlsynth.utils.solvers.minnorm.solve_simplex_shared_design`). With no
     predicate that is the entire cohort in one solve; with one that binds it is
     one solve per distinct pool, down to a batch of one per unit in the worst
     case.

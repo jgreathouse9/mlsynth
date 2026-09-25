@@ -15,7 +15,7 @@ a zero target. For any ``lambda > 0`` the program is strictly convex whenever th
 aggregate control matrix has full column rank (the penalty fills exactly the part
 of X's null space the aggregate directions do not pin down), so the optimum is
 unique. We solve it with the library's active-set simplex QP
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`) -- exact and free of
+(:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`) -- exact and free of
 cvxpy's per-call canonicalisation overhead in the cross-validation loop.
 
 The ``lambda = 0`` case is regularised by a tiny ridge (``_RIDGE_FLOOR``), the
@@ -179,7 +179,7 @@ def solve_mlsc(
         Y_pre = inputs.Y_agg_treated[:T0]
         X_pre = inputs.X_disagg[:T0, :]
         B, A = _augmented_design(X_pre, Y_pre, inputs, penalty_scale)
-        from ..bilevel.active_set import solve_simplex_qp
+        from ..solvers.active_set import solve_simplex_qp
 
         omega_val, info = solve_simplex_qp(B, A, return_info=True)
         if info["converged"]:

@@ -20,7 +20,7 @@ interior, not a single corner.
 
 The inner ``V``-weighted simplex least squares is solved exactly, and for the
 whole outer population at once, by
-:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`. The
+:func:`~mlsynth.utils.solvers.minnorm.solve_simplex_minnorm_batch`. The
 sum-to-one constraint turns the inner objective into the homogeneous form
 ``W' G(V) W`` -- the minimum-norm point in the hull of the donors' predictor
 discrepancies -- with ``G(V) = sum_k V_k r_k r_k'`` linear in ``V``. So the
@@ -42,8 +42,8 @@ import warnings
 
 import numpy as np
 
-from .minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
-from .simplex import mspe
+from ..solvers.minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
+from ..solvers.simplex import mspe
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
 
@@ -67,7 +67,7 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
 
     Solves ``min_W ||diag(V)^{1/2} (X1 - X0 W)||^2`` over ``{W >= 0, 1'W = 1}``
     -- the MSCMT inner objective (Eq. 8') -- exactly, by the active set of
-    :func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm` on the Gram
+    :func:`~mlsynth.utils.solvers.minnorm.solve_simplex_minnorm` on the Gram
     ``R' diag(V) R``. The equality constraint is carried by the reduction to
     that form, not by a penalty, so the answer is exactly scale-free in ``V``,
     as the outer objective assumes. The hot loop in :func:`solve_mscmt` runs the
@@ -76,7 +76,7 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
     need one ``W*(V)``.
 
     Solve a *family* of ``W*(V)`` through
-    :func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`, not by
+    :func:`~mlsynth.utils.solvers.minnorm.solve_simplex_minnorm_batch`, not by
     calling this in a loop. The batched solver amortises its per-iteration
     numpy work over the whole batch, so at a batch of one that work is all
     overhead: this call costs about 0.4 ms on a 13-predictor, 17-donor problem

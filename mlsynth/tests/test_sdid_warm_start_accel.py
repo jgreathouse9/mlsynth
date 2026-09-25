@@ -23,9 +23,9 @@ import pandas as pd
 import pytest
 
 from mlsynth import SDID
-from mlsynth.utils.bilevel import active_set
-from mlsynth.utils.bilevel.accelerate import ACCEL_MIN_DONORS
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers import active_set
+from mlsynth.utils.solvers.accelerate import ACCEL_MIN_DONORS
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.sdid_helpers.weights import _solve_intercept_simplex
 
 

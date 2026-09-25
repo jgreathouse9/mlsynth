@@ -188,7 +188,7 @@ def test_afw_batched_returns_the_certified_optimum(m):
     at 80 Frank-Wolfe steps the median relative error on the DMA panel was 9%,
     high on two thirds of subsets.
     """
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_minnorm_batch
+    from mlsynth.utils.solvers.minnorm import solve_simplex_minnorm_batch
 
     Qs = _panel_grams(150, m)
     W = solve_simplex_minnorm_batch(Qs)

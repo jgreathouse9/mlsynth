@@ -18,8 +18,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .simplex import mspe, project_simplex
-from .ridge_augment import simplex_qp
+from ..solvers.simplex import mspe, project_simplex
+from ..solvers.ridge_augment import simplex_qp
 from .structure import BilevelProblem
 
 _EPS = 1e-12

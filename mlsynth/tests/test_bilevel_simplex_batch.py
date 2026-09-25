@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.simplex import project_simplex, simplex_lstsq
+from mlsynth.utils.solvers.simplex import project_simplex, simplex_lstsq
 
 
 def _rank_deficient(T0=5, J=39, k=40, seed=0):
@@ -49,7 +49,7 @@ class TestTheBatchedProjection:
     @pytest.mark.parametrize("n,k,scale", [(1, 7, 1.0), (2, 5, 10.0),
                                            (39, 200, 1e3), (100, 50, 1e-3)])
     def test_it_agrees_with_the_scalar_version_column_by_column(self, n, k, scale):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         rng = np.random.default_rng(n * 100 + k)
         V = rng.normal(size=(n, k)) * scale
@@ -58,7 +58,7 @@ class TestTheBatchedProjection:
         np.testing.assert_allclose(batched, scalar, atol=1e-12)
 
     def test_every_column_lands_on_the_simplex(self):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         rng = np.random.default_rng(2)
         P = project_simplex_cols(rng.normal(size=(12, 40)) * 100.0)
@@ -66,21 +66,21 @@ class TestTheBatchedProjection:
         np.testing.assert_allclose(P.sum(axis=0), 1.0, atol=1e-12)
 
     def test_a_point_already_on_the_simplex_is_left_alone(self):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         rng = np.random.default_rng(3)
         W = rng.dirichlet(np.ones(6), size=9).T          # (6, 9)
         np.testing.assert_allclose(project_simplex_cols(W), W, atol=1e-12)
 
     def test_the_radius_is_honoured(self):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         rng = np.random.default_rng(4)
         P = project_simplex_cols(rng.normal(size=(5, 8)), z=3.0)
         np.testing.assert_allclose(P.sum(axis=0), 3.0, atol=1e-12)
 
     def test_a_single_row_is_the_degenerate_branch(self):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         rng = np.random.default_rng(5)
         P = project_simplex_cols(rng.normal(size=(1, 6)))
@@ -90,7 +90,7 @@ class TestTheBatchedProjection:
 # ------------------------------------------------------------ least squares
 class TestTheBatchedSolve:
     def test_it_matches_the_loop_on_a_well_conditioned_design(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _well_conditioned()
         W = simplex_lstsq_batch(A, B)
@@ -102,7 +102,7 @@ class TestTheBatchedSolve:
     def test_on_a_rank_deficient_design_the_objectives_agree(self):
         """Not the weights. The optimum is a face, so where on it a solver
         lands is an artefact; the loss is the identified quantity."""
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _rank_deficient()
         assert np.linalg.matrix_rank(A) < A.shape[1]     # the premise
@@ -118,7 +118,7 @@ class TestTheBatchedSolve:
         np.testing.assert_allclose(obj_b, obj_l, rtol=1e-3)
 
     def test_the_solution_is_on_the_simplex(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _well_conditioned()
         W = simplex_lstsq_batch(A, B)
@@ -127,7 +127,7 @@ class TestTheBatchedSolve:
 
     def test_it_beats_uniform_weights(self):
         """A minimiser must not do worse than the point it starts from."""
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _well_conditioned()
         W = simplex_lstsq_batch(A, B)
@@ -135,7 +135,7 @@ class TestTheBatchedSolve:
         assert (((A @ W - B) ** 2).sum(0) <= ((A @ U - B) ** 2).sum(0) + 1e-9).all()
 
     def test_the_ridge_shrinks_toward_uniform(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _rank_deficient()
         uniform = np.full(A.shape[1], 1.0 / A.shape[1])
@@ -146,7 +146,7 @@ class TestTheBatchedSolve:
         assert d_heavy < d_plain
 
     def test_one_column_agrees_with_the_scalar_solver(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _well_conditioned(k=1)
         W = simplex_lstsq_batch(A, B)
@@ -156,14 +156,14 @@ class TestTheBatchedSolve:
             atol=1e-4)
 
     def test_a_single_donor_takes_everything(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         rng = np.random.default_rng(7)
         W = simplex_lstsq_batch(rng.normal(size=(6, 1)), rng.normal(size=(6, 4)))
         np.testing.assert_allclose(W, np.ones((1, 4)), atol=1e-12)
 
     def test_a_one_dimensional_target_is_accepted_as_one_column(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         A, B = _well_conditioned(k=1)
         np.testing.assert_allclose(simplex_lstsq_batch(A, B[:, 0]),
@@ -173,14 +173,14 @@ class TestTheBatchedSolve:
 # ---------------------------------------------------------------- failures
 class TestFailuresAreReported:
     def test_mismatched_shapes_are_rejected(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_batch
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_batch
 
         rng = np.random.default_rng(8)
         with pytest.raises(ValueError):
             simplex_lstsq_batch(rng.normal(size=(6, 3)), rng.normal(size=(5, 4)))
 
     def test_a_negative_radius_is_rejected(self):
-        from mlsynth.utils.bilevel.simplex import project_simplex_cols
+        from mlsynth.utils.solvers.simplex import project_simplex_cols
 
         with pytest.raises(ValueError):
             project_simplex_cols(np.zeros((3, 2)), z=-1.0)

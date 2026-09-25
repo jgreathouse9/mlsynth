@@ -442,7 +442,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # directly: an augmented refit gives 0.348 for an injected effect of 5 or of
     # 100, where the simplex refit gives the authors' 1 / T = 0.0217 for both.
     if mode == "conformal" and gap[pre:].size:
-        from ..bilevel import conformal_intervals
+        from ..conformal.ridge_inference import conformal_intervals
         refit = "ridge" if config.augment == "ridge" else "sc"
         if refit == "sc" and covariates:
             raise MlsynthConfigError(
@@ -505,7 +505,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "for ridge ASCM and needs augment='ridge'; got "
                 f"augment={config.augment!r}."
             )
-        from ..bilevel.jackknife_plus import jackknife_plus
+        from ..jackknife_plus import jackknife_plus
         Z0 = X0.T if X0 is not None else None
         z1 = X1 if X1 is not None else None
         with warnings.catch_warnings():
@@ -794,8 +794,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         loo_W = None
         if (engine is not None and not covariates and engine.augment != "ridge"
                 and str(config.backend) in ("auto", "outcome-only")):
-            from ..bilevel.minnorm import solve_simplex_loo_exact
-            from ..bilevel.ridge_augment import simplex_qp
+            from ..solvers.minnorm import solve_simplex_loo_exact
+            from ..solvers.ridge_augment import simplex_qp
             try:
                 loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
             except Exception:  # pragma: no cover - fall back to the loop

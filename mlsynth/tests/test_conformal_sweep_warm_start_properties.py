@@ -24,7 +24,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from mlsynth.utils.bilevel.ridge_inference import (conformal_pvalue,
+from mlsynth.utils.conformal.ridge_inference import (conformal_pvalue,
                                                    conformal_pvalue_sweep)
 
 _SETTINGS = settings(

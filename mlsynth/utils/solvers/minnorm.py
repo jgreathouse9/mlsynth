@@ -34,7 +34,7 @@ Programming, 11, 128-149. https://doi.org/10.1007/BF01580381
 
 See Also
 --------
-mlsynth.utils.bilevel.active_set.solve_simplex_qp : the single-problem,
+mlsynth.utils.solvers.active_set.solve_simplex_qp : the single-problem,
     design-matrix active set. Same optimum; preferred when there is one problem
     and the design is at hand, since it factors ``B`` directly instead of
     forming ``G``.
@@ -637,7 +637,7 @@ def solve_simplex_loo_exact(
     optimum has to be a point and not a face
     (:func:`simplex_optimum_is_unique`, since on a face two exact solvers land
     in different places). Members failing either are re-solved with the
-    single-problem active set of :mod:`~mlsynth.utils.bilevel.active_set`. So
+    single-problem active set of :mod:`~mlsynth.utils.solvers.active_set`. So
     the result is not merely optimal but identical to solving the family one at
     a time, which matters here: the placebo p-value is a rank statistic over
     these fits, and the library's published ranks came from that solver.
@@ -652,7 +652,7 @@ def solve_simplex_loo_exact(
     fallback : callable, optional
         ``(B, A) -> w``, the one-at-a-time solver this batch is standing in for,
         used on members that fail certification. Defaults to
-        :func:`~mlsynth.utils.bilevel.active_set.solve_simplex_qp`. Pass the
+        :func:`~mlsynth.utils.solvers.active_set.solve_simplex_qp`. Pass the
         caller's own: VanillaSC's engine reaches that solver through a wrapper
         that escalates to CVXPY when it reports failure on itself, and the two
         can disagree exactly where the certification fails.
@@ -746,7 +746,7 @@ def solve_simplex_shared_design(
     fallback : callable, optional
         ``(B, A) -> w``, the one-at-a-time solver this batch is standing in for,
         used on members that fail certification. Defaults to
-        :func:`~mlsynth.utils.bilevel.active_set.solve_simplex_qp`, which is
+        :func:`~mlsynth.utils.solvers.active_set.solve_simplex_qp`, which is
         what STACKEDSC calls.
     return_info : bool
         If ``True`` also return ``{"n_problems", "n_fallback"}``.

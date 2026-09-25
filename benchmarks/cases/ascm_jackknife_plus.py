@@ -86,7 +86,7 @@ def _gold(name):
 
 
 def run() -> dict:
-    from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+    from mlsynth.utils.jackknife_plus import jackknife_plus
 
     y_pre, Y0_pre, y_post, Y0_post = _prep()
     out: dict = {}

@@ -27,7 +27,7 @@ import pandas as pd
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 from mlsynth.utils.conformal import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 
 CARBONTAX = "basedata/carbontax_data.dta"
@@ -139,7 +139,7 @@ def test_reselecting_the_penalty_on_the_full_window_costs_the_test_its_power(car
     numbers below are why it no longer does.
     """
     y, Y0, pre = carbontax
-    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+    from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
 
     fitted_lambda = float(ridge_augment_weights(y[:pre], Y0[:pre]).lambda_)
     stalled, powered = [], []
