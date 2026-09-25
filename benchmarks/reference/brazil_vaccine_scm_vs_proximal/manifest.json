@@ -1,0 +1,10 @@
+{
+  "case": "brazil_vaccine_scm_vs_proximal",
+  "title": "Brazil PCV10 (age group 9): standard SC vs proximal negative-control estimators",
+  "paper": "Qiu, Shi & Tchetgen Tchetgen (2024), 'Doubly robust proximal synthetic control', Brazil 2010 PCV10 application",
+  "reference_impl": "R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13)",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/R/dr_proximal_brazil.R basedata/pnas_brazil_age9.csv",
+  "data": ["basedata/pnas_brazil_age9.csv"],
+  "note": "The two proximal cells this case cross-checks -- the outcome bridge h and the single-instrument DR[A] -- come off the same R script and the same run as the sibling bundle benchmarks/reference/dr_proximal_brazil/. They are captured here so the standard-vs-proximal contrast is reproducible where R is unavailable, which includes CI. The standard-SC cell is reported from mlsynth: R's Synth is not part of this comparison."
+}

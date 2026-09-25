@@ -1,0 +1,18 @@
+# case: scta_texas_sb8
+# generated_at: 2026-08-02T15:42:38Z
+# mlsynth_version: 1.0.0
+# estimator: SCTA
+# config: {"block_length": 12, "note": "nu = K * year_wt^2 maps augsynth's knob to the paper's V-linear one", "nu": [0.0, 3.0, 12.0, 48.0, 10800.0], "panel": "Texas SB8 live births, TX treated 2022-04"}
+# reference_impl: augsynth 0.2.0 (the authors' R package) on their time_aggregation.rmd construction, captured
+# reference_version: R 4.3.3; augsynth 0.2.0; osqp 1.0.0
+quantity,mlsynth,reference,abs_diff
+"ATT (year_wt=0, nu=0)",20877.262,20895.544,18.282
+"ATT (year_wt=0.5, nu=3)",18905.138,18917.86,12.722
+"ATT (year_wt=1, nu=12)",21710.993,21735.248,24.255
+"ATT (year_wt=2, nu=48)",22924.614,22942.439,17.825
+"ATT (year_wt=30, nu=10800)",24633.004,24653.966,20.962
+"donor-weight L1 vs augsynth (year_wt=0, V^2 program)",5e-08,0.0,0.0
+"donor-weight L1 vs augsynth (year_wt=0.5, V^2 program)",3.9e-07,0.0,0.0
+"donor-weight L1 vs augsynth (year_wt=1, V^2 program)",4.3e-07,0.0,0.0
+"donor-weight L1 vs augsynth (year_wt=2, V^2 program)",6e-08,0.0,0.0
+"donor-weight L1 vs augsynth (year_wt=30, V^2 program)",1.7e-07,0.0,0.0

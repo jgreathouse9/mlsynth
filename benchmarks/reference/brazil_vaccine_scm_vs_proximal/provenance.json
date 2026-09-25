@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-07-11T19:37:38Z",
+  "captured_from": "benchmarks/reference/dr_proximal_brazil/comparison.csv",
+  "captured_from_git_sha": "478c217c52a435c799bb4b8ec4b86cc6dbc0d09e",
+  "command": "Rscript benchmarks/R/dr_proximal_brazil.R basedata/pnas_brazil_age9.csv",
+  "data": [
+    {
+      "path": "basedata/pnas_brazil_age9.csv",
+      "sha256": "f625dedd208b5938ceac725b4507a7111e30e2294ce015caa6d913c84751f771"
+    }
+  ],
+  "precision": "hospitalisation units, three decimals as written by the sibling capture; the R script itself prints four",
+  "note": "The values are the live-R cells of the sibling dr_proximal_brazil capture, not a second run, so no separate toolchain versions are claimed. Both cases call the same script on the same panel; re-running reference.R regenerates them and stamps its own versions."
+}

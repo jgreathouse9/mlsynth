@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-08-02T15:40:03Z",
+  "git_sha": "87c8ce656e3014058fcaa301cdfb3a76c7ae0ec2",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/scta_texas_sb8/reference.R basedata/texas_sb8_births.csv",
+  "data": [
+    {
+      "path": "basedata/texas_sb8_births.csv",
+      "sha256": "70ecc24abacb60d6e73e5dea5e5ead9cdb5904ffa8c4b770b519f7b1b91bc7fb"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "augsynth": "0.2.0",
+    "dplyr": "1.1.4",
+    "vctrs": "0.6.5",
+    "cli": "3.6.2",
+    "rlang": "1.1.3",
+    "Formula": "1.2-5",
+    "purrr": "1.0.2",
+    "generics": "0.1.3",
+    "glue": "1.7.0",
+    "colorspace": "2.1-0",
+    "scales": "1.3.0",
+    "fansi": "1.0.5",
+    "grid": "4.3.3",
+    "munsell": "0.5.0",
+    "tibble": "3.2.1",
+    "lifecycle": "1.0.4",
+    "compiler": "4.3.3",
+    "Rcpp": "1.0.12",
+    "pkgconfig": "2.0.3",
+    "tidyr": "1.3.1",
+    "osqp": "1.0.0",
+    "lattice": "0.22-5",
+    "tidyselect": "1.2.0",
+    "utf8": "1.2.4",
+    "pillar": "1.9.0",
+    "magrittr": "2.0.3",
+    "Matrix": "1.6-5",
+    "withr": "2.5.0",
+    "gtable": "0.3.4",
+    "ggplot2": "3.4.4"
+  }
+}

@@ -1,0 +1,17 @@
+# case: scta_ibex_xval
+# generated_at: 2026-08-02T15:02:30Z
+# mlsynth_version: 1.0.0
+# estimator: SCTA
+# config: {"augment": [null, "ridge"], "block_length": 12, "nu": [0.0, 0.25, 0.5, 1.0, 2.0, 4.0], "panel": "ibex day-ahead price, ES treated 2022-06", "ridge_lambda": [1.0, 10.0]}
+# reference_impl: independent implementation of Sun, Ben-Michael & Feller (2024) Sec. 2 stacked design, solved by cvxpy/CLARABEL
+# reference_version: cvxpy CLARABEL interior point, tol 1e-13; ridge per Ben-Michael-Feller-Rothstein solve_ridge
+quantity,mlsynth,reference,abs_diff
+ATT (nu=0),-44.488425,-44.488425,0.0
+ATT (nu=0.25),-44.398268,-44.398268,0.0
+ATT (nu=0.5),-44.323822,-44.323822,0.0
+ATT (nu=1),-44.212636,-44.212636,0.0
+ATT (nu=2),-44.09681,-44.09681,0.0
+ATT (nu=4),-44.099988,-44.099988,0.0
+donor-weight L1 (nu=0.5),1e-06,0.0,1e-06
+"ridge ATT (nu=0.5, lambda=1)",-41.222357,-41.222357,0.0
+"ridge ATT (nu=0.5, lambda=10)",-41.705039,-41.705039,0.0

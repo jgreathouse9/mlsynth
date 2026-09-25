@@ -72,6 +72,8 @@ CASES = {
     "scmo_averaged_mc": "benchmarks.cases.scmo_averaged_mc",    # Path B: Sun averaged regime geometry
     "scmo_demeaned_mc": "benchmarks.cases.scmo_demeaned_mc",    # Path B: Tian Online Appendix Table B.1 (demeaned matching + permutation test size)
     "scmo_covid_sweden": "benchmarks.cases.scmo_covid_sweden",  # Path A: Tian Online Appendix B.3 -- Sweden's NPIs, Table B.3 weights + effect magnitudes + significance pattern
+    "scta_ibex_xval": "benchmarks.cases.scta_ibex_xval",        # cross-val: SCTA vs an independent build of Sun-Ben-Michael-Feller Sec. 2 solved by cvxpy/CLARABEL (ibex monthly day-ahead price, ES treated), plain + ridge-augmented
+    "scta_texas_sb8": "benchmarks.cases.scta_texas_sb8",        # Path A + cross-val vs augsynth 0.2.0 on the authors' Texas SB8 panel: pins the nu = K*year_wt^2 knob mapping (augsynth weights the objective by V^2), the demeaning-basis residual, and the Figure 1 frontier
     "rescm_brexit": "benchmarks.cases.rescm_brexit",            # Path A: SCM-relaxation Brexit/UK GDP (2016Q3)
     "rescm_brexit_2020": "benchmarks.cases.rescm_brexit_2020",  # Path A: SCM-relaxation Brexit robustness (2020Q1)
     "brabander_brexit_table1": "benchmarks.cases.brabander_brexit_table1",      # Path A: de Brabander et al. 2025 Table 1, all 14 cells (SC/DSC/SDID i-iii/MASC/ASCM, 2016Q3, no covariates)
@@ -463,6 +465,8 @@ _RAW: dict[str, tuple[str, str]] = {
     "scpi_staggered":                 ("X", "empirical"),
     "scpi_staggered_covariate":       ("X", "empirical"),
     "scpi_staggered_pi":              ("X", "empirical"),
+    "scta_ibex_xval":                 ("X", "empirical"),
+    "scta_texas_sb8":                 ("AX", "empirical"),
     "scul_prop99":                    ("A", "empirical"),
     "sdid_ddd_hpv":                   ("A", "empirical"),
     "sdid_euets":                     ("AX", "empirical"),

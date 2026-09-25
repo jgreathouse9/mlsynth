@@ -122,13 +122,29 @@ Choosing nu and the Imbalance Frontier
 --------------------------------------
 
 The optimal :math:`\nu` depends on unknown factor-model quantities and is
-infeasible to compute. Following the paper, SCTA defaults to the equal-weight
-heuristic :math:`\nu = 0.5` and asks you to assess sensitivity, not trust a
-single number. Passing a ``frontier`` grid traces the imbalance
-frontier: for each :math:`\nu` it reports the disaggregated and aggregated
-pre-treatment RMSE, the two axes of Figure 1 in the paper. A good
-:math:`\nu` is one where both imbalances are small; a frontier that collapses
-to one axis tells you aggregation is buying (or costing) you signal.
+infeasible to compute. The paper asks you to assess sensitivity instead of
+trusting a single number, and reports three reference cases: aggregates only,
+months only, and equal weight between them.
+
+Equal weight is :math:`\nu = 1`. The :math:`\lfloor T_0/K \rfloor` aggregate
+rows carry total weight :math:`\lfloor T_0/K \rfloor \cdot K\nu`, which is
+:math:`T_0 \nu` when :math:`K` divides :math:`T_0`, against :math:`T_0` for the
+disaggregated rows — so the two halves of the objective balance at
+:math:`\nu = 1`. On the Texas panel that is 72 against 75, the slack being the
+three-month tail that belongs to no whole block.
+
+``nu`` defaults to :math:`0.5`, which puts the aggregates at just under half the
+weight of the months. Earlier versions of this page called that the paper's
+equal-weight heuristic. It is not: :math:`0.5` is where the equal-weight case
+falls on the horizontal axis of the paper's Figure 3, which plots
+:math:`\texttt{year\_wt} / (\texttt{year\_wt} + 1)`, and the knob value there is
+:math:`\texttt{year\_wt} = 1`. Set ``nu=1.0`` for the paper's equal-weight fit.
+
+Passing a ``frontier`` grid traces the imbalance frontier: for each
+:math:`\nu` it reports the disaggregated and aggregated pre-treatment RMSE, the
+two axes of Figure 1 in the paper. A good :math:`\nu` is one where both
+imbalances are small; a frontier that collapses to one axis tells you
+aggregation is buying (or costing) you signal.
 
 Inference and Diagnostics
 -------------------------
@@ -165,7 +181,7 @@ Example
        "df": df, "outcome": "y", "treat": "treat",
        "unitid": "unit", "time": "time",
        "block_length": 4,            # K = 4 high-frequency periods per block
-       "nu": 0.5,                    # equal weight on aggregated and disaggregated
+       "nu": 1.0,                    # equal weight on aggregated and disaggregated
        "frontier": [0.0, 0.5, 1.0, 2.0],
    }
    results = SCTA(config).fit()
@@ -185,15 +201,29 @@ Verification
 ------------
 
 SCTA reproduces the temporal-aggregation construction of the paper's Texas
-SB8 study [BellStuartGemmill]_ and is cross-validated against the ``augsynth``
-R reference. Because the joint fit's base simplex is ill-conditioned on a large
-donor pool, the per-unit weight vector is solver-dependent: mlsynth reaches the
-true optimum of the :math:`\mathbf{V}`-weighted objective, while ``augsynth``'s
-interior-point solver lands a few percent short, so the estimates agree to
-solver tolerance, not bit for bit (plain :math:`\nu = 0.5`:
-:math:`{\approx}\,19{,}800` vs :math:`18{,}918`; ridge: :math:`{\approx}\,12{,}500`
-vs :math:`12{,}982`, annualised). See the dedicated page
-:doc:`replications/scta`.
+SB8 study [BellStuartGemmill]_ and is cross-validated against ``augsynth`` 0.2.0,
+the authors' own R package, on the authors' own panel — both of which ship with
+the library (`benchmarks/cases/scta_texas_sb8.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_texas_sb8.py>`_).
+
+The two libraries spell the aggregation knob differently, and the difference is
+a square. SCTA scales the matching rows by :math:`\sqrt{\mathbf{V}}`, so an
+aggregate row's weight in the objective is :math:`K\nu`, as the paper writes it.
+``augsynth`` scales the matching columns by :math:`\mathbf{V}` and solves with
+the weight matrix set to the identity, which weights an aggregate row by
+:math:`(K\nu)^2`. The knobs therefore map as
+:math:`\nu = K \cdot \texttt{year\_wt}^2` — the paper's "Yearly + Monthly" fit
+at ``year_wt = 1`` is :math:`\nu = 12`, not :math:`\nu = 1`. At the mapped
+knob the two agree to 0.11 percent across the grid, and the residual is a second
+convention difference in what the unit fixed effect averages over.
+
+A second check needs no R: `benchmarks/cases/scta_ibex_xval.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/scta_ibex_xval.py>`_
+rebuilds the paper's Section 2 design from the equations, solves it with
+``cvxpy``/CLARABEL, and matches SCTA's ATT to :math:`5\times 10^{-12}` across the
+:math:`\nu` grid and its ridge-augmented ATT to :math:`2.7\times 10^{-10}`. See
+the dedicated page :doc:`replications/scta`, and :doc:`validation` for the
+side-by-side tables.
 
 Core API
 --------

@@ -34,10 +34,12 @@ Provenance / scope
   over-identified doubly-robust config the authors use, whose outcome-bridge
   component reproduces their just-identified ``PI.h``.
 * Reference: the authors' ``analysis.Rmd`` (commit ``3bcb5ec``), reproduced in
-  ``benchmarks/R/dr_proximal_brazil.R``. R does not run in CI; ``comparison()``
-  runs it live and skips when the toolchain is absent. R's ``Synth`` is not
-  required here -- the standard-SC contrast is reported from mlsynth; only the
-  proximal ``h``/``DR`` cells are cross-checked against R.
+  ``benchmarks/R/dr_proximal_brazil.R``. ``comparison()`` runs it live where R is
+  available and otherwise reads the same two cells from the committed capture in
+  ``benchmarks/reference/brazil_vaccine_scm_vs_proximal/``, so the cross-check is
+  reproducible in CI, where there is no R. R's ``Synth`` is not required here --
+  the standard-SC contrast is reported from mlsynth; only the proximal
+  ``h``/``DR`` cells are cross-checked against R.
 
 Numbers below are in hospitalisation units (phi * Y.scale), Y.scale = 18201.
 """
@@ -156,26 +158,51 @@ def _reference_live() -> dict:
     return vals
 
 
+def _reference() -> dict:
+    """The two R cells plus a descriptor of where they came from.
+
+    Live R is the stronger evidence and is tried first. When the toolchain is
+    absent the committed capture supplies the same two cells: they are the
+    live-R values of the sibling :mod:`benchmarks.cases.dr_proximal_brazil` run,
+    which calls the identical script on the identical panel.
+    """
+    try:
+        return {"values": _reference_live(),
+                "impl": "R gmm (authors' analysis.Rmd, commit 3bcb5ec, "
+                        "reltol=1e-13), live run",
+                "version": "Qiu, Shi & Tchetgen Tchetgen, Brazil 2010 PCV10"}
+    except BenchmarkSkipped:
+        from benchmarks.reference import load_reference
+        return {"values": load_reference("brazil_vaccine_scm_vs_proximal")["values"],
+                "impl": "R gmm (authors' analysis.Rmd, commit 3bcb5ec, "
+                        "reltol=1e-13), captured",
+                "version": "captured with benchmarks/reference/"
+                           "dr_proximal_brazil (same script, same panel)"}
+
+
 def comparison() -> dict:
-    """mlsynth standard-vs-proximal panorama; proximal cells vs the authors' live R."""
-    ref = _reference_live()                       # skips if R/toolchain absent
+    """mlsynth standard-vs-proximal panorama; proximal cells vs the authors' R."""
+    ref = _reference()
     long, pool = _panel()
     sc = _standard_sc(long)
     dr = _dr_oid(long, pool)
+    vals = ref["values"]
     rows = [
         {"quantity": "standard_sc (VanillaSC)",
          "mlsynth": round(sc.att * _YSCALE, 3), "reference": None},
         {"quantity": "outcome_bridge_h",
          "mlsynth": round(dr.metadata["outcome_bridge_att"] * _YSCALE, 3),
-         "reference": round(ref.get("outcome_bridge_h", float("nan")), 3)},
+         "reference": round(vals["outcome_bridge_h"], 3)},
         {"quantity": "DR[A10_B99_nopneumo]",
          "mlsynth": round(dr.att * _YSCALE, 3),
-         "reference": round(ref.get("DR_A", float("nan")), 3)},
+         "reference": round(vals["DR_A"], 3)},
     ]
     return {
         "rows": rows,
-        "mlsynth_call": {"standard": "VanillaSC", "proximal": "PROXIMAL(DR-OID)"},
-        "reference": {"impl": "R gmm (authors' analysis.Rmd, commit 3bcb5ec, reltol=1e-13)",
+        "mlsynth_call": {"estimator": "VanillaSC + PROXIMAL",
+                         "config": {"standard": "VanillaSC on the three donor causes",
+                                    "proximal": "PROXIMAL(methods=['DR-OID'])"}},
+        "reference": {"impl": ref["impl"], "version": ref["version"],
                       "script": "benchmarks/R/dr_proximal_brazil.R",
                       "note": "standard SC reported from mlsynth (R's Synth not required)"},
     }

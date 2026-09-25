@@ -65,8 +65,16 @@ def _read_comparison_csv(path: Path) -> dict:
     """Parse a committed comparison.csv back into ``{"rows", "meta"}``.
 
     The metadata header is ``# key: value`` comment lines; the body is the
-    ``quantity, mlsynth, reference, abs_diff`` table. Numeric columns are coerced
-    to float so the assembled workbook matches a live export.
+    ``quantity, mlsynth, reference, abs_diff`` table. Numeric cells are coerced
+    to float so the parsed rows match a live export.
+
+    Three cell kinds survive that coercion. A number becomes a float. A blank
+    becomes ``None`` -- a row reported from mlsynth alone, with no reference
+    counterpart, writes an empty reference cell. Anything else is kept as the
+    literal string: a case may pin a categorical quantity, as
+    ``lto_refined_placebo`` pins "73/703" treated losses over pairs, and those
+    compare by equality (see :func:`_abs_diff`). The dashboard's verdict and
+    max-|delta| already skip non-numeric cells, so the literal reaches it intact.
     """
     meta: dict = {}
     body: list = []
@@ -79,10 +87,21 @@ def _read_comparison_csv(path: Path) -> dict:
     rows = []
     for r in csv.DictReader(body):
         rows.append({"quantity": r["quantity"],
-                     "mlsynth": float(r["mlsynth"]),
-                     "reference": float(r["reference"]),
-                     "abs_diff": float(r["abs_diff"])})
+                     "mlsynth": _cell(r["mlsynth"]),
+                     "reference": _cell(r["reference"]),
+                     "abs_diff": _cell(r["abs_diff"])})
     return {"rows": rows, "meta": meta}
+
+
+def _cell(raw):
+    """One comparison cell: float where it parses, ``None`` when blank, else
+    the literal string."""
+    if raw is None or not str(raw).strip():
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return str(raw)
 
 
 def _metadata(name: str, result: dict) -> dict:
@@ -118,12 +137,39 @@ def _metadata(name: str, result: dict) -> dict:
     return meta
 
 
+def _abs_diff(case: str, row: dict):
+    """``|mlsynth - reference|`` where both sides are numeric.
+
+    Two other cell kinds reach this. A row with no reference at all --
+    ``brazil_vaccine_scm_vs_proximal`` reports its standard-SC cell from mlsynth
+    alone, to set the contrast the proximal cells are measured against -- has
+    nothing to difference, and records a blank.
+
+    A categorical quantity -- ``lto_refined_placebo`` reports "73/703" treated
+    losses over pairs -- is exact or it is wrong, and has no meaningful
+    difference either. Those compare by equality: a match records 0 so the
+    dashboard scores it exact, and a mismatch records the literal ``mismatch``,
+    which no verdict band will read as agreement, and is printed here so it is
+    seen when the bundle is written.
+    """
+    if row.get("reference") is None or row.get("mlsynth") is None:
+        return None
+    try:
+        return round(abs(float(row["mlsynth"]) - float(row["reference"])), 6)
+    except (ValueError, TypeError):
+        if str(row["mlsynth"]) == str(row["reference"]):
+            return 0
+        print(f"[warn] {case}: {row['quantity']!r} differs and is not numeric "
+              f"({row['mlsynth']!r} vs {row['reference']!r})")
+        return "mismatch"
+
+
 def export_case(name: str) -> dict:
     """Run a case's comparison(), write its comparison.csv, return rows + metadata."""
     result = registry.load(name).comparison()
     rows = result["rows"]
     for r in rows:
-        r["abs_diff"] = round(abs(float(r["mlsynth"]) - float(r["reference"])), 6)
+        r["abs_diff"] = _abs_diff(name, r)
     meta = _metadata(name, result)
     bundle = REF_DIR / name
     bundle.mkdir(exist_ok=True)
@@ -133,8 +179,9 @@ def export_case(name: str) -> dict:
         w = csv.DictWriter(fh, fieldnames=_FIELDS)
         w.writeheader()
         w.writerows(rows)
-    print(f"[ok] {name}: wrote comparison.csv ({len(rows)} rows, max |Δ|="
-          f"{max(r['abs_diff'] for r in rows):.4g})")
+    numeric = [r["abs_diff"] for r in rows if isinstance(r["abs_diff"], (int, float))]
+    worst = f"{max(numeric):.4g}" if numeric else "n/a"
+    print(f"[ok] {name}: wrote comparison.csv ({len(rows)} rows, max |Δ|={worst})")
     return {"rows": rows, "meta": meta}
 
 
