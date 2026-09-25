@@ -38,7 +38,6 @@ from tools.simplex_qp_audit import VERDICTS, _classify_objective, audit
 ELIGIBLE = {
     ("bilevel/penalized.py", "w"): 1,
     ("solvers/ridge_augment.py", "w"): 1,
-    ("clustersc_helpers/pcr/convex.py", "w"): 1,
     ("cscm_helpers/engine.py", "W"): 1,
     ("dscar_helpers/weights.py", "w"): 1,
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): 1,
@@ -56,7 +55,6 @@ ELIGIBLE = {
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
 REMAINING = {
-    ("clustersc_helpers/pcr/convex.py", "w"),
     ("cscm_helpers/engine.py", "W"),
     ("dscar_helpers/weights.py", "w"),
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"),
@@ -99,8 +97,6 @@ KEPT_ON_CVXPY = {
 # ``agents/agents_simplex_audit.md``. An empty transform means the call site
 # swaps with no reshaping, and those keys are absent here.
 TRANSFORMS = {
-    ("clustersc_helpers/pcr/convex.py", "w"):
-        "square the objective, which has the same minimiser",
     ("cscm_helpers/engine.py", "W"):
         "scale the rows by the square root of the metric",
     ("dscar_helpers/weights.py", "w"):
@@ -125,6 +121,7 @@ TRANSFORMS = {
 }
 
 MIGRATED = {
+    ("clustersc_helpers/pcr/convex.py", "w"),
     ("clustersc_helpers/spannability.py", "w"),
     ("drosc_helpers/estimation.py", "w"),
     ("dsc_helpers/weights.py", "w"),
