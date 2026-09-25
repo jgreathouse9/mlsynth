@@ -699,6 +699,21 @@ reproduced from public data and mlsynth's own DGPs, and locked in as a test
   only when the rank condition holds and that the bias-corrected CI's coverage
   rises toward the nominal 95% as :math:`T_0` grows.
 
+A third case checks the relationship SI bears to its neighbours. Section 4.2
+records that at :math:`d = 0` SI-PCR recovers the SC-PCR estimator of Amjad,
+Shah and Shen, and SNN in turn generalises SI by making the fitting block a
+per-entry choice instead of a fixture of the treatment geometry.
+`benchmarks/cases/snn_nesting.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/snn_nesting.py>`_
+measures both links at once: on the Basque, West German and Proposition 99
+panels, :class:`~mlsynth.SI` on its control arm, :class:`~mlsynth.SNN` and the
+PCR leg of :class:`~mlsynth.CLUSTERSC` return the same counterfactual at a
+matched rank, and that counterfactual is the one the authors of
+`deshen24/panel-data-regressions
+<https://github.com/deshen24/panel-data-regressions>`_ compute with their own
+code. The case also pins where the three come apart, since the shipped rank
+rules and post-period projections differ.
+
 .. note::
 
    The paper does not formally model staggered adoption; like the authors,

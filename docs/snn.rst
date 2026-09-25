@@ -214,6 +214,21 @@ Cross-validated against the reference implementation
 Prop 99 block-missingness pattern mlsynth reproduces the reference's imputed
 counterfactual to machine precision. See :doc:`replications/snn`.
 
+A second case validates the nesting the method claims. SNN, SI and the PCR
+form of robust synthetic control run one kernel on different blocks, so on a
+comparative case study -- where the block is the donor pool crossed with the
+pre-periods -- they must return the same counterfactual at a matched rank.
+`benchmarks/cases/snn_nesting.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/snn_nesting.py>`_
+checks that on the Basque, West German and Proposition 99 panels against the
+authors' own principal component regression
+(`deshen24/panel-data-regressions
+<https://github.com/deshen24/panel-data-regressions>`_), together with the
+row-side and column-side syntheses of section 3.1. Three controls -- a smaller
+anchor cross, the rank moved by one, and the denoised full-matrix projection --
+separate the estimates by 0.24 to 3.6 percent, which is what keeps the equality
+rows from being vacuous.
+
 The same SNN engine performs general (non-causal) matrix completion on
 any matrix with ``NaN`` for the missing entries:
 

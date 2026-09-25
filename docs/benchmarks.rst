@@ -47,7 +47,7 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 224 registered cases. ``paths`` is what the case
+All 225 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
@@ -55,9 +55,9 @@ calibrated from a real one.
 * ``A`` -- empirical replication (74 cases)
 * ``B`` -- Monte Carlo / simulation (62 cases)
 * ``C`` -- theoretical property or design calibration (12 cases)
-* ``X`` -- cross-validation against a reference implementation (105 cases)
+* ``X`` -- cross-validation against a reference implementation (106 cases)
 
-By data: 77 simulated, 132 empirical, 15 both -- so 92 cases fit at least one generated panel.
+By data: 77 simulated, 133 empirical, 15 both -- so 92 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -610,6 +610,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``siv_syria_mc``
      - B
      - simulated
+   * - ``snn_nesting``
+     - X
+     - empirical
    * - ``snn_prop99``
      - X
      - empirical
@@ -1189,6 +1192,15 @@ Cross-validation against reference implementations
      - vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
    * - ``snn_prop99``
      - vs deshen24/syntheticNN (Prop 99)
+   * - ``snn_nesting``
+     - vs deshen24/panel-data-regressions (Shen-Ding-Sekhon-Yu) on all three
+       case studies -- Basque, West Germany, Proposition 99. SNN's own anchor
+       search returns the donor-by-pre-period cross on each, and at the
+       authors' rank SNN, SI (control arm) and the PCR-RSC leg of CLUSTERSC
+       reproduce the authors' own PCR path for path, row side and column side
+       alike. Three controls -- a shrunk cross, the rank moved by one, and
+       RSC's denoised full-matrix projection -- separate the estimates by
+       0.24 to 3.6 percent, so the equality rows are not vacuous
    * - ``spillsynth_iscm_xval``
      - vs Melnychuk-Andrii/Spillover-SCM (inclusive SCM German), against both
        the authors' shipped output and their algorithm solved to the simplex
