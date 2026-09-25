@@ -37,7 +37,7 @@ from tools.simplex_qp_audit import VERDICTS, _classify_objective, audit
 # and folding it into the target is not available when the donor block is wide.
 ELIGIBLE = {
     ("bilevel/penalized.py", "w"): 1,
-    ("bilevel/ridge_augment.py", "w"): 1,
+    ("solvers/ridge_augment.py", "w"): 1,
     ("clustersc_helpers/pcr/convex.py", "w"): 1,
     ("cscm_helpers/engine.py", "W"): 1,
     ("dscar_helpers/weights.py", "w"): 1,
@@ -74,7 +74,7 @@ REMAINING = {
 KEPT_ON_CVXPY = {
     ("bilevel/penalized.py", "w"):
         "the Gram form, whose linear term carries the data fit; no caller",
-    ("bilevel/ridge_augment.py", "w"):
+    ("solvers/ridge_augment.py", "w"):
         "the cvxpy reference the active-set path is checked against",
     ("masc_helpers/estimation.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",

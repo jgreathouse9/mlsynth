@@ -27,7 +27,7 @@ SCM of Ben-Michael, Feller & Rothstein (2021) applied to a *stacked* design: the
 metric-space outcome is carried into a Hilbert space by an isometry, evaluated on
 a grid, and the ``(period, grid point)`` pairs are stacked into one long matching
 vector. Consequently the base simplex solve reuses mlsynth's own exact QP
-(:func:`mlsynth.utils.bilevel.ridge_augment.simplex_qp`) unchanged, and eq. (9)
+(:func:`mlsynth.utils.solvers.ridge_augment.simplex_qp`) unchanged, and eq. (9)
 is the ridge formula already implemented in that module with the pre-period axis
 replaced by the stacked axis. Second, the basis expansion is not exotic: the
 Fortran behind ``cubicBsplines::Bsplines`` returns exactly the partition-of-unity
@@ -42,7 +42,7 @@ import numpy as np
 from scipy.interpolate import BSpline
 from scipy.optimize import minimize_scalar
 
-from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 # R's optimise() default: .Machine$double.eps^0.25
 R_OPTIMISE_TOL = float(np.finfo(float).eps ** 0.25)

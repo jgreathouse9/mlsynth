@@ -37,7 +37,7 @@ import numpy as np
 
 from .....exceptions import MlsynthConfigError
 from .....utils.bilevel.engine import BilevelSCM
-from .....utils.bilevel.ridge_inference import (
+from .....utils.conformal.ridge_inference import (
     conformal_att_interval,
     conformal_pvalue,
 )

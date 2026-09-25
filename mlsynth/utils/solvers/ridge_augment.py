@@ -62,7 +62,7 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     ``sum w = 1``.
 
     Solved by the pure-NumPy active-set method
-    (:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`), which avoids
+    (:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`), which avoids
     cvxpy's per-call canonicalisation overhead in the hot conformal /
     market-selection loops and is warm-startable. Augmented SCM augments an
     *accurately solved* simplex SCM (augsynth uses quadprog), so the base is
@@ -71,7 +71,7 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
 
     For a large donor pool (``J >= ACCEL_MIN_DONORS``) with no caller-supplied
     warm start, ``solve_simplex_qp`` seeds itself with a Gram-collapsed FISTA
-    warm start (:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) so the
+    warm start (:func:`mlsynth.utils.solvers.accelerate.fista_warm_start`) so the
     active set is certified from the right support instead of built up pivot by
     pivot -- up to ~20x faster on a few hundred donors, and faster than a general
     interior-point solver (CLARABEL) on the same problem. That seeding used to

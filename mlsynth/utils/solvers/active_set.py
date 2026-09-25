@@ -15,7 +15,7 @@ to shed one donor per pivot until only the support is left, so its work scales
 with the *pool* and not with the support it ends on: on factor panels the pivot
 count runs 0.6 to 0.9 times ``J`` from ``J = 20`` to ``J = 320``, while the
 support grows 7 to 43. A Gram-collapsed FISTA warm start
-(:func:`mlsynth.utils.bilevel.accelerate.fista_warm_start`) names that support
+(:func:`mlsynth.utils.solvers.accelerate.fista_warm_start`) names that support
 up front and the same pivot counts drop to 0 or 1. So for a pool of at least
 ``ACCEL_MIN_DONORS``, with no warm start from the caller, the seed is computed
 here -- once, for every caller -- instead of at a call site. It is speed only:

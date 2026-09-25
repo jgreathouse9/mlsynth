@@ -4,9 +4,15 @@ A self-contained implementation of the optimistic bilevel program for jointly
 optimizing predictor weights ``V`` and donor weights ``W``, used as a drop-in
 replacement for ``Opt.SCopt`` inside FSCM's predictor mode. No external QP
 solver is used: the lower-level problems are solved by the active sets in
-:mod:`active_set` (one problem, design matrix at hand) and :mod:`minnorm` (a
-whole population at once, in Gram form), with the FISTA primitive of
-:mod:`simplex` for the first-order paths.
+:mod:`mlsynth.utils.solvers.active_set` (one problem, design matrix at hand)
+and :mod:`mlsynth.utils.solvers.minnorm` (a whole population at once, in Gram
+form), with the FISTA primitive of :mod:`mlsynth.utils.solvers.simplex` for the
+first-order paths.
+
+Those solvers are general numerics and live in :mod:`mlsynth.utils.solvers`.
+This package keeps only the bilevel program itself, and does not re-export
+them: that re-export was a shim by another name, and it is what kept their
+misfiling invisible at the call site. Import a solver from where it lives.
 
 Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
 
@@ -19,10 +25,6 @@ Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
 """
 
 from .structure import BilevelProblem, BilevelSolution
-from .active_set import solve_simplex_qp, solve_simplex_qp_least_norm
-from .simplex import (project_simplex, project_simplex_cols,
-                      simplex_lstsq, simplex_lstsq_batch,
-                      simplex_lstsq_loo, mspe)
 from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
 from .regression_v import regression_v, solve_regression
@@ -36,46 +38,14 @@ from .determine_v import (
     min_loss_w_v,
 )
 from .engine import BilevelSCM, BilevelSCMResult
-from .ridge_augment import (
-    RidgeAugmentResult,
-    best_lambda,
-    build_matching,
-    generate_lambdas,
-    ridge_augment_weights,
-    simplex_qp,
-    solve_ridge,
-)
-from .ridge_inference import (
-    ConformalIntervals,
-    conformal_intervals,
-    conformal_pvalue,
-)
 
 __all__ = [
-    "solve_simplex_qp",
-    "solve_simplex_qp_least_norm",
     "regression_v",
     "solve_regression",
-    "project_simplex_cols",
-    "simplex_lstsq_batch",
-    "simplex_lstsq_loo",
     "BilevelProblem",
     "BilevelSolution",
     "BilevelSCM",
     "BilevelSCMResult",
-    "RidgeAugmentResult",
-    "ridge_augment_weights",
-    "build_matching",
-    "simplex_qp",
-    "solve_ridge",
-    "conformal_pvalue",
-    "conformal_intervals",
-    "ConformalIntervals",
-    "generate_lambdas",
-    "best_lambda",
-    "project_simplex",
-    "simplex_lstsq",
-    "mspe",
     "solve_bilevel",
     "solve_mscmt",
     "solve_penalized",

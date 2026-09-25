@@ -106,7 +106,7 @@ def _additive(true_effect, seed=5):
 
 
 def _interval(y, Y0, alpha=0.1):
-    from mlsynth.utils.bilevel.ridge_inference import conformal_att_interval
+    from mlsynth.utils.conformal.ridge_inference import conformal_att_interval
 
     eng = resolve_engine("augsynth")
     fit = eng.fit_once(y, Y0, PRE, PRE, T - 1, 1, augment="ridge",
@@ -133,7 +133,7 @@ def test_it_excludes_zero_exactly_when_the_effect_is_real():
 
 def test_the_endpoints_are_where_the_test_changes_answer():
     """Bracketing means the bounds are crossings, not grid points."""
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 
     y, Y0 = _additive(400.0)
     (lo, hi), _ = _interval(y, Y0)
@@ -192,7 +192,7 @@ def test_a_rejected_point_estimate_does_not_make_the_set_empty():
     that band away, and the interval misses the truth for a reason that has
     nothing to do with the truth.
     """
-    from mlsynth.utils.bilevel.ridge_inference import (
+    from mlsynth.utils.conformal.ridge_inference import (
         conformal_att_interval, conformal_pvalue,
     )
 
@@ -214,7 +214,7 @@ def test_a_set_the_test_rejects_everywhere_is_still_empty():
     On Recast A1 seed 45 the statistic is minimised at the point estimate and
     the test rejects even there, so no constant effect conforms.
     """
-    from mlsynth.utils.bilevel.ridge_inference import conformal_att_interval
+    from mlsynth.utils.conformal.ridge_inference import conformal_att_interval
 
     y, Y0, pre, kw, _ = _recast("A1", 45)
     lo, hi = conformal_att_interval(y, Y0, pre, alpha=0.05, **kw)
@@ -231,7 +231,7 @@ def test_a_finite_bound_is_always_a_crossing(seed):
     point reports a bound narrower than the truth, which under-covers. Seed 6 is
     such a panel; seeds 0 and 2 have genuine crossings.
     """
-    from mlsynth.utils.bilevel.ridge_inference import (
+    from mlsynth.utils.conformal.ridge_inference import (
         conformal_att_interval, conformal_pvalue,
     )
 
@@ -261,7 +261,7 @@ def test_a_panel_the_test_never_rejects_on_reports_no_bound():
     extreme and the p-value plateaus at ``5 / 45``, never reaching ``0.05``.
     Nothing is excluded in either direction and the set is the whole line.
     """
-    from mlsynth.utils.bilevel.ridge_inference import (
+    from mlsynth.utils.conformal.ridge_inference import (
         conformal_att_interval, conformal_pvalue,
     )
 
@@ -281,7 +281,7 @@ def test_a_level_the_test_cannot_reach_gives_an_unbounded_interval():
     level no candidate is ever rejected and the confidence set is the whole
     line. Reporting a finite bound there would invent a rejection.
     """
-    from mlsynth.utils.bilevel.ridge_inference import conformal_att_interval
+    from mlsynth.utils.conformal.ridge_inference import conformal_att_interval
 
     y, Y0 = _additive(0.0)
     assert 1.0 / T > 0.01                     # the level is below the floor

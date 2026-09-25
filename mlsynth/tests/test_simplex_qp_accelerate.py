@@ -24,11 +24,11 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel import active_set
-from mlsynth.utils.bilevel.accelerate import (
+from mlsynth.utils.solvers import active_set
+from mlsynth.utils.solvers.accelerate import (
     ACCEL_MIN_DONORS, fista_warm_start, simplex_project)
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 
 # --------------------------------------------------------------------------- #

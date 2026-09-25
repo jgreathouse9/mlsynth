@@ -822,7 +822,7 @@ timeout = 400.0
 
 [[target]]
 name = "simplex-active-set-seeding"
-module-path = "mlsynth/utils/bilevel/active_set.py"
+module-path = "mlsynth/utils/solvers/active_set.py"
 test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -840,7 +840,7 @@ timeout = 600.0
 
 [[target]]
 name = "fista-support-stop"
-module-path = "mlsynth/utils/bilevel/accelerate.py"
+module-path = "mlsynth/utils/solvers/accelerate.py"
 test-command = "python -m pytest mlsynth/tests/test_fista_support_patience.py mlsynth/tests/test_sdid_warm_start_accel.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -864,7 +864,7 @@ timeout = 600.0
 
 [[target]]
 name = "ridged-gram-guard"
-module-path = "mlsynth/utils/bilevel/minnorm.py"
+module-path = "mlsynth/utils/solvers/minnorm.py"
 test-command = "python -m pytest mlsynth/tests/test_ridged_gram_guard.py mlsynth/tests/test_sdid_placebo_guard_cost.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -1020,7 +1020,7 @@ timeout = 900.0
 
 [[target]]
 name = "batch-support-seed"
-module-path = "mlsynth/utils/bilevel/accelerate.py"
+module-path = "mlsynth/utils/solvers/accelerate.py"
 test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
 timeout = 900.0
 
@@ -1062,7 +1062,7 @@ timeout = 900.0
 
 [[target]]
 name = "batch-seed-gate"
-module-path = "mlsynth/utils/bilevel/minnorm.py"
+module-path = "mlsynth/utils/solvers/minnorm.py"
 test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_simplex_minnorm.py mlsynth/tests/test_bilevel_simplex_batch.py -q -p no:cacheprovider"
 timeout = 900.0
 
@@ -1567,7 +1567,7 @@ timeout = 300.0
   [[target.mutant]]
   id = "scan-falls-back-to-the-inexact-solver"
   find = "        w = np.asarray(solve_simplex_qp(X_pre[:, idx], y_pre, warm_start=start),\n                       dtype=float)"
-  replace = "        from ..bilevel.simplex import simplex_lstsq\n        w = simplex_lstsq(X_pre[:, idx], y_pre)"
+  replace = "        from ..solvers.simplex import simplex_lstsq\n        w = simplex_lstsq(X_pre[:, idx], y_pre)"
   models = "the scan back on the FISTA primitive it was moved off. This is the defect the whole ladder was built from: FISTA exhausts its budget on these designs and lands above the optimum, so once a fit saturates the reported path rises -- 3.5e-05 on Prop 99 -- which the true optimum cannot do. Every shape, sign and simplex assertion still passes"
 
   [[target.mutant]]
@@ -1665,7 +1665,7 @@ timeout = 120.0
 
 [[target]]
 name = "conformal-block-reference-gather"
-module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+module-path = "mlsynth/utils/conformal/ridge_inference.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_reference_vectorise.py mlsynth/tests/test_conformal_reference_vectorise_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -1695,7 +1695,7 @@ timeout = 300.0
 
 [[target]]
 name = "conformal-sweep-warm-start"
-module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+module-path = "mlsynth/utils/conformal/ridge_inference.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_sweep_warm_start.py mlsynth/tests/test_conformal_sweep_warm_start_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -1785,7 +1785,7 @@ timeout = 300.0
 
 [[target]]
 name = "sbc-cyclical-solve"
-module-path = "mlsynth/utils/bilevel/simplex.py"
+module-path = "mlsynth/utils/solvers/simplex.py"
 test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -2535,7 +2535,7 @@ timeout = 240.0
 
 [[target]]
 name = "active-set-linear-ray"
-module-path = "mlsynth/utils/bilevel/active_set.py"
+module-path = "mlsynth/utils/solvers/active_set.py"
 test-command = "python -m pytest mlsynth/tests/test_active_set_linear.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -2691,13 +2691,13 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-reference-ridge-is-dropped"
-  find = "from ..bilevel.active_set import solve_simplex_qp_least_norm"
-  replace = "from ..bilevel.active_set import solve_simplex_qp as solve_simplex_qp_least_norm"
+  find = "from ..solvers.active_set import solve_simplex_qp_least_norm"
+  replace = "from ..solvers.active_set import solve_simplex_qp as solve_simplex_qp_least_norm"
   models = "the port as it shipped: the authors' fn_W builds Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J) and mlsynth solved the first term alone. Where the imbalance has one minimiser nothing moves -- 1.5e-7 in the German concatenated weights, 4e-3 in the separate ATT -- so every balance cell against the authors' captured run still passes and the omission is invisible to the whole cross-validation. Where it has a face of minimisers the term is the only thing choosing a point: on the averaged scheme, one equation in sixteen donors, relabelling the donors moves the weights by 0.419 and the reported ATT between -1720 and -2596"
 
 [[target]]
 name = "simplex-least-norm"
-module-path = "mlsynth/utils/bilevel/active_set.py"
+module-path = "mlsynth/utils/solvers/active_set.py"
 test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
 timeout = 300.0
 

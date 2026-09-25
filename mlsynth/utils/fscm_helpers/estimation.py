@@ -13,7 +13,7 @@ Implements Cerulli (2024) with two matching modes:
 In both modes the donor pool is grown greedily and the donor *count* is chosen
 by rolling-origin cross-validation; the final weights are refit on the full
 pre-period over the selected donors. All optimization is self-contained -- the
-simplex problems are solved by the FISTA primitive in :mod:`.bilevel.simplex`,
+simplex problems are solved by the FISTA primitive in :mod:`.solvers.simplex`,
 not by ``Opt.SCopt``.
 """
 
@@ -34,7 +34,7 @@ from ...config_models import (
     WeightsResults,
 )
 from ..bilevel import BilevelProblem, lower_level_weights, solve_bilevel
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 from ..weights import solve_weights
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 

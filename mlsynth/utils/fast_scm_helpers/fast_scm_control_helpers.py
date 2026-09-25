@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 from typing import List, Optional, Sequence
 
-from ..bilevel.minnorm import solve_simplex_minnorm_batch
+from ..solvers.minnorm import solve_simplex_minnorm_batch
 
 def _build_objective(
     X_E: np.ndarray,

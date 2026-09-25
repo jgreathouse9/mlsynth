@@ -344,8 +344,8 @@ class _IdentificationTrace:
         self._real = None
 
     def __enter__(self):
-        from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-        from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+        from mlsynth.utils.solvers.active_set import solve_simplex_qp
+        from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
         import mlsynth.utils.scmo_helpers.estimation as _E
 
         self._module, self._real = _E, _E.simplex_weights

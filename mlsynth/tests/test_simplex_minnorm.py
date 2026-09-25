@@ -1,7 +1,7 @@
 """Correctness contract for the batched Gram-form simplex QP.
 
 Test-first (per ``agents/agents_tests.md``): this harness is written before
-:mod:`mlsynth.utils.bilevel.minnorm`, so every test here is RED until the
+:mod:`mlsynth.utils.solvers.minnorm`, so every test here is RED until the
 minimum-norm-point solver satisfies it.
 
 The solver minimises ``w' G w`` over the probability simplex, for a whole stack
@@ -26,11 +26,11 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel.active_set import (
+from mlsynth.utils.solvers.active_set import (
     solve_simplex_qp,
     solve_simplex_qp_least_norm,
 )
-from mlsynth.utils.bilevel.minnorm import (
+from mlsynth.utils.solvers.minnorm import (
     simplex_gram,
     simplex_optimum_is_unique,
     solve_simplex_minnorm,
@@ -179,7 +179,7 @@ def test_gram_rejects_a_non_matrix_design():
 def test_gram_reduction_is_safe_only_on_a_full_column_rank_design():
     """Forming ``G`` squares the design's condition number, so the reduction is
     only faithful where the design has full column rank. The guard says so."""
-    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+    from mlsynth.utils.solvers.minnorm import gram_reduction_is_safe
 
     rng = np.random.default_rng(0)
     assert gram_reduction_is_safe(rng.normal(size=(40, 12))) is True
@@ -194,7 +194,7 @@ def test_full_rank_designs_agree_with_the_design_form_on_the_weights():
     """Where the guard passes, the two exact solvers return the same weights and
     not merely the same fit -- which is what makes swapping them safe."""
     rng = np.random.default_rng(1)
-    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+    from mlsynth.utils.solvers.minnorm import gram_reduction_is_safe
 
     for m, J in [(40, 20), (30, 12), (60, 25)]:
         B, A = _rand(rng, m, J)
@@ -222,7 +222,7 @@ def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
     decides whether the reduction is allowed.
     """
     rng = np.random.default_rng(2)
-    from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+    from mlsynth.utils.solvers.minnorm import gram_reduction_is_safe
 
     B = np.cumsum(rng.normal(size=(8, 39)), axis=0) + 10.0
     A = B @ rng.dirichlet(np.ones(39)) + 0.05 * rng.normal(size=8)

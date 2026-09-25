@@ -42,8 +42,8 @@ import warnings
 
 import numpy as np
 
-from .minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
-from .simplex import mspe
+from ..solvers.minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
+from ..solvers.simplex import mspe
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
 

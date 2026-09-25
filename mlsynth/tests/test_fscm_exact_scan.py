@@ -36,7 +36,7 @@ import pandas as pd
 import pytest
 
 from mlsynth.exceptions import MlsynthEstimationError
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.fscm_helpers.estimation import (
     rolling_origin_rmspe_exact,
     scan_candidates,

@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.weights import (
     WeightConstraint,
     WeightObjective,
@@ -107,7 +107,7 @@ def test_both_fscm_paths_now_run_the_same_solver(basque):
     """The predictor path already used the exact active set. After this change
     the trajectory path reaches the same minimiser, so the two modes no longer
     disagree about what the lower-level problem's answer is."""
-    from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+    from mlsynth.utils.solvers.ridge_augment import simplex_qp
     Y, y, T0, _ = basque
     assert np.array(solve_weights(Y[:T0], y[:T0]).weights) == pytest.approx(
         simplex_qp(Y[:T0], y[:T0]), abs=1e-9
@@ -231,7 +231,7 @@ def _fit_with_fista(panel, monkeypatch):
     means replacing both, not the one this file used to know about.
     """
     import mlsynth.utils.fscm_helpers.estimation as estimation
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
 
     class _Shim:
         def __init__(self, w): self.weights = w

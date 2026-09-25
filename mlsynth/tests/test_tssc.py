@@ -319,7 +319,7 @@ class TestFreeIntercept:
     def _reference_demeaned(self, X, y):
         """Correct demeaned SC: simplex weights on demeaned data, concentrated
         intercept ``a = ybar - Xbar.w`` -- the free-intercept optimum."""
-        from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+        from mlsynth.utils.solvers.active_set import solve_simplex_qp
         w = solve_simplex_qp(X - X.mean(0), y - y.mean())
         return float(y.mean() - X.mean(0) @ w), w
 

@@ -28,8 +28,8 @@ import time
 import numpy as np
 import cvxpy as cp
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.sparse_sc_helpers.inner import solve_w
 
 def cvxpy_solve(B, a):

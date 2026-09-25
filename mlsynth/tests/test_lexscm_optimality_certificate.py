@@ -126,7 +126,7 @@ def _kkt_violation(Q: np.ndarray, w: np.ndarray) -> float:
     if every ``g_j >= nu`` on a simplex point then ``g_j = nu`` on the support.
     One inequality is therefore the whole certificate, and it is computed from
     the Gram, so it holds whatever solver produced ``w``. This is the Gram-form
-    twin of :func:`mlsynth.utils.bilevel.minnorm.simplex_point_is_optimal`.
+    twin of :func:`mlsynth.utils.solvers.minnorm.simplex_point_is_optimal`.
     """
     g = np.asarray(Q, dtype=float) @ np.asarray(w, dtype=float)
     nu = float(np.asarray(w) @ g)

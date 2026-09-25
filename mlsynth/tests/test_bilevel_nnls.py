@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.nnls import nnls, nnls_select
+from mlsynth.utils.solvers.nnls import nnls, nnls_select
 
 
 def _kkt_residual(A: np.ndarray, b: np.ndarray, w: np.ndarray) -> float:

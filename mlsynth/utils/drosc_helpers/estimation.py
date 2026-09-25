@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import cvxpy as cp
 import numpy as np
 
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 
 def sc_weights(Y0: np.ndarray, X0: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

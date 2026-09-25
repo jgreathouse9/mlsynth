@@ -18,7 +18,7 @@ from that warm start in a handful of pivots.
 
 The support arrives before the weights do, and the support is all the active set
 is being told, so the loop stops on the support and not on the iterate: see
-``SUPPORT_PATIENCE``. :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`
+``SUPPORT_PATIENCE``. :func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`
 calls this itself for a wide enough pool, so the seed is a property of the solver
 and reaches every caller.
 

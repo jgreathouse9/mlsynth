@@ -21,7 +21,7 @@ import numpy as np
 from scipy.optimize import nnls
 from scipy.stats import chi2
 
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 _INTERIOR_TOL = 1e-8  # a coordinate above this is treated as strictly positive
 

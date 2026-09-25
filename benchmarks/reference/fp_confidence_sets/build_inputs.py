@@ -19,7 +19,7 @@ which ``californiaid <- 3``).
 import numpy as np, pandas as pd, sys
 sys.path.insert(0, "/home/user/mlsynth")
 from mlsynth.utils.datautils import dataprep
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 
 OUT = "/tmp/claude-0/-home-user-mlsynth/bdb00eab-f103-5c36-bc1b-0069a19c5fb9/scratchpad/fp"
 T0 = 19                                   # 1970-1988 inclusive

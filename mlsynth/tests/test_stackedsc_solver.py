@@ -8,7 +8,7 @@ improving at iteration 20,000, at every tolerance from 1e-11 down to 1e-6, so
 the solve was iteration-bound and returned a point that was simply suboptimal.
 
 The primal active-set method
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`) solves the same
+(:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`) solves the same
 program exactly, in a bounded number of pivots, and is what MEDSC, SCD and
 COMPSC already use. On the paper's panel it is 2.8x faster on the point estimate
 and roughly 130x on the placebo layer.
@@ -156,7 +156,7 @@ class TestThePlaceboWeightsToo:
             paths, _ = cohort_placebo_paths(cohort, A, B, take, allowed,
                                             donor_pool="donors-only")
             # refit the family directly and certify it
-            from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+            from mlsynth.utils.solvers.active_set import solve_simplex_qp
             for j in range(nJ):
                 keep = [k for k in range(nJ) if k != j]
                 w = np.asarray(solve_simplex_qp(A[:, keep], A[:, j]), float)

@@ -23,7 +23,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as npst
 
-from mlsynth.utils.bilevel.ridge_inference import _reference_stats, _stat
+from mlsynth.utils.conformal.ridge_inference import _reference_stats, _stat
 
 _SETTINGS = settings(
     max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow]

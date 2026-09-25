@@ -29,7 +29,7 @@ Levels: smoke, unit invariants, edge, failure.
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.ridge_inference import _reference_stats, _stat
+from mlsynth.utils.conformal.ridge_inference import _reference_stats, _stat
 
 
 def _oracle(resids, post_slice, q):

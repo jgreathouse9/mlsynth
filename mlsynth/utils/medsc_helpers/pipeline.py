@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthConfigError
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 from ..bilevel.mscmt import solve_mscmt, _inner_weights
 from ..bilevel.structure import BilevelProblem
 
