@@ -38,44 +38,87 @@ from tools.simplex_qp_audit import VERDICTS, _classify_objective, audit
 ELIGIBLE = {
     ("bilevel/penalized.py", "w"): 1,
     ("solvers/ridge_augment.py", "w"): 1,
-    ("clustersc_helpers/pcr/convex.py", "w"): 1,
-    ("cscm_helpers/engine.py", "W"): 1,
     ("dscar_helpers/weights.py", "w"): 1,
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): 1,
-    ("hsc_helpers/formulation.py", "omega"): 1,
     ("masc_helpers/estimation.py", "w"): 1,
     ("mlsc_helpers/crossval.py", "omega"): 1,
     ("mlsc_helpers/crossval.py", "w"): 1,
     ("mlsc_helpers/optimization.py", "omega"): 1,
     ("mlsc_helpers/optimization.py", "w"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
-    ("spsydid_helpers/weights.py", "lam"): 1,
-    ("spsydid_helpers/weights.py", "omega"): 1,
     ("ssc_helpers/weights.py", "b"): 1,
 }
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
-REMAINING = {
-    ("clustersc_helpers/pcr/convex.py", "w"),
-    ("cscm_helpers/engine.py", "W"),
-    ("dscar_helpers/weights.py", "w"),
-    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"),
-    ("hsc_helpers/formulation.py", "omega"),
-    ("spsydid_helpers/weights.py", "lam"),
-    ("spsydid_helpers/weights.py", "omega"),
-}
+#
+# spsydid_helpers/weights.py migrated once its downstream diagnostic was fixed.
+# Both reshapings are exact -- centring profiles the free intercept, and
+# T0 zeta^2 ||omega||^2 becomes sqrt(T0) zeta I design rows with no target -- but
+# the active set writes exact zeros where CLARABEL wrote 1e-11, and the final WLS
+# scales its rows by sqrt(w). A zero-weight period therefore empties its own time
+# dummy, and a zero-weighted reference period leaves the intercept equal to the
+# sum of the survivors, so rank fell to 20 of 23 and the old `rank < n_cols`
+# check reported that tau and tau_s might not be identified. They were: the null
+# space carried components of 1e-16 on both effect columns. The check now asks
+# whether dropping D and WD costs two dimensions, which is the question it was
+# always trying to ask. See pipeline.effect_columns_are_identified.
+
+REMAINING: set = set()  # every eligible site is settled: migrated, or kept with a reason
 
 # Eligible and staying on cvxpy, with the reason. Eligibility says the active
-# set solves the same program; it does not say the cvxpy call should go. Two
-# of these are the reference the native path is checked against, four are
-# escape hatches a caller reaches by naming a solver, and one has no caller.
-# Without this split, "eligible" reads as a to-do list of 15 when 8 of them
-# are finished, and the next reader re-derives which.
+# set solves the same program; it does not say the cvxpy call should go. One is
+# the reference the native path is checked against, five are escape hatches a
+# caller reaches by naming a solver, one is the warm start such a hatch seeds
+# itself with, one has no caller, and two are not identified on the panel their
+# replication uses. Without this split, "eligible" reads as a to-do list when
+# most of it is settled, and the next reader re-derives which.
+#
+# The two non-identified sites, SSC and DSC, are the same finding twice: where
+# the argmin is a face, which point comes back is a property of the solver's
+# pivot order, and a replication that matches a published number is matching
+# that choice. On DSC's Beijing panel (Zheng and Chen 2024, Section 5) the
+# active set is certified optimal by simplex_point_is_optimal in 72 of 72
+# per-period solves and strictly better on the objective in 34 with none
+# worse, so it solves the program; simplex_optimum_is_unique still rejects
+# uniqueness in 33 of the 72. rank[B; 1'] is 6 against 74 donors, which bounds
+# the face at dimension 68, but the fit is sparse -- a median of 5 donors carry
+# weight, and the face at the returned point has dimension 1 in the median and
+# 13 at most. A one-dimensional ambiguity is enough: swapping the solver moves
+# the orange-alert ATT from the paper's -33.8 to -35.46 micrograms per cubic
+# metre.
+#
+# Two tie-break rules have been measured, and neither reproduces a published
+# number. That is why both sites are still here.
+#
+# Plain least norm was tried on SSC in #639: the Guanajuato co_num moves from
+# 1.01e-03 to 9.07e-03 against a pin of 0.001 +/- 0.0015.
+#
+# SHC's rule was tried on DSC. shc_helpers.kernels.solve_shc_qp penalises only
+# the component of w the fit cannot see -- varsigma * ||w - V V' w||^2, for V
+# the right singular vectors of the design whose squared singular values clear
+# a tolerance -- so it leaves the identified component alone where plain least
+# norm also moves it. It behaves the way a rule should: over DSC's 33
+# non-unique periods, where the design has rank 5 and nullity 68 or 69,
+# permuting the donor columns moves it by 2.4e-08 in the median against the
+# active set's 2.1e-02, and it gives up 1.6e-10 of fit. It still does not land
+# on the paper. The orange-alert ATT comes out at -37.91, further off than the
+# untied -35.46.
+#
+# So three weight vectors that fit the pre-period identically to 1e-10 give
+# ATTs spanning 4.1 on an effect of about 34, and the published -33.8 is one
+# point inside that spread, selected by CLARABEL's pivot order on the program
+# as written. Migrating either site means adopting a rule and re-deriving the
+# pin, or reporting the interval two linear programs give in place of a point.
+# Both are econometrics decisions, not solver ones, so both wait.
 KEPT_ON_CVXPY = {
     ("bilevel/penalized.py", "w"):
         "the Gram form, whose linear term carries the data fit; no caller",
     ("solvers/ridge_augment.py", "w"):
         "the cvxpy reference the active-set path is checked against",
+    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"):
+        "the Gram form, with no design to factor and no caller: the live "
+        "LEXSCM control solve goes through fast_scm_control_helpers, and only "
+        "Solution is imported from this module outside its own tests",
     ("masc_helpers/estimation.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",
     ("mlsc_helpers/crossval.py", "omega"):
@@ -88,6 +131,10 @@ KEPT_ON_CVXPY = {
         "the warm start the escape hatch seeds its solver with",
     ("orthsc_helpers/gmm_sce/solver.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",
+    ("dscar_helpers/weights.py", "w"):
+        "not identified on the authors' panel: the argmin is a face in 33 of "
+        "the 72 per-period solves, so the Path-A number selects a point of it. "
+        "See the note below",
     ("ssc_helpers/weights.py", "b"):
         "not identified on the authors' panel; the Path-A replication matches "
         "the reference solver's choice among a continuum of exact fits",
@@ -99,32 +146,25 @@ KEPT_ON_CVXPY = {
 # ``agents/agents_simplex_audit.md``. An empty transform means the call site
 # swaps with no reshaping, and those keys are absent here.
 TRANSFORMS = {
-    ("clustersc_helpers/pcr/convex.py", "w"):
-        "square the objective, which has the same minimiser",
-    ("cscm_helpers/engine.py", "W"):
-        "scale the rows by the square root of the metric",
     ("dscar_helpers/weights.py", "w"):
         "scale the rows by the square root of the metric; "
         "the sum-to-one penalty is zero on the feasible set",
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"):
         "factor the Gram as R'R and take B = R",
-    ("hsc_helpers/formulation.py", "omega"):
-        "factor the Gram as R'R and take B = R, "
-        "recovering the target from the linear term",
     ("mlsc_helpers/crossval.py", "omega"):
         "augment the design with the penalty's square-root factor",
     ("mlsc_helpers/crossval.py", "w"):
         "augment the design with a multiple of the identity",
     ("mlsc_helpers/optimization.py", "omega"):
         "augment the design with the penalty's square-root factor",
-    ("spsydid_helpers/weights.py", "lam"):
-        "centre the design and the target to profile out the intercept",
-    ("spsydid_helpers/weights.py", "omega"):
-        "centre the design and the target to profile out the intercept; "
-        "augment the design with a multiple of the identity",
 }
 
 MIGRATED = {
+    ("spsydid_helpers/weights.py", "lam"),
+    ("spsydid_helpers/weights.py", "omega"),
+    ("hsc_helpers/formulation.py", "omega"),
+    ("cscm_helpers/engine.py", "W"),
+    ("clustersc_helpers/pcr/convex.py", "w"),
     ("clustersc_helpers/spannability.py", "w"),
     ("drosc_helpers/estimation.py", "w"),
     ("dsc_helpers/weights.py", "w"),
@@ -305,9 +345,10 @@ def test_non_negativity_is_read_from_the_variable_too(sites):
     and halves the count, which is the error this test exists to prevent.
     """
     by = {_key(s): s for s in sites}
-    # SpSyDiD declares nonneg on the Variable and lists only the sum
-    # constraint. DTWSC used to be this example and is now on the active set.
-    s = by[("spsydid_helpers/weights.py", "omega")]
+    # DSC declares nonneg on the Variable and lists only the sum constraint.
+    # DTWSC held this role, then SpSyDiD; both are now on the active set, so the
+    # example moves to a site that is staying on cvxpy for a recorded reason.
+    s = by[("dscar_helpers/weights.py", "w")]
     assert s.verdict == "eligible"
     assert ">= 0" not in s.constraints
 
