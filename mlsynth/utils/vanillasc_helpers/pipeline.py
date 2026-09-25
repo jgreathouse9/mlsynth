@@ -640,7 +640,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
-    # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2025).
+    # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2026).
     # The cross-fit refits the configured backend on each block-complement of
     # the pre-period; inferutils owns the blocking, rescale, and t_{K-1} CI.
     # Refitting on a subset of the periods is how two modes recalibrate: the
@@ -682,14 +682,27 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             alpha=config.alpha, weight_fn=_refit_weight_fn,
         )
         p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
+        att_naive = float(np.mean(gap[pre:]))
+        # The interval and the p-value are for the debiased estimator, so the
+        # reported ATT has to be that estimator too -- the plain SC ATT is the
+        # biased quantity the method exists to correct. Swapping in the fold
+        # averaged debiased path over the post window carries the correction
+        # into the whole effects block: the post-period mean gap of this
+        # counterfactual is tt["att"] identically. The pre-period stays the SC
+        # fit, so the pre-period fit diagnostics still describe the SC match.
+        counterfactual = np.asarray(counterfactual, dtype=float).copy()
+        counterfactual[pre:] = np.asarray(tt["cf_post"], dtype=float)
+        gap = y - counterfactual
         inference = InferenceResults(
             p_value=p_val,
             ci_lower=tt["ci_lower"], ci_upper=tt["ci_upper"],
+            standard_error=tt["se"],
             confidence_level=1.0 - config.alpha,
-            method="debiased SC t-test (Chernozhukov-Wuthrich-Zhu 2025)",
+            method=("debiased SC t-test "
+                    "(Chernozhukov, Wuthrich & Zhu 2026, JPE 134(9))"),
             details={
                 "att_debiased": tt["att"],
-                "att_naive": float(np.mean(gap[pre:])),
+                "att_naive": att_naive,
                 "se": tt["se"], "tstat": tt["tstat"], "dof": tt["dof"],
                 "K": tt["K"], "r": tt["r"], "tau_k": tt["tau_k"].tolist(),
                 "alpha": tt["alpha"],
