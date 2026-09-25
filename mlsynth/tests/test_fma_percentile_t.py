@@ -383,26 +383,52 @@ class TestEdgeCases:
 # ----------------------------------------------------------------------
 
 class TestVersusAsymptotic:
-    def test_robust_se_matches_theorem_31_se_when_residuals_are_flat(self):
-        """The two SEs coincide exactly under equal-magnitude residuals.
+    """Both intervals are built from the same Omega_hat.
 
-        The only remaining difference is the dof correction, so the Theorem
-        3.1 call is fed the same uncorrected mean square.
-        """
-        y, cf, F_aug, T0 = _design(T0=30, T2=10, seed=0)
+    Before the Theorem 3.1 path was corrected these two disagreed, by a
+    degrees-of-freedom correction and a homoskedastic substitution that the
+    paper specifies in neither its main appendix, its Web Appendix A, nor
+    the authors' own MATLAB. They now share :func:`robust_omega`, so the
+    percentile-t and normal intervals differ only in where their critical
+    values come from -- which is the entire content of Wang, Racine & Wang.
+    """
+
+    def test_both_intervals_are_built_from_the_same_omega(self):
+        y, cf, F_aug, T0 = _design(T0=30, T2=10, seed=0, hetero=True)
         T2 = 10
-        c = 1.3
-        flat = np.full(T0, c)
-        y_flat = cf.copy()
-        y_flat[:T0] = cf[:T0] + flat
         omega, _, _ = robust_omega(factors_with_const=F_aug, T0=T0, T2=T2,
-                                   residuals_pre=flat)
-        se_robust = float(np.sqrt(omega / T2))
+                                   residuals_pre=(y - cf)[:T0])
         se_asym, _, _, _ = asymptotic_inference(
-            treated_outcome=y_flat, counterfactual=cf,
-            factors_with_const=F_aug, residual_variance=c ** 2, T0=T0,
+            treated_outcome=y, counterfactual=cf,
+            factors_with_const=F_aug, T0=T0,
         )
-        assert se_robust == pytest.approx(se_asym, rel=1e-10)
+        pt = percentile_t_inference(
+            treated_outcome=y, counterfactual=cf, factors_with_const=F_aug,
+            T0=T0, n_replicates=200, seed=0,
+        )
+        expected = float(np.sqrt(omega / T2))
+        assert se_asym == pytest.approx(expected, rel=1e-12)
+        assert pt["se_att"] == pytest.approx(expected, rel=1e-12)
+
+    def test_the_intervals_differ_only_in_their_critical_values(self):
+        """Same centre, same scale, different quantiles."""
+        y, cf, F_aug, T0 = _design(T0=30, T2=10, seed=1)
+        att = float(np.mean((y - cf)[T0:]))
+        se, lo_a, hi_a, _ = asymptotic_inference(
+            treated_outcome=y, counterfactual=cf,
+            factors_with_const=F_aug, T0=T0,
+        )
+        pt = percentile_t_inference(
+            treated_outcome=y, counterfactual=cf, factors_with_const=F_aug,
+            T0=T0, n_replicates=1000, seed=0,
+        )
+        # The normal interval is symmetric about the point estimate.
+        assert (att - lo_a) == pytest.approx(hi_a - att, rel=1e-12)
+        # The bootstrap one generally is not, and is the wider of the two
+        # here because the studentized statistic has heavier tails than the
+        # normal at this pre-period length.
+        assert pt["se_att"] == pytest.approx(se, rel=1e-12)
+        assert (pt["upper"] - pt["lower"]) > (hi_a - lo_a)
 
 
 # ----------------------------------------------------------------------

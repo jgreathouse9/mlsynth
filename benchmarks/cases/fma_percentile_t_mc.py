@@ -32,12 +32,10 @@ draws for contrast:
   T1 = 30     0.914            0.961          both near nominal
   ==========  ===============  =============  =============
 
-The asymptotic column here uses Appendix A.1's :math:`\\hat\\Omega` with normal
-critical values, which is the interval the paper's own column reports. It is
-not the interval :func:`~mlsynth.utils.fma_helpers.inference.asymptotic_inference`
-returns: that one applies a :math:`T_0 - (r + 1)` degrees-of-freedom correction
-to the residual variance, which widens it at short pre-periods and lifts its
-coverage in this cell from about 0.79 to about 0.89.
+The asymptotic column is the interval
+:func:`~mlsynth.utils.fma_helpers.inference.asymptotic_inference` returns, so
+the two columns differ only in where their critical values come from, which is
+the paper's entire subject.
 
 Path B (the paper's simulation). Tolerances absorb the Monte Carlo noise at
 ``M`` draws (the paper uses 2,000 simulations with 1,000 bootstrap resamples;
@@ -71,17 +69,14 @@ def _draw(T1: int, N_co: int, sigma_co: float, rng):
 
 
 def _cell(T1: int, sigma_co: float = 1.0) -> tuple:
-    from scipy.stats import norm
-
     from mlsynth.utils.fma_helpers.factors import extract_factors
     from mlsynth.utils.fma_helpers.fit import (
         estimate_loading_and_counterfactual,
     )
     from mlsynth.utils.fma_helpers.inference import (
-        percentile_t_inference, robust_omega,
+        asymptotic_inference, percentile_t_inference,
     )
 
-    z = float(norm.ppf(0.975))
     hits_norm = hits_boot = seen = 0
     for j in range(M):
         rng = np.random.default_rng(j)
@@ -95,21 +90,19 @@ def _cell(T1: int, sigma_co: float = 1.0) -> tuple:
             _, cf, F_aug, _ = estimate_loading_and_counterfactual(y, F, T1)
             if T1 <= F_aug.shape[1]:
                 continue
-            gap = y - cf
-            att = float(gap[T1:].mean())
-            omega, _, _ = robust_omega(
-                factors_with_const=F_aug, T0=T1, T2=T2,
-                residuals_pre=gap[:T1],
-            )
+            lo_n, hi_n = asymptotic_inference(
+                treated_outcome=y, counterfactual=cf,
+                factors_with_const=F_aug, T0=T1, alpha=0.05,
+            )[1:3]
             pt = percentile_t_inference(
                 treated_outcome=y, counterfactual=cf,
                 factors_with_const=F_aug, T0=T1, n_replicates=B,
                 seed=10_000 + j,
             )
-        if not np.isfinite(pt["lower"]) or not np.isfinite(omega):
+        if not np.isfinite(pt["lower"]) or not np.isfinite(lo_n):
             continue
         seen += 1
-        hits_norm += abs(att) <= z * float(np.sqrt(omega / T2))
+        hits_norm += lo_n <= 0.0 <= hi_n
         hits_boot += pt["lower"] <= 0.0 <= pt["upper"]
     return hits_norm / seen, hits_boot / seen
 

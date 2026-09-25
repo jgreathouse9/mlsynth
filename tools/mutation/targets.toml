@@ -2882,3 +2882,21 @@ timeout = 300.0
   find = "    att_star_gap = -(shift @ eta) + u_post.mean(axis=1)"
   replace = "    att_star_gap = -(shift @ eta)"
   models = "the third term of Equation 7 dropped, leaving only the loading-estimation error; the statistic then reflects how well lambda*_0 was estimated and not the post-period noise the ATT is actually exposed to, which understates the spread"
+
+[[target]]
+name = "fma-asymptotic-omega"
+module-path = "mlsynth/utils/fma_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fma.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "omega2-regains-the-dof-correction"
+  find = "    omega2 = squared.mean(axis=-1)"
+  replace = "    omega2 = squared.sum(axis=-1) / max(squared.shape[-1] - int(factors_with_const.shape[1]), 1)"
+  models = "the residual mean square treated as an unbiased regression variance, which is how the defect entered: it reads as the obvious convention, inflates the interval by sqrt(T0/(T0-r-1)), and improves small-sample coverage while disagreeing with every statement of the estimator the authors published"
+
+  [[target.mutant]]
+  id = "asymptotic-drops-back-to-the-homoskedastic-form"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (T2 / max(T0, 1)) * squared.mean(axis=-1) * g2.mean(axis=-1)"
+  models = "the sandwich collapsed to sigma^2 A^-1 in the Theorem 3.1 path; identical under homoskedasticity, so only a reference pin on real data separates them"

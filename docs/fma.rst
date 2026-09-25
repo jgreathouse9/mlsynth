@@ -371,24 +371,57 @@ The ATT is :math:`\widehat{\tau} = (T - T_0)^{-1} \sum_{t \in \mathcal{T}_2}
 Asymptotic inference (Theorem 3.1 / 3.3)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Write :math:`\bar{\widetilde{\mathbf{f}}}_2 \coloneqq (T - T_0)^{-1}
-\sum_{t \in \mathcal{T}_2} \widetilde{\mathbf{f}}_t`
-and :math:`\widehat{\boldsymbol{\Psi}} \coloneqq (\sum_{t \in \mathcal{T}_1}
-\widetilde{\mathbf{f}}_t \widetilde{\mathbf{f}}_t^\top)^{-1}`.
-The paper shows
+The ATT is an average of post-period gaps, and two things make it
+uncertain: the loading was estimated on a finite pre-period, and each
+post period carries its own shock. The paper's variance has one term for
+each. Write the post-period mean of the factors and the two pre-period
+moment matrices as
+
+.. math::
+
+   \widehat{\boldsymbol{\eta}} \coloneqq \frac{1}{T - T_0}
+       \sum_{t \in \mathcal{T}_2} \widetilde{\mathbf{f}}_t, \qquad
+   \widehat{A} \coloneqq \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+       \widetilde{\mathbf{f}}_t \widetilde{\mathbf{f}}_t^\top, \qquad
+   \widehat{V} \coloneqq \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+       \widehat{e}_{1t}^{\,2}\, \widetilde{\mathbf{f}}_t
+       \widetilde{\mathbf{f}}_t^\top .
+
+Then
 
 .. math::
 
    \widehat{\Omega} = \widehat{\Omega}_1 + \widehat{\Omega}_2,
    \quad
    \widehat{\Omega}_1 = \frac{T - T_0}{T_0}\,
-       \bar{\widetilde{\mathbf{f}}}_2^\top\, \widehat{\boldsymbol{\Psi}}\,
-       \bar{\widetilde{\mathbf{f}}}_2,
+       \widehat{\boldsymbol{\eta}}^\top \widehat{A}^{-1} \widehat{V}
+       \widehat{A}^{-1} \widehat{\boldsymbol{\eta}},
    \quad
-   \widehat{\Omega}_2 = \widehat{\sigma}_e^2,
+   \widehat{\Omega}_2 = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+       \widehat{e}_{1t}^{\,2} .
 
-with :math:`\widehat{\sigma}_e^2` the variance of the pre-treatment
-residuals. The :math:`(1 - \alpha)` CI for the ATT is
+:math:`\widehat{\Omega}_1` is the loading term and :math:`\widehat{\Omega}_2`
+the shock term. The middle of :math:`\widehat{\Omega}_1` is a sandwich: each
+squared residual is paired with its own period's factor values, so a period
+where the treated unit fit badly counts more when its factors matter more for
+the post-period projection. Assuming instead that the error variance is
+constant over the pre-period would replace :math:`\widehat{V}` by
+:math:`\widehat{\sigma}^2 \widehat{A}`, and the sandwich would collapse to
+:math:`\widehat{\sigma}^2 \widehat{A}^{-1}`. The paper does not make that
+assumption, and neither does this implementation. Web Appendix A gives the
+more general Newey-West form for serially correlated errors, of which the
+expression above is the zero-lag case, and the authors' MATLAB in Web
+Appendix I computes exactly the expression above.
+
+:math:`\widehat{\Omega}_2` divides by :math:`T_0`, not by
+:math:`T_0 - r - 1`. The residual mean square here is a second moment, not
+an unbiased variance estimate for a regression, and applying the usual
+degrees-of-freedom correction to it inflates the interval -- by
+:math:`\sqrt{T_0 / (T_0 - r - 1)}`, which is 29% at :math:`T_0 = 10` with
+three factors. ``FMAResults.design.residual_variance`` carries the
+corrected figure, where it belongs.
+
+The :math:`(1 - \alpha)` CI for the ATT is
 
 .. math::
 
@@ -522,33 +555,12 @@ so its width carries the scale of whichever residuals were resampled
 Two points of contact with the rest of the page. The procedure shares
 its estimand with ``"asymptotic"`` -- both are intervals for the
 post-period average :math:`\tau` -- and shares neither with
-``"bootstrap"``, which bands each :math:`\tau_t` separately. And the
-:math:`\widehat{\Omega}` used here is the heteroskedasticity-robust
-form of Appendix A.1,
-
-.. math::
-
-   \widehat{\Omega}_1 = \frac{T - T_0}{T_0}\,
-       \widehat{\boldsymbol{\eta}}^\top \widehat{A}^{-1} \widehat{V}
-       \widehat{A}^{-1} \widehat{\boldsymbol{\eta}}, \qquad
-   \widehat{V} = \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
-       \widehat{e}_{1t}^{\,2}\, \widetilde{\mathbf{f}}_t
-       \widetilde{\mathbf{f}}_t^\top,
-
-with :math:`\widehat{A} = T_0^{-1} \sum_{t \in \mathcal{T}_1}
-\widetilde{\mathbf{f}}_t \widetilde{\mathbf{f}}_t^\top` and
-:math:`\widehat{\boldsymbol{\eta}}` the post-period mean of the
-factors. When :math:`\widehat{e}_{1t}^{\,2}` is constant over the
-pre-period this collapses to the
-:math:`\widehat{\sigma}^2 \widehat{A}^{-1}` form the Theorem 3.1
-interval uses, so the two standard errors agree in that case and
-separate when the large squared residuals sit at periods whose factor
-values carry the most weight in the post-period projection. The
-Theorem 3.1 path additionally divides the residual sum of squares by
-:math:`T_0 - (r + 1)` where Appendix A.1 divides by :math:`T_0`, so
-the two reported standard errors differ by that factor even on
-homoskedastic data. At :math:`T_0 = 10` with three factors it is
-:math:`\sqrt{10/6} \approx 1.29`.
+``"bootstrap"``, which bands each :math:`\tau_t` separately. And it
+shares :math:`\widehat{\Omega}` with ``"asymptotic"`` exactly: both
+intervals are centred on :math:`\widehat{\tau}` and scaled by
+:math:`\sqrt{\widehat{\Omega} / (T - T_0)}`, and differ only in where
+the critical values come from. That is the whole of the difference
+between them, and the whole of what Wang, Racine and Wang change.
 
 ``percentile_t_att_se`` is
 :math:`\sqrt{\widehat{\Omega} / (T - T_0)}`, so it is a standard error
@@ -759,13 +771,20 @@ durable case is
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/fma_percentile_t_mc.py>`_,
 which runs two of those cells at a size the daily suite can carry.
 
-The paper's asymptotic column is Appendix A.1's
-:math:`\widehat{\Omega}` with normal critical values, and reproducing
-it requires the :math:`T_0` normalisation; with the
-:math:`T_0 - (r + 1)` correction the ``"asymptotic"`` option applies,
-the same cells cover at 0.88 to 0.90 instead of 0.79 to 0.81. The
-correction widens the interval at short pre-periods and recovers some
-of the missing coverage without closing the gap.
+Reproducing the paper's asymptotic column is what caught a defect in this
+estimator. Until it was measured against the authors' own MATLAB,
+``asymptotic_inference`` applied a :math:`T_0 - r - 1` correction to the
+residual mean square and replaced the sandwich by its homoskedastic form,
+neither of which appears in the article, in Web Appendix A, or in the
+authors' code. On HCW's Hong Kong panel -- the data their code ships with --
+the ATT agreed to eleven digits and the standard error did not: 0.004606
+against 0.006202, a factor of 1.3465, which decomposes as 1.1212 from the
+correction and 1.2009 from the substitution. Both are corrected, and
+``mlsynth/tests/test_fma.py`` now pins the standard error against that
+reference to six significant figures. The coverage benchmark did not catch
+it and could not: at :math:`T_0 = 30` the correction moves the standard
+error by 7%, which sits inside any tolerance a 40-draw coverage estimate
+can carry.
 
 Replicating the headline coverage findings is a 15-line script:
 

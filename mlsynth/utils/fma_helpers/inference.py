@@ -44,15 +44,132 @@ from .fit import estimate_loading_and_counterfactual
 # Asymptotic (Theorem 3.1)
 # ---------------------------------------------------------------------------
 
+def robust_omega(
+    factors_with_const: np.ndarray,
+    T0: int,
+    T2: int,
+    residuals_pre: np.ndarray,
+) -> Tuple[float, float, float]:
+    r"""Appendix A.1's :math:`\hat\Omega`, the variance of the average ATT.
+
+    Wang, Racine & Wang (2025, Appendix A.1) write the large-sample variance
+    of :math:`\sqrt{T_2}(\widehat{ATT} - ATT)` as
+    :math:`\Omega = \Omega_1 + \Omega_2` with
+
+    .. math::
+
+       \Omega_1 = \varphi\, \eta' \Psi \eta, \qquad
+       \Psi = [E(f_t f_t')]^{-1} V [E(f_t f_t')]^{-1}, \qquad
+       V = E(u_{0t}^2 f_t f_t'),
+
+    :math:`\varphi = \lim T_2 / T_1`, :math:`\eta = E(f_t)` and
+    :math:`\Omega_2 = E(u_{0t}^2)`. The sample analogues use the pre-period
+    for the second moments and the post-period mean for :math:`\eta`:
+
+    .. math::
+
+       \hat\Omega_1 = \frac{T_2}{T_1}\, \hat\eta'
+           \hat A^{-1} \hat V \hat A^{-1} \hat\eta, \qquad
+       \hat A = T_1^{-1} \sum_{t \le T_1} \hat f_t \hat f_t', \qquad
+       \hat V = T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2
+           \hat f_t \hat f_t',
+
+    and :math:`\hat\Omega_2 = T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2
+    \equiv \hat\sigma^2_{tr}`.
+
+    Writing :math:`c = \hat A^{-1} \hat\eta` and :math:`g_t = \hat f_t' c`
+    collapses the sandwich to a weighted mean of squares, since
+    :math:`\hat\eta' \hat A^{-1} (\hat f_t \hat f_t') \hat A^{-1} \hat\eta
+    = g_t^2`:
+
+    .. math::
+
+       \hat\Omega_1 = \frac{T_2}{T_1} \cdot
+           T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2 g_t^2 .
+
+    This is the form implemented, and it makes the relationship to the
+    Theorem 3.1 variance in :func:`asymptotic_inference` explicit. When
+    :math:`\hat u_{0t}^2` is constant at :math:`\hat\sigma^2`,
+    :math:`T_1^{-1}\sum g_t^2 = c' \hat A c = \hat\eta' \hat A^{-1}
+    \hat\eta` and :math:`\hat\Omega_1` becomes
+    :math:`\hat\sigma^2 (T_2/T_1) \hat\eta' \hat A^{-1} \hat\eta`, which is
+    what that function computes. The sandwich is therefore the
+    heteroskedasticity-robust generalisation of it: the two agree when the
+    treated unit's error variance is constant over the pre-period and
+    diverge when the large squared residuals sit at periods whose factor
+    values matter most for the post-period projection.
+
+    Parameters
+    ----------
+    factors_with_const : np.ndarray
+        ``(T, r + 1)`` factor matrix with the leading constant column,
+        as returned by
+        :func:`~mlsynth.utils.fma_helpers.fit.estimate_loading_and_counterfactual`.
+    T0 : int
+        Pre-treatment periods (the paper's ``T1``).
+    T2 : int
+        Post-treatment periods.
+    residuals_pre : np.ndarray
+        Pre-period residuals :math:`\hat u_{0t}`, shape ``(..., T0)``. A
+        leading axis is broadcast over, which is what the bootstrap uses to
+        evaluate :math:`\hat\Omega^*` for every draw at once.
+
+    Returns
+    -------
+    omega, omega1, omega2
+        Scalars when ``residuals_pre`` is one-dimensional; arrays over the
+        leading axis otherwise.
+    """
+    F_pre = factors_with_const[:T0]
+    F_post = factors_with_const[T0:]
+    eta = F_post.mean(axis=0)
+    A = (F_pre.T @ F_pre) / max(T0, 1)
+    try:
+        c = np.linalg.solve(A, eta)
+    except np.linalg.LinAlgError:
+        c = np.linalg.pinv(A) @ eta
+    g2 = (F_pre @ c) ** 2                       # (T0,)
+
+    squared = np.asarray(residuals_pre, dtype=float) ** 2
+    omega2 = squared.mean(axis=-1)
+    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)
+    omega = omega1 + omega2
+    if np.ndim(omega) == 0:
+        return float(omega), float(omega1), float(omega2)
+    return omega, omega1, omega2
+
+
 def asymptotic_inference(
     treated_outcome: np.ndarray,
     counterfactual: np.ndarray,
     factors_with_const: np.ndarray,
-    residual_variance: float,
     T0: int,
     alpha: float = 0.05,
 ) -> Tuple[float, float, float, float]:
-    """Theorem 3.1 normal CI for the ATT.
+    r"""Theorem 3.1 normal CI for the ATT.
+
+    The variance is :math:`\hat\Omega` exactly as the paper defines it, via
+    :func:`robust_omega`: the appendix section "Variance Estimator for
+    Theorem 3.1" gives
+
+    .. math::
+
+       \Omega_1 = \varphi\, \eta' \Psi \eta, \qquad
+       \Psi = [E(F_t F_t')]^{-1} V [E(F_t F_t')]^{-1}, \qquad
+       V = E(e_{1t}^2 F_t F_t'),
+
+    with :math:`\Omega_2 = E(e_{1t}^2)`, estimated by
+    :math:`\hat V = T_1^{-1} \sum_t \hat e_{1t}^2 \hat F_t \hat F_t'` and
+    :math:`\hat\Omega_2 = T_1^{-1} \sum_t \hat e_{1t}^2`. Web Appendix A's
+    Newey-West form (W.3) reduces to this at lag zero, and the authors'
+    MATLAB in Web Appendix I computes it line for line.
+
+    The residual mean square carries no degrees-of-freedom correction, which
+    is why this function derives it from ``counterfactual`` instead of taking
+    the ``residual_variance`` that
+    :func:`~mlsynth.utils.fma_helpers.fit.estimate_loading_and_counterfactual`
+    returns: that one divides by :math:`T_0 - (r + 1)` and belongs to the fit
+    diagnostics, not to this interval.
 
     Returns
     -------
@@ -67,26 +184,10 @@ def asymptotic_inference(
     gap = treated_outcome - counterfactual
     att = float(np.mean(gap[T0:]))
 
-    F_pre = factors_with_const[:T0]
-    F_post = factors_with_const[T0:]
-    F_post_mean = F_post.mean(axis=0).reshape(-1, 1)
-    # Ψ̂ = (X' X / T₁)⁻¹ (the population second-moment matrix's inverse),
-    # NOT (X' X)⁻¹. Web Appendix A's Ω_1 = σ_tr² · φ · C' E[F_s F_s'] C
-    # with C = E[F_s F_s']⁻¹ E[F_t]; plugging in sample analogues:
-    #   Ω̂_1 = σ̂_tr² · (T₂/T₁) · F̄_post' (X'X/T₁)⁻¹ F̄_post.
-    XtX_normalised = (F_pre.T @ F_pre) / max(T0, 1)
-    try:
-        psi_hat = np.linalg.inv(XtX_normalised)
-    except np.linalg.LinAlgError:
-        psi_hat = np.linalg.pinv(XtX_normalised)
-
-    # Omega_hat = Omega1 + Omega2; both terms scale with σ_tr² (the
-    # residual-variance estimate).
-    omega1 = (T2 / max(T0, 1)) * float(residual_variance) * float(
-        (F_post_mean.T @ psi_hat @ F_post_mean).item()
+    omega_total, _, _ = robust_omega(
+        factors_with_const=factors_with_const, T0=T0, T2=T2,
+        residuals_pre=gap[:T0],
     )
-    omega2 = float(residual_variance)
-    omega_total = omega1 + omega2
 
     se_att = float(np.sqrt(max(omega_total, 0.0)) / np.sqrt(T2))
     if not np.isfinite(se_att) or se_att <= 0:
@@ -198,101 +299,6 @@ def bootstrap_inference(
 # ---------------------------------------------------------------------------
 # Percentile-t bootstrap (Wang, Racine & Wang 2025)
 # ---------------------------------------------------------------------------
-
-def robust_omega(
-    factors_with_const: np.ndarray,
-    T0: int,
-    T2: int,
-    residuals_pre: np.ndarray,
-) -> Tuple[float, float, float]:
-    r"""Appendix A.1's :math:`\hat\Omega`, the variance of the average ATT.
-
-    Wang, Racine & Wang (2025, Appendix A.1) write the large-sample variance
-    of :math:`\sqrt{T_2}(\widehat{ATT} - ATT)` as
-    :math:`\Omega = \Omega_1 + \Omega_2` with
-
-    .. math::
-
-       \Omega_1 = \varphi\, \eta' \Psi \eta, \qquad
-       \Psi = [E(f_t f_t')]^{-1} V [E(f_t f_t')]^{-1}, \qquad
-       V = E(u_{0t}^2 f_t f_t'),
-
-    :math:`\varphi = \lim T_2 / T_1`, :math:`\eta = E(f_t)` and
-    :math:`\Omega_2 = E(u_{0t}^2)`. The sample analogues use the pre-period
-    for the second moments and the post-period mean for :math:`\eta`:
-
-    .. math::
-
-       \hat\Omega_1 = \frac{T_2}{T_1}\, \hat\eta'
-           \hat A^{-1} \hat V \hat A^{-1} \hat\eta, \qquad
-       \hat A = T_1^{-1} \sum_{t \le T_1} \hat f_t \hat f_t', \qquad
-       \hat V = T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2
-           \hat f_t \hat f_t',
-
-    and :math:`\hat\Omega_2 = T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2
-    \equiv \hat\sigma^2_{tr}`.
-
-    Writing :math:`c = \hat A^{-1} \hat\eta` and :math:`g_t = \hat f_t' c`
-    collapses the sandwich to a weighted mean of squares, since
-    :math:`\hat\eta' \hat A^{-1} (\hat f_t \hat f_t') \hat A^{-1} \hat\eta
-    = g_t^2`:
-
-    .. math::
-
-       \hat\Omega_1 = \frac{T_2}{T_1} \cdot
-           T_1^{-1} \sum_{t \le T_1} \hat u_{0t}^2 g_t^2 .
-
-    This is the form implemented, and it makes the relationship to the
-    Theorem 3.1 variance in :func:`asymptotic_inference` explicit. When
-    :math:`\hat u_{0t}^2` is constant at :math:`\hat\sigma^2`,
-    :math:`T_1^{-1}\sum g_t^2 = c' \hat A c = \hat\eta' \hat A^{-1}
-    \hat\eta` and :math:`\hat\Omega_1` becomes
-    :math:`\hat\sigma^2 (T_2/T_1) \hat\eta' \hat A^{-1} \hat\eta`, which is
-    what that function computes. The sandwich is therefore the
-    heteroskedasticity-robust generalisation of it: the two agree when the
-    treated unit's error variance is constant over the pre-period and
-    diverge when the large squared residuals sit at periods whose factor
-    values matter most for the post-period projection.
-
-    Parameters
-    ----------
-    factors_with_const : np.ndarray
-        ``(T, r + 1)`` factor matrix with the leading constant column,
-        as returned by
-        :func:`~mlsynth.utils.fma_helpers.fit.estimate_loading_and_counterfactual`.
-    T0 : int
-        Pre-treatment periods (the paper's ``T1``).
-    T2 : int
-        Post-treatment periods.
-    residuals_pre : np.ndarray
-        Pre-period residuals :math:`\hat u_{0t}`, shape ``(..., T0)``. A
-        leading axis is broadcast over, which is what the bootstrap uses to
-        evaluate :math:`\hat\Omega^*` for every draw at once.
-
-    Returns
-    -------
-    omega, omega1, omega2
-        Scalars when ``residuals_pre`` is one-dimensional; arrays over the
-        leading axis otherwise.
-    """
-    F_pre = factors_with_const[:T0]
-    F_post = factors_with_const[T0:]
-    eta = F_post.mean(axis=0)
-    A = (F_pre.T @ F_pre) / max(T0, 1)
-    try:
-        c = np.linalg.solve(A, eta)
-    except np.linalg.LinAlgError:
-        c = np.linalg.pinv(A) @ eta
-    g2 = (F_pre @ c) ** 2                       # (T0,)
-
-    squared = np.asarray(residuals_pre, dtype=float) ** 2
-    omega2 = squared.mean(axis=-1)
-    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)
-    omega = omega1 + omega2
-    if np.ndim(omega) == 0:
-        return float(omega), float(omega1), float(omega2)
-    return omega, omega1, omega2
-
 
 def percentile_t_inference(
     treated_outcome: np.ndarray,

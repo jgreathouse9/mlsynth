@@ -268,7 +268,6 @@ class FMA:
                 treated_outcome=inputs.treated_outcome,
                 counterfactual=counterfactual,
                 factors_with_const=F_aug,
-                residual_variance=resid_var,
                 T0=inputs.T0,
                 alpha=self.alpha,
             )
