@@ -1,7 +1,8 @@
 """Orchestration for ATEL, Steps 1-5 of Lee (2026).
 
-1. Build the diversified weights from a sieve basis in the covariates
-   (:mod:`.sieve`).
+1. Build the diversified weights, from a sieve basis in the covariates, in
+   each unit's first outcome, or from deterministic sign columns
+   (:mod:`.sieve`); ``weight_source`` picks which.
 2. Estimate the factors as cross-sectional donor averages against those weights
    (:mod:`.factors`).
 3. Fit the time-varying loading on the treated unit's pre-period by local linear
@@ -20,7 +21,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 from scipy.stats import norm, t as student_t
 
-from ...exceptions import MlsynthDataError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 from .factors import diversified_factors
 from .inference import atel_variance, pointwise_variance
 from .loadings import (
@@ -29,10 +30,43 @@ from .loadings import (
     local_linear_loadings,
     post_period_kernel,
 )
-from .sieve import construct_weights
+from .sieve import (
+    basis_values,
+    construct_weights,
+    hadamard_weights,
+    tile_unit_weights,
+    weight_conditioning,
+)
 from .structures import ATELInputs
 
 __all__ = ["run_atel"]
+
+
+def build_weights(
+    inputs: ATELInputs, n_factors: int, basis: str, weight_source: str
+) -> np.ndarray:
+    """Diversified weights for every unit, in the projection's block layout.
+
+    ``"covariates"`` evaluates the sieve on each covariate at every unit-period
+    (Fan and Liao 4.1); ``"initial"`` evaluates it once on the held-out first
+    outcome and repeats that across periods (4.3); ``"hadamard"`` uses
+    deterministic sign columns and no data (4.4).
+    """
+    n_periods = inputs.n_periods
+    if weight_source == "covariates":
+        return construct_weights(inputs.covariates, n_factors, basis)
+    if weight_source == "initial":
+        if inputs.initial_outcome is None:
+            raise MlsynthDataError(
+                "weight_source='initial' needs the held-out first outcome, "
+                "which ingestion did not supply."
+            )
+        unit = basis_values(inputs.initial_outcome, n_factors, basis)
+        return tile_unit_weights(unit, n_periods)
+    if weight_source == "hadamard":
+        unit = hadamard_weights(inputs.outcomes.shape[0], n_factors)
+        return tile_unit_weights(unit, n_periods)
+    raise MlsynthConfigError(f"Unknown weight_source {weight_source!r}.")
 
 
 def run_atel(
@@ -41,6 +75,7 @@ def run_atel(
     basis: str = "bspline",
     bandwidth: Optional[float] = None,
     alpha: float = 0.05,
+    weight_source: str = "covariates",
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Run the ATEL pipeline.
 
@@ -57,8 +92,9 @@ def run_atel(
     T1 = T - T0
     treated, donors = Y[0], Y[1:]
 
-    weights = construct_weights(inputs.covariates, n_factors, basis)
+    weights = build_weights(inputs, n_factors, basis, weight_source)
     factors = diversified_factors(donors, weights, n_factors)
+    lambda_min = weight_conditioning(weights[1:], n_factors, T)
     factors_pre, factors_post = factors[:T0], factors[T0:]
 
     selected_by_cv = bandwidth is None
@@ -136,6 +172,7 @@ def run_atel(
         "factors": factors,
         "loadings": loadings,
         "kernel_weights": kernel,
+        "weights_matrix": weights,
         "implied_donor_weights": implied,
         "localized_donor_weights": localized,
         "pointwise_standard_errors": pointwise,
@@ -152,6 +189,8 @@ def run_atel(
         "basis": basis,
         "n_factors": int(n_factors),
         "n_covariates": len(inputs.covariate_names),
+        "weight_source": weight_source,
+        "weight_lambda_min": float(lambda_min),
         "kernel_mass": float(kernel.sum() / post_window),
     }
     return estimates, diagnostics

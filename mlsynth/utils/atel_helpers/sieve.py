@@ -31,6 +31,9 @@ __all__ = [
     "poly_weights",
     "basis_values",
     "construct_weights",
+    "hadamard_weights",
+    "tile_unit_weights",
+    "weight_conditioning",
 ]
 
 
@@ -186,3 +189,80 @@ def construct_weights(X: np.ndarray, J: int, basis: str) -> np.ndarray:
         for p in range(P)
     ]
     return np.hstack(blocks)
+
+
+def hadamard_weights(n_units: int, n_columns: int) -> np.ndarray:
+    """Deterministic sign weights, Fan and Liao (2022) Section 4.4.
+
+    The first column is all ones and column k alternates blocks of ``k - 1``
+    ones and minus ones, which is their simulation choice (i). Being
+    deterministic, these satisfy the independence half of Assumption 2.1 by
+    construction, and the bounded-entries half exactly. What they cannot
+    guarantee is the rank condition against the unobserved loadings, since they
+    carry no information about them -- which is a reason to take more columns
+    than factors, not fewer.
+
+    Parameters
+    ----------
+    n_units : int
+        Number of units the weights apply to.
+    n_columns : int
+        Number of weight series, at least 2.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(n_units, n_columns)``, entries in ``{-1, +1}``.
+    """
+    if n_columns < 2:
+        raise MlsynthConfigError(
+            f"Hadamard weights need at least 2 columns; got {n_columns}."
+        )
+    if n_units < 1:
+        raise MlsynthDataError(f"Need at least one unit; got {n_units}.")
+    rows = np.arange(int(n_units))
+    W = np.ones((int(n_units), int(n_columns)))
+    for k in range(2, int(n_columns) + 1):
+        W[:, k - 1] = np.where((rows // (k - 1)) % 2 == 0, 1.0, -1.0)
+    return W
+
+
+def tile_unit_weights(unit_weights: np.ndarray, n_periods: int) -> np.ndarray:
+    """Lay unit-level weights out in the block layout the projection reads.
+
+    A weight that does not move with time still has to be presented as one
+    block of ``n_periods`` identical columns per weight series, because
+    :func:`~.factors.diversified_factors` slices by period block.
+    """
+    W = np.asarray(unit_weights, dtype=float)
+    if W.ndim != 2:
+        raise MlsynthDataError("Unit weights must be 2-D (units, columns).")
+    if n_periods < 1:
+        raise MlsynthDataError(f"Need at least one period; got {n_periods}.")
+    return np.hstack([np.repeat(W[:, [j]], n_periods, axis=1)
+                      for j in range(W.shape[1])])
+
+
+def weight_conditioning(
+    donor_weights: np.ndarray, n_factors: int, n_periods: int
+) -> float:
+    """Smallest eigenvalue of ``W_t' W_t / N`` over the periods, Assumption 2.1(ii).
+
+    Fan and Liao require the weights to be non-degenerate among themselves,
+    uniformly. Evaluated on the cross-section actually projected at each period,
+    this is a number the caller can read: near zero means two weight series are
+    carrying the same information and the projection has fewer usable directions
+    than it appears to.
+
+    This says nothing about the rank condition ``rank(W'B / N) = r``, which
+    involves the unobserved loadings and stays undiagnosable.
+    """
+    W = np.asarray(donor_weights, dtype=float)
+    n_donors = W.shape[0]
+    worst = np.inf
+    for t in range(int(n_periods)):
+        block = np.column_stack(
+            [W[:, j * int(n_periods) + t] for j in range(int(n_factors))]
+        )
+        worst = min(worst, float(np.linalg.eigvalsh(block.T @ block / n_donors).min()))
+    return worst

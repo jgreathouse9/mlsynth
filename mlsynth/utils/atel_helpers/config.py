@@ -26,10 +26,32 @@ class ATELConfig(BaseEstimatorConfig):
 
     Parameters
     ----------
+    weight_source : {"covariates", "initial", "hadamard"}
+        Where the diversified weights come from, following the constructions
+        Fan and Liao (2022) Section 4 recommends.
+
+        ``"covariates"`` (default) is their Section 4.1: a sieve basis in the
+        observed time-varying covariates, which is what the ATEL paper uses and
+        what requires ``covariates``.
+
+        ``"initial"`` is their Section 4.3: a sieve basis in each unit's first
+        observed outcome, ``w_ik = phi_k(x_i0)``, which correlates with the
+        loadings through ``x_0 = B f_0 + u_0``. The first period is held out of
+        the estimation sample, since the weights are built from it. No
+        covariates are needed.
+
+        ``"hadamard"`` is their Section 4.4: deterministic sign columns, which
+        satisfy the independence requirement by construction and use no data at
+        all. No covariates are needed.
+
+        Their Section 4.2, weights from trimmed principal-component loadings on
+        an earlier sample split, is not offered: it needs a split and serial
+        independence of the errors, which is a different assumption burden.
     covariates : list of str
-        Time-varying covariate columns. The sieve basis in these columns builds
-        the diversified weights, so at least one is required and there is no
-        outcomes-only fallback.
+        Time-varying covariate columns. Required, and at least one, when
+        ``weight_source`` is ``"covariates"``, since the sieve basis in these
+        columns is what builds the weights. Refused for the other sources,
+        which cannot use them.
     n_factors : int
         Number of factors, which is also the sieve width. Required: the
         information criterion in the reference implementation returns an
@@ -53,10 +75,20 @@ class ATELConfig(BaseEstimatorConfig):
         Two-sided significance level for the interval on the localized estimate.
     """
 
+    weight_source: Literal["covariates", "initial", "hadamard"] = Field(
+        default="covariates",
+        description=(
+            "Construction for the diversified weights: a sieve in the "
+            "covariates (Fan-Liao 4.1), in each unit's first outcome "
+            "(4.3), or deterministic sign columns (4.4)."
+        ),
+    )
     covariates: List[str] = Field(
-        ...,
-        min_length=1,
-        description="Time-varying covariate columns building the sieve weights.",
+        default_factory=list,
+        description=(
+            "Time-varying covariate columns building the sieve weights; "
+            "required for weight_source='covariates' and refused otherwise."
+        ),
     )
     n_factors: int = Field(
         ...,
@@ -82,12 +114,30 @@ class ATELConfig(BaseEstimatorConfig):
 
     @model_validator(mode="after")
     def check_atel_params(self) -> Any:
+        if self.weight_source == "covariates":
+            if not self.covariates:
+                raise MlsynthConfigError(
+                    "weight_source='covariates' builds the diversified weights "
+                    "from a sieve basis in the covariates, so at least one "
+                    "covariate column is required. For a panel without "
+                    "covariates use weight_source='initial' or 'hadamard'."
+                )
+        elif self.covariates:
+            raise MlsynthConfigError(
+                f"weight_source={self.weight_source!r} does not read covariates, "
+                f"but {list(self.covariates)} were supplied. Drop them, or use "
+                "weight_source='covariates' to build the weights from them."
+            )
+
         missing = [c for c in self.covariates if c not in self.df.columns]
         if missing:
             raise MlsynthConfigError(
                 f"Covariate column(s) {missing} are not in the panel."
             )
         n_cov = len(self.covariates)
+        # The block slice only creates an ordering to permute when the weights
+        # come from more than one covariate; the other sources emit one series
+        # per basis function, so any factor count is well defined.
         if n_cov > 1 and self.n_factors % n_cov != 0:
             raise MlsynthConfigError(
                 f"n_factors={self.n_factors} is not a multiple of the "

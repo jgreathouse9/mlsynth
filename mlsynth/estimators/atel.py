@@ -107,6 +107,7 @@ class ATEL:
         self.unitid: str = config.unitid
         self.time: str = config.time
         self.covariates = list(config.covariates)
+        self.weight_source: str = config.weight_source
         self.n_factors: int = int(config.n_factors)
         self.basis: str = config.basis
         self.bandwidth = config.bandwidth
@@ -136,6 +137,7 @@ class ATEL:
             time=self.time,
             covariates=self.covariates,
             n_factors=self.n_factors,
+            weight_source=self.weight_source,
         )
 
         estimates, diagnostics = run_atel(
@@ -144,6 +146,7 @@ class ATEL:
             basis=self.basis,
             bandwidth=self.bandwidth,
             alpha=self.alpha,
+            weight_source=self.weight_source,
         )
 
         inference = InferenceResults(
@@ -202,6 +205,7 @@ class ATEL:
             factors=estimates["factors"],
             loadings=estimates["loadings"],
             kernel_weights=estimates["kernel_weights"],
+            weights_matrix=estimates["weights_matrix"],
             implied_donor_weights=estimates["implied_donor_weights"],
             pointwise_standard_errors=estimates["pointwise_standard_errors"],
             inputs=inputs,
