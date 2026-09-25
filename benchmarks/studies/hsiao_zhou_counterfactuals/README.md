@@ -16,7 +16,8 @@ ground.
 | --- | --- |
 | `methods.py` | DGP6 and DGP7 (Equations 32-33) and the seven counterfactual constructions E1-E7 |
 | `experiment.py` | one cell, printed beside the paper's row: `python -m benchmarks.studies.hsiao_zhou_counterfactuals.experiment --dgp dgp6 --T 40` |
-| `results/` | the runs behind the tables below |
+| `plot_empirics.py` | observed against the fitted counterfactual, one panel per method (Table 9) |
+| `results/` | the runs and the figure behind the tables below |
 
 DGP1-DGP5 are not ported. All five carry covariates, and the paper's step 1
 estimates their coefficient by "Pesaran's (2006) CCE or Bai's (2009) method"
