@@ -288,6 +288,18 @@ def test_the_conditioning_diagnostic_also_covers_the_covariate_source(synth_long
 
 
 # --------------------------------------------------------- reference pins
+#
+# The estimate is pinned to eight significant figures and the standard error
+# to six. The looser tolerance on the standard error is a measured floor, not
+# a concession: it carries a residual variance and a pseudo-inverse that the
+# estimate does not, and the accumulated float64 rounding differs by build.
+# The synthetic J=3 case came back as 0.024817321011 under Octave,
+# 0.024817321277545986 on CPython 3.12 and 0.024817321642760445 on 3.13 --
+# three deterministic values spanning 2.6e-8 relative, so a tolerance of 1e-8
+# sits below the noise floor and fails on some runners and not others. Six
+# figures is far more agreement than any porting error could survive; a wrong
+# kernel, a wrong normalisation or a wrong degrees-of-freedom count moves the
+# second or third figure.
 @pytest.mark.parametrize(
     "J,atel,se,h",
     [
@@ -299,7 +311,7 @@ def test_the_conditioning_diagnostic_also_covers_the_covariate_source(synth_long
 def test_hcw_initial_matches_the_matlab_toolbox(hcw, J, atel, se, h):
     res = ATEL(_hcw_cfg(hcw, weight_source="initial", n_factors=J)).fit()
     assert res.atel == pytest.approx(atel, rel=1e-8)
-    assert res.inference.standard_error == pytest.approx(se, rel=1e-8)
+    assert res.inference.standard_error == pytest.approx(se, rel=1e-6)
     assert res.bandwidth == pytest.approx(h)
 
 
@@ -310,7 +322,7 @@ def test_synthetic_initial_matches_the_matlab_toolbox(synth_long, J, atel, se):
     df, _T0 = synth_long
     res = ATEL(_cfg(df, weight_source="initial", n_factors=J)).fit()
     assert res.atel == pytest.approx(atel, rel=1e-8)
-    assert res.inference.standard_error == pytest.approx(se, rel=1e-8)
+    assert res.inference.standard_error == pytest.approx(se, rel=1e-6)
 
 
 # --------------------------------- an exactly determined design is refused
