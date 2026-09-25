@@ -71,6 +71,31 @@ the intervention: each length-:math:`k` window of the donor's post-period is
 matched against every window of its own pre-period, and inherits the speeds of
 whichever pre-period stretch it most resembles.
 
+Compression shortens a donor's clock, so a donor running fast can reach the end
+of its own series before the treated unit's last period, and
+:math:`y^{w}_{jt}` is then undefined over a tail. mlsynth carries each donor's
+last warped value forward across it, so :math:`\hat\tau_t` is defined for every
+post period and uses the same combination :math:`\hat w` in each of them.
+
+Two alternatives were measured against a planted constant effect of
+:math:`-3` over twelve simulated panels. Restricting the sum to donors
+observed at :math:`t` and renormalising their weights makes the synthetic
+control a different unit in different periods -- on one panel it reduced a post
+period to a single donor at weight one. Reporting no counterfactual over the
+tail, which is what the reference implementation does (its Basque run omits
+1997 for exactly this reason), recovers the planted effect to a mean absolute
+error of 1.67 with a worst case of 3.87 and the wrong sign on two of the twelve
+panels, against 0.52 and 1.09 for carrying forward. The tail is where a
+mis-timed gap path is largest, so dropping it biases the ATT toward zero.
+mlsynth therefore differs from the reference here. The Basque cross-validation
+cannot separate the two, since three of its sixteen donors run short and none
+of them carries weight.
+
+Where a donor carrying weight has no warped value at all before :math:`t`,
+carrying forward cannot help; that period has no counterfactual, is excluded
+from the ATT, and the count is reported on
+``res.metadata["n_post_periods_undefined"]``.
+
 Assumptions
 -----------
 

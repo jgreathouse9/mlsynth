@@ -9,6 +9,8 @@ from typing import Optional, Tuple
 import cvxpy as cp
 import numpy as np
 
+from ..bilevel.active_set import solve_simplex_qp
+
 
 def sc_weights(Y0: np.ndarray, X0: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Standard simplex synthetic control on pre-treatment outcomes:
@@ -18,13 +20,7 @@ def sc_weights(Y0: np.ndarray, X0: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Y0 = np.asarray(Y0, float).ravel()
     X0 = np.asarray(X0, float)
-    J = X0.shape[1]
-    w = cp.Variable(J, nonneg=True)
-    cp.Problem(cp.Minimize(cp.sum_squares(X0 @ w - Y0)), [cp.sum(w) == 1]).solve(
-        solver=cp.CLARABEL)
-    if w.value is None:  # pragma: no cover - CLARABEL failure on a degenerate panel
-        raise RuntimeError("simplex SC solve failed")
-    weights = np.clip(np.asarray(w.value, float).ravel(), 0.0, None)
+    weights = np.clip(solve_simplex_qp(X0, Y0), 0.0, None)
     return weights, Y0 - X0 @ weights
 
 

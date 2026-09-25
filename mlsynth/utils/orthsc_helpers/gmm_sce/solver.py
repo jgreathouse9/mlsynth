@@ -13,12 +13,13 @@ pipeline transposes from mlsynth's unit-major convention.
 """
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Tuple
 
 import cvxpy as cp
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
+from ...bilevel.active_set import solve_simplex_qp
 
 
 def _row_normalize(stacked: np.ndarray) -> np.ndarray:
@@ -33,6 +34,25 @@ def _row_normalize(stacked: np.ndarray) -> np.ndarray:
             "GMM-SCE normalization failed: a pre-treatment period has zero or "
             "non-finite cross-unit variance (constant across all units).")
     return stacked / divisor[:, None]
+
+
+def _gmm_weights_cvxpy(B: np.ndarray, A: np.ndarray, solver: object
+                       ) -> Tuple[np.ndarray, str]:
+    """The cvxpy path, kept for an explicitly requested non-Clarabel solver."""
+    w = cp.Variable(B.shape[1])
+    prob = cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w)),
+                      [w >= 0, cp.sum(w) == 1])
+    try:
+        prob.solve(solver=solver)
+    except cp.error.SolverError as exc:  # pragma: no cover - solver fallback
+        prob.solve(solver="SCS")
+        if prob.status not in ("optimal", "optimal_inaccurate"):
+            raise MlsynthEstimationError(
+                f"GMM-SCE weight solve failed: {exc}") from exc
+    if w.value is None or prob.status not in ("optimal", "optimal_inaccurate"):  # pragma: no cover - defensive: non-optimal solver status
+        raise MlsynthEstimationError(
+            f"GMM-SCE weight solve did not converge (status={prob.status}).")
+    return np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None), prob.status
 
 
 def gmm_sc_weights(
@@ -89,24 +109,21 @@ def gmm_sc_weights(
     YJs = scaled[:, 1:1 + J]
     YKs = scaled[:, 1 + J:]
 
-    w = cp.Variable(J)
-    residual = y0s - YJs @ w
-    moments = YKs.T @ residual                          # g, the (K,) moment vector
-    objective = cp.Minimize(cp.sum_squares(moments))    # one-step GMM, A = I_K
-    constraints = [w >= 0, cp.sum(w) == 1]
-    prob = cp.Problem(objective, constraints)
-    try:
-        prob.solve(solver=solver)
-    except cp.error.SolverError as exc:  # pragma: no cover - solver fallback
-        prob.solve(solver="SCS")
-        if prob.status not in ("optimal", "optimal_inaccurate"):
+    # One-step GMM with ``A = I_K``: the objective is the moment vector's
+    # squared norm, ``||YK'(y0 - YJ w)||^2``, which is least squares on the
+    # design seen through the instruments. The default solves it on the active
+    # set; an explicitly requested cvxpy solver keeps the cvxpy path.
+    B, A = YKs.T @ YJs, YKs.T @ y0s
+    if solver is None or str(solver).upper() == "CLARABEL":
+        try:
+            weights, info = solve_simplex_qp(B, A, return_info=True)
+        except Exception as exc:  # pragma: no cover - degenerate instruments
             raise MlsynthEstimationError(
                 f"GMM-SCE weight solve failed: {exc}") from exc
-    if w.value is None or prob.status not in ("optimal", "optimal_inaccurate"):  # pragma: no cover - defensive: non-optimal solver status
-        raise MlsynthEstimationError(
-            f"GMM-SCE weight solve did not converge (status={prob.status}).")
-
-    weights = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
+        weights = np.clip(weights, 0.0, None)
+        status = "optimal" if info["converged"] else "optimal_inaccurate"
+    else:
+        weights, status = _gmm_weights_cvxpy(B, A, solver)
     s = weights.sum()
     if s > 0:
         weights = weights / s                            # numerical simplex tidy-up
@@ -116,5 +133,5 @@ def gmm_sc_weights(
         "weights": weights,
         "jstatistic": jstatistic,
         "n_instruments": int(YKs.shape[1]),
-        "status": prob.status,
+        "status": status,
     }
