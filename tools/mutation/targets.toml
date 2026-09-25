@@ -2444,6 +2444,18 @@ timeout = 300.0
   models = "an inverted mask, reporting the weight the cluster retained instead of the weight it threw away. The two agree only when the cluster is the whole pool, so the number would read 0.451 for West Germany where the answer is 0.549 and a reader would conclude the opposite about which donors mattered"
 
 [[target]]
+name = "fdid-standardised-att"
+module-path = "mlsynth/utils/fdid_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fdid.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-statistic-is-scaled-by-the-post-period-again"
+  find = "    satt = att / se"
+  replace = "    satt = att / se * np.sqrt(post_periods)"
+  models = "the shipped statistic until 2026-09. Li's Proposition 2.1 gives sqrt(T2) * ATT / sqrt(Omega_1 + Omega_2), and this module's se is sqrt(Omega_1 + Omega_2) / sqrt(T2), so the statistic is att / se and the extra factor is applied twice. On Li's own Hong Kong panel the reported figure was 22.65 where her MATLAB prints 5.49, a factor of sqrt(17). Nothing else moved: the CI and the p-value are built from att / se directly and matched her throughout, so the result carried a test statistic and a p-value that disagreed -- on a borderline panel, p = 0.216 beside a statistic implying p = 0.000092. The mutant is invisible to any check that rebuilds the statistic from att and att_se instead of reading the field, which is what benchmarks/cases/fdid_normality_mc.py does"
+
+[[target]]
 name = "weight-solver"
 module-path = "mlsynth/utils/weights/solve.py"
 test-command = "python -m pytest mlsynth/tests/test_weights_solver.py mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
