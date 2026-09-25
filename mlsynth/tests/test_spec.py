@@ -239,6 +239,7 @@ def _all_estimators():
 
 # Extra required fields beyond the base contract, keyed by estimator.
 _EXTRAS = {
+    "ATEL": {"covariates": ["x1"], "n_factors": 2},
     "CTSC": {"treatment_vars": ["y"]},
     "LEXSCM": {"candidate_col": "unit", "m": 1},
     "MLSC": {"agg_id": "unit", "unitid_agg": "unit", "unitid_disagg": "unit"},
