@@ -284,6 +284,39 @@ class TestTheCommandLine:
         got = json.loads(out.read_text())["modules"]
         assert got["mlsynth/tests/test_keep.py"] == 7.0
 
+    def test_a_selected_module_that_yielded_nothing_is_named_in_the_payload(
+        self, tmp_path
+    ):
+        """A module that skips at collection produces no duration lines.
+
+        Three of them exist here: test_pda_hcw_scip.py needs pyscipopt, and
+        the two mvbbsc engine modules need their own optional dependency. A
+        0.0 entry would claim they are free in an environment that does have
+        the dependency, and dropping them silently is how a gap survives a
+        measurement pass. They stay out of ``modules``, where the packer
+        charges them the median, and the payload says which they were.
+        """
+        out = _seed_map(tmp_path, {})
+        log = tmp_path / "log.txt"
+        log.write_text(_LOG)
+        proc = _run("--from-file", str(log), "--merge",
+                    "--module", "mlsynth/tests/test_alpha.py",
+                    "--module", "mlsynth/tests/test_skipped.py", cwd=tmp_path)
+        assert proc.returncode == 0, proc.stderr
+        payload = json.loads(out.read_text())
+        assert payload["unmeasured"] == ["mlsynth/tests/test_skipped.py"]
+        assert "mlsynth/tests/test_skipped.py" not in payload["modules"]
+        assert payload["modules"]["mlsynth/tests/test_alpha.py"] == 3.0
+
+    def test_nothing_unmeasured_leaves_the_key_out(self, tmp_path):
+        out = _seed_map(tmp_path, {})
+        log = tmp_path / "log.txt"
+        log.write_text(_LOG)
+        proc = _run("--from-file", str(log), "--merge",
+                    "--module", "mlsynth/tests/test_alpha.py", cwd=tmp_path)
+        assert proc.returncode == 0, proc.stderr
+        assert "unmeasured" not in json.loads(out.read_text())
+
     def test_missing_with_nothing_missing_is_a_pass_that_changes_nothing(
         self, tmp_path
     ):
