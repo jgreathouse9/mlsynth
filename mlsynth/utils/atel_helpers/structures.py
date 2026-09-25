@@ -28,7 +28,11 @@ class ATELInputs:
     time_labels : np.ndarray
         Period labels, length ``T``.
     covariate_names : tuple of str
-        Covariate column names, matching the cube's last axis.
+        Covariate column names, matching the cube's last axis. Empty when the
+        weights do not come from covariates.
+    initial_outcome : np.ndarray or None
+        The outcome at the period held out to build the weights, length
+        ``N + 1``, when ``weight_source='initial'``. None otherwise.
     """
 
     outcomes: np.ndarray
@@ -37,6 +41,7 @@ class ATELInputs:
     unit_labels: np.ndarray
     time_labels: np.ndarray
     covariate_names: Tuple[str, ...]
+    initial_outcome: Optional[np.ndarray] = None
 
     @property
     def n_donors(self) -> int:
@@ -85,6 +90,11 @@ class ATELResults(BaseEstimatorResults):
         Localization weights on each post-period, length ``T1``. They do not
         sum to one, so a constant effect ``d`` gives ``atel`` of ``d`` times
         their mass and not ``d`` itself.
+    weights_matrix : np.ndarray
+        The diversified weights for every unit, ``(N + 1, T * R)`` in the block
+        layout the projection reads. What built them is recorded in
+        ``diagnostics["weight_source"]``, and how well conditioned they are in
+        ``diagnostics["weight_lambda_min"]``.
     implied_donor_weights : np.ndarray
         The weight each donor carries at each post-period, ``(N, T1)``. The
         counterfactual is ``sum_i Y_it * implied_donor_weights[i, t]`` exactly.
@@ -111,6 +121,7 @@ class ATELResults(BaseEstimatorResults):
     factors: np.ndarray
     loadings: np.ndarray
     kernel_weights: np.ndarray
+    weights_matrix: np.ndarray
     implied_donor_weights: np.ndarray
     pointwise_standard_errors: np.ndarray
     inputs: Optional[ATELInputs] = None

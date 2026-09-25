@@ -36,8 +36,10 @@ Reach for ATEL when
 * the treated unit's relationship to the donor pool moves over the sample. ATEL
   lets the factor loading vary with time, so a unit whose comparison group drifts
   is still usable;
-* you have time-varying covariates. They are required, since the sieve basis in
-  those covariates is what builds the projection weights.
+* you have time-varying covariates that plausibly drive the unit's exposure to
+  common shocks. These give the strongest version of the method, since the sieve
+  basis in them is what lets the loading move with observables. They are not
+  required -- see `Where the weights come from`_.
 
 Do not use ATEL when
 ^^^^^^^^^^^^^^^^^^^^
@@ -47,7 +49,10 @@ Do not use ATEL when
   synthetic control;
 * you have one post-period, or two with a small bandwidth. The localization
   window is :math:`\lfloor T_1 h \rfloor` and an empty window has no estimand;
-* you have no covariates beyond the outcome. There is no outcomes-only fallback;
+* nothing in the panel plausibly correlates with the loadings. The projection
+  needs weights that do, and neither a covariate nor an outcome transformation
+  will help if the relationship is absent -- though no diagnostic can tell you
+  this, so it is a judgement about the setting;
 * the effect is expected to switch sign over the post-period. A weighted average
   of a sign-changing path is a number whose interpretation depends on the
   weights, and the kernel's weights are not a policy choice.
@@ -170,11 +175,17 @@ function of the observed covariates, well approximated by the chosen sieve, and
 the resulting weights satisfy Fan and Liao's rank condition: the matrix
 :math:`\mathbb E [ W_{it} \boldsymbol\beta_{it}^\top ]` has full rank J.
 
-*Remark.* This is the assumption that has no diagnostic. If the covariates carry
-no information about the loadings, the weights are uninformative, the factors
-are noise, and nothing downstream reports a problem. Choose covariates that
-plausibly drive the unit's exposure to common shocks, and read the implied donor
-weights on the result to see which donors the answer actually rests on.
+*Remark.* This assumption has two halves and only one of them is checkable.
+Fan and Liao's Assumption 2.1 asks that the weights be bounded and that
+:math:`\lambda_{\min}(W'W / N)` stay away from zero, so the weight series are
+not carrying the same information as each other. That is a number, and it comes
+back on the result as ``diagnostics["weight_lambda_min"]``. Their rank
+condition, :math:`\mathrm{rank}(W'B/N) = r`, involves the unobserved loadings
+and cannot be checked at all: if the weights carry no information about the
+loadings, the factors are noise and nothing downstream reports a problem. So
+read the conditioning diagnostic, choose weights that plausibly relate to the
+unit's exposure to common shocks, and read the implied donor weights to see
+which donors the answer rests on.
 
 *Assumption 3 (no anticipation, untreated donors).* The treated unit is
 unaffected before :math:`T_0 + 1`, and no donor is treated over the sample, so
@@ -260,7 +271,7 @@ idiosyncratic errors over the effective window. Both are built from pre-period
 residuals refit period by period with the Su and Wang ([SuWang]_) boundary
 kernel. The p-value uses :math:`t_{\widetilde T_1 - 1}`.
 
-Four diagnostics come back on the result, and each answers a question the point
+Five diagnostics come back on the result, and each answers a question the point
 estimate alone does not.
 
 ``kernel_weights`` is the weight on each post-period. They do not sum to one, so
@@ -288,10 +299,114 @@ paper's own Arizona panel this happens at every factor count tried: the selected
 h is 0.95, the top of the grid, and the smoothing window then spans 16 of 17
 pre-periods, so the local fit is close to a global one.
 
+``diagnostics["weight_lambda_min"]`` is
+:math:`\min_t \lambda_{\min}(W_t' W_t / N)` over the periods, the checkable
+half of Fan and Liao's Assumption 2.1 evaluated on the cross-section actually
+projected. Near zero means two weight series carry the same information and the
+projection has fewer usable directions than its factor count suggests.
+``diagnostics["weight_source"]`` records which construction produced them.
+
 ``pointwise_standard_errors`` supports a band around the counterfactual path.
 This needs the treated unit's loading path to be independent and normal across
 periods, which is stronger than Theorem 1 requires. The interval on
 :math:`\widehat\alpha` is the defensible output; treat the band as indicative.
+
+Where the weights come from
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``weight_source`` picks the construction, following Fan and Liao's Section 4.
+Only the first of the three needs covariates.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 14 34 34
+
+   * - ``weight_source``
+     - Fan-Liao
+     - What builds the weights
+     - What it assumes
+   * - ``"covariates"``
+     - 4.1
+     - a sieve basis in the observed covariates at every unit-period
+     - the loadings are driven by those covariates
+   * - ``"initial"``
+     - 4.3
+     - a sieve basis in each unit's first outcome, :math:`\phi_k(x_{i0})`
+     - :math:`(f_0, u_0)` independent of the later errors
+   * - ``"hadamard"``
+     - 4.4
+     - deterministic sign columns, no data at all
+     - nothing about the data; the rank condition holds only generically
+
+``"covariates"`` is the default and is what the paper uses. The other two exist
+because the projection does not need covariates -- a panel carrying only an
+outcome and a treatment indicator is still usable.
+
+``"initial"`` holds out the first period, since that is what the weights are
+built from, and leaving it in would return the outcome the weights came from to
+the fit they are used for. The pre-period count therefore drops by one.
+
+What these constructions must not be is a function of the errors they are meant
+to diversify away. A tempting choice is each unit's pre-period mean outcome,
+which keeps post-treatment information out and still violates the assumption,
+because the mean is a function of the pre-period errors the loading is fit on.
+On the HCW panel that choice moves the estimate from 0.026-0.034 across factor
+counts to 0.032-0.046 drifting upward, and away from what the rest of the
+library reports. The initial observation is the legitimate version of the same
+idea.
+
+Fan and Liao's Section 4.2, weights from trimmed principal-component loadings on
+an earlier sample split, is not offered. It needs a split and serial
+independence of the errors, which is a different assumption burden.
+
+Which basis, and why it matters here
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For ``"initial"`` the choice of ``basis`` decides whether Assumption 2.1(ii)
+survives. Fan and Liao's own simulations use the polynomial
+:math:`\phi_k(z) = z^k`, which is fine for a covariate of order one. An outcome
+in natural units is often far smaller, and then the monomials collapse onto each
+other. On the HCW panel, where the initial growth rates run -0.03 to 0.14:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 12 26 22 22
+
+   * - basis
+     - J
+     - :math:`\lambda_{\min}(W'W/N)`
+     - :math:`\mathrm{cond}(W)`
+     - :math:`\max|w|`
+   * - polynomial
+     - 2
+     - 5.3e-06
+     - 2.3e+01
+     - 0.14
+   * - polynomial
+     - 6
+     - 1.6e-17
+     - 1.3e+07
+     - 0.14
+   * - bspline
+     - 2
+     - 1.1e-01
+     - 2.2e+00
+     - 1.00
+   * - bspline
+     - 6
+     - 1.2e-03
+     - 1.4e+01
+     - 1.00
+
+The B-spline basis satisfies both halves of Assumption 2.1 comfortably and
+without rescaling: partition of unity bounds the entries at one exactly, and the
+knots come from the data's own range, so the result does not depend on the units
+the outcome is measured in. It is the default for every source.
+
+The trigonometric basis is the one to avoid at an even factor count: an
+intercept plus complete cos/sin pairs fills an odd number of columns, so the
+last one is zero and :math:`\lambda_{\min}` is exactly zero. ATEL refuses that
+configuration where the projection would consume the empty column.
 
 The factor count and the covariate count
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -305,8 +420,24 @@ choose. On the paper's Arizona panel the criterion is monotone over its whole
 candidate range, so it returns an endpoint of that range under either extremum:
 the residual it penalises is an in-sample projection onto :math:`2J` directions
 against :math:`N = 14` donors, and it collapses to zero once :math:`2J` reaches
-N, taking the criterion with it. Supply the count from theory or from a
-sensitivity check, and report what you chose.
+N, taking the criterion with it. See :doc:`replications/atel` for the full
+decomposition.
+
+Being required is less of an imposition than it sounds, because the theory says
+what to do instead. Fan and Liao ([FanLiao]_) prove the projection valid for any
+working number of factors :math:`R \ge r`, admitting even :math:`r = 0` with
+:math:`R \ge 1`, and advise taking "a slightly large R so that
+:math:`R \ge r` is likely to hold". Over-estimating is proved safe;
+under-estimating is not. There is a second reason to be generous: their rank
+condition fails when more than :math:`R - r` weight series are nearly orthogonal
+to the loadings, and extra series make that less likely. So pick a count a little
+above what you think the panel supports and report it, instead of hunting for a
+number the data will not give you.
+
+This is also why the paper can claim its results do not rely on accurate
+estimation of J while its own selection criterion is broken. The claim rests on
+Fan and Liao's theorem, not on the criterion, and the two are compatible: the
+criterion is superfluous.
 
 It must be a multiple of the covariate count because the projection consumes the
 first J of the :math:`J \times P` weight blocks, which is a complete set of
@@ -341,6 +472,48 @@ Example
    print(res.att)                       # the unweighted post-period mean
    print(res.kernel_mass)               # what a constant effect would scale by
    print(res.diagnostics["bandwidth_at_grid_edge"])
+
+A panel with no covariates at all works the same way, with the weights coming
+from each unit's first outcome:
+
+.. code-block:: python
+
+   # Hsiao, Ching and Wan (2012): Hong Kong quarterly GDP growth against 24
+   # comparator economies, integration with mainland China from quarter 44.
+   # The file carries an outcome and a treatment indicator, nothing else.
+   df = pd.read_csv("basedata/HongKong.csv")
+
+   res = ATEL({
+       "df": df, "outcome": "GDP", "treat": "Integration",
+       "unitid": "Country", "time": "Time",
+       "weight_source": "initial",
+       "n_factors": 3,
+       "display_graphs": False,
+   }).fit()
+
+   print(res.atel, res.att)                      # 0.0324, 0.0346
+   print(res.diagnostics["weight_lambda_min"])   # 0.0301, the conditioning check
+
+Two things this panel shows. The estimate sits beside what the library already
+reports -- :doc:`fdid` gives 0.02540 and :doc:`fma` 0.02543 -- and the
+pre-treatment fit is tighter than either, with an RMSE of 0.0143 at three factors
+and 0.0132 at six against 0.0162 and 0.0177, on weights built from one
+observation per unit.
+
+And the asymmetry between over- and under-estimating the factor count is visible
+directly. At three factors and above the estimate settles: 0.0324, 0.0317, 0.0309,
+0.0312 for J of 3, 4, 5, 6. At two factors it is 0.0171, a different answer, which
+is what taking R below r looks like. The cost of going the other way is not in the
+estimate but in the conditioning, which falls from 1.1e-01 at two factors to
+1.2e-03 at six: over-estimating stays valid and gradually spends the weights'
+independence, so there is a practical ceiling even though there is no
+correctness one.
+
+What this panel does not show is why you would localize. Whether ``atel`` lands
+above or below ``att`` here depends on the selected bandwidth -- above it at two
+factors, below it at three -- because the kernel's window moves with h and the
+post-period gap is not monotone. A panel whose effect has a clear direction over
+the post-period is where the estimand earns its place, and this is not one.
 
 ``res.atel`` and ``res.att`` are different estimands and neither substitutes for
 the other: ``atel`` is the kernel-weighted localized estimate the method is
