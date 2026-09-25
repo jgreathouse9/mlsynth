@@ -37,11 +37,16 @@ class TSSCConfig(BaseEstimatorConfig):
         (the SC-pretrends test and the two single-restriction tests).
         Default 0.05.
     subsample_size : int or None
-        Subsample size ``m`` for the Step-1 subsampling procedure. When
-        ``None`` (default) it is set to ``T_1`` (the bootstrap special
-        case the paper's simulations validate). For genuine subsampling,
+        Subsample size ``m``, used by both the Step-1 restriction tests
+        and the per-variant ATT confidence interval. When ``None``
+        (default) each keeps its own prior default: Step 1 uses ``T_1``
+        (the bootstrap special case the paper's simulations validate)
+        and the ATT interval uses ``T_1 - 5``. For genuine subsampling,
         the paper's rule of thumb is ``m`` between ``T_1/2`` and ``T_1``
-        for moderate ``T_1`` (and smaller for large ``T_1``).
+        for moderate ``T_1`` (and smaller for large ``T_1``). Li (2020)
+        reports ATT coverage across ``m`` in {20, 40, 60, 80, 90} at
+        ``T_1 = 90``, so a value well below ``T_1`` is a normal choice
+        and not a degenerate one. ``m`` above ``T_1`` is refused.
     draws : int
         Number of subsampling replications ``B`` for the Step-1 tests and
         bootstrap replications for the per-variant ATT confidence
@@ -56,7 +61,10 @@ class TSSCConfig(BaseEstimatorConfig):
     alpha: float = Field(default=0.05, gt=0.0, lt=1.0,
                          description="Significance level for Step-1 restriction tests.")
     subsample_size: Optional[int] = Field(default=None, ge=2,
-                         description="Subsample size m; None uses T_1 (bootstrap).")
+                         description=(
+                             "Subsample size m for the Step-1 tests and the ATT "
+                             "interval; None leaves each on its own default."
+                         ))
     draws: int = Field(default=500, ge=1, description="Subsampling/bootstrap replications.")
     method: Optional[Literal["SC", "MSCa", "MSCb", "MSCc"]] = Field(
         default=None,
