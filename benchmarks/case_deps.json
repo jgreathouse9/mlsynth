@@ -293,7 +293,8 @@
   "mlsynth/utils/clustersc_helpers/rpca/weights.py",
   "mlsynth/utils/clustersc_helpers/setup.py",
   "mlsynth/utils/clustersc_helpers/spannability.py",
-  "mlsynth/utils/datautils.py"
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "clustersc_subgroups": [
   "mlsynth/config_models.py",
@@ -308,7 +309,9 @@
   "mlsynth/utils/clustersc_helpers/spannability.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/pcr/core.py",
-  "mlsynth/utils/pcr/rank.py"
+  "mlsynth/utils/pcr/rank.py",
+  "mlsynth/utils/solvers/accelerate.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "cmbsts_supermarket": [
   "basedata/cmbsts_supermarket/competitor_price.csv",
@@ -516,7 +519,8 @@
   "mlsynth/utils/dsc_helpers/setup.py",
   "mlsynth/utils/dsc_helpers/structures.py",
   "mlsynth/utils/dsc_helpers/weights.py",
-  "mlsynth/utils/results_helpers.py"
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "dmlfm_germany": [
   "basedata/repgermany.dta",
@@ -595,11 +599,13 @@
   "mlsynth/utils/dsc_helpers/setup.py",
   "mlsynth/utils/dsc_helpers/structures.py",
   "mlsynth/utils/dsc_helpers/weights.py",
-  "mlsynth/utils/results_helpers.py"
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "dsc_mc": [
   "mlsynth/utils/dsc_helpers/simulate.py",
-  "mlsynth/utils/dsc_helpers/weights.py"
+  "mlsynth/utils/dsc_helpers/weights.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "dscar_beijing": [
   "basedata/beijing_pm25_orange_alert.csv",
@@ -2001,7 +2007,8 @@
   "mlsynth/utils/scmo_helpers/setup.py",
   "mlsynth/utils/scmo_helpers/simulation.py",
   "mlsynth/utils/scmo_helpers/solvers.py",
-  "mlsynth/utils/scmo_helpers/structures.py"
+  "mlsynth/utils/scmo_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "scmo_concatenated_mc": [
   "mlsynth/config_models.py",
@@ -2053,7 +2060,8 @@
   "mlsynth/utils/scmo_helpers/setup.py",
   "mlsynth/utils/scmo_helpers/simulation.py",
   "mlsynth/utils/scmo_helpers/solvers.py",
-  "mlsynth/utils/scmo_helpers/structures.py"
+  "mlsynth/utils/scmo_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "scmo_germany": [
   "basedata/germany_augmented.csv",
@@ -2458,6 +2466,7 @@
   "mlsynth/utils/proximal_helpers/setup.py",
   "mlsynth/utils/proximal_helpers/structures.py",
   "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/spotsynth_helpers/debias.py",
   "mlsynth/utils/spotsynth_helpers/pipeline.py",
   "mlsynth/utils/spotsynth_helpers/sc.py",
@@ -2474,6 +2483,7 @@
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/spotsynth_helpers/bayes.py",
   "mlsynth/utils/spotsynth_helpers/debias.py",
   "mlsynth/utils/spotsynth_helpers/pipeline.py",
