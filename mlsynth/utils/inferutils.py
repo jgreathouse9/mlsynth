@@ -69,10 +69,11 @@ def debiased_sc_ttest(
     alpha: float = 0.1,
     weight_fn: Optional[WeightFn] = None,
 ) -> Dict[str, Any]:
-    r"""Debiased synthetic-control *t*-test for the ATT (CWZ 2025).
+    r"""Debiased synthetic-control *t*-test for the ATT (CWZ 2026).
 
     Implements the K-fold cross-fitting debiasing and self-normalized
-    *t*-statistic of Chernozhukov, Wuthrich & Zhu (2025), a faithful port of the
+    *t*-statistic of Chernozhukov, Wuthrich & Zhu (2026, JPE 134(9)), a faithful
+    port of the
     authors' ``scinference`` package (``ttest.R::sc.cf``). The pre-period is split
     into ``K`` consecutive blocks of length ``r = min(floor(T0/K), T1)``; for each
     block ``H_k`` the weights are refit on the block's complement and
@@ -116,7 +117,10 @@ def debiased_sc_ttest(
     -------
     dict
         ``att``, ``se``, ``tstat``, ``dof`` (``=K-1``), ``ci_lower``,
-        ``ci_upper``, ``tau_k`` ((K,) array), ``K``, ``r``, ``alpha``.
+        ``ci_upper``, ``tau_k`` ((K,) array), ``cf_post`` ((T1,) debiased
+        post-period counterfactual, the fold average of
+        ``Y0_post @ w_k + block_gap_k``, whose mean gap against ``y_post`` is
+        ``att`` identically), ``K``, ``r``, ``alpha``.
 
     Raises
     ------
@@ -162,6 +166,7 @@ def debiased_sc_ttest(
     offset = T0 - r * K
 
     tau = np.empty(K)
+    cf_folds = np.empty((K, T1))
     for k in range(K):
         block = np.arange(offset + k * r, offset + k * r + r)
         keep = np.setdiff1d(np.arange(T0), block)
@@ -173,8 +178,17 @@ def debiased_sc_ttest(
         post_gap = float(np.mean(y_post - Y0_post @ w))
         block_gap = float(np.mean(y_pre[block] - Y0_pre[block] @ w))
         tau[k] = post_gap - block_gap
+        # Fold k's debiased counterfactual path over the post window: the fold's
+        # SC prediction raised by the bias it shows on its own held-out block.
+        cf_folds[k] = Y0_post @ w + block_gap
 
     att = float(tau.mean())
+    # Averaging the fold paths gives a counterfactual whose post-period mean gap
+    # is ``att`` identically:
+    #   mean_t(y_t - K^-1 sum_k (x_t'w_k + b_k)) = K^-1 sum_k (post_gap_k - b_k).
+    # Reporting it alongside the ATT keeps the series, the point estimate and
+    # the interval describing one estimator.
+    cf_post = cf_folds.mean(axis=0)
     se = float(np.sqrt(1.0 + (K * r) / T1) * tau.std(ddof=1) / np.sqrt(K))
     tstat = att / se if se > 0 else np.inf * np.sign(att)
     crit = float(_t.ppf(1 - alpha / 2, K - 1))
@@ -186,6 +200,7 @@ def debiased_sc_ttest(
         "ci_lower": att - crit * se,
         "ci_upper": att + crit * se,
         "tau_k": tau,
+        "cf_post": cf_post,
         "K": K,
         "r": r,
         "alpha": alpha,

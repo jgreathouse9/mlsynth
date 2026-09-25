@@ -759,7 +759,7 @@ Path A — empirical replications
    * - ``brabander_brexit_insample``
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``cwz_ttest``
-     - CWZ 2025 Table 5 carbon-tax debiased t-test
+     - CWZ 2026 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
@@ -918,7 +918,7 @@ Path B — Monte Carlo / simulation
    * - ``ctsc_powell_mc``
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
-     - CWZ 2025 Table 3 application-based Monte Carlo
+     - CWZ 2026 Table 3 application-based Monte Carlo
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``dsc_mc``
