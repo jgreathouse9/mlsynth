@@ -56,6 +56,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/geox_augsynth_recast
    replications/drsc
    replications/fsc
+   replications/atel
    replications/fdid
    replications/twsf
    replications/wine_tennessee
@@ -936,9 +937,9 @@ Coverage summary
      - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
        PDA, RESCM, SCD, SCUL, SparseSC)
    * - Time-aware / factor models
-     - 5
-     - 5
-     - Complete (CFM, CSCIPCA, FMA, LPCA, TASC)
+     - 6
+     - 6
+     - Complete (ATEL, CFM, CSCIPCA, FMA, LPCA, TASC)
    * - Bayesian
      - 7
      - 7
@@ -989,9 +990,9 @@ Coverage summary
      - 6
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
-     - 77
      - 78
-     - 77 of 78 estimators carry a replication.
+     - 79
+     - 78 of 79 estimators carry a replication.
 
 .. coverage-table-end
 

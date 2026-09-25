@@ -2792,3 +2792,57 @@ timeout = 240.0
   find = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 2) -> bool:"
   replace = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 1) -> bool:"
   models = "a check that asks only whether WD adds a dimension, so D collinear with the nuisance block passes unreported"
+
+[[target]]
+name = "atel-localization"
+module-path = "mlsynth/utils/atel_helpers/loadings.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "half-kernel-not-renormalized"
+  find = "    return 0.75 * (1.0 - u**2) * keep * 2.0"
+  replace = "    return 0.75 * (1.0 - u**2) * keep"
+  models = "an Epanechnikov kernel truncated to half its support without doubling the mass, so every localized estimate comes back at about half its size while the weights still look like a kernel"
+
+  [[target.mutant]]
+  id = "loading-held-constant-over-the-post-period"
+  find = "    return level + slope * ((T0 - lead) / T1)[None, :]"
+  replace = "    return level + slope * 0.0"
+  models = "the fitted slope discarded, so the loading is frozen at its value at T0 -- the time-invariant loading ATEL exists to avoid, and the one the paper argues a PCA factor model recovers"
+
+  [[target.mutant]]
+  id = "loading-extrapolated-backwards"
+  find = "    return level + slope * ((T0 - lead) / T1)[None, :]"
+  replace = "    return level + slope * ((lead - T0) / T1)[None, :]"
+  models = "the extrapolation running the wrong way in time, so the loading moves away from its fitted trend instead of along it"
+
+[[target]]
+name = "atel-projection"
+module-path = "mlsynth/utils/atel_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "localization-divided-by-the-nominal-post-period"
+  find = "    point = float((gap * kernel).sum() / post_window)"
+  replace = "    point = float((gap * kernel).sum() / T1)"
+  models = "the kernel-weighted sum divided by the nominal post-period count instead of the effective window floor(T1 * h), which rescales the estimand by h without changing its shape"
+
+  [[target.mutant]]
+  id = "implied-weights-lose-the-donor-count"
+  find = "    implied /= n_donors"
+  replace = "    implied *= 1.0"
+  models = "the diversified projection's 1/N dropped from the implied weights, so the reported donor weights no longer reconstruct the counterfactual they are supposed to explain"
+
+[[target]]
+name = "atel-diversified-projection"
+module-path = "mlsynth/utils/atel_helpers/factors.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "every-factor-takes-the-first-weight-block"
+  find = "        block = donor_weights[:, j * T : (j + 1) * T]"
+  replace = "        block = donor_weights[:, 0 : T]"
+  models = "the block index ignored, so every factor is built from the same weight series and the factor matrix is rank one -- a design the pseudo-inverse absorbs without complaint"

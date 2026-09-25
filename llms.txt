@@ -24,6 +24,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 
 ## Estimators
 
+- **ATEL** — Average Treatment Effect Localization for a single treated unit.  (config: ATELConfig)
 - **BEAST** — Immunized doubly-robust synthetic control estimator.  (config: BEASTConfig)
 - **BFSC** — Bayesian Factor Synthetic Control (Pinkney 2021).  (config: BFSCConfig)
 - **BPSCS** — Bayesian Penalized Synthetic Control under Spillovers (Fernandez-Morales et al. 2026).  (config: BPSCSConfig)

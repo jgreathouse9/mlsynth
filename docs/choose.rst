@@ -464,7 +464,10 @@ observation noise?
   outcomes, :doc:`dscar` is a different paradigm -- see the remark below.) If you
   also observe many time-varying *covariates* and want them to identify the
   counterfactual, :doc:`cscipca` instruments the factor loadings with the
-  covariates -- see the remark below.
+  covariates -- see the remark below. If the loading itself moves over the
+  sample and you want the effect measured near the adoption date, :doc:`atel`
+  lets the loading vary with time and localizes the estimand -- see the remark
+  below.
 
 *FMA versus BFSC -- frequentist or Bayesian factor SC.* Both fit the untreated
 outcome with a latent-factor model, not a donor weighting, so both handle
@@ -481,6 +484,24 @@ must commit to. Prefer :doc:`fma` when you want a fast, dependency-free point
 estimate with bootstrap intervals; prefer :doc:`bfsc` when you want a full
 posterior band and would prefer not to fix the number of factors, and you
 can take on the ``[bayes]`` (NumPyro) dependency.
+
+*Localizing the estimand -- ATEL.* Every other estimator on this page averages
+the post-period gap with equal weight on each period, which answers what the
+policy and the treated unit's response to it did, together. :doc:`atel` (Lee,
+2026) weights the post-period with a kernel centred on the adoption date, so the
+number it reports is the effect before the unit has had time to adapt. Two
+things follow. It is the estimator to reach for when the post-period is long
+enough that adaptation is plausible, or when the decision runs on a budget or
+election cycle and the near term is what matters. It is the wrong one when the
+question is about the long run, since the kernel discards exactly those periods.
+Mechanically it also differs from :doc:`fma` in letting the factor loading vary
+with time -- holding a moving loading fixed recovers a time-average of it -- and
+from :doc:`cscipca` in what the covariates do: ``cscipca`` projects the loadings
+onto them, ``atel`` uses a sieve basis in them to build the projection weights
+that estimate the factors, with no eigendecomposition anywhere. It requires
+time-varying covariates, at least two post-periods, and a factor count you
+supply; that count must be a multiple of the covariate count, and its page
+explains why.
 
 *Factor SC with covariate-instrumented loadings.* :doc:`cscipca` (Wang, 2024)
 is the factor estimator to reach for when you observe many time-varying

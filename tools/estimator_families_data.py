@@ -89,6 +89,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # State-space and factor models.
     "FMA": "time",
+    "ATEL": "time",
     "TASC": "time",
     "CFM": "time",
     "CSCIPCA": "time",
