@@ -80,9 +80,31 @@ REMAINING = {
 # weight, and the face at the returned point has dimension 1 in the median and
 # 13 at most. A one-dimensional ambiguity is enough: swapping the solver moves
 # the orange-alert ATT from the paper's -33.8 to -35.46 micrograms per cubic
-# metre. Migrating either site means deciding which point of the face the
-# library should return, which is an econometrics question and not a solver
-# one, so both wait for that decision.
+# metre.
+#
+# Two tie-break rules have been measured, and neither reproduces a published
+# number. That is why both sites are still here.
+#
+# Plain least norm was tried on SSC in #639: the Guanajuato co_num moves from
+# 1.01e-03 to 9.07e-03 against a pin of 0.001 +/- 0.0015.
+#
+# SHC's rule was tried on DSC. shc_helpers.kernels.solve_shc_qp penalises only
+# the component of w the fit cannot see -- varsigma * ||w - V V' w||^2, for V
+# the right singular vectors of the design whose squared singular values clear
+# a tolerance -- so it leaves the identified component alone where plain least
+# norm also moves it. It behaves the way a rule should: over DSC's 33
+# non-unique periods, where the design has rank 5 and nullity 68 or 69,
+# permuting the donor columns moves it by 2.4e-08 in the median against the
+# active set's 2.1e-02, and it gives up 1.6e-10 of fit. It still does not land
+# on the paper. The orange-alert ATT comes out at -37.91, further off than the
+# untied -35.46.
+#
+# So three weight vectors that fit the pre-period identically to 1e-10 give
+# ATTs spanning 4.1 on an effect of about 34, and the published -33.8 is one
+# point inside that spread, selected by CLARABEL's pivot order on the program
+# as written. Migrating either site means adopting a rule and re-deriving the
+# pin, or reporting the interval two linear programs give in place of a point.
+# Both are econometrics decisions, not solver ones, so both wait.
 KEPT_ON_CVXPY = {
     ("bilevel/penalized.py", "w"):
         "the Gram form, whose linear term carries the data fit; no caller",
