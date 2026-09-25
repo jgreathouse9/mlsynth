@@ -277,6 +277,95 @@ seed, a stopping rule for the stepwise variant, or which of the two runs at
 
 Neither is reachable without the authors' code, which the paper does not ship.
 
+## Section 7, the empirics
+
+Run by `run_empirics.py`, which needs the paper's replication data pointed at
+by `MLSYNTH_HZ_DATA`. The turnout panel is the one mlsynth already ships as
+`basedata/xu_edr_turnout.parquet`, row for row; the two smoking panels are not
+shipped, and they carry the covariates the paper substitutes for Abadie's
+(poverty rate and educational attainment, since price, beer and per-capita GDP
+are themselves treated).
+
+The treated series check out first, which is what licenses the rest. California
+is unit 1 in `smoking.csv`, whose 1989 and 2000 cigarette sales are 82.4 and
+41.6, matching Table 9's Actual column to 0.05; the health-expenditure actuals
+match Table 10 to 0.0007; all six turnout actuals match Tables 11-16 to 0.10.
+
+### Which beta the empirical columns use
+
+This is the ambiguity the simulation tables leave open, and Section 7 settles
+it. CCE's MAB on Table 9 is 8.616 against the published 9.120 when beta comes
+from Pesaran's Equation 16, and 16.31 when it comes from Bai's method -- a ratio
+of 0.94 against 1.79. The empirical columns use Pesaran's CCE estimator. It
+stays open for Tables 1-7, where Section 6 says only Bai's slope is reported.
+
+### Table 9, cigarette consumption
+
+MAB, mine over the paper, 38 controls, `T0 = 19`:
+
+| method | mine | paper | ratio |
+| --- | --- | --- | --- |
+| SCM | 19.514 | 18.500 | 1.05 |
+| PDA | 14.004 | 14.300 | 0.98 |
+| CCE | 8.616 | 9.120 | 0.94 |
+| PDAX | 14.004 | 16.200 | 0.86 |
+| MA | 12.021 | 8.330 | 1.44 |
+| MB | 12.515 | 7.270 | 1.72 |
+| CPDA | 4.934 | 9.560 | 0.52 |
+| PCA | 18.437 | 7.460 | 2.47 |
+
+The SCM column is `mlsynth.VanillaSC` outcome-only, and it reproduces to 5
+percent, with ten of the twelve annual counterfactuals inside 2.0 of the
+published path. PDA reproduces to 2 percent. Those are the two columns mlsynth
+computes natively.
+
+PCA does not reproduce, and not by a level. The published counterfactual falls
+from 81.3 in 1989 to 29.6 in 2000, below the actual 41.6, so the paper's PCA
+reports that Proposition 99 raised consumption. Sweeping `r` from 1 to 7 moves
+our counterfactual between 79.7 and 51.0 in 2000 and never below the actual;
+the published post-period slope is -4.46 per year against an actual -3.27 and
+our range of -0.85 to -2.68. `mlsynth.GSYNTH`, which is the gsynth the paper
+ran, gives 45.3 with a cross-validated `r` and an ATT of -0.33. Three
+implementations, three answers, and the paper's is the only one whose effect is
+positive. Its footnote 8 records the result as counterintuitive and keeps it
+deliberately, so it is a disagreement the authors already flagged, not a
+discrepancy they missed.
+
+### Table 10, personal healthcare expenditure
+
+Every method lands within a factor of 0.55 to 1.31, and the substantive claim
+reproduces: the paper reports hardly any effect, with a 2000 actual of 9.755
+against a model-average counterfactual of 9.735, and ours is 9.756 against
+9.733. A 38-donor pool against a nine-period pre-period is 4.2 times as wide as
+the sample, and the table is still the best-reproducing of the three.
+
+Table 10 also corroborates the CPDA-equals-PDA-equals-PDAX finding from the
+simulations, in the paper's own numbers: its PDA and PDAX columns are identical
+in eleven of twelve rows, and both MABs read 0.061. The 1989 row differs
+(8.794 against 8.974) in a way that reads as a transposition.
+
+### Tables 11-16, turnout
+
+Mean effect per state, model-averaged:
+
+| state | MA mine | paper | MB mine | paper |
+| --- | --- | --- | --- | --- |
+| ME | 4.11 | 3.22 | 3.84 | 2.85 |
+| MN | 3.23 | 4.49 | 3.23 | 4.52 |
+| WI | 5.82 | 8.39 | 5.97 | 8.59 |
+| WY | 7.23 | 7.20 | 7.95 | 8.22 |
+| ID | -4.20 | -0.42 | -3.96 | 0.64 |
+| NH | 6.44 | 8.04 | 6.70 | 8.28 |
+
+Per-state levels differ by up to 3.8 points and Idaho is the one sign
+disagreement, near zero in the paper and clearly negative here; it is the
+weakest state in both. The headline reproduces on both waves. The paper's claim
+is that model averaging puts the first wave below Xu (2017)'s 7.2 percent and
+the second above his 2.17, compressing the gap he reports between them. Ours
+gives 4.39 and 3.16 against Xu's 7.2 and 2.17, so both inequalities hold and
+the compression is larger here than in the paper: Xu's spread of 5.03 becomes
+about 2 in the paper's own columns and 1.23 in ours.
+
 ## What this means for a build
 
 Three conclusions carry over, and they sharpen the recommendation from the
