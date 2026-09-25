@@ -890,7 +890,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     Reference: :func:`mlsynth.utils.conformal.cumulative_conformal_from_refit`,
     :func:`mlsynth.utils.conformal.resample_cumulative_paths_from_weights`.
 
-``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2025)
+``"ttest"`` -- debiased SC t-test for the ATT (Chernozhukov, Wüthrich & Zhu 2026)
     A :math:`K`-fold cross-fitting debiasing with a self-normalized statistic
     that is asymptotically :math:`t_{K-1}`, giving the ATT in the familiar
     one-number form :math:`\widehat{\tau} \pm t_{K-1}(1-\alpha/2)\,\mathrm{se}`
@@ -898,9 +898,22 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     data, with no long-run-variance estimation. The pre-period is split into
     ``ttest_K`` blocks; each block's weights are refit (with the configured
     backend) on its complement, and the held-out block gap removes the SC bias.
-    The debiased ATT, ``se``, ``tstat`` and the two-sided ``p_value`` land in
-    ``res.inference.details`` with the interval in
-    ``res.inference.ci_lower``/``ci_upper``. Set ``ttest_K="auto"`` to choose
+    In this mode the debiased estimator is the estimator: ``res.effects.att``
+    is :math:`\widehat{\tau}`, the interval in
+    ``res.inference.ci_lower``/``ci_upper`` is an interval for it, and
+    ``res.inference.standard_error`` is its standard error. The post-period
+    counterfactual is the fold average of
+    :math:`\mathbf{x}_t'\widehat{\mathbf{w}}_{(k)} + b_k`, whose mean gap is
+    :math:`\widehat{\tau}` identically, so the ATT, the gap series and the
+    interval describe one estimator; the pre-period counterfactual stays the SC
+    fit, so the pre-period fit diagnostics still describe the SC match. The
+    undebiased SC ATT remains available as
+    ``res.inference.details["att_naive"]``, and the difference between the two
+    is the size of the bias correction -- on the carbon-tax replication the
+    paper's table 5 reports :math:`-0.27`, the debiased estimate is
+    :math:`-0.2739`, and the undebiased one is :math:`-0.2837`. ``se``,
+    ``tstat`` and the two-sided ``p_value`` are in ``res.inference.details``.
+    Set ``ttest_K="auto"`` to choose
     :math:`K` from the SC-residual persistence and the RAE formula (their
     Section 3.2); :math:`K = 3` is the small-:math:`T_0` benchmark. Because it
     only needs :math:`\ell_2`-consistent weights it composes with every backend.
