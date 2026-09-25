@@ -14,7 +14,7 @@ regression** (PCR): truncate the SVD of :math:`S`, regress row
 
 It generalises the Synthetic Interventions / synthetic-control PCR
 machinery to arbitrary "missing not at random" (MNAR) patterns, because
-the anchor submatrix is found per entry rather than assuming a fixed
+the anchor submatrix is found per entry instead of assuming a fixed
 treated/donor block. The reference implementation
 (github.com/deshen24/syntheticNN) uses a NetworkX maximum-biclique
 search to find anchors; this implementation uses a dependency-free greedy

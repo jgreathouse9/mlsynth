@@ -2,7 +2,7 @@
 
 The canonical Synthetic Nearest Neighbors implementation
 (https://github.com/deshen24/syntheticNN) is a single ``snn.py`` module. It
-carries no licence file, so rather than vendoring it into the repository this
+carries no licence file, so instead of vendoring it into the repository this
 helper fetches it at a pinned commit into the gitignored
 ``benchmarks/reference/.cache`` and imports ``SyntheticNearestNeighbors`` from
 there (mirroring ``clone_clustersc`` / ``clone_proximal``). If git or the

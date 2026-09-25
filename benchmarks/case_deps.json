@@ -2268,6 +2268,11 @@
   "mlsynth/utils/siv_helpers/twosls.py",
   "mlsynth/utils/siv_helpers/weights.py"
  ],
+ "snn_mnar_anchors": [
+  "mlsynth/utils/pcr/core.py",
+  "mlsynth/utils/pcr/rank.py",
+  "mlsynth/utils/snn_helpers/completion.py"
+ ],
  "snn_nesting": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/clustersc.py",

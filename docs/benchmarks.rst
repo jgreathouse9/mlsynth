@@ -47,7 +47,7 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 225 registered cases. ``paths`` is what the case
+All 226 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
@@ -55,9 +55,9 @@ calibrated from a real one.
 * ``A`` -- empirical replication (74 cases)
 * ``B`` -- Monte Carlo / simulation (62 cases)
 * ``C`` -- theoretical property or design calibration (12 cases)
-* ``X`` -- cross-validation against a reference implementation (106 cases)
+* ``X`` -- cross-validation against a reference implementation (107 cases)
 
-By data: 77 simulated, 133 empirical, 15 both -- so 92 cases fit at least one generated panel.
+By data: 78 simulated, 133 empirical, 15 both -- so 93 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -609,6 +609,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - empirical
    * - ``siv_syria_mc``
      - B
+     - simulated
+   * - ``snn_mnar_anchors``
+     - X
      - simulated
    * - ``snn_nesting``
      - X
@@ -1192,6 +1195,14 @@ Cross-validation against reference implementations
      - vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
    * - ``snn_prop99``
      - vs deshen24/syntheticNN (Prop 99)
+   * - ``snn_mnar_anchors``
+     - vs deshen24/syntheticNN on scattered MNAR masks, where the anchor
+       search is the whole problem and block missingness never reaches it.
+       mlsynth's greedy search against exhaustive maximal-clique enumeration:
+       neither loses a cross, the greedy block reaches 94 percent of the exact
+       one's min-dimension, and its imputation error is 12 percent higher.
+       This is the case that found the tie-break bug, which lost 55 percent of
+       crosses while every panel benchmark stayed green
    * - ``snn_nesting``
      - vs deshen24/panel-data-regressions (Shen-Ding-Sekhon-Yu) on all three
        case studies -- Basque, West Germany, Proposition 99. SNN's own anchor

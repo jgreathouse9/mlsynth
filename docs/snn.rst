@@ -286,6 +286,20 @@ anchor cross, the rank moved by one, and the denoised full-matrix projection --
 separate the estimates by 0.24 to 3.6 percent, which is what keeps the equality
 rows from being vacuous.
 
+Both of those run on block missingness, where the neighborhood submatrix is
+already complete and the anchor search returns it without doing any work. They
+therefore validate the principal-component-regression half of SNN and say
+nothing about the search, which is the half SI and RSC do not have.
+`benchmarks/cases/snn_mnar_anchors.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/snn_mnar_anchors.py>`_
+covers it, on scattered MNAR masks where the search is the whole problem:
+mlsynth's greedy search against the reference's exhaustive maximal-clique
+enumeration. Neither loses a cross, the greedy block reaches 94 percent of the
+exact one's min-dimension, and its imputation error runs 12 percent higher --
+the price of the heuristic, measured. That case is also what surfaced a
+tie-break defect in the search, which lost 55 percent of crosses on these masks
+while every panel benchmark stayed green.
+
 The same SNN engine performs general (non-causal) matrix completion on
 any matrix with ``NaN`` for the missing entries:
 

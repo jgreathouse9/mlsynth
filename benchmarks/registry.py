@@ -11,6 +11,7 @@ CASES = {
     "syndes_exact_vs_mip": "benchmarks.cases.syndes_exact_vs_mip",  # solver cross-check: the two-way treated-set search vs SCIP proving optimality on the BLS panel
     "si_prop99": "benchmarks.cases.si_prop99",          # cross-val vs Agarwal-Shah-Shen 2026 authors' code (Prop 99)
     "snn_prop99": "benchmarks.cases.snn_prop99",        # cross-val vs deshen24/syntheticNN (Prop 99)
+    "snn_mnar_anchors": "benchmarks.cases.snn_mnar_anchors",  # cross-val vs deshen24/syntheticNN on scattered MNAR: the greedy anchor search against exact maximum biclique -- coverage, block min-dimension and imputation error, the half of SNN that block missingness never exercises
     "snn_nesting": "benchmarks.cases.snn_nesting",      # differential cross-val vs deshen24/panel-data-regressions: SNN's anchor cross nests SI (d=0) and PCR-RSC -- equal to the authors' own PCR on Basque/Germany/Prop99 at a matched rank, with three controls that break the equality
     "ppscm_paglayan": "benchmarks.cases.ppscm_paglayan",  # cross-val vs augsynth::multisynth (jackknife + bootstrap SEs)
     "ppscm_paglayan_covs": "benchmarks.cases.ppscm_paglayan_covs",  # cross-val vs augsynth::multisynth Sec 5.2 (auxiliary covariates)
@@ -474,6 +475,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "shi_fine_grained_sc":            ("B", "simulated"),
     "si_prop99":                      ("X", "empirical"),
     "siv_syria_mc":                   ("B", "simulated"),
+    "snn_mnar_anchors":               ("X", "simulated"),
     "snn_nesting":                    ("X", "empirical"),
     "snn_prop99":                     ("X", "empirical"),
     "song_ml_ascm":                   ("AX", "empirical"),
