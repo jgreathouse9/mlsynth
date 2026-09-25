@@ -52,6 +52,28 @@ ELIGIBLE = {
 }
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
+#
+# spsydid_helpers/weights.py is measured and blocked on a decision, not on the
+# algebra. Both reshapings check out: profiling the free intercept by centring
+# and carrying T0 zeta^2 ||omega||^2 as sqrt(T0) zeta I design rows reproduces
+# cvxpy's objective to 1e-09 and its intercept to six decimals across shapes
+# from 12x5 to 6x30. What changes is downstream. The active set writes exact
+# zeros where CLARABEL writes 1e-11: on one synthetic panel 2 of 8 unit weights
+# and 11 of 14 time weights come back exactly 0, against none from CLARABEL.
+# The final WLS scales its rows by sqrt(w), so those become identically zero
+# rows, and the rank check at pipeline.py fires: rank 20 of 23 columns.
+#
+# That warning is correct. Dropping the 30 zero-weight rows leaves the same
+# rank 20 over the remaining 90, and 2 of the 23 columns are identically zero
+# on the rows that carry weight, so those coefficients have no data behind
+# them. CLARABEL's 1e-11 became rows of magnitude 3e-06 after the square root,
+# which lstsq at rcond=None counted toward rank, reading 23 on solver noise.
+# So tau and tau_s are not separately identified on that fixture and the silence
+# was the artifact.
+#
+# Migrating therefore means deciding what SpSyDiD should do when its weights
+# zero out units, and whether a fixture named for a happy path is one. Both are
+# questions about the estimator, so the two keys stay here as work.
 REMAINING = {
     ("spsydid_helpers/weights.py", "lam"),
     ("spsydid_helpers/weights.py", "omega"),
