@@ -54,7 +54,6 @@ ELIGIBLE = {
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
 REMAINING = {
-    ("dscar_helpers/weights.py", "w"),
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"),
     ("hsc_helpers/formulation.py", "omega"),
     ("spsydid_helpers/weights.py", "lam"),
@@ -62,11 +61,28 @@ REMAINING = {
 }
 
 # Eligible and staying on cvxpy, with the reason. Eligibility says the active
-# set solves the same program; it does not say the cvxpy call should go. Two
-# of these are the reference the native path is checked against, four are
-# escape hatches a caller reaches by naming a solver, and one has no caller.
-# Without this split, "eligible" reads as a to-do list of 15 when 8 of them
-# are finished, and the next reader re-derives which.
+# set solves the same program; it does not say the cvxpy call should go. One is
+# the reference the native path is checked against, five are escape hatches a
+# caller reaches by naming a solver, one is the warm start such a hatch seeds
+# itself with, one has no caller, and two are not identified on the panel their
+# replication uses. Without this split, "eligible" reads as a to-do list when
+# most of it is settled, and the next reader re-derives which.
+#
+# The two non-identified sites, SSC and DSC, are the same finding twice: where
+# the argmin is a face, which point comes back is a property of the solver's
+# pivot order, and a replication that matches a published number is matching
+# that choice. On DSC's Beijing panel (Zheng and Chen 2024, Section 5) the
+# active set is certified optimal by simplex_point_is_optimal in 72 of 72
+# per-period solves and strictly better on the objective in 34 with none
+# worse, so it solves the program; simplex_optimum_is_unique still rejects
+# uniqueness in 33 of the 72. rank[B; 1'] is 6 against 74 donors, which bounds
+# the face at dimension 68, but the fit is sparse -- a median of 5 donors carry
+# weight, and the face at the returned point has dimension 1 in the median and
+# 13 at most. A one-dimensional ambiguity is enough: swapping the solver moves
+# the orange-alert ATT from the paper's -33.8 to -35.46 micrograms per cubic
+# metre. Migrating either site means deciding which point of the face the
+# library should return, which is an econometrics question and not a solver
+# one, so both wait for that decision.
 KEPT_ON_CVXPY = {
     ("bilevel/penalized.py", "w"):
         "the Gram form, whose linear term carries the data fit; no caller",
@@ -84,6 +100,10 @@ KEPT_ON_CVXPY = {
         "the warm start the escape hatch seeds its solver with",
     ("orthsc_helpers/gmm_sce/solver.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",
+    ("dscar_helpers/weights.py", "w"):
+        "not identified on the authors' panel: the argmin is a face in 33 of "
+        "the 72 per-period solves, so the Path-A number selects a point of it. "
+        "See the note below",
     ("ssc_helpers/weights.py", "b"):
         "not identified on the authors' panel; the Path-A replication matches "
         "the reference solver's choice among a continuum of exact fits",
