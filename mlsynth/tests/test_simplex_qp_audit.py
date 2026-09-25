@@ -46,38 +46,24 @@ ELIGIBLE = {
     ("mlsc_helpers/optimization.py", "omega"): 1,
     ("mlsc_helpers/optimization.py", "w"): 1,
     ("orthsc_helpers/gmm_sce/solver.py", "w"): 1,
-    ("spsydid_helpers/weights.py", "lam"): 1,
-    ("spsydid_helpers/weights.py", "omega"): 1,
     ("ssc_helpers/weights.py", "b"): 1,
 }
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
 #
-# spsydid_helpers/weights.py is measured and blocked on a decision, not on the
-# algebra. Both reshapings check out: profiling the free intercept by centring
-# and carrying T0 zeta^2 ||omega||^2 as sqrt(T0) zeta I design rows reproduces
-# cvxpy's objective to 1e-09 and its intercept to six decimals across shapes
-# from 12x5 to 6x30. What changes is downstream. The active set writes exact
-# zeros where CLARABEL writes 1e-11: on one synthetic panel 2 of 8 unit weights
-# and 11 of 14 time weights come back exactly 0, against none from CLARABEL.
-# The final WLS scales its rows by sqrt(w), so those become identically zero
-# rows, and the rank check at pipeline.py fires: rank 20 of 23 columns.
-#
-# That warning is correct. Dropping the 30 zero-weight rows leaves the same
-# rank 20 over the remaining 90, and 2 of the 23 columns are identically zero
-# on the rows that carry weight, so those coefficients have no data behind
-# them. CLARABEL's 1e-11 became rows of magnitude 3e-06 after the square root,
-# which lstsq at rcond=None counted toward rank, reading 23 on solver noise.
-# So tau and tau_s are not separately identified on that fixture and the silence
-# was the artifact.
-#
-# Migrating therefore means deciding what SpSyDiD should do when its weights
-# zero out units, and whether a fixture named for a happy path is one. Both are
-# questions about the estimator, so the two keys stay here as work.
-REMAINING = {
-    ("spsydid_helpers/weights.py", "lam"),
-    ("spsydid_helpers/weights.py", "omega"),
-}
+# spsydid_helpers/weights.py migrated once its downstream diagnostic was fixed.
+# Both reshapings are exact -- centring profiles the free intercept, and
+# T0 zeta^2 ||omega||^2 becomes sqrt(T0) zeta I design rows with no target -- but
+# the active set writes exact zeros where CLARABEL wrote 1e-11, and the final WLS
+# scales its rows by sqrt(w). A zero-weight period therefore empties its own time
+# dummy, and a zero-weighted reference period leaves the intercept equal to the
+# sum of the survivors, so rank fell to 20 of 23 and the old `rank < n_cols`
+# check reported that tau and tau_s might not be identified. They were: the null
+# space carried components of 1e-16 on both effect columns. The check now asks
+# whether dropping D and WD costs two dimensions, which is the question it was
+# always trying to ask. See pipeline.effect_columns_are_identified.
+
+REMAINING: set = set()  # every eligible site is settled: migrated, or kept with a reason
 
 # Eligible and staying on cvxpy, with the reason. Eligibility says the active
 # set solves the same program; it does not say the cvxpy call should go. One is
@@ -171,14 +157,11 @@ TRANSFORMS = {
         "augment the design with a multiple of the identity",
     ("mlsc_helpers/optimization.py", "omega"):
         "augment the design with the penalty's square-root factor",
-    ("spsydid_helpers/weights.py", "lam"):
-        "centre the design and the target to profile out the intercept",
-    ("spsydid_helpers/weights.py", "omega"):
-        "centre the design and the target to profile out the intercept; "
-        "augment the design with a multiple of the identity",
 }
 
 MIGRATED = {
+    ("spsydid_helpers/weights.py", "lam"),
+    ("spsydid_helpers/weights.py", "omega"),
     ("hsc_helpers/formulation.py", "omega"),
     ("cscm_helpers/engine.py", "W"),
     ("clustersc_helpers/pcr/convex.py", "w"),
@@ -362,9 +345,10 @@ def test_non_negativity_is_read_from_the_variable_too(sites):
     and halves the count, which is the error this test exists to prevent.
     """
     by = {_key(s): s for s in sites}
-    # SpSyDiD declares nonneg on the Variable and lists only the sum
-    # constraint. DTWSC used to be this example and is now on the active set.
-    s = by[("spsydid_helpers/weights.py", "omega")]
+    # DSC declares nonneg on the Variable and lists only the sum constraint.
+    # DTWSC held this role, then SpSyDiD; both are now on the active set, so the
+    # example moves to a site that is staying on cvxpy for a recorded reason.
+    s = by[("dscar_helpers/weights.py", "w")]
     assert s.verdict == "eligible"
     assert ">= 0" not in s.constraints
 

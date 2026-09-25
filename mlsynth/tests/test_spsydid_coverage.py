@@ -198,46 +198,43 @@ class TestFitUnitWeights:
             fit_unit_weights(np.zeros((5, 3)), np.zeros(4), zeta=0.1)
 
 
-class _StatusProblem:
-    """Stub cp.Problem that reports a non-optimal status."""
-
-    def __init__(self, *a, **k):
-        self.status = "infeasible"
-
-    def solve(self, *a, **k):
-        return None
+def _not_converged(*_a, **_k):
+    """Stub solve_simplex_qp reporting a run that did not converge."""
+    return np.array([1.0, 0.0, 0.0]), {"converged": False, "pivots": 0}
 
 
-class _RaisingProblem:
-    """Stub cp.Problem whose solve raises a cvxpy SolverError."""
-
-    def __init__(self, *a, **k):
-        self.status = "optimal"
-
-    def solve(self, *a, **k):
-        raise cp.error.SolverError("synthetic solver failure")
+def _refuses(*_a, **_k):
+    """Stub solve_simplex_qp raising the ValueError its guards raise."""
+    raise ValueError("synthetic design rejection")
 
 
 class TestWeightSolverPaths:
-    """Cover the non-optimal-status (return None) and SolverError branches."""
+    """The two branches the solver can take besides returning an answer.
 
-    def test_time_weights_nonoptimal_returns_none(self, monkeypatch):
-        monkeypatch.setattr(weights_mod.cp, "Problem", _StatusProblem)
+    Both weight fitters keep an ``Optional`` return: a run that does not
+    converge gives ``(None, None)`` so the pipeline can raise its own error,
+    and a rejected design is translated to ``MlsynthEstimationError`` naming
+    the fitter. The active set is a finite pivot method, so neither branch is
+    reachable through ordinary input; these stubs are how they stay covered.
+    """
+
+    def test_time_weights_nonconvergence_returns_none(self, monkeypatch):
+        monkeypatch.setattr(weights_mod, "solve_simplex_qp", _not_converged)
         b0, lam = fit_time_weights(np.zeros((5, 3)), np.zeros(3))
         assert b0 is None and lam is None
 
-    def test_time_weights_solver_error(self, monkeypatch):
-        monkeypatch.setattr(weights_mod.cp, "Problem", _RaisingProblem)
+    def test_time_weights_translate_a_rejected_design(self, monkeypatch):
+        monkeypatch.setattr(weights_mod, "solve_simplex_qp", _refuses)
         with pytest.raises(MlsynthEstimationError, match="fit_time_weights"):
             fit_time_weights(np.zeros((5, 3)), np.zeros(3))
 
-    def test_unit_weights_nonoptimal_returns_none(self, monkeypatch):
-        monkeypatch.setattr(weights_mod.cp, "Problem", _StatusProblem)
+    def test_unit_weights_nonconvergence_returns_none(self, monkeypatch):
+        monkeypatch.setattr(weights_mod, "solve_simplex_qp", _not_converged)
         b0, om = fit_unit_weights(np.zeros((5, 3)), np.zeros(5), zeta=0.1)
         assert b0 is None and om is None
 
-    def test_unit_weights_solver_error(self, monkeypatch):
-        monkeypatch.setattr(weights_mod.cp, "Problem", _RaisingProblem)
+    def test_unit_weights_translate_a_rejected_design(self, monkeypatch):
+        monkeypatch.setattr(weights_mod, "solve_simplex_qp", _refuses)
         with pytest.raises(MlsynthEstimationError, match="fit_unit_weights"):
             fit_unit_weights(np.zeros((5, 3)), np.zeros(5), zeta=0.1)
 

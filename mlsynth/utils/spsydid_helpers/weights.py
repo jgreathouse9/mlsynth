@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
-import cvxpy as cp
 import numpy as np
 
+from ..solvers.active_set import solve_simplex_qp
 from ...exceptions import MlsynthDataError, MlsynthEstimationError
 
 
@@ -46,21 +46,26 @@ def fit_time_weights(
             f"{mean_donor_outcomes_post.shape[0]}."
         )
 
-    intercept = cp.Variable()
-    lam = cp.Variable(T0, nonneg=True)
-    prediction = intercept + (lam @ donor_outcomes_pre)
-    constraints = [cp.sum(lam) == 1]
-    objective = cp.Minimize(cp.sum_squares(prediction - mean_donor_outcomes_post))
-    problem = cp.Problem(objective, constraints)
+    # One row per donor: the weights combine periods, so the design is the
+    # transpose. The intercept is unconstrained, so at the optimum it equals the
+    # mean residual; substituting that back leaves the same program on centred
+    # data, and the intercept is recovered from the weights afterwards.
+    design = donor_outcomes_pre.T
+    target = np.asarray(mean_donor_outcomes_post, dtype=float)
+    col_means = design.mean(axis=0)
+    target_mean = float(target.mean())
+
     try:
-        problem.solve(solver=cp.CLARABEL)
-    except cp.error.SolverError as exc:
+        lam, info = solve_simplex_qp(
+            design - col_means, target - target_mean, return_info=True
+        )
+    except ValueError as exc:
         raise MlsynthEstimationError(
-            f"CVXPY solver failed in SpSyDiD fit_time_weights: {exc}"
+            f"Simplex solve failed in SpSyDiD fit_time_weights: {exc}"
         ) from exc
-    if problem.status in {"optimal", "optimal_inaccurate"}:
-        return float(intercept.value), np.asarray(lam.value, dtype=float)
-    return None, None
+    if not info["converged"]:
+        return None, None
+    return float(target_mean - col_means @ lam), lam
 
 
 def compute_regularization(
@@ -125,21 +130,24 @@ def fit_unit_weights(
             f"Pre-period length mismatch: {T0} vs {mean_treated_outcome_pre.shape[0]}."
         )
 
-    intercept = cp.Variable()
-    omega = cp.Variable(J, nonneg=True)
-    prediction = intercept + donor_outcomes_pre @ omega
-    penalty = T0 * (float(zeta) ** 2) * cp.sum_squares(omega)
-    objective = cp.Minimize(
-        cp.sum_squares(prediction - mean_treated_outcome_pre) + penalty
-    )
-    constraints = [cp.sum(omega) == 1]
-    problem = cp.Problem(objective, constraints)
+    # Two reshapings. The intercept profiles out by centring, as in
+    # fit_time_weights above. The ridge T0 * zeta^2 * ||omega||^2 becomes J
+    # design rows of sqrt(T0) * zeta * I carrying no target, which is the same
+    # penalty written as a residual (Zou and Hastie 2005, Lemma 1).
+    target = np.asarray(mean_treated_outcome_pre, dtype=float)
+    col_means = donor_outcomes_pre.mean(axis=0)
+    target_mean = float(target.mean())
+    ridge_scale = np.sqrt(T0) * float(zeta)
+
+    design = np.vstack([donor_outcomes_pre - col_means, ridge_scale * np.eye(J)])
+    rhs = np.concatenate([target - target_mean, np.zeros(J)])
+
     try:
-        problem.solve(solver=cp.CLARABEL)
-    except cp.error.SolverError as exc:
+        omega, info = solve_simplex_qp(design, rhs, return_info=True)
+    except ValueError as exc:
         raise MlsynthEstimationError(
-            f"CVXPY solver failed in SpSyDiD fit_unit_weights: {exc}"
+            f"Simplex solve failed in SpSyDiD fit_unit_weights: {exc}"
         ) from exc
-    if problem.status in {"optimal", "optimal_inaccurate"}:
-        return float(intercept.value), np.asarray(omega.value, dtype=float)
-    return None, None
+    if not info["converged"]:
+        return None, None
+    return float(target_mean - col_means @ omega), omega

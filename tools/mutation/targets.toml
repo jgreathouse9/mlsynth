@@ -2750,3 +2750,45 @@ timeout = 300.0
   # constant to the objective and leaves the argmin alone -- least norm and
   # least distance to the uniform weights are the same selection. It survived,
   # correctly, and is retired here so nobody re-adds it expecting a kill.
+
+[[target]]
+name = "spsydid-weights-and-rank-diagnostic"
+module-path = "mlsynth/utils/spsydid_helpers/weights.py"
+test-command = "python -m pytest mlsynth/tests/test_spsydid_weights.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "time-weights-skip-the-centring"
+  find = "            design - col_means, target - target_mean, return_info=True"
+  replace = "            design, target, return_info=True"
+  models = "the free intercept left unprofiled, so the weights absorb a level the intercept is there to carry"
+
+  [[target.mutant]]
+  id = "unit-weights-recover-the-intercept-with-the-wrong-sign"
+  find = "    return float(target_mean - col_means @ omega), omega"
+  replace = "    return float(target_mean + col_means @ omega), omega"
+  models = "an intercept recovered as a sum instead of a residual mean, which leaves the weights right and the level wrong"
+
+  [[target.mutant]]
+  id = "ridge-rows-lose-the-pre-period-count"
+  find = "    ridge_scale = np.sqrt(T0) * float(zeta)"
+  replace = "    ridge_scale = float(zeta)"
+  models = "the SDID ridge T0 * zeta^2 applied as zeta^2, so the penalty is weaker by the length of the pre-period and the weights are less spread than the method specifies"
+
+[[target]]
+name = "spsydid-rank-diagnostic"
+module-path = "mlsynth/utils/spsydid_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spsydid_rank_diagnostic.py mlsynth/tests/test_spsydid_robustness.py -q -p no:cacheprovider"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "rank-check-warns-on-any-deficiency"
+  find = "    return full - nuisance == n_effects"
+  replace = "    return full == Xw.shape[1]"
+  models = "the old predicate, which warns that tau and tau_s may not be identified whenever any nuisance dummy is emptied by a zero weight -- true of nearly every fit and false about the coefficients it names"
+
+  [[target.mutant]]
+  id = "rank-check-ignores-one-effect-column"
+  find = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 2) -> bool:"
+  replace = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 1) -> bool:"
+  models = "a check that asks only whether WD adds a dimension, so D collinear with the nuisance block passes unreported"
