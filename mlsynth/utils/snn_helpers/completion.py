@@ -27,7 +27,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from ..pcr import pcr_weights, spectral_rank, usvt_rank
+from ..pcr import hsvt, pcr_weights, spectral_rank, usvt_rank
 
 _EPS = 1e-12
 
@@ -52,10 +52,51 @@ def _universal_rank(s: np.ndarray, shape: Tuple[int, int]) -> int:
     return usvt_rank(s, min(m, n) / max(m, n))
 
 
+def _span_error(S: np.ndarray, q: np.ndarray, beta: np.ndarray) -> float:
+    """Linear span statistic: the normalized reconstruction error of ``q``.
+
+    :math:`\\|S^\\top \\beta - q\\|^2 / \\|q\\|^2`, the empirical counterpart of
+    the paper's Assumption 3 (the target row's factor lies in the span of the
+    anchor rows'). Matches ``_train_error`` in ``deshen24/syntheticNN``. A
+    target row that is exactly a linear combination of the anchor rows scores
+    zero; the reference calls the entry feasible at or below 0.1.
+
+    ``q = 0`` leaves the ratio undefined; the numerator is then zero too, so 0
+    is returned -- a zero target row is reconstructed exactly by any weights.
+    """
+    denom = float(q @ q)
+    if denom <= _EPS:
+        return 0.0
+    resid = S.T @ beta - q
+    return float((resid @ resid) / denom)
+
+
+def _subspace_stat(Vt_r: np.ndarray, x: np.ndarray) -> float:
+    """Subspace inclusion statistic for the target column.
+
+    :math:`\\|(I - V^\\top V) x\\|^2 / \\|x\\|^2` for :math:`V` the retained
+    right singular directions of :math:`S^\\top`, i.e. the share of the target
+    column's energy lying outside the subspace the weights were fit on. This is
+    the empirical counterpart of Assumption 7 (the target column's factor lies
+    in the span of the anchor columns'), and SI's Assumption 8 (post-treatment
+    generalizability) is the same condition stated for a fixed column set.
+    Matches ``_subspace_inclusion`` in ``deshen24/syntheticNN``.
+
+    ``x = 0`` leaves the ratio undefined; the numerator is then zero too, so 0
+    is returned -- the zero vector lies in every subspace.
+    """
+    denom = float(x @ x)
+    if denom <= _EPS:
+        return 0.0
+    resid = x - Vt_r.T @ (Vt_r @ x)
+    return float((resid @ resid) / denom)
+
+
 def _pcr(
     S: np.ndarray, q: np.ndarray, x: np.ndarray,
     *, max_rank: Optional[int], spectral_energy: float, universal: bool,
-) -> Tuple[float, np.ndarray, float]:
+    diagnostics: bool = False,
+) -> Tuple[float, np.ndarray, float, float]:
     """Principal component regression for one synthetic neighbour.
 
     Parameters
@@ -68,6 +109,11 @@ def _pcr(
         Column ``j``'s values on the anchor rows, shape ``(|AR|,)``.
     max_rank, spectral_energy, universal :
         Rank-selection controls.
+    diagnostics : bool
+        Also compute the two span statistics. Off by default: the subspace
+        statistic needs the retained right singular vectors, a second
+        decomposition of the anchor block that the jackknife would pay for on
+        every re-fit without using the result.
 
     Returns
     -------
@@ -75,8 +121,12 @@ def _pcr(
         Imputed value ``<x, beta>``.
     beta : np.ndarray
         Regression weights over the anchor rows, shape ``(|AR|,)``.
-    train_error : float
-        Mean squared reconstruction error of ``q`` on the anchor columns.
+    span_error : float
+        Linear span statistic (:func:`_span_error`), ``nan`` when
+        ``diagnostics`` is False.
+    subspace_stat : float
+        Subspace inclusion statistic (:func:`_subspace_stat`), ``nan`` when
+        ``diagnostics`` is False.
     """
     sv = np.linalg.svd(S, compute_uv=False)
     if max_rank is not None:
@@ -90,8 +140,10 @@ def _pcr(
     # PCR kernel applied to S^T regresses q onto the anchor-row subspace.
     beta = pcr_weights(S.T, q, r)
     prediction = float(x @ beta)
-    train_error = float(np.mean((S.T @ beta - q) ** 2))
-    return prediction, beta, train_error
+    if not diagnostics:
+        return prediction, beta, float("nan"), float("nan")
+    _, _, _, Vt_r = hsvt(S.T, r)
+    return prediction, beta, _span_error(S, q, beta), _subspace_stat(Vt_r, x)
 
 
 def _find_anchors(
@@ -135,11 +187,26 @@ def snn_predict(
     X: np.ndarray, mask: np.ndarray, i: int, j: int,
     *, n_neighbors: int = 1, max_rank: Optional[int] = None,
     spectral_energy: float = 0.95, universal: bool = False,
-    random_state: int = 0,
-) -> Tuple[float, bool]:
-    """Impute entry ``(i, j)`` of ``X`` via SNN. Returns (value, feasible)."""
+    random_state: int = 0, return_diagnostics: bool = False,
+):
+    """Impute entry ``(i, j)`` of ``X`` via SNN.
+
+    Returns ``(value, feasible)``, or ``(value, feasible, diagnostics)`` when
+    ``return_diagnostics`` is set. The diagnostics dict carries the two span
+    statistics -- ``span_error`` (:func:`_span_error`) and ``subspace_stat``
+    (:func:`_subspace_stat`) -- averaged over the synthetic neighbours, and
+    ``nan`` for both when no anchor cross exists.
+
+    ``feasible`` reports whether an estimate could be formed at all (an anchor
+    cross existed and the value was finite). It does not fold in the span
+    statistics: those are reported for the caller to act on, and an entry
+    failing them is still imputed.
+    """
     AR, AC = _find_anchors(mask, i, j)
     if AR.size == 0 or AC.size == 0:
+        if return_diagnostics:
+            return np.nan, False, {"span_error": float("nan"),
+                                   "subspace_stat": float("nan")}
         return np.nan, False
 
     # Split anchor rows into n_neighbors disjoint groups and average.
@@ -148,7 +215,7 @@ def snn_predict(
     n_groups = max(1, min(n_neighbors, AR.size))
     groups = np.array_split(order, n_groups)
 
-    preds = []
+    preds, spans, subs = [], [], []
     for g in groups:
         ar = AR[g]
         if ar.size == 0:
@@ -156,15 +223,27 @@ def snn_predict(
         S = X[np.ix_(ar, AC)]
         q = X[i, AC]
         x = X[ar, j]
-        pred, _, _ = _pcr(
+        pred, _, span, sub = _pcr(
             S, q, x, max_rank=max_rank,
             spectral_energy=spectral_energy, universal=universal,
+            diagnostics=return_diagnostics,
         )
         if np.isfinite(pred):
             preds.append(pred)
+            spans.append(span)
+            subs.append(sub)
     if not preds:
+        if return_diagnostics:
+            return np.nan, False, {"span_error": float("nan"),
+                                   "subspace_stat": float("nan")}
         return np.nan, False
-    return float(np.mean(preds)), True
+    value = float(np.mean(preds))
+    if return_diagnostics:
+        # One statistic per synthetic neighbour; the entry's reading is their
+        # mean, matching how the neighbours' predictions are combined.
+        return value, True, {"span_error": float(np.mean(spans)),
+                             "subspace_stat": float(np.mean(subs))}
+    return value, True
 
 
 def snn_donor_weights(
@@ -203,8 +282,8 @@ def snn_donor_weights(
             continue
         ar = AR[g]
         S = X[np.ix_(ar, AC)]
-        _, beta, _ = _pcr(S, q, X[ar, missing_cols[0]], max_rank=max_rank,
-                          spectral_energy=spectral_energy, universal=universal)
+        _, beta, _, _ = _pcr(S, q, X[ar, missing_cols[0]], max_rank=max_rank,
+                             spectral_energy=spectral_energy, universal=universal)
         weights[g] = beta / n_groups   # averaged across neighbour groups
     return AR, weights
 
@@ -219,7 +298,8 @@ def snn_complete(
     min_value: Optional[float] = None,
     max_value: Optional[float] = None,
     random_state: int = 0,
-) -> Tuple[np.ndarray, np.ndarray]:
+    return_diagnostics: bool = False,
+):
     """Complete a matrix with missing entries marked as ``NaN`` via SNN.
 
     Parameters
@@ -239,6 +319,8 @@ def snn_complete(
         Clip imputed values to this range.
     random_state : int
         Seed for the anchor-row splitting.
+    return_diagnostics : bool
+        Also return the two span statistics per imputed entry.
 
     Returns
     -------
@@ -246,19 +328,32 @@ def snn_complete(
         Matrix with missing entries imputed (NaN where infeasible).
     feasible : np.ndarray
         Boolean mask, ``True`` where an imputation was produced.
+    span_error, subspace_stat : np.ndarray
+        Only when ``return_diagnostics`` is set: the linear span and subspace
+        inclusion statistics at each imputed entry, ``NaN`` at observed entries
+        and at entries no anchor cross reached.
     """
     X = np.array(X, dtype=float)
     mask = (~np.isnan(X)).astype(float)
     completed = X.copy()
     feasible = mask.astype(bool).copy()
+    span_error = np.full(X.shape, np.nan)
+    subspace_stat = np.full(X.shape, np.nan)
 
     missing = np.argwhere(mask == 0)
     for i, j in missing:
-        val, ok = snn_predict(
+        out = snn_predict(
             X, mask, int(i), int(j), n_neighbors=n_neighbors,
             max_rank=max_rank, spectral_energy=spectral_energy,
             universal=universal, random_state=random_state,
+            return_diagnostics=return_diagnostics,
         )
+        if return_diagnostics:
+            val, ok, diag = out
+            span_error[i, j] = diag["span_error"]
+            subspace_stat[i, j] = diag["subspace_stat"]
+        else:
+            val, ok = out
         if ok and np.isfinite(val):
             if min_value is not None:
                 val = max(val, min_value)
@@ -268,4 +363,6 @@ def snn_complete(
             feasible[i, j] = True
         else:
             feasible[i, j] = False
+    if return_diagnostics:
+        return completed, feasible, span_error, subspace_stat
     return completed, feasible

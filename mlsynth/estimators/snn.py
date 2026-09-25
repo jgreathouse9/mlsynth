@@ -73,6 +73,8 @@ class SNN:
         self.spectral_energy: float = config.spectral_energy
         self.universal_rank: bool = config.universal_rank
         self.clip: bool = config.clip
+        self.linear_span_eps: float = config.linear_span_eps
+        self.subspace_eps: float = config.subspace_eps
         self.inference: bool = config.inference
         self.alpha: float = config.alpha
         self.random_state: int = config.random_state
@@ -95,6 +97,8 @@ class SNN:
                 spectral_energy=self.spectral_energy,
                 universal=self.universal_rank,
                 clip=self.clip,
+                linear_span_eps=self.linear_span_eps,
+                subspace_eps=self.subspace_eps,
                 inference=self.inference,
                 alpha_level=self.alpha,
                 random_state=self.random_state,

@@ -206,6 +206,63 @@ the rank well-calibrated for this small (39 x 31) low-rank panel; it
 returns an average ATT of about ``-18`` packs/capita, widening to roughly
 ``-29`` by 2000 -- consistent with Abadie, Diamond & Hainmueller (2010).
 
+Checking the span assumptions
+-----------------------------
+
+Assumptions 3 and 7 are conditions on latent factors, so neither can be
+checked directly. Both have an observable counterpart, and the estimator
+reports one for each imputed cell.
+
+The linear span statistic is the normalized error of reconstructing the
+target row from the anchor rows,
+
+.. math::
+
+   \frac{\lVert S^{\top}\widehat\beta - q \rVert^{2}}
+        {\lVert q \rVert^{2}},
+
+for :math:`S` the anchor block and :math:`q` the target row's values on the
+anchor columns. A target unit that is exactly some linear combination of the
+donors scores zero. A large value says the donors cannot reproduce the treated
+unit's pre-period, which is the observable shadow of Assumption 3 failing.
+
+The subspace inclusion statistic is the share of the target column's energy
+lying outside the subspace the weights were fit on,
+
+.. math::
+
+   \frac{\lVert (I - V^{\top}V)\, x \rVert^{2}}{\lVert x \rVert^{2}},
+
+for :math:`V` the retained right singular directions of :math:`S^{\top}` and
+:math:`x` the donors' outcomes in the target period. This is the observable
+shadow of Assumption 7, which is the condition SI states as its Assumption 8:
+weights learned in the pre-period are applied in the post-period, so the
+post-period has to lie in the directions the pre-period spanned. A value that
+grows with the horizon is the estimator saying its extrapolation is reaching.
+
+Both are recorded per cell on the result, with the mask of cells clearing both
+thresholds:
+
+.. code-block:: python
+
+   res.span_error_matrix        # (N, T), NaN off the imputed cells
+   res.subspace_stat_matrix     # (N, T), NaN off the imputed cells
+   res.span_tests_passed        # (N, T) boolean, both tests at or below eps
+   res.method_details.parameters_used   # thresholds, maxima, failure count
+
+Thresholds are ``linear_span_eps`` and ``subspace_eps``, both 0.1 by default,
+following the reference implementation. On the Prop 99 panel above every
+imputed cell clears them: the linear span statistic is 1.3e-4, and the subspace
+statistic runs from 7.9e-4 in 1989 to 1.6e-2 by 2000, rising with the horizon
+as the extrapolation lengthens.
+
+The statistics are reported, not enforced. A cell that fails is still imputed
+and still enters the ATT, and ``feasible`` keeps its own meaning -- an anchor
+cross existed and the value was finite. Gating on the statistics would drop
+cells from the ATT and change every number the estimator returns, so the
+decision is left to the caller; a warning fires when any cell fails, so the
+failure reaches a caller who never reads the matrices.
+
 Verification
 ------------
 

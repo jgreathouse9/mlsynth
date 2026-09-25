@@ -87,6 +87,22 @@ class SNNResults(BaseEstimatorResults):
         post-treatment periods.
     feasible : np.ndarray
         Boolean mask of cells SNN could impute, shape ``(N, T)``.
+    span_error_matrix : np.ndarray
+        Linear span statistic at each imputed cell, ``NaN`` elsewhere, shape
+        ``(N, T)``. The normalized error of reconstructing the treated row's
+        pre-period from the anchor rows -- the empirical counterpart of the
+        paper's Assumption 3 (row span inclusion).
+    subspace_stat_matrix : np.ndarray
+        Subspace inclusion statistic at each imputed cell, ``NaN`` elsewhere,
+        shape ``(N, T)``. The share of the target column's energy outside the
+        subspace the weights were fit on -- the empirical counterpart of
+        Assumption 7 (column span inclusion), which SI states as its
+        Assumption 8.
+    span_tests_passed : np.ndarray
+        Boolean mask, ``True`` where both statistics are at or below their
+        thresholds (``linear_span_eps``, ``subspace_eps``). Diagnostic only:
+        a cell that fails is still imputed and still enters the ATT, so this
+        mask is narrower than ``feasible``, never a filter on it.
     inference_jackknife : SNNInference, optional
         The raw jackknife inference object (``method`` / ``se`` / ``ci``) when
         ``inference=True``; ``None`` otherwise. The standardized
@@ -111,6 +127,9 @@ class SNNResults(BaseEstimatorResults):
     effects_matrix: np.ndarray
     att_by_period: Dict[Any, float]
     feasible: np.ndarray
+    span_error_matrix: np.ndarray
+    subspace_stat_matrix: np.ndarray
+    span_tests_passed: np.ndarray
     inference_jackknife: Optional["SNNInference"] = None
     metadata: Dict[str, Any] = PydField(default_factory=dict)
 

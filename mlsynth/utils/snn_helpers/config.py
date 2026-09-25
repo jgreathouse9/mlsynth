@@ -36,6 +36,14 @@ class SNNConfig(BaseEstimatorConfig):
         Prop 99); set False to use the spectral-energy threshold.
     clip : bool
         Clip imputations to the observed value range.
+    linear_span_eps : float
+        Threshold for the linear span test: an entry passes when the target
+        row's normalized reconstruction error is at or below this. The
+        reference implementation's default is 0.1.
+    subspace_eps : float
+        Threshold for the subspace inclusion test: an entry passes when the
+        share of the target column's energy outside the fitted subspace is at
+        or below this. The reference implementation's default is 0.1.
     inference : bool
         Run a leave-one-control jackknife for the ATT SE / CI.
     alpha : float
@@ -65,6 +73,18 @@ class SNNConfig(BaseEstimatorConfig):
     clip: bool = Field(
         default=True,
         description="Clip imputations to the observed value range.",
+    )
+    linear_span_eps: float = Field(
+        default=0.1, gt=0.0,
+        description="Linear span test threshold on the target row's normalized "
+                    "reconstruction error (Assumption 3's empirical "
+                    "counterpart). Reported, never gated on.",
+    )
+    subspace_eps: float = Field(
+        default=0.1, gt=0.0,
+        description="Subspace inclusion test threshold on the target column's "
+                    "out-of-subspace energy share (Assumption 7's empirical "
+                    "counterpart). Reported, never gated on.",
     )
     inference: bool = Field(
         default=False,

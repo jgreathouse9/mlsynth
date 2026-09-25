@@ -8,11 +8,16 @@ observed minus imputed.
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional
 
 import numpy as np
 
-from ...config_models import InferenceResults, WeightsResults
+from ...config_models import (
+    InferenceResults,
+    MethodDetailsResults,
+    WeightsResults,
+)
 from ..results_helpers import build_effect_submodels
 from .completion import snn_complete, snn_donor_weights
 from .structures import SNNInference, SNNInputs, SNNResults
@@ -68,21 +73,35 @@ def _build_weights(
 def _impute_counterfactual(
     Y: np.ndarray, D: np.ndarray, *, n_neighbors: int, max_rank: Optional[int],
     spectral_energy: float, universal: bool, clip: bool, random_state: int,
+    diagnostics: bool = False,
 ) -> tuple:
-    """Return (counterfactual matrix, feasible mask) with treated cells imputed."""
+    """Return (counterfactual matrix, feasible mask) with treated cells imputed.
+
+    With ``diagnostics``, also returns the two span-statistic matrices. The
+    jackknife leaves it off: it re-imputes once per control unit and never
+    reads the statistics, so paying for the extra decomposition there would
+    multiply the cost by the number of controls for nothing.
+    """
     X = Y.copy()
     treated_cells = D > 0
     X[treated_cells] = np.nan
     lo = float(np.nanmin(X)) if clip else None
     hi = float(np.nanmax(X)) if clip else None
-    completed, feasible = snn_complete(
+    out = snn_complete(
         X, n_neighbors=n_neighbors, max_rank=max_rank,
         spectral_energy=spectral_energy, universal=universal,
         min_value=lo, max_value=hi, random_state=random_state,
+        return_diagnostics=diagnostics,
     )
+    if diagnostics:
+        completed, feasible, span_error, subspace_stat = out
+    else:
+        completed, feasible = out
     # Observed (control / pre) cells keep their observed values.
     completed[~treated_cells] = Y[~treated_cells]
     feasible[~treated_cells] = True
+    if diagnostics:
+        return completed, feasible, span_error, subspace_stat
     return completed, feasible
 
 
@@ -107,6 +126,8 @@ def run_snn(
     spectral_energy: float = 0.95,
     universal: bool = True,
     clip: bool = True,
+    linear_span_eps: float = 0.1,
+    subspace_eps: float = 0.1,
     inference: bool = False,
     alpha_level: float = 0.05,
     random_state: int = 0,
@@ -128,6 +149,10 @@ def run_snn(
         (default True; well-calibrated for small low-rank panels).
     clip : bool
         Clip imputations to the observed value range.
+    linear_span_eps : float
+        Linear span test threshold (Assumption 3's empirical counterpart).
+    subspace_eps : float
+        Subspace inclusion test threshold (Assumption 7's counterpart).
     inference : bool
         If True, run a leave-one-control jackknife for the ATT SE/CI.
     alpha_level : float
@@ -137,11 +162,13 @@ def run_snn(
     """
     Y, D, T0 = inputs.Y, inputs.D, inputs.T0
 
-    counterfactual, feasible = _impute_counterfactual(
+    counterfactual, feasible, span_error, subspace_stat = _impute_counterfactual(
         Y, D, n_neighbors=n_neighbors, max_rank=max_rank,
         spectral_energy=spectral_energy, universal=universal,
-        clip=clip, random_state=random_state,
+        clip=clip, random_state=random_state, diagnostics=True,
     )
+    span_tests_passed = ((span_error <= linear_span_eps)
+                         & (subspace_stat <= subspace_eps))
     att, effects, att_by_period = _att_from_counterfactual(
         Y, D, counterfactual, feasible, T0, inputs.time_labels,
     )
@@ -169,6 +196,23 @@ def run_snn(
         "imputed_cells": int(treated_post.sum()),
         "infeasible_cells": int(((D > 0) & ~feasible).sum()),
     }
+
+    # The two span statistics are the empirical read on Assumptions 3 and 7.
+    # A caller who never looks at the matrices still learns that the anchor
+    # cross failed to explain the target, so the estimate is reported with a
+    # warning attached instead of silently.
+    imputed = treated_post
+    n_failed = int((imputed & ~span_tests_passed).sum())
+    if n_failed:
+        warnings.warn(
+            f"SNN: {n_failed} of {int(imputed.sum())} imputed cells fail the "
+            f"span diagnostics (linear span > {linear_span_eps} or subspace "
+            f"inclusion > {subspace_eps}). The anchor cross does not explain "
+            f"the target there, so those imputations rest on an extrapolation. "
+            f"Inspect result.span_error_matrix and result.subspace_stat_matrix.",
+            UserWarning, stacklevel=2,
+        )
+    metadata["span_test_failures"] = n_failed
     # Cross-treated-unit observed / imputed paths drive the standardized
     # time series (and result.plot()).
     tr = inputs.treated_idx
@@ -183,6 +227,15 @@ def run_snn(
             confidence_level=float(1.0 - inf.alpha_level),
             details={"n_jackknife": int(inf.n_jackknife)},
         )
+    span_summary = {
+        "linear_span_eps": float(linear_span_eps),
+        "subspace_eps": float(subspace_eps),
+        "max_span_error": (float(np.nanmax(span_error[imputed]))
+                           if imputed.any() else float("nan")),
+        "max_subspace_stat": (float(np.nanmax(subspace_stat[imputed]))
+                              if imputed.any() else float("nan")),
+        "n_span_test_failures": n_failed,
+    }
     submodels = build_effect_submodels(
         observed_outcome=observed_path,
         counterfactual_outcome=counterfactual_path,
@@ -196,11 +249,20 @@ def run_snn(
         intervention_time=(inputs.time_labels[T0] if T0 < inputs.T
                            else inputs.time_labels[-1]),
     )
+    # build_effect_submodels fills method_details with the name alone; the span
+    # thresholds and their readings belong there per invariant 7 (a diagnostic
+    # the caller might act on is a typed field, never discarded).
+    submodels["method_details"] = MethodDetailsResults(
+        method_name="SNN", is_recommended=True, parameters_used=span_summary,
+    )
     return SNNResults(
         **submodels,
         inputs=inputs, counterfactual_matrix=counterfactual,
         effects_matrix=effects, att_by_period=att_by_period,
-        feasible=feasible, inference_jackknife=inf, metadata=metadata,
+        feasible=feasible, span_error_matrix=span_error,
+        subspace_stat_matrix=subspace_stat,
+        span_tests_passed=span_tests_passed,
+        inference_jackknife=inf, metadata=metadata,
     )
 
 
