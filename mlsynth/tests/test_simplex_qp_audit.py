@@ -40,7 +40,6 @@ ELIGIBLE = {
     ("solvers/ridge_augment.py", "w"): 1,
     ("dscar_helpers/weights.py", "w"): 1,
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"): 1,
-    ("hsc_helpers/formulation.py", "omega"): 1,
     ("masc_helpers/estimation.py", "w"): 1,
     ("mlsc_helpers/crossval.py", "omega"): 1,
     ("mlsc_helpers/crossval.py", "w"): 1,
@@ -54,8 +53,6 @@ ELIGIBLE = {
 
 # Eligible, on cvxpy, and still to swap: the sites the audit reports as work.
 REMAINING = {
-    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"),
-    ("hsc_helpers/formulation.py", "omega"),
     ("spsydid_helpers/weights.py", "lam"),
     ("spsydid_helpers/weights.py", "omega"),
 }
@@ -110,6 +107,10 @@ KEPT_ON_CVXPY = {
         "the Gram form, whose linear term carries the data fit; no caller",
     ("solvers/ridge_augment.py", "w"):
         "the cvxpy reference the active-set path is checked against",
+    ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"):
+        "the Gram form, with no design to factor and no caller: the live "
+        "LEXSCM control solve goes through fast_scm_control_helpers, and only "
+        "Solution is imported from this module outside its own tests",
     ("masc_helpers/estimation.py", "w"):
         "reached only by naming a non-Clarabel solver; the default is native",
     ("mlsc_helpers/crossval.py", "omega"):
@@ -142,9 +143,6 @@ TRANSFORMS = {
         "the sum-to-one penalty is zero on the feasible set",
     ("fast_scm_helpers/fast_scm_bb_helpers.py", "w"):
         "factor the Gram as R'R and take B = R",
-    ("hsc_helpers/formulation.py", "omega"):
-        "factor the Gram as R'R and take B = R, "
-        "recovering the target from the linear term",
     ("mlsc_helpers/crossval.py", "omega"):
         "augment the design with the penalty's square-root factor",
     ("mlsc_helpers/crossval.py", "w"):
@@ -159,6 +157,7 @@ TRANSFORMS = {
 }
 
 MIGRATED = {
+    ("hsc_helpers/formulation.py", "omega"),
     ("cscm_helpers/engine.py", "W"),
     ("clustersc_helpers/pcr/convex.py", "w"),
     ("clustersc_helpers/spannability.py", "w"),
