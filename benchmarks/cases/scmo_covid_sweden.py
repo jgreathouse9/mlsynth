@@ -55,10 +55,30 @@ What is pinned
   leave-one-unit-out and leave-one-outcome-out -- as the window means their
   radar charts are drawn from. The fifth, single-outcome matching (Figure
   B.12), is not pinned: their script filters constant columns before centering
-  there and after centering everywhere else, and with three or four
-  pre-treatment columns against twenty-five donors the program has many optimal
-  weight vectors, so the two solvers land on different ones without either
-  being wrong.
+  there and after centering everywhere else. It used to have a second reason --
+  with three or four pre-treatment columns against twenty-five donors the
+  program has many optimal weight vectors, and the two solvers landed on
+  different ones without either being wrong -- and that reason is gone. Both
+  sides now select the least-norm minimiser, mlsynth by rule and their script
+  through the ``(10^-7) * diag(J)`` in ``fn_W``. The reference bundle carries
+  ``synth_single_pre_*`` for all twelve outcomes, so pinning it is now a
+  question of the column-filtering order alone, and that is benchmark authoring
+  for its own branch.
+
+Which minimiser, and how much of this case rests on it
+------------------------------------------------------
+Three of the 532 matching problems one pass of ``run`` solves have a face of
+minimisers and not a point, so for those three the weights come from the
+tie-break rule and not from the panel. That count is pinned exactly
+(``n_matching_problems_with_a_face``), because the permutation p-values here
+are ranks over 27 placebos: a rank is 1/27 wide, and a tie broken differently
+could move one. At three in five hundred none of them moves, and the pin is
+what would report a spec change making it more than three.
+
+Every pinned value in this case is identical with the tie-break and without it,
+which is what a vanishing ridge should do where 529 of 532 problems already
+determine their own answer. The case that the rule changes is
+``scmo_germany``'s averaged scheme, where the ATT moved by 875.
 
 Two recorded divergences, both established against the authors' script, not
 inferred:
@@ -300,7 +320,63 @@ def _rel(got: float, ref: float) -> float:
     return abs(got - ref) / max(abs(ref), 1e-9)
 
 
+class _IdentificationTrace:
+    """Counts how many of the case's matching problems have one minimiser.
+
+    The weights come from a simplex least-squares argmin, and an argmin need not
+    be a point. Where it is a face, which point of it comes back is fixed by a
+    rule -- the smallest-norm minimiser, which is what the authors' own ridge
+    selects -- and not by the panel. This counts how much of the case rests on
+    that rule, over every solve one pass of ``run`` performs.
+
+    The count is pinned because the permutation p-values here are ranks over 27
+    placebos, so a rank is 1/27 wide and a tie broken differently could move
+    one. At three problems in five hundred it does not, and the pin is what
+    would report a spec change making it more than three.
+
+    It wraps the solve in place, so it adds a rank check per problem and no
+    second pass over the panels.
+    """
+
+    def __init__(self):
+        self.total = 0
+        self.faces = 0
+        self._real = None
+
+    def __enter__(self):
+        from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+        from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+        import mlsynth.utils.scmo_helpers.estimation as _E
+
+        self._module, self._real = _E, _E.simplex_weights
+
+        def traced(Z_treated, Z_donors):
+            w = self._real(Z_treated, Z_donors)
+            B = np.asarray(Z_donors, dtype=float).T
+            A = np.asarray(Z_treated, dtype=float)
+            self.total += 1
+            try:
+                if not simplex_optimum_is_unique(B, A, solve_simplex_qp(B, A)):
+                    self.faces += 1
+            except Exception:              # pragma: no cover - the oracle is
+                pass                       # advisory; a refusal is not a face
+            return w
+
+        _E.simplex_weights = traced
+        return self
+
+    def __exit__(self, *exc):
+        self._module.simplex_weights = self._real
+        return False
+
+
 def run() -> dict:
+    with _IdentificationTrace() as _ident:
+        res = _run(_ident)
+    return res
+
+
+def _run(_ident) -> dict:
     ref = load_reference(_CASE)
     values, weights = ref["values"], ref["weights"]
     res: dict = {}
@@ -415,6 +491,8 @@ def run() -> dict:
     for variant, errors in variant_error.items():
         res[f"{variant}_max_rel_error_vs_run"] = float(max(errors))
     res["band_max_rel_error_vs_run"] = float(max(band_error))
+    res["n_matching_problems"] = float(_ident.total)
+    res["n_matching_problems_with_a_face"] = float(_ident.faces)
     return res
 
 
@@ -521,6 +599,10 @@ EXPECTED = {
     "w_health_max_error_vs_run": (0.0, 0.01),
     "w_labour_max_error_vs_run": (0.0, 0.01),
     "w_economic_max_error_vs_run": (0.0, 0.01),
+    # How much of the case rests on the tie-break rule (see
+    # ``_identification_counts``). Exact: a change here is a change in what the
+    # panel determines, and the permutation ranks are 1/27 wide.
+    "n_matching_problems_with_a_face": (3.0, 0.0),
     "w_health_shared_across_outcomes": (1.0, 0.0),
     "w_labour_shared_across_outcomes": (1.0, 0.0),
     "w_economic_shared_across_outcomes": (1.0, 0.0),

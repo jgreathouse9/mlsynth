@@ -115,7 +115,8 @@ class FDIDMethodFit:
     att_percent : float
         ATT as a percentage of the post-period counterfactual mean.
     satt : float
-        Standardised ATT (``att / se * sqrt(T1)``).
+        Standardised ATT, ``att / se`` -- standard normal under the null
+        of no effect (Li 2023, Proposition 2.1).
     pre_rmse : float
         Root-mean-squared pre-treatment fit error.
     r_squared : float

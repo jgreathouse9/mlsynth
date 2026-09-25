@@ -51,11 +51,50 @@ def _reference(B, A):
     J = B.shape[1]
     w = cp.Variable(J)
     prob = cp.Problem(cp.Minimize(cp.sum_squares(B @ w - A)), [w >= 0, cp.sum(w) == 1])
-    try:
-        prob.solve()
-    except Exception:
-        return None
-    return None if w.value is None else np.clip(np.asarray(w.value, float).ravel(), 0, None)
+    # cvxpy dispatches to the highest-ranked installed solver, and an installed
+    # solver is not a working one: MOSEK outranks the rest and raises
+    # ``err_missing_license_file`` when it has no licence, which made every
+    # parity check in this file collapse to "oracle unavailable". Ask each
+    # candidate in turn and take the first that returns a point.
+    for _solver in (None, "CLARABEL", "SCS", "ECOS", "OSQP"):
+        if _solver is not None and _solver not in cp.installed_solvers():
+            continue
+        try:
+            prob.solve() if _solver is None else prob.solve(solver=_solver)
+        except Exception:
+            continue
+        if w.value is not None:
+            return np.clip(np.asarray(w.value, float).ravel(), 0, None)
+    return None
+
+def _reference_or_skip(B, A):
+    """The oracle, or a skip saying it was not available.
+
+    ``_reference`` returns ``None`` when cvxpy cannot solve the instance, and
+    the module already treats that as "oracle unavailable, the KKT certificate
+    is authoritative" -- ``assert_no_worse_than_reference`` returns early on it.
+    The call sites that use the reference weights directly did not, so an
+    unavailable oracle arrived at ``B @ None`` and surfaced as
+
+        ValueError: matmul: Input operand 1 does not have enough dimensions
+
+    which names neither the solver nor the contract. A skip does, and a skipped
+    test is visibly not run where a silent early return is indistinguishable
+    from a check that passed.
+
+    Unavailability is not hypothetical. cvxpy dispatches to the highest-ranked
+    installed solver, so installing MOSEK without a licence makes every
+    unqualified ``prob.solve()`` raise, and these parity checks are the only
+    part of the suite that notices.
+    """
+    w = _reference(B, A)
+    if w is None:
+        pytest.skip(
+            "the cvxpy oracle could not solve this instance, so parity with it "
+            "cannot be checked; the KKT certificate above is the authoritative "
+            "optimality proof"
+        )
+    return w
 
 
 def assert_feasible(w, J, tol=1e-7):
@@ -142,7 +181,7 @@ def test_fista_warm_start_feasible_and_deterministic():
 
 def test_fista_warm_start_near_optimal():
     A, B = _factor_panel(120, 240)
-    ref = _reference(B, A)
+    ref = _reference_or_skip(B, A)
     o_star = _obj(B, A, ref)
     o_fista = _obj(B, A, fista_warm_start(B, A))
     # coarse but close: the exact polish closes the rest
@@ -157,7 +196,7 @@ def test_simplex_qp_large_is_kkt_optimal(J, T0):
     A, B = _factor_panel(J, T0)
     w = simplex_qp(B, A)
     assert_kkt_optimal(B, A, w)
-    ref = _reference(B, A)
+    ref = _reference_or_skip(B, A)
     if ref is not None:
         assert _obj(B, A, w) <= _obj(B, A, ref) + 1e-6 * (1 + abs(_obj(B, A, ref)))
 
