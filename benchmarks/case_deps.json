@@ -787,6 +787,13 @@
   "mlsynth/utils/fma_helpers/simulation.py",
   "mlsynth/utils/fma_helpers/structures.py"
  ],
+ "fma_percentile_t_mc": [
+  "mlsynth/utils/fma_helpers/bai_ng.py",
+  "mlsynth/utils/fma_helpers/factors.py",
+  "mlsynth/utils/fma_helpers/fit.py",
+  "mlsynth/utils/fma_helpers/inference.py",
+  "mlsynth/utils/fma_helpers/simulation.py"
+ ],
  "fsc_estimator": [
   "basedata/okano_fsc_fertility.csv",
   "basedata/okano_fsc_mortality.csv",

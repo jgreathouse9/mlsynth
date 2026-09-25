@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 225 registered cases. ``paths`` is what the case
+All 226 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
 * ``A`` -- empirical replication (75 cases)
-* ``B`` -- Monte Carlo / simulation (62 cases)
+* ``B`` -- Monte Carlo / simulation (63 cases)
 * ``C`` -- theoretical property or design calibration (12 cases)
 * ``X`` -- cross-validation against a reference implementation (105 cases)
 
-By data: 77 simulated, 133 empirical, 15 both -- so 92 cases fit at least one generated panel.
+By data: 78 simulated, 133 empirical, 15 both -- so 93 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -272,6 +272,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - B
      - simulated
    * - ``fma_coverage_mc``
+     - B
+     - simulated
+   * - ``fma_percentile_t_mc``
      - B
      - simulated
    * - ``fsc_estimator``
@@ -934,6 +937,8 @@ Path B — Monte Carlo / simulation
      - simulation
    * - ``fma_coverage_mc``
      - FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+   * - ``fma_percentile_t_mc``
+     - FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang Tables 1-2)
    * - ``hsc_mc``
      - HSC regime adaptation
    * - ``lexscm_design_mc``

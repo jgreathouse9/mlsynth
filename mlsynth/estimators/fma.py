@@ -58,6 +58,7 @@ from ..utils.fma_helpers.fit import estimate_loading_and_counterfactual
 from ..utils.fma_helpers.inference import (
     asymptotic_inference,
     bootstrap_inference,
+    percentile_t_inference,
     placebo_inference,
 )
 from ..utils.fma_helpers.plotter import plot_fma
@@ -173,11 +174,15 @@ class FMA:
 
             labels = np.asarray(inputs.time_labels)
             T0, T = inputs.T0, inputs.T
+            # Theorem 3.1 when it ran, else the percentile-t interval: both
+            # are intervals for the post-period average, so either fills the
+            # standardized slot. See FMAInference.primary_att_interval.
+            se_p, lo_p, hi_p, pv_p = inference.primary_att_interval()
             std_inference = InferenceResults(
-                standard_error=None if np.isnan(inference.asymptotic_att_se) else float(inference.asymptotic_att_se),
-                ci_lower=None if np.isnan(inference.asymptotic_att_lower) else float(inference.asymptotic_att_lower),
-                ci_upper=None if np.isnan(inference.asymptotic_att_upper) else float(inference.asymptotic_att_upper),
-                p_value=None if np.isnan(inference.asymptotic_att_p_value) else float(inference.asymptotic_att_p_value),
+                standard_error=None if np.isnan(se_p) else float(se_p),
+                ci_lower=None if np.isnan(lo_p) else float(lo_p),
+                ci_upper=None if np.isnan(hi_p) else float(hi_p),
+                p_value=None if np.isnan(pv_p) else float(pv_p),
                 method=inference.method,
                 details=inference,
             )
@@ -192,7 +197,7 @@ class FMA:
                 },
                 effects=EffectsResults(
                     att=None if np.isnan(att) else float(att),
-                    att_std_err=None if np.isnan(inference.asymptotic_att_se) else float(inference.asymptotic_att_se),
+                    att_std_err=None if np.isnan(se_p) else float(se_p),
                 ),
                 time_series=TimeSeriesResults(
                     observed_outcome=np.asarray(inputs.treated_outcome, dtype=float),
@@ -263,7 +268,6 @@ class FMA:
                 treated_outcome=inputs.treated_outcome,
                 counterfactual=counterfactual,
                 factors_with_const=F_aug,
-                residual_variance=resid_var,
                 T0=inputs.T0,
                 alpha=self.alpha,
             )
@@ -289,6 +293,26 @@ class FMA:
                 bootstrap_att_t_upper=boot["upper"],
                 bootstrap_replicates=boot["replicates"],
                 bootstrap_n_replicates=boot["n_replicates"],
+            )
+
+        if "percentile_t" in self.inference_methods:
+            pt = percentile_t_inference(
+                treated_outcome=inputs.treated_outcome,
+                counterfactual=counterfactual,
+                factors_with_const=F_aug,
+                T0=inputs.T0,
+                alpha=self.alpha,
+                n_replicates=self.n_bootstrap,
+                seed=self.bootstrap_seed,
+            )
+            kwargs.update(
+                percentile_t_att_se=pt["se_att"],
+                percentile_t_att_lower=pt["lower"],
+                percentile_t_att_upper=pt["upper"],
+                percentile_t_att_p_value=pt["p_value"],
+                percentile_t_omega=pt["omega"],
+                percentile_t_statistics=pt["statistics"],
+                percentile_t_n_replicates=pt["n_replicates"],
             )
 
         if "placebo" in self.inference_methods:
