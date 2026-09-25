@@ -52,6 +52,24 @@ def _install_check_array_shim() -> None:
     sku.check_array = check_array
 
 
+def _install_networkx_shim() -> None:
+    """Restore ``nx.from_numpy_matrix``, removed in networkx 3.0.
+
+    ``snn.py``'s anchor search builds an adjacency matrix and calls
+    ``nx.from_numpy_matrix``; networkx renamed it to ``from_numpy_array`` in
+    2.6 and deleted the old name in 3.0. Without the alias the biclique branch
+    dies with ``AttributeError`` on any modern install, and only the fast path
+    (an already-complete submatrix, i.e. block missingness) runs -- so a
+    benchmark on scattered missingness would have nothing to compare against.
+    The two functions have the same signature and semantics for the dense
+    0/1 matrix ``snn.py`` passes. Idempotent.
+    """
+    import networkx as nx
+
+    if not hasattr(nx, "from_numpy_matrix"):
+        nx.from_numpy_matrix = nx.from_numpy_array
+
+
 def _ensure_clone() -> Path:
     """Fetch (or reuse) the reference repo pinned at ``_COMMIT``. Returns its path."""
     marker = _CACHE / "snn.py"
@@ -74,11 +92,16 @@ def import_syntheticnn() -> ModuleType:
         sys.path.insert(0, str(path))
     try:
         _install_check_array_shim()
+        _install_networkx_shim()
         snn = importlib.import_module("snn")          # needs networkx, sklearn
         # snn.py did ``from sklearn.utils import check_array`` -- patch the
         # name it bound directly, too.
         import sklearn.utils as sku
         snn.check_array = sku.check_array
+        # snn.py holds its own reference to the networkx module; patch the
+        # attribute there too so the alias is visible from inside _find_anchors.
+        _install_networkx_shim()
+        snn.nx = importlib.import_module("networkx")
     except ImportError as exc:  # pragma: no cover - e.g. networkx missing
         raise BenchmarkSkipped(
             f"reference syntheticNN import failed ({exc}); "
