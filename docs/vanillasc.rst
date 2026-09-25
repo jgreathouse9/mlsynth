@@ -489,7 +489,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     The p-value is a rank, so the refits have to come back where they were and
     not merely optimal. Two exact solvers can differ on a refit whose minimiser
     is a face -- the same fit, other weights -- so each is checked with
-    :func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` and any that
+    :func:`mlsynth.utils.solvers.minnorm.simplex_optimum_is_unique` and any that
     is not settled is re-solved with the solver the loop used. Refits that are
     not a plain simplex fit keep the loop: covariate matching, and the ridge
     layer of Augmented SCM.
@@ -519,7 +519,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     poor-fit bias. The bands are returned in
     ``res.inference.details["counterfactual_lower" / "counterfactual_upper"]``
     (shaded on the plot) alongside the joint ``["joint_p_value"]`` --
-    :func:`mlsynth.utils.bilevel.ridge_inference.conformal_intervals`.
+    :func:`mlsynth.utils.conformal.ridge_inference.conformal_intervals`.
 
     Which control is refit under the null follows the estimator, and is reported
     in ``res.inference.details["refit"]``. A plain synthetic control is refit as
@@ -632,7 +632,7 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     errors and predictions agree to 1e-7 and the assembled bounds to 4e-9, with
     the conservative branch looser at 1e-7 because its min/max deliberately
     select the most extreme refit. See :doc:`replications/ascm_jackknife_plus`
-    and :func:`mlsynth.utils.bilevel.jackknife_plus.jackknife_plus`.
+    and :func:`mlsynth.utils.jackknife_plus.jackknife_plus`.
 
 ``"conformal_split"`` -- split-conformal band (Chernozhukov, Wüthrich & Zhu 2021)
     The simpler *split*-conformal construction: a single constant half-width
@@ -1953,11 +1953,11 @@ that closes the residual pre-treatment imbalance the simplex cannot,
 at the cost of leaving the simplex (the augmented weights may go negative and
 need not sum to one). Because any base :math:`\mathbf{w}` can be augmented, the
 capability lives in the bilevel engine
-(:func:`mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`) and rides
+(:func:`mlsynth.utils.solvers.ridge_augment.ridge_augment_weights`) and rides
 along wherever the solver goes. The penalty :math:`\lambda` is chosen by
 leave-one-period-out cross-validation (augsynth's 1-SE rule); inference is by
 the conformal permutation test of Chernozhukov, Wüthrich & Zhu (2021)
-(:func:`mlsynth.utils.bilevel.ridge_inference.conformal_pvalue`).
+(:func:`mlsynth.utils.conformal.ridge_inference.conformal_pvalue`).
 
 When to prefer augmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

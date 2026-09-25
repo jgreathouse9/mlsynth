@@ -240,7 +240,7 @@ out-of-sample reference pool below is affordable on, since that pool solves the
 program once per historical block.
 
 A projected-gradient solve over the simplex, as
-:func:`mlsynth.utils.bilevel.simplex.simplex_lstsq` does for the ordinary
+:func:`mlsynth.utils.solvers.simplex.simplex_lstsq` does for the ordinary
 synthetic control, is faster still per iteration but does not converge as
 tightly here: at its defaults it leaves the objective 0.7% high and moves the
 post-window counterfactual by 0.014, so it is not used. With the penalty
