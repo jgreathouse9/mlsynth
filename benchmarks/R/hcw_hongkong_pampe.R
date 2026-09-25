@@ -22,12 +22,31 @@ suppressWarnings(suppressMessages({
   have_leaps <- requireNamespace("leaps", quietly = TRUE)
 }))
 
-cands <- c("China", "Indonesia", "Japan", "Korea", "Malaysia",
-           "Philippines", "Singapore", "Taiwan", "Thailand", "United States")
-T0 <- 18          # pre-period length (1993:Q1-1997:Q2), HCW Table XVI window
+# Two events live in this panel and HCW study both. The defaults are the
+# change of sovereignty (Tables XVI-XVII): 1993:Q1-1997:Q2 estimation, the ten
+# regional candidates HCW restrict to because "there are only 18 observations".
+# --event cepa switches to the 2004:Q1 CEPA implementation, where HCW say
+# "since we now have more degrees of freedom, we can use the model selection
+# strategy discussed in Section 5" and let AICc choose from every country.
+argflag <- function(flag, default) {
+  i <- match(flag, args)
+  if (is.na(i) || i == length(args)) default else args[i + 1]
+}
+event <- argflag("--event", "sovereignty")
 
 d <- read.csv(data_path, stringsAsFactors = FALSE)
-d <- d[d$Country %in% c("Hong Kong", cands) & d$Time <= 43, ]
+if (event == "cepa") {
+  T0 <- 44        # 1993:Q1-2003:Q4; CEPA starts 2004:Q1 (Time 44)
+  cands <- sort(setdiff(unique(d$Country), "Hong Kong"))
+} else if (event == "sovereignty") {
+  T0 <- 18        # pre-period length (1993:Q1-1997:Q2), HCW Table XVI window
+  cands <- c("China", "Indonesia", "Japan", "Korea", "Malaysia",
+             "Philippines", "Singapore", "Taiwan", "Thailand", "United States")
+  d <- d[d$Time <= 43, ]
+} else {
+  stop("--event must be sovereignty or cepa")
+}
+d <- d[d$Country %in% c("Hong Kong", cands), ]
 
 # Wide matrix: rows = Time (sorted), cols = country.
 wide <- reshape(d[, c("Time", "Country", "GDP")],
@@ -99,3 +118,13 @@ cat(sprintf("intercept=%.4f\n", coefs[["(Intercept)"]]))
 for (i in seq_along(sel))
   cat(sprintf("weight_%s=%.4f\n", gsub(" ", "_", sel[i]), coefs[[safe[i]]]))
 cat(sprintf("att_pct=%.4f\n", att * 100))
+
+# HCW report "a standard error of 0.016" and "t-statistic 2.5134" for CEPA.
+# That standard error is the standard deviation of the per-period effects, not
+# the standard error of their mean: their t divides the average effect by
+# sd(effect), which is sqrt(T2) times more conservative than dividing by
+# sd(effect)/sqrt(T2). Both are emitted so a reader can see which is which.
+eff <- (y_all - yhat_all)[(T0 + 1):length(y_all)]
+cat(sprintf("sd_effect=%.6f\n", sd(eff)))
+cat(sprintf("t_hcw=%.4f\n", att / sd(eff)))
+cat(sprintf("se_mean=%.6f\n", sd(eff) / sqrt(length(eff))))

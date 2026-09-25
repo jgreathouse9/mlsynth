@@ -1557,6 +1557,21 @@
   "mlsynth/utils/pda_helpers/l2/batch.py",
   "mlsynth/utils/pda_helpers/multitreat.py"
  ],
+ "pda_hcw_cepa": [
+  "basedata/HongKong.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/pda.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/pda_helpers/config.py",
+  "mlsynth/utils/pda_helpers/hcw/estimation.py",
+  "mlsynth/utils/pda_helpers/hcw/inference.py",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/orchestration.py",
+  "mlsynth/utils/pda_helpers/results_assembly.py",
+  "mlsynth/utils/pda_helpers/setup.py",
+  "mlsynth/utils/pda_helpers/structures.py"
+ ],
  "pda_hcw_hongkong": [
   "basedata/HongKong.csv",
   "mlsynth/config_models.py",
