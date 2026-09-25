@@ -184,6 +184,66 @@ class DerivationCounter:
         return self.scans[0]
 
 
+class DuplicateCheckCounter:
+    """Counts ``np.bincount`` calls -- the duplicate-key verdict.
+
+    ``has_duplicate`` counts the cell index to rule out a repeated
+    ``(unit, time)`` pair, and holds the answer. The count is over the whole
+    grid, which is the one derivation whose cost grows with the panel's
+    sparsity and not its length, so paying it twice is the most expensive way
+    to recompute something already known.
+
+    ``DerivationCounter`` cannot see this one. It watches the three memo slots
+    the scan exposes, and the duplicate verdict is not among them, so a
+    verdict recounted on every read leaves those counts at one.
+
+    Counting ``np.bincount`` across the process does not work, and it fails
+    differently per environment. ``monkeypatch.setattr(np, "bincount", ...)``
+    rebinds the attribute on the numpy module object, and every importer
+    shares that object -- so the count picks up pandas' own calls as well as
+    this one.
+    ``DU.np`` is that same object, so patching it too changes nothing. The
+    count then reads 1 or 9 depending on which internals the installed pandas
+    happens to route through ``bincount``, which is how this passed on 3.12
+    and 3.13 and failed on 3.10 at 5 and 9.
+
+    The memo slot is no good either, for a different reason. ``_has_duplicate``
+    holds a bool, and ``False is False``, so the identity comparison
+    ``DerivationCounter`` uses to tell a rebuild from a held value -- sound for
+    the arrays it watches -- cannot see a verdict recomputed to the same
+    answer. That is the whole defect this is meant to catch.
+
+    So the trace is scoped to the property's own execution: ``np.bincount`` is
+    counted only while a ``has_duplicate`` call is on the stack. Calls pandas
+    makes elsewhere in ``dataprep`` are outside that window and do not count,
+    and a verdict recomputed on every read runs the body again and does.
+    """
+
+    def __init__(self, monkeypatch):
+        self.calls = 0
+        self._depth = 0
+        outer = self
+        real = np.bincount
+        base = DU.PanelKeys
+
+        def traced(*args, **kwargs):
+            if outer._depth > 0:
+                outer.calls += 1
+            return real(*args, **kwargs)
+
+        class Traced(base):
+            @property
+            def has_duplicate(self):
+                outer._depth += 1
+                try:
+                    return base.has_duplicate.fget(self)
+                finally:
+                    outer._depth -= 1
+
+        monkeypatch.setattr(np, "bincount", traced)
+        monkeypatch.setattr(DU, "PanelKeys", Traced)
+
+
 # =========================================================================== #
 # work assertions -- these start red
 # =========================================================================== #
@@ -295,6 +355,20 @@ class TestDerivationCount:
         dataprep(make_panel(covariates=names), *ARGS, covariates=names)
         keys = counter.only
         assert keys.builds == {"cell": 1, "unit_order": 1, "time_order": 1}
+
+    def test_the_duplicate_check_runs_once_per_panel(self, monkeypatch):
+        """The grid count is held like the rest, and nothing else sees it."""
+        df = make_panel()
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS)
+        assert counter.calls == 1, (
+            f"the grid is counted once per panel: {counter.calls} counts")
+
+    def test_covariates_do_not_recount_the_grid(self, monkeypatch):
+        df = make_panel(covariates=["x1", "x2"])
+        counter = DuplicateCheckCounter(monkeypatch)
+        dataprep(df, *ARGS, covariates=["x1", "x2"])
+        assert counter.calls == 1
 
     def test_a_second_read_is_the_first_answer(self):
         """Stated on the object, without a ``dataprep`` around it: a derived
