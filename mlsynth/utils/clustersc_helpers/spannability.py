@@ -26,10 +26,10 @@ from __future__ import annotations
 import warnings
 from typing import NamedTuple, Sequence
 
-import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthDataError, MlsynthEstimationError
+from ..bilevel.active_set import solve_simplex_qp
 
 #: Ratio above which the cluster is reported as having cost real reachability.
 #: Germany scores 8.6 and Prop 99 scores 2.2; Basque scores 1.00.
@@ -59,24 +59,15 @@ def _best_convex_fit(donors: np.ndarray, target: np.ndarray, scale: float):
     to a common factor, so dividing it out changes the answer only by removing
     that failure.
     """
-    n_periods, n_donors = donors.shape
+    n_periods = donors.shape[0]
     donors_u = donors / scale
     target_u = target / scale
-    w = cp.Variable(n_donors)
-    problem = cp.Problem(
-        cp.Minimize(cp.sum_squares(target_u - donors_u @ w)),
-        [w >= 0, cp.sum(w) == 1],
-    )
     try:
-        problem.solve(solver=cp.CLARABEL)
-    except cp.error.SolverError as exc:  # pragma: no cover - solver-install dependent
+        weights = solve_simplex_qp(donors_u, target_u)
+    except Exception as exc:  # pragma: no cover - the active set returns or raises
         raise MlsynthEstimationError(f"Spannability solve failed: {exc}") from exc
-    if w.value is None:  # pragma: no cover - CLARABEL returns a point or raises
-        raise MlsynthEstimationError(
-            f"Spannability solve did not converge (status: {problem.status})."
-        )
-    weights = np.asarray(w.value, dtype=float)
-    rmse = float(np.sqrt(max(float(problem.value), 0.0) / n_periods)) * scale
+    residual = target_u - donors_u @ weights
+    rmse = float(np.sqrt(float(residual @ residual) / n_periods)) * scale
     return weights, rmse
 
 

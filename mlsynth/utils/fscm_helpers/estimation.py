@@ -21,8 +21,11 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
 
+import warnings
+
 import numpy as np
 
+from ...exceptions import MlsynthEstimationError
 from ...config_models import (
     EffectsResults,
     FitDiagnosticsResults,
@@ -30,7 +33,9 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
-from ..bilevel import BilevelProblem, lower_level_weights, simplex_lstsq, solve_bilevel
+from ..bilevel import BilevelProblem, lower_level_weights, solve_bilevel
+from ..bilevel.active_set import solve_simplex_qp
+from ..weights import solve_weights
 from .structures import FSCMInputs, FSCMResults, FSCMSelectionPath
 
 _EPS = 1e-12
@@ -82,7 +87,9 @@ def _fit_weights(
 
     Predictor mode solves the bilevel lower-level problem for the fixed global
     ``V`` over the full pre-period; trajectory mode matches the outcome over
-    ``fit_slice``. Both use the self-contained FISTA simplex solver.
+    ``fit_slice``. Both reach the exact simplex minimiser: the predictor path
+    through ``simplex_qp`` in :mod:`..bilevel.stages`, this one through
+    :func:`~mlsynth.utils.weights.solve_weights`.
     """
     if Pt is not None:
         subprob = BilevelProblem(
@@ -91,7 +98,97 @@ def _fit_weights(
             X1=Pt, X0=Pd[:, idx],
         )
         return lower_level_weights(subprob, v, _LOWER_EPS)
-    return simplex_lstsq(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice])
+    return np.asarray(
+        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,
+        dtype=float,
+    )
+
+
+def scan_candidates(
+    X_pre: np.ndarray,
+    y_pre: np.ndarray,
+    selected: List[int],
+    candidates: List[int],
+    *,
+    warm: Optional[np.ndarray] = None,
+    certify: bool = False,
+):
+    """Score every candidate donor and return the best.
+
+    Each candidate is solved exactly by the active-set QP, not by the
+    FISTA primitive. Two reasons, and the second is the one that matters.
+
+    Accuracy. FISTA exhausts its iteration budget on these designs and returns
+    an optimum that is slightly too high, by up to 9.3e-05 in RMSPE on Prop 99.
+    Once a fit saturates there is no true improvement left to mask that error,
+    and the reported path rises -- which cannot happen to the real optimum,
+    since the ``k``-donor simplex is the face of the ``(k+1)``-donor simplex
+    where the new weight is zero.
+
+    Speed. A forward scan is a chain of neighbouring problems, so each
+    candidate starts from the incumbent weights padded with a zero for the new
+    donor, which is feasible by construction. That is the warm-start pattern
+    the active set collapses on, and it makes the exact solve faster than the
+    approximate one it replaces.
+
+    The RMSPE is formed from the residual directly. Expanding it in Gram space
+    as ``y'y - 2 w'A'y + w'A'A w`` cancels catastrophically once the fit is
+    close, which is exactly the regime the scan ends in.
+
+    ``certify`` re-solves the winning set through
+    :func:`~mlsynth.utils.weights.solve_weights` and appends the resulting
+    :class:`WeightSolution` to the return, carrying the optimality certificate,
+    the uniqueness verdict and the identification check. The weights are the
+    same either way; only the diagnostics are added.
+
+    It is off by default because the layer costs a fixed 0.2 ms per call for the
+    certificate and the face null space, which is 6.1x the primitive at two
+    donors and 1.0x at thirty-eight. A losing candidate needs a score and
+    nothing else, so paying that per candidate would add roughly 0.15 s to a
+    0.57 s Proposition 99 fit for diagnostics nothing reads. Paying it for the
+    winner is ``J`` calls against ``J^2/2``.
+    """
+    if not candidates:
+        raise MlsynthEstimationError("scan_candidates got no candidate donors.")
+    clash = sorted(set(selected) & set(candidates))
+    if clash:
+        raise MlsynthEstimationError(
+            f"candidate donors {clash} are already selected."
+        )
+    start = None if warm is None else np.concatenate([np.asarray(warm, float), [0.0]])
+    best_j, best_r, best_w = None, np.inf, None
+    for j in candidates:
+        idx = list(selected) + [j]
+        w = np.asarray(solve_simplex_qp(X_pre[:, idx], y_pre, warm_start=start),
+                       dtype=float)
+        r = float(np.sqrt(np.mean((y_pre - X_pre[:, idx] @ w) ** 2)))
+        if r < best_r:
+            best_j, best_r, best_w = j, r, w
+    if certify:
+        return best_j, best_r, best_w, solve_weights(
+            X_pre[:, list(selected) + [best_j]], y_pre)
+    return best_j, best_r, best_w
+
+
+def rolling_origin_rmspe_exact(
+    Y: np.ndarray, y: np.ndarray, idx: List[int], origins: np.ndarray
+) -> float:
+    """Expanding-window one-step-ahead RMSPE, solved exactly.
+
+    The windows are nested, so each origin's solution seeds the next -- the
+    same warm-start chain the scan uses, on the other axis.
+    """
+    origins = np.asarray(origins, dtype=int)
+    if origins.size == 0:
+        raise MlsynthEstimationError(
+            "rolling_origin_rmspe_exact got no origins."
+        )
+    errs, w = [], None
+    for t in origins:
+        w = np.asarray(solve_simplex_qp(Y[:t][:, idx], y[:t], warm_start=w),
+                       dtype=float)
+        errs.append((y[t] - Y[t, idx] @ w) ** 2)
+    return float(np.sqrt(np.mean(errs)))
 
 
 def _outcome_rmspe(
@@ -121,11 +218,7 @@ def _rolling_origin_rmspe(
         w = _fit_weights(inputs, idx, slice(0, inputs.T0), Pt=Pt, Pd=Pd, v=v)
         errs = [(inputs.y[t] - inputs.Y[t, idx] @ w) ** 2 for t in origins]
         return float(np.sqrt(np.mean(errs)))
-    errs = []
-    for t in origins:
-        w = simplex_lstsq(inputs.Y[:t][:, idx], inputs.y[:t])
-        errs.append((inputs.y[t] - inputs.Y[t, idx] @ w) ** 2)
-    return float(np.sqrt(np.mean(errs)))
+    return rolling_origin_rmspe_exact(inputs.Y, inputs.y, idx, origins)
 
 
 # --------------------------------------------------------------------------- #
@@ -145,15 +238,40 @@ def _forward_select(
     order: List[Any] = []
     train_rmspe: List[float] = []
     test_rmspe: List[float] = []
+    saturated_at: Optional[int] = None
+
+    Xp = yp = warm = None
+    if Pt is None:
+        Xp, yp = inputs.Y[:inputs.T0], inputs.y[:inputs.T0]
 
     for _ in range(cap):
-        best_j, best_score, best_idx_list = None, np.inf, None
-        for j in remaining:
-            cand = selected + [j]
-            w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
-            score = _outcome_rmspe(inputs, cand, w, full_pre)
-            if score < best_score:
-                best_j, best_score, best_idx_list = j, score, cand
+        if Pt is None:
+            # A forward scan is a chain of neighbouring problems: each candidate
+            # starts from the incumbent padded with a zero for the new donor,
+            # which is feasible by construction.
+            best_j, best_score, warm = scan_candidates(
+                Xp, yp, selected, remaining, warm=warm)
+            best_idx_list = selected + [best_j]
+        else:
+            best_j, best_score, best_idx_list = None, np.inf, None
+            for j in remaining:
+                cand = selected + [j]
+                w = _fit_weights(inputs, cand, full_pre, Pt=Pt, Pd=Pd, v=v)
+                score = _outcome_rmspe(inputs, cand, w, full_pre)
+                if score < best_score:
+                    best_j, best_score, best_idx_list = j, score, cand
+        # Stop before recording a step that buys nothing in sample. Every
+        # remaining candidate then scores identically and puts zero on the donor
+        # it adds, so they are one model under many labels and the pick among
+        # them is evaluation order. The out-of-sample score does not follow: the
+        # rolling CV refits on shorter windows where the donor is not rejected,
+        # so it keeps moving. That is the reason to stop and not to continue --
+        # those numbers vary with the tie-break and not with the panel, and
+        # optimal_size is their argmin.
+        if train_rmspe and train_rmspe[-1] - best_score <= 1e-12:
+            saturated_at = len(train_rmspe)
+            break
+
         selected.append(best_j)
         remaining.remove(best_j)
         order.append(inputs.donor_labels[best_j])
@@ -164,12 +282,24 @@ def _forward_select(
 
     test_arr = np.asarray(test_rmspe)
     optimal_size = int(np.argmin(test_arr)) + 1
+    if saturated_at is not None and optimal_size >= saturated_at:
+        warnings.warn(
+            f"FSCM: the donor count was chosen at the point the scan saturated "
+            f"(size {optimal_size} of {saturated_at} kept). The in-sample score "
+            f"stops improving there, so the donors after it were picked from a "
+            f"set that scores identically and the cross-validation numbers at "
+            f"this size depend on which of them was reached first. Treat the "
+            f"count as a lower bound and check the selection path.",
+            UserWarning,
+            stacklevel=3,
+        )
     path = FSCMSelectionPath(
-        sizes=np.arange(1, cap + 1),
+        sizes=np.arange(1, len(train_rmspe) + 1),
         order=order,
         train_rmspe=np.asarray(train_rmspe),
         test_rmspe=test_arr,
         optimal_size=optimal_size,
+        saturated_at=saturated_at,
     )
     return selected[:optimal_size], path
 
@@ -257,7 +387,7 @@ def run_fscm(
     metadata = {
         "forward_selection": forward_selection,
         "matching_mode": "predictor" if inputs.has_predictors else "trajectory",
-        "solver": "bilevel" if inputs.has_predictors else "simplex_lstsq",
+        "solver": "bilevel" if inputs.has_predictors else "simplex:active-set",
         "covariates": list(inputs.covariate_names),
         "match_periods": list(inputs.match_periods),
     }

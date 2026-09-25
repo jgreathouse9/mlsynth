@@ -1108,11 +1108,20 @@ class TestSCBackend:
 
     @pytest.mark.parametrize("backend", ["simplex", "outcome-only"])
     def test_outcome_only_backends_agree_closely(self, backend):
-        """Both fit the same objective, so they must land in the same place."""
+        """Both fit the same objective, so they land in the same place.
+
+        The tolerance used to be 0.35, and it was covering a real
+        disagreement: the two backends completed a warp that runs past the
+        panel end differently, and they came within 0.35 of each other only
+        because a solver left four excluded donors at ~1e-9 instead of 0.
+        Both carry the last observed value forward now, so the two are equal
+        and the tolerance says so. The ladder is in
+        ``test_dtwsc_warp_tail.py``.
+        """
         df = make_panel(seed=60)
         a = DTWSC(base_config(df, sc_backend="simplex")).fit()
         b = DTWSC(base_config(df, sc_backend=backend)).fit()
-        assert b.att == pytest.approx(a.att, abs=0.35)
+        assert b.att == pytest.approx(a.att, abs=1e-9)
 
     def test_predictor_backend_changes_the_weights(self):
         """With covariates the V-matrix backend must not reduce to simplex."""

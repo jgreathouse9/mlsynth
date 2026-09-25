@@ -43,6 +43,7 @@ CASES = {
     "clustersc_subgroups": "benchmarks.cases.clustersc_subgroups",      # Path B: ClusterSC vs RSC
     "clustersc_subgroups_ref": "benchmarks.cases.clustersc_subgroups_ref",  # cross-val vs authors' repo
     "clustersc_rpca_germany": "benchmarks.cases.clustersc_rpca_germany",  # cross-val vs Bayani's RPCA-SC code (West Germany reunification, value-for-value)
+    "fgrc_denoise_behavior": "benchmarks.cases.fgrc_denoise_behavior",  # Path C: what rpca_method="FGRC" does to the donor matrix on Basque/Germany/Prop99 -- fgrc_keep="cluster" strips the between-donor spread and collapses the fit onto one donor on all three; records that FGRC does not beat cv-PCP on pre-fit anywhere
     "fgrc_grc_crossval": "benchmarks.cases.fgrc_grc_crossval",  # cross-val vs Yamamoto's own R grc package: the GRC objective value-for-value on the reference's own solution (2e-15), and the port's ALS never worse from the same start
     "fgrc_toy_subspace": "benchmarks.cases.fgrc_toy_subspace",  # Path B: fGRC subspace separation recovers cluster structure invisible to k-means (Yamamoto-Hwang GRC.Rd toy example)
     "cast_aca": "benchmarks.cases.cast_aca",  # Path A + cross-val vs authors' CAST-panel (Xia-Yan-Wainwright 2025): ACA Medicaid expansion, entrywise point estimates value-for-value + Table 1; skips without the package/data
@@ -358,6 +359,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "ferman_demeaned_basque":         ("AX", "empirical"),
     "ferman_manyperiods":             ("B", "simulated"),
     "ferman_pinto_mc":                ("BX", "simulated"),
+    "fgrc_denoise_behavior":          ("C", "empirical"),
     "fgrc_grc_crossval":              ("X", "simulated"),
     "fgrc_toy_subspace":              ("B", "simulated"),
     "fma_coverage_mc":                ("B", "simulated"),
