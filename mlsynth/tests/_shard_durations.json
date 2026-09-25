@@ -119,6 +119,7 @@
     "mlsynth/tests/test_fista_support_patience.py": 0.6,
     "mlsynth/tests/test_fma.py": 0.69,
     "mlsynth/tests/test_fma_bai_ng.py": 0.0,
+    "mlsynth/tests/test_fma_percentile_t.py": 0.76,
     "mlsynth/tests/test_fma_plotter.py": 0.87,
     "mlsynth/tests/test_fma_simulation.py": 0.0,
     "mlsynth/tests/test_frozen_weights.py": 14.57,
