@@ -1,0 +1,42 @@
+Vendored reference code and data for the `adid_replicate` spike.
+
+Files
+  Showroom_generated_data_ADID_DID.m
+               The authors' own script: DID and ADID on their showroom
+               application, with the analytic variance of their Appendix A.1.
+               Vendored verbatim. `benchmarks/octave/adid_showroom.m` is this
+               script adapted to run under Octave, with the four changes it
+               makes listed in its header.
+  showroom_generated.csv
+               110 weeks by 11 columns: the treated city's sales and ten
+               control cities'. The script's own header says the treated series
+               is generated -- "We generate data using a factor model to fit
+               each control unit's data first" -- because the underlying
+               transactions belong to an eyewear company that shared them with
+               the authors under confidence.
+
+               The data bears that out: 69.7 percent of control cells are exact
+               multiples of 23.75, a quarter of the $95 price point the paper
+               names, against 0 percent of treated cells.
+
+Which city
+  The script offers Boston at t1 = 83 and Columbus at t1 = 90, and ships with
+  Boston uncommented while its saveas calls name Columbus. The file carries no
+  label and neither split shows a level break that identifies it, so the spike
+  reports both and claims neither.
+
+What it does not reproduce
+  Their published Table 7 (Boston 946 / 65 percent, Columbus 705 / 72 percent)
+  comes from the confidential transactions. On this generated data the same
+  script returns 1067 / 21.0 percent at t1 = 83 and 889 / 15.3 percent at
+  t1 = 90. The data validates the estimator, not the published number.
+
+Source
+  Replication material for
+    Li, Kathleen T. and Van den Bulte, Christophe (2022), "Augmented
+    Difference-in-Differences", Marketing Science.
+    DOI: 10.1287/mksc.2022.1406
+  Vendored so the comparison runs offline; all credit to the authors.
+
+These files are inputs to a replication spike and are not part of the mlsynth
+library.
