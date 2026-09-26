@@ -595,6 +595,22 @@ class TestBehaviour:
         r = SL(_cfg(_panel(), train_periods=25)).fit()
         assert r.fit.train_periods == 25 and r.fit.weight_periods == 15
 
+    def test_the_covariate_block_is_one_column_per_panel_unit(self):
+        """The forest's information set is the panel's units and nothing else.
+
+        The block comes from ``dataprep`` per covariate column, so its width is
+        the unit count, and a series for a unit outside the panel cannot enter
+        it. Viviano and Bradic's own application feeds their forest employment
+        for 50 states against a donor pool of six, which this shape cannot
+        express -- measured in ``benchmarks/studies/sl_forest_languages`` as two
+        thirds of the residual gap to their Table 4.
+        """
+        df = _panel(n_donors=6)
+        inputs = prepare_sl_inputs(df, unitid="unit", time="time", outcome="y",
+                                   treat="D", covariates=["z"])
+        assert inputs.covariates.shape == (60, 7)        # 6 donors + the treated
+        assert inputs.covariate_names == ("z",)
+
     def test_covariates_are_passed_through(self):
         bare = SL(_cfg(_panel())).fit()
         cov = SL(_cfg(_panel(), covariates=["z"])).fit()

@@ -7,11 +7,19 @@ weights on 31-50, treatment at 51. The reference bundle is
 ``generate_experts`` and ``Exp_algorithm`` from their ``libraries/library.R`` and
 records every line where it departs from them.
 
-The random forest is left out of the compared library on purpose. randomForest
-and scikit-learn's ``RandomForestRegressor`` are different implementations, so its
-path cannot agree cell for cell in any language pair, and including it would bound
-the measured accuracy of the port by that gap instead of by the port. The other
-three experts are algorithmically determined, and they are what this case pins.
+The random forest is left out of the compared library on purpose. Both forests are
+random, so one R path and one scikit-learn path differ by about 0.003 per period
+whatever the settings, and including the forest would bound the measured accuracy
+of the port by that draw instead of by the port. The other three experts are
+algorithmically determined, and they are what this case pins.
+
+That is about one pair of seeds, not about the two implementations. Matched on
+design and hyperparameters they are exchangeable draws -- across-language path
+distance 0.00327 against 0.00331 within R and 0.00321 within scikit-learn, and
+30-seed mean paths agreeing to 4.7e-04. ``benchmarks/studies/sl_forest_languages``
+measures that, and decomposes the gap to their Table 4 into the predictor set
+(two thirds), the learning rate (one third) and the implementation (0.0013
+against a seed standard deviation of 0.0097).
 
 This case is why two defects in the port are no longer in it. Neither was visible
 from the paper, from the estimator's own tests, or from the simulation benchmark:
