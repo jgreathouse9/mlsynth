@@ -235,6 +235,12 @@ Two pinned cases, and the full account is on :doc:`replications/sl`.
 is Path B: the size and power of the paper's own test on the paper's own Monte
 Carlo design.
 
+`benchmarks/cases/sl_table4.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_table4.py>`_
+is Path A: their published Table 4 on the TennCare panel, reproduced through
+``SL(...).fit()`` with their design passed as ``external_covariates`` and their
+learning rate as ``eta``. The effect agrees to 0.03 percent at the worst of four
+horizons, the statistic to 0.56 percent, and their non-rejection reproduces.
+
 `benchmarks/cases/sl_tennessee.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_tennessee.py>`_
 is a cross-validation against an R implementation of the authors' own expert
 library on their empirical panel. On the three experts that are algorithmically

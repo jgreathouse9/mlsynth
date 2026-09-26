@@ -16,10 +16,10 @@ Run::
     python -m benchmarks.studies.sl_forest_languages.run
     python -m benchmarks.studies.sl_forest_languages.run --employment <path>
 
-The second form adds the arm that needs their ``employment_BFRSS.txt``, which is
-in their replication package and is not vendored here. Without it the study runs
-the language comparison, which needs only ``basedata/``, and reports the
-predictor-set arm as skipped.
+``--employment`` defaults to the copy vendored for ``benchmarks/cases/sl_table4``
+and names another if you have one. Without any, the study runs the language
+comparison, which needs only ``basedata/``, and reports the predictor-set arm as
+skipped.
 """
 from __future__ import annotations
 
@@ -40,6 +40,8 @@ warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PANEL = ROOT / "basedata" / "sl_tennessee_medcost.csv"
+#: Their employment matrix, vendored for the Path A case beside this study.
+EMPLOYMENT = ROOT / "benchmarks" / "reference" / "sl_table4" / "employment_BFRSS.txt"
 TRAIN, WIN, T0 = 30, slice(30, 50), 50
 POST = slice(51, 88)            # their window, analyze_main_text.R:426
 ETA_MLSYNTH = 48.2462327323     # 1/(sqrt(100) var(y)), the paper's formula
@@ -245,8 +247,11 @@ def reproduce(employment: Path, seeds: int = 3) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=30)
-    ap.add_argument("--employment", type=Path, default=None,
-                    help="their employment_BFRSS.txt, 300 rows by 51 columns")
+    ap.add_argument("--employment", type=Path,
+                    default=EMPLOYMENT if EMPLOYMENT.exists() else None,
+                    help="their employment_BFRSS.txt, 300 rows by 51 columns; "
+                         "defaults to the copy vendored for benchmarks/cases/"
+                         "sl_table4.py")
     ap.add_argument("--out", default=str(HERE / "results" / "forest_languages.json"))
     a = ap.parse_args()
 
