@@ -149,7 +149,7 @@ the point estimate cannot.
 the weighting picked a single expert; at :math:`K` it is the simple average. The
 learning rate decides where a fit lands, and the paper's own
 :math:`\eta = 1 / (\sqrt{T}\,\widehat{\operatorname{Var}}(y))` lands near
-:math:`K`: on its own application ``effective_k`` is 3.86 of 4, and
+:math:`K`: on its own application ``effective_k`` is 3.69 of 4, and
 concentrating on the best expert there needs :math:`\eta` between 17 and 60 times
 larger. An SL fit reported without this number does not say whether the
 ensembling did anything.
