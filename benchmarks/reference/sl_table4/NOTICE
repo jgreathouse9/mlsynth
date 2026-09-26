@@ -1,0 +1,27 @@
+Vendored reference data for the `sl_table4` benchmark.
+
+Files
+  employment_BFRSS.txt   Employment rates by state, 300 months by 51 columns:
+                         50 states plus Tennessee, whose column the authors
+                         append at do_file.R:312 under the name `employ_ts`.
+                         The benchmark averages each consecutive three rows into
+                         a quarter, which is what analyze_main_text.R lines 27-34
+                         do, and hands the result to SL's forest expert as
+                         `external_covariates`.
+
+Source
+  Released replication package for
+    Viviano, D. and Bradic, J. (2023), "Synthetic learner: model evaluation with
+    limited overlap", Journal of Econometrics 234(2): 691-713.
+    DOI: 10.1016/j.jeconom.2022.07.005
+  Derived by the authors from the CDC's Behavioral Risk Factor Surveillance
+  System, a public survey, with do_file.R lines 256-277. Vendored verbatim so
+  the Path A case runs offline; all credit to the authors.
+
+  The outcome panel the case reads, basedata/sl_tennessee_medcost.csv, is not
+  from their package: its four state matrices all drop Tennessee at
+  do_file.R:82, so the treated series is reconstructed from the same survey. That
+  reconstruction is checked against this file's own Tennessee column, which
+  matches to 4.44e-16 across all 300 cells.
+
+This file is an input to a benchmark case and is not part of the mlsynth library.

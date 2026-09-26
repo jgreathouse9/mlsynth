@@ -6,11 +6,16 @@ SL: Viviano and Bradic (2023)
 What is validated, and how
 --------------------------
 
-Two cases, both pinned.
+Three cases, all pinned.
 
 `benchmarks/cases/sl.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl.py>`_
 is Path B, the size and power of the paper's own test on the paper's own Monte
 Carlo design.
+
+`benchmarks/cases/sl_table4.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_table4.py>`_
+is Path A, their published Table 4 on the TennCare panel, through
+``SL(...).fit()`` with their design passed as ``external_covariates``, their
+learning rate as ``eta``, and the effect read off their measured window.
 
 `benchmarks/cases/sl_tennessee.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_tennessee.py>`_
 is the cross-validation: mlsynth's SL against an R implementation of the authors'
@@ -371,14 +376,19 @@ forest's seed:
      - 5.5935
      - 5.5870
 
-The effect agrees to between 0.10 and 0.14 percent and the statistic to between
-0.13 and 0.25 percent, each a mean over three seeds. Run it with::
+At the default seed the effect agrees to 0.03 percent at the worst of the four
+horizons and the statistic to 0.56 percent, and their verdict reproduces: no
+rejection at 10 or 20 percent. `benchmarks/cases/sl_table4.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_table4.py>`_
+pins that, eight quantities in three seconds. Their ``employment_BFRSS.txt`` is
+vendored under ``benchmarks/reference/sl_table4/`` with its provenance, so the
+case runs offline.
 
-    python -m benchmarks.studies.sl_forest_languages.run --employment <employment_BFRSS.txt>
-
-Nothing here is pinned, for one reason: ``employment_BFRSS.txt`` is in their
-replication package and is not vendored in this repository, so a case reading it
-could not run in CI.
+What is left between the two is the forest's seed. Over 20 seeds the effect's
+relative difference to their published value has a standard deviation of 0.0024
+and a largest absolute value of 0.0070, the statistic's 0.0116 and 0.0350, and
+the case's tolerances are sized from those: a different scikit-learn build moves
+the forest the way a different seed does.
 
 The rest of this section is what the comparison looks like without those two
 settings, since it is what a reader gets from the panel alone.
@@ -598,6 +608,28 @@ And from ``sl_tennessee``:
    * - ``statistic_rel_diff``, ``att_max_rel_diff_over_horizons``
      - what a reader is shown, at every horizon
 
+And from ``sl_table4``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Quantity
+     - What it protects
+   * - ``effect_max_rel_diff_over_horizons``
+     - their published effect, at the worst of their four horizons
+   * - ``statistic_max_rel_diff_over_horizons``
+     - and their published statistic
+   * - ``effect_m0``
+     - the headline cell in their own units
+   * - ``forest_predictors``
+     - the design is theirs, 57 columns and not 13
+   * - ``eta``, ``experts_built``
+     - the learning rate and the library reached the fit
+   * - ``forest_weight``
+     - the member the design moves
+   * - ``p_value_above_10pct``
+     - their verdict, not only their point estimate
+
 
 Open
 ----
@@ -608,10 +640,12 @@ candidate constant effects. ``conformal_att_interval`` does not substitute for i
 that function refits a ridge on a donor design, so its interval belongs to a
 different estimator's point estimate. This was checked, not assumed.
 
-The random forest expert is cross-validated by nothing. Pinning it would need a
-forest whose trees match across languages, which randomForest and scikit-learn do
-not provide, so an R reference for it would measure the two implementations
-against each other and not the port.
+The random forest expert is pinned only through ``sl_table4``, where it enters a
+published number, and not cell by cell. A path-level pin would need one draw to
+match another, which no seeded forest gives across languages, so an R reference
+for it would measure two draws against each other. What can be said about the two
+implementations is in ``benchmarks/studies/sl_forest_languages``, and it is that
+matched on design and hyperparameters they are exchangeable.
 
 The library is the paper's own four experts. Measured on two panels, those four
 span roughly one error direction, so a wider or better-chosen library is the

@@ -17,9 +17,10 @@ python -m benchmarks.studies.sl_forest_languages.run
 python -m benchmarks.studies.sl_forest_languages.run --employment <employment_BFRSS.txt>
 ```
 
-The second form adds the arm that needs their `employment_BFRSS.txt`, 300 rows by
-51 columns, which is in their package and is not vendored here. Without it the
-study runs the language comparison, which needs only `basedata/`.
+`--employment` defaults to the copy vendored for `benchmarks/cases/sl_table4`,
+`benchmarks/reference/sl_table4/employment_BFRSS.txt`, and names another if you
+have one. Without any, the study runs the language comparison, which needs only
+`basedata/`.
 
 ## The answer
 
