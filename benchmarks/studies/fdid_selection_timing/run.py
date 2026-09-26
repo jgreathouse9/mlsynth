@@ -182,7 +182,7 @@ def _run(reps: int, tmpdir: Path) -> dict:
     return out
 
 
-def scaling(reps: int = 3, sizes=(20, 40, 80, 160, 320),
+def scaling(reps: int = 3, sizes=(20, 40, 80, 160, 320, 640, 1280),
             solo=(320, 640, 1280, 2560), T0: int = 40) -> dict:
     """Fit the exponents, so the complexity claim is measured and not asserted.
 
@@ -195,6 +195,13 @@ def scaling(reps: int = 3, sizes=(20, 40, 80, 160, 320),
     fitted there reads near zero whatever the algorithm is. So mlsynth is swept
     alone to 2560 donors, where the overhead is a rounding error, and its own
     slope is fitted on that.
+
+    The shared range runs to 1280 donors because the naive version has an
+    overhead crossover of its own, near 340 donors: a sweep stopping at 320
+    never reaches the regime where its cubic term dominates, and fits a slope
+    of 2.16 for a cubic algorithm. The cost is wall clock -- one naive
+    selection at 1280 donors takes 48 seconds, so ``--reps 15`` runs for about
+    twenty minutes.
     """
     rng = np.random.default_rng(0)
 
