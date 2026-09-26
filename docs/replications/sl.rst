@@ -300,10 +300,15 @@ points of a near-flat optimum. Tightening scikit-learn's tolerance from 1e-04 to
 the lasso solution's own non-uniqueness and not an error either side can remove.
 It is the same shape of problem as the non-identified weight vector of #30.
 
-The random forest is left out of the compared library on purpose. randomForest and
-scikit-learn's ``RandomForestRegressor`` are different implementations, so its path
-cannot agree cell for cell in any language pair, and including it would bound the
-measured accuracy of the port by that gap instead of by the port.
+The random forest is left out of the compared library on purpose. Both forests are
+random, so a single R path and a single scikit-learn path differ by about 0.003
+per period whatever the settings, and including the forest would bound the
+measured accuracy of the port by that draw instead of by the port. That is a
+statement about one pair of seeds and not about the two implementations: given
+the same design and the same hyperparameters they are exchangeable draws, and
+`benchmarks/studies/sl_forest_languages
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/sl_forest_languages>`_
+measures it.
 
 Against their published table
 -----------------------------
@@ -366,9 +371,54 @@ horizon: no rejection, p between 0.19 and 0.26 against their non-rejection at bo
 the 10 and 20 percent levels. The lasso expert reaches their own mode, ``alpha``
 0.367879 keeping no donors, in-window SSR 450.2.
 
-What is left is the forest. Excluding it the two implementations agree to 3.9e-06,
-so the residual is the one member that cannot be matched across languages,
-carrying 20.8 percent of the weight.
+What is left is two things, and the forest implementation is neither. Excluding
+the forest the two implementations agree to 3.9e-06, so the residual enters
+through that column, but the forest study decomposes it:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Step
+     - Effect
+     - Change
+   * - mlsynth as shipped: 13 predictors, scikit-learn defaults, ``eta`` 48.25
+     - 5.3513
+     -
+   * - predictor set 13 to 57
+     - 5.2662
+     - -0.0851
+   * - ``eta`` 48.25 to 51.43
+     - 5.2173
+     - -0.0489
+   * - scikit-learn to R, their exact call
+     - 5.2186
+     - +0.0013
+   * - their published Table 4
+     - 5.2227
+     - residual +0.0041
+
+Each row is a mean over 30 seeds with the other three experts held fixed, and the
+residual is 0.42 of that arm's seed standard deviation, so their number is
+reproduced. Two thirds of the gap is the predictor set: their forest reads the six
+donor outcomes plus all 51 columns of ``employment_BFRSS.txt``, employment for 50
+states and Tennessee, while mlsynth's covariate block comes from ``dataprep`` per
+column and therefore holds the panel's own seven units. The rest is the learning
+rate. Swapping scikit-learn for R changes the effect by 0.0013 against a seed
+standard deviation of 0.0097.
+
+The wider design works through the weight and not the path. It fits the weighting
+window worse, mean in-window SSR 0.0395 against 0.0326, so Equation 12 gives the
+forest 0.155 of the weight instead of 0.204 and the ensemble leans on the other
+three; swapping only the path raises the effect by 0.082 while swapping only the
+weights lowers it by 0.120.
+
+An earlier version of this page called the residual "the one member that cannot
+be matched across languages". Matched on design and hyperparameters the two
+forests are exchangeable: the distance between an R path and a scikit-learn path
+is the distance between two R paths, 0.00327 against 0.00331 and 0.00321, and
+their 30-seed mean paths agree to 4.7e-04. What differs is the defaults, R's
+``mtry = floor(p/3)`` and ``nodesize = 5`` against scikit-learn's every-feature
+splits to a single observation.
 
 Over mlsynth's own window the effect reads 4.53, 4.85, 4.81 and 4.78 against their
 5.22 to 5.59, which is 9.5 to 14.4 percent below. All of that is the 12 periods
