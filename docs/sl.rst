@@ -28,6 +28,13 @@ difference-in-differences over the whole donor pool. The last of these is the
 conventional estimate :class:`FDID` reports beside its forward one, and SL calls
 that fit instead of keeping a second copy of the formula.
 
+The forest is the only member with an information set of its own, so covariates
+reach it and nothing else. ``covariates`` names panel columns and gives the
+forest every unit's path for each; ``external_covariates`` takes a frame of
+series for units that are not in the panel at all, aligned by period label. The
+second exists because the first cannot express the authors' own application,
+which hands the forest employment for 50 states against a donor pool of six.
+
 The inference is where SL differs most from its neighbours. It supplies a
 hypothesis test of the no-effect null, with a critical value from a moving-block
 bootstrap and a size guarantee that does not lean on the experts being right. It

@@ -91,6 +91,23 @@ against 0.0326, so Equation 12 gives the forest 0.155 of the weight instead of
 0.204 and the ensemble leans on the other three. Swapping only the path raises
 the effect by 0.082; swapping only the weights lowers it by 0.120.
 
+## Their Table 4, through the public API
+
+`external_covariates` makes their design expressible, so the study also runs the
+whole thing through `SL(...).fit()` with their learning rate and reads the effect
+off their window. 57 predictors, `eta` 51.4307, forest weight 0.145, mean over
+three seeds:
+
+| m | window | SL statistic | theirs | SL effect | theirs |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 52-88 | 0.6919 | 0.6910 | 5.2298 | 5.2227 |
+| 1yr | 56-88 | 0.6238 | 0.6225 | 5.3679 | 5.3624 |
+| 2yr | 60-88 | 0.6262 | 0.6247 | 5.5227 | 5.5167 |
+| 3yr | 64-88 | 0.6123 | 0.6108 | 5.5935 | 5.5870 |
+
+The effect agrees to 0.10 to 0.14 percent and the statistic to 0.13 to 0.25
+percent. What is left is the forest's seed.
+
 ## What this does not say
 
 Their forest is not better for reading 44 states outside the donor pool, and
