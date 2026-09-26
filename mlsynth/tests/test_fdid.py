@@ -355,12 +355,10 @@ def test_satt_on_the_public_surface_is_att_over_its_standard_error(
             unitid="unit", time="time", display_graphs=False,
         )
     ).fit().fdid
-    # Both are rounded on the way out -- SATT to 3 dp, att and att_se to 4 --
-    # so the ratio of the rounded pair carries up to a percent of error when
-    # att_se is small. A relative tolerance absorbs that and still has ample
-    # power here: the defect this pins scaled SATT by sqrt(post_periods), a
-    # factor of 3.16 on this panel.
-    assert fit.satt == pytest.approx(fit.att / fit.att_se, rel=1e-2)
+    # Nothing is rounded on the way out any more, so the identity is exact and
+    # the tolerance is floating point. The defect this pins scaled SATT by
+    # sqrt(post_periods), a factor of 3.16 on this panel.
+    assert fit.satt == pytest.approx(fit.att / fit.att_se, rel=1e-12)
 
 
 def test_satt_reported_by_the_estimator_agrees_with_its_p_value(
@@ -465,7 +463,7 @@ def test_forward_did_select_basic():
     ctrl_pre = controls[:T0].mean(axis=1)
     ctrl_post = controls[T0:].mean(axis=1)
     expected_att = (treated_post.mean() - treated_pre.mean()) - (ctrl_post.mean() - ctrl_pre.mean())
-    assert np.isclose(result["DID"]["Effects"]["ATT"], round(expected_att, 4))
+    assert np.isclose(result["DID"]["Effects"]["ATT"], expected_att, atol=1e-12)
 
     fdid_res = result["FDID"]
     optimal_idxs = fdid_res["selected_controls"]
@@ -540,7 +538,7 @@ def test_forward_did_matches_naive_reference(seed, N, T0, T1):
 
     assert got["selected_controls"] == opt                       # exact order
     assert np.allclose(got["R2_at_each_step"], r2_path, atol=1e-9)
-    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-4)
+    assert np.isclose(got["Effects"]["ATT"], att, atol=1e-12)
 
 
 def test_forward_did_zero_variance_donor_matches_naive():
@@ -555,7 +553,7 @@ def test_forward_did_zero_variance_donor_matches_naive():
     opt, r2_path, att = _naive_forward_did(treated, controls, T0)
     assert np.all(np.isfinite(got["R2_at_each_step"]))
     assert got["selected_controls"] == opt
-    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-4)
+    assert np.isclose(got["Effects"]["ATT"], att, atol=1e-12)
 
 
 def test_forward_did_duplicate_donor_estimate_invariant():
@@ -577,7 +575,7 @@ def test_forward_did_duplicate_donor_estimate_invariant():
     got = forward_did_select(treated, controls, T0, names)["FDID"]
     opt, r2_path, att = _naive_forward_did(treated, controls, T0)
 
-    assert np.isclose(got["Effects"]["ATT"], round(att, 4), atol=1e-9)     # estimate
+    assert np.isclose(got["Effects"]["ATT"], att, atol=1e-9)               # estimate
     assert np.isclose(max(got["R2_at_each_step"]), max(r2_path), atol=1e-9)
     assert set(opt).issubset(set(got["selected_controls"]))               # only dups added
     # the retained donors' average equals the oracle's (redundant duplicates)
@@ -622,3 +620,135 @@ def test_assemble_fdid_results(sample_fdid_data):
     assert results.did.name == "DID"
     # Equal weights over the selected donors sum to 1.
     assert np.isclose(sum(results.fdid.donor_weights.values()), 1.0)
+
+
+# --------------------------------------------------------------------------- #
+# FDID reports what it computed
+#
+# ``did_from_mean`` used to round its whole return dict on the way out -- the
+# counterfactual and the observed series to 3 decimals, the ATT, R^2, RMSE,
+# standard error, interval and intercept to 4 -- and ``results_assembly`` read
+# the rounded vectors straight into the typed result, so the quantization
+# reached ``FDIDMethodFit`` and the standardized ``time_series`` contract with it.
+#
+# On a proportion-scale outcome that is not cosmetic. With the outcome in
+# [0.048, 0.235] and an effect of -0.000166, a 4-decimal quantum reported it as
+# -0.0002: a fifth of the number. The rounding was also not the author's. Li's
+# released ``Fun_FDID.R`` returns raw doubles and its readme prints
+# ``ATT_FDID = 0.02540494``, to eight significant figures.
+# --------------------------------------------------------------------------- #
+
+def _proportion_panel():
+    """A panel whose outcome is a small proportion and whose effect is tiny.
+
+    This is the regime the quantization destroyed: a 4-decimal quantum is a
+    fifth of an effect this size.
+    """
+    rng = np.random.default_rng(3)
+    T, T0, N = 40, 30, 5
+    common = 0.12 + 0.03 * rng.standard_normal(T)
+    # Both noise scales have to be small against the effect. The DID ATT differences
+    # the treated series against the donor average, so the common part cancels but
+    # each side's idiosyncratic part does not: at a donor noise of 0.01 the ATT
+    # carries a noise floor near 0.0016, ten times the planted effect, and the
+    # quantum stops being a large share of it -- which would leave the power
+    # assertion below with nothing to detect.
+    donors = common[:, None] + 1e-6 * rng.standard_normal((T, N))
+    treated = common + 0.004 + 1e-6 * rng.standard_normal(T)
+    treated[T0:] += 1.7e-4                       # the effect, below the 4dp quantum
+    Y = np.column_stack([treated, donors])
+    units = np.repeat(np.arange(N + 1), T)
+    times = np.tile(np.arange(T), N + 1)
+    return pd.DataFrame({
+        "unit": units, "time": times, "y": Y.T.ravel(),
+        "d": ((units == 0) & (times >= T0)).astype(int),
+    }), Y, T0
+
+
+def _exact_did(Y, T0):
+    """Li's closed form: ``beta = mean(y1 - x1)``, ``yhat = beta + x``."""
+    y, X = Y[:, 0], Y[:, 1:]
+    xb = X.mean(axis=1)
+    beta = float((y[:T0] - xb[:T0]).mean())
+    cf = beta + xb
+    att = float((y[T0:] - cf[T0:]).mean())
+    r2 = 1.0 - float(((y[:T0] - cf[:T0]) ** 2).mean()) / float(
+        ((y[:T0] - y[:T0].mean()) ** 2).mean())
+    rmse = float(np.sqrt(((y[:T0] - cf[:T0]) ** 2).mean()))
+    return cf, att, r2, rmse
+
+
+def _fit_proportion_panel():
+    df, Y, T0 = _proportion_panel()
+    res = FDID(FDIDConfig(df=df, outcome="y", treat="d", unitid="unit",
+                          time="time", display_graphs=False)).fit()
+    return res, Y, T0
+
+
+class TestFDIDDoesNotQuantizeItsOutput:
+    def test_did_counterfactual_matches_the_closed_form(self):
+        res, Y, T0 = _fit_proportion_panel()
+        cf, _, _, _ = _exact_did(Y, T0)
+        got = np.asarray(res.did.counterfactual, dtype=float)
+        assert np.max(np.abs(got - cf)) < 1e-12
+
+    def test_did_counterfactual_is_not_a_grid_of_3dp_multiples(self):
+        """The signature of the defect: every value an exact 3-decimal multiple."""
+        res, _, _ = _fit_proportion_panel()
+        got = np.asarray(res.did.counterfactual, dtype=float)
+        assert not np.allclose(got, np.round(got, 3), atol=1e-12)
+
+    def test_a_tiny_effect_is_not_snapped_to_the_quantum(self):
+        res, Y, T0 = _fit_proportion_panel()
+        _, att, _, _ = _exact_did(Y, T0)
+        assert abs(res.did.att - att) < 1e-12
+        # and the loss the quantum would have caused is real, so the test has power
+        assert abs(round(att, 4) - att) / abs(att) > 0.05
+
+    def test_r_squared_and_rmse_keep_their_digits(self):
+        res, Y, T0 = _fit_proportion_panel()
+        _, _, r2, rmse = _exact_did(Y, T0)
+        assert abs(res.did.r_squared - r2) < 1e-12
+        assert abs(res.did.pre_rmse - rmse) < 1e-12
+
+    def test_gap_is_the_observed_series_minus_the_counterfactual(self):
+        res, _, _ = _fit_proportion_panel()
+        obs = np.asarray(res.time_series.observed_outcome, dtype=float)
+        cf = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+        np.testing.assert_allclose(
+            np.asarray(res.time_series.estimated_gap, dtype=float), obs - cf,
+            atol=1e-15)
+
+    def test_the_standardized_contract_carries_full_precision(self):
+        res, Y, T0 = _fit_proportion_panel()
+        cf, _, _, _ = _exact_did(Y, T0)
+        ts = np.asarray(res.time_series.counterfactual_outcome, dtype=float)
+        # FDID is the reported variant, so time_series is the forward fit; what
+        # is asserted is that it is not quantized, whichever variant it is.
+        assert not np.allclose(ts, np.round(ts, 3), atol=1e-12)
+
+    def test_fdid_variant_is_unquantized_too(self):
+        res, _, _ = _fit_proportion_panel()
+        got = np.asarray(res.fdid.counterfactual, dtype=float)
+        assert not np.allclose(got, np.round(got, 3), atol=1e-12)
+        assert abs(res.fdid.att - round(res.fdid.att, 4)) > 0.0
+
+    def test_did_from_mean_returns_raw_vectors(self):
+        treated = np.array([0.1234567, 0.2345678, 0.3456789, 0.4567891])
+        control = np.array([0.0512345, 0.0523456, 0.2034567, 0.2045678])
+        res = did_from_mean(treated, control, 2)
+        cf = np.asarray(res["Vectors"]["Counterfactual"], dtype=float)
+        assert not np.allclose(cf, np.round(cf, 3), atol=1e-12)
+        np.testing.assert_allclose(
+            np.asarray(res["Vectors"]["Observed"], dtype=float), treated,
+            atol=0.0)
+
+    def test_satt_is_exactly_att_over_att_se(self):
+        """With nothing rounded the identity is exact, not approximate.
+
+        The comment this replaces allowed a percent of error because SATT was
+        rounded to 3 decimals and the pair to 4.
+        """
+        res, _, _ = _fit_proportion_panel()
+        f = res.fdid
+        assert f.satt == pytest.approx(f.att / f.att_se, rel=1e-12)
