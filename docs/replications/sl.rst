@@ -329,7 +329,62 @@ their script. On the axis their own plot draws, ``labels = 1993:2017`` from
 quarter 1, period 51 is 2005Q3 and period 88 is 2014Q4; the 12 periods they drop
 are 2015Q1 to 2017Q4. Their script gives no reason and none is assumed here.
 
-Over their window, mlsynth against their published numbers:
+Two inputs of theirs are settings, not tolerances, and SL can now take both. The
+learning rate is ``eta``. The design is ``external_covariates``: their forest
+reads the six donor outcomes plus all 51 columns of ``employment_BFRSS.txt``,
+employment for 50 states and Tennessee, and the panel-derived ``covariates``
+block cannot carry a series for a unit outside the donor pool. Given both, and
+measured over their window, what is left between mlsynth and their table is the
+forest's seed:
+
+.. list-table::
+   :header-rows: 1
+
+   * - ``m``
+     - Window
+     - SL statistic
+     - Theirs
+     - SL effect
+     - Theirs
+   * - 0
+     - 52-88
+     - 0.6919
+     - 0.6910
+     - 5.2298
+     - 5.2227
+   * - 1yr
+     - 56-88
+     - 0.6238
+     - 0.6225
+     - 5.3679
+     - 5.3624
+   * - 2yr
+     - 60-88
+     - 0.6262
+     - 0.6247
+     - 5.5227
+     - 5.5167
+   * - 3yr
+     - 64-88
+     - 0.6123
+     - 0.6108
+     - 5.5935
+     - 5.5870
+
+The effect agrees to between 0.10 and 0.14 percent and the statistic to between
+0.13 and 0.25 percent, each a mean over three seeds. Run it with::
+
+    python -m benchmarks.studies.sl_forest_languages.run --employment <employment_BFRSS.txt>
+
+Nothing here is pinned, for one reason: ``employment_BFRSS.txt`` is in their
+replication package and is not vendored in this repository, so a case reading it
+could not run in CI.
+
+The rest of this section is what the comparison looks like without those two
+settings, since it is what a reader gets from the panel alone.
+
+Over their window, on the panel-derived covariate block and mlsynth's own
+learning rate:
 
 .. list-table::
    :header-rows: 1

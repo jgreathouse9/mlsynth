@@ -88,6 +88,17 @@ def _cfg(df: pd.DataFrame, **kw) -> dict:
     return base
 
 
+def _external(df: pd.DataFrame, n_cols: int = 3, seed: int = 7,
+              time: str = "time") -> pd.DataFrame:
+    """A covariate frame for units that are not in the panel at all."""
+    rng = np.random.default_rng(seed)
+    periods = np.sort(df[time].unique())
+    out = pd.DataFrame(rng.standard_normal((len(periods), n_cols)),
+                       columns=[f"E{j}" for j in range(n_cols)])
+    out.insert(0, time, periods)
+    return out
+
+
 @pytest.fixture(scope="module")
 def fitted():
     with warnings.catch_warnings():
@@ -870,6 +881,140 @@ class TestPlot:
                   and len(ln.get_xdata()) == 2]
             assert any(abs(float(x) - float(split)) < 1e-9 for x in xs), ax
         plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# covariates for units outside the panel, the authors' external_covariates
+# --------------------------------------------------------------------------- #
+
+class TestExternalCovariates:
+    """Their forest reads employment for 50 states against a donor pool of six.
+
+    The panel-derived block cannot express that -- it is one column per panel
+    unit by construction -- and ``benchmarks/studies/sl_forest_languages``
+    measures that restriction as two thirds of the residual gap to their Table 4.
+    """
+
+    def _prep(self, df, **kw):
+        return prepare_sl_inputs(df, unitid="unit", time="time", outcome="y",
+                                 treat="D", **kw)
+
+    def test_the_block_widens_by_the_external_columns(self):
+        df = _panel()
+        ext = _external(df, n_cols=3)
+        bare = self._prep(df, covariates=["z"])
+        wide = self._prep(df, covariates=["z"], external_covariates=ext)
+        assert bare.covariates.shape == (60, 7)
+        assert wide.covariates.shape == (60, 10)
+        np.testing.assert_allclose(wide.covariates[:, :7], bare.covariates)
+
+    def test_it_stands_alone_without_panel_covariates(self):
+        df = _panel()
+        inputs = self._prep(df, external_covariates=_external(df, n_cols=2))
+        assert inputs.covariates.shape == (60, 2)
+        assert inputs.covariate_names == ()
+        assert inputs.external_covariate_names == ("E0", "E1")
+
+    def test_alignment_is_by_period_label_not_row_order(self):
+        """A shuffled frame carries the same information, so it must fit the same.
+
+        Positional stacking would pass every shape check and silently pair each
+        period with another period's covariates.
+        """
+        df = _panel()
+        ext = _external(df, n_cols=3)
+        straight = self._prep(df, external_covariates=ext)
+        shuffled = self._prep(
+            df, external_covariates=ext.sample(frac=1.0, random_state=1))
+        np.testing.assert_allclose(shuffled.covariates, straight.covariates)
+
+    def test_periods_beyond_the_panel_are_dropped(self):
+        df = _panel()
+        ext = _external(df, n_cols=2)
+        extra = pd.concat([ext, pd.DataFrame({"time": [999], "E0": [0.0],
+                                              "E1": [0.0]})], ignore_index=True)
+        np.testing.assert_allclose(
+            self._prep(df, external_covariates=extra).covariates,
+            self._prep(df, external_covariates=ext).covariates)
+
+    def test_the_forest_reads_it_and_the_others_do_not(self):
+        df = _panel()
+        ext = _external(df, n_cols=4)
+        bare = self._prep(df)
+        wide = self._prep(df, external_covariates=ext)
+        a = build_experts(bare.Yco, bare.y, slice(0, 30), EXPERTS,
+                          covariates=bare.covariates, seed=0)
+        b = build_experts(wide.Yco, wide.y, slice(0, 30), EXPERTS,
+                          covariates=wide.covariates, seed=0)
+        cols = {n: j for j, n in enumerate(a.names)}
+        assert not np.allclose(a.predictions[:, cols["forest"]],
+                               b.predictions[:, cols["forest"]])
+        for other in ("lasso", "factor", "did"):
+            np.testing.assert_allclose(a.predictions[:, cols[other]],
+                                       b.predictions[:, cols[other]])
+
+    def test_it_reaches_a_fit(self):
+        df = _panel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            r = SL(_cfg(df, covariates=["z"],
+                        external_covariates=_external(df, n_cols=3))).fit()
+        assert r.inputs.covariates.shape == (60, 10)
+        assert r.inputs.external_covariate_names == ("E0", "E1", "E2")
+        assert r.fit.details["forest"]["n_features"] == 6 + 10
+
+    # ------------------------------------------------------------------ #
+    # what it refuses
+    # ------------------------------------------------------------------ #
+
+    def test_without_the_time_column(self):
+        df = _panel()
+        ext = _external(df).drop(columns=["time"])
+        with pytest.raises(MlsynthConfigError, match="time column 'time'"):
+            SLConfig(**_cfg(df, external_covariates=ext))
+
+    def test_with_no_covariate_columns(self):
+        df = _panel()
+        ext = _external(df)[["time"]]
+        with pytest.raises(MlsynthConfigError, match="no covariate columns"):
+            SLConfig(**_cfg(df, external_covariates=ext))
+
+    def test_with_a_repeated_period(self):
+        df = _panel()
+        ext = _external(df)
+        with pytest.raises(MlsynthConfigError, match="[Dd]uplicate period"):
+            SLConfig(**_cfg(df, external_covariates=pd.concat(
+                [ext, ext.iloc[[0]]], ignore_index=True)))
+
+    def test_with_a_repeated_column_name(self):
+        """A frame can carry the same column name twice; the block then holds
+        two planes the result cannot tell apart."""
+        df = _panel()
+        ext = _external(df, n_cols=2)
+        ext = pd.concat([ext, ext[["E0"]]], axis=1)
+        with pytest.raises(MlsynthConfigError, match="Duplicate external"):
+            SLConfig(**_cfg(df, external_covariates=ext))
+
+    def test_with_a_name_that_collides_with_a_panel_covariate(self):
+        df = _panel()
+        ext = _external(df, n_cols=2).rename(columns={"E0": "z"})
+        with pytest.raises(MlsynthConfigError, match="already a panel covariate"):
+            SLConfig(**_cfg(df, covariates=["z"], external_covariates=ext))
+
+    def test_with_a_non_numeric_column(self):
+        df = _panel()
+        ext = _external(df, n_cols=2)
+        ext["E0"] = "a"
+        with pytest.raises(MlsynthDataError, match="not numeric"):
+            SL(_cfg(df, external_covariates=ext)).fit()
+
+    def test_with_a_period_the_panel_has_and_it_does_not(self):
+        """The failure has to be reported, not filled in: a missing period would
+        otherwise reach the forest as a NaN row or a silently shortened block."""
+        df = _panel()
+        ext = _external(df, n_cols=2).iloc[1:]
+        with pytest.raises(MlsynthDataError, match="missing"):
+            SL(_cfg(df, external_covariates=ext)).fit()
 
 
 # --------------------------------------------------------------------------- #

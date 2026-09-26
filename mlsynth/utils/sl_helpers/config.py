@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
+import pandas as pd
 from pydantic import Field, model_validator
 
 from ...config_models import BaseEstimatorConfig
@@ -20,6 +21,7 @@ class SLConfig(BaseEstimatorConfig):
 
     experts: List[Literal["lasso", "factor", "forest", "did"]] = Field(default_factory=lambda: list(EXPERTS), description="The expert library, in the column order it should occupy. The default is the paper's own four. Their value comes from erring differently, not from each being good: measured on two panels the four-member library has an error participation ratio of 1.03 to 1.08 out of 4, meaning the members miss in the same direction at the same times, and an equal-weight ensemble of them is 1.17 to 2.92 times the best single member's in-window RMSE. 'forest' is the only member with an information set of its own, which is what covariates reach.")
     covariates: List[str] = Field(default_factory=list, description="Time-varying covariates, read by the 'forest' expert only. Every unit's series for each named column enters the forest's design, mirroring the authors' external_covariates -- every unit of this panel, which is the limit: the block is built by pivoting a panel column, so a series for a unit outside the donor pool cannot enter it. Their own application feeds the forest employment for 50 states against six donors, and that design is two thirds of the residual gap to their Table 4 (benchmarks/studies/sl_forest_languages). The other three experts see donor outcomes alone, so covariates are what makes the forest err differently from them.")
+    external_covariates: Optional[pd.DataFrame] = Field(default=None, description="Time-varying covariates for units outside the panel, read by the 'forest' expert alongside `covariates`. A frame carrying the `time` column plus one column per series, aligned to the panel by period label and not by row order. This is what `covariates` cannot express: that block is built by pivoting a panel column, so it is one column per panel unit, while the authors' own application passes generate_experts employment for 50 states against a donor pool of six. Measured in benchmarks/studies/sl_forest_languages, that difference is two thirds of the residual gap to their Table 4.")
     train_periods: Optional[int] = Field(default=None, gt=0, description="How many of the pre-treatment periods fit the experts (Algorithm 1's first split). The rest fit the weights. None (default) takes 60 percent, which is the 30-of-50 split the paper's own scripts use. The experts never see the weighting window, which is what makes the weighting out of sample.")
     eta: Optional[float] = Field(default=None, ge=0.0, description="Learning rate for the exponential weights of Equation 12. None (default) takes the paper's 1/(sqrt(T) var(y)), which evaluates to 48.25 on their panel against the best_eta <- 50 their .Rhistory hard-codes. Their own script computes 51.43 from 1/(sqrt(88) var(med_ts)) on a series of length 100, the same 88 their measured window ends at. All three average instead of selecting: effective_k comes out at 3.69, 3.65 and 3.67 of 4, and concentrating on the best expert needs eta 17 to 60 times larger. Set it explicitly to move along that interpolation; 0 is the simple average. Read effective_k on the result to see which regime a fit is in.")
     post_skip: int = Field(default=0, ge=0, description="Drop this many periods from the start of the post-treatment window before measuring. The paper's Table 4 rows m = 0, 1yr, 2yr, 3yr are this knob, which lets an effect that takes time to arrive be measured away from the switch-on.")
@@ -47,4 +49,44 @@ class SLConfig(BaseEstimatorConfig):
         if len(set(self.covariates)) != len(self.covariates):
             raise MlsynthConfigError(
                 f"Duplicate covariates: {self.covariates}.")
+        self._check_external()
         return self
+
+    def _check_external(self) -> None:
+        """Everything about the external frame that does not need the panel.
+
+        Its alignment against the panel's periods needs the period order, which
+        only ``dataprep`` knows, so that check is in ``setup`` and raises
+        ``MlsynthDataError``. What is checkable here is shape and naming, and it
+        is checked here so a malformed frame never reaches a fit.
+        """
+        ext = self.external_covariates
+        if ext is None:
+            return
+        if self.time not in ext.columns:
+            raise MlsynthConfigError(
+                f"external_covariates must carry the time column "
+                f"'{self.time}', so the block is aligned to the panel by period "
+                f"label instead of by row order; its columns are "
+                f"{list(ext.columns)}.")
+        names = [c for c in ext.columns if c != self.time]
+        if not names:
+            raise MlsynthConfigError(
+                "external_covariates has no covariate columns, only the time "
+                "column. An empty block would widen the forest's design by "
+                "nothing and is more likely a mistake than a request.")
+        if len(set(names)) != len(names):
+            raise MlsynthConfigError(
+                f"Duplicate external covariate columns: {names}.")
+        clash = sorted(set(names) & set(self.covariates))
+        if clash:
+            raise MlsynthConfigError(
+                f"{clash} is already a panel covariate, so the forest's design "
+                f"would carry that name twice and the result could not say "
+                f"which block a column came from.")
+        periods = ext[self.time]
+        if periods.duplicated().any():
+            dup = sorted(periods[periods.duplicated()].unique().tolist())
+            raise MlsynthConfigError(
+                f"Duplicate periods in external_covariates: {dup}. Alignment is "
+                f"by period, so a repeat has no single answer.")

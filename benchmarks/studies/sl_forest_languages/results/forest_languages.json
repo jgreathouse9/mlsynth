@@ -194,5 +194,58 @@
       "mean_paths": 0.002765151277958372
     }
   },
-  "employment_columns": 51
+  "employment_columns": 51,
+  "reproduction": {
+    "design": {
+      "predictors": 57,
+      "forest_weight": 0.1454412015496216,
+      "eta": 51.4307
+    },
+    "horizons": {
+      "0": {
+        "window": "52-88",
+        "effect_mean": 5.229786715833957,
+        "effect_min": 5.223963437821419,
+        "effect_max": 5.233054247415632,
+        "their_effect": 5.22265086402609,
+        "effect_rel_diff": 0.0013663275592515351,
+        "statistic_mean": 0.6918631958812794,
+        "their_statistic": 0.690993973668991,
+        "statistic_rel_diff": 0.0012579302358790958
+      },
+      "1yr": {
+        "window": "56-88",
+        "effect_mean": 5.367946088807248,
+        "effect_min": 5.361032605671116,
+        "effect_max": 5.372162259906717,
+        "their_effect": 5.36235247515936,
+        "effect_rel_diff": 0.001043126813054399,
+        "statistic_mean": 0.6238391933050623,
+        "their_statistic": 0.622535806616939,
+        "statistic_rel_diff": 0.002093673447004404
+      },
+      "2yr": {
+        "window": "60-88",
+        "effect_mean": 5.522715567478035,
+        "effect_min": 5.515149542362038,
+        "effect_max": 5.527528428948065,
+        "their_effect": 5.51667748005122,
+        "effect_rel_diff": 0.0010945152129428581,
+        "statistic_mean": 0.6262020393741679,
+        "their_statistic": 0.624658251401803,
+        "statistic_rel_diff": 0.00247141211838704
+      },
+      "3yr": {
+        "window": "64-88",
+        "effect_mean": 5.593549821832986,
+        "effect_min": 5.585425591733919,
+        "effect_max": 5.59830865561364,
+        "their_effect": 5.5870475903753,
+        "effect_rel_diff": 0.0011638045591176645,
+        "statistic_mean": 0.6123440999606932,
+        "their_statistic": 0.610809309405541,
+        "statistic_rel_diff": 0.0025127163773025355
+      }
+    }
+  }
 }

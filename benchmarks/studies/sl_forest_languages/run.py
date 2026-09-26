@@ -46,6 +46,16 @@ ETA_MLSYNTH = 48.2462327323     # 1/(sqrt(100) var(y)), the paper's formula
 ETA_THEIRS = 51.4307            # 1/(sqrt(88) var(y)), the line their script runs
 THEIR_EFFECT, THEIR_STATISTIC = 5.2227, 0.6910      # Table 4, m = 0, second half
 
+#: Their Table 4, second half: (statistic, effect) by horizon, already times 100.
+THEIR_TABLE4 = {
+    "0":   (0.690993973668991, 5.22265086402609),
+    "1yr": (0.622535806616939, 5.36235247515936),
+    "2yr": (0.624658251401803, 5.51667748005122),
+    "3yr": (0.610809309405541, 5.58704759037530),
+}
+#: The windows those rows measure, ``analyze_main_text.R`` lines 426 to 455.
+THEIR_WINDOWS = {"0": (51, 88), "1yr": (55, 88), "2yr": (59, 88), "3yr": (63, 88)}
+
 
 def _inputs():
     from mlsynth.utils.sl_helpers.setup import prepare_sl_inputs
@@ -185,6 +195,53 @@ def run(seeds: int = 30, employment: Path | None = None) -> dict:
     return out
 
 
+def reproduce(employment: Path, seeds: int = 3) -> dict:
+    """Their Table 4 through mlsynth's public API, with nothing held by hand.
+
+    ``external_covariates`` is what makes this expressible: their forest reads
+    all 51 columns of ``employment_BFRSS.txt``, which the panel-derived block
+    cannot carry. With their learning rate and their measured window, the only
+    thing left between the two is the forest's seed.
+    """
+    from mlsynth import SL
+
+    monthly = pd.read_csv(employment, sep=r"\s+").to_numpy(float)
+    ext = pd.DataFrame(_quarterly(monthly),
+                       columns=[f"E{j}" for j in range(monthly.shape[1])])
+    ext.insert(0, "quarter", np.arange(1, 101))
+
+    rows = {}
+    for seed in range(seeds):
+        res = SL(dict(df=pd.read_csv(PANEL), outcome="medcost", treat="expansion",
+                      unitid="state", time="quarter", external_covariates=ext,
+                      eta=ETA_THEIRS, train_periods=TRAIN, n_boot=50, seed=seed,
+                      display_graphs=False)).fit()
+        gap = np.asarray(res.time_series.estimated_gap, dtype=float)
+        bias = res.fit.bias
+        for m, (a, b) in THEIR_WINDOWS.items():
+            g = gap[a:b]
+            rows.setdefault(m, []).append({
+                "statistic": float(np.sum(g ** 2) / np.sqrt(len(g))) * 100,
+                "effect": (float(np.mean(g)) - bias) * 100})
+        if seed == 0:
+            rows["design"] = {"predictors": int(res.fit.details["forest"]["n_features"]),
+                              "forest_weight": float(res.fit.weights["forest"]),
+                              "eta": float(res.fit.eta)}
+    out = {"design": rows.pop("design"), "horizons": {}}
+    for m, rs in rows.items():
+        ts, te = THEIR_TABLE4[m]
+        eff = np.array([r["effect"] for r in rs])
+        stat = np.array([r["statistic"] for r in rs])
+        out["horizons"][m] = {
+            "window": f"{THEIR_WINDOWS[m][0] + 1}-{THEIR_WINDOWS[m][1]}",
+            "effect_mean": float(eff.mean()), "effect_min": float(eff.min()),
+            "effect_max": float(eff.max()), "their_effect": te,
+            "effect_rel_diff": float(abs(eff.mean() - te) / te),
+            "statistic_mean": float(stat.mean()), "their_statistic": ts,
+            "statistic_rel_diff": float(abs(stat.mean() - ts) / ts)}
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", type=int, default=30)
@@ -194,6 +251,8 @@ def main() -> None:
     a = ap.parse_args()
 
     res = run(a.seeds, a.employment)
+    if a.employment is not None:
+        res["reproduction"] = reproduce(a.employment)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(res, indent=2) + "\n")
 
@@ -209,6 +268,19 @@ def main() -> None:
     for tag, s in res["spreads"].items():
         print(f"{tag:34} {s['within_R']:9.5f} {s['within_sklearn']:10.5f} "
               f"{s['across']:9.5f} {s['mean_paths']:11.5f}")
+    if "reproduction" in res:
+        rep = res["reproduction"]
+        print(f"\ntheir Table 4 through SL's public API "
+              f"({rep['design']['predictors']} predictors, eta "
+              f"{rep['design']['eta']:.4f}, forest weight "
+              f"{rep['design']['forest_weight']:.4f})")
+        print(f"{'m':>5} {'window':>8} {'SL stat':>9} {'theirs':>8} {'d%':>6} "
+              f"{'SL effect':>10} {'theirs':>8} {'d%':>6}")
+        for m, r in rep["horizons"].items():
+            print(f"{m:>5} {r['window']:>8} {r['statistic_mean']:9.4f} "
+                  f"{r['their_statistic']:8.4f} {100*r['statistic_rel_diff']:6.2f} "
+                  f"{r['effect_mean']:10.4f} {r['their_effect']:8.4f} "
+                  f"{100*r['effect_rel_diff']:6.2f}")
     if "skipped" in res:
         print(f"\nskipped: {res['skipped']}")
     print(f"\ntheirs, Table 4 m=0: effect {THEIR_EFFECT}  statistic {THEIR_STATISTIC}")

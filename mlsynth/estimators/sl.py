@@ -99,7 +99,8 @@ class SL:
         balance(c.df, c.unitid, c.time)
         inputs = prepare_sl_inputs(
             c.df, unitid=c.unitid, time=c.time, outcome=c.outcome,
-            treat=c.treat, covariates=c.covariates)
+            treat=c.treat, covariates=c.covariates,
+            external_covariates=c.external_covariates)
         fit = run_sl(
             inputs, experts=tuple(c.experts), train_periods=c.train_periods,
             eta=c.eta, post_skip=c.post_skip, n_boot=c.n_boot, block=c.block,

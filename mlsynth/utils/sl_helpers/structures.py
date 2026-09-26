@@ -54,7 +54,11 @@ class SLInputs:
         Time-varying covariate block, shape ``(T, m)``, read by the forest
         expert only.
     covariate_names : tuple of str
-        The column names the block was built from.
+        The panel columns the block was built from, one plane of ``n_units``
+        columns each.
+    external_covariate_names : tuple of str
+        The columns of ``external_covariates``, which occupy the block after
+        the panel-derived planes.
     metadata : dict
         Free-form provenance.
     """
@@ -67,6 +71,7 @@ class SLInputs:
     treated_label: Any
     covariates: Optional[np.ndarray] = None
     covariate_names: Tuple[str, ...] = ()
+    external_covariate_names: Tuple[str, ...] = ()
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
