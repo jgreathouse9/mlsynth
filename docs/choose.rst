@@ -397,7 +397,7 @@ it needs a long one. Two things decide whether an SL number means anything, and
 both are typed fields on the result: ``effective_k`` says whether the weighting
 selected a member or averaged them all, and ``error_participation_ratio`` says
 whether the members err independently, which is the condition for averaging to
-help at all. On the paper's own application those read 3.86 of 4 and 1.19 of 4,
+help at all. On the paper's own application those read 3.69 of 4 and 1.26 of 4,
 so there the ensemble is close to a simple average of four experts that miss
 together. SL also differs from everything else here in what it returns: a
 hypothesis test with a bootstrap critical value and no standard error or

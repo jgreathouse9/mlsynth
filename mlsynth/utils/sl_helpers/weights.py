@@ -11,7 +11,7 @@ and both are asserted in the tests:
 
 Where on that interpolation a fit sits is not a detail. Measured on the paper's
 own application at its own ``eta = 1/(sqrt(T) var(y)) = 51.43``, the effective
-number of experts is 3.88 of 4 -- the weighting averages, it does not select,
+number of experts is 3.69 of 4 -- the weighting averages, it does not select,
 and concentrating on the best expert would need ``eta`` 17 to 60 times larger.
 :func:`effective_k` is on the result so a caller can see which regime they are in.
 """

@@ -308,46 +308,82 @@ measured accuracy of the port by that gap instead of by the port.
 Against their published table
 -----------------------------
 
-With the forest back in, against their Table 4 raw block:
+Their Table 4 is four blocks of their script rbound and multiplied by 100 on the
+way out (``analyze_main_text.R:465``), so every figure in it is a proportion
+scaled by a hundred. The rows compared here are its second half, which comes from
+the block at ``analyze_main_text.R:403``: experts on periods 1 to 30, weights on
+31 to 50, raw series, and the bias taken on the weighting window. That is
+mlsynth's split exactly, and mlsynth's bias definition exactly.
+
+One thing does not match, and it is not a tolerance. They measure the effect over
+periods 52 to 88; mlsynth measures from the first treated period to the end of the
+panel, 51 to 100. Their first four blocks all stop at 88, exclude 89 to 100 from
+the bootstrap pool as well, and set the learning rate from ``sqrt(88)`` on a
+series of length 100, so the truncation is deliberate and consistent throughout
+their script. On the axis their own plot draws, ``labels = 1993:2017`` from
+quarter 1, period 51 is 2005Q3 and period 88 is 2014Q4; the 12 periods they drop
+are 2015Q1 to 2017Q4. Their script gives no reason and none is assumed here.
+
+Over their window, mlsynth against their published numbers:
 
 .. list-table::
    :header-rows: 1
 
    * - ``m``
+     - Window
      - SL statistic
      - Theirs
      - SL effect
      - Theirs
    * - 0
-     - 0.7047
+     - 52-88
+     - 0.7293
      - 0.6910
-     - 4.5228
+     - 5.3340
      - 5.2227
    * - 1yr
-     - 0.6688
+     - 56-88
+     - 0.6659
      - 0.6225
-     - 4.8413
+     - 5.4889
      - 5.3624
    * - 2yr
-     - 0.6031
+     - 60-88
+     - 0.6716
      - 0.6247
-     - 4.7981
+     - 5.6643
      - 5.5167
    * - 3yr
-     - 0.5853
+     - 64-88
+     - 0.6614
      - 0.6108
-     - 4.7714
+     - 5.7562
      - 5.5870
 
-The statistic agrees to between 2.0 and 7.4 percent and the verdict agrees at
-every horizon: no rejection, p between 0.19 and 0.26 against their non-rejection
-at both the 10 and 20 percent levels. The lasso expert now reaches their own mode,
-``alpha`` 0.367879 keeping no donors, in-window SSR 450.2.
+The effect agrees to between 2.1 and 3.0 percent, above theirs at every horizon,
+and the statistic to between 5.5 and 8.3 percent. The verdict agrees at every
+horizon: no rejection, p between 0.19 and 0.26 against their non-rejection at both
+the 10 and 20 percent levels. The lasso expert reaches their own mode, ``alpha``
+0.367879 keeping no donors, in-window SSR 450.2.
 
-The effect is 9.7 to 14.6 percent below theirs, and the forest is what is left.
-Excluding it the two implementations agree to 3.9e-06, so the entire residual is
-the one member that cannot be matched across languages, carrying 20.8 percent of
-the weight. Before the two fixes above the same gap was 17 to 19 percent.
+What is left is the forest. Excluding it the two implementations agree to 3.9e-06,
+so the residual is the one member that cannot be matched across languages,
+carrying 20.8 percent of the weight.
+
+Over mlsynth's own window the effect reads 4.53, 4.85, 4.81 and 4.78 against their
+5.22 to 5.59, which is 9.5 to 14.4 percent below. All of that is the 12 periods
+their window drops: the gap averages 0.0024 over 89 to 100 against 0.0286 over 52
+to 88, so including them pulls the average down. An earlier version of this page
+reported those figures against their truncated ones and attributed the difference
+to the forest. The forest accounts for the 2.1 to 3.0 percent above, not the 9.5
+to 14.4 percent below.
+
+``post_skip`` moves the start of the measured window and there is no setting that
+moves its end, so the table above is computed from the result's own typed fields::
+
+    g = np.asarray(res.time_series.estimated_gap)[51:88]
+    effect = g.mean() - res.fit.bias
+    statistic = (g ** 2).sum() / np.sqrt(len(g))
 
 That the panel itself is right was established against the authors' own output.
 ``employment_BFRSS.txt``'s 51st column, ``employ_ts``, is a Tennessee series they
@@ -370,21 +406,32 @@ The diagnostics on the fit, on the paper's own panel:
      - Weight
      - In-window SSR :math:`\times 10^4`
    * - lasso
-     - 0.337
-     - 159.9
+     - 0.111
+     - 450.2
    * - factor
-     - 0.250
-     - 222.2
+     - 0.335
+     - 222.3
    * - forest
-     - 0.155
-     - 321.1
+     - 0.208
+     - 321.3
    * - did
-     - 0.258
+     - 0.346
      - 215.3
 
-``eta`` resolves to 48.25, ``effective_k`` to 3.863 of 4, and
-``error_participation_ratio`` to 1.19 of 4, with pairwise error correlations
-between 0.53 and 0.94. No expert is dropped and none is flagged degenerate.
+``eta`` resolves to 48.25, ``effective_k`` to 3.686 of 4, and
+``error_participation_ratio`` to 1.258 of 4, with pairwise error correlations
+between 0.40 and 0.95. No expert is dropped and none is flagged degenerate.
+
+The lasso carries the least weight and fits the worst because the paper's grid
+puts its penalty at 0.367879, where it keeps no donors and the expert is the
+training mean. That is their own mode, restored by the grid fix above; before it
+this table read 0.337 and 159.9 for that row, from a penalty scikit-learn chose
+for itself.
+
+``eta`` is 48.25 and not the 51.43 their script computes, because
+``1/(sqrt(T) var(y))`` on a series of length 100 is 48.25 and their line reads
+``1/(sqrt(88) var(med_ts))``. The 88 is the same 88 their measured window ends
+at.
 
 Read together those two numbers say the ensembling did little here. At
 ``effective_k`` 3.86 the weighting is close to a simple average, and at a

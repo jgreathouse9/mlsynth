@@ -96,7 +96,7 @@ class SLFit:
     effective_k : float
         Perplexity of the weights, in ``[1, K]``. At 1 the weighting picked one
         expert; at ``K`` it is the simple average. The paper's own ``eta`` puts
-        this at 3.88 of 4, so its ensemble averages.
+        this at 3.69 of 4, so its ensemble averages.
     counterfactual : np.ndarray
         ``predictions @ weights``, shape ``(T,)``.
     gap : np.ndarray
