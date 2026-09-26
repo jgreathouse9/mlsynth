@@ -84,36 +84,40 @@ def did_from_mean(
     )
     post_cf_mean = counterfactual[T0:].mean()
 
+    # Nothing below is rounded. These values are read straight into
+    # ``FDIDMethodFit`` by ``results_assembly``, and from there into the
+    # standardized ``time_series`` contract, so a display convention applied here
+    # becomes the number every caller gets. It used to be: the counterfactual and
+    # the observed series went out at 3 decimals and the scalars at 4, which on a
+    # proportion-scale outcome cost a fifth of the effect -- an ATT of -0.000166
+    # reported as -0.0002. Li's own ``Fun_FDID.R`` returns raw doubles and her
+    # readme prints eight significant figures, so the quantization was never the
+    # method's either. Formatting belongs to whoever displays the result.
     return {
         "Effects": {
-            "ATT": round(float(att), 4),
-            "Percent ATT": round(100 * att / post_cf_mean, 3)
-            if post_cf_mean != 0 else np.nan,
-            "SATT": round(float(satt), 3) if not np.isnan(satt) else np.nan,
+            "ATT": float(att),
+            "Percent ATT": (100.0 * att / post_cf_mean
+                            if post_cf_mean != 0 else np.nan),
+            "SATT": float(satt),
         },
         "Fit": {
-            "T0 RMSE": round(float(rmse), 4),
-            "R-Squared": round(float(r2), 4) if not np.isnan(r2) else np.nan,
+            "T0 RMSE": float(rmse),
+            "R-Squared": float(r2),
             "Pre-Periods": T0,
         },
         "Inference": {
-            "P-Value": round(float(pval), 4) if not np.isnan(pval) else np.nan,
-            "95% CI": (round(float(ci[0]), 4), round(float(ci[1]), 4))
-            if not np.isnan(ci[0]) else (np.nan, np.nan),
-            "SE": round(float(se), 4) if not np.isnan(se) else np.nan,
-            "Intercept": round(float(intercept), 4),
+            "P-Value": float(pval),
+            "95% CI": (float(ci[0]), float(ci[1])),
+            "SE": float(se),
+            "Intercept": float(intercept),
             "Method": inference,
             "Lag": used_lag,
         },
         "Vectors": {
-            "Observed": np.round(treated, 3),
-            "Counterfactual": np.round(counterfactual, 3),
-            "Gap": np.round(
-                np.column_stack(
-                    (treated - counterfactual, np.arange(T) - T0 + 1)
-                ),
-                3,
-            ),
+            "Observed": np.asarray(treated, dtype=float),
+            "Counterfactual": np.asarray(counterfactual, dtype=float),
+            "Gap": np.column_stack(
+                (treated - counterfactual, np.arange(T) - T0 + 1)),
         },
     }
 
