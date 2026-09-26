@@ -34,6 +34,24 @@ from ...exceptions import MlsynthDataError
 #: The paper's library, in its own column order.
 EXPERTS: Tuple[str, ...] = ("lasso", "factor", "forest", "did")
 
+#: Penalty grid for the lasso expert, ``generate_experts``'s
+#: ``seq(from = exp(-10), to = exp(-1), length = 79)``.
+#:
+#: The grid is not a detail on this data. Measured on the paper's own panel the
+#: mean cross-validated error varies by a factor of only 1.064 across the whole
+#: of it, so the curve barely separates the null model from the six-donor one and
+#: whichever grid is searched decides the answer. Letting scikit-learn derive its
+#: own grid put the penalty at 5.97e-05 keeping five donors, where the paper's
+#: grid puts it at 0.368 keeping none -- a different expert, and one that then
+#: carried 34 percent of the ensemble weight instead of 14.
+LASSO_LAMBDAS: np.ndarray = np.linspace(np.exp(-10.0), np.exp(-1.0), 79)
+
+#: Penalty grid for the factor expert, which in their code runs to ``exp(2)``
+#: and not ``exp(-1)``: it regresses the leading factor on the donors, a much
+#: better-conditioned target than the treated outcome, so the useful penalties
+#: sit higher.
+FACTOR_LAMBDAS: np.ndarray = np.linspace(np.exp(-10.0), np.exp(2.0), 79)
+
 
 @dataclass(frozen=True)
 class ExpertLibrary:
@@ -60,6 +78,23 @@ class ExpertLibrary:
     dropped: Dict[str, str] = field(default_factory=dict)
 
 
+def _standardize(train: np.ndarray, full: np.ndarray):
+    """Center and scale on the training block, glmnet's ``standardize = TRUE``.
+
+    Both lasso fits below need this, and not as a stylistic choice: the penalty
+    is not scale invariant, so an unstandardized fit applies a different
+    effective penalty to every donor. glmnet standardizes by default and the
+    authors do not turn it off. The divisor is the population standard deviation,
+    which is glmnet's, and it is not interchangeable with the sample one --
+    against the R reference the factor expert's path agrees to 4.9e-11 with
+    ``ddof=0`` and to 6.1e-06 with ``ddof=1``.
+    """
+    mu = train.mean(axis=0)
+    sd = train.std(axis=0)                      # population, glmnet's divisor
+    sd = np.where(sd > 0.0, sd, 1.0)            # a constant donor carries no scale
+    return (train - mu) / sd, (full - mu) / sd
+
+
 def _lasso(Yco: np.ndarray, y: np.ndarray, tr: slice, *, folds: int,
            detail: Dict[str, Any]) -> np.ndarray:
     from sklearn.linear_model import LassoCV
@@ -67,14 +102,15 @@ def _lasso(Yco: np.ndarray, y: np.ndarray, tr: slice, *, folds: int,
 
     X1, y1 = Yco[tr], y[tr]
     n = X1.shape[0]
+    Z1, Zall = _standardize(X1, Yco)
     # Contiguous, unshuffled folds: deterministic, and they do not train on a
     # period's immediate neighbours to predict it.
     k = int(min(max(folds, 2), n))
     cv = KFold(n_splits=k, shuffle=False)
-    fit = LassoCV(cv=cv, max_iter=200000).fit(X1, y1)
+    fit = LassoCV(alphas=LASSO_LAMBDAS, cv=cv, max_iter=200000).fit(Z1, y1)
     detail["alpha"] = float(fit.alpha_)
     detail["n_selected"] = int(np.count_nonzero(fit.coef_))
-    return np.asarray(fit.predict(Yco), dtype=float)
+    return np.asarray(fit.predict(Zall), dtype=float)
 
 
 def _factor(Yco: np.ndarray, y: np.ndarray, tr: slice, *, rank: int,
@@ -90,16 +126,19 @@ def _factor(Yco: np.ndarray, y: np.ndarray, tr: slice, *, rank: int,
     # The leading left singular vectors of the training block are the paper's
     # eigenvectors of X X', up to sign.
     U = np.linalg.svd(X1, full_matrices=False)[0][:, :rank]
+    Z1, Zall = _standardize(X1, Yco)
     k = int(min(max(folds, 2), X1.shape[0]))
-    cols = []
+    cols, alphas_used = [], []
     for j in range(U.shape[1]):
-        fit = LassoCV(cv=KFold(n_splits=k, shuffle=False),
-                      max_iter=200000).fit(X1, U[:, j])
-        cols.append(fit.predict(Yco))
+        fit = LassoCV(alphas=FACTOR_LAMBDAS, cv=KFold(n_splits=k, shuffle=False),
+                      max_iter=200000).fit(Z1, U[:, j])
+        cols.append(fit.predict(Zall))
+        alphas_used.append(fit.alpha_)
     F = np.column_stack(cols)
     A = np.column_stack([np.ones(X1.shape[0]), F[tr]])
     coef = np.linalg.lstsq(A, y[tr], rcond=None)[0]
     detail["rank"] = int(U.shape[1])
+    detail["alphas"] = [float(a) for a in alphas_used]
     return np.asarray(np.column_stack([np.ones(F.shape[0]), F]) @ coef,
                       dtype=float)
 

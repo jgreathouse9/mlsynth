@@ -2333,6 +2333,21 @@
   "mlsynth/utils/sl_helpers/structures.py",
   "mlsynth/utils/sl_helpers/weights.py"
  ],
+ "sl_tennessee": [
+  "basedata/sl_tennessee_medcost.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/sl.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/sl_helpers/config.py",
+  "mlsynth/utils/sl_helpers/diagnostics.py",
+  "mlsynth/utils/sl_helpers/experts.py",
+  "mlsynth/utils/sl_helpers/inference.py",
+  "mlsynth/utils/sl_helpers/pipeline.py",
+  "mlsynth/utils/sl_helpers/setup.py",
+  "mlsynth/utils/sl_helpers/structures.py",
+  "mlsynth/utils/sl_helpers/weights.py"
+ ],
  "snn_prop99": [
   "basedata/smoking_data.csv",
   "mlsynth/config_models.py",

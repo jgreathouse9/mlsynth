@@ -215,15 +215,27 @@ The plotter returns its figure and does not display it:
 Verification
 ------------
 
-Path B, the paper's own Monte Carlo design, plus a comparison against its
-empirical application. Both live in
-`benchmarks/cases/sl.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl.py>`_,
-and the full account is on :doc:`replications/sl`.
+Two pinned cases, and the full account is on :doc:`replications/sl`.
 
-Two corrections to the authors' replication code are part of what is validated,
-and both are recorded there: their bootstrap refits the ensemble with a different
-learning rate than the point estimate, and their lasso expert's penalty is drawn
-from the random number generator instead of being computed from the data.
+`benchmarks/cases/sl.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl.py>`_
+is Path B: the size and power of the paper's own test on the paper's own Monte
+Carlo design.
+
+`benchmarks/cases/sl_tennessee.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_tennessee.py>`_
+is a cross-validation against an R implementation of the authors' own expert
+library on their empirical panel. On the three experts that are algorithmically
+determined the two implementations agree to 2.3e-12, 4.9e-11 and 7.0e-07 path by
+path, and the effect to 3.9e-06 at every horizon. That last figure is a floor set
+by the lasso solution's non-uniqueness at the penalty their grid selects, not a
+target.
+
+Two corrections to the authors' replication code are part of what is validated:
+their bootstrap refits the ensemble with a different learning rate than the point
+estimate, and their lasso expert's penalty is drawn from the random number
+generator instead of being computed from the data. Two defects in this port are
+also pinned there, both found by the cross-validation and by nothing else -- the
+paper's two penalty grids, which it did not carry, and glmnet's default
+standardization of the design, which it did not do.
 
 Core API
 --------
