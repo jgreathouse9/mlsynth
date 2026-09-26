@@ -177,30 +177,81 @@ def e2_cce(y1, x1, Yco, Xco, T0, beta):
                   np.arange(vco.shape[1])) + x1 @ beta
 
 
+def _lasso_select(design, target, T0, seed=0, standardize=False):
+    """The subset of ``design``'s columns the LASSO keeps on the pre-period.
+
+    Selection only: ``_refit`` then estimates ``(mu, w)`` by least squares on
+    the raw columns, which is Equation 13. So the penalty decides membership
+    and never the coefficients.
+
+    ``standardize`` rescales the columns before the fit and changes nothing
+    else, since the returned value is a set of indices. It exists because the
+    LASSO's penalty is not scale invariant: a column measured in small units
+    needs a proportionally larger coefficient to explain the same variation,
+    pays a proportionally larger penalty for it, and drops out whatever it
+    explains. That is a property of the units, not of the data.
+
+    The criterion is whether the columns are all the same measurement, not how
+    far their numbers spread. PDA's design is control outcomes and CPDA's is
+    control residuals: one variable each, where a donor's raw spread carries
+    information about that donor and rescaling would assert that a quiet donor
+    should be as easy to select as a volatile one. Standardizing PDA moves it
+    from 0.98 of the published value to 1.13, and nothing motivates the change.
+    PDAX's ``z_t`` holds control outcomes beside covariates, which share no
+    scale, so there its penalty has no meaning until the columns are made
+    comparable.
+
+    Both empirical arms confirm the choice on behaviour, not on agreement. On
+    Table 9 the pool spans 77 to 1 and unstandardized selection never reached a
+    covariate at all, returning PDA's path to three decimals; on Table 10 the
+    pool spans only 2 to 1, both sides being logs, and it was degenerate in the
+    same way, returning PDA's 0.080. Standardizing also steadies the estimate:
+    swept over the fold counts and seeds that are equally defensible, PDAX's
+    spread falls from 0.60 of the published value to 0.09 on Table 9, and from
+    0.73 to 0.00 on Table 10.
+    """
+    Z = np.asarray(design[:T0], dtype=float)
+    if standardize:
+        sd = Z.std(axis=0)
+        sd[sd == 0.0] = 1.0
+        Z = (Z - Z.mean(axis=0)) / sd
+    f = LassoCV(cv=min(10, max(3, T0 // 3)), max_iter=100000,
+                random_state=seed).fit(Z, target[:T0])
+    return np.flatnonzero(np.abs(f.coef_) > 0)
+
+
 def e3_cpda(y1, x1, Yco, Xco, T0, beta, seed=0):
-    """Equation 15: a LASSO-selected subset of the control residuals."""
+    """Equation 15: a LASSO-selected subset of the control residuals.
+
+    The estimate is sensitive to that selection. Six defensible readings of the
+    paper's "a model selection criterion as in Hsiao, Ching and Wan, or the
+    LASSO method as suggested by Li and Bell" span 3.79 to 14.04 on Table 9,
+    around a published 9.56. Of the six, this one has the lowest nested
+    leave-one-pre-period-out error, so it is the choice the pre-period supports;
+    the two landing nearest the published value score worse on it. See the
+    study README.
+    """
     v1 = y1 - x1 @ beta
     vco = Yco - np.einsum("tnk,k->tn", Xco, beta)
-    f = LassoCV(cv=min(10, max(3, T0 // 3)), max_iter=100000,
-                random_state=seed).fit(vco[:T0], v1[:T0])
-    keep = np.flatnonzero(np.abs(f.coef_) > 0)
+    keep = _lasso_select(vco, v1, T0, seed)
     return _refit(v1[:T0], vco[:T0], vco, keep) + x1 @ beta, keep.size
 
 
 def e4_pda(y1, Yco, T0, seed=0):
     """Equation 22 on the control outcomes alone (Hsiao, Ching & Wan)."""
-    f = LassoCV(cv=min(10, max(3, T0 // 3)), max_iter=100000,
-                random_state=seed).fit(Yco[:T0], y1[:T0])
-    keep = np.flatnonzero(np.abs(f.coef_) > 0)
+    keep = _lasso_select(Yco, y1, T0, seed)
     return _refit(y1[:T0], Yco[:T0], Yco, keep), keep.size
 
 
 def e5_pdax(y1, x1, Yco, T0, seed=0):
-    """E4 with the treated unit's own exogenous covariates in the pool."""
+    """E4 with the treated unit's own exogenous covariates in the pool.
+
+    ``z_t`` in Equation 22 holds the control outcomes and the covariates
+    together, which is the one design here whose columns do not share a unit,
+    so this is the one selection that standardizes. See ``_lasso_select``.
+    """
     pool = np.column_stack([Yco, x1])
-    f = LassoCV(cv=min(10, max(3, T0 // 3)), max_iter=100000,
-                random_state=seed).fit(pool[:T0], y1[:T0])
-    keep = np.flatnonzero(np.abs(f.coef_) > 0)
+    keep = _lasso_select(pool, y1, T0, seed, standardize=True)
     return _refit(y1[:T0], pool[:T0], pool, keep), keep.size
 
 

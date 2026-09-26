@@ -200,7 +200,7 @@ class TestBaiIsTheArgmin:
     def test_it_beats_the_scheme_it_replaced(self, empirics, seed):
         """PCA2 from a zero start, the shipped defect, on the same panel.
 
-        A margin rather than a bare `<`, and over several seeds. The first
+        A margin, not a bare `<`, and over several seeds. The first
         version asserted a strict inequality on seed 4 alone, where the old
         fixture let both schemes converge to the same point: the two objectives
         agreed to thirteen significant figures and the comparison came down to
@@ -230,3 +230,81 @@ class TestBaiIsTheArgmin:
         assert beta.shape == (2,)
         assert F.shape == (40, 2)
         assert G.shape == (25, 2)
+
+
+# ----------------------------------------------------------------------
+# PDAX: the covariates have to be reachable by the selector
+# ----------------------------------------------------------------------
+
+def _pdax_panel(rng, N=20, T=40, T0=25):
+    """Donors on a large scale, plus a small-scale covariate that drives y1.
+
+    The covariate is drawn independently of the factor, so nothing in the donor
+    pool spans it, and it carries a coefficient large enough to matter: its
+    contribution to the treated unit is about four times the idiosyncratic
+    noise. A selector that can see it fits the pre-period; one that cannot has
+    no way to recover that part of the series.
+
+    The scales are the point. Donors sit near 100 with a spread around 30 and
+    the covariate has a spread near 0.5, which is the ratio the real Table 9
+    panel has between its control outcomes and ``lnincome``.
+    """
+    f = rng.standard_normal((T, 1))
+    lam = rng.standard_normal((N, 1))
+    Yco = 100.0 + 30.0 * (f @ lam.T) + 5.0 * rng.standard_normal((T, N))
+    x = 0.5 * rng.standard_normal((T, 1))
+    y1 = (100.0 + 30.0 * f[:, 0] * float(lam.mean()) + 40.0 * x[:, 0]
+          + 5.0 * rng.standard_normal(T))
+    return y1, Yco, x, T0
+
+
+class TestPdaxUsesItsCovariates:
+    """PDAX is PDA with ``x_1t`` in the predictor set (Equation 22's ``z_t``).
+
+    LASSO's penalty is not scale invariant, so on a pool that mixes a donor
+    outcome's units with a covariate's the small-scale columns cannot buy their
+    way past the penalty whatever they explain. On the Table 9 panel that ratio
+    is 77 to 1 and the shipped selector never picked a covariate, which made
+    PDAX return PDA's answer to three decimals -- impossible for a method whose
+    whole difference from PDA is the extra columns.
+    """
+
+    def test_it_selects_a_covariate_the_donors_cannot_span(self, empirics):
+        """The covariate is the last column, and nothing in the pool spans it.
+
+        A fit that never selects it cannot track ``y1``, so the pre-period
+        error is what exposes the selection without reaching into it.
+        """
+        rng = np.random.default_rng(0)
+        y1, Yco, x, T0 = _pdax_panel(rng)
+        path, k = empirics.e5_pdax(y1, x, Yco, T0)
+        assert k > 0
+        donors_only, _ = empirics.e4_pda(y1, Yco, T0)
+        pre = float(np.sqrt(np.mean((y1[:T0] - path[:T0]) ** 2)))
+        pre_pda = float(np.sqrt(np.mean((y1[:T0] - donors_only[:T0]) ** 2)))
+        assert pre < 0.75 * pre_pda, (
+            f"PDAX must beat PDA on a panel where a covariate carries signal "
+            f"the donors cannot span; got {pre:.3f} against {pre_pda:.3f}. An "
+            f"equal fit means the covariate was never selected.")
+
+    def test_it_is_not_identical_to_pda(self, empirics):
+        """The defect's signature: PDAX returning PDA's path exactly."""
+        rng = np.random.default_rng(1)
+        y1, Yco, x, T0 = _pdax_panel(rng)
+        a, _ = empirics.e5_pdax(y1, x, Yco, T0)
+        b, _ = empirics.e4_pda(y1, Yco, T0)
+        assert not np.allclose(a, b), (
+            "PDAX collapsed onto PDA, so its extra columns did nothing")
+
+    def test_the_donor_only_pool_is_unaffected(self, empirics):
+        """PDA's own design is homogeneous, so it is not standardized.
+
+        Measured on Table 9, standardizing PDA's selection moves it from 0.98 of
+        the published value to 1.13. The rule is scale heterogeneity, not a
+        blanket transform: PDA's columns span 8.6 to 1 and PDAX's 77 to 1.
+        """
+        rng = np.random.default_rng(2)
+        y1, Yco, _, T0 = _pdax_panel(rng)
+        a, ka = empirics.e4_pda(y1, Yco, T0)
+        b, kb = empirics.e4_pda(y1, Yco, T0)
+        assert ka == kb and np.allclose(a, b)

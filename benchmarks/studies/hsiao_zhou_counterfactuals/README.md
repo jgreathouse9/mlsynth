@@ -322,17 +322,44 @@ MAB, mine over the paper, 38 controls, `T0 = 19`:
 | --- | --- | --- | --- |
 | SCM | 19.514 | 18.500 | 1.05 |
 | PDA | 14.004 | 14.300 | 0.98 |
+| PDAX | 15.231 | 16.200 | 0.94 |
 | CCE | 8.616 | 9.120 | 0.94 |
 | PCA | 6.987 | 7.460 | 0.94 |
-| PDAX | 14.004 | 16.200 | 0.86 |
-| MA | 9.659 | 8.330 | 1.16 |
-| MB | 10.339 | 7.270 | 1.42 |
+| MA | 9.904 | 8.330 | 1.19 |
+| MB | 10.577 | 7.270 | 1.45 |
 | CPDA | 4.934 | 9.560 | 0.52 |
 
 The SCM column is `mlsynth.VanillaSC` outcome-only, and it reproduces to 5
 percent, with ten of the twelve annual counterfactuals inside 2.0 of the
-published path. PDA reproduces to 2 percent. Six of the eight columns land
-between 0.86 and 1.16.
+published path. Six of the eight columns land between 0.86 and 1.19.
+
+### How much of that agreement is the LASSO's tuning
+
+The three selected columns sit on 19 pre-period observations against 38
+donors, and the penalty is chosen by cross-validation on those 19 points. The
+fold count and the seed are both free, and neither is pinned by the paper.
+Sweeping 32 settings that are all defensible:
+
+| column | min | median | max | paper | spread over the published value |
+| --- | --- | --- | --- | --- | --- |
+| PDA | 8.17 | 14.00 | 17.81 | 14.30 | 0.67 |
+| PDAX | 15.23 | 15.40 | 16.74 | 16.20 | 0.09 |
+
+PDA's ratio of 0.98 is the median of that sweep, so the setting this study
+ships is a fair one, and only 38 percent of the settings land within 10 percent
+of the published value. The agreement is therefore not evidence that the
+construction is right; it is one draw from a spread two thirds as wide as the
+quantity being reproduced. The same caution applies to CPDA below, and not to
+SCM, CCE or PCA, which select nothing.
+
+PDAX is steady by comparison because its selection is standardized. Its pool is
+the one design here whose columns are different measurements -- control outcomes
+beside a log income -- and the LASSO's penalty has no scale-free meaning across
+them. Without standardizing, the covariates cannot pay the penalty at any
+weight, and PDAX returned PDA's path to three decimals: a column that was not
+running the method it was named for. Table 10 was degenerate in the same way,
+at a pool spread of only 2 to 1, which is why the criterion here is whether the
+columns share a measurement and not how far their numbers spread.
 
 PCA reproduces in magnitude and not in sign, and separating those two took an
 outside implementation. The first version of this study shipped a defective
@@ -348,6 +375,48 @@ negative, both of which this replication matches at -8.62 and -14.00. So the
 disagreement is not between two implementations of a method, it is between one
 column of Table 9 and the rest of Table 9. The paper's footnote 8 records the
 result as counterintuitive and keeps it deliberately.
+
+### CPDA, the column the paper's own description does not pin
+
+CPDA sits at 0.52 and it is the one column where the gap is not a defect here.
+Equations 11-15 fix everything except which donors enter, and the paper says
+only that the subset "can be chosen using a model selection criterion as in
+Hsiao, Ching, and Wan (2012), or the LASSO method (Tibshirani, 1996), as
+suggested by Li and Bell (2017)". CCE is the same construction with every donor
+kept, and it reproduces at 0.94 on the same beta and the same residuals, so the
+selection is the only thing between them.
+
+Six readings of that sentence, on the Table 9 panel:
+
+| selector | donors kept | nested LOO error | MAB | ratio to 9.56 |
+| --- | --- | --- | --- | --- |
+| LASSO, CV penalty (what runs here) | 9 | 2.167 | 4.93 | 0.52 |
+| LARS path, AICc, standardized | 6 | 2.227 | 3.79 | 0.40 |
+| LARS path, AICc | 5 | 2.559 | 5.04 | 0.53 |
+| LARS path, BIC, standardized | 15 | 2.653 | 13.78 | 1.44 |
+| LASSO, CV penalty, standardized | 14 | 2.932 | 10.92 | 1.14 |
+| LARS path, BIC | 15 | 3.849 | 14.04 | 1.47 |
+
+The estimates span a factor of 3.7 and the published 9.56 lies inside them, so
+the paper's value is reachable and is not singled out by anything measurable
+from the pre-period. The middle column is the test: it is leave-one-pre-period-
+out error with the selection repeated inside every fold, so no held-out period
+informs its own prediction. The lowest such error belongs to the selector
+giving 4.93, and the two landing nearest the published value score worst on it.
+Choosing between them by how close the answer comes to 9.56 would be fitting to
+the post-period, which is the one thing a counterfactual may not do.
+
+A leaky version of that check ranked them the other way round. Selecting once
+on the full pre-period and then refitting inside each fold made the
+standardized LASSO look both best on error and closest to the paper, which is
+the reading this study nearly adopted. The leak matters because the selection
+is what the fold is meant to test, and holding it fixed tests nothing.
+
+So CPDA is recorded at 0.52 and not tuned toward 9.56. What the spread says
+about a future CPDA estimator is in `docs/` terms a design constraint: the
+selector has to be an explicit choice with a documented default, and the result
+has to carry its sensitivity, because at `T0 = 19` against 38 donors the
+selector decides the answer more than the construction does.
 
 ### The Bai (2009) step, and the two references that settled it
 
@@ -398,20 +467,37 @@ counterfactual looked plausible, and the objective is not something a single
 implementation can check itself against. `benchmarks/tests/test_hsiao_zhou_study.py`
 now asserts the property, not any coefficient: the returned beta is not
 improvable from a pooled-OLS restart, the answer does not depend on the start,
-and it recovers `(1, 2)` on Bai's DGP1.
+and it recovers the truth on Bai's DGP1.
 
 ### Table 10, personal healthcare expenditure
 
-Every method lands within a factor of 0.63 to 1.31, and the substantive claim
+Every method lands within a factor of 0.47 to 1.31, and the substantive claim
 reproduces: the paper reports hardly any effect, with a 2000 actual of 9.755
 against a model-average counterfactual of 9.735, and ours is 9.756 against
 9.733. A 38-donor pool against a nine-period pre-period is 4.2 times as wide as
-the sample, and the table is still the best-reproducing of the three.
+the sample.
 
-Table 10 also corroborates the CPDA-equals-PDA-equals-PDAX finding from the
-simulations, in the paper's own numbers: its PDA and PDAX columns are identical
-in eleven of twelve rows, and both MABs read 0.061. The 1989 row differs
-(8.794 against 8.974) in a way that reads as a transposition.
+The PDAX column is the one that moved, from 0.080 to 0.029, when its selection
+was standardized. Before that it returned PDA's 0.080 exactly, which read as a
+1.31 agreement and was the degenerate case described under Table 9: the
+covariate never entered, so the column was PDA under another name. The
+corrected figure is further from the published 0.061, and it is the one
+produced by the method the column is named for.
+
+Here the paper's own numbers are the interesting part. Its PDA and PDAX columns
+are identical in eleven of twelve rows and both MABs read 0.061 -- which is
+what a PDAX that never selects its covariate looks like, and is exactly the
+signature this study had before the fix. The 1989 row differs (8.794 against
+8.974) in a way that reads as a transposition. That is an inference from two
+published columns and not a claim about the authors' code, but it is the
+simplest account of two constructions with different predictor sets returning
+the same eleven numbers. If it is right, the published 0.061 is a PDA value and
+no PDAX implementation should be expected to reproduce it.
+
+On a nine-period pre-period the column is in any case barely identified: swept
+over the fold counts and seeds that fit nine observations, the unstandardized
+selection ranges 0.036 to 0.080 while the standardized one returns 0.029 at
+every setting.
 
 ### Tables 11-16, turnout
 
