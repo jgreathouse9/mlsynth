@@ -301,6 +301,7 @@ measures that claim directly, which a reproduced number cannot.
    beast
    dpsc
    cpda
+   sl
 
    pda
    scul

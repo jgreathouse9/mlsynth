@@ -133,6 +133,9 @@ CASES = {
     "pda_hcw_cepa": "benchmarks.cases.pda_hcw_cepa",  # Path A / X: HCW CEPA 2004 headline, AICc over all 24 candidates
     "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
     "cpda": "benchmarks.cases.cpda",                          # Path B + cross-val: Hsiao-Zhou Sec 3 recovery, CCE vs Equation 16, and the selector spread
+    "sl": "benchmarks.cases.sl",                              # Path B: Viviano-Bradic Table 1 size and power on their own Factor_model DGP, plus the eta and lasso corrections
+    "sl_tennessee": "benchmarks.cases.sl_tennessee",          # cross-val vs an R transcription of their generate_experts/Exp_algorithm on their Medicaid panel; caught the penalty grid and the standardization
+    "sl_table4": "benchmarks.cases.sl_table4",                # Path A: Viviano-Bradic Table 4 on the TennCare panel, with their design via external_covariates and their eta; effect to 0.03 percent
     "arco_retail": "benchmarks.cases.arco_retail",                # Path A: Masini-Medeiros 2021 Table 5a -- WLASSO + partial resampling on their Brazilian retail price experiment, value-for-value
     "arco_resampling_mc": "benchmarks.cases.arco_resampling_mc",  # Path B: Masini-Medeiros 2021 Tables 2-3 size -- True/Oracle arms reproduce, LASSO arm over-rejects 2.2x, with the five checks that localise it
     "fspda_dense_mc": "benchmarks.cases.fspda_dense_mc",      # cross-val vs fsPDA FS()/lasso.BIC() on their own dense-MC panels
@@ -322,6 +325,9 @@ _RAW: dict[str, tuple[str, str]] = {
     "clustersc_subgroups_ref":        ("X", "simulated"),
     "cmbsts_supermarket":             ("AX", "empirical"),
     "cpda":                           ("BX", "simulated"),
+    "sl":                             ("B", "simulated"),
+    "sl_tennessee":                   ("X", "empirical"),
+    "sl_table4":                      ("A", "empirical"),
     "cmbsts_vignette":                ("X", "both"),
     "compsc_pennsylvania":            ("A", "empirical"),
     "compsc_pennsylvania_r":          ("X", "empirical"),

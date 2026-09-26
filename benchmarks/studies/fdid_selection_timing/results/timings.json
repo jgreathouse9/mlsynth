@@ -1,0 +1,266 @@
+{
+  "machine": {
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.11.15"
+  },
+  "reps": 15,
+  "panels": {
+    "hcw_hongkong": {
+      "donors": 24,
+      "pre_periods": 44,
+      "total_periods": 61,
+      "note": "Hsiao, Ching and Wan (2012); Li's own released companion panel",
+      "impls": {
+        "mlsynth": {
+          "median_seconds": 0.00086245500278892,
+          "min_seconds": 0.0008071600022958592,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "python_naive": {
+          "median_seconds": 0.0037509289977606386,
+          "min_seconds": 0.003672550003102515,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "R_li": {
+          "median_seconds": 0.006,
+          "min_seconds": 0.005,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "matlab_li_octave": {
+          "median_seconds": 0.096889,
+          "min_seconds": 0.091797,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        }
+      },
+      "all_select_the_same_donors": true,
+      "disagreements": {}
+    },
+    "fspda_china_watches": {
+      "donors": 87,
+      "pre_periods": 35,
+      "total_periods": 71,
+      "note": "Shi and Huang fsPDA anti-corruption panel, p > n",
+      "impls": {
+        "mlsynth": {
+          "median_seconds": 0.0032714730004954617,
+          "min_seconds": 0.003076842000155011,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "python_naive": {
+          "median_seconds": 0.05251449399656849,
+          "min_seconds": 0.05144011400261661,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "R_li": {
+          "median_seconds": 0.085,
+          "min_seconds": 0.078,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "matlab_li_octave": {
+          "median_seconds": 1.279903,
+          "min_seconds": 1.211618,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        }
+      },
+      "all_select_the_same_donors": true,
+      "disagreements": {}
+    }
+  },
+  "scaling": {
+    "shared_range": [
+      {
+        "donors": 20,
+        "mlsynth_seconds": 0.0008603360001870897,
+        "python_naive_seconds": 0.002920063001511153,
+        "ratio": 3.3940960286169037
+      },
+      {
+        "donors": 40,
+        "mlsynth_seconds": 0.001202505998662673,
+        "python_naive_seconds": 0.01161697799761896,
+        "ratio": 9.660640371472905
+      },
+      {
+        "donors": 80,
+        "mlsynth_seconds": 0.0019588719987950753,
+        "python_naive_seconds": 0.046691504001501016,
+        "ratio": 23.835913745370547
+      },
+      {
+        "donors": 160,
+        "mlsynth_seconds": 0.004560563000268303,
+        "python_naive_seconds": 0.23070440199808218,
+        "ratio": 50.586824912737654
+      },
+      {
+        "donors": 320,
+        "mlsynth_seconds": 0.007486192000214942,
+        "python_naive_seconds": 1.1661315929995908,
+        "ratio": 155.77099718603384
+      }
+    ],
+    "ratio_log_log_slope": 1.3429081864583334,
+    "naive_log_log_slope": 2.1594769583650724,
+    "mlsynth_only": [
+      {
+        "donors": 320,
+        "mlsynth_seconds": 0.007899607997387648
+      },
+      {
+        "donors": 640,
+        "mlsynth_seconds": 0.01728513399939402
+      },
+      {
+        "donors": 1280,
+        "mlsynth_seconds": 0.04345062400170718
+      },
+      {
+        "donors": 2560,
+        "mlsynth_seconds": 0.13556687399977818
+      }
+    ],
+    "mlsynth_log_log_slope_large_N": 1.3633084574556058,
+    "mlsynth_local_slopes": [
+      {
+        "from": 320,
+        "to": 640,
+        "slope": 1.1296788185799045
+      },
+      {
+        "from": 640,
+        "to": 1280,
+        "slope": 1.3298451081382927
+      },
+      {
+        "from": 1280,
+        "to": 2560,
+        "slope": 1.6415558954210614
+      }
+    ],
+    "naive_local_slopes": [
+      {
+        "from": 20,
+        "to": 40,
+        "slope": 1.9921634183454358
+      },
+      {
+        "from": 40,
+        "to": 80,
+        "slope": 2.006925241028017
+      },
+      {
+        "from": 80,
+        "to": 160,
+        "slope": 2.3048135661390936
+      },
+      {
+        "from": 160,
+        "to": 320,
+        "slope": 2.3376131627292667
+      }
+    ],
+    "T0": 40,
+    "reps": 15
+  }
+}
