@@ -56,8 +56,13 @@ TAU = -3.0
 # --------------------------------------------------------------------------- #
 
 def _panel(seed: int = 0, n_donors: int = 6, T: int = 60, T0: int = 40,
-           tau: float = TAU, covariate: bool = True) -> pd.DataFrame:
-    """A two-factor panel with a planted constant effect on the treated unit."""
+           tau: float = TAU, covariate: bool = True,
+           first_period: int = 0) -> pd.DataFrame:
+    """A two-factor panel with a planted constant effect on the treated unit.
+
+    ``first_period`` shifts the time labels off the positional index, which is
+    what lets a plotting test tell the two apart.
+    """
     rng = np.random.default_rng(seed)
     N = n_donors + 1
     f = rng.standard_normal((T, 2))
@@ -66,10 +71,10 @@ def _panel(seed: int = 0, n_donors: int = 6, T: int = 60, T0: int = 40,
     Y[T0:, 0] += tau
     z = rng.standard_normal((T, N)) + 0.3 * f[:, [0]]
     units = np.repeat(np.arange(N), T)
-    times = np.tile(np.arange(T), N)
+    times = np.tile(np.arange(T) + first_period, N)
     out = pd.DataFrame({
         "unit": units, "time": times, "y": Y.T.ravel(),
-        "D": ((units == 0) & (times >= T0)).astype(int),
+        "D": ((units == 0) & (times >= T0 + first_period)).astype(int),
     })
     if covariate:
         out["z"] = z.T.ravel()
@@ -762,6 +767,93 @@ class TestPlot:
         matplotlib.use("Agg")
         r = SL(_cfg(_panel(), display_graphs=True)).fit()
         assert np.isfinite(r.effects.att)
+
+    def test_goes_through_the_shared_plotter(self, monkeypatch, fitted):
+        """SL draws the library's archetype, not a second private one.
+
+        Both panels come from :class:`~mlsynth.utils.plotting.Plotter`, so a
+        change to the house archetype reaches SL like every other estimator.
+        """
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from mlsynth.utils import plotting
+        from mlsynth.utils.sl_helpers import plotter as sl_plotter
+
+        seen = []
+        for name in ("observed_vs_counterfactual", "gap"):
+            original = getattr(plotting.Plotter, name)
+
+            def spy(self, *a, _n=name, _f=original, **k):
+                seen.append(_n)
+                return _f(self, *a, **k)
+
+            monkeypatch.setattr(plotting.Plotter, name, spy)
+        fig = sl_plotter.plot_sl(fitted)
+        assert seen == ["observed_vs_counterfactual", "gap"]
+        plt.close(fig)
+
+    def test_applies_the_house_style(self, monkeypatch, fitted):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from mlsynth.utils import plotting
+        from mlsynth.utils.sl_helpers import plotter as sl_plotter
+
+        used = []
+        original = plotting.mlsynth_style
+        monkeypatch.setattr(sl_plotter, "mlsynth_style",
+                            lambda *a, **k: (used.append(1), original(*a, **k))[1])
+        fig = sl_plotter.plot_sl(fitted)
+        assert used
+        plt.close(fig)
+
+    def test_x_axis_carries_the_panel_periods_not_a_counter(self):
+        """The panel's own labels, so a reader can read a date off the axis.
+
+        The panel starts at 1990, so a positional counter and a period label
+        cannot both pass.
+        """
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from mlsynth.utils.sl_helpers.plotter import plot_sl
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fitted = SL(_cfg(_panel(first_period=1990), n_boot=50)).fit()
+        fig = plot_sl(fitted)
+        drawn = fig.axes[0].lines[0].get_xdata()
+        np.testing.assert_allclose(
+            np.asarray(drawn, dtype=float),
+            np.asarray(fitted.time_series.time_periods, dtype=float))
+        plt.close(fig)
+
+    def test_marks_the_expert_training_split_on_both_panels(self):
+        """SL needs two markers where every other estimator needs one: a reader
+        cannot otherwise see which stretch scored the experts.
+
+        On a panel starting at 1990 the marker has to be placed at the label,
+        not at the position.
+        """
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from mlsynth.utils.sl_helpers.plotter import plot_sl
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fitted = SL(_cfg(_panel(first_period=1990), n_boot=50)).fit()
+        f = fitted.fit
+        split = np.asarray(fitted.time_series.time_periods)[
+            fitted.inputs.T0 - f.weight_periods]
+        fig = plot_sl(fitted)
+        for ax in fig.axes:
+            xs = [ln.get_xdata()[0] for ln in ax.lines
+                  if len(set(np.asarray(ln.get_xdata()).ravel().tolist())) == 1
+                  and len(ln.get_xdata()) == 2]
+            assert any(abs(float(x) - float(split)) < 1e-9 for x in xs), ax
+        plt.close(fig)
 
 
 # --------------------------------------------------------------------------- #
