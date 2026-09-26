@@ -10,7 +10,8 @@ kept here:
    the donors and then loaded onto the treated unit by least squares;
 3. ``forest`` -- a random forest on donor outcomes plus any external covariates,
    the only member with an information set of its own;
-4. ``did``    -- the parallel-trends prediction, in closed form.
+4. ``did``    -- the parallel-trends prediction, which is mlsynth's own
+   difference-in-differences fit over the whole donor pool.
 
 One deliberate divergence from their code. They choose the ``lasso``'s penalty
 with ``cv.glmnet(nfolds = 5)`` and no ``foldid``, so the fold assignment comes off
@@ -30,6 +31,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthDataError
+from ..fdid_helpers import did_from_mean
 
 #: The paper's library, in its own column order.
 EXPERTS: Tuple[str, ...] = ("lasso", "factor", "forest", "did")
@@ -86,8 +88,8 @@ def _standardize(train: np.ndarray, full: np.ndarray):
     effective penalty to every donor. glmnet standardizes by default and the
     authors do not turn it off. The divisor is the population standard deviation,
     which is glmnet's, and it is not interchangeable with the sample one --
-    against the R reference the factor expert's path agrees to 4.9e-11 with
-    ``ddof=0`` and to 6.1e-06 with ``ddof=1``.
+    against the R reference the factor expert's path agrees to 7.0e-07 with
+    ``ddof=0`` and to 6.8e-06 with ``ddof=1``, from 2.1e-02 unstandardized.
     """
     mu = train.mean(axis=0)
     sd = train.std(axis=0)                      # population, glmnet's divisor
@@ -160,12 +162,36 @@ def _forest(Yco: np.ndarray, y: np.ndarray, tr: slice, *,
 
 def _did(Yco: np.ndarray, y: np.ndarray, tr: slice,
          detail: Dict[str, Any]) -> np.ndarray:
-    """Closed form, exactly their line: the treated training mean, minus the
-    donors' training mean, plus the donor average at each period."""
+    """The parallel-trends prediction, from mlsynth's difference-in-differences.
+
+    ``generate_experts`` writes this expert as one line,
+    ``mean(y1) - mean(apply(X1, 2, mean)) + apply(X, 1, mean)``, and mlsynth
+    already has that fit: :func:`~mlsynth.utils.fdid_helpers.did_from_mean` is
+    what ``FDID.fit()`` returns in its ``did`` block, and Li's method reports the
+    conventional estimate over the full donor pool alongside her forward one.
+    That is the same estimator the authors use as their fourth expert, on the
+    same donors, so the expert is delegated to it.
+
+    The two intercepts are one number and not two estimators that agree. Theirs
+    is the treated training mean minus the grand mean of the donor block; FDID's
+    is the mean of the period-by-period difference. A mean of period differences
+    over a rectangular block equals the difference of grand means, so the forms
+    coincide algebraically. What separates them numerically is the order the
+    sums run in: on the authors' own panel the intercepts differ by 2.8e-17 and
+    the paths by 5.6e-17.
+
+    ``did_from_mean`` reads the pre-treatment window as a prefix, which
+    Algorithm 1's expert-training split is.
+    """
+    if tr.start:
+        raise MlsynthDataError(
+            "the did expert needs a training split that starts at the first "
+            f"period, and this one starts at {tr.start}"
+        )
+    raw = did_from_mean(y, Yco.mean(axis=1), int(tr.stop))
     detail["n_donors"] = int(Yco.shape[1])
-    return np.asarray(float(np.mean(y[tr]))
-                      - float(np.mean(np.mean(Yco[tr], axis=0)))
-                      + np.mean(Yco, axis=1), dtype=float)
+    detail["intercept"] = float(raw["Inference"]["Intercept"])
+    return np.asarray(raw["Vectors"]["Counterfactual"], dtype=float)
 
 
 def build_experts(Yco: np.ndarray, y: np.ndarray, train: slice,

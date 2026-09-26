@@ -247,9 +247,9 @@ uses the population standard deviation.
    * - unstandardized
      - 2.1e-02
    * - standardized, population SD (glmnet's)
-     - 4.9e-11
+     - 7.0e-07
    * - standardized, sample SD
-     - 6.1e-06
+     - 6.8e-06
 
 How tight it is now
 -------------------
@@ -282,6 +282,15 @@ determined:
      - 7.4e-06 relative
    * - the effect, worst of four horizons
      - 3.9e-06 relative
+
+Two of the path rows are bounded by the capture and not by the port. The bundle
+prints at ten decimals, so a path comparison cannot resolve below 5e-11, and the
+did expert's 4.9e-11 is that limit. That expert calls ``did_from_mean``, the
+difference-in-differences :class:`~mlsynth.FDID` reports beside its forward fit,
+and against the authors' own line evaluated at full precision the two agree to
+5.6e-17. The lasso row is the same limit met once instead of a hundred times: at
+the penalty their grid selects that expert keeps no donors, so its path is one
+constant and there is a single rounded value to disagree with.
 
 The last few rows are a floor and not a target. The factor expert's penalty lands
 at its grid's minimum, where the fit is nearly unregularized on a 30-by-6 design

@@ -24,7 +24,8 @@ import pandas as pd
 import pytest
 
 from mlsynth import SL
-from mlsynth.config_models import EffectsResults
+from mlsynth.config_models import EffectsResults, FDIDConfig
+from mlsynth.estimators.fdid import FDID
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.sl_helpers.config import SLConfig
 from mlsynth.utils.sl_helpers.diagnostics import (
@@ -342,7 +343,44 @@ class TestExperts:
         tr = slice(0, 30)
         lib = build_experts(Yco, y, tr, ("did",))
         want = y[tr].mean() - Yco[tr].mean(axis=0).mean() + Yco.mean(axis=1)
-        np.testing.assert_allclose(lib.predictions[:, 0], want, atol=1e-10)
+        np.testing.assert_allclose(lib.predictions[:, 0], want, atol=1e-12)
+
+    def test_did_expert_is_fdids_own_conventional_did(self):
+        """The delegation, asserted against the estimator and not the formula.
+
+        Li's FDID reports the conventional estimate over the full donor pool
+        beside her forward one, and that is the authors' fourth expert. Handed
+        the same donors and the same pre-period, the two paths are one path.
+        """
+        df = _panel(seed=5)
+        T0 = int(df["D"].eq(0).groupby(df["unit"]).sum().loc[0])
+        wide = df.pivot(index="time", columns="unit", values="y")
+        y = wide[0].to_numpy(dtype=float)
+        Yco = wide.drop(columns=0).to_numpy(dtype=float)
+
+        lib = build_experts(Yco, y, slice(0, T0), ("did",))
+        fdid = FDID(FDIDConfig(df=df, outcome="y", treat="D", unitid="unit",
+                               time="time", display_graphs=False)).fit()
+
+        np.testing.assert_allclose(
+            lib.predictions[:, 0],
+            np.asarray(fdid.did.counterfactual, dtype=float), atol=1e-12)
+
+    def test_did_expert_records_the_intercept_it_fitted(self):
+        Yco, y = self._arrays()
+        tr = slice(0, 30)
+        lib = build_experts(Yco, y, tr, ("did",))
+        want = float(np.mean(y[tr] - Yco[tr].mean(axis=1)))
+        assert abs(lib.details["did"]["intercept"] - want) < 1e-12
+
+    def test_did_expert_refuses_a_split_that_skips_the_first_period(self):
+        """``did_from_mean`` reads the pre-period as a prefix, so a split that
+        does not start at the first period would silently fit the wrong window.
+        """
+        Yco, y = self._arrays()
+        lib = build_experts(Yco, y, slice(5, 30), ("did", "lasso"))
+        assert lib.names == ("lasso",)
+        assert "starts at 5" in lib.dropped["did"]
 
     def test_did_expert_is_exact_under_parallel_trends(self):
         rng = np.random.default_rng(11)

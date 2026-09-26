@@ -27,7 +27,16 @@ from the paper, from the estimator's own tests, or from the simulation benchmark
 * standardization. glmnet standardizes the design by default and the authors do
   not turn it off, and the divisor is the population standard deviation. Fitting
   unstandardized left the factor expert's path 2.1e-02 from the reference; with
-  it, 4.9e-11. The sample standard deviation is not a substitute, at 6.1e-06.
+  it, 7.0e-07. The sample standard deviation is not a substitute, at 6.8e-06.
+
+Two of the path figures are bounded by the capture and not by the port. The
+bundle prints at ten decimals, so no path comparison here can resolve below
+5e-11, and ``did_path_max_abs_diff`` is that limit: the expert delegates to
+``did_from_mean``, the difference-in-differences FDID reports beside its forward
+fit, and against the authors' own line evaluated at full precision it agrees to
+5.6e-17. ``lasso_path_max_abs_diff`` is the same limit met once instead of a
+hundred times, since at the penalty their grid selects that expert keeps no
+donors and its path is one constant.
 
 One number here is a floor and not a target. The factor expert's penalty lands at
 the grid's minimum, where the fit is nearly unregularized on a 30-by-6 design of
