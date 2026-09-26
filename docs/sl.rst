@@ -21,6 +21,13 @@ a weighted combination, with weight going to whichever experts forecast the
 held-out stretch well. Nothing in the procedure requires any single expert to be
 correctly specified.
 
+The default library is the authors' own four: a cross-validated lasso of the
+treated outcome on the donors, a one-factor model of the donor pool loaded onto
+the treated unit, a random forest that also reads any covariates, and
+difference-in-differences over the whole donor pool. The last of these is the
+conventional estimate :class:`FDID` reports beside its forward one, and SL calls
+that fit instead of keeping a second copy of the formula.
+
 The inference is where SL differs most from its neighbours. It supplies a
 hypothesis test of the no-effect null, with a critical value from a moving-block
 bootstrap and a size guarantee that does not lean on the experts being right. It
