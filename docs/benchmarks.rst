@@ -70,6 +70,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - case
      - paths
      - data
+   * - ``adid_showroom``
+     - X
+     - empirical
    * - ``arco_resampling_mc``
      - B
      - simulated

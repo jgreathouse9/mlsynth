@@ -18,6 +18,7 @@ CASES = {
     "ppscm_bfr_mc": "benchmarks.cases.ppscm_bfr_mc",  # Path B: BFR sharp-null designs (ATT coverage both methods + cumulative band)
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
+    "adid_showroom": "benchmarks.cases.adid_showroom",            # cross-val vs Li and Van den Bulte's own MATLAB under Octave: Equation 2.4 and Appendix A.1 to 1e-12 on their showroom data
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "fdid_selection_mc": "benchmarks.cases.fdid_selection_mc",  # Path C: forward-selection consistency (Li 2023 Prop 2.2 / D.1) -- Pr(U_hat = U*) climbs 0.00 -> 0.77 over T1 = 25 -> 1600, plus Lemma B.1's uniform sqrt(log N / T1) rate over all 2^N - 1 subsets
     "fdid_normality_mc": "benchmarks.cases.fdid_normality_mc",  # Path C: ATT asymptotic normality (Li 2023 Prop 2.1) -- dispersion falls to 1 and coverage climbs to nominal where Assumption 4 holds; where 4(ii) fails the paper's statistic settles at sqrt(1 + T2/T1) and mlsynth's finite-sample SE converges anyway
@@ -359,6 +360,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "eiv_coverage_mc":                ("AB", "simulated"),
     "esc_prop99":                     ("A", "empirical"),
     "esc_saopaulo":                   ("A", "empirical"),
+    "adid_showroom":                  ("X", "empirical"),
     "fdid_hongkong":                  ("AX", "empirical"),
     "fdid_normality_mc":              ("C", "simulated"),
     "fdid_selection_mc":              ("C", "simulated"),
