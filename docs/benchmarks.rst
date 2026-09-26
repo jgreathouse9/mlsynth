@@ -47,7 +47,7 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 230 registered cases. ``paths`` is what the case
+All 231 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
@@ -55,9 +55,9 @@ calibrated from a real one.
 * ``A`` -- empirical replication (76 cases)
 * ``B`` -- Monte Carlo / simulation (65 cases)
 * ``C`` -- theoretical property or design calibration (12 cases)
-* ``X`` -- cross-validation against a reference implementation (107 cases)
+* ``X`` -- cross-validation against a reference implementation (108 cases)
 
-By data: 80 simulated, 135 empirical, 15 both -- so 95 cases fit at least one generated panel.
+By data: 80 simulated, 136 empirical, 15 both -- so 95 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
