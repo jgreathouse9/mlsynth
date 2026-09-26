@@ -50,6 +50,9 @@ below; the catalogue entries link to a dedicated page where one exists.
    :hidden:
    :caption: Dedicated replication pages
 
+   replications/cpda
+
+
    replications/geox
    replications/gpits
    replications/geox_sdid_equivalence
@@ -948,10 +951,10 @@ Coverage summary
        ISCM -- one-draw illustration only: the paper relies on a
        non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
-     - 12
-     - 12
-     - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
-       PDA, RESCM, SCD, SCUL, SparseSC)
+     - 13
+     - 13
+     - Complete (BEAST, BVSS, CLUSTERSC, CPDA, DROSC, FSCM, MLSC,
+       MSQRT, PDA, RESCM, SCD, SCUL, SparseSC)
    * - Time-aware / factor models
      - 6
      - 6
@@ -1006,9 +1009,9 @@ Coverage summary
      - 6
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
-     - 78
      - 79
-     - 78 of 79 estimators carry a replication.
+     - 80
+     - 79 of 80 estimators carry a replication.
 
 .. coverage-table-end
 
