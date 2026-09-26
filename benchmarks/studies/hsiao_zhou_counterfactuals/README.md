@@ -17,7 +17,8 @@ ground.
 | `methods.py` | DGP6 and DGP7 (Equations 32-33) and the seven counterfactual constructions E1-E7 |
 | `experiment.py` | one cell, printed beside the paper's row: `python -m benchmarks.studies.hsiao_zhou_counterfactuals.experiment --dgp dgp6 --T 40` |
 | `plot_empirics.py` | observed against the fitted counterfactual, one panel per method (Table 9) |
-| `results/` | the runs and the figure behind the tables below |
+| `standin.py` | drawn substitutes for the two smoking panels, and the resolver that picks between them and the paper's |
+| `results/` | the runs and the figures behind the tables below |
 
 DGP1-DGP5 are not ported. All five carry covariates, and the paper's step 1
 estimates their coefficient by "Pesaran's (2006) CCE or Bai's (2009) method"
@@ -280,12 +281,25 @@ Neither is reachable without the authors' code, which the paper does not ship.
 
 ## Section 7, the empirics
 
-Run by `run_empirics.py`, which needs the paper's replication data pointed at
-by `MLSYNTH_HZ_DATA`. The turnout panel is the one mlsynth already ships as
-`basedata/xu_edr_turnout.parquet`, row for row; the two smoking panels are not
-shipped, and they carry the covariates the paper substitutes for Abadie's
-(poverty rate and educational attainment, since price, beer and per-capita GDP
-are themselves treated).
+Run by `run_empirics.py`, which works out of the box.
+
+The turnout arm is a replication whatever else happens: its panel is already
+here as `basedata/xu_edr_turnout.parquet`, which is the paper's `turnout.csv`
+row for row. The two smoking panels are not here, and they carry the covariates
+the paper substitutes for Abadie's (poverty rate and educational attainment,
+since price, beer and per-capita GDP are themselves treated). With nothing
+configured those two are drawn by `standin.py` instead, and the run says so and
+prints no published comparison, because a drawn panel has nothing to compare
+against. `MLSYNTH_HZ_DATA` pointed at the paper's directory gives the real
+replication, which is what the numbers below are from.
+
+The stand-in is drawn to behave like the panel it replaces, not to copy it.
+One of its three covariates is near-constant and carries a large coefficient,
+which is what `lnincome` is, and that is not decoration: it is the feature that
+made Bai's iteration stall, so a stand-in without it would let the regression
+test below pass for a reason unrelated to the defect.
+`benchmarks/tests/test_hsiao_zhou_standin.py` holds it to producing a panel on
+which the old scheme still loses.
 
 The treated series check out first, which is what licenses the rest. California
 is unit 1 in `smoking.csv`, whose 1989 and 2000 cigarette sales are 82.4 and
