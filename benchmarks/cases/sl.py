@@ -11,12 +11,12 @@ sweeps that effect over ``c(0, 0.1, ..., 1.5)`` and reports rejection rates, whi
 is what is pinned here: size at effect zero, power at the top of their grid, and
 monotonicity in between.
 
-Path A is not pinned. The paper's empirical application needs a Tennessee MEDCOST
-series their package does not ship -- all four of its state matrices have 50
-columns and none is 47 -- so reproducing it needs BRFSS microdata that is not
-vendored here. That comparison was run and is reported on
-``docs/replications/sl.rst``; it is evidence, not a check, and the replication
-page says so.
+The empirical panel is a separate case. ``benchmarks/cases/sl_tennessee`` is the
+cross-validation against an R implementation of their own expert library, on the
+Medicaid panel reconstructed as ``basedata/sl_tennessee_medcost.csv``. It is the
+case that found the port's two defects, so read that one before trusting this one:
+a simulation benchmark measures whether the estimator behaves, and only the
+reference comparison measures whether it is the authors' estimator.
 
 Two of the pins below exist because the authors' code is wrong in ways that move
 published numbers, and a regression toward either would be invisible otherwise:
@@ -180,14 +180,14 @@ EXPECTED = {
     # The planted effect is 1.5, so even the loose end keeps the error under a
     # fifth of it. Flat in the effect size, since it is the ensemble's own
     # prediction error and not anything the effect changes.
-    "recovery_mean_abs_error_at_1p5": (0.2474, 0.08),
+    "recovery_mean_abs_error_at_1p5": (0.2485, 0.08),
     # The averaging regime, on the paper's own design and its own learning rate.
     # Pinned to stay above 3.47 of 4: an SL fit that silently started selecting
     # would be a different estimator.
-    "effective_k_at_paper_eta": (3.7231, 0.25),
+    "effective_k_at_paper_eta": (3.7249, 0.25),
     # ...and the errors spanning roughly one direction, which is why the
     # averaging buys little. Pinned to stay under 1.72 of 4.
-    "error_participation_ratio": (1.3643, 0.35),
+    "error_participation_ratio": (1.3625, 0.35),
     # The two corrections. Both are booleans or exact zeros, so both are pinned
     # tight: a regression here would restore a defect that moves a published
     # number without failing anything else.

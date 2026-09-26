@@ -6,11 +6,22 @@ SL: Viviano and Bradic (2023)
 What is validated, and how
 --------------------------
 
-SL is validated on Path B, the paper's own Monte Carlo design, and cross-checked
-against its empirical application. The Path B measurement is pinned in
-`benchmarks/cases/sl.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl.py>`_.
-The empirical comparison is reported below as evidence and is not pinned, for a
-reason given in its own section.
+Two cases, both pinned.
+
+`benchmarks/cases/sl.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl.py>`_
+is Path B, the size and power of the paper's own test on the paper's own Monte
+Carlo design.
+
+`benchmarks/cases/sl_tennessee.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_tennessee.py>`_
+is the cross-validation: mlsynth's SL against an R implementation of the authors'
+own expert library, on their Medicaid-expansion panel. The reference bundle is
+``benchmarks/reference/sl_tennessee``, whose ``reference.R`` transcribes
+``generate_experts`` and ``Exp_algorithm`` from their ``libraries/library.R`` and
+marks every line where it departs from them. The panel is
+``basedata/sl_tennessee_medcost.csv``.
+
+That case earned its place immediately: it found two defects in this port that
+nothing else had. See :ref:`sl-what-the-crossval-caught`.
 
 Path B: size and power on their Factor_model design
 ---------------------------------------------------
@@ -179,66 +190,164 @@ data. ``lasso_expert_is_deterministic`` pins that the expert does not move with
 the seed at all. Contiguous folds also respect time order, which a random split of
 a time series does not.
 
-The empirical application, and why it is not pinned
----------------------------------------------------
+.. _sl-what-the-crossval-caught:
 
-Their replication package ships no Tennessee outcome series. All four of its state
-matrices have 50 columns and none is 47; the ``[-43]`` at ``do_file.R:82`` drops
-exactly Tennessee, and ``data1_SC.txt``, the BRFSS extract ``do_file.R:7`` reads,
-is not included. Reproducing the application therefore needs microdata that is not
-vendored in this repository, so this comparison is evidence and not a check. If
-the series is ever vendored, this becomes a Path A case.
+What the cross-validation caught
+--------------------------------
 
-That the extraction is right was established against the authors' own output.
-``employment_BFRSS.txt``'s 51st column, ``employ_ts``, is a Tennessee series they
-did ship, appended at ``do_file.R:312``. Rebuilding it from the microdata with
-``do_file.R`` lines 256-277 matches all 300 cells to 4.44e-16, correlation 1, with
-the same ``unique(IYEAR)[-2]`` year ordering.
+Neither defect below was visible from the paper, from the estimator's 104 unit
+tests, or from the simulation benchmark. Both changed published numbers.
 
-Running SL on that panel -- six southern states that did not expand Medicaid,
-experts trained on quarters 1-30, weights on 31-50, treatment at 51, measured from
-52 with the paper's ``m`` rows skipping 0, 4, 8 and 12 quarters:
+The penalty grid
+~~~~~~~~~~~~~~~~
+
+``generate_experts`` hands ``cv.glmnet`` two explicit grids, and they are not the
+same one: ``seq(exp(-10), exp(-1), 79)`` for the lasso expert and
+``seq(exp(-10), exp(2), 79)`` for the factor expert, the second regressing a
+well-conditioned factor instead of the outcome. The port carried neither and let
+scikit-learn derive its own grid.
+
+On this window that decides the answer. The mean cross-validated error varies by a
+factor of only 1.064 across the whole of the paper's grid, so the curve barely
+separates the null model from the six-donor one:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Grid searched
+     - Penalty chosen
+     - Donors kept
+     - In-window SSR
+   * - the paper's, ``exp(-10)`` to ``exp(-1)``
+     - 0.367879
+     - 0
+     - 0.045018
+   * - scikit-learn's default
+     - 0.0000597
+     - 5
+     - 0.015990
+
+Two different experts, and the first is the one the authors' own published column
+came from. With the grid restored the lasso expert's path agrees with the
+reference to 2.3e-12.
+
+Standardization
+~~~~~~~~~~~~~~~
+
+glmnet standardizes the design by default and the authors do not turn it off. The
+port fitted unstandardized, which applies a different effective penalty to every
+donor, since the lasso is not scale invariant. The divisor matters too: glmnet
+uses the population standard deviation.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Fit
+     - Factor expert's path, max abs difference from the reference
+   * - unstandardized
+     - 2.1e-02
+   * - standardized, population SD (glmnet's)
+     - 4.9e-11
+   * - standardized, sample SD
+     - 6.1e-06
+
+How tight it is now
+-------------------
+
+Both sides deterministic, on the three experts that are algorithmically
+determined:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Quantity
+     - mlsynth vs reference
+   * - lasso expert, path over 100 quarters
+     - 2.3e-12 absolute
+   * - did expert, path over 100 quarters
+     - 4.9e-11 absolute
+   * - factor expert, path over 100 quarters
+     - 7.0e-07 absolute
+   * - lasso penalty, and donors kept
+     - same grid point, same count
+   * - factor penalty
+     - same grid point
+   * - learning rate
+     - 8.2e-13 relative
+   * - ensemble weights
+     - 1.8e-06 absolute
+   * - each expert's in-window SSR
+     - 6.8e-06 relative
+   * - test statistic
+     - 7.4e-06 relative
+   * - the effect, worst of four horizons
+     - 3.9e-06 relative
+
+The last few rows are a floor and not a target. The factor expert's penalty lands
+at its grid's minimum, where the fit is nearly unregularized on a 30-by-6 design
+of highly correlated state series, and the two solvers converge to different
+points of a near-flat optimum. Tightening scikit-learn's tolerance from 1e-04 to
+1e-13 moves the disagreement from 7.0e-07 to 9.2e-07 and no further, so this is
+the lasso solution's own non-uniqueness and not an error either side can remove.
+It is the same shape of problem as the non-identified weight vector of #30.
+
+The random forest is left out of the compared library on purpose. randomForest and
+scikit-learn's ``RandomForestRegressor`` are different implementations, so its path
+cannot agree cell for cell in any language pair, and including it would bound the
+measured accuracy of the port by that gap instead of by the port.
+
+Against their published table
+-----------------------------
+
+With the forest back in, against their Table 4 raw block:
 
 .. list-table::
    :header-rows: 1
 
    * - ``m``
      - SL statistic
-     - Their statistic
+     - Theirs
      - SL effect
-     - Their effect
+     - Theirs
    * - 0
-     - 0.7038
+     - 0.7047
      - 0.6910
-     - 4.3163
+     - 4.5228
      - 5.2227
    * - 1yr
-     - 0.6754
+     - 0.6688
      - 0.6225
-     - 4.6188
+     - 4.8413
      - 5.3624
    * - 2yr
-     - 0.6013
+     - 0.6031
      - 0.6247
-     - 4.5698
+     - 4.7981
      - 5.5167
    * - 3yr
-     - 0.5819
+     - 0.5853
      - 0.6108
-     - 4.5452
+     - 4.7714
      - 5.5870
 
-The statistic agrees to between 2 and 9 percent, and the verdict agrees: no
-rejection at any horizon, p between 0.19 and 0.25 against their non-rejection at
-both the 10 and 20 percent levels.
+The statistic agrees to between 2.0 and 7.4 percent and the verdict agrees at
+every horizon: no rejection, p between 0.19 and 0.26 against their non-rejection
+at both the 10 and 20 percent levels. The lasso expert now reaches their own mode,
+``alpha`` 0.367879 keeping no donors, in-window SSR 450.2.
 
-The effect lands 17 to 19 percent below theirs, and the lasso finding above is
-why. SL's penalty is computed from the data and lands at ``alpha`` 5.97e-5 keeping
-5 donors, in-window SSR 159.9 -- the well-fitting attractor. Their published
-column came from the draw where that expert kept no donors. The two modes of their
-own estimator bracket 3.74 and 5.22; SL's 4.32 sits between them, nearer the mode
-whose expert fits. A deterministic penalty cannot land on the degenerate draw, so
-this gap is the correction working, not a porting error.
+The effect is 9.7 to 14.6 percent below theirs, and the forest is what is left.
+Excluding it the two implementations agree to 3.9e-06, so the entire residual is
+the one member that cannot be matched across languages, carrying 20.8 percent of
+the weight. Before the two fixes above the same gap was 17 to 19 percent.
+
+That the panel itself is right was established against the authors' own output.
+``employment_BFRSS.txt``'s 51st column, ``employ_ts``, is a Tennessee series they
+did ship, appended at ``do_file.R:312``. Rebuilding it from the BRFSS microdata
+with ``do_file.R`` lines 256-277 matches all 300 cells to 4.44e-16, correlation 1,
+with the same ``unique(IYEAR)[-2]`` year ordering. The outcome series itself is not
+in their package -- all four of its state matrices have 50 columns and none is 47,
+since the ``[-43]`` at ``do_file.R:82`` drops exactly Tennessee -- so it is
+reconstructed and shipped as ``basedata/sl_tennessee_medcost.csv``.
 
 What the library was doing
 --------------------------
@@ -304,6 +413,31 @@ What is pinned
    * - ``eta_large_selects_one_expert``
      - and its upper limit
 
+And from ``sl_tennessee``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Quantity
+     - What it protects
+   * - ``lasso_path_max_abs_diff``
+     - the lasso expert, against losing the paper's penalty grid
+   * - ``factor_path_max_abs_diff``
+     - the factor expert, against losing the standardization or its own grid
+   * - ``did_path_max_abs_diff``
+     - the closed-form expert
+   * - ``lasso_lambda_abs_diff``, ``factor_lambda_abs_diff``
+     - both penalties are the same grid point, not merely close
+   * - ``lasso_n_selected_diff``
+     - and select the same donors
+   * - ``eta_rel_diff``
+     - the learning rate
+   * - ``weights_max_abs_diff``, ``expert_ssr_max_rel_diff``
+     - the weighting
+   * - ``statistic_rel_diff``, ``att_max_rel_diff_over_horizons``
+     - what a reader is shown, at every horizon
+
+
 Open
 ----
 
@@ -312,6 +446,11 @@ interval would come from inverting the test of Equations 7 and 8 over a grid of
 candidate constant effects. ``conformal_att_interval`` does not substitute for it:
 that function refits a ridge on a donor design, so its interval belongs to a
 different estimator's point estimate. This was checked, not assumed.
+
+The random forest expert is cross-validated by nothing. Pinning it would need a
+forest whose trees match across languages, which randomForest and scikit-learn do
+not provide, so an R reference for it would measure the two implementations
+against each other and not the port.
 
 The library is the paper's own four experts. Measured on two panels, those four
 span roughly one error direction, so a wider or better-chosen library is the
