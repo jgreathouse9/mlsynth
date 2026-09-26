@@ -752,3 +752,238 @@ class TestFDIDDoesNotQuantizeItsOutput:
         res, _, _ = _fit_proportion_panel()
         f = res.fdid
         assert f.satt == pytest.approx(f.att / f.att_se, rel=1e-12)
+
+
+# --------------------------------------------------------------------------- #
+# ADID: Li and Van den Bulte (2022), the slope-adjusted variant
+# --------------------------------------------------------------------------- #
+
+def _adid_panel(T=60, T0=40, N=6, slope=2.5, intercept=7.0, tau=0.0, seed=3):
+    """A panel where the treated unit is a known affine map of the donor mean.
+
+    DID cannot fit this unless ``slope`` is 1, which is what makes the design
+    separate the two methods instead of letting them coincide.
+    """
+    rng = np.random.default_rng(seed)
+    donors = 10.0 + np.cumsum(rng.standard_normal((T, N)), axis=0)
+    treated = intercept + slope * donors.mean(axis=1) + 0.01 * rng.standard_normal(T)
+    treated[T0:] += tau
+    Y = np.column_stack([treated, donors])
+    units = np.repeat(np.arange(N + 1), T)
+    times = np.tile(np.arange(T), N + 1)
+    df = pd.DataFrame({
+        "unit": units, "time": times, "y": Y.T.ravel(),
+        "d": ((units == 0) & (times >= T0)).astype(int),
+    })
+    return df, treated, donors, T0
+
+
+class TestADIDEstimation:
+    def test_counterfactual_is_the_fitted_affine_map(self):
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        _, y, donors, T0 = _adid_panel()
+        mean_ctrl = donors.mean(axis=1)
+        raw = adid_from_mean(y, mean_ctrl, T0)
+        d1 = raw["Inference"]["Intercept"]
+        d2 = raw["Inference"]["Slope"]
+        np.testing.assert_allclose(
+            raw["Vectors"]["Counterfactual"], d1 + d2 * mean_ctrl, atol=1e-12)
+
+    def test_it_recovers_a_planted_slope_and_intercept(self):
+        """Equation 2.4 is a projection, so on data generated from it the
+        coefficients come back."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        _, y, donors, T0 = _adid_panel(slope=2.5, intercept=7.0, tau=0.0)
+        raw = adid_from_mean(y, donors.mean(axis=1), T0)
+        assert abs(raw["Inference"]["Slope"] - 2.5) < 5e-3   # about 1.6 standard errors
+        assert abs(raw["Inference"]["Intercept"] - 7.0) < 5e-2
+        assert abs(raw["Effects"]["ATT"]) < 5e-2
+
+    def test_it_recovers_a_planted_effect_where_did_cannot(self):
+        from mlsynth.utils.fdid_helpers import adid_from_mean, did_from_mean
+
+        _, y, donors, T0 = _adid_panel(slope=2.5, tau=4.0)
+        mean_ctrl = donors.mean(axis=1)
+        adid = adid_from_mean(y, mean_ctrl, T0)["Effects"]["ATT"]
+        did = did_from_mean(y, mean_ctrl, T0)["Effects"]["ATT"]
+        assert abs(adid - 4.0) < 0.1
+        assert abs(did - 4.0) > 1.0          # the slope-one restriction bites
+
+    def test_it_is_did_when_the_slope_is_one(self):
+        """The two estimators are nested, so on slope-one data they agree."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean, did_from_mean
+
+        _, y, donors, T0 = _adid_panel(slope=1.0, intercept=3.0, tau=2.0)
+        mean_ctrl = donors.mean(axis=1)
+        adid = adid_from_mean(y, mean_ctrl, T0)
+        did = did_from_mean(y, mean_ctrl, T0)
+        assert abs(adid["Inference"]["Slope"] - 1.0) < 1e-2
+        assert abs(adid["Effects"]["ATT"] - did["Effects"]["ATT"]) < 0.05
+
+    def test_it_fits_at_least_as_well_in_sample_as_did(self):
+        """OLS on a superset of DID's restriction cannot fit worse."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean, did_from_mean
+
+        for slope in (1.0, 2.5):
+            _, y, donors, T0 = _adid_panel(slope=slope)
+            m = donors.mean(axis=1)
+            assert (adid_from_mean(y, m, T0)["Fit"]["T0 RMSE"]
+                    <= did_from_mean(y, m, T0)["Fit"]["T0 RMSE"] + 1e-9)
+
+    def test_the_variance_is_appendix_a1(self):
+        """Sigma = (T2/T1) sigma^2 eta' Psi^-1 eta + sigma^2, their .m lines 57-66."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        _, y, donors, T0 = _adid_panel(T=60, T0=40)
+        m = donors.mean(axis=1)
+        T, T2 = len(y), len(y) - T0
+        raw = adid_from_mean(y, m, T0)
+
+        X = np.column_stack([np.ones(T), m])
+        delta = np.linalg.solve(X[:T0].T @ X[:T0], X[:T0].T @ y[:T0])
+        resid = y[:T0] - X[:T0] @ delta
+        sigma2 = float(np.mean(resid ** 2))
+        eta = X[T0:].mean(axis=0)
+        psi = X[:T0].T @ X[:T0] / T0
+        omega = (T2 / T0) * sigma2 * eta @ np.linalg.solve(psi, eta) + sigma2
+        assert abs(raw["Inference"]["SE"] - np.sqrt(omega / T2)) < 1e-12
+        assert abs(raw["Effects"]["SATT"]
+                   - np.sqrt(T2) * raw["Effects"]["ATT"] / np.sqrt(omega)) < 1e-10
+
+    def test_hac_moves_the_standard_error_on_a_correlated_residual(self):
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        rng = np.random.default_rng(5)
+        T, T0, N = 80, 60, 5
+        donors = 10.0 + np.cumsum(rng.standard_normal((T, N)), axis=0)
+        e = np.zeros(T)
+        for t in range(1, T):                       # AR(1), heavily persistent
+            e[t] = 0.85 * e[t - 1] + rng.standard_normal()
+        y = 2.0 + 1.5 * donors.mean(axis=1) + e
+        m = donors.mean(axis=1)
+        a = adid_from_mean(y, m, T0, inference="analytic")["Inference"]["SE"]
+        h = adid_from_mean(y, m, T0, inference="hac")["Inference"]["SE"]
+        assert h != a and np.isfinite(h) and h > 0
+
+    def test_hac_at_lag_zero_is_their_heteroskedasticity_robust_branch(self):
+        """Appendix A.1's third form, which is not the analytic one.
+
+        The paper gives ``V = T1^-1 sum e^2 x x'`` for uncorrelated but
+        heteroskedastic errors, where the authors' script uses ``sigma^2 Psi``.
+        Both are theirs, they coincide only under homoskedasticity, and at lag
+        zero the HAC double sum collapses to the first.
+        """
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        _, y, donors, T0 = _adid_panel()
+        m = donors.mean(axis=1)
+        T, T2 = len(y), len(y) - T0
+        X = np.column_stack([np.ones(T), m])
+        delta = np.linalg.solve(X[:T0].T @ X[:T0], X[:T0].T @ y[:T0])
+        e = y[:T0] - X[:T0] @ delta
+        psi = X[:T0].T @ X[:T0] / T0
+        b = np.linalg.solve(psi, X[T0:].mean(axis=0))
+        V = (X[:T0] * (e ** 2)[:, None]).T @ X[:T0] / T0
+        omega = (T2 / T0) * float(b @ V @ b) + float(np.mean(e ** 2))
+
+        h = adid_from_mean(y, m, T0, inference="hac", lrvar_lag=0)
+        assert abs(h["Inference"]["SE"] - np.sqrt(omega / T2)) < 1e-12
+
+        a = adid_from_mean(y, m, T0, inference="analytic")["Inference"]["SE"]
+        assert h["Inference"]["SE"] != a
+
+    def test_a_constant_donor_average_is_refused(self):
+        """The design is then rank one and the slope is not identified."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        y = np.arange(30.0)
+        with pytest.raises(MlsynthEstimationError, match="[Ss]lope"):
+            adid_from_mean(y, np.full(30, 4.0), 20)
+
+    def test_too_few_pre_periods_is_refused(self):
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        y = np.arange(10.0)
+        with pytest.raises(MlsynthEstimationError, match="pre-treatment"):
+            adid_from_mean(y, np.arange(10.0) * 0.5, 2)
+
+
+class TestADIDInferenceGuards:
+    """The three refusals of ``adid_inference``, none of which the estimator
+    can reach: ``adid_from_mean`` fixes the method and the lag and refuses a
+    short pre-period before calling it."""
+
+    @staticmethod
+    def _args():
+        rng = np.random.default_rng(1)
+        X = np.column_stack([np.ones(20), rng.standard_normal(20)])
+        return dict(att=1.0, pre_residuals=rng.standard_normal(20),
+                    pre_design=X, post_design_mean=X.mean(axis=0),
+                    pre_periods=20, post_periods=5)
+
+    def test_an_unknown_method(self):
+        from mlsynth.utils.fdid_helpers import adid_inference
+
+        with pytest.raises(ValueError, match="method must be one of"):
+            adid_inference(**self._args(), method="bootstrap")
+
+    def test_a_negative_lag(self):
+        from mlsynth.utils.fdid_helpers import adid_inference
+
+        with pytest.raises(ValueError, match="non-negative"):
+            adid_inference(**self._args(), method="hac", lrvar_lag=-1)
+
+    def test_an_empty_window_returns_nan_instead_of_raising(self):
+        """A caller can hand it a panel with nothing after the treatment, and
+        an undefined interval is the answer, not an exception."""
+        from mlsynth.utils.fdid_helpers import adid_inference
+
+        args = self._args()
+        args["post_periods"] = 0
+        se, ci, p, satt = adid_inference(**args)
+        assert all(np.isnan(v) for v in (se, p, satt)) and all(np.isnan(c) for c in ci)
+
+
+class TestADIDOnTheResult:
+    @staticmethod
+    def _fit(**kw):
+        df, _, _, _ = _adid_panel()
+        cfg = dict(df=df, outcome="y", treat="d", unitid="unit", time="time",
+                   display_graphs=False)
+        cfg.update(kw)
+        return FDID(FDIDConfig(**cfg)).fit()
+
+    def test_adid_is_a_third_fit(self):
+        res = self._fit()
+        assert isinstance(res.adid, FDIDMethodFit)
+        assert res.adid.name == "ADID"
+        assert set(res.methods) == {"FDID", "DID", "ADID"}
+        assert set(res.att_by_method()) == {"FDID", "DID", "ADID"}
+
+    def test_only_adid_reports_a_slope(self):
+        """FDID and DID hold it at one by construction, so they do not fit one."""
+        res = self._fit()
+        assert res.adid.slope is not None
+        assert res.fdid.slope is None and res.did.slope is None
+
+    def test_adid_uses_every_donor(self):
+        """Their Equation 2.4 averages the whole control group, and the forward
+        selection is a different paper."""
+        res = self._fit()
+        assert len(res.adid.selected_names) == res.inputs.n_donors
+        assert res.adid.donor_weights == res.did.donor_weights
+
+    def test_selecting_adid_routes_the_aliases(self):
+        res = self._fit()
+        object.__setattr__(res, "selected_variant", "ADID")
+        assert res.att == res.adid.att
+        np.testing.assert_allclose(res.counterfactual, res.adid.counterfactual)
+
+    def test_the_gap_is_observed_minus_the_adid_counterfactual(self):
+        res = self._fit()
+        np.testing.assert_allclose(
+            res.adid.gap,
+            np.asarray(res.inputs.y, dtype=float) - res.adid.counterfactual,
+            atol=1e-12)

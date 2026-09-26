@@ -271,3 +271,128 @@ def did_inference(
     p_value = 2.0 * (1.0 - norm.cdf(np.abs(att / se)))
     satt = att / se
     return float(se), ci, float(p_value), float(satt)
+
+
+def adid_inference(
+    att: float,
+    pre_residuals: np.ndarray,
+    pre_design: np.ndarray,
+    post_design_mean: np.ndarray,
+    pre_periods: int,
+    post_periods: int,
+    method: str = "analytic",
+    lrvar_lag: Optional[int] = None,
+) -> Tuple[float, Tuple[float, float], float, float]:
+    """Li and Van den Bulte (2022) Appendix A.1, the ADID variance.
+
+    Their ``Sigma = Sigma_1 + Sigma_2`` where ``Sigma_1 = (T2/T1) B V B'``
+    carries the pre-period estimation error and ``Sigma_2`` the post-period
+    idiosyncratic error, with ``B = T2^-1 sum_post x_t' Psi^-1`` and
+    ``Psi = T1^-1 sum_pre x_t x_t'``. Proposition 3.1 then gives
+    ``sqrt(T2) (ATT - Delta) / sqrt(Sigma) -> N(0, 1)``, so the standard error
+    of the ATT is ``sqrt(Sigma / T2)``.
+
+    This is not :func:`did_inference` with an extra term. DID estimates one
+    parameter and its ``Sigma_1`` collapses to ``(T2/T1) sigma^2``; ADID
+    estimates two, and the design enters through ``B``, so a panel where the
+    post-period control average sits far from its pre-period mean is penalised
+    for the extrapolation.
+
+    Parameters
+    ----------
+    att : float
+        The ADID ATT.
+    pre_residuals : np.ndarray
+        Pre-period residuals ``y_1t - x_t' delta``, shape ``(T1,)``.
+    pre_design : np.ndarray
+        The pre-period design ``x_t = (1, mean of the controls)``, shape
+        ``(T1, 2)``.
+    post_design_mean : np.ndarray
+        Its post-period column means, shape ``(2,)`` -- their ``eta``.
+    pre_periods, post_periods : int
+        ``T1`` and ``T2``.
+    method : {"analytic", "hac"}, default "analytic"
+        ``"analytic"`` takes ``V = sigma^2 Psi``, which reduces ``Sigma_1`` to
+        ``(T2/T1) sigma^2 eta' Psi^-1 eta`` -- the form the authors' own script
+        computes at its lines 57 to 66. ``"hac"`` estimates the residual
+        autocovariances on the pre-period and prices them into both terms,
+        which is their general expression with the truncation at
+        ``l = O(T1^(1/4))``.
+
+        Their Appendix A.1 gives a third form for the serially uncorrelated
+        case, ``V = T1^-1 sum e_t^2 x_t x_t'``, robust to heteroskedasticity
+        where ``sigma^2 Psi`` is not. That form is ``method="hac"`` with
+        ``lrvar_lag=0``: the double sum collapses to its diagonal, so the three
+        branches are reachable as analytic, hac at lag zero, and hac at a
+        positive lag. The two uncorrelated forms coincide only under
+        homoskedasticity, and on a heteroskedastic pre-period they do not.
+    lrvar_lag : int, optional
+        Truncation lag for ``method="hac"``; defaults to :func:`hac_lag`.
+
+    Returns
+    -------
+    se : float
+        Standard error of the ATT (``nan`` if undefined).
+    ci : tuple of float
+        ``(lower, upper)`` 95% confidence interval.
+    p_value : float
+        Two-sided p-value.
+    satt : float
+        ``sqrt(T2) ATT / sqrt(Sigma)``, standard normal under the null.
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is not one of :data:`INFERENCE_METHODS`, or
+        ``lrvar_lag`` is negative.
+    """
+    if method not in INFERENCE_METHODS:
+        raise ValueError(
+            f"method must be one of {INFERENCE_METHODS}; got {method!r}."
+        )
+    if lrvar_lag is not None and lrvar_lag < 0:
+        raise ValueError(f"lrvar_lag must be non-negative; got {lrvar_lag}.")
+    if pre_periods <= 0 or post_periods <= 0:
+        return np.nan, (np.nan, np.nan), np.nan, np.nan
+
+    X = np.asarray(pre_design, dtype=float)
+    eta = np.asarray(post_design_mean, dtype=float).ravel()
+    psi = X.T @ X / pre_periods
+    resid = np.asarray(pre_residuals, dtype=float).ravel()
+
+    try:
+        psi_inv_eta = np.linalg.solve(psi, eta)
+    except np.linalg.LinAlgError:       # pragma: no cover - the caller refuses
+        return np.nan, (np.nan, np.nan), np.nan, np.nan
+
+    if method == "analytic":
+        sigma2 = float(np.mean(resid ** 2))
+        omega1 = sigma2 * float(eta @ psi_inv_eta)
+        omega2 = sigma2
+    else:
+        lag = hac_lag(pre_periods, post_periods) if lrvar_lag is None else lrvar_lag
+        # V = T1^-1 sum_{|s-t| <= l} e_t e_s x_t x_s', Bartlett weighted
+        V = np.zeros((X.shape[1], X.shape[1]))
+        for j in range(0, lag + 1):
+            w = 1.0 if j == 0 else 1.0 - j / (lag + 1)
+            cross = (X[j:] * (resid[j:] * resid[:resid.size - j])[:, None]).T @ X[:X.shape[0] - j]
+            V += (w * (cross if j == 0 else cross + cross.T)) / pre_periods
+        b = psi_inv_eta
+        omega1 = float(b @ V @ b)
+        # Sigma_2 = T1^-1 sum_{|s-t| <= l} e_t e_s, the residual's long-run
+        # variance, which is gamma_0 alone only at lag zero.
+        gamma = residual_autocovariances(resid, lag)
+        omega2 = float(gamma[0] + 2.0 * sum(
+            (1.0 - k / (lag + 1)) * gamma[k] for k in range(1, gamma.size)))
+        omega2 = max(omega2, float(gamma[0]))
+
+    omega = (post_periods / pre_periods) * omega1 + omega2
+    if not (omega > 0):                 # pragma: no cover - a degenerate fit
+        return np.nan, (np.nan, np.nan), np.nan, np.nan
+
+    se = float(np.sqrt(omega / post_periods))
+    satt = float(np.sqrt(post_periods) * att / np.sqrt(omega))
+    z = float(norm.ppf(0.975))
+    ci = (float(att - z * se), float(att + z * se))
+    p_value = float(2.0 * (1.0 - norm.cdf(abs(satt))))
+    return se, ci, p_value, satt
