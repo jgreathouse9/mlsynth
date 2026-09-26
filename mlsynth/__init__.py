@@ -12,6 +12,7 @@ from .estimators.gsynth import GSYNTH ## Check
 from .estimators.cscipca import CSCIPCA ## Check
 from .estimators.medsc import MEDSC ## Check
 from .estimators.cpda import CPDA
+from .estimators.sl import SL
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
@@ -137,6 +138,7 @@ __all__ = [
     "CSCIPCA",
     "MEDSC",
     "CPDA",
+    "SL",
     "PDA",
     "FDID",
     "CLUSTERSC",

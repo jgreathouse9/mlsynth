@@ -84,6 +84,7 @@ At a glance
    Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA · BFSC (Bayesian, credible band)
    Donors right in shape, wrong in TIMING? ─► DTWSC (warp donor speeds, then SC)
    Nonlinear outcome surface?           ─► NSC
+   Cannot defend one counterfactual model? ─► SL (ensemble over experts, test only)
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
    Observed time-varying covariates?    ─► CPDA (residualise, then regress) · GSYNTH · SDID
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
@@ -384,6 +385,25 @@ outcome untouched and CPDA is PDA, so the config refuses that case. One caution
 carries over from the paper: on a short pre-period the donor subset is not
 pinned by the method, and the estimate moves with it, so set
 ``sensitivity=True`` and report the spread.
+
+*No defensible single model? SL, and read what it reports.* :doc:`sl` declines
+the choice: it fits a library of predictors on one slice of the pre-period,
+scores them on a slice they did not see, and combines them by exponential
+weights. The guarantee is relative to the best member of the library, so no
+member has to be correctly specified -- but nothing promises the best member is
+good, and a library that spans nothing close to the counterfactual returns a
+confident average of wrong answers. It costs half the pre-period to the split, so
+it needs a long one. Two things decide whether an SL number means anything, and
+both are typed fields on the result: ``effective_k`` says whether the weighting
+selected a member or averaged them all, and ``error_participation_ratio`` says
+whether the members err independently, which is the condition for averaging to
+help at all. On the paper's own application those read 3.86 of 4 and 1.19 of 4,
+so there the ensemble is close to a simple average of four experts that miss
+together. SL also differs from everything else here in what it returns: a
+hypothesis test with a bootstrap critical value and no standard error or
+interval, because the statistic is a non-negative quadratic whose null quantiles
+are critical values. Reach for :doc:`fma` or :doc:`gsynth` when an interval is
+the deliverable.
 
 *Within PDA: which regulariser?* :doc:`pda` bundles four ways to fit the
 unconstrained regression, and the choice is governed by the size of the donor
