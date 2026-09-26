@@ -48,9 +48,9 @@ INK_MUTED = "#52514e"
 MINE = "#2a78d6"
 PAPER_C = "#eb6834"
 GRID = "#dedddb"
-# Direct labels and legend text wear ink, never the series colour: at 8.5pt
-# these hues sit under the 4.5:1 text floor, and the legend's own marks carry
-# identity. Position next to each line carries the rest.
+# Legend and annotation text wears ink, never the series colour: at these
+# sizes the hues sit under the 4.5:1 text floor, and the legend's own marks
+# carry identity.
 SURFACE = "#fcfcfb"
 
 
@@ -103,27 +103,12 @@ def plot_table9(years, observed, fitted, T0, real=True):
     pad = 0.07 * (hi - lo)
     axes[0, 0].set_ylim(lo - pad, hi + pad)
     axes[0, 0].set_xlim(years[0] - 0.5, years[-1] + 0.5)
-    axes[0, 0].set_ylabel("cigarette sales per capita (packs)", fontsize=9.5,
+    unit = ("cigarette sales per capita (packs)" if real
+            else "outcome (drawn, no unit)")
+    axes[0, 0].set_ylabel(unit, fontsize=9.5,
                           color=INK_MUTED)
-    axes[1, 0].set_ylabel("cigarette sales per capita (packs)", fontsize=9.5,
+    axes[1, 0].set_ylabel(unit, fontsize=9.5,
                           color=INK_MUTED)
-
-    # Direct labels once, on the panel with the most separation.
-    ax = axes[1, 2]
-    # Anchor the labels where the lines are furthest apart, so they never
-    # collide. A fixed offset works on one panel and not another.
-    gap = np.abs(observed[T0:] - fitted["PCA"][T0:])
-    j = T0 + int(np.argmax(gap))
-    ax.annotate("observed", (years[j], observed[j]), xytext=(6, -14),
-                textcoords="offset points", ha="left", fontsize=8.5,
-                color=INK_MUTED)
-    ax.annotate("this replication", (years[j], fitted["PCA"][j]),
-                xytext=(6, 8), textcoords="offset points", ha="left",
-                fontsize=8.5, color=INK_MUTED)
-    if real:
-        ax.annotate("Table 9", (years[j], PAPER["PCA"][j - T0]),
-                    xytext=(6, -15), textcoords="offset points", ha="left",
-                    fontsize=8.5, color=INK_MUTED)
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False,

@@ -14,7 +14,9 @@ schemes and Hsiao, Shi & Zhou (2022, Table 1) measure both: PCA2 holds a bias of
 about 0.13 that does not shrink in N or T, with empirical size up to 100 percent
 against a 5 percent nominal. Bai's estimator is the argmin of
 ``||Y - X b - F L'||^2``, so the objective is what adjudicates, and these tests
-assert against it rather than against any particular coefficient value.
+assert against it, not against any particular coefficient value. They assert
+margins on it: two schemes that reach the same point differ only in the last
+bits, and a strict inequality there is decided by the BLAS.
 """
 from __future__ import annotations
 
@@ -96,20 +98,40 @@ class TestTheErrorStructure:
 # Bai (2009): the objective is what decides
 # ----------------------------------------------------------------------
 
-def _panel(rng, N=25, T=40, beta=(1.0, 2.0)):
+#: The coefficients `_panel` generates under. The first regressor is the flat
+#: one, so `TRUTH[0]` is the large coefficient that makes PCA2 stall.
+TRUTH = (20.0, 2.0)
+
+#: Spread of the flat regressor around its level of 10, giving a coefficient of
+#: variation near 0.01 -- the same order as `lnincome`'s 0.027 on the real panel.
+FLAT_SD = 0.1
+
+
+def _panel(rng, N=25, T=40, beta=TRUTH):
     """Bai (2009)'s DGP1, with one near-constant regressor.
 
     Plain DGP1 does not separate the two iteration schemes: both recover the
     truth, so a test built on it passes against the defect and has no power.
     What broke on the real panel was `lnincome`, a log that is nearly flat
-    across states and carries a large coefficient, so the first regressor here
-    is built that way. On this design PCA2 from a zero start returns 0.506
-    against a truth of 1.0 while PCA1 from pooled OLS returns 0.981.
+    across states and carrying a coefficient near 60, so the first regressor
+    here is built that way.
+
+    Two parameters decide whether the separation happens at all, and an earlier
+    version of this fixture had both too weak: a flat-regressor spread of 0.3
+    and a coefficient of 1.0 separated the schemes on one seed in ten, and on
+    the other nine they converged to the same point. A test asserting a strict
+    inequality there compares two equal objectives and is decided by the last
+    two bits, which is how it passed locally and failed in CI.
+
+    Measured over twelve seeds at `FLAT_SD` 0.1 and `TRUTH[0]` 20, PCA2 from a
+    zero start lands 64 percent above the reached minimum at worst, and its bias
+    on the flat coefficient is -17.0 against PCA1's -0.005. The separation is a
+    property of the design now, not of the seed.
     """
     lam = rng.standard_normal((N, 2))
     f = rng.standard_normal((T, 2))
     X = np.empty((T, N, 2))
-    X[:, :, 0] = 10.0 + 0.3 * rng.standard_normal((T, N)) + 0.1 * lam[:, 0]
+    X[:, :, 0] = 10.0 + FLAT_SD * rng.standard_normal((T, N)) + 0.1 * lam[:, 0]
     X[:, :, 1] = (1.0 + lam[:, 0] + lam[:, 1] + (f[:, 0] + f[:, 1])[:, None]
                   + f @ lam.T + rng.standard_normal((T, N)))
     Y = np.einsum("tnk,k->tn", X, np.asarray(beta)) + f @ lam.T \
@@ -152,22 +174,48 @@ class TestBaiIsTheArgmin:
         assert _ssr(Y, X, a, 2) == pytest.approx(_ssr(Y, X, b, 2), rel=1e-6)
 
     def test_it_recovers_the_truth_on_bai_dgp1(self, empirics):
-        """beta = (1, 2) by construction; PCA2 from zeros misses this."""
-        errs = []
+        """beta = TRUTH by construction, and the scheme it replaced misses it.
+
+        Stated relative to each coefficient, since `TRUTH` is (20, 2) and one
+        absolute tolerance cannot be strict on both. The PCA2 contrast is the
+        point: it is not a slightly worse estimate, it is off by most of the
+        flat coefficient.
+        """
+        truth = np.asarray(TRUTH)
+        errs, errs_pca2 = [], []
         for seed in range(6):
             Y, X = _panel(np.random.default_rng(seed), N=25, T=60)
             beta, _, _ = empirics.beta_bai(Y, X, T0=50, r=2)
-            errs.append(beta - np.array([1.0, 2.0]))
+            errs.append(beta - truth)
+            errs_pca2.append(empirics._beta_bai_pca2_from_zero(Y, X, r=2) - truth)
         bias = np.mean(errs, axis=0)
-        assert np.max(np.abs(bias)) < 0.15, f"bias {bias} is PCA2-sized"
+        assert np.max(np.abs(bias / truth)) < 0.05, (
+            f"relative bias {bias / truth} is PCA2-sized")
+        bias_pca2 = np.mean(errs_pca2, axis=0)
+        assert abs(bias_pca2[0] / truth[0]) > 0.5, (
+            f"PCA2 must miss the flat coefficient badly for this design to have "
+            f"power; its relative bias is only {bias_pca2[0] / truth[0]:.3f}")
 
-    def test_it_beats_the_scheme_it_replaced(self, empirics):
-        """PCA2 from a zero start, the shipped defect, on the same panel."""
-        rng = np.random.default_rng(4)
-        Y, X = _panel(rng)
+    @pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+    def test_it_beats_the_scheme_it_replaced(self, empirics, seed):
+        """PCA2 from a zero start, the shipped defect, on the same panel.
+
+        A margin rather than a bare `<`, and over several seeds. The first
+        version asserted a strict inequality on seed 4 alone, where the old
+        fixture let both schemes converge to the same point: the two objectives
+        agreed to thirteen significant figures and the comparison came down to
+        the last two bits, so it passed on one BLAS and failed on another. The
+        fix is the fixture, which now separates the schemes on every seed; the
+        margin here is what keeps the test honest about it.
+        """
+        Y, X = _panel(np.random.default_rng(seed))
         good, _, _ = empirics.beta_bai(Y, X, T0=30, r=2)
         bad = empirics._beta_bai_pca2_from_zero(Y, X, r=2)
-        assert _ssr(Y, X, good, 2) < _ssr(Y, X, bad, 2)
+        reached, stalled = _ssr(Y, X, good, 2), _ssr(Y, X, bad, 2)
+        assert (stalled - reached) / reached > 0.2, (
+            f"PCA2 must stall by a clear margin; got "
+            f"{(stalled - reached) / reached:.2e}. A near-zero gap means the "
+            f"fixture has stopped separating the two schemes.")
 
     @pytest.mark.parametrize("r", [1, 2, 3])
     def test_more_factors_never_raise_the_objective(self, empirics, r):

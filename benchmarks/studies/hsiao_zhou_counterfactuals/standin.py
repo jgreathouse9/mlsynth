@@ -29,10 +29,27 @@ BETA               (...)  the coefficients, with a large one on that regressor
 
 The near-constant regressor is the part that matters most. ``lnincome`` in the
 real panel is a log, nearly flat across states, carrying a coefficient of about
-60. That combination is what made Bai's PCA2 iteration stall in #647, and a
-stand-in without it would let this study's regression test pass for a reason
-that has nothing to do with the defect. ``benchmarks/tests/test_hsiao_zhou_standin.py``
-holds the generator to producing a panel on which PCA2 still loses.
+60, which ``BETA[0]`` matches. That combination is what made Bai's PCA2
+iteration stall in #647, and a stand-in without it would let this study's
+regression test pass for a reason that has nothing to do with the defect.
+
+The size of ``BETA[0]`` sets how far PCA2 stalls, so it sets how much power the
+regression test has. Measured over six seeds, PCA2 from a zero start lands above
+the reached minimum by this much:
+
+===========  =================  ===================
+``BETA[0]``  worst-case excess  two-factor share
+===========  =================  ===================
+6            0.003 percent      0.93
+20           2.7 percent        0.91
+60           31 percent         0.74
+===========  =================  ===================
+
+At 6 the gap sits eleven orders of magnitude above floating-point noise but
+only four above nothing, which is too thin to assert across BLAS
+implementations. At 60 it matches the 18 percent the real panel shows and the
+factor structure survives. ``benchmarks/tests/test_hsiao_zhou_standin.py``
+holds the generator to a margin, not to a strict inequality.
 
 The expenditure panel's defining feature is its shape: 38 controls against a
 nine-period pre-period, a pool more than four times as wide as the sample it is
@@ -55,7 +72,7 @@ N_FACTORS = 2
 LNINCOME_LEVEL, LNINCOME_SD = 9.5, 0.25
 EDU_LEVEL, EDU_SD = 14.0, 2.5
 POVERTY_LEVEL, POVERTY_SD = 12.0, 3.5
-BETA = (6.0, -0.9, -0.6)          # large coefficient on the flat regressor
+BETA = (60.0, -0.9, -0.6)         # large coefficient on the flat regressor
 IDIO_SD = 6.0
 
 # --- the expenditure panel -------------------------------------------------
