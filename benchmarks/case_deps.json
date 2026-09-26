@@ -441,7 +441,8 @@
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
-  "mlsynth/utils/results_helpers.py"
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "ctsc_powell_mc": [
   "mlsynth/utils/ctsc_helpers/estimate.py",
@@ -607,7 +608,8 @@
   "mlsynth/utils/dsc_helpers/setup.py",
   "mlsynth/utils/dsc_helpers/structures.py",
   "mlsynth/utils/dsc_helpers/weights.py",
-  "mlsynth/utils/results_helpers.py"
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "dsc_dube": [
   "basedata/dube_minwage.parquet",
@@ -1018,7 +1020,8 @@
   "mlsynth/utils/orthsc_helpers/config.py",
   "mlsynth/utils/orthsc_helpers/gmm_sce/pipeline.py",
   "mlsynth/utils/orthsc_helpers/gmm_sce/solver.py",
-  "mlsynth/utils/results_helpers.py"
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "gpits": [
   "basedata/dc_handgun_heller.csv",
@@ -1066,7 +1069,8 @@
   "mlsynth/utils/hsc_helpers/optimization.py",
   "mlsynth/utils/hsc_helpers/orchestration.py",
   "mlsynth/utils/hsc_helpers/setup.py",
-  "mlsynth/utils/hsc_helpers/structures.py"
+  "mlsynth/utils/hsc_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "hsc_mc": [
   "mlsynth/config_models.py",
