@@ -109,6 +109,7 @@ class SL:
             forest_max_leaf_nodes=c.forest_max_leaf_nodes)
         results = SLResults(inputs=inputs, fit=fit)
         if c.display_graphs:
-            plot_sl(results, treated_color=c.treated_color,
+            plot_sl(results, outcome=c.outcome, time=c.time,
+                    treated_color=c.treated_color,
                     counterfactual_color=c.counterfactual_color)
         return results
