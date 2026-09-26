@@ -309,32 +309,86 @@ MAB, mine over the paper, 38 controls, `T0 = 19`:
 | SCM | 19.514 | 18.500 | 1.05 |
 | PDA | 14.004 | 14.300 | 0.98 |
 | CCE | 8.616 | 9.120 | 0.94 |
+| PCA | 6.987 | 7.460 | 0.94 |
 | PDAX | 14.004 | 16.200 | 0.86 |
-| MA | 12.021 | 8.330 | 1.44 |
-| MB | 12.515 | 7.270 | 1.72 |
+| MA | 9.659 | 8.330 | 1.16 |
+| MB | 10.339 | 7.270 | 1.42 |
 | CPDA | 4.934 | 9.560 | 0.52 |
-| PCA | 18.437 | 7.460 | 2.47 |
 
 The SCM column is `mlsynth.VanillaSC` outcome-only, and it reproduces to 5
 percent, with ten of the twelve annual counterfactuals inside 2.0 of the
-published path. PDA reproduces to 2 percent. Those are the two columns mlsynth
-computes natively.
+published path. PDA reproduces to 2 percent. Six of the eight columns land
+between 0.86 and 1.16.
 
-PCA does not reproduce, and not by a level. The published counterfactual falls
-from 81.3 in 1989 to 29.6 in 2000, below the actual 41.6, so the paper's PCA
-reports that Proposition 99 raised consumption. Sweeping `r` from 1 to 7 moves
-our counterfactual between 79.7 and 51.0 in 2000 and never below the actual;
-the published post-period slope is -4.46 per year against an actual -3.27 and
-our range of -0.85 to -2.68. `mlsynth.GSYNTH`, which is the gsynth the paper
-ran, gives 45.3 with a cross-validated `r` and an ATT of -0.33. Three
-implementations, three answers, and the paper's is the only one whose effect is
-positive. Its footnote 8 records the result as counterintuitive and keeps it
-deliberately, so it is a disagreement the authors already flagged, not a
-discrepancy they missed.
+PCA reproduces in magnitude and not in sign, and separating those two took an
+outside implementation. The first version of this study shipped a defective
+Bai (2009) step and read 18.44 against the paper's 7.46; with that corrected it
+reads 6.99, a ratio of 0.94. See the Bai step below. What survives is the sign:
+the mean signed effect is -6.70 here against Table 9's +7.51, so this
+replication says Proposition 99 lowered consumption and the published PCA
+column says it raised it.
+
+The published PCA column is also the only one of the paper's eight whose sign
+differs from its own neighbours. Its CCE reads -9.07 and its PDA -14.30, both
+negative, both of which this replication matches at -8.62 and -14.00. So the
+disagreement is not between two implementations of a method, it is between one
+column of Table 9 and the rest of Table 9. The paper's footnote 8 records the
+result as counterintuitive and keeps it deliberately.
+
+### The Bai (2009) step, and the two references that settled it
+
+Both `beta_bai` and `beta_cce` were hand-rolled here and neither was validated
+against anything. One was wrong.
+
+Bai's estimator is the argmin of `||Y - X b - F L'||^2`, so the objective
+decides. On the 38-state control panel, concentrating out the factors:
+
+| beta from | lnincome | objective at r=2 |
+| --- | --- | --- |
+| PCA2 from a zero start (first shipped here) | -0.53 | 42,007 |
+| PCA1 from a zero start | -6.71 | 41,585 |
+| PCA2 from pooled OLS | 19.74 | 37,610 |
+| PCA1 from pooled OLS (what runs now) | 61.68 | 35,640 |
+| xtife 0.1.5 | 73.34 | 36,212 |
+
+Bai (2009) gives two iteration schemes and Hsiao, Shi and Zhou (2022) write
+both out: PCA1, their Equation 54, projects the estimated factors out of the
+regressors as well as the outcome; PCA2, their Equation 56, subtracts the
+common component and regresses on raw `X`. This study shipped PCA2 from a zero
+start, which is the worst cell in the table.
+
+Their Table 1 measures the scheme half independently at 1000 replications on
+Bai's own DGP1, with a pooled-OLS start and 100 iterations: PCA2's bias holds
+near 0.13 whatever `N` and `T` are, and its empirical size reaches 100 percent
+against a 5 percent nominal. On this panel the start matters more than the
+scheme, but both matter, and `beta_bai` now runs PCA1 from several starts and
+keeps the lowest objective.
+
+The defect reached the PCA column of Tables 9 and 10 and the MA and MB averages
+that include it. It did not reach Tables 11-16: the turnout covariates are 0/1
+dummies, and on those panels both schemes converge to the same point from any
+start, identical to four decimals with identical objectives. Nor did it reach
+the simulations, whose panels carry no covariates, so `pca_counterfactual`
+takes an SVD directly and never calls `beta_bai`.
+
+`beta_cce` was clean. An independent implementation of Pesaran's Equation 16 --
+the `Estimation_RCCE` routine in the replication package for "Panel Sample
+Selection Model with Interactive Effects" -- reproduces it to 0.00e+00. That
+package demeans the cross-sectional averages before forming the projector where
+Hsiao and Zhou's printed Equation 16 does not, and the choice is not cosmetic:
+demeaning moves Table 9's CCE column from 8.62 to 15.24 against a published
+9.12, so the printed convention is the one that reproduces.
+
+Neither error had an internal signature. The fit looked plausible, the
+counterfactual looked plausible, and the objective is not something a single
+implementation can check itself against. `benchmarks/tests/test_hsiao_zhou_study.py`
+now asserts the property, not any coefficient: the returned beta is not
+improvable from a pooled-OLS restart, the answer does not depend on the start,
+and it recovers `(1, 2)` on Bai's DGP1.
 
 ### Table 10, personal healthcare expenditure
 
-Every method lands within a factor of 0.55 to 1.31, and the substantive claim
+Every method lands within a factor of 0.63 to 1.31, and the substantive claim
 reproduces: the paper reports hardly any effect, with a 2000 actual of 9.755
 against a model-average counterfactual of 9.735, and ours is 9.756 against
 9.733. A 38-donor pool against a nine-period pre-period is 4.2 times as wide as

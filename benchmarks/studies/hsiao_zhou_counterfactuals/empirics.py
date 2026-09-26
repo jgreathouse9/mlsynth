@@ -40,34 +40,112 @@ def beta_cce(Y, X, T0):
     return np.linalg.lstsq(A, b, rcond=None)[0]
 
 
-def beta_bai(Y, X, T0, r=2, iters=200, tol=1e-10):
-    """Bai (2009) interactive fixed effects by alternating least squares.
+def bai_objective(Y, X, beta, r):
+    """``min over F, Lambda of ||Y - X beta - F Lambda'||^2``.
 
-    Controls only and the whole sample, which is what Xu (2017)'s Step 1 uses:
-    the control units are never treated, so every period is usable.
+    Bai's estimator is the argmin of this, so it is what decides between two
+    candidate coefficients. Concentrating out the factors makes it a function
+    of ``beta`` alone: the minimum over rank-r matrices is the tail of the
+    squared singular values of the residual.
+    """
+    R = Y - np.einsum("tnk,k->tn", X, beta)
+    s = np.linalg.svd(R, compute_uv=False)
+    return float((s[r:] ** 2).sum())
+
+
+def _pooled_ols(Y, X):
+    return np.linalg.lstsq(X.reshape(-1, X.shape[2]), Y.reshape(-1),
+                           rcond=None)[0]
+
+
+def _bai_iterate(Y, X, r, beta0, scheme="PCA1", iters=2000, tol=1e-12):
+    """One run of Bai's alternating scheme from a given start.
+
+    ``PCA1`` is Bai (2009) Equation 54 as Hsiao, Shi and Zhou (2022) write it:
+    the estimated factors are projected out of the regressors as well as the
+    outcome before the least-squares step. ``PCA2`` is their Equation 56,
+    which subtracts the common component and regresses on raw ``X``.
+
+    The two are not interchangeable. Hsiao, Shi and Zhou's Table 1 measures
+    PCA2 at 1000 replications on Bai's own DGP1 with a pooled-OLS start: its
+    bias holds near 0.13 whatever N and T are, and its empirical size reaches
+    100 percent against a 5 percent nominal. PCA2 is kept here only so the
+    tests can show the fit it produces is worse.
     """
     T, N, k = X.shape
-    beta = np.zeros(k)
+    beta = np.asarray(beta0, dtype=float).copy()
     F = np.zeros((T, r))
     G = np.zeros((N, r))
     for _ in range(iters):
-        resid = Y - np.einsum("tnk,k->tn", X, beta)
-        U, s, _ = np.linalg.svd(resid, full_matrices=False)
-        F = U[:, :r] * s[:r]
-        G = np.linalg.lstsq(F, resid, rcond=None)[0].T
+        R = Y - np.einsum("tnk,k->tn", X, beta)
+        U, s, _ = np.linalg.svd(R, full_matrices=False)
+        F = U[:, :r]                                    # T x r, orthonormal
+        G = (F.T @ R).T                                 # N x r loadings
         A = np.zeros((k, k))
         b = np.zeros(k)
-        common = F @ G.T
-        for i in range(N):
-            Xi = X[:, i, :]
-            A += Xi.T @ Xi
-            b += Xi.T @ (Y[:, i] - common[:, i])
+        if scheme == "PCA1":
+            M = np.eye(T) - F @ F.T
+            for i in range(N):
+                Xi = X[:, i, :]
+                A += Xi.T @ M @ Xi
+                b += Xi.T @ M @ Y[:, i]
+        else:
+            common = F @ G.T
+            for i in range(N):
+                Xi = X[:, i, :]
+                A += Xi.T @ Xi
+                b += Xi.T @ (Y[:, i] - common[:, i])
         new = np.linalg.lstsq(A, b, rcond=None)[0]
         if np.max(np.abs(new - beta)) < tol:
             beta = new
             break
         beta = new
     return beta, F, G
+
+
+def beta_bai(Y, X, T0=None, r=2, beta0=None, iters=2000, tol=1e-12):
+    """Bai (2009) interactive fixed effects, as the argmin of its objective.
+
+    Controls only and the whole sample, which is what Xu (2017)'s Step 1 uses:
+    the control units are never treated, so every period is usable. ``T0`` is
+    accepted and unused, so the call sites that pass it positionally keep
+    working.
+
+    The objective is not convex and the iteration is start-dependent, so this
+    runs PCA1 from several starts and keeps whichever lands lowest. On the
+    38-state control panel of Table 9, a zero start reaches 41,585 and a
+    pooled-OLS start 35,640; an earlier version of this function ran PCA2 from
+    zeros and returned 41,760, which is 17 percent above the best point
+    available and is what made the study's PCA column read 18.44 against the
+    paper's 7.46.
+
+    ``beta0`` forces a particular start, which the tests use to show the
+    answer no longer depends on it.
+    """
+    starts = ([np.asarray(beta0, dtype=float)] if beta0 is not None
+              else [_pooled_ols(Y, X), np.zeros(X.shape[2])])
+    best = None
+    for start in starts:
+        cand = _bai_iterate(Y, X, r, start, scheme="PCA1", iters=iters,
+                            tol=tol)
+        value = bai_objective(Y, X, cand[0], r)
+        if best is None or value < best[0]:
+            best = (value, cand)
+    # A forced start still gets the pooled-OLS restart as a floor, which is
+    # the guarantee the tests assert: the answer is never worse than the
+    # start it could have had.
+    if beta0 is not None:
+        fallback = _bai_iterate(Y, X, r, _pooled_ols(Y, X), scheme="PCA1",
+                                iters=iters, tol=tol)
+        if bai_objective(Y, X, fallback[0], r) < best[0]:
+            best = (bai_objective(Y, X, fallback[0], r), fallback)
+    return best[1]
+
+
+def _beta_bai_pca2_from_zero(Y, X, r=2):
+    """The scheme and start this study shipped, kept for the test that shows
+    the fit it produces is worse. Not used by any estimator here."""
+    return _bai_iterate(Y, X, r, np.zeros(X.shape[2]), scheme="PCA2")[0]
 
 
 # ----------------------------------------------------------------------
