@@ -13,8 +13,8 @@
       "note": "Hsiao, Ching and Wan (2012); Li's own released companion panel",
       "impls": {
         "mlsynth": {
-          "median_seconds": 0.00086245500278892,
-          "min_seconds": 0.0008071600022958592,
+          "median_seconds": 0.0009291560018027667,
+          "min_seconds": 0.0008794719979050569,
           "selected": [
             17,
             18,
@@ -28,8 +28,8 @@
           ]
         },
         "python_naive": {
-          "median_seconds": 0.0037509289977606386,
-          "min_seconds": 0.003672550003102515,
+          "median_seconds": 0.00369349299944588,
+          "min_seconds": 0.0036216279986547306,
           "selected": [
             17,
             18,
@@ -58,8 +58,8 @@
           ]
         },
         "matlab_li_octave": {
-          "median_seconds": 0.096889,
-          "min_seconds": 0.091797,
+          "median_seconds": 0.098555,
+          "min_seconds": 0.091157,
           "selected": [
             17,
             18,
@@ -83,8 +83,8 @@
       "note": "Shi and Huang fsPDA anti-corruption panel, p > n",
       "impls": {
         "mlsynth": {
-          "median_seconds": 0.0032714730004954617,
-          "min_seconds": 0.003076842000155011,
+          "median_seconds": 0.003953604002163047,
+          "min_seconds": 0.0035377839994907845,
           "selected": [
             51,
             73,
@@ -103,8 +103,8 @@
           ]
         },
         "python_naive": {
-          "median_seconds": 0.05251449399656849,
-          "min_seconds": 0.05144011400261661,
+          "median_seconds": 0.05731098800242762,
+          "min_seconds": 0.05278959199858946,
           "selected": [
             51,
             73,
@@ -123,8 +123,8 @@
           ]
         },
         "R_li": {
-          "median_seconds": 0.085,
-          "min_seconds": 0.078,
+          "median_seconds": 0.108,
+          "min_seconds": 0.093,
           "selected": [
             51,
             73,
@@ -143,8 +143,8 @@
           ]
         },
         "matlab_li_octave": {
-          "median_seconds": 1.279903,
-          "min_seconds": 1.211618,
+          "median_seconds": 1.216,
+          "min_seconds": 1.159074,
           "selected": [
             51,
             73,
@@ -171,93 +171,115 @@
     "shared_range": [
       {
         "donors": 20,
-        "mlsynth_seconds": 0.0008603360001870897,
-        "python_naive_seconds": 0.002920063001511153,
-        "ratio": 3.3940960286169037
+        "mlsynth_seconds": 0.0010763999998744112,
+        "python_naive_seconds": 0.002993693000462372,
+        "ratio": 2.7812086592453182
       },
       {
         "donors": 40,
-        "mlsynth_seconds": 0.001202505998662673,
-        "python_naive_seconds": 0.01161697799761896,
-        "ratio": 9.660640371472905
+        "mlsynth_seconds": 0.0014162119987304322,
+        "python_naive_seconds": 0.011587592998694163,
+        "ratio": 8.18210339206411
       },
       {
         "donors": 80,
-        "mlsynth_seconds": 0.0019588719987950753,
-        "python_naive_seconds": 0.046691504001501016,
-        "ratio": 23.835913745370547
+        "mlsynth_seconds": 0.002087373999529518,
+        "python_naive_seconds": 0.049073940001107985,
+        "ratio": 23.509893297592555
       },
       {
         "donors": 160,
-        "mlsynth_seconds": 0.004560563000268303,
-        "python_naive_seconds": 0.23070440199808218,
-        "ratio": 50.586824912737654
+        "mlsynth_seconds": 0.004087377998075681,
+        "python_naive_seconds": 0.2243433229996299,
+        "ratio": 54.88685487499559
       },
       {
         "donors": 320,
-        "mlsynth_seconds": 0.007486192000214942,
-        "python_naive_seconds": 1.1661315929995908,
-        "ratio": 155.77099718603384
-      }
-    ],
-    "ratio_log_log_slope": 1.3429081864583334,
-    "naive_log_log_slope": 2.1594769583650724,
-    "mlsynth_only": [
-      {
-        "donors": 320,
-        "mlsynth_seconds": 0.007899607997387648
+        "mlsynth_seconds": 0.007546363998699235,
+        "python_naive_seconds": 1.1747485779997078,
+        "ratio": 155.67080758391708
       },
       {
         "donors": 640,
-        "mlsynth_seconds": 0.01728513399939402
+        "mlsynth_seconds": 0.017543330999615137,
+        "python_naive_seconds": 7.0845386359978875,
+        "ratio": 403.8308708963712
       },
       {
         "donors": 1280,
-        "mlsynth_seconds": 0.04345062400170718
+        "mlsynth_seconds": 0.0458446200027538,
+        "python_naive_seconds": 47.232518404001894,
+        "ratio": 1030.273964560394
+      }
+    ],
+    "ratio_log_log_slope": 1.4134546691825216,
+    "naive_log_log_slope": 2.3189231833037476,
+    "mlsynth_only": [
+      {
+        "donors": 320,
+        "mlsynth_seconds": 0.00792180100324913
+      },
+      {
+        "donors": 640,
+        "mlsynth_seconds": 0.017099893997510662
+      },
+      {
+        "donors": 1280,
+        "mlsynth_seconds": 0.046312915001180954
       },
       {
         "donors": 2560,
-        "mlsynth_seconds": 0.13556687399977818
+        "mlsynth_seconds": 0.1377696419986023
       }
     ],
-    "mlsynth_log_log_slope_large_N": 1.3633084574556058,
+    "mlsynth_log_log_slope_large_N": 1.3798284430830097,
     "mlsynth_local_slopes": [
       {
         "from": 320,
         "to": 640,
-        "slope": 1.1296788185799045
+        "slope": 1.1100870157427103
       },
       {
         "from": 640,
         "to": 1280,
-        "slope": 1.3298451081382927
+        "slope": 1.4374271833394148
       },
       {
         "from": 1280,
         "to": 2560,
-        "slope": 1.6415558954210614
+        "slope": 1.572771550081438
       }
     ],
     "naive_local_slopes": [
       {
         "from": 20,
         "to": 40,
-        "slope": 1.9921634183454358
+        "slope": 1.952582730062311
       },
       {
         "from": 40,
         "to": 80,
-        "slope": 2.006925241028017
+        "slope": 2.0823761882091327
       },
       {
         "from": 80,
         "to": 160,
-        "slope": 2.3048135661390936
+        "slope": 2.19267923568122
       },
       {
         "from": 160,
         "to": 320,
-        "slope": 2.3376131627292667
+        "slope": 2.388571869729053
+      },
+      {
+        "from": 320,
+        "to": 640,
+        "slope": 2.5923218826653835
+      },
+      {
+        "from": 640,
+        "to": 1280,
+        "slope": 2.7370346518279365
       }
     ],
     "T0": 40,
