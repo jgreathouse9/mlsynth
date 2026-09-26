@@ -85,6 +85,7 @@ At a glance
    Donors right in shape, wrong in TIMING? ─► DTWSC (warp donor speeds, then SC)
    Nonlinear outcome surface?           ─► NSC
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
+   Observed time-varying covariates?    ─► CPDA (residualise, then regress) · GSYNTH · SDID
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
    Interpolation across dissimilar donors? ─► MASC
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
@@ -369,6 +370,20 @@ lengthens. So prefer SCM when you have a genuine convex match; prefer :doc:`pda`
 when the treated unit sits outside the hull or at a different level. With a large
 donor pool the unconstrained regression must be regularised -- which PDA variant
 to use is the next remark.
+
+*Covariates observed? CPDA before PDA.* :doc:`cpda` is the same unconstrained
+regression with one step in front of it: estimate a common slope on the
+covariates, subtract the covariate part from the treated unit and every donor,
+and regress on what is left. The donors then carry the unobserved factor
+structure alone, and the number of factors never has to be chosen -- which is
+what separates it from :doc:`gsynth`, where the factor count is a config field.
+Reach for it when the treated unit's covariates move in ways the donors' do not,
+since that movement is what a donor-only regression has to eat as error. It
+needs at least one covariate; with none, Hsiao and Zhou's Equation 12 leaves the
+outcome untouched and CPDA is PDA, so the config refuses that case. One caution
+carries over from the paper: on a short pre-period the donor subset is not
+pinned by the method, and the estimate moves with it, so set
+``sensitivity=True`` and report the spread.
 
 *Within PDA: which regulariser?* :doc:`pda` bundles four ways to fit the
 unconstrained regression, and the choice is governed by the size of the donor

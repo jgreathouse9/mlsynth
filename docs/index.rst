@@ -300,6 +300,8 @@ measures that claim directly, which a reproduced number cannot.
    sparse_sc
    beast
    dpsc
+   cpda
+
    pda
    scul
    esc

@@ -77,6 +77,7 @@ ESTIMATORS: Dict[str, str] = {
     "CLUSTERSC": "highdim",
     "MLSC": "highdim",
     "PDA": "highdim",
+    "CPDA": "highdim",
     "RESCM": "highdim",
     "FSCM": "highdim",
     "SparseSC": "highdim",

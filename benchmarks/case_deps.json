@@ -385,6 +385,27 @@
  "conformal_window_count": [
   "mlsynth/utils/conformal/resample.py"
  ],
+ "cpda": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/cpda.py",
+  "mlsynth/estimators/pda.py",
+  "mlsynth/utils/cpda_helpers/beta.py",
+  "mlsynth/utils/cpda_helpers/config.py",
+  "mlsynth/utils/cpda_helpers/pipeline.py",
+  "mlsynth/utils/cpda_helpers/selection.py",
+  "mlsynth/utils/cpda_helpers/setup.py",
+  "mlsynth/utils/cpda_helpers/structures.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/pda_helpers/config.py",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/lasso/estimation.py",
+  "mlsynth/utils/pda_helpers/lasso/inference.py",
+  "mlsynth/utils/pda_helpers/orchestration.py",
+  "mlsynth/utils/pda_helpers/results_assembly.py",
+  "mlsynth/utils/pda_helpers/setup.py",
+  "mlsynth/utils/pda_helpers/structures.py"
+ ],
  "cscipca_brexit": [
   "basedata/fdi_oecd_brexit.csv",
   "mlsynth/config_models.py",
