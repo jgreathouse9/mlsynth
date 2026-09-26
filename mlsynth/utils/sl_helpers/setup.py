@@ -1,18 +1,23 @@
 """Long-DataFrame to NumPy boundary for SL (the only pandas touchpoint).
 
-Ingestion goes through :func:`mlsynth.utils.datautils.dataprep`, which already
-resolves the treated unit, the donor pool and the pre/post split. Nothing here
-re-derives any of that. The one thing ``dataprep`` does not supply is a
-time-varying covariate block -- its ``covariates=`` argument aggregates to a
-per-unit pre-treatment mean, which is the right object for predictor-weight
-balancing and the wrong one for the forest expert, which needs the paths. So the
-covariates are pivoted here, on the unit order ``dataprep`` returned, and the two
-stay aligned by construction.
+Every pivot here is :func:`mlsynth.utils.datautils.dataprep`. It resolves the
+treated unit, the donor pool and the pre/post split for the outcome, and it is
+indifferent to which column it is handed -- its job is to organise and sort a
+panel -- so the forest expert's time-varying covariates come from calling it once
+per covariate column with that column in the outcome slot, then reindexing onto
+the unit and period order the outcome call returned. That is the pattern
+``compsc_helpers.setup`` uses for its multiple outcomes, and it keeps the
+covariate block aligned with ``Yco`` by construction instead of by a second,
+separately written pivot.
+
+``dataprep``'s own ``covariates=`` argument is a different object: it aggregates
+each column to a per-unit pre-treatment mean, which is what predictor-weight
+balancing wants and not what a forecaster fit on the paths wants.
 """
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
@@ -24,21 +29,21 @@ from .structures import SLInputs
 
 
 def _covariate_block(df: pd.DataFrame, cols: Sequence[str], *, unitid: str,
-                     time: str, times: np.ndarray,
-                     order: Sequence) -> np.ndarray:
+                     time: str, treat: str, times: np.ndarray,
+                     order: List[Any]) -> np.ndarray:
     """Every unit's path for each named covariate, as ``(T, len(cols) * n_units)``.
 
-    This mirrors the authors' ``external_covariates``, which is the full state
-    matrix of the covariate, not the treated unit's column alone.
+    One ``dataprep`` call per column, reindexed onto the outcome's own unit and
+    period order. This mirrors the authors' ``external_covariates``, which is the
+    full state matrix of the covariate, not the treated unit's column alone.
+
+    ``dataprep`` returns a gap as a missing cell instead of raising, so
+    completeness is checked here and the message names the column.
     """
     planes = []
     for c in cols:
-        wide = df.pivot(index=time, columns=unitid, values=c).reindex(times)
-        missing = [u for u in order if u not in wide.columns]
-        if missing:  # pragma: no cover - dataprep's pivot would have raised first
-            raise MlsynthDataError(
-                f"Covariate '{c}' is missing units {missing[:5]} after pivoting.")
-        block = wide[list(order)]
+        wide = dataprep(df, unitid, time, c, treat)["Ywide"]
+        block = wide.reindex(index=times, columns=order)
         if block.isna().any().any():
             raise MlsynthDataError(
                 f"Covariate '{c}' is incomplete after pivoting; SL needs a "
@@ -49,7 +54,7 @@ def _covariate_block(df: pd.DataFrame, cols: Sequence[str], *, unitid: str,
 
 def prepare_sl_inputs(df: pd.DataFrame, *, unitid: str, time: str, outcome: str,
                       treat: str, covariates: Sequence[str] = ()) -> SLInputs:
-    """Pivot the panel to NumPy via ``dataprep`` and attach the covariate block.
+    """Pivot the panel to NumPy through ``dataprep``, outcome and covariates alike.
 
     Parameters
     ----------
@@ -68,8 +73,9 @@ def prepare_sl_inputs(df: pd.DataFrame, *, unitid: str, time: str, outcome: str,
     Raises
     ------
     MlsynthDataError
-        If a named covariate is missing or incomplete, or if there are fewer
-        than two pre-treatment periods to split.
+        If a named covariate is missing or incomplete, if the panel is
+        multi-cohort, or if there are fewer than two pre-treatment periods to
+        split.
     """
     cov = list(covariates)
     missing = [c for c in cov if c not in df.columns]
@@ -78,7 +84,7 @@ def prepare_sl_inputs(df: pd.DataFrame, *, unitid: str, time: str, outcome: str,
             f"Covariates not found in the panel: {missing}. SL reads them for "
             f"the 'forest' expert.")
 
-    prepped = dataprep(df, unitid, time, outcome, treat)
+    prepped: Dict[str, Any] = dataprep(df, unitid, time, outcome, treat)
     if "y" not in prepped:
         raise MlsynthDataError(
             "SL expects exactly one treated unit; dataprep returned a "
@@ -95,8 +101,9 @@ def prepare_sl_inputs(df: pd.DataFrame, *, unitid: str, time: str, outcome: str,
             f"splits them into an expert-training window and a weighting "
             f"window; found {T0}.")
 
-    block = (_covariate_block(df, cov, unitid=unitid, time=time, times=times,
-                              order=[treated, *donors]) if cov else None)
+    block = (_covariate_block(df, cov, unitid=unitid, time=time, treat=treat,
+                              times=times, order=[treated, *donors])
+             if cov else None)
 
     return SLInputs(
         unit_index=IndexSet.from_labels(donors),
