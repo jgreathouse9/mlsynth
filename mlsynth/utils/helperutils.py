@@ -343,8 +343,20 @@ def ssdid_w(
     # Set up and solve the CVXPY problem
     problem = cp.Problem(cp.Minimize(objective), constraints)
     try:
-        problem.solve()
-    except cvxpy.error.SolverError as e:
+        # Name the solver. An unqualified ``solve()`` dispatches to the
+        # highest-ranked *installed* solver, and an installed solver is not a
+        # working one: mosek outranks the open-source solvers and raises
+        # ``err_missing_license_file`` without a licence, so anything that pulls
+        # mosek in (scmrelax does) breaks this call. CLARABEL is what the other
+        # 52 cvxpy sites in the library ask for, and what cvxpy already chose on
+        # the runs the SSDID benchmarks were pinned from. The program is strictly
+        # convex with one equality constraint, so its optimum is a point and the
+        # choice cannot move a weight.
+        problem.solve(solver=cp.CLARABEL)
+    except Exception as e:
+        # Not only ``cvxpy.error.SolverError``. A vendor exception -- mosek's
+        # ``Error`` is not a cvxpy one -- escaped this clause untranslated and
+        # reached the caller naming neither the estimator nor the contract.
         raise MlsynthEstimationError(f"CVXPY solver failed in ssdid_w: {e}") from e
     
     if donor_weights_variable.value is None: # Check if solver found a solution
@@ -503,8 +515,20 @@ def ssdid_lambda(
     # Set up and solve the CVXPY problem
     problem = cp.Problem(cp.Minimize(objective), constraints)
     try:
-        problem.solve()
-    except cvxpy.error.SolverError as e:
+        # Name the solver. An unqualified ``solve()`` dispatches to the
+        # highest-ranked *installed* solver, and an installed solver is not a
+        # working one: mosek outranks the open-source solvers and raises
+        # ``err_missing_license_file`` without a licence, so anything that pulls
+        # mosek in (scmrelax does) breaks this call. CLARABEL is what the other
+        # 52 cvxpy sites in the library ask for, and what cvxpy already chose on
+        # the runs the SSDID benchmarks were pinned from. The program is strictly
+        # convex with one equality constraint, so its optimum is a point and the
+        # choice cannot move a weight.
+        problem.solve(solver=cp.CLARABEL)
+    except Exception as e:
+        # Not only ``cvxpy.error.SolverError``. A vendor exception -- mosek's
+        # ``Error`` is not a cvxpy one -- escaped this clause untranslated and
+        # reached the caller naming neither the estimator nor the contract.
         raise MlsynthEstimationError(f"CVXPY solver failed in ssdid_lambda: {e}") from e
 
     if time_weights_variable.value is None: # Check if solver found a solution
