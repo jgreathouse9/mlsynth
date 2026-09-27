@@ -569,10 +569,14 @@ def test_the_least_norm_tie_break_does_not_claim_the_program_is_identified():
     w = solve_simplex_qp_least_norm(B, A)
     plain = solve_simplex_qp(B, A)
 
-    # Both are on the simplex and both are minimisers: this is one face.
+    # Both are on the simplex and both are minimisers: this is one face. The
+    # bound is relative to the target's own size, since machine zero for this
+    # residual is eps * ||A||^2 and an absolute threshold below that pins which
+    # member of the face happens to cancel exactly.
+    machine_zero = 1e-14 * float(A @ A)
     for v in (w, plain):
         assert v.min() >= -1e-12 and abs(v.sum() - 1.0) < 1e-9
-        assert obj(v) < 1e-18
+        assert obj(v) < machine_zero, obj(v)
 
     # The rule binds -- it is a different point, and it is the shorter one.
     assert np.abs(plain - w).max() > 1e-2
