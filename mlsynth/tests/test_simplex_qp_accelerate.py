@@ -26,7 +26,7 @@ cp = pytest.importorskip("cvxpy")
 
 from mlsynth.utils.solvers import active_set
 from mlsynth.utils.solvers.accelerate import (
-    ACCEL_MIN_DONORS, fista_warm_start, simplex_project)
+    ACCEL_MIN_DONORS, SEED_KEEP, fista_warm_start, simplex_project)
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
@@ -272,7 +272,9 @@ def test_seed_engaged_on_a_wide_pool(monkeypatch):
 
 def test_seed_declines_a_pool_below_its_budget():
     """It is called and returns ``None``, so the solve starts uniform."""
-    A, B = _factor_panel(12, 100)                 # J = 12 against T0 = 100
+    # Sized off the constant: a pool no wider than the budget has nothing to
+    # price away, whatever the budget currently is.
+    A, B = _factor_panel(SEED_KEEP, 100)
     assert active_set.priced_seed(B, A) is None
     np.testing.assert_array_equal(simplex_qp(B, A),
                                   solve_simplex_qp(B, A, accelerate=False))

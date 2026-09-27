@@ -94,9 +94,23 @@ def test_the_seed_declines_a_pool_it_cannot_prune():
     1.7x at 40x20, 2.4x at 100x30, 11x at 100x60.
     """
     rng = np.random.default_rng(3)
-    for m, J in ((40, 10), (100, 16), (10, 11), (10, 5), (40, 12)):
+    # Sized off the constant, so retuning it cannot make this pass because every
+    # fixture drifted above the budget instead of because the gate works. The
+    # cap is ``min(SEED_KEEP, m + 1)`` and the seed declines when that reaches J.
+    for m, J in ((40, SEED_KEEP), (100, SEED_KEEP - 1), (10, SEED_KEEP),
+                 (SEED_KEEP - 2, SEED_KEEP - 1), (2, 3)):
         B, A = _rand(rng, m, J)
-        assert priced_seed(B, A) is None
+        assert priced_seed(B, A) is None, f"{m}x{J} should decline"
+
+
+def test_the_seed_prunes_a_pool_one_donor_wider_than_its_budget():
+    """The other side of the same gate, so the decline above is not vacuous."""
+    rng = np.random.default_rng(3)
+    for m, J in ((40, SEED_KEEP + 1), (100, SEED_KEEP + 1), (10, SEED_KEEP + 1)):
+        B, A = _rand(rng, m, J)
+        seed = priced_seed(B, A)
+        assert seed is not None, f"{m}x{J} should prune"
+        assert int((seed > 0).sum()) == min(SEED_KEEP, m + 1)
 
 
 def test_the_seed_is_deterministic():

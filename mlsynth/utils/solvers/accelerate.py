@@ -88,11 +88,30 @@ BATCH_ACCEL_MIN_DONORS = 30
 # How many columns the priced seed keeps. The active set restores any it wants
 # back, one pivot each, so this is a starting guess and not a screen: too few
 # costs add-back pivots, too many costs a larger free-set solve at every pivot.
-# Swept over 18 random wide shapes (m from 5 to 179, J from m+3 to 377), total
-# solve time in ms: cold 1355.9, k=6 20.4, k=10 18.3, k=12 17.1, k=16 16.4,
-# k=20 16.3, k=24 16.9, k=32 21.5. Flat from 12 to 24 and 83x against cold at
-# the bottom, so 16 sits in the middle of a plateau instead of on a point.
-SEED_KEEP = 16
+#
+# The first value here was tuned on 18 random Gaussian shapes alone and came out
+# at 16. Those panels end on supports of 6 to 127, and real synthetic-control
+# panels end on 3 to 7, so the fixture did not resemble the thing. Swept again
+# over four families, as total solve time relative to each family's own best:
+#
+#     family (supports)        k=3    k=4    k=8   k=16   k=24
+#     classic   (3-7)         1.00   1.04   1.45   2.40   2.64
+#     factor    (8-14)        1.00   1.09   1.10   1.24   1.60
+#     gaussian  (6-127)       1.44   1.42   1.27   1.01   1.00
+#     SDID ridged (14-65)       --   1.24   1.17   1.17     --
+#     worst case              1.44   1.42   1.45   2.40   2.64
+#
+# classic is Basque, German reunification and Proposition 99. The fourth family
+# is the one that decides nothing and explains the most: SDID stacks
+# ``sqrt(ridge) I`` beneath its design and a ridge exists to spread weight, so
+# its optima are dense -- 65 of 90 donors on one program. The seed undershoots
+# there and the pivot count rises (41 cold to 73 at k=4) while the time still
+# falls (16.2 ms to 15.0), because an add-back pivot solves on a small free set.
+#
+# So the asymmetry is the whole argument: guessing small costs at most 1.44x and
+# guessing large costs 2.64x, and 4 is where the worst case bottoms out. It is a
+# minimax choice over four families and not the winner on any one of them.
+SEED_KEEP = 4
 
 
 def priced_seed(B: np.ndarray, A: np.ndarray, *,
