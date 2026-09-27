@@ -828,14 +828,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "seeding-is-a-property-of-one-call-site"
-  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)"
-  replace = "    if False:\n        warm_start = fista_warm_start(B, A)"
+  find = "    if warm_start is None and accelerate:\n        warm_start = priced_seed(B, A)"
+  replace = "    if False:\n        warm_start = priced_seed(B, A)"
   models = "the defect this change fixed. With the seed computed in one caller instead of in the solver, the other twelve call sites start from the uniform point and the active set sheds one donor per pivot: 117 inner solves for SDID on a 101x120 panel against 31 for VanillaSC on the same panel. Every weight is still correct, so only a work assertion can see it"
 
   [[target.mutant]]
   id = "seeding-overrides-the-callers-warm-start"
-  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:"
-  replace = "    if accelerate and J >= ACCEL_MIN_DONORS:"
+  find = "    if warm_start is None and accelerate:"
+  replace = "    if accelerate:"
   models = "a seed recomputed on top of one the caller already has. The placebo loop chains the previous draw's solution through this argument, so discarding it pays for a FISTA run per draw to replace a start that was already on the answer"
 
 [[target]]
