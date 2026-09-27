@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-08-02T15:02:30Z",
+  "git_sha": "8116038184c7e0937e87bc5a9c110ae592e18734",
+  "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+  "command": "python benchmarks/run_benchmarks.py --case scta_ibex_xval",
+  "data": [
+    {
+      "path": "basedata/ibex_day_ahead_price.csv",
+      "sha256": "18c69704e7ee5af3097bd9c59ad1a0a3d4a8d24cbd970b3f5148e8282635ba2d"
+    }
+  ],
+  "python_version": "3.11",
+  "packages": {
+    "cvxpy": "1.7.5",
+    "clarabel": "0.11.1"
+  }
+}

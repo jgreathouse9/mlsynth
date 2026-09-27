@@ -133,7 +133,8 @@ def comparison() -> dict:
              "reference": PUBLISHED[m][t]}
             for m in PUBLISHED for t, label in EVAL.items()]
     return {"rows": rows,
-            "mlsynth_call": {"sdid": "zeta=0.0, intercept_adjust=True",
+            "mlsynth_call": {"estimator": "VanillaSC, DSC, SDID, MASC",
+                             "sdid": "zeta=0.0, intercept_adjust=True",
                              "masc": "m_grid=1..10, min_preperiods=6"},
             "reference": {"source": "de Brabander et al. (2025), Table 1",
                           "block": "2016:Q3, no covariates"}}
