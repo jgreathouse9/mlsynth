@@ -54,6 +54,24 @@ are sunny and pruning pays, skipping the certified donors cuts 2 percent off the
 runtime. The certificate is sound and near free, not a replacement for the linear
 program.
 
+One family of designs admits no shady donor at all, and the screen detects it for
+the price of one rank. If ``Xt`` has trivial kernel then ``alpha x_j = Xt lambda``
+rearranges to ``Xt (lambda - alpha e_j) = 0``, forcing ``lambda = alpha e_j`` and so
+``sum lambda = alpha = 1``: every donor is sunny by algebra. Linear independence of
+the centred columns is equivalent to their being affinely independent with ``0``
+outside their affine hull, so this is exactly the case Proposition 1 leaves no room
+in. ``sunny_screen_is_vacuous`` reports it and the gate skips all ``J`` linear
+programs.
+
+The case is the ordinary one for outcome-only panels with a long pre-period. On
+Abadie and Gardeazabal's Basque design with treatment in 1975 and ``gdpcap`` alone,
+20 pre-periods against 16 donors give ``rank(Xt) = 16``, and every donor comes back
+at ``alpha* = 1`` exactly. Shortening the window does not help much: 16 of 16 are
+still sunny at 10 and at 7 pre-periods, and in the 13-predictor space where MSCMT
+runs the screen the columns are affinely dependent yet all 16 remain sunny. Shady
+donors appear only at 5 pre-periods (12 of 16 sunny), 3 (5 of 16) and 2 (2 of 16).
+The concept bites when ``J`` greatly exceeds ``m``, not merely when it exceeds it.
+
 Reference: Becker and Klossner (2017), MSCMT; ``isSunny`` in ``R/Helpers.r`` and the
 donor loop in ``R/multiOpt.r``.
 """
@@ -64,7 +82,8 @@ import warnings
 import numpy as np
 from scipy.optimize import linprog
 
-__all__ = ["sunny_alphas", "certified_sunny", "sunny_donors", "sunny_support"]
+__all__ = ["sunny_alphas", "certified_sunny", "sunny_donors", "sunny_support",
+           "sunny_screen_is_vacuous"]
 
 #: A donor counts as sunny when ``alpha*`` reaches 1 to within this slack. The
 #: linear program returns ``alpha*`` to roughly solver precision, so the default
@@ -132,6 +151,31 @@ def _alpha(Xt: np.ndarray, j: int, A_eq: np.ndarray, b_eq: np.ndarray,
     return float(res.fun)
 
 
+def sunny_screen_is_vacuous(B: np.ndarray, A: np.ndarray) -> bool:
+    """Report whether no donor on this design can be shady.
+
+    True when the centred columns are linearly independent, which forces
+    ``alpha*(j) = 1`` for every donor. A caller that sees True learns that the screen
+    has nothing to say here and can skip it: there is no pruning to be had, whatever
+    the treated path looks like.
+    """
+    return _full_column_rank(_centred(B, A))
+
+
+def _full_column_rank(Xt: np.ndarray) -> bool:
+    """Decide ``rank(Xt) == J``, conservatively.
+
+    A near-dependent design is reported as dependent, which costs the linear programs
+    and cannot give a wrong answer; claiming independence that does not hold would
+    report a shady donor as sunny.
+    """
+    m, J = Xt.shape
+    if m < J:
+        return False
+    sv = np.linalg.svd(Xt, compute_uv=False)
+    return bool(sv[-1] > 1e-10 * sv[0])
+
+
 def sunny_alphas(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Return ``alpha*(j)`` for every donor, one linear program each.
 
@@ -139,6 +183,8 @@ def sunny_alphas(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     tests are measured against.
     """
     Xt = _centred(B, A)
+    if _full_column_rank(Xt):
+        return np.ones(Xt.shape[1])
     A_eq, b_eq, c = _program(Xt)
     return np.array([_alpha(Xt, j, A_eq, b_eq, c) for j in range(Xt.shape[1])])
 
@@ -173,6 +219,8 @@ def sunny_donors(B: np.ndarray, A: np.ndarray, *, tol: float = DEFAULT_TOL,
     certificate proves sunniness and never asserts shadiness.
     """
     Xt = _centred(B, A)
+    if _full_column_rank(Xt):
+        return np.ones(Xt.shape[1], dtype=bool)
     flags = (certified_sunny(B, A) if certify
              else np.zeros(Xt.shape[1], dtype=bool))
     undecided = np.flatnonzero(~flags)

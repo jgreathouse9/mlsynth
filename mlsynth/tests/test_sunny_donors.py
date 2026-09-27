@@ -37,6 +37,7 @@ from mlsynth.utils.solvers.sunny import (
     certified_sunny,
     sunny_alphas,
     sunny_donors,
+    sunny_screen_is_vacuous,
     sunny_support,
 )
 
@@ -294,6 +295,70 @@ def test_the_certificate_fires_where_the_geometry_says_it_should():
 def test_the_support_drops_exactly_the_shady_donors_when_some_donor_is_sunny():
     B, A = _with_a_shady_donor()
     assert sunny_support(B, A).tolist() == [0, 1]
+
+
+# --------------------------------------------------------------------------- #
+# the affine-independence gate
+# --------------------------------------------------------------------------- #
+def test_affinely_independent_donors_are_all_sunny_without_a_single_solve():
+    """If the centred columns are affinely independent, ``alpha x_j = Xt lambda``
+    with ``sum lambda = 1`` has the one solution ``lambda = e_j, alpha = 1``, so every
+    donor is sunny by algebra. The counter is there because the point of the gate is
+    that no linear program runs at all."""
+    import mlsynth.utils.solvers.sunny as mod
+
+    rng = np.random.default_rng(31)
+    B, A = rng.normal(size=(20, 16)), rng.normal(size=20)
+    assert sunny_screen_is_vacuous(B, A)
+
+    calls = []
+    real = mod.linprog
+    monkey = lambda *a, **k: (calls.append(1), real(*a, **k))[1]
+    mod.linprog = monkey
+    try:
+        assert sunny_donors(B, A).all()
+        assert np.allclose(sunny_alphas(B, A), 1.0)
+    finally:
+        mod.linprog = real
+    assert calls == [], f"{len(calls)} linear programs ran under the gate"
+
+
+def test_the_gate_stays_shut_when_a_shady_donor_exists():
+    B, A = _with_a_shady_donor()
+    assert not sunny_screen_is_vacuous(B, A)
+    assert sunny_donors(B, A).tolist() == [True, True, False]
+
+
+def test_the_gate_never_changes_the_classification():
+    """Both shapes, gated and ungated, must agree donor for donor."""
+    rng = np.random.default_rng(37)
+    seen = set()
+    for _ in range(30):
+        m, J = int(rng.integers(2, 9)), int(rng.integers(2, 12))
+        B = rng.normal(size=(m, J)) * 2.0
+        A = rng.normal(size=m) * 2.0
+        gated = sunny_donors(B, A)
+        ungated = np.array([a >= 1.0 - 1e-7 for a in _alphas_no_gate(B, A)])
+        assert gated.tolist() == ungated.tolist(), (m, J, gated, ungated)
+        seen.add(sunny_screen_is_vacuous(B, A))
+    assert seen == {True, False}, "the sweep never exercised both sides of the gate"
+
+
+def _alphas_no_gate(B, A):
+    """``sunny_alphas`` with the gate bypassed, for the agreement test above."""
+    from mlsynth.utils.solvers.sunny import _alpha, _centred, _program
+
+    Xt = _centred(B, A)
+    A_eq, b_eq, c = _program(Xt)
+    return [_alpha(Xt, j, A_eq, b_eq, c) for j in range(Xt.shape[1])]
+
+
+def test_a_rank_deficient_design_is_not_gated():
+    """Duplicating a column makes the columns affinely dependent, so the gate must
+    open even though the answer is still all-sunny."""
+    B, A = _all_sunny()
+    Bd = np.column_stack([B, B[:, 0]])
+    assert not sunny_screen_is_vacuous(Bd, A)
 
 
 # --------------------------------------------------------------------------- #
