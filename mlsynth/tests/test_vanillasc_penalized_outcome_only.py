@@ -24,6 +24,7 @@ import pytest
 
 from mlsynth import VanillaSC
 from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
 
 # --------------------------------------------------------------------------- #
@@ -131,11 +132,30 @@ def test_cv_selects_a_lambda_without_covariates(deg):
 # Abadie-L'Hour Theorem 1: uniqueness and sparsity
 # --------------------------------------------------------------------------- #
 def test_unpenalized_solution_is_degenerate_on_this_panel(deg):
-    """Guard on the fixture: without a penalty the fit is perfect and dense,
-    which is the signature of a non-unique optimum."""
+    """Guard on the fixture: without a penalty the optimum is a face, which is
+    what the penalty is there to resolve.
+
+    This asserted a dense weight vector, on the reasoning that weight smeared
+    across the polytope is the signature of a non-unique optimum. Density is a
+    proxy for the property and a seeding rule can break it while the property
+    holds: eliminating from the uniform point returns twelve donors on this
+    panel and a rule that starts from a priced support returns five, both an
+    exact fit and both optimal. The property is asserted directly instead, on
+    the design the estimator solves.
+    """
     plain = _fit(deg, backend="outcome-only")
     assert plain.fit_diagnostics.rmse_pre < 1e-6
-    assert _nnz(plain) > 5          # weight smeared across the polytope
+
+    pre = deg[(deg["unit"] == "treated") & (deg["D"] == 0)]["time"]
+    donors = sorted(u for u in deg["unit"].unique() if u != "treated")
+    wide = deg[deg["time"].isin(pre)].pivot(index="time", columns="unit",
+                                            values="y")
+    B = wide[donors].to_numpy(dtype=float)
+    A = wide["treated"].to_numpy(dtype=float)
+    # The fixture is built so the interpolation polytope has dimension
+    # J - T_pre - 1; here 12 - 4 - 1 = 7.
+    assert B.shape[0] < B.shape[1]
+    assert not simplex_optimum_is_unique(B, A, _w(plain, donors))
 
 
 def test_positive_lambda_gives_at_most_K_plus_one_nonzero_weights(deg):

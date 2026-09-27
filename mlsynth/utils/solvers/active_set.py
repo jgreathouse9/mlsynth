@@ -245,7 +245,16 @@ def solve_simplex_qp(
     # otherwise the uniform point. A pool wider than the seed's budget and
     # nothing from the caller seeds itself, since the uniform point costs a pivot
     # per donor. ``priced_seed`` returns None when there is nothing to prune.
-    if warm_start is None and accelerate:
+    # No seed when a linear term is set. The loop never tests stationarity on the
+    # free variables (see ``_assert_optimal_with_linear``), so with such a term
+    # the point it accepts is the minimiser only when the free set it happens to
+    # reach is narrow enough for the subproblem to be bounded. Eliminating from
+    # the uniform point reaches those sets; starting from a priced support does
+    # not, and on the bilevel program at lambda = 1e-6 that costs 0.46 per cent
+    # of the objective and six donors against the bound's five, reported as
+    # converged. The seed is for wide unpenalised pools, which is where it was
+    # measured.
+    if warm_start is None and accelerate and linear is None:
         warm_start = priced_seed(B, A)
     w = None
     if warm_start is not None:
