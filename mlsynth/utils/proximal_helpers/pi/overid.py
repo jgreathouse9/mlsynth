@@ -37,12 +37,12 @@ def _solve_simplex_bridge(Wp: np.ndarray, Zp: np.ndarray, Yp: np.ndarray) -> np.
     ``omega >= 0, sum(omega) = 1`` on the pre-period. Writing ``Z'(Y - W omega)``
     as a residual makes this the simplex least-squares
     ``min ||(Z'Y) - (Z'W) omega||^2``, solved exactly by the pure-NumPy,
-    PSD-safe active-set method :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`
+    PSD-safe active-set method :func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`
     -- the ``lstsq`` free-set solve handles the rank-deficient/ill-conditioned
     ``Z'W`` Gram without an epsilon-I fudge, reaching the same optimum the
     convex program ``scpi::scest(w.constr="simplex", V.mat = Z'Z / T0)`` does.
     """
-    from ...bilevel.active_set import solve_simplex_qp
+    from ...solvers.active_set import solve_simplex_qp
 
     return solve_simplex_qp(Zp.T @ Wp, Zp.T @ Yp)
 

@@ -51,7 +51,7 @@ import pytest
 
 from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
 from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 
 from _golden_steps import (assert_reproduces, assert_resolves_enough_digits,
                            load as load_golden, scalar)

@@ -18,11 +18,10 @@ import pytest
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.bilevel import (
     BilevelProblem,
-    project_simplex,
-    simplex_lstsq,
     solve_bilevel,
     penalized_weights,
 )
+from mlsynth.utils.solvers.simplex import project_simplex, simplex_lstsq
 from mlsynth.utils.bilevel.penalized import _simplex_qp
 from mlsynth.utils.bilevel.stages import warn_on_gap
 

@@ -29,7 +29,7 @@ from typing import NamedTuple, Sequence
 import numpy as np
 
 from ...exceptions import MlsynthDataError, MlsynthEstimationError
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 #: Ratio above which the cluster is reported as having cost real reachability.
 #: Germany scores 8.6 and Prop 99 scores 2.2; Basque scores 1.00.

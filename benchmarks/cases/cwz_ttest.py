@@ -1,6 +1,9 @@
-"""CWZ debiased SC t-test (arXiv:1812.10820): Table 5 carbon-tax replication.
+"""CWZ debiased SC t-test: Table 5 carbon-tax replication.
 
-Path A. Chernozhukov, Wuthrich & Zhu (2025), Table 5(a): the debiased SC
+Path A. Chernozhukov, Wuthrich & Zhu (2026), "Debiasing and t-Tests for
+Synthetic Control Inference on Average Causal Effects", Journal of Political
+Economy 134(9), doi:10.1086/742424 (previously arXiv:1812.10820), table 5 panel
+A: the debiased SC
 *t*-test (t-DISCo, K=3) of the Swedish carbon-tax effect on CO2 emissions per
 capita (Andersson 2019 data: 15 countries, 1960-2005; Sweden treated 1990,
 T0=30, T1=16). Per their footnote 24 the weights use *all* past outcomes as

@@ -44,10 +44,10 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 from ...exceptions import MlsynthEstimationError
-from .simplex import mspe, project_simplex, simplex_lstsq
+from ..solvers.simplex import mspe, project_simplex, simplex_lstsq
 from .structure import BilevelProblem, BilevelSolution
 
 _EPS = 1e-12

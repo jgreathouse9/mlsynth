@@ -55,7 +55,7 @@ moving_block.py`` pins both halves of that.
 
 This function is the single definition. The statistic is currently written out
 again in :mod:`mlsynth.utils.cscipca_helpers.inference`,
-:mod:`mlsynth.utils.bilevel.ridge_inference`,
+:mod:`mlsynth.utils.conformal.ridge_inference`,
 :mod:`mlsynth.utils.syndes_helpers.inference`,
 :mod:`mlsynth.utils.shc_helpers.inference` and
 :mod:`mlsynth.utils.rrsc_helpers.inference`, two of them rolling in the opposite

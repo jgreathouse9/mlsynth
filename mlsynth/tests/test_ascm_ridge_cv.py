@@ -76,7 +76,7 @@ def _curve(slug):
 
 
 def _mlsynth_cv(slug):
-    from mlsynth.utils.bilevel.ridge_augment import (
+    from mlsynth.utils.solvers.ridge_augment import (
         build_matching, generate_lambdas, cross_validate, simplex_qp)
     y_pre, Y0_pre = PANELS[slug]()
     B, A = build_matching(y_pre, Y0_pre)
@@ -104,7 +104,7 @@ class TestPanelsDifferAsIntended:
         loses its power to detect a fold-count defect, so the property is
         asserted rather than assumed.
         """
-        from mlsynth.utils.bilevel.ridge_augment import (
+        from mlsynth.utils.solvers.ridge_augment import (
             build_matching, generate_lambdas, simplex_qp, solve_ridge_path)
         y_pre, Y0_pre = _song_pre()
         B, A = build_matching(y_pre, Y0_pre)
@@ -133,7 +133,7 @@ class TestGridAndRule:
         has ``n_lambda + 1`` entries. Reading that as ``n_lambda`` would shift
         every point on the grid.
         """
-        from mlsynth.utils.bilevel.ridge_augment import (build_matching,
+        from mlsynth.utils.solvers.ridge_augment import (build_matching,
                                                          generate_lambdas)
         y_pre, Y0_pre = PANELS[slug]()
         B, _ = build_matching(y_pre, Y0_pre)
@@ -148,7 +148,7 @@ class TestGridAndRule:
         Pinned including the boundary, since ``<=`` rather than ``<`` decides
         which lambda wins when a curve is flat.
         """
-        from mlsynth.utils.bilevel.ridge_augment import best_lambda
+        from mlsynth.utils.solvers.ridge_augment import best_lambda
         lambdas = np.array([100.0, 10.0, 1.0, 0.1])
         errors = np.array([5.0, 3.0, 2.0, 2.5])
         se = np.array([1.0, 1.0, 1.0, 1.0])
@@ -188,7 +188,7 @@ class TestCVCurve:
 
     @pytest.mark.parametrize("slug", sorted(PANELS))
     def test_selected_penalty_matches_augsynth(self, slug):
-        from mlsynth.utils.bilevel.ridge_augment import best_lambda
+        from mlsynth.utils.solvers.ridge_augment import best_lambda
         lams, mean, se = _mlsynth_cv(slug)
         expected, _, _ = _selected(slug)
         assert best_lambda(lams, mean, se, min_1se=True) == pytest.approx(
@@ -197,7 +197,7 @@ class TestCVCurve:
     @pytest.mark.parametrize("slug", sorted(PANELS))
     def test_end_to_end_penalty_through_ridge_augment_weights(self, slug):
         """The public path, not just the helper."""
-        from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+        from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
         y_pre, Y0_pre = PANELS[slug]()
         expected, _, _ = _selected(slug)
         got = ridge_augment_weights(y_pre, Y0_pre).lambda_
@@ -205,7 +205,7 @@ class TestCVCurve:
 
     def test_fold_count_is_one_short_of_the_pre_period_count(self):
         """Pinned directly, so the off-by-one cannot silently return."""
-        from mlsynth.utils.bilevel.ridge_augment import _HoldoutSplitter
+        from mlsynth.utils.solvers.ridge_augment import _HoldoutSplitter
         B = np.arange(50, dtype=float).reshape(10, 5)
         A = np.arange(10, dtype=float)
         assert len(list(_HoldoutSplitter(B, A, holdout_len=1))) == 9
@@ -213,7 +213,7 @@ class TestCVCurve:
 
     def test_the_final_pre_period_is_never_held_out(self):
         """The substance of the off-by-one, stated as behaviour."""
-        from mlsynth.utils.bilevel.ridge_augment import _HoldoutSplitter
+        from mlsynth.utils.solvers.ridge_augment import _HoldoutSplitter
         B = np.arange(40, dtype=float).reshape(8, 5)
         A = np.arange(8, dtype=float)
         held = [float(a_v[0]) for _, _, _, a_v in

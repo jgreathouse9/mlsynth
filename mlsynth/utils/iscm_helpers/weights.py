@@ -20,7 +20,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 
 def _one_unit_weights(donor_pre: np.ndarray, target_pre: np.ndarray) -> np.ndarray:

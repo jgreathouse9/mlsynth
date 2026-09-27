@@ -18,6 +18,7 @@ CASES = {
     "ppscm_bfr_mc": "benchmarks.cases.ppscm_bfr_mc",  # Path B: BFR sharp-null designs (ATT coverage both methods + cumulative band)
     "rolldid_lw": "benchmarks.cases.rolldid_lw",        # Path A: Lee-Wooldridge Prop99 + castle
     "fdid_table5": "benchmarks.cases.fdid_table5",      # Path B: simulation
+    "adid_showroom": "benchmarks.cases.adid_showroom",            # cross-val vs Li and Van den Bulte's own MATLAB under Octave: Equation 2.4 and Appendix A.1 to 1e-12 on their showroom data
     "fdid_hongkong": "benchmarks.cases.fdid_hongkong",  # Path A: HK GDP empirical
     "fdid_selection_mc": "benchmarks.cases.fdid_selection_mc",  # Path C: forward-selection consistency (Li 2023 Prop 2.2 / D.1) -- Pr(U_hat = U*) climbs 0.00 -> 0.77 over T1 = 25 -> 1600, plus Lemma B.1's uniform sqrt(log N / T1) rate over all 2^N - 1 subsets
     "fdid_normality_mc": "benchmarks.cases.fdid_normality_mc",  # Path C: ATT asymptotic normality (Li 2023 Prop 2.1) -- dispersion falls to 1 and coverage climbs to nominal where Assumption 4 holds; where 4(ii) fails the paper's statistic settles at sqrt(1 + T2/T1) and mlsynth's finite-sample SE converges anyway
@@ -97,13 +98,13 @@ CASES = {
     "ibex_dap": "benchmarks.cases.ibex_dap",                  # cross-val vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price (Haro Ruiz-Schult-Wunder 2024), weights value-for-value
     "secession_scm": "benchmarks.cases.secession_scm",       # Path A: Schulte et al. 2026 lost-autonomy triggers -> secessionist surge (Catalonia 2010 / Faroe 1994), tracks authors' SyntheticControlMethods synthetic
     "lto_refined_placebo": "benchmarks.cases.lto_refined_placebo",  # cross-val vs authors' LTO code (Sudijono-Lei): leave-two-out refined placebo p-value on Prop 99 + West Germany + Basque, value-for-value
-    "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2025 Table 5 carbon-tax debiased t-test
+    "cwz_ttest": "benchmarks.cases.cwz_ttest",                # Path A: CWZ 2026 Table 5 carbon-tax debiased t-test
     "cwz_conformal": "benchmarks.cases.cwz_conformal",    # cross-val vs scinference conformal (CWZ 2021 JASA Sec 5 application)
     "cwz_conformal_mc": "benchmarks.cases.cwz_conformal_mc",  # Path B: CWZ 2021 JASA Sec 4 size, live against the authors' simulation design
     "cwz_conformal_nonstationary": "benchmarks.cases.cwz_conformal_nonstationary",  # Path B: CWZ 2021 supplement Tables I.2/I.4 -- under trending factors the conformal test stops being exact for a misspecified SC (size 0.98 at DGP3, T0=100, against 0.10 with stationary factors), plus Figure I.2 power against the closed-form oracle bound
     "cwz_ttest_mc": "benchmarks.cases.cwz_ttest_mc",          # Path B: CWZ Table 3, live against the authors' calibrated design
     "cwz_rae": "benchmarks.cases.cwz_rae",                    # Path B: CWZ Table 1 relative efficiency, the formula behind ttest_K="auto"
-    "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2025 Table 3 application-based Monte Carlo
+    "cwz_mc": "benchmarks.cases.cwz_mc",                      # Path B: CWZ 2026 Table 3 application-based Monte Carlo
     "masc_basque": "benchmarks.cases.masc_basque",            # Path A: MASC Basque/ETA (KMPT Sec 5)
     "masc_crossval": "benchmarks.cases.masc_crossval",        # cross-val vs authors' own R MASC (maxkllgg/masc, nogurobi) on Basque, value-for-value
     "src_basque": "benchmarks.cases.src_basque",
@@ -132,7 +133,12 @@ CASES = {
     "shi_fine_grained_sc": "benchmarks.cases.shi_fine_grained_sc",  # Path B + property: Shi et al. 2022 Table 2 exactly, the |S| blow-up under OLS, and why the simplex fails differently (convex-hull membership, not |S|)
     "pda_hongkong": "benchmarks.cases.pda_hongkong",          # Path A: PDA methods on HK CEPA (Shi-Wang App E.1)
     "pda_hcw_hongkong": "benchmarks.cases.pda_hcw_hongkong",  # Path A: original HCW best-subset on HK sovereignty (Table XVI/XVII, vs pampe)
+    "pda_hcw_cepa": "benchmarks.cases.pda_hcw_cepa",  # Path A / X: HCW CEPA 2004 headline, AICc over all 24 candidates
     "pda_table1": "benchmarks.cases.pda_table1",              # Path B: mlsynth's default PDA path on the Shi-Huang Table-1 design
+    "cpda": "benchmarks.cases.cpda",                          # Path B + cross-val: Hsiao-Zhou Sec 3 recovery, CCE vs Equation 16, and the selector spread
+    "sl": "benchmarks.cases.sl",                              # Path B: Viviano-Bradic Table 1 size and power on their own Factor_model DGP, plus the eta and lasso corrections
+    "sl_tennessee": "benchmarks.cases.sl_tennessee",          # cross-val vs an R transcription of their generate_experts/Exp_algorithm on their Medicaid panel; caught the penalty grid and the standardization
+    "sl_table4": "benchmarks.cases.sl_table4",                # Path A: Viviano-Bradic Table 4 on the TennCare panel, with their design via external_covariates and their eta; effect to 0.03 percent
     "arco_retail": "benchmarks.cases.arco_retail",                # Path A: Masini-Medeiros 2021 Table 5a -- WLASSO + partial resampling on their Brazilian retail price experiment, value-for-value
     "arco_resampling_mc": "benchmarks.cases.arco_resampling_mc",  # Path B: Masini-Medeiros 2021 Tables 2-3 size -- True/Oracle arms reproduce, LASSO arm over-rejects 2.2x, with the five checks that localise it
     "fspda_dense_mc": "benchmarks.cases.fspda_dense_mc",      # cross-val vs fsPDA FS()/lasso.BIC() on their own dense-MC panels
@@ -183,6 +189,7 @@ CASES = {
     "th_prop99": "benchmarks.cases.th_prop99",  # Path A: Spoelstra et al. 2025 Table 1 left-TH SDID (Prop 99)
     "gmmsce_carbontax": "benchmarks.cases.gmmsce_carbontax",  # cross-val vs Fry GMM-SCE.R GMMSC (carbon tax, J-statistic + optimality)
     "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+    "fma_percentile_t_mc": "benchmarks.cases.fma_percentile_t_mc",  # Path B: FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang)
     "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
     "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
     "dscar_beijing": "benchmarks.cases.dscar_beijing",      # Path A: DSCAR Beijing PM2.5 alerts (Zheng-Chen)
@@ -320,6 +327,10 @@ _RAW: dict[str, tuple[str, str]] = {
     "clustersc_subgroups":            ("B", "simulated"),
     "clustersc_subgroups_ref":        ("X", "simulated"),
     "cmbsts_supermarket":             ("AX", "empirical"),
+    "cpda":                           ("BX", "simulated"),
+    "sl":                             ("B", "simulated"),
+    "sl_tennessee":                   ("X", "empirical"),
+    "sl_table4":                      ("A", "empirical"),
     "cmbsts_vignette":                ("X", "both"),
     "compsc_pennsylvania":            ("A", "empirical"),
     "compsc_pennsylvania_r":          ("X", "empirical"),
@@ -351,6 +362,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "eiv_coverage_mc":                ("AB", "simulated"),
     "esc_prop99":                     ("A", "empirical"),
     "esc_saopaulo":                   ("A", "empirical"),
+    "adid_showroom":                  ("X", "empirical"),
     "fdid_hongkong":                  ("AX", "empirical"),
     "fdid_normality_mc":              ("C", "simulated"),
     "fdid_selection_mc":              ("C", "simulated"),
@@ -363,6 +375,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "fgrc_grc_crossval":              ("X", "simulated"),
     "fgrc_toy_subspace":              ("B", "simulated"),
     "fma_coverage_mc":                ("B", "simulated"),
+    "fma_percentile_t_mc":            ("B", "simulated"),
     "fsc_estimator":                  ("A", "empirical"),
     "fsc_okano":                      ("A", "empirical"),
     "fscm_prop99":                    ("A", "empirical"),
@@ -419,6 +432,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "pcr_shen_estimator_coverage":    ("C", "both"),
     "pda_brexit":                     ("A", "empirical"),
     "pda_hcw_hongkong":               ("A", "empirical"),
+    "pda_hcw_cepa":                   ("A", "empirical"),
     "pda_hongkong":                   ("A", "empirical"),
     "pda_l2_sim":                     ("B", "simulated"),
     "pda_lasso_sim":                  ("B", "simulated"),

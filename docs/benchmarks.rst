@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 226 registered cases. ``paths`` is what the case
+All 233 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
-* ``A`` -- empirical replication (75 cases)
-* ``B`` -- Monte Carlo / simulation (62 cases)
+* ``A`` -- empirical replication (77 cases)
+* ``B`` -- Monte Carlo / simulation (65 cases)
 * ``C`` -- theoretical property or design calibration (12 cases)
-* ``X`` -- cross-validation against a reference implementation (107 cases)
+* ``X`` -- cross-validation against a reference implementation (110 cases)
 
-By data: 77 simulated, 134 empirical, 15 both -- so 92 cases fit at least one generated panel.
+By data: 80 simulated, 138 empirical, 15 both -- so 95 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -70,6 +70,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - case
      - paths
      - data
+   * - ``adid_showroom``
+     - X
+     - empirical
    * - ``arco_resampling_mc``
      - B
      - simulated
@@ -159,6 +162,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - empirical
    * - ``conformal_window_count``
      - C
+     - simulated
+   * - ``cpda``
+     - B X
      - simulated
    * - ``cscipca_brexit``
      - A
@@ -272,6 +278,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - B
      - simulated
    * - ``fma_coverage_mc``
+     - B
+     - simulated
+   * - ``fma_percentile_t_mc``
      - B
      - simulated
    * - ``fsc_estimator``
@@ -437,6 +446,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - C
      - both
    * - ``pda_brexit``
+     - A
+     - empirical
+   * - ``pda_hcw_cepa``
      - A
      - empirical
    * - ``pda_hcw_hongkong``
@@ -616,6 +628,15 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``siv_syria_mc``
      - B
      - simulated
+   * - ``sl``
+     - B
+     - simulated
+   * - ``sl_table4``
+     - A
+     - empirical
+   * - ``sl_tennessee``
+     - X
+     - empirical
    * - ``snn_prop99``
      - X
      - empirical
@@ -765,7 +786,7 @@ Path A — empirical replications
    * - ``brabander_brexit_insample``
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``cwz_ttest``
-     - CWZ 2025 Table 5 carbon-tax debiased t-test
+     - CWZ 2026 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
@@ -924,7 +945,7 @@ Path B — Monte Carlo / simulation
    * - ``ctsc_powell_mc``
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
-     - CWZ 2025 Table 3 application-based Monte Carlo
+     - CWZ 2026 Table 3 application-based Monte Carlo
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``dsc_mc``
@@ -937,6 +958,8 @@ Path B — Monte Carlo / simulation
      - simulation
    * - ``fma_coverage_mc``
      - FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+   * - ``fma_percentile_t_mc``
+     - FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang Tables 1-2)
    * - ``hsc_mc``
      - HSC regime adaptation
    * - ``lexscm_design_mc``
@@ -1159,10 +1182,6 @@ Cross-validation against reference implementations
      - vs LIVE pensynth wsoll1 (Rscript+LowRankQP): penalized SC weights/ATT on Prop 99 (skips if absent)
    * - ``linf_crossval_ref``
      - LINF vs LinfinitySC (skips if absent)
-   * - ``scta_ibex_xval``
-     - SCTA vs an independent build of the Sun-Ben-Michael-Feller Sec. 2 stacked design solved by cvxpy/CLARABEL (ibex monthly day-ahead price, Spain treated): ATT across the nu grid to 5e-12, ridge-augmented ATT to 2.7e-10, and the imbalance frontier's two monotonicities
-   * - ``scta_texas_sb8``
-     - SCTA vs augsynth 0.2.0 on the authors' own Texas SB8 live-birth panel and construction: pins the knob mapping nu = K*year_wt^2 (augsynth scales matching columns by V, so its objective weights rows by V^2), the 0.11 percent end-to-end agreement it implies, the demeaning-basis residual that explains the rest, and the Figure 1 frontier
    * - ``mcnnm_prop99``
      - vs authors' MCPanel R (mcnnm_cv; ATT + California counterfactual path)
    * - ``lpca_kansas``

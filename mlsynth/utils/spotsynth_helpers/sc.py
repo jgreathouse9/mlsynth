@@ -14,7 +14,7 @@ from typing import Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 
 def simplex_weights(y: np.ndarray, D: np.ndarray, T0: int) -> Tuple[np.ndarray, np.ndarray]:

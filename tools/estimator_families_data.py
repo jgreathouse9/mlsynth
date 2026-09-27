@@ -77,6 +77,8 @@ ESTIMATORS: Dict[str, str] = {
     "CLUSTERSC": "highdim",
     "MLSC": "highdim",
     "PDA": "highdim",
+    "CPDA": "highdim",
+    "SL": "highdim",
     "RESCM": "highdim",
     "FSCM": "highdim",
     "SparseSC": "highdim",
@@ -89,6 +91,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # State-space and factor models.
     "FMA": "time",
+    "ATEL": "time",
     "TASC": "time",
     "CFM": "time",
     "CSCIPCA": "time",

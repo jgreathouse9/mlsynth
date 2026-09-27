@@ -13,6 +13,8 @@ Layered along agents_tests.md:
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -134,10 +136,131 @@ class TestAsymptoticInference:
         F = rng.standard_normal((T, 2))
         y = F @ rng.standard_normal(2) + 0.5 * rng.standard_normal(T)
         _, cf, F_aug, var_e = estimate_loading_and_counterfactual(y, F, T0)
-        se, lo, hi, p = asymptotic_inference(y, cf, F_aug, var_e, T0)
+        se, lo, hi, p = asymptotic_inference(y, cf, F_aug, T0)
         assert np.isfinite(se) and se > 0
         assert lo <= hi
         assert 0.0 <= p <= 1.0
+
+
+class TestAsymptoticMatchesTheAuthorsImplementation:
+    """Theorem 3.1's variance, as Li & Sonnier themselves define and code it.
+
+    Four independent statements of the same estimator agree:
+
+    * the main article's Appendix, "Variance Estimator for Theorem 3.1";
+    * Web Appendix A, whose Newey-West form (W.3) reduces to it at lag 0;
+    * the authors' MATLAB in Web Appendix I;
+    * Wang, Racine & Wang (2025) Appendix A.1, citing Li & Sonnier.
+
+    All four give
+
+        Omega1 = (T2/T1) eta' A^-1 V A^-1 eta,  V = T1^-1 sum_t e_t^2 F_t F_t'
+        Omega2 = T1^-1 sum_t e_t^2
+
+    with A = T1^-1 sum_t F_t F_t'. None of them applies a degrees-of-freedom
+    correction to the residual mean square, and none of them replaces V with
+    sigma^2 A. These tests exist because nothing previously pinned this
+    function's output to any of the four, which is how it came to compute
+    neither: on the panel below it returned a standard error 1.3465 times the
+    reference, from a T0 - (r + 1) correction (x1.1212) and the homoskedastic
+    substitution (x1.2009).
+    """
+
+    def test_omega_is_the_sandwich_with_the_T1_normalisation(self):
+        """Assembled independently from the published formula."""
+        rng = np.random.default_rng(3)
+        T, T0 = 50, 35
+        r = 3
+        F = rng.standard_normal((T, r))
+        y = F @ rng.standard_normal(r) + rng.standard_normal(T) * (
+            1.0 + np.arange(T) / T)          # heteroskedastic, to give power
+        _, cf, F_aug, _ = estimate_loading_and_counterfactual(y, F, T0)
+        se, lo, hi, _ = asymptotic_inference(y, cf, F_aug, T0)
+
+        T2 = T - T0
+        e = (y - cf)[:T0]
+        F_pre, F_post = F_aug[:T0], F_aug[T0:]
+        eta = F_post.mean(axis=0)
+        A_inv = np.linalg.inv(F_pre.T @ F_pre / T0)
+        V = F_pre.T @ np.diag(e ** 2) @ F_pre / T0
+        omega = (T2 / T0) * float(eta @ A_inv @ V @ A_inv @ eta) + float(
+            np.mean(e ** 2)
+        )
+        assert se == pytest.approx(float(np.sqrt(omega / T2)), rel=1e-12)
+
+    def test_it_is_not_the_homoskedastic_plug_in(self):
+        """The check above needs heteroskedasticity to separate the two."""
+        rng = np.random.default_rng(3)
+        T, T0, r = 50, 35, 3
+        F = rng.standard_normal((T, r))
+        y = F @ rng.standard_normal(r) + rng.standard_normal(T) * (
+            1.0 + np.arange(T) / T
+        )
+        _, cf, F_aug, _ = estimate_loading_and_counterfactual(y, F, T0)
+        se, _, _, _ = asymptotic_inference(y, cf, F_aug, T0)
+
+        T2 = T - T0
+        e = (y - cf)[:T0]
+        F_pre, F_post = F_aug[:T0], F_aug[T0:]
+        eta = F_post.mean(axis=0)
+        A_inv = np.linalg.inv(F_pre.T @ F_pre / T0)
+        s2 = float(np.mean(e ** 2))
+        homoskedastic = (T2 / T0) * s2 * float(eta @ A_inv @ eta) + s2
+        assert se != pytest.approx(float(np.sqrt(homoskedastic / T2)), rel=1e-6)
+
+    def test_omega2_has_no_degrees_of_freedom_correction(self):
+        """Omega2 is T1^-1 sum e^2, not SSR/(T1 - r - 1)."""
+        rng = np.random.default_rng(5)
+        T, T0, r = 24, 16, 4          # T0 close to r + 1, so the two differ a lot
+        F = rng.standard_normal((T, r))
+        y = F @ rng.standard_normal(r) + 0.4 * rng.standard_normal(T)
+        _, cf, F_aug, dof_corrected = estimate_loading_and_counterfactual(
+            y, F, T0
+        )
+        se, _, _, _ = asymptotic_inference(y, cf, F_aug, T0)
+        e = (y - cf)[:T0]
+        plain = float(np.mean(e ** 2))
+        assert dof_corrected == pytest.approx(
+            plain * T0 / (T0 - F_aug.shape[1]), rel=1e-10
+        )
+        T2 = T - T0
+        F_pre, F_post = F_aug[:T0], F_aug[T0:]
+        eta = F_post.mean(axis=0)
+        A_inv = np.linalg.inv(F_pre.T @ F_pre / T0)
+        V = F_pre.T @ np.diag(e ** 2) @ F_pre / T0
+        omega = (T2 / T0) * float(eta @ A_inv @ V @ A_inv @ eta) + plain
+        assert se == pytest.approx(float(np.sqrt(omega / T2)), rel=1e-12)
+
+    def test_hong_kong_matches_the_web_appendix_i_code(self):
+        """Cross-validation against the authors' own MATLAB, on their own data.
+
+        Web Appendix I runs on HCW's (2012) Hong Kong GDP panel, which ships
+        in ``basedata/HongKong.csv``. The expected values come from a
+        line-for-line port of that code, not from this library's output.
+        """
+        import pandas as pd
+
+        from mlsynth import FMA
+
+        df = pd.read_csv("basedata/HongKong.csv")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = FMA({"df": df, "outcome": "GDP", "treat": "Integration",
+                       "unitid": "Country", "time": "Time",
+                       "display_graphs": False,
+                       "stationarity": "stationary"}).fit()
+        d = res.inference_detail
+        assert res.metadata["n_factors"] == 8
+        assert d.att == pytest.approx(0.03108769584467289, rel=1e-8)
+        assert d.asymptotic_att_se == pytest.approx(
+            0.004605949474592333, rel=1e-6
+        )
+        assert d.asymptotic_att_lower == pytest.approx(
+            0.022060200759860732, rel=1e-6
+        )
+        assert d.asymptotic_att_upper == pytest.approx(
+            0.040115190929485046, rel=1e-6
+        )
 
 
 class TestBootstrapInference:

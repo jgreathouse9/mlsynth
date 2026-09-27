@@ -15,7 +15,7 @@ produces exactly that: every outcome averages into one column, so the German
 panel is one equation in sixteen donors. Solved without the ridge, relabelling
 the donors moved the weights by 0.419 and the reported ATT by hundreds.
 
-:func:`~mlsynth.utils.bilevel.active_set.solve_simplex_qp_least_norm` is that
+:func:`~mlsynth.utils.solvers.active_set.solve_simplex_qp_least_norm` is that
 term as a selection rule, scaled by the design so it survives a rescaling of
 the matching columns that the authors' absolute constant does not.
 """
@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.active_set import solve_simplex_qp_least_norm
+from ..solvers.active_set import solve_simplex_qp_least_norm
 
 
 def simplex_weights(Z_treated: np.ndarray, Z_donors: np.ndarray) -> np.ndarray:

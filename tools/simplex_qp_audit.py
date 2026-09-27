@@ -1,6 +1,6 @@
 """Classify every cvxpy problem in the library by whether it is the simplex QP.
 
-``bilevel/active_set.py::solve_simplex_qp`` minimises ``||A - Bw||^2`` over the
+``solvers/active_set.py::solve_simplex_qp`` minimises ``||A - Bw||^2`` over the
 probability simplex ``{w >= 0, sum(w) = 1}``. A cvxpy site can be moved onto it
 only if it solves that program. A site with an extra constraint, or one whose
 weights may go negative, or one minimising something the solver cannot express,

@@ -442,7 +442,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # directly: an augmented refit gives 0.348 for an injected effect of 5 or of
     # 100, where the simplex refit gives the authors' 1 / T = 0.0217 for both.
     if mode == "conformal" and gap[pre:].size:
-        from ..bilevel import conformal_intervals
+        from ..conformal.ridge_inference import conformal_intervals
         refit = "ridge" if config.augment == "ridge" else "sc"
         if refit == "sc" and covariates:
             raise MlsynthConfigError(
@@ -505,7 +505,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 "for ridge ASCM and needs augment='ridge'; got "
                 f"augment={config.augment!r}."
             )
-        from ..bilevel.jackknife_plus import jackknife_plus
+        from ..jackknife_plus import jackknife_plus
         Z0 = X0.T if X0 is not None else None
         z1 = X1 if X1 is not None else None
         with warnings.catch_warnings():
@@ -640,7 +640,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
-    # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2025).
+    # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2026).
     # The cross-fit refits the configured backend on each block-complement of
     # the pre-period; inferutils owns the blocking, rescale, and t_{K-1} CI.
     # Refitting on a subset of the periods is how two modes recalibrate: the
@@ -682,14 +682,27 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             alpha=config.alpha, weight_fn=_refit_weight_fn,
         )
         p_val = float(2.0 * _tdist.sf(abs(tt["tstat"]), tt["dof"]))
+        att_naive = float(np.mean(gap[pre:]))
+        # The interval and the p-value are for the debiased estimator, so the
+        # reported ATT has to be that estimator too -- the plain SC ATT is the
+        # biased quantity the method exists to correct. Swapping in the fold
+        # averaged debiased path over the post window carries the correction
+        # into the whole effects block: the post-period mean gap of this
+        # counterfactual is tt["att"] identically. The pre-period stays the SC
+        # fit, so the pre-period fit diagnostics still describe the SC match.
+        counterfactual = np.asarray(counterfactual, dtype=float).copy()
+        counterfactual[pre:] = np.asarray(tt["cf_post"], dtype=float)
+        gap = y - counterfactual
         inference = InferenceResults(
             p_value=p_val,
             ci_lower=tt["ci_lower"], ci_upper=tt["ci_upper"],
+            standard_error=tt["se"],
             confidence_level=1.0 - config.alpha,
-            method="debiased SC t-test (Chernozhukov-Wuthrich-Zhu 2025)",
+            method=("debiased SC t-test "
+                    "(Chernozhukov, Wuthrich & Zhu 2026, JPE 134(9))"),
             details={
                 "att_debiased": tt["att"],
-                "att_naive": float(np.mean(gap[pre:])),
+                "att_naive": att_naive,
                 "se": tt["se"], "tstat": tt["tstat"], "dof": tt["dof"],
                 "K": tt["K"], "r": tt["r"], "tau_k": tt["tau_k"].tolist(),
                 "alpha": tt["alpha"],
@@ -781,8 +794,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         loo_W = None
         if (engine is not None and not covariates and engine.augment != "ridge"
                 and str(config.backend) in ("auto", "outcome-only")):
-            from ..bilevel.minnorm import solve_simplex_loo_exact
-            from ..bilevel.ridge_augment import simplex_qp
+            from ..solvers.minnorm import solve_simplex_loo_exact
+            from ..solvers.ridge_augment import simplex_qp
             try:
                 loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
             except Exception:  # pragma: no cover - fall back to the loop

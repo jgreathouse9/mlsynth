@@ -29,7 +29,7 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     DTWSC,
-    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
+    ATEL, BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
     LPCA, MCNNM, MOSC, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     PPSCM, SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC,
@@ -180,6 +180,12 @@ OBSERVATIONAL = [
     pytest.param(CSCIPCA, {"df": _make_cscipca_panel(),
                            "covariates": ["x0", "x1", "x2"], "n_factors": 2,
                            "inference": False}, id="CSCIPCA"),
+    # ATEL's sieve weights come from the covariates, and n_factors must be a
+    # multiple of their count; the bandwidth is pinned so the contract test does
+    # not pay for the cross-validation loop.
+    pytest.param(ATEL, {"df": _make_cscipca_panel(),
+                        "covariates": ["x0", "x1"], "n_factors": 2,
+                        "bandwidth": 0.8}, id="ATEL"),
     pytest.param(MEDSC, {"df": _make_medsc_panel(), "mediator": "price",
                          "inference": False}, id="MEDSC"),
     pytest.param(SDID, {}, id="SDID"),

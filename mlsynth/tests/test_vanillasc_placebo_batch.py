@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import mlsynth.utils.bilevel.minnorm as minnorm
+import mlsynth.utils.solvers.minnorm as minnorm
 from mlsynth import VanillaSC
 
 

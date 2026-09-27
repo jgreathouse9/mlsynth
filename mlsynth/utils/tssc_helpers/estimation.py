@@ -159,6 +159,7 @@ def bootstrap_att_ci(
     n_bootstrap: int,
     confidence_level: float,
     rng: np.random.Generator,
+    subsample_size: Optional[int] = None,
 ) -> Tuple[float, float]:
     """Subsampling confidence interval for a variant's ATT (Li, 2020).
 
@@ -179,10 +180,31 @@ def bootstrap_att_ci(
         E.g. ``0.95`` for a 95% interval.
     rng : numpy.random.Generator
         RNG for reproducible subsampling (no global-seed side effects).
+    subsample_size : int, optional
+        The subsample size ``m``. ``None`` (default) uses
+        ``T_0 - 5``. Li (2020) reports coverage across a grid of ``m``
+        and includes ``m = T_0``, the bootstrap special case of his
+        Remark 4.3, so the size is a parameter of the procedure and not
+        a constant. The paper also requires ``m`` to exceed the number of
+        regressors, since each subsample is refitted on ``m`` periods;
+        that is left to the caller, because the binding count differs by
+        variant (the intercept-carrying ones fit one more coefficient)
+        and a subsample too small to identify the weights shows up as a
+        refusal from the solver, which this routine already skips.
     """
     T0, T2 = inputs.T0, inputs.T2
     n = inputs.n_donors
-    m = T0 - _ATT_CI_SUBSAMPLE_ADJUSTMENT
+    if subsample_size is None:
+        m = T0 - _ATT_CI_SUBSAMPLE_ADJUSTMENT
+    else:
+        m = int(subsample_size)
+        if m > T0:
+            raise MlsynthConfigError(
+                f"TSSC: subsample_size={m} exceeds the pre-period length "
+                f"T_0={T0}. A subsample cannot be larger than the sample it "
+                f"is drawn from; m = T_0 is the largest admissible value and "
+                f"is the bootstrap special case."
+            )
     if m <= 0 or T2 <= 0:
         return (float("nan"), float("nan"))
 
@@ -190,19 +212,21 @@ def bootstrap_att_ci(
     donor_post = inputs.donor_matrix[T0:]
     y_pre = inputs.y[:T0]
 
-    pre_resid_std = float(np.sqrt(np.mean((y_pre - counterfactual[:T0]) ** 2)))
     post_gap = inputs.y[T0:] - counterfactual[T0:]
     post_var = float(np.mean((post_gap - post_gap.mean()) ** 2))
     post_sd = float(np.sqrt(max(post_var, 0.0)))
 
-    feats_pre = _features(method, donor_pre)
     feats_post = _features(method, donor_post)
 
     stats: list = []
     for _ in range(n_bootstrap):
-        idx = rng.permutation(T0)[:m]
-        y_star = feats_pre[idx] @ weights + pre_resid_std * rng.standard_normal(m)
-        w_star = _solve(method, donor_pre[idx], y_star, m, n)
+        # Equation (22): "we randomly draw (y*_1t, x*_t) from {y_1t, x_t}
+        # with replacement". The observed pairs, not a parametric redraw --
+        # the subsample has to carry the data's own dependence between the
+        # outcome and the donors, which is what the constrained refit reacts
+        # to and what makes the statistic adaptive to binding constraints.
+        idx = rng.integers(0, T0, m)
+        w_star = _solve(method, donor_pre[idx], y_pre[idx], m, n)
         if w_star is None or not np.all(np.isfinite(w_star)):
             continue
         comp_weights = -np.mean(feats_post @ (w_star - weights)) * np.sqrt(
@@ -257,6 +281,7 @@ def fit_variant(
     scpi_e_method: str = "gaussian",
     scpi_seed: int = 0,
     compute_ci: bool = True,
+    subsample_size: Optional[int] = None,
 ) -> TSSCVariantFit:
     """Fit one SC-class variant and assemble its :class:`TSSCVariantFit`.
 
@@ -308,6 +333,7 @@ def fit_variant(
             inputs=inputs, method=method, weights=weights,
             counterfactual=counterfactual, att=att, n_bootstrap=n_bootstrap,
             confidence_level=confidence_level, rng=rng,
+            subsample_size=subsample_size,
         )
         if compute_ci
         else (float("nan"), float("nan"))

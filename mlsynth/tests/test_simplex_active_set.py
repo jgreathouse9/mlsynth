@@ -26,7 +26,7 @@ import pytest
 
 cp = pytest.importorskip("cvxpy")
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 
 # --------------------------------------------------------------------------- #

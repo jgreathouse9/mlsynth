@@ -57,7 +57,7 @@ produces different weights and different bounds.
 
 `reference.R` is the arm that runs without R `Synth`. `Ymat.csv` and
 `weightsmat.csv` are computed once by
-`mlsynth.utils.bilevel.simplex.simplex_lstsq` (outcome-only simplex over
+`mlsynth.utils.solvers.simplex.simplex_lstsq` (outcome-only simplex over
 1970–1988) and handed to both sides, so any difference in the captured bounds is
 attributable to the inversion and to nothing else. `SCM.CS` itself needs no CRAN
 package — it takes the outcome matrix and the weights as arguments and the rest

@@ -26,9 +26,14 @@ What is implemented is the rule, not the constant. The authors' 1e-7 is absolute
 and assumes the sd-scaled columns their script builds; rescaling the matching
 columns by 1e-3 moves its answer by 2.4e-2. A ridge scaled by the design is
 invariant to that (3.2e-16) and lands on the same point where their scaling does
-hold (2.8e-8 on the averaged problem, 4.3e-6 worst of the three). The limit is
-reached long before either value: lambda from 1e-14 to 9e-7 all give the same
-weights, which is what makes this a selection rule and not a penalty.
+hold (2.8e-8 on the averaged problem, 4.3e-6 worst of the three). The size of
+the ridge is free over seven decades -- lambda from 1e-11 to 1e-5 all give the
+same weights, and the answer begins to move at 1e-4 -- which is what makes this
+a selection rule and not a penalty. What is not free is its ratio to the
+solver's tolerance: see
+:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp_least_norm`, whose
+selection sat under the pivot loop's release threshold until that ratio was
+set.
 """
 from __future__ import annotations
 
@@ -36,7 +41,7 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthEstimationError
-from mlsynth.utils.bilevel.active_set import (
+from mlsynth.utils.solvers.active_set import (
     solve_simplex_qp,
     solve_simplex_qp_least_norm,
 )

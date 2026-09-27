@@ -20,7 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 
 @pytest.fixture(scope="module")
@@ -323,7 +323,7 @@ def test_the_ray_step_keeps_the_weights_on_the_hyperplane():
 # assumption about one of them.
 # --------------------------------------------------------------------------
 def test_the_guard_accepts_a_stationary_point(wide):
-    from mlsynth.utils.bilevel.active_set import _assert_optimal_with_linear
+    from mlsynth.utils.solvers.active_set import _assert_optimal_with_linear
     B, A, d2 = wide
     lin = 0.3 * d2
     w = solve_simplex_qp(B, A, linear=lin)
@@ -331,7 +331,7 @@ def test_the_guard_accepts_a_stationary_point(wide):
 
 
 def test_the_guard_rejects_a_point_that_is_not_stationary(wide):
-    from mlsynth.utils.bilevel.active_set import _assert_optimal_with_linear
+    from mlsynth.utils.solvers.active_set import _assert_optimal_with_linear
     B, A, d2 = wide
     lin = 0.3 * d2
     w = np.array(solve_simplex_qp(B, A, linear=lin))

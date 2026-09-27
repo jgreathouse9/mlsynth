@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-09-25T19:35:52Z",
+  "git_sha": "2dc5e7859ed6f4f8e4cb91b2e384d89f18016b38",
+  "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/pda_hcw_cepa/reference.R",
+  "data": [
+    {
+      "path": "basedata/HongKong.csv",
+      "sha256": "ad5b35ff563a71304c38ee266d5b420dbeb9e26dcbc5954a94d9cfdda3f4c9a7"
+    }
+  ],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "leaps": "3.1"
+  },
+  "note": "pampe 1.1.2 is archived on CRAN and unavailable in this container; leaps::regsubsets is the engine it wraps, and the sovereignty spec run through the same script reproduces the pda_hcw_hongkong bundle."
+}

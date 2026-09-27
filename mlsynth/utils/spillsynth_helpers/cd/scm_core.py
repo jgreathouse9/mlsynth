@@ -19,7 +19,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
-from ...bilevel.active_set import solve_simplex_qp
+from ...solvers.active_set import solve_simplex_qp
 
 
 def fit_demeaned_sc(

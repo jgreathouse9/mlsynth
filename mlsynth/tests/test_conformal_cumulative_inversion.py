@@ -66,7 +66,7 @@ def test_the_cumulative_band_is_the_constant_effect_band_times_the_horizon():
     """The arithmetic that turns a per-period null into a total, pinned against
     the search it delegates to. A total over ``H`` periods of a constant effect
     is ``H`` times that effect, so nothing else may enter."""
-    from mlsynth.utils.bilevel.ridge_inference import conformal_att_interval
+    from mlsynth.utils.conformal.ridge_inference import conformal_att_interval
 
     y, Y0, pre, h = _panel(effect=3.0)
     band = cumulative_conformal_by_inversion(y, Y0, pre, h, **_KW)
@@ -113,7 +113,7 @@ def test_the_point_is_the_horizon_times_the_average_gap():
     than the estimator's own effect and the band would be centred away from what
     it is meant to describe.
     """
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
 
     y, Y0, pre, h = _panel(effect=4.0)
     band = cumulative_conformal_by_inversion(y, Y0, pre, h, **_KW)
@@ -159,7 +159,7 @@ def test_the_band_and_the_zero_null_p_value_agree_about_zero():
     the one candidate anybody checks. Zero belongs inside exactly when the
     zero-null p-value clears the level, and the same statement has to hold at a
     level on the other side of that p-value."""
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 
     y, Y0, pre, h = _panel(effect=2.5, pre=24, horizon=6, seed=3)
     kw = dict(refit="sc", conformal_type="block")
@@ -337,7 +337,7 @@ def test_the_bisecting_search_does_not_claim_to_know_about_gaps():
 def test_the_grid_route_keeps_every_accepted_candidate_inside_the_band():
     """The defining property. Whatever the survivors look like, the reported
     range must contain all of them -- that is what makes it a confidence set."""
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 
     y, Y0, pre, h = _panel(effect=2.0, pre=24, horizon=6, seed=8)
     grid = np.linspace(-12.0, 12.0, 25)

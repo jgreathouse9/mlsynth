@@ -55,6 +55,9 @@ References
 
 
 
+.. [LiVdB2022] Li, Kathleen T., and Christophe Van den Bulte. *"Augmented Difference-in-Differences."* Marketing Science, vol. 41, no. 5, 2022. `doi:10.1287/mksc.2022.1406 <https://doi.org/10.1287/mksc.2022.1406>`_.
+
+
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
 

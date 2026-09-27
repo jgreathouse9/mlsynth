@@ -17,9 +17,9 @@ import warnings; warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd, cvxpy as cp
 
 from mlsynth.utils.datautils import dataprep
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.sparse_sc_helpers.inner import solve_w
 
 def cvxpy_solve(B, a):

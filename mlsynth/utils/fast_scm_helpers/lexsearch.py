@@ -51,7 +51,7 @@ from .conflict import is_independent
 from . import strata as _strata
 from .feasibility import audit_feasibility
 from ...exceptions import MlsynthConfigError
-from ...utils.bilevel.minnorm import (
+from ...utils.solvers.minnorm import (
     solve_simplex_minnorm,
     solve_simplex_minnorm_batch,
 )

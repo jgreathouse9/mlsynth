@@ -11,7 +11,7 @@ least as extreme as the observed one.
 
 This case transcribes that notebook -- the cvxpy program and the p-value loop,
 not a paraphrase -- and runs it beside
-:func:`~mlsynth.utils.bilevel.ridge_inference.conformal_pvalue` on the same
+:func:`~mlsynth.utils.conformal.ridge_inference.conformal_pvalue` on the same
 panel. The two are expected to agree exactly, not approximately. mlsynth's
 statistic is ``(sum |u|^q / sqrt(n))^(1/q)`` where the notebook's is the mean,
 and mlsynth counts ``obs <= perm`` where the notebook counts
@@ -92,7 +92,7 @@ def _notebook_pvalue(y, Y0, pre, null, q=1):
 def run() -> dict:
     import numpy as np
 
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
     from mlsynth.utils.conformal import cumulative_conformal_by_inversion
 
     y, Y0, pre = _panel()

@@ -41,6 +41,7 @@ from ..results_helpers import build_effect_submodels
 # Public method names.
 FDID = "FDID"
 DID = "DID"
+ADID = "ADID"
 
 
 def _inference_label(method: str, lag: Optional[int]) -> str:
@@ -123,7 +124,12 @@ class FDIDMethodFit:
         Pre-treatment R^2 of the difference-in-differences fit.
     intercept : float
         Difference-in-differences intercept (treated minus donor
-        pre-period mean).
+        pre-period mean); ADID's ``delta_1``.
+    slope : float or None
+        ADID's ``delta_2``, the coefficient on the donor average (Li and Van
+        den Bulte 2022, Equation 2.4). ``None`` for FDID and DID, which hold
+        it at one by construction instead of fitting it. Its distance from one
+        is how far the panel is from the parallel-trends restriction.
     p_value : float
         Two-sided p-value for the ATT.
     ci : tuple of float
@@ -164,6 +170,10 @@ class FDIDMethodFit:
     selected_indices: List[int]
     selected_names: List[Any]
     donor_weights: Dict[Any, float]
+    #: ADID's fitted slope; None wherever the slope is held at one, which a
+    #: dataclass forces into the defaulted block even though it belongs beside
+    #: ``intercept``.
+    slope: Optional[float] = None
     r2_path: Optional[np.ndarray] = None
     intermediary: Optional[list] = None
     inference_method: str = "analytic"
@@ -189,6 +199,11 @@ class FDIDResults(BaseEstimatorResults):
         Forward-selected difference-in-differences fit (primary).
     did : FDIDMethodFit
         Textbook difference-in-differences using all donors.
+    adid : FDIDMethodFit
+        Augmented difference-in-differences over all donors (Li and Van den
+        Bulte 2022, Equation 2.4): the same construction as ``did`` with the
+        slope on the donor average fitted instead of held at one. Read
+        ``adid.slope`` to see how far the panel is from that restriction.
     selected_variant : str
         Which fit is exposed via the convenience aliases ``att``,
         ``att_se``, ``counterfactual``, ``gap``, ``donor_weights`` --
@@ -202,6 +217,7 @@ class FDIDResults(BaseEstimatorResults):
     inputs: FDIDInputs
     fdid: FDIDMethodFit
     did: FDIDMethodFit
+    adid: Optional[FDIDMethodFit] = None
     selected_variant: str = FDID
     metadata: Dict[str, Any] = PydField(default_factory=dict)
 
@@ -252,8 +268,15 @@ class FDIDResults(BaseEstimatorResults):
 
     @property
     def methods(self) -> Dict[str, FDIDMethodFit]:
-        """``{method_name: fit}`` for both fits, FDID first."""
-        return {FDID: self.fdid, DID: self.did}
+        """``{method_name: fit}``, FDID first.
+
+        ``ADID`` is absent only on a panel where it could not be fitted, which
+        the fit records in ``metadata["adid_unavailable"]``.
+        """
+        out = {FDID: self.fdid, DID: self.did}
+        if self.adid is not None:
+            out[ADID] = self.adid
+        return out
 
     @property
     def _primary(self) -> FDIDMethodFit:
@@ -290,13 +313,13 @@ class FDIDResults(BaseEstimatorResults):
         return self._primary.pre_rmse
 
     def att_by_method(self) -> Dict[str, float]:
-        """``{method: ATT}`` for both fits."""
+        """``{method: ATT}`` for every fit."""
         return {name: fit.att for name, fit in self.methods.items()}
 
     def se_by_method(self) -> Dict[str, float]:
-        """``{method: ATT standard error}`` for both fits."""
+        """``{method: ATT standard error}`` for every fit."""
         return {name: fit.att_se for name, fit in self.methods.items()}
 
     def ci_by_method(self) -> Dict[str, Tuple[float, float]]:
-        """``{method: (lower, upper)}`` confidence intervals for both fits."""
+        """``{method: (lower, upper)}`` confidence intervals for every fit."""
         return {name: fit.ci for name, fit in self.methods.items()}

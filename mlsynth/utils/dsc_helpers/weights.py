@@ -152,7 +152,7 @@ def _refine_exact(A: np.ndarray, b: np.ndarray, warm: np.ndarray) -> np.ndarray:
     The fallback exists so that a degenerate design returns the warm start
     instead of failing outright.
     """
-    from ..bilevel.active_set import solve_simplex_qp
+    from ..solvers.active_set import solve_simplex_qp
 
     try:
         out = np.clip(solve_simplex_qp(A, b), 0.0, None)

@@ -307,6 +307,41 @@ solve. This is what lets the implementation run the selection over
 :math:`\sim`\ 1,500 controls, and what makes the :math:`M = 5{,}000`
 replication Monte Carlo in *Verification* tractable.
 
+The augmented fit
+~~~~~~~~~~~~~~~~~
+
+``fit()`` returns a third estimate beside the forward-selected one and the
+textbook one. Li and Van den Bulte [LiVdB2022]_ keep every control, as DiD
+does, and free the coefficient on their average:
+
+.. math::
+
+   y_{1t} = \delta_1 + \delta_2\,\bar{y}_{\mathcal{N}_0, t} + e_{1t},
+   \qquad t \in \mathcal{T}_1,
+
+fitted by least squares on the pre-period, with the counterfactual
+:math:`\widehat{\delta}_1 + \widehat{\delta}_2\,\bar{y}_{\mathcal{N}_0, t}`.
+DiD is the case :math:`\delta_2 = 1`, so the two are nested and the augmented
+fit can never fit the pre-period worse.
+
+What the extra parameter buys is a treated unit allowed to run at a different
+scale to the control average and not merely at a different level. Their Table 1
+states the difference as an identifying assumption: DiD needs the treated path
+parallel to the control average, ADID needs it parallel to a slope-adjusted
+control average.
+
+Read :math:`\widehat{\delta}_2` off ``results.adid.slope``, which is the one
+number the method turns on. Its distance from one measures how far the panel
+sits from DiD's restriction, and on the authors' own showroom data it is 3.51,
+where the two ATTs differ by a factor of 3.2 and the pre-period :math:`R^2`
+rises from 0.41 to 0.83. ``results.fdid.slope`` and ``results.did.slope`` are
+``None``, since neither fits a slope.
+
+The forward selection and the free slope are not combined. Each is one author's
+paper and the diagonal of the two choices is what is published; a
+forward-selected average with a fitted slope has no inference theory behind it
+and mlsynth does not report one.
+
 Assumptions
 -----------
 

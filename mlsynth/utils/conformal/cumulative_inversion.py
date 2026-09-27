@@ -36,7 +36,7 @@ one of which is the observed path, so no p-value falls below ``1 / T`` and at
 either case would report a rejection that never happened.
 
 The search, the refit rules and the permutation schemes are
-:func:`~mlsynth.utils.bilevel.ridge_inference.conformal_att_interval`'s; this
+:func:`~mlsynth.utils.conformal.ridge_inference.conformal_att_interval`'s; this
 module supplies the validation, the cumulative reading and the container, so an
 estimator can ask for a band for the total without reaching into the ridge
 machinery.
@@ -255,7 +255,7 @@ def cumulative_conformal_by_inversion(
         narrow set, but can exclude an accepted candidate beyond a hole.
         ``grid`` sees whatever the grid covers and says whether there were holes,
         and chains its refits through
-        :func:`~mlsynth.utils.bilevel.ridge_inference.conformal_pvalue_sweep`,
+        :func:`~mlsynth.utils.conformal.ridge_inference.conformal_pvalue_sweep`,
         so its cost is far below one cold solve per candidate.
     grid : array-like, optional
         Candidate per-period effects, required by ``search="grid"``. There is no
@@ -263,7 +263,7 @@ def cumulative_conformal_by_inversion(
         guessed here would step over a narrow set and report it empty.
     **kwargs
         Forwarded to
-        :func:`~mlsynth.utils.bilevel.ridge_inference.conformal_att_interval`
+        :func:`~mlsynth.utils.conformal.ridge_inference.conformal_att_interval`
         (``q``, ``ns``, ``seed``, ``lambda_``, ``fixed_effects``, the search
         controls).
 
@@ -298,8 +298,8 @@ def cumulative_conformal_by_inversion(
                 'search="grid" needs a grid of candidate per-period effects.')
         grid = _check_grid(grid)
 
-    from ..bilevel.ridge_inference import conformal_att_interval
-    from ..bilevel.simplex import simplex_lstsq
+    from ..conformal.ridge_inference import conformal_att_interval
+    from ..solvers.simplex import simplex_lstsq
 
     n_reference = pre + horizon
     y_w, Y0_w = y[:n_reference], Y0[:n_reference]
@@ -314,7 +314,7 @@ def cumulative_conformal_by_inversion(
         # from its own solution; the p-values come back in the caller's order and
         # are identical to solving every candidate cold, since a seed moves how
         # many pivots the active set takes and never where it certifies.
-        from ..bilevel.ridge_inference import conformal_pvalue_sweep
+        from ..conformal.ridge_inference import conformal_pvalue_sweep
 
         pvalues = conformal_pvalue_sweep(y_w, Y0_w, pre, grid, refit=refit,
                                          conformal_type=conformal_type, **kwargs)

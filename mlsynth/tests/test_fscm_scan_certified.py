@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.fscm_helpers.estimation import scan_candidates
 from mlsynth.utils.weights import WeightSolution, solve_weights
 

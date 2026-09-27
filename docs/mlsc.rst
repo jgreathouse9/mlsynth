@@ -644,7 +644,7 @@ squaring puts it below what double precision resolves. Measured on a nine-period
 twelve-disaggregate panel the reduction then finished 225 percent above the
 optimum at :math:`\lambda = 10^{-8}` and selected a different penalty, where on
 the 108-period, 90-disaggregate panel the two agree to :math:`4 \times 10^{-16}`.
-:func:`mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides this from
+:func:`mlsynth.utils.solvers.minnorm.gram_reduction_is_safe` decides this from
 the design before anything is solved, and a rank-deficient training design keeps
 the one-penalty-at-a-time solve.
 

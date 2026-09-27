@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.conformal import EnsembleErrors, bootstrap_loo_errors
 
 

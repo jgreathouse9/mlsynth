@@ -19,7 +19,7 @@ import cvxpy as cp
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
-from ...bilevel.active_set import solve_simplex_qp
+from ...solvers.active_set import solve_simplex_qp
 
 
 def _row_normalize(stacked: np.ndarray) -> np.ndarray:

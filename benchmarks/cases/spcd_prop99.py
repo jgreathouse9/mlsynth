@@ -60,7 +60,7 @@ def _rmse(errors):
 def _cell(Y, T_pre, rng):
     """Placebo RMSE (true effect 0) for SPCD, random diff-in-means, and SC."""
     from mlsynth import SPCD
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
 
     post = slice(T_pre, Y.shape[0])
     n = Y.shape[1]

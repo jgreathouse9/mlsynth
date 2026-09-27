@@ -9,7 +9,7 @@ import pandas as pd
 
 from ...config_models import InferenceResults, WeightsResults
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 from ..results_helpers import build_effect_submodels
 from .dtw import PATTERNS
 from .inference import (

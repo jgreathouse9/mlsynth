@@ -50,12 +50,17 @@ below; the catalogue entries link to a dedicated page where one exists.
    :hidden:
    :caption: Dedicated replication pages
 
+   replications/cpda
+   replications/sl
+
+
    replications/geox
    replications/gpits
    replications/geox_sdid_equivalence
    replications/geox_augsynth_recast
    replications/drsc
    replications/fsc
+   replications/atel
    replications/fdid
    replications/twsf
    replications/wine_tennessee
@@ -598,11 +603,27 @@ Time-aware and factor models
 ----------------------------
 
 * :doc:`fma` -- Li & Sonnier (2023) factor model approach.
+  Cross-validation: the standard error matches the authors' own Web
+  Appendix I MATLAB on HCW's Hong Kong GDP panel to six significant
+  figures, 0.004605949 (pinned in ``test_fma.py``). That pin exists
+  because the estimator previously reported 0.006201897 on the same
+  panel, and coverage alone had no power to see it.
   Path B: coverage study under DGP1 (stationary) and DGP2
-  (non-stationary), 1000 reps; coverage at :math:`M = 1000`
-  equals 0.947 against the nominal 0.95 -- and stays near nominal
-  across the equal / treated-smaller / treated-larger variance
-  regimes where Xu's interval fails (durable: ``fma_coverage_mc``).
+  (non-stationary), 1000 reps at :math:`T_1 = 30`, :math:`T_2 = 20`,
+  :math:`N_{co} = 30`. The 95% interval covers 0.925 / 0.920 / 0.928
+  across the equal / treated-smaller / treated-larger regimes, and
+  0.904 under DGP2 -- flat across the variance regimes, which is the
+  paper's claim and the regime where Xu's interval fails. The level
+  sits below nominal because the normal approximation is not yet
+  accurate at this pre-period length; Wang, Racine & Wang (2025)
+  measure 0.921-0.925 for the same cells. Their studentized bootstrap
+  is what recovers the nominal level (durable: ``fma_coverage_mc``).
+  Path B for the ``percentile_t`` inference option: Wang, Racine &
+  Wang (2025) Tables 1-2 -- at the paper's own configuration (2,000
+  simulations, 1,000 bootstrap draws) all 18 cells reproduce within
+  0.017, with the studentized interval at 0.939-0.956 where the
+  normal interval covers 0.79-0.81 (durable:
+  ``fma_percentile_t_mc``).
 * :doc:`tasc` -- Rho et al. (2026) time-aware SC. Path A:
   Proposition 99 -- pre-RMSE 0.767, ATT -16.793, gap of -24
   packs by 2000 against the paper's Figure 10 gap of -25 to -30.
@@ -938,14 +959,14 @@ Coverage summary
        ISCM -- one-draw illustration only: the paper relies on a
        non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
-     - 12
-     - 12
-     - Complete (BEAST, BVSS, CLUSTERSC, DROSC, FSCM, MLSC, MSQRT,
-       PDA, RESCM, SCD, SCUL, SparseSC)
+     - 14
+     - 14
+     - Complete (BEAST, BVSS, CLUSTERSC, CPDA, DROSC, FSCM, MLSC,
+       MSQRT, PDA, RESCM, SCD, SCUL, SL, SparseSC)
    * - Time-aware / factor models
-     - 5
-     - 5
-     - Complete (CFM, CSCIPCA, FMA, LPCA, TASC)
+     - 6
+     - 6
+     - Complete (ATEL, CFM, CSCIPCA, FMA, LPCA, TASC)
    * - Bayesian
      - 7
      - 7
@@ -996,9 +1017,9 @@ Coverage summary
      - 6
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
-     - 77
-     - 78
-     - 77 of 78 estimators carry a replication.
+     - 80
+     - 81
+     - 80 of 81 estimators carry a replication.
 
 .. coverage-table-end
 

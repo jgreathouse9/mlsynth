@@ -36,8 +36,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
-from .ridge_augment import ridge_augment_weights
+from ..exceptions import MlsynthEstimationError
+from .solvers.ridge_augment import ridge_augment_weights
 
 
 def _quantile(x: np.ndarray, p: float) -> float:
@@ -123,7 +123,7 @@ def jackknife_plus(
         ``est +/- |err|``. augsynth's own default is ``False``.
     Z0, z1, residualize
         Auxiliary covariates, passed through to
-        :func:`~mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`.
+        :func:`~mlsynth.utils.solvers.ridge_augment.ridge_augment_weights`.
         Covariates are unit-level pre-period summaries and so are unaffected by
         holding a period out -- augsynth passes them through untouched too.
     lambda_ : float, optional

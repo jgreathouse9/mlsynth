@@ -39,7 +39,7 @@ import numpy as np
 from scipy.optimize import linprog
 
 from .mscmt import _inner_weights
-from .simplex import mspe
+from ..solvers.simplex import mspe
 from .structure import BilevelProblem
 
 

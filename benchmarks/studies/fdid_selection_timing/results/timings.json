@@ -1,0 +1,288 @@
+{
+  "machine": {
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.11.15"
+  },
+  "reps": 15,
+  "panels": {
+    "hcw_hongkong": {
+      "donors": 24,
+      "pre_periods": 44,
+      "total_periods": 61,
+      "note": "Hsiao, Ching and Wan (2012); Li's own released companion panel",
+      "impls": {
+        "mlsynth": {
+          "median_seconds": 0.0009291560018027667,
+          "min_seconds": 0.0008794719979050569,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "python_naive": {
+          "median_seconds": 0.00369349299944588,
+          "min_seconds": 0.0036216279986547306,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "R_li": {
+          "median_seconds": 0.006,
+          "min_seconds": 0.005,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        },
+        "matlab_li_octave": {
+          "median_seconds": 0.098555,
+          "min_seconds": 0.091157,
+          "selected": [
+            17,
+            18,
+            21,
+            16,
+            13,
+            11,
+            8,
+            15,
+            12
+          ]
+        }
+      },
+      "all_select_the_same_donors": true,
+      "disagreements": {}
+    },
+    "fspda_china_watches": {
+      "donors": 87,
+      "pre_periods": 35,
+      "total_periods": 71,
+      "note": "Shi and Huang fsPDA anti-corruption panel, p > n",
+      "impls": {
+        "mlsynth": {
+          "median_seconds": 0.003953604002163047,
+          "min_seconds": 0.0035377839994907845,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "python_naive": {
+          "median_seconds": 0.05731098800242762,
+          "min_seconds": 0.05278959199858946,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "R_li": {
+          "median_seconds": 0.108,
+          "min_seconds": 0.093,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        },
+        "matlab_li_octave": {
+          "median_seconds": 1.216,
+          "min_seconds": 1.159074,
+          "selected": [
+            51,
+            73,
+            16,
+            48,
+            34,
+            40,
+            6,
+            10,
+            13,
+            44,
+            72,
+            22,
+            76,
+            41
+          ]
+        }
+      },
+      "all_select_the_same_donors": true,
+      "disagreements": {}
+    }
+  },
+  "scaling": {
+    "shared_range": [
+      {
+        "donors": 20,
+        "mlsynth_seconds": 0.0010763999998744112,
+        "python_naive_seconds": 0.002993693000462372,
+        "ratio": 2.7812086592453182
+      },
+      {
+        "donors": 40,
+        "mlsynth_seconds": 0.0014162119987304322,
+        "python_naive_seconds": 0.011587592998694163,
+        "ratio": 8.18210339206411
+      },
+      {
+        "donors": 80,
+        "mlsynth_seconds": 0.002087373999529518,
+        "python_naive_seconds": 0.049073940001107985,
+        "ratio": 23.509893297592555
+      },
+      {
+        "donors": 160,
+        "mlsynth_seconds": 0.004087377998075681,
+        "python_naive_seconds": 0.2243433229996299,
+        "ratio": 54.88685487499559
+      },
+      {
+        "donors": 320,
+        "mlsynth_seconds": 0.007546363998699235,
+        "python_naive_seconds": 1.1747485779997078,
+        "ratio": 155.67080758391708
+      },
+      {
+        "donors": 640,
+        "mlsynth_seconds": 0.017543330999615137,
+        "python_naive_seconds": 7.0845386359978875,
+        "ratio": 403.8308708963712
+      },
+      {
+        "donors": 1280,
+        "mlsynth_seconds": 0.0458446200027538,
+        "python_naive_seconds": 47.232518404001894,
+        "ratio": 1030.273964560394
+      }
+    ],
+    "ratio_log_log_slope": 1.4134546691825216,
+    "naive_log_log_slope": 2.3189231833037476,
+    "mlsynth_only": [
+      {
+        "donors": 320,
+        "mlsynth_seconds": 0.00792180100324913
+      },
+      {
+        "donors": 640,
+        "mlsynth_seconds": 0.017099893997510662
+      },
+      {
+        "donors": 1280,
+        "mlsynth_seconds": 0.046312915001180954
+      },
+      {
+        "donors": 2560,
+        "mlsynth_seconds": 0.1377696419986023
+      }
+    ],
+    "mlsynth_log_log_slope_large_N": 1.3798284430830097,
+    "mlsynth_local_slopes": [
+      {
+        "from": 320,
+        "to": 640,
+        "slope": 1.1100870157427103
+      },
+      {
+        "from": 640,
+        "to": 1280,
+        "slope": 1.4374271833394148
+      },
+      {
+        "from": 1280,
+        "to": 2560,
+        "slope": 1.572771550081438
+      }
+    ],
+    "naive_local_slopes": [
+      {
+        "from": 20,
+        "to": 40,
+        "slope": 1.952582730062311
+      },
+      {
+        "from": 40,
+        "to": 80,
+        "slope": 2.0823761882091327
+      },
+      {
+        "from": 80,
+        "to": 160,
+        "slope": 2.19267923568122
+      },
+      {
+        "from": 160,
+        "to": 320,
+        "slope": 2.388571869729053
+      },
+      {
+        "from": 320,
+        "to": 640,
+        "slope": 2.5923218826653835
+      },
+      {
+        "from": 640,
+        "to": 1280,
+        "slope": 2.7370346518279365
+      }
+    ],
+    "T0": 40,
+    "reps": 15
+  }
+}

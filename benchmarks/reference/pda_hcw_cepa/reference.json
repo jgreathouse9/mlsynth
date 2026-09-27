@@ -1,0 +1,24 @@
+{
+  "values": {
+    "n_selected": 6.0,
+    "aicc": -378.9427,
+    "r2_pre": 0.930967,
+    "intercept": -0.00194,
+    "att_pct": 4.03263,
+    "sd_effect": 0.016045,
+    "t_hcw": 2.513387,
+    "hac_lag": 2.0,
+    "se_hac": 0.004291,
+    "se_iid": 0.003891,
+    "weight_austria": -1.01156,
+    "weight_singapore": 0.184509
+  },
+  "weights": {
+    "Austria": -1.01156,
+    "Italy": -0.317654,
+    "Korea": 0.344735,
+    "Mexico": 0.312858,
+    "Norway": 0.322183,
+    "Singapore": 0.184509
+  }
+}

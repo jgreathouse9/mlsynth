@@ -1,7 +1,7 @@
 """All four simplex-QP paths on the same problems: do they agree, and which is exact?
 
-  active set   bilevel/active_set.py::solve_simplex_qp   exact, warm-startable
-  FISTA        bilevel/simplex.py::simplex_lstsq         projected gradient
+  active set   solvers/active_set.py::solve_simplex_qp   exact, warm-startable
+  FISTA        solvers/simplex.py::simplex_lstsq         projected gradient
   cvxpy        cp.Problem(...).solve()                   interior point + canonicalisation
   Clarabel     sparse_sc_helpers/inner.py::solve_w       interior point, direct
 
@@ -28,8 +28,8 @@ import time
 import numpy as np
 import cvxpy as cp
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.sparse_sc_helpers.inner import solve_w
 
 def cvxpy_solve(B, a):

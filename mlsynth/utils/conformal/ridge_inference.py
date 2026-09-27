@@ -47,9 +47,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
-from ..conformal.inversion import confidence_set_bounds
-from ..conformal.refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
-from .ridge_augment import ridge_augment_weights
+from .inversion import confidence_set_bounds
+from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
+from ..solvers.ridge_augment import ridge_augment_weights
 
 
 def _stat(x: np.ndarray, q: float = 1.0) -> float:
@@ -159,7 +159,7 @@ def _pre_fit_gaps(
     y = np.asarray(y, dtype=float)
     Y0 = np.asarray(Y0, dtype=float)
     if refit == "sc":
-        from .ridge_augment import simplex_qp
+        from ..solvers.ridge_augment import simplex_qp
 
         w = simplex_qp(Y0[:pre], y[:pre])
     else:
@@ -657,7 +657,7 @@ def conformal_intervals(
     # level (the residual gap is invariant to the treated mean), mirroring
     # ``fit_augsynth_once(fixed_effects=True)``.
     if refit == "sc":
-        from .ridge_augment import simplex_qp
+        from ..solvers.ridge_augment import simplex_qp
 
         if fixed_effects:
             y_pre_m, Y0_pre_m = y[:pre].mean(), Y0[:pre].mean(axis=0)

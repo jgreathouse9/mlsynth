@@ -22,7 +22,7 @@ from typing import Callable, Dict, List, Tuple
 import cvxpy as cp
 import numpy as np
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.hsc_helpers.formulation import smoother_and_metric
 
 # A case returns the active-set weights, the cvxpy weights, and the site's

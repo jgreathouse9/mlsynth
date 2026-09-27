@@ -84,7 +84,9 @@ At a glance
    Time-varying dynamics / heavy noise? ─► TASC · DSCAR · FMA · BFSC (Bayesian, credible band)
    Donors right in shape, wrong in TIMING? ─► DTWSC (warp donor speeds, then SC)
    Nonlinear outcome surface?           ─► NSC
+   Cannot defend one counterfactual model? ─► SL (ensemble over experts, test only)
    Donor pool N ≳ T0 (overfitting)?     ─► CLUSTERSC · SparseSC · PDA · RESCM · FSCM · BVSS
+   Observed time-varying covariates?    ─► CPDA (residualise, then regress) · GSYNTH · SDID
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
    Interpolation across dissimilar donors? ─► MASC
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
@@ -370,6 +372,39 @@ when the treated unit sits outside the hull or at a different level. With a larg
 donor pool the unconstrained regression must be regularised -- which PDA variant
 to use is the next remark.
 
+*Covariates observed? CPDA before PDA.* :doc:`cpda` is the same unconstrained
+regression with one step in front of it: estimate a common slope on the
+covariates, subtract the covariate part from the treated unit and every donor,
+and regress on what is left. The donors then carry the unobserved factor
+structure alone, and the number of factors never has to be chosen -- which is
+what separates it from :doc:`gsynth`, where the factor count is a config field.
+Reach for it when the treated unit's covariates move in ways the donors' do not,
+since that movement is what a donor-only regression has to eat as error. It
+needs at least one covariate; with none, Hsiao and Zhou's Equation 12 leaves the
+outcome untouched and CPDA is PDA, so the config refuses that case. One caution
+carries over from the paper: on a short pre-period the donor subset is not
+pinned by the method, and the estimate moves with it, so set
+``sensitivity=True`` and report the spread.
+
+*No defensible single model? SL, and read what it reports.* :doc:`sl` declines
+the choice: it fits a library of predictors on one slice of the pre-period,
+scores them on a slice they did not see, and combines them by exponential
+weights. The guarantee is relative to the best member of the library, so no
+member has to be correctly specified -- but nothing promises the best member is
+good, and a library that spans nothing close to the counterfactual returns a
+confident average of wrong answers. It costs half the pre-period to the split, so
+it needs a long one. Two things decide whether an SL number means anything, and
+both are typed fields on the result: ``effective_k`` says whether the weighting
+selected a member or averaged them all, and ``error_participation_ratio`` says
+whether the members err independently, which is the condition for averaging to
+help at all. On the paper's own application those read 3.69 of 4 and 1.26 of 4,
+so there the ensemble is close to a simple average of four experts that miss
+together. SL also differs from everything else here in what it returns: a
+hypothesis test with a bootstrap critical value and no standard error or
+interval, because the statistic is a non-negative quadratic whose null quantiles
+are critical values. Reach for :doc:`fma` or :doc:`gsynth` when an interval is
+the deliverable.
+
 *Within PDA: which regulariser?* :doc:`pda` bundles four ways to fit the
 unconstrained regression, and the choice is governed by the size of the donor
 pool relative to the pre-period and by whether a few donors or many carry the
@@ -464,7 +499,10 @@ observation noise?
   outcomes, :doc:`dscar` is a different paradigm -- see the remark below.) If you
   also observe many time-varying *covariates* and want them to identify the
   counterfactual, :doc:`cscipca` instruments the factor loadings with the
-  covariates -- see the remark below.
+  covariates -- see the remark below. If the loading itself moves over the
+  sample and you want the effect measured near the adoption date, :doc:`atel`
+  lets the loading vary with time and localizes the estimand -- see the remark
+  below.
 
 *FMA versus BFSC -- frequentist or Bayesian factor SC.* Both fit the untreated
 outcome with a latent-factor model, not a donor weighting, so both handle
@@ -481,6 +519,26 @@ must commit to. Prefer :doc:`fma` when you want a fast, dependency-free point
 estimate with bootstrap intervals; prefer :doc:`bfsc` when you want a full
 posterior band and would prefer not to fix the number of factors, and you
 can take on the ``[bayes]`` (NumPyro) dependency.
+
+*Localizing the estimand -- ATEL.* Every other estimator on this page averages
+the post-period gap with equal weight on each period, which answers what the
+policy and the treated unit's response to it did, together. :doc:`atel` (Lee,
+2026) weights the post-period with a kernel centred on the adoption date, so the
+number it reports is the effect before the unit has had time to adapt. Two
+things follow. It is the estimator to reach for when the post-period is long
+enough that adaptation is plausible, or when the decision runs on a budget or
+election cycle and the near term is what matters. It is the wrong one when the
+question is about the long run, since the kernel discards exactly those periods.
+Mechanically it also differs from :doc:`fma` in letting the factor loading vary
+with time -- holding a moving loading fixed recovers a time-average of it -- and
+from :doc:`cscipca` in what the covariates do: ``cscipca`` projects the loadings
+onto them, ``atel`` uses a sieve basis in them to build the projection weights
+that estimate the factors, with no eigendecomposition anywhere -- and unlike
+``cscipca`` it does not need covariates at all, since the projection weights can
+come from each unit's first outcome or from a deterministic sign matrix instead.
+It needs at least two post-periods and a factor count you supply; take that count
+a little above what you think the panel supports, since over-estimating it is
+proved safe and under-estimating it is not.
 
 *Factor SC with covariate-instrumented loadings.* :doc:`cscipca` (Wang, 2024)
 is the factor estimator to reach for when you observe many time-varying

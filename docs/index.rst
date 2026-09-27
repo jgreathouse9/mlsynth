@@ -300,6 +300,9 @@ measures that claim directly, which a reproduced number cannot.
    sparse_sc
    beast
    dpsc
+   cpda
+   sl
+
    pda
    scul
    esc
@@ -311,6 +314,7 @@ measures that claim directly, which a reproduced number cannot.
 
    tasc
    fma
+   atel
    cfm
    gsynth
    cscipca
