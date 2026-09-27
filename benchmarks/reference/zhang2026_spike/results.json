@@ -1,0 +1,46 @@
+{
+  "design": "additive_fe (paper Section 8.1)",
+  "n": 1000,
+  "T0": 20,
+  "truth_contemporaneous_att": 0.5,
+  "units": "bias and SD in units of 0.01; coverage in percent",
+  "paper_table_1": {
+    "DID":  {"bias": 2.16, "sd": 1.94, "coverage": 79.8},
+    "DR2*": {"bias": 0.54, "sd": 2.07, "coverage": 94.0},
+    "DR2":  {"bias": 0.84, "sd": 2.15, "coverage": 92.1},
+    "DR3*": {"bias": 0.21, "sd": 2.41, "coverage": 93.7},
+    "DR3":  {"bias": 0.54, "sd": 2.44, "coverage": 93.7}
+  },
+  "port_std_nn_trim010": {
+    "reps": 300,
+    "mc_se_bias": 0.13,
+    "DID":  {"bias": -2.18, "sd": 1.85, "coverage": 82.0},
+    "DR2*": {"bias": 0.20, "sd": 2.24, "coverage": 94.0},
+    "DR2":  {"bias": 0.56, "sd": 2.35, "coverage": 92.0},
+    "DR3*": {"bias": 0.45, "sd": 2.28, "coverage": 93.3},
+    "DR3":  {"bias": 0.66, "sd": 2.24, "coverage": 95.0}
+  },
+  "port_did_2000_reps": {"bias": -2.16, "sd": 1.93, "coverage": 80.1, "mc_se_bias": 0.04},
+  "port_raw_scale_nn_trim010": {
+    "comment": "kernel exactly as printed: one bandwidth across both arguments",
+    "DR2*": {"bias": 0.08, "sd": 2.30, "coverage": 95.3},
+    "DR2":  {"bias": 2.78, "sd": 2.53, "coverage": 75.3},
+    "DR3*": {"bias": 0.10, "sd": 2.38, "coverage": 93.7},
+    "DR3":  {"bias": 3.08, "sd": 2.53, "coverage": 75.7}
+  },
+  "port_pooled_mean_fallback_trim010": {
+    "comment": "empty kernel neighbourhood imputed by the pooled control mean",
+    "DR2*": {"bias": 0.54, "sd": 3.11, "coverage": 93.3},
+    "DR2":  {"bias": 0.84, "sd": 3.15, "coverage": 91.3},
+    "DR3*": {"bias": 1.07, "sd": 2.71, "coverage": 92.7},
+    "DR3":  {"bias": 1.37, "sd": 2.98, "coverage": 91.7}
+  },
+  "pseudo_distance_population_limit": {
+    "derived": "d(a_i, a_j) = 12.5 |a_i - a_j| for design 8.1",
+    "fitted_slope_by_T0": {"20": 17.650, "50": 13.987, "200": 12.649, "800": 12.481},
+    "correlation_by_T0": {"20": 0.840, "50": 0.915, "200": 0.979, "800": 0.994}
+  },
+  "trend_invariance_max_relative_change": {"zhang_range": 7.784e-14, "feng_maxabs": 13.76},
+  "true_propensity_range": {"min": 0.1783, "max": 0.8311, "share_above_0.90": 0.0, "pooled_draws": 40000},
+  "propensity_pathology": {"max_pi_hat_over_reps": 1.0, "reps_with_any_pi_hat_above_0.9": "6.2% to 11.2% by variant"}
+}
