@@ -30,10 +30,11 @@ VARIANTS = [("DR2*", 2, True), ("DR2", 2, False), ("DR3*", 3, True), ("DR3", 3, 
 CONFIGS = [("std/nn", "std", "nn"), ("raw/nn", "raw", "nn"), ("std/mean", "std", "mean")]
 
 
-def one_rep(rep: int):
+def one_rep(args):
+    rep, T0 = args
     rng = np.random.default_rng([20260927, rep])
-    panel = additive_fe(1000, 20, n_post=1, rng=rng)
-    dist = pseudo_distance(panel.Y[:, :20], "zhang_range")
+    panel = additive_fe(1000, T0, n_post=1, rng=rng)
+    dist = pseudo_distance(panel.Y[:, :T0], "zhang_range")
     out = {}
     est, se = did(panel.Y, panel.D, panel.T0)
     out[("DID", "-")] = (est, se, 2 * Z95 * se, 0.0)
@@ -50,14 +51,15 @@ def one_rep(rep: int):
 
 def main():
     reps = int(sys.argv[1]) if len(sys.argv) > 1 else 300
+    T0 = int(sys.argv[2]) if len(sys.argv) > 2 else 20
     with mp.Pool(4) as pool:
-        rows = pool.map(one_rep, range(reps), chunksize=3)
+        rows = pool.map(one_rep, [(r, T0) for r in range(reps)], chunksize=3)
     acc = defaultdict(list)
     for r in rows:
         for k, v in r.items():
             acc[k].append(v)
 
-    print(f"design=additive_fe  N=1000  T0=20  reps={reps}  kappa=0.2  trim=0.10  truth=0.50")
+    print(f"design=additive_fe  N=1000  T0={T0}  reps={reps}  kappa=0.2  trim=0.10  truth=0.50")
     print("bias and SD in units of 0.01; coverage in percent; width = mean 95% CI width x100")
     print()
     hdr = f"{'variant':8}{'config':10}{'bias':>7}{'SD':>7}{'cov':>7}{'width':>8}{'wid med':>8}{'wid p95':>8}{'max|psi|':>9}"

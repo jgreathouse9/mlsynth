@@ -13,10 +13,9 @@ Sources:
   against an authoritative implementation is unavailable and Path B (the paper's
   own Monte Carlo) is the only validation route.
 * Empirical application data: the Bailey (2012) AEJ:Applied replication package
-  was supplied alongside the paper. It is not used here. The paper's
-  pseudo-distance is built on general fertility rates from 1937, taken from
-  ICPSR 36603; the Bailey package starts at 1959, which leaves a six-year common
-  pre-1965 window against the paper's twenty-eight.
+  was supplied alongside the paper. Its contents are verified in Finding 8 and it
+  carries everything the paper's application needs except the pre-1959 outcome
+  history, which comes from ICPSR 36603 and is not reachable from here.
 
 ## Verdict
 
@@ -227,6 +226,63 @@ gain is asymptotic, through a faster rate under undersmoothing. The paper alread
 reports two-fold winning at N = 200 and attributes it to thin subsamples. The
 port puts that crossover above N = 1000 instead.
 
+## Finding 8 -- the empirical application is available; its printed numbers are not
+
+The supplied Bailey package was read directly. `vs_fo_final.dta` is 91,110 rows,
+3,037 counties by 30 years, 1959 to 1988, balanced, with `gfr_nonint` complete at
+100% and `pop1544_70` for the paper's weighting. Its `fp_year_p74_fed` gives 654
+treated counties with first-grant counts
+
+    1965: 6   1966: 43   1967: 74   1968: 52   1969: 278
+    1970: 63  1971: 75   1972: 53   1973: 10
+
+which is the paper's treatment-timing table cell for cell, including its three
+pooled groups at 123, 330 and 201. `table1data.dta` carries the 1960 census
+covariates the paper's selection table controls for. Nothing about the design is
+missing.
+
+What is missing is outcome history before 1959. The paper builds its
+pseudo-distance on 1937 to 1964, merged in from ICPSR 36603; the package leaves 6
+common pre-1965 years. Using a longer per-cohort window is possible for the later
+groups -- 11 years for the 1970-1973 group -- but only by pulling in periods in
+which the earlier groups are already treated, and the first group is capped at 6
+either way.
+
+That gap costs less than expected. Distance quality degrades smoothly and the
+paper's own window is already noisy:
+
+| T0 | context | correlation with true latent distance | median error / median distance |
+|---|---|---|---|
+| 6 | Bailey only, common pre-1965 | 0.694 | 0.83 |
+| 11 | Bailey only, per-cohort G3 max | 0.770 | 0.78 |
+| 19 | paper robustness, 1946-1964 | 0.825 | 0.61 |
+| 28 | paper main, 1937-1964 | 0.857 | 0.56 |
+| 200 | asymptotic reference | 0.973 | 0.16 |
+
+And the estimator barely notices. `DR3`, `std` scale, nearest-control fallback,
+trim 0.10:
+
+| T0 | bias | SD | coverage | DiD bias | DiD coverage |
+|---|---|---|---|---|---|
+| 6 | 0.34 | 2.74 | 94.0 | -2.12 | 76.7 |
+| 20 | 0.66 | 2.24 | 95.0 | -2.18 | 82.0 |
+| 28 | 0.41 | 2.45 | 92.7 | -2.16 | 80.1 |
+
+Flat across the range, with every cell removing most of the DiD bias at
+near-nominal coverage. At T0 = 6 the paper's sufficient condition for root-n
+inference, `T0 >> n^(2/(d_alpha+d_X))`, is violated by three orders of magnitude,
+and the estimator works anyway; at the paper's own T0 = 28 it is violated by two.
+
+So the two things are separable. Reproducing the paper's figures of -1.70, -3.39
+and -3.03 needs its inputs and is out of reach here. Running the method on the
+same counties, the same cohorts, the same outcome and the same weights is not,
+and on this evidence a 6-year distance window is a defensible way to do it. Two
+pieces of the paper's empirical section are reproducible today without the new
+estimator at all: its selection-on-lagged-outcomes table, which is the motivating
+evidence, and its Callaway-Sant'Anna comparison row via
+`PPSCM(method="callaway_santanna")`.
+
+
 ## What this means for a build
 
 Confirmed, and reusable:
@@ -265,8 +321,7 @@ To encode in the estimator:
   within-fold `m-tilde` forward while the cross-fit `m-hat` is read off at each
   step; substituting one for the other collapses the cross-fitting without
   failing.
-* Path A. Blocked on ICPSR 36603, which needs an account and which this
-  environment cannot reach. Half of the paper's headline table is already
-  available without the new estimator, since `PPSCM(method="callaway_santanna")`
-  reproduces its Callaway-Sant'Anna comparison row.
+* Path A as a number-for-number match. See Finding 8: the paper's printed ATT
+  figures cannot be matched without ICPSR 36603, but the application itself is
+  available on the supplied data and the missing history costs little.
 * Sample sizes other than N = 1000, T0 = 20.
