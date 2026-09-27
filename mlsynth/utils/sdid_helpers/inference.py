@@ -52,7 +52,7 @@ def _solve_placebo_weights(
     function :func:`~mlsynth.utils.sdid_helpers.cohort.estimate_cohort_sdid_effects`
     reads them from, so what is solved here cannot drift from what the estimator
     would have solved. A draw whose design fails
-    :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` falls back to
+    :func:`~mlsynth.utils.solvers.minnorm.gram_reduction_is_safe` falls back to
     the one-at-a-time solve inside
     :func:`~mlsynth.utils.sdid_helpers.weights.solve_intercept_simplex_many`, and
     a cohort carrying covariates yields no unit problem at all and is left to the

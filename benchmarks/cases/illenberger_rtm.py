@@ -108,7 +108,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 N_DONORS = 40
 POST = 4

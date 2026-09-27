@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 
 @pytest.mark.parametrize("m,J", [(20, 5), (50, 20), (89, 49), (10, 30), (8, 8)])

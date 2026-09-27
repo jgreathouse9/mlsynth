@@ -13,17 +13,39 @@ seconds, so finer splitting buys balance and pays for it in repeated work.
 Within a shard ``-n auto`` still distributes individual tests across workers, so
 one slow file does not serialise its shard.
 
-The split is the round-robin ``sorted(modules)[shard::num_shards]``, the same
-idiom ``benchmarks/run_benchmarks.py`` uses for benchmark cases. Sorting first
-makes it independent of collection order, so the same flags select the same
-tests on any machine. Round-robin over the sorted list also spreads a family of
-related files -- ``test_geox*.py``, which sort adjacently and are slow together
--- across different shards instead of stacking them in one.
+The split packs modules into shards longest-first, against measured durations
+in ``_shard_durations.json``. Each module in turn goes to whichever shard is
+currently cheapest, which is the LPT heuristic and is within 4/3 of the optimal
+makespan.
+
+It used to be the round-robin ``sorted(modules)[shard::num_shards]``. That is
+blind to how long a module takes, and a quarter of the modules is not a quarter
+of the work: shard 0 measured about twice shard 1 on every interpreter (#479),
+so the cap had to clear the slowest shard while three runners sat idle, and a
+healthy run was killed at 99% and reported as ``cancelled`` -- neither a pass
+nor a failure. Sorting by name also stacks a slow family: ``test_geox*.py``
+sort adjacently and are slow together, so whether they spread or pile up came
+down to whether their positions happened to differ by ``num_shards``.
+
+Balancing by time means shard sizes now differ freely in file count. That is
+the point: one file that takes a minute is a fair share against sixty that take
+a second.
+
+A module the map has not seen is charged the median measured duration, not
+zero. Charging zero would send every newly added test file to the same shard --
+the map's blind spot becoming the imbalance it exists to remove -- and a new
+file is likelier to be typical than free. Regenerate the map with
+``python tools/measure_shard_durations.py``; it is committed so CI needs no
+measurement pass, and it is advisory, so a stale entry costs balance and never
+correctness.
 """
 
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence, Tuple
+import json
+import pathlib
+import statistics
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
 def _validate(shard: int, num_shards: int) -> None:
@@ -34,9 +56,31 @@ def _validate(shard: int, num_shards: int) -> None:
             f"shard must be in [0, {num_shards}); got {shard}.")
 
 
+DURATIONS_PATH = pathlib.Path(__file__).with_name("_shard_durations.json")
+
+
+def load_durations(path: "pathlib.Path | None" = None) -> Dict[str, float]:
+    """The measured per-module seconds, or an empty map when absent.
+
+    Absent is not an error: with no measurements every module is charged the
+    same and the packing degrades to balancing file counts, which is where this
+    started. A missing map costs balance, never correctness.
+    """
+    p = DURATIONS_PATH if path is None else pathlib.Path(path)
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text())
+    except (ValueError, OSError):            # pragma: no cover - unreadable map
+        return {}                            # the map is advisory; fall back
+    return {str(k): float(v) for k, v in raw.get("modules", {}).items()}
+
+
 def select_shard_modules(module_paths: Iterable[str], shard: int,
-                         num_shards: int) -> List[str]:
-    """The module paths this shard owns.
+                         num_shards: int,
+                         durations: Optional[Mapping[str, float]] = None
+                         ) -> List[str]:
+    """The module paths this shard owns, packed to balance measured time.
 
     Parameters
     ----------
@@ -47,13 +91,17 @@ def select_shard_modules(module_paths: Iterable[str], shard: int,
         0-based index of this shard.
     num_shards : int
         How many shards the suite is split into.
+    durations : mapping of str to float, optional
+        Seconds per module. Defaults to the committed map. A module missing
+        from it is charged the median of those present, or 1.0 when the map is
+        empty, so an unmeasured file is treated as typical and never as free.
 
     Returns
     -------
     list of str
-        The sorted slice ``sorted(set(module_paths))[shard::num_shards]``. Empty
-        when this shard has nothing, which happens when there are more shards
-        than modules and is a pass, not an error.
+        This shard's modules, sorted by name. Empty when this shard has
+        nothing, which happens when there are more shards than modules and is a
+        pass, not an error.
 
     Raises
     ------
@@ -61,7 +109,25 @@ def select_shard_modules(module_paths: Iterable[str], shard: int,
         If ``num_shards < 1`` or ``shard`` is outside ``[0, num_shards)``.
     """
     _validate(shard, num_shards)
-    return sorted(set(module_paths))[shard::num_shards]
+    modules = sorted(set(module_paths))
+    if num_shards == 1:
+        return modules
+
+    known = load_durations() if durations is None else dict(durations)
+    measured = [v for v in known.values() if v > 0]
+    default = statistics.median(measured) if measured else 1.0
+
+    # Longest first, name breaking ties, so the packing is a function of the
+    # module set alone and not of the order pytest happened to collect it in.
+    ordered = sorted(modules, key=lambda m: (-known.get(m, default), m))
+
+    loads = [0.0] * num_shards
+    bins: List[List[str]] = [[] for _ in range(num_shards)]
+    for m in ordered:
+        i = min(range(num_shards), key=lambda k: (loads[k], k))
+        bins[i].append(m)
+        loads[i] += known.get(m, default)
+    return sorted(bins[shard])
 
 
 def split_items(items: Sequence, shard: int, num_shards: int) -> Tuple[List, List]:
@@ -83,7 +149,7 @@ def split_items(items: Sequence, shard: int, num_shards: int) -> Tuple[List, Lis
     return selected, deselected
 
 
-__all__ = ["select_shard_modules", "split_items"]
+__all__ = ["select_shard_modules", "split_items", "load_durations"]
 
 
 # --- pytest plugin ---------------------------------------------------------

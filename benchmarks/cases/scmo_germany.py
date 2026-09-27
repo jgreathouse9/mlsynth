@@ -49,6 +49,30 @@ Provenance
   panel are pinned as regression guards (the reference script reports the
   post-1990 effect only graphically -- Tian et al. Figure 1 -- so no ATT number
   is cross-validated).
+
+The averaged scheme, and why its numbers moved
+----------------------------------------------
+The spec measures nine outcomes in one year, so the averaged scheme averages
+them into a single column and matches sixteen donors on one number. The
+residual is zero and a 14-dimensional face of the simplex attains it, which
+makes the minimiser a face and not a point: ``simplex_optimum_is_unique``
+returns ``False`` here and ``True`` for the other two schemes.
+
+The authors' ``fn_W`` already handles that -- ``Dmat`` carries
+``(10^-7) * diag(J)``, a vanishing ridge, and a vanishing ridge selects the
+least-norm point of the face. mlsynth's port of that program dropped the term,
+so the answer came from the solver's pivot order instead: relabelling the
+donors moved the weights by 0.419, and ``averaged_att`` was pinned at -1720.4,
+which was OSQP's point on that face. With the ridge restored the value is
+-2084.0. The gap decomposes exactly -- -511.5 from the active set's face point
+and -363.6 from OSQP's, both measured against the reference's point.
+
+``averaged_pre_rmse`` is pinned alongside it because it is the held-out
+quantity: the averaged program never sees the GDP path, and the reference's
+point fits it 4.3 times better than the arbitrary one (206.8 against 886.5).
+The other two schemes move by 4e-3 and 1e-4 in the ATT, and their balance cells
+are unchanged, which is what a vanishing ridge should do where the answer was
+already determined.
 """
 from __future__ import annotations
 
@@ -160,6 +184,10 @@ def run() -> dict:
     out["averaged_att"] = float(res.fits["averaged"].att)
     out["concatenated_pre_rmse"] = float(con.pre_rmse)
     out["separate_pre_rmse"] = float(sep.pre_rmse)
+    # The averaged scheme's pre-period fit is the quantity that reports whether
+    # the tie on its one matching column was broken by a rule. It is held out:
+    # the averaged program never sees the GDP path.
+    out["averaged_pre_rmse"] = float(res.fits["averaged"].pre_rmse)
     return out
 
 
@@ -214,7 +242,8 @@ EXPECTED.update({
     "single_closer_than_mean": (8.0, 0.0),
     "multi_closer_than_single": (9.0, 0.0),
     "concatenated_att": (-1462.8, 5.0),
-    "averaged_att": (-1720.4, 8.0),
+    "averaged_att": (-2084.0, 8.0),
     "concatenated_pre_rmse": (110.0, 3.0),
     "separate_pre_rmse": (74.3, 3.0),
+    "averaged_pre_rmse": (206.8, 3.0),
 })

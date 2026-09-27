@@ -4,7 +4,7 @@ Cross-validation of a solver rather than an estimator. The MSCMT backend prices
 tens of thousands of candidate predictor weightings, each needing donor weights
 that minimise the ``V``-weighted predictor discrepancy on the simplex, and it
 solves them with a batched active set on the Gram form
-(:mod:`mlsynth.utils.bilevel.minnorm`). Two things about that solver need a
+(:mod:`mlsynth.utils.solvers.minnorm`). Two things about that solver need a
 durable record, and neither belongs in a unit test.
 
 Exactness. The reference is cvxpy's interior-point solver (CLARABEL) on the same
@@ -117,7 +117,7 @@ def run() -> dict:
         raise BenchmarkSkipped(f"cvxpy is unavailable ({exc})")
 
     from mlsynth import VanillaSC
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_minnorm_batch
+    from mlsynth.utils.solvers.minnorm import solve_simplex_minnorm_batch
 
     d = _panel()
     Xs = _predictors(d)

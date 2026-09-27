@@ -83,7 +83,13 @@ Forward DiD code (``Fun_FDID.R``, now run live and captured — see
      - 24
 
 The 95% confidence interval ``(0.0163, 0.0345)`` and the standardized ATT
-(t-statistic) :math:`\approx 5.49` likewise match the released values.
+(t-statistic) :math:`\approx 5.49` likewise match the released values. The
+statistic is the estimate over its standard error; Li's ``FDID_Matlab.m``
+writes the same quantity as :math:`\sqrt{T_2}\,\widehat{ATT} /
+\sqrt{\widehat\Omega_1 + \widehat\Omega_2}`. The R reference vendored here
+computes no inference, so this row is checked by
+``mlsynth/tests/test_fdid.py`` and not by the benchmark case; a durable
+cross-validation needs the MATLAB script, which is a separate change.
 Forward DiD's far higher pre-period fit (:math:`R^2 = 0.84` versus DiD's
 :math:`0.50`) is the whole point: the all-controls average tracks Hong Kong's
 pre-integration path poorly, so plain DiD overstates the effect, while the

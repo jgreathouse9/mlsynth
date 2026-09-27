@@ -822,7 +822,7 @@ timeout = 400.0
 
 [[target]]
 name = "simplex-active-set-seeding"
-module-path = "mlsynth/utils/bilevel/active_set.py"
+module-path = "mlsynth/utils/solvers/active_set.py"
 test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -840,7 +840,7 @@ timeout = 600.0
 
 [[target]]
 name = "fista-support-stop"
-module-path = "mlsynth/utils/bilevel/accelerate.py"
+module-path = "mlsynth/utils/solvers/accelerate.py"
 test-command = "python -m pytest mlsynth/tests/test_fista_support_patience.py mlsynth/tests/test_sdid_warm_start_accel.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -864,7 +864,7 @@ timeout = 600.0
 
 [[target]]
 name = "ridged-gram-guard"
-module-path = "mlsynth/utils/bilevel/minnorm.py"
+module-path = "mlsynth/utils/solvers/minnorm.py"
 test-command = "python -m pytest mlsynth/tests/test_ridged_gram_guard.py mlsynth/tests/test_sdid_placebo_guard_cost.py -q -p no:cacheprovider"
 timeout = 600.0
 
@@ -1007,6 +1007,12 @@ timeout = 900.0
   models = "the cell index rebuilt on every access instead of once. The value is the same each time, so the panel still reads correctly and the duplicate check still agrees -- it is the caching, not the arithmetic, that the shared scan is for"
 
   [[target.mutant]]
+  id = "duplicate-check-recomputed-on-every-read"
+  find = "        if self._has_duplicate is None:"
+  replace = "        if True:"
+  models = "the duplicate verdict recounted on every read instead of once. The answer is the same each time, so the panel loads and every pivot takes the same path; the grid count is the one derivation whose cost grows with the panel's sparsity and not its length, and only a pass count reports the second one"
+
+  [[target.mutant]]
   id = "covariate-pivots-rescan-the-panel"
   find = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov,\n                            keys=keys)"
   replace = "        pivot = _wide_pivot(df, index=time_period_column_name,\n                            columns=unit_id_column_name, values=cov)"
@@ -1014,7 +1020,7 @@ timeout = 900.0
 
 [[target]]
 name = "batch-support-seed"
-module-path = "mlsynth/utils/bilevel/accelerate.py"
+module-path = "mlsynth/utils/solvers/accelerate.py"
 test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
 timeout = 900.0
 
@@ -1056,7 +1062,7 @@ timeout = 900.0
 
 [[target]]
 name = "batch-seed-gate"
-module-path = "mlsynth/utils/bilevel/minnorm.py"
+module-path = "mlsynth/utils/solvers/minnorm.py"
 test-command = "python -m pytest mlsynth/tests/test_minnorm_support_seed.py mlsynth/tests/test_simplex_minnorm.py mlsynth/tests/test_bilevel_simplex_batch.py -q -p no:cacheprovider"
 timeout = 900.0
 
@@ -1529,6 +1535,31 @@ timeout = 300.0
   models = "reverting to a disjoint reference set, which is the split-conformal block count this function exists to improve on. The p-value's granularity falls from 1/T to block/T, which at an eight-period horizon over a hundred pre-periods is coarser than the level being inverted at"
 
 [[target]]
+name = "auto-nu"
+module-path = "mlsynth/utils/ppscm_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_auto_nu.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "auto-nu-unclamped"
+  find = """    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 1.0))
+               if nu is None else float(nu))"""
+  replace = "    nu_used = float(global_l2 * np.sqrt(d) / avg_l2) if nu is None else float(nu)"
+  models = "the defect this clamp removes: trusting a triangle-inequality ratio to stay inside the unit interval it is bounded by in exact arithmetic. On a single-treated-unit panel the bound is tight, so rounding decides the sign of 1 - nu, and one unit in the last place above one makes the objective a negative multiple of a convex quadratic that cvxpy refuses outright. The same panel in different units lands on opposite sides"
+
+  [[target.mutant]]
+  id = "auto-nu-clamped-to-the-wrong-interval"
+  find = "    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 1.0))"
+  replace = "    nu_used = (float(np.clip(global_l2 * np.sqrt(d) / avg_l2, 0.0, 0.99))"
+  models = "keeping the problem convex by holding nu off its own boundary. Every fit still solves, so the DCPError is gone and the failure that motivated the clamp is invisible -- but a single treated unit belongs at nu = 1, where the separate term drops out, and this gives it one percent of a fit it should not be blending in at all"
+
+  [[target.mutant]]
+  id = "an-explicit-nu-is-clamped-too"
+  find = "               if nu is None else float(nu))"
+  replace = "               if nu is None else float(np.clip(nu, 0.0, 1.0)))"
+  models = "extending the clamp past the computed ratio to the caller's own value. It reads as defensive and changes nothing on any valid input, but it converts an out-of-range nu from something a caller can discover into a silently substituted one"
+
+[[target]]
 name = "lto-warm-start"
 module-path = "mlsynth/utils/vanillasc_helpers/lto.py"
 test-command = "python -m pytest mlsynth/tests/test_lto_warm_start.py -q -p no:cacheprovider"
@@ -1551,6 +1582,51 @@ timeout = 300.0
   find = "        pool = np.delete(all_donors, [a, b])"
   replace = "        pool = np.delete(all_donors, [a])"
   models = "a leave-two-out pool that only leaves one out, which is the ordinary placebo test wearing LTO's name: donor b stays in the pool it is being compared against, so its own fit is trivially good and the treated unit wins pairs it should lose"
+
+[[target]]
+name = "fscm-exact-scan"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_exact_scan.py mlsynth/tests/test_fscm_scan_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scan-falls-back-to-the-inexact-solver"
+  find = "        w = np.asarray(solve_simplex_qp(X_pre[:, idx], y_pre, warm_start=start),\n                       dtype=float)"
+  replace = "        from ..solvers.simplex import simplex_lstsq\n        w = simplex_lstsq(X_pre[:, idx], y_pre)"
+  models = "the scan back on the FISTA primitive it was moved off. This is the defect the whole ladder was built from: FISTA exhausts its budget on these designs and lands above the optimum, so once a fit saturates the reported path rises -- 3.5e-05 on Prop 99 -- which the true optimum cannot do. Every shape, sign and simplex assertion still passes"
+
+  [[target.mutant]]
+  id = "scan-rmspe-uses-the-cancelling-gram-form"
+  find = "        r = float(np.sqrt(np.mean((y_pre - X_pre[:, idx] @ w) ** 2)))"
+  replace = "        A = X_pre[:, idx]\n        r = float(np.sqrt(max(float(y_pre @ y_pre) - 2.0 * float(w @ (A.T @ y_pre)) + float(w @ (A.T @ A) @ w), 0.0) / X_pre.shape[0]))"
+  models = "the fit recomputed by expanding ||y - A w||^2 in Gram space. Algebraically identical and catastrophically cancelling once the fit is close, which is the regime a forward scan ends in -- the clamp at zero then hides the negative it produces. Monotonicity survives; only recomputing the reported number from the weights notices"
+
+  [[target.mutant]]
+  id = "scan-admits-the-worst-candidate"
+  find = "        if r < best_r:"
+  replace = "        if r > best_r:"
+  models = "forward selection that admits the worst-fitting donor at every step. The weights are still on the simplex and the path still has the right length, so only comparing against an independently solved optimum catches it"
+
+  # Recorded, not carried: padding the warm start with one instead of zero
+  # ("np.concatenate([..., [1.0]])") is an equivalent mutant. solve_simplex_qp
+  # documents the seed as "ignored if infeasible" and does reject it -- a seed
+  # summing to two gives weights identical to a cold solve to 0.00e+00. The
+  # mutant costs the warm-start speedup and cannot move the answer, so it
+  # survived correctly and is retired here rather than chased with a stronger
+  # assertion. What it would take to notice is a timing assertion, and the
+  # repository keeps those in benchmarks rather than in the suite.
+
+  [[target.mutant]]
+  id = "rolling-cv-reads-the-origin-itself"
+  find = "        w = np.asarray(solve_simplex_qp(Y[:t][:, idx], y[:t], warm_start=w),"
+  replace = "        w = np.asarray(solve_simplex_qp(Y[:t + 1][:, idx], y[:t + 1], warm_start=w),"
+  models = "an expanding window that includes the period it forecasts, so the one-step-ahead CV is fit on its own target. Errors shrink and the selected donor count creeps up; nothing about shape, sign or simplex membership changes"
+
+  [[target.mutant]]
+  id = "rolling-cv-averages-errors-before-squaring"
+  find = "        errs.append((y[t] - Y[t, idx] @ w) ** 2)\n    return float(np.sqrt(np.mean(errs)))"
+  replace = "        errs.append(abs(y[t] - Y[t, idx] @ w))\n    return float(np.mean(errs))"
+  models = "a CV score that averages absolute errors instead of squared ones, so a donor set that is occasionally very wrong scores the same as one that is uniformly slightly wrong"
 
 [[target]]
 name = "conformal-ensemble-loo"
@@ -1614,7 +1690,7 @@ timeout = 120.0
 
 [[target]]
 name = "conformal-block-reference-gather"
-module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+module-path = "mlsynth/utils/conformal/ridge_inference.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_reference_vectorise.py mlsynth/tests/test_conformal_reference_vectorise_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -1644,7 +1720,7 @@ timeout = 300.0
 
 [[target]]
 name = "conformal-sweep-warm-start"
-module-path = "mlsynth/utils/bilevel/ridge_inference.py"
+module-path = "mlsynth/utils/conformal/ridge_inference.py"
 test-command = "python -m pytest mlsynth/tests/test_conformal_sweep_warm_start.py mlsynth/tests/test_conformal_sweep_warm_start_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -1734,7 +1810,7 @@ timeout = 300.0
 
 [[target]]
 name = "sbc-cyclical-solve"
-module-path = "mlsynth/utils/bilevel/simplex.py"
+module-path = "mlsynth/utils/solvers/simplex.py"
 test-command = "python -m pytest mlsynth/tests/test_sbc_reference.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -2391,3 +2467,526 @@ timeout = 300.0
   find = "    excluded_mass = float(np.clip(pool_weights[~kept], 0.0, None).sum())"
   replace = "    excluded_mass = float(np.clip(pool_weights[kept], 0.0, None).sum())"
   models = "an inverted mask, reporting the weight the cluster retained instead of the weight it threw away. The two agree only when the cluster is the whole pool, so the number would read 0.451 for West Germany where the answer is 0.549 and a reader would conclude the opposite about which donors mattered"
+
+[[target]]
+name = "fdid-standardised-att"
+module-path = "mlsynth/utils/fdid_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fdid.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-statistic-is-scaled-by-the-post-period-again"
+  find = "    satt = att / se"
+  replace = "    satt = att / se * np.sqrt(post_periods)"
+  models = "the shipped statistic until 2026-09. Li's Proposition 2.1 gives sqrt(T2) * ATT / sqrt(Omega_1 + Omega_2), and this module's se is sqrt(Omega_1 + Omega_2) / sqrt(T2), so the statistic is att / se and the extra factor is applied twice. On Li's own Hong Kong panel the reported figure was 22.65 where her MATLAB prints 5.49, a factor of sqrt(17). Nothing else moved: the CI and the p-value are built from att / se directly and matched her throughout, so the result carried a test statistic and a p-value that disagreed -- on a borderline panel, p = 0.216 beside a statistic implying p = 0.000092. The mutant is invisible to any check that rebuilds the statistic from att and att_se instead of reading the field, which is what benchmarks/cases/fdid_normality_mc.py does"
+
+[[target]]
+name = "weight-solver"
+module-path = "mlsynth/utils/weights/solve.py"
+test-command = "python -m pytest mlsynth/tests/test_weights_solver.py mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "uniqueness-ignores-weakly-active-coordinates"
+  find = "    free = interior | weakly_active"
+  replace = "    free = interior"
+  models = "a uniqueness verdict read off the coordinates strictly inside their bounds, which makes the answer depend on which optimum the backend returned: an exact method lands on a vertex of the optimal face, so two duplicated donors report as unique whenever the whole weight goes to one of them"
+
+  [[target.mutant]]
+  id = "certificate-normalised-by-the-data-level"
+  find = '    scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))'
+  replace = "    scale = max(float(np.abs(2.0 * (B.T @ A)).max(initial=0.0)), 1e-300)"
+  models = "an optimality residual divided by a scale the program is invariant to but the scale is not: donor series sit at a common level, so under sum(w) == 1 this divides a real stationarity violation down into the noise and certifies a point that is not the minimiser"
+
+  [[target.mutant]]
+  id = "intercept-clamped-into-the-simplex"
+  find = "        Bs, As = B - B.mean(axis=0, keepdims=True), A - A.mean()"
+  replace = "        Bs, As = B, A"
+  models = "an intercept that is declared but never fitted, so MSCa and MSCc silently become SC and MSCb and a treated unit below its donors cannot be matched at all"
+
+[[target]]
+name = "weight-identification"
+module-path = "mlsynth/utils/weights/solution.py"
+test-command = "python -m pytest mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "identification-conflated-with-uniqueness"
+  find = "        shift = B @ self.free_directions + self.free_intercepts"
+  replace = "        shift = self.free_directions"
+  models = "an identification check that never consults the design it was handed, so it reduces to the uniqueness verdict: duplicated donors, whose continuum every counterfactual annihilates, are reported as leaving the estimate undetermined"
+
+  [[target.mutant]]
+  id = "identification-drops-the-intercept-component"
+  find = "        shift = B @ self.free_directions + self.free_intercepts"
+  replace = "        shift = B @ self.free_directions"
+  models = "a free direction whose intercept component is dropped, so a continuum that moves the level while leaving the weighted donor path fixed is reported as harmless"
+
+[[target]]
+name = "tssc-identification"
+module-path = "mlsynth/utils/tssc_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_tssc_weight_solver.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "att-verdict-read-off-the-pre-period"
+  find = "    identified = solution.identifies(donor_post)"
+  replace = "    identified = solution.unique"
+  models = "an ATT identification verdict taken from the pre-period uniqueness of the coefficients, which is the question the post-treatment donors decide: duplicated donors, whose continuum every counterfactual annihilates, are then reported as leaving the estimate undetermined and warned about"
+
+  [[target.mutant]]
+  id = "att-verdict-skips-the-warning"
+  find = "    if not identified:"
+  replace = "    if False:"
+  models = "an identification failure recorded on the result and never surfaced, so a caller reading only the ATT sees a number that a different minimiser of the same program would have contradicted"
+
+[[target]]
+name = "fscm-trajectory-weights"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_weight_solver.py -q -p no:cacheprovider"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "rolling-origin-warm-start-carried-across-donor-pools"
+  find = "    errs, w = [], None\n    for t in origins:"
+  replace = "    errs, w = [], np.zeros(len(idx))\n    for t in origins:"
+  models = "a warm start that is not a point of the simplex, so every origin's seed is discarded and the rolling criterion silently falls back to cold solves -- the answer is unchanged and only the work moves, which no assertion on the weights can see"
+
+  [[target.mutant]]
+  id = "trajectory-fit-drops-the-simplex"
+  find = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice]).weights,"
+  replace = "        solve_weights(inputs.Y[fit_slice][:, idx], inputs.y[fit_slice], WeightConstraint(nonneg=False, sum_to_one=False)).weights,"
+  models = "trajectory weights fitted without the simplex, which buys a better pre-period fit by extrapolating past the donor cloud and gives a counterfactual with no out-of-sample content"
+
+[[target]]
+name = "active-set-linear-ray"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_active_set_linear.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "unbounded-subproblem-solved-as-if-bounded"
+  find = "                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):"
+  replace = "                if False:"
+  models = "a free-set subproblem that is unbounded along a null direction of the design, solved as though its minimum were interior. The residual shift reproduces only the part of the term in the row space, so the point returned is not stationary -- 54 percent above the optimum on a 3 by 12 design, reported as converged"
+
+  [[target.mutant]]
+  id = "ray-taken-in-the-wrong-direction"
+  find = "                    d[:nF - 1] = -qn\n                    d[nF - 1] = float(qn.sum())"
+  replace = "                    d[:nF - 1] = qn\n                    d[nF - 1] = -float(qn.sum())"
+  models = "the ray followed uphill. The quadratic is flat along it either way and the sum-to-one constraint still holds, so the step looks legitimate and only the objective gives it away"
+
+  [[target.mutant]]
+  id = "ray-step-overshoots-its-blocking-bound"
+  find = "                        cur = cur + float(ratios.min()) * d"
+  replace = "                        cur = cur + float(ratios.max()) * d"
+  models = "the ray stepped to the last blocking bound instead of the first, which leaves the simplex through a coordinate that passed zero on the way"
+
+  [[target.mutant]]
+  id = "returned-point-is-not-checked"
+  find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
+  equivalent = true
+  equivalent-reason = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
+
+[[target]]
+name = "simplex-qp-audit-classifier"
+module-path = "tools/simplex_qp_audit.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_audit.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "names-resolved-across-function-boundaries"
+  find = "            scope = _enclosing(tree, node.lineno)"
+  replace = "            scope = tree"
+  models = "a name followed by walking the whole module and keeping the last assignment. SpSyDiD binds objective and constraints in two functions, so its time-weight solve reads as its unit-weight one; DSC binds w in two, one non-negative and one not, so a sum-to-one solve reads as the probability simplex and the audit says swap the solver on weights that may go negative"
+
+  [[target.mutant]]
+  id = "any-callable-named-problem-is-a-solve"
+  find = "                    and ast.unparse(node.func).split(\".\")[-1] == \"Problem\"):"
+  replace = "                    and ast.unparse(node.func).endswith(\"Problem\")):"
+  models = "a class matched as cp.Problem. LAXSCM caches compiled programs behind _PenalizedProblem and _RelaxedProblem, and both constructors enter the audit as solves whose second positional argument is not a constraint list"
+
+  [[target.mutant]]
+  id = "a-conditional-constraint-establishes-non-negativity"
+  find = "            nonneg = bool(re.search(rf\"\\b{re.escape(var)}\\s*>=\\s*0\", always)) \\"
+  replace = "            nonneg = bool(re.search(rf\"\\b{re.escape(var)}\\s*>=\\s*0\", flat)) \\"
+  models = "non-negativity read off a constraint appended inside an if. SHC appends w >= 0 under one, so the site reads as the probability simplex on the strength of a flag's default"
+
+  [[target.mutant]]
+  id = "a-non-squared-norm-is-a-different-objective"
+  find = "        return (\"quad\", _SQUARE) if _unwrap(inner) == var else (\"fit\", _SQUARE)"
+  replace = "        return None"
+  models = "the objective matched on its syntax. ||r|| and ||r||^2 have the same minimiser, and TSSC's four variants were migrated on exactly that reading, so rejecting it files a site as a different objective that the library has already moved elsewhere"
+
+  [[target.mutant]]
+  id = "a-gram-form-is-a-different-objective"
+  find = "        if _unwrap(parts[0]) == var:"
+  replace = "        if False:"
+  models = "quad_form(w, Q) read as something other than least squares. It is a factorisation: Q = R'R gives B = R with no target, and with a linear term alongside it gives the target too"
+
+  [[target.mutant]]
+  id = "a-recognised-ridge-reports-no-transform"
+  find = "            steps.append(_SQRT_FACTOR if q == _FACTOR else _IDENTITY)"
+  replace = "            pass"
+  models = "a ridge term recognised and then dropped from the transform. The site reads as a direct swap, so a migrator hands the design over unaugmented and silently solves the unpenalised program"
+
+  [[target.mutant]]
+  id = "a-concave-term-is-carried"
+  find = "        if shape is None or sign < 0:"
+  replace = "        if shape is None:"
+  models = "a subtracted quadratic accepted as a fit or a ridge. There is no real square root to stack, and the program is not the convex one the solver assumes"
+
+  [[target.mutant]]
+  id = "an-unread-objective-is-reported-as-a-different-one"
+  find = "                verdict = \"unreadable\""
+  replace = "                verdict = \"wrong-objective\""
+  models = "an objective the audit cannot read, filed as one it checked and rejected. Four sites carried that label and three of them were the simplex least-squares program"
+
+  [[target.mutant]]
+  id = "a-cvxpy-parameter-is-read-as-an-intercept"
+  find = "                    n != base and kind == \"Variable\" and _mentions(obj_src, n)"
+  replace = "                    n != base and _mentions(obj_src, n)"
+  models = "a cp.Parameter counted as a second variable. mlSC's penalty grid is one, and reading it as an intercept puts a centring step on a site that has no intercept"
+[[target]]
+name = "fscm-scan-certified"
+module-path = "mlsynth/utils/fscm_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_scan_certified.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "certificate-taken-for-a-losing-candidate"
+  find = "        return best_j, best_r, best_w, solve_weights(\n            X_pre[:, list(selected) + [best_j]], y_pre)"
+  replace = "        return best_j, best_r, best_w, solve_weights(\n            X_pre[:, list(selected) + [candidates[0]]], y_pre)"
+  models = "the winner's certificate computed on the first candidate instead of the winning one, so the weights reported and the weights certified are different vectors whenever the first candidate loses"
+
+  [[target.mutant]]
+  id = "certifying-changes-which-donor-wins"
+  find = "        if r < best_r:\n            best_j, best_r, best_w = j, r, w"
+  replace = "        if r <= best_r:\n            best_j, best_r, best_w = j, r, w"
+  models = "a non-strict improvement test, which past saturation hands the step to the last candidate evaluated instead of the first. Every score is then still optimal and the fit identical, so only the selected donor gives it away"
+
+[[target]]
+name = "dtwsc-warp-tail"
+module-path = "mlsynth/utils/dtwsc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_dtwsc_warp_tail.py mlsynth/tests/test_dtwsc.py -q -p no:cacheprovider"
+timeout = 400.0
+
+  [[target.mutant]]
+  id = "support-read-at-zero-instead-of-a-tolerance"
+  find = "    used = weights > _NEGLIGIBLE_WEIGHT"
+  replace = "    used = weights > 0"
+  models = "an excluded donor read as support because an interior-point solver left it at 1e-9 instead of 0. A denormal then decides whether a period has a counterfactual, and on a 28-period panel that moved the ATT by 1.53"
+
+  [[target.mutant]]
+  id = "warp-tail-not-carried-forward"
+  find = "    block = _carry_forward(warped)[:, used]"
+  replace = "    block = warped[:, used]"
+  models = "the warp's tail reported as no counterfactual, which is what the reference implementation does. Measured against a planted constant effect over twelve panels it costs a mean absolute error of 1.67 against 0.52, with the wrong sign on two of them, because the tail is where a mis-timed gap path is largest. It also makes the two sc_backend options cover different post windows, since only one of them completes the block"
+
+  [[target.mutant]]
+  id = "carry-forward-runs-backwards"
+  find = "        np.maximum.accumulate(seen, out=seen)"
+  replace = "        np.minimum.accumulate(seen, out=seen)"
+  models = "the completion taking the first observed value instead of the last, so a donor's whole post-period path is pinned at its pre-period level"
+
+  [[target.mutant]]
+  id = "the-synthetic-control-is-not-renormalised"
+  find = "    w = weights[used] / weights[used].sum()"
+  replace = "    w = weights[used]"
+  models = "weights that no longer sum to one over the donors actually used, so the counterfactual is a scaled-down combination wherever a negligible weight was dropped"
+
+  [[target.mutant]]
+  id = "a-lost-period-is-filled-with-zero-instead-of-reported"
+  find = "    usable = np.isfinite(block).all(axis=1)"
+  replace = "    usable = np.isfinite(block).any(axis=1)"
+  models = "a period kept when only some of the weighted donors reach it. The nan_to_num that guards the matmul then contributes a zero for the missing donor, so the counterfactual is that donor's path scaled down -- a number where there should be none"
+
+  [[target.mutant]]
+  id = "lost-post-periods-not-counted-for-the-caller"
+  find = '        "n_post_periods_undefined": int(inputs.n_post - n_post_defined),'
+  replace = '        "n_post_periods_undefined": 0,'
+  models = "an ATT taken over a short post window with nothing on the result saying so. This contract was already enforced when the ladder reached it -- the count is on DTWSC own metadata, not on effects or fit_diagnostics -- and the mutant is here because reading only the standard sub-models made it look unenforced"
+[[target]]
+name = "scmo-reference-ridge"
+module-path = "mlsynth/utils/scmo_helpers/solvers.py"
+test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py mlsynth/tests/test_scmo_solver_robustness.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-reference-ridge-is-dropped"
+  find = "from ..solvers.active_set import solve_simplex_qp_least_norm"
+  replace = "from ..solvers.active_set import solve_simplex_qp as solve_simplex_qp_least_norm"
+  models = "the port as it shipped: the authors' fn_W builds Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J) and mlsynth solved the first term alone. Where the imbalance has one minimiser nothing moves -- 1.5e-7 in the German concatenated weights, 4e-3 in the separate ATT -- so every balance cell against the authors' captured run still passes and the omission is invisible to the whole cross-validation. Where it has a face of minimisers the term is the only thing choosing a point: on the averaged scheme, one equation in sixteen donors, relabelling the donors moves the weights by 0.419 and the reported ATT between -1720 and -2596"
+
+[[target]]
+name = "simplex-least-norm"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_least_norm_selection.py mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-design-is-not-normalised-before-the-ridge"
+  find = "        np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A / root, np.zeros(J)]),"
+  replace = "        np.vstack([B, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A, np.zeros(J)]),"
+  models = "the ridge left absolute against a design of any size. The pivot loop releases a pinned donor below tol * (1 + max|g|), which on a face floors at tol, so whether the selection resolves then depends on the design's energy and not on the panel: the same program scaled by 1e-4 returns a different point. This is the shape the helper shipped in, with lam scaled by the design instead and tol fixed, and it is why the tie-break did not select"
+
+  [[target.mutant]]
+  id = "the-ridge-sits-under-the-pivot-release-threshold"
+  find = "_LEAST_NORM_RIDGE: float = 1e-8\n_LEAST_NORM_TOL: float = 1e-12"
+  replace = "_LEAST_NORM_RIDGE: float = 1e-10\n_LEAST_NORM_TOL: float = 1e-9"
+  models = "the constants the helper shipped with, a ratio of 0.1 where 100 is needed. The augmentation is built and the solve runs, so the answer is still an exact minimiser on the simplex and every feasibility and uniqueness check passes; what does not happen is the selection, because the reduced gradient the ridge creates is smaller than the threshold the loop treats as zero. Under the seeding rule in place when this shipped the pivots landed on the least-norm point anyway on narrow faces, which is why it read as working for as long as it did"
+
+  [[target.mutant]]
+  id = "the-ridge-is-dropped-and-the-tie-is-left-to-the-solver"
+  find = "    lam = float(ridge)\n"
+  replace = "    lam = 0.0\n"
+  models = "the augmentation reduced to zero rows, which is the plain program again. The returned point is still an exact minimiser and still on the simplex, so feasibility, optimality and sum-to-one all hold; what is lost is that the answer stops being a function of the panel and becomes a function of the pivot order"
+
+  [[target.mutant]]
+  id = "the-ridge-is-large-enough-to-move-an-identified-answer"
+  find = "_LEAST_NORM_RIDGE: float = 1e-8"
+  replace = "_LEAST_NORM_RIDGE: float = 1e-2"
+  models = "a selection rule turned into a penalty. On a face it picks the same point, so every uniqueness and permutation test still passes; on a problem that already had one minimiser it pulls the weights toward uniform and the fit it reaches is no longer the unridged optimum"
+
+  # Recorded, not carried: augmenting toward ones instead of zeros
+  # ("np.concatenate([A, np.ones(J)])") is an equivalent mutant. On the simplex
+  # ||w - c*1||^2 = ||w||^2 - 2c + J c^2, so shifting the ridge's centre adds a
+  # constant to the objective and leaves the argmin alone -- least norm and
+  # least distance to the uniform weights are the same selection. It survived,
+  # correctly, and is retired here so nobody re-adds it expecting a kill.
+
+[[target]]
+name = "spsydid-weights-and-rank-diagnostic"
+module-path = "mlsynth/utils/spsydid_helpers/weights.py"
+test-command = "python -m pytest mlsynth/tests/test_spsydid_weights.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "time-weights-skip-the-centring"
+  find = "            design - col_means, target - target_mean, return_info=True"
+  replace = "            design, target, return_info=True"
+  models = "the free intercept left unprofiled, so the weights absorb a level the intercept is there to carry"
+
+  [[target.mutant]]
+  id = "unit-weights-recover-the-intercept-with-the-wrong-sign"
+  find = "    return float(target_mean - col_means @ omega), omega"
+  replace = "    return float(target_mean + col_means @ omega), omega"
+  models = "an intercept recovered as a sum instead of a residual mean, which leaves the weights right and the level wrong"
+
+  [[target.mutant]]
+  id = "ridge-rows-lose-the-pre-period-count"
+  find = "    ridge_scale = np.sqrt(T0) * float(zeta)"
+  replace = "    ridge_scale = float(zeta)"
+  models = "the SDID ridge T0 * zeta^2 applied as zeta^2, so the penalty is weaker by the length of the pre-period and the weights are less spread than the method specifies"
+
+[[target]]
+name = "spsydid-rank-diagnostic"
+module-path = "mlsynth/utils/spsydid_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spsydid_rank_diagnostic.py mlsynth/tests/test_spsydid_robustness.py -q -p no:cacheprovider"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "rank-check-warns-on-any-deficiency"
+  find = "    return full - nuisance == n_effects"
+  replace = "    return full == Xw.shape[1]"
+  models = "the old predicate, which warns that tau and tau_s may not be identified whenever any nuisance dummy is emptied by a zero weight -- true of nearly every fit and false about the coefficients it names"
+
+  [[target.mutant]]
+  id = "rank-check-ignores-one-effect-column"
+  find = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 2) -> bool:"
+  replace = "def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 1) -> bool:"
+  models = "a check that asks only whether WD adds a dimension, so D collinear with the nuisance block passes unreported"
+
+[[target]]
+name = "atel-localization"
+module-path = "mlsynth/utils/atel_helpers/loadings.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "half-kernel-not-renormalized"
+  find = "    return 0.75 * (1.0 - u**2) * keep * 2.0"
+  replace = "    return 0.75 * (1.0 - u**2) * keep"
+  models = "an Epanechnikov kernel truncated to half its support without doubling the mass, so every localized estimate comes back at about half its size while the weights still look like a kernel"
+
+  [[target.mutant]]
+  id = "loading-held-constant-over-the-post-period"
+  find = "    return level + slope * ((T0 - lead) / T1)[None, :]"
+  replace = "    return level + slope * 0.0"
+  models = "the fitted slope discarded, so the loading is frozen at its value at T0 -- the time-invariant loading ATEL exists to avoid, and the one the paper argues a PCA factor model recovers"
+
+  [[target.mutant]]
+  id = "loading-extrapolated-backwards"
+  find = "    return level + slope * ((T0 - lead) / T1)[None, :]"
+  replace = "    return level + slope * ((lead - T0) / T1)[None, :]"
+  models = "the extrapolation running the wrong way in time, so the loading moves away from its fitted trend instead of along it"
+
+[[target]]
+name = "atel-projection"
+module-path = "mlsynth/utils/atel_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "localization-divided-by-the-nominal-post-period"
+  find = "    point = float((gap * kernel).sum() / post_window)"
+  replace = "    point = float((gap * kernel).sum() / T1)"
+  models = "the kernel-weighted sum divided by the nominal post-period count instead of the effective window floor(T1 * h), which rescales the estimand by h without changing its shape"
+
+  [[target.mutant]]
+  id = "implied-weights-lose-the-donor-count"
+  find = "    implied /= n_donors"
+  replace = "    implied *= 1.0"
+  models = "the diversified projection's 1/N dropped from the implied weights, so the reported donor weights no longer reconstruct the counterfactual they are supposed to explain"
+
+[[target]]
+name = "atel-diversified-projection"
+module-path = "mlsynth/utils/atel_helpers/factors.py"
+test-command = "python -m pytest mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "every-factor-takes-the-first-weight-block"
+  find = "        block = donor_weights[:, j * T : (j + 1) * T]"
+  replace = "        block = donor_weights[:, 0 : T]"
+  models = "the block index ignored, so every factor is built from the same weight series and the factor matrix is rank one -- a design the pseudo-inverse absorbs without complaint"
+
+[[target]]
+name = "fma-percentile-t"
+module-path = "mlsynth/utils/fma_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fma_percentile_t.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-tails-not-reversed"
+  find = "    lower = att - float(S_sorted[k_hi]) * root\n    upper = att - float(S_sorted[k_lo]) * root"
+  replace = "    lower = att - float(S_sorted[k_lo]) * root\n    upper = att - float(S_sorted[k_hi]) * root"
+  models = "the percentile-t inversion done without swapping the tails, which returns an interval of plausible width and roughly the right location whenever the bootstrap distribution is near symmetric, and is wrong in exactly the skewed cases the procedure exists to handle"
+
+  [[target.mutant]]
+  id = "omega-assumes-homoskedastic-residuals"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (T2 / max(T0, 1)) * squared.mean(axis=-1) * g2.mean(axis=-1)"
+  models = "Appendix A.1's sandwich collapsed to the Theorem 3.1 plug-in, dropping the pairing of each squared residual with its own period's factor values; identical under homoskedasticity, so it survives any test whose residuals have constant variance"
+
+  [[target.mutant]]
+  id = "omega1-loses-the-sample-ratio"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (squared * g2).mean(axis=-1)"
+  models = "phi_hat = T2/T1 dropped from Omega1, so the loading-estimation term is not scaled by the relative length of the two periods and the variance is wrong by that ratio"
+
+  [[target.mutant]]
+  id = "bootstrap-residuals-skip-the-residual-maker"
+  find = "    resid_star = u_pre - shift @ F_pre.T             # (M, T0)"
+  replace = "    resid_star = u_pre                               # (M, T0)"
+  models = "Appendix A.2's u*_0t = y*_0t - f_t' lambda*_0 replaced by the raw draw, so Omega* ignores that the bootstrap loading was fitted on those same draws and is biased up by the projection it forgot to remove"
+
+  [[target.mutant]]
+  id = "bootstrap-att-drops-the-post-period-shock"
+  find = "    att_star_gap = -(shift @ eta) + u_post.mean(axis=1)"
+  replace = "    att_star_gap = -(shift @ eta)"
+  models = "the third term of Equation 7 dropped, leaving only the loading-estimation error; the statistic then reflects how well lambda*_0 was estimated and not the post-period noise the ATT is actually exposed to, which understates the spread"
+
+[[target]]
+name = "fma-asymptotic-omega"
+module-path = "mlsynth/utils/fma_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_fma.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "omega2-regains-the-dof-correction"
+  find = "    omega2 = squared.mean(axis=-1)"
+  replace = "    omega2 = squared.sum(axis=-1) / max(squared.shape[-1] - int(factors_with_const.shape[1]), 1)"
+  models = "the residual mean square treated as an unbiased regression variance, which is how the defect entered: it reads as the obvious convention, inflates the interval by sqrt(T0/(T0-r-1)), and improves small-sample coverage while disagreeing with every statement of the estimator the authors published"
+
+  [[target.mutant]]
+  id = "asymptotic-drops-back-to-the-homoskedastic-form"
+  find = "    omega1 = (T2 / max(T0, 1)) * (squared * g2).mean(axis=-1)"
+  replace = "    omega1 = (T2 / max(T0, 1)) * squared.mean(axis=-1) * g2.mean(axis=-1)"
+  models = "the sandwich collapsed to sigma^2 A^-1 in the Theorem 3.1 path; identical under homoskedasticity, so only a reference pin on real data separates them"
+
+[[target]]
+name = "atel-weight-sources"
+module-path = "mlsynth/utils/atel_helpers/sieve.py"
+test-command = "python -m pytest mlsynth/tests/test_atel_weight_sources.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "hadamard-columns-lose-their-alternation"
+  find = "        W[:, k - 1] = np.where((rows // (k - 1)) % 2 == 0, 1.0, -1.0)"
+  replace = "        W[:, k - 1] = np.ones(len(rows))"
+  models = "every Hadamard column collapsing to ones, so the weight series are identical, the second moment is singular, and the projection has one usable direction while reporting several"
+
+  [[target.mutant]]
+  id = "tiled-weights-cover-one-period-only"
+  find = "    return np.hstack([np.repeat(W[:, [j]], n_periods, axis=1)"
+  replace = "    return np.hstack([np.repeat(W[:, [j]], 1, axis=1)"
+  models = "a unit-constant weight laid out one column wide instead of one block per period, so the projection's period slice reads past the end of its own block"
+
+  [[target.mutant]]
+  id = "conditioning-reports-the-strongest-direction"
+  find = "        worst = min(worst, float(np.linalg.eigvalsh(block.T @ block / n_donors).min()))"
+  replace = "        worst = min(worst, float(np.linalg.eigvalsh(block.T @ block / n_donors).max()))"
+  models = "the conditioning diagnostic reading the largest eigenvalue instead of the smallest, so a degenerate weight matrix reports as healthy"
+
+[[target]]
+name = "atel-initial-holdout"
+module-path = "mlsynth/utils/atel_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_atel_weight_sources.py mlsynth/tests/test_atel.py -q -p no:cacheprovider"
+timeout = 420.0
+
+  [[target.mutant]]
+  id = "initial-weights-keep-the-period-they-came-from"
+  find = "        outcomes = outcomes[:, 1:]"
+  replace = "        outcomes = outcomes[:, 0:]"
+  models = "the period the weights are built from left in the estimation sample, which is the endogeneity Fan-Liao Assumption 2.1(iii) forbids and the whole reason the holdout exists"
+
+  [[target.mutant]]
+  id = "pre-period-guard-allows-an-exact-fit"
+  find = "    if n_pre <= 2 * int(n_factors):"
+  replace = "    if n_pre < 2 * int(n_factors):"
+  models = "the guard back to non-strict, so a pre-period exactly as long as the design is accepted, the fit is exact, every residual is zero and the standard error collapses to numerical noise"
+
+[[target]]
+name = "lazy-weight-certificate"
+module-path = "mlsynth/utils/weights/solution.py"
+test-command = "python -m pytest mlsynth/tests/test_lazy_weight_diagnostics.py mlsynth/tests/test_weights_solver.py mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "face-and-residual-share-one-cache-key"
+  find = '        hit = self._cache.get("face")'
+  replace = '        hit = self._cache.get("kkt")'
+  models = "the face and the KKT residual keyed on the same cache slot, so whichever is read first answers for both. A float where a pair of arrays belongs, which every reader of free_directions then unpacks wrongly -- the defect a single shared certificate dict invited, and the reason the two are cached apart"
+
+  [[target.mutant]]
+  id = "unique-reads-the-wrong-axis"
+  find = "        return bool(self._face()[0].shape[1] == 0)"
+  replace = "        return bool(self._face()[0].shape[0] == 0)"
+  models = "uniqueness read off the donor count instead of the number of free directions. The face is (J, k), so axis 0 is J and is zero only on an empty donor pool -- every solution then reports itself non-unique, and nothing that reads only the weights notices"
+
+  [[target.mutant]]
+  id = "the-cache-never-fills"
+  find = '        self._cache["face"] = hit'
+  replace = "        pass"
+  models = "a cache that is read and never written, so the SVD runs again on every access. The answer is identical and only the cost moves, which is what makes a lazy field's caching invisible to anything but a call count"
+
+[[target]]
+name = "ssdid-solver-choice"
+module-path = "mlsynth/utils/helperutils.py"
+test-command = "python -m pytest mlsynth/tests/test_cvxpy_solver_choice.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "ssdid-lets-cvxpy-rank-the-solvers"
+  find = "        problem.solve(solver=cp.CLARABEL)\n    except Exception as e:\n        # Not only ``cvxpy.error.SolverError``. A vendor exception -- mosek's\n        # ``Error`` is not a cvxpy one -- escaped this clause untranslated and\n        # reached the caller naming neither the estimator nor the contract.\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_w: {e}\") from e"
+  replace = "        problem.solve()\n    except Exception as e:\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_w: {e}\") from e"
+  models = "the shipped defect: the solver left to cvxpy's ranking, so which one runs depends on what else is installed. On a machine with no mosek every test still passes, which is why it survived the port from functions_ssdid.py"
+
+  [[target.mutant]]
+  id = "ssdid-translates-only-cvxpy-solver-errors"
+  find = "        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
+  replace = "        raise\n    except cvxpy.error.SolverError as e:\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
+  models = "the second cause: only cvxpy's own SolverError translated, so a vendor exception -- mosek.Error is not one -- reaches the caller raw, naming neither the estimator nor the contract"

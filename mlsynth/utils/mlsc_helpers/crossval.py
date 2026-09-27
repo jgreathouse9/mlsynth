@@ -21,7 +21,7 @@ in the penalty:
 
 The two matrices on the right are formed once, every grid point's Gram is a
 broadcast off them, and a batched active set
-(:func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_minnorm_batch`) certifies
+(:func:`~mlsynth.utils.solvers.minnorm.solve_simplex_minnorm_batch`) certifies
 the whole grid in a handful of linear solves. On the Bottmer et al. panel (108
 training periods, 90 disaggregate controls, 56 grid points) that is 0.20s against
 4.15s for the same solves one at a time, with the held-out scores agreeing to
@@ -60,7 +60,7 @@ def _holdout_mse_native(
     X_test: np.ndarray, Y_test: np.ndarray, penalty_scale: float,
 ) -> float:
     """One grid point's held-out forecast MSE via the active-set simplex QP."""
-    from ..bilevel.active_set import solve_simplex_qp
+    from ..solvers.active_set import solve_simplex_qp
 
     B, A = _augmented_design(X_train, Y_train, inputs, penalty_scale)
     omega = solve_simplex_qp(B, A)
@@ -70,7 +70,7 @@ def _holdout_mse_native(
 def _gram_is_safe(X_train: np.ndarray) -> bool:
     """Whether this grid can be scored through the Gram form.
 
-    Defers to :func:`~mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe`,
+    Defers to :func:`~mlsynth.utils.solvers.minnorm.gram_reduction_is_safe`,
     which owns the condition: forming ``G`` squares the design's condition
     number, and the grid's small-penalty end leaves a ``1e-8`` uniqueness ridge
     as the only thing separating the columns. Where ``X_train`` already has full
@@ -78,7 +78,7 @@ def _gram_is_safe(X_train: np.ndarray) -> bool:
     it does not, the Gram form finished 225 percent above the optimum on a
     9-period, 12-disaggregate panel.
     """
-    from ..bilevel.minnorm import gram_reduction_is_safe
+    from ..solvers.minnorm import gram_reduction_is_safe
 
     return gram_reduction_is_safe(X_train)
 
@@ -96,7 +96,7 @@ def _grid_weights(
     sequential path gives it (``_augmented_design``'s ``sqrt(_RIDGE_FLOOR) I``),
     which enters the same way: ``G_X + _RIDGE_FLOOR I``.
     """
-    from ..bilevel.minnorm import simplex_gram, solve_simplex_minnorm_batch
+    from ..solvers.minnorm import simplex_gram, solve_simplex_minnorm_batch
 
     p = np.asarray(penalty_scales, dtype=float).ravel()
     M = X_train.shape[1]

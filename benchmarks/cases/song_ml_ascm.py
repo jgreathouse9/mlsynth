@@ -168,7 +168,7 @@ def _fit_diagnostics(panel, donors, group, year, pollutant):
     drifted between the authors' augsynth and the pinned one, so it localises a
     disagreement that the ATT alone only registers.
     """
-    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+    from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
     sub = _cell(panel, donors, group, year, pollutant)
     piv = sub.pivot(index="ID", columns="date", values=pollutant).sort_index()
     trt = piv.index.to_numpy() == group

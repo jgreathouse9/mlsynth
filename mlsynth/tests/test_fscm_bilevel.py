@@ -6,12 +6,11 @@ import pytest
 from mlsynth.utils.bilevel import (
     BilevelProblem,
     BilevelSolution,
-    project_simplex,
-    simplex_lstsq,
     solve_bilevel,
     lower_level_weights,
 )
-from mlsynth.utils.bilevel.simplex import mspe
+from mlsynth.utils.solvers.simplex import project_simplex, simplex_lstsq
+from mlsynth.utils.solvers.simplex import mspe
 
 
 # --------------------------------------------------------------------------- #
@@ -300,7 +299,7 @@ def test_bias_correction_removes_bias_when_covariates_informative():
 # --------------------------------------------------------------------------- #
 import numpy as _np  # noqa: E402
 
-from mlsynth.utils.bilevel.simplex import (  # noqa: E402
+from mlsynth.utils.solvers.simplex import (  # noqa: E402
     _lipschitz_constant,
     project_simplex as _project_simplex,
     _EPS as _SIMPLEX_EPS,

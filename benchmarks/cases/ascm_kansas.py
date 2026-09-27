@@ -144,7 +144,7 @@ def _l2(w, y_pre, Y0_pre):
 
 
 def run() -> dict:
-    from mlsynth.utils.bilevel.ridge_augment import (
+    from mlsynth.utils.solvers.ridge_augment import (
         ridge_augment_weights, simplex_qp, build_matching)
 
     y_pre, Y0_pre, y_post, Y0_post, Z0, z1 = _prep()
@@ -177,7 +177,7 @@ def comparison() -> dict:
     "mlsynth_call": {...}, "reference": {...}}`` -- rows are
     ``{quantity, mlsynth, reference}``.
     """
-    from mlsynth.utils.bilevel.ridge_augment import (
+    from mlsynth.utils.solvers.ridge_augment import (
         ridge_augment_weights, simplex_qp, build_matching)
 
     y_pre, Y0_pre, y_post, Y0_post, Z0, z1 = _prep()

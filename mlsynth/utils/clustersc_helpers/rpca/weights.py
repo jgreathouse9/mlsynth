@@ -20,7 +20,7 @@ from __future__ import annotations
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
-from ...bilevel.nnls import nnls_select
+from ...solvers.nnls import nnls_select
 
 # scipy's compiled nnls where it is a fixed, fast release (>= 1.15), else the
 # in-house solver (scipy 1.12-1.14 regressed -- raises on the iteration cap).

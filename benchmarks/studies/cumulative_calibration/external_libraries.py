@@ -36,7 +36,7 @@ import warnings
 
 import numpy as np
 
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from loo_ensemble import J, design
 from panel import ALPHA, DELTA, H, T0, draw
 

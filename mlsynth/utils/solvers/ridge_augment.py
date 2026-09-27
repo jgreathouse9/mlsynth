@@ -1,0 +1,602 @@
+"""Ridge augmentation for the bilevel SCM engine (Augmented SCM).
+
+The ridge-augmented synthetic control of Ben-Michael, Feller & Rothstein (2021)
+(``progfunc="Ridge"`` in the ``augsynth`` R package) is *not* a separate base
+estimator -- it is a **bias-correction layer on top of any base donor weights**.
+Given simplex SCM weights ``W`` and the pre-treatment outcomes, it adds a ridge
+correction that closes the residual pre-treatment imbalance the simplex SCM
+cannot, at the cost of leaving the simplex (the augmented weights may go
+negative and need not sum to one). That is exactly why it lives in the bilevel
+package: any backend's ``W`` can be augmented, so the capability rides along
+"wherever the bilevel solver goes".
+
+The structure follows ``sdfordham/pysyncon``'s ``AugSynth``, with the penalty
+selection corrected to reproduce **augsynth R** exactly on its canonical Kansas
+example (ATT -0.0401). The two corrections, both about the *scale* on which the
+penalty is chosen, mirror augsynth's ``fit_ridgeaug_formatted``:
+
+* outcomes are **centered** (each period minus its control-unit mean) *before*
+  the lambda grid and cross-validation are built, so the chosen lambda is on the
+  same scale as the centered ridge solve (pysyncon builds them on the raw
+  outcomes, so it picks a lambda far too large and barely augments);
+* the CV standard error divides by **sqrt(n_folds)**, not sqrt(n_lambdas).
+
+A useful invariance keeps this clean: for simplex weights (``sum w = 1``), the
+base SCM fit is identical on raw vs. centered outcomes -- the per-period shift
+cancels -- so the engine's existing backends need no change; only this layer
+centers, and only for its own correction.
+
+The ridge formula (augsynth ``fit_ridgeaug_inner`` / pysyncon ``solve_ridge``):
+with centered treated pre-vector ``A``, centered donor matrix ``B`` and base
+weights ``W``,
+
+    M = A - B @ W                              # residual imbalance
+    N = (B @ B.T + lambda * I)^{-1}            # ridge-regularised Gram inverse
+    W_ridge = M @ N @ B
+"""
+
+from __future__ import annotations
+
+import inspect
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
+
+from ...exceptions import MlsynthEstimationError
+
+_EPS = 1e-12
+
+# Max condition number of the ridge Gram ``B B^T + lambda I`` tolerated when
+# tuning the penalty in the *residualized* covariate path, whose Gram is
+# rank-deficient (see ``ridge_augment_weights``). Penalties below the implied
+# floor (``lambda >= sigma_max^2 / (RESIDUALIZE_COND_MAX - 1)``) are dropped
+# from the CV grid so the search cannot collapse onto the degenerate,
+# near-singular tail; the 1-SE rule then lands in the stable region (for the
+# augsynth Kansas study, the outcome-scale penalty lambda ~ 0.075).
+RESIDUALIZE_COND_MAX = 4.0e2
+
+
+def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
+    """Exact simplex SCM weights: ``min ||A - B @ w||^2`` s.t. ``w >= 0``,
+    ``sum w = 1``.
+
+    Solved by the pure-NumPy active-set method
+    (:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`), which avoids
+    cvxpy's per-call canonicalisation overhead in the hot conformal /
+    market-selection loops and is warm-startable. Augmented SCM augments an
+    *accurately solved* simplex SCM (augsynth uses quadprog), so the base is
+    solved exactly here. Falls back to cvxpy if the active set fails to certify
+    convergence (degenerate cycling), keeping the result no worse than before.
+
+    For a large donor pool (``J >= ACCEL_MIN_DONORS``) with no caller-supplied
+    warm start, ``solve_simplex_qp`` seeds itself with a Gram-collapsed FISTA
+    warm start (:func:`mlsynth.utils.solvers.accelerate.fista_warm_start`) so the
+    active set is certified from the right support instead of built up pivot by
+    pivot -- up to ~20x faster on a few hundred donors, and faster than a general
+    interior-point solver (CLARABEL) on the same problem. That seeding used to
+    happen here, which made it a property of this entry point and not of the
+    solver: of the thirteen call sites in the library, twelve never supplied a
+    warm start, SDID's two simplex programs among them, so they went in cold. It
+    now happens in the solver, so this function only chooses the fallback.
+
+    Parameters
+    ----------
+    B : numpy.ndarray, shape (m, J)
+        Donor matching matrix (``m`` matching rows, ``J`` donors).
+    A : numpy.ndarray, shape (m,)
+        Treated unit's matching vector.
+
+    Returns
+    -------
+    numpy.ndarray, shape (J,)
+    """
+    from .active_set import solve_simplex_qp
+
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    w, info = solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
+    if info["converged"]:
+        return w
+    return _simplex_qp_cvxpy(B, A)  # pragma: no cover - rare degenerate fallback
+
+
+def _simplex_qp_cvxpy(B: np.ndarray, A: np.ndarray) -> np.ndarray:
+    """Reference simplex QP via cvxpy/CLARABEL -- the fallback / oracle."""
+    import cvxpy as cp
+
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    w = cp.Variable(B.shape[1], nonneg=True)
+    problem = cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w)), [cp.sum(w) == 1])
+    problem.solve(solver=cp.CLARABEL)
+    if w.value is None:  # pragma: no cover - degenerate fallback
+        problem.solve(solver=cp.SCS)
+    weights = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
+    s = weights.sum()
+    return weights / s if s > _EPS else weights
+
+
+def solve_ridge(
+    A: np.ndarray, B: np.ndarray, W: np.ndarray, lambda_: float
+) -> np.ndarray:
+    """Ridge augmentation to the base weights (augsynth/pysyncon ``solve_ridge``).
+
+    Parameters
+    ----------
+    A : numpy.ndarray, shape (m,)
+        Treated unit's (centered) matching vector.
+    B : numpy.ndarray, shape (m, J)
+        Donor (centered) matching matrix.
+    W : numpy.ndarray, shape (J,)
+        Base (simplex) SCM weights.
+    lambda_ : float
+        Ridge penalty.
+
+    Returns
+    -------
+    numpy.ndarray, shape (J,)
+        The additive ridge correction ``W_ridge``; the augmented weights are
+        ``W + W_ridge``.
+    """
+    A = np.asarray(A, dtype=float).ravel()
+    B = np.asarray(B, dtype=float)
+    W = np.asarray(W, dtype=float).ravel()
+    M = A - B @ W
+    # Solve (B B^T + lambda I) X = B instead of forming the inverse: same result,
+    # one LAPACK solve instead of a full inversion plus a matmul.
+    X = np.linalg.solve(B @ B.T + lambda_ * np.identity(B.shape[0]), B)
+    return M @ X
+
+
+def solve_ridge_path(
+    A: np.ndarray, B: np.ndarray, W: np.ndarray, lambdas: np.ndarray
+) -> np.ndarray:
+    """Ridge corrections for a whole lambda grid from one matrix factorization.
+
+    Equivalent to ``np.vstack([solve_ridge(A, B, W, lam) for lam in lambdas])``
+    but evaluates the entire grid from a single factorization instead of
+    inverting ``B B^T + lambda I`` once per lambda. Two algebraically identical
+    routes, chosen by shape so the factored matrix is the smaller one:
+
+    * ``J < m`` (the long-panel regime -- more periods than donors):
+      the *dual*. With the economy SVD ``B = U diag(S) V^T`` (``r = min(m, J)``
+      components),
+
+          inv(B B^T + lambda I) B = U diag(S / (S^2 + lambda)) V^T,
+
+      so ``M @ inv(...) @ B = (a * S / (S^2 + lambda)) @ V^T`` with
+      ``a = M U``. This factors the ``m x J`` matrix (cost ``O(m J^2)``) and
+      works in ``r`` components instead of eigendecomposing the ``m x m``
+      ``B B^T`` (cost ``O(m^3)``) -- a large saving when ``m >> J``.
+    * ``m <= J``: the symmetric eigendecomposition ``B B^T = V diag(d) V^T``
+      (the smaller, ``m x m``, matrix here), giving
+      ``(p / (d + lambda)) @ Q`` with ``p = M V``, ``Q = V^T B``.
+
+    The ``+ lambda I`` keeps every shifted system positive-definite, so both
+    routes match :func:`solve_ridge` to numerical tolerance even when ``B B^T``
+    is rank-deficient (collinear donors).
+
+    Parameters
+    ----------
+    A : numpy.ndarray, shape (m,)
+        Treated unit's (centered) matching vector.
+    B : numpy.ndarray, shape (m, J)
+        Donor (centered) matching matrix.
+    W : numpy.ndarray, shape (J,)
+        Base (simplex) SCM weights.
+    lambdas : numpy.ndarray, shape (L,)
+        Candidate ridge penalties.
+
+    Returns
+    -------
+    numpy.ndarray, shape (L, J)
+        Row ``i`` is the additive ridge correction for ``lambdas[i]``.
+    """
+    A = np.asarray(A, dtype=float).ravel()
+    B = np.asarray(B, dtype=float)
+    W = np.asarray(W, dtype=float).ravel()
+    lambdas = np.asarray(lambdas, dtype=float).ravel()
+    M = A - B @ W                                   # (m,)
+    m, J = B.shape
+    if J < m:
+        # Dual: economy SVD of B (r = min(m, J) = J components) -> O(m J^2),
+        # avoiding the O(m^3) eigendecomposition of the m x m matrix B B^T.
+        U, S, Vt = np.linalg.svd(B, full_matrices=False)   # U (m,r) S (r,) Vt (r,J)
+        a = M @ U                                           # (r,)
+        scale = (a[None, :] * S[None, :]) / (S[None, :] ** 2 + lambdas[:, None])
+        return scale @ Vt                                  # (L, J)
+    d, V = np.linalg.eigh(B @ B.T)                  # (m,), (m, m) symmetric PSD
+    p = M @ V                                       # (m,)
+    Q = V.T @ B                                     # (m, J)
+    scale = p[None, :] / (d[None, :] + lambdas[:, None])   # (L, m)
+    return scale @ Q                                # (L, J)
+
+
+def generate_lambdas(
+    X: np.ndarray, lambda_min_ratio: float = 1e-8, n_lambda: int = 20
+) -> np.ndarray:
+    """A singular-value-scaled geometric grid of ridge penalties.
+
+    ``lambda_max`` is the squared largest singular value of the (centered) donor
+    matrix ``X`` (augsynth ``get_lambda_max``); the grid descends geometrically
+    to ``lambda_max * lambda_min_ratio``. Matches augsynth's ``create_lambda_list``
+    (exponents ``0..n_lambda`` -> ``n_lambda + 1`` points), so the 1-SE grid
+    choice reproduces augsynth.
+    """
+    X = np.asarray(X, dtype=float)
+    sing = np.linalg.svd(X, compute_uv=False)
+    lambda_max = float(sing[0]) ** 2.0
+    scaler = lambda_min_ratio ** (1.0 / n_lambda)
+    return lambda_max * (scaler ** np.arange(n_lambda + 1))
+
+
+class _HoldoutSplitter:
+    """Iterate over leave-``holdout_len``-out splits of the matching *rows*
+    (pre-treatment periods). Mirrors augsynth's ``get_lambda_errors`` loop."""
+
+    def __init__(self, B: np.ndarray, A: np.ndarray, holdout_len: int = 1) -> None:
+        if B.shape[0] != A.shape[0]:
+            raise ValueError("B and A must have the same number of rows.")
+        if holdout_len < 1:
+            raise ValueError("holdout_len must be at least 1.")
+        if holdout_len >= B.shape[0]:
+            raise ValueError("holdout_len must be less than the number of rows.")
+        self.B = B
+        self.A = A
+        self.holdout_len = holdout_len
+
+    def __iter__(self):
+        m = self.B.shape[0]
+        # ``range(m - holdout_len)``, NOT ``m - holdout_len + 1``: augsynth's
+        # ``get_lambda_errors`` loops ``i in 1:(ncol(X_c) - holdout_length)`` and
+        # sizes its error matrix to match, so the LAST window is never held out.
+        # One extra fold sounds harmless and is not: the final pre-period is the
+        # one adjacent to treatment, and on a panel where it is atypical its
+        # error dominates the mean. On the Song et al. PM2.5 cell that fold
+        # carries ~9x the mean error of the other 24 and moved the selected
+        # penalty from augsynth's 28.52 to 11.35.
+        for idx in range(m - self.holdout_len):
+            hold = slice(idx, idx + self.holdout_len)
+            keep = np.ones(m, dtype=bool)
+            keep[hold] = False
+            yield self.B[keep], self.B[hold], self.A[keep], self.A[hold]
+
+
+def cross_validate(
+    base_weights_fn,
+    X0: np.ndarray,
+    X1: np.ndarray,
+    lambdas: np.ndarray,
+    holdout_len: int = 1,
+    warm_start_base: bool = True,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Leave-one-period-out CV of the ridge penalty (augsynth ``get_lambda_errors``).
+
+    For each holdout split, refit the base weights on the retained periods (via
+    ``base_weights_fn(B_train, A_train)``), apply the ridge augmentation for each
+    candidate lambda, and score the squared error on the held-out period(s).
+
+    Parameters
+    ----------
+    base_weights_fn : callable
+        ``(B, A) -> W`` base-weight solver (e.g. the simplex SCM fit), used to
+        refit on each training fold.
+    X0 : numpy.ndarray, shape (m, J)
+        Centered donor matrix.
+    X1 : numpy.ndarray, shape (m,)
+        Centered treated vector.
+    lambdas : numpy.ndarray
+        Candidate ridge penalties.
+    holdout_len : int, optional
+        Block length held out each fold, by default ``1``.
+    warm_start_base : bool, optional
+        Seed each fold's base solve with the previous fold's weights when the
+        base solver accepts a ``warm_start`` keyword (default ``True``). The
+        leave-one-out folds are tiny perturbations of one another, so this
+        roughly halves the active-set work; the base simplex objective is
+        strictly convex under full column rank, so the optimum -- and thus the
+        CV curve -- is unchanged. Set ``False`` for a cold refit each fold.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(lambdas, errors_mean, errors_se)`` -- the per-lambda mean CV error and
+        its standard error across folds (``sd / sqrt(n_folds)``).
+    """
+    X0 = np.asarray(X0, dtype=float)
+    X1 = np.asarray(X1, dtype=float).ravel()
+    lambdas = np.asarray(lambdas, dtype=float)
+    accepts_ws = False
+    if warm_start_base:
+        try:
+            accepts_ws = "warm_start" in inspect.signature(base_weights_fn).parameters
+        except (TypeError, ValueError):       # builtins / un-inspectable callables
+            accepts_ws = False
+    res = []
+    prev_W = None
+    for B_t, B_v, A_t, A_v in _HoldoutSplitter(X0, X1, holdout_len=holdout_len):
+        if accepts_ws and prev_W is not None and prev_W.shape[0] == B_t.shape[1]:
+            W = base_weights_fn(B_t, A_t, warm_start=prev_W)
+        else:
+            W = base_weights_fn(B_t, A_t)
+        prev_W = np.asarray(W, dtype=float).ravel()
+        # All lambdas at once: one eigendecomposition of B_t B_t^T instead of
+        # one matrix inversion per lambda (see solve_ridge_path).
+        W_aug = prev_W[None, :] + solve_ridge_path(A_t, B_t, prev_W, lambdas)  # (L, J)
+        resid = A_v[None, :] - W_aug @ B_v.T                          # (L, h)
+        res.append(np.sum(resid ** 2, axis=1))                        # (L,)
+    arr = np.asarray(res, dtype=float)
+    n_folds = arr.shape[0]
+    errors_mean = arr.mean(axis=0)
+    # augsynth ``get_lambda_errors``: ``sd(x) / sqrt(length(x))`` over the folds.
+    # R's ``sd`` is the SAMPLE standard deviation (n-1 denominator); numpy's
+    # ``.std`` defaults to the population one, which made this too small by
+    # ``sqrt((n-1)/n)``. It is not cosmetic: it feeds the 1-SE threshold in
+    # :func:`best_lambda` directly, so it can change which penalty is selected.
+    # With a single fold the sample sd is undefined -- R yields NA -- and a NaN
+    # here would silently poison that threshold, so it degrades to zero, which
+    # makes the 1-SE rule collapse to the plain minimum.
+    ddof = 1 if n_folds > 1 else 0
+    errors_se = arr.std(axis=0, ddof=ddof) / np.sqrt(n_folds)
+    return lambdas, errors_mean, errors_se
+
+
+def best_lambda(
+    lambdas: np.ndarray,
+    errors_mean: np.ndarray,
+    errors_se: np.ndarray,
+    min_1se: bool = True,
+) -> float:
+    """Select the ridge penalty from a CV curve (augsynth ``choose_lambda``).
+
+    With ``min_1se`` (default), the *largest* lambda whose mean error is within
+    one standard error of the minimum (the parsimonious 1-SE rule); otherwise the
+    lambda at the outright minimum.
+    """
+    errors_mean = np.asarray(errors_mean, dtype=float)
+    errors_se = np.asarray(errors_se, dtype=float)
+    lambdas = np.asarray(lambdas, dtype=float)
+    # A fold can leave a penalty with no finite error -- a near-singular ridge
+    # solve, or a matching matrix with no rank left. Those penalties carry no
+    # information about fit, so they take no part in the choice; comparing
+    # against them makes the threshold NaN and selects nothing.
+    finite = np.isfinite(errors_mean)
+    if not finite.any():
+        raise MlsynthEstimationError(
+            "the ridge cross-validation curve is entirely non-finite, so no "
+            "penalty can be selected. This happens when the centered donor "
+            "matrix has no rank left -- a single donor, or donors identical to "
+            "each other -- and the augmentation is zero for every penalty.")
+    lambdas_f = lambdas[finite]
+    mean_f = errors_mean[finite]
+    se_f = errors_se[finite]
+    if min_1se:
+        threshold = mean_f.min() + se_f[int(mean_f.argmin())]
+        return float(lambdas_f[mean_f <= threshold].max())
+    return float(lambdas_f[int(mean_f.argmin())])
+
+
+@dataclass
+class RidgeAugmentResult:
+    """Outcome of :func:`ridge_augment_weights`.
+
+    Attributes
+    ----------
+    W : np.ndarray
+        Augmented donor weights ``W_base + W_ridge`` (off the simplex in
+        general).
+    W_base : np.ndarray
+        The base simplex SCM weights, before augmentation.
+    W_ridge : np.ndarray
+        The additive ridge correction.
+    lambda_ : float
+        Ridge penalty used.
+    cv : dict or None
+        Cross-validation curve (``lambdas``, ``errors_mean``, ``errors_se``)
+        when lambda was selected by CV; ``None`` when a fixed lambda was given.
+    """
+
+    W: np.ndarray
+    W_base: np.ndarray
+    W_ridge: np.ndarray
+    lambda_: float
+    cv: Optional[Dict[str, Any]] = field(default=None)
+
+
+def build_matching(
+    y_pre: np.ndarray,
+    Y0_pre: np.ndarray,
+    Z0: Optional[np.ndarray] = None,
+    z1: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build the centered (and covariate-stacked) ASCM matching matrices.
+
+    The outcomes are centered each period by their donor (control) mean
+    (augsynth ``X_cent``). Auxiliary covariates, when supplied, are centered by
+    their control mean, standardized to each have the centered-outcome standard
+    deviation, and **stacked as extra matching rows** -- the parallel-inclusion
+    default of augsynth (``residualize=FALSE``) / Ben-Michael et al. (2021) §6.
+
+    Parameters
+    ----------
+    y_pre : np.ndarray, shape (T0,)
+        Treated pre-treatment outcomes.
+    Y0_pre : np.ndarray, shape (T0, J)
+        Donor pre-treatment outcomes.
+    Z0 : np.ndarray, optional, shape (J, K)
+        Donor auxiliary covariates (``K`` covariates).
+    z1 : np.ndarray, optional, shape (K,)
+        Treated auxiliary covariates.
+
+    Returns
+    -------
+    (B, A) : tuple of np.ndarray
+        ``B`` shape ``(T0 [+K], J)`` donor matching matrix, ``A`` shape
+        ``(T0 [+K],)`` treated matching vector.
+    """
+    y_pre = np.asarray(y_pre, dtype=float).ravel()
+    Y0_pre = np.asarray(Y0_pre, dtype=float)
+    mu = Y0_pre.mean(axis=1)
+    B = Y0_pre - mu[:, None]          # centered donor matrix (T0, J)
+    A = y_pre - mu                    # centered treated vector (T0,)
+
+    if Z0 is not None and z1 is not None and np.asarray(Z0).size:
+        Z0 = np.asarray(Z0, dtype=float)          # (J, K)
+        z1 = np.asarray(z1, dtype=float).ravel()  # (K,)
+        zmu = Z0.mean(axis=0)                      # control mean per covariate
+        Z0c = Z0 - zmu[None, :]
+        z1c = z1 - zmu
+        sdx = float(B.std(ddof=1))                 # centered-outcome scale (scalar)
+        sdz = Z0c.std(axis=0, ddof=1)              # per-covariate scale
+        sdz = np.where(sdz < _EPS, 1.0, sdz)
+        Z0n = sdx * Z0c / sdz                       # (J, K) standardized to outcome scale
+        z1n = sdx * z1c / sdz                       # (K,)
+        B = np.vstack([B, Z0n.T])                   # stack covariates as rows -> (T0+K, J)
+        A = np.concatenate([A, z1n])                # (T0+K,)
+    return B, A
+
+
+def _residualized_matching(
+    y_pre: np.ndarray, Y0_pre: np.ndarray, Z0: np.ndarray, z1: np.ndarray
+):
+    """augsynth ``residualize=TRUE``: regress the centered outcomes on the
+    centered covariates (across units, per period) and match on the residuals,
+    returning the residualized ``(B, A)`` and a closure that adds the covariate
+    add-back to the residual-ASCM weights (``fit_ridgeaug_formatted`` lines
+    79-98 and 135-140).
+    """
+    y_pre = np.asarray(y_pre, dtype=float).ravel()
+    Y0_pre = np.asarray(Y0_pre, dtype=float)
+    mu = Y0_pre.mean(axis=1)
+    Xc = (Y0_pre - mu[:, None]).T                 # (J, T0) centered donor outcomes
+    X1 = (y_pre - mu)[None, :]                     # (1, T0) centered treated
+    Z0 = np.asarray(Z0, dtype=float)               # (J, K)
+    z1 = np.asarray(z1, dtype=float).ravel()       # (K,)
+    zmu = Z0.mean(axis=0)
+    Zc = Z0 - zmu[None, :]                          # (J, K) centered by control mean
+    z1c = z1 - zmu                                  # (K,)
+    ZtZi = np.linalg.inv(Zc.T @ Zc)
+    proj = ZtZi @ Zc.T @ Xc                         # (K, T0) regression coefficients
+    resc = Xc - Zc @ proj                           # (J, T0) residualized donors
+    rest = X1 - z1c[None, :] @ proj                 # (1, T0) residualized treated
+    B, A = resc.T, rest.ravel()                     # (T0, J), (T0,)
+
+    def add_back(W: np.ndarray) -> np.ndarray:
+        return (z1c - Zc.T @ W) @ ZtZi @ Zc.T       # (J,) covariate-balance weights
+
+    return B, A, add_back
+
+
+def ridge_augment_weights(
+    y_pre: np.ndarray,
+    Y0_pre: np.ndarray,
+    *,
+    Z0: Optional[np.ndarray] = None,
+    z1: Optional[np.ndarray] = None,
+    residualize: bool = False,
+    base_weights_fn=None,
+    lambda_: Optional[float] = None,
+    n_lambda: int = 20,
+    lambda_min_ratio: float = 1e-8,
+    holdout_length: int = 1,
+    min_1se: bool = True,
+    warm_start: Optional[np.ndarray] = None,
+) -> RidgeAugmentResult:
+    """Ridge-augment a simplex SCM fit on the pre-treatment outcomes.
+
+    Centers the outcomes (each period minus its donor mean), optionally stacks
+    standardized auxiliary covariates (augsynth's parallel-inclusion default),
+    fits the base simplex SCM, selects the ridge penalty by leave-one-period-out
+    CV when ``lambda_`` is ``None`` (augsynth's 1-SE rule by default), and
+    returns the augmented weights. The base SCM (and each CV fold) is solved by
+    ``base_weights_fn``; the default :func:`simplex_qp` is an exact QP, since
+    Augmented SCM augments an accurately-solved simplex (augsynth uses quadprog).
+
+    Parameters
+    ----------
+    y_pre : np.ndarray, shape (T0,)
+        Treated pre-treatment outcomes.
+    Y0_pre : np.ndarray, shape (T0, J)
+        Donor pre-treatment outcomes.
+    Z0 : np.ndarray, optional, shape (J, K)
+        Donor auxiliary covariates; stacked into the matching matrix.
+    z1 : np.ndarray, optional, shape (K,)
+        Treated auxiliary covariates.
+    base_weights_fn : callable, optional
+        ``(B, A) -> W`` base-weight solver; defaults to :func:`simplex_qp`.
+    lambda_ : float, optional
+        Fixed ridge penalty; if ``None`` (default) it is chosen by CV.
+    n_lambda, lambda_min_ratio, holdout_length, min_1se
+        CV / grid hyper-parameters (augsynth defaults).
+    """
+    if base_weights_fn is None:
+        base_weights_fn = simplex_qp
+
+    has_cov = Z0 is not None and z1 is not None and np.asarray(Z0).size
+    add_back = None
+    cv: Optional[Dict[str, Any]] = None
+    if residualize and has_cov:
+        # Regress covariates out of the outcomes and match on the residuals;
+        # the covariate balance is restored by an add-back on the final weights.
+        B, A, add_back = _residualized_matching(y_pre, Y0_pre, Z0, z1)
+        if lambda_ is None:
+            # Conditioning guard. After residualizing out K covariates the
+            # residual Gram ``B B^T`` is rank-deficient (T0 rows, rank <= J-K),
+            # so for small lambda ``(B B^T + lambda I)`` is near-singular: the
+            # ridge solve overfits and a CV on the residuals drifts to that
+            # degenerate grid floor. Restrict the grid to penalties that keep
+            # the ridge solve well-conditioned (cond <= RESIDUALIZE_COND_MAX),
+            # then apply the usual leave-one-out CV / 1-SE rule on the rest.
+            lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
+                                       n_lambda=n_lambda)
+            ev_max = float(np.linalg.eigvalsh(B @ B.T)[-1])     # min eig ~ 0
+            cond = (ev_max + lambdas) / lambdas
+            keep = cond <= RESIDUALIZE_COND_MAX
+            lambdas = lambdas[keep] if keep.any() else lambdas[:1]
+            lambdas, mean, se = cross_validate(
+                base_weights_fn, B, A, lambdas, holdout_len=holdout_length)
+            lambda_ = best_lambda(lambdas, mean, se, min_1se=min_1se)
+            cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
+    else:
+        # Centered (and, with covariates, parallel-stacked) matching matrices.
+        # The base simplex fit is invariant to the per-period centering
+        # (sum w = 1), but the ridge correction is not.
+        B, A = build_matching(y_pre, Y0_pre, Z0, z1)
+
+    # Warm-start the base solve from a neighbouring fit (e.g. the previous
+    # tau0 in a conformal grid sweep) when the base solver accepts it.
+    if warm_start is not None:
+        W_base = np.asarray(base_weights_fn(B, A, warm_start=warm_start),
+                            dtype=float).ravel()
+    else:
+        W_base = np.asarray(base_weights_fn(B, A), dtype=float).ravel()
+
+    if lambda_ is None:
+        lambdas = generate_lambdas(B, lambda_min_ratio=lambda_min_ratio,
+                                   n_lambda=n_lambda)
+        if not np.any(lambdas > 0.0):
+            # The centered matching matrix has no rank: augsynth centers each
+            # period by the donor mean, so a single donor (or donors identical
+            # to one another) leaves exactly zero. The ridge correction is then
+            # zero for every penalty, so there is nothing to cross-validate and
+            # the augmented fit is the base fit.
+            lambda_ = 0.0
+        else:
+            lambdas, mean, se = cross_validate(
+                base_weights_fn, B, A, lambdas, holdout_len=holdout_length
+            )
+            lambda_ = best_lambda(lambdas, mean, se, min_1se=min_1se)
+            cv = {"lambdas": lambdas, "errors_mean": mean, "errors_se": se}
+
+    if float(lambda_) == 0.0 and not np.any(np.asarray(B) != 0.0):
+        W_ridge = np.zeros_like(W_base)   # no rank to correct on; see above
+    else:
+        W_ridge = solve_ridge(A, B, W_base, float(lambda_))
+    W = W_base + W_ridge
+    if add_back is not None:                 # residualize: restore covariate balance
+        W = W + add_back(W)
+    return RidgeAugmentResult(
+        W=W, W_base=W_base, W_ridge=W_ridge,
+        lambda_=float(lambda_), cv=cv,
+    )

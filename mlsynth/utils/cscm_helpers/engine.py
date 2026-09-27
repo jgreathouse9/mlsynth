@@ -28,6 +28,7 @@ import numpy as np
 from scipy.optimize import nnls
 from scipy.stats import t as student_t
 
+from ..solvers.active_set import solve_simplex_qp
 from ...exceptions import MlsynthEstimationError
 
 
@@ -113,21 +114,51 @@ def uniform_V(F: int) -> np.ndarray:
 
 def solve_scm_simplex(X1: np.ndarray, X0: np.ndarray, Vdiag: np.ndarray
                       ) -> np.ndarray:
-    """Classic SCM warm-start: min (X1-X0 w)'V(X1-X0 w), w>=0, sum w=1."""
-    import cvxpy as cp
+    """Classic SCM warm-start: min (X1-X0 w)'V(X1-X0 w), w>=0, sum w=1.
 
-    J = X0.shape[1]
-    W = cp.Variable(J)
-    r = X1 - X0 @ W
-    obj = cp.Minimize(cp.quad_form(r, cp.psd_wrap(np.diag(Vdiag))))
+    A diagonal metric on a residual is a row scaling of the design. With
+    ``d = sqrt(Vdiag)`` the objective is ``||d*X1 - (d*X0) w||^2``, which is the
+    program :func:`~mlsynth.utils.solvers.active_set.solve_simplex_qp` solves,
+    so the reshaping is the scaling and nothing else. ``solve_cscm_penalized``
+    below builds its own design the same way.
+    """
+    X1 = np.asarray(X1, dtype=float).ravel()
+    X0 = np.asarray(X0, dtype=float)
+    Vdiag = np.asarray(Vdiag, dtype=float).ravel()
+
+    if X0.ndim != 2:
+        raise MlsynthEstimationError("X0 must be 2D (features, donors).")
+    if X0.shape[1] == 0:
+        raise MlsynthEstimationError(
+            "No donors: sum(w) == 1 has no solution over an empty pool."
+        )
+    if X1.shape[0] != X0.shape[0] or Vdiag.shape[0] != X0.shape[0]:
+        raise MlsynthEstimationError(
+            f"Feature counts disagree: X0 has {X0.shape[0]} rows, X1 has "
+            f"{X1.shape[0]} and V has {Vdiag.shape[0]}."
+        )
+    # A negative entry makes the objective non-convex, so the fit it returns
+    # is not a minimum of anything. The cvxpy form wrapped the metric in
+    # `psd_wrap`, which suppresses that check, and OSQP then failed with a bare
+    # status code; this says which entries are at fault.
+    if np.any(Vdiag < 0.0):
+        bad = np.flatnonzero(Vdiag < 0.0).tolist()
+        raise MlsynthEstimationError(
+            f"V has negative entries at features {bad}; a feature weight "
+            "cannot be negative."
+        )
+    # With every weight zero the objective is constant, so every point of the
+    # simplex minimises it and the answer carries no information about fit.
+    if not np.any(Vdiag > 0.0):
+        raise MlsynthEstimationError(
+            "V weights every feature zero, which leaves no objective to fit."
+        )
+
+    d = np.sqrt(Vdiag)
     try:
-        cp.Problem(obj, [W >= 0, cp.sum(W) == 1]).solve(
-            solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-9, max_iter=100000)
-    except Exception as exc:  # pragma: no cover - solver fallback
+        return solve_simplex_qp(d[:, None] * X0, d * X1)
+    except ValueError as exc:  # pragma: no cover - the guards above precede it
         raise MlsynthEstimationError(f"SCM warm-start failed: {exc}") from exc
-    if W.value is None:  # pragma: no cover
-        raise MlsynthEstimationError("SCM warm-start returned no solution.")
-    return np.maximum(np.asarray(W.value, dtype=float), 0.0)
 
 
 def solve_cscm_penalized(X1: np.ndarray, X0: np.ndarray, Vdiag: np.ndarray,

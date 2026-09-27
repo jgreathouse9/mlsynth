@@ -241,14 +241,17 @@ class TestRuntimeWarnings:
                                    spatial_matrix=W)
 
     def test_rank_deficient_wls_warns(self):
-        # W == 0 -> WD column is all-zero -> design rank-deficient -> warn.
+        # W == 0 -> the WD column is all-zero, so dropping D and WD costs the
+        # rank one dimension and not two: tau_s has nothing behind it. This is
+        # the deficiency the check exists for, as against an emptied nuisance
+        # dummy, which does not reach either effect column.
         N = 8
         df, _ = _panel(N=N, W=np.zeros((N, N)), tau_s=0.0)
         inp = prepare_spsydid_inputs(
             df=df, outcome="y", treat="D", unitid="unit", time="time",
             spatial_matrix=np.zeros((N, N)),
         )
-        with pytest.warns(RuntimeWarning, match="rank-deficient"):
+        with pytest.warns(RuntimeWarning, match="cannot separate the direct"):
             pipeline_mod.run_spsydid(inp)
 
 

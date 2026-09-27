@@ -21,7 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .inference import did_inference, hac_lag
+from ...exceptions import MlsynthEstimationError
+from .inference import adid_inference, did_inference, hac_lag
 
 
 def did_from_mean(
@@ -84,36 +85,40 @@ def did_from_mean(
     )
     post_cf_mean = counterfactual[T0:].mean()
 
+    # Nothing below is rounded. These values are read straight into
+    # ``FDIDMethodFit`` by ``results_assembly``, and from there into the
+    # standardized ``time_series`` contract, so a display convention applied here
+    # becomes the number every caller gets. It used to be: the counterfactual and
+    # the observed series went out at 3 decimals and the scalars at 4, which on a
+    # proportion-scale outcome cost a fifth of the effect -- an ATT of -0.000166
+    # reported as -0.0002. Li's own ``Fun_FDID.R`` returns raw doubles and her
+    # readme prints eight significant figures, so the quantization was never the
+    # method's either. Formatting belongs to whoever displays the result.
     return {
         "Effects": {
-            "ATT": round(float(att), 4),
-            "Percent ATT": round(100 * att / post_cf_mean, 3)
-            if post_cf_mean != 0 else np.nan,
-            "SATT": round(float(satt), 3) if not np.isnan(satt) else np.nan,
+            "ATT": float(att),
+            "Percent ATT": (100.0 * att / post_cf_mean
+                            if post_cf_mean != 0 else np.nan),
+            "SATT": float(satt),
         },
         "Fit": {
-            "T0 RMSE": round(float(rmse), 4),
-            "R-Squared": round(float(r2), 4) if not np.isnan(r2) else np.nan,
+            "T0 RMSE": float(rmse),
+            "R-Squared": float(r2),
             "Pre-Periods": T0,
         },
         "Inference": {
-            "P-Value": round(float(pval), 4) if not np.isnan(pval) else np.nan,
-            "95% CI": (round(float(ci[0]), 4), round(float(ci[1]), 4))
-            if not np.isnan(ci[0]) else (np.nan, np.nan),
-            "SE": round(float(se), 4) if not np.isnan(se) else np.nan,
-            "Intercept": round(float(intercept), 4),
+            "P-Value": float(pval),
+            "95% CI": (float(ci[0]), float(ci[1])),
+            "SE": float(se),
+            "Intercept": float(intercept),
             "Method": inference,
             "Lag": used_lag,
         },
         "Vectors": {
-            "Observed": np.round(treated, 3),
-            "Counterfactual": np.round(counterfactual, 3),
-            "Gap": np.round(
-                np.column_stack(
-                    (treated - counterfactual, np.arange(T) - T0 + 1)
-                ),
-                3,
-            ),
+            "Observed": np.asarray(treated, dtype=float),
+            "Counterfactual": np.asarray(counterfactual, dtype=float),
+            "Gap": np.column_stack(
+                (treated - counterfactual, np.arange(T) - T0 + 1)),
         },
     }
 
@@ -180,6 +185,134 @@ def _compute_fdid_result(
     return result
 
 
+def adid_from_mean(
+    treated: np.ndarray,
+    mean_ctrl: np.ndarray,
+    pre_periods: int,
+    inference: str = "analytic",
+    lrvar_lag: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Augmented difference-in-differences from a pre-computed donor average.
+
+    Li and Van den Bulte (2022), Equation 2.4: regress the treated outcome on a
+    constant and the control average over the pre-period,
+
+        y_1t = delta_1 + delta_2 * ybar_co,t + e_1t,   t = 1, ..., T1,
+
+    and predict the counterfactual as ``delta_1 + delta_2 * ybar_co,t``.
+    :func:`did_from_mean` is the same construction with ``delta_2`` held at
+    one, which is why the two live side by side: ADID buys one parameter, and
+    what it buys is the treated unit being allowed to run at a different scale
+    to the control average instead of merely a different level.
+
+    The donor average is the caller's. The paper averages the whole control
+    group, so :func:`forward_did_select` passes the unselected mean here; a
+    forward-selected average with a free slope is a combination neither paper
+    studies and this function makes no claim about it.
+
+    Parameters
+    ----------
+    treated : np.ndarray
+        Treated-unit outcome vector, shape ``(T,)``.
+    mean_ctrl : np.ndarray
+        Average outcome of the donor pool, shape ``(T,)``.
+    pre_periods : int
+        Number of pre-treatment periods ``T1``.
+    inference : {"analytic", "hac"}, default "analytic"
+        Which branch of their Appendix A.1 variance to report; see
+        :func:`~mlsynth.utils.fdid_helpers.inference.adid_inference`.
+    lrvar_lag : int, optional
+        Truncation lag for ``inference="hac"``.
+
+    Returns
+    -------
+    dict
+        ``Effects``, ``Fit``, ``Inference`` and ``Vectors`` blocks, matching
+        :func:`did_from_mean` so both reach the same result assembly.
+        ``Inference["Slope"]`` is ``delta_2``, which no other fit reports.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If there are fewer pre-treatment periods than the two parameters need,
+        or the control average is constant over them, which leaves the slope
+        unidentified.
+    """
+    treated = np.asarray(treated, dtype=float).ravel()
+    mean_ctrl = np.asarray(mean_ctrl, dtype=float).ravel()
+    T = treated.size
+    T0 = int(pre_periods)
+    T1 = T - T0
+
+    if T0 < 3:
+        raise MlsynthEstimationError(
+            f"ADID fits an intercept and a slope, so it needs at least three "
+            f"pre-treatment periods to leave a residual; found {T0}. Use the "
+            f"DID fit, which estimates one parameter."
+        )
+
+    X = np.column_stack([np.ones(T), mean_ctrl])
+    X_pre = X[:T0]
+    spread = float(np.ptp(mean_ctrl[:T0]))
+    scale = max(float(np.max(np.abs(mean_ctrl[:T0]))), 1.0)
+    if spread <= 1e-12 * scale:
+        raise MlsynthEstimationError(
+            "The donor average is constant over the pre-treatment window, so "
+            "ADID's slope is not identified: every slope fits the data equally "
+            "well and the counterfactual would be arbitrary. Use the DID fit, "
+            "which holds the slope at one."
+        )
+
+    delta = np.linalg.solve(X_pre.T @ X_pre, X_pre.T @ treated[:T0])
+    counterfactual = X @ delta
+    resid_pre = treated[:T0] - counterfactual[:T0]
+
+    att = float(np.mean(treated[T0:] - counterfactual[T0:])) if T1 > 0 else np.nan
+    rmse = float(np.sqrt(np.mean(resid_pre ** 2)))
+    ss_tot = float(np.sum((treated[:T0] - treated[:T0].mean()) ** 2))
+    r2 = 1.0 - float(np.sum(resid_pre ** 2)) / ss_tot if ss_tot > 1e-12 else np.nan
+
+    used_lag = (
+        (hac_lag(T0, T1) if lrvar_lag is None else int(lrvar_lag))
+        if inference == "hac"
+        else None
+    )
+    se, ci, pval, satt = adid_inference(
+        att, resid_pre, X_pre, X[T0:].mean(axis=0) if T1 > 0 else np.zeros(2),
+        T0, T1, method=inference, lrvar_lag=used_lag,
+    )
+    post_cf_mean = float(np.mean(counterfactual[T0:])) if T1 > 0 else np.nan
+
+    return {
+        "Effects": {
+            "ATT": float(att),
+            "Percent ATT": (100.0 * att / post_cf_mean
+                            if post_cf_mean not in (0.0, np.nan) else np.nan),
+            "SATT": float(satt),
+        },
+        "Fit": {
+            "T0 RMSE": float(rmse),
+            "R-Squared": float(r2),
+            "Pre-Periods": T0,
+        },
+        "Inference": {
+            "P-Value": float(pval),
+            "95% CI": (float(ci[0]), float(ci[1])),
+            "SE": float(se),
+            "Intercept": float(delta[0]),
+            "Slope": float(delta[1]),
+            "Method": inference,
+            "Lag": used_lag,
+        },
+        "Vectors": {
+            "Observed": np.asarray(treated, dtype=float),
+            "Counterfactual": np.asarray(counterfactual, dtype=float),
+            "Gap": np.column_stack(
+                (treated - counterfactual, np.arange(T) - T0 + 1)),
+        },
+    }
+
+
 def forward_did_select(
     treated_outcome: np.ndarray,
     control_outcomes: np.ndarray,
@@ -244,6 +377,18 @@ def forward_did_select(
     did_all = did_from_mean(
         treated_outcome, mean_all, T0, inference=inference, lrvar_lag=lrvar_lag
     )
+    # The same donor average, with the slope fitted instead of held at one.
+    # It is refused on a panel that cannot identify a slope, and the selection
+    # below does not depend on it, so the refusal is recorded and not raised.
+    try:
+        adid_all = adid_from_mean(
+            treated_outcome, mean_all, T0, inference=inference,
+            lrvar_lag=lrvar_lag
+        )
+    except MlsynthEstimationError as exc:
+        adid_all, adid_unavailable = None, str(exc)
+    else:
+        adid_unavailable = None
 
     # --- constants precomputed once (independent of the selection step) ---
     # Adding donor j to k already-selected donors gives the candidate average
@@ -314,4 +459,9 @@ def forward_did_select(
     if verbose:
         fdid_result["intermediary"] = intermediary_results
 
-    return {"DID": did_all, "FDID": fdid_result}
+    out = {"DID": did_all, "FDID": fdid_result}
+    if adid_all is not None:
+        out["ADID"] = adid_all
+    else:
+        out["ADID_unavailable"] = adid_unavailable
+    return out

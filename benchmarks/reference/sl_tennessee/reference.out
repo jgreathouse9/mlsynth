@@ -1,0 +1,348 @@
+== REFERENCE VALUES ==
+eta	48.2462327323
+lasso_lambda	0.3678794412
+lasso_n_selected	0
+factor_lambda	0.0000453999
+ssr_lasso	0.0450175266
+ssr_factor	0.0222340576
+ssr_did	0.0215265935
+statistic_3	0.0058453286
+att_3	0.0411142683
+p_value_3	0.3597640236
+crit05_3	0.0076491239
+crit10_3	0.0071330401
+att_3_skip0	0.0411142683
+att_3_skip4	0.0441804359
+att_3_skip8	0.0434677877
+att_3_skip12	0.0429527501
+weight	lasso	0.1406894275
+weight	factor	0.4223233978
+weight	did	0.4369871747
+path	lasso	1	0.1231434700
+path	lasso	2	0.1231434700
+path	lasso	3	0.1231434700
+path	lasso	4	0.1231434700
+path	lasso	5	0.1231434700
+path	lasso	6	0.1231434700
+path	lasso	7	0.1231434700
+path	lasso	8	0.1231434700
+path	lasso	9	0.1231434700
+path	lasso	10	0.1231434700
+path	lasso	11	0.1231434700
+path	lasso	12	0.1231434700
+path	lasso	13	0.1231434700
+path	lasso	14	0.1231434700
+path	lasso	15	0.1231434700
+path	lasso	16	0.1231434700
+path	lasso	17	0.1231434700
+path	lasso	18	0.1231434700
+path	lasso	19	0.1231434700
+path	lasso	20	0.1231434700
+path	lasso	21	0.1231434700
+path	lasso	22	0.1231434700
+path	lasso	23	0.1231434700
+path	lasso	24	0.1231434700
+path	lasso	25	0.1231434700
+path	lasso	26	0.1231434700
+path	lasso	27	0.1231434700
+path	lasso	28	0.1231434700
+path	lasso	29	0.1231434700
+path	lasso	30	0.1231434700
+path	lasso	31	0.1231434700
+path	lasso	32	0.1231434700
+path	lasso	33	0.1231434700
+path	lasso	34	0.1231434700
+path	lasso	35	0.1231434700
+path	lasso	36	0.1231434700
+path	lasso	37	0.1231434700
+path	lasso	38	0.1231434700
+path	lasso	39	0.1231434700
+path	lasso	40	0.1231434700
+path	lasso	41	0.1231434700
+path	lasso	42	0.1231434700
+path	lasso	43	0.1231434700
+path	lasso	44	0.1231434700
+path	lasso	45	0.1231434700
+path	lasso	46	0.1231434700
+path	lasso	47	0.1231434700
+path	lasso	48	0.1231434700
+path	lasso	49	0.1231434700
+path	lasso	50	0.1231434700
+path	lasso	51	0.1231434700
+path	lasso	52	0.1231434700
+path	lasso	53	0.1231434700
+path	lasso	54	0.1231434700
+path	lasso	55	0.1231434700
+path	lasso	56	0.1231434700
+path	lasso	57	0.1231434700
+path	lasso	58	0.1231434700
+path	lasso	59	0.1231434700
+path	lasso	60	0.1231434700
+path	lasso	61	0.1231434700
+path	lasso	62	0.1231434700
+path	lasso	63	0.1231434700
+path	lasso	64	0.1231434700
+path	lasso	65	0.1231434700
+path	lasso	66	0.1231434700
+path	lasso	67	0.1231434700
+path	lasso	68	0.1231434700
+path	lasso	69	0.1231434700
+path	lasso	70	0.1231434700
+path	lasso	71	0.1231434700
+path	lasso	72	0.1231434700
+path	lasso	73	0.1231434700
+path	lasso	74	0.1231434700
+path	lasso	75	0.1231434700
+path	lasso	76	0.1231434700
+path	lasso	77	0.1231434700
+path	lasso	78	0.1231434700
+path	lasso	79	0.1231434700
+path	lasso	80	0.1231434700
+path	lasso	81	0.1231434700
+path	lasso	82	0.1231434700
+path	lasso	83	0.1231434700
+path	lasso	84	0.1231434700
+path	lasso	85	0.1231434700
+path	lasso	86	0.1231434700
+path	lasso	87	0.1231434700
+path	lasso	88	0.1231434700
+path	lasso	89	0.1231434700
+path	lasso	90	0.1231434700
+path	lasso	91	0.1231434700
+path	lasso	92	0.1231434700
+path	lasso	93	0.1231434700
+path	lasso	94	0.1231434700
+path	lasso	95	0.1231434700
+path	lasso	96	0.1231434700
+path	lasso	97	0.1231434700
+path	lasso	98	0.1231434700
+path	lasso	99	0.1231434700
+path	lasso	100	0.1231434700
+path	factor	1	0.1356088013
+path	factor	2	0.1387295447
+path	factor	3	0.1312875967
+path	factor	4	0.1243267067
+path	factor	5	0.1325976433
+path	factor	6	0.1265656051
+path	factor	7	0.1278425587
+path	factor	8	0.1297919150
+path	factor	9	0.1244183603
+path	factor	10	0.1372554629
+path	factor	11	0.1198940789
+path	factor	12	0.1263448787
+path	factor	13	0.1163813542
+path	factor	14	0.1220705072
+path	factor	15	0.1145170892
+path	factor	16	0.1135264652
+path	factor	17	0.1193793371
+path	factor	18	0.1245308937
+path	factor	19	0.1115981384
+path	factor	20	0.1167035503
+path	factor	21	0.1232177079
+path	factor	22	0.1192738189
+path	factor	23	0.1281117990
+path	factor	24	0.1179416742
+path	factor	25	0.1174339598
+path	factor	26	0.1112924285
+path	factor	27	0.1181183634
+path	factor	28	0.1089519069
+path	factor	29	0.1285322831
+path	factor	30	0.1280596709
+path	factor	31	0.1254586803
+path	factor	32	0.1188599895
+path	factor	33	0.1162453977
+path	factor	34	0.1086189910
+path	factor	35	0.1014833639
+path	factor	36	0.0944191563
+path	factor	37	0.0887382529
+path	factor	38	0.0867518120
+path	factor	39	0.0822737533
+path	factor	40	0.0831070892
+path	factor	41	0.1414486445
+path	factor	42	0.1442812408
+path	factor	43	0.1506047514
+path	factor	44	0.1359635161
+path	factor	45	0.1561065958
+path	factor	46	0.1502436594
+path	factor	47	0.1487025908
+path	factor	48	0.1536178209
+path	factor	49	0.1413976555
+path	factor	50	0.1499531831
+path	factor	51	0.1522051401
+path	factor	52	0.1478712820
+path	factor	53	0.1435118840
+path	factor	54	0.1447709812
+path	factor	55	0.1472523199
+path	factor	56	0.1445684992
+path	factor	57	0.1477651493
+path	factor	58	0.1507707941
+path	factor	59	0.1502866705
+path	factor	60	0.1437868144
+path	factor	61	0.1560016173
+path	factor	62	0.1581370074
+path	factor	63	0.1543804228
+path	factor	64	0.1509920004
+path	factor	65	0.1598985293
+path	factor	66	0.1611478858
+path	factor	67	0.1581091850
+path	factor	68	0.1646663097
+path	factor	69	0.1622104180
+path	factor	70	0.1669002382
+path	factor	71	0.1659228701
+path	factor	72	0.1631146822
+path	factor	73	0.1845124330
+path	factor	74	0.1757926741
+path	factor	75	0.1712573129
+path	factor	76	0.1677931132
+path	factor	77	0.1763986072
+path	factor	78	0.1754661587
+path	factor	79	0.1800590478
+path	factor	80	0.1749595800
+path	factor	81	0.1618131451
+path	factor	82	0.1753422589
+path	factor	83	0.1745096534
+path	factor	84	0.1679807523
+path	factor	85	0.1531006065
+path	factor	86	0.1525860669
+path	factor	87	0.1558169132
+path	factor	88	0.1599749874
+path	factor	89	0.1560938197
+path	factor	90	0.1541922212
+path	factor	91	0.1497676954
+path	factor	92	0.1519878308
+path	factor	93	0.1473328319
+path	factor	94	0.1674660191
+path	factor	95	0.1564895600
+path	factor	96	0.1566279710
+path	factor	97	0.1561391437
+path	factor	98	0.1691115832
+path	factor	99	0.1608217335
+path	factor	100	0.1552704042
+path	did	1	0.1406044485
+path	did	2	0.1476910554
+path	did	3	0.1347100958
+path	did	4	0.1250586864
+path	did	5	0.1375896523
+path	did	6	0.1261904772
+path	did	7	0.1297363867
+path	did	8	0.1333090279
+path	did	9	0.1246448486
+path	did	10	0.1448171531
+path	did	11	0.1189862742
+path	did	12	0.1285143048
+path	did	13	0.1133970039
+path	did	14	0.1200367010
+path	did	15	0.1094575661
+path	did	16	0.1091429463
+path	did	17	0.1174865801
+path	did	18	0.1262462574
+path	did	19	0.1038672894
+path	did	20	0.1137421192
+path	did	21	0.1232504265
+path	did	22	0.1177557379
+path	did	23	0.1297924972
+path	did	24	0.1159157963
+path	did	25	0.1152346333
+path	did	26	0.1058380713
+path	did	27	0.1162876202
+path	did	28	0.1031064055
+path	did	29	0.1309188957
+path	did	30	0.1309751420
+path	did	31	0.1262653075
+path	did	32	0.1174954687
+path	did	33	0.1137116956
+path	did	34	0.1027659963
+path	did	35	0.0926044864
+path	did	36	0.0825570937
+path	did	37	0.0734923947
+path	did	38	0.0695734562
+path	did	39	0.0640397481
+path	did	40	0.0637162469
+path	did	41	0.1503990306
+path	did	42	0.1537356665
+path	did	43	0.1646087474
+path	did	44	0.1421553974
+path	did	45	0.1729385404
+path	did	46	0.1632348195
+path	did	47	0.1611600578
+path	did	48	0.1682852792
+path	did	49	0.1513566672
+path	did	50	0.1634490423
+path	did	51	0.1674134409
+path	did	52	0.1617305698
+path	did	53	0.1541513471
+path	did	54	0.1554927597
+path	did	55	0.1595032102
+path	did	56	0.1545786571
+path	did	57	0.1599684476
+path	did	58	0.1632125785
+path	did	59	0.1632674554
+path	did	60	0.1534141360
+path	did	61	0.1718317507
+path	did	62	0.1750127807
+path	did	63	0.1694089834
+path	did	64	0.1649173859
+path	did	65	0.1778782374
+path	did	66	0.1796200020
+path	did	67	0.1749467227
+path	did	68	0.1847280836
+path	did	69	0.1813073369
+path	did	70	0.1879596790
+path	did	71	0.1862266895
+path	did	72	0.1821547791
+path	did	73	0.2143163503
+path	did	74	0.2007675292
+path	did	75	0.1947553821
+path	did	76	0.1887660237
+path	did	77	0.2018663475
+path	did	78	0.2015438883
+path	did	79	0.2085071646
+path	did	80	0.2001593548
+path	did	81	0.1799470888
+path	did	82	0.2003600938
+path	did	83	0.1990580446
+path	did	84	0.1896028171
+path	did	85	0.1681598100
+path	did	86	0.1688650603
+path	did	87	0.1741340049
+path	did	88	0.1785672561
+path	did	89	0.1719841593
+path	did	90	0.1697152398
+path	did	91	0.1620796423
+path	did	92	0.1661441951
+path	did	93	0.1597483463
+path	did	94	0.1895464363
+path	did	95	0.1724461688
+path	did	96	0.1731580575
+path	did	97	0.1734591846
+path	did	98	0.1911096334
+path	did	99	0.1798997672
+path	did	100	0.1717156419
+== SESSION INFO ==
+R version 4.3.3 (2024-02-29)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: Ubuntu 24.04.4 LTS
+
+Matrix products: default
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.26.so;  LAPACK version 3.12.0
+
+locale:
+ [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
+ [4] LC_COLLATE=C        LC_MONETARY=C       LC_MESSAGES=C      
+ [7] LC_PAPER=C          LC_NAME=C           LC_ADDRESS=C       
+[10] LC_TELEPHONE=C      LC_MEASUREMENT=C    LC_IDENTIFICATION=C
+
+time zone: Etc/UTC
+tzcode source: system (glibc)
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] glmnet_4.1-8 Matrix_1.6-5
+
+loaded via a namespace (and not attached):
+ [1] compiler_4.3.3   survival_3.5-8   Rcpp_1.0.12      splines_4.3.3   
+ [5] codetools_0.2-19 grid_4.3.3       iterators_1.0.14 foreach_1.5.2   
+ [9] shape_1.4.6      lattice_0.22-5  

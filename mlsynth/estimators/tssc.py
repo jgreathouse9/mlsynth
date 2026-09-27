@@ -120,6 +120,7 @@ class TSSC:
             variants = {
                 method: fit_variant(
                     inputs, method, n_bootstrap=self.draws,
+                    subsample_size=self.subsample_size,
                     confidence_level=self.ci, rng=ci_rng,
                     compute_scpi_pi=self.compute_scpi_pi,
                     scpi_sims=self.scpi_sims, scpi_alpha=self.scpi_alpha,

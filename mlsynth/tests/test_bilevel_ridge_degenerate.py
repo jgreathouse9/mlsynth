@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 
 from mlsynth.utils.bilevel.engine import BilevelSCM
-from mlsynth.utils.bilevel.ridge_augment import (
+from mlsynth.utils.solvers.ridge_augment import (
     best_lambda,
     build_matching,
     generate_lambdas,

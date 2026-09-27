@@ -29,7 +29,7 @@ import warnings
 import numpy as np
 
 from mlsynth import MAREX
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from panel import ALPHA, H, T0, TB, TE, draw, frame
 
 J = 20

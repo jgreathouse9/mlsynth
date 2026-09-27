@@ -3,7 +3,7 @@
 Minimise ``f(w) = 1/2 w' D w - d' w`` subject to ``lo <= w <= hi`` via a primal
 active-set method with a ratio test. For a strictly-convex ``D`` (any
 ``ridge > 0``) this terminates in finitely many pivots at the exact KKT point --
-the box analogue of :func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`.
+the box analogue of :func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`.
 
 Why not a first-order / interior-point QP: SRC re-solves this problem in the hot
 placebo and bootstrap loops, and the reported weights must pin the box bounds

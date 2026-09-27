@@ -39,7 +39,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.utils.conformal import conformal_refit_gaps
-from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 
 _SETTINGS = settings(
     max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow]

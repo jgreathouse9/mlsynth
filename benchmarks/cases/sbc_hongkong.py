@@ -221,7 +221,7 @@ def _detrend_max_abs_diff(df):
 
 
 def run() -> dict:
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
 
     df, w_ml, att_ml = _mlsynth_sbc()
     _ft, c1, c0 = _cyclical(df)
@@ -262,7 +262,7 @@ def comparison() -> dict:
     transcribed. Returns ``{"rows": [...], "mlsynth_call": {...},
     "reference": {...}}``.
     """
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
 
     df, w_ml, att_ml = _mlsynth_sbc()
     _ft, c1, c0 = _cyclical(df)

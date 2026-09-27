@@ -1,0 +1,60 @@
+
+=== dgp6 T0=30  reps=120   paper: PDA 1.181  PCA 1.717
+   LassoCV           1.636
+   alpha=0.02        1.773
+   alpha=0.05        1.698
+   alpha=0.1         1.667
+   alpha=0.2         1.633
+   alpha=0.4         1.524
+   alpha=0.8         1.500  <- best on path
+   M2 split          1.596
+   A1 |mean e|       0.577
+   PCA r=2           1.813
+   PCA r=CV          1.847
+   best-on-path 1.500 vs paper PDA 1.181  -> paper is BELOW my whole path
+   mean CV r = 5.00
+
+=== dgp6 T0=50  reps=120   paper: PDA 0.739  PCA 1.712
+   LassoCV           0.896
+   alpha=0.02        0.962  <- best on path
+   alpha=0.05        1.042
+   alpha=0.1         1.128
+   alpha=0.2         1.202
+   alpha=0.4         1.244
+   alpha=0.8         1.364
+   M2 split          1.295
+   A1 |mean e|       0.260
+   PCA r=2           1.851
+   PCA r=CV          1.854
+   best-on-path 0.962 vs paper PDA 0.739  -> paper is BELOW my whole path
+   mean CV r = 5.00
+
+=== dgp7 T0=30  reps=120   paper: PDA 1.315  PCA 1.873
+   LassoCV           1.721
+   alpha=0.02        2.007
+   alpha=0.05        1.812
+   alpha=0.1         1.785
+   alpha=0.2         1.741
+   alpha=0.4         1.686
+   alpha=0.8         1.598  <- best on path
+   M2 split          1.704
+   A1 |mean e|       0.920
+   PCA r=2           1.923
+   PCA r=CV          2.014
+   best-on-path 1.598 vs paper PDA 1.315  -> paper is BELOW my whole path
+   mean CV r = 5.00
+
+=== dgp7 T0=50  reps=120   paper: PDA 0.857  PCA 1.800
+   LassoCV           1.066
+   alpha=0.02        1.025  <- best on path
+   alpha=0.05        1.093
+   alpha=0.1         1.187
+   alpha=0.2         1.252
+   alpha=0.4         1.333
+   alpha=0.8         1.465
+   M2 split          1.363
+   A1 |mean e|       0.483
+   PCA r=2           1.952
+   PCA r=CV          1.923
+   best-on-path 1.025 vs paper PDA 0.857  -> paper is BELOW my whole path
+   mean CV r = 5.00

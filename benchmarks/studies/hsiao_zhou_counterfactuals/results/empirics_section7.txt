@@ -1,0 +1,32 @@
+
+Table 9, cigarette consumption   beta = cce, r = 2, beta = [21.4331  0.1613 -0.0279]
+  method      mine    paper  ratio
+  PCA        6.987    7.460   0.94
+  CCE        8.616    9.120   0.94
+  CPDA       4.934    9.560   0.52
+  PDA       14.004   14.300   0.98
+  PDAX      14.004   16.200   0.86
+  MA         9.659    8.330   1.16
+  MB        10.339    7.270   1.42
+  SCM       19.514   18.500   1.05   (mlsynth VanillaSC, outcome only)
+
+Table 10, personal healthcare expenditure   beta = cce, r = 2, beta = [0.3744]
+  method      mine    paper  ratio
+  PCA        0.051    0.059   0.87
+  CCE        0.043    0.053   0.82
+  CPDA       0.053    0.085   0.63
+  PDA        0.080    0.061   1.31
+  PDAX       0.080    0.061   1.31
+  MA         0.056    0.062   0.91
+  MB         0.056    0.047   1.20
+
+Tables 11-16, turnout: mean effect by state
+  state   MA mine   paper  MB mine   paper
+  ME         4.11    3.22     3.84    2.85
+  MN         3.23    4.49     3.23    4.52
+  WI         5.82    8.39     5.97    8.59
+  WY         7.23    7.20     7.95    8.22
+  ID        -4.20   -0.42    -3.96    0.64
+  NH         6.44    8.04     6.70    8.28
+  first wave: mine 4.39, paper's own columns 5.37, Xu (2017) 7.2
+  second wave: mine 3.16, paper's own columns 4.94, Xu (2017) 2.17

@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 225 registered cases. ``paths`` is what the case
+All 233 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
-* ``A`` -- empirical replication (75 cases)
-* ``B`` -- Monte Carlo / simulation (63 cases)
-* ``C`` -- theoretical property or design calibration (11 cases)
-* ``X`` -- cross-validation against a reference implementation (105 cases)
+* ``A`` -- empirical replication (77 cases)
+* ``B`` -- Monte Carlo / simulation (66 cases)
+* ``C`` -- theoretical property or design calibration (12 cases)
+* ``X`` -- cross-validation against a reference implementation (108 cases)
 
-By data: 78 simulated, 132 empirical, 15 both -- so 93 cases fit at least one generated panel.
+By data: 81 simulated, 137 empirical, 15 both -- so 96 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -70,6 +70,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - case
      - paths
      - data
+   * - ``adid_showroom``
+     - X
+     - empirical
    * - ``arco_resampling_mc``
      - B
      - simulated
@@ -159,6 +162,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - empirical
    * - ``conformal_window_count``
      - C
+     - simulated
+   * - ``cpda``
+     - B X
      - simulated
    * - ``cscipca_brexit``
      - A
@@ -262,6 +268,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``ferman_pinto_mc``
      - B X
      - simulated
+   * - ``fgrc_denoise_behavior``
+     - C
+     - empirical
    * - ``fgrc_grc_crossval``
      - X
      - simulated
@@ -269,6 +278,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - B
      - simulated
    * - ``fma_coverage_mc``
+     - B
+     - simulated
+   * - ``fma_percentile_t_mc``
      - B
      - simulated
    * - ``fsc_estimator``
@@ -442,6 +454,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``pda_brexit``
      - A
      - empirical
+   * - ``pda_hcw_cepa``
+     - A
+     - empirical
    * - ``pda_hcw_hongkong``
      - A
      - empirical
@@ -613,6 +628,15 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``siv_syria_mc``
      - B
      - simulated
+   * - ``sl``
+     - B
+     - simulated
+   * - ``sl_table4``
+     - A
+     - empirical
+   * - ``sl_tennessee``
+     - X
+     - empirical
    * - ``snn_prop99``
      - X
      - empirical
@@ -762,7 +786,7 @@ Path A — empirical replications
    * - ``brabander_brexit_insample``
      - de Brabander et al. (2025) Table 7: the in-sample placebo across twenty pre-Brexit quarters that ranks those seven, all twenty-one cells
    * - ``cwz_ttest``
-     - CWZ 2025 Table 5 carbon-tax debiased t-test
+     - CWZ 2026 Table 5 carbon-tax debiased t-test
    * - ``dsc_dube``
      - DSC distributional SC on Dube minimum-wage (Gunsilius/DiSCo vignette)
    * - ``fsc_okano``
@@ -921,7 +945,7 @@ Path B — Monte Carlo / simulation
    * - ``ctsc_powell_mc``
      - CTSC vs two-way FE bias (Powell 2022 Table 1)
    * - ``cwz_mc``
-     - CWZ 2025 Table 3 application-based Monte Carlo
+     - CWZ 2026 Table 3 application-based Monte Carlo
    * - ``dr_proximal_mc``
      - DR/PIPW recovery + double-robustness (Qiu et al. normal DGP)
    * - ``dsc_mc``
@@ -934,6 +958,8 @@ Path B — Monte Carlo / simulation
      - simulation
    * - ``fma_coverage_mc``
      - FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
+   * - ``fma_percentile_t_mc``
+     - FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang Tables 1-2)
    * - ``hsc_mc``
      - HSC regime adaptation
    * - ``lexscm_design_mc``

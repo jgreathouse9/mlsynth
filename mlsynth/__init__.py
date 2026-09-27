@@ -6,10 +6,13 @@ except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
 
 from .estimators.tssc import TSSC ## Check
 from .estimators.fma import FMA ## Check
+from .estimators.atel import ATEL ## Check
 from .estimators.cfm import CFM ## Check
 from .estimators.gsynth import GSYNTH ## Check
 from .estimators.cscipca import CSCIPCA ## Check
 from .estimators.medsc import MEDSC ## Check
+from .estimators.cpda import CPDA
+from .estimators.sl import SL
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
@@ -129,10 +132,13 @@ __all__ = [
     "HSC",
     "TSSC",
     "FMA",
+    "ATEL",
     "CFM",
     "GSYNTH",
     "CSCIPCA",
     "MEDSC",
+    "CPDA",
+    "SL",
     "PDA",
     "FDID",
     "CLUSTERSC",

@@ -357,20 +357,24 @@ class TestSetupValidation:
 # --------------------------------------------------------------------------- #
 # scm_core: degenerate (all-zero) solver value branch (line 70/76 guards)
 # --------------------------------------------------------------------------- #
-def test_fit_demeaned_sc_no_solution_raises(monkeypatch):
-    # When the QP solver returns no value, surface a clear estimation error
-    # (scm_core.py line 70).
-    import cvxpy as cp
+def test_fit_demeaned_sc_solver_failure_is_named(monkeypatch):
+    """A failing simplex solve is reported, not swallowed.
+
+    The contract predates the move off cvxpy and survives it; only the
+    mechanism changed. cvxpy signalled failure by leaving the variable at
+    ``None`` with a status, so the test injected that. ``solve_simplex_qp``
+    is exact and finite: it returns a point on the simplex or it raises,
+    so there is no no-solution branch left to exercise, and the injection
+    is a raising solver instead.
+    """
     from mlsynth.exceptions import MlsynthEstimationError
+    from mlsynth.utils.spillsynth_helpers.cd import scm_core
 
-    def _fake_solve(self, *a, **k):
-        # Leave self.variables()[0].value as None and report a failure status.
-        self._status = "infeasible"
-        return None
+    def _boom(*a, **k):
+        raise np.linalg.LinAlgError("injected")
 
-    monkeypatch.setattr(cp.Problem, "solve", _fake_solve, raising=True)
-    monkeypatch.setattr(cp.Problem, "status", "infeasible", raising=False)
-    with pytest.raises(MlsynthEstimationError, match="no solution"):
+    monkeypatch.setattr(scm_core, "solve_simplex_qp", _boom, raising=True)
+    with pytest.raises(MlsynthEstimationError, match="simplex QP failed"):
         fit_demeaned_sc(np.random.default_rng(0).standard_normal((4, 10)))
 
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.minnorm import (
+from mlsynth.utils.solvers.minnorm import (
     simplex_gram,
     solve_simplex_minnorm,
     solve_simplex_minnorm_batch,

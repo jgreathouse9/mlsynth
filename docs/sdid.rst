@@ -553,7 +553,7 @@ each iteration is a single batched linear solve over the current supports, so
 what the average one costs.
 
 The reduction is not always available, and
-:func:`mlsynth.utils.bilevel.minnorm.gram_reduction_is_safe` decides. Forming
+:func:`mlsynth.utils.solvers.minnorm.gram_reduction_is_safe` decides. Forming
 :math:`\mathbf{G}` squares the design's condition number, which is free only
 where the design has full column rank. SDID's designs are overdetermined --
 pre-periods by donors for the unit weights, donors by pre-periods for the time
@@ -569,7 +569,7 @@ sufficient and not necessary, and the gap matters for panels with more donors
 than pre-treatment periods. There the minimiser is usually still unique, because
 the objective is flat along a direction only where that direction is feasible at
 the solution, and synthetic-control solutions are too sparse for one to be.
-:func:`mlsynth.utils.bilevel.minnorm.simplex_optimum_is_unique` settles it
+:func:`mlsynth.utils.solvers.minnorm.simplex_optimum_is_unique` settles it
 exactly, on the support, once a solution is in hand.
 
 Two-DataFrame and Single-Cohort Convergence

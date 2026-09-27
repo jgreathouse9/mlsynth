@@ -14,7 +14,7 @@ intercept (and, for the unit weights, an L2 ridge):
 Rather than canonicalise these through cvxpy on every call -- expensive in the
 placebo / jackknife loops, which re-solve them hundreds of times -- we solve
 them natively with the library's active-set simplex QP
-(:func:`mlsynth.utils.bilevel.active_set.solve_simplex_qp`). Two standard
+(:func:`mlsynth.utils.solvers.active_set.solve_simplex_qp`). Two standard
 reductions make the active-set primitive applicable without changing the
 optimum:
 
@@ -53,8 +53,8 @@ import numpy as np
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.minnorm import ridged_gram_reduction_is_safe
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.minnorm import ridged_gram_reduction_is_safe
 
 
 def _solve_intercept_simplex(
@@ -129,7 +129,7 @@ def solve_intercept_simplex_many(
     Notes
     -----
     A group is batched only where
-    :func:`~mlsynth.utils.bilevel.minnorm.ridged_gram_reduction_is_safe` passes
+    :func:`~mlsynth.utils.solvers.minnorm.ridged_gram_reduction_is_safe` passes
     on its centred design, and solved one at a time otherwise. Forming the Gram
     squares the design's condition number, and on a rank-deficient design the
     optimum is a face whose points the two solvers pick differently -- the same
@@ -158,7 +158,7 @@ def solve_intercept_simplex_many(
     On a 40-market daily panel this cuts ``vce="placebo"`` at ``B=500`` by about
     6x with the ATT and its standard error unchanged to full precision.
     """
-    from ..bilevel.minnorm import simplex_gram, solve_simplex_minnorm_batch
+    from ..solvers.minnorm import simplex_gram, solve_simplex_minnorm_batch
 
     out: List[Optional[Tuple[float, np.ndarray]]] = [None] * len(problems)
     groups: Dict[Tuple[int, int], List[int]] = {}

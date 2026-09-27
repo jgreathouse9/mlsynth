@@ -25,8 +25,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
-from mlsynth.utils.bilevel.ridge_augment import _simplex_qp_cvxpy
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.ridge_augment import _simplex_qp_cvxpy
 
 # Representative SCM shapes: (matching rows m == T0, donors J), few to many.
 _SHAPES = [(20, 5), (40, 10), (50, 20), (89, 49), (30, 30), (15, 40), (120, 80)]

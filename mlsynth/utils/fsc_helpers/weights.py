@@ -12,7 +12,7 @@ matches on the pre-treatment objects in :math:`\\mathcal H`,
 which, once each object is carried into :math:`\\mathcal H` by the isometry and
 evaluated on a common grid, is the ordinary simplex least-squares problem on the
 ``(period, grid point)`` pairs stacked into one long vector. So the base solve is
-mlsynth's own exact QP, :func:`mlsynth.utils.bilevel.ridge_augment.simplex_qp`,
+mlsynth's own exact QP, :func:`mlsynth.utils.solvers.ridge_augment.simplex_qp`,
 unchanged.
 
 Everything in this module therefore works on *embedded* coordinates: the caller
@@ -43,7 +43,7 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.ridge_augment import simplex_qp
+from ..solvers.ridge_augment import simplex_qp
 
 # R's optimise() default tolerance, .Machine$double.eps^0.25. Used here for the
 # same reason the authors' scripts do: the cross-validation objective is flat

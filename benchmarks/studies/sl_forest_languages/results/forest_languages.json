@@ -1,0 +1,251 @@
+{
+  "machine": {
+    "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "python": "3.11.15"
+  },
+  "seeds": 30,
+  "their_effect": 5.2227,
+  "their_statistic": 0.691,
+  "arms": {
+    "sklearn_13_own_defaults": {
+      "mlsynth_eta": {
+        "effect_mean": 5.351253318922647,
+        "effect_sd": 0.01481100435599351,
+        "effect_min": 5.3245387342280734,
+        "effect_max": 5.380020800431589,
+        "statistic_mean": 0.7366235481976919,
+        "forest_weight_mean": 0.2039555889446847,
+        "forest_ssr_mean": 0.03259655149974297
+      },
+      "their_eta": {
+        "effect_mean": 5.310026058682781,
+        "effect_sd": 0.014633318164193594,
+        "effect_min": 5.283681840942259,
+        "effect_max": 5.338445033879107,
+        "statistic_mean": 0.7206310543277109,
+        "forest_weight_mean": 0.20007518234991323,
+        "forest_ssr_mean": 0.03259655149974297
+      }
+    },
+    "R_13_own_defaults": {
+      "mlsynth_eta": {
+        "effect_mean": 5.3569387112047995,
+        "effect_sd": 0.011837252957426138,
+        "effect_min": 5.317331531258745,
+        "effect_max": 5.38350259943009,
+        "statistic_mean": 0.7363092847952061,
+        "forest_weight_mean": 0.18398769462344416,
+        "forest_ssr_mean": 0.03524747980628002
+      },
+      "their_eta": {
+        "effect_mean": 5.311381288335264,
+        "effect_sd": 0.011964514233974535,
+        "effect_min": 5.2720010103214365,
+        "effect_max": 5.338687957773472,
+        "statistic_mean": 0.7188229545636029,
+        "forest_weight_mean": 0.17915839079582405,
+        "forest_ssr_mean": 0.03524747980628002
+      }
+    },
+    "sklearn_13_R_settings": {
+      "mlsynth_eta": {
+        "effect_mean": 5.4455247139090455,
+        "effect_sd": 0.010152301573437661,
+        "effect_min": 5.4253638183321105,
+        "effect_max": 5.469531055186255,
+        "statistic_mean": 0.7924510260840459,
+        "forest_weight_mean": 0.17735780006405044,
+        "forest_ssr_mean": 0.03617430686539558
+      },
+      "their_eta": {
+        "effect_mean": 5.395928832819559,
+        "effect_sd": 0.010713057797127752,
+        "effect_min": 5.374355925876369,
+        "effect_max": 5.421191209565531,
+        "statistic_mean": 0.7719478329467228,
+        "forest_weight_mean": 0.17224282901899,
+        "forest_ssr_mean": 0.03617430686539558
+      }
+    },
+    "R_13_sklearn_settings": {
+      "mlsynth_eta": {
+        "effect_mean": 5.34749661245949,
+        "effect_sd": 0.010512999330581679,
+        "effect_min": 5.332200387123809,
+        "effect_max": 5.370452408761512,
+        "statistic_mean": 0.7344478399727079,
+        "forest_weight_mean": 0.20182263287295338,
+        "forest_ssr_mean": 0.03286983789996447
+      },
+      "their_eta": {
+        "effect_mean": 5.305918167384375,
+        "effect_sd": 0.010678822250992414,
+        "effect_min": 5.289417380942801,
+        "effect_max": 5.329746521966216,
+        "statistic_mean": 0.7183763893602004,
+        "forest_weight_mean": 0.1978344899520412,
+        "forest_ssr_mean": 0.03286983789996447
+      }
+    },
+    "sklearn_57_own_defaults": {
+      "mlsynth_eta": {
+        "effect_mean": 5.266156564361554,
+        "effect_sd": 0.011300993288147444,
+        "effect_min": 5.2402295040813405,
+        "effect_max": 5.289921765245635,
+        "statistic_mean": 0.7041920967693152,
+        "forest_weight_mean": 0.15529884438699482,
+        "forest_ssr_mean": 0.0394788240554162
+      },
+      "their_eta": {
+        "effect_mean": 5.217275015762499,
+        "effect_sd": 0.011395029647349779,
+        "effect_min": 5.190028963015047,
+        "effect_max": 5.241923811484141,
+        "statistic_mean": 0.6860642203568851,
+        "forest_weight_mean": 0.14936459103240504,
+        "forest_ssr_mean": 0.0394788240554162
+      }
+    },
+    "R_57_own_defaults": {
+      "mlsynth_eta": {
+        "effect_mean": 5.267889192160409,
+        "effect_sd": 0.009866704843566608,
+        "effect_min": 5.248099029358002,
+        "effect_max": 5.285424852599807,
+        "statistic_mean": 0.7062558445172024,
+        "forest_weight_mean": 0.15373558733270368,
+        "forest_ssr_mean": 0.03972214499369869
+      },
+      "their_eta": {
+        "effect_mean": 5.218603592278276,
+        "effect_sd": 0.00968763081411793,
+        "effect_min": 5.199377996340684,
+        "effect_max": 5.235041874454602,
+        "statistic_mean": 0.6878974675515918,
+        "forest_weight_mean": 0.14774858303722974,
+        "forest_ssr_mean": 0.03972214499369869
+      }
+    },
+    "sklearn_57_R_settings": {
+      "mlsynth_eta": {
+        "effect_mean": 5.3427965481889865,
+        "effect_sd": 0.007674643132748785,
+        "effect_min": 5.328513206642265,
+        "effect_max": 5.360780286126196,
+        "statistic_mean": 0.7385016052196233,
+        "forest_weight_mean": 0.15185704771670958,
+        "forest_ssr_mean": 0.04002323478321549
+      },
+      "their_eta": {
+        "effect_mean": 5.290122081486209,
+        "effect_sd": 0.007827258629623633,
+        "effect_min": 5.275343076505214,
+        "effect_max": 5.30796772260881,
+        "statistic_mean": 0.7181612259116531,
+        "forest_weight_mean": 0.14581140209631388,
+        "forest_ssr_mean": 0.04002323478321549
+      }
+    },
+    "R_57_sklearn_settings": {
+      "mlsynth_eta": {
+        "effect_mean": 5.269331163576715,
+        "effect_sd": 0.012946939167263197,
+        "effect_min": 5.2488756593415555,
+        "effect_max": 5.294695786262206,
+        "statistic_mean": 0.705907558575935,
+        "forest_weight_mean": 0.15576869405873364,
+        "forest_ssr_mean": 0.039405176578880395
+      },
+      "their_eta": {
+        "effect_mean": 5.220433208952723,
+        "effect_sd": 0.013093323751005602,
+        "effect_min": 5.1995300171378185,
+        "effect_max": 5.245192007895012,
+        "statistic_mean": 0.6877236850651969,
+        "forest_weight_mean": 0.1498500238281055,
+        "forest_ssr_mean": 0.039405176578880395
+      }
+    }
+  },
+  "spreads": {
+    "13_matched_settings": {
+      "within_R": 0.002911409386289244,
+      "within_sklearn": 0.0032831370274871755,
+      "across": 0.0030898825922284334,
+      "mean_paths": 0.000841479055006783
+    },
+    "13_each_on_its_own_defaults": {
+      "within_R": 0.0030517928599334437,
+      "within_sklearn": 0.0032831370274871755,
+      "across": 0.0069454995620093635,
+      "mean_paths": 0.005406244750604666
+    },
+    "57_matched_settings": {
+      "within_R": 0.0033148282975961466,
+      "within_sklearn": 0.0032113764483125695,
+      "across": 0.003269967159959492,
+      "mean_paths": 0.00046508546909748705
+    },
+    "57_each_on_its_own_defaults": {
+      "within_R": 0.0030230711403191287,
+      "within_sklearn": 0.0032113764483125695,
+      "across": 0.004029521279595842,
+      "mean_paths": 0.002765151277958372
+    }
+  },
+  "employment_columns": 51,
+  "reproduction": {
+    "design": {
+      "predictors": 57,
+      "forest_weight": 0.1454412015496216,
+      "eta": 51.4307
+    },
+    "horizons": {
+      "0": {
+        "window": "52-88",
+        "effect_mean": 5.229786715833957,
+        "effect_min": 5.223963437821419,
+        "effect_max": 5.233054247415632,
+        "their_effect": 5.22265086402609,
+        "effect_rel_diff": 0.0013663275592515351,
+        "statistic_mean": 0.6918631958812794,
+        "their_statistic": 0.690993973668991,
+        "statistic_rel_diff": 0.0012579302358790958
+      },
+      "1yr": {
+        "window": "56-88",
+        "effect_mean": 5.367946088807248,
+        "effect_min": 5.361032605671116,
+        "effect_max": 5.372162259906717,
+        "their_effect": 5.36235247515936,
+        "effect_rel_diff": 0.001043126813054399,
+        "statistic_mean": 0.6238391933050623,
+        "their_statistic": 0.622535806616939,
+        "statistic_rel_diff": 0.002093673447004404
+      },
+      "2yr": {
+        "window": "60-88",
+        "effect_mean": 5.522715567478035,
+        "effect_min": 5.515149542362038,
+        "effect_max": 5.527528428948065,
+        "their_effect": 5.51667748005122,
+        "effect_rel_diff": 0.0010945152129428581,
+        "statistic_mean": 0.6262020393741679,
+        "their_statistic": 0.624658251401803,
+        "statistic_rel_diff": 0.00247141211838704
+      },
+      "3yr": {
+        "window": "64-88",
+        "effect_mean": 5.593549821832986,
+        "effect_min": 5.585425591733919,
+        "effect_max": 5.59830865561364,
+        "their_effect": 5.5870475903753,
+        "effect_rel_diff": 0.0011638045591176645,
+        "statistic_mean": 0.6123440999606932,
+        "their_statistic": 0.610809309405541,
+        "statistic_rel_diff": 0.0025127163773025355
+      }
+    }
+  }
+}

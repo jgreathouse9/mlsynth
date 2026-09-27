@@ -47,7 +47,7 @@ import warnings
 import numpy as np
 
 from mlsynth import MAREX
-from mlsynth.utils.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 from mlsynth.utils.conformal import block_error_paths
 import panel
 from panel import ALPHA, DELTA, H, T0, TB, TE, draw, frame

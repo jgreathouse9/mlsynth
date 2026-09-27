@@ -29,14 +29,14 @@ things -- that the stop fires, and that the certified answer is untouched.
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel import accelerate
-from mlsynth.utils.bilevel.accelerate import (
+from mlsynth.utils.solvers import accelerate
+from mlsynth.utils.solvers.accelerate import (
     SUPPORT_CHECK_EVERY,
     SUPPORT_PATIENCE,
     SUPPORT_TOL,
     fista_warm_start,
 )
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
 
 # --------------------------------------------------------------------------- #

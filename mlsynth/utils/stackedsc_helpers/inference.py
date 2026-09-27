@@ -55,7 +55,7 @@ treated and fitted against the rest, which is one matrix's columns fitted
 against one another. In Gram form the whole family falls out of a single
 ``M' M`` -- deleting a column deletes a row and a column of it, and each target
 is itself a column -- so
-:func:`mlsynth.utils.bilevel.minnorm.solve_simplex_loo_exact` assembles it with
+:func:`mlsynth.utils.solvers.minnorm.solve_simplex_loo_exact` assembles it with
 no product with the data per refit. Under ``donors-only`` the matrix is the
 cohort's design restricted to the pool and the family is shared by the cohort;
 under ``permutation`` the treated unit's column is appended, a donor to every
@@ -85,7 +85,7 @@ from scipy.stats import norm
 
 from ...exceptions import MlsynthDataError
 from ..bilevel import bias_corrected_gaps
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 from .structures import StackedPlacebo
 
 __all__ = ["cohort_placebo_paths", "sample_placebo_averages",
@@ -99,7 +99,7 @@ def _placebo_weights(A, B, idx, i, donor_pool):
 
     Casting each donor in ``idx`` as treated and refitting against the rest is a
     leave-one-out family over a single matrix, so
-    :func:`~mlsynth.utils.bilevel.minnorm.solve_simplex_loo_exact` assembles all
+    :func:`~mlsynth.utils.solvers.minnorm.solve_simplex_loo_exact` assembles all
     of it from one Gram. Under ``donors-only`` that matrix is the cohort's design
     restricted to the pool. Under ``permutation`` the treated unit is a control,
     so its column is appended: it is a donor to every placebo and a target to
@@ -110,7 +110,7 @@ def _placebo_weights(A, B, idx, i, donor_pool):
     treated unit under ``permutation`` -- or ``None`` if the family cannot be
     formed, in which case the caller solves one at a time.
     """
-    from ..bilevel.minnorm import solve_simplex_loo_exact
+    from ..solvers.minnorm import solve_simplex_loo_exact
 
     n = len(idx)
     M = (A[:, idx] if donor_pool == "donors-only"
