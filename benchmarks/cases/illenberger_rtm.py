@@ -40,14 +40,38 @@ pinned down, so the library's estimator carries less of the bias. It carries
 plenty: its worst cell is 0.413 against a nominal 0.05, and it is the lower of
 the two arms in eighteen of the twenty cells.
 
-One caveat belongs on the paper's own numbers. With a single predictor the
-inner problem is degenerate: every ``w`` on the simplex with ``ybar0'w =
-ybar1`` attains zero, which is a whole face and not a point. Which member a
-solver returns is an implementation detail, and it moves the reported rate --
-this module's level arm overshoots the paper at four pre-periods (0.504 against
-0.40 at rho = 0) and undershoots nothing at ten. So the level arm is pinned to
-the paper with bands that carry that, and the sharp assertions in this case are
-the directions and the nominal-level control, which do not depend on it.
+The single predictor makes the inner problem degenerate, and that has to be
+handled before any of these numbers mean anything. One equation in forty donors:
+every ``w`` on the simplex with ``ybar0'w = ybar1`` attains zero, so the
+minimisers are a 38-dimensional face and not a point. Measured here, 95.1 per
+cent of the level arm's solves land on such a face. Which member comes back
+decides the reported rate, and it moved the per-cell rates by up to 0.107 and
+the weights by up to 0.95 when it was left to the solver's pivot order.
+
+So the level arm selects the least-norm member of that face
+(``solve_simplex_qp_least_norm``), which makes its weights a function of the
+panel. ``level_arm_order_invariance`` measures it directly and is pinned at
+zero: relabelling the donors does not move them. Every level rate in this module
+is then reproducible, and the twenty cells come back identical under either of
+the library's two seeding rules.
+
+The path arm is not canonical in the same way, and cannot be here. It is pinned
+to ``VanillaSC`` by ``seam_vs_vanillasc`` to a tolerance of 1e-10, so it
+inherits whatever tie-break that estimator uses; at four pre-periods its own
+program is non-identified in 38.8 per cent of solves, against 0.1 per cent at
+ten. Its rates move by up to 0.04 between seeding rules, which moves
+``level_over_path_cells`` by two. The band on that count carries it. An earlier
+version of this page said the direction assertions did not depend on the
+tie-break; they did, and ten of the twenty comparisons flipped when the seeding
+rule changed.
+
+The two arms' contributions to that separate cleanly, which is what says the
+level arm was the whole of it. Holding one arm at the cold answer and letting the
+other move: with both cold the count is 18, with both on the priced seed it is 8,
+with only the level arm moved it is 8, and with only the path arm moved it is 19.
+So the level arm accounts for the entire drop of ten, the path arm works one cell
+against it, and the interaction returns one. A drop of ten out of a starting 18,
+not out of the pin's centre of 20.
 
 Tables 1 and 2
 --------------
@@ -108,6 +132,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from mlsynth.utils.solvers.active_set import solve_simplex_qp_least_norm
 from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 N_DONORS = 40
@@ -151,8 +176,8 @@ def _weights(donors_pre: np.ndarray, y_pre: np.ndarray, arm: str) -> np.ndarray:
     ``path`` is what ``VanillaSC`` solves, the whole pre-period path.
     """
     if arm == "level":
-        return simplex_qp(donors_pre.mean(axis=0, keepdims=True),
-                          np.array([y_pre.mean()]))
+        return solve_simplex_qp_least_norm(
+            donors_pre.mean(axis=0, keepdims=True), np.array([y_pre.mean()]))
     return simplex_qp(donors_pre, y_pre)
 
 
@@ -193,6 +218,28 @@ def _cell(pre: int, mu1: float, rho: float) -> dict:
     return {k: v / SIMS for k, v in hits.items()}
 
 
+def _level_arm_order_invariance() -> float:
+    """How far relabelling the donors moves the level arm's weights.
+
+    The invariant the rest of this module rests on, and the one nobody asserted
+    when the level arm read its answer off the solver's pivot order. The program
+    is one equation in ``N_DONORS`` donors, so its minimisers are a face; a
+    canonical tie-break makes the returned point a function of the panel and
+    this measures zero. Without one it measures up to 0.95.
+    """
+    rng = np.random.default_rng([SEED, 1])
+    worst = 0.0
+    for _ in range(40):
+        panel = _panel(4, 5.0, 0.5, rng)
+        donors, y = panel[:, 1:], panel[:, 0]
+        base = _weights(donors[:4], y[:4], "level")
+        perm = rng.permutation(N_DONORS)
+        back = np.empty(N_DONORS)
+        back[perm] = _weights(donors[:4][:, perm], y[:4], "level")
+        worst = max(worst, float(np.abs(back - base).max()))
+    return worst
+
+
 def _seam_matches_vanillasc() -> float:
     """The ``path`` arm's solver is the one ``VanillaSC`` runs."""
     import warnings
@@ -223,7 +270,8 @@ def _seam_matches_vanillasc() -> float:
 
 
 def run() -> dict:
-    out = {"seam_vs_vanillasc": _seam_matches_vanillasc()}
+    out = {"seam_vs_vanillasc": _seam_matches_vanillasc(),
+           "level_arm_order_invariance": _level_arm_order_invariance()}
 
     unmatched, level_gaps, by_pre = [], [], {}
     for pre, spec in PAPER.items():
@@ -277,6 +325,9 @@ def run() -> dict:
 # pinned with no slack, and ``seam_vs_vanillasc`` is exact.
 EXPECTED = {
     "seam_vs_vanillasc": (0.0, 1e-10),
+    # The level arm's weights are the panel's, not the pivot order's. Every
+    # level rate below depends on this holding.
+    "level_arm_order_invariance": (0.0, 1e-9),
     "n_cells": (20.0, 0.0),
     # The paper's own specification against Tables 1 and 2.
     "level_max_gap_to_paper": (0.11, 0.09),
@@ -292,6 +343,11 @@ EXPECTED = {
     "path_t4_rho00": (0.39, 0.12),
     "path_t10_rho00": (0.11, 0.12),
     "path_worst": (0.39, 0.12),
+    # The band carries the path arm's tie-break, which is VanillaSC's and not
+    # this module's: at four pre-periods that program is non-identified in 38.8
+    # per cent of solves, its rates move by up to 0.04 between the library's two
+    # seeding rules, and this count moves by two. The level arm contributes
+    # nothing to the spread, which is what level_arm_order_invariance pins.
     "level_over_path_cells": (20.0, 3.0),
     # No matching, no inflation.
     "unmatched_max": (0.09, 0.06),
