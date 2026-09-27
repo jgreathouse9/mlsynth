@@ -351,11 +351,30 @@ def solve_simplex_qp(
     return _finish(w, pivots, converged)
 
 
-_LEAST_NORM_RIDGE: float = 1e-10
+# The pivot loop releases a pinned donor when its reduced gradient falls below
+# ``tol * (1 + max|g|)``. On a face the fit is exact, so ``max|g|`` vanishes and
+# that threshold floors at ``tol`` in absolute terms, while a ridge set relative
+# to the design's energy carries a signal that scales with the design. Below the
+# threshold the selection does not happen and the answer comes from pivot order,
+# which is what the rule exists to remove. Normalising the design first puts the
+# two in the same units, and the ratio of these constants is then what decides
+# whether the selection resolves. The signal the ridge creates is ``lam`` times
+# the distance to the face's shortest point, and that distance runs to 1e-2, so
+# the ratio has to cover it: 1e4 holds on a 5-, a 38- and a 31-dimensional face
+# under both seeding rules, where 1e2 leaves the widest one 2.8e-3 off. The
+# ratio is bought from ``tol`` and not from the ridge, because the ridge has a
+# ceiling of its own -- above roughly 1e-7 it starts to move a problem that
+# already had one minimiser, which is the penalty it must not become.
+_LEAST_NORM_RIDGE: float = 1e-8
+_LEAST_NORM_TOL: float = 1e-12
 
 
 def solve_simplex_qp_least_norm(
-    B: np.ndarray, A: np.ndarray, *, ridge: float = _LEAST_NORM_RIDGE
+    B: np.ndarray,
+    A: np.ndarray,
+    *,
+    ridge: float = _LEAST_NORM_RIDGE,
+    tol: float = _LEAST_NORM_TOL,
 ) -> np.ndarray:
     """``solve_simplex_qp``, with the tie broken by the smallest ``||w||``.
 
@@ -371,11 +390,23 @@ def solve_simplex_qp_least_norm(
     active set solves it: stacking ``sqrt(lambda) I`` under ``B`` and zeros
     under ``A`` adds exactly ``lambda ||w||^2`` to the objective.
 
-    ``ridge`` is relative to the design's mean column energy, so the answer does
-    not move when the matching columns are rescaled. The constant is far below
-    the point where the selection stops changing -- on SCMO's German averaged
-    problem every lambda from 1e-14 to 9e-7 returns the same weights -- which is
-    what makes this a selection rule and not a penalty.
+    The ridge has to clear the pivot loop's own release threshold. A pinned
+    donor is released when its reduced gradient falls below ``tol * (1 +
+    max|g|)``; on a face the fit is exact, ``max|g|`` vanishes, and the
+    threshold floors at ``tol`` in absolute terms. A ridge set relative to the
+    design's energy carries a signal that scales with the design, so under the
+    threshold the selection does not happen and the answer comes from pivot
+    order, which is the dependence the rule exists to remove. Dividing
+    ``(B, A)`` by the root mean column energy leaves the argmin untouched and
+    puts both in the same units; ``ridge`` is then absolute, and the ratio
+    ``ridge / tol`` is what decides whether the selection resolves. Measured
+    against a two-stage reference on a 5-, a 38- and a 31-dimensional face
+    across four decades of design scale, a ratio of 100 selects and 10 does not.
+
+    The ridge's size is free over seven decades once that ratio holds: every
+    value from 1e-11 to 1e-5 returns the same weights, and at 1e-8 the fit it
+    gives up is 2e-18 of ``||A||^2``. The answer begins to move at 1e-4, which
+    is what separates this selection rule from a penalty.
 
     This is the term Tian, Lee & Panchenko's ``fn_W`` carries as
     ``Dmat <- ZJ %*% V %*% t(ZJ) + (10^-7) * diag(J)``; their constant is
@@ -395,8 +426,13 @@ def solve_simplex_qp_least_norm(
         # Every feasible point is then a minimiser of a constant objective and
         # the plain solver's answer is as good as any.
         return solve_simplex_qp(B, A)
-    lam = float(ridge) * scale
+    # Scaling ``(B, A)`` together leaves the argmin untouched, so dividing both
+    # by the design's root mean column energy costs nothing and makes ``lam``
+    # absolute -- which is the footing the release threshold above is on.
+    root = np.sqrt(scale)
+    lam = float(ridge)
     return solve_simplex_qp(
-        np.vstack([B, np.sqrt(lam) * np.eye(J)]),
-        np.concatenate([A, np.zeros(J)]),
+        np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),
+        np.concatenate([A / root, np.zeros(J)]),
+        tol=tol,
     )

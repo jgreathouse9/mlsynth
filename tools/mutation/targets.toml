@@ -2723,24 +2723,30 @@ timeout = 300.0
 [[target]]
 name = "simplex-least-norm"
 module-path = "mlsynth/utils/solvers/active_set.py"
-test-command = "python -m pytest mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_least_norm_selection.py mlsynth/tests/test_scmo_reference_ridge.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]
-  id = "the-ridge-is-absolute-instead-of-relative"
-  find = "    lam = float(ridge) * scale"
-  replace = "    lam = float(ridge)"
-  models = "the authors' constant taken literally instead of as a rule. Theirs is calibrated to the sd-scaled columns their script builds; dropped onto an arbitrary design it stops being a tie-break. Rescaling the matching columns by 1e-3 then moves the answer by 2.4e-2, where the design-scaled ridge holds it to 3.2e-16"
+  id = "the-design-is-not-normalised-before-the-ridge"
+  find = "        np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A / root, np.zeros(J)]),"
+  replace = "        np.vstack([B, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A, np.zeros(J)]),"
+  models = "the ridge left absolute against a design of any size. The pivot loop releases a pinned donor below tol * (1 + max|g|), which on a face floors at tol, so whether the selection resolves then depends on the design's energy and not on the panel: the same program scaled by 1e-4 returns a different point. This is the shape the helper shipped in, with lam scaled by the design instead and tol fixed, and it is why the tie-break did not select"
+
+  [[target.mutant]]
+  id = "the-ridge-sits-under-the-pivot-release-threshold"
+  find = "_LEAST_NORM_RIDGE: float = 1e-8\n_LEAST_NORM_TOL: float = 1e-12"
+  replace = "_LEAST_NORM_RIDGE: float = 1e-10\n_LEAST_NORM_TOL: float = 1e-9"
+  models = "the constants the helper shipped with, a ratio of 0.1 where 100 is needed. The augmentation is built and the solve runs, so the answer is still an exact minimiser on the simplex and every feasibility and uniqueness check passes; what does not happen is the selection, because the reduced gradient the ridge creates is smaller than the threshold the loop treats as zero. Under the seeding rule in place when this shipped the pivots landed on the least-norm point anyway on narrow faces, which is why it read as working for as long as it did"
 
   [[target.mutant]]
   id = "the-ridge-is-dropped-and-the-tie-is-left-to-the-solver"
-  find = "    lam = float(ridge) * scale"
-  replace = "    lam = 0.0"
+  find = "    lam = float(ridge)\n"
+  replace = "    lam = 0.0\n"
   models = "the augmentation reduced to zero rows, which is the plain program again. The returned point is still an exact minimiser and still on the simplex, so feasibility, optimality and sum-to-one all hold; what is lost is that the answer stops being a function of the panel and becomes a function of the pivot order"
 
   [[target.mutant]]
   id = "the-ridge-is-large-enough-to-move-an-identified-answer"
-  find = "_LEAST_NORM_RIDGE: float = 1e-10"
+  find = "_LEAST_NORM_RIDGE: float = 1e-8"
   replace = "_LEAST_NORM_RIDGE: float = 1e-2"
   models = "a selection rule turned into a penalty. On a face it picks the same point, so every uniqueness and permutation test still passes; on a problem that already had one minimiser it pulls the weights toward uniform and the fit it reaches is no longer the unridged optimum"
 
