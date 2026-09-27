@@ -115,7 +115,7 @@ def _v(year_wt, n_blocks, T0, square):
 
 def _solve(a, B, v):
     """mlsynth's exact active-set simplex QP on a ``v``-weighted design."""
-    from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+    from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
     root = np.sqrt(v)
     return np.asarray(simplex_qp(root[:, None] * B, root * a), dtype=float)
