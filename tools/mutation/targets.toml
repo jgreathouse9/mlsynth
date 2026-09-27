@@ -2948,3 +2948,21 @@ timeout = 420.0
   find = "    if n_pre <= 2 * int(n_factors):"
   replace = "    if n_pre < 2 * int(n_factors):"
   models = "the guard back to non-strict, so a pre-period exactly as long as the design is accepted, the fit is exact, every residual is zero and the standard error collapses to numerical noise"
+
+[[target]]
+name = "ssdid-solver-choice"
+module-path = "mlsynth/utils/helperutils.py"
+test-command = "python -m pytest mlsynth/tests/test_cvxpy_solver_choice.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "ssdid-lets-cvxpy-rank-the-solvers"
+  find = "        problem.solve(solver=cp.CLARABEL)\n    except Exception as e:\n        # Not only ``cvxpy.error.SolverError``. A vendor exception -- mosek's\n        # ``Error`` is not a cvxpy one -- escaped this clause untranslated and\n        # reached the caller naming neither the estimator nor the contract.\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_w: {e}\") from e"
+  replace = "        problem.solve()\n    except Exception as e:\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_w: {e}\") from e"
+  models = "the shipped defect: the solver left to cvxpy's ranking, so which one runs depends on what else is installed. On a machine with no mosek every test still passes, which is why it survived the port from functions_ssdid.py"
+
+  [[target.mutant]]
+  id = "ssdid-translates-only-cvxpy-solver-errors"
+  find = "        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
+  replace = "        raise\n    except cvxpy.error.SolverError as e:\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
+  models = "the second cause: only cvxpy's own SolverError translated, so a vendor exception -- mosek.Error is not one -- reaches the caller raw, naming neither the estimator nor the contract"
