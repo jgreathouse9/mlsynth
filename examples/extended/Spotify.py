@@ -1,5 +1,5 @@
 import pandas as pd
-from mlsynth.mlsynth import PDA
+from mlsynth import PDA
 import matplotlib
 
 jared_theme = {

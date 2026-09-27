@@ -1,4 +1,4 @@
-from mlsynth.mlsynth import CLUSTERSC
+from mlsynth import CLUSTERSC
 import pandas as pd
 import os
 from theme import jared_theme

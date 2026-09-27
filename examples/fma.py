@@ -1,5 +1,5 @@
 import pandas as pd
-from mlsynth.mlsynth import FMA
+from mlsynth import FMA
 import os
 from theme import jared_theme
 import matplotlib
