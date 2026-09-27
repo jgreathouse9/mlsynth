@@ -1,0 +1,42 @@
+Kato & Ohda section 7.1, their own DGP (T0=50, T1=1000, tau=20), reps=100
+cells are MSE of the estimated effect; the truth is 20
+
+  J   G |  MMSCM as solved   |   MMSCM pathfit    |    uniform 1/J     |     Abadie SC      |    demeaned SC    
+----------------------------------------------------------------------------------------------------------------
+  5   2 |        62054.5     |        74346.2     |        32483.5     |        46751.7     |        44856.9      [8s]
+  5   5 |        44036.4     |        58821.6     |        26919.9     |        42622.3     |        53721.6      [8s]
+  5  10 |        47531.0     |        55025.3     |        25139.9     |        39460.2     |        42385.6      [9s]
+ 15   2 |        24201.9     |       156032.7     |        21505.6     |       204694.3     |       206557.8      [16s]
+ 15   5 |        36454.1     |       100778.3     |        22096.2     |       135238.5     |       160831.1      [19s]
+ 15  10 |        23566.8     |        90940.3     |        13429.7     |       128610.6     |       140656.9      [17s]
+ 30   2 |        23119.0     |       241295.6     |        18729.8     |       299025.8     |       307570.1      [31s]
+ 30   5 |        24213.1     |       205284.2     |        17148.8     |       270455.9     |       267559.2      [33s]
+ 30  10 |        25104.3     |       239576.5     |        17941.7     |       316381.7     |       348937.9      [33s]
+
+=== how often does each method win the cell (lowest MSE)? ===
+  MMSCM as solved    0/9 cells
+  MMSCM pathfit      0/9 cells
+  uniform 1/J        9/9 cells
+  Abadie SC          0/9 cells
+  demeaned SC        0/9 cells
+
+=== how far are MMSCM's weights from uniform? (L1, max 2.0) ===
+  J=5   G=2: 0.635  G=5: 0.616  G=10: 0.640
+  J=15  G=2: 0.284  G=5: 0.431  G=10: 0.472
+  J=30  G=2: 0.247  G=5: 0.342  G=10: 0.351
+
+=== is MMSCM distinguishable from plain averaging? ===
+  J=5   G=2   MMSCM=   62054.5  uniform=   32483.5  ratio= 1.910
+  J=5   G=5   MMSCM=   44036.4  uniform=   26919.9  ratio= 1.636
+  J=5   G=10  MMSCM=   47531.0  uniform=   25139.9  ratio= 1.891
+  J=15  G=2   MMSCM=   24201.9  uniform=   21505.6  ratio= 1.125
+  J=15  G=5   MMSCM=   36454.1  uniform=   22096.2  ratio= 1.650
+  J=15  G=10  MMSCM=   23566.8  uniform=   13429.7  ratio= 1.755
+  J=30  G=2   MMSCM=   23119.0  uniform=   18729.8  ratio= 1.234
+  J=30  G=5   MMSCM=   24213.1  uniform=   17148.8  ratio= 1.412
+  J=30  G=10  MMSCM=   25104.3  uniform=   17941.7  ratio= 1.399
+
+=== does MMSCM improve as G grows, as the paper reports? ===
+  J=5   as-solved G=2,5,10:   62054.5   44036.4   47531.0   | pathfit:   74346.2   58821.6   55025.3
+  J=15  as-solved G=2,5,10:   24201.9   36454.1   23566.8   | pathfit:  156032.7  100778.3   90940.3
+  J=30  as-solved G=2,5,10:   23119.0   24213.1   25104.3   | pathfit:  241295.6  205284.2  239576.5
