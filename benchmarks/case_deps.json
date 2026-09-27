@@ -791,6 +791,23 @@
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/solvers/ridge_augment.py"
  ],
+ "fgrc_denoise_behavior": [
+  "basedata/basque_data.csv",
+  "basedata/german_reunification.csv",
+  "basedata/smoking_data.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/clustersc.py",
+  "mlsynth/utils/clustersc_helpers/config.py",
+  "mlsynth/utils/clustersc_helpers/pcr/convex.py",
+  "mlsynth/utils/clustersc_helpers/rpca/fgrc.py",
+  "mlsynth/utils/clustersc_helpers/rpca/pcp.py",
+  "mlsynth/utils/clustersc_helpers/rpca/pipeline.py",
+  "mlsynth/utils/clustersc_helpers/rpca/tuning.py",
+  "mlsynth/utils/clustersc_helpers/setup.py",
+  "mlsynth/utils/clustersc_helpers/spannability.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/solvers/active_set.py"
+ ],
  "fgrc_grc_crossval": [
   "mlsynth/utils/clustersc_helpers/rpca/fgrc.py"
  ],
@@ -983,6 +1000,7 @@
   "mlsynth/estimators/geox.py",
   "mlsynth/estimators/sdid.py",
   "mlsynth/utils/bilevel/engine.py",
+  "mlsynth/utils/conformal/ridge_inference.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/geox_helpers/aggregate.py",
   "mlsynth/utils/geox_helpers/batch.py",
@@ -1083,7 +1101,8 @@
   "mlsynth/utils/hsc_helpers/orchestration.py",
   "mlsynth/utils/hsc_helpers/setup.py",
   "mlsynth/utils/hsc_helpers/simulation.py",
-  "mlsynth/utils/hsc_helpers/structures.py"
+  "mlsynth/utils/hsc_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "ibex_dap": [
   "basedata/ibex_day_ahead_price.csv",
@@ -2091,7 +2110,9 @@
   "mlsynth/utils/scmo_helpers/results_assembly.py",
   "mlsynth/utils/scmo_helpers/setup.py",
   "mlsynth/utils/scmo_helpers/solvers.py",
-  "mlsynth/utils/scmo_helpers/structures.py"
+  "mlsynth/utils/scmo_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/solvers/minnorm.py"
  ],
  "scmo_demeaned_mc": [
   "mlsynth/config_models.py",
@@ -2124,7 +2145,8 @@
   "mlsynth/utils/scmo_helpers/results_assembly.py",
   "mlsynth/utils/scmo_helpers/setup.py",
   "mlsynth/utils/scmo_helpers/solvers.py",
-  "mlsynth/utils/scmo_helpers/structures.py"
+  "mlsynth/utils/scmo_helpers/structures.py",
+  "mlsynth/utils/solvers/active_set.py"
  ],
  "scpi_germany_pi": [
   "basedata/scpi_germany.csv",
@@ -2328,6 +2350,25 @@
   "mlsynth/estimators/sl.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fdid_helpers/estimation.py",
+  "mlsynth/utils/fdid_helpers/inference.py",
+  "mlsynth/utils/sl_helpers/config.py",
+  "mlsynth/utils/sl_helpers/diagnostics.py",
+  "mlsynth/utils/sl_helpers/experts.py",
+  "mlsynth/utils/sl_helpers/inference.py",
+  "mlsynth/utils/sl_helpers/pipeline.py",
+  "mlsynth/utils/sl_helpers/setup.py",
+  "mlsynth/utils/sl_helpers/structures.py",
+  "mlsynth/utils/sl_helpers/weights.py"
+ ],
+ "sl_table4": [
+  "basedata/sl_tennessee_medcost.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/sl.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fdid_helpers/estimation.py",
+  "mlsynth/utils/fdid_helpers/inference.py",
   "mlsynth/utils/sl_helpers/config.py",
   "mlsynth/utils/sl_helpers/diagnostics.py",
   "mlsynth/utils/sl_helpers/experts.py",
