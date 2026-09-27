@@ -1,0 +1,10 @@
+check 1 -- convergence to 12.5 |alpha_i - alpha_j|
+     T0    slope    corr    median |d-hat - 12.5 dalpha|
+     20   17.650   0.840                          1.0521
+     50   13.987   0.915                          0.5254
+    200   12.649   0.979                          0.2214
+    800   12.481   0.994                          0.1196
+
+check 2 -- invariance to an additive common time trend
+  zhang_range   max relative change 7.784e-14
+  feng_maxabs   max relative change 1.376e+01
