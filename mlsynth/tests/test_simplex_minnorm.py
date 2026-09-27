@@ -210,16 +210,16 @@ def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
     the weights themselves -- a donor table, a counterfactual built from
     post-period donor outcomes -- would change if it swapped one for the other.
 
-    Which places they land in depends on where each one starts, and the Gram
-    form's start moved when it gained a first-order seed (#461). Cold, it began
-    at a vertex and certified at a sparse corner of the face: 9 donors, 0.209
-    from the design form's answer. Seeded, it begins at a spread point and
-    certifies near it: 38 donors -- the design form's own support, exactly -- and
-    0.015 away within that face. The two forms therefore agree better than they
-    did, which narrows this failure without closing it: they now pick the same
-    donors and still disagree on how much each one carries, so a donor table
-    still moves when one is swapped for the other, and the guard is still what
-    decides whether the reduction is allowed.
+    Which places they land in depends on where each one starts, so the size of
+    the disagreement tracks the seeding rule rather than the panel. Measured on
+    this design: the Gram form spreads over 38 of the 39 donors, and the design
+    form lands on 9 when it is seeded by pricing the columns and on 38 when it
+    starts cold. So the two forms differ on the weights either way -- 0.158 apart
+    under the priced seed, 0.015 cold -- and on the support under one of the two.
+    The fit is the same to 1e-7 in both cases, which is the whole difficulty: a
+    donor table or a counterfactual built from post-period outcomes moves when
+    one form is swapped for the other, and nothing in the fit reports it. The
+    guard is what decides whether the reduction is allowed.
     """
     rng = np.random.default_rng(2)
     from mlsynth.utils.solvers.minnorm import gram_reduction_is_safe
@@ -231,7 +231,10 @@ def test_rank_deficient_designs_agree_on_the_fit_but_not_the_weights():
     w_design = solve_simplex_qp(B, A)
     assert np.allclose(B @ w_gram, B @ w_design, atol=1e-7)     # same fit
     assert np.abs(w_gram - w_design).max() > 1e-3               # different point
-    assert np.array_equal(w_gram > 1e-9, w_design > 1e-9)       # same donors now
+    # The supports may or may not coincide -- that part is the seeding rule's,
+    # not the panel's -- so what is pinned is that the fit cannot tell them
+    # apart while the weights differ by enough to move a donor table.
+    assert np.abs(w_gram - w_design).max() > 1e-2
 
 
 def test_the_cold_gram_solver_still_lands_at_the_sparse_corner():
@@ -582,20 +585,24 @@ def test_the_least_norm_tie_break_does_not_claim_the_program_is_identified():
     assert np.abs(plain - w).max() > 1e-2
     assert float(w @ w) < float(plain @ plain) - 1e-6
 
-    # And it is a rule: relabelling the donors does not move it, where it
-    # moves the plain solve by two orders of magnitude more.
+    # And it is a rule: relabelling the donors does not move it, where it moves
+    # an untied solve by two orders of magnitude more. The foil is the cold path,
+    # since a seeding rule that prices the columns is equivariant wherever the
+    # prices are distinct, and under one the plain solve on this design returns
+    # the same vertex for every relabelling.
+    cold = solve_simplex_qp(B, A, accelerate=False)
     rng = np.random.default_rng(7)
-    moved_rule = moved_plain = 0.0
+    moved_rule = moved_cold = 0.0
     for _ in range(20):
         q = rng.permutation(B.shape[1])
         wr = solve_simplex_qp_least_norm(B[:, q], A)
-        pr = solve_simplex_qp(B[:, q], A)
+        pr = solve_simplex_qp(B[:, q], A, accelerate=False)
         back_r = np.empty_like(wr); back_r[q] = wr
         back_p = np.empty_like(pr); back_p[q] = pr
         moved_rule = max(moved_rule, float(np.abs(back_r - w).max()))
-        moved_plain = max(moved_plain, float(np.abs(back_p - plain).max()))
+        moved_cold = max(moved_cold, float(np.abs(back_p - cold).max()))
     assert moved_rule < 1e-9, moved_rule
-    assert moved_plain > 1e-2, moved_plain
+    assert moved_cold > 1e-2, moved_cold
 
     # None of which makes the program identified.
     assert not simplex_optimum_is_unique(B, A, w)
