@@ -21,7 +21,7 @@ import pandas as pd
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from prop43 import ols_plugin  # noqa: E402
 
-from mlsynth.utils.bilevel.ridge_augment import (  # noqa: E402
+from mlsynth.utils.solvers.ridge_augment import (  # noqa: E402
     build_matching, ridge_augment_weights,
 )
 
