@@ -364,3 +364,64 @@ def test_a_vendor_solver_exception_is_translated(func, name, ssdid_data,
     with pytest.raises(MlsynthEstimationError,
                        match=f"CVXPY solver failed in {name}"):
         func(d["treated_y"], d["donor_matrix"], d["a"], d["k_horizon"], d["eta"])
+
+
+# --------------------------------------------------------------------------- #
+# 4. a named solver that is None is not a named solver
+# --------------------------------------------------------------------------- #
+# The sweep above reads the call. It cannot read the *value*, and
+# ``problem.solve(solver=None)`` behaves exactly like ``problem.solve()``: cvxpy
+# ranks the installed solvers and takes the highest. Three sites in the library
+# pass a variable whose default is ``None``, and each guards it differently:
+#
+#   marex_helpers/optimization.py     rebinds ``solver = solver or cp.CLARABEL``
+#   masc_helpers/estimation.py        returns early when ``solver is None``
+#   spcd_helpers/weights_exact.py     did not guard it at all
+#
+# A static check that tries to prove which of those is safe gets it wrong: an
+# earlier version of this sweep reported all three, and two were guarded. So the
+# value is checked by running the call instead, which has no false positives and
+# covers only the paths it reaches -- a limit the test states.
+def _reject_none_solver(monkeypatch):
+    """Make ``Problem.solve`` raise on a ``None`` solver."""
+    real = cvxpy.Problem.solve
+
+    def guarded(self, *args, **kwargs):
+        if "solver" in kwargs and kwargs["solver"] is None:
+            raise AssertionError(
+                "solve() was given solver=None, which lets cvxpy rank the "
+                "installed solvers and pick mosek"
+            )
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(cvxpy.Problem, "solve", guarded)
+
+
+def test_spcd_exact_weights_names_a_solver(monkeypatch):
+    """The site that was not guarded. It is also the one the suite noticed:
+    ``test_spcd.py``'s three exact-weight failures were this call reaching mosek.
+    """
+    pytest.importorskip("cvxpy")
+    from mlsynth.utils.spcd_helpers.weights_exact import exact_weights
+
+    _reject_none_solver(monkeypatch)
+    rng = np.random.default_rng(0)
+    Y_pre = rng.normal(size=(24, 8)) + 10.0
+    # y_star is the sign vector splitting the units into two non-empty groups.
+    y_star = np.array([1.0] * 3 + [-1.0] * 5)
+    w = exact_weights(Y_pre, y_star, sigma=0.1)
+    assert w.shape == (8,) and np.all(np.isfinite(w))
+
+
+def test_an_explicit_solver_still_overrides_the_default():
+    """The default is a default, not a lock."""
+    pytest.importorskip("cvxpy")
+    from mlsynth.utils.spcd_helpers.weights_exact import exact_weights
+
+    rng = np.random.default_rng(1)
+    Y_pre = rng.normal(size=(24, 8)) + 10.0
+    y_star = np.array([1.0] * 3 + [-1.0] * 5)
+    a = exact_weights(Y_pre, y_star, sigma=0.1)
+    b = exact_weights(Y_pre, y_star, sigma=0.1, solver=cvxpy.SCS)
+    np.testing.assert_allclose(np.asarray(a, float), np.asarray(b, float),
+                               rtol=1e-4, atol=1e-5)
