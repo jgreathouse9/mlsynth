@@ -14,13 +14,30 @@ A cold solve seeds itself. Starting from the uniform point, the active set has
 to shed one donor per pivot until only the support is left, so its work scales
 with the *pool* and not with the support it ends on: on factor panels the pivot
 count runs 0.6 to 0.9 times ``J`` from ``J = 20`` to ``J = 320``, while the
-support grows 7 to 43. A Gram-collapsed FISTA warm start
-(:func:`mlsynth.utils.solvers.accelerate.fista_warm_start`) names that support
-up front and the same pivot counts drop to 0 or 1. So for a pool of at least
-``ACCEL_MIN_DONORS``, with no warm start from the caller, the seed is computed
-here -- once, for every caller -- instead of at a call site. It is speed only:
-the exact active set still determines the weights, and a seed it cannot use is
-discarded. Pass ``accelerate=False`` to force the cold path.
+support grows 7 to 43. The seed
+(:func:`mlsynth.utils.solvers.accelerate.priced_seed`) names a candidate support
+up front instead, by pricing the columns at the uniform point and keeping the
+``SEED_KEEP`` whose reduced gradient is most negative, capped at ``m + 1``. It
+costs one matrix-vector product and an ``argpartition``.
+
+It replaced a Gram-collapsed FISTA seed, which named the support in 2 pivots and
+cost 8.6 ms of a 9.0 ms solve to do it, so the two routes came to the same total
+by different halves. Per solve, cold / FISTA / priced:
+
+    10x160    8.52 / 10.37 / 0.58      97x100    13.27 /  8.50 / 0.52
+    30x300   57.49 / 13.75 / 0.55      99x200    76.55 / 10.91 / 0.86
+    19x38     1.35 /  4.65 / 0.30     159x200    97.08 / 12.06 / 0.68
+
+and over 18 random wide shapes the total falls from 1355.9 ms to 16.4 ms.
+``fista_warm_start`` remains available and is what the batch path still uses.
+
+The seed is computed here -- once, for every caller -- instead of at a call site.
+Its gate is the budget and not the panel's orientation: a tall design with more
+donors than the budget is pruned too, and 1.7x to 11x faster for it from 40x20 to
+100x60, while a pool no wider than the budget declines and takes the untouched
+cold path. It is speed only: the exact active set still determines the weights,
+and a seed it cannot use is discarded. Pass ``accelerate=False`` to force the
+cold path.
 
 The correctness contract -- cvxpy parity, a solver-independent KKT certificate,
 and a fuzzed differential test -- is pinned in
@@ -34,7 +51,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 from scipy.linalg import get_lapack_funcs
 
-from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
+from .accelerate import priced_seed
 
 # Workspace size and LAPACK handle per free-set shape. The active set solves a
 # sequence of small systems whose shapes repeat across pivots, units and
@@ -225,10 +242,11 @@ def solve_simplex_qp(
         c = c - 0.5 * linear
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
-    # otherwise the uniform point. A wide pool with nothing from the caller
-    # seeds itself, since the uniform point costs a pivot per donor.
-    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:
-        warm_start = fista_warm_start(B, A)
+    # otherwise the uniform point. A pool wider than the seed's budget and
+    # nothing from the caller seeds itself, since the uniform point costs a pivot
+    # per donor. ``priced_seed`` returns None when there is nothing to prune.
+    if warm_start is None and accelerate:
+        warm_start = priced_seed(B, A)
     w = None
     if warm_start is not None:
         ws = np.asarray(warm_start, dtype=float).ravel()
