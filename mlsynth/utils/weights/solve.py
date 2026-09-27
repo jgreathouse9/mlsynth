@@ -381,18 +381,15 @@ def solve_weights(
         gap = w - objective.target(n)
         value += objective.ridge * float(gap @ gap)
 
-    residual = kkt_residual(B, A, w, a, constraint, objective)
-    directions, intercepts = _face_null_space(B, A, w, a, constraint, objective)
+    # The certificate is not computed here. ``kkt_residual`` and the face's SVD
+    # are 77 percent of a cone refit, and a resampling loop reads neither, so the
+    # solution carries the program and produces them on first read instead.
     return WeightSolution(
         weights=w,
         intercept=a,
         objective=value,
-        kkt_residual=residual,
-        unique=directions.shape[1] == 0,
-        free_directions=directions,
-        free_intercepts=intercepts,
         solver=f"{constraint.describe()}:{method}",
-        status="optimal" if residual < KKT_TOL else "inaccurate",
         n_donors=n,
         support=np.flatnonzero(np.abs(w) > SUPPORT_TOL),
+        _program=(B, A, constraint, objective),
     )

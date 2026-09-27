@@ -8,6 +8,7 @@ being recomputed -- or assumed -- at each call site.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -65,14 +66,16 @@ class WeightSolution:
     weights: np.ndarray
     intercept: float
     objective: float
-    kkt_residual: float
-    unique: bool
     solver: str
-    status: str
     n_donors: int
     support: np.ndarray = field(repr=False)
-    free_directions: np.ndarray = field(repr=False, default_factory=lambda: np.zeros((0, 0)))
-    free_intercepts: np.ndarray = field(repr=False, default_factory=lambda: np.zeros(0))
+    #: The program the certificate is computed from, as
+    #: ``(B, A, constraint, objective)``. Kept so the four derived facts below
+    #: can be produced on demand instead of on every solve.
+    _program: Optional[Tuple[Any, Any, Any, Any]] = field(
+        default=None, repr=False, compare=False)
+    _cache: Dict[str, Any] = field(
+        default_factory=dict, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "weights", np.asarray(self.weights, dtype=float).ravel())
@@ -80,6 +83,85 @@ class WeightSolution:
         self.weights.setflags(write=False)
         object.__setattr__(self, "support", np.asarray(self.support, dtype=int).ravel())
         self.support.setflags(write=False)
+
+    # ----------------------------------------------------------------- #
+    # The certificate, computed on first read.
+    #
+    # ``kkt_residual`` recomputes the reduced gradient and the face needs a
+    # rank-revealing SVD, together 77 percent of a cone refit measured on
+    # TSSC's Step-1 loop -- which reads neither, keeping only the
+    # coefficients. Every field below is spelled and typed as it was when it
+    # was computed eagerly; what changed is when.
+    # ----------------------------------------------------------------- #
+    def _solved(self) -> Tuple[Any, Any, Any, Any]:
+        """The program, or a refusal naming what is missing."""
+        if self._program is None:
+            raise MlsynthEstimationError(
+                "This WeightSolution carries neither its program nor its "
+                "certificate, so the optimality diagnostics cannot be produced."
+            )
+        return self._program
+
+    def _face(self) -> Tuple[np.ndarray, np.ndarray]:
+        """The optimal face at this point, computed once and kept.
+
+        Cached apart from the KKT residual on purpose: asking whether the
+        minimiser is the only one is the common question, and it does not need
+        the residual. Computing both together made ``unique`` pay for a
+        diagnostic it never reads.
+        """
+        hit = self._cache.get("face")
+        if hit is not None:
+            return hit
+        # Imported here: solve.py imports this module, so the cycle only closes
+        # at call time.
+        from .solve import _face_null_space
+
+        B, A, constraint, objective = self._solved()
+        hit = _face_null_space(B, A, self.weights, self.intercept,
+                               constraint, objective)
+        self._cache["face"] = hit
+        return hit
+
+    def _kkt(self) -> float:
+        """The KKT residual, computed once and kept."""
+        hit = self._cache.get("kkt")
+        if hit is not None:
+            return hit
+        from .solve import kkt_residual
+
+        B, A, constraint, objective = self._solved()
+        hit = float(kkt_residual(B, A, self.weights, self.intercept,
+                                 constraint, objective))
+        self._cache["kkt"] = hit
+        return hit
+
+    @property
+    def kkt_residual(self) -> float:
+        """Scale-free KKT violation, recomputed from ``weights`` alone."""
+        return self._kkt()
+
+    @property
+    def free_directions(self) -> np.ndarray:
+        """Directions weight may move along at no cost, shape ``(J, k)``."""
+        return self._face()[0]
+
+    @property
+    def free_intercepts(self) -> np.ndarray:
+        """The intercept shift accompanying each free direction."""
+        return self._face()[1]
+
+    @property
+    def unique(self) -> bool:
+        """Whether the minimiser is the only one."""
+        return bool(self._face()[0].shape[1] == 0)
+
+    @property
+    def status(self) -> str:
+        """``"optimal"`` when the KKT residual clears the tolerance."""
+        from .solve import KKT_TOL
+
+        return "optimal" if self._kkt() < KKT_TOL else "inaccurate"
 
     def identifies(self, B: np.ndarray, *, tol: float = 1e-8) -> bool:
         """Whether ``B @ w + intercept`` is the same for every minimiser.

@@ -2944,6 +2944,30 @@ timeout = 420.0
   models = "the guard back to non-strict, so a pre-period exactly as long as the design is accepted, the fit is exact, every residual is zero and the standard error collapses to numerical noise"
 
 [[target]]
+name = "lazy-weight-certificate"
+module-path = "mlsynth/utils/weights/solution.py"
+test-command = "python -m pytest mlsynth/tests/test_lazy_weight_diagnostics.py mlsynth/tests/test_weights_solver.py mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "face-and-residual-share-one-cache-key"
+  find = '        hit = self._cache.get("face")'
+  replace = '        hit = self._cache.get("kkt")'
+  models = "the face and the KKT residual keyed on the same cache slot, so whichever is read first answers for both. A float where a pair of arrays belongs, which every reader of free_directions then unpacks wrongly -- the defect a single shared certificate dict invited, and the reason the two are cached apart"
+
+  [[target.mutant]]
+  id = "unique-reads-the-wrong-axis"
+  find = "        return bool(self._face()[0].shape[1] == 0)"
+  replace = "        return bool(self._face()[0].shape[0] == 0)"
+  models = "uniqueness read off the donor count instead of the number of free directions. The face is (J, k), so axis 0 is J and is zero only on an empty donor pool -- every solution then reports itself non-unique, and nothing that reads only the weights notices"
+
+  [[target.mutant]]
+  id = "the-cache-never-fills"
+  find = '        self._cache["face"] = hit'
+  replace = "        pass"
+  models = "a cache that is read and never written, so the SVD runs again on every access. The answer is identical and only the cost moves, which is what makes a lazy field's caching invisible to anything but a call count"
+
+[[target]]
 name = "ssdid-solver-choice"
 module-path = "mlsynth/utils/helperutils.py"
 test-command = "python -m pytest mlsynth/tests/test_cvxpy_solver_choice.py -q -p no:cacheprovider"
