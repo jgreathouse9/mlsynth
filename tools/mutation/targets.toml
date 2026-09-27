@@ -2942,3 +2942,23 @@ timeout = 420.0
   find = "    if n_pre <= 2 * int(n_factors):"
   replace = "    if n_pre < 2 * int(n_factors):"
   models = "the guard back to non-strict, so a pre-period exactly as long as the design is accepted, the fit is exact, every residual is zero and the standard error collapses to numerical noise"
+
+[[target]]
+name = "simplex-pivot-cost"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_pivot_cost.py mlsynth/tests/test_simplex_active_set.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "wide-gradient-drops-the-linear-term"
+  find = "            g = (G @ w - c) if _use_gram else (B.T @ (B @ w) - c)"
+  replace = "            g = (G @ w - c) if _use_gram else (B.T @ (B @ w - A))"
+  models = "subtracting A inside the product instead of c outside it. The two agree exactly for a plain least squares, so every panel test passes; they differ only when a linear term is set, and then the loop's dual test reads a gradient the objective does not have. This is the slip that was actually made while writing the change"
+
+  [[target.mutant]]
+  id = "gradient-route-chosen-backwards"
+  find = "    _use_gram = B.shape[0] >= B.shape[1]"
+  replace = "    _use_gram = B.shape[0] < B.shape[1]"
+  models = "the shape test inverted, so the Gram is formed exactly when it is the larger object and skipped when it is the smaller one"
+  expected = "survived"
+  accepted-because = "it is a pessimisation and nothing else. Both routes compute the same gradient, so no output moves and no assertion can separate them -- the mutant is equivalent in every respect a test can reach. What it costs is time: 1.41x over 27 panels, 1.50x on the 18 wide ones. That is a benchmark's question, not a suite's, and the suite is not made to assert wall-clock."
