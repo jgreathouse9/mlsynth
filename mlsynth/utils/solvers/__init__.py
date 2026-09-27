@@ -16,6 +16,8 @@ them knows what an estimator is:
   only; removing it changes no answer.
 * :mod:`~mlsynth.utils.solvers.ridge_augment` -- ridge augmentation and its
   simplex QP (Augmented SCM).
+* :mod:`~mlsynth.utils.solvers.sunny` -- Becker and Klossner's sunny/shady donor
+  screen, which decides by linear program which donors can hold weight at all.
 
 They lived under ``bilevel`` because the bilevel V-optimisation was the first
 caller. It was never the only one, and the gap has widened: at the time of this
