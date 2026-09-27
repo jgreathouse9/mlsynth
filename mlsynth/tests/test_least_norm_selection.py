@@ -36,6 +36,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import strategies as st
 
 from mlsynth.utils.solvers import active_set as AS
 from mlsynth.utils.solvers.active_set import (
@@ -233,3 +235,71 @@ def test_a_design_with_no_scale_falls_back_to_the_plain_solve():
 def test_a_single_donor_is_the_answer():
     got = solve_simplex_qp_least_norm(np.array([[2.0]]), np.array([5.0]))
     assert np.allclose(got, [1.0])
+
+
+# --------------------------------------------------------------------------- #
+# the two invariants over drawn designs, not three chosen ones
+# --------------------------------------------------------------------------- #
+_SETTINGS = settings(derandomize=True, deadline=None, max_examples=60,
+                     suppress_health_check=[HealthCheck.too_slow])
+
+_FINITE = dict(allow_nan=False, allow_infinity=False)
+
+
+@st.composite
+def _drawn_face(draw):
+    """A design with more donors than rows, and a target inside the hull.
+
+    Fewer rows than donors leaves a null space, and a target that is an exact
+    mix puts the optimum on a face of it, which is the regime the tie-break is
+    for. The mix is drawn away from uniform so the cold start is not already
+    sitting on the answer.
+    """
+    m = draw(st.integers(1, 4))
+    J = draw(st.integers(m + 2, 10))
+    flat = draw(st.lists(st.floats(-20.0, 20.0, **_FINITE),
+                         min_size=m * J, max_size=m * J))
+    B = np.asarray(flat, dtype=float).reshape(m, J)
+    raw = draw(st.lists(st.floats(0.0, 1.0, **_FINITE), min_size=J, max_size=J))
+    mix = np.asarray(raw, dtype=float)
+    assume(mix.sum() > 1e-6)
+    mix = mix / mix.sum()
+    # A ridge set from the design needs the design to have some energy.
+    assume(float(np.mean(np.sum(B * B, axis=0))) > 1e-6)
+    return B, B @ mix
+
+
+@given(design=_drawn_face(), seed=st.integers(0, 2 ** 32 - 1))
+@_SETTINGS
+def test_relabelling_is_a_symmetry_of_the_selection(design, seed):
+    """Donor order carries no information, so the answer cannot depend on it."""
+    B, A = design
+    perm = np.random.default_rng(seed).permutation(B.shape[1])
+    base = solve_simplex_qp_least_norm(B, A)
+    back = np.empty(B.shape[1])
+    back[perm] = solve_simplex_qp_least_norm(B[:, perm], A)
+    assert np.abs(back - base).max() < 1e-6, np.abs(back - base).max()
+
+
+@given(design=_drawn_face(),
+       factor=st.floats(1e-3, 1e3, **_FINITE).filter(lambda c: c > 0))
+@_SETTINGS
+def test_joint_rescaling_is_a_symmetry_of_the_selection(design, factor):
+    """``(B, A) -> (cB, cA)`` scales the objective and fixes its argmin."""
+    B, A = design
+    base = solve_simplex_qp_least_norm(B, A)
+    got = solve_simplex_qp_least_norm(factor * B, factor * A)
+    assert np.abs(got - base).max() < 1e-6, (factor, np.abs(got - base).max())
+
+
+@given(design=_drawn_face())
+@_SETTINGS
+def test_the_answer_is_always_feasible_and_a_minimiser(design):
+    """Feasibility and optimality hold whether or not the face is wide."""
+    B, A = design
+    w = solve_simplex_qp_least_norm(B, A)
+    assert w.min() >= -1e-8
+    assert abs(w.sum() - 1.0) < 1e-7
+    # The target is an exact mix, so the attainable fit is zero up to rounding.
+    scale = max(1.0, float(A @ A))
+    assert float(np.sum((A - B @ w) ** 2)) < 1e-6 * scale
