@@ -1043,7 +1043,7 @@ by, and the ``method`` field on ``res.power`` names which test its number
 refers to.
 
 Ranking on the B window, and why it is allowed
-"""""""""""""""""""""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""""""""""""""
 
 Stage 4 ranks candidates by their B-window MDE and the inference is then built
 from those same B-window residuals, which looks like the thing Vives-i-Bastida

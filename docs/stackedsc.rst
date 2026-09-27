@@ -152,7 +152,7 @@ swings in tiny units drive the average; equal weighting treats each adoption
 as one observation. Say which you mean.
 
 How a Cohort's Weights Are Solved Together
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 That the cohort shares a design is not only a modelling point. It means the
 cohort's weight programs are one family, and solving them together costs a
