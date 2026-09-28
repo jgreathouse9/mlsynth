@@ -745,3 +745,68 @@ def test_rows_without_a_unit_or_a_period_are_refused():
     df.loc[df.index[0], "date"] = np.nan
     with pytest.raises(MlsynthDataError, match="not observations"):
         base_config(df)
+
+
+# --------------------------------------------------------------------------- #
+# the fill and the design columns interact
+#
+# Filling an absent cell has to reconstruct the design columns from what they
+# are, not from a neighbouring row. A period flag is a property of the period
+# and a group flag a property of the unit, so carrying either from the wrong
+# axis invents a value: a geo absent on the first cooldown day would inherit
+# the previous day's 0 while every other geo reads 1, and a treated geo absent
+# on the first post day would inherit a pretest 0 and stop looking treated.
+# The reference's own panel is unbalanced, so both cases are reachable there.
+# --------------------------------------------------------------------------- #
+def test_a_hole_on_the_first_cooldown_day_does_not_break_the_flag():
+    T, T0, cd = 24, 14, 19
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=27)
+    holed = df.drop(df.index[(df.geo == "c1") & (df.date == cd)])
+    res = TBR(base_config(holed, cooldown_col="cooldown")).fit()
+    assert res.filled_cells == 1
+    assert res.cooldown_periods == T - cd
+    assert res.intervention_periods == cd - T0
+
+
+def test_a_hole_on_the_first_post_day_does_not_unmark_treatment():
+    T, T0 = 20, 14
+    df = geo_panel(T=T, T0=T0, noise=1.0, seed=28)
+    holed = df.drop(df.index[(df.geo == "t0") & (df.date == T0)])
+    res = TBR(base_config(holed)).fit()
+    assert res.filled_cells == 1
+    assert len(res.cumulative.estimate) == T - T0
+    assert sorted(res.treated_units) == ["t0", "t1", "t2"]
+
+
+def test_a_hole_anywhere_equals_recording_that_cell_as_zero():
+    """Across every column kind at once, and at the boundaries that matter."""
+    T, T0, cd = 24, 14, 19
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd,
+                   cost_in_test=50.0, seed=29)
+    holes = [("c1", cd), ("t0", T0), ("c0", 0), ("t1", T - 1), ("c2", cd - 1)]
+    mask = np.zeros(len(df), dtype=bool)
+    for geo, date in holes:
+        mask |= ((df.geo == geo) & (df.date == date)).to_numpy()
+    holed = df[~mask]
+    zeroed = df.copy()
+    zeroed.loc[mask, ["sales", "cost"]] = 0.0
+
+    a = TBR(base_config(holed, cooldown_col="cooldown", cost_col="cost")).fit()
+    b = TBR(base_config(zeroed, cooldown_col="cooldown", cost_col="cost")).fit()
+    assert a.filled_cells == len(holes)
+    assert b.filled_cells == 0
+    assert np.allclose(np.asarray(a.cumulative.estimate, float),
+                       np.asarray(b.cumulative.estimate, float), rtol=1e-12)
+    assert np.allclose(np.asarray(a.cumulative.scale, float),
+                       np.asarray(b.cumulative.scale, float), rtol=1e-12)
+    assert a.iroas.estimate == pytest.approx(b.iroas.estimate, rel=1e-12)
+    assert a.cooldown_periods == b.cooldown_periods
+
+
+def test_a_hole_in_design_mode_keeps_the_post_flag_block_assigned():
+    T, T0 = 20, 14
+    df = design_panel(T=T, T0=T0, noise=1.0, seed=30)
+    holed = df.drop(df.index[(df.geo == "c0") & (df.date == T0)])
+    res = TBR(design_config(holed)).fit()
+    assert res.filled_cells == 1
+    assert len(res.cumulative.estimate) == T - T0

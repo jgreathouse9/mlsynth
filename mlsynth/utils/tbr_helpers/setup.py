@@ -92,18 +92,26 @@ def _block_flag_start(df: pd.DataFrame, time: str, col: str) -> Optional[int]:
     return int(np.argmax(flag.to_numpy() == 1))
 
 
-def _fill_to_grid(df: pd.DataFrame, unit: str, time: str,
-                  value_cols) -> "tuple[pd.DataFrame, int]":
+def _complete_grid(df: pd.DataFrame, unit: str, time: str, config,
+                   value_cols) -> "tuple[pd.DataFrame, int]":
     """Complete the unit-by-period grid, filling absent cells with zero.
 
     TBR sums across geos, so an absent geo-period enters the group total as
     nothing at all, which is arithmetically a zero. Making the fill explicit
     keeps the sum defined and lets the count be reported, because it is an
     assumption about why a cell is absent and not a detail.
+
+    The design columns are reconstructed from what they are and never carried
+    from a neighbouring row. A group flag is a property of the unit and a window
+    flag a property of the period, so filling either along the wrong axis
+    invents a value: a geo absent on the first cooldown day would inherit the
+    previous day's 0 while every other geo reads 1. ``treat`` is a property of
+    both, so it is rebuilt as "this unit is treated" and "this period is
+    post", each read off the rows that are present.
     """
-    grid = pd.MultiIndex.from_product(
-        [sorted(df[unit].unique()), sorted(df[time].unique())],
-        names=[unit, time])
+    units = sorted(df[unit].unique())
+    periods = sorted(df[time].unique())
+    grid = pd.MultiIndex.from_product([units, periods], names=[unit, time])
     indexed = df.set_index([unit, time])
     if indexed.index.has_duplicates:
         dupes = indexed.index[indexed.index.duplicated()].tolist()
@@ -116,17 +124,37 @@ def _fill_to_grid(df: pd.DataFrame, unit: str, time: str,
     missing = int(len(grid) - len(indexed))
     if missing == 0:
         return df, 0
-    out = indexed.reindex(grid)
+
+    unit_level = [c for c in (config.control_col, config.treatment_col)
+                  if c is not None]
+    period_level = [c for c in (config.cooldown_col, config.post_col)
+                    if c is not None]
+    per_unit = {c: df.groupby(unit)[c].max() for c in unit_level}
+    per_period = {c: df.groupby(time)[c].max() for c in period_level}
+    treated_unit = post_period = None
+    if config.treat is not None:
+        treated_unit = df.groupby(unit)[config.treat].max()
+        post_period = df.groupby(time)[config.treat].max()
+
+    out = indexed.reindex(grid).reset_index()
     for c in value_cols:
         if c in out.columns:
             out[c] = out[c].fillna(0.0)
-    # design columns are unit- or period-level, so carry them, never zero them
-    for c in out.columns:
-        if c not in value_cols:
-            out[c] = (out.groupby(level=0)[c].ffill()
-                      .groupby(level=0).bfill())
-            out[c] = out[c].groupby(level=1).ffill().groupby(level=1).bfill()
-    return out.reset_index(), missing
+    for c in unit_level:
+        out[c] = out[unit].map(per_unit[c])
+    for c in period_level:
+        out[c] = out[time].map(per_period[c])
+    if config.treat is not None:
+        out[config.treat] = (out[unit].map(treated_unit).astype(int)
+                             & out[time].map(post_period).astype(int))
+    # anything else the caller carried along is a passenger; fill it within the
+    # unit, which is where a per-unit attribute lives
+    handled = set(value_cols) | set(unit_level) | set(period_level) | {
+        unit, time, config.treat}
+    for c in [c for c in out.columns if c not in handled]:
+        out[c] = out.groupby(unit)[c].transform(
+            lambda col: col.ffill().bfill())
+    return out, missing
 
 
 def build_inputs(config) -> TBRInputs:
@@ -136,7 +164,7 @@ def build_inputs(config) -> TBRInputs:
     df = config.df.copy()
 
     value_cols = [outcome] + ([config.cost_col] if config.cost_col else [])
-    df, filled = _fill_to_grid(df, unit, time, value_cols)
+    df, filled = _complete_grid(df, unit, time, config, value_cols)
 
     is_control = _binary_unit_flag(df, unit, config.control_col)
     if treat is not None:
