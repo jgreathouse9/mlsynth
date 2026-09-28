@@ -667,6 +667,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -1152,6 +1153,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -1469,6 +1471,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -1491,6 +1494,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2507,6 +2511,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/spillsynth_helpers/config.py",
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py",
@@ -2674,6 +2679,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2792,6 +2798,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2815,6 +2822,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2838,6 +2846,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2862,6 +2871,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
@@ -2940,6 +2950,7 @@
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
   "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py",
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ]
