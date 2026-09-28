@@ -223,6 +223,7 @@ measures that claim directly, which a reproduced number cannot.
    properties
    benchmarks
    cumulative_calibration
+   sunny_screen
    references
 
 .. toctree::
