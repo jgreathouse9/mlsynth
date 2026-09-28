@@ -170,19 +170,20 @@ def test_mscmt_deterministic_with_seed():
     np.testing.assert_allclose(s1.V, s2.V)
 
 
-def test_sunny_mask_drops_shady_donors():
+def test_the_sunny_screen_drops_shady_donors():
     # 1-D predictors: treated at 0, donors at 1, 2, 3. Only the nearest donor
     # (1) is visible from X1; donors 2 and 3 sit in its shadow -> shady.
-    from mlsynth.utils.bilevel.mscmt import _sunny_mask
+    # the screen lives in solvers/sunny.py and takes the donor matrix first
+    from mlsynth.utils.solvers.sunny import sunny_donors
     X1 = np.array([0.0])
     X0 = np.array([[1.0, 2.0, 3.0]])
-    mask = _sunny_mask(X1, X0)
+    mask = sunny_donors(X0, X1)
     assert mask.tolist() == [True, False, False]
 
     # interior donor (a convex combination of others) is never uniquely needed
     X1 = np.array([0.0, 0.0])
     X0 = np.array([[0.0, 2.0, 1.0], [0.0, 2.0, 1.0]])   # col 2 = midpoint of 0,1
-    assert _sunny_mask(X1, X0)[2] == False
+    assert sunny_donors(X0, X1)[2] == False
 
 
 def test_mscmt_prune_shady_leaves_optimum_unchanged():

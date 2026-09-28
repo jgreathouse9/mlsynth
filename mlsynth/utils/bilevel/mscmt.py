@@ -43,6 +43,7 @@ import warnings
 import numpy as np
 
 from ..solvers.minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
+from ..solvers.sunny import sunny_donors
 from ..solvers.simplex import mspe
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
@@ -91,55 +92,6 @@ def _inner_weights(prob: BilevelProblem, V: np.ndarray) -> np.ndarray:
     R = _predictor_discrepancies(prob)
     V = np.clip(np.asarray(V, dtype=float).ravel(), 0.0, None)
     return solve_simplex_minnorm((R * V[:, None]).T @ R)
-
-
-def _sunny_mask(X1: np.ndarray, X0: np.ndarray, tol: float = 1e-9) -> np.ndarray:
-    """Boolean mask of the *sunny* donors (Becker & Kloessner 2018).
-
-    A donor ``d`` is **sunny** if it can receive positive weight in the inner
-    solution for *some* predictor weighting ``V``, and **shady** if it gets zero
-    weight for *every* ``V``. Geometrically (think of a light source at the
-    treated unit ``X1``): sunny donors lie on the part of the donor convex hull
-    that is *visible* from ``X1``; shady donors sit in its shadow, behind the
-    hull. The ``V``-weighted projection of ``X1`` onto the hull can never land on
-    a face containing a shady donor, so dropping shady donors leaves every inner
-    ``W*(V)`` -- and therefore the whole outer objective -- unchanged.
-
-    Donor ``d`` is visible iff there is a hyperplane through ``X0[:, d]`` with
-    every donor on one side and ``X1`` on the outward side, i.e. the LP
-
-        max_a  a . (X1 - X0_d)   s.t.   a . (X0_i - X0_d) <= 0  for all i,
-                                        -1 <= a_k <= 1
-
-    has a positive optimum. The normal ``a`` is free over ``R^K`` -- a superset
-    of the ``V``-reachable normals -- so the test is **conservative**: it only
-    ever classifies a donor as shady when it is provably shady (never drops a
-    donor that could carry weight). Used as a pre-filter before the outer search.
-
-    Returns a length-``J`` boolean array, ``True`` for donors to keep (sunny).
-
-    An all-``False`` return is meaningful and is not corrected here: by Proposition 1
-    it says ``0`` lies in the hull, so an exact predictor fit exists and the caller
-    takes the exact-fit branch instead of pruning. Forcing the mask to all-``True``
-    in that case, as this function used to, threw away the only evidence that branch
-    is reachable.
-    """
-    from scipy.optimize import linprog
-
-    K, J = X0.shape
-    mask = np.ones(J, dtype=bool)
-    bnds = [(-1.0, 1.0)] * K
-    zeros_J = np.zeros(J)
-    for d in range(J):
-        gap = X1 - X0[:, d]
-        if float(gap @ gap) <= tol:        # donor coincides with X1 -> perfect, sunny
-            continue
-        A_ub = (X0 - X0[:, d : d + 1]).T   # rows a . (X0_i - X0_d) <= 0
-        res = linprog(c=-gap, A_ub=A_ub, b_ub=zeros_J, bounds=bnds, method="highs")
-        if res.success:
-            mask[d] = (-res.fun) > tol
-        # if the LP fails to solve, keep the donor (safe default)
-    return mask
 
 
 def _exact_predictor_fit_weights(prob: BilevelProblem, mu: float = 1e6):
@@ -245,10 +197,10 @@ def solve_mscmt(
         raised once at the end of the search.
     prune_shady : bool
         If ``True`` (default), reduce the donor pool to its *sunny* donors
-        (:func:`_sunny_mask`) before the outer search. Shady donors provably
-        carry zero inner weight for every ``V``, so this leaves the optimum
-        unchanged while shrinking the inner solve. ``metadata`` reports
-        ``n_sunny`` / ``n_shady_pruned``.
+        (:func:`~mlsynth.utils.solvers.sunny.sunny_donors`) before the outer
+        search. Shady donors provably carry zero inner weight for every ``V``,
+        so this leaves the optimum unchanged while shrinking the inner solve.
+        ``metadata`` reports ``n_sunny`` / ``n_shady_pruned``.
 
     Returns
     -------
@@ -297,7 +249,8 @@ def solve_mscmt(
     # unconstrained outcome optimum is predictor-feasible it is the global bilevel
     # solution, and in both special cases below it can only be feasible by already
     # being the answer that case prescribes.
-    sunny = _sunny_mask(prob.X1, prob.X0) if prune_shady else np.ones(prob.n_donors, bool)
+    sunny = (sunny_donors(prob.X0, prob.X1) if prune_shady
+             else np.ones(prob.n_donors, bool))
     n_sunny = int(sunny.sum())
 
     # No sunny donor. Proposition 1: 0 lies in the hull, so an exact predictor fit

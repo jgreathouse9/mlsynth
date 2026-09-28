@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 from mlsynth.utils.bilevel import BilevelProblem, solve_bilevel
-from mlsynth.utils.bilevel.mscmt import _sunny_mask
+from mlsynth.utils.solvers.sunny import sunny_donors
 
 
 # --------------------------------------------------------------------------- #
@@ -95,12 +95,12 @@ def test_the_mask_reports_no_sunny_donor_when_an_exact_fit_exists():
     """The count has to survive to the caller: a mask forced to all-True when
     everything is shady cannot drive the branch that case is supposed to take."""
     prob = _exact_fit_design()
-    assert int(_sunny_mask(prob.X1, prob.X0).sum()) == 0
+    assert int(sunny_donors(prob.X0, prob.X1).sum()) == 0
 
 
 def test_the_mask_reports_exactly_one_sunny_donor_on_the_ray_design():
     prob = _single_sunny_design()
-    mask = _sunny_mask(prob.X1, prob.X0)
+    mask = sunny_donors(prob.X0, prob.X1)
     assert mask.tolist() == [True, False, False], mask
 
 
@@ -284,7 +284,7 @@ def test_two_or_more_sunny_donors_still_run_the_outer_search():
         y1_pre=rng.normal(size=T), Y0_pre=rng.normal(size=(T, J)),
         X1=rng.normal(size=K) * 3.0, X0=rng.normal(size=(K, J)),
     )
-    assert int(_sunny_mask(prob.X1, prob.X0).sum()) >= 2
+    assert int(sunny_donors(prob.X0, prob.X1).sum()) >= 2
     sol = solve_bilevel(prob, method="mscmt", seed=0, maxiter=60)
     assert sol.stage in ("mscmt", "mscmt-feasible"), sol.stage
     if sol.stage == "mscmt":
