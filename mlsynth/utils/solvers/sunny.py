@@ -116,8 +116,20 @@ classified differently. This is also why sunny does not mean vertex: a sunny don
 may sit in the relative interior of a higher-dimensional exposed face, as
 ``x_1 = (1, 0)`` does among ``(1, 2)`` and ``(1, -2)`` in the tests here.
 
-The quantity itself is not named in the standard references, and three candidate
-classical objects each miss it. The radial function ``rho(K, x) = max{lam >= 0 :
+The predicate does have a classical form, in polytope shelling theory. Gruber
+(Convex and Discrete Geometry, Theorem 15.4, the Bruggesser-Mani shelling theorem)
+orders the facets of a polytope by when they become visible from an external point,
+"the facets visible from p come first", and a facet with outward normal ``u`` is
+visible from the origin exactly when ``h_H(u) < 0``, the condition above. On a
+full-dimensional hull the two agree: over 32 designs with ``dim H = m``, sunny and
+"lies on a facet visible from the origin" classified every donor alike. The
+exposed-face form is the one to state in general, because ``dim H <= min(m, J-1)``
+leaves ``H`` without ambient facets on most panels here, and the visible-facet form is
+its full-dimensional special case. So the sunny set is the part of the hull's boundary
+visible from the treated unit, a notion the literature uses to build shellings.
+
+The quantity ``alpha*`` itself is still not named in any of these references, and four
+candidate classical objects each miss it. The radial function ``rho(K, x) = max{lam >= 0 :
 lam x in K}`` (Hug and Weil Exercise 2.3.3; Balestro et al. Section 2.3) requires the
 origin in the interior of ``K`` and takes the far intersection of the ray. The
 Minkowski gauge ``p_C(x) = inf{lam >= 0 : x in lam C}`` (Correa, Hantoute and Lopez
@@ -125,9 +137,15 @@ Minkowski gauge ``p_C(x) = inf{lam >= 0 : x in lam C}`` (Correa, Hantoute and Lo
 infimum: measured on a donor with ``alpha* = 0.530`` its reciprocal reads 1.000, so it
 does not see shadiness. The support cone ``cl{lam (z - x) : z in K, lam > 0}``
 (Balestro et al., Section 2.4) has its apex at a point of the body, not outside it.
-Illumination appears only as Hadwiger and Boltyanski's covering problem for parallel
-light, and is absent from Hug and Weil; the phrase "central illumination", which names
-this configuration, occurs twice in Balestro et al. without a definition.
+Gruber's radial function is a norm ``||x||_C = inf{lam > 0 : x in lam C}`` for ``C``
+centred at the origin, and his radial mapping assumes the origin interior; he has no
+gauge function. Illumination appears only as Hadwiger and Boltyanski's covering problem
+for parallel light, and in Gruber only as Blaschke's ellipsoid characterisation through
+shadow boundaries under parallel illumination (Theorem 12.4); it is absent from Hug and
+Weil. The phrase "central illumination", which names this configuration, occurs twice
+in Balestro et al. without a definition, and nowhere in Gruber. Blekherman, Parrilo and
+Thomas is a different subject (spectrahedra and polynomial cones) and carries none of
+it.
 
 One consequence for the proof. The equivalence cannot be had by separating ``H`` from
 the half-open segment ``{alpha x_j : 0 <= alpha < 1}``: that segment is not compact, so
