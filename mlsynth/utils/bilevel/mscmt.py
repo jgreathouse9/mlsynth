@@ -117,6 +117,12 @@ def _sunny_mask(X1: np.ndarray, X0: np.ndarray, tol: float = 1e-9) -> np.ndarray
     donor that could carry weight). Used as a pre-filter before the outer search.
 
     Returns a length-``J`` boolean array, ``True`` for donors to keep (sunny).
+
+    An all-``False`` return is meaningful and is not corrected here: by Proposition 1
+    it says ``0`` lies in the hull, so an exact predictor fit exists and the caller
+    takes the exact-fit branch instead of pruning. Forcing the mask to all-``True``
+    in that case, as this function used to, threw away the only evidence that branch
+    is reachable.
     """
     from scipy.optimize import linprog
 
@@ -133,9 +139,37 @@ def _sunny_mask(X1: np.ndarray, X0: np.ndarray, tol: float = 1e-9) -> np.ndarray
         if res.success:
             mask[d] = (-res.fun) > tol
         # if the LP fails to solve, keep the donor (safe default)
-    if not mask.any():                     # degenerate guard: never drop everything
-        mask[:] = True
     return mask
+
+
+def _exact_predictor_fit_weights(prob: BilevelProblem, mu: float = 1e6):
+    """Becker and Klossner's Eq (10): the best outcome fit among perfect predictor fits.
+
+    Solves ``min ||y1 - Y0 w||^2`` subject to ``X0 w = X1``, ``1'w = 1``, ``w >= 0``.
+    The branch this serves is reached when no donor is sunny, which by Proposition 1
+    is exactly when such a ``w`` exists; the inner objective is then zero for every
+    ``V``, so the predictor fit cannot choose among these weights and the outcome fit
+    is what MSCMT uses instead.
+
+    MSCMT solves this with WNNLS, non-negative least squares carrying an explicit
+    equality block (``wnnls(A=Z, B=0, E=rbind(X, 1'), F=c(0, 1))`` in
+    ``R/Helpers.r``). The same shape here: the equality rows enter the least-squares
+    system weighted by ``mu`` relative to the outcome rows, which drives the residual
+    on them to solver precision while the outcome rows pick the point. Returns the
+    weights and the achieved equality residual so the caller can refuse a fit that
+    did not converge.
+    """
+    from scipy.optimize import nnls
+
+    E = np.vstack([prob.X0, np.ones(prob.n_donors)])         # (K+1, J)
+    f = np.r_[prob.X1, 1.0]
+    scale = max(1.0, float(np.abs(prob.Y0_pre).max()), float(np.abs(E).max()))
+    w = mu * scale
+    A = np.vstack([w * E, prob.Y0_pre])
+    b = np.r_[w * f, prob.y1_pre]
+    W, _ = nnls(A, b)
+    resid = float(np.linalg.norm(E @ W - f, ord=np.inf))
+    return W, resid
 
 
 def solve_mscmt(
@@ -257,13 +291,66 @@ def solve_mscmt(
             metadata={"backend": "mscmt"},
         )
 
+    # The sunny/shady screen, run once and used three ways -- Becker and Klossner's
+    # Figure 2 cascade. Their step order puts the screen ahead of the feasibility
+    # check above; ours comes after it, which reaches the same answers. When the
+    # unconstrained outcome optimum is predictor-feasible it is the global bilevel
+    # solution, and in both special cases below it can only be feasible by already
+    # being the answer that case prescribes.
+    sunny = _sunny_mask(prob.X1, prob.X0) if prune_shady else np.ones(prob.n_donors, bool)
+    n_sunny = int(sunny.sum())
+
+    # No sunny donor. Proposition 1: 0 lies in the hull, so an exact predictor fit
+    # exists, every w attaining it ties on the inner objective for every V, and the
+    # predictor fit cannot choose between them. Eq (10) chooses on the outcome fit.
+    if prune_shady and n_sunny == 0:
+        W, resid = _exact_predictor_fit_weights(prob)
+        if resid <= 1e-7 * max(1.0, float(np.abs(prob.X1).max())):
+            V = np.full(K, 1.0 / K)     # unidentified here; any V gives this W
+            return BilevelSolution(
+                V=V, W=W, upper_loss=mspe(prob.y1_pre, prob.Y0_pre, W),
+                lower_loss=float(np.sum(V * (prob.X1 - prob.X0 @ W) ** 2)),
+                lower_bound=lower_bound, stage="mscmt-exact-fit", iterations=0,
+                metadata={"backend": "mscmt", "mscmt_branch": "exact-fit",
+                          "n_donors": int(prob.n_donors), "n_sunny": 0,
+                          "n_shady_pruned": 0, "v_identified": False,
+                          "exact_fit_residual": resid},
+            )
+        warnings.warn(
+            "No donor is sunny, so an exact predictor fit exists, but solving for "
+            f"it left an equality residual of {resid:.3e}; falling back to the "
+            "outer search. The screen and the fit disagree numerically on this "
+            "design.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        # The mask is all-False here, which would prune every donor and leave the
+        # search an empty design. Keep the whole pool for the fall-through: this is
+        # the one path where the old all-shady guard was doing real work.
+        sunny = np.ones(prob.n_donors, dtype=bool)
+        n_sunny = int(sunny.sum())
+
+    # Exactly one sunny donor. It takes all the weight for every V, so there is no
+    # outer problem and V is unidentified.
+    if prune_shady and n_sunny == 1:
+        W = sunny.astype(float)
+        V = np.full(K, 1.0 / K)
+        return BilevelSolution(
+            V=V, W=W, upper_loss=mspe(prob.y1_pre, prob.Y0_pre, W),
+            lower_loss=float(np.sum(V * (prob.X1 - prob.X0 @ W) ** 2)),
+            lower_bound=lower_bound, stage="mscmt-single-sunny", iterations=0,
+            metadata={"backend": "mscmt", "mscmt_branch": "single-sunny",
+                      "n_donors": int(prob.n_donors), "n_sunny": 1,
+                      "n_shady_pruned": int(prob.n_donors - 1),
+                      "v_identified": False},
+        )
+
     log_lb = float(np.log10(lb))
     bounds = [(log_lb, 0.0)] * K
 
-    # Sunny/shady reduction: drop donors that provably carry zero inner weight
-    # for every V, so only the sunny pool enters the tens of thousands of inner
-    # solves (the optimum is unchanged).
-    sunny = _sunny_mask(prob.X1, prob.X0) if prune_shady else np.ones(prob.n_donors, bool)
+    # Two or more sunny donors: prune the shady ones, which provably carry zero
+    # inner weight for every V, so only the sunny pool enters the tens of thousands
+    # of inner solves and the optimum is unchanged.
     Rr = np.ascontiguousarray(
         _predictor_discrepancies(prob)[:, sunny])       # (K, Jr)
     Y0r = np.ascontiguousarray(prob.Y0_pre[:, sunny])
@@ -370,6 +457,7 @@ def solve_mscmt(
             "lb": float(lb),
             "v_method": v_method,
             "n_donors": int(prob.n_donors),
+            "mscmt_branch": "outer-search",
             "n_sunny": int(sunny.sum()),
             "n_shady_pruned": int((~sunny).sum()),
             "inner_unconverged": int(inner_state["unconverged"]),
