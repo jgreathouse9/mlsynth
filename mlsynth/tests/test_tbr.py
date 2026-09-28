@@ -1,0 +1,747 @@
+"""TBR: Time-Based Regression (Kerman, Wang and Vaver 2017).
+
+Test-first, per ``agents/agents_tests.md``: every test here is written before the
+estimator exists and is RED until it lands.
+
+The paper is the authority. Equation numbers below are its own, and the closed
+forms are restated here independently of the implementation so that a test
+fails when the implementation drifts from the paper and not merely when it
+changes:
+
+    pretest           y_t = alpha + beta x_t + eps_t                  eqn 1
+    cumulative        Delta(T) = T (ybar_T - alpha - xbar_T beta)     eqn 4
+    scale             T s (v_a + 2 xbar_T v_ab + v_b xbar_T^2 + 1/T)^(1/2)
+                                                                      eqn 6
+    posterior         shifted, scaled t on n - 2 degrees of freedom
+
+``v_a``, ``v_b``, ``v_ab`` are entries of the unscaled ``V = (X'X)^-1``, ``s``
+the classical residual standard deviation, and ``n`` the number of pretest time
+points.
+
+The replication behind these numbers is ``benchmarks/studies/tbr_geo``, which
+cross-validates the same formulas against ``google/matched_markets`` on the
+reference's own panel and reproduces the paper's coverage grid.
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+from scipy import stats
+
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+
+
+# --------------------------------------------------------------------------- #
+# panel builders
+# --------------------------------------------------------------------------- #
+def geo_panel(n_control=4, n_treat=3, n_unassigned=0, T=20, T0=14,
+              alpha=5.0, beta=1.5, noise=0.0, lift=0.0, cooldown_from=None,
+              cost_in_test=0.0, cost_in_pre=0.0, seed=0):
+    """A geo panel whose group aggregates satisfy eqn 1 by construction.
+
+    The control geos are drawn first; the treatment geos are then defined so
+    that their sum is exactly ``alpha + beta * (control sum)``, split evenly.
+    With ``noise=0`` the pretest relation is exact, so ``Delta(T)`` is zero
+    without a lift and exactly ``T * lift`` with one -- which is what lets the
+    unit tests assert equalities instead of tolerances.
+
+    ``cooldown_from`` is a period index (0-based) at which the cooldown flag
+    turns 1 and stays 1. ``cost_in_pre`` puts spend in the pretest, which is
+    what takes the cost arm out of section 3.4's fixed-cost case.
+    """
+    rng = np.random.default_rng(seed)
+    ctl = rng.uniform(10.0, 30.0, size=(T, n_control))
+    X = ctl.sum(axis=1)
+    target = alpha + beta * X + noise * rng.normal(size=T)
+    target = target + lift * (np.arange(T) >= T0)
+    trt = np.tile((target / n_treat)[:, None], (1, n_treat))
+    una = rng.uniform(100.0, 900.0, size=(T, n_unassigned))
+
+    rows = []
+    for block, tag, arr in (("c", "control", ctl), ("t", "treat", trt),
+                            ("u", "unassigned", una)):
+        for j in range(arr.shape[1]):
+            for t in range(T):
+                rows.append(dict(
+                    geo=f"{block}{j}", date=t, sales=float(arr[t, j]),
+                    is_control=int(tag == "control"),
+                    D=int(tag == "treat" and t >= T0),
+                    cooldown=0 if cooldown_from is None
+                             else int(t >= cooldown_from),
+                    cost=(cost_in_test if (tag == "treat" and t >= T0)
+                          else (cost_in_pre if t < T0 else 0.0)),
+                ))
+    return pd.DataFrame(rows)
+
+
+def base_config(df, **over):
+    kw = dict(df=df, unitid="geo", time="date", outcome="sales", treat="D",
+              control_col="is_control", display_graphs=False)
+    kw.update(over)
+    return TBRConfig(**kw)
+
+
+def reference_posterior(df, T0, level=0.9, with_cooldown=False):
+    """Eqns 4 and 6 computed straight from the frame, independent of mlsynth."""
+    wide = df.pivot_table(index="date", columns="geo", values="sales",
+                          aggfunc="sum")
+    trt = [g for g in wide.columns if g.startswith("t")]
+    ctl = sorted(df[df.is_control == 1].geo.unique())
+    Y, X = wide[trt].sum(axis=1).to_numpy(), wide[ctl].sum(axis=1).to_numpy()
+    if with_cooldown:
+        end = len(Y)
+    else:
+        cd = df.groupby("date").cooldown.max()
+        end = int((cd == 0).sum()) if cd.max() else len(Y)
+    Yp, Xp = Y[:T0], X[:T0]
+    A = np.column_stack([np.ones(T0), Xp])
+    coef, *_ = np.linalg.lstsq(A, Yp, rcond=None)
+    resid = Yp - A @ coef
+    df_resid = T0 - 2
+    s2 = float(resid @ resid) / df_resid
+    V = np.linalg.pinv(A.T @ A)
+    Yt, Xt = Y[T0:end], X[T0:end]
+    Tn = np.arange(1, Yt.size + 1, dtype=float)
+    ybar, xbar = np.cumsum(Yt) / Tn, np.cumsum(Xt) / Tn
+    loc = Tn * (ybar - coef[0] - xbar * coef[1])
+    scale = Tn * np.sqrt(s2) * np.sqrt(
+        V[0, 0] + 2 * xbar * V[0, 1] + V[1, 1] * xbar ** 2 + 1.0 / Tn)
+    q = stats.t.ppf(0.5 * (1 + level), df_resid)
+    return dict(alpha=coef[0], beta=coef[1], s2=s2, df=df_resid, loc=loc,
+                scale=scale, lower=loc - q * scale, upper=loc + q * scale)
+
+
+# --------------------------------------------------------------------------- #
+# Layer 4: smoke
+# --------------------------------------------------------------------------- #
+def test_fits_and_returns_an_effect_result():
+    from mlsynth.config_models import EffectResult
+    res = TBR(base_config(geo_panel())).fit()
+    assert isinstance(res, EffectResult)
+    assert np.isfinite(res.att)
+    assert np.all(np.isfinite(np.asarray(res.counterfactual, dtype=float)))
+
+
+def test_the_counterfactual_spans_the_whole_panel():
+    T, T0 = 20, 14
+    res = TBR(base_config(geo_panel(T=T, T0=T0))).fit()
+    assert len(np.asarray(res.counterfactual, dtype=float)) == T
+
+
+# --------------------------------------------------------------------------- #
+# Layer 1: the paper's closed forms
+# --------------------------------------------------------------------------- #
+def test_pretest_coefficients_match_equation_1():
+    df = geo_panel(noise=2.0, seed=3)
+    want = reference_posterior(df, 14)
+    got = TBR(base_config(df)).fit().tbr_fit
+    assert got.alpha == pytest.approx(want["alpha"], rel=1e-12)
+    assert got.beta == pytest.approx(want["beta"], rel=1e-12)
+    assert got.sigma_sq == pytest.approx(want["s2"], rel=1e-12)
+    assert got.df == want["df"] == got.n_pretest - 2
+
+
+def test_cumulative_estimate_matches_equation_4():
+    df = geo_panel(noise=2.0, seed=4)
+    want = reference_posterior(df, 14)
+    got = TBR(base_config(df)).fit().cumulative
+    assert np.allclose(np.asarray(got.estimate, float), want["loc"], rtol=1e-12)
+
+
+def test_cumulative_scale_matches_equation_6():
+    df = geo_panel(noise=2.0, seed=5)
+    want = reference_posterior(df, 14)
+    got = TBR(base_config(df)).fit().cumulative
+    assert np.allclose(np.asarray(got.scale, float), want["scale"], rtol=1e-12)
+
+
+def test_interval_is_the_t_quantile_of_that_scale():
+    df = geo_panel(noise=2.0, seed=6)
+    want = reference_posterior(df, 14, level=0.9)
+    got = TBR(base_config(df, level=0.9)).fit().cumulative
+    assert np.allclose(np.asarray(got.lower, float), want["lower"], rtol=1e-12)
+    assert np.allclose(np.asarray(got.upper, float), want["upper"], rtol=1e-12)
+
+
+def test_cumulative_is_the_running_sum_of_the_per_period_gap():
+    """Section 3.2: Delta(t) is the partial sum of phi_t = y_t - y*_t."""
+    df = geo_panel(noise=2.0, seed=7)
+    res = TBR(base_config(df)).fit()
+    gap = np.asarray(res.gap, dtype=float)[-len(res.cumulative.estimate):]
+    assert np.allclose(np.cumsum(gap),
+                       np.asarray(res.cumulative.estimate, float), rtol=1e-10)
+
+
+# --------------------------------------------------------------------------- #
+# Layer 2: invariants
+# --------------------------------------------------------------------------- #
+def test_an_exact_relation_with_no_lift_reports_no_effect():
+    res = TBR(base_config(geo_panel(noise=0.0, lift=0.0))).fit()
+    assert np.allclose(np.asarray(res.cumulative.estimate, float), 0.0,
+                       atol=1e-8)
+
+
+def test_a_known_constant_lift_is_recovered_exactly():
+    T, T0, lift = 20, 14, 7.0
+    res = TBR(base_config(geo_panel(T=T, T0=T0, noise=0.0, lift=lift))).fit()
+    got = np.asarray(res.cumulative.estimate, float)
+    assert np.allclose(got, lift * np.arange(1, T - T0 + 1), atol=1e-7)
+
+
+def test_unassigned_units_enter_neither_aggregate():
+    """A unit that is neither treated nor flagged control changes nothing."""
+    a = TBR(base_config(geo_panel(n_unassigned=0, seed=8))).fit()
+    b = TBR(base_config(geo_panel(n_unassigned=5, seed=8))).fit()
+    assert np.allclose(np.asarray(a.cumulative.estimate, float),
+                       np.asarray(b.cumulative.estimate, float), rtol=1e-12)
+    assert a.tbr_fit.beta == pytest.approx(b.tbr_fit.beta, rel=1e-12)
+
+
+def test_scaling_the_outcome_scales_the_effect_and_its_scale():
+    df = geo_panel(noise=2.0, seed=9)
+    big = df.copy()
+    big["sales"] = big["sales"] * 1000.0
+    a = TBR(base_config(df)).fit().cumulative
+    b = TBR(base_config(big)).fit().cumulative
+    assert np.allclose(np.asarray(b.estimate, float),
+                       1000.0 * np.asarray(a.estimate, float), rtol=1e-10)
+    assert np.allclose(np.asarray(b.scale, float),
+                       1000.0 * np.asarray(a.scale, float), rtol=1e-10)
+
+
+def test_relabelling_units_within_a_group_changes_nothing():
+    df = geo_panel(noise=2.0, seed=10)
+    shuffled = df.copy()
+    order = {g: f"z{i}" for i, g in
+             enumerate(sorted(df[df.is_control == 1].geo.unique())[::-1])}
+    shuffled["geo"] = shuffled.geo.map(lambda g: order.get(g, g))
+    a = TBR(base_config(df)).fit().cumulative
+    b = TBR(base_config(shuffled)).fit().cumulative
+    assert np.allclose(np.asarray(a.estimate, float),
+                       np.asarray(b.estimate, float), rtol=1e-12)
+
+
+def test_the_weights_slot_says_there_are_none():
+    """TBR carries no donor weights; the container must still not be empty."""
+    res = TBR(base_config(geo_panel())).fit()
+    assert not res.weights.is_empty
+
+
+# --------------------------------------------------------------------------- #
+# the cooldown flag
+# --------------------------------------------------------------------------- #
+def test_the_window_always_covers_the_whole_post_period():
+    """Section 3.2 credits the cooldown to the effect, which is the reference's
+    ``use_cooldown=True`` default, so the flag splits the window it does not
+    shorten it. Told nothing about a cooldown, TBR cannot invent one: the two
+    fits must agree on every number.
+    """
+    T, T0 = 24, 14
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=19, seed=11)
+    with_cd = TBR(base_config(df, cooldown_col="cooldown")).fit()
+    without = TBR(base_config(df)).fit()
+    assert len(with_cd.cumulative.estimate) == T - T0
+    assert len(without.cumulative.estimate) == T - T0
+    assert np.allclose(np.asarray(with_cd.cumulative.estimate, float),
+                       np.asarray(without.cumulative.estimate, float),
+                       rtol=1e-12)
+
+
+def test_the_flag_splits_the_window_into_intervention_and_cooldown():
+    T, T0, cd = 24, 14, 19
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=11)
+    res = TBR(base_config(df, cooldown_col="cooldown")).fit()
+    assert res.cooldown_periods == T - cd
+    assert res.intervention_periods == cd - T0
+    assert res.cooldown_periods + res.intervention_periods == T - T0
+
+
+def test_the_effect_at_the_end_of_the_intervention_is_reported_separately():
+    """Section 3.5 reads the two against each other to decide whether the
+    cooldown was needed at all, so both have to be available."""
+    T, T0, cd = 24, 14, 19
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=11)
+    res = TBR(base_config(df, cooldown_col="cooldown")).fit()
+    full = np.asarray(res.cumulative.estimate, float)
+    assert res.effect_at_intervention_end == pytest.approx(full[cd - T0 - 1],
+                                                           rel=1e-12)
+    assert res.effect_at_cooldown_end == pytest.approx(full[-1], rel=1e-12)
+
+
+def test_no_cooldown_column_reports_no_cooldown_periods():
+    T, T0 = 20, 14
+    res = TBR(base_config(geo_panel(T=T, T0=T0))).fit()
+    assert res.cooldown_periods == 0
+    assert res.intervention_periods == T - T0
+    assert res.effect_at_intervention_end == pytest.approx(
+        res.effect_at_cooldown_end, rel=1e-12)
+
+
+# --------------------------------------------------------------------------- #
+# iROAS
+# --------------------------------------------------------------------------- #
+def test_no_cost_column_means_no_iroas():
+    assert TBR(base_config(geo_panel())).fit().iroas is None
+
+
+def test_zero_pretest_cost_is_the_fixed_cost_case():
+    """Section 3.4: with no pretest spend the cost counterfactual is zero with
+    certainty, so Delta_cost(T) is the total test spend and iROAS is a scaled t.
+    """
+    T, T0, per = 20, 14, 100.0
+    df = geo_panel(T=T, T0=T0, noise=2.0, cost_in_test=per, seed=12)
+    res = TBR(base_config(df, cost_col="cost")).fit()
+    n_treat = df[df.D == 1].geo.nunique()
+    total = per * n_treat * (T - T0)
+    assert res.iroas.fixed_cost is True
+    assert res.iroas.total_incremental_cost == pytest.approx(total, rel=1e-12)
+    assert res.iroas.estimate == pytest.approx(
+        float(np.asarray(res.cumulative.estimate, float)[-1]) / total,
+        rel=1e-12)
+    assert res.iroas.lower == pytest.approx(
+        float(np.asarray(res.cumulative.lower, float)[-1]) / total, rel=1e-12)
+
+
+def test_pretest_cost_leaves_the_fixed_cost_case():
+    df = geo_panel(noise=2.0, cost_in_test=100.0, cost_in_pre=20.0, seed=13)
+    res = TBR(base_config(df, cost_col="cost")).fit()
+    assert res.iroas.fixed_cost is False
+    assert np.isfinite(res.iroas.estimate)
+
+
+def test_the_rank_deficient_cost_fit_is_reported_not_hidden():
+    """The branch exists by name, so a caller can see which route ran.
+
+    These diagnostics live on ``TBRResults`` and not on the shared
+    ``MethodDetailsResults``: a cooldown count and a cost-design rank are
+    TBR's, where the standardized model is every estimator's.
+    """
+    df = geo_panel(noise=2.0, cost_in_test=100.0, seed=14)
+    res = TBR(base_config(df, cost_col="cost")).fit()
+    assert res.cost_fit.rank_deficient is True
+    assert res.cost_fit.df == res.tbr_fit.df
+
+
+# --------------------------------------------------------------------------- #
+# the zero fill
+# --------------------------------------------------------------------------- #
+def test_an_absent_cell_is_filled_to_zero():
+    """Dropping a geo-day must equal recording it as zero, which is what the
+    reference's own aggregation does."""
+    df = geo_panel(noise=1.0, seed=15)
+    holed = df.drop(df.index[(df.geo == "c1") & (df.date == 3)])
+    zeroed = df.copy()
+    zeroed.loc[(zeroed.geo == "c1") & (zeroed.date == 3), "sales"] = 0.0
+    a = TBR(base_config(holed)).fit().cumulative
+    b = TBR(base_config(zeroed)).fit().cumulative
+    assert np.allclose(np.asarray(a.estimate, float),
+                       np.asarray(b.estimate, float), rtol=1e-12)
+
+
+def test_the_fill_is_reported():
+    df = geo_panel(noise=1.0, seed=16)
+    holed = df.drop(df.index[(df.geo == "c1") & (df.date.isin([3, 4]))])
+    res = TBR(base_config(holed)).fit()
+    assert res.filled_cells == 2
+
+
+# --------------------------------------------------------------------------- #
+# Layer 3: edge cases
+# --------------------------------------------------------------------------- #
+def test_a_single_control_unit():
+    res = TBR(base_config(geo_panel(n_control=1, noise=1.0))).fit()
+    assert np.isfinite(res.att)
+
+
+def test_a_single_treated_unit():
+    res = TBR(base_config(geo_panel(n_treat=1, noise=1.0))).fit()
+    assert np.isfinite(res.att)
+
+
+def test_three_pretest_periods_is_the_shortest_usable_panel():
+    """df = n - 2, so three pretest points leave one degree of freedom."""
+    res = TBR(base_config(geo_panel(T=6, T0=3, noise=0.5))).fit()
+    assert res.tbr_fit.df == 1
+
+
+def test_one_test_period():
+    res = TBR(base_config(geo_panel(T=15, T0=14, noise=1.0))).fit()
+    assert len(res.cumulative.estimate) == 1
+
+
+def test_a_constant_control_aggregate_is_rank_deficient_and_says_so():
+    df = geo_panel(noise=0.0, seed=17)
+    df.loc[df.is_control == 1, "sales"] = 5.0
+    res = TBR(base_config(df)).fit()
+    assert res.tbr_fit.rank_deficient is True
+    assert np.all(np.isfinite(np.asarray(res.cumulative.estimate, float)))
+
+
+# --------------------------------------------------------------------------- #
+# failure tests: each raises the translated error, and is reported
+# --------------------------------------------------------------------------- #
+def test_missing_control_column_raises():
+    df = geo_panel().drop(columns=["is_control"])
+    with pytest.raises((MlsynthConfigError, MlsynthDataError), match="is_control"):
+        TBR(base_config(df)).fit()
+
+
+def test_control_column_not_constant_within_unit_raises():
+    df = geo_panel()
+    df.loc[(df.geo == "c0") & (df.date > 5), "is_control"] = 0
+    with pytest.raises(MlsynthDataError, match="constant"):
+        TBR(base_config(df)).fit()
+
+
+def test_control_column_with_a_third_value_raises():
+    df = geo_panel()
+    df.loc[df.geo == "c0", "is_control"] = 2
+    with pytest.raises(MlsynthDataError):
+        TBR(base_config(df)).fit()
+
+
+def test_no_control_units_raises():
+    df = geo_panel()
+    df["is_control"] = 0
+    with pytest.raises(MlsynthDataError, match="control"):
+        TBR(base_config(df)).fit()
+
+
+def test_a_unit_both_treated_and_flagged_control_raises():
+    df = geo_panel()
+    df.loc[df.geo == "t0", "is_control"] = 1
+    with pytest.raises(MlsynthDataError):
+        TBR(base_config(df)).fit()
+
+
+def test_cooldown_flag_that_varies_across_units_raises():
+    df = geo_panel(T=24, T0=14, cooldown_from=19)
+    df.loc[(df.geo == "c0") & (df.date == 20), "cooldown"] = 0
+    with pytest.raises(MlsynthDataError, match="block"):
+        TBR(base_config(df, cooldown_col="cooldown")).fit()
+
+
+def test_cooldown_flag_that_turns_back_off_raises():
+    df = geo_panel(T=24, T0=14, cooldown_from=19)
+    df.loc[df.date == 22, "cooldown"] = 0
+    with pytest.raises(MlsynthDataError, match="sustained|monotone|block"):
+        TBR(base_config(df, cooldown_col="cooldown")).fit()
+
+
+def test_cooldown_beginning_before_treatment_raises():
+    df = geo_panel(T=24, T0=14, cooldown_from=10)
+    with pytest.raises(MlsynthDataError, match="cooldown"):
+        TBR(base_config(df, cooldown_col="cooldown")).fit()
+
+
+def test_cooldown_column_with_a_third_value_raises():
+    df = geo_panel(T=24, T0=14, cooldown_from=19)
+    df.loc[df.date == 21, "cooldown"] = 5
+    with pytest.raises(MlsynthDataError):
+        TBR(base_config(df, cooldown_col="cooldown")).fit()
+
+
+def test_fewer_than_three_pretest_periods_raises():
+    with pytest.raises(MlsynthDataError):
+        TBR(base_config(geo_panel(T=10, T0=2))).fit()
+
+
+def test_no_pretest_periods_raises():
+    with pytest.raises(MlsynthDataError):
+        TBR(base_config(geo_panel(T=10, T0=0))).fit()
+
+
+def _config_kwargs(df, **over):
+    kw = dict(df=df, unitid="geo", time="date", outcome="sales", treat="D",
+              control_col="is_control", display_graphs=False)
+    kw.update(over)
+    return kw
+
+
+def test_a_level_outside_the_unit_interval_is_refused():
+    """Directly constructing the config raises Pydantic's error, which is the
+    repository's convention; the dict path through the estimator translates it
+    to ``MlsynthConfigError``. Both are pinned so neither can drift."""
+    from pydantic import ValidationError
+    df = geo_panel()
+    for bad in (0.0, 1.0, -0.1, 1.5):
+        with pytest.raises(ValidationError):
+            base_config(df, level=bad)
+        with pytest.raises(MlsynthConfigError, match="level"):
+            TBR(_config_kwargs(df, level=bad))
+
+
+def test_an_unknown_config_field_is_refused():
+    from pydantic import ValidationError
+    df = geo_panel()
+    with pytest.raises(ValidationError):
+        base_config(df, tbr_mode="fast")
+    with pytest.raises(MlsynthConfigError, match="tbr_mode"):
+        TBR(_config_kwargs(df, tbr_mode="fast"))
+
+
+def test_a_blank_column_name_is_refused():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        base_config(geo_panel(), control_col="   ")
+
+
+def test_a_non_config_input_raises_a_config_error():
+    with pytest.raises(MlsynthConfigError, match="TBRConfig"):
+        TBR(42)
+
+
+def test_a_missing_cost_column_raises():
+    with pytest.raises((MlsynthConfigError, MlsynthDataError), match="spend|cost"):
+        TBR(base_config(geo_panel(), cost_col="spend")).fit()
+
+
+# --------------------------------------------------------------------------- #
+# the remaining branches, each reachable, so tested and not excused
+# --------------------------------------------------------------------------- #
+def test_a_cooldown_column_that_never_turns_on_is_no_cooldown():
+    """Supplying the column is not the same as having a cooldown."""
+    T, T0 = 20, 14
+    df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=None, seed=18)
+    res = TBR(base_config(df, cooldown_col="cooldown")).fit()
+    assert res.cooldown_periods == 0
+    assert res.intervention_periods == T - T0
+
+
+def test_a_repeated_unit_period_cell_raises():
+    """Summing across units makes a repeated cell ambiguous: two observations to
+    add, or a duplicated row. The two give different totals, so neither is
+    guessed."""
+    df = geo_panel(noise=1.0, seed=19)
+    doubled = pd.concat([df, df[(df.geo == "c0") & (df.date == 2)]],
+                        ignore_index=True)
+    with pytest.raises(MlsynthDataError, match="repeats"):
+        TBR(base_config(doubled)).fit()
+
+
+def test_a_panel_with_no_treated_unit_raises():
+    df = geo_panel(noise=1.0, seed=20)
+    df["D"] = 0
+    with pytest.raises(MlsynthDataError, match="treatment group is empty"):
+        TBR(base_config(df)).fit()
+
+
+def test_a_cost_column_that_nets_to_zero_raises():
+    """iROAS is a ratio, and a zero denominator is not an estimate."""
+    df = geo_panel(noise=1.0, cost_in_test=0.0, seed=21)
+    with pytest.raises(MlsynthDataError, match="denominator|zero"):
+        TBR(base_config(df, cost_col="cost")).fit()
+
+
+# --------------------------------------------------------------------------- #
+# the plotter: returns its Figure, displays nothing (invariant 7)
+# --------------------------------------------------------------------------- #
+def test_the_plotter_returns_a_figure_and_shows_nothing(monkeypatch):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+
+    shown = {"n": 0}
+    monkeypatch.setattr(plt, "show", lambda *a, **k: shown.__setitem__("n", 1))
+    res = TBR(base_config(geo_panel(noise=1.0, seed=22))).fit()
+    fig = plot_tbr(res)
+    assert isinstance(fig, plt.Figure)
+    assert len(fig.axes) == 3
+    assert shown["n"] == 0
+    plt.close(fig)
+
+
+def test_the_plotter_marks_where_the_intervention_stopped():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+
+    df = geo_panel(T=24, T0=14, noise=1.0, cooldown_from=19, seed=23)
+    with_cd = plot_tbr(TBR(base_config(df, cooldown_col="cooldown")).fit())
+    without = plot_tbr(TBR(base_config(df)).fit())
+    # one vertical rule per panel marks the cooldown boundary; without a
+    # cooldown flag there is no boundary to mark
+    assert sum(len(ax.lines) for ax in with_cd.axes) > \
+           sum(len(ax.lines) for ax in without.axes)
+    plt.close(with_cd)
+    plt.close(without)
+
+
+def test_a_custom_title_reaches_the_figure():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+
+    fig = plot_tbr(TBR(base_config(geo_panel(noise=1.0))).fit(),
+                   title="Geo lift, Q3")
+    assert fig.axes[0].get_title() == "Geo lift, Q3"
+    plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# design mode: no treatment in the panel, the window named by a post column
+#
+# LEXSCM and SYNDES separate designing from estimating, and TBR has to as well:
+# Au (2018) scores a candidate split by fitting TBR on history where nothing was
+# treated, and his Example 3 is an A/A test built that way -- take the control
+# geos of a finished experiment, split them, and check what TBR reports when the
+# truth is zero. Neither is expressible through ``treat``, which asserts that a
+# treatment happened.
+# --------------------------------------------------------------------------- #
+def design_panel(n_control=4, n_treat=3, T=20, T0=14, noise=1.0, seed=0,
+                 **kw):
+    """The same panel, with the group split and the window named directly."""
+    df = geo_panel(n_control=n_control, n_treat=n_treat, T=T, T0=T0,
+                   noise=noise, seed=seed, **kw)
+    df["is_treatment"] = (df.geo.str.startswith("t")).astype(int)
+    df["post"] = (df.date >= T0).astype(int)
+    return df
+
+
+def design_config(df, **over):
+    kw = dict(df=df, unitid="geo", time="date", outcome="sales",
+              control_col="is_control", treatment_col="is_treatment",
+              post_col="post", display_graphs=False)
+    kw.update(over)
+    return TBRConfig(**kw)
+
+
+def test_design_mode_fits_without_a_treatment_indicator():
+    res = TBR(design_config(design_panel())).fit()
+    assert np.isfinite(res.att)
+    assert len(res.cumulative.estimate) == 6
+
+
+def test_design_mode_and_estimation_mode_agree_on_the_same_panel():
+    """The two routes differ in how the window and the groups are named, not in
+    what is computed, so every number must coincide."""
+    df = design_panel(noise=2.0, seed=24)
+    estimated = TBR(base_config(df)).fit()
+    designed = TBR(design_config(df)).fit()
+    assert designed.tbr_fit.alpha == pytest.approx(estimated.tbr_fit.alpha,
+                                                   rel=1e-12)
+    assert designed.tbr_fit.beta == pytest.approx(estimated.tbr_fit.beta,
+                                                  rel=1e-12)
+    assert np.allclose(np.asarray(designed.cumulative.estimate, float),
+                       np.asarray(estimated.cumulative.estimate, float),
+                       rtol=1e-12)
+    assert np.allclose(np.asarray(designed.cumulative.scale, float),
+                       np.asarray(estimated.cumulative.scale, float),
+                       rtol=1e-12)
+
+
+def test_an_a_a_split_of_untreated_geos_reports_no_effect():
+    """Au's Example 3 shape: nothing was treated, so the truth is zero and the
+    interval has to cover it."""
+    T, T0 = 30, 20
+    rng = np.random.default_rng(25)
+    rows = []
+    for j in range(10):
+        base = rng.uniform(50.0, 150.0)
+        series = base * (1.0 + 0.02 * np.arange(T)) + rng.normal(0, 2.0, T)
+        for t in range(T):
+            rows.append(dict(geo=f"g{j}", date=t, sales=float(series[t]),
+                             is_treatment=int(j < 5), is_control=int(j >= 5),
+                             post=int(t >= T0)))
+    res = TBR(design_config(pd.DataFrame(rows))).fit()
+    final = len(res.cumulative.estimate) - 1
+    assert res.cumulative.lower[final] <= 0.0 <= res.cumulative.upper[final]
+
+
+def test_design_mode_reports_the_groups_it_used():
+    res = TBR(design_config(design_panel())).fit()
+    assert sorted(res.treated_units) == ["t0", "t1", "t2"]
+    assert sorted(res.control_units) == ["c0", "c1", "c2", "c3"]
+
+
+def test_neither_treat_nor_post_col_is_refused():
+    from pydantic import ValidationError
+    df = design_panel()
+    with pytest.raises(ValidationError, match="post_col|treat"):
+        TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
+                  control_col="is_control", treatment_col="is_treatment",
+                  display_graphs=False)
+
+
+def test_post_col_without_a_treatment_group_is_refused():
+    from pydantic import ValidationError
+    df = design_panel()
+    with pytest.raises(ValidationError, match="treatment_col"):
+        TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
+                  control_col="is_control", post_col="post",
+                  display_graphs=False)
+
+
+def test_a_post_column_that_is_never_one_raises():
+    df = design_panel()
+    df["post"] = 0
+    with pytest.raises(MlsynthDataError, match="post"):
+        TBR(design_config(df)).fit()
+
+
+def test_a_post_column_that_is_always_one_raises():
+    df = design_panel()
+    df["post"] = 1
+    with pytest.raises(MlsynthDataError):
+        TBR(design_config(df)).fit()
+
+
+def test_a_post_column_that_varies_across_units_raises():
+    df = design_panel()
+    df.loc[(df.geo == "c0") & (df.date == 15), "post"] = 0
+    with pytest.raises(MlsynthDataError, match="block"):
+        TBR(design_config(df)).fit()
+
+
+def test_a_post_column_that_turns_back_off_raises():
+    df = design_panel()
+    df.loc[df.date == 17, "post"] = 0
+    with pytest.raises(MlsynthDataError, match="sustained|block"):
+        TBR(design_config(df)).fit()
+
+
+def test_the_treatment_column_must_be_constant_within_unit():
+    df = design_panel()
+    df.loc[(df.geo == "t0") & (df.date > 5), "is_treatment"] = 0
+    with pytest.raises(MlsynthDataError, match="constant"):
+        TBR(design_config(df)).fit()
+
+
+def test_a_unit_in_both_groups_is_refused_in_design_mode():
+    df = design_panel()
+    df.loc[df.geo == "t0", "is_control"] = 1
+    with pytest.raises(MlsynthDataError):
+        TBR(design_config(df)).fit()
+
+
+def test_design_mode_with_an_empty_treatment_group_raises():
+    df = design_panel()
+    df["is_treatment"] = 0
+    with pytest.raises(MlsynthDataError, match="treatment"):
+        TBR(design_config(df)).fit()
+
+
+def test_cooldown_works_in_design_mode_too():
+    T, T0, cd = 24, 14, 19
+    df = design_panel(T=T, T0=T0, cooldown_from=cd, seed=26)
+    res = TBR(design_config(df, cooldown_col="cooldown")).fit()
+    assert res.cooldown_periods == T - cd
+    assert res.intervention_periods == cd - T0
+
+
+def test_an_empty_panel_is_refused():
+    with pytest.raises(MlsynthDataError, match="empty"):
+        base_config(geo_panel().iloc[0:0])
+
+
+def test_rows_without_a_unit_or_a_period_are_refused():
+    df = geo_panel()
+    df.loc[df.index[0], "date"] = np.nan
+    with pytest.raises(MlsynthDataError, match="not observations"):
+        base_config(df)

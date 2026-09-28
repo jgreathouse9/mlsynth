@@ -66,7 +66,8 @@ At a glance
    ────────────────────────────────────────────────────────
    Are you DESIGNING the experiment (treatment not yet assigned)?  ── yes ─► PART 3
    Is assignment RANDOMIZED?                  ── yes, many small units ─► difference-in-means
-                                              └─ yes, few large units  ─► MUSC
+                                              ├─ yes, few large units  ─► MUSC
+                                              └─ geo experiment, groups fixed ─► TBR
    Do CONTROL UNITS exist at all?             ── no (everyone treated) ─► SHC
    Is treatment ENDOGENOUS (SC can't absorb)? ── have an instrument    ─► SIV
                                               └─ have proxies / NCs     ─► PROXIMAL
@@ -97,6 +98,7 @@ At a glance
    ─────────────────────────────────────────────────────────────────
    Same adoption time?  ─► SDID            (micro units ─► MicroSynth; two-level ─► MLSC)
      + many treated at once, disaggregated/high-dim donors ─► MSQRT
+   Geo experiment, groups already assigned, few geos? ─► TBR (two aggregated series; cumulative effect + iROAS)
    Staggered (different times)?  ─► SDID · ROLLDID (rolling-transformation DiD)
      + simplex SC per unit, never-treated pool, CFPT intervals ─► VanillaSC (staggered)
      + unit sizes differ by orders of magnitude, want % effects ─► STACKEDSC
