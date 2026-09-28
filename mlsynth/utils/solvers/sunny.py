@@ -95,10 +95,13 @@ it is weak and why no cheaper sound certificate is available: the exact predicat
 the supremum, and taking a supremum over directions is a linear program. Second,
 sunny is equivalent to the existence of a single ``c`` with ``<c, x_j> > 0`` and
 ``<c, x_j> = min_i <c, x_i>`` -- a hyperplane supporting ``H`` at ``x_j`` that
-separates the origin -- so ``bilevel/mscmt.py::_sunny_mask``, which solves for that
-``c``, and Eq (9), which solves for ``alpha``, are the two sides of one linear
-program. Third, the transposed shape buys no speed: timed across five designs the
-support-side program runs at 0.84 to 0.98 times Eq (9), so the formulation explains
+separates the origin -- so a program solving for that ``c`` and Eq (9), which solves
+for ``alpha``, are the two sides of one linear program. MSCMT carried such a
+hyperplane program until it was consolidated onto this module; it survives as
+``tests/test_sunny_mask_consolidation.py::_hyperplane_reference``, which cross-checks
+the two sides on the designs where they could disagree. Third, the transposed shape
+buys no speed: timed across five designs the support-side program runs at 0.84 to
+0.98 times Eq (9), so the formulation explains
 the code here without replacing it.
 
 In the vocabulary of convex geometry the predicate has a short form. Balestro,
