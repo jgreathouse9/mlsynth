@@ -72,8 +72,38 @@ runs the screen the columns are affinely dependent yet all 16 remain sunny. Shad
 donors appear only at 5 pre-periods (12 of 16 sunny), 3 (5 of 16) and 2 (2 of 16).
 The concept bites when ``J`` greatly exceeds ``m``, not merely when it exceeds it.
 
-Reference: Becker and Klossner (2017), MSCMT; ``isSunny`` in ``R/Helpers.r`` and the
-donor loop in ``R/multiOpt.r``.
+``alpha*`` is the radial function of ``H`` read from outside. Hug and Weil
+(Lectures on Convex Geometry, Exercise 2.3.3) define ``rho(K, x) = max{lam >= 0 :
+lam x in K}`` for ``0`` in the interior of ``K``, the far intersection of the ray
+with the body, and give ``rho = h(K-polar, .)^-1``. Here ``0`` lies outside ``H``
+and the near intersection is wanted, so the same ray construction runs on the other
+side of the origin. Writing ``H`` through its support function, ``alpha x_j in H``
+holds exactly when ``alpha <c, x_j> <= h(H, c)`` for every ``c``; splitting on the
+sign of ``<c, x_j>`` and using ``-h(H, -c) = min_i <c, x_i>`` gives
+
+    alpha*(j) = sup over c with <c, x_j> > 0 of  min_i <c, x_i> / <c, x_j>,
+
+the supremum being attained because normalising ``<c, x_j> = 1`` makes it a linear
+program, feasible for ``x_j`` nonzero and bounded by ``t <= 1``. Checked against
+Eq (9) to 6e-13 over 884 donors on designs with ``0`` outside ``H``; where ``0`` is
+inside, Eq (9) clamps ``alpha >= 0`` while the formula runs negative, and the two
+still agree on the sunny predicate.
+
+Three things follow. The certificate above is this supremum evaluated at the ``J``
+directions ``c = x_i``, a finite sample of a supremum over the sphere, which is why
+it is weak and why no cheaper sound certificate is available: the exact predicate is
+the supremum, and taking a supremum over directions is a linear program. Second,
+sunny is equivalent to the existence of a single ``c`` with ``<c, x_j> > 0`` and
+``<c, x_j> = min_i <c, x_i>`` -- a hyperplane supporting ``H`` at ``x_j`` that
+separates the origin -- so ``bilevel/mscmt.py::_sunny_mask``, which solves for that
+``c``, and Eq (9), which solves for ``alpha``, are the two sides of one linear
+program. Third, the transposed shape buys no speed: timed across five designs the
+support-side program runs at 0.84 to 0.98 times Eq (9), so the formulation explains
+the code here without replacing it.
+
+Reference: Becker and Klossner (2018), Fast and reliable computation of generalized
+synthetic controls, Econometrics and Statistics 5, 1-19, Section 3.1 and Definition
+1; ``isSunny`` in MSCMT's ``R/Helpers.r`` and the donor loop in ``R/multiOpt.r``.
 """
 from __future__ import annotations
 
