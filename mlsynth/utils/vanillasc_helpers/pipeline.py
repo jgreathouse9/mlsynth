@@ -988,6 +988,14 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         **submodels,
         method_details=MethodDetailsResults(
             method_name=f"VanillaSC[{res.backend}]",
+            # The sunny/shady screen's verdict, read off the solver's diagnostics.
+            # Absent keys stay None: two early exits in the mscmt backend precede
+            # the screen and ``prune_shady=False`` disables it, and in those cases
+            # there is no verdict to report.
+            n_sunny=res.diagnostics.get("n_sunny"),
+            n_shady_pruned=res.diagnostics.get("n_shady_pruned"),
+            sunny_screen_vacuous=res.diagnostics.get("sunny_screen_vacuous"),
+            mscmt_branch=res.diagnostics.get("mscmt_branch"),
             parameters_used={
                 "backend": res.backend,
                 "augment": config.augment,

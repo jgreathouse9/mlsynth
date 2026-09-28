@@ -400,6 +400,37 @@ class MethodDetailsResults(BaseModel):
     parameters_used: Optional[Dict[str, Any]] = Field(default=None, description="Key parameters used for this specific result set.")
     # Could also include version of estimator if relevant.
 
+    # --- Becker and Klossner's sunny/shady donor screen (VanillaSC backend="mscmt").
+    # All four stay ``None`` where the screen did not run, which is a different
+    # statement from a count of zero: two early exits precede the screen and
+    # ``prune_shady=False`` disables it.
+    n_sunny: Optional[int] = Field(
+        default=None,
+        description="Donors the sunny/shady screen kept. A sunny donor is one the "
+                    "screen cannot rule out; a shady one provably carries zero weight "
+                    "for every predictor weighting V.",
+    )
+    n_shady_pruned: Optional[int] = Field(
+        default=None,
+        description="Donors the screen dropped before the outer search. Dropping them "
+                    "leaves every inner optimum unchanged (Becker and Klossner 2018, "
+                    "Proposition 2), provided at least one donor is sunny.",
+    )
+    sunny_screen_vacuous: Optional[bool] = Field(
+        default=None,
+        description="True when rank(Xt) equals the donor count, so the centred columns "
+                    "are independent and every donor is sunny by algebra. An all-sunny "
+                    "verdict then describes the design's shape, not the donor pool, and "
+                    "carries no information about whether the pool is reducible.",
+    )
+    mscmt_branch: Optional[str] = Field(
+        default=None,
+        description="Which branch of the Figure 2 cascade ran: 'exact-fit' (no donor "
+                    "sunny, so an exact predictor fit exists and Eq (10) selects among "
+                    "the tied weights), 'single-sunny' (one donor takes all the weight "
+                    "for every V), or 'outer-search' (the nested search ran).",
+    )
+
     class Config:
         extra = 'allow'
 

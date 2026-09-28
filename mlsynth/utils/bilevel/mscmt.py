@@ -43,7 +43,7 @@ import warnings
 import numpy as np
 
 from ..solvers.minnorm import solve_simplex_minnorm, solve_simplex_minnorm_batch
-from ..solvers.sunny import sunny_donors
+from ..solvers.sunny import sunny_donors, sunny_screen_is_vacuous
 from ..solvers.simplex import mspe
 from .stages import unconstrained_feasibility, warn_on_gap
 from .structure import BilevelProblem, BilevelSolution
@@ -251,6 +251,13 @@ def solve_mscmt(
     # being the answer that case prescribes.
     sunny = (sunny_donors(prob.X0, prob.X1) if prune_shady
              else np.ones(prob.n_donors, bool))
+    # Reported only where the screen actually ran. rank(Xt) == J makes every donor
+    # sunny by algebra, so the caller can tell an irreducible pool from a design on
+    # which the test can say nothing.
+    screen_meta = (
+        {"sunny_screen_vacuous": bool(sunny_screen_is_vacuous(prob.X0, prob.X1))}
+        if prune_shady else {}
+    )
     n_sunny = int(sunny.sum())
 
     # No sunny donor. Proposition 1: 0 lies in the hull, so an exact predictor fit
@@ -267,7 +274,7 @@ def solve_mscmt(
                 metadata={"backend": "mscmt", "mscmt_branch": "exact-fit",
                           "n_donors": int(prob.n_donors), "n_sunny": 0,
                           "n_shady_pruned": 0, "v_identified": False,
-                          "exact_fit_residual": resid},
+                          "exact_fit_residual": resid, **screen_meta},
             )
         warnings.warn(
             "No donor is sunny, so an exact predictor fit exists, but solving for "
@@ -295,7 +302,7 @@ def solve_mscmt(
             metadata={"backend": "mscmt", "mscmt_branch": "single-sunny",
                       "n_donors": int(prob.n_donors), "n_sunny": 1,
                       "n_shady_pruned": int(prob.n_donors - 1),
-                      "v_identified": False},
+                      "v_identified": False, **screen_meta},
         )
 
     log_lb = float(np.log10(lb))
@@ -414,6 +421,7 @@ def solve_mscmt(
             "n_sunny": int(sunny.sum()),
             "n_shady_pruned": int((~sunny).sum()),
             "inner_unconverged": int(inner_state["unconverged"]),
+            **screen_meta,
             **meta_extra,
         },
     )
