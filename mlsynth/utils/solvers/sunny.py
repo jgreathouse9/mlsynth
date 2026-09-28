@@ -169,6 +169,7 @@ import warnings
 
 import numpy as np
 from scipy.optimize import linprog
+from scipy.spatial import ConvexHull, QhullError
 
 __all__ = ["sunny_alphas", "certified_sunny", "sunny_donors", "sunny_support",
            "sunny_screen_is_vacuous"]
@@ -291,6 +292,58 @@ def _full_column_rank(Xt: np.ndarray) -> bool:
     return bool(sv[-1] > 1e-10 * sv[0])
 
 
+#: Reduced row count at or below which one convex hull beats one program per
+#: donor. Measured, not assumed: at 6 rows the hull route wins by 21x or more at
+#: every donor count up to 500, while at 8 it runs about 3x slower than the
+#: programs once there are 100 donors or more. A hull of ``n`` points in dimension
+#: ``d`` carries up to about ``n ** (d // 2)`` facets, so its cost climbs with the
+#: donor count faster than the programs' one-solve-per-donor does; that is why the
+#: crossover falls as ``J`` grows (10 at ``J = 30``, 9 at 50, 8 at 100 and beyond)
+#: instead of rising. 7 also wins everywhere measured, but its margin decays to
+#: about 3x by 200 donors, close enough to parity to be machine dependent.
+_HULL_MAX_ROWS = 6
+
+
+def _sunny_via_hull(Xt: np.ndarray, tol: float):
+    """Read the sunny set off one convex hull, or ``None`` if qhull cannot run.
+
+    Donor ``j`` is sunny exactly when ``x_j`` lies on an exposed face ``F(H, u)``
+    with ``h_H(u) < 0`` -- a facet whose supporting hyperplane puts the origin
+    strictly outside. qhull returns ``H`` as ``{x : A x + b <= 0}``, so facet ``i``
+    has ``h_H(a_i) = -b_i`` and is lit exactly when ``b_i > 0``.
+
+    The test is membership of a lit facet, not membership of ``hull.vertices``. A
+    sunny donor can lie in the relative interior of a lit facet, where qhull does
+    not list it as a vertex, and the vertex reading then calls it shady. Random
+    designs cannot expose that: their points are in general position, so every
+    boundary point is a vertex. ``tests/test_sunny_hull_route.py`` pins it on a
+    collinear design instead.
+
+    ``None`` means qhull refused the point set, which happens when the columns do
+    not span the reduced space; the caller falls back to the linear programs. The
+    caller also keeps a one-row design away from here, since qhull has no
+    one-dimensional hull and a single row costs the programs almost nothing.
+    """
+    r, J = Xt.shape
+    P = np.ascontiguousarray(Xt.T)
+    scale = float(np.abs(P).max())
+    if not scale > 0.0:
+        return np.zeros(J, dtype=bool)      # every column at the origin: 0 in H
+    try:
+        hull = ConvexHull(P)
+    except (QhullError, ValueError):
+        # QhullError: the columns do not span the reduced space. ValueError:
+        # qhull refuses the input outright, as it does below two dimensions.
+        # Either way the linear programs answer it exactly.
+        return None
+    normals, offsets = hull.equations[:, :r], hull.equations[:, r]
+    lit = offsets > tol * scale
+    if not lit.any():
+        return np.zeros(J, dtype=bool)      # origin inside H: no donor is sunny
+    on_facet = np.abs(P @ normals[lit].T + offsets[lit]) <= tol * scale
+    return on_facet.any(axis=1)
+
+
 def sunny_alphas(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     """Return ``alpha*(j)`` for every donor, one linear program each.
 
@@ -336,6 +389,10 @@ def sunny_donors(B: np.ndarray, A: np.ndarray, *, tol: float = DEFAULT_TOL,
     Xt = _reduced(_centred(B, A))
     if _full_column_rank(Xt):
         return np.ones(Xt.shape[1], dtype=bool)
+    if 2 <= Xt.shape[0] <= _HULL_MAX_ROWS:
+        hull_flags = _sunny_via_hull(Xt, tol)
+        if hull_flags is not None:
+            return hull_flags
     flags = (certified_sunny(B, A) if certify
              else np.zeros(Xt.shape[1], dtype=bool))
     undecided = np.flatnonzero(~flags)
