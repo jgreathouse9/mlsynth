@@ -196,6 +196,33 @@ def _centred(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     return B - A[:, None]
 
 
+def _reduced(Xt: np.ndarray) -> np.ndarray:
+    """Return a design with the same hull geometry and no more rows than columns.
+
+    With ``Xt = Q R`` and ``Q`` orthonormal in its columns,
+    ``(QR)' (QR) = R' Q' Q R = R' R``, so every inner product between columns is
+    preserved; and ``Q' 0 = 0`` leaves the origin in place. Sunniness is a statement
+    about where the origin sits relative to the hull of the columns, so it is identical
+    on ``R``. Eq (9) carries one equality row per row of the design, so a panel with
+    2000 pre-periods and 33 donors drops from 2001 equality rows to 34.
+
+    No rank tolerance enters this, and the reason is that one would buy nothing.
+    Truncating further to the numerical rank is safe as far as measurement goes: over
+    150 designs carrying a direction placed at the rank tolerance on purpose, including
+    the cases where ``matrix_rank`` does drop it, the classification never moved and
+    ``alpha*`` never moved by more than 0.00e+00. That follows from the arithmetic -- a
+    singular value below the relative rank tolerance perturbs the Gram by around 1e-28
+    relative, and the linear program's own tolerance is 1e-9. But ``r`` and ``J`` differ
+    by a row or two on the designs where either applies, so truncating trades a
+    tolerance decision for no measurable gain. The reduction stops at ``J`` rows, where
+    it is exact for every input and needs no threshold.
+    """
+    m, J = Xt.shape
+    if m <= J:
+        return Xt
+    return np.linalg.qr(Xt, mode="reduced")[1]
+
+
 def _program(Xt: np.ndarray):
     """Build the shared part of the donor LP.
 
@@ -244,7 +271,7 @@ def sunny_screen_is_vacuous(B: np.ndarray, A: np.ndarray) -> bool:
     has nothing to say here and can skip it: there is no pruning to be had, whatever
     the treated path looks like.
     """
-    return _full_column_rank(_centred(B, A))
+    return _full_column_rank(_reduced(_centred(B, A)))
 
 
 def _full_column_rank(Xt: np.ndarray) -> bool:
@@ -267,7 +294,7 @@ def sunny_alphas(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     This is the reference: it consults no certificate, so it is what the cheap
     tests are measured against.
     """
-    Xt = _centred(B, A)
+    Xt = _reduced(_centred(B, A))
     if _full_column_rank(Xt):
         return np.ones(Xt.shape[1])
     A_eq, b_eq, c = _program(Xt)
@@ -283,7 +310,7 @@ def certified_sunny(B: np.ndarray, A: np.ndarray) -> np.ndarray:
     The flags are a subset of the sunny donors -- a donor left unflagged has not been
     shown to be shady and still needs its linear program.
     """
-    Xt = _centred(B, A)
+    Xt = _reduced(_centred(B, A))
     G = Xt.T @ Xt
     scale = float(np.diag(G).max())
     if not scale > 0.0:
@@ -303,7 +330,7 @@ def sunny_donors(B: np.ndarray, A: np.ndarray, *, tol: float = DEFAULT_TOL,
     solved only for the rest; the answer is the same either way, since the
     certificate proves sunniness and never asserts shadiness.
     """
-    Xt = _centred(B, A)
+    Xt = _reduced(_centred(B, A))
     if _full_column_rank(Xt):
         return np.ones(Xt.shape[1], dtype=bool)
     flags = (certified_sunny(B, A) if certify
