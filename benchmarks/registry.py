@@ -515,6 +515,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "synth_prop99":                   ("X", "empirical"),
     "tasc_mc":                        ("B", "simulated"),
     "tasc_prop99":                    ("X", "empirical"),
+    "tbr":                            ("X", "both"),
     "th_prop99":                      ("A", "empirical"),
     "tssc_brooklyn":                  ("A", "empirical"),
     "tssc_figure2":                   ("B", "simulated"),
