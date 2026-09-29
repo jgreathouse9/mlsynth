@@ -43,11 +43,12 @@ available for fidelity.
 """
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 from typing import Any, Dict, Tuple
 
 import numpy as np
-from scipy import stats
+from scipy import special
 
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
@@ -60,6 +61,60 @@ POWER_LEVEL = 0.8
 FLEVEL = 0.9
 AA_THRESHOLD_PROB = 0.2                # the reference's tolerated false-positive rate
 MIN_HOLDOUT_PRETEST = 3            # periods the A/A test's own fit needs
+
+#: Terms of the Kolmogorov series, which does not depend on the data.
+_KOLMOGOROV_TERMS = np.arange(1, 201)
+
+
+@dataclass(frozen=True)
+class WindowConstants:
+    """The quantiles a scoring window fixes, independent of any candidate split.
+
+    Every field is a function of the window length and the planned test length
+    alone, so all of them are the same for every split scored on one panel.
+    Recomputing them per candidate cost more than the regressions they wrap: one
+    ``scipy.stats`` frozen distribution is about 464 microseconds against 12 for
+    the least squares, and most of that is scipy constructing an object and its
+    docstring. They are computed once per window here instead.
+    """
+
+    phi: float          # F(1, n-1) at FLEVEL, the confidence-region bound
+    tq_sig: float       # t(n-2) at SIG_LEVEL
+    tq_pow: float       # t(n-2) at POWER_LEVEL
+    tq_holdout: float   # t(n-n_test-2) at SIG_LEVEL, for the A/A window
+    holdout_df: int     # degrees of freedom of the A/A fit
+
+
+@functools.lru_cache(maxsize=None)
+def window_constants(n: int, n_test: int) -> WindowConstants:
+    """The quantiles for a window of ``n`` periods and a test of ``n_test``.
+
+    ``scipy.special`` and not ``scipy.stats``: the wrappers broadcast, validate
+    and mask for array input, which this never has. The values are identical --
+    ``stats.f.ppf`` is ``special.fdtri`` and ``stats.t.ppf`` is
+    ``special.stdtrit`` -- at a fortieth of the cost.
+    """
+    holdout_df = n - n_test - 2
+    return WindowConstants(
+        phi=float(special.fdtri(1, n - 1, FLEVEL)),
+        tq_sig=float(special.stdtrit(n - 2, SIG_LEVEL)),
+        tq_pow=float(special.stdtrit(n - 2, POWER_LEVEL)),
+        tq_holdout=(float(special.stdtrit(holdout_df, SIG_LEVEL))
+                    if holdout_df > 0 else float("nan")),
+        holdout_df=holdout_df,
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def brownian_bridge_envelope(n: int) -> np.ndarray:
+    """The Brownian-bridge boundary for a window of ``n`` periods.
+
+    Read only, because the cache hands the same array to every caller.
+    """
+    k = np.arange(1, n)
+    envelope = BB_BOUND * np.sqrt(k * (1.0 - k / float(n)))
+    envelope.setflags(write=False)
+    return envelope
 
 
 @dataclass(frozen=True)
@@ -109,7 +164,7 @@ def _kolmogorov_sf(t: float) -> float:
     """``P(sup |Brownian bridge| > t)``, the OLS-CUSUM null tail."""
     if not np.isfinite(t) or t <= 0.0:
         return 1.0
-    j = np.arange(1, 201)
+    j = _KOLMOGOROV_TERMS
     cdf = 1.0 + 2.0 * np.sum((-1.0) ** j * np.exp(-2.0 * j ** 2 * t ** 2))
     return float(np.clip(1.0 - cdf, 0.0, 1.0))
 
@@ -136,16 +191,14 @@ def breusch_godfrey_pvalue(resid: np.ndarray, x: np.ndarray, lags: int = 1) -> f
     aux = target - design @ coef
     tss = float(np.sum((target - target.mean()) ** 2))
     r2 = 0.0 if tss <= 0 else 1.0 - float(aux @ aux) / tss
-    return float(stats.chi2.sf(target.size * max(r2, 0.0), lags))
+    return float(special.chdtrc(lags, target.size * max(r2, 0.0)))
 
 
 def brownian_bridge_ok(resid: np.ndarray, sigma: float) -> bool:
     """The reference's ``bb_test``: an OLS-CUSUM with a proportional boundary."""
     if not np.isfinite(sigma) or sigma <= 0.0:
         return False
-    n = resid.size
-    k = np.arange(1, n)
-    envelope = BB_BOUND * np.sqrt(k * (1.0 - k / float(n)))
+    envelope = brownian_bridge_envelope(resid.size)
     return bool(not np.any(np.abs(np.cumsum(resid / sigma))[:-1] > envelope))
 
 
@@ -189,7 +242,7 @@ def holdout_fit(y: np.ndarray, x: np.ndarray, n_test: int) -> HoldoutFit:
     fit = fit_pretest(y[:n_pretest], x[:n_pretest])
     loc, scale = cumulative_posterior(fit, y[n_pretest:], x[n_pretest:])
     sigma = float(np.sqrt(fit.sigma_sq))
-    half_width = float(stats.t.ppf(SIG_LEVEL, df=fit.df) * scale[-1])
+    half_width = float(window_constants(y.size, n_test).tq_holdout * scale[-1])
     return HoldoutFit(estimate=float(loc[-1]), half_width=half_width,
                       sigma=sigma, n_pretest=n_pretest, df=fit.df)
 
@@ -207,8 +260,8 @@ def false_positive_probability(fit: HoldoutFit, n_test: int) -> float:
     true_mean = min(abs(lower), abs(upper))
     tq_sig = fit.half_width / fit.sigma
     posterior_scale = fit.sigma * np.sqrt(1.0 / fit.n_pretest + 1.0 / n_test)
-    upper_tail = 1.0 - stats.t.cdf(tq_sig - true_mean / posterior_scale, df=fit.df)
-    lower_tail = stats.t.cdf(-tq_sig - true_mean / posterior_scale, df=fit.df)
+    upper_tail = 1.0 - special.stdtr(fit.df, tq_sig - true_mean / posterior_scale)
+    lower_tail = float(special.stdtr(fit.df, -tq_sig - true_mean / posterior_scale))
     return float(upper_tail + lower_tail)
 
 
@@ -230,9 +283,8 @@ def aa_test_ok(y: np.ndarray, x: np.ndarray, n_test: int) -> bool:
 def required_impact(y: np.ndarray, corr: float, n_test: int) -> float:
     """The smallest impact the experiment could detect, the reference's formula."""
     n = y.size
-    phi = stats.f(dfn=1, dfd=n - 1).ppf(FLEVEL)
-    tq_sig = stats.t.ppf(SIG_LEVEL, df=n - 2)
-    tq_pow = stats.t.ppf(POWER_LEVEL, df=n - 2)
+    const = window_constants(n, n_test)
+    phi, tq_sig, tq_pow = const.phi, const.tq_sig, const.tq_pow
     sq = np.sqrt(phi * (n + 1) / (n * n_test * (n - 1)) + 1.0 / n + 1.0 / n_test)
     sigma = float(np.std(y, ddof=2)) * np.sqrt(max(1.0 - corr ** 2, 0.0))
     return float((tq_sig + tq_pow) * n_test * sq * sigma)
