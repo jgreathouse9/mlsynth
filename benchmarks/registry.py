@@ -37,6 +37,7 @@ CASES = {
     "spsydid_state_mc": "benchmarks.cases.spsydid_state_mc",  # cross-val vs authors' repo
     "spsydid_lawa_diff": "benchmarks.cases.spsydid_lawa_diff",  # differential cross-val vs authors' functions_ssdid on the real Arizona LAWA CPS panel (SpSyDiD.fit() ATT + spillover agree to solver tolerance under canonical convention)
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
+    "tbr": "benchmarks.cases.tbr",  # cross-val vs google/matched_markets on two panels: design mode on the shipped GeoLift markets (also an A/A check) and a generated panel matched to the reference's shape for iROAS, cooldown and absent cells; reference values pinned as literals so the case is a gate without the reference present
     "geox_augsynth_geolift": "benchmarks.cases.geox_augsynth_geolift",  # cross-val vs R GeoLiftMarketSelection: the augsynth engine reproduces the published BestMarkets top five (rank, MDE, investment, abs_lift_in_zero)
     "geox_mc": "benchmarks.cases.geox_mc",              # design calibration (original method, no external referent): size at the null, out-of-sample power at the reported MDE, and the winner's-curse gap on the selected region
     "geox_augsynth_recast": "benchmarks.cases.geox_augsynth_recast",  # cross-val vs getrecast/geolift-simulation-study: the augsynth engine reproduces their published GeoLift bias and false-positive rate across all four stress scenarios, including the +3.2pp outlier signature
@@ -514,6 +515,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "synth_prop99":                   ("X", "empirical"),
     "tasc_mc":                        ("B", "simulated"),
     "tasc_prop99":                    ("X", "empirical"),
+    "tbr":                            ("X", "both"),
     "th_prop99":                      ("A", "empirical"),
     "tssc_brooklyn":                  ("A", "empirical"),
     "tssc_figure2":                   ("B", "simulated"),
