@@ -32,6 +32,7 @@ from scipy import stats
 from mlsynth import TBR
 from mlsynth.config_models import TBRConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
 
 
 # --------------------------------------------------------------------------- #
@@ -873,3 +874,100 @@ def test_the_post_period_counterfactual_is_unchanged_by_this():
     want = reference_posterior(df, 14)
     assert np.allclose(np.asarray(res.cumulative.estimate, float), want["loc"],
                        rtol=1e-12)
+
+
+# --------------------------------------------------------------------------- #
+# the unscaled covariance of eqn 6, in closed form
+# --------------------------------------------------------------------------- #
+def _centred_reference(x):
+    """``V = (X'X)^-1`` for ``X = [1, x]``, in float128 about the mean.
+
+    Restated from the paper's ``V`` independently of the implementation, and
+    carried at extended precision so it can referee a float64 route on a design
+    whose Gram matrix is badly conditioned.
+    """
+    xl = np.asarray(x, dtype=np.longdouble)
+    n = xl.size
+    xbar = xl.mean()
+    s_xx = (xl - xbar) @ (xl - xbar)
+    return np.array([[1 / np.longdouble(n) + xbar * xbar / s_xx, -xbar / s_xx],
+                     [-xbar / s_xx, 1 / s_xx]], dtype=np.longdouble)
+
+
+def test_the_unscaled_covariance_inverts_the_gram():
+    """On a design nothing strains, ``V`` is the inverse and not an approximation."""
+    x = np.linspace(1.0, 4.0, 40)
+    design = np.column_stack([np.ones(x.size), x])
+    fit = fit_pretest(2.0 + 3.0 * x, x)
+    assert np.allclose(fit.unscaled_cov @ (design.T @ design), np.eye(2),
+                       atol=1e-12)
+    assert np.allclose(fit.unscaled_cov, np.linalg.inv(design.T @ design),
+                       rtol=1e-12)
+
+
+def test_the_unscaled_covariance_holds_at_the_scale_a_geo_aggregate_has():
+    """A control aggregate is a large mean with a small spread.
+
+    Summing forty markets gives a series near 44,000 varying by a few hundred,
+    so ``X'X`` is conditioned around 1e13 and the two routes that go through the
+    determinant or a decomposition both lose digits there. The closed form about
+    the mean is asserted against float128, which the SVD route misses by 2.4e-07.
+    """
+    rng = np.random.default_rng(11)
+    for _ in range(25):
+        x = 44000.0 + 500.0 * rng.standard_normal(90)
+        want = _centred_reference(x)
+        got = fit_pretest(3.0 + 1.1 * x, x).unscaled_cov.astype(np.longdouble)
+        err = float(np.abs(got - want).max() / np.abs(want).max())
+        assert err < 1e-14, err
+
+
+def test_a_near_constant_regressor_is_not_called_rank_deficient():
+    """The flag means section 3.4's constant regressor, so it means exactly that.
+
+    Here the regressor varies in the eleventh significant figure. The design's
+    smaller singular value falls under ``np.linalg.matrix_rank``'s tolerance, so
+    a rank test calls this the zero-cost case and it is not one: the slope is
+    identified, and its variance is ``1 / S_xx``, a large finite number.
+    """
+    rng = np.random.default_rng(3)
+    x = 1e6 + 1e-5 * rng.standard_normal(90)
+    design = np.column_stack([np.ones(x.size), x])
+    assert np.linalg.matrix_rank(design) < 2      # what the rank test sees
+    assert np.ptp(x) > 0.0                        # what the paper's case is
+
+    fit = fit_pretest(2.0 + 0.5 * x, x)
+    assert fit.rank_deficient is False
+    s_xx = float((x - x.mean()) @ (x - x.mean()))
+    assert fit.unscaled_cov[1, 1] == pytest.approx(1.0 / s_xx, rel=1e-12)
+    assert np.isfinite(fit.unscaled_cov).all()
+
+
+def test_equation_6_still_responds_to_the_test_period_mean_there():
+    """``v_b xbar_T^2`` is the term that grows when the test period drifts.
+
+    A route that discards the slope's variance sets ``v_b`` to zero, and eqn 6's
+    scale then reads the same whether the test period sits on the pretest mean or
+    a hundred standard deviations away. It has to widen.
+    """
+    rng = np.random.default_rng(4)
+    x_pre = 1e6 + 1e-5 * rng.standard_normal(90)
+    fit = fit_pretest(2.0 + 0.5 * x_pre, x_pre)
+    sd = float(x_pre.std())
+
+    on_mean = cumulative_posterior(fit, np.full(14, 2.0 + 0.5 * x_pre.mean()),
+                                   np.full(14, x_pre.mean()))[1][-1]
+    drifted = cumulative_posterior(fit, np.full(14, 2.0 + 0.5 * x_pre.mean()),
+                                   np.full(14, x_pre.mean() + 100.0 * sd))[1][-1]
+    assert drifted > 10.0 * on_mean
+
+
+def test_a_constant_regressor_takes_the_pseudoinverse_branch():
+    """Section 3.4's own case: ``S_xx`` is zero, so ``V`` is the pseudoinverse."""
+    x = np.full(40, 7.0)
+    fit = fit_pretest(np.full(40, 3.0), x)
+    assert fit.rank_deficient is True
+    design = np.column_stack([np.ones(x.size), x])
+    assert np.allclose(fit.unscaled_cov, np.linalg.pinv(design.T @ design),
+                       rtol=1e-12)
+    assert np.isfinite(fit.unscaled_cov).all()
