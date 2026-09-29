@@ -153,11 +153,12 @@ def _pretest_fit(y: np.ndarray, x: np.ndarray):
             f"scoring a split needs at least 3 pretest periods to leave "
             f"degrees of freedom for a residual scale; got {y.size}.")
     fit = fit_pretest(y, x)
-    resid = y - (fit.alpha + fit.beta * x)
     sigma = float(np.sqrt(fit.sigma_sq))
-    tss = float(np.sum((y - y.mean()) ** 2))
-    r2 = 1.0 - float(resid @ resid) / tss if tss > 0 else 0.0
-    return resid, sigma, r2
+    # ``RSS`` is ``sigma_sq * df`` and ``TSS`` is the fit's own ``S_yy``, so the
+    # fit quality needs neither a residual pass nor a second centring of ``y``.
+    rss = fit.sigma_sq * fit.df
+    r2 = 1.0 - rss / fit.sums.s_yy if fit.sums.s_yy > 0 else 0.0
+    return fit, fit.resid, sigma, r2
 
 
 def _kolmogorov_sf(t: float) -> float:
@@ -280,14 +281,19 @@ def aa_test_ok(y: np.ndarray, x: np.ndarray, n_test: int) -> bool:
         return True
     return bool(false_positive_probability(fit, n_test) <= AA_THRESHOLD_PROB)
 
-def required_impact(y: np.ndarray, corr: float, n_test: int) -> float:
-    """The smallest impact the experiment could detect, the reference's formula."""
-    n = y.size
+def required_impact(sigma: float, n: int, n_test: int) -> float:
+    """The smallest impact the experiment could detect, the reference's formula.
+
+    The reference writes eqn 6's residual scale as
+    ``std(y, ddof=2) * sqrt(1 - corr^2)``. For a simple regression that is
+    ``sqrt(sigma_sq)``, since ``RSS = TSS (1 - R^2)`` and ``corr^2 = R^2``, and
+    the pretest fit already holds it. Taking it from there computes neither the
+    variance nor the correlation a second time.
+    """
     const = window_constants(n, n_test)
     phi, tq_sig, tq_pow = const.phi, const.tq_sig, const.tq_pow
     sq = np.sqrt(phi * (n + 1) / (n * n_test * (n - 1)) + 1.0 / n + 1.0 / n_test)
-    sigma = float(np.std(y, ddof=2)) * np.sqrt(max(1.0 - corr ** 2, 0.0))
-    return float((tq_sig + tq_pow) * n_test * sq * sigma)
+    return float((tq_sig + tq_pow) * n_test * sq * float(sigma))
 
 
 def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
@@ -295,7 +301,7 @@ def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
     """Score one candidate split under the named objective."""
     y = np.asarray(y, dtype=float)
     x = np.asarray(x, dtype=float)
-    resid, sigma, r2 = _pretest_fit(y, x)
+    fit, resid, sigma, r2 = _pretest_fit(y, x)
 
     if objective == "paper":
         p_cusum = cusum_pvalue(resid, sigma)
@@ -306,9 +312,11 @@ def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
                                   "binding": ("cusum" if p_cusum == f else
                                               "bg" if p_bg == f else "r2")})
 
-    corr = float(np.corrcoef(y, x)[0, 1]) if y.std() > 0 and x.std() > 0 else 0.0
+    sums = fit.sums
+    corr = (float(sums.s_xy / np.sqrt(sums.s_xx * sums.s_yy))
+            if sums.s_xx > 0.0 and sums.s_yy > 0.0 else 0.0)
     corr = float(np.clip(corr, -0.999999, 0.999999))
-    impact = required_impact(y, corr, n_test)
+    impact = required_impact(sigma, sums.n, n_test)
     dw_ok, dw_stat = durbin_watson_ok(resid)
     gates = (corr >= MIN_CORR, aa_test_ok(y, x, n_test),
              brownian_bridge_ok(resid, sigma), dw_ok)

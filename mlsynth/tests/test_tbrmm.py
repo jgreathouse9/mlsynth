@@ -36,6 +36,8 @@ from mlsynth import TBRMM
 from mlsynth.config_models import TBRMMConfig, DesignResult
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.tbrmm_helpers.search import CONTROL as CONTROL_ROLE
+from mlsynth.utils.tbrmm_helpers.objective import required_impact, score_split
+from mlsynth.utils.tbr_helpers.posterior import fit_pretest
 
 
 # --------------------------------------------------------------------------- #
@@ -252,7 +254,7 @@ def test_the_objective_scores_the_model_tbr_will_actually_fit():
         n = int(rng.integers(12, 60))
         x = rng.normal(100.0, 20.0, n)
         y = 3.0 + 0.8 * x + rng.normal(0.0, 4.0, n)
-        resid, sigma, r2 = _pretest_fit(y, x)
+        _, resid, sigma, r2 = _pretest_fit(y, x)
         fit = fit_pretest(y, x)
         assert sigma == pytest.approx(np.sqrt(fit.sigma_sq), rel=1e-12)
         assert resid == pytest.approx(y - (fit.alpha + fit.beta * x), abs=1e-9)
@@ -653,6 +655,45 @@ def test_an_invalid_dict_is_translated_to_a_config_error():
 def test_a_non_config_input_raises_a_config_error():
     with pytest.raises(MlsynthConfigError, match="TBRMMConfig"):
         TBRMM(17)
+
+
+# --------------------------------------------------------------------------- #
+# the score reads the fit's sums, and takes no second pass
+# --------------------------------------------------------------------------- #
+def test_the_correlation_is_the_pearson_correlation():
+    """Position five of the key is ``round(corr, 2)``, so ``corr`` is pinned.
+
+    Derived from the fit's centred sums as ``S_xy / sqrt(S_xx S_yy)`` in place
+    of a second pass through ``np.corrcoef``. The referee is ``np.corrcoef``.
+    """
+    rng = np.random.default_rng(21)
+    for _ in range(25):
+        x = 30000.0 + 4000.0 * rng.standard_normal(80)
+        y = 0.3 * x + 500.0 * rng.standard_normal(80)
+        got = score_split(y, x, objective="reference", n_test=12).detail["corr"]
+        want = float(np.corrcoef(y, x)[0, 1])
+        assert got == pytest.approx(want, rel=1e-12)
+
+
+def test_required_impact_is_the_reference_formula_through_the_residual_scale():
+    """``std(y, ddof=2) sqrt(1 - corr^2)`` is ``sqrt(sigma_sq)``.
+
+    The reference writes eqn 6's scale the first way and the fit already holds
+    the second, so the identity is what lets the impact read it off the fit.
+    Asserted here against the reference's own arrangement.
+    """
+    rng = np.random.default_rng(22)
+    for _ in range(25):
+        x = 8000.0 + 900.0 * rng.standard_normal(70)
+        y = 1.2 * x + 200.0 * rng.standard_normal(70)
+        fit = fit_pretest(y, x)
+        corr = float(np.corrcoef(y, x)[0, 1])
+        want = float(np.std(y, ddof=2)) * np.sqrt(max(1.0 - corr ** 2, 0.0))
+        assert np.sqrt(fit.sigma_sq) == pytest.approx(want, rel=1e-10)
+        assert (score_split(y, x, objective="reference", n_test=10)
+                .detail["required_impact"]
+                == pytest.approx(required_impact(np.sqrt(fit.sigma_sq), y.size, 10),
+                                 rel=1e-12))
 
 
 # --------------------------------------------------------------------------- #
