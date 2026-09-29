@@ -653,3 +653,127 @@ def test_an_invalid_dict_is_translated_to_a_config_error():
 def test_a_non_config_input_raises_a_config_error():
     with pytest.raises(MlsynthConfigError, match="TBRMMConfig"):
         TBRMM(17)
+
+
+# --------------------------------------------------------------------------- #
+# where the control group search starts
+# --------------------------------------------------------------------------- #
+def _design_key(design):
+    """The lexicographic key the climb maximises, restated from the result.
+
+    Rebuilt from the reported diagnostics and not read off the search, so a test
+    comparing two designs compares them on the objective as documented.
+    """
+    d = design.detail
+    return (int(d["corr_test"]), int(d["aa_test"]), int(d["bb_test"]),
+            int(d["dw_test"]), round(d["corr"], 2), 1.0 / d["required_impact"])
+
+
+def _by_size(df, control_start):
+    res = TBRMM(base_config(df, control_start=control_start)).fit()
+    return {d.k: d for d in res.designs}
+
+
+def test_the_control_group_search_starts_from_the_carried_group_by_default():
+    """Algorithm 1 hands each size's matched control group to the next size.
+
+    That is what the reference does and what the benchmark pins, so it stays the
+    default and naming it explicitly changes nothing.
+    """
+    df = market_panel(n_units=12, T=40, seed=1)
+    assert base_config(df).control_start == "carried"
+    default = _by_size(df, "carried")
+    named = {d.k: d for d in TBRMM(base_config(df)).fit().designs}
+    for k in default:
+        assert sorted(default[k].treatment_units) == sorted(named[k].treatment_units)
+        assert sorted(default[k].control_units) == sorted(named[k].control_units)
+
+
+def test_the_pool_start_reaches_a_different_partition():
+    """Matching is a single-toggle climb, so its answer depends on where it starts.
+
+    Re-deriving the starting control group from the whole pool at each size lands
+    on a different local optimum, which is the point of the option.
+    """
+    df = market_panel(n_units=12, T=40, seed=1)
+    carried, pool = _by_size(df, "carried"), _by_size(df, "pool")
+    differing = [k for k in carried
+                 if sorted(carried[k].treatment_units) != sorted(pool[k].treatment_units)
+                 or sorted(carried[k].control_units) != sorted(pool[k].control_units)]
+    assert differing, "the two starts agree everywhere; this panel cannot separate them"
+
+
+def test_best_returns_whichever_of_the_two_scores_higher():
+    """Neither start dominates, so ``best`` runs both and takes the winner.
+
+    Seed 7 is chosen because the two disagree in both directions on it: the
+    carried walk wins one size and the pool walk another, so a rule that simply
+    preferred one of them would fail here.
+    """
+    df = market_panel(n_units=12, T=40, seed=7)
+    carried, pool, best = (_by_size(df, s) for s in ("carried", "pool", "best"))
+    verdicts = set()
+    for k in carried:
+        a, b = _design_key(carried[k]), _design_key(pool[k])
+        assert _design_key(best[k]) == max(a, b)
+        verdicts.add("carried" if a > b else "pool" if b > a else "tie")
+    assert {"carried", "pool"} <= verdicts, "this seed no longer disagrees both ways"
+
+
+@pytest.mark.parametrize("seed", [0, 1, 3, 6, 7, 8])
+def test_best_is_never_worse_than_the_reference_walk(seed):
+    """The option can only cost time.
+
+    ``best`` takes the maximum over a set containing the carried walk's design,
+    so its score is at least that one's at every treatment size.
+    """
+    df = market_panel(n_units=12, T=40, seed=seed)
+    carried, best = _by_size(df, "carried"), _by_size(df, "best")
+    for k in carried:
+        assert _design_key(best[k]) >= _design_key(carried[k])
+
+
+def test_a_tie_between_the_two_starts_returns_the_reference_walk():
+    """An even contest gives back the design the reference would have chosen."""
+    df = market_panel(n_units=12, T=40, seed=2)
+    carried, pool, best = (_by_size(df, s) for s in ("carried", "pool", "best"))
+    tied = [k for k in carried if _design_key(carried[k]) == _design_key(pool[k])]
+    assert tied, "this panel no longer ties; the test has lost its power"
+    for k in tied:
+        assert sorted(best[k].treatment_units) == sorted(carried[k].treatment_units)
+        assert sorted(best[k].control_units) == sorted(carried[k].control_units)
+
+
+def test_every_start_returns_a_control_group_no_single_toggle_improves():
+    """Whatever the start, matching runs to convergence."""
+    for start in ("carried", "pool", "best"):
+        res = TBRMM(base_config(market_panel(n_units=12, T=40, seed=1),
+                                control_start=start)).fit()
+        for d in res.designs:
+            assert d.matching_converged is True
+
+
+def test_the_three_starts_are_the_only_ones_accepted():
+    """The accepted set is asserted alongside the refusal.
+
+    Refusing an unknown value alone would pass on any build without the option
+    at all, since the base configuration forbids unknown fields, so the check
+    has to name what the option does admit.
+    """
+    df = market_panel(n_units=12, T=40, seed=0)
+    for start in ("carried", "pool", "best"):
+        assert base_config(df, control_start=start).control_start == start
+    with pytest.raises((MlsynthConfigError, ValueError)):
+        base_config(df, control_start="fresh")
+
+
+def test_the_search_refuses_an_unknown_control_start_of_its_own():
+    """The configuration's ``Literal`` never lets a bad value reach the search,
+    so the search states its own admissible set for a caller who imports it."""
+    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+    y = np.asarray([[1.0, 2.0, 3.0], [2.0, 1.0, 4.0], [3.0, 5.0, 2.0],
+                    [4.0, 3.0, 6.0]])
+    elig = [frozenset({"treatment", "control", "unassigned"})] * 3
+    with pytest.raises(MlsynthDataError, match="control_start"):
+        greedy_search(y, elig, max_treatment_size=1, n_test=1,
+                      objective="reference", control_start="fresh")

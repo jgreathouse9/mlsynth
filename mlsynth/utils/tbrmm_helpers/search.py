@@ -39,7 +39,7 @@ group; no control eligibility pins it out.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
 
 import numpy as np
@@ -182,7 +182,8 @@ def _match(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
 
 
 def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
-             pools: Dict[str, List[int]]) -> Tuple[List[int], Set[int]]:
+             pools: Dict[str, List[int]], *, from_pool: bool = False
+             ) -> Tuple[List[int], Set[int]]:
     """Add the treatment-eligible geo that most improves the objective.
 
     A candidate already sitting in the control group leaves it in the same step,
@@ -190,13 +191,19 @@ def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
     group the pool is re-derived from every control-eligible geo the new
     treatment group leaves free, so a climb that pruned the control group down to
     one geo does not block the next size.
+
+    ``from_pool`` scores every candidate against the whole control pool instead
+    of against the incumbent control group. See :func:`greedy_search`.
     """
     control_pool = set(pools["control"])
     best: Tuple[SplitScore, int, Set[int]] | None = None
     for geo in pools["treatment"]:
         if geo in treatment:
             continue
-        candidate_control = set(control) - {geo}
+        if from_pool:
+            candidate_control = control_pool - set(treatment) - {geo}
+        else:
+            candidate_control = set(control) - {geo}
         if not candidate_control:
             candidate_control = control_pool - set(treatment) - {geo}
         if not candidate_control:
@@ -214,14 +221,24 @@ def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
 
 
 def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *,
-                  max_treatment_size: int, n_test: int,
-                  objective: str) -> List[SearchOutcome]:
+                  max_treatment_size: int, n_test: int, objective: str,
+                  control_start: str = "carried") -> List[SearchOutcome]:
     """Algorithm 1 over the columns of ``y_matrix``, one outcome per size.
 
     ``y_matrix`` is periods by geos and holds the scoring window only. Columns
     index geos, and ``eligibility[j]`` is geo ``j``'s ``A_i``. Geos are visited in
     column order and a toggle has to improve strictly, so the walk is
     deterministic.
+
+    ``control_start`` decides where the control group search begins at each
+    treatment size. ``"carried"`` hands the previous size's matched group to the
+    next one, which is Algorithm 1 and what the reference implementation does.
+    ``"pool"`` re-derives it from every control-eligible geo the treatment group
+    leaves free. Matching is a single-toggle climb, so its answer depends on where
+    it starts: on the GeoLift panel the same treatment group reaches a different
+    local optimum from a different start in 16 of 19 cases, and the two answers
+    can straddle a rounded-correlation boundary, which is the element of the key
+    above the detectable impact.
     """
     y_matrix = np.asarray(y_matrix, dtype=float)
     if y_matrix.ndim != 2:
@@ -233,6 +250,21 @@ def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *
         raise MlsynthDataError(
             f"eligibility covers {len(eligibility)} geo(s) but the panel has "
             f"{n_units}.")
+    if control_start not in ("carried", "pool", "best"):
+        raise MlsynthDataError(
+            f"control_start is {control_start!r}; it has to be 'carried', "
+            f"'pool' or 'best'.")
+    if control_start == "best":
+        runs = [greedy_search(y_matrix, eligibility,
+                              max_treatment_size=max_treatment_size,
+                              n_test=n_test, objective=objective,
+                              control_start=start)
+                for start in ("carried", "pool")]
+        # ``max`` keeps the first argument on a tie, so an even contest returns
+        # the reference walk's design and the option costs nothing but time.
+        return [replace(max(a, b, key=lambda o: o.score.key),
+                        evaluations=a.evaluations + b.evaluations)
+                for a, b in zip(*runs)]
     if n_periods < MIN_SCORING_PERIODS:
         raise MlsynthDataError(
             f"scoring a candidate split needs at least {MIN_SCORING_PERIODS} "
@@ -247,13 +279,16 @@ def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *
     control: Set[int] = set(pools["control"]) - set(treatment)
     outcomes: List[SearchOutcome] = []
 
+    from_pool = control_start == "pool"
     for k in range(max(len(pools["forced"]), 1), max_treatment_size + 1):
         spent = scorer.evaluations
         while len(treatment) < k:
-            treatment, control = _augment(scorer, treatment, control, pools)
+            treatment, control = _augment(scorer, treatment, control, pools,
+                                          from_pool=from_pool)
         toggleable = [j for j in pools["control"]
                       if j not in treatment and UNASSIGNED in eligibility[j]]
-        control, trace, converged = _match(scorer, treatment, control, toggleable)
+        start = (set(pools["control"]) - set(treatment)) if from_pool else control
+        control, trace, converged = _match(scorer, treatment, start, toggleable)
         assigned = set(treatment) | control
         outcomes.append(SearchOutcome(
             k=k, treatment=list(treatment), control=sorted(control),

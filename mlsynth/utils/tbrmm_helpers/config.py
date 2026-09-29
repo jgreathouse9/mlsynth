@@ -57,6 +57,28 @@ class TBRMMConfig(BaseMAREXConfig):
                     "the paper.",
     )
 
+    control_start: Literal["carried", "pool", "best"] = Field(
+        default="carried",
+        description="Where the control group search starts at each treatment "
+                    "size. 'carried' (default) hands the previous size's matched "
+                    "control group to the next size, which is Algorithm 1 and "
+                    "what Google's implementation does, so it is what the "
+                    "benchmark reproduces. 'pool' re-derives the starting group "
+                    "from every control-eligible geo the treatment group leaves "
+                    "free. Matching is a single-toggle climb and its answer "
+                    "depends on where it starts: on the GeoLift panel the same "
+                    "treatment group lands on a different control group from a "
+                    "different start in 16 of 19 cases. 'pool' selects different "
+                    "markets, so a design chosen under it does not match the "
+                    "reference. Neither start dominates: over twelve simulated "
+                    "panels at three sizes each, 'pool' wins six of the thirty "
+                    "six comparisons, 'carried' wins seven and the rest tie. "
+                    "'best' runs both and keeps whichever design scores higher "
+                    "at each size, which costs about two and a half times the "
+                    "default and is never worse than it, since a tie returns the "
+                    "reference walk's design.",
+    )
+
     treatment_eligible_col: Optional[str] = Field(
         default=None,
         description="Column marking geos the advertiser allows in the treatment "

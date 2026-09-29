@@ -163,6 +163,38 @@ group brings its volume to :math:`y_t` and takes it out of the pool available to
 :math:`x_t`. The recommendation is therefore the best design across sizes and
 not the largest one.
 
+Where the control group search starts
+-------------------------------------
+
+Matching is a climb over single toggles, so which control group it returns
+depends on where it begins. Algorithm 1 begins each size at the control group
+the previous size settled on, and ``control_start="carried"`` is that walk. It
+is the default, and it is what the reference implementation does, so it is the
+setting the benchmark reproduces.
+
+``control_start="pool"`` begins instead from every control-eligible geo the
+treatment group leaves free, discarding the previous size's answer. On the
+GeoLift panel the same treatment group reaches a different control group from
+the two starts in 16 of 19 cases, and the two answers can fall either side of a
+rounded correlation, which is the element of the objective above the detectable
+impact.
+
+Neither start is better than the other. Over twelve simulated panels at three
+treatment sizes each, ``"pool"`` wins six of the thirty six comparisons,
+``"carried"`` wins seven, and the remaining twenty three tie. On the GeoLift
+markets ``"pool"`` happens to win at all three sizes above one, which is a
+property of that panel and not a general one.
+
+``control_start="best"`` runs both and keeps whichever design scores higher at
+each size. It costs about two and a half times the default and cannot return a
+worse design than it, since a tie returns the carried walk's answer. On the
+GeoLift markets it recovers the ``"pool"`` design at every size; across the
+simulated panels it is strictly better at six of thirty six and equal at the
+rest.
+
+Both alternatives select different markets from the reference, so a design
+chosen under either does not reproduce ``google/matched_markets``.
+
 Example
 -------
 
