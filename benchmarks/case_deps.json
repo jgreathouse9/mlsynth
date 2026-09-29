@@ -1368,7 +1368,8 @@
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
-  "mlsynth/utils/solvers/simplex.py"
+  "mlsynth/utils/solvers/simplex.py",
+  "mlsynth/utils/solvers/sunny.py"
  ],
  "masc_crossval": [
   "basedata/basque_jasa.csv",
@@ -2388,6 +2389,8 @@
   "mlsynth/estimators/sl.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fdid_helpers/estimation.py",
+  "mlsynth/utils/fdid_helpers/inference.py",
   "mlsynth/utils/sl_helpers/config.py",
   "mlsynth/utils/sl_helpers/diagnostics.py",
   "mlsynth/utils/sl_helpers/experts.py",
@@ -2725,6 +2728,19 @@
   "mlsynth/utils/tasc_helpers/orchestration.py",
   "mlsynth/utils/tasc_helpers/setup.py",
   "mlsynth/utils/tasc_helpers/smoothing.py"
+ ],
+ "tbr": [
+  "basedata/geolift_test_data.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/tbr.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/pipeline.py",
+  "mlsynth/utils/tbr_helpers/posterior.py",
+  "mlsynth/utils/tbr_helpers/setup.py"
  ],
  "th_prop99": [
   "basedata/P99data.csv",
