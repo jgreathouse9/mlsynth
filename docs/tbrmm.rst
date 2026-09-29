@@ -211,8 +211,11 @@ and the inverse detectable impact agreeing to :math:`9.3 \times 10^{-15}`. Of th
 39 candidates at the first augmentation step, none is scored differently and both
 engines take the same one, so the two agree on the path and not only the answer.
 
-That comparison is pinned as a benchmark case, which lands separately from the
-estimator; this section links it once it does.
+The case is
+`benchmarks/cases/tbrmm.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/tbrmm.py>`_,
+which pins 33 metrics and needs no external checkout. The comparison that
+produced it is
+`benchmarks/studies/tbrmm_match <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/tbrmm_match>`_.
 
 References
 ----------

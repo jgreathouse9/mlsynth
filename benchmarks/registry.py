@@ -39,6 +39,7 @@ CASES = {
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
     "tbr": "benchmarks.cases.tbr",  # cross-val vs google/matched_markets on two panels: design mode on the shipped GeoLift markets (also an A/A check) and a generated panel matched to the reference's shape for iROAS, cooldown and absent cells; reference values pinned as literals so the case is a gate without the reference present
     "geox_augsynth_geolift": "benchmarks.cases.geox_augsynth_geolift",  # cross-val vs R GeoLiftMarketSelection: the augsynth engine reproduces the published BestMarkets top five (rank, MDE, investment, abs_lift_in_zero)
+    "tbrmm": "benchmarks.cases.tbrmm",  # cross-val vs google/matched_markets greedy_search: same treatment and control membership at every treatment size, gates and detectable impact
     "geox_mc": "benchmarks.cases.geox_mc",              # design calibration (original method, no external referent): size at the null, out-of-sample power at the reported MDE, and the winner's-curse gap on the selected region
     "geox_augsynth_recast": "benchmarks.cases.geox_augsynth_recast",  # cross-val vs getrecast/geolift-simulation-study: the augsynth engine reproduces their published GeoLift bias and false-positive rate across all four stress scenarios, including the +3.2pp outlier signature
     "geox_sdid_equivalence": "benchmarks.cases.geox_sdid_equivalence",  # differential cross-val, mlsynth vs mlsynth: with the region forced, GEOX's readout equals SDID(...).fit() on Prop 99 to solver noise -- ATT and every donor weight, over six treated units and seven design-knob settings
@@ -382,6 +383,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "fspda_sparse_mc":                ("X", "empirical"),
     "fspda_table1":                   ("B", "simulated"),
     "geox_augsynth_geolift":          ("X", "empirical"),
+    "tbrmm":                          ("X", "empirical"),
     "geox_augsynth_recast":           ("BX", "simulated"),
     "geox_mc":                        ("C", "both"),
     "geox_mvbbsc_equivalence":        ("X", "empirical"),
