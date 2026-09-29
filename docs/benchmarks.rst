@@ -712,6 +712,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``tasc_prop99``
      - X
      - empirical
+   * - ``tbr``
+     - X
+     - both
    * - ``th_prop99``
      - A
      - empirical

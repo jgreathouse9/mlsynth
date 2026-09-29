@@ -229,7 +229,13 @@ TBR is cross-validated against Google's reference implementation,
 `google/matched_markets <https://github.com/google/matched_markets>`_, on the
 reference's own panel, and against the paper's Section 5.2 simulation. The study
 is `benchmarks/studies/tbr_geo
-<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/tbr_geo>`_.
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/tbr_geo>`_,
+and the agreement is pinned durably by `benchmarks/cases/tbr.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/tbr.py>`_,
+which runs the estimator against reference values on two panels: the GeoLift
+markets this repository ships, in design mode, and a generated panel matched to
+the reference's shape for the cost, cooldown and absent-cell paths a real
+untreated panel cannot reach.
 
 Every reported quantity agrees with the reference: the pretest coefficients and
 residual variance to the digit, the cumulative response effect to 6.4e-10, the
