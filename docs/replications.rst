@@ -994,9 +994,9 @@ Coverage summary
      - 2
      - Complete (ESC, ORTHSC)
    * - Randomized assignment
-     - 1
-     - 1
-     - Complete (MUSC)
+     - 2
+     - 2
+     - Complete (MUSC, TBR)
    * - Prospective forecasting
      - 1
      - 1
@@ -1010,9 +1010,9 @@ Coverage summary
      - 6
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
-     - 80
      - 81
-     - 80 of 81 estimators carry a replication.
+     - 82
+     - 81 of 82 estimators carry a replication.
 
 .. coverage-table-end
 

@@ -55,13 +55,13 @@ def _binary_unit_flag(df: pd.DataFrame, unit: str, col: str) -> pd.Series:
     if bad:
         raise MlsynthDataError(
             f"{col!r} must be boolean or 0/1; it also takes {bad[:5]}")
-    per_unit = df.groupby(unit)[col].nunique()
+    per_unit = df.groupby(unit, observed=True)[col].nunique()
     varying = per_unit[per_unit > 1].index.tolist()
     if varying:
         raise MlsynthDataError(
             f"{col!r} must be constant within unit; it varies for "
             f"{varying[:5]}")
-    return df.groupby(unit)[col].first().astype(int)
+    return df.groupby(unit, observed=True)[col].first().astype(int)
 
 
 def _block_flag_start(df: pd.DataFrame, time: str, col: str) -> Optional[int]:
@@ -76,13 +76,13 @@ def _block_flag_start(df: pd.DataFrame, time: str, col: str) -> Optional[int]:
     if bad:
         raise MlsynthDataError(
             f"{col!r} must be boolean or 0/1; it also takes {bad[:5]}")
-    per_period = df.groupby(time)[col].nunique()
+    per_period = df.groupby(time, observed=True)[col].nunique()
     split = per_period[per_period > 1].index.tolist()
     if split:
         raise MlsynthDataError(
             f"{col!r} is block assigned, so it must be constant across units "
             f"within a period; it differs across units at {split[:5]}")
-    flag = df.groupby(time)[col].first().astype(int).sort_index()
+    flag = df.groupby(time, observed=True)[col].first().astype(int).sort_index()
     if not flag.any():
         return None
     if not flag.is_monotonic_increasing:
@@ -129,12 +129,12 @@ def _complete_grid(df: pd.DataFrame, unit: str, time: str, config,
                   if c is not None]
     period_level = [c for c in (config.cooldown_col, config.post_col)
                     if c is not None]
-    per_unit = {c: df.groupby(unit)[c].max() for c in unit_level}
-    per_period = {c: df.groupby(time)[c].max() for c in period_level}
+    per_unit = {c: df.groupby(unit, observed=True)[c].max() for c in unit_level}
+    per_period = {c: df.groupby(time, observed=True)[c].max() for c in period_level}
     treated_unit = post_period = None
     if config.treat is not None:
-        treated_unit = df.groupby(unit)[config.treat].max()
-        post_period = df.groupby(time)[config.treat].max()
+        treated_unit = df.groupby(unit, observed=True)[config.treat].max()
+        post_period = df.groupby(time, observed=True)[config.treat].max()
 
     out = indexed.reindex(grid).reset_index()
     for c in value_cols:
@@ -152,7 +152,7 @@ def _complete_grid(df: pd.DataFrame, unit: str, time: str, config,
     handled = set(value_cols) | set(unit_level) | set(period_level) | {
         unit, time, config.treat}
     for c in [c for c in out.columns if c not in handled]:
-        out[c] = out.groupby(unit)[c].transform(
+        out[c] = out.groupby(unit, observed=True)[c].transform(
             lambda col: col.ffill().bfill())
     return out, missing
 
@@ -169,7 +169,7 @@ def build_inputs(config) -> TBRInputs:
     is_control = _binary_unit_flag(df, unit, config.control_col)
     if treat is not None:
         df[treat] = df[treat].astype(int)
-        treated_flag = df.groupby(unit)[treat].max().astype(int)
+        treated_flag = df.groupby(unit, observed=True)[treat].max().astype(int)
     else:
         treated_flag = _binary_unit_flag(df, unit, config.treatment_col)
     treated = treated_flag[treated_flag == 1].index.tolist()
@@ -203,7 +203,7 @@ def build_inputs(config) -> TBRInputs:
     y, x = _aggregate(outcome)
     periods = np.asarray(sorted(df[time].unique()))
     if treat is not None:
-        d_treat = (df[df[unit].isin(treated)].groupby(time)[treat].max()
+        d_treat = (df[df[unit].isin(treated)].groupby(time, observed=True)[treat].max()
                    .astype(int).sort_index().to_numpy())
     else:
         # Design mode: the window is named by the post flag, so synthesise the

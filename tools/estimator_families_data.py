@@ -146,6 +146,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # Assignment is randomized, over few large units.
     "MUSC": "randomized",
+    "TBR": "randomized",
 
     # Forecasting past the end of the panel, for a unit that has not adopted.
     "TWSF": "forecasting",
