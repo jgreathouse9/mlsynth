@@ -6,7 +6,7 @@ carries its own groups, its own score and the climb that produced it.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,11 +35,15 @@ class TBRMMDesign(BaseModel):
         description="The objective's components: the three terms under 'paper', "
                     "the four gates plus the correlation and the required impact "
                     "under 'reference'.")
-    matching_trace: List[float] = Field(
+    matching_trace: List[Tuple[float, ...]] = Field(
         default_factory=list,
-        description="The objective at each accepted step of the matching climb "
-                    "for this treatment size, oldest first. Non-decreasing by "
-                    "construction, which is what makes the search a hill climb.")
+        description="The score at each accepted step of the matching climb for "
+                    "this treatment size, oldest first, as the tuple the search "
+                    "compares. Non-decreasing by construction, which is what "
+                    "makes the search a hill climb. The tuple and not "
+                    "`objective_value`, because under 'reference' the climb "
+                    "maximises a lexicographic key and its last element can fall "
+                    "on a step that gains a gate.")
     matching_converged: bool = Field(
         default=False,
         description="True when the climb stopped because no single toggle of "

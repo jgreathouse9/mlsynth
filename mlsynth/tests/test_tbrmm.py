@@ -35,6 +35,7 @@ import pytest
 from mlsynth import TBRMM
 from mlsynth.config_models import TBRMMConfig, DesignResult
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.utils.tbrmm_helpers.search import CONTROL as CONTROL_ROLE
 
 
 # --------------------------------------------------------------------------- #
@@ -59,7 +60,7 @@ def market_panel(n_units=12, T=40, seed=0, size_log_sd=0.8, common_sd=0.6,
 
 def base_config(df, **over):
     kw = dict(df=df, unitid="geo", time="date", outcome="Y",
-              max_treatment_size=3, n_test=10, display_graphs=False)
+              max_treatment_size=3, n_test=10)
     kw.update(over)
     return TBRMMConfig(**kw)
 
@@ -343,6 +344,113 @@ def test_a_post_column_restricts_scoring_to_the_pre_rows():
 
 
 # --------------------------------------------------------------------------- #
+# Layer 1: the objective on degenerate input
+# --------------------------------------------------------------------------- #
+def test_every_gate_fails_a_split_with_no_residual_scale():
+    """A control aggregate reproducing the treatment aggregate exactly leaves
+    sigma = 0. No gate can be evaluated against a scale of zero, so each reports
+    failure instead of dividing by it -- a split that cannot be tested is not a
+    split that passed."""
+    from mlsynth.utils.tbrmm_helpers import objective as obj
+
+    resid = np.zeros(20)
+    assert obj.cusum_pvalue(resid, 0.0) == 0.0
+    assert obj.brownian_bridge_ok(resid, 0.0) is False
+    assert obj.aa_test_ok(resid, 0.0, 5) is False
+    passed, stat = obj.durbin_watson_ok(resid)
+    assert passed is False and np.isnan(stat)
+
+
+def test_the_cusum_tail_is_one_where_the_statistic_carries_no_information():
+    from mlsynth.utils.tbrmm_helpers.objective import _kolmogorov_sf
+
+    assert _kolmogorov_sf(0.0) == 1.0
+    assert _kolmogorov_sf(float("nan")) == 1.0
+
+
+def test_breusch_godfrey_declines_a_window_too_short_for_its_lag():
+    """Four residuals and one lag leave nothing to regress; the test reports no
+    evidence of autocorrelation instead of a value from an empty fit."""
+    from mlsynth.utils.tbrmm_helpers.objective import breusch_godfrey_pvalue
+
+    assert breusch_godfrey_pvalue(np.arange(4.0), np.arange(4.0)) == 1.0
+
+
+def test_the_aa_test_fails_a_test_window_as_long_as_the_pretest():
+    """Every window the A/A test checks has to fit inside the pretest."""
+    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+
+    assert aa_test_ok(np.linspace(-1.0, 1.0, 10), 1.0, 10) is False
+
+
+def test_a_score_orders_by_its_key_and_not_its_scalar():
+    """The reference objective's scalar readout can fall on a step that gains a
+    gate, so the comparison is the key."""
+    from mlsynth.utils.tbrmm_helpers.objective import SplitScore
+
+    weaker = SplitScore(key=(0, 9.0), value=9.0)
+    stronger = SplitScore(key=(1, 0.1), value=0.1)
+    assert weaker < stronger
+
+
+# --------------------------------------------------------------------------- #
+# Layer 1: the search's own contracts
+# --------------------------------------------------------------------------- #
+def _flat_panel(n_periods=20, n_units=4, seed=0):
+    rng = np.random.default_rng(seed)
+    return rng.normal(100.0, 5.0, (n_periods, n_units))
+
+
+def test_the_search_refuses_a_role_it_does_not_know():
+    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+
+    elig = [frozenset({"treatment", "control", "unassigned"})] * 3 + [frozenset({"donor"})]
+    with pytest.raises(MlsynthDataError, match="role"):
+        greedy_search(_flat_panel(), elig, max_treatment_size=1, n_test=4,
+                      objective="reference")
+
+
+def test_the_search_refuses_a_window_that_is_not_periods_by_geos():
+    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+
+    with pytest.raises(MlsynthDataError, match="periods by geos"):
+        greedy_search(np.arange(12.0), [frozenset({CONTROL_ROLE})],
+                      max_treatment_size=1, n_test=2, objective="reference")
+
+
+def test_eligibility_has_to_cover_every_geo_in_the_window():
+    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+
+    with pytest.raises(MlsynthDataError, match="eligibility covers"):
+        greedy_search(_flat_panel(n_units=4), [frozenset({CONTROL_ROLE})] * 3,
+                      max_treatment_size=1, n_test=4, objective="reference")
+
+
+def test_augmentation_rebuilds_a_control_group_the_climb_pruned_to_one():
+    """A climb can leave a single control geo. Treating it would empty the
+    control aggregate, so the pool is rebuilt from every control-eligible geo the
+    new treatment group leaves free, and the next size is still reachable."""
+    from mlsynth.utils.tbrmm_helpers.search import _Scorer, _augment
+
+    scorer = _Scorer(_flat_panel(n_units=4, seed=3), "reference", 4)
+    pools = {"forced": [], "treatment": [0, 1, 2, 3], "control": [1, 2]}
+    treatment, control = _augment(scorer, [0], {1}, pools)
+    assert len(treatment) == 2 and control
+
+
+def test_augmentation_skips_a_geo_no_rebuild_can_leave_a_control_for():
+    """Geo 1 is the only control-eligible geo, so treating it leaves nothing to
+    regress on however the pool is rebuilt; the candidate is passed over and a
+    geo that does leave a control group is taken."""
+    from mlsynth.utils.tbrmm_helpers.search import _Scorer, _augment
+
+    scorer = _Scorer(_flat_panel(n_units=3, seed=4), "reference", 4)
+    pools = {"forced": [], "treatment": [0, 1, 2], "control": [1]}
+    treatment, control = _augment(scorer, [0], {1}, pools)
+    assert treatment == [0, 2] and control == {1}
+
+
+# --------------------------------------------------------------------------- #
 # failure tests
 # --------------------------------------------------------------------------- #
 def test_a_max_treatment_size_of_zero_is_refused():
@@ -400,6 +508,63 @@ def test_too_few_periods_to_fit_raises():
     with pytest.raises(MlsynthDataError):
         TBRMM(base_config(market_panel(n_units=6, T=2),
                           max_treatment_size=2)).fit()
+
+
+def test_a_repeated_unit_period_cell_is_refused():
+    """Group aggregates sum across units, so a repeated cell has no one reading:
+    a duplicate row and two records meant to be added together are the same
+    input. The base configuration owns this invariant; the test pins that TBRMM
+    inherits it and never reaches the search."""
+    df = market_panel(n_units=5, T=20)
+    df = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+    with pytest.raises(MlsynthDataError, match="[Dd]uplicate"):
+        TBRMM(base_config(df, max_treatment_size=2)).fit()
+
+
+def test_a_gap_in_the_scoring_window_is_refused():
+    """A missing cell drops that geo from whichever aggregate it lands in for
+    those periods, which changes the aggregate without changing its length."""
+    df = market_panel(n_units=5, T=20)
+    df = df[~((df.geo == "m02") & (df.date == 7))]
+    with pytest.raises(MlsynthDataError, match="missing"):
+        TBRMM(base_config(df, max_treatment_size=2)).fit()
+
+
+def test_a_max_treatment_size_below_the_forced_count_is_refused():
+    """Three geos are eligible for treatment alone, so every design contains
+    them; a K of two describes no partition."""
+    df = with_eligibility(market_panel(n_units=6),
+                          forced_treatment=["m00", "m01", "m02"])
+    with pytest.raises(MlsynthDataError, match="forced"):
+        TBRMM(elig_config(df, max_treatment_size=2)).fit()
+
+
+def test_treating_every_geo_leaves_no_control_and_is_refused():
+    """Five geos, all eligible for everything: K of five leaves nothing to
+    regress on, and the refusal comes before any climbing."""
+    df = market_panel(n_units=5, T=25)
+    with pytest.raises(MlsynthDataError, match="eligible"):
+        TBRMM(base_config(df, max_treatment_size=5)).fit()
+
+
+def test_a_blank_column_name_is_refused():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        base_config(market_panel(), post_col="   ", max_treatment_size=2)
+
+
+def test_the_dict_path_builds_the_config():
+    df = market_panel(n_units=6, T=25)
+    res = TBRMM(dict(df=df, unitid="geo", time="date", outcome="Y",
+                     max_treatment_size=2, n_test=6)).fit()
+    assert res.recommended is not None
+
+
+def test_an_invalid_dict_is_translated_to_a_config_error():
+    df = market_panel(n_units=6, T=25)
+    with pytest.raises(MlsynthConfigError, match="TBRMMConfig"):
+        TBRMM(dict(df=df, unitid="geo", time="date", outcome="Y",
+                   max_treatment_size=0, n_test=6))
 
 
 def test_a_non_config_input_raises_a_config_error():
