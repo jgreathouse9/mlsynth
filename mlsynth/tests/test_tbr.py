@@ -949,15 +949,22 @@ def test_equation_6_still_responds_to_the_test_period_mean_there():
     A route that discards the slope's variance sets ``v_b`` to zero, and eqn 6's
     scale then reads the same whether the test period sits on the pretest mean or
     a hundred standard deviations away. It has to widen.
+
+    The response is drawn with noise because the scale carries the factor ``s``.
+    An exactly linear ``y`` has ``s = 0``, so both scales are zero and their ratio
+    is undefined; the first version of this test used one and passed only on the
+    rounding error of the least-squares route it was written against, which the
+    closed form does not produce.
     """
     rng = np.random.default_rng(4)
     x_pre = 1e6 + 1e-5 * rng.standard_normal(90)
-    fit = fit_pretest(2.0 + 0.5 * x_pre, x_pre)
+    y_pre = 2.0 + 0.5 * x_pre + rng.standard_normal(90)
+    fit = fit_pretest(y_pre, x_pre)
     sd = float(x_pre.std())
 
-    on_mean = cumulative_posterior(fit, np.full(14, 2.0 + 0.5 * x_pre.mean()),
+    on_mean = cumulative_posterior(fit, np.full(14, y_pre.mean()),
                                    np.full(14, x_pre.mean()))[1][-1]
-    drifted = cumulative_posterior(fit, np.full(14, 2.0 + 0.5 * x_pre.mean()),
+    drifted = cumulative_posterior(fit, np.full(14, y_pre.mean()),
                                    np.full(14, x_pre.mean() + 100.0 * sd))[1][-1]
     assert drifted > 10.0 * on_mean
 
@@ -971,3 +978,69 @@ def test_a_constant_regressor_takes_the_pseudoinverse_branch():
     assert np.allclose(fit.unscaled_cov, np.linalg.pinv(design.T @ design),
                        rtol=1e-12)
     assert np.isfinite(fit.unscaled_cov).all()
+
+
+# --------------------------------------------------------------------------- #
+# the fit from centred sums
+# --------------------------------------------------------------------------- #
+def test_the_fit_is_still_the_least_squares_solution():
+    """Closed form or solver, eqn 1's coefficients are the same two numbers.
+
+    The referee is ``np.linalg.lstsq`` on the explicit design, which is what
+    this replaced, so the test fails if the closed form drifts from it.
+    """
+    rng = np.random.default_rng(7)
+    for _ in range(30):
+        x = 40000.0 + 9000.0 * rng.standard_normal(60)
+        y = 12.0 + 0.8 * x + 300.0 * rng.standard_normal(60)
+        fit = fit_pretest(y, x)
+        design = np.column_stack([np.ones(x.size), x])
+        want, *_ = np.linalg.lstsq(design, y, rcond=None)
+        assert fit.alpha == pytest.approx(float(want[0]), rel=1e-10, abs=1e-9)
+        assert fit.beta == pytest.approx(float(want[1]), rel=1e-12)
+
+
+def test_the_fit_carries_the_centred_sums_it_was_built_from():
+    """``S_xx``, ``S_xy`` and ``S_yy`` are eqn 1's sufficient statistics.
+
+    They are on the result because every consumer needs them and recomputing
+    them is a second pass over the window: ``R^2`` is ``1 - RSS / S_yy`` and the
+    correlation is ``S_xy / sqrt(S_xx S_yy)``.
+    """
+    rng = np.random.default_rng(8)
+    x = 500.0 + 30.0 * rng.standard_normal(45)
+    y = 3.0 + 1.7 * x + 10.0 * rng.standard_normal(45)
+    s = fit_pretest(y, x).sums
+    assert s.n == 45
+    assert s.s_xx == pytest.approx(float((x - x.mean()) @ (x - x.mean())), rel=1e-12)
+    assert s.s_xy == pytest.approx(float((x - x.mean()) @ (y - y.mean())), rel=1e-12)
+    assert s.s_yy == pytest.approx(float((y - y.mean()) @ (y - y.mean())), rel=1e-12)
+
+
+def test_the_residual_series_is_on_the_fit_and_is_the_real_residual():
+    """One residual pass, shared. The scoring gates read this series."""
+    rng = np.random.default_rng(9)
+    x = 100.0 + 5.0 * rng.standard_normal(50)
+    y = 2.0 + 0.4 * x + rng.standard_normal(50)
+    fit = fit_pretest(y, x)
+    assert np.allclose(fit.resid, y - (fit.alpha + fit.beta * x), rtol=0, atol=1e-12)
+    assert fit.sigma_sq == pytest.approx(float(fit.resid @ fit.resid) / fit.df,
+                                         rel=1e-15)
+
+
+def test_a_constant_regressor_keeps_the_least_squares_route():
+    """Section 3.4's zero-cost case is unchanged.
+
+    ``S_xx`` is zero there, so the closed form has no slope to compute and the
+    solver's minimum-norm answer is kept. Asserted against ``lstsq`` so the
+    branch cannot drift.
+    """
+    x = np.full(30, 6.0)
+    y = np.linspace(1.0, 4.0, 30)
+    fit = fit_pretest(y, x)
+    design = np.column_stack([np.ones(30), x])
+    want, *_ = np.linalg.lstsq(design, y, rcond=None)
+    assert fit.rank_deficient is True
+    assert fit.alpha == pytest.approx(float(want[0]), rel=1e-12)
+    assert fit.beta == pytest.approx(float(want[1]), rel=1e-12)
+    assert np.isfinite(fit.sigma_sq)

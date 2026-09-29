@@ -31,6 +31,39 @@ from scipy import stats
 
 
 @dataclass(frozen=True)
+class PretestSums:
+    """Eqn 1's sufficient statistics: the centred sums over the pretest window.
+
+    Every scalar the fit and the design search need is a function of these and
+    the window length, so they are computed once and carried on the fit instead
+    of each consumer taking its own pass over the window.
+    """
+
+    n: int
+    sum_x: float
+    sum_y: float
+    s_xx: float
+    s_xy: float
+    s_yy: float
+
+
+def pretest_sums(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestSums:
+    """The centred sums of squares and cross products of eqn 1's two series.
+
+    Centred about the mean for the reason :func:`_unscaled_cov` is: the
+    uncentred forms are the naive variance and covariance formulas, and they
+    cancel at the scale a geo aggregate has.
+    """
+    n = int(y_pre.size)
+    sum_x = float(x_pre.sum())
+    sum_y = float(y_pre.sum())
+    dx = x_pre - sum_x / n
+    dy = y_pre - sum_y / n
+    return PretestSums(n=n, sum_x=sum_x, sum_y=sum_y, s_xx=float(dx @ dx),
+                       s_xy=float(dx @ dy), s_yy=float(dy @ dy))
+
+
+@dataclass(frozen=True)
 class PretestFit:
     """The fitted eqn 1, with everything the posterior needs from it."""
 
@@ -41,6 +74,8 @@ class PretestFit:
     n_pretest: int
     unscaled_cov: np.ndarray
     rank_deficient: bool
+    sums: PretestSums
+    resid: np.ndarray
 
     def predict(self, x: np.ndarray) -> np.ndarray:
         return self.alpha + self.beta * np.asarray(x, dtype=float)
@@ -62,22 +97,36 @@ def fit_pretest(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestFit:
     y_pre = np.asarray(y_pre, dtype=float)
     x_pre = np.asarray(x_pre, dtype=float)
     n = int(y_pre.size)
-    design = np.column_stack([np.ones(n), x_pre])
-    coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
-    resid = y_pre - design @ coef
+    sums = pretest_sums(y_pre, x_pre)
+    xbar, ybar = sums.sum_x / n, sums.sum_y / n
+    if sums.s_xx > 0.0:
+        beta = sums.s_xy / sums.s_xx
+        alpha = ybar - beta * xbar
+        # Centred, and not ``y - (alpha + beta x)``. Both are the residual on
+        # paper; the uncentred one subtracts two numbers of the regressor's
+        # magnitude where this one works in the deviations, which is the whole
+        # signal when the regressor's spread is small against its mean.
+        resid = (y_pre - ybar) - beta * (x_pre - xbar)
+    else:
+        design = np.column_stack([np.ones(n), x_pre])
+        coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
+        alpha, beta = float(coef[0]), float(coef[1])
+        resid = y_pre - (alpha + beta * x_pre)
     df = n - 2
     return PretestFit(
-        alpha=float(coef[0]),
-        beta=float(coef[1]),
+        alpha=alpha,
+        beta=beta,
         sigma_sq=float(resid @ resid) / df,
         df=df,
         n_pretest=n,
-        unscaled_cov=_unscaled_cov(n, x_pre),
+        unscaled_cov=_unscaled_cov(sums, x_pre),
         rank_deficient=bool(np.ptp(x_pre) == 0.0),
+        sums=sums,
+        resid=resid,
     )
 
 
-def _unscaled_cov(n: int, x_pre: np.ndarray) -> np.ndarray:
+def _unscaled_cov(sums: PretestSums, x_pre: np.ndarray) -> np.ndarray:
     """``(X'X)^-1`` for ``X = [1, x]``, in closed form about the mean.
 
     The Gram matrix is two by two, so its inverse is three divisions. Writing
@@ -104,11 +153,10 @@ def _unscaled_cov(n: int, x_pre: np.ndarray) -> np.ndarray:
     ``S_xx`` is zero exactly when ``x`` is constant, section 3.4's zero-cost
     case, and the pseudoinverse runs on that branch alone.
     """
-    xbar = float(x_pre.mean())
-    dx = x_pre - xbar
-    s_xx = float(dx @ dx)
+    n, s_xx = sums.n, sums.s_xx
+    xbar = sums.sum_x / n
     if s_xx <= 0.0:
-        sx = float(x_pre.sum())
+        sx = sums.sum_x
         return np.linalg.pinv(np.array([[float(n), sx], [sx, float(x_pre @ x_pre)]]))
     return np.array([[1.0 / n + xbar * xbar / s_xx, -xbar / s_xx],
                      [-xbar / s_xx, 1.0 / s_xx]])
