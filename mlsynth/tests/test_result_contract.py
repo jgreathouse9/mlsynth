@@ -33,6 +33,7 @@ from mlsynth import (
     COMPSC,
     LPCA, MCNNM, MOSC, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     PPSCM, SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC,
+    TBR,
     TSSC,
     VanillaSC,
 )
@@ -65,6 +66,19 @@ def _make_panel(n_units=6, T=30, T0=20, seed=0, rho=0.6):
                          "lat": float(coords[i, 0]), "lon": float(coords[i, 1]),
                          "cov1": float(coords[i].sum())})
     return pd.DataFrame(rows)
+
+
+def _make_geo_panel(**kw):
+    """The standard panel plus TBR's control-group flag.
+
+    TBR reads three groups where the rest of the family reads two: ``treat``
+    names the treated units, ``is_control`` which of the others are the control
+    group. Here every donor is a control, so nothing is held out.
+    """
+    df = _make_panel(**kw)
+    treated = df.groupby("unitid")["treat"].max()
+    df["is_control"] = df.unitid.map(lambda u: int(treated[u] == 0))
+    return df
 
 
 def _make_compositional_panel(n_units=6, T=8, T0=5, n_treated=2, K=3, seed=1):
@@ -141,6 +155,8 @@ def _base_cfg(panel_df):
 # Extend this list as the migration proceeds.
 OBSERVATIONAL = [
     pytest.param(VanillaSC, {}, id="VanillaSC"),
+    pytest.param(TBR, {"df": _make_geo_panel(), "control_col": "is_control"},
+                 id="TBR"),
     pytest.param(FDID, {}, id="FDID"),
     pytest.param(TSSC, {"draws": 80, "seed": 0}, id="TSSC"),
     pytest.param(SPOTSYNTH, {"inference": "frequentist"}, id="SPOTSYNTH"),
