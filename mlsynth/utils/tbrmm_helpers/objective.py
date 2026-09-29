@@ -50,7 +50,7 @@ import numpy as np
 from scipy import stats
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.tbr_helpers.posterior import fit_pretest
+from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
 
 BB_BOUND = 3.0                     # the reference's Brownian-bridge constant
 DW_RANGE = (1.5, 2.5)              # the reference's acceptable Durbin-Watson band
@@ -58,6 +58,8 @@ MIN_CORR = 0.8
 SIG_LEVEL = 0.9
 POWER_LEVEL = 0.8
 FLEVEL = 0.9
+AA_THRESHOLD_PROB = 0.2                # the reference's tolerated false-positive rate
+MIN_HOLDOUT_PRETEST = 3            # periods the A/A test's own fit needs
 
 
 @dataclass(frozen=True)
@@ -156,20 +158,74 @@ def durbin_watson_ok(resid: np.ndarray) -> Tuple[bool, float]:
     return bool(DW_RANGE[0] < stat < DW_RANGE[1]), stat
 
 
-def aa_test_ok(resid: np.ndarray, sigma: float, n_test: int) -> bool:
-    """The reference's A/A test: the pretest offers no window whose own
-    cumulative residual would already read as an effect."""
-    if not np.isfinite(sigma) or sigma <= 0.0:
-        return False
-    n = resid.size
-    if n_test >= n:
-        return False
-    cum = np.cumsum(resid)
-    padded = np.concatenate([[0.0], cum])
-    windows = padded[n_test:] - padded[:-n_test]      # every n_test-long sum
-    threshold = stats.t.ppf(SIG_LEVEL, df=n - 2) * sigma * np.sqrt(n_test)
-    return bool(np.max(np.abs(windows)) <= threshold)
+@dataclass(frozen=True)
+class HoldoutFit:
+    """TBR's posterior for a held-out window, and the pretest it was fitted on."""
 
+    estimate: float            # Delta(T) over the held-out window
+    half_width: float          # the interval's half-width at SIG_LEVEL
+    sigma: float               # the pretest residual standard deviation
+    n_pretest: int             # periods the fit used
+    df: int                    # degrees of freedom of the posterior
+
+
+def holdout_fit(y: np.ndarray, x: np.ndarray, n_test: int) -> HoldoutFit:
+    """Fit on all but the last ``n_test`` periods, then estimate that window.
+
+    This is TBR run on the pretest against itself: eqn 1 on the earlier periods
+    and eqns 4 and 6 on the held out ones, through the estimator's own
+    :func:`~mlsynth.utils.tbr_helpers.posterior.cumulative_posterior`. The
+    window carries no intervention, so the honest answer is zero and anything
+    else is the design's own false-positive rate showing.
+    """
+    y = np.asarray(y, dtype=float)
+    x = np.asarray(x, dtype=float)
+    n_pretest = y.size - n_test
+    if n_pretest < MIN_HOLDOUT_PRETEST:
+        raise MlsynthDataError(
+            f"the A/A test fits on the window before the last {n_test} periods "
+            f"and needs at least {MIN_HOLDOUT_PRETEST} of them; a scoring "
+            f"window of {y.size} leaves {n_pretest}.")
+    fit = fit_pretest(y[:n_pretest], x[:n_pretest])
+    loc, scale = cumulative_posterior(fit, y[n_pretest:], x[n_pretest:])
+    sigma = float(np.sqrt(fit.sigma_sq))
+    half_width = float(stats.t.ppf(SIG_LEVEL, df=fit.df) * scale[-1])
+    return HoldoutFit(estimate=float(loc[-1]), half_width=half_width,
+                      sigma=sigma, n_pretest=n_pretest, df=fit.df)
+
+
+def false_positive_probability(fit: HoldoutFit, n_test: int) -> float:
+    """How often a design like this one calls a null window significant.
+
+    Reached only when the held-out interval excludes zero. The true mean is
+    taken at the interval bound nearest zero, which is the most forgiving value
+    consistent with the interval, so the probability is a lower bound on how
+    often the design would cry wolf.
+    """
+    lower = fit.estimate - fit.half_width
+    upper = fit.estimate + fit.half_width
+    true_mean = min(abs(lower), abs(upper))
+    tq_sig = fit.half_width / fit.sigma
+    posterior_scale = fit.sigma * np.sqrt(1.0 / fit.n_pretest + 1.0 / n_test)
+    upper_tail = 1.0 - stats.t.cdf(tq_sig - true_mean / posterior_scale, df=fit.df)
+    lower_tail = stats.t.cdf(-tq_sig - true_mean / posterior_scale, df=fit.df)
+    return float(upper_tail + lower_tail)
+
+
+def aa_test_ok(y: np.ndarray, x: np.ndarray, n_test: int) -> bool:
+    """The reference's A/A test on the last ``n_test`` pretest periods.
+
+    An interval covering zero is a pass: the design did not find an effect where
+    there is none. An interval excluding zero is not an automatic failure, since
+    a narrow interval sitting just off zero is a small error; it fails when the
+    probability of that happening exceeds ``AA_THRESHOLD_PROB``.
+    """
+    fit = holdout_fit(y, x, n_test)
+    lower = fit.estimate - fit.half_width
+    upper = fit.estimate + fit.half_width
+    if lower * upper < 0.0:
+        return True
+    return bool(false_positive_probability(fit, n_test) <= AA_THRESHOLD_PROB)
 
 def required_impact(y: np.ndarray, corr: float, n_test: int) -> float:
     """The smallest impact the experiment could detect, the reference's formula."""
@@ -202,7 +258,7 @@ def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
     corr = float(np.clip(corr, -0.999999, 0.999999))
     impact = required_impact(y, corr, n_test)
     dw_ok, dw_stat = durbin_watson_ok(resid)
-    gates = (corr >= MIN_CORR, aa_test_ok(resid, sigma, n_test),
+    gates = (corr >= MIN_CORR, aa_test_ok(y, x, n_test),
              brownian_bridge_ok(resid, sigma), dw_ok)
     inv_impact = 1.0 / impact if impact > 0 else np.inf
     return SplitScore(

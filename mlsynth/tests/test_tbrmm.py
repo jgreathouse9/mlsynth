@@ -356,7 +356,6 @@ def test_every_gate_fails_a_split_with_no_residual_scale():
     resid = np.zeros(20)
     assert obj.cusum_pvalue(resid, 0.0) == 0.0
     assert obj.brownian_bridge_ok(resid, 0.0) is False
-    assert obj.aa_test_ok(resid, 0.0, 5) is False
     passed, stat = obj.durbin_watson_ok(resid)
     assert passed is False and np.isnan(stat)
 
@@ -376,11 +375,58 @@ def test_breusch_godfrey_declines_a_window_too_short_for_its_lag():
     assert breusch_godfrey_pvalue(np.arange(4.0), np.arange(4.0)) == 1.0
 
 
-def test_the_aa_test_fails_a_test_window_as_long_as_the_pretest():
-    """Every window the A/A test checks has to fit inside the pretest."""
+def _stable_pair(n=60, seed=2):
+    """Two series in a stable linear relation, which is what TBR assumes."""
+    rng = np.random.default_rng(seed)
+    x = np.linspace(100.0, 200.0, n) + rng.normal(0.0, 1.0, n)
+    return 5.0 + 1.5 * x + rng.normal(0.0, 1.0, n), x
+
+
+def test_the_aa_test_passes_a_pretest_that_predicts_its_own_last_window():
+    """TBR run on the pretest against itself. The held-out window carries no
+    intervention, so an interval covering zero is the design declining to find
+    an effect where there is none."""
     from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
 
-    assert aa_test_ok(np.linspace(-1.0, 1.0, 10), 1.0, 10) is False
+    y, x = _stable_pair()
+    assert aa_test_ok(y, x, 12) is True
+
+
+def test_the_aa_test_fails_a_pretest_that_breaks_before_its_last_window():
+    """A level shift in the held-out window is an effect the design would report
+    out of a period where nothing happened, which is its false-positive rate
+    showing before the experiment is run."""
+    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+
+    y, x = _stable_pair(seed=3)
+    y = y.copy()
+    y[-12:] += 400.0
+    assert aa_test_ok(y, x, 12) is False
+
+
+def test_the_false_positive_probability_is_read_from_the_holdout_fit():
+    """The probability is reached only when the interval excludes zero, and it
+    is taken at the bound nearest zero, so it is a lower bound on how often the
+    design would cry wolf."""
+    from mlsynth.utils.tbrmm_helpers.objective import (
+        false_positive_probability, holdout_fit)
+
+    y, x = _stable_pair(seed=4)
+    y = y.copy()
+    y[-12:] += 400.0
+    fit = holdout_fit(y, x, 12)
+    assert fit.n_pretest == 48 and fit.df == 46
+    assert abs(fit.estimate) - fit.half_width > 0      # the interval excludes zero
+    assert 0.0 <= false_positive_probability(fit, 12) <= 1.0
+
+
+def test_the_aa_test_refuses_a_window_leaving_no_pretest_to_fit():
+    """The A/A test fits on what the held-out window leaves behind, so a test
+    length that consumes the pretest has nothing to fit on."""
+    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+
+    with pytest.raises(MlsynthDataError, match="A/A test"):
+        aa_test_ok(np.linspace(1.0, 10.0, 10), np.linspace(2.0, 11.0, 10), 9)
 
 
 def test_a_score_orders_by_its_key_and_not_its_scalar():
