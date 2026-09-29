@@ -16,7 +16,7 @@ The result is one recommended pair per treatment size ``k``, which is what the
 advertiser chooses between.
 
 Two objectives, because the paper and the reference implementation specify
-different ones and the difference was measured rather than assumed. Au section
+different ones and the difference was measured, not assumed. Au section
 3.1 states ``f = min(CUSUM p, Breusch-Godfrey p, R^2)``. The reference scores
 ``(corr_test, aa_test, bb_test, dw_test, corr, 1/required_impact)``
 lexicographically. On 400 random splits of the GeoLift markets the two rank
@@ -437,6 +437,43 @@ def test_a_score_orders_by_its_key_and_not_its_scalar():
     weaker = SplitScore(key=(0, 9.0), value=9.0)
     stronger = SplitScore(key=(1, 0.1), value=0.1)
     assert weaker < stronger
+
+
+def test_the_window_constants_are_a_function_of_the_window_alone():
+    """Every quantile the score needs depends on the window length and the test
+    length, not on which geos a candidate puts where, so two different splits of
+    one panel share them. Caching them is what makes that reuse explicit."""
+    from mlsynth.utils.tbrmm_helpers.objective import window_constants
+
+    a = window_constants(90, 14)
+    b = window_constants(90, 14)
+    assert a is b                       # the cache hands back the same object
+    assert a.holdout_df == 90 - 14 - 2
+    assert a.tq_sig > 0 and a.tq_pow > 0 and a.phi > 0
+    assert window_constants(60, 14) != a
+
+
+def test_the_holdout_quantile_is_absent_where_the_window_cannot_support_one():
+    """A test length that consumes the window leaves the A/A fit no degrees of
+    freedom. The quantile is reported as nan; holdout_fit refuses such a window
+    before it would be used."""
+    from mlsynth.utils.tbrmm_helpers.objective import window_constants
+
+    const = window_constants(10, 9)
+    assert const.holdout_df <= 0
+    assert np.isnan(const.tq_holdout)
+
+
+def test_the_brownian_bridge_envelope_is_shared_and_read_only():
+    """The cache hands one array to every caller, so a caller that wrote to it
+    would change the boundary every later split is tested against."""
+    from mlsynth.utils.tbrmm_helpers.objective import brownian_bridge_envelope
+
+    env = brownian_bridge_envelope(90)
+    assert env.shape == (89,)
+    assert brownian_bridge_envelope(90) is env
+    with pytest.raises(ValueError):
+        env[0] = 0.0
 
 
 # --------------------------------------------------------------------------- #
