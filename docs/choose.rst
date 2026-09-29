@@ -115,6 +115,7 @@ At a glance
    Care about the ATE (population effect)?           ─► MAREX · LEXSCM
    Geo roll-out — every unit treated or control, no pure donors? ─► PANGEO (supergeo)
    Geo lift test — pick which markets to treat under a budget?    ─► SYNDES · LEXSCM · MAREX
+   Geo experiment you will analyse with TBR — which markets to treat? ─► TBRMM
 
 
 Gate 0 — Identification pre-screen
