@@ -90,7 +90,8 @@ def run(config: TBRMMConfig) -> TBRMMResults:
     y_matrix, units, eligibility = build_inputs(config)
     outcomes = greedy_search(
         y_matrix, eligibility, max_treatment_size=config.max_treatment_size,
-        n_test=config.n_test, objective=config.objective)
+        n_test=config.n_test, objective=config.objective,
+        control_start=config.control_start)
 
     designs = [
         TBRMMDesign(
