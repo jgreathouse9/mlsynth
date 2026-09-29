@@ -44,7 +44,11 @@ def run(config) -> TBRResults:
     post_labels = inputs.time_labels[T0:]
     cumulative = _as_cumulative(loc, scale, fit.df, level, post_labels)
 
-    counterfactual = np.concatenate([y[:T0], fit.predict(x[T0:])])
+    # The fitted relation over the whole window, pretest included. Handing back
+    # the observed series for the pretest half would make the standardized
+    # rmse_pre and r_squared_pre read 0 and 1 by construction, and the pretest
+    # residual is the only part of TBR's central assumption a caller can check.
+    counterfactual = fit.predict(x)
 
     cost_fit = cumulative_cost = iroas = None
     if config.cost_col:

@@ -84,6 +84,14 @@ def base_config(df, **over):
     return TBRConfig(**kw)
 
 
+def _control_aggregate(df):
+    """The control-group series the pretest relation is fitted on."""
+    wide = df.pivot_table(index="date", columns="geo", values="sales",
+                          aggfunc="sum")
+    ctl = sorted(df[df.is_control == 1].geo.unique())
+    return wide[ctl].sum(axis=1).to_numpy()
+
+
 def reference_posterior(df, T0, level=0.9, with_cooldown=False):
     """Eqns 4 and 6 computed straight from the frame, independent of mlsynth."""
     wide = df.pivot_table(index="date", columns="geo", values="sales",
@@ -810,3 +818,58 @@ def test_a_hole_in_design_mode_keeps_the_post_flag_block_assigned():
     res = TBR(design_config(holed)).fit()
     assert res.filled_cells == 1
     assert len(res.cumulative.estimate) == T - T0
+
+
+# --------------------------------------------------------------------------- #
+# the pretest fit has to be visible
+#
+# TBR's validity rests on the pretest relation holding, and only its pretest half
+# is checkable at all, so the standardized fit slot is the one a caller reaches
+# for to judge it. Setting the counterfactual's pretest half to the observed
+# series makes that slot report a perfect fit by construction -- a tautology
+# where the one checkable assumption should be.
+# --------------------------------------------------------------------------- #
+def test_the_pretest_counterfactual_is_the_fitted_relation():
+    """Not the observed series, which would make the residual zero by fiat."""
+    df = geo_panel(noise=3.0, seed=31)
+    res = TBR(base_config(df)).fit()
+    n = res.tbr_fit.n_pretest
+    obs = np.asarray(res.time_series.observed_outcome, float).ravel()
+    cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()
+    want = reference_posterior(df, n)
+    x = _control_aggregate(df)
+    assert np.allclose(cf[:n], want["alpha"] + want["beta"] * x[:n], rtol=1e-10)
+    assert not np.allclose(cf[:n], obs[:n], atol=1e-6)
+
+
+def test_the_reported_pretest_fit_is_the_real_one():
+    df = geo_panel(noise=3.0, seed=32)
+    res = TBR(base_config(df)).fit()
+    n = res.tbr_fit.n_pretest
+    obs = np.asarray(res.time_series.observed_outcome, float).ravel()[:n]
+    cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()[:n]
+    rmse = float(np.sqrt(np.mean((obs - cf) ** 2)))
+    assert res.fit_diagnostics.rmse_pre == pytest.approx(rmse, rel=1e-10)
+    assert res.fit_diagnostics.rmse_pre > 0.0
+    assert res.fit_diagnostics.r_squared_pre < 1.0
+    # the residual variance is sigma^2 up to the degrees-of-freedom correction
+    assert rmse ** 2 * n / res.tbr_fit.df == pytest.approx(res.tbr_fit.sigma_sq,
+                                                           rel=1e-10)
+
+
+def test_a_noisier_panel_reports_a_worse_pretest_fit():
+    """The diagnostic has to move with the thing it measures."""
+    a = TBR(base_config(geo_panel(noise=1.0, seed=33))).fit()
+    b = TBR(base_config(geo_panel(noise=8.0, seed=33))).fit()
+    assert b.fit_diagnostics.rmse_pre > 4.0 * a.fit_diagnostics.rmse_pre
+    assert b.fit_diagnostics.r_squared_pre < a.fit_diagnostics.r_squared_pre
+
+
+def test_the_post_period_counterfactual_is_unchanged_by_this():
+    """Delta(T) comes from eqn 4 and must not move when the pretest half of the
+    plotted counterfactual changes."""
+    df = geo_panel(noise=3.0, seed=34)
+    res = TBR(base_config(df)).fit()
+    want = reference_posterior(df, 14)
+    assert np.allclose(np.asarray(res.cumulative.estimate, float), want["loc"],
+                       rtol=1e-12)
