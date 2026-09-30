@@ -41,6 +41,7 @@ class DMLFMInputs:
     niter: int
     burn: int
     ar1: bool
+    prior: str
     xlasso: bool
     zlasso: bool
     alasso: bool
@@ -161,6 +162,7 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
         order_by_time=order_by_time,
         n_units=n_units, n_periods=n_periods, r=int(cfg.r),
         niter=int(cfg.niter), burn=int(cfg.burn), ar1=bool(cfg.ar1),
+        prior=str(cfg.prior),
         xlasso=bool(cfg.xlasso), zlasso=bool(cfg.zlasso),
         alasso=bool(cfg.alasso), flasso=bool(cfg.flasso),
         a1=cfg.a1, a2=cfg.a2, b1=cfg.b1, b2=cfg.b2,

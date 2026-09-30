@@ -24,6 +24,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+# A floor on an inverse-gamma rate. The horseshoe's rate is a sum of positive
+# terms, so it reaches zero only when every coefficient in the block underflows
+# to exactly zero and the auxiliary has gone to infinity; the floor keeps the
+# reciprocal finite instead of returning an infinite scale to the next draw.
+_TINY = 1e-300
+
 
 # --------------------------------------------------------------------------
 # elementary draws (src/blasso.cpp)
@@ -217,6 +223,73 @@ def _lasso_update(coef: np.ndarray, lam2: float, prior_var: np.ndarray,
     return rng.gamma(shape + coef.shape[0], 1.0 / (rate + prior_var.sum() / 2.0))
 
 
+def _horseshoe_update(coef: np.ndarray, tau2: float, prior_var: np.ndarray,
+                      nu: np.ndarray, xi: float,
+                      rng: np.random.Generator) -> tuple[float, float]:
+    """One horseshoe block: local scales, global scale, both auxiliaries.
+
+    The drop-in replacement for :func:`_lasso_update` under
+    ``prior="horseshoe"``. Mirrors the ``xhorseshoe``/``zhorseshoe``/
+    ``ahorseshoe``/``fhorseshoe`` blocks of ``function-code.R`` in the
+    replication archive of Ma et al. (2026), which draws the half-Cauchy
+    hierarchy through the inverse-gamma auxiliaries of Makalic & Schmidt
+    (2015):
+
+    .. math::
+
+        \\lambda_j^2 \\mid \\nu_j \\sim
+            \\mathcal{IG}\\!\\left(1, \\frac{1}{\\nu_j}
+            + \\frac{\\beta_j^2}{2\\tau^2}\\right), \\qquad
+        \\nu_j \\mid \\lambda_j^2 \\sim
+            \\mathcal{IG}\\!\\left(1, 1 + \\frac{1}{\\lambda_j^2}\\right),
+
+    and likewise for :math:`(\\tau^2, \\xi)` with shape :math:`(1+k)/2`. The
+    prior variance handed back to the coefficient draw is
+    :math:`\\lambda_j^2 \\tau^2`, so ``prior_var`` carries the product while
+    ``tau2`` and the unscaled locals stay separate -- writing the product back
+    into the local scale would compound :math:`\\tau^2` once per sweep.
+
+    Unlike the lasso block this takes no Gamma hyperparameters: the horseshoe
+    fixes both half-Cauchy scales at one, which is why ``a1``-``p2`` are unused
+    when the horseshoe is selected.
+
+    ``coef``, ``tau2`` and ``xi`` are read; ``prior_var`` and ``nu`` are written
+    in place, and the new ``(tau2, xi)`` are returned.
+    """
+    k = coef.shape[0]
+    flat = np.asarray(coef, dtype=float).ravel()
+
+    # local scales, then their auxiliaries (function-code.R:317-325)
+    lam2 = np.empty(k)
+    for j in range(k):
+        rate = 0.5 * flat[j] ** 2 / tau2 + 1.0 / nu[j]
+        lam2[j] = 1.0 / rng.gamma(1.0, 1.0 / max(rate, _TINY))
+    for j in range(k):
+        nu[j] = 1.0 / rng.gamma(1.0, 1.0 / (1.0 / lam2[j] + 1.0))
+
+    # global scale, then its auxiliary (function-code.R:327-338)
+    rate_tau = 0.5 * float(np.sum(flat ** 2 / lam2)) + 1.0 / xi
+    tau2 = 1.0 / rng.gamma((1.0 + k) / 2.0, 1.0 / max(rate_tau, _TINY))
+    prior_var[:] = lam2 * tau2
+    xi = 1.0 / rng.gamma(1.0, 1.0 / (1.0 + 1.0 / tau2))
+    return tau2, xi
+
+
+def _shrink(prior: str, coef: np.ndarray, glob: float, prior_var: np.ndarray,
+            nu: np.ndarray, xi: float, shape: float, rate: float,
+            rng: np.random.Generator) -> tuple[float, float]:
+    """Dispatch one shrinkage block on the configured prior.
+
+    Returns the block's global scale and its auxiliary. The lasso has no
+    auxiliary, so it passes ``xi`` back untouched and consumes no draw for it,
+    which is what keeps the lasso path's random stream identical to the one the
+    pblasso cross-validation pinned.
+    """
+    if prior == "horseshoe":
+        return _horseshoe_update(coef, glob, prior_var, nu, xi, rng)
+    return _lasso_update(coef, glob, prior_var, shape, rate, rng), xi
+
+
 def _sign_flip(omega: np.ndarray, states: np.ndarray,
                rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
     """``permute`` (blasso.cpp:454).
@@ -273,6 +346,10 @@ def run_gibbs(inputs, rng: np.random.Generator) -> DMLFMDraws:
     var_beta = np.full(k1, 100.0)
     var_a, var_xi, var_g = (np.full(k2, 100.0), np.full(k3, 100.0), np.full(r, 100.0))
     lam_b = lam_a = lam_xi = lam_g = 10.0
+    # horseshoe auxiliaries; unused under the lasso, and cheap to carry.
+    nu_b, nu_a = np.ones(k1), np.ones(k2)
+    nu_xi, nu_g = np.ones(k3), np.ones(r)
+    xi_b = xi_a = xi_xi = xi_g = 1.0
 
     def re_fit(design, eff, index):
         return np.einsum("ij,ij->i", design, eff[index]) if design.shape[1] else np.zeros(
@@ -308,7 +385,8 @@ def run_gibbs(inputs, rng: np.random.Generator) -> DMLFMDraws:
         beta = sample_normal(X, res, np.diag(var_beta), sigma2, rng)
         xfit = X @ beta
         if inputs.xlasso:
-            lam_b = _lasso_update(beta, lam_b, var_beta, inputs.a1, inputs.a2, rng)
+            lam_b, xi_b = _shrink(inputs.prior, beta, lam_b, var_beta, nu_b,
+                                  xi_b, inputs.a1, inputs.a2, rng)
 
         # 2. unit-level effects and factor loadings, jointly
         if k2 + r:
@@ -343,18 +421,21 @@ def run_gibbs(inputs, rng: np.random.Generator) -> DMLFMDraws:
             if k2:
                 omega_a = omega[:k2]
                 if inputs.zlasso:
-                    lam_a = _lasso_update(omega_a, lam_a, var_a, inputs.b1, inputs.b2, rng)
+                    lam_a, xi_a = _shrink(inputs.prior, omega_a, lam_a, var_a,
+                                          nu_a, xi_a, inputs.b1, inputs.b2, rng)
                 omega_a, Alpha = _sign_flip(omega_a, Alpha, rng)
             if k3:
                 omega_xi = omega[k2:k2 + k3]
                 if inputs.alasso:
-                    lam_xi = _lasso_update(omega_xi, lam_xi, var_xi,
-                                           inputs.c1, inputs.c2, rng)
+                    lam_xi, xi_xi = _shrink(inputs.prior, omega_xi, lam_xi,
+                                            var_xi, nu_xi, xi_xi,
+                                            inputs.c1, inputs.c2, rng)
                 omega_xi, Xi = _sign_flip(omega_xi, Xi, rng)
             if r:
                 omega_g = omega[k2 + k3:]
                 if inputs.flasso:
-                    lam_g = _lasso_update(omega_g, lam_g, var_g, inputs.p1, inputs.p2, rng)
+                    lam_g, xi_g = _shrink(inputs.prior, omega_g, lam_g, var_g,
+                                          nu_g, xi_g, inputs.p1, inputs.p2, rng)
                 omega_g, F = _sign_flip(omega_g, F, rng)
 
         # 5. AR(1) coefficients.

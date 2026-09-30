@@ -58,6 +58,7 @@ def assemble(inputs: DMLFMInputs, draws: DMLFMDraws, observed: np.ndarray,
     details = MethodDetailsResults(
         method_name="DMLFM",
         parameters={
+            "prior": inputs.prior,
             "r": inputs.r,
             "ar1": inputs.ar1,
             "niter": inputs.niter,
