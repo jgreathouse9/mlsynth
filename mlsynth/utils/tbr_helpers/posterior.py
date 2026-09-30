@@ -29,38 +29,14 @@ from typing import Tuple
 import numpy as np
 from scipy import stats
 
+from ..groupfit import (
+    GroupSums, fit_on_sums, group_sums, is_identified, prediction_variance)
+from ..groupfit import unscaled_cov as _identified_unscaled_cov
 
-@dataclass(frozen=True)
-class PretestSums:
-    """Eqn 1's sufficient statistics: the centred sums over the pretest window.
-
-    Every scalar the fit and the design search need is a function of these and
-    the window length, so they are computed once and carried on the fit instead
-    of each consumer taking its own pass over the window.
-    """
-
-    n: int
-    sum_x: float
-    sum_y: float
-    s_xx: float
-    s_xy: float
-    s_yy: float
-
-
-def pretest_sums(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestSums:
-    """The centred sums of squares and cross products of eqn 1's two series.
-
-    Centred about the mean for the reason :func:`_unscaled_cov` is: the
-    uncentred forms are the naive variance and covariance formulas, and they
-    cancel at the scale a geo aggregate has.
-    """
-    n = int(y_pre.size)
-    sum_x = float(x_pre.sum())
-    sum_y = float(y_pre.sum())
-    dx = x_pre - sum_x / n
-    dy = y_pre - sum_y / n
-    return PretestSums(n=n, sum_x=sum_x, sum_y=sum_y, s_xx=float(dx @ dx),
-                       s_xy=float(dx @ dy), s_yy=float(dy @ dy))
+#: The sums this module used to define. They are the shared regression's
+#: sufficient statistics, so the definition lives with the regression and this
+#: name is kept as the one TBR's own docstrings refer to.
+PretestSums = GroupSums
 
 
 @dataclass(frozen=True)
@@ -97,16 +73,10 @@ def fit_pretest(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestFit:
     y_pre = np.asarray(y_pre, dtype=float)
     x_pre = np.asarray(x_pre, dtype=float)
     n = int(y_pre.size)
-    sums = pretest_sums(y_pre, x_pre)
-    xbar, ybar = sums.sum_x / n, sums.sum_y / n
-    if sums.s_xx > 0.0:
-        beta = sums.s_xy / sums.s_xx
-        alpha = ybar - beta * xbar
-        # Centred, and not ``y - (alpha + beta x)``. Both are the residual on
-        # paper; the uncentred one subtracts two numbers of the regressor's
-        # magnitude where this one works in the deviations, which is the whole
-        # signal when the regressor's spread is small against its mean.
-        resid = (y_pre - ybar) - beta * (x_pre - xbar)
+    sums = group_sums(y_pre, x_pre)
+    if is_identified(sums):
+        fit = fit_on_sums(sums, y_pre, x_pre)
+        alpha, beta, resid = fit.alpha, fit.beta, fit.resid
     else:
         design = np.column_stack([np.ones(n), x_pre])
         coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
@@ -127,39 +97,22 @@ def fit_pretest(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestFit:
 
 
 def _unscaled_cov(sums: PretestSums, x_pre: np.ndarray) -> np.ndarray:
-    """``(X'X)^-1`` for ``X = [1, x]``, in closed form about the mean.
+    """``(X'X)^+`` for ``X = [1, x]``: eqn 6's ``v_a``, ``v_ab`` and ``v_b``.
 
-    The Gram matrix is two by two, so its inverse is three divisions. Writing
-    it around ``S_xx = sum((x - xbar)^2)`` instead of around the determinant
-    ``n sum(x^2) - (sum x)^2`` changes the result at the scale TBR runs on,
-    because that determinant is the naive variance formula and cancels: a
-    control aggregate of 44,000 with a spread of 500 carries nine digits of
-    mean square against four of signal. Maximum relative error over 200 draws
-    of 90 periods, against the centred formula evaluated in float128:
+    The identified case is the shared closed form,
+    :func:`mlsynth.utils.groupfit.unscaled_cov`, which carries the measurements
+    for why it is written about ``S_xx``.
 
-        mean     sd      cond(X'X)   centred    determinant   pinv
-        4.4e4    5e2     2.7e13      7.3e-16    4.9e-12       2.4e-07
-        4.4e4    1.1e4   5.7e10      6.4e-16    1.4e-14       6.8e-10
-        1e6      1e2     1.5e20      7.7e-16    1.0e-07       1.0
-        1e6      1e0     1.0e24      7.3e-16    1.4e-03       1.0
-
-    The last column is the route this replaced, and it is the least accurate of
-    the three. ``np.linalg.pinv`` discards a singular value below
-    ``2 eps sigma_max``; on a two-column design that is the slope's variance
-    entire, so ``v_beta`` comes back zero and eqn 6's interval stops responding
-    to ``xbar_T``. Both GeoLift aggregates sit in the second row's band, where
-    all three agree, so the replacement moved no number in the benchmark.
-
-    ``S_xx`` is zero exactly when ``x`` is constant, section 3.4's zero-cost
-    case, and the pseudoinverse runs on that branch alone.
+    What is TBR's own is the other branch. When the regressor is constant through
+    the pretest ``X'X`` is singular, which is not a pathology but section 3.4's
+    zero-cost case, where the counterfactual is zero with certainty. The
+    pseudoinverse returns the zero fit the paper describes; an inverse raises.
     """
-    n, s_xx = sums.n, sums.s_xx
-    xbar = sums.sum_x / n
-    if s_xx <= 0.0:
+    if not is_identified(sums):
         sx = sums.sum_x
-        return np.linalg.pinv(np.array([[float(n), sx], [sx, float(x_pre @ x_pre)]]))
-    return np.array([[1.0 / n + xbar * xbar / s_xx, -xbar / s_xx],
-                     [-xbar / s_xx, 1.0 / s_xx]])
+        return np.linalg.pinv(
+            np.array([[float(sums.n), sx], [sx, float(x_pre @ x_pre)]]))
+    return _identified_unscaled_cov(sums)
 
 
 def cumulative_posterior(fit: PretestFit, y_test: np.ndarray,
@@ -171,11 +124,22 @@ def cumulative_posterior(fit: PretestFit, y_test: np.ndarray,
     ybar = np.cumsum(y_test) / horizon
     xbar = np.cumsum(x_test) / horizon
     loc = horizon * (ybar - fit.alpha - xbar * fit.beta)
-    v_a, v_b = fit.unscaled_cov[0, 0], fit.unscaled_cov[1, 1]
-    v_ab = fit.unscaled_cov[0, 1]
-    scale = horizon * np.sqrt(fit.sigma_sq) * np.sqrt(
-        v_a + 2.0 * xbar * v_ab + v_b * xbar ** 2 + 1.0 / horizon)
+    # ``v_a + 2 xbar v_ab + v_b xbar^2`` is the fitted value's variance, which is
+    # the shared prediction variance; the remaining ``1 / T`` is eqn 6's own term
+    # for the test period's unobserved errors.
+    fitted_var = (prediction_variance(fit.sums, xbar) if fit.sums.s_xx > 0.0
+                  else _quadratic_form(fit.unscaled_cov, xbar))
+    scale = horizon * np.sqrt(fit.sigma_sq) * np.sqrt(fitted_var + 1.0 / horizon)
     return loc, scale
+
+
+def _quadratic_form(cov: np.ndarray, xbar: np.ndarray) -> np.ndarray:
+    """``[1, xbar]' V [1, xbar]`` from an explicit ``V``.
+
+    Section 3.4's constant regressor leaves ``V`` a pseudoinverse that no closed
+    form about ``S_xx`` describes, so the contraction is done directly there.
+    """
+    return (cov[0, 0] + 2.0 * xbar * cov[0, 1] + cov[1, 1] * xbar ** 2)
 
 
 def interval(loc: np.ndarray, scale: np.ndarray, df: int,
