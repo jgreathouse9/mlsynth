@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..groupfit import MIN_WINDOW, fit_two_group
 from .inference import adid_inference, did_inference, hac_lag
 
 
@@ -244,15 +245,18 @@ def adid_from_mean(
     T0 = int(pre_periods)
     T1 = T - T0
 
-    if T0 < 3:
+    if T0 < MIN_WINDOW:
         raise MlsynthEstimationError(
-            f"ADID fits an intercept and a slope, so it needs at least three "
-            f"pre-treatment periods to leave a residual; found {T0}. Use the "
-            f"DID fit, which estimates one parameter."
+            f"ADID fits an intercept and a slope, so it needs at least "
+            f"{MIN_WINDOW} pre-treatment periods to leave a residual; found "
+            f"{T0}. Use the DID fit, which estimates one parameter."
         )
 
-    X = np.column_stack([np.ones(T), mean_ctrl])
-    X_pre = X[:T0]
+    # ADID's own identification rule, and stricter than the shared helper's. The
+    # helper asks for S_xx > 0; a donor average moving in its thirteenth digit
+    # satisfies that and still leaves the slope decided by rounding, so the
+    # threshold here is relative to the series' own magnitude. Which designs to
+    # refuse is the estimator's, so it is tested here and not in the helper.
     spread = float(np.ptp(mean_ctrl[:T0]))
     scale = max(float(np.max(np.abs(mean_ctrl[:T0]))), 1.0)
     if spread <= 1e-12 * scale:
@@ -263,9 +267,9 @@ def adid_from_mean(
             "which holds the slope at one."
         )
 
-    delta = np.linalg.solve(X_pre.T @ X_pre, X_pre.T @ treated[:T0])
-    counterfactual = X @ delta
-    resid_pre = treated[:T0] - counterfactual[:T0]
+    fit = fit_two_group(treated[:T0], mean_ctrl[:T0])
+    counterfactual = fit.predict(mean_ctrl)
+    resid_pre = fit.resid
 
     att = float(np.mean(treated[T0:] - counterfactual[T0:])) if T1 > 0 else np.nan
     rmse = float(np.sqrt(np.mean(resid_pre ** 2)))
@@ -278,7 +282,8 @@ def adid_from_mean(
         else None
     )
     se, ci, pval, satt = adid_inference(
-        att, resid_pre, X_pre, X[T0:].mean(axis=0) if T1 > 0 else np.zeros(2),
+        att, resid_pre, fit.sums, mean_ctrl[:T0],
+        float(np.mean(mean_ctrl[T0:])) if T1 > 0 else 0.0,
         T0, T1, method=inference, lrvar_lag=used_lag,
     )
     post_cf_mean = float(np.mean(counterfactual[T0:])) if T1 > 0 else np.nan
@@ -299,8 +304,8 @@ def adid_from_mean(
             "P-Value": float(pval),
             "95% CI": (float(ci[0]), float(ci[1])),
             "SE": float(se),
-            "Intercept": float(delta[0]),
-            "Slope": float(delta[1]),
+            "Intercept": float(fit.alpha),
+            "Slope": float(fit.beta),
             "Method": inference,
             "Lag": used_lag,
         },

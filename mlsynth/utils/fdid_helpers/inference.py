@@ -95,6 +95,8 @@ from typing import Optional, Tuple
 import numpy as np
 from scipy.stats import norm
 
+from ..groupfit import GroupSums, prediction_variance, unscaled_cov
+
 
 #: Inference methods accepted by :func:`did_inference`.
 INFERENCE_METHODS = ("analytic", "hac")
@@ -276,8 +278,9 @@ def did_inference(
 def adid_inference(
     att: float,
     pre_residuals: np.ndarray,
-    pre_design: np.ndarray,
-    post_design_mean: np.ndarray,
+    sums: GroupSums,
+    pre_regressor: np.ndarray,
+    post_regressor_mean: float,
     pre_periods: int,
     post_periods: int,
     method: str = "analytic",
@@ -304,11 +307,17 @@ def adid_inference(
         The ADID ATT.
     pre_residuals : np.ndarray
         Pre-period residuals ``y_1t - x_t' delta``, shape ``(T1,)``.
-    pre_design : np.ndarray
-        The pre-period design ``x_t = (1, mean of the controls)``, shape
-        ``(T1, 2)``.
-    post_design_mean : np.ndarray
-        Its post-period column means, shape ``(2,)`` -- their ``eta``.
+    sums : GroupSums
+        The pre-period regression's sufficient statistics, from
+        :mod:`mlsynth.utils.groupfit`. ``Psi^-1`` is read off these in closed
+        form, so the design's Gram matrix is never formed or inverted.
+    pre_regressor : np.ndarray
+        The donor average over the pre-period, shape ``(T1,)``. Only
+        ``method="hac"`` reads it, to weight the residual cross-products by the
+        design.
+    post_regressor_mean : float
+        The donor average's post-period mean. With the implied constant it is
+        their ``eta = (1, this)``.
     pre_periods, post_periods : int
         ``T1`` and ``T2``.
     method : {"analytic", "hac"}, default "analytic"
@@ -345,6 +354,10 @@ def adid_inference(
     ValueError
         If ``method`` is not one of :data:`INFERENCE_METHODS`, or
         ``lrvar_lag`` is negative.
+    MlsynthEstimationError
+        If ``sums`` does not identify a slope. :func:`adid_from_mean` refuses
+        such a design on a stricter, relative threshold before reaching here, so
+        the estimator cannot raise this.
     """
     if method not in INFERENCE_METHODS:
         raise ValueError(
@@ -355,29 +368,30 @@ def adid_inference(
     if pre_periods <= 0 or post_periods <= 0:
         return np.nan, (np.nan, np.nan), np.nan, np.nan
 
-    X = np.asarray(pre_design, dtype=float)
-    eta = np.asarray(post_design_mean, dtype=float).ravel()
-    psi = X.T @ X / pre_periods
     resid = np.asarray(pre_residuals, dtype=float).ravel()
-
-    try:
-        psi_inv_eta = np.linalg.solve(psi, eta)
-    except np.linalg.LinAlgError:       # pragma: no cover - the caller refuses
-        return np.nan, (np.nan, np.nan), np.nan, np.nan
-
+    # Psi = X'X / T1, so Psi^-1 = T1 (X'X)^-1 and the shared closed form about
+    # S_xx supplies it. The two branches want different things from it: the
+    # analytic one needs only the scalar eta' Psi^-1 eta, which is T1 times the
+    # prediction variance at the post-period mean, and never forms the matrix;
+    # the HAC one needs the vector Psi^-1 eta to contract V, so it takes the
+    # covariance itself.
     if method == "analytic":
         sigma2 = float(np.mean(resid ** 2))
-        omega1 = sigma2 * float(eta @ psi_inv_eta)
+        omega1 = sigma2 * pre_periods * prediction_variance(
+            sums, post_regressor_mean)
         omega2 = sigma2
     else:
         lag = hac_lag(pre_periods, post_periods) if lrvar_lag is None else lrvar_lag
+        x = np.asarray(pre_regressor, dtype=float).ravel()
+        X = np.column_stack([np.ones(x.size), x])
         # V = T1^-1 sum_{|s-t| <= l} e_t e_s x_t x_s', Bartlett weighted
         V = np.zeros((X.shape[1], X.shape[1]))
         for j in range(0, lag + 1):
             w = 1.0 if j == 0 else 1.0 - j / (lag + 1)
             cross = (X[j:] * (resid[j:] * resid[:resid.size - j])[:, None]).T @ X[:X.shape[0] - j]
             V += (w * (cross if j == 0 else cross + cross.T)) / pre_periods
-        b = psi_inv_eta
+        eta = np.array([1.0, float(post_regressor_mean)])
+        b = pre_periods * (unscaled_cov(sums) @ eta)
         omega1 = float(b @ V @ b)
         # Sigma_2 = T1^-1 sum_{|s-t| <= l} e_t e_s, the residual's long-run
         # variance, which is gamma_0 alone only at lag zero.
