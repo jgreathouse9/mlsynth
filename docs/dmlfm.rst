@@ -56,6 +56,37 @@ Each varying block is written as a scale times a standardised term --
 with :math:`\tilde{\boldsymbol{\gamma}}_i \sim N(0, I_r)`. The scale
 :math:`\omega_\gamma` is what the shrinkage prior acts on: when its
 :math:`k`-th entry goes to zero the :math:`k`-th factor leaves the model.
+
+Which prior does that shrinking is set by ``prior``. The default ``lasso`` is
+the Bayesian lasso of Pang, Liu and Xu (2022): a single penalty shared by every
+coefficient in a block, drawn from a Gamma prior whose shape and rate are the
+``a1``--``p2`` settings. The alternative ``horseshoe`` is the global--local
+prior of Ma, Gao, Wang, Wang and Zhu (2026), which gives each coefficient its
+own local scale on top of a block-wide one,
+
+.. math::
+
+   \beta_j \mid \lambda_j, \tau \sim N(0, \lambda_j^2 \tau^2), \qquad
+   \lambda_j \sim \mathrm{C}^+(0, 1), \qquad \tau \sim \mathrm{C}^+(0, 1),
+
+where :math:`\mathrm{C}^+` is the half-Cauchy distribution on the positive
+line.
+
+The difference between them is what happens to a coefficient that is genuinely
+large. One penalty shared across a block has to be small enough to leave that
+coefficient alone and large enough to flatten everything else, so it settles
+somewhere between the two and does neither well. A per-coefficient scale is not
+under that constraint: :math:`\tau` pulls the block toward zero while a large
+:math:`\lambda_j` lets one coefficient escape. That is the regime the 2026
+paper's simulations target, and it is the case for the horseshoe when the panel
+is sparse -- many candidate covariates or factors, few that matter.
+
+The horseshoe fixes both half-Cauchy scales at one, so it has no
+hyperparameters to set and ``a1``--``p2`` are unused under it. The four
+``xlasso``/``zlasso``/``alasso``/``flasso`` flags keep their meaning under
+either prior: they choose which blocks are shrunk, and ``prior`` chooses how.
+Their names predate the second prior.
+
 The treatment effect is
 :math:`\delta_{it} = y_{it}(a_i) - y_{it}(0)` for :math:`t \geq a_i`, and the
 reported ATT averages it over the treated observations.
