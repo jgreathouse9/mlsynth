@@ -280,10 +280,12 @@ def adid_counterfactual(
     X = np.column_stack(cols)
     y = YT if augment else YT - YC
     XE = X[:n_pre]
-    try:
-        beta = np.linalg.solve(XE.T @ XE, XE.T @ y[:n_pre])
-    except np.linalg.LinAlgError:
-        beta = np.linalg.lstsq(XE, y[:n_pre], rcond=None)[0]
+    # Least squares through QR, as :func:`_adid` does, so the line drawn here
+    # and the ATT reported there come from one beta. Forming XE'XE would square
+    # the conditioning, which on the three-column design (constant, control
+    # aggregate, trend) costs about two orders of accuracy; lstsq also returns a
+    # minimum-norm solution on a rank-deficient design, so no fallback is needed.
+    beta = np.linalg.lstsq(XE, y[:n_pre], rcond=None)[0]
     yhat = X @ beta
     return yhat if augment else YC + yhat
 
@@ -319,9 +321,13 @@ def _adid(
     att = float(u.mean())
 
     omega2 = _lr_variance(e, k)             # pre-period (long-run) residual var
-    S_pre = Xpre.T @ Xpre
     xbar = Xpost.mean(axis=0)
-    pred_term = float(xbar @ np.linalg.solve(S_pre, xbar))   # Σ₁ contribution
+    # Σ₁ needs xbar' (X'X)^-1 xbar at the post-period mean, which sits outside
+    # the fitting window. With Xpre = QR that is R^-T xbar squared, so the
+    # Gram matrix is never formed and the conditioning stays at cond(X).
+    _, R = np.linalg.qr(Xpre)
+    z = np.linalg.solve(R.T, xbar)
+    pred_term = float(z @ z)                                 # Σ₁ contribution
     var = omega2 * (pred_term + 1.0 / n_post)                # + Σ₂ contribution
     se = float(np.sqrt(max(var, 0.0)))
 
@@ -391,17 +397,18 @@ def _design_matrix(YC: np.ndarray, n_total: int, augment: bool, trend: bool):
 def _adid_att_batch(YT, YC, n_pre, augment, trend) -> np.ndarray:
     """Vectorised ATT point estimate for a batch of ``(P, T)`` pairs.
 
-    A single batched OLS (``einsum`` Gram matrices + one ``solve``) -- no
-    Python loop over pairs. Matches :func:`_adid` up to the equivalence of
-    ``lstsq`` and ``solve`` for full-rank designs.
+    A single batched OLS -- no Python loop over pairs. ``np.linalg.qr`` stacks,
+    so each pair is factorised at once and the triangular system solved
+    together, which matches :func:`_adid` term for term instead of only up to
+    the difference between a QR fit and the normal equations.
     """
     X = _design_matrix(YC, YT.shape[1], augment, trend)     # (P, T, k)
     y = YT if augment else YT - YC                          # (P, T)
     Xpre, ypre = X[:, :n_pre, :], y[:, :n_pre]
     Xpost, ypost = X[:, n_pre:, :], y[:, n_pre:]
-    XtX = np.einsum("ptk,ptj->pkj", Xpre, Xpre)
-    Xty = np.einsum("ptk,pt->pk", Xpre, ypre)
-    beta = np.linalg.solve(XtX, Xty[..., None])[..., 0]     # (P, k)
+    Q, R = np.linalg.qr(Xpre)                               # (P,T,k), (P,k,k)
+    Qty = np.einsum("ptk,pt->pk", Q, ypre)
+    beta = np.linalg.solve(R, Qty[..., None])[..., 0]       # (P, k)
     u = ypost - np.einsum("ptk,pk->pt", Xpost, beta)
     return u.mean(axis=1)
 
