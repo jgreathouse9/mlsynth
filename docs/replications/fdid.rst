@@ -108,35 +108,38 @@ captured run of Kathleen Li's own ``Fun_FDID.R``, vendored under
 data checksum), so the two implementations are compared object to object;
 mlsynth matches the author's code to about :math:`10^{-5}` on every quantity.
 
-On the same Hong Kong panel — warmed up, data load excluded, averaged over 200
-calls on one machine — the two implementations differ sharply in speed:
+The selection path is identical — 9 controls, ATT :math:`0.0254` — so what
+follows compares two ways of reaching the same answer.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 38 16 46
+Both implementations walk the same forward path and differ in what one candidate
+score costs. Li's R rebuilds each candidate's donor average from scratch,
+``rowMeans(x[1:t1, c(select, left[jj])])`` for every remaining donor at every
+step, so the work per score grows with the selected set: instrumented, her loop
+touches :math:`N(N+1)(N+2)\,T_0/6` array elements over the whole path, which is
+cubic in the donor count. mlsynth centres the donors once, caches each donor's
+squared norm and its cross-product with the treated unit, and carries a running
+centred sum of the selected set, so a step is one matrix–vector product that
+scores every remaining candidate at once and the path touches :math:`N^2 T_0`
+elements. The block is in
+:func:`~mlsynth.utils.fdid_helpers.estimation.forward_did_select`.
 
-   * - Implementation
-     - per call
-     - work done
-   * - Li ``Fun_FDID.R`` (R)
-     - 95.0 ms
-     - forward selection and the point estimate
-   * - mlsynth ``FDID().fit()`` (Python)
-     - 6.5 ms
-     - the same selection, plus inference, the all-donor DiD arm, and the typed result object
+The cost is measured in `benchmarks/studies/fdid_selection_timing
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/fdid_selection_timing>`_,
+which times four implementations — mlsynth, the same algorithm written naively in
+Python, Li's R, and her MATLAB under Octave — on two real panels and over a donor
+sweep. Two of its results decide how any single ratio should be read. The gap
+grows with the donor count, so one ratio describes one panel: mlsynth against the
+naive Python loop is 4.0x at 24 donors and 155.7x at 320. And neither series
+follows a single power law over the range panels actually occupy — both need two
+terms, the cubic and quadratic leading terms overtaking the rest only near
+:math:`N = 353` and :math:`N = 1{,}274` — so a fitted exponent below those
+crossovers measures the sweep's range and not the algorithm.
 
-mlsynth is roughly fifteen times faster while doing strictly more, because its
-forward search is matrix algebra, not nested loops. Li's R rescans every
-remaining control with a doubly nested loop, re-averaging the growing donor set
-from scratch at each step — order :math:`N^2 T` work at interpreted-loop speed.
-mlsynth scores all remaining candidates at once: each step forms the candidate
-running means by broadcasting and evaluates their pre-period :math:`R^2` in a
-single matrix–vector product (``_r2_batch`` in
-:mod:`mlsynth.utils.fdid_helpers.estimation`), then folds the chosen donor into
-the running synthetic control with an order-:math:`T` rank-one mean update
-instead of re-averaging the subset. The selection path is identical (9 controls,
-ATT :math:`0.0254`); only the arithmetic is reorganized, which is why the
-numbers agree to machine display precision while the wall-clock does not.
+At these sizes the container costs as much as the algorithm. Li's driver passes
+``x`` as a data frame, which is how ``reference.R`` calls her function, and the
+same call with ``as.matrix`` runs 10x faster on the Hong Kong panel (70.5 ms
+against 7.0 ms, median of 20) for the identical selection. A timing that does not
+say which of the two it used cannot be compared with one that does.
 
 Path B — the simulation design
 ------------------------------

@@ -383,9 +383,6 @@ def test_satt_is_nan_when_the_panel_has_no_post_period():
 
 
 # -----------------------------
-# estimation._r2_batch
-# -----------------------------
-# -----------------------------
 # estimation.did_from_mean
 # -----------------------------
 def test_did_from_mean_basic():

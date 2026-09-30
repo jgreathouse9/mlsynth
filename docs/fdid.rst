@@ -293,10 +293,12 @@ candidates) / (k + 1)`` inside
 
 The cross term for the whole candidate set is the single matvec
 :math:`\widetilde{\mathbf{y}}^\top(\mathbf{M} - \bar{\mathbf{M}})`; the column
-sums of squares are one reduction. This is
-:func:`~mlsynth.utils.fdid_helpers.estimation._r2_batch` -- no candidate is
-ever regressed, and :math:`b_0` is never explicitly solved during the
-search (it is recovered only once, for the winning group, in
+sums of squares are one reduction. This is the scoring step inside
+:func:`~mlsynth.utils.fdid_helpers.estimation.forward_did_select`, which centres
+the donors once and caches each donor's squared norm and its cross-product with
+the treated unit, so the step reduces to one matvec against the running centred
+sum. No candidate is ever regressed, and :math:`b_0` is never explicitly solved
+during the search (it is recovered only once, for the winning group, in
 :func:`~mlsynth.utils.fdid_helpers.estimation.did_from_mean`).
 
 Taken together, a forward step costs :math:`O(T_0 |\mathcal{R}|)` and the

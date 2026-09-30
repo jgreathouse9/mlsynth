@@ -155,6 +155,16 @@ cells run in 8 to 146 milliseconds; the figures above are medians of 15.
 
 ## What is not claimed
 
+The R row times her loop with `x` as a matrix (`as.matrix` in
+`time_selection.R`). Her own driver passes a data frame, and so does
+`benchmarks/reference/fdid_hongkong/reference.R`, which costs 10x more for the
+identical selection: 70.5 ms against 7.0 ms on the Hong Kong panel, median of 20.
+Per-candidate `[` on a data frame dispatches through `[.data.frame` and rebuilds
+a frame each time. The matrix figure is the one to compare against mlsynth,
+because mlsynth is handed an array; the data-frame figure is what her released
+driver costs as released. Neither is the other's substitute, and a timing that
+does not name the container cannot be compared with one that does.
+
 Her MATLAB timing is Octave's, not MATLAB's, and MATLAB's JIT would close much of
 that particular gap. Nothing here says her code is wrong: it selects exactly what
 mlsynth selects on both panels, and `benchmarks/cases/fdid_hongkong.py` pins
