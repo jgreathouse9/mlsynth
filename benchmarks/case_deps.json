@@ -737,6 +737,10 @@
   "mlsynth/utils/fdid_helpers/simulation.py",
   "mlsynth/utils/fdid_helpers/structures.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "fdid_selection_mc": [
@@ -753,6 +757,10 @@
   "mlsynth/utils/fdid_helpers/simulation.py",
   "mlsynth/utils/fdid_helpers/structures.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "fdid_serial_correlation_mc": [
@@ -769,6 +777,10 @@
   "mlsynth/utils/fdid_helpers/simulation.py",
   "mlsynth/utils/fdid_helpers/structures.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "fdid_table5": [
@@ -784,6 +796,10 @@
   "mlsynth/utils/fdid_helpers/simulation.py",
   "mlsynth/utils/fdid_helpers/structures.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "ferman_manyperiods": [
@@ -1001,7 +1017,6 @@
   "mlsynth/estimators/geox.py",
   "mlsynth/estimators/sdid.py",
   "mlsynth/utils/bilevel/engine.py",
-  "mlsynth/utils/conformal/ridge_inference.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/geox_helpers/aggregate.py",
   "mlsynth/utils/geox_helpers/batch.py",
@@ -2736,6 +2751,10 @@
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/tbr_helpers/config.py",
   "mlsynth/utils/tbr_helpers/pipeline.py",
