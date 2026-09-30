@@ -907,6 +907,113 @@ class TestADIDEstimation:
             adid_from_mean(y, np.arange(10.0) * 0.5, 2)
 
 
+class TestADIDOnGroupfit:
+    """ADID's fit and its ``Psi^-1`` come from :mod:`mlsynth.utils.groupfit`.
+
+    Three estimators in the library fit ``y_t = alpha + beta x_t`` on two group
+    aggregates, and two of them form the same prediction variance, so the
+    arithmetic has one definition. What stays with FDID is the policy: it refuses
+    a donor average that barely moves, where the shared helper refuses only one
+    that does not move at all.
+    """
+
+    @staticmethod
+    def _high_level_panel(level=1e2, spread=1.0, T0=44, T2=10, seed=0):
+        """A donor average with a large mean and small variation about it.
+
+        ``cond(X'X)`` is 1.4e08 here. The normal equations square the
+        conditioning, and that is where forming the intercept as
+        ``(sum_y - beta sum_x) / n`` cancels. The committed Reg SHO sector panels
+        reach 6.1e07 on their own donor averages, so this is the shape of a real
+        panel.
+        """
+        rng = np.random.default_rng(seed)
+        x = level + spread * rng.standard_normal(T0 + T2)
+        y = 3.0 + 0.7 * x + rng.standard_normal(T0 + T2)
+        return y, x, T0
+
+    def test_the_coefficients_hold_their_digits_on_a_high_level_donor_average(self):
+        """float128 referee on the same panel.
+
+        Solving ``X'X delta = X'y`` at this conditioning returns a slope wrong by
+        5.9e-12 and an intercept wrong by 1.9e-11. The shared form, written about
+        ``S_xx``, gives 2.2e-16 and exact.
+        """
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        y, x, T0 = self._high_level_panel()
+        got = adid_from_mean(y, x, T0)["Inference"]
+
+        xq, yq = x[:T0].astype(np.float128), y[:T0].astype(np.float128)
+        x_bar, y_bar = xq.mean(), yq.mean()
+        beta = ((xq - x_bar) * (yq - y_bar)).sum() / ((xq - x_bar) ** 2).sum()
+        alpha = y_bar - beta * x_bar
+
+        assert abs(got["Slope"] / float(beta) - 1.0) < 1e-13
+        assert abs(got["Intercept"] / float(alpha) - 1.0) < 1e-13
+
+    def test_the_analytic_standard_error_is_the_shared_prediction_variance(self):
+        """Appendix A.1's ``Sigma_1`` is ``sigma^2 eta' Psi^-1 eta``, and
+        ``eta' Psi^-1 eta`` is ``T1`` times the shared prediction variance at the
+        post-period donor mean. Pinning the identity means a divergence between
+        FDID's variance and the helper's fails here.
+        """
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+        from mlsynth.utils.groupfit import fit_two_group, prediction_variance
+
+        y, x, T0 = self._high_level_panel(level=10.0, spread=3.0)
+        T2 = y.size - T0
+
+        fit = fit_two_group(y[:T0], x[:T0])
+        sigma_sq = float(np.mean(fit.resid ** 2))
+        pv = prediction_variance(fit.sums, float(x[T0:].mean()))
+        omega = (T2 / T0) * sigma_sq * T0 * pv + sigma_sq
+
+        np.testing.assert_allclose(
+            adid_from_mean(y, x, T0)["Inference"]["SE"],
+            np.sqrt(omega / T2), rtol=1e-12)
+
+    def test_the_residual_is_the_one_the_shared_fit_returns(self):
+        """``T0 RMSE`` and ``R-Squared`` are read off the pre-period residual, so
+        they move if the residual is formed a different way."""
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+        from mlsynth.utils.groupfit import fit_two_group
+
+        y, x, T0 = self._high_level_panel()
+        fit = fit_two_group(y[:T0], x[:T0])
+        got = adid_from_mean(y, x, T0)["Fit"]
+
+        np.testing.assert_allclose(
+            got["T0 RMSE"], np.sqrt(np.mean(fit.resid ** 2)), rtol=1e-13)
+
+    def test_a_barely_moving_donor_average_is_refused_where_the_helper_would_fit_it(self):
+        """FDID's threshold is relative, ``ptp(x) <= 1e-12 * scale``. The shared
+        helper's :func:`is_identified` asks only for ``S_xx > 0`` and so accepts
+        this regressor. Which one to refuse is the caller's decision, and this
+        asserts FDID kept its own.
+        """
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+        from mlsynth.utils.groupfit import group_sums, is_identified
+
+        T0 = 20
+        x = np.full(30, 4.0)
+        x[5] += 4.0e-13                 # moves, in the thirteenth digit
+        y = np.arange(30.0)
+
+        assert is_identified(group_sums(y[:T0], x[:T0]))
+        with pytest.raises(MlsynthEstimationError, match="[Ss]lope"):
+            adid_from_mean(y, x, T0)
+
+    def test_the_short_window_refusal_still_names_the_did_fit(self):
+        """The helper has its own minimum window. FDID's message tells the reader
+        which fit to reach for instead, and that is the one a user sees.
+        """
+        from mlsynth.utils.fdid_helpers import adid_from_mean
+
+        with pytest.raises(MlsynthEstimationError, match="DID fit"):
+            adid_from_mean(np.arange(10.0), np.arange(10.0) * 0.5, 2)
+
+
 class TestADIDInferenceGuards:
     """The three refusals of ``adid_inference``, none of which the estimator
     can reach: ``adid_from_mean`` fixes the method and the lag and refuses a
@@ -914,10 +1021,14 @@ class TestADIDInferenceGuards:
 
     @staticmethod
     def _args():
+        from mlsynth.utils.groupfit import group_sums
+
         rng = np.random.default_rng(1)
-        X = np.column_stack([np.ones(20), rng.standard_normal(20)])
+        x = rng.standard_normal(20)
+        y = rng.standard_normal(20)
         return dict(att=1.0, pre_residuals=rng.standard_normal(20),
-                    pre_design=X, post_design_mean=X.mean(axis=0),
+                    sums=group_sums(y, x), pre_regressor=x,
+                    post_regressor_mean=float(x.mean()),
                     pre_periods=20, post_periods=5)
 
     def test_an_unknown_method(self):
