@@ -6,9 +6,8 @@ Time-Aware Synthetic Control (TASC)
 Overview
 --------
 
-Time-Aware Synthetic Control (TASC)
-`arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_ is a
-state-space synthetic-control estimator. Unlike classical SC
+Time-Aware Synthetic Control (TASC) [TASC]_, published at AISTATS
+2026, is a state-space synthetic-control estimator. Unlike classical SC
 (:doc:`fdid`, :doc:`tssc`) or robust-SC variants
 (:doc:`clustersc`, :doc:`proximal`), which treat the ordering of
 pre-intervention time indices as interchangeable, TASC explicitly
@@ -810,12 +809,17 @@ identifies TASC's strongest dominance (a fitted state-space model
 extracts the persistent low-rank signal that the simplex projection
 cannot exploit). Under high observation noise (:math:`\mathbf{R} = 1.0`), the
 SC simplex projection still trails TASC but by a narrower margin,
-reflecting the noise floor common to both estimators. The paper's
-Figures 3-4 also include the Robust Synthetic Control of Amjad,
-Shah and Shen (2018) and the Causal Impact Model of Brodersen et al.
-(2015) as additional comparators that are not in ``mlsynth``; the
-ordering above against the canonical simplex-SC baseline is the
-slice of those comparisons that ``mlsynth`` can reproduce directly.
+reflecting the noise floor common to both estimators. The paper's Figures 3-4 carry two further
+comparators, and both are in ``mlsynth``: the Robust Synthetic Control
+of Amjad, Shah and Shen [Amjad2018]_ is :doc:`clustersc` under
+``method="pcr"``, whose HSVT-plus-PCR path is that estimator (Agarwal
+et al. prove PCR and RSC coincide), and the Causal Impact model of
+Brodersen et al. [Brodersen2015]_ is the univariate case of
+:doc:`cmbsts`, reachable with the treated unit alone as the outcome
+group and the donors in the regression block. The table above is
+therefore the simplex-SC slice of a grid that could be completed, not
+the slice ``mlsynth`` is limited to; completing it is tracked as
+benchmark work.
 
 The takeaway carried into the published TASC procedure is the
 paper's headline finding: when the data-generating process carries a
@@ -829,7 +833,9 @@ References
 ----------
 
 Rho, S., Illick, C., Narasipura, S., Abadie, A., Hsu, D., & Misra, V.
-(2026). *Time-Aware Synthetic Control.*
+(2026). *Time-Aware Synthetic Control.* Proceedings of the 29th
+International Conference on Artificial Intelligence and Statistics
+(AISTATS), PMLR 300. Preprint:
 `arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_.
 
 Durbin, J., & Koopman, S. J. (2012). *Time Series Analysis by State

@@ -418,7 +418,9 @@ References
     Rho, Saeyoung, Illick, Cyrus, Narasipura, Samhitha, Abadie, Alberto,
     Hsu, Daniel, and Misra, Vishal.
     "Time-Aware Synthetic Control."
-    *arXiv Preprint*, 2601.03099, 2026.
+    *Proceedings of the 29th International Conference on Artificial
+    Intelligence and Statistics (AISTATS)*, PMLR 300, 2026.
+    Preprint: `arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_.
     URL: https://arxiv.org/abs/2601.03099
 
 .. [ADH]
