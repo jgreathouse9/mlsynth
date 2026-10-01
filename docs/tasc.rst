@@ -26,8 +26,9 @@ Two structural properties distinguish TASC from the rest of the
   permuting the pre-intervention time indices changes the fit.
   Permutation-invariant methods (classical SC, robust SC, nuclear-norm
   matrix completion) produce identical counterfactuals under the same
-  permutation; TASC does not. Section 5.1 of the paper formalizes this
-  via a data-processing-inequality argument (Proposition A.1).
+  permutation; TASC does not. Section 3.2 of the paper formalizes this
+  via a data-processing-inequality argument, carried out as
+  Proposition B.1 in Appendix B.
 - Approximately low-rank signal under omnidirectional noise. The
   observation matrix decomposes as
   :math:`\mathbf{Y} = \mathbf{H}\mathbf{X} + \mathbf{E}` where
@@ -82,18 +83,21 @@ When not to reach for TASC:
   (Robust SC) cleans the signal exactly, and TASC's
   omnidirectional-:math:`\mathbf{R}` prior is paying a price for
   flexibility it doesn't need.
-* Long-horizon forecasting in noisy regimes. The paper's
-  Figures 5-6 show that under large :math:`\mathbf{R}` and large
-  :math:`\mathbf{Q}`, TASC's RMSE rises noticeably from horizon 51-60
-  to horizon 91-100 (small-:math:`\mathbf{Q}` is stable). If you need
-  a 5-year-out
-  counterfactual on a noisy panel, look at :doc:`fma` or :doc:`mcnnm`
-  first.
+* Long-horizon forecasting with a weak trend. Appendix E.2 breaks the
+  post-period into five blocks of ten periods (Figures 13 and 14).
+  Under small :math:`\mathbf{Q}` TASC is stable across all five; under
+  large :math:`\mathbf{Q}` its RMSE rises from horizon 51-60 to 91-100,
+  and so does every benchmark's. (The paper's body text describes both
+  figures as high observation noise while their captions say low, so
+  the :math:`\mathbf{R}` regime of that breakdown is ambiguous in the
+  source; the :math:`\mathbf{Q}` contrast is not.) If you need a
+  5-year-out counterfactual on a panel whose trend is weak, look at
+  :doc:`fma` or :doc:`mcnnm` first.
 * Time indices are not really ordered (you're modelling a
   cross-section that happens to be indexed by time, or the periods
   are interchangeable up to relabelling). Permuting time indices
   costs TASC 48.5% on mean RMSE and 25.7% on the RMSE standard
-  deviation in the paper's controlled test (Section 5.1, Figure 2).
+  deviation in the paper's controlled test (Appendix E.1, Figure 10).
   If the time ordering is meaningless, use a permutation-invariant
   estimator like :doc:`tssc` or :doc:`clustersc`.
 
@@ -207,10 +211,10 @@ restatement is:
     this kind of confounding can only be diagnosed externally.
 
 (e) Hidden-state dimension :math:`d` correctly specified. TASC
-    takes :math:`d` as a user hyperparameter
-    (``hidden_state_dim``). The paper's Section 5.3 shows that
-    underestimating :math:`d` is worse than overestimating — if
-    in doubt, err on the high side.
+    takes :math:`d` as a required config field (``d``). The paper's
+    Figure 3 shows that both TASC and RSC degrade when :math:`d` is
+    under- or over-estimated, and that TASC is the more robust of the
+    two to over-estimation — so if in doubt, err on the high side.
 
     *Remark.* Plausibly violated when the data has more latent factors
     than you've allowed for. Diagnostic: increase :math:`d` and refit;
@@ -521,10 +525,14 @@ Algorithm 1 and the Theoretical Appendix
 The paper's Algorithm 1 is the abstract "SC Family of Methods" frame
 (target-side regression on donors), which TASC instantiates implicitly
 through the state-space machinery, not as a discrete code path.
-Appendix A's Proposition A.1 (Kalman sufficiency, information loss by
+Appendix B's Proposition B.1 (Kalman sufficiency, information loss by
 permutation invariance, dominance) is the theoretical justification
 for TASC's edge over permutation-invariant SC variants; it does not
-correspond to a separate routine in :mod:`mlsynth`.
+correspond to a separate routine in :mod:`mlsynth`. Appendix A is a
+different thing: three model extensions the same learning algorithms
+accept with minor changes, none of which ``mlsynth`` implements — a
+time-invariant component of the latent state, an additive seasonal
+term, and a multivariate observation stacking several series per unit.
 
 Core API
 --------
