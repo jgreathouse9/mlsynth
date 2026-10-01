@@ -142,6 +142,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cscipca
    replications/medsc
    replications/fspda_table1
+   replications/rfpda_watches
 
 .. _replications-canonical:
 

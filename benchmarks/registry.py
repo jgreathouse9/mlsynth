@@ -144,6 +144,7 @@ CASES = {
     "fspda_dense_mc": "benchmarks.cases.fspda_dense_mc",      # cross-val vs fsPDA FS()/lasso.BIC() on their own dense-MC panels
     "fspda_sparse_mc": "benchmarks.cases.fspda_sparse_mc",    # cross-val vs fsPDA fs()/lasso_ic()/oracle() on their three sparse DGPs
     "fspda_table1": "benchmarks.cases.fspda_table1",          # Path B: all 108 cells of Shi-Huang Table 1, vs the paper and vs their own code
+    "rfpda_watches": "benchmarks.cases.rfpda_watches",        # cross-val vs Liu-Long-Luo's own RF.R on Shi-Huang's luxury-watch panel: their code reproduces their published -2.66%/0.78/7 donors/p 0.063 exactly, and the port is held to the distribution that estimate is a draw from, plus an exact pin on the West long-run variance
     "pda_lasso_sim": "benchmarks.cases.pda_lasso_sim",        # Path B: Li-Bell Table 2 LASSO-PDA OOS prediction (N>T1)
     "pda_l2_sim": "benchmarks.cases.pda_l2_sim",              # Path B: Shi-Wang Table 2 L2-relaxation size/power
     "pda_luxurywatch": "benchmarks.cases.pda_luxurywatch",    # Path A: Shi-Huang China luxury-watch fsPDA (prewhitened-NW)
@@ -382,6 +383,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "fspda_dense_mc":                 ("X", "simulated"),
     "fspda_sparse_mc":                ("X", "empirical"),
     "fspda_table1":                   ("B", "simulated"),
+    "rfpda_watches":                  ("X", "empirical"),
     "geox_augsynth_geolift":          ("X", "empirical"),
     "tbrmm":                          ("X", "empirical"),
     "geox_augsynth_recast":           ("BX", "simulated"),

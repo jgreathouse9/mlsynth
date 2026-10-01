@@ -3,13 +3,14 @@
 PDA (Hsiao, Ching & Wan 2012) predicts a treated unit's untreated
 counterfactual by a linear regression on the control units fit over the
 pre-treatment window, then extrapolates out-of-sample. ``mlsynth`` exposes
-three high-dimensional PDA variants, each in its own subpackage with the
+several high-dimensional PDA variants, each in its own subpackage with the
 inference theory from its own paper:
 
 * ``l2``    -- L2-relaxation (Shi & Wang 2024).
 * ``lasso`` -- L1/LASSO (Li & Bell 2017).
 * ``fs``    -- forward-selected PDA (Shi & Huang 2023).
 * ``hcw``   -- original best-subset PDA (Hsiao, Ching & Wan 2012).
+* ``rf``    -- random-forest donor selection (Liu, Long & Luo 2025).
 
 Everything below is pure NumPy; units/time are addressed through
 :class:`IndexSet`. The only DataFrame touchpoint is ``setup``.
@@ -40,6 +41,7 @@ L2 = "l2"
 LASSO = "lasso"
 FS = "fs"
 HCW = "hcw"
+RF = "rf"
 
 
 @dataclass(frozen=True)
