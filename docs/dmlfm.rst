@@ -228,6 +228,70 @@ their published cells and cross-validates both arms against ``gsynth`` 1.0 and
 so their bias column is the mean estimate and their coverage column is coverage
 of zero.
 
+The horseshoe is cross-validated separately, against the authors' own
+implementation of it -- the ``HBSCM`` function in the replication archive of Ma
+et al. (2026) -- and the lasso against ``bpCausal`` 0.0.1, the maintained rename
+of ``pblasso``. Three empirical panels, twenty seeds per arm, 5000 draws with a
+2500 burn-in, matched specification on both sides:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 10 22 22 20
+
+   * - Panel
+     - Prior
+     - Reference
+     - mlsynth
+     - Difference
+   * - German reunification
+     - lasso
+     - :math:`-1491.7`
+     - :math:`-1495.9`
+     - :math:`0.3\%`
+   * - Hong Kong, CEPA
+     - lasso
+     - :math:`+0.0264`
+     - :math:`+0.0273`
+     - :math:`0.0009`
+   * - Hong Kong, CEPA
+     - horseshoe
+     - :math:`+0.0265`
+     - :math:`+0.0271`
+     - :math:`0.0006`
+   * - Proposition 99
+     - lasso
+     - :math:`-16.66`
+     - :math:`-17.51`
+     - :math:`-0.85 \pm 4.05`
+   * - Proposition 99
+     - horseshoe
+     - :math:`-15.95`
+     - :math:`-17.88`
+     - :math:`-1.93 \pm 3.16`
+
+The Proposition 99 rows carry a tolerance because the estimator has a standard
+deviation of about six on that panel under every implementation, against an
+effect near seventeen. The Welch intervals for the implementation difference are
+:math:`[-4.90, +3.21]` for the lasso and :math:`[-5.08, +1.23]` for the
+horseshoe; both contain zero. At three seeds the same four arms disagreed by as
+much as eight, and three of them moved by between 3.7 and 5.1 when the seed count
+rose to twenty, so a Proposition 99 figure from a single run carries no
+information. Twenty seeds is the floor for that panel.
+
+These figures come from direct runs of both reference implementations against
+mlsynth on the same panels. The durable benchmark case covering them is not
+landed yet: it waits on staggered adoption, so that one case can cover the 2026
+paper's Case 3 (election-day registration, Xu 2017) alongside the three above
+instead of being written twice.
+
+One trap for anyone re-running the references. The ``est.avg`` field is a vector
+of posterior draws in the replication package's ``effSummary``, and a
+:math:`1 \times 3` summary matrix of ``(mean, ci_l, ci_u)`` in both
+``bpCausal``'s ``effSummary`` and the 2026 archive's ``heffSummary``. Calling
+``mean()`` on it gives the posterior mean in the first case and the average of a
+point estimate with its own two credible bounds in the other two. Extract by
+column name.
+
 Core API
 --------
 
