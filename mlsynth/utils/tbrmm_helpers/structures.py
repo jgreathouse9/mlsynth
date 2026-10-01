@@ -13,6 +13,58 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...config_models import DesignResult
 
 
+class TBRMMMarketEffect(BaseModel):
+    """One treated geo's realized effect, from its own augmented DiD fit."""
+
+    model_config = ConfigDict(frozen=True)
+
+    unit: Any = Field(..., description="The treated geo.")
+    att: float = Field(
+        ..., description="Mean per-period effect over the post window: the "
+                         "average of this geo's outcome minus its counterfactual.")
+    att_percent: Optional[float] = Field(
+        default=None,
+        description="`att` as a percent of this geo's mean counterfactual over "
+                    "the post window. None when that baseline is ~0.")
+    total_effect: float = Field(
+        ..., description="Summed effect over the post window for this geo.")
+    delta1: float = Field(
+        ..., description="Fitted intercept of equation (2.4) for this geo.")
+    delta2: float = Field(
+        ..., description="Fitted control scale. Forcing it to 1 would reduce the "
+                         "estimator to difference-in-differences, so its distance "
+                         "from 1 is how much the augmentation did.")
+    rmse_fit: float = Field(
+        ..., description="Pretest residual RMSE of this geo's regression. The "
+                         "precision cost of reading one geo instead of the group "
+                         "shows up here.")
+
+
+class TBRMMEffect(BaseModel):
+    """A design's realized effect: the pooled number and its market-level parts."""
+
+    model_config = ConfigDict(frozen=True)
+
+    att: float = Field(
+        ..., description="Pooled mean per-period effect. This is the average of "
+                         "`market_effects`, following Li and Van den Bulte's "
+                         "Appendix C, so the headline and the breakdown agree by "
+                         "construction.")
+    att_percent: Optional[float] = Field(
+        default=None,
+        description="`att` as a percent of the treated markets' mean "
+                    "counterfactual over the post window.")
+    total_effect: float = Field(
+        ..., description="Summed effect across every treated geo and post period "
+                         "-- the program's incremental total, so this is a sum of "
+                         "`market_effects` totals and not their average.")
+    n_post: int = Field(..., description="Post-window length in periods.")
+    n_treated: int = Field(..., description="Treated geos measured.")
+    market_effects: List[TBRMMMarketEffect] = Field(
+        default_factory=list,
+        description="One entry per treated geo, in the design's treatment order.")
+
+
 class TBRMMDesign(BaseModel):
     """One recommended treatment group and its matching control group."""
 
@@ -52,6 +104,12 @@ class TBRMMDesign(BaseModel):
     n_candidates_evaluated: int = Field(
         default=0,
         description="Objective evaluations spent reaching this design.")
+    effect: Optional[TBRMMEffect] = Field(
+        default=None,
+        description="This design's realized effect, present only when the panel "
+                    "carried a post window. Every candidate is measured, not only "
+                    "the recommendation, so the menu can be compared after the "
+                    "fact as well as before it.")
 
 
 class TBRMMResults(DesignResult):

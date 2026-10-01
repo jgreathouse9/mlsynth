@@ -233,6 +233,62 @@ Restricting where geos may go takes three 0/1 columns, constant within geo:
 A geo whose ``can_treat`` is 1 and whose other two columns are 0 is forced into
 every treatment group.
 
+Reading the design once the experiment has run
+-----------------------------------------------
+
+Pass ``post_col`` and the same call returns the effect as well as the design.
+The flag already marks the periods the search is not scored on, and those are
+exactly the periods there is an effect to read, so no second mode is needed:
+without it you get a design, with it you get a design and what it measured.
+
+.. code-block:: python
+
+   panel["post"] = panel["date"] > panel["date"].sort_values().unique()[89]
+
+   result = TBRMM(TBRMMConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14, post_col="post",
+   )).fit()
+
+   result.report.effects.att                      # the pooled effect
+   for m in result.recommended.effect.market_effects:
+       print(m.unit, m.att, m.att_percent)        # and its market-level parts
+
+The estimator is the augmented difference-in-differences of
+Li and Van den Bulte (2022). For a treated geo :math:`i` and the control group's
+average :math:`\bar{y}_{co,t}`, their equation (2.4) fits
+
+.. math::
+
+   y_{it} = \delta_1 + \delta_2 \bar{y}_{co,t} + e_{it},
+   \qquad t = 1, \dots, T_1
+
+on the pretest periods and projects it through the post window; the effect is
+what the geo did above that projection. Forcing :math:`\delta_2 = 1` recovers
+plain difference-in-differences, so the free scale is the augmentation, and it
+is the same regression TBR fits. The difference is where it is applied: TBR sums
+the treated geos into one series first, which buys precision and gives up the
+breakdown, while this fits one regression per treated geo and pools by averaging
+the per-geo effects, following the paper's Appendix C.
+
+That pooling rule is the reason a market-level table can sit beside a headline
+without the two contradicting each other: ``effect.att`` is the mean of
+``effect.market_effects``, so the parts add up to the whole by construction. The
+price is precision. One geo against the same control average is noisier than the
+group is, and ``market_effects[i].rmse_fit`` is where that cost is visible --
+compare it against the pooled fit before quoting a single market's number.
+
+Every candidate design is measured, not only the recommendation, so
+``designs[i].effect`` is populated for each treatment size. A menu chosen on
+pretest detectable impact can therefore be looked at again afterwards, against
+what each option would have read.
+
+Two behaviours are deliberate. A ``post_col`` of all zeros marks no realized
+periods, so ``report`` stays ``None`` and the run is design-only: an absent
+window is not an effect of zero. And a geo's :math:`\hat\delta_2` is reported
+per market, because its distance from one is how much work the augmentation did
+for that geo.
+
 Verification
 ------------
 
@@ -257,6 +313,9 @@ Markets. Google.
 
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
+
+Li, K. T. and Van den Bulte, C. (2022). Augmented Difference-in-Differences.
+*Marketing Science* 42(4):746-767.
 
 Core API
 --------

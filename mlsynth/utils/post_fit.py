@@ -452,6 +452,47 @@ def compute_post_fit_marex(raw, panel, *, cov_scales: Optional[np.ndarray] = Non
     )
 
 
+def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
+                           n_post: int, n_treated_units: int,
+                           ) -> SyntheticControlPostFit:
+    """Adapt a measured TBRMM design into a ``SyntheticControlPostFit``.
+
+    A sibling of :func:`compute_post_fit_marex`, for the same reason: the
+    generic builder takes two trajectories, and TBRMM has no weight vector to
+    build them from. Its counterfactual comes from the augmented DiD regression
+    instead, so ``control_series`` here is the fitted projection
+    :math:`\hat\delta_1 + \hat\delta_2 \bar{y}_{co,t}` averaged over the
+    treated geos, not a weighted donor combination.
+
+    There is no blank window: TBRMM holds pretest periods out inside its own A/A
+    gate during the search, and those periods are part of the fit here.
+
+    Parameters
+    ----------
+    treated_series, control_series : np.ndarray
+        The treated geos' average observed path and the average of their
+        counterfactuals, over the whole panel.
+    n_fit : int
+        Pretest periods the regressions were fitted on.
+    n_post : int
+        Realized periods measured.
+    n_treated_units : int
+        Treated geos behind the average.
+
+    Returns
+    -------
+    SyntheticControlPostFit
+        The standard bundle, so ``report`` is built by the same adapter every
+        other design estimator uses.
+    """
+    return compute_post_fit(
+        treated_series=np.asarray(treated_series, dtype=float),
+        control_series=np.asarray(control_series, dtype=float),
+        n_fit=n_fit, n_blank=0, n_post=n_post,
+        n_treated_units=n_treated_units,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
