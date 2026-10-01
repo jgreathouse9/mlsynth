@@ -2990,3 +2990,27 @@ timeout = 180.0
   find = "        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
   replace = "        raise\n    except cvxpy.error.SolverError as e:\n        raise MlsynthEstimationError(f\"CVXPY solver failed in ssdid_lambda: {e}\") from e"
   models = "the second cause: only cvxpy's own SolverError translated, so a vendor exception -- mosek.Error is not one -- reaches the caller raw, naming neither the estimator nor the contract"
+
+[[target]]
+name = "bvss-pair-step"
+module-path = "mlsynth/utils/bvss_helpers/gibbs_pair.py"
+test-command = "python -m pytest mlsynth/tests/test_bvss.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "pair-inclusion-vectors-collapse-onto-one-array"
+  find = "    g10, g01, g11 = g00.copy(), g00.copy(), g00.copy()"
+  replace = "    g11 = g01 = g10 = g00.copy()"
+  models = "the chained assignment that binds three names to one array, so the (1, 0) and (0, 1) states are scored at the (1, 1) inclusion set -- a defect R cannot have, since it copies on modify, and one the headline ATT does not register while the posterior model size moves from 2.8 to 9.2 against the paper's 5.09"
+
+  [[target.mutant]]
+  id = "pair-normalising-constant-dropped"
+  find = "    p11 += np.log(np.sqrt(2 * np.pi) / np.sqrt(max(phi * L, epsilon)))"
+  replace = "    p11 += 0.0"
+  models = "Lemma 2's sqrt(2 pi / (phi Lambda)) factor on the (1, 1) marginal going missing, which is what the authors' own R script omits, so a port validated against that script alone would never see it"
+
+  [[target.mutant]]
+  id = "degenerate-pair-draws-instead-of-skipping"
+  find = "    if abs(s) < epsilon:"
+  replace = "    if abs(s) < epsilon * 1e-6:"
+  models = "the s = 0 guard loosened past the point where it fires, so a pair whose mass is already spent is handed to a truncated-normal draw on an empty interval"

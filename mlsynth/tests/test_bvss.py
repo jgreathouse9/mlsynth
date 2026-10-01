@@ -582,3 +582,175 @@ class TestImmutability:
             res.inference_detail = None   # type: ignore[misc]
         with pytest.raises(FrozenInstanceError):
             res.posterior.mu = np.zeros((5, 5))   # type: ignore[misc]
+
+
+class TestPairInclusionSets:
+    """The four cases must each be scored at their own inclusion set.
+
+    Lemma S1 and S2 of Xu & Zhou (2025) score ``(1, 0)`` at
+    :math:`\\gamma_{00} \\cup \\{i\\}`, ``(0, 1)`` at
+    :math:`\\gamma_{00} \\cup \\{j\\}` and ``(1, 1)`` at
+    :math:`\\gamma_{00} \\cup \\{i, j\\}` -- three different sets, of two
+    different cardinalities. Scoring all three at the ``(1, 1)`` set makes the
+    one-donor states carry a residual that has had the other donor projected
+    out of it, which moves the draw.
+    """
+
+    @pytest.fixture
+    def world(self):
+        rng = np.random.default_rng(4)
+        N, M = 7, 20
+        X = rng.normal(size=(M, N))
+        Y = X[:, 0] + 0.6 * X[:, 3] + 0.1 * rng.normal(size=M)
+        return X, Y, X.T @ X, N
+
+    @staticmethod
+    def _from_primitives(mu, i, j, X, Y, tau, phi, Gram, theta):
+        """Lemma S1-S2 rebuilt from the validated primitives, sets kept apart.
+
+        ``AM`` / ``RSS`` / ``RSS2`` are pinned against the authors' R to ~1e-9
+        by ``benchmarks/cases/bvss_watches.py``, so this is an independent
+        route to the same four probabilities.
+        """
+        from scipy.stats import norm
+
+        mutemp = mu.copy()
+        mutemp[[i, j]] = 0
+        s = 1 - np.sum(mutemp)
+        z = Y - X @ mutemp
+        g00 = (mutemp != 0).astype(int)
+        if abs(s) < 1e-12:                       # (0, 0) is the only feasible state
+            return np.array([1.0, 0.0, 0.0, 0.0]), (g00, g00, g00)
+        g10, g01, g11 = g00.copy(), g00.copy(), g00.copy()
+        g10[i] = 1
+        g01[j] = 1
+        g11[[i, j]] = 1
+        L = max(RSS(g11, tau, X[:, j] - X[:, i], X, Gram), 1e-12)
+        O = RSS2(g11, tau, X[:, i] - X[:, j], z - s * X[:, j], X, Gram) / L
+        p10 = AM(g10, tau, theta, Gram, len(mutemp)) - phi * RSS(
+            g10, tau, z - s * X[:, i], X, Gram) / 2
+        p01 = AM(g01, tau, theta, Gram, len(mutemp)) - phi * RSS(
+            g01, tau, z - s * X[:, j], X, Gram) / 2
+        NC = max(norm.cdf((s - O) * np.sqrt(phi * L))
+                 - norm.cdf(-O * np.sqrt(phi * L)), 1e-12)
+        p11 = (AM(g11, tau, theta, Gram, len(mutemp)) + np.log(NC)
+               - phi * (RSS(g11, tau, z - s * X[:, j], X, Gram) - O ** 2 * L) / 2
+               + np.log(np.sqrt(2 * np.pi) / np.sqrt(max(phi * L, 1e-12))))
+        p = np.exp(np.array([p10, p01, p11]) - max(p10, p01, p11))
+        return np.array([0.0, *(p / p.sum())]), (g10, g01, g11)
+
+    @pytest.mark.parametrize("i,j", [(2, 5), (0, 4), (1, 2), (3, 6), (5, 6)])
+    def test_matches_lemma_s1_s2_rebuilt_from_primitives(self, world, i, j):
+        X, Y, Gram, N = world
+        mu = np.zeros(N)
+        mu[[0, 3, 5]] = [0.5, 0.3, 0.2]
+        want, _ = self._from_primitives(mu, i, j, X, Y, 0.7, 1.3, Gram, 0.25)
+        _s, _z, _L, _O, got = _compute_candidate_posteriors(
+            mu.copy(), i, j, X, Y, 0.7, 1.3, Gram, 0.25)
+        np.testing.assert_allclose(got, want, rtol=0, atol=1e-12)
+
+    def test_the_three_inclusion_sets_have_two_cardinalities(self, world):
+        X, Y, Gram, N = world
+        mu = np.zeros(N)
+        mu[[0, 3, 5]] = [0.5, 0.3, 0.2]
+        _p, (g10, g01, g11) = self._from_primitives(
+            mu, 3, 6, X, Y, 0.7, 1.3, Gram, 0.25)
+        assert g10.sum() == 3 and g01.sum() == 3 and g11.sum() == 4
+        assert not np.array_equal(g10, g01)
+        assert not np.array_equal(g10, g11)
+
+    def test_scoring_every_case_at_the_pair_set_changes_the_draw(self, world):
+        """Guards the specific defect: three names bound to one array.
+
+        ``g11 = g01 = g10 = g00.copy()`` is a single array under Python's
+        chained assignment, where the R original's copy-on-modify leaves three.
+        The states it collapses are not equivalent, so the probabilities move.
+        """
+        X, Y, Gram, N = world
+        mu = np.zeros(N)
+        mu[[0, 3, 5]] = [0.5, 0.3, 0.2]
+        i, j = 3, 6
+        mutemp = mu.copy()
+        mutemp[[i, j]] = 0
+        s = 1 - np.sum(mutemp)
+        z = Y - X @ mutemp
+        g = (mutemp != 0).astype(int)
+        g[[i, j]] = 1                      # every case scored at the pair set
+        collapsed = np.array([
+            AM(g, 0.7, 0.25, Gram, N) - 1.3 * RSS(g, 0.7, z - s * X[:, i], X, Gram) / 2,
+            AM(g, 0.7, 0.25, Gram, N) - 1.3 * RSS(g, 0.7, z - s * X[:, j], X, Gram) / 2,
+        ])
+        want, _ = self._from_primitives(mu, i, j, X, Y, 0.7, 1.3, Gram, 0.25)
+        assert want[1] > 0 and want[2] > 0      # the pair must be non-degenerate
+        kept = np.exp(collapsed - collapsed.max())
+        kept /= kept.sum()
+        two = want[1:3] / want[1:3].sum()
+        assert abs(kept[0] - two[0]) > 1e-3
+
+    def test_posterior_mean_model_size_tracks_the_reference(self):
+        """The authors' R puts the mean model size near 5.6 on this panel."""
+        rng = np.random.default_rng(0)
+        M, N = 30, 40
+        X = rng.normal(size=(M, N))
+        Y = X[:, :4] @ np.array([0.4, 0.3, 0.2, 0.1]) + 0.05 * rng.normal(size=M)
+        out = gibbs_BVS(Y, X, X.T @ X, M, N, 40, theta=0.25,
+                        rng=np.random.default_rng(1))
+        size = (out["musample"][:, 20:] != 0).sum(0).mean()
+        assert 1 <= size <= N
+        assert np.allclose(out["musample"].sum(0), 1.0)
+
+
+
+class TestSpentPairMassStaysExactlyZero:
+    """A pair whose residual mass is spent must leave both coordinates at zero.
+
+    ``s = 1 - sum(mu)`` with the pair zeroed is exactly 0.0 for most degenerate
+    pairs, but a weight vector on the simplex need not sum to 1.0 in floating
+    point, and on a sweep of the luxury-watch panel about 0.6% of degenerate
+    pairs (217 of 36,395) carry a rounding residue near 1e-16 instead. If the
+    guard lets those through, the (1, 1) branch draws a truncated normal on an
+    interval of width 1e-16 and writes weights around 1e-17 into both
+    coordinates. The counterfactual does not notice -- but ``gammasample`` is
+    ``musample != 0``, so the reported model size counts both donors as
+    selected, and the model size is the quantity that separates this sampler
+    from Table 6 of the paper.
+    """
+
+    # A simplex vector whose entries sum to 1 - 1.11e-16 rather than to 1.0.
+    RESIDUE = [0.07959610852568091, 0.012088560672262775, 0.004876205550852731,
+               0.23994193530504535, 0.2692934391498843, 0.17897785391235782,
+               0.21522589688391608]
+
+    @pytest.fixture
+    def world(self):
+        rng = np.random.default_rng(5)
+        N, M = 12, 20
+        X = rng.normal(size=(M, N))
+        return X, X[:, 0] + 0.1 * rng.normal(size=M), X.T @ X, N
+
+    def test_the_residue_case_is_real(self, world):
+        _X, _Y, _Gram, N = world
+        mu = np.zeros(N)
+        mu[:7] = self.RESIDUE
+        s = 1 - np.sum(mu)
+        assert s != 0.0 and abs(s) < 1e-12, "fixture no longer exercises the case"
+
+    def test_a_spent_pair_is_not_handed_to_a_draw(self, world):
+        X, Y, Gram, N = world
+        mu = np.zeros(N)
+        mu[:7] = self.RESIDUE
+        mutemp = mu.copy()
+        s, _z, L, O, ptotal = _compute_candidate_posteriors(
+            mutemp, i=9, j=10, X=X, Y=Y, tau=0.5, phi=1.0, Gram=Gram, theta=0.25)
+        np.testing.assert_array_equal(ptotal, [1.0, 0.0, 0.0, 0.0])
+        assert L is None and O is None
+        assert mutemp[9] == 0.0 and mutemp[10] == 0.0
+
+    def test_model_size_counts_only_weights_that_carry_mass(self, world):
+        X, Y, Gram, N = world
+        M = X.shape[0]
+        out = gibbs_BVS(Y, X, Gram, M, N, 30, theta=0.25,
+                        rng=np.random.default_rng(3))
+        mu, gamma = out["musample"], out["gammasample"]
+        np.testing.assert_array_equal(
+            gamma.sum(axis=0), (np.abs(mu) > 1e-10).sum(axis=0))

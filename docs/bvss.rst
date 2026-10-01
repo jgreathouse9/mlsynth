@@ -271,6 +271,59 @@ iteration. With :math:`\alpha = 1` all probabilities involve only the
 standard normal CDF and a single truncated-normal draw — no
 rejection sampling and no numerical integration.
 
+Each of the three feasible cases is scored at its own inclusion vector.
+Eq. (11) of the paper defines
+
+.. math::
+
+   \gamma^i_k = \mathbb{1}(\mu_k \neq 0 \text{ or } k = i), \quad
+   \gamma^j_k = \mathbb{1}(\mu_k \neq 0 \text{ or } k = j), \quad
+   \gamma^{ij}_k = \mathbb{1}(\mu_k \neq 0 \text{ or } k \in \{i, j\}),
+
+three different sets of two different cardinalities, and Lemma 2 indexes both
+the complexity factor :math:`A(\gamma, \nu)` and the projector
+:math:`\boldsymbol{\Sigma}_{\gamma, \nu}` by the state's own vector. Scoring
+the one-donor cases at :math:`\gamma^{ij}` gives them a residual that has had
+the other donor projected out of it, which inflates the :math:`(1,1)`
+probability and so the fitted model size; on the luxury-watch panel it moved
+the posterior mean model size to 9.19 against the paper's 5.09.
+
+One settled discrepancy, one open
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both predate this page and both are shared with the authors' own replication
+script, so neither is visible from a cross-validation against that script alone.
+
+Settled: the complexity factor does not carry :math:`\nu^{-|\gamma|/2}`. The
+statement of Lemma 2 gives :math:`A(\gamma, \nu)` a factor
+:math:`\nu^{-|\gamma|/2}`, inherited from the marginal likelihood in Eq. (4),
+while the proof of the same lemma says :math:`A` collapses to
+:math:`\det(V_{\gamma,\nu})^{-1/2} (|\gamma| - 1)!\, p_0(|\gamma|)` with no
+such factor. The two are different samplers, because the factor depends on
+:math:`|\gamma|` and :math:`|\gamma^i| = \ell + 1` while
+:math:`|\gamma^{ij}| = \ell + 2`, so it cannot be absorbed into the normalising
+constant. Restoring it was measured over twelve seeds on the luxury-watch
+panel: the posterior mean model size goes to 21.60 against Table 6's 5.09,
+:math:`\phi` to 18.94 against 20.86 and :math:`\nu` to 0.0217 against 0.069 --
+every summary further from the paper's own table. The proof's reading is the
+one that reproduces the paper, and :mod:`mlsynth` follows it, as the authors'
+script does.
+
+Open: the posterior model size. At the benchmark's 50 iterations the posterior
+mean model size is 2.77 over twelve seeds, and at 400 iterations 3.07 over
+three, against Table 6's 5.09 from a 1000-iteration run. Chain length accounts
+for part of the gap and the trend has the right sign, but not for all of it at
+the lengths measured. The collapse corrected above was the larger term in the
+opposite direction, taking the same quantity to 9.19.
+
+The counterfactual is built from :math:`\boldsymbol{\mu}`. Algorithm 1 of the
+paper draws :math:`\mathbf{w}^{(t)}` from its Eq. (7) conditional and forms the
+counterfactual as :math:`\tilde{\mathbf{X}} \mathbf{w}^{(t)}`; Remark 2 permits
+replacing that draw by its conditional mean, Eq. (8), to reduce the variance of
+the ATT estimate. The authors' script implements Remark 2. :mod:`mlsynth` uses
+:math:`\boldsymbol{\mu}` itself, which is neither, and
+:math:`\mathbf{w} \to \boldsymbol{\mu}` only as :math:`\nu \downarrow 0`.
+
 2. :math:`\phi` Gibbs draw. Plug the updated :math:`\mu`
    into the closed-form Gamma conditional above.
 
@@ -331,10 +384,11 @@ counterfactual are computed analogously period-by-period.
 
 BVS-SS computes the counterfactual directly from the
 :math:`\boldsymbol{\mu}` posterior instead of drawing
-:math:`\mathbf{w}_\gamma` from its
-Eq. (7) conditional. The paper's empirical Section 6 uses this
-lower-variance estimator; the implementation in :mod:`mlsynth` matches
-that choice.
+:math:`\mathbf{w}_\gamma` from its Eq. (7) conditional. The paper's own
+variance reduction is Remark 2 of Section 3.3, which replaces the draw by its
+Eq. (8) conditional mean :math:`V_{\gamma,\nu}^{-1}(\mathbf{Y}_{0,\gamma}^\top
+\mathbf{y}_1 + \nu^{-1}\boldsymbol{\mu}_\gamma)`, so the two agree only in the
+:math:`\nu \downarrow 0` limit. See the open discrepancies above.
 
 When BVS-SS Is the Right Tool
 -----------------------------

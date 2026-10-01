@@ -65,7 +65,9 @@ def _compute_candidate_posteriors(
         return s, z, None, None, np.array([1.0, 0.0, 0.0, 0.0])
 
     g00 = (mutemp != 0).astype(int)
-    g11 = g01 = g10 = g00.copy()
+    # Eq. (11)'s three inclusion vectors. Chaining the assignment would bind
+    # one array to all three names, scoring (1, 0) and (0, 1) at the (1, 1) set.
+    g10, g01, g11 = g00.copy(), g00.copy(), g00.copy()
     g10[i] = 1
     g01[j] = 1
     g11[[i, j]] = 1
