@@ -56,6 +56,37 @@ Each varying block is written as a scale times a standardised term --
 with :math:`\tilde{\boldsymbol{\gamma}}_i \sim N(0, I_r)`. The scale
 :math:`\omega_\gamma` is what the shrinkage prior acts on: when its
 :math:`k`-th entry goes to zero the :math:`k`-th factor leaves the model.
+
+Which prior does that shrinking is set by ``prior``. The default ``lasso`` is
+the Bayesian lasso of Pang, Liu and Xu (2022): a single penalty shared by every
+coefficient in a block, drawn from a Gamma prior whose shape and rate are the
+``a1``--``p2`` settings. The alternative ``horseshoe`` is the global--local
+prior of Ma, Gao, Wang, Wang and Zhu (2026), which gives each coefficient its
+own local scale on top of a block-wide one,
+
+.. math::
+
+   \beta_j \mid \lambda_j, \tau \sim N(0, \lambda_j^2 \tau^2), \qquad
+   \lambda_j \sim \mathrm{C}^+(0, 1), \qquad \tau \sim \mathrm{C}^+(0, 1),
+
+where :math:`\mathrm{C}^+` is the half-Cauchy distribution on the positive
+line.
+
+The difference between them is what happens to a coefficient that is genuinely
+large. One penalty shared across a block has to be small enough to leave that
+coefficient alone and large enough to flatten everything else, so it settles
+somewhere between the two and does neither well. A per-coefficient scale is not
+under that constraint: :math:`\tau` pulls the block toward zero while a large
+:math:`\lambda_j` lets one coefficient escape. That is the regime the 2026
+paper's simulations target, and it is the case for the horseshoe when the panel
+is sparse -- many candidate covariates or factors, few that matter.
+
+The horseshoe fixes both half-Cauchy scales at one, so it has no
+hyperparameters to set and ``a1``--``p2`` are unused under it. The four
+``xlasso``/``zlasso``/``alasso``/``flasso`` flags keep their meaning under
+either prior: they choose which blocks are shrunk, and ``prior`` chooses how.
+Their names predate the second prior.
+
 The treatment effect is
 :math:`\delta_{it} = y_{it}(a_i) - y_{it}(0)` for :math:`t \geq a_i`, and the
 reported ATT averages it over the treated observations.
@@ -196,6 +227,90 @@ their published cells and cross-validates both arms against ``gsynth`` 1.0 and
 ``pblasso`` 1.0.8 on shared panels. Those designs generate no treatment effect,
 so their bias column is the mean estimate and their coverage column is coverage
 of zero.
+
+The horseshoe is cross-validated separately, against the authors' own
+implementation of it -- the ``HBSCM`` function in the replication archive of Ma
+et al. (2026) -- and the lasso against ``bpCausal`` 0.0.1, the maintained rename
+of ``pblasso``. Three empirical panels, twenty seeds per arm, 5000 draws with a
+2500 burn-in, matched specification on both sides:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 10 20 20 22
+
+   * - Panel
+     - Prior
+     - Reference
+     - mlsynth
+     - Difference
+   * - German reunification
+     - lasso
+     - :math:`-1532.7\ (62.2)`
+     - :math:`-1579.6\ (85.9)`
+     - :math:`-46.9,\ t=-1.98`
+   * - German reunification
+     - horseshoe
+     - :math:`-1532.6\ (103.2)`
+     - :math:`-1580.7\ (60.7)`
+     - :math:`-48.1,\ t=-1.80`
+   * - Hong Kong, CEPA
+     - lasso
+     - :math:`+0.0271\ (0.0007)`
+     - :math:`+0.0272\ (0.0006)`
+     - :math:`+0.0002,\ t=+0.86`
+   * - Hong Kong, CEPA
+     - horseshoe
+     - :math:`+0.0272\ (0.0007)`
+     - :math:`+0.0268\ (0.0006)`
+     - :math:`-0.0004,\ t=-1.80`
+   * - Proposition 99
+     - lasso
+     - :math:`-16.66\ (6.14)`
+     - :math:`-17.51\ (6.52)`
+     - :math:`-0.85,\ t=-0.42`
+   * - Proposition 99
+     - horseshoe
+     - :math:`-15.95\ (3.62)`
+     - :math:`-17.88\ (5.89)`
+     - :math:`-1.93,\ t=-1.25`
+
+Parentheses are seed-to-seed standard deviations over the twenty runs, and the
+:math:`t` statistics are Welch tests of the implementation difference.
+
+Hong Kong and Proposition 99 agree. On Hong Kong the comparison can resolve a
+difference of a few ten-thousandths and finds none in the lasso arm; the
+horseshoe arm's :math:`-0.0004` is 1.5 percent of the effect. On Proposition 99
+both arms are well inside their own noise.
+
+German reunification does not fully agree. Both priors put mlsynth about 47 below
+the reference, which is three percent of the estimate, and the two arms land
+within one of each other despite different sampler internals. One marginal
+:math:`p` among six comparisons is unremarkable; the same sign and magnitude
+under two priors is less so. The offset is small against the estimator's own seed
+spread on that panel, it is not attributed to any step, and it is recorded here
+so that a later change to the ingestion or the design blocks has a number to
+move.
+
+Proposition 99 needs the largest tolerance because the estimator's standard
+deviation there is about six under every implementation, against an effect near
+seventeen. At three seeds the same four arms disagreed by as
+much as eight, and three of them moved by between 3.7 and 5.1 when the seed count
+rose to twenty, so a Proposition 99 figure from a single run carries no
+information. Twenty seeds is the floor for that panel.
+
+These figures come from direct runs of both reference implementations against
+mlsynth on the same panels. The durable benchmark case covering them is not
+landed yet: it waits on staggered adoption, so that one case can cover the 2026
+paper's Case 3 (election-day registration, Xu 2017) alongside the three above
+instead of being written twice.
+
+One trap for anyone re-running the references. The ``est.avg`` field is a vector
+of posterior draws in the replication package's ``effSummary``, and a
+:math:`1 \times 3` summary matrix of ``(mean, ci_l, ci_u)`` in both
+``bpCausal``'s ``effSummary`` and the 2026 archive's ``heffSummary``. Calling
+``mean()`` on it gives the posterior mean in the first case and the average of a
+point estimate with its own two credible bounds in the other two. Extract by
+column name.
 
 Core API
 --------
