@@ -103,6 +103,14 @@ power target and solving for the smallest effect that would clear the threshold
 gives that split's minimum detectable effect, computable with no experimental
 data at all. Its inverse is what the climb maximises.
 
+Two floors bound what any design can buy. Kerman, Wang and Vaver's Section 9.3
+has the interval narrowing in the pretest length at :math:`1/\sqrt{n}` while
+approaching :math:`\sigma_0 / (\bar{c}\sqrt{T})` instead of zero, and their
+Section 9.4 has a longer test window touching only the :math:`1/T` term inside
+the root. Neither a longer history nor a longer experiment removes the
+uncertainty, so a panel can be short of what the advertiser wants to detect and
+no split will fix it.
+
 Ahead of it sit four tests of the assumptions that interval needs, and a split
 is ranked on power only after passing them. The comparison is lexicographic:
 
@@ -203,10 +211,21 @@ Two properties to keep in view. The space has :math:`3^n` labellings, about
 :math:`5 \times 10^{47}` at a hundred geos, so the result is a local optimum
 with respect to one-geo moves and carries no optimality guarantee; a pair of
 geos that helps only when swapped together is not reachable. And the objective
-is not monotone in the treatment size, because a geo added to the treatment
-group brings its volume to :math:`y_t` and takes it out of the pool available to
-:math:`x_t`. The recommendation is therefore the best design across sizes and
-not the largest one.
+is not monotone in the treatment size, so the recommendation is the best design
+across sizes and not the largest one.
+
+What a geo contributes is not its volume. Kerman, Wang and Vaver's Section 9.6
+shows that multiplying the control aggregate by a constant :math:`\kappa` leaves
+the posterior scale unchanged: :math:`v_\alpha` is invariant,
+:math:`v_\beta \to v_\beta / \kappa^2`,
+:math:`v_{\alpha\beta} \to v_{\alpha\beta} / \kappa` and
+:math:`\bar{x}_T \to \kappa \bar{x}_T`, so the three terms cancel, and
+:math:`s` does not move because :math:`\beta` absorbs the rescaling. Size on the
+control side is therefore free, and what a control geo buys is how its series
+covaries with the treatment aggregate. On the treatment side the same section
+scales :math:`s` by the factor the aggregate is scaled by. So moving a geo
+across changes the objective through the fit, not through where its volume
+lands.
 
 Where the control group search starts
 -------------------------------------
