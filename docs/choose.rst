@@ -986,9 +986,11 @@ Q2.2 · Staggered: do you just want the overall / event-study ATT?
   Choose it over :doc:`gsynth` for those features, not for accuracy: on the
   authors' own simulations DMLFM has the lower RMSE in six of eighteen cells
   and the higher in twelve, with coverage closer to nominal in seven against
-  gsynth's ten, at eleven to eighty seconds a fit against under two. It needs a
-  balanced panel, one treated unit in this implementation, and about twenty
-  pre-treatment periods before its frequentist properties settle.
+  gsynth's ten, at eleven to eighty seconds a fit against under two. It handles
+  staggered adoption and reports per-cohort ATTs and an event study beside the
+  pooled effect. It needs a balanced panel, absorbing treatment, an untreated
+  observation in every period, and about twenty pre-treatment periods before
+  its frequentist properties settle.
 * Staggered *and* spillovers onto donors -- :doc:`spsydid`.
 * Staggered *and* missing cells / gaps, or *every* unit eventually treated --
   :doc:`mcnnm` (matrix completion handles staggered missingness natively and
