@@ -2999,13 +2999,17 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "pair-inclusion-vectors-collapse-onto-one-array"
-  find = "    g10, g01, g11 = g00.copy(), g00.copy(), g00.copy()"
-  replace = "    g11 = g01 = g10 = g00.copy()"
+  find = """    idx10 = np.flatnonzero(sel10)
+    idx01 = np.flatnonzero(sel01)
+    idx11 = np.flatnonzero(sel11)"""
+  replace = """    idx11 = np.flatnonzero(sel11)
+    idx10 = idx11
+    idx01 = idx11"""
   models = "the chained assignment that binds three names to one array, so the (1, 0) and (0, 1) states are scored at the (1, 1) inclusion set -- a defect R cannot have, since it copies on modify, and one the headline ATT does not register while the posterior model size moves from 2.8 to 9.2 against the paper's 5.09"
 
   [[target.mutant]]
   id = "pair-normalising-constant-dropped"
-  find = "    p11 += np.log(np.sqrt(2 * np.pi) / np.sqrt(max(phi * L, epsilon)))"
+  find = "    p11 += np.log(_SQRT_2PI / np.sqrt(max(phi * L, epsilon)))"
   replace = "    p11 += 0.0"
   models = "Lemma 2's sqrt(2 pi / (phi Lambda)) factor on the (1, 1) marginal going missing, which is what the authors' own R script omits, so a port validated against that script alone would never see it"
 
@@ -3014,3 +3018,9 @@ timeout = 180.0
   find = "    if abs(s) < epsilon:"
   replace = "    if abs(s) < epsilon * 1e-6:"
   models = "the s = 0 guard loosened past the point where it fires, so a pair whose mass is already spent is handed to a truncated-normal draw on an empty interval"
+
+  [[target.mutant]]
+  id = "one-donor-state-keeps-the-pair-projector"
+  find = "    V10 = _vm(idx10, tau, Gram)"
+  replace = "    V10 = _vm(idx11, tau, Gram)"
+  models = "the (1, 0) case scored against the pair's posterior covariance while its own index set is used for the cross-products -- the mis-sharing the one-V-per-index-set rewrite makes possible, and half of what the collapsed vectors did"

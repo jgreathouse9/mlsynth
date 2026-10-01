@@ -754,3 +754,64 @@ class TestSpentPairMassStaysExactlyZero:
         mu, gamma = out["musample"], out["gammasample"]
         np.testing.assert_array_equal(
             gamma.sum(axis=0), (np.abs(mu) > 1e-10).sum(axis=0))
+
+
+class TestPairStepSubstitutions:
+    """The pair step reaches its primitives by cheaper routes of equal value.
+
+    Each of these replaced a call that dominated the sampler's runtime. They
+    are pinned because each is only as good as an equality that a SciPy or
+    NumPy upgrade could break, and a break would move every draw while every
+    other test still passed.
+    """
+
+    def test_log_factorial_table_matches_per_call_factorial(self):
+        from scipy.special import factorial
+        from mlsynth.utils.bvss_helpers.gibbs_pair import _log_fact
+
+        table = _log_fact(120)
+        for k in range(121):
+            assert table[k] == np.log(factorial(max(k - 1, 1)))
+
+    def test_ndtr_matches_norm_cdf(self):
+        from scipy.special import ndtr
+        from scipy.stats import norm
+
+        xs = np.concatenate([
+            np.linspace(-40, 40, 500), [0.0, 1e-12, -1e-12, 1e8, -1e8]])
+        np.testing.assert_array_equal(ndtr(xs), norm.cdf(xs))
+
+    def test_inverse_cdf_draw_matches_choice_and_keeps_the_stream(self):
+        """``_sample_pair`` draws the state by inverse CDF, not ``Generator.choice``."""
+        rng_spec = np.random.default_rng(0)
+        for _ in range(200):
+            p = rng_spec.random(4)
+            p[rng_spec.integers(0, 4)] = 0.0
+            p /= p.sum()
+            a, b = np.random.default_rng(99), np.random.default_rng(99)
+            want = int(a.choice([0, 1, 2, 3], p=p))
+            cdf = p.cumsum()
+            cdf /= cdf[-1]
+            got = min(int(cdf.searchsorted(b.random(), side="right")), 3)
+            assert got == want
+            assert a.random() == b.random()      # the stream stays aligned
+
+    def test_degenerate_pair_skips_the_residual(self):
+        """``s = 0`` needs no residual, and the caller never reads one."""
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(12, 4))
+        Y = X[:, 0]
+        mu = np.array([0.5, 0.5, 0.0, 0.0])
+        s, z, L, O, ptotal = _compute_candidate_posteriors(
+            mu.copy(), i=2, j=3, X=X, Y=Y, tau=0.5, phi=1.0,
+            Gram=X.T @ X, theta=0.25)
+        assert abs(s) < 1e-10
+        assert z is None and L is None and O is None
+        np.testing.assert_array_equal(ptotal, [1.0, 0.0, 0.0, 0.0])
+
+    def test_the_degenerate_probability_vector_is_not_writable(self):
+        """It is a shared constant; a caller that mutated it would poison the rest."""
+        from mlsynth.utils.bvss_helpers.gibbs_pair import _P00
+
+        with pytest.raises(ValueError):
+            _P00[0] = 0.5
