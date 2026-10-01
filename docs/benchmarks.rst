@@ -301,6 +301,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``fspda_table1``
      - B
      - simulated
+   * - ``rfpda_watches``
+     - A X
+     - empirical
    * - ``geox_augsynth_geolift``
      - X
      - empirical

@@ -19,7 +19,7 @@ The challenge is which controls and how many. Classical PDA was built
 for low dimensions (few controls relative to pre-periods) and chooses controls
 by AIC/BIC, which break down once the number of controls ``N`` approaches or
 exceeds the pre-period length ``T0``. ``mlsynth`` packages the original
-Hsiao-Ching-Wan method together with three high-dimensional variants that
+Hsiao-Ching-Wan method together with four high-dimensional variants that
 resolve the ``N``-near-``T0`` problem differently, each with the estimation and
 inference theory of its own paper:
 
@@ -41,6 +41,11 @@ inference theory of its own paper:
   that grows the control set one unit at a time, with valid post-selection
   inference and no sparsity requirement (works for dense *or* sparse models).
   The scalable replacement for ``hcw``'s combinatorial best-subset search.
+* Random forest (``rf``; Liu, Long & Luo [rfPDA]_) -- a random forest ranks
+  the controls by permutation importance and a forward search walks down that
+  ranking, keeping the prefix with the smallest held-out error. The ranking is
+  nonparametric, so a control earns its place by predicting the treated unit
+  under whatever functional form, and the search costs ``2N`` forests.
 
 All variants target the single-treated-unit, many-candidate-controls regime
 and produce a time-varying treatment effect and an average treatment effect
@@ -757,8 +762,90 @@ post-selection inference matter; and regardless of whether the underlying model
 is sparse. (Shi & Huang recommend the adaptive LASSO instead when the *identity*
 of a few causal controls is the object of interest.)
 
-Choosing among the three
--------------------------
+Random forest (``rf``, Liu, Long & Luo)
+---------------------------------------
+
+The three high-dimensional variants above all score a control by what it
+contributes to a linear fit. Liu, Long and Luo [rfPDA]_ score it by what it
+contributes to a prediction, and let a random forest say what that is.
+
+The procedure has two parts. A forest is grown on the pre-treatment data and
+each control :math:`j` is ranked by its permutation importance, the increase in
+prediction error when that control's values are permuted,
+
+.. math::
+
+   \Upsilon_j \;=\; \mathbb{E}\big[(y_{0t}^0 - \hat\mu_{\mathcal N j}
+   (\tilde{\mathbf y}_{\mathcal N j}, \mathcal Y))^2\big]
+   \;-\; \mathbb{E}\big[(y_{0t}^0 - \hat\mu(\tilde{\mathbf y},
+   \mathcal Y))^2\big],
+
+so a control that carries predictive content raises the error when it is
+noised. Ranking the pool in descending :math:`\Upsilon_j` gives an ordered list
+:math:`\{y_{(1)}, \ldots, y_{(n)}\}`, and the second part walks down it: for
+each prefix :math:`U_i = \{y_{(1)}, \ldots, y_{(i)}\}` the forest's held-out
+mean squared error is computed, and the selected set is
+
+.. math::
+
+   \hat U \;=\; \Big\{ U_i \;:\; i = \arg\min_{j} \mathrm{MSE}_j \Big\}.
+
+Only :math:`2n` forests are fitted, against the :math:`2^n` subsets the original
+best-subset search enumerates and the :math:`(n + \tfrac12)R - \tfrac12 R^2`
+models forward selection fits for a target size :math:`R`. The counterfactual is
+then PDA's: OLS of the treated pre-period on :math:`\hat U` with an intercept,
+extrapolated after :math:`T_0`.
+
+Inference is the test statistic of Equation (8),
+
+.. math::
+
+   \mathcal Z_{\hat U} \;=\; \hat\sigma_{\hat U}^{-1} \sqrt{T_2}\,
+   \hat\Delta_{\hat U} \;\xrightarrow{\;\mathbb H_0\;}\; N(0, 1),
+
+whose long-run variance :math:`\hat\sigma^2_{\hat U} = \hat\gamma^2_{1}
++ \hat\gamma^2_{2}` is the West [West1997]_ estimator built on a moving-average
+model of the prediction error, fitted separately on the pre- and
+post-treatment windows. The authors model the error as an MA and not an
+autoregression because it exhibits short memory and a high tendency towards
+stationarity, which is the regime an MA describes at PDA's sample sizes.
+
+Three settings. ``rf_split`` chooses how the pre-treatment window is divided.
+``temporal`` (the default) takes three disjoint blocks in time order --
+training, validation, testing -- which is Section 2.2 of the paper, and keeps
+later observations out of earlier fits. ``random`` reproduces the released
+``RF.R``, which samples a train/test split of the pre-treatment rows and has no
+validation block; the published estimates were computed that way, so it is what
+reproduces them.
+
+``rf_k_max`` caps the number of selected controls, at :math:`T_0 - 2` by
+default. Assumption 3 of the paper requires :math:`|\hat U| / T_1 \to 0`, and
+the released search runs the prefix length to :math:`n - 1` with nothing
+enforcing it. When the search passes :math:`T_0` the pre-period OLS interpolates
+exactly, the residual falls to rounding, and the long-run variance it is
+standardised by collapses with it. Measured over twenty seeds on the paper's own
+panels this happens in 7 of 20 Brexit fits and 4 of 20 luxury-watch fits,
+returning test statistics of :math:`-17.8` and :math:`-966336` at a p value of
+zero. Passing a value above :math:`T_0 - 2` reproduces the released search and
+sets ``cap_exceeds_pre_periods`` on the fit's metadata.
+
+``rf_n_seeds`` re-runs the selection on consecutive seeds and reports the
+spread. The estimate stays the fit at ``rf_seed``, so the estimator is a
+function of its arguments; what the diagnostic adds is how much of the answer
+that argument decides. On the luxury-watch panel the ATE over twenty seeds runs
+from :math:`-0.063` to :math:`-0.003` around a published :math:`-0.0266`, and
+across twenty Brexit seeds every one of the 167 available controls is selected
+by some seed, with a mean pairwise selection overlap of 0.156. A single seed
+reports a point from that distribution.
+
+When to use. A large candidate pool where the relation between the treated
+unit and the controls need not be linear for the ranking to find the right
+ones, and where the cost of ``hcw``'s enumeration is prohibitive. The
+counterfactual is still a linear projection, so the nonparametric step buys a
+better ordering, not a nonlinear fit. Report the seed spread with the estimate.
+
+Choosing among the four
+-----------------------
 
 .. list-table::
    :header-rows: 1
@@ -780,6 +867,10 @@ Choosing among the three
      - dense or sparse
      - post HAC only (sample splitting)
      - large pool; predictive ensemble; cheap; honest post-selection inference
+   * - ``rf``
+     - dense or sparse
+     - pre + post West MA long-run variance
+     - large pool; nonparametric ranking; report the seed spread
 
 
 
@@ -788,7 +879,7 @@ Choosing among the three
 Shared assumptions across the PDA class
 ---------------------------------------
 
-The three estimators (``l2``, ``lasso``, ``fs``) differ in how they
+The four estimators (``l2``, ``lasso``, ``fs``, ``rf``) differ in how they
 fit :math:`\boldsymbol\beta`, but they share the same identifying
 stack. Stated formally:
 
@@ -1469,6 +1560,15 @@ Verification
    reproduced by ``benchmarks/cases/fspda_table1.py``, against the paper and
    against their own ``FS.R`` and ``lasso.BIC.R``. Details:
    :doc:`replications/fspda_table1`.
+
+   Random forest (Path A in the reference, distributional in the port).
+   ``benchmarks/cases/rfpda_watches.py`` runs ``method="rf"`` on Shi & Huang's
+   luxury-watch panel against Liu, Long & Luo (2025) Section 5.2. Their own
+   ``RF.R`` reproduces their published -2.66%, R-squared 0.78, seven controls
+   and p value 0.063 exactly; the port is held to the distribution that estimate
+   is a draw from, and to the West long-run variance, which agrees with their
+   ``HAC_function`` to 0.07% on the test statistic. Details:
+   :doc:`replications/rfpda_watches`.
 
 Simulation study (Path B): forward selection vs LASSO
 -----------------------------------------------------

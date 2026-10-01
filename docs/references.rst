@@ -94,6 +94,18 @@ References
     *Journal of Econometrics*, 234(2): 512-535, 2023. 
     DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
 
+.. [rfPDA]
+    Liu, Guannan, Long, Wei, and Luo, Xuehong.
+    "A Random Forest-Based Panel Data Approach for Program Evaluation."
+    *Journal of Applied Econometrics*, 40(5): 591-607, 2025.
+    DOI: https://doi.org/10.1002/jae.3123
+
+.. [West1997]
+    West, Kenneth D.
+    "Another heteroskedasticity- and autocorrelation-consistent covariance matrix estimator."
+    *Journal of Econometrics*, 76(1-2): 171-191, 1997.
+    DOI: https://doi.org/10.1016/0304-4076(95)01788-7
+
 .. [sdid]
     Clarke, Damian, Pailañir, Daniel, Athey, Susan, and Imbens, Guido. 
     "On Synthetic Difference-in-Differences and Related Estimation Methods in Stata." 
