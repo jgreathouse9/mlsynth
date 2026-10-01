@@ -125,11 +125,62 @@ Assumptions
    ``DMLFM`` raises ``MlsynthDataError`` on a ragged panel instead of fitting
    something the result contract cannot describe.
 
-5. A single treated unit, at one adoption date.
+5. Absorbing treatment. A unit that adopts at :math:`a_i` stays treated for
+   every :math:`t \ge a_i`.
 
-   Remark. The method is defined for staggered adoption with several treated
-   units; this implementation is validated only for the one-unit case and
-   enforces it.
+   Remark. The counterfactual is imputed from adoption onward, so a unit that
+   left treatment would have its post-exit outcomes reported as treated.
+   Ingestion raises on an indicator that switches back off.
+
+6. Untreated coverage in every period. Each period contributes at least one
+   observation with the indicator at zero.
+
+   Remark. The time-varying coefficient :math:`\boldsymbol{\xi}_t` and the
+   factor :math:`\mathbf{f}_t` are identified only by untreated observations
+   in period :math:`t`. A period in which every unit has already adopted leaves
+   both drawn from their priors, and the counterfactual there carries no
+   information from the panel. ``DMLFM`` raises ``MlsynthDataError`` naming the
+   periods that fail, unless ``r = 0`` and ``re = "none"``, where nothing is
+   indexed by period.
+
+Staggered adoption
+------------------
+
+Several treated units, adopting at different dates, need nothing of the
+sampler. Estimation runs on the control observations -- every :math:`(i, t)`
+with the indicator at zero, which is Eq. (A.5) of Pang, Liu and Xu (2022) and
+already includes each treated unit's own pre-adoption rows. The estimation set
+is cell-level, not unit-level, so no unit has to be reserved as a donor:
+a panel in which every unit eventually adopts is estimable up to the period
+where assumption 6 fails.
+
+The counterfactual block grows to ``n_treated * n_periods`` rows, and the
+result reports per-cohort aggregations beside the pooled ATT:
+
+``effects.additional_effects["cohort_att"]``
+   ``{adoption label: mean ATT for the units adopting then}``, over that
+   cohort's post-adoption cells.
+
+``effects.additional_effects["event_study"]``
+   ``{relative time: mean gap}`` where relative time is :math:`t - a_i`.
+   Negative keys are pre-adoption, so they read as a placebo on assumption 1;
+   non-negative keys are the dynamic effects.
+
+``method_details.parameters``
+   ``treated_units``, ``adoption_periods``, ``staggered``, and
+   ``treated_cells``, the number of cells the pooled ATT averages over.
+
+``effects.att`` averages the gap over treated cells, so a unit treated for one
+period contributes one cell and a unit treated for ten contributes ten. The
+time-series arrays carry one column per treated unit, and the plotter draws one
+panel per unit with its own adoption line.
+
+On the election-day-registration panel of Xu (2017) -- nine states adopting in
+1976, 1996, 2008 and 2012 -- the pooled ATT is 5.7 percentage points of turnout
+with a 95 percent credible interval of [3.1, 8.2], inside the [2.9695, 7.4810]
+that Ma, Gao, Wang, Wang and Zhu (2026) report. Event times :math:`-3`,
+:math:`-2` and :math:`-1` come in at 0.02, 0.24 and 0.49, against 4.0 and above
+from adoption onward.
 
 Inference and diagnostics
 -------------------------

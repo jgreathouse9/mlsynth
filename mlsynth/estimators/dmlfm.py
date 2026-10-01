@@ -71,8 +71,10 @@ class DMLFM:
         except Exception as exc:
             raise MlsynthEstimationError(f"DMLFM sampling failed: {exc}") from exc
 
+        # Treated units in panel order, each in time order -- the row order
+        # the sampler used to build the counterfactual block.
         observed = (cfg.df.sort_values([cfg.unitid, cfg.time])
-                    .loc[lambda d: d[cfg.unitid].astype(str) == inputs.treated_name,
+                    .loc[lambda d: d[cfg.unitid].astype(str).isin(inputs.treated_names),
                          cfg.outcome].to_numpy(float))
         results = assemble(inputs, draws, observed, cfg.alpha)
 

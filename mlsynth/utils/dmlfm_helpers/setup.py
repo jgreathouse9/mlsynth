@@ -16,9 +16,15 @@ class DMLFMInputs:
     """Everything :func:`~mlsynth.utils.dmlfm_helpers.sampler.run_gibbs` needs.
 
     Estimation uses the control observations -- every ``(i, t)`` with the
-    treatment indicator at zero, which includes the treated unit's own
-    pre-treatment rows. Prediction covers every row of the treated unit, so the
-    pre-treatment fit is reported alongside the post-treatment gap.
+    treatment indicator at zero, which includes each treated unit's own
+    pre-adoption rows. Prediction covers every row of every treated unit, so
+    the pre-adoption fit is reported alongside the post-adoption gap.
+
+    This is the estimation set of Pang, Liu & Xu (2022) Eq. (A.5) whether one
+    unit is treated or several, and whether they adopt together or apart, so
+    staggered adoption needs nothing of the sampler. ``X_tr`` and its
+    companions stack the treated units in panel order, each unit's rows in
+    time order, giving ``n_treated * n_periods`` prediction rows.
     """
 
     y: np.ndarray
@@ -59,6 +65,9 @@ class DMLFMInputs:
     time_labels: np.ndarray
     pre_periods: int
     treated_name: str
+    treated_names: list
+    adoption_index: np.ndarray
+    n_treated: int
 
 
 def _starts(codes: np.ndarray) -> np.ndarray:
@@ -78,13 +87,21 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
     if missing:
         raise MlsynthDataError(f"covariates not in the panel: {missing}")
 
-    # dataprep validates balance, a single treatment date, and the donor pool,
-    # and gives the canonical pre/post split and time labels.
+    # dataprep validates balance and the donor pool and gives the canonical
+    # time labels. Under staggered adoption it returns a ``cohorts`` mapping
+    # keyed by adoption label instead of one pre/post split.
     prep = dataprep(df, cfg.unitid, cfg.time, cfg.outcome, cfg.treat)
-    n_periods = int(prep["total_periods"])
-    pre_periods = int(prep["pre_periods"])
+    cohorts = prep.get("cohorts")
+    if cohorts:
+        n_periods = int(next(iter(cohorts.values()))["total_periods"])
+        pre_periods = int(min(c["pre_periods"] for c in cohorts.values()))
+    else:
+        n_periods = int(prep["total_periods"])
+        pre_periods = int(prep["pre_periods"])
     if pre_periods < 1:
-        raise MlsynthDataError("DMLFM needs at least one pre-treatment period")
+        raise MlsynthDataError(
+            "DMLFM needs at least one pre-treatment period; a treated unit "
+            "adopts in the first period of the panel")
 
     if df[[cfg.outcome] + covs].isna().any().any():
         raise MlsynthDataError(
@@ -113,13 +130,42 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
     tcode = df[cfg.time].map({t: i for i, t in enumerate(times)}).to_numpy()
     d = df[cfg.treat].to_numpy()
 
-    treated_units = sorted({u for u in df.loc[d == 1, cfg.unitid]})
-    if len(treated_units) != 1:
-        raise MlsynthDataError(
-            f"DMLFM expects one treated unit, found {len(treated_units)}")
-    treated_name = str(treated_units[0])
-    tr_rows = np.flatnonzero(df[cfg.unitid].to_numpy() == treated_units[0])
+    # Each treated unit's adoption period, read off its own time-ordered
+    # indicator. dataprep has already rejected a panel with no treated unit and
+    # one whose treatment is not absorbing, so the first treated entry is the
+    # adoption period and every later entry is treated.
+    adoption = np.full(n_units, -1, dtype=int)
+    for i in range(n_units):
+        own = d[ucode == i]
+        if own.any():
+            adoption[i] = int(np.argmax(own == 1))
+    treated_idx = np.flatnonzero(adoption >= 0)
+
+    treated_names = [str(units[i]) for i in treated_idx]
+    treated_name = treated_names[0]
+    adoption_index = adoption[treated_idx]
+    tr_rows = np.flatnonzero(np.isin(ucode, treated_idx))
+
+    # The estimation set is cell-level, not unit-level: every (i, t) with the
+    # indicator at zero, including a treated unit's own pre-adoption rows. A
+    # panel with no unit reserved as a donor is therefore still estimable, which
+    # is what makes staggered adoption work without a donor pool set aside.
     fit_rows = np.flatnonzero(d == 0)
+
+    # The per-period blocks are identified only by untreated observations in
+    # that period. A period in which every unit is already treated leaves its
+    # time-varying coefficient and its factor drawn from the prior alone, so
+    # the counterfactual there carries no information from the panel.
+    if cfg.re in ("time", "both") or cfg.r > 0:
+        covered = np.zeros(n_periods, dtype=bool)
+        covered[tcode[fit_rows]] = True
+        if not covered.all():
+            bare = [str(times[t]) for t in np.flatnonzero(~covered)]
+            raise MlsynthDataError(
+                "DMLFM needs an untreated observation in every period to "
+                "identify the time-varying coefficients and the factors; "
+                f"none is left in {', '.join(bare[:5])}"
+                + (f" and {len(bare) - 5} more" if len(bare) > 5 else ""))
 
     # blasso_default.R:88-91 divides every covariate by its pooled standard
     # deviation before fitting -- no centring, denominator n-1. The scaling is
@@ -169,4 +215,6 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
         c1=cfg.c1, c2=cfg.c2, p1=cfg.p1, p2=cfg.p2,
         e1=cfg.e1, e2=cfg.e2,
         time_labels=np.asarray(prep["time_labels"]),
-        pre_periods=pre_periods, treated_name=treated_name)
+        pre_periods=pre_periods, treated_name=treated_name,
+        treated_names=treated_names, adoption_index=adoption_index,
+        n_treated=int(treated_idx.size))
