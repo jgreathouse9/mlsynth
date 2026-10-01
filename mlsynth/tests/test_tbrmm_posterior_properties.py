@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
+from scipy import stats
 
 from mlsynth.utils.tbrmm_helpers.estimate import measure_design
 
@@ -155,3 +156,24 @@ def test_the_group_scale_is_not_the_markets_in_quadrature(data):
         ["sum"] + list(control), ["sum"], list(control))
     assert eff.posterior.scale == pytest.approx(direct.posterior.scale, rel=1e-9)
     assert eff.total_effect == pytest.approx(direct.total_effect, rel=1e-9)
+
+
+@SETTINGS
+@given(panels(), st.floats(0.80, 0.99))
+def test_the_bounds_are_cut_on_the_t_on_n_minus_two_degrees_of_freedom(data, level):
+    """Section 9.1's quantile, pinned against the normal's.
+
+    Every other property here is a ratio, a nesting relation or a shift, and the
+    normal satisfies all of them, so the distribution the bounds are cut on needs
+    an assertion of its own. At the pretest lengths a geo test has, the t is
+    visibly the wider of the two, and using the normal would understate the
+    interval on every panel.
+    """
+    pre, post, units, treated, control = data
+    eff, _, _ = measure_design(pre, post, units, treated, control, level=level)
+    q = eff.posterior
+
+    half = (q.total_upper - q.total_lower) / 2.0
+    assert half == pytest.approx(
+        stats.t.ppf(0.5 * (1.0 + level), q.df) * q.scale, rel=1e-10)
+    assert half > stats.norm.ppf(0.5 * (1.0 + level)) * q.scale
