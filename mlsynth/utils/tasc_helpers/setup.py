@@ -100,11 +100,12 @@ def initialize_parameters(
 ) -> TASCParameters:
     """Spectral initialization for the EM parameters.
 
-    Performs a thin SVD of ``Y_pre`` (``N x T0``) and uses the top-``d``
-    left singular vectors as the initial observation matrix ``H``. The
-    initial latent trajectory is then the corresponding right singular
-    vectors scaled by the singular values, from which a simple AR(1) least
-    squares fit gives ``A``. ``Q``, ``R``, ``P0`` are seeded from the
+    Performs a thin SVD of ``Y_pre`` (``N x T0``) and takes the top-``d``
+    left singular vectors, scaled by their singular values, as the initial
+    observation matrix ``H``. The initial latent trajectory is the
+    corresponding right singular vectors unscaled, so the scale sits on
+    ``H`` and not on ``X``; a simple AR(1) least squares fit on that
+    trajectory gives ``A``. ``Q``, ``R``, ``P0`` are seeded from the
     associated residual variances.
 
     Parameters

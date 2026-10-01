@@ -6,9 +6,8 @@ Time-Aware Synthetic Control (TASC)
 Overview
 --------
 
-Time-Aware Synthetic Control (TASC)
-`arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_ is a
-state-space synthetic-control estimator. Unlike classical SC
+Time-Aware Synthetic Control (TASC) [TASC]_, published at AISTATS
+2026, is a state-space synthetic-control estimator. Unlike classical SC
 (:doc:`fdid`, :doc:`tssc`) or robust-SC variants
 (:doc:`clustersc`, :doc:`proximal`), which treat the ordering of
 pre-intervention time indices as interchangeable, TASC explicitly
@@ -27,8 +26,9 @@ Two structural properties distinguish TASC from the rest of the
   permuting the pre-intervention time indices changes the fit.
   Permutation-invariant methods (classical SC, robust SC, nuclear-norm
   matrix completion) produce identical counterfactuals under the same
-  permutation; TASC does not. Section 5.1 of the paper formalizes this
-  via a data-processing-inequality argument (Proposition A.1).
+  permutation; TASC does not. Section 3.2 of the paper formalizes this
+  via a data-processing-inequality argument, carried out as
+  Proposition B.1 in Appendix B.
 - Approximately low-rank signal under omnidirectional noise. The
   observation matrix decomposes as
   :math:`\mathbf{Y} = \mathbf{H}\mathbf{X} + \mathbf{E}` where
@@ -47,8 +47,8 @@ The Rho-Illick-Narasipura-Abadie-Hsu-Misra (2026) paper runs a 4-cell
 ablation comparing TASC against vanilla SC, Robust SC, and the
 Causal Impact Model under independent variation of
 the observation-noise covariance :math:`\mathbf{R}` and the
-state-perturbation covariance :math:`\mathbf{Q}` (Section 5.2,
-Figures 3-4 of the paper). The clean recommendation:
+state-perturbation covariance :math:`\mathbf{Q}` (Appendix E.2,
+Figures 11 and 12). The clean recommendation:
 
 * Use TASC when observation noise is high. Across the two
   large-:math:`\mathbf{R}` cells (small-:math:`\mathbf{Q}` and
@@ -66,35 +66,43 @@ Figures 3-4 of the paper). The clean recommendation:
 * Use TASC when you need a posterior credible band for free. TASC
   is a generative model. The RTS smoother returns the full posterior
   covariance at every period, so a ``+/- 1.96 sigma`` band on the
-  counterfactual is part of the fit's output. The other mlsynth
-  estimators that ship credible bands are :doc:`bvss` (Bayesian
-  spike-and-slab) and :doc:`tasc` itself; the rest require an
-  external bootstrap or subsampling pass.
+  counterfactual is part of the fit's output. TASC is not alone in
+  this -- :doc:`dmlfm`, :doc:`cmbsts`, :doc:`bvss`, :doc:`bscm`,
+  :doc:`bfsc`, :doc:`bpscs`, :doc:`mvbbsc` and :doc:`mtgp` all read a
+  band off a posterior too. What is particular to TASC is where the
+  band comes from: one filtering-and-smoothing pass, with no sampler
+  and no resampling.
 
 When not to reach for TASC:
 
 * The pre-intervention trend is weak or absent (the paper writes
   ":math:`\mathbf{A} \approx 0`" — large :math:`\mathbf{Q}` regime).
-  The smaller the trend, the smaller TASC's edge over classical SC; in
-  the small-:math:`\mathbf{R}`, large-:math:`\mathbf{Q}` cell of the
-  paper's ablation, vanilla SC matches or beats TASC.
+  The smaller the trend, the smaller TASC's edge. Under small
+  :math:`\mathbf{R}` the paper's Figure 11 puts Robust SC ahead in both
+  :math:`\mathbf{Q}` cells and TASC behind every benchmark, with
+  vanilla SC comparable to Robust SC when :math:`\mathbf{Q}` is small;
+  TASC does relatively better there than under large :math:`\mathbf{Q}`,
+  but relatively is the operative word.
 * Observation noise is small AND structured low-dimensional.
   Under small :math:`\mathbf{R}`, hard singular-value thresholding
   (Robust SC) cleans the signal exactly, and TASC's
   omnidirectional-:math:`\mathbf{R}` prior is paying a price for
   flexibility it doesn't need.
-* Long-horizon forecasting in noisy regimes. The paper's
-  Figures 5-6 show that under large :math:`\mathbf{R}` and large
-  :math:`\mathbf{Q}`, TASC's RMSE rises noticeably from horizon 51-60
-  to horizon 91-100 (small-:math:`\mathbf{Q}` is stable). If you need
-  a 5-year-out
-  counterfactual on a noisy panel, look at :doc:`fma` or :doc:`mcnnm`
-  first.
+* Long-horizon forecasting with a weak trend. Appendix E.2 breaks the
+  post-period into five blocks of ten periods (Figures 13 and 14).
+  Under small :math:`\mathbf{Q}` TASC is stable across all five; under
+  large :math:`\mathbf{Q}` its RMSE rises from horizon 51-60 to 91-100,
+  and so does every benchmark's. (The paper's body text describes both
+  figures as high observation noise while their captions say low, so
+  the :math:`\mathbf{R}` regime of that breakdown is ambiguous in the
+  source; the :math:`\mathbf{Q}` contrast is not.) If you need a
+  5-year-out counterfactual on a panel whose trend is weak, look at
+  :doc:`fma` or :doc:`mcnnm` first.
 * Time indices are not really ordered (you're modelling a
   cross-section that happens to be indexed by time, or the periods
   are interchangeable up to relabelling). Permuting time indices
   costs TASC 48.5% on mean RMSE and 25.7% on the RMSE standard
-  deviation in the paper's controlled test (Section 5.1, Figure 2).
+  deviation in the paper's controlled test (Appendix E.1, Figure 10).
   If the time ordering is meaningless, use a permutation-invariant
   estimator like :doc:`tssc` or :doc:`clustersc`.
 
@@ -184,15 +192,22 @@ restatement is:
     positive-definite covariance. :math:`\mathbf{R}` does
     NOT have to be diagonal: TASC handles correlated cross-donor noise
     via the full :math:`\mathbf{R}` (set ``diagonal_R = False`` in the
-    config).
+    config). Count the parameters before reaching for it. A full
+    :math:`\mathbf{R}` is :math:`N(N+1)/2` numbers estimated from
+    :math:`T_0` observations, and on a panel like Proposition 99
+    (:math:`N = 39`, :math:`T_0 = 19`) that is 780 parameters from 19
+    columns: the fit runs, and the ATT moves from -16.8 to -399.
+    Reach for it only when :math:`T_0` comfortably exceeds
+    :math:`N(N+1)/2`.
 
     *Remark.* Plausibly violated when the residual cross-section is
     rank-deficient (some donors are exact linear combinations of
     others, e.g.\\ aggregated subseries paired with their
     components), or when the true signal is full-rank (no shared
     factors — every donor moves independently). In both cases the
-    EM estimate of :math:`d` ends up wrong and either underfits
-    (low :math:`d`) or overfits (high :math:`d`).
+    choice of :math:`d` is wrong whatever it is, and the fit either
+    underfits (low :math:`d`) or overfits (high :math:`d`). Nothing in
+    EM corrects it -- :math:`d` is fixed before the first iteration.
 
 (d) No unobserved confounders that affect donors AND treated
     unit between :math:`T_0` and :math:`T_0 + 1`. This is the
@@ -208,10 +223,10 @@ restatement is:
     this kind of confounding can only be diagnosed externally.
 
 (e) Hidden-state dimension :math:`d` correctly specified. TASC
-    takes :math:`d` as a user hyperparameter
-    (``hidden_state_dim``). The paper's Section 5.3 shows that
-    underestimating :math:`d` is worse than overestimating — if
-    in doubt, err on the high side.
+    takes :math:`d` as a required config field (``d``). The paper's
+    Figure 3 shows that both TASC and RSC degrade when :math:`d` is
+    under- or over-estimated, and that TASC is the more robust of the
+    two to over-estimation — so if in doubt, err on the high side.
 
     *Remark.* Plausibly violated when the data has more latent factors
     than you've allowed for. Diagnostic: increase :math:`d` and refit;
@@ -522,10 +537,14 @@ Algorithm 1 and the Theoretical Appendix
 The paper's Algorithm 1 is the abstract "SC Family of Methods" frame
 (target-side regression on donors), which TASC instantiates implicitly
 through the state-space machinery, not as a discrete code path.
-Appendix A's Proposition A.1 (Kalman sufficiency, information loss by
+Appendix B's Proposition B.1 (Kalman sufficiency, information loss by
 permutation invariance, dominance) is the theoretical justification
 for TASC's edge over permutation-invariant SC variants; it does not
-correspond to a separate routine in :mod:`mlsynth`.
+correspond to a separate routine in :mod:`mlsynth`. Appendix A is a
+different thing: three model extensions the same learning algorithms
+accept with minor changes, none of which ``mlsynth`` implements — a
+time-invariant component of the latent state, an additive seasonal
+term, and a multivariate observation stacking several series per unit.
 
 Core API
 --------
@@ -639,18 +658,18 @@ Verification
 Empirical replication against the authors' published numbers (Path A)
 plus a Section 5 state-space Monte Carlo (Path B). Path A reruns the
 classical Proposition 99 California-tobacco illustration from Section
-6.1 of [TASC]_ using the long-form panel
+6 of [TASC]_ (detailed in its Appendix F.1) using the long-form panel
 :file:`basedata/prop99_packsales.csv` shipped with ``mlsynth``, and
 reproduces the post-1988 divergence between observed California
-cigarette sales and the TASC counterfactual that the paper's Figure 10
-displays. Path B replicates the four-cell :math:`(\mathbf{Q}, \mathbf{R})` ablation grid
+cigarette sales and the TASC counterfactual that the paper's Figure 4
+displays (Figure 16 in its appendix). Path B replicates the four-cell :math:`(\mathbf{Q}, \mathbf{R})` ablation grid
 (Figures 3 and 4) by drawing panels directly from TASC's own
 generative state-space model and comparing ``mlsynth.TASC`` against a
 simplex-constrained Synthetic Control baseline -- the same baseline
 the paper benchmarks.
 
-Path A: Proposition 99 California (Section 6.1)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Path A: Proposition 99 California (Section 6, Appendix F.1)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The paper runs TASC on per-capita cigarette sales alone (no auxiliary
 predictors) with hidden-state dimension :math:`d = 2`. ``mlsynth.TASC``
@@ -716,23 +735,36 @@ The 1985-1988 fit is essentially tight on California's observed
 series (pre-RMSE :math:`= 0.77` packs against an outcome scale of
 roughly 100 packs), the divergence opens at the 1989 intervention,
 and the gap widens monotonically -- reaching a roughly :math:`-24`
-pack difference by 2000 against the paper's Figure-10 gap of about
-:math:`-25` to :math:`-30` packs at the same horizon. The average
+pack difference by 2000 against the gap of about :math:`-25` to
+:math:`-30` packs its Figure 4 shows at the same horizon. The average
 post-1989 treatment effect is :math:`\widehat{\tau} = -16.8`
 packs per year, in the same neighbourhood as Abadie, Diamond and
 Hainmueller's classical estimate.
 
-Path B: Section 5 state-space ablation grid
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Path B: the state-space ablation grid
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The paper's Section 5.2 ablation sweeps a :math:`2 \times 2` grid of
+The paper's Appendix E.2 ablation sweeps a :math:`2 \times 2` grid of
 state-perturbation and observation-noise covariance scales
-:math:`(\mathbf{Q}, \mathbf{R})` (Figures 3-4): a "small" covariance has diagonal
-variance :math:`0.01` (average :math:`|\mathbf{r}_t| \approx 0.084`) and a
-"big" covariance has diagonal variance :math:`1.0` (average
-:math:`|\mathbf{r}_t| \approx 0.836`). Panels are drawn from TASC's own
-generative model (Equations 2-3), so this is a *correctly-specified*
-Monte Carlo. The DGP is packaged as
+:math:`(\mathbf{Q}, \mathbf{R})`, reported in Figures 11 and 12.
+Panels here are drawn from TASC's own generative model (Equations 2-3),
+so the Monte Carlo is correctly specified for TASC, which is the point
+of the exercise.
+
+Its covariances are not drawn the paper's way. The paper builds each
+from :math:`\tilde{Q} = \tfrac{1}{2} Z Z^\top + 10^{-6} I` with the
+entries of :math:`Z` uniform on :math:`[a, b]` and the off-diagonals
+randomly sign-flipped, at :math:`(a, b) = (0.01, 0.1)` for a small
+covariance and :math:`(0.1, 1)` for a large one, and draws
+:math:`\mathbf{A}` orthonormal from a QR decomposition. ``mlsynth``'s
+simulator takes an isotropic :math:`q\,\mathbf{I}` and
+:math:`r\,\mathbf{I}` and a stable :math:`\mathbf{A}` of spectral
+radius :math:`0.95`, so the regimes below are its scales and not the
+paper's :math:`(a, b)`. The qualitative contrast is the same -- small
+:math:`\mathbf{Q}` a stronger trend, large :math:`\mathbf{R}` noisier
+observations -- but the cells are not the paper's cells, and the
+margins below should not be read against its figures value for value.
+The DGP is packaged as
 :func:`mlsynth.utils.tasc_helpers.simulation.simulate_tasc_sample`;
 the panel below compares the post-period RMSE of ``mlsynth.TASC``
 (:math:`d_{\mathrm{fit}} = d_{\mathrm{true}} = 5`) against a
@@ -761,8 +793,8 @@ simplex-constrained Synthetic Control baseline.
                    "n_em_iter": 30, "em_tol": 1e-4, "alpha": 0.05,
                    "seed": 0, "display_graphs": False}).fit()
        y0, T0 = sample.Y[0], sample.T0
-       return float(np.sqrt(np.mean(
-           (y0[T0:] - r.inference.counterfactual[T0:]) ** 2)))
+       cf = np.asarray(r.inference_detail.counterfactual, float).ravel()
+       return float(np.sqrt(np.mean((y0[T0:] - cf[T0:]) ** 2)))
 
    M = 30
    for q, r in [(0.01, 0.01), (0.01, 1.0), (0.10, 0.01), (0.10, 1.0)]:
@@ -810,12 +842,17 @@ identifies TASC's strongest dominance (a fitted state-space model
 extracts the persistent low-rank signal that the simplex projection
 cannot exploit). Under high observation noise (:math:`\mathbf{R} = 1.0`), the
 SC simplex projection still trails TASC but by a narrower margin,
-reflecting the noise floor common to both estimators. The paper's
-Figures 3-4 also include the Robust Synthetic Control of Amjad,
-Shah and Shen (2018) and the Causal Impact Model of Brodersen et al.
-(2015) as additional comparators that are not in ``mlsynth``; the
-ordering above against the canonical simplex-SC baseline is the
-slice of those comparisons that ``mlsynth`` can reproduce directly.
+reflecting the noise floor common to both estimators. The paper's Figures 3-4 carry two further
+comparators, and both are in ``mlsynth``: the Robust Synthetic Control
+of Amjad, Shah and Shen [Amjad2018]_ is :doc:`clustersc` under
+``method="pcr"``, whose HSVT-plus-PCR path is that estimator (Agarwal
+et al. prove PCR and RSC coincide), and the Causal Impact model of
+Brodersen et al. [Brodersen2015]_ is the univariate case of
+:doc:`cmbsts`, reachable with the treated unit alone as the outcome
+group and the donors in the regression block. The table above is
+therefore the simplex-SC slice of a grid that could be completed, not
+the slice ``mlsynth`` is limited to; completing it is tracked as
+benchmark work.
 
 The takeaway carried into the published TASC procedure is the
 paper's headline finding: when the data-generating process carries a
@@ -829,7 +866,9 @@ References
 ----------
 
 Rho, S., Illick, C., Narasipura, S., Abadie, A., Hsu, D., & Misra, V.
-(2026). *Time-Aware Synthetic Control.*
+(2026). *Time-Aware Synthetic Control.* Proceedings of the 29th
+International Conference on Artificial Intelligence and Statistics
+(AISTATS), PMLR 300. Preprint:
 `arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_.
 
 Durbin, J., & Koopman, S. J. (2012). *Time Series Analysis by State
