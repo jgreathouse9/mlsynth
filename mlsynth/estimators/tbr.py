@@ -35,9 +35,9 @@ from typing import Union
 from pydantic import ValidationError
 
 from ..exceptions import MlsynthConfigError
-from ..utils.tbr_helpers.config import TBRConfig
-from ..utils.tbr_helpers.pipeline import run
-from ..utils.tbr_helpers.structures import TBRResults
+from ..utils.tbrmm_helpers.engine.config import TBRConfig
+from ..utils.tbrmm_helpers.engine.pipeline import run
+from ..utils.tbrmm_helpers.engine.structures import TBRResults
 
 
 class TBR:

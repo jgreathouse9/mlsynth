@@ -37,7 +37,7 @@ from mlsynth.config_models import TBRMMConfig, DesignResult
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.tbrmm_helpers.search import CONTROL as CONTROL_ROLE
 from mlsynth.utils.tbrmm_helpers.objective import required_impact, score_split
-from mlsynth.utils.tbr_helpers.posterior import fit_pretest
+from mlsynth.utils.tbrmm_helpers.engine.posterior import fit_pretest
 
 
 # --------------------------------------------------------------------------- #
@@ -243,10 +243,10 @@ def test_the_objective_scores_the_model_tbr_will_actually_fit():
     smallest detectable effect. A search that scored a different regression from
     the one the experiment is later analysed with would rank designs by a
     quantity no estimator computes, so the residual scale the objective uses is
-    the residual scale :func:`mlsynth.utils.tbr_helpers.posterior.fit_pretest`
+    the residual scale :func:`mlsynth.utils.tbrmm_helpers.engine.posterior.fit_pretest`
     returns.
     """
-    from mlsynth.utils.tbr_helpers.posterior import fit_pretest
+    from mlsynth.utils.tbrmm_helpers.engine.posterior import fit_pretest
     from mlsynth.utils.tbrmm_helpers.objective import _pretest_fit
 
     rng = np.random.default_rng(11)

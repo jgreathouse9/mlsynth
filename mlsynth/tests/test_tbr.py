@@ -32,7 +32,7 @@ from scipy import stats
 from mlsynth import TBR
 from mlsynth.config_models import TBRConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
+from mlsynth.utils.tbrmm_helpers.engine.posterior import cumulative_posterior, fit_pretest
 
 
 # --------------------------------------------------------------------------- #
@@ -552,7 +552,7 @@ def test_the_plotter_returns_a_figure_and_shows_nothing(monkeypatch):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+    from mlsynth.utils.tbrmm_helpers.engine.plotter import plot_tbr
 
     shown = {"n": 0}
     monkeypatch.setattr(plt, "show", lambda *a, **k: shown.__setitem__("n", 1))
@@ -568,7 +568,7 @@ def test_the_plotter_marks_where_the_intervention_stopped():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+    from mlsynth.utils.tbrmm_helpers.engine.plotter import plot_tbr
 
     df = geo_panel(T=24, T0=14, noise=1.0, cooldown_from=19, seed=23)
     with_cd = plot_tbr(TBR(base_config(df, cooldown_col="cooldown")).fit())
@@ -585,7 +585,7 @@ def test_a_custom_title_reaches_the_figure():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+    from mlsynth.utils.tbrmm_helpers.engine.plotter import plot_tbr
 
     fig = plot_tbr(TBR(base_config(geo_panel(noise=1.0))).fit(),
                    title="Geo lift, Q3")

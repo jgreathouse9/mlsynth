@@ -21,8 +21,8 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from ...exceptions import MlsynthDataError
-from ..datautils import dataprep
+from ....exceptions import MlsynthDataError
+from ...datautils import dataprep
 
 MIN_PRETEST = 3
 _GROUP_TREAT, _GROUP_CONTROL = "__tbr_treatment__", "__tbr_control__"

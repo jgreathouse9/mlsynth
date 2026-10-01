@@ -302,8 +302,6 @@ measures that claim directly, which a reproduced number cannot.
    beast
    dpsc
    cpda
-   tbr
-   tbrmm
    sl
 
    pda
@@ -374,8 +372,10 @@ measures that claim directly, which a reproduced number cannot.
    pangeo
    geox
    spcd
+   tbrmm
    musc
    rolldid
+   tbr
 
 .. toctree::
    :hidden:

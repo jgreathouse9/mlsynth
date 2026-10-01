@@ -51,7 +51,7 @@ import numpy as np
 from scipy import special
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
+from .engine.posterior import cumulative_posterior, fit_pretest
 
 BB_BOUND = 3.0                     # the reference's Brownian-bridge constant
 DW_RANGE = (1.5, 2.5)              # the reference's acceptable Durbin-Watson band
@@ -132,7 +132,7 @@ class SplitScore:
 def _pretest_fit(y: np.ndarray, x: np.ndarray):
     """Eqn 1's residuals, residual scale and fit quality for one candidate split.
 
-    The fit is TBR's own :func:`~mlsynth.utils.tbr_helpers.posterior.fit_pretest`
+    The fit is TBR's own :func:`~mlsynth.utils.tbrmm_helpers.engine.posterior.fit_pretest`
     and not a second least squares. Every term in both objectives is a
     functional of this regression -- the CUSUM and Breusch-Godfrey gates read
     its residuals, the correlation term is its fit quality, and
@@ -228,7 +228,7 @@ def holdout_fit(y: np.ndarray, x: np.ndarray, n_test: int) -> HoldoutFit:
 
     This is TBR run on the pretest against itself: eqn 1 on the earlier periods
     and eqns 4 and 6 on the held out ones, through the estimator's own
-    :func:`~mlsynth.utils.tbr_helpers.posterior.cumulative_posterior`. The
+    :func:`~mlsynth.utils.tbrmm_helpers.engine.posterior.cumulative_posterior`. The
     window carries no intervention, so the honest answer is zero and anything
     else is the design's own false-positive rate showing.
     """

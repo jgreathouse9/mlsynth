@@ -13,7 +13,7 @@ from typing import List, Optional
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...config_models import BaseEstimatorResults
+from ....config_models import BaseEstimatorResults
 
 
 class TBRFit(BaseModel):

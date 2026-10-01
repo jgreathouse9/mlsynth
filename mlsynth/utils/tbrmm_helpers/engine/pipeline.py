@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...config_models import InferenceResults, WeightsResults
-from ...exceptions import MlsynthDataError
-from ..results_helpers import build_effect_submodels
+from ....config_models import InferenceResults, WeightsResults
+from ....exceptions import MlsynthDataError
+from ...results_helpers import build_effect_submodels
 from .posterior import (
     cumulative_posterior,
     fit_pretest,

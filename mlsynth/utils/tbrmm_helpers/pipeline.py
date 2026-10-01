@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
-from ..tbr_helpers.setup import _binary_unit_flag, _block_flag_start
+from .engine.setup import _binary_unit_flag, _block_flag_start
 from .config import TBRMMConfig
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
 from .structures import TBRMMDesign, TBRMMResults

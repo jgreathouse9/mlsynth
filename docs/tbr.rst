@@ -18,7 +18,9 @@ relation predicts what the treated group would have done had nothing happened.
 Observations are now time periods, not markets, so a handful of geos is enough.
 
 Reach for it when the treatment groups are already fixed by an experimental
-assignment and the unit count is small. Reach for :doc:`vanillasc` or
+assignment and the unit count is small. When the groups are still yours to
+choose, :doc:`tbrmm` chooses them against this estimator's own interval, and
+then hands them back here to estimate with. Reach for :doc:`vanillasc` or
 :doc:`sdid` instead when you are picking donor weights from a large pool of
 untreated units and no experiment was run. :doc:`cmbsts` produces a similarly
 shaped answer, a cumulative effect with a credible interval, from a full
@@ -66,9 +68,9 @@ Assumptions
    checkable. The pretest half is visible in the residuals; the test half is
    not, because the treated group's untreated path stops existing the moment the
    intervention starts. A design that hands TBR two groups whose relation drifts
-   will still produce an interval, and the interval will be wrong. Au (2018)
-   exists to choose groups for which the relation is plausible, and that is a
-   separate step from estimating with them.
+   will still produce an interval, and the interval will be wrong.
+   :doc:`TBRMM <tbrmm>` exists to choose groups for which the relation is
+   plausible, and that is a separate step from estimating with them.
 
 2. The pretest residuals are independent and identically distributed normal.
 
@@ -167,12 +169,12 @@ Estimation mode takes ``treat``, the ordinary indicator naming which units were
 treated and when.
 
 Design mode takes ``post_col`` and ``treatment_col`` instead, with no ``treat``
-at all, and so runs on a panel in which nothing was treated. This is what
-scoring a hypothetical group split requires, and what an A/A test requires: take
-the control geos of a finished experiment, split them in two, and TBR should
-report no effect. Au's Example 3 measures exactly that, and it is how a design's
-error rate is checked before an experiment is run. :doc:`lexscm` and
-:doc:`syndes` separate the two phases the same way.
+at all, and so runs on a panel in which nothing was treated. This is the mode
+:doc:`tbrmm` calls for every candidate split it evaluates, and what an A/A test
+requires: take the control geos of a finished experiment, split them in two,
+and TBR should report no effect. Au's Example 3 measures exactly that, and it
+is how a design's error rate is checked before an experiment is run.
+:doc:`lexscm` and :doc:`syndes` separate the two phases the same way.
 
 Both modes compute identically once the window and the groups are named.
 
@@ -219,7 +221,7 @@ which returns the figure for the caller to display or save:
 
 .. code-block:: python
 
-   from mlsynth.utils.tbr_helpers.plotter import plot_tbr
+   from mlsynth.utils.tbrmm_helpers.engine.plotter import plot_tbr
    fig = plot_tbr(res)
 
 Verification
@@ -260,19 +262,19 @@ Core API
    :members:
    :undoc-members:
 
-.. autoclass:: mlsynth.utils.tbr_helpers.structures.TBRResults
+.. autoclass:: mlsynth.utils.tbrmm_helpers.engine.structures.TBRResults
    :members:
    :undoc-members:
 
-.. autoclass:: mlsynth.utils.tbr_helpers.structures.TBRFit
+.. autoclass:: mlsynth.utils.tbrmm_helpers.engine.structures.TBRFit
    :members:
    :undoc-members:
 
-.. autoclass:: mlsynth.utils.tbr_helpers.structures.CumulativeEffect
+.. autoclass:: mlsynth.utils.tbrmm_helpers.engine.structures.CumulativeEffect
    :members:
    :undoc-members:
 
-.. autoclass:: mlsynth.utils.tbr_helpers.structures.IROASResult
+.. autoclass:: mlsynth.utils.tbrmm_helpers.engine.structures.IROASResult
    :members:
    :undoc-members:
 

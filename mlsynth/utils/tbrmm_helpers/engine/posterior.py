@@ -29,9 +29,9 @@ from typing import Tuple
 import numpy as np
 from scipy import stats
 
-from ..groupfit import (
+from ...groupfit import (
     GroupSums, fit_on_sums, group_sums, is_identified, prediction_variance)
-from ..groupfit import unscaled_cov as _identified_unscaled_cov
+from ...groupfit import unscaled_cov as _identified_unscaled_cov
 
 #: The sums this module used to define. They are the shared regression's
 #: sufficient statistics, so the definition lives with the regression and this

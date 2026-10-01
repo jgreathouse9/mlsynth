@@ -10,8 +10,8 @@ from typing import Optional
 
 from pydantic import Field, field_validator, model_validator
 
-from ...config_models import BaseEstimatorConfig
-from ...exceptions import MlsynthDataError
+from ....config_models import BaseEstimatorConfig
+from ....exceptions import MlsynthDataError
 
 
 class TBRConfig(BaseEstimatorConfig):
