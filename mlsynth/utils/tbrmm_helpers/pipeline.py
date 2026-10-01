@@ -116,8 +116,9 @@ def run(config: TBRMMConfig) -> TBRMMResults:
     # the fact as well as before it. The post matrix is built on the same geo
     # order as the scoring matrix so a column index means the same geo in both.
     post_window = _post_window(config)
-    post_matrix = (_wide(post_window, config).reindex(columns=units).to_numpy(dtype=float)
-                   if post_window is not None else None)
+    post_wide = (_wide(post_window, config).reindex(columns=units)
+                 if post_window is not None else None)
+    post_matrix = post_wide.to_numpy(dtype=float) if post_wide is not None else None
 
     designs = []
     measured = []
@@ -147,12 +148,19 @@ def run(config: TBRMMConfig) -> TBRMMResults:
     report = None
     if post_matrix is not None:
         treated_path, control_path = measured[best]
+        # The time axis the measured series actually sit on: the scoring
+        # periods then the realized ones. Passed through so a caller can plot
+        # the report without rebuilding an axis the estimator already had.
+        scoring_periods = np.unique(_scoring_window(config)[config.time].to_numpy())
+        periods = np.concatenate([scoring_periods, np.asarray(post_wide.index)])
         report = to_effect_result(
             compute_post_fit_tbrmm(
                 treated_path, control_path,
                 n_fit=int(y_matrix.shape[0]),
                 n_post=int(post_matrix.shape[0]),
                 n_treated_units=len(recommended.treatment_units)),
+            time_periods=periods,
+            intervention_time=np.asarray(post_wide.index)[0],
             method_name="TBRMM")
 
     return TBRMMResults(

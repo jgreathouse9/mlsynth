@@ -138,6 +138,38 @@ def test_zero_effect_panel_reads_near_zero():
     assert abs(eff.att) < 0.5 * scale
 
 
+def test_report_carries_the_panel_periods_and_the_boundary():
+    """The contract's time axis is filled, so a caller can plot the report.
+
+    MAREX's call into the same adapter passes both, and a report whose
+    ``time_periods`` is empty and whose ``intervention_time`` is ``None`` cannot
+    be drawn without the caller rebuilding the axis the estimator already had.
+    """
+    df = _panel(n_pre=40, n_post=10)
+    res = TBRMM(_cfg(df, post_col="post")).fit()
+    ts = res.report.time_series
+
+    periods = np.asarray(ts.time_periods)
+    assert periods.size == 50
+    assert list(periods) == sorted(df["t"].unique())
+    assert ts.intervention_time == 40, "the boundary is the first realized period"
+
+
+def test_the_boundary_splits_the_reported_series_where_the_effect_starts():
+    """Slicing the report at the boundary recovers the measured effect."""
+    df = _panel(n_pre=40, n_post=10)
+    res = TBRMM(_cfg(df, post_col="post")).fit()
+    ts = res.report.time_series
+
+    periods = np.asarray(ts.time_periods)
+    obs = np.asarray(ts.observed_outcome, dtype=float).ravel()
+    cf = np.asarray(ts.counterfactual_outcome, dtype=float).ravel()
+    n_pre = int(np.searchsorted(periods, ts.intervention_time))
+
+    assert float((obs - cf)[n_pre:].mean()) == pytest.approx(
+        res.recommended.effect.att, rel=1e-9)
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
