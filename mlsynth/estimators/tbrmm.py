@@ -25,8 +25,8 @@ best of many estimates from one pretest, so read it as a selected maximum.
 
 References
 ----------
-Au, T. C. (2018). Robust Design and Analysis of Geo Experiments with Matched
-Markets. Google.
+Au, T. C. (2018). A Time-Based Regression Matched Markets Approach for Designing
+Geo Experiments. Technical report, Google LLC.
 
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
