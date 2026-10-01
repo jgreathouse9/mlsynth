@@ -1976,6 +1976,12 @@
   "mlsynth/utils/pda_helpers/inference.py",
   "mlsynth/utils/resultutils.py"
  ],
+ "rfpda_watches": [
+  "basedata/china_watches_long.csv",
+  "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/pda_helpers/rf/estimation.py",
+  "mlsynth/utils/pda_helpers/rf/inference.py"
+ ],
  "rolldid_lw": [
   "basedata/castle.csv",
   "basedata/smoking_data.csv",
