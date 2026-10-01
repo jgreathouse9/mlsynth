@@ -119,12 +119,39 @@ def _mlsynth_bvss_att(df):
     return float(res.att)
 
 
+def _mlsynth_posterior_summary():
+    """Posterior means of ``phi``, ``tau`` and ``|gamma|`` at the case's settings.
+
+    The estimator reports the ATT and the weights; the three nuisance summaries
+    Table 6 of the paper also reports are read off the sampler directly, at the
+    same seed and chain length the ATT above uses.
+    """
+    import numpy as np
+
+    from mlsynth.utils.bvss_helpers.sampler import gibbs_BVS
+    from mlsynth.utils.bvss_helpers.setup import prepare_bvss_inputs
+
+    d = pd.read_csv(_BASE / "china_watches_long.csv")
+    inp = prepare_bvss_inputs(d, "y", "unit", "time", "treat")
+    M, N = inp.X_pre_demean.shape
+    out = gibbs_BVS(inp.Y_pre_demean, inp.X_pre_demean, inp.Gram, M, N, 50,
+                    kappa1=1.0, kappa2=1.0, theta=_THETA,
+                    rng=np.random.default_rng(1))
+    keep = slice(25, 50)
+    return {
+        "phi": float(out["phisample"][keep].mean()),
+        "tau": float(out["tausample"][keep].mean()),
+        "modelsize": float((out["musample"][:, keep] != 0).sum(0).mean()),
+    }
+
+
 def run() -> dict:
     prim = _deterministic_primitives()
     det_max_abs_diff = max(abs(prim[k] - reference_value("bvss_watches", k)) for k in _DET_KEYS)
 
     df, _Y, _X, _G = _demeaned_panel()
     att_ml = _mlsynth_bvss_att(df)
+    post = _mlsynth_posterior_summary()
 
     return {
         # (1) exact: mlsynth's Gibbs primitives vs the authors' R, value for value.
@@ -133,6 +160,11 @@ def run() -> dict:
         "mls_att": att_ml,
         "att_abs_diff_vs_R": float(abs(att_ml - REF_ATT)),
         "att_negative": 1.0 if att_ml < 0 else 0.0,
+        # (3) the nuisance posteriors, which separate the samplers where the ATT
+        #     does not. Against Table 6 of the paper, not against the R script.
+        "phi_abs_diff_vs_paper": float(abs(post["phi"] - PAPER_PHI)),
+        "tau_in_paper_interval": 1.0 if 0.0 < post["tau"] <= PAPER_TAU_HI else 0.0,
+        "modelsize_post_mean": post["modelsize"],
     }
 
 
@@ -171,15 +203,38 @@ def comparison() -> dict:
 
 # The Gibbs draws are stochastic, but their deterministic primitives (VM log-det,
 # RSS, RSS2, AM, loglike) are exact: mlsynth reproduces the authors' R to ~1e-9
-# on a fixed (gamma, tau, mu, phi), so both samplers target the identical
-# posterior. The seeded posterior-mean ATT agrees within Monte-Carlo error
-# (mlsynth -0.0212 vs R -0.0208, independent RNG streams), and is negative -- the
-# anti-corruption campaign depressed luxury-watch imports. mls_att is
-# deterministic under the fixed seed (n_iter=50); det/att targets are pinned from
-# the live captured R run via reference_value.
+# on a fixed (gamma, tau, mu, phi), so both samplers evaluate the identical
+# target. The seeded posterior-mean ATT agrees within Monte-Carlo error, and is
+# negative -- the anti-corruption campaign depressed luxury-watch imports.
+#
+# mls_att is deterministic at seed=1, n_iter=50, so its tolerance is a
+# regression bound and not a statement about agreement. Measured over twelve
+# seeds at these settings the ATT has a standard deviation of 0.00083, which is
+# eight times the old 1e-4 tolerance, so a value-for-value ATT target could only
+# ever have pinned one realized chain. att_abs_diff_vs_R is the check that
+# carries the agreement claim, at a tolerance matched to that spread.
+#
+# phi and the model size are the quantities that separate two samplers where the
+# ATT does not, so they are held against Table 6 of the paper (phi 20.86, tau
+# 0.069 with a 95% credible interval of (0, 0.641), |gamma| 5.09) rather than
+# against the R script. The phi tolerance is two measured across-seed standard
+# deviations (sd 0.86). tau is held to the paper's own interval because its
+# posterior is dispersed, which the paper states.
+#
+# modelsize_post_mean is a regression pin at the value the fixed pair step
+# produces, not an agreement claim: 4.16 here against the paper's 5.09, where
+# the twelve-seed mean is 2.77 and Table 6 comes from a 1000-iteration run.
+# Chain length accounts for part of that gap and not all of it; docs/bvss.rst
+# records what was measured and what is left open.
+PAPER_PHI = 20.86
+PAPER_TAU_HI = 0.641
+
 EXPECTED = {
     "det_max_abs_diff_vs_R": (0.0, 1e-6),      # exact sampler-engine match
-    "mls_att": (-0.021234, 1e-4),              # deterministic at seed=1, n_iter=50
+    "mls_att": (-0.022531, 1e-4),              # deterministic at seed=1, n_iter=50
     "att_abs_diff_vs_R": (0.0, 0.01),          # within Monte-Carlo error of R
     "att_negative": (1.0, 0.0),                # anti-corruption depresses imports
+    "phi_abs_diff_vs_paper": (0.0, 1.8),       # two across-seed sd of Table 6's 20.86
+    "tau_in_paper_interval": (1.0, 0.0),       # inside Table 6's (0, 0.641)
+    "modelsize_post_mean": (4.16, 0.01),       # regression pin, not an agreement claim
 }
