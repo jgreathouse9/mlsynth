@@ -306,10 +306,8 @@ Restricting where geos may go takes three 0/1 columns, constant within geo:
 A geo whose ``can_treat`` is 1 and whose other two columns are 0 is forced into
 every treatment group.
 
-Two further settings. ``objective="paper"`` climbs Au's :math:`f` in place of
-the reference's tuple, measured against each other above. ``post_col`` names a
-0/1 column marking periods to leave out of scoring, for a panel that already
-carries an experiment the pretest should not be fitted through.
+One further setting. ``objective="paper"`` climbs Au's :math:`f` in place of
+the reference's tuple, measured against each other above.
 
 .. code-block:: python
 
@@ -317,8 +315,162 @@ carries an experiment the pretest should not be fitted through.
        df=panel, unitid="geo", time="date", outcome="Y",
        max_treatment_size=4, n_test=14,
        objective="paper",
-       post_col="is_post",
    )
+
+Reading the design once the experiment has run
+-----------------------------------------------
+
+Pass ``post_col`` and the same call returns the effect as well as the design.
+The flag already marks the periods the search is not scored on, and those are
+exactly the periods there is an effect to read, so no second mode is needed:
+without it you get a design, with it you get a design and what it measured.
+
+.. code-block:: python
+
+   panel["post"] = panel["date"] > panel["date"].sort_values().unique()[89]
+
+   result = TBRMM(TBRMMConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14, post_col="post",
+   )).fit()
+
+   result.report.effects.att                      # the pooled effect
+   for m in result.recommended.effect.market_effects:
+       print(m.unit, m.att, m.att_percent)        # and its market-level parts
+
+The estimator is the augmented difference-in-differences of
+Li and Van den Bulte (2022). For a treated geo :math:`i` and the control group's
+average :math:`\bar{y}_{co,t}`, their equation (2.4) fits
+
+.. math::
+
+   y_{it} = \delta_1 + \delta_2 \bar{y}_{co,t} + e_{it},
+   \qquad t = 1, \dots, T_1
+
+on the pretest periods and projects it through the post window; the effect is
+what the geo did above that projection. Forcing :math:`\delta_2 = 1` recovers
+plain difference-in-differences, so the free scale is the augmentation, and it
+is the same regression TBR fits. The difference is where it is applied: TBR sums
+the treated geos into one series first, which buys precision and gives up the
+breakdown, while this fits one regression per treated geo and pools by averaging
+the per-geo effects, following the paper's Appendix C.
+
+That pooling rule is the reason a market-level table can sit beside a headline
+without the two contradicting each other: ``effect.att`` is the mean of
+``effect.market_effects``, so the parts add up to the whole by construction. The
+price is precision. One geo against the same control average is noisier than the
+group is, and ``market_effects[i].rmse_fit`` is where that cost is visible --
+compare it against the pooled fit before quoting a single market's number.
+
+Every candidate design is measured, not only the recommendation, so
+``designs[i].effect`` is populated for each treatment size. A menu chosen on
+pretest detectable impact can therefore be looked at again afterwards, against
+what each option would have read.
+
+Two behaviours are deliberate. A ``post_col`` of all zeros marks no realized
+periods, so ``report`` stays ``None`` and the run is design-only: an absent
+window is not an effect of zero. And a geo's :math:`\hat\delta_2` is reported
+per market, because its distance from one is how much work the augmentation did
+for that geo.
+
+Uncertainty on a measured effect
+--------------------------------
+
+The point estimates above are least squares. Their uncertainty is TBR's, and the
+two fit together because under Kerman, Wang and Vaver's flat prior on
+:math:`(\alpha, \beta, \log\sigma)` they are the same regression. The
+cumulative effect over a :math:`T`-period window has a t posterior on
+:math:`n - 2` degrees of freedom with their equation 6's scale,
+
+.. math::
+
+   T s \sqrt{v_a + 2 \bar{x}_T v_{ab} + v_b \bar{x}_T^2 + 1/T},
+
+which is algebraically the prediction-error standard deviation of the same fit,
+so one interval serves as a credible interval and a prediction interval alike.
+The Bayesian reading buys the direct statement -- the posterior mass on one side
+of zero -- and not a different number.
+
+.. code-block:: python
+
+   q = result.recommended.effect.posterior
+   q.total_lower, q.total_upper      # on the cumulative effect
+   q.att_lower, q.att_upper          # the same bounds, rescaled
+   q.prob_direction                  # mass on the estimate's own side of zero
+
+   result.report.inference.ci_lower  # the ATT bounds again, on the contract
+
+   for m in result.recommended.effect.market_effects:
+       print(m.unit, m.posterior.total_lower, m.posterior.total_upper)
+
+Set the level with ``level``, which defaults to 0.9, the TBR paper's own
+reporting level.
+
+Three things about these intervals decide how they are read.
+
+The cumulative effect is the primitive and the mean effect is a rescaling of it
+by a known constant, so the bounds divide and the degrees of freedom do not move.
+The constant is the post length times the treated geo count, because
+``effect.att`` pools over geos as well as periods. Dividing the cumulative effect
+by the post length alone gives the group's per-period effect, which is
+:math:`N_{tr}` times larger. Both are defensible numbers; they are not the same
+number, and the factor between them is the treated geo count.
+
+The group's uncertainty is its own fit, not the markets' combined. Equation 6's
+two terms grow at different rates -- the coefficient uncertainty is shared across
+every post period and compounds as :math:`T^2`, while the test window's own noise
+accumulates as :math:`T` -- so a cumulative interval cannot be assembled by adding
+per-period variances. The same holds across geos: treated markets co-move, their
+residuals are correlated, and only a regression on the summed series prices that
+correlation. Combining the per-market scales in quadrature treats the markets as
+independent and misstates the group's precision.
+
+A market-level interval is wider than the group's, and that is the cost of the
+breakdown. Reading one geo against the control average is noisier than reading
+the sum, which is why TBR aggregates first. When a single market's interval
+spans zero while the group's does not, both statements are correct and the
+market one is the honest answer to a question about that market.
+
+What the interval conditions on
+-------------------------------
+
+The posterior above treats the design as given. It was not given: the search
+chose it, by climbing the same objective the interval is built from, on the same
+pretest periods the counterfactual is fitted on. So the design that reaches the
+estimation phase is the one whose pretest fit came out best among the candidates,
+and :math:`\hat\sigma` is that winner's residual spread. Equation 6 is linear in
+:math:`\hat\sigma`, so the interval inherits the shrinkage.
+
+The direction is not in doubt, because a minimum over candidates is below the
+average candidate by construction. The size depends on how many partitions were
+searched and how alike they are. In a simulation with ten geos, sixty pretest
+periods, two treated, forty-five candidate partitions and no effect present,
+nominal ninety percent coverage of the cumulative effect falls from 83.6 percent
+for a partition fixed in advance to 72.4 percent for the searched one, with
+:math:`\hat\sigma` about twenty percent smaller. Searching a larger pool widens
+the gap.
+
+Selecting on one window and fitting on another removes it. In the same
+simulation, choosing the partition on the first thirty pretest periods and
+fitting the counterfactual on the last thirty returns coverage to 82.8 percent,
+against 83.6 for the fixed partition, and the interval comes out wider because
+fewer periods are left to fit on. TBRMM does not do this for you: ``n_test``
+holds periods out inside the A/A gate during the search, but the gate is one of
+the filters the search itself applies, so those periods are part of what the
+design was chosen on and they are part of what it is fitted on afterwards.
+
+Two things this does not reach. The remaining gap from ninety percent in those
+figures is specification: the control average has to track the treated series up
+to the noise the model assumes, and no accounting for estimated parameters
+repairs it when it does not. And none of it addresses which geos the design
+speaks for, which is assumption 5 above.
+
+So read the interval as conditional on the design, and treat its width as a
+lower bound on the uncertainty when the same panel chose the design and fitted
+the counterfactual. Where the decision turns on the width, hold periods back
+from the search by hand and fit on those.
+
+
 
 Verification
 ------------
@@ -344,6 +496,9 @@ Geo Experiments. Technical report, Google LLC.
 
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
+
+Li, K. T. and Van den Bulte, C. (2022). Augmented Difference-in-Differences.
+*Marketing Science* 42(4):746-767.
 
 Core API
 --------

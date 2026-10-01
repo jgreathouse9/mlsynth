@@ -111,6 +111,15 @@ class TBRMMConfig(BaseMAREXConfig):
                     "once 1 always 1. Omitted, every period is scored.",
     )
 
+    level: float = Field(
+        default=0.9,
+        gt=0.0,
+        lt=1.0,
+        description="Two-sided level for the posterior interval on a measured "
+                    "effect. Read for only when ``post_col`` marks realized "
+                    "periods; 0.9 is the TBR paper's own reporting level.",
+    )
+
     @field_validator("treatment_eligible_col", "control_eligible_col",
                      "unassigned_eligible_col", "post_col")
     @classmethod

@@ -59,8 +59,9 @@ class TBRMM:
     TBRMMResults
         A :class:`~mlsynth.config_models.DesignResult`. ``designs`` holds one
         recommended partition per treatment size and ``recommended`` the best of
-        them across sizes. ``report`` is empty until the experiment runs and TBR
-        analyses it.
+        them across sizes. ``report`` is empty unless ``post_col`` marks realized
+        periods; given those, it carries the recommended design measured on them
+        and each design's own effect sits on ``designs[i].effect``.
 
     Examples
     --------

@@ -3024,3 +3024,75 @@ timeout = 180.0
   find = "    V10 = _vm(idx10, tau, Gram)"
   replace = "    V10 = _vm(idx11, tau, Gram)"
   models = "the (1, 0) case scored against the pair's posterior covariance while its own index set is used for the cross-products -- the mis-sharing the one-V-per-index-set rewrite makes possible, and half of what the collapsed vectors did"
+
+[[target]]
+name = "tbrmm-estimation"
+module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_estimation.py mlsynth/tests/test_tbrmm_estimation_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "pooling-sums-instead-of-averaging"
+  find = "    pooled = float(atts.mean())"
+  replace = "    pooled = float(atts.sum())"
+  models = "a pooled effect that totals the per-market effects instead of averaging them, which severs Appendix C's identity and makes a market-level table contradict the headline beside it -- and does so invisibly whenever exactly one geo is treated"
+
+  [[target.mutant]]
+  id = "counterfactual-projected-on-the-pretest-controls"
+  find = "        cf_post = d1 + d2 * x_post"
+  replace = "        cf_post = d1 + d2 * x_pre[:x_post.size]"
+  models = "a counterfactual that projects the pretest control average through the post window instead of the realized one, so every control-side movement during the test is charged to the treatment"
+
+  [[target.mutant]]
+  id = "augmentation-dropped-back-to-did"
+  find = "    delta, *_ = np.linalg.lstsq(design, y_pre, rcond=None)"
+  replace = "    delta = np.array([float(np.mean(y_pre - x_pre)), 1.0])"
+  models = "the control scale forced to one, which is exactly the reduction to plain difference-in-differences that Li and Van den Bulte's equation (2.4) exists to avoid"
+
+  [[target.mutant]]
+  id = "effect-read-on-the-pretest-window"
+  find = "        gap_post = post[:, col] - cf_post"
+  replace = "        gap_post = pre[:, col] - cf_pre"
+  models = "an effect measured on the periods the regression was fitted to, which reads near zero by construction and so looks like a well-behaved null result"
+
+  [[target.mutant]]
+  id = "total-effect-averages-over-periods"
+  find = "            total_effect=float(np.sum(gap_post)),"
+  replace = "            total_effect=float(np.mean(gap_post)),"
+  models = "a per-market total that reports the per-period mean, so the program's incremental volume is understated by the length of the post window"
+
+  [[target.mutant]]
+  id = "control-average-taken-over-the-treated"
+  find = "    x_pre = pre[:, control_cols].mean(axis=1)"
+  replace = "    x_pre = pre[:, treated_cols].mean(axis=1)"
+  models = "a regressor built from the treated geos instead of the control group, which fits the pretest nearly perfectly and leaves no residual scale for the effect to show up against"
+
+[[target]]
+name = "tbrmm-posterior"
+module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_posterior.py mlsynth/tests/test_tbrmm_posterior_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "group-posterior-fitted-on-one-geo"
+  find = "        pre[:, treated_cols].sum(axis=1), x_pre,\n        post[:, treated_cols].sum(axis=1), x_post,"
+  replace = "        pre[:, treated_cols[0]], x_pre,\n        post[:, treated_cols[0]], x_post,"
+  models = "a group interval taken from the first treated geo's own fit, which is the shape of every mistake that assembles the group's uncertainty from its parts instead of from a regression spanning them; the point estimate is unaffected, so only an assertion on the scale catches it"
+
+  [[target.mutant]]
+  id = "att-bounds-divide-by-periods-not-geos-and-periods"
+  find = "        level=level, periods_per_unit=n_post * n_treated)"
+  replace = "        level=level, periods_per_unit=n_post)"
+  models = "an ATT interval divided by the post length alone, so it is N times too wide against an att that pools over geos as well -- the exact factor that separates TBR's per-period group effect from TBRMM's per-market mean, and the one a reader comparing the two would hit"
+
+  [[target.mutant]]
+  id = "direction-read-on-the-wrong-tail"
+  find = "    direction = p_above if loc_T >= 0.0 else 1.0 - p_above"
+  replace = "    direction = p_above"
+  models = "a probability of direction always read on the upper tail, so a negative effect as clear as it gets reports near zero confidence instead of near one -- a sign error that reads as a null result for exactly the sales declines a geo holdout is run to detect"
+
+  [[target.mutant]]
+  id = "interval-cut-on-the-normal-instead-of-the-t"
+  find = "    lo, hi = interval(loc, scale, fit.df, level)"
+  replace = "    from scipy.stats import norm as _n; _h = _n.ppf(0.5 * (1.0 + level)) * scale; lo, hi = loc - _h, loc + _h"
+  models = "bounds cut on the normal, not the t on n-2 degrees of freedom, which is anticonservative on every panel and worst on the short pretests a geo test is most likely to have"

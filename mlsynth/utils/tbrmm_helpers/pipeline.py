@@ -16,6 +16,8 @@ import pandas as pd
 from ...exceptions import MlsynthDataError
 from ..tbr_helpers.setup import _binary_unit_flag, _block_flag_start
 from .config import TBRMMConfig
+from ..post_fit import compute_post_fit_tbrmm, to_effect_result
+from .estimate import measure_design
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
 from .structures import TBRMMDesign, TBRMMResults
 
@@ -33,6 +35,22 @@ def _scoring_window(config: TBRMMConfig) -> pd.DataFrame:
         return df
     _block_flag_start(df, config.time, config.post_col)
     return df[df[config.post_col].astype(int) == 0]
+
+
+def _post_window(config: TBRMMConfig) -> Optional[pd.DataFrame]:
+    """The realized rows, or ``None`` when the panel carries none.
+
+    The mirror of :func:`_scoring_window`: the periods the design was *not*
+    scored on are the periods it is measured on. A ``post_col`` that marks
+    nothing returns ``None``, so a column of zeros is a design-only run and not
+    an effect of zero.
+    """
+    if config.post_col is None:
+        return None
+    df = config.df
+    _block_flag_start(df, config.time, config.post_col)
+    post = df[df[config.post_col].astype(int) == 1]
+    return None if post.empty else post
 
 
 def _wide(window: pd.DataFrame, config: TBRMMConfig) -> pd.DataFrame:
@@ -93,24 +111,66 @@ def run(config: TBRMMConfig) -> TBRMMResults:
         n_test=config.n_test, objective=config.objective,
         control_start=config.control_start)
 
-    designs = [
-        TBRMMDesign(
+    # When the panel carries realized periods, every candidate is measured on
+    # them -- not only the recommendation -- so the menu can be compared after
+    # the fact as well as before it. The post matrix is built on the same geo
+    # order as the scoring matrix so a column index means the same geo in both.
+    post_window = _post_window(config)
+    post_wide = (_wide(post_window, config).reindex(columns=units)
+                 if post_window is not None else None)
+    post_matrix = post_wide.to_numpy(dtype=float) if post_wide is not None else None
+
+    designs = []
+    measured = []
+    for o in outcomes:
+        treatment_units = [units[j] for j in o.treatment]
+        control_units = [units[j] for j in o.control]
+        effect, treated_path, control_path = (
+            measure_design(y_matrix, post_matrix, units,
+                           treatment_units, control_units,
+                           level=config.level)
+            if post_matrix is not None else (None, None, None))
+        measured.append((treated_path, control_path))
+        designs.append(TBRMMDesign(
             k=o.k,
-            treatment_units=[units[j] for j in o.treatment],
-            control_units=[units[j] for j in o.control],
+            treatment_units=treatment_units,
+            control_units=control_units,
             unassigned_units=[units[j] for j in o.unassigned],
             objective_value=float(o.score.value),
             detail=dict(o.score.detail),
             matching_trace=[tuple(float(v) for v in key) for key in o.trace],
             matching_converged=o.converged,
             n_candidates_evaluated=o.evaluations,
-        )
-        for o in outcomes
-    ]
+            effect=effect,
+        ))
     best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
     recommended = designs[best]
 
+    report = None
+    if post_matrix is not None:
+        treated_path, control_path = measured[best]
+        # The time axis the measured series actually sit on: the scoring
+        # periods then the realized ones. Passed through so a caller can plot
+        # the report without rebuilding an axis the estimator already had.
+        scoring_periods = np.unique(_scoring_window(config)[config.time].to_numpy())
+        periods = np.concatenate([scoring_periods, np.asarray(post_wide.index)])
+        # The group posterior's bounds, rescaled to the mean per-period
+        # effect so report.inference and report.effects.att share one scale.
+        group = recommended.effect.posterior
+        report = to_effect_result(
+            compute_post_fit_tbrmm(
+                treated_path, control_path,
+                n_fit=int(y_matrix.shape[0]),
+                n_post=int(post_matrix.shape[0]),
+                n_treated_units=len(recommended.treatment_units),
+                ci=(group.att_lower, group.att_upper),
+                inference_method="tbr_posterior"),
+            time_periods=periods,
+            intervention_time=np.asarray(post_wide.index)[0],
+            method_name="TBRMM")
+
     return TBRMMResults(
+        report=report,
         designs=designs,
         recommended=recommended,
         objective=config.objective,
