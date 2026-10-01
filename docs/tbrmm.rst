@@ -431,6 +431,46 @@ the sum, which is why TBR aggregates first. When a single market's interval
 spans zero while the group's does not, both statements are correct and the
 market one is the honest answer to a question about that market.
 
+What the interval conditions on
+-------------------------------
+
+The posterior above treats the design as given. It was not given: the search
+chose it, by climbing the same objective the interval is built from, on the same
+pretest periods the counterfactual is fitted on. So the design that reaches the
+estimation phase is the one whose pretest fit came out best among the candidates,
+and :math:`\hat\sigma` is that winner's residual spread. Equation 6 is linear in
+:math:`\hat\sigma`, so the interval inherits the shrinkage.
+
+The direction is not in doubt, because a minimum over candidates is below the
+average candidate by construction. The size depends on how many partitions were
+searched and how alike they are. In a simulation with ten geos, sixty pretest
+periods, two treated, forty-five candidate partitions and no effect present,
+nominal ninety percent coverage of the cumulative effect falls from 83.6 percent
+for a partition fixed in advance to 72.4 percent for the searched one, with
+:math:`\hat\sigma` about twenty percent smaller. Searching a larger pool widens
+the gap.
+
+Selecting on one window and fitting on another removes it. In the same
+simulation, choosing the partition on the first thirty pretest periods and
+fitting the counterfactual on the last thirty returns coverage to 82.8 percent,
+against 83.6 for the fixed partition, and the interval comes out wider because
+fewer periods are left to fit on. TBRMM does not do this for you: ``n_test``
+holds periods out inside the A/A gate during the search, but the gate is one of
+the filters the search itself applies, so those periods are part of what the
+design was chosen on and they are part of what it is fitted on afterwards.
+
+Two things this does not reach. The remaining gap from ninety percent in those
+figures is specification: the control average has to track the treated series up
+to the noise the model assumes, and no accounting for estimated parameters
+repairs it when it does not. And none of it addresses which geos the design
+speaks for, which is assumption 5 above.
+
+So read the interval as conditional on the design, and treat its width as a
+lower bound on the uncertainty when the same panel chose the design and fitted
+the counterfactual. Where the decision turns on the width, hold periods back
+from the search by hand and fit on those.
+
+
 
 Verification
 ------------
