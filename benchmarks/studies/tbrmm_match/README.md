@@ -4,8 +4,8 @@ Compares mlsynth's `TBRMM` against `google/matched_markets`' `greedy_search` on
 the GeoLift panel the repository ships, and separates the two ways they could
 differ.
 
-* Au, T. C. (2018). *Robust Design and Analysis of Geo Experiments with Matched
-  Markets.* Google.
+* Au, T. C. (2018). *A Time-Based Regression Matched Markets Approach for
+  Designing Geo Experiments.* Technical report, Google LLC.
 
 The reference is Apache 2.0 and is not vendored. Point
 `MLSYNTH_MATCHED_MARKETS` at a checkout:

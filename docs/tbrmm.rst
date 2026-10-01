@@ -60,8 +60,33 @@ reported has :math:`\max(k_0, 1)` treated geos.
 What the search maximises
 -------------------------
 
-Not a similarity score and not the pretest :math:`R^2`. The objective is TBR's
-own interval, read backwards.
+Two objectives are available, and they are not the same. ``objective="paper"``
+is Au's own, stated in his Section 3.1:
+
+.. math::
+
+   f = \min \big( \text{CUSUM } p,\; \text{Breusch-Godfrey } p,\; R^2 \big),
+
+the CUSUM an OLS-based structural break test on the fitted TBR model, the
+Breusch-Godfrey a test for autocorrelation in its residuals. ``objective=
+"reference"`` is what ``google/matched_markets`` scores, and it is the default
+here, so the benchmark below reproduces that implementation.
+
+The difference is power. Au's Section 3.1 observes that its p-values "do not
+assess the amount of statistical power that TBR provides" and then leaves power
+out of :math:`f`, so a design that can detect nothing scores as well as one that
+can. Measured over 400 random splits of the GeoLift markets, the reference's ten
+best designs are 2.5 times better on detectable impact than Au's, and Au's ten
+best score 0.63 on :math:`f` against the reference's 0.29 -- each objective wins
+on its own axis. The remaining three terms are closer than their names suggest:
+:math:`R^2` and the reference's correlation induce identical rankings, since a
+simple regression with an intercept has :math:`R^2 = \mathrm{corr}^2`;
+Breusch-Godfrey and Durbin-Watson agree on 96.2% of splits, Durbin-Watson being
+the AR(1) case; and Au's :math:`R^2` term binds none of the 400 splits.
+:mod:`mlsynth.utils.tbrmm_helpers.objective` carries the measurements.
+
+The rest of this section describes the default. The objective is TBR's own
+interval, read backwards.
 
 The posterior scale of the cumulative effect over a :math:`T`-period test window
 is
@@ -78,6 +103,14 @@ power target and solving for the smallest effect that would clear the threshold
 gives that split's minimum detectable effect, computable with no experimental
 data at all. Its inverse is what the climb maximises.
 
+Two floors bound what any design can buy. Kerman, Wang and Vaver's Section 9.3
+has the interval narrowing in the pretest length at :math:`1/\sqrt{n}` while
+approaching :math:`\sigma_0 / (\bar{c}\sqrt{T})` instead of zero, and their
+Section 9.4 has a longer test window touching only the :math:`1/T` term inside
+the root. Neither a longer history nor a longer experiment removes the
+uncertainty, so a panel can be short of what the advertiser wants to detect and
+no split will fix it.
+
 Ahead of it sit four tests of the assumptions that interval needs, and a split
 is ranked on power only after passing them. The comparison is lexicographic:
 
@@ -87,7 +120,8 @@ is ranked on power only after passing them. The comparison is lexicographic:
    \text{Durbin-Watson test},\; \mathrm{corr}(y, x),\;
    1/\Delta_{\min} \big).
 
-The gates are described under Diagnostics below.
+The gates are described under Diagnostics below. All four are the reference
+implementation's; Au names two of them.
 
 Assumptions
 -----------
@@ -123,10 +157,29 @@ Assumptions
    periods the regression did not use, but the bias is not removed. Read the
    number as the best of many estimates.
 
+5. The treated geos need not represent the population you want to speak about.
+
+   Remark. Au raises this as the cost of forgoing randomisation: the treatment
+   group is chosen to fit TBR, not to be representative, so the effect estimated
+   is the effect on the geos the search picked. Where the experiment is meant to
+   stand in for a national rollout, that gap is the design's and not the
+   estimator's.
+
+6. A local optimum need not be a runnable experiment.
+
+   Remark. Also Au's: feasibility has to be checked before the experiment is
+   commissioned, because the search returns its best local optimum whether or
+   not that design is viable. His example is an advertiser requiring New York,
+   Chicago and Los Angeles all in the treatment group. Nothing in the gates
+   detects a constraint set that admits no workable design.
+
 Diagnostics
 -----------
 
-Four gates, each testing something the posterior above needs.
+Four gates, each testing something the posterior above needs. Au's Section 3.1
+names a CUSUM test and a Breusch-Godfrey test; the correlation floor, the A/A
+test and the Durbin-Watson band are the reference implementation's, and the
+measurements above place Durbin-Watson and Breusch-Godfrey at 96.2% agreement.
 
 The correlation gate requires :math:`\mathrm{corr}(y, x) \ge 0.8`, so the control
 aggregate carries information about the treatment aggregate.
@@ -158,10 +211,21 @@ Two properties to keep in view. The space has :math:`3^n` labellings, about
 :math:`5 \times 10^{47}` at a hundred geos, so the result is a local optimum
 with respect to one-geo moves and carries no optimality guarantee; a pair of
 geos that helps only when swapped together is not reachable. And the objective
-is not monotone in the treatment size, because a geo added to the treatment
-group brings its volume to :math:`y_t` and takes it out of the pool available to
-:math:`x_t`. The recommendation is therefore the best design across sizes and
-not the largest one.
+is not monotone in the treatment size, so the recommendation is the best design
+across sizes and not the largest one.
+
+What a geo contributes is not its volume. Kerman, Wang and Vaver's Section 9.6
+shows that multiplying the control aggregate by a constant :math:`\kappa` leaves
+the posterior scale unchanged: :math:`v_\alpha` is invariant,
+:math:`v_\beta \to v_\beta / \kappa^2`,
+:math:`v_{\alpha\beta} \to v_{\alpha\beta} / \kappa` and
+:math:`\bar{x}_T \to \kappa \bar{x}_T`, so the three terms cancel, and
+:math:`s` does not move because :math:`\beta` absorbs the rescaling. Size on the
+control side is therefore free, and what a control geo buys is how its series
+covaries with the treatment aggregate. On the treatment side the same section
+scales :math:`s` by the factor the aggregate is scaled by. So moving a geo
+across changes the objective through the fit, not through where its volume
+lands.
 
 Where the control group search starts
 -------------------------------------
@@ -194,6 +258,15 @@ rest.
 
 Both alternatives select different markets from the reference, so a design
 chosen under either does not reproduce ``google/matched_markets``.
+
+What is not implemented
+-----------------------
+
+Au's Section 3.1 also defines the iROAS case: separate objectives :math:`f_r`
+and :math:`f_c` for a response metric and a cost metric, combined as
+:math:`f = \min(f_r, f_c)` as a maximin strategy, so a design must serve both.
+``TBRMMConfig`` takes a single ``outcome``, so there is no cost metric and no
+maximin here. A design chosen on revenue alone can be a poor one for spend.
 
 Example
 -------
@@ -233,6 +306,20 @@ Restricting where geos may go takes three 0/1 columns, constant within geo:
 A geo whose ``can_treat`` is 1 and whose other two columns are 0 is forced into
 every treatment group.
 
+Two further settings. ``objective="paper"`` climbs Au's :math:`f` in place of
+the reference's tuple, measured against each other above. ``post_col`` names a
+0/1 column marking periods to leave out of scoring, for a panel that already
+carries an experiment the pretest should not be fitted through.
+
+.. code-block:: python
+
+   TBRMMConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14,
+       objective="paper",
+       post_col="is_post",
+   )
+
 Verification
 ------------
 
@@ -252,8 +339,8 @@ produced it is
 References
 ----------
 
-Au, T. C. (2018). Robust Design and Analysis of Geo Experiments with Matched
-Markets. Google.
+Au, T. C. (2018). A Time-Based Regression Matched Markets Approach for Designing
+Geo Experiments. Technical report, Google LLC.
 
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
