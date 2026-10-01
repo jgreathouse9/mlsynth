@@ -236,7 +236,7 @@ of ``pblasso``. Three empirical panels, twenty seeds per arm, 5000 draws with a
 
 .. list-table::
    :header-rows: 1
-   :widths: 26 10 22 22 20
+   :widths: 24 10 20 20 22
 
    * - Panel
      - Prior
@@ -245,35 +245,55 @@ of ``pblasso``. Three empirical panels, twenty seeds per arm, 5000 draws with a
      - Difference
    * - German reunification
      - lasso
-     - :math:`-1491.7`
-     - :math:`-1495.9`
-     - :math:`0.3\%`
+     - :math:`-1532.7\ (62.2)`
+     - :math:`-1579.6\ (85.9)`
+     - :math:`-46.9,\ t=-1.98`
+   * - German reunification
+     - horseshoe
+     - :math:`-1532.6\ (103.2)`
+     - :math:`-1580.7\ (60.7)`
+     - :math:`-48.1,\ t=-1.80`
    * - Hong Kong, CEPA
      - lasso
-     - :math:`+0.0264`
-     - :math:`+0.0273`
-     - :math:`0.0009`
+     - :math:`+0.0271\ (0.0007)`
+     - :math:`+0.0272\ (0.0006)`
+     - :math:`+0.0002,\ t=+0.86`
    * - Hong Kong, CEPA
      - horseshoe
-     - :math:`+0.0265`
-     - :math:`+0.0271`
-     - :math:`0.0006`
+     - :math:`+0.0272\ (0.0007)`
+     - :math:`+0.0268\ (0.0006)`
+     - :math:`-0.0004,\ t=-1.80`
    * - Proposition 99
      - lasso
-     - :math:`-16.66`
-     - :math:`-17.51`
-     - :math:`-0.85 \pm 4.05`
+     - :math:`-16.66\ (6.14)`
+     - :math:`-17.51\ (6.52)`
+     - :math:`-0.85,\ t=-0.42`
    * - Proposition 99
      - horseshoe
-     - :math:`-15.95`
-     - :math:`-17.88`
-     - :math:`-1.93 \pm 3.16`
+     - :math:`-15.95\ (3.62)`
+     - :math:`-17.88\ (5.89)`
+     - :math:`-1.93,\ t=-1.25`
 
-The Proposition 99 rows carry a tolerance because the estimator has a standard
-deviation of about six on that panel under every implementation, against an
-effect near seventeen. The Welch intervals for the implementation difference are
-:math:`[-4.90, +3.21]` for the lasso and :math:`[-5.08, +1.23]` for the
-horseshoe; both contain zero. At three seeds the same four arms disagreed by as
+Parentheses are seed-to-seed standard deviations over the twenty runs, and the
+:math:`t` statistics are Welch tests of the implementation difference.
+
+Hong Kong and Proposition 99 agree. On Hong Kong the comparison can resolve a
+difference of a few ten-thousandths and finds none in the lasso arm; the
+horseshoe arm's :math:`-0.0004` is 1.5 percent of the effect. On Proposition 99
+both arms are well inside their own noise.
+
+German reunification does not fully agree. Both priors put mlsynth about 47 below
+the reference, which is three percent of the estimate, and the two arms land
+within one of each other despite different sampler internals. One marginal
+:math:`p` among six comparisons is unremarkable; the same sign and magnitude
+under two priors is less so. The offset is small against the estimator's own seed
+spread on that panel, it is not attributed to any step, and it is recorded here
+so that a later change to the ingestion or the design blocks has a number to
+move.
+
+Proposition 99 needs the largest tolerance because the estimator's standard
+deviation there is about six under every implementation, against an effect near
+seventeen. At three seeds the same four arms disagreed by as
 much as eight, and three of them moved by between 3.7 and 5.1 when the seed count
 rose to twenty, so a Proposition 99 figure from a single run carries no
 information. Twenty seeds is the floor for that panel.
