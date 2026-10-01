@@ -26,7 +26,7 @@ cp = pytest.importorskip("cvxpy")
 
 from mlsynth.utils.solvers import active_set
 from mlsynth.utils.solvers.accelerate import (
-    ACCEL_MIN_DONORS, fista_warm_start, simplex_project)
+    ACCEL_MIN_DONORS, SEED_KEEP, fista_warm_start, simplex_project)
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
@@ -231,8 +231,8 @@ def test_accelerated_matches_clarabel_value_for_value():
 
 
 def test_accelerator_faster_than_cold_on_large_J():
-    """Speed regression: the FISTA warm start makes the exact solve markedly
-    faster on a wide donor pool. Conservative 2x margin (measured ~13x at J=250).
+    """Speed regression: the seed makes the exact solve markedly faster on a wide
+    donor pool. Conservative 2x margin (measured 3x to 40x across shapes).
 
     The cold baseline is taken with ``accelerate=False``, since the solver now
     seeds itself: before, a plain ``solve_simplex_qp`` call *was* the cold path.
@@ -250,34 +250,41 @@ def test_accelerator_faster_than_cold_on_large_J():
 # --------------------------------------------------------------------------- #
 # 4. accelerator engagement gating
 # --------------------------------------------------------------------------- #
-def test_accelerator_engaged_for_large_J(monkeypatch):
+# The seed the solver computes for itself is ``priced_seed``. It keeps
+# ``SEED_KEEP`` columns, capped at ``m + 1``, and declines when the pool is no
+# wider than that, so a
+# pool below the budget takes the cold path. The gate is the budget and not the
+# panel's orientation, so a tall design with many donors is pruned too, which is
+# what the ``ACCEL_MIN_DONORS`` threshold used to keep it from.
+def test_seed_engaged_on_a_wide_pool(monkeypatch):
     calls = {"n": 0}
-    real = active_set.fista_warm_start
+    real = active_set.priced_seed
 
     def spy(B, A, **kw):
         calls["n"] += 1
         return real(B, A, **kw)
 
-    monkeypatch.setattr(active_set, "fista_warm_start", spy)
-    A, B = _factor_panel(ACCEL_MIN_DONORS + 20, 2 * (ACCEL_MIN_DONORS + 20))
+    monkeypatch.setattr(active_set, "priced_seed", spy)
+    A, B = _factor_panel(160, 20)                 # J = 160 against T0 = 20
     simplex_qp(B, A)
     assert calls["n"] == 1
 
 
-def test_accelerator_skipped_for_small_J(monkeypatch):
-    calls = {"n": 0}
-    monkeypatch.setattr(active_set, "fista_warm_start",
-                        lambda *a, **k: calls.__setitem__("n", calls["n"] + 1))
-    A, B = _factor_panel(max(2, ACCEL_MIN_DONORS - 30), 60)
-    simplex_qp(B, A)
-    assert calls["n"] == 0
+def test_seed_declines_a_pool_below_its_budget():
+    """It is called and returns ``None``, so the solve starts uniform."""
+    # Sized off the constant: a pool no wider than the budget has nothing to
+    # price away, whatever the budget currently is.
+    A, B = _factor_panel(SEED_KEEP, 100)
+    assert active_set.priced_seed(B, A) is None
+    np.testing.assert_array_equal(simplex_qp(B, A),
+                                  solve_simplex_qp(B, A, accelerate=False))
 
 
-def test_accelerator_skipped_when_caller_supplies_warm_start(monkeypatch):
+def test_seed_skipped_when_caller_supplies_warm_start(monkeypatch):
     calls = {"n": 0}
-    monkeypatch.setattr(active_set, "fista_warm_start",
+    monkeypatch.setattr(active_set, "priced_seed",
                         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1))
-    A, B = _factor_panel(ACCEL_MIN_DONORS + 20, 2 * (ACCEL_MIN_DONORS + 20))
+    A, B = _factor_panel(160, 20)
     J = B.shape[1]
     simplex_qp(B, A, warm_start=np.full(J, 1.0 / J))
     assert calls["n"] == 0
