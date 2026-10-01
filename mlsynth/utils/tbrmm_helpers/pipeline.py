@@ -127,7 +127,8 @@ def run(config: TBRMMConfig) -> TBRMMResults:
         control_units = [units[j] for j in o.control]
         effect, treated_path, control_path = (
             measure_design(y_matrix, post_matrix, units,
-                           treatment_units, control_units)
+                           treatment_units, control_units,
+                           level=config.level)
             if post_matrix is not None else (None, None, None))
         measured.append((treated_path, control_path))
         designs.append(TBRMMDesign(
@@ -153,12 +154,17 @@ def run(config: TBRMMConfig) -> TBRMMResults:
         # the report without rebuilding an axis the estimator already had.
         scoring_periods = np.unique(_scoring_window(config)[config.time].to_numpy())
         periods = np.concatenate([scoring_periods, np.asarray(post_wide.index)])
+        # The group posterior's bounds, rescaled to the mean per-period
+        # effect so report.inference and report.effects.att share one scale.
+        group = recommended.effect.posterior
         report = to_effect_result(
             compute_post_fit_tbrmm(
                 treated_path, control_path,
                 n_fit=int(y_matrix.shape[0]),
                 n_post=int(post_matrix.shape[0]),
-                n_treated_units=len(recommended.treatment_units)),
+                n_treated_units=len(recommended.treatment_units),
+                ci=(group.att_lower, group.att_upper),
+                inference_method="tbr_posterior"),
             time_periods=periods,
             intervention_time=np.asarray(post_wide.index)[0],
             method_name="TBRMM")

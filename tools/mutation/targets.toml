@@ -3066,3 +3066,33 @@ timeout = 300.0
   find = "    x_pre = pre[:, control_cols].mean(axis=1)"
   replace = "    x_pre = pre[:, treated_cols].mean(axis=1)"
   models = "a regressor built from the treated geos instead of the control group, which fits the pretest nearly perfectly and leaves no residual scale for the effect to show up against"
+
+[[target]]
+name = "tbrmm-posterior"
+module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_posterior.py mlsynth/tests/test_tbrmm_posterior_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "group-posterior-fitted-on-one-geo"
+  find = "        pre[:, treated_cols].sum(axis=1), x_pre,\n        post[:, treated_cols].sum(axis=1), x_post,"
+  replace = "        pre[:, treated_cols[0]], x_pre,\n        post[:, treated_cols[0]], x_post,"
+  models = "a group interval taken from the first treated geo's own fit, which is the shape of every mistake that assembles the group's uncertainty from its parts instead of from a regression spanning them; the point estimate is unaffected, so only an assertion on the scale catches it"
+
+  [[target.mutant]]
+  id = "att-bounds-divide-by-periods-not-geos-and-periods"
+  find = "        level=level, periods_per_unit=n_post * n_treated)"
+  replace = "        level=level, periods_per_unit=n_post)"
+  models = "an ATT interval divided by the post length alone, so it is N times too wide against an att that pools over geos as well -- the exact factor that separates TBR's per-period group effect from TBRMM's per-market mean, and the one a reader comparing the two would hit"
+
+  [[target.mutant]]
+  id = "direction-read-on-the-wrong-tail"
+  find = "    direction = p_above if loc_T >= 0.0 else 1.0 - p_above"
+  replace = "    direction = p_above"
+  models = "a probability of direction always read on the upper tail, so a negative effect as clear as it gets reports near zero confidence instead of near one -- a sign error that reads as a null result for exactly the sales declines a geo holdout is run to detect"
+
+  [[target.mutant]]
+  id = "interval-cut-on-the-normal-instead-of-the-t"
+  find = "    lo, hi = interval(loc, scale, fit.df, level)"
+  replace = "    from scipy.stats import norm as _n; _h = _n.ppf(0.5 * (1.0 + level)) * scale; lo, hi = loc - _h, loc + _h"
+  models = "bounds cut on the normal, not the t on n-2 degrees of freedom, which is anticonservative on every panel and worst on the short pretests a geo test is most likely to have"

@@ -13,6 +13,53 @@ from pydantic import BaseModel, ConfigDict, Field
 from ...config_models import DesignResult
 
 
+class TBRMMPosterior(BaseModel):
+    """TBR's posterior for a measured effect (Kerman, Wang and Vaver 2017).
+
+    Under the paper's flat prior on :math:`(\alpha, \beta, \log\sigma)` the
+    cumulative effect :math:`\Delta(T)` has a t posterior on :math:`n-2` degrees
+    of freedom whose scale is their eqn 6,
+
+    .. math::
+
+       T s \sqrt{v_a + 2\bar{x}_T v_{ab} + v_b \bar{x}_T^2 + 1/T},
+
+    which is algebraically the OLS prediction-error standard deviation, so the
+    interval reads as a credible interval or a prediction interval alike.
+
+    The cumulative effect is the primitive. The ATT is that divided by a known
+    constant, so ``att_lower`` and ``att_upper`` are ``total_lower`` and
+    ``total_upper`` over the same constant and ``df`` does not move. The constant
+    is the geo count times the period count for a group, and the period count
+    alone for a single market.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    scale: float = Field(
+        ..., description="Scale of the cumulative effect's t posterior: eqn 6. "
+                         "Its two terms grow as T^2 (the shared coefficient "
+                         "uncertainty) and T (the test window's own noise), so "
+                         "it is not recoverable by adding per-period variances.")
+    df: int = Field(
+        ..., description="Degrees of freedom: pretest periods minus two.")
+    level: float = Field(
+        ..., description="Two-sided interval level the bounds were cut at.")
+    total_lower: float = Field(
+        ..., description="Lower bound on the cumulative effect.")
+    total_upper: float = Field(
+        ..., description="Upper bound on the cumulative effect.")
+    att_lower: float = Field(
+        ..., description="Lower bound on the mean per-period effect, the "
+                         "cumulative bound rescaled.")
+    att_upper: float = Field(
+        ..., description="Upper bound on the mean per-period effect.")
+    prob_direction: float = Field(
+        ..., description="Posterior mass on the side of zero the point estimate "
+                         "sits on; 0.5 when the posterior straddles zero evenly "
+                         "and approaches 1 as the effect separates from it.")
+
+
 class TBRMMMarketEffect(BaseModel):
     """One treated geo's realized effect, from its own augmented DiD fit."""
 
@@ -34,6 +81,11 @@ class TBRMMMarketEffect(BaseModel):
         ..., description="Fitted control scale. Forcing it to 1 would reduce the "
                          "estimator to difference-in-differences, so its distance "
                          "from 1 is how much the augmentation did.")
+    posterior: Optional["TBRMMPosterior"] = Field(
+        default=None,
+        description="TBR's posterior for this geo's effect, fitted on its own "
+                    "pretest regression. Wider than the group's, which is the "
+                    "precision given up by reading one geo instead of the sum.")
     rmse_fit: float = Field(
         ..., description="Pretest residual RMSE of this geo's regression. The "
                          "precision cost of reading one geo instead of the group "
@@ -60,6 +112,13 @@ class TBRMMEffect(BaseModel):
                          "`market_effects` totals and not their average.")
     n_post: int = Field(..., description="Post-window length in periods.")
     n_treated: int = Field(..., description="Treated geos measured.")
+    posterior: Optional["TBRMMPosterior"] = Field(
+        default=None,
+        description="TBR's posterior for the group's effect, fitted on the "
+                    "summed treated series. Not assembled from the market "
+                    "posteriors: treated geos co-move, so their residuals are "
+                    "correlated and only a regression spanning them prices that "
+                    "correlation.")
     market_effects: List[TBRMMMarketEffect] = Field(
         default_factory=list,
         description="One entry per treated geo, in the design's treatment order.")

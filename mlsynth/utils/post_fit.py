@@ -30,6 +30,7 @@ touching this module: they just compose the same primitives.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import dataclasses
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
@@ -454,8 +455,10 @@ def compute_post_fit_marex(raw, panel, *, cov_scales: Optional[np.ndarray] = Non
 
 def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
                            n_post: int, n_treated_units: int,
+                           ci: Optional[Tuple[float, float]] = None,
+                           inference_method: Optional[str] = None,
                            ) -> SyntheticControlPostFit:
-    """Adapt a measured TBRMM design into a ``SyntheticControlPostFit``.
+    r"""Adapt a measured TBRMM design into a ``SyntheticControlPostFit``.
 
     A sibling of :func:`compute_post_fit_marex`, for the same reason: the
     generic builder takes two trajectories, and TBRMM has no weight vector to
@@ -478,6 +481,13 @@ def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
         Realized periods measured.
     n_treated_units : int
         Treated geos behind the average.
+    ci : tuple of float, optional
+        Lower and upper bound for the realized effect, in the units ``ate`` is
+        reported in. TBRMM supplies TBR's posterior interval rescaled to the
+        mean per-period effect, so ``report.inference`` and
+        ``report.effects.att`` sit on one scale.
+    inference_method : str, optional
+        What produced ``ci``, recorded on the result.
 
     Returns
     -------
@@ -485,11 +495,20 @@ def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
         The standard bundle, so ``report`` is built by the same adapter every
         other design estimator uses.
     """
-    return compute_post_fit(
+    pf = compute_post_fit(
         treated_series=np.asarray(treated_series, dtype=float),
         control_series=np.asarray(control_series, dtype=float),
         n_fit=n_fit, n_blank=0, n_post=n_post,
         n_treated_units=n_treated_units,
+    )
+    if ci is None and inference_method is None:
+        return pf
+    # The bundle is frozen, so the interval is attached by rebuilding it.
+    return dataclasses.replace(
+        pf,
+        ci_lower=pf.ci_lower if ci is None else float(ci[0]),
+        ci_upper=pf.ci_upper if ci is None else float(ci[1]),
+        inference_method=inference_method or pf.inference_method,
     )
 
 

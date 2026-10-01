@@ -373,6 +373,65 @@ window is not an effect of zero. And a geo's :math:`\hat\delta_2` is reported
 per market, because its distance from one is how much work the augmentation did
 for that geo.
 
+Uncertainty on a measured effect
+--------------------------------
+
+The point estimates above are least squares. Their uncertainty is TBR's, and the
+two fit together because under Kerman, Wang and Vaver's flat prior on
+:math:`(\alpha, \beta, \log\sigma)` they are the same regression. The
+cumulative effect over a :math:`T`-period window has a t posterior on
+:math:`n - 2` degrees of freedom with their equation 6's scale,
+
+.. math::
+
+   T s \sqrt{v_a + 2 \bar{x}_T v_{ab} + v_b \bar{x}_T^2 + 1/T},
+
+which is algebraically the prediction-error standard deviation of the same fit,
+so one interval serves as a credible interval and a prediction interval alike.
+The Bayesian reading buys the direct statement -- the posterior mass on one side
+of zero -- and not a different number.
+
+.. code-block:: python
+
+   q = result.recommended.effect.posterior
+   q.total_lower, q.total_upper      # on the cumulative effect
+   q.att_lower, q.att_upper          # the same bounds, rescaled
+   q.prob_direction                  # mass on the estimate's own side of zero
+
+   result.report.inference.ci_lower  # the ATT bounds again, on the contract
+
+   for m in result.recommended.effect.market_effects:
+       print(m.unit, m.posterior.total_lower, m.posterior.total_upper)
+
+Set the level with ``level``, which defaults to 0.9, the TBR paper's own
+reporting level.
+
+Three things about these intervals decide how they are read.
+
+The cumulative effect is the primitive and the mean effect is a rescaling of it
+by a known constant, so the bounds divide and the degrees of freedom do not move.
+The constant is the post length times the treated geo count, because
+``effect.att`` pools over geos as well as periods. Dividing the cumulative effect
+by the post length alone gives the group's per-period effect, which is
+:math:`N_{tr}` times larger. Both are defensible numbers; they are not the same
+number, and the factor between them is the treated geo count.
+
+The group's uncertainty is its own fit, not the markets' combined. Equation 6's
+two terms grow at different rates -- the coefficient uncertainty is shared across
+every post period and compounds as :math:`T^2`, while the test window's own noise
+accumulates as :math:`T` -- so a cumulative interval cannot be assembled by adding
+per-period variances. The same holds across geos: treated markets co-move, their
+residuals are correlated, and only a regression on the summed series prices that
+correlation. Combining the per-market scales in quadrature treats the markets as
+independent and misstates the group's precision.
+
+A market-level interval is wider than the group's, and that is the cost of the
+breakdown. Reading one geo against the control average is noisier than reading
+the sum, which is why TBR aggregates first. When a single market's interval
+spans zero while the group's does not, both statements are correct and the
+market one is the honest answer to a question about that market.
+
+
 Verification
 ------------
 

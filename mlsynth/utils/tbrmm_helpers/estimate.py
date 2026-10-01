@@ -34,8 +34,11 @@ from typing import Any, List, Sequence, Tuple
 
 import numpy as np
 
+from scipy import stats
+
 from ...exceptions import MlsynthEstimationError
-from .structures import TBRMMEffect, TBRMMMarketEffect
+from ..tbr_helpers.posterior import cumulative_posterior, fit_pretest, interval
+from .structures import TBRMMEffect, TBRMMMarketEffect, TBRMMPosterior
 
 
 def _fit_adid(y_pre: np.ndarray, x_pre: np.ndarray) -> Tuple[float, float, float]:
@@ -70,12 +73,66 @@ def _fit_adid(y_pre: np.ndarray, x_pre: np.ndarray) -> Tuple[float, float, float
     return float(delta[0]), float(delta[1]), float(np.sqrt(np.mean(resid ** 2)))
 
 
+def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
+               x_post: np.ndarray, *, level: float,
+               periods_per_unit: int) -> TBRMMPosterior:
+    """TBR's posterior for one series' cumulative effect, and its rescaling.
+
+    The fit is Kerman, Wang and Vaver's eqn 1 on the pretest and the posterior
+    is their eqns 4 and 6 at the final horizon. The same least squares the point
+    estimate came from, under a flat prior, which is why the two agree and why
+    nothing here refits what :func:`measure_design` already computed by hand --
+    it calls the paper's own code.
+
+    Parameters
+    ----------
+    y_pre, x_pre : np.ndarray
+        The series and the control average over the pretest.
+    y_post, x_post : np.ndarray
+        The same over the realized window.
+    level : float
+        Two-sided interval level.
+    periods_per_unit : int
+        What the cumulative effect is divided by to reach the reported mean
+        effect: the post length for one geo, and the post length times the geo
+        count for a group.
+
+    Returns
+    -------
+    TBRMMPosterior
+    """
+    fit = fit_pretest(np.asarray(y_pre, dtype=float), np.asarray(x_pre, dtype=float))
+    loc, scale = cumulative_posterior(fit, np.asarray(y_post, dtype=float),
+                                      np.asarray(x_post, dtype=float))
+    lo, hi = interval(loc, scale, fit.df, level)
+    loc_T, scale_T = float(loc[-1]), float(scale[-1])
+
+    # The mass on the side of zero the estimate sits on. A zero scale is the
+    # degenerate fit the paper's section 3.4 describes, where the counterfactual
+    # is certain; the estimate is then on its own side with probability one.
+    if scale_T > 0.0:
+        p_above = float(stats.t.sf((0.0 - loc_T) / scale_T, fit.df))
+    else:  # pragma: no cover - requires a pretest with no residual variation
+        p_above = 1.0 if loc_T > 0.0 else 0.0
+    direction = p_above if loc_T >= 0.0 else 1.0 - p_above
+
+    return TBRMMPosterior(
+        scale=scale_T, df=int(fit.df), level=float(level),
+        total_lower=float(lo[-1]), total_upper=float(hi[-1]),
+        att_lower=float(lo[-1]) / periods_per_unit,
+        att_upper=float(hi[-1]) / periods_per_unit,
+        prob_direction=float(direction),
+    )
+
+
 def measure_design(
     pre: np.ndarray,
     post: np.ndarray,
     units: Sequence[Any],
     treatment_units: Sequence[Any],
     control_units: Sequence[Any],
+    *,
+    level: float = 0.9,
 ) -> Tuple[TBRMMEffect, np.ndarray, np.ndarray]:
     """Read one design on the realized post window, market by market.
 
@@ -132,6 +189,8 @@ def measure_design(
             total_effect=float(np.sum(gap_post)),
             delta1=d1,
             delta2=d2,
+            posterior=_posterior(pre[:, col], x_pre, post[:, col], x_post,
+                                 level=level, periods_per_unit=int(post.shape[0])),
             rmse_fit=rmse,
         ))
         observed_paths.append(np.concatenate([pre[:, col], post[:, col]]))
@@ -143,7 +202,18 @@ def measure_design(
 
     pooled = float(atts.mean())
     pooled_baseline = float(np.mean(control_series[pre.shape[0]:]))
+    # The group's posterior is its own fit, on the summed treated series.
+    # Its point estimate equals the sum of the markets' because least squares is
+    # linear in the outcome; its scale does not, because the geos' residuals are
+    # correlated and only this regression spans them.
+    n_treated, n_post = len(market_effects), int(post.shape[0])
+    group_posterior = _posterior(
+        pre[:, treated_cols].sum(axis=1), x_pre,
+        post[:, treated_cols].sum(axis=1), x_post,
+        level=level, periods_per_unit=n_post * n_treated)
+
     effect = TBRMMEffect(
+        posterior=group_posterior,
         att=pooled,
         att_percent=(100.0 * pooled / pooled_baseline
                      if abs(pooled_baseline) > 1e-12 else None),
