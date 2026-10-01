@@ -25,8 +25,8 @@ best of many estimates from one pretest, so read it as a selected maximum.
 
 References
 ----------
-Au, T. C. (2018). Robust Design and Analysis of Geo Experiments with Matched
-Markets. Google.
+Au, T. C. (2018). A Time-Based Regression Matched Markets Approach for Designing
+Geo Experiments. Technical report, Google LLC.
 
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
@@ -59,8 +59,9 @@ class TBRMM:
     TBRMMResults
         A :class:`~mlsynth.config_models.DesignResult`. ``designs`` holds one
         recommended partition per treatment size and ``recommended`` the best of
-        them across sizes. ``report`` is empty until the experiment runs and TBR
-        analyses it.
+        them across sizes. ``report`` is empty unless ``post_col`` marks realized
+        periods; given those, it carries the recommended design measured on them
+        and each design's own effect sits on ``designs[i].effect``.
 
     Examples
     --------
