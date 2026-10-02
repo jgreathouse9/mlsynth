@@ -127,6 +127,89 @@ class BVSSInference:
     counterfactual_upper: np.ndarray
 
 
+@dataclass(frozen=True)
+class BVSSSimplexDiagnostics:
+    """How far the data let the weights drift off the simplex.
+
+    Equation (2) of Xu and Zhou (2025) gives the actual weights
+
+    .. math::
+
+        \\mathbf{w}_\\gamma \\mid \\gamma, \\boldsymbol{\\mu}_\\gamma, \\tau, \\phi
+        \\sim N(\\boldsymbol{\\mu}_\\gamma, (\\tau / \\phi) I),
+
+    so they are centred on a point of the simplex and scattered around it with
+    standard deviation :math:`\\sqrt{\\tau / \\phi}` per coordinate. Section 2.1
+    reads that scatter as the data's verdict on the constraint: a posterior for
+    :math:`\\tau` concentrating near zero says the simplex is appropriate, and
+    one staying away from zero says it is violated.
+
+    Every field is analytic in the draws of :math:`\\tau`, :math:`\\phi` and
+    :math:`|\\gamma|`, so none of it depends on how the counterfactual is built
+    -- which matters, because that construction is an open question recorded in
+    ``docs/bvss.rst``.
+
+    Attributes
+    ----------
+    tau_mean, tau_median, tau_q025, tau_q975 : float
+        Posterior summaries of :math:`\\tau`.
+    deviation_scale : float
+        :math:`E[\\sqrt{\\tau / \\phi}]`, the per-coordinate standard deviation
+        of a weight about its simplex centre, in weight units.
+    weight_sum_sd : float
+        :math:`E[\\sqrt{|\\gamma| \\tau / \\phi}]`. The coordinates are
+        independent given the parameters, so the variances add and the sum of
+        the weights departs from one on this scale.
+    relative_deviation : float
+        ``deviation_scale`` against a typical weight :math:`1 / |\\gamma|`. A
+        scatter of 0.05 means one thing across three donors and another across
+        thirty, and this is the comparable number.
+    model_size_mean : float
+        Posterior mean :math:`|\\gamma|`, carried so the two scales above can
+        be read without a second pass over the draws.
+    """
+
+    tau_mean: float
+    tau_median: float
+    tau_q025: float
+    tau_q975: float
+    deviation_scale: float
+    weight_sum_sd: float
+    relative_deviation: float
+    model_size_mean: float
+
+
+def simplex_diagnostics(posterior: "BVSSPosterior") -> BVSSSimplexDiagnostics:
+    """Summarise the posterior's verdict on the simplex constraint.
+
+    Parameters
+    ----------
+    posterior : BVSSPosterior
+        Post burn-in draws of ``mu``, ``phi`` and ``tau``.
+
+    Returns
+    -------
+    BVSSSimplexDiagnostics
+    """
+    tau = np.asarray(posterior.tau, dtype=float)
+    phi = np.asarray(posterior.phi, dtype=float)
+    size = (np.asarray(posterior.mu) != 0).sum(axis=0).astype(float)
+
+    ratio = tau / phi
+    deviation = float(np.sqrt(ratio).mean())
+    mean_size = float(size.mean())
+    return BVSSSimplexDiagnostics(
+        tau_mean=float(tau.mean()),
+        tau_median=float(np.median(tau)),
+        tau_q025=float(np.percentile(tau, 2.5)),
+        tau_q975=float(np.percentile(tau, 97.5)),
+        deviation_scale=deviation,
+        weight_sum_sd=float(np.sqrt(size * ratio).mean()),
+        relative_deviation=deviation * mean_size,
+        model_size_mean=mean_size,
+    )
+
+
 class BVSSResults(BaseEstimatorResults):
     """Public ``BVSS.fit()`` return container.
 
@@ -152,6 +235,8 @@ class BVSSResults(BaseEstimatorResults):
         frequencies over the post burn-in samples.
     weight_means : dict
         ``donor_label -> E[\\mu_i | y]`` posterior mean weights.
+    simplex : BVSSSimplexDiagnostics
+        What the posterior says about the simplex constraint the model softens.
     """
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
@@ -161,6 +246,7 @@ class BVSSResults(BaseEstimatorResults):
     inference_detail: BVSSInference
     inclusion_probs: dict
     weight_means: dict
+    simplex: BVSSSimplexDiagnostics
 
 
 # Resolve forward references (module uses ``from __future__ import annotations``).
