@@ -44,6 +44,7 @@ from ..utils.bvss_helpers.setup import prepare_bvss_inputs
 from ..utils.bvss_helpers.structures import (
     BVSSPosterior,
     BVSSResults,
+    simplex_diagnostics,
 )
 from ..utils.datautils import balance
 
@@ -215,6 +216,7 @@ class BVSS:
             inference_detail=inference,
             inclusion_probs=inclusion_probs,
             weight_means=weight_means,
+            simplex=simplex_diagnostics(posterior),
             effects=EffectsResults(
                 att=None if np.isnan(inference.att_mean) else float(inference.att_mean),
                 att_std_err=att_se),

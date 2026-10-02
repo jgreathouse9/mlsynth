@@ -324,6 +324,15 @@ the ATT estimate. The authors' script implements Remark 2. :mod:`mlsynth` uses
 :math:`\boldsymbol{\mu}` itself, which is neither, and
 :math:`\mathbf{w} \to \boldsymbol{\mu}` only as :math:`\nu \downarrow 0`.
 
+How much that costs is measured. Evaluating both constructions on the same
+draws -- so the comparison carries none of the sampler's Monte-Carlo noise --
+the posterior mean ATT moves by 0.48 % of itself and the credible interval's
+width by a factor of 0.999, over five seeds on the watch panel at 400
+iterations. The per-seed width ratio ranges from 0.972 to 1.023, which is
+smaller than the seed-to-seed spread of the width itself. Switching to Eq. (8)
+would re-derive every pinned number on this page and in the benchmark for a
+change in the reported answer of under half a per cent.
+
 2. :math:`\phi` Gibbs draw. Plug the updated :math:`\mu`
    into the closed-form Gamma conditional above.
 
@@ -416,8 +425,10 @@ the classical SCM:
 
 A handy diagnostic is the *posterior of* :math:`\nu`: small
 posterior mass near zero is a sign the data agrees with the simplex
-constraint, while bulk away from zero is evidence to relax it. BVS-SS
-exposes ``results.posterior.tau`` for direct inspection.
+constraint, while bulk away from zero is evidence to relax it.
+``results.simplex`` summarises it and ``results.posterior.tau`` holds the raw
+draws; `Reading the simplex verdict`_ below says what the summary contains and
+how to read it.
 
 Assumptions (Xu & Zhou 2025)
 ----------------------------
@@ -543,13 +554,21 @@ When the assumptions bind: practical diagnostics
 
     *Plausibly violated when* the treated unit is structurally
     outside the donor convex hull (Hong Kong handover; very
-    extreme growth unit). *Diagnostic*: the posterior of
-    :math:`\nu` is your friend here -- if
-    ``results.posterior.tau.mean()`` is materially above zero,
-    the data is telling you the simplex does not hold and you
-    should reach for the unconstrained-spike-and-slab limit
-    (Kim et al. 2020) or for an estimator that explicitly
-    handles outside-hull treated units (:doc:`iscm`).
+    extreme growth unit). *Diagnostic*:
+    ``results.simplex.tau_mean`` against its prior mean
+    :math:`a_1 / a_2`, on a long chain. Measured over three
+    donor orderings in `Reading the simplex verdict`_ below,
+    that comparison separates the paper's two panels by a factor
+    of six -- the luxury-watch panel it reports as supporting
+    the constraint against the Hong Kong handover panel it uses
+    to motivate relaxing one -- where
+    ``results.simplex.relative_deviation`` does not separate
+    them at all. Read the latter for how large the departure is
+    in weight units, not for which panel departs more. Well
+    above the prior mean, reach for the
+    unconstrained-spike-and-slab limit (Kim et al. 2020) or for
+    an estimator that explicitly handles outside-hull treated
+    units (:doc:`iscm`).
 
 (d) Long-enough pre-period (A5). Selection consistency
     requires :math:`T_0 \gtrsim \ell^\ast \log N`. With 20
@@ -590,18 +609,223 @@ When the assumptions bind: practical diagnostics
     simplex; bulk above the prior mean means the data prefers
     the relaxation.
 
-    *Practical rule of thumb*: compare ``results.posterior.tau``
-    against the prior mean :math:`a_1 / a_2`. If the posterior
-    is concentrated well below the prior mean, the simplex is
-    supported. If the posterior sits at or above the prior mean
-    -- the China-watches case in the empirical application
-    below has posterior mean :math:`\nu \approx 0.03` against
-    a prior mean of :math:`0.1`, supporting the simplex -- the
-    data is consistent with the constraint. The Hong Kong
-    handover case (Hsiao 2012, motivation in Section 1.1 of the
-    paper) shows the opposite: posterior :math:`\nu` mass
-    elevated above the prior, telling the user to relax the
-    simplex.
+    *Practical rule of thumb*: compare ``results.simplex.tau_mean``
+    against the prior mean :math:`a_1 / a_2`. A posterior
+    concentrated below the prior mean says the data did not ask
+    for a relaxation; one sitting above it says the data pulled
+    :math:`\nu` up to buy room off the simplex. Measured at one
+    setting on both of the paper's own panels, the China-watches
+    application lands at the prior mean and the Hong Kong
+    handover case (Hsiao 2012, the motivation in Section 1.1) at
+    seven times it -- the ordering the paper's argument predicts.
+
+    Read ``results.simplex.tau_q025`` and ``tau_q975`` alongside
+    it. On both panels the 95 % credible set runs from the
+    sampler's lower bound to many times the prior mean, so the
+    posterior mean summarises a diffuse posterior, and the level
+    of :math:`\nu` moves with the chain length and
+    :math:`\theta` where the ordering between panels does not.
+    `Reading the simplex verdict`_ has the numbers.
+
+Reading the simplex verdict
+---------------------------
+
+``results.simplex`` is the posterior's answer to the question the paper sets
+out to ask. Eight numbers, each analytic in the draws of :math:`\nu`,
+:math:`\phi` and :math:`|\gamma|`, so none of them depends on how the
+counterfactual is built -- the construction that is still open above.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Field
+     - What it is
+   * - ``tau_mean``, ``tau_median``, ``tau_q025``, ``tau_q975``
+     - Posterior summaries of the soft-constraint variance. The fields keep the
+       paper's spelling :math:`\tau`; this page writes the same quantity
+       :math:`\nu`, because :math:`\tau` is the treatment effect.
+   * - ``deviation_scale``
+     - :math:`E[\sqrt{\nu / \phi}]`, the standard deviation of a single
+       weight about its simplex centre, in weight units.
+   * - ``weight_sum_sd``
+     - :math:`E[\sqrt{|\gamma| \nu / \phi}]`. The coordinates are
+       independent given the parameters, so their variances add and
+       :math:`\sum_j w_j` departs from one on this scale.
+   * - ``relative_deviation``
+     - ``deviation_scale`` against a typical weight :math:`1 / |\gamma|`.
+   * - ``model_size_mean``
+     - Posterior mean :math:`|\gamma|`.
+
+Reading more than :math:`\nu` itself matters because :math:`\nu` is not in
+weight units, and the comparison the paper makes -- :math:`\nu` against its
+prior mean :math:`a_1 / a_2` -- answers whether the data asked for a relaxation,
+not how large the relaxation it got was. :math:`\sqrt{\nu / \phi}` is in
+weight units, and a scatter of 0.05 means one thing spread over three donors
+and another over thirty, which is what ``relative_deviation`` corrects for.
+The two readings can point in different directions on the same panel, and when
+they do, both are true: the data can decline to demand a large relaxation while
+the fit still uses the room the prior gives it. California's cigarette panel
+below is such a case, with :math:`\nu` at 0.033 against a prior mean of 0.1
+and a scatter of 38 % of a typical weight.
+
+Two panels, measured
+^^^^^^^^^^^^^^^^^^^^
+
+Section 1.1 of the paper motivates relaxing the simplex with Hsiao's (2012)
+Hong Kong handover panel, where the treated unit's growth sits outside any
+convex combination of its donors; Section 6.2's application is the luxury-watch
+panel this page replicates. Both ship in :file:`basedata/`, so both can be read
+at identical settings -- 400 iterations, 200 discarded, :math:`\theta = 0.25`,
+averaged over three seeds, with :math:`\nu`'s prior mean at
+:math:`a_1 / a_2 = 0.1`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 12 20 14 12 12
+
+   * - Panel
+     - :math:`\nu`
+     - 95 % set for :math:`\nu`
+     - :math:`\sqrt{\nu/\phi}`
+     - relative
+     - :math:`|\gamma|`
+   * - Luxury watches (:math:`T_0 = 35`, :math:`N = 87`)
+     - 0.099
+     - (0.000, 0.973)
+     - 0.037
+     - 14 %
+     - 3.82
+   * - Hong Kong (:math:`T_0 = 44`, :math:`N = 24`)
+     - 0.700
+     - (0.000, 5.936)
+     - 0.070
+     - 23 %
+     - 3.07
+
+In that run the ordering the paper's argument predicts holds on both readings:
+Hong Kong puts :math:`\nu` an order of magnitude above the watch panel, and
+puts its scatter off the simplex at 23 % of a typical weight against 14 %. Only
+one of the two survives repetition.
+
+The levels in that table are not reproducible, and the two readings do not
+survive equally. Nothing in the model depends on the order the donors arrive
+in, but the pair sweep visits :math:`(i, j)` in index order, so the chain does.
+Over three donor orderings of the watch panel at these settings, :math:`\nu`
+comes out 0.099, 0.040 and 0.105 and ``relative_deviation`` 14 %, 5 % and 20 %;
+Hong Kong gives 0.700 and 0.626, and 23 % and 17 %. The Path A table below, at
+1000 iterations and :math:`\theta = 0.2`, puts the watch panel's :math:`\nu`
+at 0.030.
+
+So :math:`\nu` separates these two panels and :math:`\sqrt{\nu/\phi}`
+against a typical weight does not. The :math:`\nu` ranges do not come close to
+touching, a factor of six apart at worst, while the ``relative_deviation``
+ranges overlap -- the watch panel's widest run reads above Hong Kong's
+narrowest, though Hong Kong is higher in each ordering where both were run.
+Use :math:`\nu` against its prior mean to compare panels, on a chain long
+enough to have settled, and use ``relative_deviation`` to say how large the
+departure is in weight units for the fit in front of you.
+
+Neither credible set is tight. Both run from the sampler's lower bound
+:math:`\nu_{\min}` up to about ten times the prior mean on the watch panel
+and sixty times it on Hong Kong, so the posterior mean summarises a diffuse
+posterior, which is why the quantiles are fields and not something a reader
+has to go and compute. A diffuse posterior for :math:`\nu` and a summary that
+moves with the chain are the same fact seen twice, and it is the sensitivity
+the open model-size item above describes.
+
+Under Eq. (2) the weights are :math:`\boldsymbol{\mu} + N(0, (\nu/\phi) I)`,
+so the scatter can be read as a probability: about a fifth of draws on each
+panel carry at least one negative weight. Like ``relative_deviation``, that
+share does not tell the two panels apart, but in absolute terms it says the
+non-negativity half of Abadie's restriction is not approximately in force on
+either.
+
+Level, shape, and the intercept
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Abadie's canonical estimator imposes three restrictions: no intercept,
+:math:`\sum_j w_j = 1`, and :math:`w_j \ge 0`. BVS-SS softens the second and
+third with :math:`\nu` and leaves the first at the opposite extreme. The
+demeaning in :func:`~mlsynth.utils.bvss_helpers.setup.prepare_bvss_inputs` is
+an improper uniform prior on an intercept, marginalized analytically: fitting
+:math:`(\mathbf{y}_1 - \bar y_{1,\mathrm{pre}}) =
+\widetilde{\mathbf{Y}}_0 \mathbf{w}` is fitting :math:`\mathbf{y}_1 =
+(\bar y_{1,\mathrm{pre}} - \bar{\mathbf{Y}}_0^\top \mathbf{w}) +
+\mathbf{Y}_0 \mathbf{w}`, so the level is free and unpenalised.
+
+One consequence is that the verdict does not depend on the treated unit's level
+at all. Adding a constant to :math:`\mathbf{y}_1` moves the intercept and
+leaves :math:`\nu`, :math:`\phi` and :math:`|\gamma|` identical to ten
+figures, which :file:`mlsynth/tests/test_bvss_simplex_diagnostics.py` asserts.
+
+Dropping the demeaning instead forces :math:`\alpha = 0` and changes nothing
+else, which asks which of the two relaxations a panel is leaning on. Three
+panels from :file:`basedata/`, free arm then forced-to-zero arm, at the
+settings above:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 12 18 20 16
+
+   * - Panel
+     - :math:`|\bar y_1| / s_{y_1}`
+     - :math:`\sqrt{\nu/\phi}`
+     - relative
+     - :math:`|\gamma|`
+   * - Luxury watches (monthly growth)
+     - 0.09
+     - 0.0203 / 0.0191
+     - 5.4 % / 5.9 %
+     - 2.51 / 2.45
+   * - Hong Kong (quarterly growth)
+     - 0.75
+     - 0.0605 / 0.0599
+     - 17.3 % / 16.7 %
+     - 2.78 / 2.74
+   * - California cigarette sales (levels)
+     - 10.22
+     - 0.0984 / 0.1983
+     - 37.8 % / 99.4 %
+     - 3.60 / 4.96
+
+Both arms of each row share a donor ordering and the same three seeds, so the
+ordering sensitivity above cancels within a row and the comparison is paired --
+which is why this table reports both arms and the one above reports a level
+with a caveat.
+
+The answer depends on the outcome, and the first column is what it depends on.
+Where the treated series' mean is small next to its own variation -- both of
+the paper's panels, which are growth rates -- forcing
+:math:`\alpha = 0` costs nothing and the simplex carries the fit alone. Where
+the mean is ten times the variation, as in cigarette packs per capita, the same
+ablation doubles the scatter off the simplex, takes it to 99 % of a typical
+weight, and recruits half again as many donors.
+
+The reason is leverage, not feasibility. With :math:`\sum_j w_j = 1` and
+:math:`w_j \ge 0` the fitted pre-treatment mean is a convex combination of the
+donors' pre-treatment means, so the treated mean is attainable whenever it lies
+between the smallest and largest of them -- and on all three panels it does, at
+0.61, 0.32 and 0.25 of the way through the range. Attainable is not free. When
+the mean is large next to the variation, nearly all of :math:`\mathbf{w}`'s
+freedom goes into hitting the level, and the posterior buys back the freedom to
+fit the shape by inflating :math:`\nu`. When the mean is near zero, perturbing
+the weights barely moves the level, so sum-to-one costs nothing to satisfy.
+
+Two things follow for a reader. A levels outcome -- sales, revenue, packs,
+visits -- is the regime where the intercept matters most, and it is the regime
+neither of the paper's applications occupies, so take the paper's silence on
+the intercept as untested there and not as evidence. And on such a panel a
+large ``relative_deviation`` may be reporting a level the weights are
+struggling to reach, not a mixture whose shape is wrong; demeaned data, which
+is what :mod:`mlsynth` feeds the sampler, separates the two.
+
+Hong Kong closes the loop in the other direction. Section 1.1 attributes its
+need for a relaxation to the treated unit's level exceeding any convex
+combination of its donors. Its level is comfortably inside that range, its
+ablation is null, and its :math:`\nu` still runs an order of magnitude above
+the watch panel's. What the posterior buys room for there is the shape of the
+mixture, not its offset.
 
 When to use BVSS -- and when not to
 -----------------------------------
@@ -731,7 +955,9 @@ Helper Modules
    Bayesian detail -- the MCMC posterior, per-draw ATT samples, and pointwise
    counterfactual bands -- is on ``res.inference_detail`` / ``res.posterior``
    (the bare ``res.inference`` slot is reserved for the standardized ATT-level
-   :class:`~mlsynth.config_models.InferenceResults`).
+   :class:`~mlsynth.config_models.InferenceResults`). ``res.simplex`` carries
+   the posterior's verdict on the soft simplex; see `Reading the simplex
+   verdict`_.
 
 .. automodule:: mlsynth.utils.bvss_helpers.structures
    :members:
@@ -782,12 +1008,18 @@ the BVSS API is just five fields plus a display toggle:
        print(f"  {donor:25s}: weight = {w_bar:.4f}, P(included) = {p_in:.3f}")
 
    # ------------------------------------------------------------------
-   # Soft-simplex diagnostic: posterior of tau
+   # Soft-simplex diagnostic: what the posterior says about the constraint
    # ------------------------------------------------------------------
-   print(f"\nPosterior mean of tau:   {results.posterior.tau.mean():.4f}")
-   print(f"Posterior mean of phi:   {results.posterior.phi.mean():.4f}")
-   # Small tau values => simplex is well-supported by the data.
-   # Large tau values => the data prefers a relaxation.
+   s = results.simplex
+   print(f"\nposterior mean of tau:        {s.tau_mean:.4f}")
+   print(f"  95% credible set:           [{s.tau_q025:.4f}, {s.tau_q975:.4f}]")
+   print(f"off-simplex sd per weight:    {s.deviation_scale:.4f}")
+   print(f"  against a typical weight:   {s.relative_deviation:.1%}")
+   print(f"sd of sum(w) about one:       {s.weight_sum_sd:.4f}")
+   print(f"posterior mean model size:    {s.model_size_mean:.2f}")
+   print(f"posterior mean of phi:        {results.posterior.phi.mean():.4f}")
+   # A small relative_deviation means the hard simplex would have cost little;
+   # a large one means the fit left the simplex to reach the treated series.
 
    # ------------------------------------------------------------------
    # Counterfactual path and per-period bands (in original outcome units)
@@ -930,6 +1162,16 @@ seeded posterior-mean ATT then agrees within Monte-Carlo error
 streams), with a negative credible set and a sparse selected model on both
 sides. The live-captured reference is under
 ``benchmarks/reference/bvss_watches/``.
+
+Three properties of that credible set are asserted: that it brackets the point
+estimate, that it is entirely negative as the R's is, and that its width is
+within an order of magnitude of the R's. The first two are exact. The third
+carries a deliberately wide tolerance, because the width is a 95 % quantile of
+25 retained draws and ranges over 0.48 to 1.07 times the R's across eight seeds
+at the benchmark's chain length -- 0.67 to 1.08 even at 400 iterations. A
+tolerance loose enough never to flake asserts nothing about agreement, so the
+ratio is labelled in the case as a guard against order-of-magnitude breakage
+and the two shape properties carry the content.
 
 Dependencies
 ------------
