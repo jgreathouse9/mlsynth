@@ -246,3 +246,80 @@ def test_every_market_gets_the_correction_too():
     for m in res.recommended.effect.market_effects:
         assert m.posterior.variance == "hac"
         assert m.posterior.bandwidth is not None
+
+
+# ---------------------------------------------------------------------------
+# The construction, pinned against implementations written elsewhere
+# ---------------------------------------------------------------------------
+
+def test_the_coefficient_covariance_matches_statsmodels_hac():
+    """An independent Newey-West: statsmodels' HAC with the same bandwidth.
+
+    Every other test here asserts a direction or a range, which a correction
+    applied at half strength satisfies. This pins the value.
+    """
+    sm = pytest.importorskip("statsmodels.api")
+    from mlsynth.utils.tbrmm_helpers.estimate import _newey_west
+
+    rng = np.random.default_rng(4)
+    n, lag = 60, 4
+    x = 100 + np.cumsum(rng.normal(size=n))
+    y = 3.0 + 1.4 * x + rng.normal(0, 2.0, n)
+    X = np.column_stack([np.ones(n), x])
+
+    fit = sm.OLS(y, X).fit(cov_type="HAC",
+                           cov_kwds={"maxlags": lag, "use_correction": True})
+    _, meat = _newey_west(y - X @ fit.params, X, lag)
+    V = np.linalg.inv(X.T @ X)
+
+    assert V @ meat @ V == pytest.approx(np.asarray(fit.cov_params()), rel=1e-9)
+
+
+def test_the_long_run_variance_matches_a_vectorised_bartlett_sum():
+    """gamma_0 + 2 sum_j (1 - j/(l+1)) gamma_j, built with np.correlate.
+
+    A different code path from the accumulating loop, so it pins the factor of
+    two on the cross-lags and the inclusive upper limit of the sum.
+    """
+    from mlsynth.utils.tbrmm_helpers.estimate import _newey_west
+
+    rng = np.random.default_rng(9)
+    n, lag = 80, 5
+    u = np.zeros(n)
+    innov = rng.normal(0, 1.5, n)
+    for t in range(1, n):
+        u[t] = 0.6 * u[t - 1] + innov[t]
+    u -= u.mean()
+    X = np.column_stack([np.ones(n), np.arange(n, dtype=float)])
+
+    gamma = np.correlate(u, u, "full")[n - 1:] / n
+    expected = gamma[0] + 2.0 * sum((1.0 - j / (lag + 1.0)) * gamma[j]
+                                    for j in range(1, lag + 1))
+    expected *= n / (n - 2.0)
+
+    lrv, _ = _newey_west(u, X, lag)
+    assert lrv == pytest.approx(expected, rel=1e-10)
+
+
+def test_the_scale_is_the_two_terms_assembled():
+    """Proposition 3.4's scale, reassembled from its parts independently."""
+    from mlsynth.utils.tbrmm_helpers.estimate import _hac_scale, _newey_west
+
+    rng = np.random.default_rng(12)
+    n_pre, n_post, lag = 60, 8, 4
+    x = 100 + np.cumsum(rng.normal(size=n_pre + n_post))
+    y = 5.0 + 1.2 * x + rng.normal(0, 2.0, n_pre + n_post)
+    x_pre, x_post, y_pre = x[:n_pre], x[n_pre:], y[:n_pre]
+
+    X = np.column_stack([np.ones(n_pre), x_pre])
+    u = y_pre - X @ np.linalg.lstsq(X, y_pre, rcond=None)[0]
+    lrv, meat = _newey_west(u, X, lag)
+    V = np.linalg.pinv(X.T @ X)
+    c = np.array([float(n_post), float(x_post.sum())])
+    expected = np.sqrt(float(c @ (V @ meat @ V) @ c) + n_post * lrv)
+
+    # The tolerance is numerical, not slack: a regressor near 100 makes X'X
+    # ill-conditioned enough that pinv and inv part company around 1e-10, which
+    # is four orders below the smallest effect any mutant in this target has.
+    assert _hac_scale(y_pre, x_pre, x_post, n_post, lag) == pytest.approx(
+        expected, rel=1e-8)
