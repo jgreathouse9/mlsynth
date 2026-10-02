@@ -128,7 +128,8 @@ def run(config: TBRMMConfig) -> TBRMMResults:
         effect, treated_path, control_path = (
             measure_design(y_matrix, post_matrix, units,
                            treatment_units, control_units,
-                           level=config.level)
+                           level=config.level, variance=config.variance,
+                           hac_bandwidth=config.hac_bandwidth)
             if post_matrix is not None else (None, None, None))
         measured.append((treated_path, control_path))
         designs.append(TBRMMDesign(
@@ -164,7 +165,9 @@ def run(config: TBRMMConfig) -> TBRMMResults:
                 n_post=int(post_matrix.shape[0]),
                 n_treated_units=len(recommended.treatment_units),
                 ci=(group.att_lower, group.att_upper),
-                inference_method="tbr_posterior"),
+                inference_method=("tbr_posterior_hac"
+                                  if config.variance == "hac"
+                                  else "tbr_posterior")),
             time_periods=periods,
             intervention_time=np.asarray(post_wide.index)[0],
             method_name="TBRMM")

@@ -470,6 +470,87 @@ lower bound on the uncertainty when the same panel chose the design and fitted
 the counterfactual. Where the decision turns on the width, hold periods back
 from the search by hand and fit on those.
 
+When the residuals are serially correlated
+------------------------------------------
+
+Equation 6's second term is :math:`T\sigma^2`, which prices the test window's
+errors as independent. Weekly and daily sales are not. When the pretest
+residuals carry serial correlation :math:`\rho_j`, the variance of their sum
+over :math:`T` periods is
+
+.. math::
+
+   T\sigma^2 \Big( 1 + 2\sum_{j\ge 1} (1 - j/T)\, \rho_j \Big),
+
+so an interval built on the first expression alone is too narrow by the square
+root of that bracket, and the shortfall grows with the test window.
+
+Li and Van den Bulte's Proposition 3.4 replaces both of the variance's terms
+with Newey-West truncated sums at a bandwidth :math:`\ell`, consistent by the
+argument of Newey and West (1987). Set ``variance="hac"`` to use it, and
+``hac_bandwidth`` to override the paper's default of
+:math:`\lceil T_{\text{pre}}^{1/4}\rceil`.
+
+.. code-block:: python
+
+   result = TBRMM(TBRMMConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14, post_col="post",
+       variance="hac",
+   )).fit()
+
+   q = result.recommended.effect.posterior
+   q.variance, q.bandwidth          # 'hac', and the truncation lag used
+
+The point estimates do not move. ``variance`` chooses how uncertainty is priced
+and nothing else, so ``att``, ``total_effect`` and every market's effect are
+identical under either setting.
+
+What it buys, and what it costs. On panels built with a known AR(1) disturbance,
+60 pretest and 8 post periods, nominal ninety percent coverage of the cumulative
+effect runs:
+
+.. list-table::
+   :header-rows: 1
+
+   * - residual :math:`\rho`
+     - ``variance="iid"``
+     - ``variance="hac"``
+   * - 0.0
+     - 0.907
+     - 0.868
+   * - 0.3
+     - 0.795
+     - 0.830
+   * - 0.6
+     - 0.632
+     - 0.792
+   * - 0.8
+     - 0.512
+     - 0.708
+
+Three things follow. The correction earns its place from about
+:math:`\rho = 0.3` upward and the margin widens with the dependence. It costs
+about four points when there is no dependence to price, because a long-run
+variance estimated from sixty periods is noisier than a single
+:math:`\hat\sigma^2`. And it does not restore nominal coverage at strong
+dependence -- 0.708 at :math:`\rho = 0.8` is better than 0.512 and is not 0.90 --
+so on a panel whose Durbin-Watson and Breusch-Godfrey gates are near their
+limits, treat the interval as improved and still optimistic.
+
+The correction is not a widening. It prices whatever dependence is in the
+residuals, so negatively correlated residuals give a narrower interval than
+equation 6 does, and a design whose residuals are close to independent is barely
+affected. A bandwidth of zero leaves only the diagonal, which is the
+heteroskedasticity-robust sandwich and not equation 6: the two agree only when
+the residual variance is constant across the pretest.
+
+``effect.delta1`` and ``effect.delta2`` carry the group's own fit on the summed
+treated series, so a caller comparing designs does not have to refit it.
+:math:`\hat\delta_2` is the sum of the implied donor weights, and its distance
+from one is how far the design sits from a convex average of the controls.
+
+
 
 
 Verification
