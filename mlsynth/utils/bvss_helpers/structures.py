@@ -149,7 +149,7 @@ class BVSSSimplexDiagnostics:
     -- which matters, because that construction is an open question recorded in
     ``docs/bvss.rst``.
 
-    Attributes
+    Parameters
     ----------
     tau_mean, tau_median, tau_q025, tau_q975 : float
         Posterior summaries of :math:`\\tau`.
