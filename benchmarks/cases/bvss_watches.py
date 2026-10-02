@@ -105,18 +105,51 @@ def _deterministic_primitives():
     }
 
 
-def _mlsynth_bvss_att(df):
+def _mlsynth_bvss_fit(df):
+    """The case's single BVSS fit, at the settings every metric below reads."""
     from mlsynth import BVSS
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = BVSS({
+        return BVSS({
             "df": df, "outcome": "y", "treat": "treat",
             "unitid": "unit", "time": "time",
             "n_iter": 50, "burn_in": 25, "theta": _THETA,
             "kappa1": 1.0, "kappa2": 1.0, "seed": 1, "display_graphs": False,
         }).fit()
-    return float(res.att)
+
+
+def _mlsynth_bvss_att(df):
+    return float(_mlsynth_bvss_fit(df).att)
+
+
+def _mlsynth_credible_set(df):
+    """mlsynth's 95% ATT credible set, against the one the R script prints.
+
+    ``reference.json`` has carried ``post_att_lo`` and ``post_att_hi`` since the
+    reference was captured, and nothing read them, so the quantity a user
+    actually reports went unchecked while the point estimate was pinned.
+
+    The width is pinned loosely on purpose. It is a 95% quantile of 25 retained
+    draws, and its Monte-Carlo spread swamps the discrepancies a tight pin would
+    be trying to find: over eight seeds at these settings the width ranges from
+    0.48 to 1.07 times the R's, and even at 400 iterations with 200 retained
+    draws it ranges from 0.67 to 1.08. A tolerance wide enough never to flake is
+    a tolerance that asserts nothing about agreement, so the ratio here is a
+    guard against order-of-magnitude breakage and is labelled as one. The two
+    shape metrics beside it are exact and carry the real content.
+    """
+    res = _mlsynth_bvss_fit(df)
+    inf = res.inference
+    lo, hi = float(inf.ci_lower), float(inf.ci_upper)
+    ref_lo = reference_value("bvss_watches", "post_att_lo")
+    ref_hi = reference_value("bvss_watches", "post_att_hi")
+    att = float(res.att)          # the same fit, so no second sampler run
+    return {
+        "brackets_att": 1.0 if lo <= att <= hi else 0.0,
+        "all_negative": 1.0 if hi < 0.0 else 0.0,
+        "width_ratio_vs_R": (hi - lo) / (ref_hi - ref_lo),
+    }
 
 
 def _mlsynth_posterior_summary():
@@ -152,6 +185,7 @@ def run() -> dict:
     df, _Y, _X, _G = _demeaned_panel()
     att_ml = _mlsynth_bvss_att(df)
     post = _mlsynth_posterior_summary()
+    ci = _mlsynth_credible_set(df)
 
     return {
         # (1) exact: mlsynth's Gibbs primitives vs the authors' R, value for value.
@@ -165,6 +199,10 @@ def run() -> dict:
         "phi_abs_diff_vs_paper": float(abs(post["phi"] - PAPER_PHI)),
         "tau_in_paper_interval": 1.0 if 0.0 < post["tau"] <= PAPER_TAU_HI else 0.0,
         "modelsize_post_mean": post["modelsize"],
+        # (4) the credible set, which reference.json has always held unread.
+        "att_ci_brackets_att": ci["brackets_att"],
+        "att_ci_all_negative": ci["all_negative"],
+        "att_ci_width_ratio_vs_R": ci["width_ratio_vs_R"],
     }
 
 
@@ -216,8 +254,8 @@ def comparison() -> dict:
 #
 # phi and the model size are the quantities that separate two samplers where the
 # ATT does not, so they are held against Table 6 of the paper (phi 20.86, tau
-# 0.069 with a 95% credible interval of (0, 0.641), |gamma| 5.09) rather than
-# against the R script. The phi tolerance is two measured across-seed standard
+# 0.069 with a 95% credible interval of (0, 0.641), |gamma| 5.09), not against
+# the R script. The phi tolerance is two measured across-seed standard
 # deviations (sd 0.86). tau is held to the paper's own interval because its
 # posterior is dispersed, which the paper states.
 #
@@ -237,4 +275,7 @@ EXPECTED = {
     "phi_abs_diff_vs_paper": (0.0, 1.8),       # two across-seed sd of Table 6's 20.86
     "tau_in_paper_interval": (1.0, 0.0),       # inside Table 6's (0, 0.641)
     "modelsize_post_mean": (4.16, 0.01),       # regression pin, not an agreement claim
+    "att_ci_brackets_att": (1.0, 0.0),         # the point lies inside its own interval
+    "att_ci_all_negative": (1.0, 0.0),         # same sign as the R's [-0.0311, -0.0052]
+    "att_ci_width_ratio_vs_R": (1.0, 0.6),     # loose by measurement: see _mlsynth_credible_set
 }
