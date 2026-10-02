@@ -6,7 +6,7 @@ carries its own groups, its own score and the climb that produced it.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -58,6 +58,18 @@ class TBRMMPosterior(BaseModel):
         ..., description="Posterior mass on the side of zero the point estimate "
                          "sits on; 0.5 when the posterior straddles zero evenly "
                          "and approaches 1 as the effect separates from it.")
+    variance: Literal["iid", "hac"] = Field(
+        default="iid",
+        description="Which variance the scale came from. 'iid' is equation 6 as "
+                    "published, whose noise term is T sigma^2. 'hac' is Li and "
+                    "Van den Bulte's Proposition 3.4, which replaces both terms "
+                    "with Newey-West truncated sums and so prices serially "
+                    "correlated residuals.")
+    bandwidth: Optional[int] = Field(
+        default=None,
+        description="Newey-West truncation lag behind a 'hac' scale, and None "
+                    "under 'iid'. Zero keeps only the diagonal, which is the "
+                    "independent case.")
 
 
 class TBRMMMarketEffect(BaseModel):
@@ -110,6 +122,15 @@ class TBRMMEffect(BaseModel):
         ..., description="Summed effect across every treated geo and post period "
                          "-- the program's incremental total, so this is a sum of "
                          "`market_effects` totals and not their average.")
+    delta1: float = Field(
+        default=0.0,
+        description="Intercept of the group's own augmented DiD fit, on the "
+                    "summed treated series.")
+    delta2: float = Field(
+        default=0.0,
+        description="Free control scale of the group's fit. It is the sum of the "
+                    "implied donor weights, so its distance from one is how far "
+                    "the design sits from a convex average of the controls.")
     n_post: int = Field(..., description="Post-window length in periods.")
     n_treated: int = Field(..., description="Treated geos measured.")
     posterior: Optional["TBRMMPosterior"] = Field(

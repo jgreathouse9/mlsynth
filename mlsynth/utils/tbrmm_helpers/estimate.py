@@ -30,7 +30,7 @@ the same control average than the group is.
 """
 from __future__ import annotations
 
-from typing import Any, List, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -73,9 +73,83 @@ def _fit_adid(y_pre: np.ndarray, x_pre: np.ndarray) -> Tuple[float, float, float
     return float(delta[0]), float(delta[1]), float(np.sqrt(np.mean(resid ** 2)))
 
 
+def _newey_west(resid: np.ndarray, design: np.ndarray, lag: int
+                ) -> Tuple[float, np.ndarray]:
+    """Bartlett-kernel long-run variance of ``resid``, and the meat for the fit.
+
+    Li and Van den Bulte's proof D.2 writes both of Proposition 3.4's variance
+    terms as sums truncated at ``|s - t| <= l``, consistent by the argument of
+    Newey and West (1987). The Bartlett taper ``1 - j / (l + 1)`` keeps the
+    estimate positive semi-definite, which an untapered truncation does not.
+
+    At ``lag = 0`` only the diagonal survives, which is the independent case the
+    same proof reduces to -- so this is a generalisation of equation 6 and not a
+    different estimator.
+
+    Parameters
+    ----------
+    resid : np.ndarray
+        Pretest residuals, shape ``(T0,)``.
+    design : np.ndarray
+        The pretest design ``[1, xbar]``, shape ``(T0, 2)``.
+    lag : int
+        Truncation lag.
+
+    Returns
+    -------
+    tuple
+        The residuals' long-run variance, and the ``(2, 2)`` meat matrix.
+    """
+    n = resid.size
+    # The same n / (n - 2) correction eqn 6's sigma^2 carries, so a lag of zero
+    # lands on HC1 and the two scales are on one footing.
+    dfc = n / float(n - design.shape[1])
+    lrv = float(resid @ resid) / n
+    scaled = design * resid[:, None]
+    meat = scaled.T @ scaled
+    for j in range(1, lag + 1):
+        weight = 1.0 - j / (lag + 1.0)
+        lrv += 2.0 * weight * float(resid[j:] @ resid[:-j]) / n
+        cross = scaled[j:].T @ scaled[:-j]
+        meat += weight * (cross + cross.T)
+    return lrv * dfc, meat * dfc
+
+
+def _hac_scale(y_pre: np.ndarray, x_pre: np.ndarray, x_post: np.ndarray,
+               n_post: int, lag: int) -> float:
+    """Proposition 3.4's scale for the cumulative effect.
+
+    The same two pieces equation 6 has -- what is unknown about the coefficients,
+    and the test window's own errors -- with each sum truncated instead of taken
+    on the diagonal.
+    """
+    design = np.column_stack([np.ones_like(x_pre), x_pre])
+    coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
+    lrv, meat = _newey_west(y_pre - design @ coef, design, lag)
+    cov = np.linalg.pinv(design.T @ design)
+    contrast = np.array([float(n_post), float(x_post.sum())])
+    coefficient_term = float(contrast @ (cov @ meat @ cov) @ contrast)
+    return float(np.sqrt(max(coefficient_term + n_post * lrv, 0.0)))
+
+
+def _bandwidth(n_pre: int, requested: Optional[int]) -> int:
+    """``ceil(T0 ** 0.25)`` unless the caller named one; refuse one too long.
+
+    A truncation at or beyond the pretest length has no lags left to average, so
+    it is a configuration error and not a degenerate-but-usable choice.
+    """
+    lag = int(np.ceil(n_pre ** 0.25)) if requested is None else int(requested)
+    if lag >= n_pre:
+        raise MlsynthEstimationError(
+            f"the Newey-West bandwidth must be shorter than the {n_pre} pretest "
+            f"periods it truncates over; got {lag}.")
+    return lag
+
+
 def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
                x_post: np.ndarray, *, level: float,
-               periods_per_unit: int) -> TBRMMPosterior:
+               periods_per_unit: int, variance: str = "iid",
+               hac_bandwidth: Optional[int] = None) -> TBRMMPosterior:
     """TBR's posterior for one series' cumulative effect, and its rescaling.
 
     The fit is Kerman, Wang and Vaver's eqn 1 on the pretest and the posterior
@@ -104,8 +178,15 @@ def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
     fit = fit_pretest(np.asarray(y_pre, dtype=float), np.asarray(x_pre, dtype=float))
     loc, scale = cumulative_posterior(fit, np.asarray(y_post, dtype=float),
                                       np.asarray(x_post, dtype=float))
-    lo, hi = interval(loc, scale, fit.df, level)
     loc_T, scale_T = float(loc[-1]), float(scale[-1])
+    lag = None
+    if variance == "hac":
+        lag = _bandwidth(int(np.asarray(y_pre).size), hac_bandwidth)
+        scale_T = _hac_scale(np.asarray(y_pre, dtype=float),
+                             np.asarray(x_pre, dtype=float),
+                             np.asarray(x_post, dtype=float),
+                             int(np.asarray(y_post).size), lag)
+    lo, hi = interval(np.array([loc_T]), np.array([scale_T]), fit.df, level)
 
     # The mass on the side of zero the estimate sits on. A zero scale is the
     # degenerate fit the paper's section 3.4 describes, where the counterfactual
@@ -118,6 +199,7 @@ def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
 
     return TBRMMPosterior(
         scale=scale_T, df=int(fit.df), level=float(level),
+        variance=variance, bandwidth=lag,
         total_lower=float(lo[-1]), total_upper=float(hi[-1]),
         att_lower=float(lo[-1]) / periods_per_unit,
         att_upper=float(hi[-1]) / periods_per_unit,
@@ -133,6 +215,8 @@ def measure_design(
     control_units: Sequence[Any],
     *,
     level: float = 0.9,
+    variance: str = "iid",
+    hac_bandwidth: Optional[int] = None,
 ) -> Tuple[TBRMMEffect, np.ndarray, np.ndarray]:
     """Read one design on the realized post window, market by market.
 
@@ -190,7 +274,8 @@ def measure_design(
             delta1=d1,
             delta2=d2,
             posterior=_posterior(pre[:, col], x_pre, post[:, col], x_post,
-                                 level=level, periods_per_unit=int(post.shape[0])),
+                                 level=level, periods_per_unit=int(post.shape[0]),
+                                 variance=variance, hac_bandwidth=hac_bandwidth),
             rmse_fit=rmse,
         ))
         observed_paths.append(np.concatenate([pre[:, col], post[:, col]]))
@@ -207,13 +292,18 @@ def measure_design(
     # linear in the outcome; its scale does not, because the geos' residuals are
     # correlated and only this regression spans them.
     n_treated, n_post = len(market_effects), int(post.shape[0])
+    group_pre = pre[:, treated_cols].sum(axis=1)
     group_posterior = _posterior(
-        pre[:, treated_cols].sum(axis=1), x_pre,
+        group_pre, x_pre,
         post[:, treated_cols].sum(axis=1), x_post,
-        level=level, periods_per_unit=n_post * n_treated)
+        level=level, periods_per_unit=n_post * n_treated,
+        variance=variance, hac_bandwidth=hac_bandwidth)
+    g1, g2, _ = _fit_adid(group_pre, x_pre)
 
     effect = TBRMMEffect(
         posterior=group_posterior,
+        delta1=g1,
+        delta2=g2,
         att=pooled,
         att_percent=(100.0 * pooled / pooled_baseline
                      if abs(pooled_baseline) > 1e-12 else None),

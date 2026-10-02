@@ -120,6 +120,25 @@ class TBRMMConfig(BaseMAREXConfig):
                     "periods; 0.9 is the TBR paper's own reporting level.",
     )
 
+    variance: Literal["iid", "hac"] = Field(
+        default="iid",
+        description="Variance behind a measured effect's interval. 'iid' is "
+                    "equation 6 as published. Reach for 'hac' when the pretest "
+                    "residuals are serially correlated, which weekly or daily "
+                    "sales usually are: it swaps both terms for Li and Van den "
+                    "Bulte's Proposition 3.4 Newey-West sums, so the interval "
+                    "prices the dependence instead of assuming it away. Read "
+                    "for only when ``post_col`` marks realized periods.",
+    )
+
+    hac_bandwidth: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Newey-West truncation lag under ``variance='hac'``. The "
+                    "default follows the paper, ceil(T_pre ** 0.25). Zero keeps "
+                    "only the diagonal and so reproduces the iid scale.",
+    )
+
     @field_validator("treatment_eligible_col", "control_eligible_col",
                      "unassigned_eligible_col", "post_col")
     @classmethod
