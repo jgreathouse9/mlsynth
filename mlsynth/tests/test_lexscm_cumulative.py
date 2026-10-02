@@ -177,3 +177,32 @@ def test_non_finite_pool_is_refused(gaps):
     bad = [rng.normal(0.0, 1.0, 32), np.concatenate([rng.normal(0, 1, 31), [np.nan]])]
     with pytest.raises(MlsynthDataError, match="finite"):
         cumulative_path(gaps, bad)
+
+
+def _ar1(rng, n, rho, sd=1.0):
+    e = np.empty(n)
+    e[0] = rng.normal(0.0, sd / np.sqrt(max(1.0 - rho ** 2, 1e-9)))
+    for t in range(1, n):
+        e[t] = rho * e[t - 1] + rng.normal(0.0, sd)
+    return e
+
+
+@pytest.mark.parametrize("rho", [0.0, 0.3, 0.6])
+def test_the_gate_does_not_punish_a_centred_window_for_being_dependent(rho):
+    """Serial dependence shrinks the information in a window, not its centring.
+
+    Dividing by ``sd / sqrt(n)`` treats dependent periods as independent, which
+    understates the standard error and fires the gate on designs the donors
+    reproduce perfectly well. Refusals must stay near the nominal level as the
+    dependence rises.
+    """
+    rng = np.random.default_rng(100 + int(rho * 10))
+    refused = sum(not approximability(_ar1(rng, 32, rho)).ok for _ in range(300))
+    assert refused / 300 <= 0.10, f"gate refused {refused / 300:.0%} of centred windows"
+
+
+def test_the_gate_still_catches_an_offset_under_dependence():
+    """Widening the standard error must not blind the gate to a real offset."""
+    rng = np.random.default_rng(200)
+    caught = sum(not approximability(12.0 + _ar1(rng, 32, 0.6)).ok for _ in range(100))
+    assert caught == 100

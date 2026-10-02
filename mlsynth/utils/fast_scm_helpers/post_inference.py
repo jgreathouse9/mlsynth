@@ -143,6 +143,8 @@ class Approximability:
     t_stat: float
     p_value: float
     ok: bool
+    serial_correlation: float = 0.0
+    effective_n: float = 0.0
 
 
 def approximability(blank_gaps: Sequence[float], *,
@@ -155,6 +157,13 @@ def approximability(blank_gaps: Sequence[float], *,
     resampling of residuals removes, so coverage collapses -- 0.037 at a nominal
     0.90, with intervals six times wider than the in-hull case and still
     missing. Read this before the interval, not beside it.
+
+    Serially correlated periods carry less information than independent ones, so
+    the offset is tested on the Bartlett effective sample size
+    ``n (1 - rho) / (1 + rho)`` and not the raw period count. Dividing by
+    ``sd / sqrt(n)`` understates the standard error under dependence and refuses
+    designs the donors reproduce perfectly well -- 33 per cent of them at an
+    AR(1) coefficient of 0.6.
     """
     gaps = np.asarray(blank_gaps, dtype=float).ravel()
     if gaps.size < 2:
@@ -170,10 +179,17 @@ def approximability(blank_gaps: Sequence[float], *,
             "the held-out gap has no spread, so an offset cannot be tested "
             "against it.")
     bias = float(gaps.mean())
-    t_stat = bias / (scale / np.sqrt(gaps.size))
-    p_value = float(2.0 * (1.0 - _stats.t.cdf(abs(t_stat), gaps.size - 1)))
+    centred = gaps - bias
+    rho = 0.0
+    if gaps.size > 2:
+        lag = float(np.corrcoef(centred[1:], centred[:-1])[0, 1])
+        rho = float(np.clip(lag, -0.99, 0.99)) if np.isfinite(lag) else 0.0
+    effective_n = max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0)
+    t_stat = bias / (scale / np.sqrt(effective_n))
+    p_value = float(2.0 * (1.0 - _stats.t.cdf(abs(t_stat), effective_n - 1.0)))
     return Approximability(bias=bias, scale=scale, t_stat=float(t_stat),
-                           p_value=p_value, ok=bool(abs(t_stat) <= threshold))
+                           p_value=p_value, ok=bool(abs(t_stat) <= threshold),
+                           serial_correlation=rho, effective_n=float(effective_n))
 
 
 def _blocks(pool: Sequence[np.ndarray], horizon: int) -> np.ndarray:
