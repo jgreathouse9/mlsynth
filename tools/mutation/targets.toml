@@ -3075,14 +3075,14 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "group-posterior-fitted-on-one-geo"
-  find = "        pre[:, treated_cols].sum(axis=1), x_pre,\n        post[:, treated_cols].sum(axis=1), x_post,"
-  replace = "        pre[:, treated_cols[0]], x_pre,\n        post[:, treated_cols[0]], x_post,"
+  find = "    group_pre = pre[:, treated_cols].sum(axis=1)"
+  replace = "    group_pre = pre[:, treated_cols[0]]"
   models = "a group interval taken from the first treated geo's own fit, which is the shape of every mistake that assembles the group's uncertainty from its parts instead of from a regression spanning them; the point estimate is unaffected, so only an assertion on the scale catches it"
 
   [[target.mutant]]
   id = "att-bounds-divide-by-periods-not-geos-and-periods"
-  find = "        level=level, periods_per_unit=n_post * n_treated)"
-  replace = "        level=level, periods_per_unit=n_post)"
+  find = "        level=level, periods_per_unit=n_post * n_treated,"
+  replace = "        level=level, periods_per_unit=n_post,"
   models = "an ATT interval divided by the post length alone, so it is N times too wide against an att that pools over geos as well -- the exact factor that separates TBR's per-period group effect from TBRMM's per-market mean, and the one a reader comparing the two would hit"
 
   [[target.mutant]]
@@ -3093,8 +3093,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "interval-cut-on-the-normal-instead-of-the-t"
-  find = "    lo, hi = interval(loc, scale, fit.df, level)"
-  replace = "    from scipy.stats import norm as _n; _h = _n.ppf(0.5 * (1.0 + level)) * scale; lo, hi = loc - _h, loc + _h"
+  find = "    lo, hi = interval(np.array([loc_T]), np.array([scale_T]), fit.df, level)"
+  replace = "    from scipy.stats import norm as _n; _h = _n.ppf(0.5 * (1.0 + level)) * scale_T; lo, hi = np.array([loc_T - _h]), np.array([loc_T + _h])"
   models = "bounds cut on the normal, not the t on n-2 degrees of freedom, which is anticonservative on every panel and worst on the short pretests a geo test is most likely to have"
 
 [[target]]
