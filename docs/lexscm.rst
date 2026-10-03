@@ -43,6 +43,13 @@ The pipeline has four stages, each in its own helper module:
    :math:`\to` stability :math:`\to` cost) returning a single recommended
    design plus a Pareto frontier.
 
+All four stages run before the intervention. Once it has run, the gap the
+chosen design produces also supports a cumulative total -- the incremental
+outcome over the whole post window, which is usually the number a design team
+is after -- with an interval built by resampling blocks of held-out residuals
+(:mod:`~mlsynth.utils.fast_scm_helpers.post_inference`). See
+:ref:`lexscm-cumulative`.
+
 When to use this estimator
 --------------------------
 
@@ -64,7 +71,8 @@ closely on the pre-period, and reports the minimum lift that design could detect
 over a planned eight-week window -- together with a budget gate, geography
 (spillover) exclusions, and coverage quotas so the chosen markets are
 non-adjacent and spread across regions. Once the promotion runs, the same object
-realizes into a standard effect report.
+realizes into a standard effect report, and the gap it produces yields the
+cumulative lift over the eight weeks with an interval around it.
 
 Notation
 --------
@@ -1076,6 +1084,380 @@ fit; ``res.power`` is simply left as ``None``. To compute on a
 non-default horizon grid or significance level call
 :func:`~mlsynth.utils.post_fit.compute_power_analysis` directly.
 
+.. _lexscm-cumulative:
+
+Cumulative effects after the intervention
+-----------------------------------------
+
+Everything above happens before the intervention: which markets to treat, how
+small an effect the design can detect, which candidate to recommend. Once the
+experiment has run the question changes. A design team rarely wants an average
+weekly lift; it wants the total -- the incremental sales over the eight weeks
+the campaign ran -- with an interval around it. That total is the cumulative
+effect through horizon :math:`h`,
+
+.. math::
+
+   C_h \;=\; \sum_{t = T_0 + 1}^{T_0 + h} \tau_t ,
+
+and :func:`~mlsynth.utils.fast_scm_helpers.post_inference.cumulative_path`
+reports it for every :math:`h` from one period to the end of the post window.
+
+Why the closed form does not carry over
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Time-based regression (TBR), the design tool this capability is modelled on,
+reads its cumulative effect off a Student-:math:`t` posterior. It can do so
+because its counterfactual comes from augmented DiD: an unconstrained fit of two
+parameters, an intercept and one slope. That makes the counterfactual an affine
+function of the observed series, and a sum of affine functions is affine, so the
+posterior for a running total is available in closed form.
+
+A synthetic control does not have that property. Its weights are constrained to
+the simplex -- non-negative and summing to one -- and the fitted counterfactual
+is not an affine function of the data. The departure is measurable by refitting
+on a perturbed series and comparing against the affine prediction:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 60 40
+
+   * - Weight constraint
+     - Departure from affinity
+   * - Unconstrained least squares
+     - :math:`3 \times 10^{-16}`
+   * - Weights summing to one
+     - :math:`6 \times 10^{-16}`
+   * - Summing to one and non-negative
+     - :math:`3 \times 10^{-2}`
+
+The first two are floating-point noise; the equality constraint costs nothing
+because it is linear. The inequality constraint is what breaks affinity, and it
+is also the constraint that makes a synthetic control interpretable as a
+weighted average of real units. So the closed form is unavailable, and the
+interval is built by inverting a pivot instead.
+
+The block-sum pivot
+^^^^^^^^^^^^^^^^^^^
+
+The point estimate is arithmetic: the running sum of the post-period gaps.
+Only the interval is inferential.
+
+The pivot is the sum of :math:`h` consecutive held-out residuals. Three
+properties recommend it. It matches the statistic being reported, so nothing is
+assumed about the shape of the effect path -- an effect that arrives late and
+one that decays are priced alike. Blocks of consecutive periods carry the serial
+dependence that weekly panels have, so the dependence is priced by construction
+and not by a correction. And the sum over a window is the window length times
+its mean, so an interval for the total rescales exactly into an interval for the
+average.
+
+The blocks are circular: each series is wrapped end-to-start, so a series of
+:math:`n` periods contributes :math:`n` blocks at every horizon and the tail
+quantiles do not thin out as :math:`h` grows. They are drawn from a pool of
+held-out residual series -- the treated aggregate's own blank-window residual
+first, placebo series after it -- with each series rescaled to the first one's
+standard deviation. Both halves of that are needed:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - Pool
+     - :math:`h = 1`
+     - :math:`h = 4`
+     - :math:`h = 8`
+   * - The treated unit's own residual only
+     - 0.826
+     - 0.784
+     - 0.724
+   * - Pooled, on each series' own scale
+     - 0.928
+     - 0.934
+     - 0.932
+   * - Pooled and rescaled
+     - 0.890
+     - 0.908
+     - 0.910
+
+Coverage at a nominal 0.90, 500 replications, no treatment effect. A single
+blank window holds too few blocks and the interval is too short, increasingly so
+as the horizon grows. Pooling fixes the count but overshoots, because the
+placebos are noisier than the unit under test and their blocks inflate the null.
+Doing both covers the nominal level and stays flat in the horizon.
+
+An alternative construction was measured and discarded: inverting a sharp null
+of a constant per-period effect. It conflates the size of the cumulative with
+the flatness of the path, and returns an empty set for 1.7 to 2.5 per cent of
+post windows -- an interval that excludes every candidate value, which is not a
+usable answer.
+
+Approximability -- whether the interval is centred at all
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A resampling interval prices noise. It cannot repair an offset. If the fitted
+weights reproduce the treated aggregate on the estimation window but miss it on
+periods they were not fitted to, the post-period gap carries that miss as a
+constant, which reads as a treatment effect and no resampling of residuals
+removes it. The usual cause is the treated aggregate sitting outside the convex
+hull of the donor pool, where a simplex-weighted average cannot reach it.
+
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` tests the
+blank-window gap for a location offset and returns ``ok`` when the statistic
+falls inside :math:`\pm 3`. Read it before the interval. Where the treated
+aggregate is outside the hull, coverage falls to 0.037 at a nominal 0.90, with
+intervals six times wider than the in-hull case and still missing the truth. The
+separation is clean enough to act on: across simulated panels the largest
+statistic inside the hull is 5.5 and the smallest outside it is 25.0.
+
+The offset is charged against the Bartlett effective sample size
+:math:`n(1 - \rho)/(1 + \rho)`, where :math:`\rho` is the lag-one correlation of
+the blank gap, and not against the raw period count. Serially correlated periods
+carry less information than independent ones, so dividing by
+:math:`\hat\sigma / \sqrt{n}` understates the standard error and refuses designs
+the donors reproduce perfectly well -- 33 per cent of them at an AR(1)
+coefficient of 0.6.
+
+The gate fires often on panels whose factor loadings can be negative, because
+the treated aggregate then falls outside the hull for many treated pairs. That
+is the gate working. A design it refuses needs a different treated set or a
+wider donor pool, not a wider interval.
+
+Three estimands
+^^^^^^^^^^^^^^^
+
+Which total a user is entitled to quote depends on what the weights were fitted
+to, and the three answers separate as soon as the effect varies across treated
+units.
+
+The treated aggregate. The gap estimates
+:math:`\tau^T_t = \sum_j w_j \tau_{jt}`, the effect on the weighted treated
+combination the design actually built. This is what
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.cumulative_path` returns,
+and on a design with two treated markets it is the only thing LEXSCM's own
+output supports.
+
+Per treated unit. Abadie and Zhao's Unit-level design, their equation (10),
+fits the treated aggregate to the population target and each treated unit to its
+own synthetic control at the same time. Their equation (11) then decomposes the
+estimate,
+
+.. math::
+
+   \hat\tau_t \;=\; \sum_j w^*_j \Bigl( Y_{jt} - \sum_i v^*_{ij} Y_{it} \Bigr),
+
+so the aggregate gap is the weighted mean of the per-unit gaps.
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.unit_level_cumulative`
+takes period-by-unit gaps and returns both, computing the aggregate from the
+parts so a market-level breakdown and a headline number cannot contradict each
+other. Each unit's interval reads its null from the other treated units, which
+the design has already built synthetic controls for; ``extra_pool`` adds further
+held-out series, which a small treated group needs.
+
+The population. A representative design weights its treated units so the
+aggregate stands in for a wider population, whose effect is
+:math:`\tau_t = \sum_j f_j \tau_{jt}` under the population weights
+:math:`\mathbf{f}`. The two estimands differ by
+:math:`\sum_j (w_j - f_j)\tau_{jt}`. Both weight vectors sum to one, so when the
+per-unit effects share a common mean that difference has expectation zero: it
+calls for a variance term and not a bias correction. Its variance is
+:math:`\operatorname{var}(\tau_j)\,\lVert \mathbf{w} - \mathbf{f} \rVert^2`, and
+the Unit-level design supplies the first factor because it estimates an effect
+for every treated unit.
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.population_cumulative`
+carries it. The point estimate is unchanged; only the interval widens, and it
+widens with the horizon, because a constant per-period offset accumulates as
+:math:`h` and so enters the variance as :math:`h^2` against the gap term's
+:math:`h`.
+
+The separation is not academic. On a design whose per-unit effects have standard
+deviation 0.8 about a mean of 1.0, the two estimands differ by 0.30 per period,
+and the gap-only interval covers :math:`\tau^T` 0.880 of the time and
+:math:`\tau` 0.714. Adding the representation term takes population coverage
+from 0.775 to 0.895 at a nominal 0.90, costing 40 per cent more width. Where the
+effects are in fact identical it costs 8 per cent more width for nothing and
+covers 0.931 against 0.913, because the spread estimate retains about 0.13 it
+cannot resolve. The correction errs wide.
+
+Two assumptions carry it, and neither is testable from the treated units alone.
+The untreated units' effects are drawn from the same distribution as the treated
+ones, which is what makes the offset mean zero. And
+:math:`\operatorname{var}(\tau_j)` is read off however many units were treated,
+so a design with two or three of them estimates it poorly; the interval is then
+honest about the correction's form and vague about its size.
+
+Centring the per-unit level
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+One treated unit's synthetic control sits at its own fitted level, and that
+offset runs through the post window unchanged. ``center=True`` subtracts each
+unit's blank-window mean from both windows and charges the noise in that mean
+back as the path accumulates, which ``level_scale`` reports.
+
+It is off by default, because removing the offset costs more than it buys.
+Measured at a nominal 0.90 on a four-unit design:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - Estimand
+     - ``center=False``
+     - ``center=True``
+   * - Treated aggregate
+     - 0.913
+     - 0.858
+   * - Population
+     - 0.895
+     - 0.849
+   * - Per treated unit
+     - 0.833
+     - 0.838
+
+The offsets also sit in the residuals the null is built from, so taking them out
+contracts the null -- the aggregate interval narrows by a third -- and the bias
+removed is worth less than the width lost. The exception is marginal and applies
+to a single unit, whose offset is largest relative to its noise. Centring also
+assumes the offset is the same in both windows, which
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` tests.
+
+Measured coverage
+^^^^^^^^^^^^^^^^^
+
+Against a known truth of 1.0 per period, 300 replications, nominal 0.90:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20 20 20
+
+   * - Panel
+     - Coverage
+     - Mean width
+     - Share gated
+   * - In hull, independent periods
+     - 0.915
+     - 11.3
+     - 10%
+   * - In hull, AR(1) :math:`\rho = 0.3`
+     - 0.881
+     - 13.2
+     - 19%
+   * - In hull, AR(1) :math:`\rho = 0.6`
+     - 0.863
+     - 17.7
+     - 33%
+   * - Outside the hull
+     - 0.037
+     - 64.1
+     - 100%
+
+"Share gated" is the fraction of designs ``approximability`` refuses before the
+interval is read. Blocks absorb dependence shorter than the horizon they span,
+and at :math:`\rho = 0.6` some of it outlives them, which is where the 0.863
+comes from. Every out-of-hull design is refused, so the 0.037 describes what the
+gate exists to prevent and not what a user sees.
+
+The thickness of the pool trades the two levels off against each other. On a
+four-unit design, varying the number of extra held-out series:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 15 15 15 15
+
+   * - Extra series
+     - 0
+     - 4
+     - 10
+     - 20
+   * - Aggregate coverage
+     - 0.874
+     - 0.901
+     - 0.913
+     - 0.932
+   * - Per-unit coverage
+     - 0.774
+     - 0.805
+     - 0.833
+     - 0.852
+
+Four extra series bring the aggregate to its nominal level and twenty carry it
+past, so a thicker pool is not uniformly better for the headline. The per-unit
+paths improve throughout and still fall short.
+
+What this does not give you
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A per-market interval cannot be quoted at face value. At the pool thicknesses
+above the per-unit paths cover 0.774 to 0.852 against a nominal 0.90, because a
+unit's synthetic control sits at its own fitted level and that offset is not
+separable from its effect using post-period data alone. Centring removes the
+offset and loses more in width than it gains in coverage. Treat a per-unit path
+as a decomposition of the aggregate -- which market contributed what -- and the
+aggregate interval as the inferential statement.
+
+``unit_level_cumulative`` and ``population_cumulative`` need one gap series per
+treated unit, which means one synthetic control per treated unit. LEXSCM fits a
+single synthetic control to the treated aggregate, so those two entry points
+take gaps the caller constructs; they are not reachable from a ``LEXSCM`` result
+on its own.
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.cumulative_path` is.
+
+Coverage above 0.90 is reported where it was measured, and the construction is
+calibrated and not exact. A 90 per cent interval here is a 90 per cent interval
+to within a couple of points under moderate dependence, and less than that at
+an AR(1) coefficient of 0.6.
+
+Example: the cumulative lift over a campaign
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+
+    from mlsynth import LEXSCM
+    from mlsynth.utils.fast_scm_helpers.post_inference import (
+        approximability, cumulative_path)
+
+    rng = np.random.default_rng(13)
+    n, T, T_post = 24, 72, 8
+    Lam = rng.normal(size=(n, 2))
+    F = np.cumsum(rng.normal(size=(T, 2)), 0)
+    Y = 100 + rng.normal(0, 5, n) + F @ Lam.T + rng.normal(0, 1.0, (T, n))
+    names = [f"m{j:02d}" for j in range(n)]
+    cand = sorted(rng.choice(n, 12, replace=False).tolist())
+
+    df = pd.DataFrame([
+        {"market": names[j], "week": t, "sales": Y[t, j],
+         "eligible": int(j in cand), "post": int(t >= T - T_post)}
+        for j in range(n) for t in range(T)
+    ])
+
+    res = LEXSCM(dict(df=df, outcome="sales", unitid="market", time="week",
+                      candidate_col="eligible", post_col="post",
+                      m=2, top_K=8, verbose=False)).fit()
+
+    win, layout = res.search.winner, res.panel.time
+    post_gap = win.predictions.effects[-layout.n_post:]
+    blank_gap = win.predictions.residuals_B      # the held-out B window
+
+    check = approximability(blank_gap)
+    if not check.ok:
+        raise SystemExit(
+            f"the donors cannot reproduce {res.selected_units} off-sample "
+            f"(t = {check.t_stat:.2f}); the interval would be biased.")
+
+    for point in cumulative_path(post_gap, [blank_gap], level=0.90):
+        print(f"week {point.horizon}: {point.estimate:8.2f} "
+              f"[{point.lower:8.2f}, {point.upper:8.2f}]")
+
+On this panel the design treats ``m18`` and ``m19``, the approximability
+statistic is 0.13, and the eight-week cumulative lands at 0.83 with a 90 per
+cent interval of :math:`[-3.14, 2.97]` -- a null result on a panel with no
+planted effect, which is what it should be. Supplying ``placebo_pool`` with
+held-out residuals from untreated markets alongside ``blank_gap`` tightens that
+interval; the single blank window is the floor, not the recommended pool.
+
 Verification
 ------------
 
@@ -1230,6 +1612,19 @@ and PANGEO all consume the same diagnostics module:
    :members:
    :undoc-members:
    :show-inheritance:
+
+Cumulative effects (post-intervention)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The cumulative effect path and its block-sum interval, the approximability
+gate that says whether that interval is centred, and the Unit-level and
+population estimands.
+
+.. automodule:: mlsynth.utils.fast_scm_helpers.post_inference
+   :members: approximability, cumulative_path, unit_level_cumulative,
+       population_cumulative, CumulativePoint, Approximability,
+       UnitLevelCumulative, PopulationCumulative
+   :undoc-members:
 
 Example: choosing treated markets under a budget
 ================================================
