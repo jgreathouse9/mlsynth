@@ -30,6 +30,7 @@ from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.marex_helpers.formulation import (
     build_objective,
     init_cvxpy_variables,
+    per_unit_reproducibility,
     precompute_distances,
 )
 
@@ -100,6 +101,43 @@ def test_the_penalty_scores_an_unreachable_unit_higher(fit_panel):
         w.value = wv; v.value = np.full((6, 1), 1 / 6); z.value = wv
         coefs.append(float(added.value))
     assert np.argmax(coefs) == 0, "the unreachable unit should carry the largest penalty"
+
+
+def test_the_charge_is_a_convex_hull_distance_not_a_regression(fit_panel):
+    """The inner program is a synthetic control, so it cannot extrapolate.
+
+    With two donors the simplex is the segment between them, and the charge
+    has a closed form: project the target onto the line and clip the
+    coefficient to [0, 1]. Non-negative least squares without the sum-to-one
+    constraint is a different number -- it may scale a single donor up to
+    reach a target well outside the hull -- so this pins which of the two the
+    penalty charges for.
+    """
+    rng = np.random.default_rng(4)
+    Y = rng.normal(size=(3, 7)) * 3.0 + 10.0
+    d = per_unit_reproducibility(Y, [0, 1, 2])
+
+    for j in range(3):
+        a, b = [i for i in range(3) if i != j]
+        xa, xb, xj = Y[a], Y[b], Y[j]
+        diff = xa - xb
+        t = float((xj - xb) @ diff / (diff @ diff))
+        t = min(max(t, 0.0), 1.0)                       # the simplex clip
+        expected = float(np.sum((xj - (t * xa + (1 - t) * xb)) ** 2))
+        assert d[j] == pytest.approx(expected, rel=1e-5, abs=1e-6)
+
+
+def test_a_scaled_copy_of_a_donor_is_not_reproducible():
+    """A unit twice another is reached by scaling, never by averaging.
+
+    Non-negative least squares reproduces it exactly at zero cost; on the
+    simplex it sits outside the hull and the charge stays positive. The two
+    answers differ in kind, not by a tolerance.
+    """
+    base = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    Y = np.vstack([2.0 * base, base, 1.05 * base])
+    d = per_unit_reproducibility(Y, [0, 1, 2])
+    assert d[0] > 1.0, "the scaled unit must carry a positive charge"
 
 
 # ------------------------------------------- rung 4: the contract not enforced
