@@ -1461,8 +1461,8 @@ twelve-market panel calibrated to a 141-week weekly geo panel, per-unit interval
 width falls from 199.6 to 88.0 with the point estimates unchanged; at
 sixty-two markets it falls from 94.6 to 85.3. Nor are such donors unusual. In a
 panel whose market sizes span a factor of 57, the largest cannot be a convex
-combination of smaller ones, and about 22 per cent of donors fail the gate at
-twelve markets against 7 per cent at sixty-two -- fewer in the larger panel
+combination of smaller ones, and about 21 per cent of donors fail the gate at
+twelve markets against 6 per cent at sixty-two -- fewer in the larger panel
 because each donor has more peers to be spanned by, not because the sizes are
 closer together.
 
