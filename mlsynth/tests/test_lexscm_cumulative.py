@@ -15,8 +15,14 @@ The design behind these assertions, with the measured coverage, is in
   test; using the unit's own residuals alone covers 0.83 and falls to 0.72 by
   horizon 8, because a blank window yields too few distinct blocks.
 * the interval is only centred when the donors can approximate the treated
-  unit. Outside their convex hull coverage is 0.037 with intervals six times
-  wider, so ``approximability`` is a precondition and not a diagnostic.
+  unit, so ``approximability`` is a precondition and not a diagnostic. It
+  sorts designs by the size of the realized offset and not by hull
+  membership, and does better than hull membership would: over 700 designs
+  with membership verified by a linear program it admits 81 per cent at
+  coverage 0.875 and refuses the rest at 0.540, where the hull split admits
+  47 per cent at 0.897 and leaves 0.732 refused. Pushed far outside the hull
+  coverage reaches 0.037 with intervals six times wider, which is the extreme
+  the gate exists to stop, not the cost of leaving the hull in general.
 """
 from __future__ import annotations
 

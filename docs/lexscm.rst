@@ -1204,19 +1204,105 @@ hull of the donor pool, where a simplex-weighted average cannot reach it.
 
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` tests the
 blank-window gap for a location offset and returns ``ok`` when the statistic
-falls inside :math:`\pm 3`. Read it before the interval. Where the treated
-aggregate is outside the hull, coverage falls to 0.037 at a nominal 0.90, with
-intervals six times wider than the in-hull case and still missing the truth. The
-separation is clean enough to act on: across simulated panels the largest
-statistic inside the hull is 5.5 and the smallest outside it is 25.0.
+falls inside :math:`\pm 3`. Read it before the interval.
+
+The statistic does not test hull membership, and it is a better guide than hull
+membership would be. Over 700 simulated designs whose membership is verified by
+a linear program:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - Split
+     - Admitted
+     - Coverage, admitted
+     - Coverage, refused
+   * - The gate, :math:`|t| \le 3`
+     - 81%
+     - 0.875
+     - 0.540
+   * - Inside the donors' hull
+     - 47%
+     - 0.897
+     - 0.732
+
+Hull membership is the wrong cut because what decides the interval is the size
+of the realized offset against the noise. A design just outside the hull carries
+an offset too small to matter, and a design inside it can be fitted badly enough
+to carry a large one. The two statistics overlap heavily: the largest in-hull
+statistic is 8.2, the smallest out-of-hull one is 0.001, and 82 per cent of
+out-of-hull designs fall below 5.5. No threshold sorts designs by hull
+membership, so the gate sorts them by whether the interval will be centred,
+which is the question the interval needs answered.
+
+Coverage falls away continuously as the statistic rises, which is where the
+threshold of 3 comes from:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 16 16 16 16 16
+
+   * - :math:`|t|`
+     - :math:`[0, 1)`
+     - :math:`[2, 3)`
+     - :math:`[3, 4)`
+     - :math:`[4, 5)`
+     - :math:`[5, 6)`
+   * - Coverage
+     - 0.901
+     - 0.844
+     - 0.842
+     - 0.719
+     - 0.513
+
+At 3 the gate admits 84 per cent of designs, covering 0.883, and refuses a set
+covering 0.696. Moving it to 5 admits 93 per cent at 0.875. The trade is flat
+between 2 and 5, so the exact figure inside that range matters less than having
+a gate at all; past 5 the refused designs are the ones whose intervals miss by
+the largest margins.
 
 The offset is charged against the Bartlett effective sample size
 :math:`n(1 - \rho)/(1 + \rho)`, where :math:`\rho` is the lag-one correlation of
 the blank gap, and not against the raw period count. Serially correlated periods
 carry less information than independent ones, so dividing by
 :math:`\hat\sigma / \sqrt{n}` understates the standard error and refuses designs
-the donors reproduce perfectly well -- 33 per cent of them at an AR(1)
-coefficient of 0.6.
+the donors reproduce perfectly well. On zero-offset gaps of 20 periods, where a
+correctly sized test at this threshold would refuse 0.003:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 18 18 18 18
+
+   * - :math:`\rho`
+     - 0.0
+     - 0.3
+     - 0.6
+     - 0.8
+   * - Refused, raw :math:`n`
+     - 0.007
+     - 0.043
+     - 0.173
+     - 0.385
+   * - Refused, Bartlett
+     - 0.019
+     - 0.029
+     - 0.060
+     - 0.125
+   * - Refused, clipped at :math:`n`
+     - 0.005
+     - 0.023
+     - 0.059
+     - 0.125
+
+The correction earns its keep from :math:`\rho = 0.3` upward and costs something
+at :math:`\rho = 0`, where it refuses 0.019 against the raw count's 0.007.
+:math:`(1 - \rho)/(1 + \rho)` is convex, so a lag-one estimate scattered about
+zero averages to an effective sample size above the period count --
+:math:`1.24n` over 20 periods -- and the test charges the offset against more
+information than the window holds. Clipping the effective count at the period
+count removes that at no cost elsewhere, as the third row shows, and the
+implementation does not yet do it.
 
 The gate fires often on panels whose factor loadings can be negative, because
 the treated aggregate then falls outside the hull for many treated pairs. That
@@ -1346,7 +1432,7 @@ Against a known truth of 1.0 per period, 300 replications, nominal 0.90:
      - 0.863
      - 17.7
      - 33%
-   * - Outside the hull
+   * - Far outside the hull
      - 0.037
      - 64.1
      - 100%
@@ -1354,8 +1440,24 @@ Against a known truth of 1.0 per period, 300 replications, nominal 0.90:
 "Share gated" is the fraction of designs ``approximability`` refuses before the
 interval is read. Blocks absorb dependence shorter than the horizon they span,
 and at :math:`\rho = 0.6` some of it outlives them, which is where the 0.863
-comes from. Every out-of-hull design is refused, so the 0.037 describes what the
-gate exists to prevent and not what a user sees.
+comes from.
+
+Two cautions on reading that table. The last row is a deliberately extreme draw,
+pushed far enough outside the hull that every design is refused; it shows what
+the gate exists to prevent and not what leaving the hull costs in general. On a
+milder draw, with membership verified by a linear program, out-of-hull designs
+cover 0.732 in aggregate and the gate refuses 30 per cent of them -- the harmful
+part, since the refused ones cover 0.463 and the admitted ones 0.850. Leaving
+the hull is a matter of degree, and the gate sorts by degree.
+
+The levels themselves belong to the panel that produced them. The same
+construction, measured on two generators that differ only in whether the latent
+factors follow a random walk or are stationary, covers 0.968 and 0.856 for
+in-hull designs with independent noise, and 0.928 and 0.823 at
+:math:`\rho = 0.6`. The 0.915 above sits inside that spread. What is stable
+across generators is the ordering -- coverage falls as dependence rises and as
+the approximability statistic rises -- and not the number. Read the table for
+the shape, and measure your own panel for the level.
 
 The thickness of the pool trades the two levels off against each other. On a
 four-unit design, varying the number of extra held-out series:
