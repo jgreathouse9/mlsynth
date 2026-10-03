@@ -225,7 +225,7 @@ def solve_marex(
 
     study = MAREXStudy(
         design=design, T0=T0_eff, blank_periods=blank_periods,
-        beta=beta, lambda1=lambda1 or lambda1_unit, lambda2=lambda2 or lambda2_unit, xi=xi,
+        beta=beta, lambda1=lambda1 or lambda1_unit, lambda2=lambda2, xi=xi,
     )
 
     # Standardized post-fit diagnostics (ATE / total / lift / RMSEs / SMDs).

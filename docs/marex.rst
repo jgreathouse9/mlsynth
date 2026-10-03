@@ -154,8 +154,23 @@ that map to the paper's formulations):
   the control synthetic to it (weight ``beta``);
 * ``"penalized"`` — ``standard`` plus a distance penalty that down-weights
   units far from the population mean (``lambda1`` / ``lambda2``);
-* ``"unit_penalized"`` — ``standard`` plus unit-level penalties
-  (``lambda1_unit`` / ``lambda2_unit``).
+* ``"unit_penalized"`` — ``standard`` plus unit-level penalties (``xi`` /
+  ``lambda1_unit``).
+
+The ``xi`` term is formulation (10): it charges each candidate treated unit for
+how well the remaining controls reproduce that unit, weighted by how much of
+the synthetic treated it carries. The charge for a given unit is a minimum over
+the control weights fitted to it alone, so it does not depend on the design
+being chosen; ``mlsynth`` solves those per-unit problems once and the penalty is
+then linear in the treated weights. Writing it as the treated weight times the
+joint design's own fit to that unit gives a different objective, and one that is
+not convex in the two weight vectors together.
+
+The paper's control-side counterpart ``lambda2_unit`` is accepted only as
+``0``. It pairs the treated weights against the control weights through a
+distance matrix, which is bilinear in two decision variables; ``lambda1_unit``
+charges the treated side against the population target, and the ``penalized``
+design charges both sides against it separately.
 
 Covariates
 ^^^^^^^^^^

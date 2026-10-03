@@ -48,12 +48,41 @@ class MAREXConfig(BaseMAREXConfig):
     # --- NEW display option ---
     display_graph: bool = Field(default=False, description="Whether to display plots.")
 
-    beta: float = Field(default=1e-6)
-    lambda1: float = Field(default=0.0)
-    lambda2: float = Field(default=0.0)
-    xi: float = Field(default=0.0)
-    lambda1_unit: float = Field(default=0.0)
-    lambda2_unit: float = Field(default=0.0)
+    beta: float = Field(
+        default=1e-6,
+        description=(
+            "Weakly-targeted design: weight on tying the synthetic control to "
+            "the synthetic treated instead of to the population mean."))
+    lambda1: float = Field(
+        default=0.0,
+        description=(
+            "Penalized design: weight on each selected unit's distance from "
+            "the cluster mean, summed over the treated weights."))
+    lambda2: float = Field(
+        default=0.0,
+        description=(
+            "Penalized design: weight on the same distance for the control "
+            "side."))
+    xi: float = Field(
+        default=0.0,
+        description=(
+            "Unit-level design (eq. 10): weight on each candidate treated "
+            "unit's own reproducibility by the remaining controls. Enters "
+            "linearly in the treated weights, the per-unit minima being "
+            "evaluated once before the solve."))
+    lambda1_unit: float = Field(
+        default=0.0,
+        description=(
+            "Unit-level design: weight on each selected treated unit's "
+            "distance from the population target."))
+    lambda2_unit: float = Field(
+        default=0.0,
+        description=(
+            "Accepted only as 0. The paper's control-side unit-level penalty "
+            "pairs the treated weights against the control weights through a "
+            "distance matrix, which is bilinear in two decision variables and "
+            "leaves no convex program. Use lambda1_unit, or the 'penalized' "
+            "design, which weighs each side against the target separately."))
     costs: Optional[List[float]] = None
     budget: Optional[Union[int, Dict[int, int]]] = None
 
@@ -212,6 +241,22 @@ class MAREXConfig(BaseMAREXConfig):
         default=0.80, gt=0.0, lt=1.0,
         description="Target power (1 - beta) for the MDE.",
     )
+
+    @field_validator("lambda2_unit")
+    @classmethod
+    def _refuse_lambda2_unit(cls, v):
+        """Reject the bilinear control-side penalty at construction."""
+        if v:
+            raise MlsynthConfigError(
+                "lambda2_unit must be 0. It pairs the treated weights against "
+                "the control weights through a distance matrix, which is "
+                "bilinear in two decision variables and leaves no convex "
+                "program to solve. Use lambda1_unit, which is linear in the "
+                "treated weights, or the 'penalized' design, whose lambda1 "
+                "and lambda2 weigh each side against the population target "
+                f"separately. Got {v}."
+            )
+        return v
 
     @field_validator("cumulative_band", mode="before")
     @classmethod
