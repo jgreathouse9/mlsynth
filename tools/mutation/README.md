@@ -35,11 +35,16 @@ generate those without drowning the meaningful site, and it was never meant to.
 So: generic operator swaps do not belong in `targets.toml`. They duplicate
 cosmic-ray partially and worse.
 
-### cosmic-ray is blocked upstream
+### cosmic-ray installs again, and is not wired in
 
-It cannot currently be installed. Its `yattag` dependency ships a legacy
-`setup.py` that modern setuptools rejects (`install_layout` was removed), so
-the wheel fails to build. Nothing in this repo works around that.
+It was blocked for a time by its `yattag` dependency, which ships a legacy
+`setup.py`. yattag has not changed -- 1.16.1 is the latest release and still
+opens with `from distutils.core import setup` -- but setuptools has, and under
+84.0.0 on Python 3.11 the wheel builds and `cosmic-ray` 8.7.0 installs and runs.
+The block was environment-side, so a stricter setuptools could bring it back.
+Check before relying on it.
+
+What remains is wiring, which nobody has done.
 
 `module-path`, `test-command` and `timeout` in `targets.toml` are cosmic-ray's
 own configuration keys, so the targets already describe a cosmic-ray session:

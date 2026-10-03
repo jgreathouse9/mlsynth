@@ -1247,8 +1247,8 @@ from which question it asks.
 
 Status: `pytest`, `pytest-cov`, `pytest-xdist`, `coverage` and `hypothesis` are
 wired up and run in CI. Mutation runs are wired up as the semantic catalogue in
-`tools/mutation`, on a weekly out-of-band workflow; `cosmic-ray` itself cannot
-currently be installed (see below).
+`tools/mutation`, on a weekly out-of-band workflow. `cosmic-ray` installs again
+as of setuptools 84.0.0 and is not yet wired in (see below).
 
 ## Two of them are complements, not substitutes
 
@@ -1310,12 +1310,17 @@ does not depend on.
 The practical rule: generic operator swaps do not go in the catalogue. They
 duplicate the sweep partially and worse.
 
-`cosmic-ray` is currently blocked upstream — its `yattag` dependency ships a
-legacy `setup.py` that modern setuptools rejects — so only the catalogue runs
-today. `module-path`, `test-command` and `timeout` in `targets.toml` are
+`cosmic-ray` was blocked for a time by its `yattag` dependency, which ships a
+legacy `setup.py`. The dependency has not changed — yattag 1.16.1 is the latest
+release and still opens with `from distutils.core import setup` — but the
+toolchain has, and under setuptools 84.0.0 on Python 3.11 the wheel builds and
+`cosmic-ray` 8.7.0 installs and runs. The blocker was environment-side and not
+upstream, so a stricter setuptools could reinstate it; check before relying on it.
+
+Only the catalogue runs today, and that is now a wiring task and not a blocked
+one. `module-path`, `test-command` and `timeout` in `targets.toml` are
 cosmic-ray's own configuration keys, and `emit_cosmic_ray_config.py` renders a
-valid session config from them, so the blocker costs a `pip install` and not a
-redesign.
+valid session config from them.
 
 A harness that scores mutants has failure modes of its own, and all four of
 these were hit while building this one: a mutant that never applied must not be
