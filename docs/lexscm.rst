@@ -1826,6 +1826,24 @@ design, falling to ~0.16 at ``m = 2``). Pinned in
 ``benchmarks/cases/lexscm_walmart.py`` and ``lexscm_design_mc.py``; see the
 dedicated page :doc:`replications/lexscm`.
 
+The cumulative paths above carry no external referent -- the block-sum pivot is
+this library's own construction -- so they are validated against their nominal
+level on a simulation whose truth is set in the case, in
+``benchmarks/cases/lexscm_cumulative_coverage.py``. At a nominal 0.90 and a
+horizon of eight periods, on a four-unit design with a small fitted-level
+offset: the aggregate path covers the effect on the treated 0.800 of the time
+reading its null from the three peers alone and 0.890 with twenty held-out
+series added, while the per-unit paths go 0.826 to 0.878 over the same pool and
+stay short of the aggregate. The residual is the location offset each unit's
+synthetic control carries, which resampling residuals cannot shift. For the
+population estimand the representation term is what does the work: the treated
+interval covers the population effect 0.490 of the time and the population
+interval 0.785, on the same draws.
+
+Run it with::
+
+    python benchmarks/run_benchmarks.py --case lexscm_cumulative_coverage
+
 Core API
 --------
 
