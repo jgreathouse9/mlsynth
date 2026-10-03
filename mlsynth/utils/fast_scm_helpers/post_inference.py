@@ -316,7 +316,7 @@ class UnitLevelCumulative:
     per_unit: Tuple[List[CumulativePoint], ...]
     weights: Tuple[float, ...]
     estimand: str = "treated"
-    centered: bool = True
+    centered: bool = False
     level_scale: Tuple[float, ...] = ()
 
 
@@ -353,7 +353,7 @@ def _path(post: np.ndarray, pool: List[np.ndarray], alpha: float,
 def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           weights: Sequence[float], *,
                           level: float = 0.90,
-                          center: bool = True,
+                          center: bool = False,
                           extra_pool: Optional[Sequence[Sequence[float]]] = None
                           ) -> UnitLevelCumulative:
     """Cumulative paths under Abadie and Zhao's Unit-level design, equation (10).
@@ -377,16 +377,23 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     series bring the aggregate to its nominal level and twenty carry it past,
     so a thicker pool is not uniformly better.
 
-    A thicker pool alone left the per-unit paths short of their nominal level,
+    A thicker pool leaves the per-unit paths short of their nominal level,
     because one treated unit's synthetic control sits at its own fitted level
-    and no resampling shifts a location offset. ``center`` removes it instead,
-    subtracting each unit's blank-window mean from both windows and charging
-    the noise in that mean back as the path accumulates; ``level_scale``
-    reports what was charged. Turning it off recovers the uncorrected gaps.
+    and no resampling shifts a location offset. ``center`` subtracts each unit's
+    blank-window mean from both windows and charges the noise in that mean back
+    as the path accumulates, which ``level_scale`` reports.
 
-    Centring assumes the offset is the same in both windows. That is what
-    :func:`approximability` tests, so read it on each unit's blank gap before
-    leaning on any one path.
+    It is off by default, because removing the offset costs more than it buys.
+    Measured at a nominal 0.90 on a four-unit design: the aggregate covers 0.913
+    without it and 0.858 with it, the population 0.895 and 0.849, and the
+    per-unit paths 0.833 and 0.838. The offsets also sit in the residuals the
+    null is built from, so taking them out contracts the null -- the aggregate
+    interval narrows by a third -- and the bias removed is worth less than the
+    width lost, except marginally for a single unit, whose offset is largest
+    relative to its noise. Reach for it only for a per-unit reading.
+
+    Centring also assumes the offset is the same in both windows, which
+    :func:`approximability` tests on the blank gap.
 
     The estimand is ``tau^T``, the weighted effect on the treated. See
     :func:`cumulative_path` for why that is not the population effect.
@@ -508,7 +515,7 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           population_weights: Sequence[float],
                           treated_index: Sequence[int], *,
                           level: float = 0.90,
-                          center: bool = True,
+                          center: bool = False,
                           extra_pool: Optional[Sequence[Sequence[float]]] = None
                           ) -> PopulationCumulative:
     """The cumulative effect on the population, not on the treated group.
