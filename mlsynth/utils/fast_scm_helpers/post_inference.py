@@ -316,11 +316,44 @@ class UnitLevelCumulative:
     per_unit: Tuple[List[CumulativePoint], ...]
     weights: Tuple[float, ...]
     estimand: str = "treated"
+    centered: bool = True
+    level_scale: Tuple[float, ...] = ()
+
+
+def _level_scale(series: np.ndarray) -> float:
+    """Standard error of a window's mean, charged on its effective length."""
+    if series.size < 2:
+        return 0.0
+    rho = _lag_one(series)
+    return float(np.sqrt(series.var(ddof=1) / _bartlett_n(series.size, rho)))
+
+
+def _widen(sums: np.ndarray, scale: float) -> np.ndarray:
+    """Convolve a block-sum null with an independent normal term."""
+    if scale <= 0.0:
+        return sums
+    return (sums[:, None] + scale * _NORMAL_NODES[None, :]).ravel()
+
+
+def _path(post: np.ndarray, pool: List[np.ndarray], alpha: float,
+          level_scale: float) -> List[CumulativePoint]:
+    """One cumulative path, widened for a subtracted level if there was one."""
+    running = np.cumsum(post)
+    out: List[CumulativePoint] = []
+    for horizon in range(1, post.size + 1):
+        sums = _widen(_blocks(pool, horizon).sum(axis=1), horizon * level_scale)
+        high, low = np.quantile(sums, [1.0 - alpha / 2.0, alpha / 2.0])
+        observed = float(running[horizon - 1])
+        out.append(CumulativePoint(horizon=horizon, estimate=observed,
+                                   lower=observed - float(high),
+                                   upper=observed - float(low)))
+    return out
 
 
 def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           weights: Sequence[float], *,
                           level: float = 0.90,
+                          center: bool = True,
                           extra_pool: Optional[Sequence[Sequence[float]]] = None
                           ) -> UnitLevelCumulative:
     """Cumulative paths under Abadie and Zhao's Unit-level design, equation (10).
@@ -344,12 +377,16 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     series bring the aggregate to its nominal level and twenty carry it past,
     so a thicker pool is not uniformly better.
 
-    The per-unit paths improve with the pool and stop short of it. One treated
-    unit's synthetic control carries more finite-sample fit bias than the
-    aggregate's, which averages across units, and inverting a pivot cannot
-    remove a bias. Read ``per_unit`` as a breakdown whose intervals run
-    optimistic by roughly five points, and :func:`approximability` on each
-    unit's blank gap before leaning on any one of them.
+    A thicker pool alone left the per-unit paths short of their nominal level,
+    because one treated unit's synthetic control sits at its own fitted level
+    and no resampling shifts a location offset. ``center`` removes it instead,
+    subtracting each unit's blank-window mean from both windows and charging
+    the noise in that mean back as the path accumulates; ``level_scale``
+    reports what was charged. Turning it off recovers the uncorrected gaps.
+
+    Centring assumes the offset is the same in both windows. That is what
+    :func:`approximability` tests, so read it on each unit's blank gap before
+    leaning on any one path.
 
     The estimand is ``tau^T``, the weighted effect on the treated. See
     :func:`cumulative_path` for why that is not the population effect.
@@ -376,18 +413,34 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
 
     extra = [np.asarray(s, dtype=float).ravel() for s in (extra_pool or [])]
     n_units = w.size
+    alpha = 1.0 - float(level)
+
+    # A unit's synthetic control sits at its own fitted level. That offset runs
+    # through the post window unchanged and reads as a treatment effect, so it
+    # comes off both windows, and the noise in the mean that removed it is
+    # charged back as the path accumulates.
+    levels = blank.mean(axis=0) if center else np.zeros(n_units)
+    scales = ([_level_scale(blank[:, k] - levels[k]) for k in range(n_units)]
+              if center else [0.0] * n_units)
+    post_c, blank_c = post - levels, blank - levels
+    extra_c = [s - s.mean() for s in extra] if center else extra
 
     per_unit: List[List[CumulativePoint]] = []
     for k in range(n_units):
-        others = [blank[:, j] for j in range(n_units) if j != k]
-        per_unit.append(cumulative_path(post[:, k], [blank[:, k], *others, *extra],
-                                        level=level))
+        others = [blank_c[:, j] for j in range(n_units) if j != k]
+        pool = _prepare_pool([blank_c[:, k], *others, *extra_c], True)
+        per_unit.append(_path(post_c[:, k], pool, alpha, scales[k]))
 
-    units = [blank[:, j] for j in range(n_units)] if n_units > 1 else []
-    aggregate = cumulative_path(post @ w, [blank @ w, *units, *extra], level=level)
+    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []
+    agg_pool = _prepare_pool([blank_c @ w, *units, *extra_c], True)
+    agg_scale = _level_scale(blank_c @ w) if center else 0.0
+    aggregate = _path(post_c @ w, agg_pool, alpha, agg_scale)
+
     return UnitLevelCumulative(aggregate=aggregate,
                                per_unit=tuple(per_unit),
-                               weights=tuple(float(x) for x in w))
+                               weights=tuple(float(x) for x in w),
+                               centered=bool(center),
+                               level_scale=tuple(float(x) for x in scales))
 
 
 #: Standard-normal nodes the representation error is convolved over. A fixed
@@ -455,6 +508,7 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           population_weights: Sequence[float],
                           treated_index: Sequence[int], *,
                           level: float = 0.90,
+                          center: bool = True,
                           extra_pool: Optional[Sequence[Sequence[float]]] = None
                           ) -> PopulationCumulative:
     """The cumulative effect on the population, not on the treated group.
@@ -510,9 +564,6 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
             f"the treated index runs outside the population of {f.size} "
             f"unit(s); it spans {idx.min()} to {idx.max()}.")
 
-    treated = unit_level_cumulative(post_gaps, blank_gaps, w, level=level,
-                                    extra_pool=extra_pool)
-
     blank = np.atleast_2d(np.asarray(blank_gaps, dtype=float))
     if blank.shape[0] == 1 and np.asarray(blank_gaps).ndim == 1:
         blank = blank.T
@@ -520,23 +571,21 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     embedded = np.zeros_like(f); embedded[idx] = w
     distance = float(np.sum((embedded - f) ** 2))
     dispersion = _effect_dispersion(post, blank)
-    units = [blank[:, j] for j in range(w.size)] if w.size > 1 else []
-    extra = [np.asarray(s, dtype=float).ravel() for s in (extra_pool or [])]
-    pool = _prepare_pool([blank @ w, *units, *extra], True)
 
-    alpha = 1.0 - float(level)
-    running = np.cumsum(post @ w)
-    path: List[CumulativePoint] = []
-    for horizon in range(1, post.shape[0] + 1):
-        sums = _blocks(pool, horizon).sum(axis=1)
-        scale = horizon * np.sqrt(dispersion * distance)
-        if scale > 0.0:
-            sums = (sums[:, None] + scale * _NORMAL_NODES[None, :]).ravel()
-        high, low = np.quantile(sums, [1.0 - alpha / 2.0, alpha / 2.0])
-        observed = float(running[horizon - 1])
-        path.append(CumulativePoint(horizon=horizon, estimate=observed,
-                                    lower=observed - float(high),
-                                    upper=observed - float(low)))
+    n_units = w.size
+    levels = blank.mean(axis=0) if center else np.zeros(n_units)
+    post_c, blank_c = post - levels, blank - levels
+    extra = [np.asarray(x, dtype=float).ravel() for x in (extra_pool or [])]
+    extra_c = [x - x.mean() for x in extra] if center else extra
+    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []
+    pool = _prepare_pool([blank_c @ w, *units, *extra_c], True)
+
+    # Two independent terms, each accumulating as the horizon: the noise in the
+    # level that centring removed, and the representation error.
+    level_scale = _level_scale(blank_c @ w) if center else 0.0
+    combined = float(np.sqrt(level_scale ** 2 + dispersion * distance))
+    path = _path(post_c @ w, pool, 1.0 - float(level), combined)
+
     return PopulationCumulative(aggregate=path,
                                 effect_dispersion=float(dispersion),
                                 weight_distance=float(np.sqrt(distance)))

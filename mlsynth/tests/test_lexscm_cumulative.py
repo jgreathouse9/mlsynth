@@ -241,8 +241,10 @@ def test_the_aggregate_is_the_weighted_mean_of_its_parts(unit_panel):
 
 
 def test_a_single_treated_unit_reproduces_the_plain_path(unit_panel):
+    """Uncentred, since cumulative_path takes the gaps as given."""
     post, blank, _ = unit_panel
-    out = unit_level_cumulative(post[:, :1], blank[:, :1], np.array([1.0]))
+    out = unit_level_cumulative(post[:, :1], blank[:, :1], np.array([1.0]),
+                                center=False)
     plain = cumulative_path(post[:, 0], [blank[:, 0]])
     assert np.allclose([p.estimate for p in out.aggregate], [p.estimate for p in plain])
 
@@ -481,3 +483,65 @@ def test_a_blank_window_too_short_to_hold_a_lag_is_still_usable():
                                 np.full(2, 0.5), np.full(10, 0.1), np.arange(2))
     assert np.isfinite(out.effect_dispersion)
     assert all(np.isfinite([p.lower, p.upper]).all() for p in out.aggregate)
+
+
+# ------------------------------------------------- centring the per-unit level
+
+def test_centring_is_on_by_default_and_can_be_turned_off(unit_panel):
+    post, blank, w = unit_panel
+    on = unit_level_cumulative(post, blank, w)
+    off = unit_level_cumulative(post, blank, w, center=False)
+    assert on.centered is True and off.centered is False
+    assert [p.estimate for p in on.aggregate] != [p.estimate for p in off.aggregate]
+
+
+def test_a_per_unit_level_shift_leaves_the_centred_result_alone(unit_panel):
+    """The defining property. A unit's synthetic control sitting at its own
+    level is a fit artefact, present in both windows, and centring removes it."""
+    post, blank, w = unit_panel
+    offsets = np.array([3.0, -1.5, 0.75])
+    moved = unit_level_cumulative(post + offsets, blank + offsets, w)
+    base = unit_level_cumulative(post, blank, w)
+    for a, b in zip(base.aggregate, moved.aggregate):
+        assert b.estimate == pytest.approx(a.estimate, abs=1e-9)
+        assert b.lower == pytest.approx(a.lower, abs=1e-9)
+        assert b.upper == pytest.approx(a.upper, abs=1e-9)
+
+
+def test_without_centring_a_level_shift_moves_everything(unit_panel):
+    """The behaviour being corrected: the offset reads as a treatment effect."""
+    post, blank, w = unit_panel
+    offsets = np.array([3.0, -1.5, 0.75])
+    moved = unit_level_cumulative(post + offsets, blank + offsets, w, center=False)
+    base = unit_level_cumulative(post, blank, w, center=False)
+    assert moved.aggregate[-1].estimate != pytest.approx(base.aggregate[-1].estimate)
+
+
+def test_centring_charges_for_the_level_it_removed(unit_panel):
+    """The subtracted mean is estimated, and its noise accumulates as h."""
+    post, blank, w = unit_panel
+    out = unit_level_cumulative(post, blank, w)
+    assert all(lv > 0.0 for lv in out.level_scale)
+    assert len(out.level_scale) == w.size
+
+
+def test_the_aggregate_still_composes_from_the_parts_when_centred(unit_panel):
+    """Equation (11) has to survive the correction."""
+    post, blank, w = unit_panel
+    out = unit_level_cumulative(post, blank, w)
+    for h in range(post.shape[0]):
+        parts = np.array([out.per_unit[k][h].estimate for k in range(w.size)])
+        assert out.aggregate[h].estimate == pytest.approx(float(w @ parts), rel=1e-12)
+
+
+def test_a_one_period_blank_window_has_no_level_noise_to_charge():
+    """One period gives a level but no spread around it, so nothing is added.
+
+    Reachable only when ``extra_pool`` supplies the spread the pool needs.
+    """
+    rng = np.random.default_rng(35)
+    extra = [rng.normal(0.0, 1.0, 32) for _ in range(4)]
+    out = unit_level_cumulative(np.full((1, 2), 2.0), np.zeros((1, 2)),
+                                np.full(2, 0.5), extra_pool=extra)
+    assert out.level_scale == (0.0, 0.0)
+    assert np.isfinite([out.aggregate[0].lower, out.aggregate[0].upper]).all()
