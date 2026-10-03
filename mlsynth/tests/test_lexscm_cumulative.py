@@ -579,3 +579,92 @@ def test_a_horizon_as_long_as_the_series_has_no_spread_to_offer():
     path = cumulative_path(2.0 + rng.normal(0.0, 1.0, n), [rng.normal(0.0, 1.0, n)])
     assert path[-1].upper - path[-1].lower == pytest.approx(0.0, abs=1e-9)
     assert path[0].upper - path[0].lower > 1e-8
+# ------------------------------------------------- the effective-sample-size clip
+
+
+def _ar1_series(rng, n, rho, sd=1.0):
+    """An AR(1) draw started from its stationary variance."""
+    e = rng.normal(0.0, sd, n)
+    if rho == 0.0:
+        return e
+    out = np.empty(n)
+    out[0] = e[0] / np.sqrt(1.0 - rho ** 2)
+    for t in range(1, n):
+        out[t] = rho * out[t - 1] + e[t]
+    return out
+
+
+def test_effective_n_never_exceeds_the_periods_the_window_holds():
+    """A window of n periods cannot carry the information of more than n.
+
+    ``(1 - rho)/(1 + rho)`` is convex, so a lag-one estimate scattered about
+    zero averages above one and the uncorrected count claims information the
+    window does not hold. The smoke-level statement of the fix.
+    """
+    rng = np.random.default_rng(11)
+    for _ in range(200):
+        gaps = rng.normal(0.0, 1.0, 24)
+        check = approximability(gaps)
+        assert check.effective_n <= gaps.size
+
+
+def test_a_negative_lag_one_correlation_does_not_buy_extra_periods():
+    """The case the clip exists for, built directly instead of sampled.
+
+    An alternating series has a lag-one correlation near -1, which the Bartlett
+    formula turns into an effective count many times the period count.
+    """
+    gaps = np.array([1.0, -1.0] * 12) + 0.35
+    check = approximability(gaps)
+    assert check.serial_correlation < -0.9
+    assert check.effective_n == pytest.approx(gaps.size)
+
+
+def test_positive_dependence_still_shrinks_the_effective_count():
+    """Clipping must not flatten the correction it is bounding."""
+    rng = np.random.default_rng(12)
+    shrunk = [approximability(_ar1_series(rng, 40, 0.6)).effective_n for _ in range(80)]
+    assert np.mean(shrunk) < 40 * 0.7
+
+
+def test_the_clip_cuts_false_refusals_on_independent_windows():
+    """The measured consequence of the inflated count, at the window length
+    where it is largest.
+
+    The gate is charged against ``APPROXIMABILITY_T``, so an effective count
+    above the period count inflates the statistic and refuses centred windows.
+    Ten periods is where the inflation peaks -- the mean count is 1.6 times the
+    periods held -- and the refusal rate there runs 0.039 to 0.044 without the
+    clip against 0.011 with it. A twenty-period window only moves 0.019 to
+    0.005, which this assertion would not separate from sampling noise.
+    """
+    rng = np.random.default_rng(13)
+    refused = sum(not approximability(rng.normal(0.0, 1.0, 10)).ok
+                  for _ in range(800))
+    assert refused / 800 <= 0.02, f"gate refused {refused / 800:.1%} of centred windows"
+
+
+def test_the_clip_leaves_a_real_offset_caught():
+    """Bounding the effective count must not blind the gate."""
+    rng = np.random.default_rng(14)
+    caught = sum(not approximability(9.0 + _ar1_series(rng, 24, 0.5)).ok
+                 for _ in range(100))
+    assert caught == 100
+
+
+def test_a_two_period_window_keeps_its_floor():
+    """The floor at 2 and the ceiling at n coexist at the shortest window.
+
+    With two periods the lag-one correlation is not computed at all, so the
+    effective count is the period count and both bounds bind at once.
+    """
+    check = approximability(np.array([0.5, 2.5]))
+    assert check.effective_n == pytest.approx(2.0)
+
+
+def test_the_floor_still_binds_under_near_perfect_dependence():
+    """Heavy positive dependence drives the count to the floor, not below."""
+    gaps = np.linspace(0.0, 1.0, 50) + 1e-9 * np.arange(50)
+    check = approximability(gaps)
+    assert check.effective_n >= 2.0
+    assert check.effective_n <= gaps.size

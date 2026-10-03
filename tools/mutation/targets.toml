@@ -3161,7 +3161,19 @@ timeout = 300.0
   id = "approximability-treats-correlated-periods-as-independent"
   find = "    t_stat = bias / (scale / np.sqrt(effective_n))"
   replace = "    t_stat = bias / (scale / np.sqrt(gaps.size))"
-  models = "the offset tested on the raw period count. The standard error is understated under dependence, so the gate refuses designs the donors reproduce perfectly well: 10 per cent of them at an AR(1) coefficient of 0, 19 at 0.3 and 33 at 0.6, where the fixed form holds near 10 throughout"
+  models = "the offset tested on the raw period count. The standard error is understated under dependence, so the gate refuses designs the donors reproduce perfectly well: on zero-offset 20-period windows it refuses 0.043 at an AR(1) coefficient of 0.3, 0.173 at 0.6 and 0.385 at 0.8, where the fixed form holds 0.023, 0.059 and 0.125"
+
+  [[target.mutant]]
+  id = "effective-count-not-clipped-at-the-window"
+  find = "    effective_n = min(max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0),\n                      float(gaps.size))"
+  replace = "    effective_n = max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0)"
+  models = "the effective sample size left unbounded above. (1 - rho)/(1 + rho) is convex, so a lag-one estimate scattered about zero averages above one -- 1.24 n over 20 periods and 1.6 n over 10 -- and the offset is charged against more information than the window holds. The gate then refuses centred windows it should admit: 0.046 of 10-period windows against 0.011, and 0.019 of 20-period windows against 0.005"
+
+  [[target.mutant]]
+  id = "effective-count-loses-its-floor"
+  find = "    effective_n = min(max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0),\n                      float(gaps.size))"
+  replace = "    effective_n = min(gaps.size * (1.0 - rho) / (1.0 + rho), float(gaps.size))"
+  models = "the effective sample size left unbounded below. Heavy positive dependence drives it under one, so the Student-t is handed a non-positive degrees of freedom and the p-value stops being a number, while the statistic shrinks toward zero and the gate admits whatever offset it is shown"
 
   [[target.mutant]]
   id = "pool-keeps-each-placebo-on-its-own-scale"
