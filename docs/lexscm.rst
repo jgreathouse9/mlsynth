@@ -1323,22 +1323,98 @@ combination the design actually built. This is what
 and on a design with two treated markets it is the only thing LEXSCM's own
 output supports.
 
-Per treated unit. Abadie and Zhao's Unit-level design, their equation (10),
-fits the treated aggregate to the population target and each treated unit to its
-own synthetic control at the same time. Their equation (11) then decomposes the
-estimate,
+Per treated unit. Abadie and Zhao's Unit-level design fits the treated aggregate
+to the population target and each treated unit to its own synthetic control at
+the same time. Stage 1 above chooses one weight vector; this design chooses a
+whole matrix alongside it. Write :math:`\mathcal{S} = \{j : w_j > 0\}` for the
+treated set the weights pick out themselves, and :math:`v_{ij}` for the weight
+unit :math:`i` carries in the synthetic control built for treated unit
+:math:`j`. The design is their equation (10):
 
 .. math::
 
-   \hat\tau_t \;=\; \sum_j w^*_j \Bigl( Y_{jt} - \sum_i v^*_{ij} Y_{it} \Bigr),
+   \min_{\mathbf{w},\, \mathbf{V}} \;
+   \Bigl\lVert \bar{\mathbf{x}} - \sum_{j=1}^{J} w_j \mathbf{x}_j
+   \Bigr\rVert^2
+   \;+\; \xi \sum_{j=1}^{J} w_j
+   \Bigl\lVert \mathbf{x}_j - \sum_{i=1}^{J} v_{ij} \mathbf{x}_i
+   \Bigr\rVert^2
+
+subject to
+
+.. math::
+
+   \sum_{j=1}^{J} w_j = 1, \qquad w_j \ge 0 \;\; \forall j, \qquad
+   \underline{m} \le \lVert \mathbf{w} \rVert_0 \le \overline{m},
+
+.. math::
+
+   \sum_{i=1}^{J} v_{ij} = 1 \;\;\; \forall j \in \mathcal{S}, \qquad
+   v_{ij} \ge 0 \;\;\; \forall j \in \mathcal{S},\, \forall i,
+
+.. math::
+
+   v_{ij} = 0 \;\;\; \forall i \in \mathcal{S}, \qquad
+   v_{ij} = 0 \;\;\; \forall j \notin \mathcal{S}.
+
+The first term is the Stage-1 objective unchanged: the treated combination
+reproduces the population target. The second is a sum of ordinary
+synthetic-control fits, one for each treated unit, each carrying that unit's
+own share :math:`w_j` of the treated aggregate, so a unit that contributes
+little to the headline also counts for little in how hard the design works to
+make it reproducible. The last line is bookkeeping with real consequences: no
+treated unit may serve as a donor for another treated unit, and units outside
+the treated set carry no synthetic control of their own.
+
+:math:`\xi` sets the exchange rate between the two terms. Small :math:`\xi`
+buys treated units that match the population; large :math:`\xi` buys treated
+units their own donors can reproduce. The two are in genuine tension, since the
+units that best fill out an aggregate are often the extreme ones that nothing
+else resembles. Abadie and Zhao report that this design concentrates on a small
+treated set even with no sparsity constraint (:math:`\underline{m} = 1`,
+:math:`\overline{m} = J - 1`), and that large :math:`\xi` sharpens that further;
+pushed far enough it returns a single treated unit that a convex combination of
+the others reproduces closely.
+
+Given a solution :math:`\{w^*_j, v^*_{ij}\}`, the per-unit control weights
+aggregate into one control vector, which is their equation (11):
+
+.. math::
+
+   v^*_j \;=\; \sum_{i=1}^{J} w^*_i v^*_{ij} .
+
+The estimate can then be read two ways that are the same number,
+
+.. math::
+
+   \hat\tau_t \;=\; \sum_j w^*_j Y_{jt} - \sum_j v^*_j Y_{jt}
+             \;=\; \sum_j w^*_j \Bigl( Y_{jt} - \sum_i v^*_{ij} Y_{it} \Bigr),
 
 so the aggregate gap is the weighted mean of the per-unit gaps.
+
+LEXSCM does not solve this program. Stage 1 minimises the aggregate imbalance
+over the simplex under a cardinality constraint, which is the targeting term of
+Abadie and Zhao's equation (7), and Stage 2 fits a single synthetic control to
+the resulting treated aggregate. Two things do not carry over.
+``targeting_penalty`` is a ridge toward equal weights, not the :math:`\beta`
+of the Weakly targeted design in their equation (9), which penalises the
+distance between the aggregate treated and aggregate control units. And
+:math:`\xi` has no counterpart in ``LEXSCMConfig`` at all, because nothing in
+the pipeline fits a per-unit control. The formulation is here because it
+says what object the per-unit gaps are: one residual series per treated unit
+from its own synthetic control, with the treated units excluded from each
+other's donor pools. A caller who builds those series some other way satisfies
+the same contract.
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.unit_level_cumulative`
 takes period-by-unit gaps and returns both, computing the aggregate from the
 parts so a market-level breakdown and a headline number cannot contradict each
 other. Each unit's interval reads its null from the other treated units, which
 the design has already built synthetic controls for; ``extra_pool`` adds further
-held-out series, which a small treated group needs.
+held-out series, which a small treated group needs. Drawing on them as placebos
+is consistent with the constraint that excludes them as donors: the design
+forbids treated unit :math:`i` from appearing in treated unit :math:`j`'s
+synthetic control, and says nothing about unit :math:`i`'s own residual serving
+as a draw from the null.
 
 The population. A representative design weights its treated units so the
 aggregate stands in for a wider population, whose effect is
