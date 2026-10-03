@@ -1204,19 +1204,105 @@ hull of the donor pool, where a simplex-weighted average cannot reach it.
 
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` tests the
 blank-window gap for a location offset and returns ``ok`` when the statistic
-falls inside :math:`\pm 3`. Read it before the interval. Where the treated
-aggregate is outside the hull, coverage falls to 0.037 at a nominal 0.90, with
-intervals six times wider than the in-hull case and still missing the truth. The
-separation is clean enough to act on: across simulated panels the largest
-statistic inside the hull is 5.5 and the smallest outside it is 25.0.
+falls inside :math:`\pm 3`. Read it before the interval.
+
+The statistic does not test hull membership, and it is a better guide than hull
+membership would be. Over 700 simulated designs whose membership is verified by
+a linear program:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - Split
+     - Admitted
+     - Coverage, admitted
+     - Coverage, refused
+   * - The gate, :math:`|t| \le 3`
+     - 81%
+     - 0.875
+     - 0.540
+   * - Inside the donors' hull
+     - 47%
+     - 0.897
+     - 0.732
+
+Hull membership is the wrong cut because what decides the interval is the size
+of the realized offset against the noise. A design just outside the hull carries
+an offset too small to matter, and a design inside it can be fitted badly enough
+to carry a large one. The two statistics overlap heavily: the largest in-hull
+statistic is 8.2, the smallest out-of-hull one is 0.001, and 82 per cent of
+out-of-hull designs fall below 5.5. No threshold sorts designs by hull
+membership, so the gate sorts them by whether the interval will be centred,
+which is the question the interval needs answered.
+
+Coverage falls away continuously as the statistic rises, which is where the
+threshold of 3 comes from:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 16 16 16 16 16
+
+   * - :math:`|t|`
+     - :math:`[0, 1)`
+     - :math:`[2, 3)`
+     - :math:`[3, 4)`
+     - :math:`[4, 5)`
+     - :math:`[5, 6)`
+   * - Coverage
+     - 0.901
+     - 0.844
+     - 0.842
+     - 0.719
+     - 0.513
+
+At 3 the gate admits 84 per cent of designs, covering 0.883, and refuses a set
+covering 0.696. Moving it to 5 admits 93 per cent at 0.875. The trade is flat
+between 2 and 5, so the exact figure inside that range matters less than having
+a gate at all; past 5 the refused designs are the ones whose intervals miss by
+the largest margins.
 
 The offset is charged against the Bartlett effective sample size
 :math:`n(1 - \rho)/(1 + \rho)`, where :math:`\rho` is the lag-one correlation of
 the blank gap, and not against the raw period count. Serially correlated periods
 carry less information than independent ones, so dividing by
 :math:`\hat\sigma / \sqrt{n}` understates the standard error and refuses designs
-the donors reproduce perfectly well -- 33 per cent of them at an AR(1)
-coefficient of 0.6.
+the donors reproduce perfectly well. On zero-offset gaps of 20 periods, where a
+correctly sized test at this threshold would refuse 0.003:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 18 18 18 18
+
+   * - :math:`\rho`
+     - 0.0
+     - 0.3
+     - 0.6
+     - 0.8
+   * - Refused, raw :math:`n`
+     - 0.007
+     - 0.043
+     - 0.173
+     - 0.385
+   * - Refused, Bartlett
+     - 0.019
+     - 0.029
+     - 0.060
+     - 0.125
+   * - Refused, clipped at :math:`n`
+     - 0.005
+     - 0.023
+     - 0.059
+     - 0.125
+
+The correction earns its keep from :math:`\rho = 0.3` upward and costs something
+at :math:`\rho = 0`, where it refuses 0.019 against the raw count's 0.007.
+:math:`(1 - \rho)/(1 + \rho)` is convex, so a lag-one estimate scattered about
+zero averages to an effective sample size above the period count --
+:math:`1.24n` over 20 periods -- and the test charges the offset against more
+information than the window holds. Clipping the effective count at the period
+count removes that at no cost elsewhere, as the third row shows, and the
+implementation does not yet do it.
 
 The gate fires often on panels whose factor loadings can be negative, because
 the treated aggregate then falls outside the hull for many treated pairs. That
@@ -1237,22 +1323,109 @@ combination the design actually built. This is what
 and on a design with two treated markets it is the only thing LEXSCM's own
 output supports.
 
-Per treated unit. Abadie and Zhao's Unit-level design, their equation (10),
-fits the treated aggregate to the population target and each treated unit to its
-own synthetic control at the same time. Their equation (11) then decomposes the
-estimate,
+Per treated unit. Abadie and Zhao's Unit-level design fits the treated aggregate
+to the population target and each treated unit to its own synthetic control at
+the same time. Stage 1 above chooses one weight vector; this design chooses a
+whole matrix alongside it. Write :math:`\mathcal{S} = \{j : w_j > 0\}` for the
+treated set the weights pick out themselves, and :math:`v_{ij}` for the weight
+unit :math:`i` carries in the synthetic control built for treated unit
+:math:`j`. The design is their equation (10):
 
 .. math::
 
-   \hat\tau_t \;=\; \sum_j w^*_j \Bigl( Y_{jt} - \sum_i v^*_{ij} Y_{it} \Bigr),
+   \min_{\mathbf{w},\, \mathbf{V}} \;
+   \Bigl\lVert \bar{\mathbf{x}} - \sum_{j=1}^{J} w_j \mathbf{x}_j
+   \Bigr\rVert^2
+   \;+\; \xi \sum_{j=1}^{J} w_j
+   \Bigl\lVert \mathbf{x}_j - \sum_{i=1}^{J} v_{ij} \mathbf{x}_i
+   \Bigr\rVert^2
+
+subject to
+
+.. math::
+
+   \sum_{j=1}^{J} w_j = 1, \qquad w_j \ge 0 \;\; \forall j, \qquad
+   \underline{m} \le \lVert \mathbf{w} \rVert_0 \le \overline{m},
+
+.. math::
+
+   \sum_{i=1}^{J} v_{ij} = 1 \;\;\; \forall j \in \mathcal{S}, \qquad
+   v_{ij} \ge 0 \;\;\; \forall j \in \mathcal{S},\, \forall i,
+
+.. math::
+
+   v_{ij} = 0 \;\;\; \forall i \in \mathcal{S}, \qquad
+   v_{ij} = 0 \;\;\; \forall j \notin \mathcal{S}.
+
+The first term is the Stage-1 objective unchanged: the treated combination
+reproduces the population target. The second is a sum of ordinary
+synthetic-control fits, one for each treated unit, each carrying that unit's
+own share :math:`w_j` of the treated aggregate, so a unit that contributes
+little to the headline also counts for little in how hard the design works to
+make it reproducible. The last line is bookkeeping with real consequences: no
+treated unit may serve as a donor for another treated unit, and units outside
+the treated set carry no synthetic control of their own.
+
+:math:`\xi` sets the exchange rate between the two terms. Small :math:`\xi`
+buys treated units that match the population; large :math:`\xi` buys treated
+units their own donors can reproduce. The two are in genuine tension, since the
+units that best fill out an aggregate are often the extreme ones that nothing
+else resembles. Abadie and Zhao report that this design concentrates on a small
+treated set even with no sparsity constraint (:math:`\underline{m} = 1`,
+:math:`\overline{m} = J - 1`), and that large :math:`\xi` sharpens that further;
+pushed far enough it returns a single treated unit that a convex combination of
+the others reproduces closely.
+
+Given a solution :math:`\{w^*_j, v^*_{ij}\}`, the per-unit control weights
+aggregate into one control vector, which is their equation (11):
+
+.. math::
+
+   v^*_j \;=\; \sum_{i=1}^{J} w^*_i v^*_{ij} .
+
+The estimate can then be read two ways that are the same number,
+
+.. math::
+
+   \hat\tau_t \;=\; \sum_j w^*_j Y_{jt} - \sum_j v^*_j Y_{jt}
+             \;=\; \sum_j w^*_j \Bigl( Y_{jt} - \sum_i v^*_{ij} Y_{it} \Bigr),
 
 so the aggregate gap is the weighted mean of the per-unit gaps.
+
+LEXSCM does not solve this program, though its two-stage shape is not a
+departure from the family either. Vives-i-Bastida (2022) supplies the
+lexicographic reading of the joint design: enumerate the candidate treated
+tuples, fit :math:`\mathbf{w}` for each, keep the best few, and only then fit
+control weights for those. He notes this is the joint program in the limit as
+the weight on the control-fit term goes to zero, so representativeness is
+settled before any control is chosen. That limit is Stage 1 followed by Stage
+2, and it is the sense in which this estimator is lexicographic.
+
+Two symbols do not carry over, and one of them is a trap for anyone reading
+both papers. ``targeting_penalty`` is a ridge toward equal weights, not the
+:math:`\beta` of the Weakly targeted design in equation (9), which penalises
+the distance between the aggregate treated and aggregate control units. And
+:math:`\xi` names different quantities in the two sources: in Abadie and
+Zhao's equation (10) above it weights the per-unit control fits, while in
+Vives-i-Bastida's program it weights the aggregate treated-against-control
+discrepancy, which is Abadie and Zhao's :math:`\beta`. Neither has a field in
+``LEXSCMConfig`` -- the first because nothing in the pipeline fits a per-unit
+control, the second because the lexicographic order has already taken it to
+its limit. The formulation is here because it
+says what object the per-unit gaps are: one residual series per treated unit
+from its own synthetic control, with the treated units excluded from each
+other's donor pools. A caller who builds those series some other way satisfies
+the same contract.
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.unit_level_cumulative`
 takes period-by-unit gaps and returns both, computing the aggregate from the
 parts so a market-level breakdown and a headline number cannot contradict each
 other. Each unit's interval reads its null from the other treated units, which
 the design has already built synthetic controls for; ``extra_pool`` adds further
-held-out series, which a small treated group needs.
+held-out series, which a small treated group needs. Drawing on them as placebos
+is consistent with the constraint that excludes them as donors: the design
+forbids treated unit :math:`i` from appearing in treated unit :math:`j`'s
+synthetic control, and says nothing about unit :math:`i`'s own residual serving
+as a draw from the null.
 
 The population. A representative design weights its treated units so the
 aggregate stands in for a wider population, whose effect is
@@ -1346,7 +1519,7 @@ Against a known truth of 1.0 per period, 300 replications, nominal 0.90:
      - 0.863
      - 17.7
      - 33%
-   * - Outside the hull
+   * - Far outside the hull
      - 0.037
      - 64.1
      - 100%
@@ -1354,8 +1527,24 @@ Against a known truth of 1.0 per period, 300 replications, nominal 0.90:
 "Share gated" is the fraction of designs ``approximability`` refuses before the
 interval is read. Blocks absorb dependence shorter than the horizon they span,
 and at :math:`\rho = 0.6` some of it outlives them, which is where the 0.863
-comes from. Every out-of-hull design is refused, so the 0.037 describes what the
-gate exists to prevent and not what a user sees.
+comes from.
+
+Two cautions on reading that table. The last row is a deliberately extreme draw,
+pushed far enough outside the hull that every design is refused; it shows what
+the gate exists to prevent and not what leaving the hull costs in general. On a
+milder draw, with membership verified by a linear program, out-of-hull designs
+cover 0.732 in aggregate and the gate refuses 30 per cent of them -- the harmful
+part, since the refused ones cover 0.463 and the admitted ones 0.850. Leaving
+the hull is a matter of degree, and the gate sorts by degree.
+
+The levels themselves belong to the panel that produced them. The same
+construction, measured on two generators that differ only in whether the latent
+factors follow a random walk or are stationary, covers 0.968 and 0.856 for
+in-hull designs with independent noise, and 0.928 and 0.823 at
+:math:`\rho = 0.6`. The 0.915 above sits inside that spread. What is stable
+across generators is the ordering -- coverage falls as dependence rises and as
+the approximability statistic rises -- and not the number. Read the table for
+the shape, and measure your own panel for the level.
 
 The thickness of the pool trades the two levels off against each other. On a
 four-unit design, varying the number of extra held-out series:

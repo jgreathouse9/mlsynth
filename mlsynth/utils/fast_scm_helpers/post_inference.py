@@ -118,9 +118,13 @@ from ...exceptions import MlsynthConfigError, MlsynthDataError
 
 #: Blank-window bias beyond this many standard errors means the donors cannot
 #: approximate the treated unit, where the interval is biased and not merely
-#: wide. Measured separation on simulated panels is clean: the largest
-#: statistic inside the donors' convex hull is 5.5 and the smallest outside it
-#: is 25.0.
+#: wide. The threshold sits where coverage starts to fall away. Over 1,600
+#: simulated designs the cumulative interval covers 0.901 where the statistic
+#: is below 1, 0.844 between 2 and 3, 0.842 between 3 and 4, 0.719 between 4
+#: and 5 and 0.513 between 5 and 6, against a nominal 0.90. At 3.0 the gate
+#: admits 84 per cent of designs, whose coverage is 0.883, and the designs it
+#: refuses cover 0.696. Moving it to 5.0 admits 93 per cent at 0.875, so the
+#: trade is flat across 2 to 5 and the choice inside that range is not sharp.
 APPROXIMABILITY_T = 3.0
 
 
@@ -152,18 +156,39 @@ def approximability(blank_gaps: Sequence[float], *,
     """Test the held-out gap for a location offset.
 
     The cumulative interval is centred only when the fitted weights reproduce
-    the treated unit on periods they were not fitted to. When the treated unit
-    sits outside the donors' convex hull the gap carries an offset that no
-    resampling of residuals removes, so coverage collapses -- 0.037 at a nominal
-    0.90, with intervals six times wider than the in-hull case and still
-    missing. Read this before the interval, not beside it.
+    the treated unit on periods they were not fitted to. A miss on those periods
+    runs through the post window as a constant, reads as a treatment effect, and
+    no resampling of residuals removes it. Read this before the interval, not
+    beside it.
+
+    The statistic predicts interval failure better than the convex-hull
+    condition it stands in for. Over 700 designs whose hull membership is
+    verified by a linear program, the gate admits 81 per cent of them with
+    coverage 0.875 and refuses the rest at 0.540; splitting the same designs on
+    hull membership admits 47 per cent at 0.897 and leaves 0.732 in the refused
+    half. Hull membership is the wrong cut because what decides the interval is
+    the size of the realized offset against the noise: a design just outside the
+    hull carries an offset too small to matter, and a design inside it can be
+    fitted badly enough to carry a large one. The two overlap heavily -- the
+    largest in-hull statistic is 8.2, the smallest out-of-hull one is 0.001, and
+    82 per cent of out-of-hull designs fall below 5.5 -- so no threshold sorts
+    designs by hull membership, and this one does not try to.
 
     Serially correlated periods carry less information than independent ones, so
     the offset is tested on the Bartlett effective sample size
-    ``n (1 - rho) / (1 + rho)`` and not the raw period count. Dividing by
-    ``sd / sqrt(n)`` understates the standard error under dependence and refuses
-    designs the donors reproduce perfectly well -- 33 per cent of them at an
-    AR(1) coefficient of 0.6.
+    ``n (1 - rho) / (1 + rho)`` and not the raw period count. On zero-offset
+    gaps of 20 periods the raw count refuses 0.007 of designs at ``rho = 0``,
+    0.043 at 0.3, 0.173 at 0.6 and 0.385 at 0.8, against the 0.003 a correctly
+    sized test would refuse at this threshold; the correction brings the two
+    dependent cases to 0.060 and 0.125.
+
+    The correction costs something where there is no dependence: at ``rho = 0``
+    it refuses 0.019 against the raw count's 0.007. ``(1 - rho)/(1 + rho)`` is
+    convex, so a lag-one estimate scattered about zero averages to an effective
+    sample size above the period count -- 1.24 n over 20 periods -- and the test
+    charges the offset against more information than the window holds. Clipping
+    the effective count at the period count measures 0.005 at ``rho = 0`` and
+    0.059 at 0.6, and is not applied here.
     """
     gaps = np.asarray(blank_gaps, dtype=float).ravel()
     if gaps.size < 2:
