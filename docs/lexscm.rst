@@ -276,8 +276,86 @@ On the simplex :math:`\mathbf{1}^\top\mathbf{w}=1`, so :math:`\lVert \mathbf{w}
   population naturally
   (with near-equal weights), which the donor pool can also reconstruct.
 
+Unit-level designs (``unit_level_penalty``)
+"""""""""""""""""""""""""""""""""""""""""""
+
+Stage 1 asks one question: does the treated combination reproduce the population
+target. It does not ask whether each chosen market is itself reproducible by the
+donors left over, and the two come apart where it matters. On a 62-market panel
+at :math:`m = 8` the unpenalised design selected the two largest markets, which
+no convex combination of the remainder can reach, gave them 58 per cent of the
+weight, and its aggregate interval missed the truth -- 31.9 per cent estimated
+against 8.5 true. Capping eligible market size, a crude proxy for the same
+constraint, cut the aggregate half-width from 16.9 to 5.7 per cent and restored
+coverage.
+
+``unit_level_penalty`` :math:`= \xi \ge 0` adds the second term of Abadie and
+Zhao's equation (10), each treated market's own reproducibility weighted by its
+share of the aggregate:
+
+.. math::
+
+   \min_{\mathbf{w},\mathbf{V}} \;
+   \Bigl\lVert \bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j \Bigr\rVert^2
+   \;+\; \xi \sum_j w_j
+   \Bigl\lVert \mathbf{x}_j - \sum_i v_{ij} \mathbf{x}_i \Bigr\rVert^2 .
+
+Two properties make this cost nothing in the search. The inner weights
+:math:`v_{\cdot j}` appear in one term only, multiplied by the non-negative
+scalar :math:`w_j`, and a positive scalar does not move an argmin -- so
+:math:`v^*_{\cdot j}` is independent of :math:`\mathbf{w}` and is just the
+ordinary synthetic control for market :math:`j`. And on the simplex a linear
+term folds into the quadratic exactly, :math:`c'\mathbf{w} = \mathbf{w}'
+\tfrac{1}{2}(c\mathbf{1}' + \mathbf{1}c')\mathbf{w}`, so the penalty enters the
+Gram the tuple search already runs on, the way ``targeting_penalty`` does, and
+the same solver handles it.
+
+The reproducibility of each candidate is measured against every other market in
+the panel, not against the complement of the tuple under test. Equation (10)
+asks for the second, which must be recomputed per tuple. Measured over 400 to
+600 tuples per cell across :math:`J \in \{12, 62\}`, :math:`m \in \{2, 4, 8\}`
+and :math:`\xi \in \{0.1, 1, 10\}`, the two pick the same design in 11 of 12
+cells, with rank correlation at or above 0.986 and median error in the penalty
+of 0.0 to 0.7 per cent. They part at :math:`m = 8` with :math:`\xi = 10`, where
+a tuple's own exclusions matter most. The per-tuple form costs 46 ms against 0.4
+seconds in total, so a 62-market design at :math:`m = 8` would run for hours.
+
+What :math:`\xi` acts on is the weights, not the membership
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The term enters as :math:`\xi \sum_j w_j d_j`, so the design answers an
+unreachable market by giving it less weight and not by dropping it from the
+tuple. Because :math:`\sum_j w_j = 1` the penalty is a convex combination of the
+:math:`d_j`, bounded by :math:`\max_j d_j` whatever the tuple size, so it never
+grows with :math:`m` and a larger tuple remains weakly better on the objective.
+A convex combination is minimised at a vertex, which is the sparsity Abadie and
+Zhao describe: large :math:`\xi` puts all the weight on the most reproducible
+market. On a ten-market panel with a fixed six-market tuple the support holds at
+six through :math:`\xi = 100` and collapses to three by :math:`\xi = 1000`,
+while the imbalance degrades from 3.15 to 21.0 well before it does.
+
+That sparsity is admissible in the paper, whose cardinality constraint is a
+range :math:`\underline{m} \le \lVert \mathbf{w} \rVert_0 \le \overline{m}`, so
+a design may use fewer treated units than it selected. LEXSCM's ``m`` is not a
+range. It is a budget: ``m`` markets get treated and paid for, so a solution
+that strands one at zero has spent that budget on a market the estimator then
+ignores. ``min_treated_weight`` is the floor that prevents it, restoring
+:math:`\lVert \mathbf{w} \rVert_0 = m`. Writing :math:`\mathbf{w} =
+\varepsilon\mathbf{1} + (1 - m\varepsilon)\mathbf{u}` leaves a problem of the
+same shape, so the floor needs no new machinery, and it binds only where the
+penalty would have pushed past it -- the least reproducible market sits on the
+floor, not at zero, and the ordering the penalty expresses survives.
+
+Choosing :math:`\xi` is not transferable. The penalty is a squared norm, so
+rescaling the panel rescales it by the square, and a value tuned on one outcome
+does not carry to another. Start at zero, which is Stage 1 exactly as it stands
+and leaves every pinned value unchanged, and raise it only if the chosen markets
+fail
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` after the
+fact -- which is the symptom this parameter exists to prevent.
+
 How a single tuple is built: the inner simplex QP
-"""""""""""""""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""""""""""""""""""""
 
 "Building" a tuple :math:`\mathcal{S}` means solving its inner problem
 :math:`\min_{\mathbf{w} \in \Delta(\mathcal{S})} \mathbf{w}^\top
@@ -1431,6 +1509,88 @@ is consistent with the constraint that excludes them as donors: the design
 forbids treated unit :math:`i` from appearing in treated unit :math:`j`'s
 synthetic control, and says nothing about unit :math:`i`'s own residual serving
 as a draw from the null.
+
+Every series in that pool has to be approximable itself
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The interval inverts a pivot on blocks drawn from the pool, which assumes each
+member is a draw from the null -- what the treated unit's gap would look like
+with no effect. A donor its own peers cannot reproduce does not qualify. Its
+residual is dominated by the fit's systematic miss, and that miss is a constant.
+
+Rescaling does not repair it, and the way it fails is specific.
+``_prepare_pool`` puts every series on the treated unit's standard deviation,
+which matches the scale and leaves the ratio of offset to spread where it was.
+Summing a block of :math:`h` periods then accumulates the offset as :math:`h`
+while the noise it is supposed to represent accumulates as :math:`\sqrt{h}`, so
+one such member comes to set the tail quantiles, and it does so most at the long
+horizons the cumulative path exists to report.
+
+``unit_level_cumulative`` and ``population_cumulative`` therefore run the same
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` gate over
+the pool that the treated units themselves have to pass, dropping what fails,
+recording it on the result as ``dropped_treated`` and ``dropped_extra``, and
+naming it in a warning. A unit's own residual is never screened: it sets the
+scale the rest are put on, and its own offset is what the caller checks with
+``approximability`` directly. Pass ``screen_pool=False`` to keep everything.
+
+The effect is large because the offending series are not marginal. On a
+twelve-market panel calibrated to a 141-week weekly geo panel, per-unit interval
+width falls from 199.6 to 88.0 with the point estimates unchanged; at
+sixty-two markets it falls from 94.6 to 85.3. Nor are such donors unusual. In a
+panel whose market sizes span a factor of 57, the largest cannot be a convex
+combination of smaller ones, and about 21 per cent of donors fail the gate at
+twelve markets against 6 per cent at sixty-two -- fewer in the larger panel
+because each donor has more peers to be spanned by, not because the sizes are
+closer together.
+
+Screening is cheap and assumes nothing: it removes series that were never valid
+draws from the null. A second route to the same problem is to relax the
+constraint that creates it, since a donor is unreachable only under simplex
+weights with no intercept. Both were measured on the same panels, at twelve
+markets, against the plain simplex fit:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 15 15 15 15
+
+   * - Fit
+     - SC
+     - MSCa
+     - MSCb
+     - MSCc
+   * - Donors failing the gate
+     - 22.3%
+     - 14.0%
+     - 8.0%
+     - 5.0%
+   * - Per-unit width, unscreened
+     - 230.5
+     - 114.8
+     - 100.1
+     - 99.8
+   * - Per-unit width, screened
+     - 97.8
+     - 96.9
+     - 93.2
+     - 96.8
+
+Three things follow. Dropping the adding-up constraint (MSCb) helps more than
+adding an intercept (MSCa), because markets here differ almost entirely by
+scale: the largest market needs its donor mix scaled up, not shifted up, and an
+intercept that matches the level leaves the amplitude wrong. No relaxation
+drives the failures to zero, because what survives is a fit whose level or scale
+drifts between the fitting window and the blank window, which in-sample
+flexibility cannot fix. And the two routes are substitutes, not complements --
+screening the simplex fit reaches 97.8 and relaxing without screening reaches
+100.1, while doing both reaches 93.2.
+
+Relaxing also costs something the width column hides. A fit free of adding-up
+chases pre-treatment noise and extrapolates worse, so the treated units
+themselves fail the gate more often: an MSCb design needed 38 draws to yield 30
+that passed, against 33 to 34 for the others. Which constraint a panel wants is
+a specification question, and :doc:`tssc` answers it with a test instead of a
+default.
 
 The population. A representative design weights its treated units so the
 aggregate stands in for a wider population, whose effect is

@@ -3142,7 +3142,7 @@ timeout = 300.0
 [[target]]
 name = "scm-cumulative"
 module-path = "mlsynth/utils/fast_scm_helpers/post_inference.py"
-test-command = "python -m pytest mlsynth/tests/test_lexscm_cumulative.py mlsynth/tests/test_lexscm_cumulative_properties.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_cumulative.py mlsynth/tests/test_lexscm_cumulative_properties.py mlsynth/tests/test_lexscm_pool_screening.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]
@@ -3174,6 +3174,24 @@ timeout = 300.0
   find = "    effective_n = min(max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0),\n                      float(gaps.size))"
   replace = "    effective_n = min(gaps.size * (1.0 - rho) / (1.0 + rho), float(gaps.size))"
   models = "the effective sample size left unbounded below. Heavy positive dependence drives it under one, so the Student-t is handed a non-positive degrees of freedom and the p-value stops being a number, while the statistic shrinks toward zero and the gate admits whatever offset it is shown"
+
+  [[target.mutant]]
+  id = "pool-screen-keeps-what-it-was-built-to-drop"
+  find = "    bad_extra = _screen(extra_c) if screen_pool else []\n    if bad_treated or bad_extra:\n        warnings.warn(\n            f\"the placebo pool held {len(bad_treated) + len(bad_extra)} series the \"\n            f\"donors cannot reproduce, which carry a location offset no resampling \""
+  replace = "    bad_extra = []\n    if bad_treated or bad_extra:\n        warnings.warn(\n            f\"the placebo pool held {len(bad_treated) + len(bad_extra)} series the \"\n            f\"donors cannot reproduce, which carry a location offset no resampling \""
+  models = "extra_pool members admitted without the approximability gate. A donor its own peers cannot reproduce contributes a location offset, which a block sum accumulates as the horizon against noise at its square root, so the tail quantiles are set by the fit's miss: per-unit interval width runs 199.6 against the 88.0 the screen delivers on a twelve-market panel, with the point estimates identical"
+
+  [[target.mutant]]
+  id = "pool-screen-takes-the-units-own-scale-reference"
+  find = "        others = [blank_c[:, j] for j in range(n_units)\n                  if j != k and j not in bad_treated]"
+  replace = "        others = [blank_c[:, j] for j in range(n_units) if j != k]"
+  models = "a treated unit whose own gap failed the gate left in every other unit's null. The offset that disqualified it is exactly what the other units' intervals are then read against, so one unreproducible treated market widens every other market's interval"
+
+  [[target.mutant]]
+  id = "pool-screen-applied-on-one-side-only"
+  find = "    extra_c = [x for i, x in enumerate(extra_c) if i not in bad_extra]\n    units = [blank_c[:, j] for j in range(n_units)\n             if j not in bad_treated] if n_units > 1 else []"
+  replace = "    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []"
+  models = "the population entry point building the same null from the same series without the screen the Unit-level entry point applies. The two then disagree about which series represent the null while agreeing on the estimate, so a population interval and a treated interval drawn from one design are not comparable"
 
   [[target.mutant]]
   id = "pool-keeps-each-placebo-on-its-own-scale"
@@ -3252,3 +3270,45 @@ timeout = 300.0
   replace = """        \"\"\"Reject the bilinear control-side penalty at construction.\"\"\"
         if False:"""
   models = "a config that takes lambda2_unit without complaint and defers the failure to the program build, so a parameter that can only ever be zero is reported back on the config as though it were in force"
+
+[[target]]
+name = "lexscm-unit-level"
+module-path = "mlsynth/utils/fast_scm_helpers/unit_level.py"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_unit_level.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "linear-term-folded-without-the-symmetric-half"
+  find = "    folded = Q + 0.5 * (np.outer(c, ones) + np.outer(ones, c))"
+  replace = "    folded = Q + np.outer(c, ones)"
+  models = "the rank-two fold written one-sided. The identity c'w == w'(c1' + 1c')w / 2 needs both halves to be a quadratic form at all; one side gives w'(c1')w = (w'c)(1'w), which happens to equal c'w on the simplex but is not symmetric, so the Gram handed to a minimum-norm solver no longer represents the objective it is solving"
+
+  [[target.mutant]]
+  id = "penalised-gram-not-lifted-to-psd"
+  find = "        if np.linalg.eigvalsh(folded + kappa * np.outer(ones, ones)).min() > -1e-10:\n            break"
+  replace = "        break"
+  models = "the indefinite rank-two term left in place. The solver is a minimum-norm-point method whose active-set systems assume a positive semidefinite form, so an unlifted Gram yields a loss that is not the objective's minimum and can be negative"
+
+  [[target.mutant]]
+  id = "treated-units-left-in-each-others-donor-pools"
+  find = "    overlap = set(tr.tolist()) & set(dn.tolist())\n    if overlap:"
+  replace = "    overlap = set()\n    if overlap:"
+  models = "equation (10)'s v_ij = 0 for i in the treated set dropped. A pair of near-identical treated markets then reproduces each other perfectly and both read as fully approximable, while the donors can reach neither -- the selection failure the penalty exists to prevent, reported as its absence"
+
+  [[target.mutant]]
+  id = "weight-floor-applied-without-rescaling-the-rest"
+  find = "    span = 1.0 - min_weight * m"
+  replace = "    span = 1.0"
+  models = "the floor added without shrinking the span it consumes. The weights then sum to 1 + m*eps instead of 1, so the synthetic treated unit is scaled above the markets it is built from and every effect read against it is biased by that factor"
+
+  [[target.mutant]]
+  id = "weight-floor-forgets-the-shifted-linear-term"
+  find = "    shifted = (2.0 * min_weight * (Q @ np.ones(m)) + c) / span"
+  replace = "    shifted = c / span"
+  models = "the cross term from the floor dropped. Substituting w = eps 1 + span u leaves 2 eps Q 1 against u, so omitting it solves a different problem than the one on the shrunken simplex and the floor silently changes which unit the penalty favours rather than only bounding it"
+
+  [[target.mutant]]
+  id = "reproducibility-drops-the-target-norm"
+  find = "        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)"
+  replace = "        out[k] = max(float(loss) - kappa, 0.0)"
+  models = "the constant x_j'x_j left out of the expanded squared norm. The penalty is then negative before clamping and reads as zero for every unit, so every candidate tuple looks perfectly reproducible and the term has no effect on selection"

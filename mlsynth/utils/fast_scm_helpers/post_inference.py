@@ -108,6 +108,8 @@ def update_post_inference(
 # path, and returns an empty set for 1.7 to 2.5 per cent of post windows.
 # ---------------------------------------------------------------------------
 
+import warnings
+
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
@@ -351,6 +353,11 @@ class UnitLevelCumulative:
     estimand: str = "treated"
     centered: bool = False
     level_scale: Tuple[float, ...] = ()
+    #: Treated units whose own gap failed the approximability gate and was
+    #: therefore kept out of every other unit's null.
+    dropped_treated: Tuple[int, ...] = ()
+    #: Positions in ``extra_pool`` that failed the same gate.
+    dropped_extra: Tuple[int, ...] = ()
 
 
 def _level_scale(series: np.ndarray) -> float:
@@ -383,11 +390,33 @@ def _path(post: np.ndarray, pool: List[np.ndarray], alpha: float,
     return out
 
 
+def _screen(series: Sequence[np.ndarray]) -> List[int]:
+    """Positions whose held-out residual is not a draw from the null.
+
+    A placebo belongs in the pool only if its own donors reproduce it. When they
+    do not, the residual carries the fit's miss as a location offset, and
+    summing a block accumulates that offset as the horizon while the noise it is
+    meant to represent accumulates as its square root. One such member dominates
+    the tail quantiles, worst at the horizons the cumulative path reports.
+    Rescaling does not help: it matches the standard deviation and leaves the
+    ratio of offset to spread where it was.
+    """
+    bad = []
+    for i, x in enumerate(series):
+        try:
+            if not approximability(x).ok:
+                bad.append(i)
+        except MlsynthDataError:
+            bad.append(i)          # degenerate or too short to test is not a null
+    return bad
+
+
 def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           weights: Sequence[float], *,
                           level: float = 0.90,
                           center: bool = False,
-                          extra_pool: Optional[Sequence[Sequence[float]]] = None
+                          extra_pool: Optional[Sequence[Sequence[float]]] = None,
+                          screen_pool: bool = True
                           ) -> UnitLevelCumulative:
     """Cumulative paths under Abadie and Zhao's Unit-level design, equation (10).
 
@@ -465,14 +494,30 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     post_c, blank_c = post - levels, blank - levels
     extra_c = [s - s.mean() for s in extra] if center else extra
 
+    # Screen the null, not the estimand. A unit's own residual is never
+    # screened: it sets the scale the rest are put on, and its own offset is
+    # what the caller checks with approximability directly.
+    bad_treated = _screen([blank_c[:, j] for j in range(n_units)]) if screen_pool else []
+    bad_extra = _screen(extra_c) if screen_pool else []
+    if bad_treated or bad_extra:
+        warnings.warn(
+            f"the placebo pool held {len(bad_treated) + len(bad_extra)} series the "
+            f"donors cannot reproduce, which carry a location offset no resampling "
+            f"removes; dropped treated unit(s) {bad_treated} and extra_pool "
+            f"position(s) {bad_extra}. Pass screen_pool=False to keep them.",
+            UserWarning, stacklevel=2)
+    keep_extra = [x for i, x in enumerate(extra_c) if i not in bad_extra]
+
     per_unit: List[List[CumulativePoint]] = []
     for k in range(n_units):
-        others = [blank_c[:, j] for j in range(n_units) if j != k]
-        pool = _prepare_pool([blank_c[:, k], *others, *extra_c], True)
+        others = [blank_c[:, j] for j in range(n_units)
+                  if j != k and j not in bad_treated]
+        pool = _prepare_pool([blank_c[:, k], *others, *keep_extra], True)
         per_unit.append(_path(post_c[:, k], pool, alpha, scales[k]))
 
-    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []
-    agg_pool = _prepare_pool([blank_c @ w, *units, *extra_c], True)
+    units = [blank_c[:, j] for j in range(n_units)
+             if j not in bad_treated] if n_units > 1 else []
+    agg_pool = _prepare_pool([blank_c @ w, *units, *keep_extra], True)
     agg_scale = _level_scale(blank_c @ w) if center else 0.0
     aggregate = _path(post_c @ w, agg_pool, alpha, agg_scale)
 
@@ -480,7 +525,9 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                                per_unit=tuple(per_unit),
                                weights=tuple(float(x) for x in w),
                                centered=bool(center),
-                               level_scale=tuple(float(x) for x in scales))
+                               level_scale=tuple(float(x) for x in scales),
+                               dropped_treated=tuple(bad_treated),
+                               dropped_extra=tuple(bad_extra))
 
 
 #: Standard-normal nodes the representation error is convolved over. A fixed
@@ -496,6 +543,8 @@ class PopulationCumulative:
     effect_dispersion: float
     weight_distance: float
     estimand: str = "population"
+    dropped_treated: Tuple[int, ...] = ()
+    dropped_extra: Tuple[int, ...] = ()
 
 
 def _bartlett_n(n: int, rho: float) -> float:
@@ -549,7 +598,8 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
                           treated_index: Sequence[int], *,
                           level: float = 0.90,
                           center: bool = False,
-                          extra_pool: Optional[Sequence[Sequence[float]]] = None
+                          extra_pool: Optional[Sequence[Sequence[float]]] = None,
+                          screen_pool: bool = True
                           ) -> PopulationCumulative:
     """The cumulative effect on the population, not on the treated group.
 
@@ -617,7 +667,19 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     post_c, blank_c = post - levels, blank - levels
     extra = [np.asarray(x, dtype=float).ravel() for x in (extra_pool or [])]
     extra_c = [x - x.mean() for x in extra] if center else extra
-    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []
+    # The same screen as the Unit-level entry point: this builds the same kind
+    # of null from the same kind of series, so it inherits the same precondition.
+    bad_treated = _screen([blank_c[:, j] for j in range(n_units)]) if screen_pool else []
+    bad_extra = _screen(extra_c) if screen_pool else []
+    if bad_treated or bad_extra:
+        warnings.warn(
+            f"the placebo pool held {len(bad_treated) + len(bad_extra)} series the "
+            f"donors cannot reproduce; dropped treated unit(s) {bad_treated} and "
+            f"extra_pool position(s) {bad_extra}. Pass screen_pool=False to keep "
+            f"them.", UserWarning, stacklevel=2)
+    extra_c = [x for i, x in enumerate(extra_c) if i not in bad_extra]
+    units = [blank_c[:, j] for j in range(n_units)
+             if j not in bad_treated] if n_units > 1 else []
     pool = _prepare_pool([blank_c @ w, *units, *extra_c], True)
 
     # Two independent terms, each accumulating as the horizon: the noise in the
@@ -628,4 +690,6 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
 
     return PopulationCumulative(aggregate=path,
                                 effect_dispersion=float(dispersion),
-                                weight_distance=float(np.sqrt(distance)))
+                                weight_distance=float(np.sqrt(distance)),
+                                dropped_treated=tuple(bad_treated),
+                                dropped_extra=tuple(bad_extra))
