@@ -24,6 +24,7 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
 
 # Utilities - Search and Evaluation
 from ..utils.fast_scm_helpers.lexsearch import select_treated_designs
+from ..utils.fast_scm_helpers.unit_level import unit_level_gram
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 from ..utils.fast_scm_helpers.conflict import build_conflict_matrix
 # Utilities - Power and Ranking
@@ -203,6 +204,8 @@ class LEXSCM:
         self.top_K: int = config.top_K
         self.top_P: int = config.top_P
         self.targeting_penalty: float = config.targeting_penalty
+        self.unit_level_penalty: float = config.unit_level_penalty
+        self.min_treated_weight: float = config.min_treated_weight
 
         # =========================================================
         # INFERENCE / POWER
@@ -460,9 +463,24 @@ class LEXSCM:
                     f"to_be_treated markets {missing} are not in the panel."
                 )
 
+        # The Unit-level term of Abadie & Zhao's equation (10) folds into the
+        # Gram the search already runs on, the way targeting_penalty does: each
+        # candidate's reproducibility by the donors is a per-unit constant, so
+        # one matrix serves every tuple and the penalty costs nothing per tuple.
+        if self.min_treated_weight * self.m >= 1.0:
+            raise MlsynthConfigError(
+                f"min_treated_weight={self.min_treated_weight} on m={self.m} "
+                f"treated markets needs {self.min_treated_weight * self.m:.3g} "
+                f"of the weight, and the simplex has 1."
+            )
+        G_search = G
+        if self.unit_level_penalty > 0:
+            G_search, _ = unit_level_gram(
+                G, X_E, candidate_idx, self.unit_level_penalty)
+
         # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
         search = select_treated_designs(
-            G=G,
+            G=G_search,
             candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
@@ -477,6 +495,7 @@ class LEXSCM:
             max_per_stratum=self.max_per_stratum,
             size_band=size_band,
             targeting_penalty=self.targeting_penalty,
+            min_treated_weight=self.min_treated_weight,
             forced=forced_idx,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}

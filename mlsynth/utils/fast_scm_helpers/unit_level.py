@@ -1,0 +1,248 @@
+r"""The Unit-level design's second term, Abadie and Zhao's equation (10).
+
+Stage 1 chooses treated units so the treated aggregate reproduces the population
+target. That is one of the two conditions the design needs: it says nothing
+about whether each chosen unit is reproducible by the donors left over, and the
+two come apart exactly where it hurts. On a 62-market panel at ``m = 8`` the
+design selected the two largest markets, which no convex combination of the
+remainder can reach, and gave them 58 per cent of the weight; the aggregate
+estimate read 31.9 per cent against a true 8.5 and its interval missed.
+
+Equation (10) adds
+
+.. math::
+
+   \xi \sum_j w_j \bigl\lVert x_j - \sum_i v_{ij} x_i \bigr\rVert^2 ,
+
+each treated unit's own reproducibility weighted by its share of the aggregate,
+with :math:`v_{ij} = 0` for :math:`i` in the treated set so treated units cannot
+serve as donors for one another.
+
+Two facts keep this cheap. The inner weights :math:`v_{\cdot j}` appear in one
+term only, multiplied by the non-negative scalar :math:`w_j`, so a positive
+scalar cannot move their argmin: the optimal :math:`v_{\cdot j}` is independent
+of :math:`\mathbf{w}` and is the ordinary synthetic control for unit :math:`j`
+against the donors outside the tuple. And on the simplex a linear term folds
+into the quadratic exactly, so the existing minimum-norm-point solver takes the
+penalty unchanged.
+"""
+from __future__ import annotations
+
+from typing import Sequence, Tuple
+
+import numpy as np
+
+from ...exceptions import MlsynthConfigError, MlsynthDataError
+from .lexsearch import _afw_single
+
+
+def fold_linear_into_gram(gram: np.ndarray,
+                          linear: Sequence[float]) -> Tuple[np.ndarray, float]:
+    r"""Rewrite ``w'Qw + c'w`` on the simplex as ``w'Mw - kappa``.
+
+    On the simplex :math:`\mathbf{1}'\mathbf{w} = 1`, so
+    :math:`c'w = (c'w)(\mathbf{1}'w) = w'\,\tfrac{1}{2}(c\mathbf{1}' +
+    \mathbf{1}c')\,w` and the linear term is a quadratic form. The same identity
+    makes :math:`w'\mathbf{1}\mathbf{1}'w = 1`, so adding
+    :math:`\kappa\mathbf{1}\mathbf{1}'` shifts the objective by a constant and
+    leaves the minimiser alone.
+
+    That second freedom is what keeps the result usable. The rank-two term is
+    indefinite, and the solver is a minimum-norm-point method whose active-set
+    systems have no meaning for an indefinite form. On
+    :math:`\{u : \mathbf{1}'u = 0\}` the rank-two term contributes
+    :math:`(u'c)(\mathbf{1}'u) = 0`, so the form restricts to ``gram`` there and
+    is already positive semidefinite; only the complementary direction needs
+    lifting, and a large enough :math:`\kappa` supplies it.
+
+    Returns the folded Gram and the constant to subtract.
+    """
+    Q = np.asarray(gram, dtype=float)
+    c = np.asarray(linear, dtype=float).ravel()
+    if Q.ndim != 2 or Q.shape[0] != Q.shape[1]:
+        raise MlsynthConfigError(
+            f"the Gram matrix has to be square; got shape {Q.shape}.")
+    if c.size != Q.shape[0]:
+        raise MlsynthConfigError(
+            f"the linear term carries {c.size} coefficient(s) against a "
+            f"{Q.shape[0]}x{Q.shape[0]} Gram matrix.")
+    if not np.all(np.isfinite(Q)) or not np.all(np.isfinite(c)):
+        raise MlsynthDataError(
+            "the Gram matrix or the linear term contains non-finite values.")
+
+    if not np.any(c):
+        return Q, 0.0                      # xi = 0 leaves Stage 1 exactly as it was
+
+    m = Q.shape[0]
+    ones = np.ones(m)
+    folded = Q + 0.5 * (np.outer(c, ones) + np.outer(ones, c))
+    kappa = 0.0
+    bump = max(1.0, float(np.abs(c).max()))
+    for _ in range(64):                    # lift until the form is usable
+        if np.linalg.eigvalsh(folded + kappa * np.outer(ones, ones)).min() > -1e-10:
+            break
+        kappa = bump if kappa == 0.0 else kappa * 2.0
+    else:                                  # pragma: no cover - a PSD Gram plus a
+        raise MlsynthDataError(            # finite rank-two term always lifts
+            "the penalised Gram matrix could not be made positive semidefinite.")
+    return folded + kappa * np.outer(ones, ones), float(kappa)
+
+
+def per_unit_imbalance(design: np.ndarray,
+                       treated: Sequence[int],
+                       donors: Sequence[int]) -> np.ndarray:
+    r"""How well each treated unit's own donors reproduce it.
+
+    One ordinary synthetic control per treated unit, fitted against ``donors``
+    only, returning :math:`\lVert x_j - \sum_i v_{ij} x_i \rVert^2` for each.
+    The treated units are excluded from one another's donor pools, which
+    equation (10) imposes with :math:`v_{ij} = 0` for :math:`i \in \mathcal{S}`:
+    without it a pair of near-identical treated markets would each reproduce the
+    other perfectly while the donor pool could reach neither.
+
+    The weights do not enter. :math:`v_{\cdot j}` is the argmin of a term scaled
+    by :math:`w_j \ge 0`, and a positive scalar does not move an argmin, so this
+    is computable once a candidate tuple is known and before any weight is
+    solved for.
+    """
+    X = np.asarray(design, dtype=float)
+    tr = np.asarray(treated, dtype=int).ravel()
+    dn = np.asarray(donors, dtype=int).ravel()
+    if X.ndim != 2:
+        raise MlsynthConfigError(
+            f"the design matrix has to be two-dimensional; got shape {X.shape}.")
+    if dn.size == 0:
+        raise MlsynthDataError(
+            "no donors are left to reproduce the treated units, so the "
+            "unit-level penalty has nothing to measure.")
+    if not np.all(np.isfinite(X)):
+        raise MlsynthDataError("the design matrix contains non-finite values.")
+    overlap = set(tr.tolist()) & set(dn.tolist())
+    if overlap:
+        raise MlsynthConfigError(
+            f"unit(s) {sorted(overlap)} appear as both treated and donor; "
+            f"equation (10) excludes the treated set from every donor pool.")
+
+    D = X[:, dn]
+    gram = D.T @ D
+    out = np.empty(tr.size, dtype=float)
+    for k, j in enumerate(tr):
+        target = X[:, j]
+        # min_v ||x_j - D v||^2 = v'(D'D)v - 2 (D'x_j)'v + x_j'x_j, and the
+        # linear part folds onto the simplex the same way the penalty does.
+        folded, kappa = fold_linear_into_gram(gram, -2.0 * (D.T @ target))
+        loss, _, _ = _afw_single(folded)
+        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)
+    return out
+
+
+def unit_level_gram(gram: np.ndarray,
+                    design: np.ndarray,
+                    candidates: Sequence[int],
+                    penalty: float) -> Tuple[np.ndarray, float]:
+    r"""Fold the Unit-level penalty into the Gram the tuple search runs on.
+
+    Stage 1 already takes a penalty this way: ``targeting_penalty`` adds a
+    diagonal ridge to ``G`` before the search, and the reported imbalance is
+    read back off the original ``G`` at the penalised weights. The Unit-level
+    term folds the same way, with one difference that makes it free.
+
+    Each unit's reproducibility :math:`d_j` is a per-unit constant, so the fold
+    matrix has entries :math:`A_{ij} = (d_i + d_j)/2` and the block of it
+    belonging to any tuple is exactly the fold for that tuple's own
+    :math:`d_{\mathcal{S}}`. One :math:`J \times J` matrix therefore serves
+    every candidate: the penalty costs ``J`` simplex solves once and nothing per
+    tuple, and the batched solver runs unchanged.
+
+    The :math:`d_j` here are each candidate fitted against every other unit in
+    the panel -- donors are not restricted to the candidate pool -- and not
+    against the complement of the tuple under test. Equation (10) asks for the
+    latter, which removes the other :math:`m - 1` treated units from the donor
+    pool and has to be recomputed per tuple. Measured over 400 to 600 tuples per
+    cell, the two agree on the selected design in 11 of 12 cells spanning
+    ``J`` in {12, 62}, ``m`` in {2, 4, 8} and :math:`\xi` in {0.1, 1, 10}, with
+    rank correlation at or above 0.986 and median error in :math:`d` of 0.0 to
+    0.7 per cent. They part at ``m = 8`` with :math:`\xi = 10`, where the
+    tuple's own exclusions matter most. The per-tuple form costs 46 ms against
+    0.4 s in total, so a 62-market design at ``m = 8`` would take hours.
+
+    Returns the folded Gram and the constant the search objective is offset by.
+    """
+    if penalty < 0:
+        raise MlsynthConfigError(
+            f"the unit-level penalty (xi) has to be non-negative; got {penalty}.")
+    G = np.asarray(gram, dtype=float)
+    if penalty == 0:
+        return G, 0.0                      # Stage 1 exactly as it stands
+
+    X = np.asarray(design, dtype=float)
+    cand = list(candidates)
+    n_units = X.shape[1]
+    d = np.zeros(G.shape[0], dtype=float)
+    for j in cand:
+        # Eligibility to be treated and eligibility to be a donor are different
+        # sets: candidate_col marks the markets a team may treat, and every
+        # other market in the panel is still available to reconstruct them.
+        # Scoring a candidate against the other candidates alone understates
+        # the pool it will be rebuilt from and can refuse a market the
+        # non-eligible units reproduce perfectly.
+        others = [i for i in range(n_units) if i != j]
+        if not others:
+            continue                       # a one-unit panel has no donors at all
+        d[j] = per_unit_imbalance(X, [j], others)[0]
+    return fold_linear_into_gram(G, float(penalty) * d)
+
+
+def solve_penalised_weights(gram: np.ndarray,
+                            linear: Sequence[float],
+                            min_weight: float = 0.0) -> Tuple[np.ndarray, float]:
+    r"""Solve ``min_w w'Qw + c'w`` on the simplex, optionally with a weight floor.
+
+    Without a floor the penalised objective is free to answer an unreachable
+    treated unit by giving it no weight. Abadie and Zhao allow that: their
+    cardinality constraint is a range, :math:`\underline{m} \le \lVert
+    \mathbf{w} \rVert_0 \le \overline{m}`, so a design may use fewer treated
+    units than it selected. LEXSCM's ``m`` is not a range. It is a budget -- the
+    markets a team will treat and pay for -- so a solution that strands one at
+    zero has spent that budget on a market the estimator then ignores.
+
+    A floor :math:`\varepsilon > 0` restores :math:`\lVert \mathbf{w} \rVert_0 =
+    m` and costs nothing in machinery. Writing :math:`\mathbf{w} =
+    \varepsilon\mathbf{1} + (1 - m\varepsilon)\mathbf{u}` with :math:`\mathbf{u}`
+    on the simplex,
+
+    .. math::
+
+       w'Qw + c'w = (1 - m\varepsilon)^2 \Bigl[ u'Qu +
+       \tfrac{2\varepsilon Q\mathbf{1} + c}{1 - m\varepsilon}{}' u \Bigr]
+       + \text{const},
+
+    which is the same shape as the original and folds onto the same solver. The
+    floor binds where the penalty would have pushed past it, so the least
+    reproducible unit sits on the floor instead of at zero and the ranking the
+    penalty expresses is kept.
+
+    Returns the weights and the constant the reported objective is offset by.
+    """
+    Q = np.asarray(gram, dtype=float)
+    c = np.asarray(linear, dtype=float).ravel()
+    m = Q.shape[0]
+    if min_weight < 0:
+        raise MlsynthConfigError(
+            f"the weight floor has to be non-negative; got {min_weight}.")
+    if min_weight * m >= 1.0:
+        raise MlsynthConfigError(
+            f"a floor of {min_weight} on {m} treated unit(s) needs "
+            f"{min_weight * m:.3g} of the weight, and the simplex has 1.")
+
+    if min_weight == 0.0:
+        folded, kappa = fold_linear_into_gram(Q, c)
+        _, w, _ = _afw_single(folded)
+        return np.asarray(w, dtype=float), kappa
+
+    span = 1.0 - min_weight * m
+    shifted = (2.0 * min_weight * (Q @ np.ones(m)) + c) / span
+    folded, kappa = fold_linear_into_gram(Q, shifted)
+    _, u, _ = _afw_single(folded)
+    u = np.asarray(u, dtype=float)
+    return min_weight + span * u, kappa * span ** 2
