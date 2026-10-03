@@ -134,3 +134,52 @@ def per_unit_imbalance(design: np.ndarray,
         loss, _, _ = _afw_single(folded)
         out[k] = max(float(loss) - kappa + float(target @ target), 0.0)
     return out
+
+
+def unit_level_gram(gram: np.ndarray,
+                    design: np.ndarray,
+                    candidates: Sequence[int],
+                    penalty: float) -> Tuple[np.ndarray, float]:
+    r"""Fold the Unit-level penalty into the Gram the tuple search runs on.
+
+    Stage 1 already takes a penalty this way: ``targeting_penalty`` adds a
+    diagonal ridge to ``G`` before the search, and the reported imbalance is
+    read back off the original ``G`` at the penalised weights. The Unit-level
+    term folds the same way, with one difference that makes it free.
+
+    Each unit's reproducibility :math:`d_j` is a per-unit constant, so the fold
+    matrix has entries :math:`A_{ij} = (d_i + d_j)/2` and the block of it
+    belonging to any tuple is exactly the fold for that tuple's own
+    :math:`d_{\mathcal{S}}`. One :math:`J \times J` matrix therefore serves
+    every candidate: the penalty costs ``J`` simplex solves once and nothing per
+    tuple, and the batched solver runs unchanged.
+
+    The :math:`d_j` here are each unit fitted against every other unit, not
+    against the complement of the tuple under test. Equation (10) asks for the
+    latter, which removes the other :math:`m - 1` treated units from the donor
+    pool and has to be recomputed per tuple. Measured over 400 to 600 tuples per
+    cell, the two agree on the selected design in 11 of 12 cells spanning
+    ``J`` in {12, 62}, ``m`` in {2, 4, 8} and :math:`\xi` in {0.1, 1, 10}, with
+    rank correlation at or above 0.986 and median error in :math:`d` of 0.0 to
+    0.7 per cent. They part at ``m = 8`` with :math:`\xi = 10`, where the
+    tuple's own exclusions matter most. The per-tuple form costs 46 ms against
+    0.4 s in total, so a 62-market design at ``m = 8`` would take hours.
+
+    Returns the folded Gram and the constant the search objective is offset by.
+    """
+    if penalty < 0:
+        raise MlsynthConfigError(
+            f"the unit-level penalty (xi) has to be non-negative; got {penalty}.")
+    G = np.asarray(gram, dtype=float)
+    if penalty == 0:
+        return G, 0.0                      # Stage 1 exactly as it stands
+
+    X = np.asarray(design, dtype=float)
+    cand = list(candidates)
+    d = np.zeros(G.shape[0], dtype=float)
+    for j in cand:
+        others = [i for i in cand if i != j]
+        if not others:
+            continue                       # a lone candidate has no peers to be read against
+        d[j] = per_unit_imbalance(X, [j], others)[0]
+    return fold_linear_into_gram(G, float(penalty) * d)

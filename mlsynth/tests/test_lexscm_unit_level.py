@@ -240,3 +240,130 @@ def test_a_convex_combination_of_its_donors_is_always_reproducible(seed):
     Y = np.column_stack([target, X[:, 1:]])
     d = per_unit_imbalance(Y, treated=[0], donors=[1, 2, 3, 4])
     assert d[0] < 1e-6
+
+
+# -------------------------------------------- wiring the penalty into Stage 1
+from mlsynth.utils.fast_scm_helpers.lexsearch import select_treated_designs
+from mlsynth.utils.fast_scm_helpers.unit_level import unit_level_gram
+
+
+def _panel_with_one_unreachable_unit(rng, J=10, T=60):
+    """A panel where the balance-optimal tuple contains a unit no donor
+    combination can reach.
+
+    Unit 0 is scaled far beyond every other, so it sits outside the hull of the
+    rest; it is also built to sit opposite the others relative to the population
+    mean, which is what makes it attractive to a design scored on aggregate
+    balance alone.
+    """
+    base = rng.normal(size=(T, J))
+    base[:, 0] = base[:, 1:].mean(axis=1) * -6.0
+    return base
+
+
+def test_a_zero_penalty_leaves_the_search_gram_identical():
+    """xi = 0 has to be today's Stage 1, not a numerically close version."""
+    rng = np.random.default_rng(20)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    out, kappa = unit_level_gram(G, X, list(range(X.shape[1])), penalty=0.0)
+    assert kappa == 0.0
+    assert np.array_equal(out, G)
+
+
+def test_a_zero_penalty_selects_exactly_what_it_selects_today():
+    rng = np.random.default_rng(21)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    cand = list(range(X.shape[1]))
+    plain = select_treated_designs(G, cand, m=2, top_K=5, method="enumerate")
+    folded, _ = unit_level_gram(G, X, cand, penalty=0.0)
+    same = select_treated_designs(folded, cand, m=2, top_K=5, method="enumerate")
+    assert ([tuple(d.indices) for d in plain["top_designs"]]
+            == [tuple(d.indices) for d in same["top_designs"]])
+
+
+def test_the_penalty_moves_weight_off_the_less_reproducible_unit():
+    """The penalty acts on the weights, not on membership.
+
+    It enters the objective as ``xi * sum_j w_j d_j``, so a unit its donors
+    cannot reach is answered by giving it less weight. A first version of this
+    test asserted the unreachable unit left the chosen tuple and failed: the
+    design keeps it and sets its weight toward zero instead.
+    """
+    rng = np.random.default_rng(22)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    cand = list(range(X.shape[1]))
+    d = np.array([per_unit_imbalance(X, [j], [i for i in cand if i != j])[0]
+                  for j in cand])
+    assert d[0] > 4 * np.median(d), "fixture must make unit 0 the unreachable one"
+
+    carried = []
+    for xi in (0.0, 10.0, 50.0):
+        Gs = G if xi == 0.0 else unit_level_gram(G, X, cand, penalty=xi)[0]
+        best = select_treated_designs(Gs, cand, m=2, top_K=1,
+                                      method="enumerate")["top_designs"][0]
+        # weight the chosen design puts on its least reproducible member
+        worst = int(np.argmax(d[list(best.indices)]))
+        carried.append(float(best.weights[worst]))
+    assert carried[0] > carried[1] > carried[2]
+    assert carried[-1] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_large_penalty_leaves_a_treated_unit_carrying_no_weight():
+    """Abadie and Zhao note that large xi makes the treated weights sparse, and
+    for a design with a treatment budget that is a cost, not just a property.
+
+    LEXSCM's ``m`` is a budget -- the number of markets a team can afford to
+    treat. A design that selects m markets and gives one of them zero weight has
+    spent that budget on a market the estimator then ignores. Pinned so the
+    behaviour is known rather than discovered in a readout.
+    """
+    rng = np.random.default_rng(22)
+    X = _panel_with_one_unreachable_unit(rng)
+    cand = list(range(X.shape[1]))
+    folded, _ = unit_level_gram(X.T @ X, X, cand, penalty=50.0)
+    best = select_treated_designs(folded, cand, m=2, top_K=1,
+                                  method="enumerate")["top_designs"][0]
+    assert len(best.indices) == 2
+    assert int(np.sum(best.weights > 1e-6)) == 1, (
+        "expected the penalty to collapse the design onto one treated unit")
+
+
+def test_the_folded_gram_keeps_every_candidate_submatrix_usable():
+    """The search solves an m x m submatrix per tuple, so the lift has to hold
+    for all of them -- which it does, since a principal submatrix of a positive
+    semidefinite matrix is positive semidefinite."""
+    rng = np.random.default_rng(23)
+    X = _panel_with_one_unreachable_unit(rng, J=8)
+    folded, _ = unit_level_gram(X.T @ X, X, list(range(8)), penalty=3.0)
+    assert np.linalg.eigvalsh(folded).min() > -1e-8
+    for S in ((0, 1), (2, 5, 7), (1, 3, 4, 6)):
+        assert np.linalg.eigvalsh(folded[np.ix_(S, S)]).min() > -1e-8
+
+
+def test_the_global_fold_matches_folding_each_tuple_separately():
+    """A[i, j] = (d_i + d_j) / 2, so the tuple's block of the global fold is the
+    fold of that tuple's own d. One J x J matrix therefore serves every
+    candidate and the per-tuple cost of the penalty is nil."""
+    rng = np.random.default_rng(24)
+    X = _panel_with_one_unreachable_unit(rng, J=7)
+    G = X.T @ X
+    cand = list(range(7))
+    xi = 2.5
+    folded, kappa = unit_level_gram(G, X, cand, penalty=xi)
+    d = np.array([per_unit_imbalance(X, [j], [i for i in cand if i != j])[0] for j in cand])
+    for S in ((0, 2), (1, 4, 6), (0, 3, 5)):
+        S = list(S)
+        local, local_k = fold_linear_into_gram(G[np.ix_(S, S)], xi * d[S])
+        for w in _simplex_points(rng, len(S), n=8):
+            assert (w @ folded[np.ix_(S, S)] @ w - kappa) == pytest.approx(
+                w @ local @ w - local_k, rel=1e-8, abs=1e-8)
+
+
+def test_a_negative_penalty_is_refused():
+    rng = np.random.default_rng(25)
+    X = _panel_with_one_unreachable_unit(rng, J=6)
+    with pytest.raises(MlsynthConfigError):
+        unit_level_gram(X.T @ X, X, list(range(6)), penalty=-1.0)
