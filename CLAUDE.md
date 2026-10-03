@@ -283,6 +283,22 @@ So:
 - A commit whose message says a verification run is still in progress is a
   commit made inside exactly the window this rule is about.
 
+The repository now enforces this rather than asking for it. `.githooks/pre-commit`
+refuses to commit while a process whose argv names `run_mutants.py` or
+`cosmic-ray` is alive, and names the two incidents in its message. Enable it once
+per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+It matches on argv, not on `pgrep -f`, because the looser form also matches the
+shell that launched the runner and refuses on a clean tree -- a guard that
+refuses everything is worse than none, since the override becomes reflex.
+`MLSYNTH_ALLOW_COMMIT_DURING_MUTATION=1` is that override, for the case where
+the staged paths are known to be untouched. The discrimination is pinned in
+`tools/tests/test_pre_commit_mutation_guard.py`.
+
 ### One estimator, one branch, one scope
 
 Every new estimator gets its **own branch** and its **own scope**. Do not add a
