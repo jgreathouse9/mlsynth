@@ -98,10 +98,29 @@ output), **unit** tests of its invariants (assert invariants, not brittle
 floats), **edge-case** tests (empty / degenerate inputs: no donors, single
 donor, no pre-periods, near-singular / collinear, treatment at `t=0`), and
 **failure** tests (invalid input raises the correct translated `Mlsynth*Error`
-and a test asserts the failure is *reported*, not swallowed). A change is not
-done until it is red→green across these levels and the new code is fully
-covered — defensive / unreachable branches get `# pragma: no cover` with a
-stated reason, never an untested gap. The layered architecture, patterns,
+and a test asserts the failure is *reported*, not swallowed). Two instruments
+sit beside those four and are equally non-optional: a **`hypothesis` property**
+for every invariant the unit promises, asserted over the input domain and not
+only at the fixture, and a **mutant** in `tools/mutation/targets.toml` for each
+defect the change could reintroduce, carrying a `models` line that names it and
+confirmed killed.
+
+A change is not done until it is red→green across the four levels, the
+invariants hold generatively, every mutant for it is killed, and the new code is
+fully covered — defensive / unreachable branches get `# pragma: no cover` with a
+stated reason, never an untested gap. Each instrument is blind where the next
+one looks: coverage says the line ran, an example says one input gives one
+answer, a property says the invariant holds across the domain, and only a mutant
+says the assertion would notice the code being wrong. A suite can be green at
+full coverage and assert nothing.
+
+```bash
+python tools/mutation/run_mutants.py --target <name>   # expect every mutant killed
+```
+
+This binds hardest under `/rca`, where the subject is by definition a defect
+that escaped the suite once already: the ladder's rung 3 is a property and its
+rung 5 is a mutant, one per cause found. The layered architecture, patterns,
 exception contract, and the instrument-selection contract — which of
 `coverage` / `pytest` / `hypothesis` / `cosmic-ray` answers which question, and
 why two of them are complements — live in `agents/agents_tests.md`, along with

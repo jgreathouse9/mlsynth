@@ -15,7 +15,7 @@ Tests should validate *behavior and invariants*, not implementation details.
 
 The guiding principle is:
 
-> `mlsynth` tests validate econometric behavior and public API guarantees rather than internal implementation details.
+> `mlsynth` tests validate econometric behavior and public API guarantees, not internal implementation details.
 
 ---
 
@@ -170,10 +170,31 @@ Every new unit of behavior ships with **at least** these levels:
   test asserts the failure is **reported** (right type, informative message),
   never silently swallowed or leaked as a raw solver / NumPy / CVXPY error.
 
-A change is not "done" until it is red→green across these levels **and** the new
+Two instruments sit beside the four levels, and a change is not done without
+them either:
+
+- **Property** — every invariant the unit promises is asserted over the input
+  domain with `hypothesis`, not only at the fixture. Scale, location,
+  permutation, duplication, feasibility, normalization, monotonicity,
+  equivariance: if the docstring claims it, a property asserts it. Asserting an
+  invariant at one fixture tests an example; the claim is about the domain.
+- **Mutant** — each defect the change could plausibly reintroduce is entered in
+  `tools/mutation/targets.toml` with a `models` line naming it, and is killed.
+  A survivor is a question with two answers and both must be recorded: the
+  assertion is too weak, or the mutant is equivalent.
+
+A change is not "done" until it is red→green across the four levels, the
+invariants hold generatively, every mutant for it is killed, **and** the new
 code is fully covered. Genuinely unreachable / defensive branches are excluded
 with `# pragma: no cover` plus a one-line reason — never with an untested gap.
 Measure with the per-estimator coverage command in `CLAUDE.md`.
+
+The order of those four is the order of what they rule out, and each is blind
+where the next one looks. Coverage says the line ran. An example says one input
+gives one answer. A property says the invariant holds across the domain. Only a
+mutant says the assertion would notice the code being wrong. A suite can be
+green at full coverage and assert nothing, and the only instrument that reports
+it is the one people skip.
 
 The layered architecture below says *where* each level lives; this section says
 the levels are *non-optional* and come *first*.
@@ -270,7 +291,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
 5. **Reason about each disagreement — it is usually meaningful.** A seam
    mismatch is a finding, not noise: a different solver root, a truncation
    tolerance, a floating-point reassociation. Name *why* before you "fix" it, so
-   the fix is faithful rather than a fudge that happens to match on this dataset.
+   the fix is faithful and not a fudge that happens to match on this dataset.
 6. **Pin the resolved boundary.** Distill each differential probe into a
    permanent unit test that pins the *reference form* (e.g. the p-value is
    `1 - mean(|r| < s)`, including the boundary case), and add a **durable
@@ -300,7 +321,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
   actually applies.
 - **Mind the achievable discrete level.** A short pre-period caps the conformal
   level (the finest is `2/(T0+1)`); the reference errors or coarsens there, and
-  the comparison must use the same achievable α rather than a nominal 0.05.
+  the comparison must use the same achievable α, not a nominal 0.05.
 - **Isolate the disagreement to a *scalar*, then find the line that computes
   it.** When end-to-end numbers are close-but-off, do not sweep hyper-parameters
   hoping to land the match — that is guessing, and it can "fix" the wrong thing.
@@ -734,11 +755,21 @@ below *k* have not been ruled out yet.
 | 4 | Why did the input reach it? | Which contract was never enforced? | edge and failure tests, config validators |
 | 5 | Why did nobody notice? | Would the suite have caught this? | mutation, semantic or `cosmic-ray` |
 
-Rung 5 is not decoration. It is the RCA step that asks whether the corrective
-action worked, and it is the one people skip. A fix whose mutant survives has not
-been verified; it has been asserted. Add the mutant to
+Rungs 3 and 5 are not decoration, and they are the two that get skipped.
+
+Rung 3 asks which invariant the behaviour violates, and the answer belongs in a
+`hypothesis` property. Reaching it with one fixture finds the symptom at one
+input; the cause is a statement about the domain, and a diagnosis that cannot be
+stated as a property has not reached rung 3. A fixture that fails to reproduce a
+defect is evidence that the fixture does not reach the fault, not that the code
+is sound.
+
+Rung 5 asks whether the corrective action worked. A fix whose mutant survives
+has not been verified; it has been asserted. Add the mutant to
 `tools/mutation/targets.toml` with a `models` line naming the defect it stands
-for, and confirm it is killed.
+for, and confirm it is killed. Where the diagnosis found several causes, each
+gets its own mutant: one mutant for a ladder with three causes leaves two of
+them unpinned.
 
 Rungs branch. One why can have several answers, and each answer is its own
 descent -- the malformed objective below has two independent faults that both
@@ -1216,8 +1247,8 @@ from which question it asks.
 
 Status: `pytest`, `pytest-cov`, `pytest-xdist`, `coverage` and `hypothesis` are
 wired up and run in CI. Mutation runs are wired up as the semantic catalogue in
-`tools/mutation`, on a weekly out-of-band workflow; `cosmic-ray` itself cannot
-currently be installed (see below).
+`tools/mutation`, on a weekly out-of-band workflow. `cosmic-ray` installs again
+as of setuptools 84.0.0 and is not yet wired in (see below).
 
 ## Two of them are complements, not substitutes
 
@@ -1256,7 +1287,7 @@ unreachable branches.
 ## The two mutation instruments
 
 Mutation runs come in two forms here, and the split follows from the frame
-above rather than from tooling convenience.
+above and not from tooling convenience.
 
 A **syntactic sweep** (`cosmic-ray`) applies general operators over the syntax
 tree — replace a binary operator, flip a comparison, delete a statement —
@@ -1279,12 +1310,17 @@ does not depend on.
 The practical rule: generic operator swaps do not go in the catalogue. They
 duplicate the sweep partially and worse.
 
-`cosmic-ray` is currently blocked upstream — its `yattag` dependency ships a
-legacy `setup.py` that modern setuptools rejects — so only the catalogue runs
-today. `module-path`, `test-command` and `timeout` in `targets.toml` are
+`cosmic-ray` was blocked for a time by its `yattag` dependency, which ships a
+legacy `setup.py`. The dependency has not changed — yattag 1.16.1 is the latest
+release and still opens with `from distutils.core import setup` — but the
+toolchain has, and under setuptools 84.0.0 on Python 3.11 the wheel builds and
+`cosmic-ray` 8.7.0 installs and runs. The blocker was environment-side and not
+upstream, so a stricter setuptools could reinstate it; check before relying on it.
+
+Only the catalogue runs today, and that is now a wiring task and not a blocked
+one. `module-path`, `test-command` and `timeout` in `targets.toml` are
 cosmic-ray's own configuration keys, and `emit_cosmic_ray_config.py` renders a
-valid session config from them, so the blocker costs a `pip install` and not a
-redesign.
+valid session config from them.
 
 A harness that scores mutants has failure modes of its own, and all four of
 these were hit while building this one: a mutant that never applied must not be
@@ -1612,7 +1648,7 @@ with pytest.raises(MlsynthEstimationError):
     estimator.fit()
 ```
 
-rather than low-level internal exceptions.
+and not low-level internal exceptions.
 
 ---
 

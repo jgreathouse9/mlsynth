@@ -4,10 +4,10 @@
 #
 # `module-path` and `test-command` are cosmic-ray's own configuration keys.
 # Declaring them here means a valid `[cosmic-ray]` config is emitted from this
-# file without restating anything -- see emit_cosmic_ray_config.py. When
-# cosmic-ray becomes installable again (it is currently blocked upstream: its
-# `yattag` dependency uses a legacy setup.py that modern setuptools rejects),
-# `cosmic-ray init` on these targets is a drop-in addition.
+# file without restating anything -- see emit_cosmic_ray_config.py. cosmic-ray
+# 8.7.0 installs again under setuptools 84.0.0 on Python 3.11, so
+# `cosmic-ray init` on these targets is a drop-in addition that nobody has made
+# yet.
 #
 # The `mutant` entries are the part cosmic-ray does not generate. Its operators
 # are general rules over parso AST nodes -- replace a binary operator, flip a
