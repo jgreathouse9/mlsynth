@@ -3142,7 +3142,7 @@ timeout = 300.0
 [[target]]
 name = "scm-cumulative"
 module-path = "mlsynth/utils/fast_scm_helpers/post_inference.py"
-test-command = "python -m pytest mlsynth/tests/test_lexscm_cumulative.py mlsynth/tests/test_lexscm_cumulative_properties.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_cumulative.py mlsynth/tests/test_lexscm_cumulative_properties.py mlsynth/tests/test_lexscm_pool_screening.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]
@@ -3174,6 +3174,24 @@ timeout = 300.0
   find = "    effective_n = min(max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0),\n                      float(gaps.size))"
   replace = "    effective_n = min(gaps.size * (1.0 - rho) / (1.0 + rho), float(gaps.size))"
   models = "the effective sample size left unbounded below. Heavy positive dependence drives it under one, so the Student-t is handed a non-positive degrees of freedom and the p-value stops being a number, while the statistic shrinks toward zero and the gate admits whatever offset it is shown"
+
+  [[target.mutant]]
+  id = "pool-screen-keeps-what-it-was-built-to-drop"
+  find = "    bad_extra = _screen(extra_c) if screen_pool else []\n    if bad_treated or bad_extra:\n        warnings.warn(\n            f\"the placebo pool held {len(bad_treated) + len(bad_extra)} series the \"\n            f\"donors cannot reproduce, which carry a location offset no resampling \""
+  replace = "    bad_extra = []\n    if bad_treated or bad_extra:\n        warnings.warn(\n            f\"the placebo pool held {len(bad_treated) + len(bad_extra)} series the \"\n            f\"donors cannot reproduce, which carry a location offset no resampling \""
+  models = "extra_pool members admitted without the approximability gate. A donor its own peers cannot reproduce contributes a location offset, which a block sum accumulates as the horizon against noise at its square root, so the tail quantiles are set by the fit's miss: per-unit interval width runs 199.6 against the 88.0 the screen delivers on a twelve-market panel, with the point estimates identical"
+
+  [[target.mutant]]
+  id = "pool-screen-takes-the-units-own-scale-reference"
+  find = "        others = [blank_c[:, j] for j in range(n_units)\n                  if j != k and j not in bad_treated]"
+  replace = "        others = [blank_c[:, j] for j in range(n_units) if j != k]"
+  models = "a treated unit whose own gap failed the gate left in every other unit's null. The offset that disqualified it is exactly what the other units' intervals are then read against, so one unreproducible treated market widens every other market's interval"
+
+  [[target.mutant]]
+  id = "pool-screen-applied-on-one-side-only"
+  find = "    extra_c = [x for i, x in enumerate(extra_c) if i not in bad_extra]\n    units = [blank_c[:, j] for j in range(n_units)\n             if j not in bad_treated] if n_units > 1 else []"
+  replace = "    units = [blank_c[:, j] for j in range(n_units)] if n_units > 1 else []"
+  models = "the population entry point building the same null from the same series without the screen the Unit-level entry point applies. The two then disagree about which series represent the null while agreeing on the estimate, so a population interval and a treated interval drawn from one design are not comparable"
 
   [[target.mutant]]
   id = "pool-keeps-each-placebo-on-its-own-scale"
