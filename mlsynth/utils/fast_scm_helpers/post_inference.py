@@ -335,8 +335,21 @@ def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     reads its null from the other treated units, which the design has already
     built proper synthetic controls for; ``extra_pool`` adds further held-out
     series, which a small treated group needs because a handful of short series
-    leaves the tail quantiles thin -- five series over 32 periods cover 0.855 at
-    a nominal 0.90, against 0.915 for eleven.
+    leaves the tail quantiles thin.
+
+    The aggregate and the per-unit paths do not respond to that alike. Measured
+    on a four-unit design at a nominal 0.90, with the number of extra series
+    running 0, 4, 10, 20, the aggregate covers 0.874, 0.901, 0.913, 0.932 and
+    each unit covers its own effect 0.774, 0.805, 0.833, 0.852. Four extra
+    series bring the aggregate to its nominal level and twenty carry it past,
+    so a thicker pool is not uniformly better.
+
+    The per-unit paths improve with the pool and stop short of it. One treated
+    unit's synthetic control carries more finite-sample fit bias than the
+    aggregate's, which averages across units, and inverting a pivot cannot
+    remove a bias. Read ``per_unit`` as a breakdown whose intervals run
+    optimistic by roughly five points, and :func:`approximability` on each
+    unit's blank gap before leaning on any one of them.
 
     The estimand is ``tau^T``, the weighted effect on the treated. See
     :func:`cumulative_path` for why that is not the population effect.
