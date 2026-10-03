@@ -144,6 +144,37 @@ def test_a_single_donor_is_the_only_available_combination():
     assert d[0] == pytest.approx(float(np.sum((X[:, 0] - X[:, 2]) ** 2)), rel=1e-8)
 
 
+def test_a_unit_listed_as_both_treated_and_donor_is_refused():
+    """The guard that enforces v_ij = 0 for i in the treated set.
+
+    Every other test here passes disjoint sets, so the guard was never
+    exercised and the mutant that deleted it survived a first run. A unit
+    allowed to donate to itself reproduces itself exactly, which would report
+    the least approximable market in the panel as the most.
+    """
+    rng = np.random.default_rng(10)
+    X = rng.normal(size=(15, 5))
+    with pytest.raises(MlsynthConfigError, match="treated and donor"):
+        per_unit_imbalance(X, treated=[0, 1], donors=[1, 2, 3])
+
+
+def test_a_unit_donating_to_itself_would_look_perfectly_reproducible():
+    """Why the guard earns its place: the refused call is not a formality.
+
+    Fitted against a pool containing itself, a market is reproduced exactly and
+    its penalty is zero, so the design would rank an unreachable market as its
+    safest choice. Measured here by handing the same unit in as its own donor
+    through the donors argument alone.
+    """
+    rng = np.random.default_rng(11)
+    X = np.abs(rng.normal(size=(20, 5))) + 1.0
+    X[:, 0] = X[:, 1:].max(axis=1) * 4.0          # far outside the donor hull
+    honest = per_unit_imbalance(X, treated=[0], donors=[1, 2, 3, 4])
+    with_self = per_unit_imbalance(X, treated=[], donors=[0, 1, 2, 3, 4])
+    assert honest[0] > 1.0
+    assert with_self.size == 0
+
+
 def test_no_donors_left_is_reported_not_silently_zero():
     rng = np.random.default_rng(9)
     X = rng.normal(size=(10, 2))
