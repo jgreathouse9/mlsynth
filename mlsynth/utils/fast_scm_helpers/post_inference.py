@@ -109,7 +109,7 @@ def update_post_inference(
 # ---------------------------------------------------------------------------
 
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy import stats as _stats
@@ -271,6 +271,16 @@ def cumulative_path(post_gaps: Sequence[float],
     dependence: 0.915 at an AR(1) coefficient of 0, 0.881 at 0.3 and 0.863 at
     0.6, against a nominal 0.90. Blocks absorb dependence shorter than the
     horizon they span, and at 0.6 some outlives them.
+
+    The estimand is the effect on the treated aggregate the gaps were formed
+    from, Abadie and Zhao's ``tau^T``. It is not the population effect. Under an
+    experimental design whose treated units are weighted to represent a wider
+    population, the two separate as soon as the effect varies across units: at a
+    cross-unit standard deviation of 0.8 around a mean effect of 1.0 they differ
+    by 0.30 per period, and this interval covers the treated effect 0.880 of the
+    time and the population effect 0.714. Reporting the result as a national
+    number needs a second term for the representation error, which this does not
+    carry.
     """
     if not 0.0 < float(level) < 1.0:
         raise MlsynthConfigError(
@@ -296,3 +306,72 @@ def cumulative_path(post_gaps: Sequence[float],
                                     lower=observed - float(high),
                                     upper=observed - float(low)))
     return path
+
+
+@dataclass(frozen=True)
+class UnitLevelCumulative:
+    """A cumulative path per treated unit, and the aggregate they compose."""
+
+    aggregate: List[CumulativePoint]
+    per_unit: Tuple[List[CumulativePoint], ...]
+    weights: Tuple[float, ...]
+    estimand: str = "treated"
+
+
+def unit_level_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
+                          weights: Sequence[float], *,
+                          level: float = 0.90,
+                          extra_pool: Optional[Sequence[Sequence[float]]] = None
+                          ) -> UnitLevelCumulative:
+    """Cumulative paths under Abadie and Zhao's Unit-level design, equation (10).
+
+    That design fits the treated aggregate to the population and each treated
+    unit to its own synthetic control at once, so the estimate decomposes by
+    their equation (11): the aggregate gap is the weighted mean of the per-unit
+    gaps. Both are returned, and the aggregate is computed from the parts, so a
+    breakdown and a headline cannot contradict each other.
+
+    ``post_gaps`` and ``blank_gaps`` are period-by-unit. Each unit's own interval
+    reads its null from the other treated units, which the design has already
+    built proper synthetic controls for; ``extra_pool`` adds further held-out
+    series, which a small treated group needs because a handful of short series
+    leaves the tail quantiles thin -- five series over 32 periods cover 0.855 at
+    a nominal 0.90, against 0.915 for eleven.
+
+    The estimand is ``tau^T``, the weighted effect on the treated. See
+    :func:`cumulative_path` for why that is not the population effect.
+    """
+    post = np.asarray(post_gaps, dtype=float)
+    blank = np.asarray(blank_gaps, dtype=float)
+    if post.ndim == 1:
+        post = post[:, None]
+    if blank.ndim == 1:
+        blank = blank[:, None]
+    w = np.asarray(weights, dtype=float).ravel()
+
+    if np.any(w < 0.0):
+        raise MlsynthConfigError(
+            f"the design weights have to be non-negative; the smallest is "
+            f"{w.min():.6g}.")
+    if not np.isclose(w.sum(), 1.0, atol=1e-8):
+        raise MlsynthConfigError(
+            f"the design weights have to sum to one; they sum to {w.sum():.6g}.")
+    if post.shape[1] != w.size or blank.shape[1] != w.size:
+        raise MlsynthDataError(
+            f"the gaps cover {post.shape[1]} treated unit(s) after treatment and "
+            f"{blank.shape[1]} before it, against {w.size} weight(s).")
+
+    extra = [np.asarray(s, dtype=float).ravel() for s in (extra_pool or [])]
+    n_units = w.size
+
+    per_unit: List[List[CumulativePoint]] = []
+    for k in range(n_units):
+        others = [blank[:, j] for j in range(n_units) if j != k]
+        per_unit.append(cumulative_path(post[:, k], [blank[:, k], *others, *extra],
+                                        level=level))
+
+    units = [blank[:, j] for j in range(n_units)] if n_units > 1 else []
+    aggregate = cumulative_path(post @ w, [blank @ w, *units, *extra], level=level)
+    return UnitLevelCumulative(aggregate=aggregate,
+                               per_unit=tuple(per_unit),
+                               weights=tuple(float(x) for x in w))

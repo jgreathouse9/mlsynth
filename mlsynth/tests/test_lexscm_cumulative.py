@@ -206,3 +206,95 @@ def test_the_gate_still_catches_an_offset_under_dependence():
     rng = np.random.default_rng(200)
     caught = sum(not approximability(12.0 + _ar1(rng, 32, 0.6)).ok for _ in range(100))
     assert caught == 100
+
+
+# ------------------------------------------------- the Unit-level design (10)
+
+from mlsynth.utils.fast_scm_helpers.post_inference import unit_level_cumulative
+
+
+@pytest.fixture
+def unit_panel():
+    """Three treated units, their blank and post gaps, and the design weights."""
+    rng = np.random.default_rng(11)
+    blank = rng.normal(0.0, 1.0, (32, 3))
+    post = 2.0 + rng.normal(0.0, 1.0, (8, 3))
+    return post, blank, np.array([0.5, 0.3, 0.2])
+
+
+def test_unit_level_returns_an_aggregate_and_one_path_per_unit(unit_panel):
+    post, blank, w = unit_panel
+    out = unit_level_cumulative(post, blank, w)
+    assert len(out.aggregate) == post.shape[0]
+    assert len(out.per_unit) == w.size
+    assert all(len(p) == post.shape[0] for p in out.per_unit)
+
+
+def test_the_aggregate_is_the_weighted_mean_of_its_parts(unit_panel):
+    """Equation (11). A headline that is the weighted mean of the breakdown is
+    what lets the two be reported together without contradicting each other."""
+    post, blank, w = unit_panel
+    out = unit_level_cumulative(post, blank, w)
+    for h in range(post.shape[0]):
+        parts = np.array([out.per_unit[k][h].estimate for k in range(w.size)])
+        assert out.aggregate[h].estimate == pytest.approx(float(w @ parts), rel=1e-12)
+
+
+def test_a_single_treated_unit_reproduces_the_plain_path(unit_panel):
+    post, blank, _ = unit_panel
+    out = unit_level_cumulative(post[:, :1], blank[:, :1], np.array([1.0]))
+    plain = cumulative_path(post[:, 0], [blank[:, 0]])
+    assert np.allclose([p.estimate for p in out.aggregate], [p.estimate for p in plain])
+
+
+def test_every_path_brackets_its_own_estimate(unit_panel):
+    post, blank, w = unit_panel
+    out = unit_level_cumulative(post, blank, w)
+    for path in [out.aggregate, *out.per_unit]:
+        for p in path:
+            assert p.lower <= p.estimate <= p.upper
+
+
+def test_extra_placebos_tighten_nothing_they_should_not(unit_panel):
+    """Thickening the pool changes the tails; it must not move the estimates."""
+    post, blank, w = unit_panel
+    rng = np.random.default_rng(12)
+    extra = [rng.normal(0.0, 1.0, 32) for _ in range(6)]
+    a = unit_level_cumulative(post, blank, w)
+    b = unit_level_cumulative(post, blank, w, extra_pool=extra)
+    assert np.allclose([p.estimate for p in a.aggregate],
+                       [p.estimate for p in b.aggregate])
+
+
+def test_weights_that_do_not_sum_to_one_are_refused(unit_panel):
+    post, blank, _ = unit_panel
+    with pytest.raises(MlsynthConfigError, match="sum"):
+        unit_level_cumulative(post, blank, np.array([0.5, 0.3, 0.1]))
+
+
+def test_negative_weights_are_refused(unit_panel):
+    post, blank, _ = unit_panel
+    with pytest.raises(MlsynthConfigError, match="negative"):
+        unit_level_cumulative(post, blank, np.array([1.2, -0.1, -0.1]))
+
+
+def test_mismatched_unit_counts_are_refused(unit_panel):
+    post, blank, w = unit_panel
+    with pytest.raises(MlsynthDataError, match="unit"):
+        unit_level_cumulative(post, blank[:, :2], w)
+
+
+def test_the_estimand_is_named_on_the_result(unit_panel):
+    """The interval covers the w-weighted effect on the treated, not the
+    population effect, which differ once effects are heterogeneous."""
+    post, blank, w = unit_panel
+    assert unit_level_cumulative(post, blank, w).estimand == "treated"
+
+
+def test_one_dimensional_gaps_are_read_as_a_single_treated_unit(unit_panel):
+    """A lone treated unit may be handed in flat, without a length-one axis."""
+    post, blank, _ = unit_panel
+    flat = unit_level_cumulative(post[:, 0], blank[:, 0], np.array([1.0]))
+    shaped = unit_level_cumulative(post[:, :1], blank[:, :1], np.array([1.0]))
+    assert [p.estimate for p in flat.aggregate] == [p.estimate for p in shaped.aggregate]
+    assert len(flat.per_unit) == 1
