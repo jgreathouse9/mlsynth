@@ -35,6 +35,7 @@ from ..utils.fast_scm_helpers.inference import compute_moving_block_conformal_ci
 
 from dataclasses import dataclass, field
 
+from ..utils.fast_scm_helpers.unit_effects import per_treated_unit_effects
 from ..utils.fast_scm_helpers.structure import (
     SEDCandidate,
     LEXSCMResults,
@@ -560,8 +561,9 @@ class LEXSCM:
             "explanation": recommendation.explanation,
         }
 
+        Y_full = self.Y
         if self.post_col is not None and not self.post_df.empty:
-            y_pop_mean_t, candidate_results = _run_post_intervention_updates(
+            y_pop_mean_t, candidate_results, Y_full = _run_post_intervention_updates(
                 candidate_results=candidate_results,
                 Y_pre=self.Y,
                 post_df=self.post_df,
@@ -706,6 +708,18 @@ class LEXSCM:
                 "outcome": self.outcome,
             },
             # --- grouped detail ---
+            # Each treated unit against its own synthetic control, over the
+            # control pool this design chose. One simplex solve per treated
+            # unit, for the winner only -- never inside the candidate search.
+            unit_effects=per_treated_unit_effects(
+                Y_full, list(unit_index.labels),
+                treated=best_candidate.treated_weight_dict_full
+                or best_candidate.treated_weight_dict,
+                control=best_candidate.control_weight_dict_full
+                or best_candidate.control_weight_dict,
+                fit_idx=np.arange(n_fit_time), blank_idx=B_idx,
+                post_idx=np.arange(self.Y.shape[0], Y_full.shape[0]),
+            ),
             search=LEXSCMSearch(
                 shortlist=shortlist,
                 candidates=candidate_results,

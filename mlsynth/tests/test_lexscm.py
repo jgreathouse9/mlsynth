@@ -984,8 +984,9 @@ class TestFastScmSetupEdges:
     def test_post_intervention_updates_no_post_short_circuit(self):
         # post_idx empty ⇒ early return, candidate_results unchanged.
         cands = []
-        y_pop, out = _run_post_intervention_updates(
-            cands, Y_pre=np.zeros((3, 2)),
+        Y_pre = np.zeros((3, 2))
+        y_pop, out, Y_full = _run_post_intervention_updates(
+            cands, Y_pre=Y_pre,
             post_df=None, post_idx=np.array([], dtype=int),
             unit_index=IndexSet.from_labels(["a", "b"]),
             unitid="u", time="t", outcome="y",
@@ -993,6 +994,9 @@ class TestFastScmSetupEdges:
         )
         assert out is cands
         assert y_pop.shape == (3,)
+        # with no post window the stacked matrix is the pre matrix itself, so a
+        # caller reading the post rows off it gets an empty window, not a guess
+        assert Y_full is Y_pre
 
 
 # =========================================================================
