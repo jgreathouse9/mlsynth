@@ -546,3 +546,18 @@ def test_a_one_period_blank_window_has_no_level_noise_to_charge():
                                 np.full(2, 0.5), center=True, extra_pool=extra)
     assert out.level_scale == (0.0, 0.0)
     assert np.isfinite([out.aggregate[0].lower, out.aggregate[0].upper]).all()
+
+
+def test_blocks_wrap_so_a_long_horizon_still_has_a_distribution():
+    """Circular blocking keeps every series yielding as many blocks as it has
+    periods. Stopping at the end instead leaves a single block once the horizon
+    reaches the series length, and one value has no spread, so the interval
+    collapses to a point and reports certainty it does not have.
+    """
+    rng = np.random.default_rng(36)
+    n = 8
+    pool = [rng.normal(0.0, 1.0, n) for _ in range(3)]
+    path = cumulative_path(2.0 + rng.normal(0.0, 1.0, n), pool)
+    assert path[-1].upper - path[-1].lower > 1e-8, "interval collapsed at horizon n"
+    widths = [p.upper - p.lower for p in path]
+    assert all(w > 1e-8 for w in widths)
