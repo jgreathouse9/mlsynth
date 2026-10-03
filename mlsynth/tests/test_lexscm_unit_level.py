@@ -477,3 +477,107 @@ def test_the_floored_solution_is_optimal_and_not_merely_feasible(seed, m, floor)
         assert best <= obj(cand) + 1e-7, (
             f"a feasible point improves on the returned weights by "
             f"{best - obj(cand):.3g}")
+
+
+def test_a_candidate_is_scored_against_every_donor_not_only_other_candidates():
+    """Eligibility to be treated and eligibility to be a donor are different sets.
+
+    LEXSCM's ``candidate_col`` marks the markets a team may treat. Everything
+    else in the panel is still a donor. Scoring a candidate's reproducibility
+    against the other candidates alone understates the pool it will actually be
+    reconstructed from, and can refuse a market the non-eligible units reproduce
+    perfectly.
+    """
+    rng = np.random.default_rng(50)
+    X = rng.normal(size=(40, 6))
+    # unit 0 is a candidate reachable only from units 4 and 5, which are not
+    X[:, 0] = 0.6 * X[:, 4] + 0.4 * X[:, 5]
+    candidates = [0, 1, 2, 3]
+    folded, _ = unit_level_gram(X.T @ X, X, candidates, penalty=1.0)
+    d_all = per_unit_imbalance(X, [0], [i for i in range(6) if i != 0])
+    assert d_all[0] < 1e-6, "fixture: unit 0 is reproducible from the full pool"
+    # the fold must carry that near-zero penalty for unit 0, not the much larger
+    # one it would get from the candidate-only pool
+    d_cand = per_unit_imbalance(X, [0], [1, 2, 3])
+    assert d_cand[0] > 1e-3, "fixture: the candidate-only pool cannot reach it"
+    # A[i,i] = d_i, so the diagonal reads back each unit's penalty
+    carried = folded[0, 0] - (X.T @ X)[0, 0]
+    assert carried < 1e-3 * d_cand[0], (
+        "unit 0 was scored against the other candidates instead of the donors")
+
+
+# ------------------------------------------------ end to end through fit()
+import pandas as pd
+from mlsynth import LEXSCM
+from mlsynth.utils.fast_scm_helpers.config import LEXSCMConfig
+
+
+def _panel_frame(rng, J=10, T=50, T_post=6, unreachable=0):
+    X = rng.normal(size=(T, J)) + 10.0
+    X[:, unreachable] = X[:, 1:].mean(axis=1) * -6.0 + 40.0
+    names = [f"M{j:02d}" for j in range(J)]
+    return pd.DataFrame([{"market": names[j], "week": t, "sales": X[t, j],
+                          "eligible": 1, "post": int(t >= T - T_post)}
+                         for j in range(J) for t in range(T)]), names
+
+
+def test_the_config_rejects_a_negative_penalty():
+    rng = np.random.default_rng(60)
+    df, _ = _panel_frame(rng)
+    with pytest.raises((MlsynthConfigError, MlsynthDataError)):
+        LEXSCM(dict(df=df, outcome="sales", unitid="market", time="week",
+                    candidate_col="eligible", post_col="post", m=2,
+                    unit_level_penalty=-1.0))
+
+
+def test_the_penalty_defaults_to_zero():
+    assert LEXSCMConfig.model_fields["unit_level_penalty"].default == 0.0
+
+
+def test_a_zero_penalty_leaves_the_chosen_design_unchanged():
+    """The condition that keeps every pinned LEXSCM value in place."""
+    rng = np.random.default_rng(61)
+    df, _ = _panel_frame(rng)
+    base = dict(df=df, outcome="sales", unitid="market", time="week",
+                candidate_col="eligible", post_col="post", m=2, top_K=4,
+                verbose=False)
+    a = LEXSCM(base).fit()
+    b = LEXSCM({**base, "unit_level_penalty": 0.0}).fit()
+    assert list(a.selected_units) == list(b.selected_units)
+    assert a.search.winner.weights.treated == pytest.approx(
+        b.search.winner.weights.treated, abs=1e-12)
+
+
+def test_a_positive_penalty_reaches_the_selection():
+    """It has to change something, or the field is decoration."""
+    rng = np.random.default_rng(62)
+    df, _ = _panel_frame(rng)
+    base = dict(df=df, outcome="sales", unitid="market", time="week",
+                candidate_col="eligible", post_col="post", m=3, top_K=4,
+                verbose=False)
+    plain = LEXSCM(base).fit()
+    heavy = LEXSCM({**base, "unit_level_penalty": 200.0}).fit()
+    assert (list(plain.selected_units) != list(heavy.selected_units)
+            or plain.search.winner.weights.treated
+               != pytest.approx(heavy.search.winner.weights.treated, abs=1e-8))
+
+
+def test_the_weight_floor_keeps_every_treated_market_contributing():
+    rng = np.random.default_rng(63)
+    df, _ = _panel_frame(rng)
+    res = LEXSCM(dict(df=df, outcome="sales", unitid="market", time="week",
+                      candidate_col="eligible", post_col="post", m=3, top_K=4,
+                      unit_level_penalty=200.0, min_treated_weight=0.05,
+                      verbose=False)).fit()
+    w = np.asarray(res.search.winner.weights.treated, dtype=float)
+    assert w.min() >= 0.05 - 1e-6
+    assert int(np.sum(w > 1e-9)) == 3
+
+
+def test_a_floor_that_cannot_fit_the_treated_set_is_refused():
+    rng = np.random.default_rng(64)
+    df, _ = _panel_frame(rng)
+    with pytest.raises((MlsynthConfigError, MlsynthDataError)):
+        LEXSCM(dict(df=df, outcome="sales", unitid="market", time="week",
+                    candidate_col="eligible", post_col="post", m=3,
+                    min_treated_weight=0.40)).fit()

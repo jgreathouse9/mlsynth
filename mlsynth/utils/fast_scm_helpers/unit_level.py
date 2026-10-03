@@ -154,7 +154,8 @@ def unit_level_gram(gram: np.ndarray,
     every candidate: the penalty costs ``J`` simplex solves once and nothing per
     tuple, and the batched solver runs unchanged.
 
-    The :math:`d_j` here are each unit fitted against every other unit, not
+    The :math:`d_j` here are each candidate fitted against every other unit in
+    the panel -- donors are not restricted to the candidate pool -- and not
     against the complement of the tuple under test. Equation (10) asks for the
     latter, which removes the other :math:`m - 1` treated units from the donor
     pool and has to be recomputed per tuple. Measured over 400 to 600 tuples per
@@ -176,11 +177,18 @@ def unit_level_gram(gram: np.ndarray,
 
     X = np.asarray(design, dtype=float)
     cand = list(candidates)
+    n_units = X.shape[1]
     d = np.zeros(G.shape[0], dtype=float)
     for j in cand:
-        others = [i for i in cand if i != j]
+        # Eligibility to be treated and eligibility to be a donor are different
+        # sets: candidate_col marks the markets a team may treat, and every
+        # other market in the panel is still available to reconstruct them.
+        # Scoring a candidate against the other candidates alone understates
+        # the pool it will be rebuilt from and can refuse a market the
+        # non-eligible units reproduce perfectly.
+        others = [i for i in range(n_units) if i != j]
         if not others:
-            continue                       # a lone candidate has no peers to be read against
+            continue                       # a one-unit panel has no donors at all
         d[j] = per_unit_imbalance(X, [j], others)[0]
     return fold_linear_into_gram(G, float(penalty) * d)
 
