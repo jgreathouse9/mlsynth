@@ -3218,6 +3218,18 @@ timeout = 300.0
   models = "equation (10)'s v_ij = 0 for i in the treated set dropped. A pair of near-identical treated markets then reproduces each other perfectly and both read as fully approximable, while the donors can reach neither -- the selection failure the penalty exists to prevent, reported as its absence"
 
   [[target.mutant]]
+  id = "weight-floor-applied-without-rescaling-the-rest"
+  find = "    span = 1.0 - min_weight * m"
+  replace = "    span = 1.0"
+  models = "the floor added without shrinking the span it consumes. The weights then sum to 1 + m*eps instead of 1, so the synthetic treated unit is scaled above the markets it is built from and every effect read against it is biased by that factor"
+
+  [[target.mutant]]
+  id = "weight-floor-forgets-the-shifted-linear-term"
+  find = "    shifted = (2.0 * min_weight * (Q @ np.ones(m)) + c) / span"
+  replace = "    shifted = c / span"
+  models = "the cross term from the floor dropped. Substituting w = eps 1 + span u leaves 2 eps Q 1 against u, so omitting it solves a different problem than the one on the shrunken simplex and the floor silently changes which unit the penalty favours rather than only bounding it"
+
+  [[target.mutant]]
   id = "reproducibility-drops-the-target-norm"
   find = "        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)"
   replace = "        out[k] = max(float(loss) - kappa, 0.0)"

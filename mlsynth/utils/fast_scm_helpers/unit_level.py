@@ -183,3 +183,58 @@ def unit_level_gram(gram: np.ndarray,
             continue                       # a lone candidate has no peers to be read against
         d[j] = per_unit_imbalance(X, [j], others)[0]
     return fold_linear_into_gram(G, float(penalty) * d)
+
+
+def solve_penalised_weights(gram: np.ndarray,
+                            linear: Sequence[float],
+                            min_weight: float = 0.0) -> Tuple[np.ndarray, float]:
+    r"""Solve ``min_w w'Qw + c'w`` on the simplex, optionally with a weight floor.
+
+    Without a floor the penalised objective is free to answer an unreachable
+    treated unit by giving it no weight. Abadie and Zhao allow that: their
+    cardinality constraint is a range, :math:`\underline{m} \le \lVert
+    \mathbf{w} \rVert_0 \le \overline{m}`, so a design may use fewer treated
+    units than it selected. LEXSCM's ``m`` is not a range. It is a budget -- the
+    markets a team will treat and pay for -- so a solution that strands one at
+    zero has spent that budget on a market the estimator then ignores.
+
+    A floor :math:`\varepsilon > 0` restores :math:`\lVert \mathbf{w} \rVert_0 =
+    m` and costs nothing in machinery. Writing :math:`\mathbf{w} =
+    \varepsilon\mathbf{1} + (1 - m\varepsilon)\mathbf{u}` with :math:`\mathbf{u}`
+    on the simplex,
+
+    .. math::
+
+       w'Qw + c'w = (1 - m\varepsilon)^2 \Bigl[ u'Qu +
+       \tfrac{2\varepsilon Q\mathbf{1} + c}{1 - m\varepsilon}{}' u \Bigr]
+       + \text{const},
+
+    which is the same shape as the original and folds onto the same solver. The
+    floor binds where the penalty would have pushed past it, so the least
+    reproducible unit sits on the floor instead of at zero and the ranking the
+    penalty expresses is kept.
+
+    Returns the weights and the constant the reported objective is offset by.
+    """
+    Q = np.asarray(gram, dtype=float)
+    c = np.asarray(linear, dtype=float).ravel()
+    m = Q.shape[0]
+    if min_weight < 0:
+        raise MlsynthConfigError(
+            f"the weight floor has to be non-negative; got {min_weight}.")
+    if min_weight * m >= 1.0:
+        raise MlsynthConfigError(
+            f"a floor of {min_weight} on {m} treated unit(s) needs "
+            f"{min_weight * m:.3g} of the weight, and the simplex has 1.")
+
+    if min_weight == 0.0:
+        folded, kappa = fold_linear_into_gram(Q, c)
+        _, w, _ = _afw_single(folded)
+        return np.asarray(w, dtype=float), kappa
+
+    span = 1.0 - min_weight * m
+    shifted = (2.0 * min_weight * (Q @ np.ones(m)) + c) / span
+    folded, kappa = fold_linear_into_gram(Q, shifted)
+    _, u, _ = _afw_single(folded)
+    u = np.asarray(u, dtype=float)
+    return min_weight + span * u, kappa * span ** 2

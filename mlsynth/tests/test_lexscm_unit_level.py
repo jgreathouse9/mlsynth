@@ -243,7 +243,7 @@ def test_a_convex_combination_of_its_donors_is_always_reproducible(seed):
 
 
 # -------------------------------------------- wiring the penalty into Stage 1
-from mlsynth.utils.fast_scm_helpers.lexsearch import select_treated_designs
+from mlsynth.utils.fast_scm_helpers.lexsearch import select_treated_designs, _afw_single
 from mlsynth.utils.fast_scm_helpers.unit_level import unit_level_gram
 
 
@@ -367,3 +367,83 @@ def test_a_negative_penalty_is_refused():
     X = _panel_with_one_unreachable_unit(rng, J=6)
     with pytest.raises(MlsynthConfigError):
         unit_level_gram(X.T @ X, X, list(range(6)), penalty=-1.0)
+
+
+# ------------------------------------------- keeping the treated set spent
+from mlsynth.utils.fast_scm_helpers.unit_level import solve_penalised_weights
+
+
+def test_without_a_floor_the_penalty_can_strand_a_treated_market():
+    """The behaviour the floor exists to prevent, pinned as the baseline.
+
+    LEXSCM's m is a budget: m markets get treated and paid for. A penalty that
+    answers an unreachable market by zeroing its weight has spent that budget on
+    a market the estimator ignores.
+    """
+    rng = np.random.default_rng(40)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    d = np.array([per_unit_imbalance(X, [j], [i for i in range(X.shape[1]) if i != j])[0]
+                  for j in range(X.shape[1])])
+    S = [0, 4]
+    w, _ = solve_penalised_weights(G[np.ix_(S, S)], 50.0 * d[S], min_weight=0.0)
+    assert int(np.sum(w > 1e-6)) == 1
+
+
+def test_a_floor_keeps_every_treated_market_carrying_weight():
+    rng = np.random.default_rng(40)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    d = np.array([per_unit_imbalance(X, [j], [i for i in range(X.shape[1]) if i != j])[0]
+                  for j in range(X.shape[1])])
+    S = [0, 4]
+    w, _ = solve_penalised_weights(G[np.ix_(S, S)], 50.0 * d[S], min_weight=0.05)
+    assert int(np.sum(w > 1e-9)) == len(S)
+    assert w.min() >= 0.05 - 1e-9
+    assert w.sum() == pytest.approx(1.0)
+
+
+def test_the_floor_still_lets_the_penalty_rank_the_units():
+    """Enforcing the support must not flatten the penalty into equal weights."""
+    rng = np.random.default_rng(41)
+    X = _panel_with_one_unreachable_unit(rng)
+    G = X.T @ X
+    d = np.array([per_unit_imbalance(X, [j], [i for i in range(X.shape[1]) if i != j])[0]
+                  for j in range(X.shape[1])])
+    S = [0, 4]
+    w, _ = solve_penalised_weights(G[np.ix_(S, S)], 50.0 * d[S], min_weight=0.05)
+    worst = int(np.argmax(d[S]))
+    assert w[worst] == pytest.approx(0.05, abs=1e-6), (
+        "the least reproducible unit should sit on the floor, not above it")
+
+
+def test_a_zero_floor_and_no_penalty_is_the_plain_simplex_solve():
+    rng = np.random.default_rng(42)
+    X = rng.normal(size=(30, 4)); Q = X.T @ X
+    w, _ = solve_penalised_weights(Q, np.zeros(4), min_weight=0.0)
+    ref_loss, ref_w, _ = _afw_single(Q)
+    assert w == pytest.approx(ref_w, abs=1e-8)
+
+
+def test_a_floor_that_cannot_fit_on_the_simplex_is_refused():
+    with pytest.raises(MlsynthConfigError, match="floor"):
+        solve_penalised_weights(np.eye(4), np.zeros(4), min_weight=0.30)
+
+
+def test_a_negative_floor_is_refused():
+    with pytest.raises(MlsynthConfigError):
+        solve_penalised_weights(np.eye(3), np.zeros(3), min_weight=-0.1)
+
+
+@given(st.integers(0, 2 ** 31 - 1), st.integers(2, 7), st.floats(0.0, 0.12))
+@SETTINGS
+def test_the_floor_binds_and_the_weights_stay_on_the_simplex(seed, m, floor):
+    """Whatever the panel, the solution is feasible: non-negative, summing to
+    one, and no coordinate below the floor."""
+    rng = np.random.default_rng(seed)
+    X = rng.normal(size=(max(m + 3, 8), m))
+    if floor * m >= 1.0:
+        return
+    w, _ = solve_penalised_weights(X.T @ X, rng.uniform(0, 5, m), min_weight=floor)
+    assert w.min() >= floor - 1e-9
+    assert w.sum() == pytest.approx(1.0, abs=1e-9)
