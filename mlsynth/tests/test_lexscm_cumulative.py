@@ -407,3 +407,68 @@ def test_the_result_reports_the_two_factors_it_multiplied(pop_panel):
     embedded = np.zeros_like(f); embedded[idx] = w
     assert pop.weight_distance == pytest.approx(float(np.linalg.norm(embedded - f)))
     assert pop.effect_dispersion > 0.0
+
+
+def _ar1_panel(rng, n, m, rho, sd=1.0):
+    out = np.empty((n, m))
+    for k in range(m):
+        e = np.empty(n); e[0] = rng.normal(0.0, sd / np.sqrt(max(1 - rho**2, 1e-9)))
+        for t in range(1, n):
+            e[t] = rho * e[t-1] + rng.normal(0.0, sd)
+        out[:, k] = e
+    return out
+
+
+@pytest.mark.parametrize("rho", [0.0, 0.4])
+def test_identical_effects_leave_no_dispersion_to_price(rho):
+    """Every unit carries the same effect, so the spread estimate must vanish.
+
+    Reading each unit's sampling noise off eight post periods as though they
+    were independent leaves serial correlation in the residue, and the residue
+    is then charged as effect heterogeneity. The noise comes from the blank
+    window, on its effective sample size.
+    """
+    rng = np.random.default_rng(31)
+    estimates = []
+    for _ in range(60):
+        blank = _ar1_panel(rng, 32, 4, rho)
+        post = 2.0 + _ar1_panel(rng, 8, 4, rho)          # one common effect
+        estimates.append(population_cumulative(
+            post, blank, np.full(4, 0.25), np.full(10, 0.1),
+            np.arange(4)).effect_dispersion)
+    assert np.mean(estimates) < 0.25, f"mean dispersion {np.mean(estimates):.3f}"
+
+
+def test_real_spread_across_units_is_still_detected():
+    """Shrinking the estimate must not blind it to genuine heterogeneity."""
+    rng = np.random.default_rng(32)
+    estimates = []
+    for _ in range(60):
+        blank = _ar1_panel(rng, 32, 4, 0.0)
+        post = np.array([0.0, 1.0, 2.0, 3.0]) + _ar1_panel(rng, 8, 4, 0.0)
+        estimates.append(population_cumulative(
+            post, blank, np.full(4, 0.25), np.full(10, 0.1),
+            np.arange(4)).effect_dispersion)
+    assert np.mean(estimates) > 1.0, f"mean dispersion {np.mean(estimates):.3f}"
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "Known defect. Each treated unit's synthetic control sits at its own level, "
+    "and through the post window that offset is indistinguishable from a "
+    "treatment effect, so it is counted as cross-unit heterogeneity. Measured "
+    "on a four-unit design the dispersion reads 0.756 where the truth is 0.00 "
+    "and 1.502 where it is 0.64 -- overstated by about 0.75 either way, which "
+    "is the size of the offset and not of any effect. The fix is to difference "
+    "each unit's blank-window level out before taking the spread."))
+def test_per_unit_fit_offsets_are_not_effect_heterogeneity():
+    """Every unit shares one effect, but each sits at its own fitted level."""
+    rng = np.random.default_rng(33)
+    estimates = []
+    for _ in range(60):
+        offsets = rng.normal(0.0, 1.0, 4)              # persistent, pre and post
+        blank = offsets + rng.normal(0.0, 1.0, (32, 4))
+        post = offsets + 2.0 + rng.normal(0.0, 1.0, (8, 4))
+        estimates.append(population_cumulative(
+            post, blank, np.full(4, 0.25), np.full(10, 0.1),
+            np.arange(4)).effect_dispersion)
+    assert np.mean(estimates) < 0.25, f"mean dispersion {np.mean(estimates):.3f}"
