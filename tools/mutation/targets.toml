@@ -3312,3 +3312,33 @@ timeout = 300.0
   find = "        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)"
   replace = "        out[k] = max(float(loss) - kappa, 0.0)"
   models = "the constant x_j'x_j left out of the expanded squared norm. The penalty is then negative before clamping and reads as zero for every unit, so every candidate tuple looks perfectly reproducible and the term has no effect on selection"
+
+[[target]]
+name = "case-deps-inventory"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "the-inventory-is-ignored"
+  find = """    if path in swept:
+        return False
+    return path not in known"""
+  replace = "    return path not in known"
+  models = "the state before the inventory existed: a library file no benchmark case executes reads as a gap in the map, so every pull request touching one widens the selection to the whole registry. 780 of mlsynth's reachable Python files were in that state, and the heaviest shard of the run it caused spent 97 minutes against a 120-minute cap"
+
+  [[target.mutant]]
+  id = "nothing-is-ever-a-hole-again"
+  find = """    if path in swept:
+        return False
+    return path not in known"""
+  replace = """    if path in swept:
+        return False
+    return False"""
+  models = "the opposite failure, and the dangerous direction: no changed file ever widens the selection, so a module added since the last sweep runs whichever cases happen to name it and none of the ones that would have caught it. The inventory is allowed to narrow and never to silence a file it has no record of"
+
+  [[target.mutant]]
+  id = "the-inventory-walk-skips-the-library"
+  find = '    for prefix in REACHABLE:'
+  replace = '    for prefix in [p for p in REACHABLE if not p.startswith("mlsynth")]:'
+  models = "an inventory that records basedata and benchmarks but not mlsynth, so every library file stays ambiguous and the widening it was built to stop continues while the file beside the manifest claims the sweep was recorded"
