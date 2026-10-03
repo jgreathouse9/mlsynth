@@ -405,20 +405,49 @@ class PopulationCumulative:
     estimand: str = "population"
 
 
-def _effect_dispersion(post: np.ndarray) -> float:
-    """Spread of the per-unit effects, with their own sampling noise removed.
+def _bartlett_n(n: int, rho: float) -> float:
+    """How many independent periods ``n`` correlated ones amount to."""
+    return max(n * (1.0 - rho) / (1.0 + rho), 2.0)
 
-    The cross-unit variance of the estimated per-unit effects is the spread
-    being looked for plus the noise in measuring each one, so the plug-in would
-    charge a homogeneous design for its own measurement error.
-    """
-    n_periods, n_units = post.shape
-    if n_units < 2 or n_periods < 2:
+
+def _lag_one(series: np.ndarray) -> float:
+    if series.size < 3:
         return 0.0
-    means = post.mean(axis=0)
-    between = float(means.var(ddof=1))
-    within = float(np.mean(post.var(axis=0, ddof=1) / n_periods))
-    return max(between - within, 0.0)
+    centred = series - series.mean()
+    value = float(np.corrcoef(centred[1:], centred[:-1])[0, 1])
+    return float(np.clip(value, -0.99, 0.99)) if np.isfinite(value) else 0.0
+
+
+def _effect_dispersion(post: np.ndarray, blank: np.ndarray) -> float:
+    """Spread of the per-unit effects, with two sources of residue removed.
+
+    Each unit's effect is read as its post-window mean less its blank-window
+    mean. The subtraction matters because a unit's synthetic control sits at its
+    own fitted level, that offset runs through the post window unchanged, and
+    nothing in the post window separates it from a treatment effect. Taking the
+    spread of raw post-window means on a four-unit design reports 0.849 where
+    the truth is zero; differencing the level out brings it to 0.297.
+
+    What survives is the sampling noise in both means, which is larger than
+    ``variance / periods`` because the periods are serially correlated, so it is
+    charged on the Bartlett effective sample size of each window. Without that
+    the remaining 0.297 is read as heterogeneity, since it exceeds the 0.150
+    that independence would have subtracted.
+    """
+    n_post, n_units = post.shape
+    n_blank = blank.shape[0]
+    if n_units < 2 or n_post < 2 or n_blank < 2:
+        return 0.0
+
+    effects = post.mean(axis=0) - blank.mean(axis=0)
+    between = float(effects.var(ddof=1))
+
+    within = 0.0
+    for k in range(n_units):
+        rho = _lag_one(blank[:, k])
+        scale = float(blank[:, k].var(ddof=1))
+        within += scale / _bartlett_n(n_post, rho) + scale / _bartlett_n(n_blank, rho)
+    return max(between - within / n_units, 0.0)
 
 
 def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
@@ -447,6 +476,12 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     covers ``tau^T`` 0.880 of the time and ``tau`` 0.714 at a nominal 0.90, on a
     design whose per-unit effects have standard deviation 0.8 about a mean of
     1.0.
+
+    Measured against a known truth on a four-unit design, the term takes
+    population coverage from 0.775 to 0.895 at a nominal 0.90, costing 40 per
+    cent more width. Where the effects are in fact identical it costs 8 per cent
+    more width for nothing and covers 0.931 against 0.913, because the spread
+    estimate retains about 0.13 it cannot resolve: the correction errs wide.
 
     Two assumptions carry it, and neither is testable from the treated units
     alone. The untreated units' effects are drawn from the same distribution as
@@ -478,13 +513,13 @@ def population_cumulative(post_gaps: np.ndarray, blank_gaps: np.ndarray,
     treated = unit_level_cumulative(post_gaps, blank_gaps, w, level=level,
                                     extra_pool=extra_pool)
 
-    embedded = np.zeros_like(f); embedded[idx] = w
-    distance = float(np.sum((embedded - f) ** 2))
-    dispersion = _effect_dispersion(post)
-
     blank = np.atleast_2d(np.asarray(blank_gaps, dtype=float))
     if blank.shape[0] == 1 and np.asarray(blank_gaps).ndim == 1:
         blank = blank.T
+
+    embedded = np.zeros_like(f); embedded[idx] = w
+    distance = float(np.sum((embedded - f) ** 2))
+    dispersion = _effect_dispersion(post, blank)
     units = [blank[:, j] for j in range(w.size)] if w.size > 1 else []
     extra = [np.asarray(s, dtype=float).ravel() for s in (extra_pool or [])]
     pool = _prepare_pool([blank @ w, *units, *extra], True)

@@ -452,16 +452,15 @@ def test_real_spread_across_units_is_still_detected():
     assert np.mean(estimates) > 1.0, f"mean dispersion {np.mean(estimates):.3f}"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known defect. Each treated unit's synthetic control sits at its own level, "
-    "and through the post window that offset is indistinguishable from a "
-    "treatment effect, so it is counted as cross-unit heterogeneity. Measured "
-    "on a four-unit design the dispersion reads 0.756 where the truth is 0.00 "
-    "and 1.502 where it is 0.64 -- overstated by about 0.75 either way, which "
-    "is the size of the offset and not of any effect. The fix is to difference "
-    "each unit's blank-window level out before taking the spread."))
 def test_per_unit_fit_offsets_are_not_effect_heterogeneity():
-    """Every unit shares one effect, but each sits at its own fitted level."""
+    """Every unit shares one effect, but each sits at its own fitted level.
+
+    Reading the spread off raw post-window means counts that level as an effect:
+    on a four-unit design it reported 0.756 where the truth was 0.00 and 1.502
+    where it was 0.64, overstated by the size of the offset either way. The
+    blank-window mean carries the same offset with no treatment in it, so
+    differencing removes it.
+    """
     rng = np.random.default_rng(33)
     estimates = []
     for _ in range(60):
@@ -472,3 +471,13 @@ def test_per_unit_fit_offsets_are_not_effect_heterogeneity():
             post, blank, np.full(4, 0.25), np.full(10, 0.1),
             np.arange(4)).effect_dispersion)
     assert np.mean(estimates) < 0.25, f"mean dispersion {np.mean(estimates):.3f}"
+
+
+def test_a_blank_window_too_short_to_hold_a_lag_is_still_usable():
+    """Two periods leave no lag to read, so the correlation is taken as zero."""
+    rng = np.random.default_rng(34)
+    out = population_cumulative(2.0 + rng.normal(0.0, 1.0, (2, 2)),
+                                rng.normal(0.0, 1.0, (2, 2)),
+                                np.full(2, 0.5), np.full(10, 0.1), np.arange(2))
+    assert np.isfinite(out.effect_dispersion)
+    assert all(np.isfinite([p.lower, p.upper]).all() for p in out.aggregate)
