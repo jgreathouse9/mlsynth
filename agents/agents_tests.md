@@ -15,7 +15,7 @@ Tests should validate *behavior and invariants*, not implementation details.
 
 The guiding principle is:
 
-> `mlsynth` tests validate econometric behavior and public API guarantees rather than internal implementation details.
+> `mlsynth` tests validate econometric behavior and public API guarantees, not internal implementation details.
 
 ---
 
@@ -291,7 +291,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
 5. **Reason about each disagreement — it is usually meaningful.** A seam
    mismatch is a finding, not noise: a different solver root, a truncation
    tolerance, a floating-point reassociation. Name *why* before you "fix" it, so
-   the fix is faithful rather than a fudge that happens to match on this dataset.
+   the fix is faithful and not a fudge that happens to match on this dataset.
 6. **Pin the resolved boundary.** Distill each differential probe into a
    permanent unit test that pins the *reference form* (e.g. the p-value is
    `1 - mean(|r| < s)`, including the boundary case), and add a **durable
@@ -321,7 +321,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
   actually applies.
 - **Mind the achievable discrete level.** A short pre-period caps the conformal
   level (the finest is `2/(T0+1)`); the reference errors or coarsens there, and
-  the comparison must use the same achievable α rather than a nominal 0.05.
+  the comparison must use the same achievable α, not a nominal 0.05.
 - **Isolate the disagreement to a *scalar*, then find the line that computes
   it.** When end-to-end numbers are close-but-off, do not sweep hyper-parameters
   hoping to land the match — that is guessing, and it can "fix" the wrong thing.
@@ -1287,7 +1287,7 @@ unreachable branches.
 ## The two mutation instruments
 
 Mutation runs come in two forms here, and the split follows from the frame
-above rather than from tooling convenience.
+above and not from tooling convenience.
 
 A **syntactic sweep** (`cosmic-ray`) applies general operators over the syntax
 tree — replace a binary operator, flip a comparison, delete a statement —
@@ -1643,7 +1643,7 @@ with pytest.raises(MlsynthEstimationError):
     estimator.fit()
 ```
 
-rather than low-level internal exceptions.
+and not low-level internal exceptions.
 
 ---
 
