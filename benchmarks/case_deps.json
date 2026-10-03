@@ -1172,6 +1172,9 @@
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
+ "lexscm_cumulative_coverage": [
+  "mlsynth/utils/fast_scm_helpers/post_inference.py"
+ ],
  "lexscm_design_mc": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/lexscm.py",
