@@ -3252,3 +3252,60 @@ timeout = 300.0
   find = "        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)"
   replace = "        out[k] = max(float(loss) - kappa, 0.0)"
   models = "the constant x_j'x_j left out of the expanded squared norm. The penalty is then negative before clamping and reads as zero for every unit, so every candidate tuple looks perfectly reproducible and the term has no effect on selection"
+
+[[target]]
+name = "cscipca-fast-paths"
+module-path = "mlsynth/utils/cscipca_helpers/als.py"
+test-command = "python -m pytest mlsynth/tests/test_cscipca_fast_paths.py mlsynth/tests/test_cscipca_fast_path_properties.py mlsynth/tests/test_cscipca.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-conditioning-gate-becomes-a-try-except"
+  find = """    eigvals = np.linalg.eigvalsh(denom)          # ascending; denom is symmetric PSD
+    if (eigvals.shape[1]
+            and np.all(eigvals[:, 0] > 0.0)
+            and np.all(eigvals[:, 0] * _MAX_COND > eigvals[:, -1])):
+        return np.linalg.solve(denom, numer[..., None])[..., 0].T"""
+  replace = """    try:
+        return np.linalg.solve(denom, numer[..., None])[..., 0].T
+    except np.linalg.LinAlgError:
+        pass
+    if False:
+        pass"""
+  models = "the first version of this change: guarding the batched LU with LinAlgError, which fires only on an exactly singular period. A nearly singular one -- what collinear covariates produce -- is passed through amplified, so the factors reach the counterfactual at 1e227 with nothing reported"
+
+  [[target.mutant]]
+  id = "the-gate-reads-the-largest-eigenvalue"
+  find = "            and np.all(eigvals[:, 0] * _MAX_COND > eigvals[:, -1])):"
+  replace = "            and np.all(eigvals[:, -1] * _MAX_COND > eigvals[:, 0])):"
+  models = "a condition-number test written with the eigenvalues the wrong way round, which holds for every PSD matrix and so admits every period to the fast path -- the gate is present, documented, and never refuses"
+
+  [[target.mutant]]
+  id = "the-path-cache-ignores-the-operand-shapes"
+  find = "    key = (subscripts,) + tuple(op.shape for op in operands)"
+  replace = "    key = (subscripts,)"
+  models = "a contraction-path cache keyed on the subscripts alone, so the first panel's greedy path is reused for every later shape -- the one cache bug that produces wrong numbers instead of an exception"
+
+[[target]]
+name = "cscipca-moving-block"
+module-path = "mlsynth/utils/cscipca_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_cscipca_fast_paths.py mlsynth/tests/test_cscipca_fast_path_properties.py mlsynth/tests/test_cscipca.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-circular-windows-are-not-reversed"
+  find = "    stats = scores[T - block + 1: 2 * T - block + 1][::-1]"
+  replace = "    stats = scores[T - block + 1: 2 * T - block + 1]"
+  models = "dropping the reversal that maps window order onto shift order, so stats[0] is the block ending at the *first* period instead of the last -- the p-value then compares the post-treatment block against nothing in particular, and still lands in (0, 1]"
+
+  [[target.mutant]]
+  id = "the-window-slice-is-off-by-one"
+  find = "    stats = scores[T - block + 1: 2 * T - block + 1][::-1]"
+  replace = "    stats = scores[T - block: 2 * T - block][::-1]"
+  models = "a window slice shifted by one period, which keeps the shape (T,) and the p-value's range but scores every shift against the wrong circular block"
+
+  [[target.mutant]]
+  id = "the-out-of-range-block-is-clamped-again"
+  find = "    if not 1 <= block <= T:"
+  replace = "    if False:"
+  models = "restoring the roll form's silent clamp: a block longer than the series, or of non-positive length, scores every shift identically and returns a p-value of 1.0 -- a null that cannot be rejected, reported for a question nobody asked"

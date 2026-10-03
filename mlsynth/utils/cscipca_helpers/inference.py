@@ -23,7 +23,9 @@ from __future__ import annotations
 from typing import Tuple
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
+from ...exceptions import MlsynthEstimationError
 from .als import als_estimate, counterfactual, solve_gamma
 from .structures import CSCIPCADesign, CSCIPCAInputs, CSCIPCAInference
 
@@ -34,10 +36,38 @@ def _moving_block_pvalue(resid: np.ndarray, block: int) -> float:
     The post-block is the last ``block`` residuals; ``T`` circular blocks of
     the same length are formed, each scored by mean absolute residual, and the
     p-value is the share of blocks whose score is at least the post-block's.
+
+    The ``T`` circular blocks are the length-``block`` windows of the residual
+    vector concatenated with itself, so one strided view scores all of them.
+    The previous form built each block with its own ``np.roll``, which copied
+    the whole vector ``T`` times per p-value and accounted for a quarter of a
+    conformal run. The windows carry the same values in the same order, so the
+    scores are bit-identical and the ``>=`` decides the same ties.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If ``block`` is not between 1 and the number of periods. The roll form
+        read ``u[-block:]``, which silently returns the whole vector for a
+        non-positive ``block`` and for one longer than the series, so a window
+        the residuals cannot hold scored every block identically and returned
+        a p-value of 1.0.
     """
     u = np.abs(np.asarray(resid, dtype=float))
     T = u.shape[0]
-    stats = np.array([np.roll(u, s)[-block:].mean() for s in range(T)])
+    block = int(block)
+    if not 1 <= block <= T:
+        raise MlsynthEstimationError(
+            f"block={block} must be between 1 and the number of periods T={T}; "
+            "a circular block longer than the series, or of non-positive "
+            "length, has no permutation distribution."
+        )
+    doubled = np.concatenate([u, u])
+    # Window j of ``doubled`` is the circular block ending at j + block - 1. The
+    # statistic for shift s is the block ending at T - 1 - s, so the T blocks
+    # are windows T - block + 1 .. 2T - block, taken in reverse.
+    scores = sliding_window_view(doubled, block).mean(axis=-1)
+    stats = scores[T - block + 1: 2 * T - block + 1][::-1]
     return float(np.mean(stats >= stats[0]))
 
 

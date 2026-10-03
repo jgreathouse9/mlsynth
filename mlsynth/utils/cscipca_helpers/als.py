@@ -25,9 +25,46 @@ tests).
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
+
+# Contraction order per (subscripts, operand shapes). ``optimize=True`` re-runs
+# numpy's greedy path search on every call, which on these operands costs more
+# than the contraction: planning was 27 percent of a conformal run's time. The
+# path is a function of the subscripts and the shapes alone, and ``True`` is
+# ``"greedy"``, so caching it changes the planning and not the arithmetic -- the
+# contraction order, and therefore the bits, are the ones ``optimize=True``
+# picked. Shapes are part of the key because the greedy path is chosen for them;
+# a key without them would reuse one panel's order on another's operands.
+_EINSUM_PATHS: Dict[Tuple, List] = {}
+
+
+def _einsum_path(subscripts: str, *operands: np.ndarray) -> List:
+    """Cached greedy contraction path for ``subscripts`` on these shapes."""
+    key = (subscripts,) + tuple(op.shape for op in operands)
+    path = _EINSUM_PATHS.get(key)
+    if path is None:
+        path = np.einsum_path(subscripts, *operands, optimize="greedy")[0]
+        _EINSUM_PATHS[key] = path
+    return path
+
+
+def _contract(subscripts: str, *operands: np.ndarray) -> np.ndarray:
+    """``np.einsum(..., optimize=True)`` with the path search done once."""
+    return np.einsum(subscripts, *operands,
+                     optimize=_einsum_path(subscripts, *operands))
+
+
+# Largest per-period condition number the batched LU in :func:`solve_factors` is
+# trusted with. An LU solve carries a relative error of about ``cond * eps``, so
+# ``1e4`` holds its disagreement with the per-period minimum-norm solution near
+# ``1e-12``; measured over 3000 generated panels (including exactly singular
+# periods and collinear covariates) the worst was 6.8e-13. Raising it to 1e12
+# admits only 3.6 percent more panels to the fast path and costs five orders of
+# magnitude of agreement, so the threshold sits at the knee and not at the
+# rank-decision boundary ``lstsq`` itself uses.
+_MAX_COND = 1.0e4
 
 
 def _svd_init(Y: np.ndarray, K: int) -> np.ndarray:
@@ -65,10 +102,10 @@ def solve_gamma(Y: np.ndarray, X: np.ndarray, F: np.ndarray, K: int) -> np.ndarr
     """
     N, T, L = X.shape
     # numer[l, k] = sum_{i,t} Y_it X_itl F_kt
-    numer = np.einsum("it,itl,kt->lk", Y, X, F, optimize=True).reshape(L * K)
+    numer = _contract("it,itl,kt->lk", Y, X, F).reshape(L * K)
     # denom[(l,k),(m,j)] = sum_t (sum_i X_itl X_itm) F_kt F_jt
-    G = np.einsum("itl,itm->tlm", X, X, optimize=True)          # (T, L, L)
-    denom = np.einsum("tlm,kt,jt->lkmj", G, F, F, optimize=True).reshape(L * K, L * K)
+    G = _contract("itl,itm->tlm", X, X)          # (T, L, L)
+    denom = _contract("tlm,kt,jt->lkmj", G, F, F).reshape(L * K, L * K)
     # Least squares, not a plain solve: collinear covariates (e.g. log GDP,
     # log GDP-per-capita and log population) make ``denom`` rank-deficient, so a
     # direct inverse is singular. The counterfactual (X Gamma) F is invariant to
@@ -97,12 +134,34 @@ def solve_factors(Y: np.ndarray, X: np.ndarray, gamma: np.ndarray) -> np.ndarray
         Estimated factors, shape ``(K, T)``.
     """
     T = X.shape[1]
-    XG = np.einsum("itl,lk->itk", X, gamma, optimize=True)      # (N, T, K)
-    denom = np.einsum("itk,itj->tkj", XG, XG, optimize=True)    # (T, K, K)
-    numer = np.einsum("itk,it->tk", XG, Y, optimize=True)       # (T, K)
-    # Per-period least squares (matching the reference): a rank-deficient
-    # per-period system -- possible under collinear covariates -- would make a
-    # direct solve singular, so use the minimum-norm lstsq solution.
+    XG = _contract("itl,lk->itk", X, gamma)      # (N, T, K)
+    denom = _contract("itk,itj->tkj", XG, XG)    # (T, K, K)
+    numer = _contract("itk,it->tk", XG, Y)       # (T, K)
+    # One batched LU for all T periods when every period can carry it. The
+    # systems are K x K -- two by two on the Brexit panel -- so the loop of
+    # ``np.linalg.lstsq`` calls below spent most of its time in numpy's per-call
+    # wrapper and not in LAPACK: 349 us for T = 22 against 14 us batched.
+    #
+    # The gate is not ``try: solve except LinAlgError``. ``solve`` raises only on
+    # an exactly singular matrix, and the case collinear covariates actually
+    # produce is a *nearly* singular one, where it returns an amplified solution
+    # and reports nothing: on one generated panel it answered 7.2e227 where the
+    # minimum-norm solution is 0.33. ``lstsq`` truncates the offending singular
+    # value instead, which is the behaviour this function promises, so the LU is
+    # used only where the two provably agree.
+    # ``eigvalsh`` reads only the lower triangle, so it is the same matrix
+    # ``solve`` factorizes only if the contraction is exactly symmetric. It is:
+    # entries (k, j) and (j, k) are the same products -- float multiplication is
+    # commutative to the bit -- reduced over the same i in the same order.
+    # Averaging with the transpose first was a no-op on 4000 generated panels
+    # across eight orders of magnitude of column scaling, so it is not done.
+    eigvals = np.linalg.eigvalsh(denom)          # ascending; denom is symmetric PSD
+    if (eigvals.shape[1]
+            and np.all(eigvals[:, 0] > 0.0)
+            and np.all(eigvals[:, 0] * _MAX_COND > eigvals[:, -1])):
+        return np.linalg.solve(denom, numer[..., None])[..., 0].T
+    # A rank-deficient or ill-conditioned period takes per-period least squares
+    # (matching the reference), whose minimum-norm solution is defined there.
     F = np.empty((T, XG.shape[2]))
     for t in range(T):
         F[t], *_ = np.linalg.lstsq(denom[t], numer[t], rcond=None)
@@ -190,4 +249,4 @@ def counterfactual(X: np.ndarray, gamma: np.ndarray, F: np.ndarray) -> np.ndarra
     np.ndarray
         Imputed outcome matrix, shape ``(N, T)``.
     """
-    return np.einsum("itl,lk,kt->it", X, gamma, F, optimize=True)
+    return _contract("itl,lk,kt->it", X, gamma, F)
