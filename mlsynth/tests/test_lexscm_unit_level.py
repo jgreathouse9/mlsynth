@@ -447,3 +447,33 @@ def test_the_floor_binds_and_the_weights_stay_on_the_simplex(seed, m, floor):
     w, _ = solve_penalised_weights(X.T @ X, rng.uniform(0, 5, m), min_weight=floor)
     assert w.min() >= floor - 1e-9
     assert w.sum() == pytest.approx(1.0, abs=1e-9)
+
+
+@given(st.integers(0, 2 ** 31 - 1), st.integers(2, 6), st.floats(0.02, 0.10))
+@SETTINGS
+def test_the_floored_solution_is_optimal_and_not_merely_feasible(seed, m, floor):
+    """No feasible neighbour improves on it.
+
+    Feasibility is cheap: any point on the floored simplex satisfies the floor
+    and sums to one, so a solve of the wrong problem passes every assertion
+    about shape. That is how the mutant dropping the floor's cross term
+    survived a first run. Substituting w = eps 1 + span u leaves
+    2 eps Q 1 against u, and omitting it minimises a different objective whose
+    answer is feasible and wrong.
+    """
+    rng = np.random.default_rng(seed)
+    if floor * m >= 1.0:
+        return
+    X = rng.normal(size=(max(m + 3, 9), m))
+    Q = X.T @ X
+    c = rng.uniform(0.0, 6.0, m)
+    w, _ = solve_penalised_weights(Q, c, min_weight=floor)
+    obj = lambda v: float(v @ Q @ v + c @ v)
+    best = obj(w)
+    span = 1.0 - floor * m
+    for _ in range(60):                      # feasible neighbours by construction
+        u = rng.dirichlet(np.ones(m))
+        cand = floor + span * u
+        assert best <= obj(cand) + 1e-7, (
+            f"a feasible point improves on the returned weights by "
+            f"{best - obj(cand):.3g}")
