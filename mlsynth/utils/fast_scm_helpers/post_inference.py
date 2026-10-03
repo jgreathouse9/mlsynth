@@ -182,13 +182,16 @@ def approximability(blank_gaps: Sequence[float], *,
     sized test would refuse at this threshold; the correction brings the two
     dependent cases to 0.060 and 0.125.
 
-    The correction costs something where there is no dependence: at ``rho = 0``
-    it refuses 0.019 against the raw count's 0.007. ``(1 - rho)/(1 + rho)`` is
-    convex, so a lag-one estimate scattered about zero averages to an effective
-    sample size above the period count -- 1.24 n over 20 periods -- and the test
-    charges the offset against more information than the window holds. Clipping
-    the effective count at the period count measures 0.005 at ``rho = 0`` and
-    0.059 at 0.6, and is not applied here.
+    The effective count is clipped at the period count, because
+    ``(1 - rho)/(1 + rho)`` is convex and a lag-one estimate scattered about
+    zero averages above one -- 1.24 n over 20 periods, 1.6 n over 10 -- which
+    would charge the offset against more information than the window holds.
+    Without the clip the test refuses 0.019 of centred 20-period windows
+    against the raw count's 0.007, and 0.046 of 10-period windows against
+    0.014. With it the refusals are 0.005 and 0.011, and the cases the
+    correction exists for are untouched: 0.059 at ``rho = 0.6`` against 0.060
+    unclipped. The statistic is monotone in the count, so clipping can only
+    move it toward zero and the clip removes refusals without adding any.
     """
     gaps = np.asarray(blank_gaps, dtype=float).ravel()
     if gaps.size < 2:
@@ -209,7 +212,12 @@ def approximability(blank_gaps: Sequence[float], *,
     if gaps.size > 2:
         lag = float(np.corrcoef(centred[1:], centred[:-1])[0, 1])
         rho = float(np.clip(lag, -0.99, 0.99)) if np.isfinite(lag) else 0.0
-    effective_n = max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0)
+    # Bounded on both sides. Two is the floor a Student-t needs; the period
+    # count is the ceiling, because (1 - rho)/(1 + rho) is convex and a lag-one
+    # estimate scattered about zero averages above one, which would charge the
+    # offset against more information than the window holds.
+    effective_n = min(max(gaps.size * (1.0 - rho) / (1.0 + rho), 2.0),
+                      float(gaps.size))
     t_stat = bias / (scale / np.sqrt(effective_n))
     p_value = float(2.0 * (1.0 - _stats.t.cdf(abs(t_stat), effective_n - 1.0)))
     return Approximability(bias=bias, scale=scale, t_stat=float(t_stat),

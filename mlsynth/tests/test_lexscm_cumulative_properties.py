@@ -161,3 +161,49 @@ def test_the_offset_test_scales_with_the_gap_and_not_with_its_units(seed, scale,
     if abs(shift) > 1e-6:
         moved = approximability(gaps + shift)
         assert abs(moved.t_stat - base.t_stat) > 0.0
+
+
+@given(st.integers(0, 2 ** 31 - 1), st.integers(3, 60), st.floats(-0.95, 0.95),
+       st.floats(0.5, 4.0))
+@SETTINGS
+def test_the_effective_count_stays_inside_its_two_bounds(seed, n, rho, scale):
+    """The effective sample size is bounded by the floor and by the window.
+
+    Two is the floor, because a Student-t needs one degree of freedom. The
+    period count is the ceiling, because a window of ``n`` periods cannot carry
+    the information of more than ``n`` independent ones -- the bound the example
+    tests assert at one window length and this asserts over the whole domain of
+    lengths, dependences and scales the function accepts.
+    """
+    rng = np.random.default_rng(seed)
+    e = rng.normal(0.0, scale, n)
+    gaps = e.copy()
+    if abs(rho) > 1e-9:
+        gaps[0] = e[0] / np.sqrt(1.0 - rho ** 2)
+        for t in range(1, n):
+            gaps[t] = rho * gaps[t - 1] + e[t]
+    if gaps.std(ddof=1) <= 0.0:
+        return
+    check = approximability(gaps)
+    assert 2.0 <= check.effective_n <= float(n)
+
+
+@given(st.integers(0, 2 ** 31 - 1), st.integers(4, 60), st.floats(0.5, 4.0))
+@SETTINGS
+def test_clipping_can_only_shrink_the_statistic(seed, n, scale):
+    """Bounding the effective count never makes the gate more willing to refuse.
+
+    The statistic is ``bias / (sd / sqrt(n_eff))``, monotone in ``n_eff``, so
+    capping the count can only move the statistic toward zero. A design the
+    clipped test refuses would have been refused by the unclipped one too, which
+    is what makes the change safe: it removes false refusals and adds none.
+    """
+    rng = np.random.default_rng(seed)
+    gaps = rng.normal(0.4, scale, n)
+    if gaps.std(ddof=1) <= 0.0:
+        return
+    check = approximability(gaps)
+    unclipped_n = max(n * (1.0 - check.serial_correlation)
+                      / (1.0 + check.serial_correlation), 2.0)
+    unclipped_t = check.bias / (check.scale / np.sqrt(unclipped_n))
+    assert abs(check.t_stat) <= abs(unclipped_t) + 1e-9

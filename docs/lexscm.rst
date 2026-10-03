@@ -1289,20 +1289,25 @@ correctly sized test at this threshold would refuse 0.003:
      - 0.029
      - 0.060
      - 0.125
-   * - Refused, clipped at :math:`n`
+   * - Refused, bounded at :math:`n` (shipped)
      - 0.005
      - 0.023
      - 0.059
      - 0.125
 
-The correction earns its keep from :math:`\rho = 0.3` upward and costs something
-at :math:`\rho = 0`, where it refuses 0.019 against the raw count's 0.007.
-:math:`(1 - \rho)/(1 + \rho)` is convex, so a lag-one estimate scattered about
-zero averages to an effective sample size above the period count --
-:math:`1.24n` over 20 periods -- and the test charges the offset against more
-information than the window holds. Clipping the effective count at the period
-count removes that at no cost elsewhere, as the third row shows, and the
-implementation does not yet do it.
+The correction earns its keep from :math:`\rho = 0.3` upward, and on its own it
+costs something at :math:`\rho = 0`, where the middle row refuses 0.019 against
+the raw count's 0.007. :math:`(1 - \rho)/(1 + \rho)` is convex, so a lag-one
+estimate scattered about zero averages to an effective sample size above the
+period count -- :math:`1.24n` over 20 periods and :math:`1.6n` over 10 -- and
+the test then charges the offset against more information than the window
+holds.
+
+The effective count is therefore bounded above by the period count as well as
+below by two, which is the third row. The bound costs nothing where the
+correction is doing work, and the statistic is monotone in the count, so
+clipping can only move it toward zero: it removes refusals and adds none, and
+no design the bounded test refuses would have been admitted without it.
 
 The gate fires often on panels whose factor loadings can be negative, because
 the treated aggregate then falls outside the hull for many treated pairs. That
