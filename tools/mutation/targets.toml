@@ -3192,3 +3192,33 @@ timeout = 300.0
   find = "    combined = float(np.sqrt(level_scale ** 2 + dispersion * distance))"
   replace = "    combined = float(level_scale)"
   models = "the population interval built from the gap alone. The gap estimates the weighted effect on the treated and carries nothing about how that group represents the population, so coverage of the population effect falls to 0.775 while coverage of the treated effect is untouched"
+
+[[target]]
+name = "lexscm-unit-level"
+module-path = "mlsynth/utils/fast_scm_helpers/unit_level.py"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_unit_level.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "linear-term-folded-without-the-symmetric-half"
+  find = "    folded = Q + 0.5 * (np.outer(c, ones) + np.outer(ones, c))"
+  replace = "    folded = Q + np.outer(c, ones)"
+  models = "the rank-two fold written one-sided. The identity c'w == w'(c1' + 1c')w / 2 needs both halves to be a quadratic form at all; one side gives w'(c1')w = (w'c)(1'w), which happens to equal c'w on the simplex but is not symmetric, so the Gram handed to a minimum-norm solver no longer represents the objective it is solving"
+
+  [[target.mutant]]
+  id = "penalised-gram-not-lifted-to-psd"
+  find = "        if np.linalg.eigvalsh(folded + kappa * np.outer(ones, ones)).min() > -1e-10:\n            break"
+  replace = "        break"
+  models = "the indefinite rank-two term left in place. The solver is a minimum-norm-point method whose active-set systems assume a positive semidefinite form, so an unlifted Gram yields a loss that is not the objective's minimum and can be negative"
+
+  [[target.mutant]]
+  id = "treated-units-left-in-each-others-donor-pools"
+  find = "    overlap = set(tr.tolist()) & set(dn.tolist())\n    if overlap:"
+  replace = "    overlap = set()\n    if overlap:"
+  models = "equation (10)'s v_ij = 0 for i in the treated set dropped. A pair of near-identical treated markets then reproduces each other perfectly and both read as fully approximable, while the donors can reach neither -- the selection failure the penalty exists to prevent, reported as its absence"
+
+  [[target.mutant]]
+  id = "reproducibility-drops-the-target-norm"
+  find = "        out[k] = max(float(loss) - kappa + float(target @ target), 0.0)"
+  replace = "        out[k] = max(float(loss) - kappa, 0.0)"
+  models = "the constant x_j'x_j left out of the expanded squared norm. The penalty is then negative before clamping and reads as zero for every unit, so every candidate tuple looks perfectly reproducible and the term has no effect on selection"
