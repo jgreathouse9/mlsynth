@@ -3138,3 +3138,45 @@ timeout = 300.0
   find = "    lrv, meat = _newey_west(y_pre - design @ coef, design, lag)"
   replace = "    lrv, meat = _newey_west(y_pre - design @ coef, design, lag)\n    lrv, _ = _newey_west(y_pre - design @ coef, design, 0)"
   models = "the test window's errors priced by the plain residual variance while the coefficient term keeps its long-run form, which is the half-corrected interval someone gets by applying HAC to the regression and forgetting the sum over the post window"
+
+[[target]]
+name = "scm-cumulative"
+module-path = "mlsynth/utils/fast_scm_helpers/post_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_cumulative.py mlsynth/tests/test_lexscm_cumulative_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "dispersion-keeps-the-per-unit-fitted-level"
+  find = "    effects = post.mean(axis=0) - blank.mean(axis=0)"
+  replace = "    effects = post.mean(axis=0)"
+  models = "the spread of the per-unit effects read off raw post-window means. A unit's synthetic control sits at its own fitted level and that offset runs through the post window unchanged, so it is counted as heterogeneity: on a four-unit design the estimate reads 0.849 where the truth is zero, and differencing the blank level out brings it to 0.297. The population interval is then inflated by a quantity that is a fit artefact"
+
+  [[target.mutant]]
+  id = "dispersion-treats-correlated-periods-as-independent"
+  find = "        within += scale / _bartlett_n(n_post, rho) + scale / _bartlett_n(n_blank, rho)"
+  replace = "        within += scale / n_post + scale / n_blank"
+  models = "the sampling noise in each unit's mean charged on the raw period count. Serially correlated periods carry less information, so too little is subtracted and the residue is read as effect heterogeneity -- 0.297 survives against the 0.150 independence would have removed, which is the second half of the same overstatement"
+
+  [[target.mutant]]
+  id = "approximability-treats-correlated-periods-as-independent"
+  find = "    t_stat = bias / (scale / np.sqrt(effective_n))"
+  replace = "    t_stat = bias / (scale / np.sqrt(gaps.size))"
+  models = "the offset tested on the raw period count. The standard error is understated under dependence, so the gate refuses designs the donors reproduce perfectly well: 10 per cent of them at an AR(1) coefficient of 0, 19 at 0.3 and 33 at 0.6, where the fixed form holds near 10 throughout"
+
+  [[target.mutant]]
+  id = "pool-keeps-each-placebo-on-its-own-scale"
+  find = "    reference = spreads[0] if spreads[0] > 0.0 else float(spreads[spreads > 0].mean())"
+  replace = "    return series"
+  models = "placebo series left at their own residual scale. The pool is noisier than the unit under test -- a ratio of 1.25 was measured -- so the null is too wide and coverage overshoots, 0.93 to 0.95 against a nominal 0.90, while the interval is 15 per cent wider than it needs to be"
+
+  [[target.mutant]]
+  id = "blocks-stop-at-the-end-of-each-series"
+  find = "        extended = np.concatenate([series, series[:horizon - 1]])"
+  replace = "        extended = series"
+  models = "blocks taken without wrapping. Each series then yields fewer blocks as the horizon grows, so the tail quantiles thin out exactly where the cumulative interval is widest: reading the null from one short window alone covers 0.826 at the first horizon and 0.724 by the eighth"
+
+  [[target.mutant]]
+  id = "population-drops-the-representation-term"
+  find = "    combined = float(np.sqrt(level_scale ** 2 + dispersion * distance))"
+  replace = "    combined = float(level_scale)"
+  models = "the population interval built from the gap alone. The gap estimates the weighted effect on the treated and carries nothing about how that group represents the population, so coverage of the population effect falls to 0.775 while coverage of the treated effect is untouched"
