@@ -116,11 +116,21 @@ def test_a_units_own_series_is_never_screened_out(design):
 
 
 def test_an_unapproximable_treated_unit_leaves_the_others_pool(design):
+    """Recording the drop is bookkeeping; the interval has to move.
+
+    Asserting only ``dropped_treated`` passes against an implementation that
+    computes the list and never filters on it, which is how the mutant
+    ``pool-screen-takes-the-units-own-scale-reference`` survived a first run.
+    """
     post, blank, w, clean = design
     bad = blank.copy(); bad[:, 1] += 11.0
     with pytest.warns(UserWarning):
         res = unit_level_cumulative(post, bad, w, extra_pool=clean)
+    kept = unit_level_cumulative(post, bad, w, extra_pool=clean, screen_pool=False)
     assert res.dropped_treated == (1,)
+    # unit 0's null must no longer contain unit 1's offset gap
+    assert ((res.per_unit[0][-1].upper - res.per_unit[0][-1].lower)
+            < (kept.per_unit[0][-1].upper - kept.per_unit[0][-1].lower))
 
 
 def test_screening_off_reproduces_the_unscreened_pool(design):
@@ -182,8 +192,13 @@ def test_both_entry_points_screen_the_same_pool(design):
         unit = unit_level_cumulative(post, blank, w, extra_pool=pool)
     with pytest.warns(UserWarning):
         popn = population_cumulative(post, blank, w, f, [0, 1], extra_pool=pool)
+    kept = population_cumulative(post, blank, w, f, [0, 1], extra_pool=pool,
+                                 screen_pool=False)
     assert unit.dropped_extra == popn.dropped_extra
     assert unit.dropped_treated == popn.dropped_treated
+    # and the population pool is actually rebuilt, not merely annotated
+    assert ((popn.aggregate[-1].upper - popn.aggregate[-1].lower)
+            < (kept.aggregate[-1].upper - kept.aggregate[-1].lower))
 
 
 # ------------------------------------------------- generative properties
