@@ -1432,6 +1432,88 @@ forbids treated unit :math:`i` from appearing in treated unit :math:`j`'s
 synthetic control, and says nothing about unit :math:`i`'s own residual serving
 as a draw from the null.
 
+Every series in that pool has to be approximable itself
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The interval inverts a pivot on blocks drawn from the pool, which assumes each
+member is a draw from the null -- what the treated unit's gap would look like
+with no effect. A donor its own peers cannot reproduce does not qualify. Its
+residual is dominated by the fit's systematic miss, and that miss is a constant.
+
+Rescaling does not repair it, and the way it fails is specific.
+``_prepare_pool`` puts every series on the treated unit's standard deviation,
+which matches the scale and leaves the ratio of offset to spread where it was.
+Summing a block of :math:`h` periods then accumulates the offset as :math:`h`
+while the noise it is supposed to represent accumulates as :math:`\sqrt{h}`, so
+one such member comes to set the tail quantiles, and it does so most at the long
+horizons the cumulative path exists to report.
+
+``unit_level_cumulative`` and ``population_cumulative`` therefore run the same
+:func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` gate over
+the pool that the treated units themselves have to pass, dropping what fails,
+recording it on the result as ``dropped_treated`` and ``dropped_extra``, and
+naming it in a warning. A unit's own residual is never screened: it sets the
+scale the rest are put on, and its own offset is what the caller checks with
+``approximability`` directly. Pass ``screen_pool=False`` to keep everything.
+
+The effect is large because the offending series are not marginal. On a
+twelve-market panel calibrated to a 141-week weekly geo panel, per-unit interval
+width falls from 199.6 to 88.0 with the point estimates unchanged; at
+sixty-two markets it falls from 94.6 to 85.3. Nor are such donors unusual. In a
+panel whose market sizes span a factor of 57, the largest cannot be a convex
+combination of smaller ones, and about 21 per cent of donors fail the gate at
+twelve markets against 6 per cent at sixty-two -- fewer in the larger panel
+because each donor has more peers to be spanned by, not because the sizes are
+closer together.
+
+Screening is cheap and assumes nothing: it removes series that were never valid
+draws from the null. A second route to the same problem is to relax the
+constraint that creates it, since a donor is unreachable only under simplex
+weights with no intercept. Both were measured on the same panels, at twelve
+markets, against the plain simplex fit:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 15 15 15 15
+
+   * - Fit
+     - SC
+     - MSCa
+     - MSCb
+     - MSCc
+   * - Donors failing the gate
+     - 22.3%
+     - 14.0%
+     - 8.0%
+     - 5.0%
+   * - Per-unit width, unscreened
+     - 230.5
+     - 114.8
+     - 100.1
+     - 99.8
+   * - Per-unit width, screened
+     - 97.8
+     - 96.9
+     - 93.2
+     - 96.8
+
+Three things follow. Dropping the adding-up constraint (MSCb) helps more than
+adding an intercept (MSCa), because markets here differ almost entirely by
+scale: the largest market needs its donor mix scaled up, not shifted up, and an
+intercept that matches the level leaves the amplitude wrong. No relaxation
+drives the failures to zero, because what survives is a fit whose level or scale
+drifts between the fitting window and the blank window, which in-sample
+flexibility cannot fix. And the two routes are substitutes, not complements --
+screening the simplex fit reaches 97.8 and relaxing without screening reaches
+100.1, while doing both reaches 93.2.
+
+Relaxing also costs something the width column hides. A fit free of adding-up
+chases pre-treatment noise and extrapolates worse, so the treated units
+themselves fail the gate more often: an MSCb design needed 38 draws to yield 30
+that passed, against 33 to 34 for the others. Which constraint a panel wants is
+a specification question, and :doc:`tssc` answers it with a test instead of a
+default.
+
 The population. A representative design weights its treated units so the
 aggregate stands in for a wider population, whose effect is
 :math:`\tau_t = \sum_j f_j \tau_{jt}` under the population weights
