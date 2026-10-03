@@ -36,6 +36,7 @@ import numbers
 import cvxpy as cp
 
 from ...exceptions import MlsynthConfigError
+from ..solvers.active_set import solve_simplex_qp
 import numpy as np
 import pandas as pd
 
@@ -236,11 +237,9 @@ def per_unit_reproducibility(Y_fit, members):
         if not others:
             continue
         D = Y_fit[others, :].T
-        a = cp.Variable(len(others), nonneg=True)
-        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])),
-                          [cp.sum(a) == 1])
-        prob.solve(solver=cp.CLARABEL)
-        out[j] = max(float(prob.value), 0.0) if prob.value is not None else 0.0
+        a = solve_simplex_qp(D, Y_fit[j, :])
+        residual = Y_fit[j, :] - D @ a
+        out[j] = float(residual @ residual)
     return out
 
 

@@ -3218,10 +3218,9 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "per-unit-fit-drops-the-simplex-constraint"
-  find = """        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])),
-                          [cp.sum(a) == 1])"""
-  replace = """        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])))"""
-  models = "a reproducibility charge measured by non-negative least squares instead of a synthetic control, which can extrapolate outside the donors' convex hull and so understates how unreachable an isolated unit is"
+  find = "        a = solve_simplex_qp(D, Y_fit[j, :])"
+  replace = "        a = np.linalg.lstsq(D, Y_fit[j, :], rcond=None)[0]"
+  models = "a reproducibility charge measured by unconstrained least squares instead of a synthetic control, which can extrapolate outside the donors' convex hull -- a unit twice another is then reproduced at zero cost -- and so understates how unreachable an isolated unit is"
 
   [[target.mutant]]
   id = "the-control-side-is-charged-for-the-treated-fit"
