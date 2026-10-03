@@ -298,3 +298,112 @@ def test_one_dimensional_gaps_are_read_as_a_single_treated_unit(unit_panel):
     shaped = unit_level_cumulative(post[:, :1], blank[:, :1], np.array([1.0]))
     assert [p.estimate for p in flat.aggregate] == [p.estimate for p in shaped.aggregate]
     assert len(flat.per_unit) == 1
+
+
+# ----------------------------------------------------- the population estimand
+
+from mlsynth.utils.fast_scm_helpers.post_inference import population_cumulative
+
+
+@pytest.fixture
+def pop_panel():
+    """Three of ten markets treated, with the population's own weights."""
+    rng = np.random.default_rng(21)
+    blank = rng.normal(0.0, 1.0, (32, 3))
+    # genuinely different per-unit effects, so sigma_tau does not clip to zero
+    post = np.array([1.0, 2.0, 4.0]) + rng.normal(0.0, 1.0, (8, 3))
+    w = np.array([0.5, 0.3, 0.2])
+    f = np.full(10, 0.1)
+    return post, blank, w, f, np.array([0, 1, 2])
+
+
+def test_population_path_has_one_row_per_horizon(pop_panel):
+    post, blank, w, f, idx = pop_panel
+    out = population_cumulative(post, blank, w, f, idx)
+    assert len(out.aggregate) == post.shape[0]
+    assert out.estimand == "population"
+
+
+def test_the_point_estimate_is_unchanged_from_the_treated_path(pop_panel):
+    """The representation error is mean zero, so it widens without moving."""
+    post, blank, w, f, idx = pop_panel
+    pop = population_cumulative(post, blank, w, f, idx)
+    treated = unit_level_cumulative(post, blank, w)
+    assert np.allclose([p.estimate for p in pop.aggregate],
+                       [p.estimate for p in treated.aggregate])
+
+
+def test_the_population_interval_is_never_narrower(pop_panel):
+    post, blank, w, f, idx = pop_panel
+    pop = population_cumulative(post, blank, w, f, idx)
+    treated = unit_level_cumulative(post, blank, w)
+    for a, b in zip(treated.aggregate, pop.aggregate):
+        assert b.upper - b.lower >= a.upper - a.lower - 1e-9
+
+
+def test_homogeneous_effects_leave_the_interval_alone(pop_panel):
+    """With no spread across units there is nothing for w minus f to multiply."""
+    _, blank, w, f, idx = pop_panel
+    flat = np.tile(np.array([3.0, 3.0, 3.0]), (8, 1))      # identical every unit
+    pop = population_cumulative(flat, blank, w, f, idx)
+    treated = unit_level_cumulative(flat, blank, w)
+    for a, b in zip(treated.aggregate, pop.aggregate):
+        assert b.upper - b.lower == pytest.approx(a.upper - a.lower, rel=1e-6)
+
+
+def test_the_widening_grows_faster_than_the_gap_term(pop_panel):
+    """The representation term scales as h^2 against the gap term's h."""
+    post, blank, w, f, idx = pop_panel
+    pop = population_cumulative(post, blank, w, f, idx)
+    treated = unit_level_cumulative(post, blank, w)
+    extra = [(b.upper - b.lower) - (a.upper - a.lower)
+             for a, b in zip(treated.aggregate, pop.aggregate)]
+    assert extra[-1] > extra[0]
+
+
+def test_a_treated_set_matching_the_population_adds_nothing(pop_panel):
+    """When w equals f on every market there is no representation error."""
+    post, blank, _, _, _ = pop_panel
+    w = np.full(3, 1 / 3)
+    pop = population_cumulative(post, blank, w, w, np.array([0, 1, 2]))
+    treated = unit_level_cumulative(post, blank, w)
+    for a, b in zip(treated.aggregate, pop.aggregate):
+        assert b.upper - b.lower == pytest.approx(a.upper - a.lower, rel=1e-6)
+
+
+def test_population_weights_that_do_not_sum_to_one_are_refused(pop_panel):
+    post, blank, w, f, idx = pop_panel
+    with pytest.raises(MlsynthConfigError, match="population"):
+        population_cumulative(post, blank, w, np.full(10, 0.2), idx)
+
+
+def test_treated_index_out_of_range_is_refused(pop_panel):
+    post, blank, w, f, _ = pop_panel
+    with pytest.raises(MlsynthDataError, match="index"):
+        population_cumulative(post, blank, w, f, np.array([0, 1, 99]))
+
+
+def test_treated_index_length_must_match_the_weights(pop_panel):
+    post, blank, w, f, _ = pop_panel
+    with pytest.raises(MlsynthDataError, match="index"):
+        population_cumulative(post, blank, w, f, np.array([0, 1]))
+
+
+def test_one_treated_unit_leaves_the_dispersion_unmeasurable(pop_panel):
+    """A single treated unit gives no spread to read, so nothing is added."""
+    post, blank, _, f, _ = pop_panel
+    pop = population_cumulative(post[:, 0], blank[:, 0], np.array([1.0]),
+                                f, np.array([0]))
+    treated = unit_level_cumulative(post[:, 0], blank[:, 0], np.array([1.0]))
+    assert pop.effect_dispersion == 0.0
+    for a, b in zip(treated.aggregate, pop.aggregate):
+        assert b.upper - b.lower == pytest.approx(a.upper - a.lower, rel=1e-9)
+
+
+def test_the_result_reports_the_two_factors_it_multiplied(pop_panel):
+    """Both are design facts a reader should be able to check independently."""
+    post, blank, w, f, idx = pop_panel
+    pop = population_cumulative(post, blank, w, f, idx)
+    embedded = np.zeros_like(f); embedded[idx] = w
+    assert pop.weight_distance == pytest.approx(float(np.linalg.norm(embedded - f)))
+    assert pop.effect_dispersion > 0.0
