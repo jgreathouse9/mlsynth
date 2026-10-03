@@ -7,13 +7,26 @@ never both (the disjointness ``w_j v_j = 0``). These helpers build the cvxpy
 variables, constraints, and the design-specific objective; the objective form
 is selected by ``design``:
 
-* ``"base"`` -- match each cluster mean with both synthetic units;
-* ``"weak"`` -- match the treated synthetic to the mean and softly tie the
-  control synthetic to it (weight ``beta``);
-* ``"eq11"`` -- ``base`` plus cluster-level distance penalties (``lambda1`` /
-  ``lambda2``);
-* ``"unit"`` -- ``base`` plus unit-level penalties (``xi`` / ``lambda1_unit`` /
-  ``lambda2_unit``).
+* ``"standard"`` -- match each cluster mean with both synthetic units;
+* ``"weakly_targeted"`` -- match the treated synthetic to the mean and softly
+  tie the control synthetic to it (weight ``beta``);
+* ``"penalized"`` -- ``standard`` plus cluster-level distance penalties
+  (``lambda1`` / ``lambda2``);
+* ``"unit_penalized"`` -- ``standard`` plus unit-level penalties (``xi`` /
+  ``lambda1_unit``).
+
+Two further penalties appear in the paper's text but have no convex form in
+these variables, and are refused with a reason: ``lambda2_unit`` pairs ``w``
+against ``v`` through a distance matrix (bilinear in two decision variables),
+and ``zeta`` minimises ``z(1 - z)`` (concave). The relaxed path reaches
+integrality by discretising after the solve, not by penalising during it.
+
+``xi`` is the eq. (10) unit-level term. It weights each candidate's own
+reproducibility by that candidate's treated weight, so the inner quantity is a
+minimum over the per-unit control weights and is therefore constant in ``w``:
+:func:`per_unit_reproducibility` evaluates those minima once and the penalty
+enters linearly. Multiplying ``w`` by a convex function of the shared joint
+``v`` instead is not the same objective and is not convex in ``(w, v)``.
 """
 
 from __future__ import annotations
@@ -21,6 +34,8 @@ from __future__ import annotations
 import numbers
 
 import cvxpy as cp
+
+from ...exceptions import MlsynthConfigError
 import numpy as np
 import pandas as pd
 
@@ -191,14 +206,54 @@ def build_constraints(w, v, z, M, cluster_members, cluster_labels,
     return constraints
 
 
+
+def per_unit_reproducibility(Y_fit, members):
+    r"""``min_v ||x_j - sum_i v_i x_i||^2`` for each unit, over the simplex.
+
+    Equation (10)'s penalty is ``xi * sum_j w_j * min_{v_.j} ||x_j - sum_i
+    v_ij x_i||^2``. The inner weights appear in exactly one term of the
+    objective, multiplied by the non-negative scalar ``w_j``, and a positive
+    scalar cannot move an argmin -- so ``v*_.j`` does not depend on ``w`` and
+    the minimum is a constant. That is what makes the term linear in ``w``, and
+    therefore something a convex program can carry.
+
+    Written instead as ``w_j`` times an *evaluated* squared norm of a joint
+    variable, the term is a product of two variables: the Hessian of ``w v^2``
+    is ``[[0, 2v], [2v, 2w]]`` with determinant ``-4 v^2``, so it is genuinely
+    non-convex and no solver will take it.
+
+    Each unit is fitted against every other unit in the panel. Equation (10)
+    excludes the treated set from one another's donor pools, which cannot be
+    imposed here because the assignment is itself a decision variable; the
+    difference is the ``m - 1`` donors a chosen tuple would remove, measured
+    elsewhere at a median 0.0 to 0.7 per cent in the penalty with the same
+    design selected in 11 of 12 cells.
+    """
+    N = Y_fit.shape[0]
+    out = np.zeros(N, dtype=float)
+    for j in range(N):
+        others = [i for i in range(N) if i != j]
+        if not others:
+            continue
+        D = Y_fit[others, :].T
+        a = cp.Variable(len(others), nonneg=True)
+        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])),
+                          [cp.sum(a) == 1])
+        prob.solve(solver=cp.CLARABEL)
+        out[j] = max(float(prob.value), 0.0) if prob.value is not None else 0.0
+    return out
+
+
 def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
                     design, beta=1e-6, lambda1=0.0, lambda2=0.0,
                     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0,
                     D1=None, D2_list=None, zeta=0.0):
     """Design-specific cvxpy objective (see module docstring).
 
-    ``zeta`` adds an optional integrality penalty ``z (1 - z)`` used by the
-    relaxed (continuous-``z``) solve; it is ``0`` for the exact MIQP.
+    ``lambda2_unit`` and a non-zero ``zeta`` raise
+    :class:`~mlsynth.exceptions.MlsynthConfigError`: neither has a convex form
+    in these variables. The relaxed (continuous-``z``) solve discretises after
+    the fact via ``post_hoc_discretize``.
     """
     Y_T = Y_fit.T
     obj_terms = []
@@ -239,17 +294,38 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
             obj_terms.append(cp.sum_squares(Xbar_k - syn_treated))
             obj_terms.append(cp.sum_squares(Xbar_k - syn_control))
             if xi > 0:
-                for j in members:
-                    obj_terms.append(xi * w[j, k_idx] * cp.sum_squares(Y_fit[j, :] - syn_control))
+                # Equation (10) multiplies w_j by a MINIMUM over v_.j, which is
+                # a constant in w, so the term is linear. Multiplying w_j by an
+                # evaluated squared norm of the shared control variable instead
+                # makes it a product of two variables -- non-convex, and
+                # rejected before any solver sees it.
+                d = per_unit_reproducibility(Y_fit, members)
+                obj_terms.append(
+                    xi * cp.sum(cp.multiply(w[members, k_idx], d[members])))
             if lambda1_unit > 0:
                 obj_terms.append(lambda1_unit * cp.sum(cp.multiply(w[members, k_idx], D1[members, k_idx])))
             if lambda2_unit > 0 and len(members) > 1:
-                Dmat = D2_list[k_idx]
-                v_m = v[members, k_idx]
-                w_m = w[members, k_idx]
-                obj_terms.append(lambda2_unit * cp.sum(cp.multiply(w_m, Dmat @ v_m)))
+                # w' D v is bilinear in two decision variables. Unlike the xi
+                # term there is no inner minimum to precompute, so there is
+                # nothing to linearise and the program cannot be made convex.
+                raise MlsynthConfigError(
+                    "lambda2_unit pairs the treated weights against the control "
+                    "weights through a distance matrix, which is bilinear in two "
+                    "decision variables and leaves no convex program to solve. "
+                    "Use lambda1_unit, which is linear in w, or the 'penalized' "
+                    "design, whose lambda1 and lambda2 weigh each side against "
+                    "the population target separately."
+                )
 
     if zeta and zeta > 0:
-        obj_terms.append(zeta * cp.sum(cp.multiply(z, 1 - z)))
+        # z(1 - z) is concave, so minimising it is non-convex. Nothing in the
+        # package sets this -- the relaxed solver's default is 0 -- so the
+        # parameter has never run, and its docstring claimed otherwise.
+        raise MlsynthConfigError(
+            "zeta minimises z(1 - z), which is concave, so the program is not "
+            "convex and no solver will accept it. The relaxed path discretises "
+            "after solving (post_hoc_discretize) instead of penalising "
+            "fractional assignments during the solve."
+        )
 
     return cp.Minimize(cp.sum(obj_terms))

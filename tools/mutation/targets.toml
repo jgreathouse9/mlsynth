@@ -3192,3 +3192,64 @@ timeout = 300.0
   find = "    combined = float(np.sqrt(level_scale ** 2 + dispersion * distance))"
   replace = "    combined = float(level_scale)"
   models = "the population interval built from the gap alone. The gap estimates the weighted effect on the treated and carries nothing about how that group represents the population, so coverage of the population effect falls to 0.775 while coverage of the treated effect is untouched"
+
+[[target]]
+name = "marex-unit-penalised"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_penalised_dcp.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "xi-penalty-charges-the-joint-fit-again"
+  find = """                d = per_unit_reproducibility(Y_fit, members)
+                obj_terms.append(
+                    xi * cp.sum(cp.multiply(w[members, k_idx], d[members])))"""
+  replace = """                syn_control = Y_T @ v[:, k_idx]
+                for j in members:
+                    obj_terms.append(
+                        xi * w[j, k_idx] * cp.sum_squares(Y_fit[j, :] - syn_control))"""
+  models = "the original defect: w_j multiplied by an evaluated convex function of the shared joint control variable, where eq. (10) multiplies it by a minimum over that unit's own control weights. A product of two decision variables, so the Hessian of w v^2 has determinant -4 v^2 and cvxpy rejects the program for every xi > 0"
+
+  [[target.mutant]]
+  id = "each-unit-is-left-in-its-own-donor-pool"
+  find = "        others = [i for i in range(N) if i != j]"
+  replace = "        others = [i for i in range(N)]"
+  models = "a per-unit reproducibility fitted with the unit itself among its donors, which reproduces it exactly at zero cost, so every charge is 0 and the xi penalty silently stops discriminating between candidates while remaining linear, solvable and present on the result"
+
+  [[target.mutant]]
+  id = "per-unit-fit-drops-the-simplex-constraint"
+  find = """        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])),
+                          [cp.sum(a) == 1])"""
+  replace = """        prob = cp.Problem(cp.Minimize(cp.sum_squares(D @ a - Y_fit[j, :])))"""
+  models = "a reproducibility charge measured by non-negative least squares instead of a synthetic control, which can extrapolate outside the donors' convex hull and so understates how unreachable an isolated unit is"
+
+  [[target.mutant]]
+  id = "the-control-side-is-charged-for-the-treated-fit"
+  find = "                    xi * cp.sum(cp.multiply(w[members, k_idx], d[members])))"
+  replace = "                    xi * cp.sum(cp.multiply(v[members, k_idx], d[members])))"
+  models = "the eq. (10) charge applied to the control weights, which leaves the term linear, the program solvable and the objective finite while penalising the wrong side of the design"
+
+  [[target.mutant]]
+  id = "the-bilinear-penalty-is-accepted-and-dropped"
+  find = """            if lambda2_unit > 0 and len(members) > 1:
+                # w' D v is bilinear in two decision variables. Unlike the xi
+                # term there is no inner minimum to precompute, so there is
+                # nothing to linearise and the program cannot be made convex."""
+  replace = """            if False:
+                # refusal removed: the parameter is read, ignored, and the
+                # design is returned as though it had been honoured."""
+  models = "a control-side unit-level penalty that is accepted from the config and then has no effect on the program, so the user is handed a design that answers a different question than the one they asked for, with nothing on the result to say so"
+
+[[target]]
+name = "marex-config-refusals"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_penalised_dcp.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-config-accepts-a-penalty-it-cannot-honour"
+  find = """        \"\"\"Reject the bilinear control-side penalty at construction.\"\"\"
+        if v:"""
+  replace = """        \"\"\"Reject the bilinear control-side penalty at construction.\"\"\"
+        if False:"""
+  models = "a config that takes lambda2_unit without complaint and defers the failure to the program build, so a parameter that can only ever be zero is reported back on the config as though it were in force"

@@ -1320,7 +1320,7 @@ class TestPostFitEdges:
 
 class TestCoverageMopUp:
     """Branches that need a specific construction to fire: tied-support swap,
-    full budget dict, unit-penalized xi / lambda2_unit, the zeta integrality
+    full budget dict, the unit-penalized xi term, the refused penalties, the
     penalty in the relaxed solver, the MAREXResults convenience properties,
     and the three exception-conversion paths in MAREX.fit().
     """
@@ -1362,10 +1362,14 @@ class TestCoverageMopUp:
         assert out_budget == {0: 7.0, 1: 3.0}
         assert out_costs.shape == (4,)
 
-    # ---- formulation.py 232-243: extra penalty branches in build_objective.
-    # These add non-DCP terms (variable * variable, z*(1-z)) that cvxpy
-    # rejects at solve time, but the objective-construction code itself runs,
-    # so we exercise it directly via build_objective.
+    # ---- formulation.py: the extra penalty branches in build_objective.
+    #
+    # These were covered by calling build_objective and asserting the return
+    # type, with a comment recording that the terms "add non-DCP terms that
+    # cvxpy rejects at solve time". That is a defect described as a test
+    # fixture: the branch ran, the line was covered, and every xi > 0 call to
+    # the Unit-level design failed. The xi term is now linear in w and solves;
+    # the two that are bilinear by construction are refused with a reason.
 
     def test_build_objective_unit_penalized_with_xi(self):
         import cvxpy as cp
@@ -1380,6 +1384,7 @@ class TestCoverageMopUp:
         obj = build_objective(Y_fit, Xbar, cluster_members, w, v, z,
                               design="unit_penalized", xi=0.5)
         assert isinstance(obj, cp.Minimize)
+        assert obj.is_dcp(), "the Unit-level penalty must leave a solvable program"
 
     def test_build_objective_unit_penalized_with_lambda2_unit(self):
         import cvxpy as cp
@@ -1391,10 +1396,11 @@ class TestCoverageMopUp:
         Xbar = [Y_fit.mean(axis=0)]
         _, D2 = precompute_distances(Y_fit, Xbar, cluster_members)
         w, v, z = init_cvxpy_variables(N=4, K=1, boolean=True)
-        obj = build_objective(Y_fit, Xbar, cluster_members, w, v, z,
-                              design="unit_penalized",
-                              lambda2_unit=0.1, D2_list=D2)
-        assert isinstance(obj, cp.Minimize)
+        from mlsynth.exceptions import MlsynthConfigError
+        with pytest.raises(MlsynthConfigError, match="bilinear"):
+            build_objective(Y_fit, Xbar, cluster_members, w, v, z,
+                            design="unit_penalized",
+                            lambda2_unit=0.1, D2_list=D2)
 
     def test_build_objective_zeta_integrality_penalty(self):
         import cvxpy as cp
@@ -1405,9 +1411,10 @@ class TestCoverageMopUp:
         cluster_members = [np.array([0, 1, 2, 3])]
         Xbar = [Y_fit.mean(axis=0)]
         w, v, z = init_cvxpy_variables(N=4, K=1, boolean=False)
-        obj = build_objective(Y_fit, Xbar, cluster_members, w, v, z,
-                              design="standard", zeta=0.1)
-        assert isinstance(obj, cp.Minimize)
+        from mlsynth.exceptions import MlsynthConfigError
+        with pytest.raises(MlsynthConfigError, match="concave"):
+            build_objective(Y_fit, Xbar, cluster_members, w, v, z,
+                            design="standard", zeta=0.1)
 
     # ---- scexp.py exception-conversion paths -----------------------
 
