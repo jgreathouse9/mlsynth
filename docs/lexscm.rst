@@ -1392,15 +1392,26 @@ The estimate can then be read two ways that are the same number,
 
 so the aggregate gap is the weighted mean of the per-unit gaps.
 
-LEXSCM does not solve this program. Stage 1 minimises the aggregate imbalance
-over the simplex under a cardinality constraint, which is the targeting term of
-Abadie and Zhao's equation (7), and Stage 2 fits a single synthetic control to
-the resulting treated aggregate. Two things do not carry over.
-``targeting_penalty`` is a ridge toward equal weights, not the :math:`\beta`
-of the Weakly targeted design in their equation (9), which penalises the
-distance between the aggregate treated and aggregate control units. And
-:math:`\xi` has no counterpart in ``LEXSCMConfig`` at all, because nothing in
-the pipeline fits a per-unit control. The formulation is here because it
+LEXSCM does not solve this program, though its two-stage shape is not a
+departure from the family either. Vives-i-Bastida (2022) supplies the
+lexicographic reading of the joint design: enumerate the candidate treated
+tuples, fit :math:`\mathbf{w}` for each, keep the best few, and only then fit
+control weights for those. He notes this is the joint program in the limit as
+the weight on the control-fit term goes to zero, so representativeness is
+settled before any control is chosen. That limit is Stage 1 followed by Stage
+2, and it is the sense in which this estimator is lexicographic.
+
+Two symbols do not carry over, and one of them is a trap for anyone reading
+both papers. ``targeting_penalty`` is a ridge toward equal weights, not the
+:math:`\beta` of the Weakly targeted design in equation (9), which penalises
+the distance between the aggregate treated and aggregate control units. And
+:math:`\xi` names different quantities in the two sources: in Abadie and
+Zhao's equation (10) above it weights the per-unit control fits, while in
+Vives-i-Bastida's program it weights the aggregate treated-against-control
+discrepancy, which is Abadie and Zhao's :math:`\beta`. Neither has a field in
+``LEXSCMConfig`` -- the first because nothing in the pipeline fits a per-unit
+control, the second because the lexicographic order has already taken it to
+its limit. The formulation is here because it
 says what object the per-unit gaps are: one residual series per treated unit
 from its own synthetic control, with the treated units excluded from each
 other's donor pools. A caller who builds those series some other way satisfies
