@@ -548,16 +548,28 @@ def test_a_one_period_blank_window_has_no_level_noise_to_charge():
     assert np.isfinite([out.aggregate[0].lower, out.aggregate[0].upper]).all()
 
 
-def test_blocks_wrap_so_a_long_horizon_still_has_a_distribution():
-    """Circular blocking keeps every series yielding as many blocks as it has
-    periods. Stopping at the end instead leaves a single block once the horizon
-    reaches the series length, and one value has no spread, so the interval
-    collapses to a point and reports certainty it does not have.
+def test_blocks_wrap_so_every_period_starts_one():
+    """Circular blocking keeps each series yielding as many blocks as it has
+    periods. Stopping at the end instead loses h-1 of them, and the loss grows
+    with the horizon, which is where the cumulative interval is widest and the
+    tail quantiles are already thinnest.
+    """
+    from mlsynth.utils.fast_scm_helpers.post_inference import _blocks
+    series = [np.arange(8.0), np.arange(8.0) * 2.0]
+    for horizon in (1, 3, 8):
+        assert _blocks(series, horizon).shape == (16, horizon)
+
+
+def test_a_horizon_as_long_as_the_series_has_no_spread_to_offer():
+    """A limit of circular blocking, asserted so it is known and not discovered.
+
+    Every rotation of a series sums to the same total, so at a horizon equal to
+    the series length all blocks coincide and the interval collapses to a point.
+    The pool has to be longer than the horizon for the quantiles to mean
+    anything, which pooling and ``extra_pool`` exist to secure.
     """
     rng = np.random.default_rng(36)
     n = 8
-    pool = [rng.normal(0.0, 1.0, n) for _ in range(3)]
-    path = cumulative_path(2.0 + rng.normal(0.0, 1.0, n), pool)
-    assert path[-1].upper - path[-1].lower > 1e-8, "interval collapsed at horizon n"
-    widths = [p.upper - p.lower for p in path]
-    assert all(w > 1e-8 for w in widths)
+    path = cumulative_path(2.0 + rng.normal(0.0, 1.0, n), [rng.normal(0.0, 1.0, n)])
+    assert path[-1].upper - path[-1].lower == pytest.approx(0.0, abs=1e-9)
+    assert path[0].upper - path[0].lower > 1e-8
