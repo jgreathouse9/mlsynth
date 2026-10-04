@@ -1470,7 +1470,7 @@ truncating the negative side of an estimator whose mean is zero biases it up, so
 a level-free series the total still runs about 1.12 times wide at six windows,
 falling to 1.04 at forty. More windows is what buys that back.
 
-Measured on panels built from real weekly market data -- 104 pre-periods, a
+Measured on panels built from real market data -- a long pre-period, a
 13-period horizon, a treated unit the donors can reproduce -- the realised coverage
 of the total moves from 0.85 to 0.94 for VanillaSC and from 0.72 to 0.94 for a
 blank-window design, against a nominal 0.95. PDA reads 0.98 on the same panels, and

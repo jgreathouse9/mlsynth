@@ -164,7 +164,7 @@ def _panel_grams(n, m, seed=3, M=40, T=30):
     Conditioning is the whole difficulty. A Gram of independent gaussians is
     well separated and Frank-Wolfe reaches its optimum on it, so a test built
     that way passes while the estimator is wrong in the field. Geo panels are
-    not like that: on the 211-market DMA panel a single component carried 97%
+    not like that: on a wide geo panel a single component carried 97%
     of the two-way-demeaned variance, the columns are near-collinear, the
     quadratic is degenerate and a fixed iteration budget stops short.
     """
@@ -185,7 +185,7 @@ def test_afw_batched_returns_the_certified_optimum(m):
     ``L(S)`` ranks candidate designs against one another, so an error that is
     small in absolute terms still reorders the shortlist. A fixed iteration
     budget on a sublinearly-convergent method does not deliver the minimum:
-    at 80 Frank-Wolfe steps the median relative error on the DMA panel was 9%,
+    at 80 Frank-Wolfe steps the median relative error on that panel was 9%,
     high on two thirds of subsets.
     """
     from mlsynth.utils.solvers.minnorm import solve_simplex_minnorm_batch

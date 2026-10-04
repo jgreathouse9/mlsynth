@@ -482,7 +482,7 @@ The block records what the search did. It does not measure whether the
 incumbent is the global optimum, and ``consensus_rate`` in particular
 should not be read that way.
 
-The measurement: 18 instances built from a 211-market DMA panel
+The measurement: 18 instances built from a wide geo panel
 (three population bands,
 :math:`m \in \{3, 4\}`, three constraint regimes), each solved exactly by
 enumeration, against 1,350 multi-start runs over
