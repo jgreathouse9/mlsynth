@@ -2274,6 +2274,7 @@
   "mlsynth/utils/snn_helpers/completion.py"
  ],
  "snn_nesting": [
+  "basedata/prop99_packsales.csv",
   "mlsynth/config_models.py",
   "mlsynth/estimators/clustersc.py",
   "mlsynth/estimators/si.py",

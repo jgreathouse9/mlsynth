@@ -34,6 +34,20 @@ and projecting the counterfactual through the denoised full donor matrix
 equality rows would pass on an estimator that ignored its anchor sets, its rank
 and its projection alike.
 
+The multi-arm leg. Everything above runs SI on its control arm, where the donor
+pool is every untreated unit -- exactly RSC's pool, and the degenerate end of
+the chain. SI's contribution over RSC is that the pool is target-specific:
+``I(d)``, the units that took intervention ``d``. A fourth block of rows covers
+that end on the anti-tobacco arms of the SI authors' own case study, five
+program states against seven tax states. Flattening the tensor so a column is
+an ``(intervention, period)`` pair and applying SI's observation law, SNN's
+anchor search returns exactly ``I(d)`` crossed with the pre-period for all five
+measured ``(target, arm)`` pairs, and reproduces SI's arm counterfactual to
+2e-14 percent -- the per-intervention pool recovered from the observation
+pattern, with SNN never told that interventions exist. Its guard is the
+separation from the control-arm answer, which is what RSC could have produced:
+15 to 39 percent of the level, so the pool is doing work.
+
 The three controls also locate where the estimators genuinely diverge. The
 nesting is exact at a *matched* rank and a raw post-period projection; the
 shipped defaults differ on both, so out of the box these estimators do not agree
@@ -64,6 +78,7 @@ the same identity on a planted low-rank panel.
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -73,10 +88,31 @@ from benchmarks.reference.clone_panel_data_regressions import (
     import_panel_data_regressions,
 )
 
+_BASE = Path(__file__).resolve().parents[2] / "basedata"
+
 #: Spectral-energy threshold ``case_study.py`` uses to pick the PCR rank.
 ENERGY = 0.999
 
 DATASETS = ("prop99", "basque", "germany")
+
+# ---------------------------------------------------------------- multi-arm leg
+# The three case studies above have one intervention, so SI runs on its control
+# arm, where the donor pool is every untreated unit -- exactly RSC's pool. That
+# is the degenerate end of the chain. SI's contribution over RSC is the
+# target-specific pool I(d), which needs a panel with more than one arm.
+#
+# The anti-tobacco arms of Agarwal-Shah-Shen's own case study supply one:
+# between 1989 and 2000 five states ran programs, seven raised taxes by at
+# least 50 cents, and the rest held the status quo.
+MA_TAX = ["Alaska", "Hawaii", "Maryland", "Michigan", "New Jersey", "New York",
+          "Washington"]
+MA_PROGRAM = ["California", "Arizona", "Massachusetts", "Oregon", "Florida"]
+MA_PRE = list(range(1970, 1989))      # T0 = 19, every state under the status quo
+MA_POST = list(range(1989, 2001))     # T1 = 12
+MA_RANK = 3
+#: (target unit, arm) pairs measured. Each target is outside the arm it asks about.
+MA_TARGETS = [("California", "tax"), ("Alabama", "program"), ("Alabama", "tax"),
+              ("Utah", "program"), ("Utah", "tax")]
 
 
 def _load(data_dir, data):
@@ -208,6 +244,98 @@ def _per_dataset():
     return rows
 
 
+def _multi_arm():
+    """SNN's anchor cross against SI's donor pool I(d), for d != 0.
+
+    Flattens the potential-outcomes tensor so a column is an
+    ``(intervention, period)`` pair -- the reduction SI's Assumption 2
+    describes -- and applies its observation law: before 1989 every state is
+    under the status quo, and after it column ``(d, t)`` is observed exactly
+    for the states that took ``d``. SNN then gets the mask and nothing else.
+
+    For a target ``(i, (d, t))`` the rows observed at that column are precisely
+    ``I(d)``, and the columns observed in row ``i`` are the pre-period status-quo
+    columns plus ``i``'s own arm's post columns -- which are blank for every
+    ``I(d)`` row, so the search drops them. What is left is SI's cross,
+    recovered from the observation pattern without SNN being told that
+    interventions exist.
+
+    Returns one row per ``(target, arm)`` pair in :data:`MA_TARGETS`.
+    """
+    from mlsynth import SI
+    from mlsynth.utils.pcr import pcr_weights
+    from mlsynth.utils.snn_helpers.completion import _find_anchors
+
+    df = pd.read_csv(_BASE / "prop99_packsales.csv")
+    wide = df.pivot(index="state", columns="year", values="cigsale")
+    states = list(wide.index)
+    members = {"program": MA_PROGRAM, "tax": MA_TAX}
+    arm_of = {s: ("program" if s in MA_PROGRAM else
+                  "tax" if s in MA_TAX else "control") for s in states}
+
+    arms = ["control", "program", "tax"]
+    cols = [(d, t) for d in arms for t in MA_PRE + MA_POST]
+    M = np.full((len(states), len(cols)), np.nan)
+    for r, s in enumerate(states):
+        for c, (d, t) in enumerate(cols):
+            if t in MA_PRE:
+                if d == "control":
+                    M[r, c] = wide.loc[s, t]
+            elif arm_of[s] == d:
+                M[r, c] = wide.loc[s, t]
+    mask = (~np.isnan(M)).astype(int)
+    pre_cols = [c for c, (d, t) in enumerate(cols)
+                if d == "control" and t in MA_PRE]
+
+    long = (wide[MA_PRE + MA_POST].stack().rename("y").reset_index()
+                .rename(columns={"year": "t"}))
+
+    def _snn(target_i, arm, rows):
+        """SNN down one arm: the imputed path, and whether the cross is I(d)."""
+        path, cross_ok = [], True
+        for t in MA_POST:
+            j = cols.index((arm, t))
+            AR, AC = _find_anchors(mask, target_i, j)
+            cross_ok &= (sorted(AR.tolist()) == rows
+                         and sorted(AC.tolist()) == pre_cols)
+            beta = pcr_weights(M[np.ix_(AR, AC)].T, M[target_i, AC], MA_RANK)
+            path.append(float(M[AR, j] @ beta))
+        return np.array(path), cross_ok
+
+    rows_out = []
+    for target, arm in MA_TARGETS:
+        ti = states.index(target)
+        pool = sorted(states.index(s) for s in members[arm])
+
+        snn_path, cross_ok = _snn(ti, arm, pool)
+
+        lg = long.copy()
+        lg["treat"] = ((lg.state == target) & (lg.t >= MA_POST[0])).astype(int)
+        lg[arm] = lg.state.isin(members[arm]).astype(int)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            si = SI({"df": lg, "outcome": "y", "treat": "treat",
+                     "unitid": "state", "time": "t", "inters": [arm],
+                     "rank_method": "fixed", "rank": MA_RANK,
+                     "bias_correct": False, "display_graphs": False}).fit()
+        si_path = np.asarray(si.arms[arm].counterfactual, float)[-len(MA_POST):]
+
+        # Control: RSC's estimand is this unit under the status quo, a different
+        # question with a different pool and a different target column. The two
+        # answers have to differ, or the per-arm pool would be decoration.
+        ctrl_pool = sorted(states.index(s) for s in states
+                           if arm_of[s] == "control" and s != target)
+        ctrl_path, _ = _snn(ti, "control", ctrl_pool)
+
+        rows_out.append({
+            "target": target, "arm": arm, "pool_size": len(pool),
+            "cross_is_pool": bool(cross_ok),
+            "snn_vs_si": _rel_pct(snn_path, si_path),
+            "arm_vs_control": _rel_pct(snn_path, ctrl_path),
+        })
+    return rows_out
+
+
 def run() -> dict:
     """Aggregate the per-dataset rows into the pinned metrics.
 
@@ -231,6 +359,17 @@ def run() -> dict:
         "control_off_rank_pct": best("control_off_rank"),
         "control_paper_projection_pct": best("control_paper_projection"),
         "prop99_att": next(r["att"] for r in rows if r["dataset"] == "prop99"),
+        **_multi_arm_metrics(),
+    }
+
+
+def _multi_arm_metrics() -> dict:
+    """The d != 0 leg: SNN's cross against SI's per-intervention pool."""
+    ma = _multi_arm()
+    return {
+        "multiarm_cross_is_pool": float(sum(r["cross_is_pool"] for r in ma)),
+        "multiarm_snn_vs_si_pct": max(r["snn_vs_si"] for r in ma),
+        "multiarm_arm_vs_control_pct": min(r["arm_vs_control"] for r in ma),
     }
 
 
@@ -315,8 +454,28 @@ def comparison() -> dict:
 # (their split ends the pre-period in 1988), so it is pinned as this case's own
 # anchor: a number every row above has to be consistent with. 1e-6 is the
 # reassociation band, since the three estimators agree on it exactly.
+# The multi-arm leg, the d != 0 end of the chain.
+#
+# `multiarm_cross_is_pool` counts the (target, arm) pairs whose cross is exactly
+# I(d) x the pre-period. All five, exactly, with zero tolerance: this is the row
+# that makes the next one a statement about SNN discovering SI's donor pool
+# from the mask, and not about a pool handed to it.
+#
+# `multiarm_snn_vs_si_pct` is the worst gap to SI's arm counterfactual across
+# the five pairs, 2e-14 percent of the level. Same 1e-8 band as the block-
+# missingness rows, and for the same reason.
+#
+# `multiarm_arm_vs_control_pct` is the guard. RSC's estimand is the unit under
+# the status quo -- a different pool, a different target column, a different
+# question. If the arm answer matched it, the per-arm pool would be decoration
+# and every row above would be vacuous. Pinned at the smallest separation the
+# five pairs produce (Utah under the program arm, 15.26 percent; the others run
+# 23 to 39) with half of it as the band.
 EXPECTED = {
     "anchor_blocks_exact": (3.0, 0),
+    "multiarm_cross_is_pool": (5.0, 0),
+    "multiarm_snn_vs_si_pct": (0.0, 1e-8),
+    "multiarm_arm_vs_control_pct": (15.26, 7.6),
     "snn_vs_reference_pct": (0.0, 1e-8),
     "si_vs_reference_pct": (0.0, 1e-8),
     "rsc_vs_reference_pct": (0.0, 1e-8),

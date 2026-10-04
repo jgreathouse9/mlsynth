@@ -50,6 +50,51 @@ synthetic control: the same PCR machinery is applied, but the anchor
 submatrix is found *per entry*, with no fixed treated/donor block, so SNN
 handles arbitrary (block-structured) MNAR patterns.
 
+Why the reduction holds
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The containment is algebra, and it is short enough to state. Write
+:math:`S^{(t)}` for the rank-:math:`t` truncation of the anchor block. Step 2
+above is
+
+.. math::
+
+   \widehat\beta = \bigl(S^{(t)\top}\bigr)^{\dagger} q,
+   \qquad
+   \widehat A_{ij} = \langle x, \widehat\beta \rangle,
+
+so the estimator is a function of three things and nothing else: the anchor
+block :math:`S`, the target row's values :math:`q` on the anchor columns, and
+the target column's values :math:`x` on the anchor rows. Fix those three and
+the number is fixed.
+
+Now read off what each method supplies for them.
+
+Robust synthetic control takes :math:`S` to be the donor pool crossed with the
+pre-treatment periods, :math:`q` the treated unit's pre-period outcomes, and
+:math:`x` the donors' outcomes in the period being imputed. Synthetic
+interventions takes :math:`S` to be :math:`I(d)` -- the units that received
+intervention :math:`d` -- crossed with the pre-period, :math:`q` the target's
+pre-period outcomes, and :math:`x` the outcomes of :math:`I(d)` under
+:math:`d`; its eq. (10) is the display above written out. Both are therefore
+the same expression at a particular choice of anchor cross, which is the sense
+in which SNN contains them. Section 4.2 of the SI paper records the other link:
+at :math:`d = 0` the pool :math:`I(0)` is every untreated unit, so SI's cross is
+RSC's and the two estimators coincide.
+
+What SNN adds is that the cross is not supplied. It is read off the observation
+mask per entry, so it exists wherever the mask holds one, including where no
+treated/donor block does. Under block missingness the mask holds exactly the
+cross RSC and SI would have been given, and the reduction above applies.
+
+Two things the algebra does not say, and which decide whether the estimators
+agree in practice. The truncation rank :math:`t` must match, and the three
+implementations select it by different default rules. And :math:`x` must be the
+raw outcomes in the target column; RSC's Algorithm 1 instead projects through a
+denoised donor matrix, which mlsynth makes an opt-in
+(``project_denoised=True``) for the reason given on the
+:doc:`clustersc` page. The verification below measures both departures.
+
 Why panel data is a natural fit
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -285,6 +330,20 @@ row-side and column-side syntheses of section 3.1. Three controls -- a smaller
 anchor cross, the rank moved by one, and the denoised full-matrix projection --
 separate the estimates by 0.24 to 3.6 percent, which is what keeps the equality
 rows from being vacuous.
+
+Those three panels carry one intervention, so they exercise the reduction at
+:math:`d = 0`, where SI's pool is RSC's. The same case covers :math:`d \neq 0`
+on the anti-tobacco arms of the SI authors' own study -- five program states,
+seven tax states. Flattening the tensor so a column is an
+``(intervention, period)`` pair and applying SI's observation law, SNN's anchor
+search returns exactly :math:`I(d)` crossed with the pre-period for every
+measured target, and reproduces SI's arm counterfactual to 2e-14 percent. The
+per-intervention pool is recovered from the observation mask, with SNN never
+told that interventions exist: for a target :math:`(i, (d,t))` the rows observed
+in that column are precisely :math:`I(d)`, and the target row's other observed
+columns are blank for those rows, so the search drops them. Its guard is the
+distance from the control-arm answer, which is what RSC could have produced:
+15 to 39 percent of the level.
 
 Both of those run on block missingness, where the neighborhood submatrix is
 already complete and the anchor search returns it without doing any work. They
