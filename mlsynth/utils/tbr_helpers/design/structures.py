@@ -1,4 +1,4 @@
-"""Typed results for TBRMM.
+"""Typed results for TBR: the design menu and what each design measured.
 
 A design is what the advertiser chooses between, so each recommended pair
 carries its own groups, its own score and the climb that produced it.
@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...config_models import DesignResult
+from ....config_models import DesignResult
 
 
 class TBRMMPosterior(BaseModel):
@@ -238,8 +238,3 @@ class TBRResults(DesignResult):
         default=0,
         description="Periods the objective was computed over.")
 
-
-#: The pre-merge name. TBRMM was the design half of TBR and is now its searched
-#: mode; this alias keeps the structures module importable under either name
-#: while the rest of the merge lands.
-TBRMMResults = TBRResults

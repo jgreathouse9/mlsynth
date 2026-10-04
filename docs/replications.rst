@@ -1007,13 +1007,13 @@ Coverage summary
      - 1
      - Complete (DPSC)
    * - Experimental design
-     - 7
-     - 7
-     - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES, TBRMM)
+     - 6
+     - 6
+     - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
+     - 81
      - 82
-     - 83
-     - 82 of 83 estimators carry a replication.
+     - 81 of 82 estimators carry a replication.
 
 .. coverage-table-end
 

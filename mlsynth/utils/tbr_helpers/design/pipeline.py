@@ -13,16 +13,16 @@ from typing import Dict, FrozenSet, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ...exceptions import MlsynthDataError
-from ..tbr_helpers.setup import _binary_unit_flag, _block_flag_start
-from .config import TBRMMConfig
-from ..post_fit import compute_post_fit_tbrmm, to_effect_result
+from ....exceptions import MlsynthDataError
+from ..setup import _binary_unit_flag, _block_flag_start
+from .config import TBRConfig
+from ...post_fit import compute_post_fit_tbrmm, to_effect_result
 from .estimate import measure_design
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
-from .structures import TBRResults, TBRMMDesign, TBRMMResults
+from .structures import TBRResults, TBRMMDesign
 
 
-def _scoring_window(config: TBRMMConfig) -> pd.DataFrame:
+def _scoring_window(config: TBRConfig) -> pd.DataFrame:
     """The rows the objective is computed over.
 
     Without ``post_col`` that is the whole panel. With it, the periods before the
@@ -37,7 +37,7 @@ def _scoring_window(config: TBRMMConfig) -> pd.DataFrame:
     return df[df[config.post_col].astype(int) == 0]
 
 
-def _post_window(config: TBRMMConfig) -> Optional[pd.DataFrame]:
+def _post_window(config: TBRConfig) -> Optional[pd.DataFrame]:
     """The realized rows, or ``None`` when the panel carries none.
 
     The mirror of :func:`_scoring_window`: the periods the design was *not*
@@ -53,7 +53,7 @@ def _post_window(config: TBRMMConfig) -> Optional[pd.DataFrame]:
     return None if post.empty else post
 
 
-def _wide(window: pd.DataFrame, config: TBRMMConfig) -> pd.DataFrame:
+def _wide(window: pd.DataFrame, config: TBRConfig) -> pd.DataFrame:
     """Periods by geos, geos in sorted label order.
 
     Cell uniqueness is the base configuration's invariant and is not rechecked
@@ -74,7 +74,7 @@ def _wide(window: pd.DataFrame, config: TBRMMConfig) -> pd.DataFrame:
     return wide
 
 
-def _eligibility(window: pd.DataFrame, config: TBRMMConfig,
+def _eligibility(window: pd.DataFrame, config: TBRConfig,
                  units: List) -> List[FrozenSet[str]]:
     """Au's ``A_i`` per geo, from the three optional columns.
 
@@ -95,7 +95,7 @@ def _eligibility(window: pd.DataFrame, config: TBRMMConfig,
     return out
 
 
-def build_inputs(config: TBRMMConfig) -> Tuple[np.ndarray, List, List[FrozenSet[str]]]:
+def build_inputs(config: TBRConfig) -> Tuple[np.ndarray, List, List[FrozenSet[str]]]:
     """The scoring matrix, the geo labels and each geo's eligibility."""
     window = _scoring_window(config)
     wide = _wide(window, config)
@@ -103,7 +103,7 @@ def build_inputs(config: TBRMMConfig) -> Tuple[np.ndarray, List, List[FrozenSet[
     return wide.to_numpy(dtype=float), units, _eligibility(window, config, units)
 
 
-def run(config: TBRMMConfig) -> TBRMMResults:
+def run(config: TBRConfig) -> TBRResults:
     """Search the partitions and assemble the design result."""
     y_matrix, units, eligibility = build_inputs(config)
     outcomes = greedy_search(
@@ -153,7 +153,7 @@ def run(config: TBRMMConfig) -> TBRMMResults:
     # report.tbr_fit were present in one mode and absent in the other.
     report = None
     if post_matrix is not None:
-        from ..tbr_helpers.pipeline import estimate
+        from ..pipeline import estimate
         report = estimate(config,
                           treated=list(recommended.treatment_units),
                           controls=list(recommended.control_units))

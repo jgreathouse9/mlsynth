@@ -1,6 +1,6 @@
 """Measure a TBRMM design once the experiment has run.
 
-The design half of TBRMM scores partitions on pretest data alone. When the panel
+TBR's searched mode scores partitions on pretest data alone. When the panel
 also carries a post window, the chosen partition can be read on it, and the
 estimator for that is the augmented difference-in-differences of Li and Van den
 Bulte (2022). Their equation (2.4) fits
@@ -36,8 +36,8 @@ import numpy as np
 
 from scipy import stats
 
-from ...exceptions import MlsynthEstimationError
-from ..tbr_helpers.posterior import _bandwidth, _hac_scale, _newey_west, cumulative_posterior, fit_pretest, interval
+from ....exceptions import MlsynthEstimationError
+from ..posterior import _bandwidth, _hac_scale, _newey_west, cumulative_posterior, fit_pretest, interval
 from .structures import TBRMMEffect, TBRMMMarketEffect, TBRMMPosterior
 
 

@@ -303,7 +303,6 @@ measures that claim directly, which a reproduced number cannot.
    dpsc
    cpda
    tbr
-   tbrmm
    sl
 
    pda

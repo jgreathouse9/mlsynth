@@ -67,7 +67,7 @@ At a glance
    Are you DESIGNING the experiment (treatment not yet assigned)?  ── yes ─► PART 3
    Is assignment RANDOMIZED?                  ── yes, many small units ─► difference-in-means
                                               ├─ yes, few large units  ─► MUSC
-                                              └─ geo experiment, groups fixed ─► TBR
+                                              └─ geo experiment ─► TBR
    Do CONTROL UNITS exist at all?             ── no (everyone treated) ─► SHC
    Is treatment ENDOGENOUS (SC can't absorb)? ── have an instrument    ─► SIV
                                               └─ have proxies / NCs     ─► PROXIMAL
@@ -115,7 +115,7 @@ At a glance
    Care about the ATE (population effect)?           ─► MAREX · LEXSCM
    Geo roll-out — every unit treated or control, no pure donors? ─► PANGEO (supergeo)
    Geo lift test — pick which markets to treat under a budget?    ─► SYNDES · LEXSCM · MAREX
-   Geo experiment you will analyse with TBR — which markets to treat? ─► TBRMM
+   Geo experiment you will analyse with TBR — which markets to treat? ─► TBR (searched mode)
 
 
 Gate 0 — Identification pre-screen

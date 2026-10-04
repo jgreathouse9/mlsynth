@@ -2,7 +2,7 @@
 
 Three estimators here fit the same equation on a pair of group aggregates. FDID's
 ADID arm regresses the treated series on the control *mean* (Li and Van den
-Bulte's eqn 2.4), TBR and through it TBRMM regress it on the control *sum*
+Bulte's eqn 2.4), TBR regresses it on the control *sum*
 (Kerman, Wang and Vaver's eqn 1), and PANGEO regresses it on the control
 aggregate with an optional trend. The two notations are one regression: the
 aggregations differ by the group size, so the intercept, the fitted values and

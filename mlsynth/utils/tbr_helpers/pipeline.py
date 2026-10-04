@@ -155,12 +155,12 @@ def run(config):
     design-then-realise. A named split has nothing to choose between, so its
     design fields stay empty.
     """
-    from ..tbrmm_helpers.structures import TBRResults
+    from .design.structures import TBRResults
 
     if config.mode == "searched":
         # imported in the body: the design half imports this module to build
         # its report, so a module-level import either way closes the cycle.
-        from ..tbrmm_helpers.pipeline import run as search
+        from .design.pipeline import run as search
         return search(config)
 
     report = estimate(config)

@@ -36,8 +36,8 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
-from mlsynth import TBRMM
-from mlsynth.config_models import TBRMMConfig
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "geolift_test_data.csv")
@@ -80,7 +80,7 @@ def _scoring_window() -> pd.DataFrame:
 
 
 def run() -> dict:
-    result = TBRMM(TBRMMConfig(
+    result = TBR(TBRConfig(
         df=_scoring_window(), unitid="geo", time="date", outcome="Y",
         max_treatment_size=K_MAX, n_test=N_TEST)).fit()
     by_size = {d.k: d for d in result.designs}

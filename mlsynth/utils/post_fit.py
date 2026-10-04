@@ -461,14 +461,14 @@ def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
     r"""Adapt a measured TBRMM design into a ``SyntheticControlPostFit``.
 
     A sibling of :func:`compute_post_fit_marex`, for the same reason: the
-    generic builder takes two trajectories, and TBRMM has no weight vector to
+    generic builder takes two trajectories, and TBR has no weight vector to
     build them from. Its counterfactual comes from the augmented DiD regression
     instead, so ``control_series`` here is the fitted projection
     :math:`\hat\delta_1 + \hat\delta_2 \bar{y}_{co,t}` averaged over the
     treated geos, not a weighted donor combination.
 
-    There is no blank window: TBRMM holds pretest periods out inside its own A/A
-    gate during the search, and those periods are part of the fit here.
+    There is no blank window: the search holds pretest periods out inside its own
+    A/A gate, and those periods are part of the fit here.
 
     Parameters
     ----------
@@ -483,7 +483,7 @@ def compute_post_fit_tbrmm(treated_series, control_series, *, n_fit: int,
         Treated geos behind the average.
     ci : tuple of float, optional
         Lower and upper bound for the realized effect, in the units ``ate`` is
-        reported in. TBRMM supplies TBR's posterior interval rescaled to the
+        reported in. The design supplies TBR's posterior interval rescaled to the
         mean per-period effect, so ``report.inference`` and
         ``report.effects.att`` sit on one scale.
     inference_method : str, optional

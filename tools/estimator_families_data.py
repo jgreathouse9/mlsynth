@@ -161,7 +161,6 @@ ESTIMATORS: Dict[str, str] = {
     "PANGEO": "design",
     "SPCD": "design",
     "GEOX": "design",
-    "TBRMM": "design",
 }
 
 #: Estimators with no replication, and why. Everything not named here carries

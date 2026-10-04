@@ -32,11 +32,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import TBRMM
-from mlsynth.config_models import TBRMMConfig, DesignResult
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig, DesignResult
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.tbrmm_helpers.search import CONTROL as CONTROL_ROLE
-from mlsynth.utils.tbrmm_helpers.objective import required_impact, score_split
+from mlsynth.utils.tbr_helpers.design.search import CONTROL as CONTROL_ROLE
+from mlsynth.utils.tbr_helpers.design.objective import required_impact, score_split
 from mlsynth.utils.tbr_helpers.posterior import fit_pretest
 
 
@@ -64,7 +64,7 @@ def base_config(df, **over):
     kw = dict(df=df, unitid="geo", time="date", outcome="Y",
               max_treatment_size=3, n_test=10)
     kw.update(over)
-    return TBRMMConfig(**kw)
+    return TBRConfig(**kw)
 
 
 def with_eligibility(df, forced_treatment=(), no_treatment=(), no_control=(),
@@ -91,19 +91,19 @@ def elig_config(df, **over):
 # Layer 4: smoke
 # --------------------------------------------------------------------------- #
 def test_fits_and_returns_a_design_result():
-    res = TBRMM(base_config(market_panel())).fit()
+    res = TBR(base_config(market_panel())).fit()
     assert isinstance(res, DesignResult)
     assert res.report is None          # a design resolves to a report later
 
 
 def test_one_recommended_pair_per_treatment_size():
     K = 4
-    res = TBRMM(base_config(market_panel(), max_treatment_size=K)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=K)).fit()
     assert [d.k for d in res.designs] == list(range(1, K + 1))
 
 
 def test_the_recommendation_is_one_of_the_designs():
-    res = TBRMM(base_config(market_panel(), max_treatment_size=4)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=4)).fit()
     assert res.recommended in res.designs
 
 
@@ -111,14 +111,14 @@ def test_the_recommendation_is_one_of_the_designs():
 # Layer 2: what Algorithm 1 guarantees
 # --------------------------------------------------------------------------- #
 def test_a_design_of_size_k_treats_exactly_k_geos():
-    res = TBRMM(base_config(market_panel(), max_treatment_size=5)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=5)).fit()
     for d in res.designs:
         assert len(d.treatment_units) == d.k
 
 
 def test_the_three_groups_partition_the_panel():
     df = market_panel()
-    res = TBRMM(base_config(df, max_treatment_size=4)).fit()
+    res = TBR(base_config(df, max_treatment_size=4)).fit()
     units = set(df.geo.unique())
     for d in res.designs:
         t, c, u = set(d.treatment_units), set(d.control_units), set(d.unassigned_units)
@@ -127,16 +127,16 @@ def test_the_three_groups_partition_the_panel():
 
 
 def test_no_design_has_an_empty_control_group():
-    res = TBRMM(base_config(market_panel(), max_treatment_size=5)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=5)).fit()
     for d in res.designs:
         assert len(d.control_units) >= 1
 
 
 def test_the_objective_recorded_is_the_objective_of_those_groups():
     """A design carries its own score, so recomputing it must agree."""
-    from mlsynth.utils.tbrmm_helpers.objective import score_split
+    from mlsynth.utils.tbr_helpers.design.objective import score_split
     df = market_panel()
-    res = TBRMM(base_config(df, max_treatment_size=3)).fit()
+    res = TBR(base_config(df, max_treatment_size=3)).fit()
     wide = df.pivot_table(index="date", columns="geo", values="Y")
     for d in res.designs:
         again = score_split(
@@ -148,7 +148,7 @@ def test_the_objective_recorded_is_the_objective_of_those_groups():
 
 def test_matching_never_accepts_a_worse_control_group():
     """Hill climbing: the objective along the trace is non-decreasing."""
-    res = TBRMM(base_config(market_panel(), max_treatment_size=4)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=4)).fit()
     for d in res.designs:
         trace = list(d.matching_trace)
         assert trace, "a design must record the climb that produced it"
@@ -158,7 +158,7 @@ def test_matching_never_accepts_a_worse_control_group():
 def test_the_climb_stops_when_no_toggle_improves():
     """The last matching step is the one that failed to improve, so the final
     value repeats or the trace has length one."""
-    res = TBRMM(base_config(market_panel(), max_treatment_size=2)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=2)).fit()
     for d in res.designs:
         assert d.matching_converged is True
 
@@ -168,7 +168,7 @@ def test_the_climb_stops_when_no_toggle_improves():
 # --------------------------------------------------------------------------- #
 def test_a_forced_treatment_geo_is_in_every_treatment_group():
     df = with_eligibility(market_panel(), forced_treatment=["m00", "m01"])
-    res = TBRMM(elig_config(df, max_treatment_size=4)).fit()
+    res = TBR(elig_config(df, max_treatment_size=4)).fit()
     assert [d.k for d in res.designs] == [2, 3, 4]      # k starts at k0 = 2
     for d in res.designs:
         assert {"m00", "m01"} <= set(d.treatment_units)
@@ -176,28 +176,28 @@ def test_a_forced_treatment_geo_is_in_every_treatment_group():
 
 def test_a_geo_ineligible_for_treatment_is_never_treated():
     df = with_eligibility(market_panel(), no_treatment=["m02", "m03", "m04"])
-    res = TBRMM(elig_config(df, max_treatment_size=5)).fit()
+    res = TBR(elig_config(df, max_treatment_size=5)).fit()
     for d in res.designs:
         assert {"m02", "m03", "m04"}.isdisjoint(d.treatment_units)
 
 
 def test_a_geo_ineligible_for_control_is_never_a_control():
     df = with_eligibility(market_panel(), no_control=["m05", "m06"])
-    res = TBRMM(elig_config(df, max_treatment_size=3)).fit()
+    res = TBR(elig_config(df, max_treatment_size=3)).fit()
     for d in res.designs:
         assert {"m05", "m06"}.isdisjoint(d.control_units)
 
 
 def test_a_geo_that_cannot_be_unassigned_stays_assigned():
     df = with_eligibility(market_panel(), no_unassigned=["m07"])
-    res = TBRMM(elig_config(df, max_treatment_size=3)).fit()
+    res = TBR(elig_config(df, max_treatment_size=3)).fit()
     for d in res.designs:
         assert "m07" in set(d.treatment_units) | set(d.control_units)
 
 
 def test_k0_forced_larger_than_one_skips_the_smaller_sizes():
     df = with_eligibility(market_panel(), forced_treatment=["m00", "m01", "m02"])
-    res = TBRMM(elig_config(df, max_treatment_size=4)).fit()
+    res = TBR(elig_config(df, max_treatment_size=4)).fit()
     assert [d.k for d in res.designs] == [3, 4]
 
 
@@ -207,14 +207,14 @@ def test_k0_forced_larger_than_one_skips_the_smaller_sizes():
 def test_both_objectives_run_and_record_which_was_used():
     df = market_panel(n_units=14, seed=3)
     for obj in ("reference", "paper"):
-        res = TBRMM(base_config(df, objective=obj, max_treatment_size=3)).fit()
+        res = TBR(base_config(df, objective=obj, max_treatment_size=3)).fit()
         assert res.objective == obj
         assert all(np.isfinite(d.objective_value) for d in res.designs)
 
 
 def test_the_paper_objective_reports_its_three_components():
     df = market_panel(n_units=14, seed=4)
-    res = TBRMM(base_config(df, objective="paper", max_treatment_size=2)).fit()
+    res = TBR(base_config(df, objective="paper", max_treatment_size=2)).fit()
     d = res.designs[-1]
     assert 0.0 <= d.detail["p_cusum"] <= 1.0
     assert 0.0 <= d.detail["p_bg"] <= 1.0
@@ -226,7 +226,7 @@ def test_the_paper_objective_reports_its_three_components():
 
 def test_the_reference_objective_reports_its_gates_and_power():
     df = market_panel(n_units=14, seed=5)
-    res = TBRMM(base_config(df, objective="reference", max_treatment_size=2)).fit()
+    res = TBR(base_config(df, objective="reference", max_treatment_size=2)).fit()
     d = res.designs[-1]
     for key in ("corr_test", "aa_test", "bb_test", "dw_test"):
         assert isinstance(d.detail[key], bool)
@@ -247,7 +247,7 @@ def test_the_objective_scores_the_model_tbr_will_actually_fit():
     returns.
     """
     from mlsynth.utils.tbr_helpers.posterior import fit_pretest
-    from mlsynth.utils.tbrmm_helpers.objective import _pretest_fit
+    from mlsynth.utils.tbr_helpers.design.objective import _pretest_fit
 
     rng = np.random.default_rng(11)
     for _ in range(8):
@@ -266,7 +266,7 @@ def test_the_objective_refuses_a_pretest_too_short_for_a_residual_scale():
     scale and every gate downstream is a division by zero. A design scored on
     such a window would come back as a number, which is the one outcome a
     malformed panel must not produce."""
-    from mlsynth.utils.tbrmm_helpers.objective import _pretest_fit
+    from mlsynth.utils.tbr_helpers.design.objective import _pretest_fit
 
     with pytest.raises(MlsynthDataError, match="degrees of freedom"):
         _pretest_fit(np.array([1.0, 2.0]), np.array([1.0, 3.0]))
@@ -276,8 +276,8 @@ def test_the_two_objectives_can_disagree_on_the_recommendation():
     """Measured on the GeoLift markets: Spearman +0.54, no top-five overlap. A
     build that could not express the disagreement would be hiding it."""
     df = market_panel(n_units=16, seed=6)
-    a = TBRMM(base_config(df, objective="reference", max_treatment_size=4)).fit()
-    b = TBRMM(base_config(df, objective="paper", max_treatment_size=4)).fit()
+    a = TBR(base_config(df, objective="reference", max_treatment_size=4)).fit()
+    b = TBR(base_config(df, objective="paper", max_treatment_size=4)).fit()
     assert set(a.recommended.treatment_units) != set(b.recommended.treatment_units)
 
 
@@ -289,8 +289,8 @@ def test_relabelling_the_geos_selects_the_same_markets():
     renamed = df.copy()
     mapping = {g: f"z{i:02d}" for i, g in enumerate(sorted(df.geo.unique())[::-1])}
     renamed["geo"] = renamed.geo.map(mapping)
-    a = TBRMM(base_config(df, max_treatment_size=3)).fit()
-    b = TBRMM(base_config(renamed, max_treatment_size=3)).fit()
+    a = TBR(base_config(df, max_treatment_size=3)).fit()
+    b = TBR(base_config(renamed, max_treatment_size=3)).fit()
     assert {mapping[g] for g in a.recommended.treatment_units} == \
            set(b.recommended.treatment_units)
 
@@ -298,15 +298,15 @@ def test_relabelling_the_geos_selects_the_same_markets():
 def test_scaling_the_outcome_selects_the_same_markets():
     df = market_panel(n_units=12, seed=9)
     big = df.copy(); big["Y"] = big["Y"] * 1000.0
-    a = TBRMM(base_config(df, max_treatment_size=3)).fit()
-    b = TBRMM(base_config(big, max_treatment_size=3)).fit()
+    a = TBR(base_config(df, max_treatment_size=3)).fit()
+    b = TBR(base_config(big, max_treatment_size=3)).fit()
     assert set(a.recommended.treatment_units) == set(b.recommended.treatment_units)
 
 
 def test_the_search_is_deterministic():
     df = market_panel(n_units=14, seed=10)
-    a = TBRMM(base_config(df, max_treatment_size=4)).fit()
-    b = TBRMM(base_config(df, max_treatment_size=4)).fit()
+    a = TBR(base_config(df, max_treatment_size=4)).fit()
+    b = TBR(base_config(df, max_treatment_size=4)).fit()
     assert [d.treatment_units for d in a.designs] == \
            [d.treatment_units for d in b.designs]
     assert [d.objective_value for d in a.designs] == \
@@ -317,20 +317,20 @@ def test_the_search_is_deterministic():
 # Layer 3: edges
 # --------------------------------------------------------------------------- #
 def test_max_treatment_size_of_one():
-    res = TBRMM(base_config(market_panel(), max_treatment_size=1)).fit()
+    res = TBR(base_config(market_panel(), max_treatment_size=1)).fit()
     assert len(res.designs) == 1 and res.designs[0].k == 1
 
 
 def test_the_smallest_workable_panel():
     """Three geos: one treated, one control, one free."""
-    res = TBRMM(base_config(market_panel(n_units=3, T=20),
+    res = TBR(base_config(market_panel(n_units=3, T=20),
                             max_treatment_size=1)).fit()
     assert len(res.designs[0].treatment_units) == 1
 
 
 def test_treating_every_eligible_geo_but_one():
     df = market_panel(n_units=6, T=25)
-    res = TBRMM(base_config(df, max_treatment_size=5)).fit()
+    res = TBR(base_config(df, max_treatment_size=5)).fit()
     assert res.designs[-1].k == 5
     assert len(res.designs[-1].control_units) == 1
 
@@ -338,8 +338,8 @@ def test_treating_every_eligible_geo_but_one():
 def test_a_post_column_restricts_scoring_to_the_pre_rows():
     df = market_panel(n_units=10, T=40, seed=11)
     df["post"] = (df.date >= 30).astype(int)
-    a = TBRMM(base_config(df, post_col="post", max_treatment_size=2)).fit()
-    b = TBRMM(base_config(df[df.date < 30].drop(columns=["post"]),
+    a = TBR(base_config(df, post_col="post", max_treatment_size=2)).fit()
+    b = TBR(base_config(df[df.date < 30].drop(columns=["post"]),
                           max_treatment_size=2)).fit()
     assert [d.objective_value for d in a.designs] == \
            pytest.approx([d.objective_value for d in b.designs], rel=1e-12)
@@ -353,7 +353,7 @@ def test_every_gate_fails_a_split_with_no_residual_scale():
     sigma = 0. No gate can be evaluated against a scale of zero, so each reports
     failure instead of dividing by it -- a split that cannot be tested is not a
     split that passed."""
-    from mlsynth.utils.tbrmm_helpers import objective as obj
+    from mlsynth.utils.tbr_helpers.design import objective as obj
 
     resid = np.zeros(20)
     assert obj.cusum_pvalue(resid, 0.0) == 0.0
@@ -363,7 +363,7 @@ def test_every_gate_fails_a_split_with_no_residual_scale():
 
 
 def test_the_cusum_tail_is_one_where_the_statistic_carries_no_information():
-    from mlsynth.utils.tbrmm_helpers.objective import _kolmogorov_sf
+    from mlsynth.utils.tbr_helpers.design.objective import _kolmogorov_sf
 
     assert _kolmogorov_sf(0.0) == 1.0
     assert _kolmogorov_sf(float("nan")) == 1.0
@@ -372,7 +372,7 @@ def test_the_cusum_tail_is_one_where_the_statistic_carries_no_information():
 def test_breusch_godfrey_declines_a_window_too_short_for_its_lag():
     """Four residuals and one lag leave nothing to regress; the test reports no
     evidence of autocorrelation instead of a value from an empty fit."""
-    from mlsynth.utils.tbrmm_helpers.objective import breusch_godfrey_pvalue
+    from mlsynth.utils.tbr_helpers.design.objective import breusch_godfrey_pvalue
 
     assert breusch_godfrey_pvalue(np.arange(4.0), np.arange(4.0)) == 1.0
 
@@ -388,7 +388,7 @@ def test_the_aa_test_passes_a_pretest_that_predicts_its_own_last_window():
     """TBR run on the pretest against itself. The held-out window carries no
     intervention, so an interval covering zero is the design declining to find
     an effect where there is none."""
-    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+    from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok
 
     y, x = _stable_pair()
     assert aa_test_ok(y, x, 12) is True
@@ -398,7 +398,7 @@ def test_the_aa_test_fails_a_pretest_that_breaks_before_its_last_window():
     """A level shift in the held-out window is an effect the design would report
     out of a period where nothing happened, which is its false-positive rate
     showing before the experiment is run."""
-    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+    from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok
 
     y, x = _stable_pair(seed=3)
     y = y.copy()
@@ -410,7 +410,7 @@ def test_the_false_positive_probability_is_read_from_the_holdout_fit():
     """The probability is reached only when the interval excludes zero, and it
     is taken at the bound nearest zero, so it is a lower bound on how often the
     design would cry wolf."""
-    from mlsynth.utils.tbrmm_helpers.objective import (
+    from mlsynth.utils.tbr_helpers.design.objective import (
         false_positive_probability, holdout_fit)
 
     y, x = _stable_pair(seed=4)
@@ -425,7 +425,7 @@ def test_the_false_positive_probability_is_read_from_the_holdout_fit():
 def test_the_aa_test_refuses_a_window_leaving_no_pretest_to_fit():
     """The A/A test fits on what the held-out window leaves behind, so a test
     length that consumes the pretest has nothing to fit on."""
-    from mlsynth.utils.tbrmm_helpers.objective import aa_test_ok
+    from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok
 
     with pytest.raises(MlsynthDataError, match="A/A test"):
         aa_test_ok(np.linspace(1.0, 10.0, 10), np.linspace(2.0, 11.0, 10), 9)
@@ -434,7 +434,7 @@ def test_the_aa_test_refuses_a_window_leaving_no_pretest_to_fit():
 def test_a_score_orders_by_its_key_and_not_its_scalar():
     """The reference objective's scalar readout can fall on a step that gains a
     gate, so the comparison is the key."""
-    from mlsynth.utils.tbrmm_helpers.objective import SplitScore
+    from mlsynth.utils.tbr_helpers.design.objective import SplitScore
 
     weaker = SplitScore(key=(0, 9.0), value=9.0)
     stronger = SplitScore(key=(1, 0.1), value=0.1)
@@ -445,7 +445,7 @@ def test_the_window_constants_are_a_function_of_the_window_alone():
     """Every quantile the score needs depends on the window length and the test
     length, not on which geos a candidate puts where, so two different splits of
     one panel share them. Caching them is what makes that reuse explicit."""
-    from mlsynth.utils.tbrmm_helpers.objective import window_constants
+    from mlsynth.utils.tbr_helpers.design.objective import window_constants
 
     a = window_constants(90, 14)
     b = window_constants(90, 14)
@@ -459,7 +459,7 @@ def test_the_holdout_quantile_is_absent_where_the_window_cannot_support_one():
     """A test length that consumes the window leaves the A/A fit no degrees of
     freedom. The quantile is reported as nan; holdout_fit refuses such a window
     before it would be used."""
-    from mlsynth.utils.tbrmm_helpers.objective import window_constants
+    from mlsynth.utils.tbr_helpers.design.objective import window_constants
 
     const = window_constants(10, 9)
     assert const.holdout_df <= 0
@@ -469,7 +469,7 @@ def test_the_holdout_quantile_is_absent_where_the_window_cannot_support_one():
 def test_the_brownian_bridge_envelope_is_shared_and_read_only():
     """The cache hands one array to every caller, so a caller that wrote to it
     would change the boundary every later split is tested against."""
-    from mlsynth.utils.tbrmm_helpers.objective import brownian_bridge_envelope
+    from mlsynth.utils.tbr_helpers.design.objective import brownian_bridge_envelope
 
     env = brownian_bridge_envelope(90)
     assert env.shape == (89,)
@@ -487,7 +487,7 @@ def _flat_panel(n_periods=20, n_units=4, seed=0):
 
 
 def test_the_search_refuses_a_role_it_does_not_know():
-    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     elig = [frozenset({"treatment", "control", "unassigned"})] * 3 + [frozenset({"donor"})]
     with pytest.raises(MlsynthDataError, match="role"):
@@ -496,7 +496,7 @@ def test_the_search_refuses_a_role_it_does_not_know():
 
 
 def test_the_search_refuses_a_window_that_is_not_periods_by_geos():
-    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     with pytest.raises(MlsynthDataError, match="periods by geos"):
         greedy_search(np.arange(12.0), [frozenset({CONTROL_ROLE})],
@@ -504,7 +504,7 @@ def test_the_search_refuses_a_window_that_is_not_periods_by_geos():
 
 
 def test_eligibility_has_to_cover_every_geo_in_the_window():
-    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     with pytest.raises(MlsynthDataError, match="eligibility covers"):
         greedy_search(_flat_panel(n_units=4), [frozenset({CONTROL_ROLE})] * 3,
@@ -515,7 +515,7 @@ def test_augmentation_rebuilds_a_control_group_the_climb_pruned_to_one():
     """A climb can leave a single control geo. Treating it would empty the
     control aggregate, so the pool is rebuilt from every control-eligible geo the
     new treatment group leaves free, and the next size is still reachable."""
-    from mlsynth.utils.tbrmm_helpers.search import _Scorer, _augment
+    from mlsynth.utils.tbr_helpers.design.search import _Scorer, _augment
 
     scorer = _Scorer(_flat_panel(n_units=4, seed=3), "reference", 4)
     pools = {"forced": [], "treatment": [0, 1, 2, 3], "control": [1, 2]}
@@ -527,7 +527,7 @@ def test_augmentation_skips_a_geo_no_rebuild_can_leave_a_control_for():
     """Geo 1 is the only control-eligible geo, so treating it leaves nothing to
     regress on however the pool is rebuilt; the candidate is passed over and a
     geo that does leave a control group is taken."""
-    from mlsynth.utils.tbrmm_helpers.search import _Scorer, _augment
+    from mlsynth.utils.tbr_helpers.design.search import _Scorer, _augment
 
     scorer = _Scorer(_flat_panel(n_units=3, seed=4), "reference", 4)
     pools = {"forced": [], "treatment": [0, 1, 2], "control": [1]}
@@ -560,38 +560,38 @@ def test_a_max_treatment_size_beyond_the_eligible_geos_raises():
     df = with_eligibility(market_panel(n_units=6),
                           no_treatment=["m02", "m03", "m04", "m05"])
     with pytest.raises(MlsynthDataError, match="eligible"):
-        TBRMM(elig_config(df, max_treatment_size=4)).fit()
+        TBR(elig_config(df, max_treatment_size=4)).fit()
 
 
 def test_no_control_eligible_geo_raises():
     df = with_eligibility(market_panel(n_units=5),
                           no_control=["m00", "m01", "m02", "m03", "m04"])
     with pytest.raises(MlsynthDataError, match="control"):
-        TBRMM(elig_config(df, max_treatment_size=2)).fit()
+        TBR(elig_config(df, max_treatment_size=2)).fit()
 
 
 def test_a_geo_eligible_for_nothing_raises():
     df = with_eligibility(market_panel(n_units=5))
     df.loc[df.geo == "m02", ["can_treat", "can_control", "can_exclude"]] = 0
     with pytest.raises(MlsynthDataError, match="eligible for no"):
-        TBRMM(elig_config(df, max_treatment_size=2)).fit()
+        TBR(elig_config(df, max_treatment_size=2)).fit()
 
 
 def test_an_eligibility_column_varying_within_unit_raises():
     df = with_eligibility(market_panel(n_units=6))
     df.loc[(df.geo == "m01") & (df.date > 10), "can_treat"] = 0
     with pytest.raises(MlsynthDataError, match="constant"):
-        TBRMM(elig_config(df, max_treatment_size=2)).fit()
+        TBR(elig_config(df, max_treatment_size=2)).fit()
 
 
 def test_a_missing_eligibility_column_raises():
     with pytest.raises(MlsynthDataError, match="can_treat"):
-        TBRMM(elig_config(market_panel(), max_treatment_size=2)).fit()
+        TBR(elig_config(market_panel(), max_treatment_size=2)).fit()
 
 
 def test_too_few_periods_to_fit_raises():
     with pytest.raises(MlsynthDataError):
-        TBRMM(base_config(market_panel(n_units=6, T=2),
+        TBR(base_config(market_panel(n_units=6, T=2),
                           max_treatment_size=2)).fit()
 
 
@@ -603,7 +603,7 @@ def test_a_repeated_unit_period_cell_is_refused():
     df = market_panel(n_units=5, T=20)
     df = pd.concat([df, df.iloc[[0]]], ignore_index=True)
     with pytest.raises(MlsynthDataError, match="[Dd]uplicate"):
-        TBRMM(base_config(df, max_treatment_size=2)).fit()
+        TBR(base_config(df, max_treatment_size=2)).fit()
 
 
 def test_a_gap_in_the_scoring_window_is_refused():
@@ -612,7 +612,7 @@ def test_a_gap_in_the_scoring_window_is_refused():
     df = market_panel(n_units=5, T=20)
     df = df[~((df.geo == "m02") & (df.date == 7))]
     with pytest.raises(MlsynthDataError, match="missing"):
-        TBRMM(base_config(df, max_treatment_size=2)).fit()
+        TBR(base_config(df, max_treatment_size=2)).fit()
 
 
 def test_a_max_treatment_size_below_the_forced_count_is_refused():
@@ -621,7 +621,7 @@ def test_a_max_treatment_size_below_the_forced_count_is_refused():
     df = with_eligibility(market_panel(n_units=6),
                           forced_treatment=["m00", "m01", "m02"])
     with pytest.raises(MlsynthDataError, match="forced"):
-        TBRMM(elig_config(df, max_treatment_size=2)).fit()
+        TBR(elig_config(df, max_treatment_size=2)).fit()
 
 
 def test_treating_every_geo_leaves_no_control_and_is_refused():
@@ -629,7 +629,7 @@ def test_treating_every_geo_leaves_no_control_and_is_refused():
     regress on, and the refusal comes before any climbing."""
     df = market_panel(n_units=5, T=25)
     with pytest.raises(MlsynthDataError, match="eligible"):
-        TBRMM(base_config(df, max_treatment_size=5)).fit()
+        TBR(base_config(df, max_treatment_size=5)).fit()
 
 
 def test_a_blank_column_name_is_refused():
@@ -640,21 +640,21 @@ def test_a_blank_column_name_is_refused():
 
 def test_the_dict_path_builds_the_config():
     df = market_panel(n_units=6, T=25)
-    res = TBRMM(dict(df=df, unitid="geo", time="date", outcome="Y",
+    res = TBR(dict(df=df, unitid="geo", time="date", outcome="Y",
                      max_treatment_size=2, n_test=6)).fit()
     assert res.recommended is not None
 
 
 def test_an_invalid_dict_is_translated_to_a_config_error():
     df = market_panel(n_units=6, T=25)
-    with pytest.raises(MlsynthConfigError, match="TBRMMConfig"):
-        TBRMM(dict(df=df, unitid="geo", time="date", outcome="Y",
+    with pytest.raises(MlsynthConfigError, match="TBRConfig"):
+        TBR(dict(df=df, unitid="geo", time="date", outcome="Y",
                    max_treatment_size=0, n_test=6))
 
 
 def test_a_non_config_input_raises_a_config_error():
-    with pytest.raises(MlsynthConfigError, match="TBRMMConfig"):
-        TBRMM(17)
+    with pytest.raises(MlsynthConfigError, match="TBRConfig"):
+        TBR(17)
 
 
 # --------------------------------------------------------------------------- #
@@ -711,7 +711,7 @@ def _design_key(design):
 
 
 def _by_size(df, control_start):
-    res = TBRMM(base_config(df, control_start=control_start)).fit()
+    res = TBR(base_config(df, control_start=control_start)).fit()
     return {d.k: d for d in res.designs}
 
 
@@ -724,7 +724,7 @@ def test_the_control_group_search_starts_from_the_carried_group_by_default():
     df = market_panel(n_units=12, T=40, seed=1)
     assert base_config(df).control_start == "carried"
     default = _by_size(df, "carried")
-    named = {d.k: d for d in TBRMM(base_config(df)).fit().designs}
+    named = {d.k: d for d in TBR(base_config(df)).fit().designs}
     for k in default:
         assert sorted(default[k].treatment_units) == sorted(named[k].treatment_units)
         assert sorted(default[k].control_units) == sorted(named[k].control_units)
@@ -788,7 +788,7 @@ def test_a_tie_between_the_two_starts_returns_the_reference_walk():
 def test_every_start_returns_a_control_group_no_single_toggle_improves():
     """Whatever the start, matching runs to convergence."""
     for start in ("carried", "pool", "best"):
-        res = TBRMM(base_config(market_panel(n_units=12, T=40, seed=1),
+        res = TBR(base_config(market_panel(n_units=12, T=40, seed=1),
                                 control_start=start)).fit()
         for d in res.designs:
             assert d.matching_converged is True
@@ -811,7 +811,7 @@ def test_the_three_starts_are_the_only_ones_accepted():
 def test_the_search_refuses_an_unknown_control_start_of_its_own():
     """The configuration's ``Literal`` never lets a bad value reach the search,
     so the search states its own admissible set for a caller who imports it."""
-    from mlsynth.utils.tbrmm_helpers.search import greedy_search
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
     y = np.asarray([[1.0, 2.0, 3.0], [2.0, 1.0, 4.0], [3.0, 5.0, 2.0],
                     [4.0, 3.0, 6.0]])
     elig = [frozenset({"treatment", "control", "unassigned"})] * 3

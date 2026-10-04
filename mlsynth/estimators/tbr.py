@@ -14,18 +14,28 @@ the cumulative effect on the response to the cumulative effect on cost.
 
 The assumption is strong and cannot be checked after the intervention begins:
 the linear relation between the two group aggregates has to hold through the
-test period, and only its pretest half is observable. Au (2018) exists because
-of this, and designing the groups to satisfy it is a separate step from
-estimating with them.
+test period, and only its pretest half is observable. Designing the groups to
+satisfy it is the other half of the method, and it is the searched mode of this
+same estimator: given ``max_treatment_size`` in place of a named split, TBR
+climbs the partitions on pretest data alone and returns one recommended design
+per treatment size, scoring each on the minimum effect the interval above could
+detect. That is Au (2018). A geo's weight in the regression is its membership,
+so the split is the only place the method has to buy precision, and it has to be
+chosen before the intervention runs.
 
 References
 ----------
 Kerman, J., Wang, P. and Vaver, J. (2017). Estimating Ad Effectiveness using Geo
 Experiments in a Time-Based Regression Framework. Google.
 
-Verification: ``benchmarks/studies/tbr_geo``, which cross-validates these
-formulas against ``google/matched_markets`` on the reference's own panel and
-reproduces the paper's section 5.2 coverage grid.
+Au, T. C. (2018). A Time-Based Regression Matched Markets Approach for Designing
+Geo Experiments. Technical report, Google LLC.
+
+Verification: ``benchmarks/studies/tbr_geo`` cross-validates these formulas
+against ``google/matched_markets`` on the reference's own panel and reproduces
+the paper's section 5.2 coverage grid; ``benchmarks/studies/tbrmm_match`` does
+the same for the search, which selects the same geos as the reference at every
+treatment size.
 """
 
 from __future__ import annotations
@@ -37,7 +47,7 @@ from pydantic import ValidationError
 from ..exceptions import MlsynthConfigError
 from ..utils.tbr_helpers.config import TBRConfig
 from ..utils.tbr_helpers.pipeline import run
-from ..utils.tbrmm_helpers.structures import TBRResults
+from ..utils.tbr_helpers.design.structures import TBRResults
 
 
 class TBR:
@@ -46,24 +56,28 @@ class TBR:
     Parameters
     ----------
     config : TBRConfig
-        Panel, the group design, and the reporting level. See
-        :class:`mlsynth.config_models.TBRConfig`.
+        Panel, the group design or the search budget, and the reporting level.
+        See :class:`mlsynth.config_models.TBRConfig`.
 
     Returns
     -------
     TBRResults
-        An :class:`~mlsynth.config_models.EffectResult`. The flat accessors
-        (``att``, ``att_ci``, ``counterfactual``, ``gap``) resolve over the
-        treatment-group aggregate; the cumulative posterior, the pretest fit and
-        the iROAS live in the typed ``cumulative`` / ``tbr_fit`` / ``iroas``
-        fields.
+        A :class:`~mlsynth.config_models.DesignResult`, in both modes.
+        ``report`` is the estimate: its flat accessors (``att``, ``att_ci``,
+        ``counterfactual``, ``gap``) resolve over the treatment-group aggregate,
+        and the cumulative posterior, the pretest fit and the iROAS live in its
+        typed ``cumulative`` / ``tbr_fit`` / ``iroas`` fields. A named split has
+        nothing to choose between, so ``designs`` is empty and ``recommended``
+        is ``None``. A searched one fills both, one design per treatment size,
+        and ``report`` carries the recommendation measured on the realized
+        periods when ``post_col`` marks any.
 
     Notes
     -----
-    - ``att`` is the cumulative effect divided by the number of post periods,
-      the mean per-period effect. The cumulative effect the method is built
-      around is ``cumulative.estimate[-1]``, also on
-      ``effects.additional_effects``.
+    - ``report.effects.att`` is the cumulative effect divided by the number of
+      post periods, the mean per-period effect. The cumulative effect the
+      method is built around is ``report.cumulative.estimate[-1]``, also on
+      ``report.effects.additional_effects``.
     - TBR has no donor weights, so the standardized ``weights`` slot carries a
       method note instead of a weight vector.
 
@@ -76,8 +90,17 @@ class TBR:
     ...     df=panel, unitid="geo", time="date", outcome="sales", treat="D",
     ...     control_col="is_control", cost_col="cost",
     ... )).fit()
-    >>> res.cumulative.estimate[-1]               # doctest: +SKIP
+    >>> res.report.cumulative.estimate[-1]        # doctest: +SKIP
     143028.62
+
+    The same class, asked to choose the groups instead:
+
+    >>> res = TBR(TBRConfig(                      # doctest: +SKIP
+    ...     df=history, unitid="geo", time="date", outcome="sales",
+    ...     max_treatment_size=5, n_test=28,
+    ... )).fit()
+    >>> res.recommended.treatment_units           # doctest: +SKIP
+    ['chicago', 'portland']
     """
 
     def __init__(self, config: Union[TBRConfig, dict]) -> None:

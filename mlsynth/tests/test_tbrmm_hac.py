@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import TBRMM
-from mlsynth.config_models import TBRMMConfig
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig
 from mlsynth.exceptions import MlsynthConfigError
 
 
@@ -59,7 +59,7 @@ def _cfg(df, **kw):
                 control_eligible_col="can_control",
                 unassigned_eligible_col="can_exclude")
     base.update(kw)
-    return TBRMMConfig(**base)
+    return TBRConfig(**base)
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ def _cfg(df, **kw):
 
 def test_the_default_is_the_iid_variance():
     """No opt-in, no change: the shipped behaviour is equation 6."""
-    res = TBRMM(_cfg(_panel())).fit()
+    res = TBR(_cfg(_panel())).fit()
     q = res.recommended.effect.posterior
 
     assert q.variance == "iid"
@@ -77,8 +77,8 @@ def test_the_default_is_the_iid_variance():
 
 def test_opting_in_does_not_move_the_point_estimate():
     """The variance choice prices uncertainty; it does not re-estimate anything."""
-    base = TBRMM(_cfg(_panel())).fit().recommended.effect
-    hac = TBRMM(_cfg(_panel(), variance="hac")).fit().recommended.effect
+    base = TBR(_cfg(_panel())).fit().recommended.effect
+    hac = TBR(_cfg(_panel(), variance="hac")).fit().recommended.effect
 
     assert hac.att == pytest.approx(base.att, rel=1e-12)
     assert hac.total_effect == pytest.approx(base.total_effect, rel=1e-12)
@@ -99,7 +99,7 @@ def test_a_zero_bandwidth_is_the_heteroskedasticity_robust_sandwich():
     directly so it pins the identity rather than restating the implementation.
     """
     df = _panel(rho=0.6, n_pre=60, n_post=10)
-    res = TBRMM(_cfg(df, variance="hac", hac_bandwidth=0)).fit()
+    res = TBR(_cfg(df, variance="hac", hac_bandwidth=0)).fit()
     q = res.recommended.effect.posterior
 
     w = df.pivot(index="t", columns="geo", values="sales").sort_index()
@@ -122,8 +122,8 @@ def test_a_zero_bandwidth_is_the_heteroskedasticity_robust_sandwich():
 
 def test_positively_correlated_residuals_widen_the_interval():
     """The case the correction exists for."""
-    iid = TBRMM(_cfg(_panel(rho=0.7))).fit().recommended.effect.posterior
-    hac = TBRMM(_cfg(_panel(rho=0.7), variance="hac")).fit().recommended.effect.posterior
+    iid = TBR(_cfg(_panel(rho=0.7))).fit().recommended.effect.posterior
+    hac = TBR(_cfg(_panel(rho=0.7), variance="hac")).fit().recommended.effect.posterior
 
     assert hac.scale > iid.scale
     assert hac.total_upper - hac.total_lower > iid.total_upper - iid.total_lower
@@ -137,8 +137,8 @@ def test_the_widening_tracks_the_known_ar1_inflation():
     Bartlett taper is deliberately conservative.
     """
     rho, T2 = 0.7, 10
-    iid = TBRMM(_cfg(_panel(rho=rho))).fit().recommended.effect.posterior
-    hac = TBRMM(_cfg(_panel(rho=rho), variance="hac")).fit().recommended.effect.posterior
+    iid = TBR(_cfg(_panel(rho=rho))).fit().recommended.effect.posterior
+    hac = TBR(_cfg(_panel(rho=rho), variance="hac")).fit().recommended.effect.posterior
 
     lags = np.arange(1, T2)
     expected = 1.0 + 2.0 * np.sum((1 - lags / T2) * rho ** lags)
@@ -148,16 +148,16 @@ def test_the_widening_tracks_the_known_ar1_inflation():
 
 def test_uncorrelated_residuals_leave_the_scale_close_to_the_iid_one():
     """With nothing to price, the correction should barely move."""
-    iid = TBRMM(_cfg(_panel(rho=0.0))).fit().recommended.effect.posterior
-    hac = TBRMM(_cfg(_panel(rho=0.0), variance="hac")).fit().recommended.effect.posterior
+    iid = TBR(_cfg(_panel(rho=0.0))).fit().recommended.effect.posterior
+    hac = TBR(_cfg(_panel(rho=0.0), variance="hac")).fit().recommended.effect.posterior
 
     assert hac.scale == pytest.approx(iid.scale, rel=0.45)
 
 
 def test_the_correction_is_not_always_a_widening():
     """Negative serial correlation prices the other way; HAC is not a safety margin."""
-    iid = TBRMM(_cfg(_panel(rho=-0.7))).fit().recommended.effect.posterior
-    hac = TBRMM(_cfg(_panel(rho=-0.7), variance="hac")).fit().recommended.effect.posterior
+    iid = TBR(_cfg(_panel(rho=-0.7))).fit().recommended.effect.posterior
+    hac = TBR(_cfg(_panel(rho=-0.7), variance="hac")).fit().recommended.effect.posterior
 
     assert hac.scale < iid.scale
 
@@ -169,14 +169,14 @@ def test_the_correction_is_not_always_a_widening():
 def test_the_default_bandwidth_is_the_papers():
     """l = ceil(T1 ** (1/4)), recorded on the posterior."""
     df = _panel(n_pre=60, n_post=10)
-    q = TBRMM(_cfg(df, variance="hac")).fit().recommended.effect.posterior
+    q = TBR(_cfg(df, variance="hac")).fit().recommended.effect.posterior
 
     assert q.bandwidth == int(np.ceil(60 ** 0.25))
     assert q.variance == "hac"
 
 
 def test_an_explicit_bandwidth_is_used_and_recorded():
-    q = TBRMM(_cfg(_panel(rho=0.5), variance="hac",
+    q = TBR(_cfg(_panel(rho=0.5), variance="hac",
                    hac_bandwidth=6)).fit().recommended.effect.posterior
     assert q.bandwidth == 6
 
@@ -188,7 +188,7 @@ def test_a_negative_bandwidth_is_refused():
 
 def test_a_bandwidth_longer_than_the_pretest_is_refused():
     with pytest.raises((MlsynthConfigError, Exception)):
-        TBRMM(_cfg(_panel(n_pre=60), variance="hac", hac_bandwidth=60)).fit()
+        TBR(_cfg(_panel(n_pre=60), variance="hac", hac_bandwidth=60)).fit()
 
 
 def test_an_unknown_variance_name_is_refused():
@@ -203,7 +203,7 @@ def test_an_unknown_variance_name_is_refused():
 def test_the_group_fit_reports_its_own_two_parameters():
     """delta1/delta2 for the summed treated series, so no caller has to refit."""
     df = _panel()
-    res = TBRMM(_cfg(df)).fit()
+    res = TBR(_cfg(df)).fit()
     eff = res.recommended.effect
 
     w = df.pivot(index="t", columns="geo", values="sales").sort_index()
@@ -219,7 +219,7 @@ def test_the_group_fit_reports_its_own_two_parameters():
 
 def test_a_single_treated_geo_shares_its_parameters_with_the_group():
     """One geo summed is that geo, so the two fits coincide."""
-    res = TBRMM(_cfg(_panel(), max_treatment_size=1)).fit()
+    res = TBR(_cfg(_panel(), max_treatment_size=1)).fit()
     eff = res.recommended.effect
 
     assert eff.delta1 == pytest.approx(eff.market_effects[0].delta1, rel=1e-9)
@@ -231,8 +231,8 @@ def test_a_single_treated_geo_shares_its_parameters_with_the_group():
 # ---------------------------------------------------------------------------
 
 def test_the_report_interval_follows_the_chosen_variance():
-    iid = TBRMM(_cfg(_panel(rho=0.7))).fit()
-    hac = TBRMM(_cfg(_panel(rho=0.7), variance="hac")).fit()
+    iid = TBR(_cfg(_panel(rho=0.7))).fit()
+    hac = TBR(_cfg(_panel(rho=0.7), variance="hac")).fit()
 
     wi = iid.report.inference.ci_upper - iid.report.inference.ci_lower
     wh = hac.report.inference.ci_upper - hac.report.inference.ci_lower
@@ -242,7 +242,7 @@ def test_the_report_interval_follows_the_chosen_variance():
 
 
 def test_every_market_gets_the_correction_too():
-    res = TBRMM(_cfg(_panel(rho=0.7), variance="hac")).fit()
+    res = TBR(_cfg(_panel(rho=0.7), variance="hac")).fit()
     for m in res.recommended.effect.market_effects:
         assert m.posterior.variance == "hac"
         assert m.posterior.bandwidth is not None
@@ -259,7 +259,7 @@ def test_the_coefficient_covariance_matches_statsmodels_hac():
     applied at half strength satisfies. This pins the value.
     """
     sm = pytest.importorskip("statsmodels.api")
-    from mlsynth.utils.tbrmm_helpers.estimate import _newey_west
+    from mlsynth.utils.tbr_helpers.design.estimate import _newey_west
 
     rng = np.random.default_rng(4)
     n, lag = 60, 4
@@ -281,7 +281,7 @@ def test_the_long_run_variance_matches_a_vectorised_bartlett_sum():
     A different code path from the accumulating loop, so it pins the factor of
     two on the cross-lags and the inclusive upper limit of the sum.
     """
-    from mlsynth.utils.tbrmm_helpers.estimate import _newey_west
+    from mlsynth.utils.tbr_helpers.design.estimate import _newey_west
 
     rng = np.random.default_rng(9)
     n, lag = 80, 5
@@ -303,7 +303,7 @@ def test_the_long_run_variance_matches_a_vectorised_bartlett_sum():
 
 def test_the_scale_is_the_two_terms_assembled():
     """Proposition 3.4's scale, reassembled from its parts independently."""
-    from mlsynth.utils.tbrmm_helpers.estimate import _hac_scale, _newey_west
+    from mlsynth.utils.tbr_helpers.design.estimate import _hac_scale, _newey_west
 
     rng = np.random.default_rng(12)
     n_pre, n_post, lag = 60, 8, 4
