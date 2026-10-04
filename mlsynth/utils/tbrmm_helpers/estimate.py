@@ -37,7 +37,7 @@ import numpy as np
 from scipy import stats
 
 from ...exceptions import MlsynthEstimationError
-from ..tbr_helpers.posterior import cumulative_posterior, fit_pretest, interval
+from ..tbr_helpers.posterior import _bandwidth, _hac_scale, _newey_west, cumulative_posterior, fit_pretest, interval
 from .structures import TBRMMEffect, TBRMMMarketEffect, TBRMMPosterior
 
 
@@ -73,77 +73,7 @@ def _fit_adid(y_pre: np.ndarray, x_pre: np.ndarray) -> Tuple[float, float, float
     return float(delta[0]), float(delta[1]), float(np.sqrt(np.mean(resid ** 2)))
 
 
-def _newey_west(resid: np.ndarray, design: np.ndarray, lag: int
-                ) -> Tuple[float, np.ndarray]:
-    """Bartlett-kernel long-run variance of ``resid``, and the meat for the fit.
 
-    Li and Van den Bulte's proof D.2 writes both of Proposition 3.4's variance
-    terms as sums truncated at ``|s - t| <= l``, consistent by the argument of
-    Newey and West (1987). The Bartlett taper ``1 - j / (l + 1)`` keeps the
-    estimate positive semi-definite, which an untapered truncation does not.
-
-    At ``lag = 0`` only the diagonal survives, which is the independent case the
-    same proof reduces to -- so this is a generalisation of equation 6 and not a
-    different estimator.
-
-    Parameters
-    ----------
-    resid : np.ndarray
-        Pretest residuals, shape ``(T0,)``.
-    design : np.ndarray
-        The pretest design ``[1, xbar]``, shape ``(T0, 2)``.
-    lag : int
-        Truncation lag.
-
-    Returns
-    -------
-    tuple
-        The residuals' long-run variance, and the ``(2, 2)`` meat matrix.
-    """
-    n = resid.size
-    # The same n / (n - 2) correction eqn 6's sigma^2 carries, so a lag of zero
-    # lands on HC1 and the two scales are on one footing.
-    dfc = n / float(n - design.shape[1])
-    lrv = float(resid @ resid) / n
-    scaled = design * resid[:, None]
-    meat = scaled.T @ scaled
-    for j in range(1, lag + 1):
-        weight = 1.0 - j / (lag + 1.0)
-        lrv += 2.0 * weight * float(resid[j:] @ resid[:-j]) / n
-        cross = scaled[j:].T @ scaled[:-j]
-        meat += weight * (cross + cross.T)
-    return lrv * dfc, meat * dfc
-
-
-def _hac_scale(y_pre: np.ndarray, x_pre: np.ndarray, x_post: np.ndarray,
-               n_post: int, lag: int) -> float:
-    """Proposition 3.4's scale for the cumulative effect.
-
-    The same two pieces equation 6 has -- what is unknown about the coefficients,
-    and the test window's own errors -- with each sum truncated instead of taken
-    on the diagonal.
-    """
-    design = np.column_stack([np.ones_like(x_pre), x_pre])
-    coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
-    lrv, meat = _newey_west(y_pre - design @ coef, design, lag)
-    cov = np.linalg.pinv(design.T @ design)
-    contrast = np.array([float(n_post), float(x_post.sum())])
-    coefficient_term = float(contrast @ (cov @ meat @ cov) @ contrast)
-    return float(np.sqrt(max(coefficient_term + n_post * lrv, 0.0)))
-
-
-def _bandwidth(n_pre: int, requested: Optional[int]) -> int:
-    """``ceil(T0 ** 0.25)`` unless the caller named one; refuse one too long.
-
-    A truncation at or beyond the pretest length has no lags left to average, so
-    it is a configuration error and not a degenerate-but-usable choice.
-    """
-    lag = int(np.ceil(n_pre ** 0.25)) if requested is None else int(requested)
-    if lag >= n_pre:
-        raise MlsynthEstimationError(
-            f"the Newey-West bandwidth must be shorter than the {n_pre} pretest "
-            f"periods it truncates over; got {lag}.")
-    return lag
 
 
 def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,

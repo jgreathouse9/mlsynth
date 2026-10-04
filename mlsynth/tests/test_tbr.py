@@ -127,12 +127,18 @@ def reference_posterior(df, T0, level=0.9, with_cooldown=False):
 # --------------------------------------------------------------------------- #
 # Layer 4: smoke
 # --------------------------------------------------------------------------- #
-def test_fits_and_returns_an_effect_result():
-    from mlsynth.config_models import EffectResult
+def test_fits_and_returns_a_design_result_carrying_the_effect():
+    """The merged TBR designs and realises, so it returns the design family.
+
+    LEXSCM and MAREX do the same: the estimate rides on ``report``, which is an
+    EffectResult, and the enclosing result holds whatever design was chosen.
+    """
+    from mlsynth.config_models import DesignResult, EffectResult
     res = TBR(base_config(geo_panel())).fit()
-    assert isinstance(res, EffectResult)
+    assert isinstance(res, DesignResult)
+    assert isinstance(res.report, EffectResult)
     assert np.isfinite(res.report.att)
-    assert np.all(np.isfinite(np.asarray(res.counterfactual, dtype=float)))
+    assert np.all(np.isfinite(np.asarray(res.report.counterfactual, dtype=float)))
 
 
 def test_the_counterfactual_spans_the_whole_panel():

@@ -9,6 +9,7 @@ from ...exceptions import MlsynthDataError
 from ..results_helpers import build_effect_submodels
 from .posterior import (
     cumulative_posterior,
+    cumulative_posterior_hac,
     fit_pretest,
     interval,
     iroas_fixed_cost,
@@ -46,7 +47,15 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
     y, x = inputs.y, inputs.x
 
     fit = fit_pretest(y[:T0], x[:T0])
-    loc, scale = cumulative_posterior(fit, y[T0:], x[T0:])
+    # Serial correlation in the pretest residual is a property of the panel and
+    # the groups, so the correction belongs here and applies whether the split
+    # was named or searched for.
+    if getattr(config, "variance", "iid") == "hac":
+        loc, scale = cumulative_posterior_hac(
+            fit, y[:T0], x[:T0], y[T0:], x[T0:],
+            bandwidth=getattr(config, "hac_bandwidth", None))
+    else:
+        loc, scale = cumulative_posterior(fit, y[T0:], x[T0:])
     post_labels = inputs.time_labels[T0:]
     cumulative = _as_cumulative(loc, scale, fit.df, level, post_labels)
 
@@ -93,7 +102,9 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
                        "n_control_units": len(inputs.control_units),
                        "n_treated_units": len(inputs.treated_units)})
     std_inference = InferenceResults(
-        method="bayesian_posterior",
+        method=("tbr_posterior_hac"
+                if getattr(config, "variance", "iid") == "hac"
+                else "tbr_posterior"),
         ci_lower=float(cumulative.lower[-1]) / inputs.n_test,
         ci_upper=float(cumulative.upper[-1]) / inputs.n_test,
         confidence_level=level,
