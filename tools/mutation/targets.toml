@@ -3342,3 +3342,31 @@ timeout = 180.0
   find = '    for prefix in REACHABLE:'
   replace = '    for prefix in [p for p in REACHABLE if not p.startswith("mlsynth")]:'
   models = "an inventory that records basedata and benchmarks but not mlsynth, so every library file stays ambiguous and the widening it was built to stop continues while the file beside the manifest claims the sweep was recorded"
+
+[[target]]
+name = "lexscm-unit-effects"
+module-path = "mlsynth/utils/fast_scm_helpers/unit_effects.py"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_unit_effects.py -q -p no:cacheprovider"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "every-unit-gets-the-designs-control-weights"
+  find = """        v = solve_simplex_qp(D, Y[fit_idx, j])
+        v = np.asarray(v[0] if isinstance(v, tuple) else v, dtype=float)"""
+  replace = """        v = np.asarray([float(control[k]) for k in donors], dtype=float)
+        v = v / v.sum()"""
+  models = "per-unit effects that are the aggregate wearing a per-unit label: every treated unit scored against the one synthetic control the design fitted to the treated group, which is not equation (10)'s object. The field is populated, the shapes are right, the gaps differ across units because the units differ, and nothing about the decomposition is the unit's own fit"
+
+  [[target.mutant]]
+  id = "the-blank-window-is-fitted-on"
+  find = "        D = Y[fit_idx][:, donor_cols]"
+  replace = "        D = Y[np.concatenate([fit_idx, blank_idx])][:, donor_cols]"
+  models = "donor weights solved on the fit and blank windows together, which makes the blank gap in-sample. The approximability gate then tests a residual the solver already minimised, so an unreachable unit passes and the cumulative interval is built from a null that understates its own spread"
+
+  [[target.mutant]]
+  id = "a-treated-unit-may-sit-in-its-own-pool"
+  find = """    both = sorted(set(kept) & set(donors))
+    if both:"""
+  replace = """    both = []
+    if both:"""
+  models = "the disjointness check removed, so a unit appearing in both the treated and control dicts is fitted against itself, reproduces itself exactly, and reports a zero gap and a clean approximability verdict for a design that was never identified"
