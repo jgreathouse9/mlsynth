@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import ConfigDict
 
@@ -320,6 +320,8 @@ class LEXSCMPanel:
     population_mean: np.ndarray
 
 
+from .unit_effects import TreatedUnitEffect
+
 class LEXSCMResults(DesignResult):
     """Top-level container returned by :meth:`mlsynth.LEXSCM.fit`.
 
@@ -345,6 +347,15 @@ class LEXSCMResults(DesignResult):
       ``candidates``, ``winner``, ``selection``.
     * ``panel`` -- the panel structure (:class:`LEXSCMPanel`): ``time``,
       ``units``, ``outcome``, ``population_mean``.
+    * ``unit_effects`` -- one
+      :class:`~mlsynth.utils.fast_scm_helpers.unit_effects.TreatedUnitEffect`
+      per treated unit carrying weight: its own synthetic control over the
+      design's control pool, its gap over the fit, blank and post windows, and
+      the blank-window approximability verdict. The design's own numbers are
+      the aggregate; these are the per-unit decomposition of Abadie and Zhao's
+      equation (10), and they are what
+      :func:`~mlsynth.utils.fast_scm_helpers.post_inference.unit_level_cumulative`
+      consumes.
     """
 
     model_config = ConfigDict(
@@ -352,3 +363,4 @@ class LEXSCMResults(DesignResult):
 
     search: LEXSCMSearch
     panel: LEXSCMPanel
+    unit_effects: Tuple[TreatedUnitEffect, ...] = ()
