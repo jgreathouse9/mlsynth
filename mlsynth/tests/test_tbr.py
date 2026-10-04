@@ -31,6 +31,7 @@ from scipy import stats
 
 from mlsynth import TBR
 from mlsynth.config_models import TBRConfig
+from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
 
@@ -672,7 +673,7 @@ def test_design_mode_reports_the_groups_it_used():
 def test_neither_treat_nor_post_col_is_refused():
     from pydantic import ValidationError
     df = design_panel()
-    with pytest.raises(ValidationError, match="post_col|treat"):
+    with pytest.raises(MlsynthConfigError, match="post-treatment window"):
         TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
                   control_col="is_control", treatment_col="is_treatment",
                   display_graphs=False)
@@ -681,7 +682,7 @@ def test_neither_treat_nor_post_col_is_refused():
 def test_post_col_without_a_treatment_group_is_refused():
     from pydantic import ValidationError
     df = design_panel()
-    with pytest.raises(ValidationError, match="treatment_col"):
+    with pytest.raises(MlsynthConfigError, match="treatment_col"):
         TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
                   control_col="is_control", post_col="post",
                   display_graphs=False)
