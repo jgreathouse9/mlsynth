@@ -78,8 +78,13 @@ class IROASResult(BaseModel):
                          "simulated from both posteriors.")
 
 
-class TBRResults(BaseEstimatorResults):
-    """TBR's :class:`~mlsynth.config_models.EffectResult`."""
+class TBREstimate(BaseEstimatorResults):
+    """What TBR estimates once the groups are fixed.
+
+    An :class:`~mlsynth.config_models.EffectResult`, and what ``fit()`` puts on
+    ``report`` in both modes. The design half sits on the enclosing
+    :class:`~mlsynth.utils.tbr_helpers.design_structures.TBRResults`.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

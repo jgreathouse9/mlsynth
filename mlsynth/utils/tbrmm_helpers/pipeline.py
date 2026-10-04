@@ -19,7 +19,7 @@ from .config import TBRMMConfig
 from ..post_fit import compute_post_fit_tbrmm, to_effect_result
 from .estimate import measure_design
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
-from .structures import TBRMMDesign, TBRMMResults
+from .structures import TBRResults, TBRMMDesign, TBRMMResults
 
 
 def _scoring_window(config: TBRMMConfig) -> pd.DataFrame:
@@ -147,32 +147,18 @@ def run(config: TBRMMConfig) -> TBRMMResults:
     best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
     recommended = designs[best]
 
+    # The report is the estimate on the design the search recommends, built by
+    # the same code the named mode uses. Before the merge this assembled a
+    # generic effect result from the group posterior, so report.cumulative and
+    # report.tbr_fit were present in one mode and absent in the other.
     report = None
     if post_matrix is not None:
-        treated_path, control_path = measured[best]
-        # The time axis the measured series actually sit on: the scoring
-        # periods then the realized ones. Passed through so a caller can plot
-        # the report without rebuilding an axis the estimator already had.
-        scoring_periods = np.unique(_scoring_window(config)[config.time].to_numpy())
-        periods = np.concatenate([scoring_periods, np.asarray(post_wide.index)])
-        # The group posterior's bounds, rescaled to the mean per-period
-        # effect so report.inference and report.effects.att share one scale.
-        group = recommended.effect.posterior
-        report = to_effect_result(
-            compute_post_fit_tbrmm(
-                treated_path, control_path,
-                n_fit=int(y_matrix.shape[0]),
-                n_post=int(post_matrix.shape[0]),
-                n_treated_units=len(recommended.treatment_units),
-                ci=(group.att_lower, group.att_upper),
-                inference_method=("tbr_posterior_hac"
-                                  if config.variance == "hac"
-                                  else "tbr_posterior")),
-            time_periods=periods,
-            intervention_time=np.asarray(post_wide.index)[0],
-            method_name="TBRMM")
+        from ..tbr_helpers.pipeline import estimate
+        report = estimate(config,
+                          treated=list(recommended.treatment_units),
+                          controls=list(recommended.control_units))
 
-    return TBRMMResults(
+    return TBRResults(
         report=report,
         designs=designs,
         recommended=recommended,

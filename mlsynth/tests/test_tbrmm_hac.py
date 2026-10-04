@@ -80,7 +80,7 @@ def test_opting_in_does_not_move_the_point_estimate():
     base = TBRMM(_cfg(_panel())).fit().recommended.effect
     hac = TBRMM(_cfg(_panel(), variance="hac")).fit().recommended.effect
 
-    assert hac.att == pytest.approx(base.att, rel=1e-12)
+    assert hac.report.att == pytest.approx(base.report.att, rel=1e-12)
     assert hac.total_effect == pytest.approx(base.total_effect, rel=1e-12)
     for a, b in zip(base.market_effects, hac.market_effects):
         assert a.att == pytest.approx(b.att, rel=1e-12)

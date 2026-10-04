@@ -15,7 +15,7 @@ from .posterior import (
     iroas_simulated,
 )
 from .setup import build_inputs
-from .structures import CumulativeEffect, IROASResult, TBRFit, TBRResults
+from .structures import CumulativeEffect, IROASResult, TBRFit, TBREstimate
 
 FIXED_COST_TOL = 1e-10
 
@@ -34,8 +34,14 @@ def _as_cumulative(loc, scale, df, level, periods) -> CumulativeEffect:
         level=float(level), df=int(df), periods=list(periods))
 
 
-def run(config) -> TBRResults:
-    inputs = build_inputs(config)
+def estimate(config, *, treated=None, controls=None) -> TBREstimate:
+    """TBR on a fixed split: the pretest fit, the posterior, cost, cooldown.
+
+    ``treated`` and ``controls`` name the split when the caller already has one
+    -- which is how the searched mode reports on the design it chose. Omitted,
+    the split is read off the config's columns.
+    """
+    inputs = build_inputs(config, treated=treated, controls=controls)
     T0, level = inputs.n_pre, float(config.level)
     y, x = inputs.y, inputs.x
 
@@ -112,7 +118,7 @@ def run(config) -> TBRResults:
     )
     n_cool = inputs.n_cooldown
     n_int = inputs.n_test - n_cool
-    return TBRResults(
+    return TBREstimate(
         **submodels,
         tbr_fit=_as_fit(fit),
         cost_fit=cost_fit,
@@ -127,4 +133,33 @@ def run(config) -> TBRResults:
         control_units=list(inputs.control_units),
         unassigned_units=list(inputs.unassigned_units),
         filled_cells=inputs.filled_cells,
+    )
+
+
+def run(config):
+    """Dispatch on how the groups were named, and return one result type.
+
+    Both modes return a :class:`~mlsynth.config_models.DesignResult` with the
+    estimate on ``report``, which is the shape LEXSCM and MAREX already use for
+    design-then-realise. A named split has nothing to choose between, so its
+    design fields stay empty.
+    """
+    from ..tbrmm_helpers.structures import TBRResults
+
+    if config.mode == "searched":
+        # imported in the body: the design half imports this module to build
+        # its report, so a module-level import either way closes the cycle.
+        from ..tbrmm_helpers.pipeline import run as search
+        return search(config)
+
+    report = estimate(config)
+    return TBRResults(
+        report=report,
+        designs=[],
+        recommended=None,
+        objective=config.objective,
+        selected_units=list(report.treated_units),
+        assignment={"treatment": list(report.treated_units),
+                    "control": list(report.control_units),
+                    "unassigned": list(report.unassigned_units)},
     )

@@ -37,7 +37,7 @@ from pydantic import ValidationError
 from ..exceptions import MlsynthConfigError
 from ..utils.tbr_helpers.config import TBRConfig
 from ..utils.tbr_helpers.pipeline import run
-from ..utils.tbr_helpers.structures import TBRResults
+from ..utils.tbrmm_helpers.structures import TBRResults
 
 
 class TBR:

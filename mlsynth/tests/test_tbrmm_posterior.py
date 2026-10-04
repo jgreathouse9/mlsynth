@@ -99,7 +99,7 @@ def test_the_interval_brackets_the_point_estimate():
     eff = res.recommended.effect
 
     assert eff.posterior.total_lower < eff.total_effect < eff.posterior.total_upper
-    assert eff.posterior.att_lower < eff.att < eff.posterior.att_upper
+    assert eff.posterior.att_lower < eff.report.att < eff.posterior.att_upper
     for m in eff.market_effects:
         assert m.posterior.total_lower < m.total_effect < m.posterior.total_upper
 

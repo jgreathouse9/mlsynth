@@ -192,8 +192,15 @@ class TBRMMDesign(BaseModel):
                     "fact as well as before it.")
 
 
-class TBRMMResults(DesignResult):
-    """TBRMM's :class:`~mlsynth.config_models.DesignResult`."""
+class TBRResults(DesignResult):
+    """What :meth:`mlsynth.TBR.fit` returns, in both modes.
+
+    A :class:`~mlsynth.config_models.DesignResult`. ``report`` carries the
+    estimate as a :class:`~mlsynth.utils.tbr_helpers.structures.TBREstimate`,
+    built by the same code in both modes. The design fields below are populated
+    only when the split was searched for; a named split has nothing to choose
+    between, so ``designs`` is empty and ``recommended`` is ``None``.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -221,3 +228,9 @@ class TBRMMResults(DesignResult):
     n_periods_scored: int = Field(
         default=0,
         description="Periods the objective was computed over.")
+
+
+#: The pre-merge name. TBRMM was the design half of TBR and is now its searched
+#: mode; this alias keeps the structures module importable under either name
+#: while the rest of the merge lands.
+TBRMMResults = TBRResults
