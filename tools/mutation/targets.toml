@@ -3141,9 +3141,9 @@ timeout = 300.0
   models = "bounds cut on the normal, not the t on n-2 degrees of freedom, which is anticonservative on every panel and worst on the short pretests a geo test is most likely to have"
 
 [[target]]
-name = "tbrmm-hac"
-module-path = "mlsynth/utils/tbr_helpers/design/estimate.py"
-test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py -q -p no:cacheprovider"
+name = "tbr-hac"
+module-path = "mlsynth/utils/tbr_helpers/posterior.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]

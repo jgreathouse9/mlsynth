@@ -26,7 +26,7 @@ import pandas as pd
 import pytest
 
 from mlsynth.config_models import TBRConfig
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
 
 @pytest.fixture
@@ -108,3 +108,24 @@ def test_cost_and_cooldown_survive_both_modes(panel):
 def test_a_column_that_is_not_in_the_frame_is_refused(panel):
     with pytest.raises((MlsynthConfigError, Exception), match="nope|not in|missing"):
         TBRConfig(df=panel, treatment_col="nope", control_col="ct", **_BASE)
+
+
+def test_a_repeated_unit_period_cell_is_refused_in_both_modes(panel):
+    """Cell uniqueness is the config's invariant, and the searched mode relies on
+    it.
+
+    The named mode is caught twice: ``tbr_helpers.setup`` sums the groups and
+    refuses a repeated cell there too. The searched mode is not -- it pivots the
+    scoring window itself and documents uniqueness as already established, so
+    with this check gone a duplicated row reaches ``DataFrame.pivot`` and comes
+    back as a pandas reshape error instead of a translated one.
+    """
+    doubled = pd.concat(
+        [panel, panel[(panel.geo == "g03") & (panel.week == 2)]],
+        ignore_index=True)
+
+    with pytest.raises(MlsynthDataError, match="repeats"):
+        TBRConfig(df=doubled, treatment_col="tr", control_col="ct", **_BASE)
+
+    with pytest.raises(MlsynthDataError, match="repeats"):
+        TBRConfig(df=doubled, max_treatment_size=3, n_test=6, **_BASE)
