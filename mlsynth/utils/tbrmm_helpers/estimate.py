@@ -78,7 +78,8 @@ def _fit_adid(y_pre: np.ndarray, x_pre: np.ndarray) -> Tuple[float, float, float
 
 def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
                x_post: np.ndarray, *, level: float,
-               periods_per_unit: int, variance: str = "iid",
+               periods_per_unit: int, n_periods: int = 0,
+               variance: str = "iid",
                hac_bandwidth: Optional[int] = None) -> TBRMMPosterior:
     """TBR's posterior for one series' cumulative effect, and its rescaling.
 
@@ -131,6 +132,8 @@ def _posterior(y_pre: np.ndarray, x_pre: np.ndarray, y_post: np.ndarray,
         scale=scale_T, df=int(fit.df), level=float(level),
         variance=variance, bandwidth=lag,
         total_lower=float(lo[-1]), total_upper=float(hi[-1]),
+        group_lower=float(lo[-1]) / (n_periods or periods_per_unit),
+        group_upper=float(hi[-1]) / (n_periods or periods_per_unit),
         att_lower=float(lo[-1]) / periods_per_unit,
         att_upper=float(hi[-1]) / periods_per_unit,
         prob_direction=float(direction),
@@ -226,7 +229,7 @@ def measure_design(
     group_posterior = _posterior(
         group_pre, x_pre,
         post[:, treated_cols].sum(axis=1), x_post,
-        level=level, periods_per_unit=n_post * n_treated,
+        level=level, periods_per_unit=n_post * n_treated, n_periods=n_post,
         variance=variance, hac_bandwidth=hac_bandwidth)
     g1, g2, _ = _fit_adid(group_pre, x_pre)
 

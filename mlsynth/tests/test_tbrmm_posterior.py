@@ -99,7 +99,7 @@ def test_the_interval_brackets_the_point_estimate():
     eff = res.recommended.effect
 
     assert eff.posterior.total_lower < eff.total_effect < eff.posterior.total_upper
-    assert eff.posterior.att_lower < eff.report.att < eff.posterior.att_upper
+    assert eff.posterior.att_lower < eff.att < eff.posterior.att_upper
     for m in eff.market_effects:
         assert m.posterior.total_lower < m.total_effect < m.posterior.total_upper
 
@@ -165,8 +165,11 @@ def test_report_inference_carries_the_interval_in_the_atts_units():
     inf, eff = res.report.inference, res.recommended.effect
 
     assert inf is not None
-    assert inf.ci_lower == pytest.approx(eff.posterior.att_lower, rel=1e-12)
-    assert inf.ci_upper == pytest.approx(eff.posterior.att_upper, rel=1e-12)
+    # report.inference is on the group-per-period scale; the posterior's
+    # att_* averages across treated geos as well. group_* is the matching
+    # pair, and test_tbr_posterior_scales pins the identity between them.
+    assert inf.ci_lower == pytest.approx(eff.posterior.group_lower, rel=1e-9)
+    assert inf.ci_upper == pytest.approx(eff.posterior.group_upper, rel=1e-9)
     assert inf.ci_lower < res.report.effects.att < inf.ci_upper
 
 

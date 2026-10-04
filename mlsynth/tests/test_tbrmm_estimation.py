@@ -166,8 +166,13 @@ def test_the_boundary_splits_the_reported_series_where_the_effect_starts():
     cf = np.asarray(ts.counterfactual_outcome, dtype=float).ravel()
     n_pre = int(np.searchsorted(periods, ts.intervention_time))
 
+    # The reported series is the treatment group's aggregate, so its mean
+    # post-period gap is the per-period group effect. effect.att averages over
+    # the treated geos as well, which is the scale the design menu ranks on;
+    # test_tbr_posterior_scales pins total = group * T = att * T * n_treated.
+    n_treated = len(res.recommended.treatment_units)
     assert float((obs - cf)[n_pre:].mean()) == pytest.approx(
-        res.recommended.effect.att, rel=1e-9)
+        res.recommended.effect.att * n_treated, rel=1e-9)
 
 
 # ---------------------------------------------------------------------------

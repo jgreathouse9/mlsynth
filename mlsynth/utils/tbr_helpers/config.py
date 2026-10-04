@@ -233,6 +233,19 @@ class TBRConfig(BaseEstimatorConfig):
             raise MlsynthDataError(
                 f"Missing required columns in DataFrame 'df': "
                 f"{', '.join(sorted(missing))}")
+        # The base's column check is shadowed here, and this invariant came
+        # with it. TBR sums across geos to form each aggregate, so a repeated
+        # (unit, period) cell has no one reading -- a duplicate row and two
+        # records meant to be added are the same input -- and the ambiguity has
+        # to be refused before anything reshapes.
+        repeated = int(self.df.duplicated(subset=[self.unitid, self.time]).sum())
+        if repeated:
+            raise MlsynthDataError(
+                f"the panel repeats {repeated} (unit, period) cell(s): duplicate "
+                f"rows. TBR sums across geos to form each aggregate, so a "
+                f"repeated cell has no one reading and the intended total "
+                f"cannot be guessed.")
+
         blank = {c: int(self.df[c].isna().sum())
                  for c in (self.unitid, self.time) if self.df[c].isna().any()}
         if blank:

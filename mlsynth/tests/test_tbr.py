@@ -144,7 +144,7 @@ def test_fits_and_returns_a_design_result_carrying_the_effect():
 def test_the_counterfactual_spans_the_whole_panel():
     T, T0 = 20, 14
     res = TBR(base_config(geo_panel(T=T, T0=T0))).fit()
-    assert len(np.asarray(res.counterfactual, dtype=float)) == T
+    assert len(np.asarray(res.report.counterfactual, dtype=float)) == T
 
 
 # --------------------------------------------------------------------------- #
@@ -153,7 +153,7 @@ def test_the_counterfactual_spans_the_whole_panel():
 def test_pretest_coefficients_match_equation_1():
     df = geo_panel(noise=2.0, seed=3)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().tbr_fit
+    got = TBR(base_config(df)).fit().report.tbr_fit
     assert got.alpha == pytest.approx(want["alpha"], rel=1e-12)
     assert got.beta == pytest.approx(want["beta"], rel=1e-12)
     assert got.sigma_sq == pytest.approx(want["s2"], rel=1e-12)
@@ -163,21 +163,21 @@ def test_pretest_coefficients_match_equation_1():
 def test_cumulative_estimate_matches_equation_4():
     df = geo_panel(noise=2.0, seed=4)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().cumulative
+    got = TBR(base_config(df)).fit().report.cumulative
     assert np.allclose(np.asarray(got.estimate, float), want["loc"], rtol=1e-12)
 
 
 def test_cumulative_scale_matches_equation_6():
     df = geo_panel(noise=2.0, seed=5)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().cumulative
+    got = TBR(base_config(df)).fit().report.cumulative
     assert np.allclose(np.asarray(got.scale, float), want["scale"], rtol=1e-12)
 
 
 def test_interval_is_the_t_quantile_of_that_scale():
     df = geo_panel(noise=2.0, seed=6)
     want = reference_posterior(df, 14, level=0.9)
-    got = TBR(base_config(df, level=0.9)).fit().cumulative
+    got = TBR(base_config(df, level=0.9)).fit().report.cumulative
     assert np.allclose(np.asarray(got.lower, float), want["lower"], rtol=1e-12)
     assert np.allclose(np.asarray(got.upper, float), want["upper"], rtol=1e-12)
 
@@ -220,8 +220,8 @@ def test_scaling_the_outcome_scales_the_effect_and_its_scale():
     df = geo_panel(noise=2.0, seed=9)
     big = df.copy()
     big["sales"] = big["sales"] * 1000.0
-    a = TBR(base_config(df)).fit().cumulative
-    b = TBR(base_config(big)).fit().cumulative
+    a = TBR(base_config(df)).fit().report.cumulative
+    b = TBR(base_config(big)).fit().report.cumulative
     assert np.allclose(np.asarray(b.estimate, float),
                        1000.0 * np.asarray(a.estimate, float), rtol=1e-10)
     assert np.allclose(np.asarray(b.scale, float),
@@ -234,8 +234,8 @@ def test_relabelling_units_within_a_group_changes_nothing():
     order = {g: f"z{i}" for i, g in
              enumerate(sorted(df[df.is_control == 1].geo.unique())[::-1])}
     shuffled["geo"] = shuffled.geo.map(lambda g: order.get(g, g))
-    a = TBR(base_config(df)).fit().cumulative
-    b = TBR(base_config(shuffled)).fit().cumulative
+    a = TBR(base_config(df)).fit().report.cumulative
+    b = TBR(base_config(shuffled)).fit().report.cumulative
     assert np.allclose(np.asarray(a.estimate, float),
                        np.asarray(b.estimate, float), rtol=1e-12)
 
@@ -300,7 +300,7 @@ def test_no_cooldown_column_reports_no_cooldown_periods():
 # iROAS
 # --------------------------------------------------------------------------- #
 def test_no_cost_column_means_no_iroas():
-    assert TBR(base_config(geo_panel())).fit().iroas is None
+    assert TBR(base_config(geo_panel())).fit().report.iroas is None
 
 
 def test_zero_pretest_cost_is_the_fixed_cost_case():
@@ -351,8 +351,8 @@ def test_an_absent_cell_is_filled_to_zero():
     holed = df.drop(df.index[(df.geo == "c1") & (df.date == 3)])
     zeroed = df.copy()
     zeroed.loc[(zeroed.geo == "c1") & (zeroed.date == 3), "sales"] = 0.0
-    a = TBR(base_config(holed)).fit().cumulative
-    b = TBR(base_config(zeroed)).fit().cumulative
+    a = TBR(base_config(holed)).fit().report.cumulative
+    b = TBR(base_config(zeroed)).fit().report.cumulative
     assert np.allclose(np.asarray(a.estimate, float),
                        np.asarray(b.estimate, float), rtol=1e-12)
 

@@ -49,6 +49,15 @@ class TBRMMPosterior(BaseModel):
         ..., description="Lower bound on the cumulative effect.")
     total_upper: float = Field(
         ..., description="Upper bound on the cumulative effect.")
+    group_lower: float = Field(
+        default=0.0,
+        description="The total averaged over the test periods: the cumulative "
+                    "effect on the treatment group per period. This is the "
+                    "scale report.inference is on, so an interval and the att "
+                    "beside it agree. total = group * n_periods.")
+    group_upper: float = Field(
+        default=0.0,
+        description="Upper bound of the per-period group effect.")
     att_lower: float = Field(
         ..., description="Lower bound on the mean per-period effect, the "
                          "cumulative bound rescaled.")

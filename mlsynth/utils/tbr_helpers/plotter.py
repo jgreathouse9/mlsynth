@@ -14,11 +14,12 @@ def plot_tbr(result, *, title: Optional[str] = None):
     Section 3.3's figure. The cumulative panel is the one the method exists for,
     so it carries the posterior band.
     """
-    ts = result.time_series
+    est = getattr(result, "report", result)
+    ts = est.time_series
     observed = np.asarray(ts.observed_outcome, dtype=float).ravel()
     counterfactual = np.asarray(ts.counterfactual_outcome, dtype=float).ravel()
     periods = np.asarray(ts.time_periods).ravel()
-    cum = result.cumulative
+    cum = est.cumulative
     post = np.asarray(cum.periods).ravel()
 
     fig, axes = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
@@ -39,9 +40,9 @@ def plot_tbr(result, *, title: Optional[str] = None):
     axes[2].set_ylabel(f"cumulative effect ({cum.level:.0%})")
     axes[2].set_xlabel("period")
 
-    if result.cooldown_periods:
+    if est.cooldown_periods:
         for ax in axes:
-            ax.axvline(post[result.intervention_periods - 1], linewidth=0.8,
+            ax.axvline(post[est.intervention_periods - 1], linewidth=0.8,
                        linestyle=":", color="grey")
 
     axes[0].set_title(title or "TBR")

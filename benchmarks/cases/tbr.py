@@ -130,44 +130,44 @@ def run() -> dict:
         df=_geolift_panel(), unitid="location", time="date", outcome="Y",
         control_col="is_control", treatment_col="is_treatment",
         post_col="post", level=0.9, display_graphs=False)).fit()
-    g_cum = np.asarray(geo.cumulative.estimate, float)
+    g_cum = np.asarray(geo.report.cumulative.estimate, float)
 
     # --- the generated panel: cost, cooldown, absent cells -------------------
     gen = TBR(TBRConfig(
         df=_generated_panel(), unitid="geo", time="date", outcome="sales",
         treat="D", control_col="is_control", cooldown_col="cooldown",
         cost_col="cost", level=0.9, display_graphs=False)).fit()
-    n_cum = np.asarray(gen.cumulative.estimate, float)
+    n_cum = np.asarray(gen.report.cumulative.estimate, float)
 
     return {
         # GeoLift arm
-        "geo_alpha": float(geo.tbr_fit.alpha),
-        "geo_beta": float(geo.tbr_fit.beta),
-        "geo_sigma_sq": float(geo.tbr_fit.sigma_sq),
-        "geo_df": float(geo.tbr_fit.df),
+        "geo_alpha": float(geo.report.tbr_fit.alpha),
+        "geo_beta": float(geo.report.tbr_fit.beta),
+        "geo_sigma_sq": float(geo.report.tbr_fit.sigma_sq),
+        "geo_df": float(geo.report.tbr_fit.df),
         "geo_delta_T": float(g_cum[-1]),
-        "geo_scale_T": float(geo.cumulative.scale[-1]),
-        "geo_rmse_pre": float(geo.fit_diagnostics.rmse_pre),
-        "geo_r2_pre": float(geo.fit_diagnostics.r_squared_pre),
+        "geo_scale_T": float(geo.report.cumulative.scale[-1]),
+        "geo_rmse_pre": float(geo.report.fit_diagnostics.rmse_pre),
+        "geo_r2_pre": float(geo.report.fit_diagnostics.r_squared_pre),
         "geo_horizons": float(len(g_cum)),
         # the A/A band has to contain zero: 1.0 when it does
-        "geo_covers_zero": float(geo.cumulative.lower[-1] <= 0.0
-                                 <= geo.cumulative.upper[-1]),
+        "geo_covers_zero": float(geo.report.cumulative.lower[-1] <= 0.0
+                                 <= geo.report.cumulative.upper[-1]),
         # generated arm
-        "gen_alpha": float(gen.tbr_fit.alpha),
-        "gen_beta": float(gen.tbr_fit.beta),
-        "gen_sigma_sq": float(gen.tbr_fit.sigma_sq),
+        "gen_alpha": float(gen.report.tbr_fit.alpha),
+        "gen_beta": float(gen.report.tbr_fit.beta),
+        "gen_sigma_sq": float(gen.report.tbr_fit.sigma_sq),
         "gen_delta_T": float(n_cum[-1]),
-        "gen_scale_T": float(gen.cumulative.scale[-1]),
-        "gen_cum_lower": float(gen.cumulative.lower[-1]),
-        "gen_iroas": float(gen.iroas.estimate),
-        "gen_iroas_lower": float(gen.iroas.lower),
-        "gen_iroas_upper": float(gen.iroas.upper),
-        "gen_incr_cost": float(gen.iroas.total_incremental_cost),
-        "gen_filled_cells": float(gen.filled_cells),
-        "gen_intervention_periods": float(gen.intervention_periods),
-        "gen_cooldown_periods": float(gen.cooldown_periods),
-        "gen_fixed_cost": float(gen.iroas.fixed_cost),
+        "gen_scale_T": float(gen.report.cumulative.scale[-1]),
+        "gen_cum_lower": float(gen.report.cumulative.lower[-1]),
+        "gen_iroas": float(gen.report.iroas.estimate),
+        "gen_iroas_lower": float(gen.report.iroas.lower),
+        "gen_iroas_upper": float(gen.report.iroas.upper),
+        "gen_incr_cost": float(gen.report.iroas.total_incremental_cost),
+        "gen_filled_cells": float(gen.report.filled_cells),
+        "gen_intervention_periods": float(gen.report.intervention_periods),
+        "gen_cooldown_periods": float(gen.report.cooldown_periods),
+        "gen_fixed_cost": float(gen.report.iroas.fixed_cost),
     }
 
 
