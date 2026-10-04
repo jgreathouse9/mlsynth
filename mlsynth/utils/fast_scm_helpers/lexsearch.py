@@ -91,7 +91,7 @@ def _afw_batched(Qs: np.ndarray, iters: int = 80) -> np.ndarray:
 
     This replaced a fixed number of away-step Frank-Wolfe iterations. Frank-Wolfe
     converges sublinearly, and on a panel with one dominant factor -- which is
-    what a geo panel is, 97% of the DMA panel's two-way-demeaned variance in a
+    what a geo panel is, 97% of one measured panel's variance sat in a
     single component -- the columns are near-collinear and a fixed budget stops
     short of the optimum. At 80 iterations the median relative error on that
     panel was 9%, high on two thirds of subsets. Since these losses *rank*

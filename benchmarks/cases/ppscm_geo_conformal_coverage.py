@@ -167,15 +167,15 @@ def run() -> dict:
 # Coverage itself is recorded alongside its gap so a failure says which way it
 # moved. All three land inside two standard errors of the prediction.
 #
-# The same measurement at 211 markets instead of 30 agrees at both horizons, so
+# The same measurement on a much wider cross-section agrees at both horizons, so
 # none of this is an artefact of the smaller cross-section:
 #
-#                        30 markets   211 markets   predicted
+#                        30 markets    wide panel   predicted
 #     h = 8, alpha=0.10      0.9017        0.910       0.9091
 #     h = 4, alpha=0.05      0.9675        0.956       0.9545
 #     h = 4, alpha=0.10      0.9125        0.914       0.9091
 #
-# The 211-market figures come from 49 replications at h = 8 and 18 at h = 4,
+# The wide-panel figures come from 49 replications at h = 8 and 18 at h = 4,
 # under the study arm in benchmarks/studies/cumulative_calibration/.
 EXPECTED = {
     "windows_h8": (10.0, 0.0),
