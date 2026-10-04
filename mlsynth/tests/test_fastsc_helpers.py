@@ -194,7 +194,7 @@ def test_post_intervention_no_post():
         [3, 4],
     ])
 
-    y_pop, updated = setup._run_post_intervention_updates(
+    y_pop, updated, Y_full = setup._run_post_intervention_updates(
         [cand],
         Y_pre,
         pd.DataFrame(),
@@ -308,7 +308,7 @@ def test_post_intervention_effect_computation(monkeypatch):
         lambda *a, **k: k.get("candidate") if "candidate" in k else (a[0] if a else None),
     )
 
-    _, updated = setup._run_post_intervention_updates(
+    _, updated, _ = setup._run_post_intervention_updates(
         [cand],
         Y_pre,
         post_df,
