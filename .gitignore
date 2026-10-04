@@ -1,4 +1,4 @@
-# Ignore build directories
+# Ignore build directories one file
 build/
 dist/
 
