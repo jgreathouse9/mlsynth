@@ -42,6 +42,39 @@ credible, and for the spillover-specific :doc:`spillsynth` when you want a
 weighting estimator with an explicit spillover coefficient, not a
 Bayesian state-space forecast.
 
+Controls that the trend can absorb
+----------------------------------
+
+CMBSTS fits the structural state first and the regression second. Each Gibbs
+sweep draws the trend, seasonal and cycle components from the observed outcome,
+subtracts them, and offers the remainder to the spike-and-slab regression. The
+reference implementation is built the same way: the ``CausalMBSTS`` state-space
+object never holds the regression block, so the state is drawn from the full
+outcome and the coefficients are fit to what is left over.
+
+That ordering decides what happens when a control series resembles something the
+state can already produce. A local level is a random walk, so a control that is
+itself close to a random walk is near-indistinguishable from the trend. The trend
+takes it, the remainder is noise, and the control's coefficient goes to zero
+however informative that control was. The counterfactual is then carried forward
+from the last pre-period level instead of tracked from the control, and the
+credible band widens to the width of a free random-walk forecast.
+
+``inclusion_probs`` is the diagnostic. A regressor you expect to matter sitting
+near its prior inclusion probability is the signature, and the pre-period fit
+confirms it: a residual standard deviation far below the noise you expect in the
+series means the trend has taken the signal. Both readings together, and a
+counterfactual close to the last observed pre-period value, identify the case.
+
+The regime where this bites is a single near-unit-root control paired with a
+local level, which is the ``CausalImpact`` setup of one outcome series and one
+covariate. CMBSTS is not a drop-in replacement there; reach for :doc:`bscm` or
+:doc:`tasc`. The regime CMBSTS was built for is the opposite — several outcome
+series modelled jointly, a seasonal component, and a regression block of calendar
+dummies, prices and many control paths, none of which a smooth trend reproduces.
+The supermarket replication is that case, and its inclusion probabilities run
+from 0.49 to 0.95 with the two price series at 0.93 and 0.95.
+
 Notation
 --------
 
@@ -156,7 +189,8 @@ by their posterior mean and an equal-tailed credible interval at level
 reflects posterior predictive uncertainty that grows with the forecast horizon —
 so a long post-window yields wide bands by construction. ``inclusion_probs``
 reports, for each regressor, the posterior probability that the model included
-it.
+it; a regressor stuck near its prior probability is the absorption case
+described above, not evidence that the control is uninformative.
 
 Return object
 -------------
