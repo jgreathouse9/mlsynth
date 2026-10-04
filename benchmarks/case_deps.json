@@ -2770,6 +2770,22 @@
   "mlsynth/utils/tbr_helpers/posterior.py",
   "mlsynth/utils/tbr_helpers/setup.py"
  ],
+ "tbrmm": [
+  "basedata/geolift_test_data.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/tbr.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
+  "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/design/estimate.py",
+  "mlsynth/utils/tbr_helpers/design/objective.py",
+  "mlsynth/utils/tbr_helpers/design/pipeline.py",
+  "mlsynth/utils/tbr_helpers/design/search.py",
+  "mlsynth/utils/tbr_helpers/pipeline.py",
+  "mlsynth/utils/tbr_helpers/posterior.py"
+ ],
  "th_prop99": [
   "basedata/P99data.csv",
   "mlsynth/config_models.py",

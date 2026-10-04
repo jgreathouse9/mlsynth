@@ -31,6 +31,7 @@ from scipy import stats
 
 from mlsynth import TBR
 from mlsynth.config_models import TBRConfig
+from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
 
@@ -126,18 +127,24 @@ def reference_posterior(df, T0, level=0.9, with_cooldown=False):
 # --------------------------------------------------------------------------- #
 # Layer 4: smoke
 # --------------------------------------------------------------------------- #
-def test_fits_and_returns_an_effect_result():
-    from mlsynth.config_models import EffectResult
+def test_fits_and_returns_a_design_result_carrying_the_effect():
+    """The merged TBR designs and realises, so it returns the design family.
+
+    LEXSCM and MAREX do the same: the estimate rides on ``report``, which is an
+    EffectResult, and the enclosing result holds whatever design was chosen.
+    """
+    from mlsynth.config_models import DesignResult, EffectResult
     res = TBR(base_config(geo_panel())).fit()
-    assert isinstance(res, EffectResult)
-    assert np.isfinite(res.att)
-    assert np.all(np.isfinite(np.asarray(res.counterfactual, dtype=float)))
+    assert isinstance(res, DesignResult)
+    assert isinstance(res.report, EffectResult)
+    assert np.isfinite(res.report.att)
+    assert np.all(np.isfinite(np.asarray(res.report.counterfactual, dtype=float)))
 
 
 def test_the_counterfactual_spans_the_whole_panel():
     T, T0 = 20, 14
     res = TBR(base_config(geo_panel(T=T, T0=T0))).fit()
-    assert len(np.asarray(res.counterfactual, dtype=float)) == T
+    assert len(np.asarray(res.report.counterfactual, dtype=float)) == T
 
 
 # --------------------------------------------------------------------------- #
@@ -146,7 +153,7 @@ def test_the_counterfactual_spans_the_whole_panel():
 def test_pretest_coefficients_match_equation_1():
     df = geo_panel(noise=2.0, seed=3)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().tbr_fit
+    got = TBR(base_config(df)).fit().report.tbr_fit
     assert got.alpha == pytest.approx(want["alpha"], rel=1e-12)
     assert got.beta == pytest.approx(want["beta"], rel=1e-12)
     assert got.sigma_sq == pytest.approx(want["s2"], rel=1e-12)
@@ -156,21 +163,21 @@ def test_pretest_coefficients_match_equation_1():
 def test_cumulative_estimate_matches_equation_4():
     df = geo_panel(noise=2.0, seed=4)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().cumulative
+    got = TBR(base_config(df)).fit().report.cumulative
     assert np.allclose(np.asarray(got.estimate, float), want["loc"], rtol=1e-12)
 
 
 def test_cumulative_scale_matches_equation_6():
     df = geo_panel(noise=2.0, seed=5)
     want = reference_posterior(df, 14)
-    got = TBR(base_config(df)).fit().cumulative
+    got = TBR(base_config(df)).fit().report.cumulative
     assert np.allclose(np.asarray(got.scale, float), want["scale"], rtol=1e-12)
 
 
 def test_interval_is_the_t_quantile_of_that_scale():
     df = geo_panel(noise=2.0, seed=6)
     want = reference_posterior(df, 14, level=0.9)
-    got = TBR(base_config(df, level=0.9)).fit().cumulative
+    got = TBR(base_config(df, level=0.9)).fit().report.cumulative
     assert np.allclose(np.asarray(got.lower, float), want["lower"], rtol=1e-12)
     assert np.allclose(np.asarray(got.upper, float), want["upper"], rtol=1e-12)
 
@@ -179,9 +186,9 @@ def test_cumulative_is_the_running_sum_of_the_per_period_gap():
     """Section 3.2: Delta(t) is the partial sum of phi_t = y_t - y*_t."""
     df = geo_panel(noise=2.0, seed=7)
     res = TBR(base_config(df)).fit()
-    gap = np.asarray(res.gap, dtype=float)[-len(res.cumulative.estimate):]
+    gap = np.asarray(res.report.gap, dtype=float)[-len(res.report.cumulative.estimate):]
     assert np.allclose(np.cumsum(gap),
-                       np.asarray(res.cumulative.estimate, float), rtol=1e-10)
+                       np.asarray(res.report.cumulative.estimate, float), rtol=1e-10)
 
 
 # --------------------------------------------------------------------------- #
@@ -189,14 +196,14 @@ def test_cumulative_is_the_running_sum_of_the_per_period_gap():
 # --------------------------------------------------------------------------- #
 def test_an_exact_relation_with_no_lift_reports_no_effect():
     res = TBR(base_config(geo_panel(noise=0.0, lift=0.0))).fit()
-    assert np.allclose(np.asarray(res.cumulative.estimate, float), 0.0,
+    assert np.allclose(np.asarray(res.report.cumulative.estimate, float), 0.0,
                        atol=1e-8)
 
 
 def test_a_known_constant_lift_is_recovered_exactly():
     T, T0, lift = 20, 14, 7.0
     res = TBR(base_config(geo_panel(T=T, T0=T0, noise=0.0, lift=lift))).fit()
-    got = np.asarray(res.cumulative.estimate, float)
+    got = np.asarray(res.report.cumulative.estimate, float)
     assert np.allclose(got, lift * np.arange(1, T - T0 + 1), atol=1e-7)
 
 
@@ -204,17 +211,17 @@ def test_unassigned_units_enter_neither_aggregate():
     """A unit that is neither treated nor flagged control changes nothing."""
     a = TBR(base_config(geo_panel(n_unassigned=0, seed=8))).fit()
     b = TBR(base_config(geo_panel(n_unassigned=5, seed=8))).fit()
-    assert np.allclose(np.asarray(a.cumulative.estimate, float),
-                       np.asarray(b.cumulative.estimate, float), rtol=1e-12)
-    assert a.tbr_fit.beta == pytest.approx(b.tbr_fit.beta, rel=1e-12)
+    assert np.allclose(np.asarray(a.report.cumulative.estimate, float),
+                       np.asarray(b.report.cumulative.estimate, float), rtol=1e-12)
+    assert a.report.tbr_fit.beta == pytest.approx(b.report.tbr_fit.beta, rel=1e-12)
 
 
 def test_scaling_the_outcome_scales_the_effect_and_its_scale():
     df = geo_panel(noise=2.0, seed=9)
     big = df.copy()
     big["sales"] = big["sales"] * 1000.0
-    a = TBR(base_config(df)).fit().cumulative
-    b = TBR(base_config(big)).fit().cumulative
+    a = TBR(base_config(df)).fit().report.cumulative
+    b = TBR(base_config(big)).fit().report.cumulative
     assert np.allclose(np.asarray(b.estimate, float),
                        1000.0 * np.asarray(a.estimate, float), rtol=1e-10)
     assert np.allclose(np.asarray(b.scale, float),
@@ -227,8 +234,8 @@ def test_relabelling_units_within_a_group_changes_nothing():
     order = {g: f"z{i}" for i, g in
              enumerate(sorted(df[df.is_control == 1].geo.unique())[::-1])}
     shuffled["geo"] = shuffled.geo.map(lambda g: order.get(g, g))
-    a = TBR(base_config(df)).fit().cumulative
-    b = TBR(base_config(shuffled)).fit().cumulative
+    a = TBR(base_config(df)).fit().report.cumulative
+    b = TBR(base_config(shuffled)).fit().report.cumulative
     assert np.allclose(np.asarray(a.estimate, float),
                        np.asarray(b.estimate, float), rtol=1e-12)
 
@@ -236,7 +243,7 @@ def test_relabelling_units_within_a_group_changes_nothing():
 def test_the_weights_slot_says_there_are_none():
     """TBR carries no donor weights; the container must still not be empty."""
     res = TBR(base_config(geo_panel())).fit()
-    assert not res.weights.is_empty
+    assert not res.report.weights.is_empty
 
 
 # --------------------------------------------------------------------------- #
@@ -252,10 +259,10 @@ def test_the_window_always_covers_the_whole_post_period():
     df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=19, seed=11)
     with_cd = TBR(base_config(df, cooldown_col="cooldown")).fit()
     without = TBR(base_config(df)).fit()
-    assert len(with_cd.cumulative.estimate) == T - T0
-    assert len(without.cumulative.estimate) == T - T0
-    assert np.allclose(np.asarray(with_cd.cumulative.estimate, float),
-                       np.asarray(without.cumulative.estimate, float),
+    assert len(with_cd.report.cumulative.estimate) == T - T0
+    assert len(without.report.cumulative.estimate) == T - T0
+    assert np.allclose(np.asarray(with_cd.report.cumulative.estimate, float),
+                       np.asarray(without.report.cumulative.estimate, float),
                        rtol=1e-12)
 
 
@@ -263,9 +270,9 @@ def test_the_flag_splits_the_window_into_intervention_and_cooldown():
     T, T0, cd = 24, 14, 19
     df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=11)
     res = TBR(base_config(df, cooldown_col="cooldown")).fit()
-    assert res.cooldown_periods == T - cd
-    assert res.intervention_periods == cd - T0
-    assert res.cooldown_periods + res.intervention_periods == T - T0
+    assert res.report.cooldown_periods == T - cd
+    assert res.report.intervention_periods == cd - T0
+    assert res.report.cooldown_periods + res.report.intervention_periods == T - T0
 
 
 def test_the_effect_at_the_end_of_the_intervention_is_reported_separately():
@@ -274,26 +281,26 @@ def test_the_effect_at_the_end_of_the_intervention_is_reported_separately():
     T, T0, cd = 24, 14, 19
     df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=11)
     res = TBR(base_config(df, cooldown_col="cooldown")).fit()
-    full = np.asarray(res.cumulative.estimate, float)
-    assert res.effect_at_intervention_end == pytest.approx(full[cd - T0 - 1],
+    full = np.asarray(res.report.cumulative.estimate, float)
+    assert res.report.effect_at_intervention_end == pytest.approx(full[cd - T0 - 1],
                                                            rel=1e-12)
-    assert res.effect_at_cooldown_end == pytest.approx(full[-1], rel=1e-12)
+    assert res.report.effect_at_cooldown_end == pytest.approx(full[-1], rel=1e-12)
 
 
 def test_no_cooldown_column_reports_no_cooldown_periods():
     T, T0 = 20, 14
     res = TBR(base_config(geo_panel(T=T, T0=T0))).fit()
-    assert res.cooldown_periods == 0
-    assert res.intervention_periods == T - T0
-    assert res.effect_at_intervention_end == pytest.approx(
-        res.effect_at_cooldown_end, rel=1e-12)
+    assert res.report.cooldown_periods == 0
+    assert res.report.intervention_periods == T - T0
+    assert res.report.effect_at_intervention_end == pytest.approx(
+        res.report.effect_at_cooldown_end, rel=1e-12)
 
 
 # --------------------------------------------------------------------------- #
 # iROAS
 # --------------------------------------------------------------------------- #
 def test_no_cost_column_means_no_iroas():
-    assert TBR(base_config(geo_panel())).fit().iroas is None
+    assert TBR(base_config(geo_panel())).fit().report.iroas is None
 
 
 def test_zero_pretest_cost_is_the_fixed_cost_case():
@@ -305,20 +312,20 @@ def test_zero_pretest_cost_is_the_fixed_cost_case():
     res = TBR(base_config(df, cost_col="cost")).fit()
     n_treat = df[df.D == 1].geo.nunique()
     total = per * n_treat * (T - T0)
-    assert res.iroas.fixed_cost is True
-    assert res.iroas.total_incremental_cost == pytest.approx(total, rel=1e-12)
-    assert res.iroas.estimate == pytest.approx(
-        float(np.asarray(res.cumulative.estimate, float)[-1]) / total,
+    assert res.report.iroas.fixed_cost is True
+    assert res.report.iroas.total_incremental_cost == pytest.approx(total, rel=1e-12)
+    assert res.report.iroas.estimate == pytest.approx(
+        float(np.asarray(res.report.cumulative.estimate, float)[-1]) / total,
         rel=1e-12)
-    assert res.iroas.lower == pytest.approx(
-        float(np.asarray(res.cumulative.lower, float)[-1]) / total, rel=1e-12)
+    assert res.report.iroas.lower == pytest.approx(
+        float(np.asarray(res.report.cumulative.lower, float)[-1]) / total, rel=1e-12)
 
 
 def test_pretest_cost_leaves_the_fixed_cost_case():
     df = geo_panel(noise=2.0, cost_in_test=100.0, cost_in_pre=20.0, seed=13)
     res = TBR(base_config(df, cost_col="cost")).fit()
-    assert res.iroas.fixed_cost is False
-    assert np.isfinite(res.iroas.estimate)
+    assert res.report.iroas.fixed_cost is False
+    assert np.isfinite(res.report.iroas.estimate)
 
 
 def test_the_rank_deficient_cost_fit_is_reported_not_hidden():
@@ -330,8 +337,8 @@ def test_the_rank_deficient_cost_fit_is_reported_not_hidden():
     """
     df = geo_panel(noise=2.0, cost_in_test=100.0, seed=14)
     res = TBR(base_config(df, cost_col="cost")).fit()
-    assert res.cost_fit.rank_deficient is True
-    assert res.cost_fit.df == res.tbr_fit.df
+    assert res.report.cost_fit.rank_deficient is True
+    assert res.report.cost_fit.df == res.report.tbr_fit.df
 
 
 # --------------------------------------------------------------------------- #
@@ -344,8 +351,8 @@ def test_an_absent_cell_is_filled_to_zero():
     holed = df.drop(df.index[(df.geo == "c1") & (df.date == 3)])
     zeroed = df.copy()
     zeroed.loc[(zeroed.geo == "c1") & (zeroed.date == 3), "sales"] = 0.0
-    a = TBR(base_config(holed)).fit().cumulative
-    b = TBR(base_config(zeroed)).fit().cumulative
+    a = TBR(base_config(holed)).fit().report.cumulative
+    b = TBR(base_config(zeroed)).fit().report.cumulative
     assert np.allclose(np.asarray(a.estimate, float),
                        np.asarray(b.estimate, float), rtol=1e-12)
 
@@ -354,7 +361,7 @@ def test_the_fill_is_reported():
     df = geo_panel(noise=1.0, seed=16)
     holed = df.drop(df.index[(df.geo == "c1") & (df.date.isin([3, 4]))])
     res = TBR(base_config(holed)).fit()
-    assert res.filled_cells == 2
+    assert res.report.filled_cells == 2
 
 
 # --------------------------------------------------------------------------- #
@@ -362,31 +369,31 @@ def test_the_fill_is_reported():
 # --------------------------------------------------------------------------- #
 def test_a_single_control_unit():
     res = TBR(base_config(geo_panel(n_control=1, noise=1.0))).fit()
-    assert np.isfinite(res.att)
+    assert np.isfinite(res.report.att)
 
 
 def test_a_single_treated_unit():
     res = TBR(base_config(geo_panel(n_treat=1, noise=1.0))).fit()
-    assert np.isfinite(res.att)
+    assert np.isfinite(res.report.att)
 
 
 def test_three_pretest_periods_is_the_shortest_usable_panel():
     """df = n - 2, so three pretest points leave one degree of freedom."""
     res = TBR(base_config(geo_panel(T=6, T0=3, noise=0.5))).fit()
-    assert res.tbr_fit.df == 1
+    assert res.report.tbr_fit.df == 1
 
 
 def test_one_test_period():
     res = TBR(base_config(geo_panel(T=15, T0=14, noise=1.0))).fit()
-    assert len(res.cumulative.estimate) == 1
+    assert len(res.report.cumulative.estimate) == 1
 
 
 def test_a_constant_control_aggregate_is_rank_deficient_and_says_so():
     df = geo_panel(noise=0.0, seed=17)
     df.loc[df.is_control == 1, "sales"] = 5.0
     res = TBR(base_config(df)).fit()
-    assert res.tbr_fit.rank_deficient is True
-    assert np.all(np.isfinite(np.asarray(res.cumulative.estimate, float)))
+    assert res.report.tbr_fit.rank_deficient is True
+    assert np.all(np.isfinite(np.asarray(res.report.cumulative.estimate, float)))
 
 
 # --------------------------------------------------------------------------- #
@@ -516,8 +523,8 @@ def test_a_cooldown_column_that_never_turns_on_is_no_cooldown():
     T, T0 = 20, 14
     df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=None, seed=18)
     res = TBR(base_config(df, cooldown_col="cooldown")).fit()
-    assert res.cooldown_periods == 0
-    assert res.intervention_periods == T - T0
+    assert res.report.cooldown_periods == 0
+    assert res.report.intervention_periods == T - T0
 
 
 def test_a_repeated_unit_period_cell_raises():
@@ -623,8 +630,8 @@ def design_config(df, **over):
 
 def test_design_mode_fits_without_a_treatment_indicator():
     res = TBR(design_config(design_panel())).fit()
-    assert np.isfinite(res.att)
-    assert len(res.cumulative.estimate) == 6
+    assert np.isfinite(res.report.att)
+    assert len(res.report.cumulative.estimate) == 6
 
 
 def test_design_mode_and_estimation_mode_agree_on_the_same_panel():
@@ -633,15 +640,15 @@ def test_design_mode_and_estimation_mode_agree_on_the_same_panel():
     df = design_panel(noise=2.0, seed=24)
     estimated = TBR(base_config(df)).fit()
     designed = TBR(design_config(df)).fit()
-    assert designed.tbr_fit.alpha == pytest.approx(estimated.tbr_fit.alpha,
+    assert designed.report.tbr_fit.alpha == pytest.approx(estimated.report.tbr_fit.alpha,
                                                    rel=1e-12)
-    assert designed.tbr_fit.beta == pytest.approx(estimated.tbr_fit.beta,
+    assert designed.report.tbr_fit.beta == pytest.approx(estimated.report.tbr_fit.beta,
                                                   rel=1e-12)
-    assert np.allclose(np.asarray(designed.cumulative.estimate, float),
-                       np.asarray(estimated.cumulative.estimate, float),
+    assert np.allclose(np.asarray(designed.report.cumulative.estimate, float),
+                       np.asarray(estimated.report.cumulative.estimate, float),
                        rtol=1e-12)
-    assert np.allclose(np.asarray(designed.cumulative.scale, float),
-                       np.asarray(estimated.cumulative.scale, float),
+    assert np.allclose(np.asarray(designed.report.cumulative.scale, float),
+                       np.asarray(estimated.report.cumulative.scale, float),
                        rtol=1e-12)
 
 
@@ -659,20 +666,20 @@ def test_an_a_a_split_of_untreated_geos_reports_no_effect():
                              is_treatment=int(j < 5), is_control=int(j >= 5),
                              post=int(t >= T0)))
     res = TBR(design_config(pd.DataFrame(rows))).fit()
-    final = len(res.cumulative.estimate) - 1
-    assert res.cumulative.lower[final] <= 0.0 <= res.cumulative.upper[final]
+    final = len(res.report.cumulative.estimate) - 1
+    assert res.report.cumulative.lower[final] <= 0.0 <= res.report.cumulative.upper[final]
 
 
 def test_design_mode_reports_the_groups_it_used():
     res = TBR(design_config(design_panel())).fit()
-    assert sorted(res.treated_units) == ["t0", "t1", "t2"]
-    assert sorted(res.control_units) == ["c0", "c1", "c2", "c3"]
+    assert sorted(res.report.treated_units) == ["t0", "t1", "t2"]
+    assert sorted(res.report.control_units) == ["c0", "c1", "c2", "c3"]
 
 
 def test_neither_treat_nor_post_col_is_refused():
     from pydantic import ValidationError
     df = design_panel()
-    with pytest.raises(ValidationError, match="post_col|treat"):
+    with pytest.raises(MlsynthConfigError, match="post-treatment window"):
         TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
                   control_col="is_control", treatment_col="is_treatment",
                   display_graphs=False)
@@ -681,7 +688,7 @@ def test_neither_treat_nor_post_col_is_refused():
 def test_post_col_without_a_treatment_group_is_refused():
     from pydantic import ValidationError
     df = design_panel()
-    with pytest.raises(ValidationError, match="treatment_col"):
+    with pytest.raises(MlsynthConfigError, match="treatment_col"):
         TBRConfig(df=df, unitid="geo", time="date", outcome="sales",
                   control_col="is_control", post_col="post",
                   display_graphs=False)
@@ -740,8 +747,8 @@ def test_cooldown_works_in_design_mode_too():
     T, T0, cd = 24, 14, 19
     df = design_panel(T=T, T0=T0, cooldown_from=cd, seed=26)
     res = TBR(design_config(df, cooldown_col="cooldown")).fit()
-    assert res.cooldown_periods == T - cd
-    assert res.intervention_periods == cd - T0
+    assert res.report.cooldown_periods == T - cd
+    assert res.report.intervention_periods == cd - T0
 
 
 def test_an_empty_panel_is_refused():
@@ -772,9 +779,9 @@ def test_a_hole_on_the_first_cooldown_day_does_not_break_the_flag():
     df = geo_panel(T=T, T0=T0, noise=1.0, cooldown_from=cd, seed=27)
     holed = df.drop(df.index[(df.geo == "c1") & (df.date == cd)])
     res = TBR(base_config(holed, cooldown_col="cooldown")).fit()
-    assert res.filled_cells == 1
-    assert res.cooldown_periods == T - cd
-    assert res.intervention_periods == cd - T0
+    assert res.report.filled_cells == 1
+    assert res.report.cooldown_periods == T - cd
+    assert res.report.intervention_periods == cd - T0
 
 
 def test_a_hole_on_the_first_post_day_does_not_unmark_treatment():
@@ -782,9 +789,9 @@ def test_a_hole_on_the_first_post_day_does_not_unmark_treatment():
     df = geo_panel(T=T, T0=T0, noise=1.0, seed=28)
     holed = df.drop(df.index[(df.geo == "t0") & (df.date == T0)])
     res = TBR(base_config(holed)).fit()
-    assert res.filled_cells == 1
-    assert len(res.cumulative.estimate) == T - T0
-    assert sorted(res.treated_units) == ["t0", "t1", "t2"]
+    assert res.report.filled_cells == 1
+    assert len(res.report.cumulative.estimate) == T - T0
+    assert sorted(res.report.treated_units) == ["t0", "t1", "t2"]
 
 
 def test_a_hole_anywhere_equals_recording_that_cell_as_zero():
@@ -802,14 +809,14 @@ def test_a_hole_anywhere_equals_recording_that_cell_as_zero():
 
     a = TBR(base_config(holed, cooldown_col="cooldown", cost_col="cost")).fit()
     b = TBR(base_config(zeroed, cooldown_col="cooldown", cost_col="cost")).fit()
-    assert a.filled_cells == len(holes)
-    assert b.filled_cells == 0
-    assert np.allclose(np.asarray(a.cumulative.estimate, float),
-                       np.asarray(b.cumulative.estimate, float), rtol=1e-12)
-    assert np.allclose(np.asarray(a.cumulative.scale, float),
-                       np.asarray(b.cumulative.scale, float), rtol=1e-12)
-    assert a.iroas.estimate == pytest.approx(b.iroas.estimate, rel=1e-12)
-    assert a.cooldown_periods == b.cooldown_periods
+    assert a.report.filled_cells == len(holes)
+    assert b.report.filled_cells == 0
+    assert np.allclose(np.asarray(a.report.cumulative.estimate, float),
+                       np.asarray(b.report.cumulative.estimate, float), rtol=1e-12)
+    assert np.allclose(np.asarray(a.report.cumulative.scale, float),
+                       np.asarray(b.report.cumulative.scale, float), rtol=1e-12)
+    assert a.report.iroas.estimate == pytest.approx(b.report.iroas.estimate, rel=1e-12)
+    assert a.report.cooldown_periods == b.report.cooldown_periods
 
 
 def test_a_hole_in_design_mode_keeps_the_post_flag_block_assigned():
@@ -817,8 +824,8 @@ def test_a_hole_in_design_mode_keeps_the_post_flag_block_assigned():
     df = design_panel(T=T, T0=T0, noise=1.0, seed=30)
     holed = df.drop(df.index[(df.geo == "c0") & (df.date == T0)])
     res = TBR(design_config(holed)).fit()
-    assert res.filled_cells == 1
-    assert len(res.cumulative.estimate) == T - T0
+    assert res.report.filled_cells == 1
+    assert len(res.report.cumulative.estimate) == T - T0
 
 
 # --------------------------------------------------------------------------- #
@@ -834,9 +841,9 @@ def test_the_pretest_counterfactual_is_the_fitted_relation():
     """Not the observed series, which would make the residual zero by fiat."""
     df = geo_panel(noise=3.0, seed=31)
     res = TBR(base_config(df)).fit()
-    n = res.tbr_fit.n_pretest
-    obs = np.asarray(res.time_series.observed_outcome, float).ravel()
-    cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()
+    n = res.report.tbr_fit.n_pretest
+    obs = np.asarray(res.report.time_series.observed_outcome, float).ravel()
+    cf = np.asarray(res.report.time_series.counterfactual_outcome, float).ravel()
     want = reference_posterior(df, n)
     x = _control_aggregate(df)
     assert np.allclose(cf[:n], want["alpha"] + want["beta"] * x[:n], rtol=1e-10)
@@ -846,15 +853,15 @@ def test_the_pretest_counterfactual_is_the_fitted_relation():
 def test_the_reported_pretest_fit_is_the_real_one():
     df = geo_panel(noise=3.0, seed=32)
     res = TBR(base_config(df)).fit()
-    n = res.tbr_fit.n_pretest
-    obs = np.asarray(res.time_series.observed_outcome, float).ravel()[:n]
-    cf = np.asarray(res.time_series.counterfactual_outcome, float).ravel()[:n]
+    n = res.report.tbr_fit.n_pretest
+    obs = np.asarray(res.report.time_series.observed_outcome, float).ravel()[:n]
+    cf = np.asarray(res.report.time_series.counterfactual_outcome, float).ravel()[:n]
     rmse = float(np.sqrt(np.mean((obs - cf) ** 2)))
-    assert res.fit_diagnostics.rmse_pre == pytest.approx(rmse, rel=1e-10)
-    assert res.fit_diagnostics.rmse_pre > 0.0
-    assert res.fit_diagnostics.r_squared_pre < 1.0
+    assert res.report.fit_diagnostics.rmse_pre == pytest.approx(rmse, rel=1e-10)
+    assert res.report.fit_diagnostics.rmse_pre > 0.0
+    assert res.report.fit_diagnostics.r_squared_pre < 1.0
     # the residual variance is sigma^2 up to the degrees-of-freedom correction
-    assert rmse ** 2 * n / res.tbr_fit.df == pytest.approx(res.tbr_fit.sigma_sq,
+    assert rmse ** 2 * n / res.report.tbr_fit.df == pytest.approx(res.report.tbr_fit.sigma_sq,
                                                            rel=1e-10)
 
 
@@ -862,8 +869,8 @@ def test_a_noisier_panel_reports_a_worse_pretest_fit():
     """The diagnostic has to move with the thing it measures."""
     a = TBR(base_config(geo_panel(noise=1.0, seed=33))).fit()
     b = TBR(base_config(geo_panel(noise=8.0, seed=33))).fit()
-    assert b.fit_diagnostics.rmse_pre > 4.0 * a.fit_diagnostics.rmse_pre
-    assert b.fit_diagnostics.r_squared_pre < a.fit_diagnostics.r_squared_pre
+    assert b.report.fit_diagnostics.rmse_pre > 4.0 * a.report.fit_diagnostics.rmse_pre
+    assert b.report.fit_diagnostics.r_squared_pre < a.report.fit_diagnostics.r_squared_pre
 
 
 def test_the_post_period_counterfactual_is_unchanged_by_this():
@@ -872,7 +879,7 @@ def test_the_post_period_counterfactual_is_unchanged_by_this():
     df = geo_panel(noise=3.0, seed=34)
     res = TBR(base_config(df)).fit()
     want = reference_posterior(df, 14)
-    assert np.allclose(np.asarray(res.cumulative.estimate, float), want["loc"],
+    assert np.allclose(np.asarray(res.report.cumulative.estimate, float), want["loc"],
                        rtol=1e-12)
 
 

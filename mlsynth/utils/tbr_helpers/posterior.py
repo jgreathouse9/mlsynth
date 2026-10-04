@@ -24,9 +24,11 @@ grows in ``T^2`` and the observation contribution only in ``T``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
+
+from ...exceptions import MlsynthEstimationError
 from scipy import stats
 
 from ..groupfit import (
@@ -187,3 +189,104 @@ def iroas_simulated(resp_loc: np.ndarray, resp_scale: np.ndarray,
     return (float(np.median(draws)),
             float(np.quantile(draws, tail)),
             float(np.quantile(draws, 1.0 - tail)))
+
+def _newey_west(resid: np.ndarray, design: np.ndarray, lag: int
+                ) -> Tuple[float, np.ndarray]:
+    """Bartlett-kernel long-run variance of ``resid``, and the meat for the fit.
+
+    Li and Van den Bulte's proof D.2 writes both of Proposition 3.4's variance
+    terms as sums truncated at ``|s - t| <= l``, consistent by the argument of
+    Newey and West (1987). The Bartlett taper ``1 - j / (l + 1)`` keeps the
+    estimate positive semi-definite, which an untapered truncation does not.
+
+    At ``lag = 0`` only the diagonal survives, which is the independent case the
+    same proof reduces to -- so this is a generalisation of equation 6 and not a
+    different estimator.
+
+    Parameters
+    ----------
+    resid : np.ndarray
+        Pretest residuals, shape ``(T0,)``.
+    design : np.ndarray
+        The pretest design ``[1, xbar]``, shape ``(T0, 2)``.
+    lag : int
+        Truncation lag.
+
+    Returns
+    -------
+    tuple
+        The residuals' long-run variance, and the ``(2, 2)`` meat matrix.
+    """
+    n = resid.size
+    # The same n / (n - 2) correction eqn 6's sigma^2 carries, so a lag of zero
+    # lands on HC1 and the two scales are on one footing.
+    dfc = n / float(n - design.shape[1])
+    lrv = float(resid @ resid) / n
+    scaled = design * resid[:, None]
+    meat = scaled.T @ scaled
+    for j in range(1, lag + 1):
+        weight = 1.0 - j / (lag + 1.0)
+        lrv += 2.0 * weight * float(resid[j:] @ resid[:-j]) / n
+        cross = scaled[j:].T @ scaled[:-j]
+        meat += weight * (cross + cross.T)
+    return lrv * dfc, meat * dfc
+
+
+def _hac_scale(y_pre: np.ndarray, x_pre: np.ndarray, x_post: np.ndarray,
+               n_post: int, lag: int) -> float:
+    """Proposition 3.4's scale for the cumulative effect.
+
+    The same two pieces equation 6 has -- what is unknown about the coefficients,
+    and the test window's own errors -- with each sum truncated instead of taken
+    on the diagonal.
+    """
+    design = np.column_stack([np.ones_like(x_pre), x_pre])
+    coef, *_ = np.linalg.lstsq(design, y_pre, rcond=None)
+    lrv, meat = _newey_west(y_pre - design @ coef, design, lag)
+    cov = np.linalg.pinv(design.T @ design)
+    contrast = np.array([float(n_post), float(x_post.sum())])
+    coefficient_term = float(contrast @ (cov @ meat @ cov) @ contrast)
+    return float(np.sqrt(max(coefficient_term + n_post * lrv, 0.0)))
+
+
+def _bandwidth(n_pre: int, requested: Optional[int]) -> int:
+    """``ceil(T0 ** 0.25)`` unless the caller named one; refuse one too long.
+
+    A truncation at or beyond the pretest length has no lags left to average, so
+    it is a configuration error and not a degenerate-but-usable choice.
+    """
+    lag = int(np.ceil(n_pre ** 0.25)) if requested is None else int(requested)
+    if lag >= n_pre:
+        raise MlsynthEstimationError(
+            f"the Newey-West bandwidth must be shorter than the {n_pre} pretest "
+            f"periods it truncates over; got {lag}.")
+    return lag
+
+
+def cumulative_posterior_hac(fit, y_pre, x_pre, y_test, x_test, *,
+                             bandwidth=None):
+    """Eqn 4's location with Proposition 3.4's scale, at every horizon.
+
+    :func:`cumulative_posterior` prices the interval on an iid pretest
+    residual. Where that residual is autocorrelated the iid scale understates
+    the spread, and Li and Van den Bulte's Proposition 3.4 replaces each sum
+    with a Newey-West truncation. The location is untouched: this is a
+    variance correction and the point estimate is eqn 4 either way.
+
+    The scale is computed per horizon, so a caller reading the path at T sees
+    the correction applied over the first T test periods and not over the whole
+    window scaled down.
+    """
+    y_pre = np.asarray(y_pre, dtype=float)
+    x_pre = np.asarray(x_pre, dtype=float)
+    y_test = np.asarray(y_test, dtype=float)
+    x_test = np.asarray(x_test, dtype=float)
+
+    loc, _ = cumulative_posterior(fit, y_test, x_test)
+    lag = _bandwidth(int(y_pre.size), bandwidth)
+    scale = np.array([
+        _hac_scale(y_pre, x_pre, x_test[:T], T, lag)
+        for T in range(1, y_test.size + 1)
+    ], dtype=float)
+    return loc, scale
+

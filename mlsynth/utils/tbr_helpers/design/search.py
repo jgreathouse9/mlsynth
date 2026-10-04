@@ -44,7 +44,7 @@ from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthDataError
+from ....exceptions import MlsynthDataError
 from .objective import SplitScore, score_split
 
 TREATMENT = "treatment"

@@ -157,8 +157,16 @@ def _complete_grid(df: pd.DataFrame, unit: str, time: str, config,
     return out, missing
 
 
-def build_inputs(config) -> TBRInputs:
-    """Validate, fill, aggregate, and hand the aggregate pair to ``dataprep``."""
+def build_inputs(config, *, treated=None, controls=None) -> TBRInputs:
+    """Validate, fill, aggregate, and hand the aggregate pair to ``dataprep``.
+
+    ``treated`` and ``controls`` name the split directly, which is how the
+    searched mode reuses this. Once the hill climb has chosen the geos there is
+    nothing left that makes it a different estimation problem -- it is TBR on
+    the chosen split -- so both modes assemble their report through here and a
+    caller finds the same fields on it either way. Supplied, they replace the
+    columns; the checks that follow apply to them unchanged.
+    """
     unit, time = config.unitid, config.time
     outcome, treat = config.outcome, config.treat
     df = config.df.copy()
@@ -166,27 +174,57 @@ def build_inputs(config) -> TBRInputs:
     value_cols = [outcome] + ([config.cost_col] if config.cost_col else [])
     df, filled = _complete_grid(df, unit, time, config, value_cols)
 
-    is_control = _binary_unit_flag(df, unit, config.control_col)
-    if treat is not None:
-        df[treat] = df[treat].astype(int)
-        treated_flag = df.groupby(unit, observed=True)[treat].max().astype(int)
+    if (treated is None) != (controls is None):
+        raise MlsynthDataError(
+            "an explicit split needs both halves: supplying one and reading the "
+            "other off a column would mix a chosen group with a flagged one.")
+
+    if treated is not None:
+        treated, controls = list(treated), list(controls)
+        known = set(df[unit].unique())
+        unknown = sorted({u for u in list(treated) + list(controls)
+                          if u not in known})
+        if unknown:
+            raise MlsynthDataError(
+                f"unit(s) {unknown[:5]} are not in the panel, which holds "
+                f"{len(known)} unit(s).")
+        both = sorted(set(treated) & set(controls))
+        if both:
+            raise MlsynthDataError(
+                f"unit(s) {both[:5]} are in both halves of the split; a geo "
+                f"belongs to one group")
+        if not treated:
+            raise MlsynthDataError(
+                "the treatment group is empty: the split names no treated unit")
+        if not controls:
+            raise MlsynthDataError(
+                "no unit is in the control group, so there is nothing to "
+                "regress on")
+        is_control = pd.Series(
+            {u: int(u in set(controls)) for u in df[unit].unique()})
     else:
-        treated_flag = _binary_unit_flag(df, unit, config.treatment_col)
-    treated = treated_flag[treated_flag == 1].index.tolist()
-    controls = [u for u in is_control[is_control == 1].index if u not in treated]
-    both = sorted(set(treated) & set(is_control[is_control == 1].index))
-    if both:
-        raise MlsynthDataError(
-            f"unit(s) {both[:5]} are treated and also flagged as control by "
-            f"{config.control_col!r}; a geo belongs to one group")
-    if not treated:
-        source = treat if treat is not None else config.treatment_col
-        raise MlsynthDataError(
-            f"the treatment group is empty: {source!r} marks no unit")
-    if not controls:
-        raise MlsynthDataError(
-            f"no unit is in the control group: {config.control_col!r} flags "
-            f"none of the untreated units, so there is nothing to regress on")
+        is_control = _binary_unit_flag(df, unit, config.control_col)
+        if treat is not None:
+            df[treat] = df[treat].astype(int)
+            treated_flag = df.groupby(unit, observed=True)[treat].max().astype(int)
+        else:
+            treated_flag = _binary_unit_flag(df, unit, config.treatment_col)
+        treated = treated_flag[treated_flag == 1].index.tolist()
+        controls = [u for u in is_control[is_control == 1].index
+                    if u not in treated]
+        both = sorted(set(treated) & set(is_control[is_control == 1].index))
+        if both:
+            raise MlsynthDataError(
+                f"unit(s) {both[:5]} are treated and also flagged as control by "
+                f"{config.control_col!r}; a geo belongs to one group")
+        if not treated:
+            source = treat if treat is not None else config.treatment_col
+            raise MlsynthDataError(
+                f"the treatment group is empty: {source!r} marks no unit")
+        if not controls:
+            raise MlsynthDataError(
+                f"no unit is in the control group: {config.control_col!r} flags "
+                f"none of the untreated units, so there is nothing to regress on")
     unassigned = [u for u in df[unit].unique()
                   if u not in treated and u not in controls]
 

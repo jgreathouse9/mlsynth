@@ -26,8 +26,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mlsynth import TBRMM
-from mlsynth.config_models import TBRMMConfig
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig
 
 
 def _panel(n_units: int = 8, n_pre: int = 40, n_post: int = 10,
@@ -48,7 +48,7 @@ def _cfg(df, **kw):
     base = dict(df=df, outcome="sales", unitid="geo", time="t",
                 max_treatment_size=3, n_test=8)
     base.update(kw)
-    return TBRMMConfig(**base)
+    return TBRConfig(**base)
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def _cfg(df, **kw):
 # ---------------------------------------------------------------------------
 
 def test_a_measured_design_carries_a_posterior():
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     eff = res.recommended.effect
 
     assert eff.posterior is not None
@@ -65,7 +65,7 @@ def test_a_measured_design_carries_a_posterior():
 
 
 def test_no_post_window_means_no_posterior():
-    res = TBRMM(_cfg(_panel().drop(columns=["post"]))).fit()
+    res = TBR(_cfg(_panel().drop(columns=["post"]))).fit()
     assert res.report is None
     assert all(d.effect is None for d in res.designs)
 
@@ -76,7 +76,7 @@ def test_no_post_window_means_no_posterior():
 
 def test_the_att_interval_is_the_cumulative_one_over_n_treated_times_n_post():
     """The ATT divides by geos AND periods, which is where a factor of N hides."""
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     eff = res.recommended.effect
     k = eff.n_treated * eff.n_post
 
@@ -86,7 +86,7 @@ def test_the_att_interval_is_the_cumulative_one_over_n_treated_times_n_post():
 
 def test_each_market_interval_divides_by_its_own_periods_only():
     """A single geo's ATT averages over periods, not over geos."""
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     eff = res.recommended.effect
 
     for m in eff.market_effects:
@@ -95,7 +95,7 @@ def test_each_market_interval_divides_by_its_own_periods_only():
 
 
 def test_the_interval_brackets_the_point_estimate():
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     eff = res.recommended.effect
 
     assert eff.posterior.total_lower < eff.total_effect < eff.posterior.total_upper
@@ -110,7 +110,7 @@ def test_the_interval_brackets_the_point_estimate():
 
 def test_the_group_scale_is_not_the_markets_combined_as_independent():
     """Treated geos co-move, so combining their scales in quadrature is wrong."""
-    res = TBRMM(_cfg(_panel(), post_col="post", max_treatment_size=3)).fit()
+    res = TBR(_cfg(_panel(), post_col="post", max_treatment_size=3)).fit()
     eff = next(d.effect for d in res.designs if d.k >= 2)
 
     quadrature = float(np.sqrt(sum(m.posterior.scale ** 2 for m in eff.market_effects)))
@@ -119,7 +119,7 @@ def test_the_group_scale_is_not_the_markets_combined_as_independent():
 
 def test_the_group_cumulative_is_the_sum_of_the_markets():
     """OLS is linear in y, so the point estimates do reconcile exactly."""
-    res = TBRMM(_cfg(_panel(), post_col="post", max_treatment_size=3)).fit()
+    res = TBR(_cfg(_panel(), post_col="post", max_treatment_size=3)).fit()
     eff = next(d.effect for d in res.designs if d.k >= 2)
 
     assert eff.total_effect == pytest.approx(
@@ -131,8 +131,8 @@ def test_the_group_cumulative_is_the_sum_of_the_markets():
 # ---------------------------------------------------------------------------
 
 def test_a_wider_level_gives_a_wider_interval():
-    narrow = TBRMM(_cfg(_panel(), post_col="post", level=0.50)).fit().recommended.effect
-    wide = TBRMM(_cfg(_panel(), post_col="post", level=0.99)).fit().recommended.effect
+    narrow = TBR(_cfg(_panel(), post_col="post", level=0.50)).fit().recommended.effect
+    wide = TBR(_cfg(_panel(), post_col="post", level=0.99)).fit().recommended.effect
 
     assert wide.posterior.total_lower < narrow.posterior.total_lower
     assert wide.posterior.total_upper > narrow.posterior.total_upper
@@ -140,12 +140,12 @@ def test_a_wider_level_gives_a_wider_interval():
 
 
 def test_the_level_is_recorded_on_the_posterior():
-    res = TBRMM(_cfg(_panel(), post_col="post", level=0.80)).fit()
+    res = TBR(_cfg(_panel(), post_col="post", level=0.80)).fit()
     assert res.recommended.effect.posterior.level == pytest.approx(0.80)
 
 
 def test_the_default_level_is_the_papers():
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     assert res.recommended.effect.posterior.level == pytest.approx(0.90)
 
 
@@ -161,17 +161,20 @@ def test_an_impossible_level_is_refused(bad):
 
 def test_report_inference_carries_the_interval_in_the_atts_units():
     """report.effects.att and report.inference must be on one scale."""
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     inf, eff = res.report.inference, res.recommended.effect
 
     assert inf is not None
-    assert inf.ci_lower == pytest.approx(eff.posterior.att_lower, rel=1e-12)
-    assert inf.ci_upper == pytest.approx(eff.posterior.att_upper, rel=1e-12)
+    # report.inference is on the group-per-period scale; the posterior's
+    # att_* averages across treated geos as well. group_* is the matching
+    # pair, and test_tbr_posterior_scales pins the identity between them.
+    assert inf.ci_lower == pytest.approx(eff.posterior.group_lower, rel=1e-9)
+    assert inf.ci_upper == pytest.approx(eff.posterior.group_upper, rel=1e-9)
     assert inf.ci_lower < res.report.effects.att < inf.ci_upper
 
 
 def test_report_inference_names_its_method():
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     assert res.report.inference.method == "tbr_posterior"
 
 
@@ -180,7 +183,7 @@ def test_report_inference_names_its_method():
 # ---------------------------------------------------------------------------
 
 def test_probability_of_direction_is_a_probability():
-    res = TBRMM(_cfg(_panel(), post_col="post")).fit()
+    res = TBR(_cfg(_panel(), post_col="post")).fit()
     eff = res.recommended.effect
 
     for p in [eff.posterior] + [m.posterior for m in eff.market_effects]:
@@ -190,10 +193,10 @@ def test_probability_of_direction_is_a_probability():
 
 def test_a_large_injected_effect_is_called_with_near_certainty():
     df = _panel()
-    design = TBRMM(_cfg(df, post_col="post")).fit().recommended
+    design = TBR(_cfg(df, post_col="post")).fit().recommended
     hit = df["geo"].isin(design.treatment_units) & (df["post"] == 1)
     df.loc[hit, "sales"] = df.loc[hit, "sales"] + 60.0
 
-    eff = TBRMM(_cfg(df, post_col="post")).fit().recommended.effect
+    eff = TBR(_cfg(df, post_col="post")).fit().recommended.effect
     assert eff.posterior.prob_direction > 0.999
     assert eff.posterior.total_lower > 0.0

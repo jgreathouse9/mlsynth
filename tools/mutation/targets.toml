@@ -3026,8 +3026,51 @@ timeout = 180.0
   models = "the (1, 0) case scored against the pair's posterior covariance while its own index set is used for the cross-products -- the mis-sharing the one-V-per-index-set rewrite makes possible, and half of what the collapsed vectors did"
 
 [[target]]
+name = "tbr-merged-dispatch"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_merged_dispatch.py mlsynth/tests/test_tbr_hac_estimate.py mlsynth/tests/test_tbr_split_override.py mlsynth/tests/test_tbr.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-mode-test-is-inverted"
+  find = '    if config.mode == "searched":'
+  replace = '    if config.mode == "named":'
+  models = "a dispatcher that sends a named split to the hill climb and a design request to the fixed-split estimator. Both branches return the same result type, so the shape of the answer is unchanged and only which question was answered moves"
+
+  [[target.mutant]]
+  id = "hac-is-asked-for-and-iid-is-priced"
+  find = '    if getattr(config, "variance", "iid") == "hac":'
+  replace = '    if getattr(config, "variance", "iid") == "__unreachable__":'
+  models = "``variance=\"hac\"`` accepted, recorded on the result and documented, while the posterior is built from a single residual variance. The point estimates do not move under the correction, so nothing but the interval's width reports the difference"
+
+  [[target.mutant]]
+  id = "the-named-mode-reports-no-selected-units"
+  find = "        selected_units=list(report.treated_units),"
+  replace = "        selected_units=[],"
+  models = "a named split whose design slots come back empty. The estimate on ``report`` is correct, so a caller reading the effect sees nothing wrong and a caller reading who was treated off the design sees an empty experiment"
+
+
+[[target]]
+name = "tbr-merged-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_merged_config.py mlsynth/tests/test_tbr.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "both-ways-of-naming-the-groups-are-accepted"
+  find = "        if named and searched:"
+  replace = "        if False:"
+  models = "a configuration that fixes a split and asks for one to be searched for at the same time. The dispatcher reads ``max_treatment_size`` first, so the named columns are silently ignored and the caller is estimated on a split they did not choose"
+
+  [[target.mutant]]
+  id = "a-repeated-unit-period-cell-passes-the-gate"
+  find = "        if repeated:"
+  replace = "        if False:"
+  models = "a panel with a duplicated (unit, period) row summed as if the two records were separate geos, which inflates whichever aggregate holds the repeated geo and is invisible in every shape and count the result reports"
+
+[[target]]
 name = "tbrmm-estimation"
-module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/estimate.py"
 test-command = "python -m pytest mlsynth/tests/test_tbrmm_estimation.py mlsynth/tests/test_tbrmm_estimation_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -3069,7 +3112,7 @@ timeout = 300.0
 
 [[target]]
 name = "tbrmm-posterior"
-module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/estimate.py"
 test-command = "python -m pytest mlsynth/tests/test_tbrmm_posterior.py mlsynth/tests/test_tbrmm_posterior_properties.py -q -p no:cacheprovider"
 timeout = 300.0
 
@@ -3098,9 +3141,9 @@ timeout = 300.0
   models = "bounds cut on the normal, not the t on n-2 degrees of freedom, which is anticonservative on every panel and worst on the short pretests a geo test is most likely to have"
 
 [[target]]
-name = "tbrmm-hac"
-module-path = "mlsynth/utils/tbrmm_helpers/estimate.py"
-test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py -q -p no:cacheprovider"
+name = "tbr-hac"
+module-path = "mlsynth/utils/tbr_helpers/posterior.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]

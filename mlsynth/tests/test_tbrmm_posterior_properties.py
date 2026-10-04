@@ -18,7 +18,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from scipy import stats
 
-from mlsynth.utils.tbrmm_helpers.estimate import measure_design
+from mlsynth.utils.tbr_helpers.design.estimate import measure_design
 
 SETTINGS = settings(max_examples=50, deadline=None,
                     suppress_health_check=[HealthCheck.too_slow])

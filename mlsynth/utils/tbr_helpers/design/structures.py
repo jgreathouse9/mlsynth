@@ -1,4 +1,4 @@
-"""Typed results for TBRMM.
+"""Typed results for TBR: the design menu and what each design measured.
 
 A design is what the advertiser chooses between, so each recommended pair
 carries its own groups, its own score and the climb that produced it.
@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ...config_models import DesignResult
+from ....config_models import DesignResult
 
 
 class TBRMMPosterior(BaseModel):
@@ -49,6 +49,15 @@ class TBRMMPosterior(BaseModel):
         ..., description="Lower bound on the cumulative effect.")
     total_upper: float = Field(
         ..., description="Upper bound on the cumulative effect.")
+    group_lower: float = Field(
+        default=0.0,
+        description="The total averaged over the test periods: the cumulative "
+                    "effect on the treatment group per period. This is the "
+                    "scale report.inference is on, so an interval and the att "
+                    "beside it agree. total = group * n_periods.")
+    group_upper: float = Field(
+        default=0.0,
+        description="Upper bound of the per-period group effect.")
     att_lower: float = Field(
         ..., description="Lower bound on the mean per-period effect, the "
                          "cumulative bound rescaled.")
@@ -192,8 +201,15 @@ class TBRMMDesign(BaseModel):
                     "fact as well as before it.")
 
 
-class TBRMMResults(DesignResult):
-    """TBRMM's :class:`~mlsynth.config_models.DesignResult`."""
+class TBRResults(DesignResult):
+    """What :meth:`mlsynth.TBR.fit` returns, in both modes.
+
+    A :class:`~mlsynth.config_models.DesignResult`. ``report`` carries the
+    estimate as a :class:`~mlsynth.utils.tbr_helpers.structures.TBREstimate`,
+    built by the same code in both modes. The design fields below are populated
+    only when the split was searched for; a named split has nothing to choose
+    between, so ``designs`` is empty and ``recommended`` is ``None``.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -221,3 +237,4 @@ class TBRMMResults(DesignResult):
     n_periods_scored: int = Field(
         default=0,
         description="Periods the objective was computed over.")
+

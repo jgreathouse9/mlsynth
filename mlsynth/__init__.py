@@ -62,7 +62,6 @@ from .utils.counterfactual_compare import (
 from .estimators.spcd import SPCD
 from .estimators.geox import GEOX
 from .estimators.tbr import TBR
-from .estimators.tbrmm import TBRMM
 from .utils.geox_helpers.plotter import (
     plot_mde_ranking,
     plot_geox_design,
@@ -169,7 +168,6 @@ __all__ = [
     "SPCD",
     "GEOX",
     "TBR",
-    "TBRMM",
     "plot_geox_design",
     "plot_mde_ranking",
     "TASC",

@@ -11,9 +11,9 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from mlsynth import TBRMM
-from mlsynth.config_models import TBRMMConfig
-from mlsynth.utils.tbrmm_helpers.objective import score_split
+from mlsynth import TBR
+from mlsynth.config_models import TBRConfig
+from mlsynth.utils.tbr_helpers.design.objective import score_split
 
 Key = Tuple[float, ...]
 
@@ -52,7 +52,7 @@ def score(wide: pd.DataFrame, treatment: Sequence[str], control: Sequence[str],
 def designs(panel: pd.DataFrame, *, n_test: int, k_max: int,
             n_pretest: int) -> Dict[int, Tuple[List[str], List[str], Key]]:
     """One recommended design per treatment size, keyed by size."""
-    result = TBRMM(TBRMMConfig(
+    result = TBR(TBRConfig(
         df=long_window(panel, n_pretest), unitid="geo", time="date",
         outcome="Y", max_treatment_size=k_max, n_test=n_test)).fit()
     out: Dict[int, Tuple[List[str], List[str], Key]] = {}
