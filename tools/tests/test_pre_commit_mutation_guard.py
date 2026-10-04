@@ -9,9 +9,16 @@ The guard is only useful if it discriminates. A first version matched
 ``pgrep -f run_mutants.py``, which also matches the shell that launched the
 runner and any editor with the path open, so it refused on a clean tree. A guard
 that refuses every commit is worse than none: the override becomes reflex.
+
+What the guard reads is the machine's process table, which the tests below both
+read and write: ``holder`` puts a process there whose argv names the runner.
+Under ``pytest -n auto`` four of these run at once, so a test asserting the hook
+permits a commit saw another worker's holder and failed -- twice in every run of
+``-n 4`` on main. They take a lock on the process table instead.
 """
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -22,7 +29,15 @@ from pathlib import Path
 
 import pytest
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - POSIX only, and the hook is a shell script
+    fcntl = None
+
 HOOK = Path(__file__).resolve().parents[2] / ".githooks" / "pre-commit"
+
+#: Shared by every worker on this machine, because the process table is.
+LOCK = Path(tempfile.gettempdir()) / "mlsynth-pre-commit-guard.lock"
 
 
 def _run(env_extra=None):
@@ -30,8 +45,34 @@ def _run(env_extra=None):
     return subprocess.run([str(HOOK)], capture_output=True, text=True, env=env)
 
 
+@contextlib.contextmanager
+def _exclusive():
+    if fcntl is None:  # pragma: no cover - see the import above
+        yield
+        return
+    with open(LOCK, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 @pytest.fixture
-def holder():
+def process_table():
+    """Exclusive use of the process table the guard reads.
+
+    Every test that plants a runner-named process, or asserts that none is
+    there, takes this. The kernel releases the lock when the holder exits, so a
+    worker that dies mid-test cannot leave it held. The rest of the suite is
+    unaffected: only these tests contend.
+    """
+    with _exclusive():
+        yield
+
+
+@pytest.fixture
+def holder(process_table):
     """A process whose argv genuinely names the runner, as the real one does."""
     with tempfile.TemporaryDirectory() as d:
         script = Path(d) / "run_mutants.py"
@@ -45,7 +86,7 @@ def holder():
             proc.wait(timeout=10)
 
 
-def test_a_clean_tree_commits(): 
+def test_a_clean_tree_commits(process_table):
     assert _run().returncode == 0
 
 
@@ -56,7 +97,7 @@ def test_a_running_sweep_blocks_the_commit(holder):
     assert "4c836c51" in out.stderr, "the message should name the incidents"
 
 
-def test_a_shell_that_merely_mentions_the_runner_does_not_block():
+def test_a_shell_that_merely_mentions_the_runner_does_not_block(process_table):
     """The false positive that made the first version useless."""
     proc = subprocess.Popen(
         ["bash", "-c", "sleep 20  # python tools/mutation/run_mutants.py --target scm"])
