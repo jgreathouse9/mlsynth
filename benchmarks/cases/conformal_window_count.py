@@ -18,11 +18,12 @@ locates the shortfall in the window count and rules out the exchangeability
 failures that the time-series conformal literature usually blames.
 
 The two variance constants are measured, not invented: they are the level and
-within-window spreads of MAREX's blank-period discrepancy on a 211-market weekly
-sales panel at ``T0 = 104``, ``Tb = 47``, ``H = 13``. The panel is proprietary and
-is not shipped, so the case regenerates the same two-component structure from
-them; the study scripts that measured them are under
-``benchmarks/studies/cumulative_calibration/``.
+within-window spreads of MAREX's blank-period discrepancy on a wide geo panel
+held out for calibration. That panel is proprietary and is not shipped, so the
+case regenerates the same two-component structure from the two constants; the
+study scripts that measured them are under
+``benchmarks/studies/cumulative_calibration/``, which runs on a synthetic
+stand-in by default.
 
 Consequences for a user: an estimator whose calibration window supports three
 sub-windows cannot deliver a nominal cumulative band no matter how clean its

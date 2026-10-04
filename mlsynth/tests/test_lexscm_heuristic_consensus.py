@@ -12,7 +12,7 @@ explore more basins, so the fraction landing on the incumbent falls at the same
 time as the answer gets better, and the number an analyst reads moves opposite
 to the thing it is supposed to signal.
 
-Measured against ground truth on 18 instances built from a 211-market DMA panel
+Measured against ground truth on 18 instances built from a wide geo panel
 (three population bands, ``m`` in {3, 4}, three constraint regimes), each solved
 exactly by enumeration, over 1,350 multi-start runs: within a fixed ``n_starts``
 the rate separates a suboptimal run from an exact one with an AUC of 0.44 to

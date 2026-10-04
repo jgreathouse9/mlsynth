@@ -297,7 +297,7 @@ The self-contained part runs anywhere:
    python benchmarks/run_benchmarks.py --case conformal_window_count
 
 The real-data arms need a wide panel of positive outcomes. The one measured here
-was 211 media markets by 128 weeks of retail sales and is proprietary, so the
+is proprietary and is not shipped, so the
 study reads whatever panel ``MLSYNTH_CAL_PANEL`` points at and rebuilds the same
 structure from it — real factor paths, real loadings, real unit means and real
 idiosyncratic residuals, with a circular shift common to all units, so that

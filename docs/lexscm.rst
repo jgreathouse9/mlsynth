@@ -482,7 +482,7 @@ The block records what the search did. It does not measure whether the
 incumbent is the global optimum, and ``consensus_rate`` in particular
 should not be read that way.
 
-The measurement: 18 instances built from a 211-market DMA panel
+The measurement: 18 instances built from a wide geo panel
 (three population bands,
 :math:`m \in \{3, 4\}`, three constraint regimes), each solved exactly by
 enumeration, against 1,350 multi-start runs over
@@ -1843,6 +1843,21 @@ interval 0.785, on the same draws.
 Run it with::
 
     python benchmarks/run_benchmarks.py --case lexscm_cumulative_coverage
+
+The same question on the data-generating process the design method was
+published with -- Abadie and Zhao's Section 5, which supplies both potential
+outcomes so every treated unit has a known effect -- is
+``benchmarks/cases/lexscm_cumulative_az_mc.py``. A design of three treated
+units is chosen from the untreated outcomes alone, the experiment realises the
+treated outcome on exactly those units, and the paths are read at the final
+horizon against a nominal 0.90. On the paper's own dimensions the aggregate
+covers 0.880 and the per-unit paths 0.778; on a larger panel with a fifteen
+period horizon, 0.793 and 0.680.
+
+What separates the per-unit paths that cover from those that do not is the
+approximability gate. Conditioning on it, coverage is 0.820 and 0.848 among the
+units the gate admits -- stable across panel size and horizon -- against 0.642
+and 0.379 among the units it refuses. Read the gate before the interval.
 
 Core API
 --------

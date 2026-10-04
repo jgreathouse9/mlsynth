@@ -2,7 +2,7 @@
 
 LEXSCM solves the same donor program once per shortlisted design. Each solve
 was a fresh cvxpy problem -- graph construction, canonicalisation, an OSQP
-setup -- and on a 211-market panel with twenty designs that was 39% of the fit's
+setup -- and on a wide geo panel with twenty designs that was 39% of the fit's
 wall clock at 0.217s a call, almost none of it arithmetic.
 
 The program is Abadie and L'Hour's penalised synthetic control,
