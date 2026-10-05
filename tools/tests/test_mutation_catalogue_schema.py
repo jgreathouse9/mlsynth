@@ -35,6 +35,7 @@ from run_mutants import (  # noqa: E402
     _mutant,
     _reject_unknown,
     load_targets,
+    tomllib,            # whichever reader the harness resolved: 3.11+ stdlib, else tomli
 )
 
 _CATALOGUE = _MUTATION / "targets.toml"
@@ -101,9 +102,12 @@ class TestTheShippedCatalogue:
 
     def test_no_entry_carries_a_key_the_harness_ignores(self):
         """The regression itself: parsing is what refuses it, so this restates
-        the property over the real file so a hand-edit cannot reintroduce it."""
-        import tomllib
+        the property over the real file so a hand-edit cannot reintroduce it.
 
+        Read through the harness's own ``tomllib`` name rather than importing
+        the stdlib one: ``run_mutants`` falls back to ``tomli`` below 3.11, and
+        the suite runs on 3.10.
+        """
         data = tomllib.loads(_CATALOGUE.read_text())
         for entry in data["target"]:
             assert not set(entry) - TARGET_KEYS, entry.get("name")
