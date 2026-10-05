@@ -2454,7 +2454,7 @@ timeout = 300.0
   id = "zero-detection-tighter-than-the-solver"
   find = "    negligible = 1e-5 * scale"
   replace = "    negligible = 1e-12"
-  models = "the first draft's cutoff, which was absolute and far below what CLARABEL delivers. On an exactly solvable panel the solver leaves ~1e-5 relative residual, so a treated unit sitting exactly on a donor reported pool_rmse 9.0e-05 against cluster_rmse 1.2e-04 and a ratio of 1.35 -- a spurious 35% penalty on a cluster that gives up nothing, and the near-zero branch never fired"
+  models = "the first draft's cutoff, absolute and far below the floor the shipped cutoff takes against scale. Below the floor a ratio of two residuals measures the solver and not the donors, so the branch reports 1.0; the mutant grades the noise instead. The panel that separates them is perturbed off the d0/d1 face by 1e-7*scale, which leaves both fits five orders above machine epsilon and two below the floor, and the cluster 7% worse than the pool -- a penalty on a cluster that gives up nothing. The treated-unit-on-a-donor panel does NOT separate them: CLARABEL answers it to 2e-15, under either cutoff, so the first draft of this mutant survived a suite that only tested that case"
 
   [[target.mutant]]
   id = "solve-left-at-panel-scale"
@@ -2587,8 +2587,8 @@ timeout = 300.0
   find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
   replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
   models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
-  equivalent = true
-  equivalent-reason = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
+  expected = "survived"
+  accepted-because = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
 
 [[target]]
 name = "simplex-qp-audit-classifier"

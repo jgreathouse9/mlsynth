@@ -174,6 +174,41 @@ def test_a_treated_unit_equal_to_one_donor_is_perfectly_spanned():
     assert rep.ratio == pytest.approx(1.0, abs=1e-9)
 
 
+def test_residuals_below_the_solver_floor_are_not_graded():
+    """Two fits that both reach the unit report 1.0, however they rank below it.
+
+    The near-zero branch exists because a ratio of two residuals that are both
+    at the solver's noise floor measures the solver, not the donors. The cutoff
+    is therefore ``1e-5 * scale`` -- what CLARABEL delivers on a solvable panel
+    -- and not machine epsilon.
+
+    ``test_a_treated_unit_equal_to_one_donor_is_perfectly_spanned`` cannot hold
+    that cutoff in place. It puts the treated unit exactly on a donor, and
+    CLARABEL answers that panel to 2e-15, which is under any candidate cutoff;
+    the branch fires either way and the choice of floor is unobservable. So the
+    panel here is perturbed off the ``d0``/``d1`` face by ``1e-7 * scale``,
+    which puts both residuals five orders above machine epsilon and two orders
+    below the floor. The size of the residual is then a property of the data
+    rather than of the solver, so a future CLARABEL cannot move it.
+
+    The cluster is the face itself, so it cannot chase the perturbation and the
+    pool can: the two residuals differ by 7 percent. Grading that 7 percent is
+    exactly what the floor forbids.
+    """
+    pool, _treated = _panel()
+    t = np.linspace(0.0, 1.0, pool.shape[0])
+    scale = float(np.abs(pool).max())
+    target = 0.5 * pool[:, 0] + 0.5 * pool[:, 1] + 1e-7 * scale * np.cos(9.0 * t)
+
+    rep = assess_spannability(pool, target, [0, 1])
+
+    floor = 1e-5 * max(float(np.abs(target).max()), scale)
+    assert 1e-12 < rep.pool_rmse < floor
+    assert 1e-12 < rep.cluster_rmse < floor
+    assert rep.cluster_rmse > rep.pool_rmse * 1.01   # the raw ratio is not 1.0
+    assert rep.ratio == 1.0
+
+
 def test_collinear_donors_do_not_break_the_solve():
     pool, treated = _panel()
     collinear = np.column_stack([pool[:, 0], 2.0 * pool[:, 0], 3.0 * pool[:, 0]])
