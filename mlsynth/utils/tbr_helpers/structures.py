@@ -14,6 +14,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from ...config_models import BaseEstimatorResults
+from .diagnostics import AssumptionChecks
 
 
 class TBRFit(BaseModel):
@@ -123,6 +124,14 @@ class TBREstimate(BaseEstimatorResults):
     unassigned_units: List = Field(
         default_factory=list, description="Units in neither group, which enter "
                                           "neither aggregate.")
+    assumptions: Optional[AssumptionChecks] = Field(
+        default=None,
+        description="What the panel says about the assumptions that are "
+                    "checkable from it: the pretest residuals, and the "
+                    "completeness and stability of the geo set. A check that "
+                    "passed is not a licence for the estimate -- the half of "
+                    "the identifying assumption that reaches into the test "
+                    "window cannot be tested at all.")
     filled_cells: int = Field(
         default=0, description="Unit-period cells absent from the panel and "
                                "filled with zero before aggregation. TBR sums "

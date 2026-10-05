@@ -15,6 +15,7 @@ from .posterior import (
     iroas_fixed_cost,
     iroas_simulated,
 )
+from .diagnostics import run_checks
 from .setup import build_inputs
 from .structures import CumulativeEffect, IROASResult, TBRFit, TBREstimate
 
@@ -132,6 +133,7 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
     return TBREstimate(
         **submodels,
         tbr_fit=_as_fit(fit),
+        assumptions=run_checks(config, inputs, fit, T0),
         cost_fit=cost_fit,
         cumulative=cumulative,
         cumulative_cost=cumulative_cost,

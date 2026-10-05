@@ -119,6 +119,8 @@ Assumptions
    makes the interval too narrow because the effective sample size is smaller
    than the period count. A Durbin-Watson or Breusch-Godfrey test on the pretest
    residuals detects it, and both are part of how Au scores a candidate design.
+   The fit reports all three parts of this assumption on ``assumptions`` and
+   warns when one fires; see Diagnostics.
 
 3. The control geos are unaffected by the intervention.
 
@@ -134,7 +136,10 @@ Assumptions
    totals. An absent geo-period is summed as a zero, which is correct when the
    cell is absent because nothing happened and wrong when it is absent because
    the data are missing. The estimator reports how many cells it filled so the
-   distinction is visible.
+   distinction is visible, and ``assumptions`` adds the two readings of that
+   count that matter: whether the fills fall evenly across the treatment
+   boundary, since a fill is a zero and an imbalance there is confounded with
+   the effect, and whether any geo spans only part of the panel.
 
 The searched mode adds four, all of them about the search and none about the
 regression.
@@ -320,6 +325,185 @@ implementation's; Au names two of them.
 
 Diagnostics
 -----------
+
+Assumption 1's pretest half and assumptions 2 and 4 are checkable from the
+panel the fit was handed, and ``report.assumptions`` carries seven checks.
+Assumption 3 is not covered.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 30 44
+
+   * - Check
+     - Statistic
+     - What firing means
+   * - ``backdating``
+     - Mean squared standardised error on a held-out tail of the pretest,
+       against an :math:`F` reference, with the difference-in-differences
+       error on the same window beside it
+     - The fitted relation does not predict the pretest it was not shown, so
+       the counterfactual it extrapolates may be biased.
+   * - ``stationary_residual``
+     - Engle-Granger on the treated and control aggregates
+     - The gap between the two series is not stationary, so parallel
+       pre-trends does not reduce to something the pretest can establish.
+   * - ``serial_correlation``
+     - Breusch-Godfrey, Durbin-Watson reported beside it
+     - The interval is too narrow. Refit with ``variance="hac"``.
+   * - ``normality``
+     - Shapiro-Wilk
+     - The t posterior rests on normal errors, and at these pretest lengths
+       that is not an asymptotic argument.
+   * - ``homoskedasticity``
+     - Breusch-Pagan on the control aggregate
+     - Equation 6's single :math:`s` misprices the interval. The point
+       estimate is unaffected.
+   * - ``balanced_panel``
+     - Filled cells, and a Fisher test of their rate either side of the
+       boundary
+     - Fills are zeros, so an imbalance across the boundary is confounded
+       with the effect.
+   * - ``stable_membership``
+     - Geos spanning only part of the panel
+     - The totals change meaning from one period to the next.
+
+The first two bear on the estimate and the next three on the interval around
+it, and the warning is grouped that way: at most one warning per consequence,
+naming the checks that fired and what they cost. Five of the seven are
+hypothesis tests at the 5% level, so between them they fire on about a quarter
+of sound panels, and one warning per check would report that quarter as seven
+separate alarms.
+
+Why the pretest can say anything about identification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first two checks need an argument the other five do not. Li and Van den
+Bulte (2022) separate the identifying assumption into a part that holds in the
+pretest, which is testable, and a part that continues into the test window,
+which is not, because the treated group's untreated path stops existing after
+the treatment lands. Nothing computed from the pretest reaches the second part.
+
+What makes the first part informative is the factor structure. Under the
+one-factor model of Li (2024) web appendix A, where each unit's untreated
+outcome is :math:`y^0_{jt} = a_j + b_j f_t + u_{jt}`, the correlation between
+the treated series and the control average does not depend on :math:`t`. The
+assumption then reduces to parallel pre-trends, which the observed data can
+test. Definition 1 there states it as :math:`y^0_{\mathrm{tr},t} -
+\bar{y}_{U,t} = \alpha_U + v_{U,t}` with :math:`v_{U,t}` stationary, which is
+what ``stationary_residual`` tests, through Engle-Granger and not by putting an
+augmented Dickey-Fuller on the fitted residuals, whose critical values do not
+hold for residuals from an estimated relation.
+
+``backdating`` is Li (2024) section 3.2's exercise on the aggregates. It splits
+the pretest, fits on the front, predicts the tail, and divides each held-out
+error by its own prediction scale, equation 6 at a horizon of one, so a period
+the fit was always going to find hard does not count as evidence against the
+model. Under a model that holds, the mean square of those standardised errors
+sits near one. TBR nests difference-in-differences at :math:`\beta = 1`, so the
+same exercise with the slope forced to one comes free, and its ratio to TBR's
+error says whether the slope adjustment paid for itself out of sample. Near one
+on a large statistic, neither traces the treated series, and the question is
+not which of the two to use.
+
+Neither check looks inside the test window, and neither is a licence for the
+estimate.
+
+Size and power
+~~~~~~~~~~~~~~
+
+Measured over 200 simulated sound panels per cell, the share firing:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 16 16 16 16
+
+   * - Check
+     - 20 periods
+     - 30 periods
+     - 40 periods
+     - 60 periods
+   * - ``backdating``
+     - 0.060
+     - 0.055
+     - 0.050
+     - 0.060
+   * - ``stationary_residual``
+     - no verdict
+     - 0.105
+     - 0.100
+     - 0.065
+   * - ``serial_correlation``
+     - 0.055
+     - 0.095
+     - 0.075
+     - 0.060
+   * - ``normality``
+     - 0.055
+     - 0.025
+     - 0.060
+     - 0.045
+   * - ``homoskedasticity``
+     - 0.050
+     - 0.045
+     - 0.045
+     - 0.050
+   * - at least one
+     - 0.185
+     - 0.285
+     - 0.285
+     - 0.240
+
+The last row is :math:`1 - 0.95^5` and not a defect, and it is why ``flagged``
+names the checks instead of reducing to a single verdict. Engle-Granger is
+oversized at 30 and 40 periods, which is a small-sample property of its
+critical values. Grouped into warnings, 70 to 82% of sound panels raise none at
+all and none raises more than two.
+
+Power is uneven, and a check that does not fire is weak evidence only where it
+has power to begin with. Against panels that do violate:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20 20 20
+
+   * - Violation
+     - 20 periods
+     - 40 periods
+     - 80 periods
+   * - AR(1) errors, :math:`\rho = 0.7`
+     - 0.580
+     - 0.960
+     - 1.000
+   * - :math:`t_2` errors
+     - 0.335
+     - 0.455
+     - 0.775
+   * - spread varying with the control aggregate
+     - 0.145
+     - 0.290
+     - 0.525
+
+So serial correlation is caught reliably from about 40 pretest periods and the
+other two are not.
+
+The identification checks are measured against the violation Li (2024)
+describes operationally for assumption 2.1, a treated series trending away
+from every control with a true effect of zero. At 20, 30 and 40 pretest
+periods, ``backdating`` catches 0.930, 0.925 and 0.915 of them, and
+``stationary_residual`` 0.000, 0.960 and 0.980. Grouped, the identification
+warning fires on 98 to 100% of such panels against 6 to 17% of sound ones.
+
+Where a window is too short for a test to mean anything, or the pretest fits
+exactly and leaves no residual to test, the check reports no verdict, which is
+distinct from a pass and is left out of ``flagged``. Engle-Granger needs 30
+pretest periods, below which it establishes stationarity on no sound panel at
+all and a verdict would flag every one. Backdating needs a fit of at least 8
+periods and a held-out window of at least 3: one or two periods give an
+:math:`F` that is honest about its own size and almost powerless.
+
+
+Design gates
+~~~~~~~~~~~~
 
 Four gates, each testing something the posterior above needs. Au's Section 3.1
 names a CUSUM test and a Breusch-Godfrey test; the correlation floor, the A/A
