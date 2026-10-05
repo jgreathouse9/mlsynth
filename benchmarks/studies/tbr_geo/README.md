@@ -92,12 +92,28 @@ Coverage reproduces, over 36 cells at 2000 replications each:
 
 | interval | measured | range | nominal |
 | --- | --- | --- | --- |
-| 90% | 0.8999 | 0.878 to 0.912 | 0.90 |
-| 50% | 0.4981 | 0.475 to 0.519 | 0.50 |
+| 90% | 0.8996 | 0.888 to 0.912 | 0.90 |
+| 50% | 0.5024 | 0.482 to 0.533 | 0.50 |
 
 The paper does not state the lognormal's shape. It does not matter: over an
 eightfold sweep of it, 0.25 to 2.0, coverage stays within 0.0014 of nominal and
 the iROAS median within 0.003 of 2.0.
+
+## One generator per cell
+
+`run` used a single generator for the whole grid, so a cell's draws depended on
+which cells preceded it and a cell requested alone disagreed with the same cell
+inside the full grid. The numbers above come from one full-grid run and were
+internally consistent, but a subset re-run did not reproduce them, and the
+disagreement read as a finding: it showed up as an apparent difference between
+two geo-assignment schemes that had been run over different cell sets, measured
+at a 13-hit swing on 200 replications for one cell. Each cell now derives its
+stream from `(seed, rho, c, n_pre)`, which makes a cell's result a property of
+the cell. `benchmarks/tests/test_tbr_simulation_cell_rng.py` holds that.
+
+Independent cells also brought section 5.2's statistic closer to the paper:
+0.0391% with standard deviation 0.0431% over the full grid, against the
+published 0.04% and 0.06%, where the shared stream gave 0.0733% and 0.1156%.
 
 ## What the 0.04% is (`results/monte_carlo_floor.txt`)
 
@@ -110,14 +126,15 @@ across a sixteenfold range:
 
 | replications | squared bias / MSE | 1 / n |
 | --- | --- | --- |
-| 250 | 0.4765% | 0.4000% |
-| 500 | 0.0520% | 0.2000% |
-| 1000 | 0.0795% | 0.1000% |
-| 2000 | 0.0435% | 0.0500% |
-| 4000 | 0.0237% | 0.0250% |
+| 250 | 0.5849% | 0.4000% |
+| 500 | 0.1225% | 0.2000% |
+| 1000 | 0.0788% | 0.1000% |
+| 2000 | 0.0510% | 0.0500% |
+| 4000 | 0.0353% | 0.0250% |
 
-It falls as `1 / n` and does not settle on a positive value. At the paper's own
-2000 replications it lands on 0.0435%, which is the published 0.04%. So the
+It tracks `1 / n` and does not settle on a positive value. At the paper's own
+2000 replications it lands on 0.0510%, and the full grid gives 0.0391% against
+the published 0.04%. So the
 number is reproducible and the estimator is consistent with being unbiased; the
 0.04% measures the replication count, and a larger simulation would have
 produced a smaller figure from the same estimator.
@@ -126,5 +143,5 @@ One correction to the harness produced this. Setting the injected effect as a
 share of the realised treatment volume correlates the truth with test-period
 noise and put the statistic at 0.100%, twice the floor. Section 5.2 takes the
 incremental cost as a known constant, so the true response is constant too;
-with that fixed the figure falls to 0.0733% over the full grid and to 0.0435%
+with that fixed the figure falls to 0.0391% over the full grid and to 0.0510%
 on the single-pretest sweep.
