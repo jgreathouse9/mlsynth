@@ -781,6 +781,37 @@ paper's own criterion is used -- the posterior of the rate under a neutral
 prior, :math:`\mathrm{Beta}(1/3 + y,\, 1/3 + n - y)`, has to contain the
 nominal rate.
 
+Both of those measure calibration where the method's own condition holds. What
+the condition buys, and what its absence costs, is measured separately by
+`benchmarks/cases/tbr_factor_dimension.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/tbr_factor_dimension.py>`_.
+
+Assumption 1 is stated under a one-factor model, and one factor is the
+condition and not a simplification. Aggregating gives each group the mean
+loading of its members, and the fitted relation
+:math:`\bar{y}_{\mathrm{tr},t} = \alpha + \beta \bar{y}_{\mathrm{co},t}` holds
+at every period exactly when those two mean loading vectors are proportional.
+At one factor they are scalars, so proportionality is automatic. Past one factor
+two independently drawn mean vectors are not proportional, and a single
+regressor cannot absorb the difference, so a gap remains with no treatment
+anywhere.
+
+The case measures that on panels carrying no treatment, where the cumulative
+effect is zero and coverage is the share of intervals containing zero. With the
+noise switched off, the best affine fit leaves a relative gap of order
+:math:`10^{-16}` at one factor and at least :math:`10^{-3}` past it, twelve
+orders apart, and the sine of the angle between the two mean loading vectors is
+exactly zero at one factor. At a nominal 0.90 the one-factor cell attains 0.92;
+the two-, three- and five-factor cells come back at 0.55, 0.51 and 0.48, with
+the interval widening as the factor count rises without the coverage following.
+
+Averaging more geos does not restore it. Treated groups of 2, 5 and 25 of 50
+geos all fail past one factor, so this is a property of the regression having
+one control series and not of a small treated group. What it means in practice
+is that the pretest checks on ``report.assumptions`` are the ones to read before
+the interval: the backdating check and the Engle-Granger check are what detect
+a treated series the control aggregate cannot trace.
+
 The study also records what Section 5.2's squared-bias-over-MSE figure measures.
 For any unbiased estimator that statistic has expectation :math:`1/n`, and it
 tracks that floor across a sixteenfold range of replication counts, reaching
