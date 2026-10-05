@@ -1,10 +1,11 @@
 """The two-group aggregate regression, shared by every estimator that fits one.
 
-Three estimators fit ``y_t = alpha + beta x_t`` on a pair of group aggregates:
-FDID's ADID arm on the control mean, TBR (and through it TBRMM) on the control
-sum, and PANGEO on the control aggregate with an optional trend. Two of them also
-form the prediction variance ``xbar' (X'X)^-1 xbar`` that the interval's width
-depends on.
+Two estimators fit ``y_t = alpha + beta x_t`` on a pair of group aggregates:
+FDID's ADID arm on the control mean and TBR's searched and named modes on the
+control sum. Both also form the prediction variance ``xbar' (X'X)^-1 xbar`` that
+the interval's width depends on. PANGEO fits a three-column design and is not a
+caller; ``test_groupfit_boundary.py`` carries that boundary and the agreement
+where the two models coincide.
 
 Test-first, per ``agents/agents_tests.md``: this file is written before
 ``mlsynth/utils/groupfit/`` exists and is RED on the import.

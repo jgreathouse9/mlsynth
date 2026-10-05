@@ -1,17 +1,27 @@
 """The two-group aggregate regression, behind one entry point.
 
-Three estimators here fit the same equation on a pair of group aggregates. FDID's
+Two estimators here fit the same equation on a pair of group aggregates. FDID's
 ADID arm regresses the treated series on the control *mean* (Li and Van den
-Bulte's eqn 2.4), TBR regresses it on the control *sum*
-(Kerman, Wang and Vaver's eqn 1), and PANGEO regresses it on the control
-aggregate with an optional trend. The two notations are one regression: the
-aggregations differ by the group size, so the intercept, the fitted values and
-the residual variance are the same numbers and only the slope's units change.
+Bulte's eqn 2.4) and TBR regresses it on the control *sum* (Kerman, Wang and
+Vaver's eqn 1). The two notations are one regression: the aggregations differ by
+the group size, so the intercept, the fitted values and the residual variance
+are the same numbers and only the slope's units change.
 
-Two of the three also form the prediction variance that sets their interval's
-width, independently, in different arithmetic. One definition is enough, and this
-is the part where a second one is dangerous: a wrong point estimate usually looks
+Both also form the prediction variance that sets their interval's width,
+independently, in different arithmetic. One definition is enough, and this is
+the part where a second one is dangerous: a wrong point estimate usually looks
 wrong, and a wrong interval width does not.
+
+PANGEO is not a caller, and the reason is its design. ``_adid`` fits
+``[1, YC, t]`` -- a constant, the control aggregate and an optional linear
+trend -- by ``lstsq``, and prices its interval on a long-run residual variance.
+``group_sums`` returns ``(n, S_xx, S_xy, S_yy)``, the sufficient statistics of a
+simple regression, so a third column has nowhere to go. Taking a design matrix
+instead would mean giving up the centred closed form, which exists only for one
+regressor, and solving by QR -- which is what PANGEO already does. The two
+implementations agree where the models coincide, at ``trend=False``, and
+``tests/test_groupfit_boundary.py`` pins that agreement so neither can drift
+from the other.
 
     >>> from mlsynth.utils.groupfit import aggregate_group, fit_two_group
     >>> x = aggregate_group(panel, control_units, how="mean")   # doctest: +SKIP

@@ -3026,6 +3026,30 @@ timeout = 180.0
   models = "the (1, 0) case scored against the pair's posterior covariance while its own index set is used for the cross-products -- the mis-sharing the one-V-per-index-set rewrite makes possible, and half of what the collapsed vectors did"
 
 [[target]]
+name = "groupfit-pangeo-boundary"
+module-path = "mlsynth/utils/pangeo_helpers/effects.py"
+test-command = "python -m pytest mlsynth/tests/test_groupfit_boundary.py mlsynth/tests/test_pangeo.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-att-fit-drifts-from-the-shared-definition"
+  find = "    beta, *_ = np.linalg.lstsq(Xpre, ypre, rcond=None)"
+  replace = "    beta, *_ = np.linalg.lstsq(Xpre * (1.0 + 1e-9), ypre, rcond=None)"
+  models = "PANGEO's ATT regression drifting from the shared two-group definition by a ninth-digit perturbation -- the size a refactor of the solve path would produce. Every shape, sign and gate is unchanged, and the only statement that notices is the agreement where the two models coincide"
+
+  [[target.mutant]]
+  id = "the-plotted-line-drifts-from-the-att-fit"
+  find = "    beta = np.linalg.lstsq(XE, y[:n_pre], rcond=None)[0]"
+  replace = "    beta = np.linalg.lstsq(XE * (1.0 + 1e-9), y[:n_pre], rcond=None)[0]"
+  models = "the counterfactual PANGEO plots parting from the fit whose ATT it reports, so the line and the number come from two betas. The figure still looks right, because the drift is below what a plot resolves"
+
+  [[target.mutant]]
+  id = "the-trend-column-is-dropped"
+  find = "    if trend:\n        cols.append(t)\n    X = np.column_stack(cols)"
+  replace = "    if False:\n        cols.append(t)\n    X = np.column_stack(cols)"
+  models = "``trend=True`` accepted and a two-column design fitted, which makes PANGEO silently the shared model it is documented as not being. The boundary test's claim that a trend moves the slope is the statement that fails"
+
+[[target]]
 name = "tbr-merged-dispatch"
 module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
 test-command = "python -m pytest mlsynth/tests/test_tbr_merged_dispatch.py mlsynth/tests/test_tbr_hac_estimate.py mlsynth/tests/test_tbr_split_override.py mlsynth/tests/test_tbr.py -q -p no:cacheprovider"
