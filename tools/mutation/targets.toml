@@ -3437,3 +3437,70 @@ timeout = 240.0
   replace = """    both = []
     if both:"""
   models = "the disjointness check removed, so a unit appearing in both the treated and control dicts is fitted against itself, reproduces itself exactly, and reports a zero gap and a clean approximability verdict for a design that was never identified"
+
+[[target]]
+name = "tbr-aa"
+module-path = "mlsynth/utils/tbr_helpers/aa.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_aa.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-gate-only-asks-whether-zero-is-covered"
+  find = "        passes=bool(p <= threshold))"
+  replace = "        passes=bool(lower <= 0.0 <= upper))"
+  models = "the second look dropped, which is the rule the ticket spends a paragraph on. A narrow interval sitting just off zero is a small error and not a broken design; without the second look it is failed, and a wide interval covering zero passes however badly the design is calibrated"
+
+  [[target.mutant]]
+  id = "the-forgiving-mean-becomes-the-least-forgiving-one"
+  find = "    nearest = min(max(0.0, lower), upper)"
+  replace = "    nearest = float(estimate)"
+  models = "the true mean taken at the point estimate instead of at the point of the interval nearest zero. The reference takes the most forgiving value consistent with the interval so the number is a lower bound on how often the design cries wolf; at the estimate it is the least forgiving, the floor of 1 - level is lost, and a design whose interval is centred on zero no longer scores the nominal rate"
+
+  [[target.mutant]]
+  id = "the-second-look-is-one-sided"
+  find = "    return float(stats.t.sf(t_crit - z, df) + stats.t.cdf(-t_crit - z, df))"
+  replace = "    return float(stats.t.sf(t_crit - z, df))"
+  models = "half the rejection region. The interval is two-sided, so a design cries wolf by missing either way; one tail halves the floor from 1 - level to half of it and the gate passes designs it should refuse"
+
+  [[target.mutant]]
+  id = "the-floor-is-compared-strictly"
+  find = "    at_floor = math.isclose(threshold, floor, rel_tol=1e-9, abs_tol=0.0)"
+  replace = "    at_floor = False"
+  models = "the floating-point representation of the floor. 1 - 0.90 is 0.09999999999999998, so a threshold of 0.10 sits 2e-17 above it and a strict comparison admits a gate that passes only designs whose probability is exactly the floor. The direction flips by level -- caught at 0.95 and 0.99, leaked at 0.90 and 0.80 -- so a test at one level passes while another leaks"
+
+  [[target.mutant]]
+  id = "the-grid-counts-the-gate-verdict-as-coverage"
+  find = "                    covered += int(d.covers_zero)"
+  replace = "                    covered += int(d.passes)"
+  models = "coverage and the gate confused. A design whose interval sits just off zero passes the gate, which is what the second look is for, while its interval does not cover zero, so the verdict is the more generous count and reading it as coverage overstates calibration. Every cell stays a plausible rate, so only deriving the count from the draws separates them"
+
+  [[target.mutant]]
+  id = "the-screen-is-counted-but-not-applied"
+  find = "                rejected += 1\n                continue"
+  replace = "                rejected += 1"
+  models = "a screen whose verdict is tallied and then ignored, so the rejected designs are measured anyway. The rejection count on the cell reads correctly while the coverage it reports is the unscreened one, which is the arm the gated comparison exists to separate"
+
+  [[target.mutant]]
+  id = "coverage-is-divided-by-the-replication-count"
+  find = "                n = len(admitted)"
+  replace = "                n = int(reps)"
+  models = "the screened-out designs left in the denominator. A screen that refuses half the candidates then halves the reported coverage, so screening appears to ruin calibration it in fact improves"
+
+  [[target.mutant]]
+  id = "the-neutral-prior-becomes-a-uniform-one"
+  find = "NEUTRAL_PRIOR = 1.0 / 3.0"
+  replace = "NEUTRAL_PRIOR = 1.0"
+  models = "Kerman's neutral prior swapped for Beta(1, 1). Both give usable bounds at a unanimous count, so the interval still looks right; the posterior median stops being the near-unbiased one, which is the property a coverage estimate wants, and every bound moves"
+
+  [[target.mutant]]
+  id = "the-minimum-fit-length-is-dropped"
+  find = "MIN_FIT = 8"
+  replace = "MIN_FIT = 2"
+  models = "a backdated fit on too few periods. Two periods leave zero degrees of freedom and the t quantile is infinite; a handful leave a quantile so wide the gate cannot separate a sound design from a broken one, and every such design passes"
+
+  [[target.mutant]]
+  id = "the-held-out-window-is-left-in-the-fit"
+  find = "    fit = fit_pretest(y[:n_fit], x[:n_fit])"
+  replace = "    fit = fit_pretest(y, x)"
+  models = "the fit shown the window it is scored on, which makes the A/A estimate in-sample and the false-positive rate meaningless. The estimate shrinks toward zero and coverage rises, so the design looks better calibrated the more the fit was allowed to cheat"
+
