@@ -3546,6 +3546,12 @@ timeout = 900.0
   replace = "LEVELS = (0.95, 0.90, 0.80)"
   models = "the ends trimmed off the canonical table. A scale too small shows up first at 0.99, where the quantile is largest, and one too large shows up first at 0.50, where a short interval still has to miss half the time. Keeping only the middle leaves the table least able to see the error it exists to find"
 
+  [[target.mutant]]
+  id = "the-critical-value-is-taken-at-the-wrong-probability"
+  find = "    t_crit = float(stats.t.ppf(0.5 * (1.0 + level), df))\n    z = abs(float(mu0)) / float(scale)"
+  replace = "    t_crit = float(stats.t.ppf(0.5 * (1.0 + level) + 1e-8, df))\n    z = abs(float(mu0)) / float(scale)"
+  models = "the quantile read at a probability off by 1e-8, which moves the floor about 2e-8 and leaves every verdict in the suite unchanged. It exists to keep the floor tests honest about their own tolerance: those assertions are relative because the exact identity is only exact in real arithmetic, and the round trip through ppf costs up to 7.5e-11 on scipy 1.15.3 against 2.2e-15 on 1.17.1 and 1.18.1. A tolerance loosened past this mutant would stop testing the rule and start testing the installed scipy"
+
 [[target]]
 name = "tbr-assumption-checks"
 module-path = "mlsynth/utils/tbr_helpers/diagnostics.py"

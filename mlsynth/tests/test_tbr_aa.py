@@ -96,9 +96,27 @@ def test_the_fit_never_sees_the_held_out_window():
 @pytest.mark.parametrize("level", [0.99, 0.95, 0.90, 0.80, 0.50])
 @pytest.mark.parametrize("df", [5, 38, 200])
 def test_the_false_positive_floor_is_one_minus_the_level(level, df):
-    """At a true mean of zero the rule returns the nominal rate exactly."""
+    """At a true mean of zero the rule returns the nominal rate.
+
+    Exactly, in real arithmetic: ``sf(t) = 0.5(1 - level)`` by the definition of
+    the quantile and ``cdf(-t)`` matches it by symmetry. The slack is the round
+    trip through ``ppf`` and back, whose size is scipy's inversion error times
+    the density at the quantile, and that is a property of the installed scipy
+    and not of this rule. Measured across the cells below: scipy 1.15.3 is
+    off by at worst 7.5e-11 relative, at df 200 and level 0.99, while
+    1.17.1 and 1.18.1 reach 2.2e-15. So the tolerance is relative and
+    sized an order above the loosest build, which still leaves it two
+    orders tighter than any defect in the rule: dropping one tail halves
+    the value, and a quantile off by 1e-8 in probability moves it 1e-7.
+
+    An absolute 1e-12 here pinned one scipy build and failed on another.
+    The cell it failed on was df 5 at level 0.8, the largest absolute miss
+    at 8.0e-12 and not the largest relative one, so sizing a replacement
+    from the cell that happened to fail would have set the bar in the
+    wrong place.
+    """
     p = aa.false_positive_probability(0.0, 1.0, df, level)
-    assert p == pytest.approx(1.0 - level, abs=1e-12)
+    assert p == pytest.approx(1.0 - level, rel=1e-9)
 
 
 @pytest.mark.parametrize("level", [0.95, 0.90, 0.50])
@@ -296,8 +314,13 @@ def test_a_zero_bandwidth_does_not_reproduce_the_whole_published_scale():
        df=st.integers(3, 300))
 def test_the_probability_is_a_probability_and_never_below_the_floor(
         mu0, scale, level, df):
+    # The floor is attained, not merely approached, so the slack below it is
+    # the ppf round trip and is relative for the same reason as the floor test
+    # above. An absolute 1e-12 is too tight by a factor of eight at df 5,
+    # level 0.8 on scipy 1.15.3, and comfortable on 1.17.1.
+    floor = 1.0 - level
     p = aa.false_positive_probability(mu0, scale, df, level)
-    assert 1.0 - level - 1e-12 <= p <= 1.0
+    assert floor * (1.0 - 1e-9) <= p <= 1.0
 
 
 @settings(max_examples=200, deadline=None,
