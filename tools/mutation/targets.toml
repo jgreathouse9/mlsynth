@@ -3504,6 +3504,48 @@ timeout = 900.0
   replace = "    fit = fit_pretest(y, x)"
   models = "the fit shown the window it is scored on, which makes the A/A estimate in-sample and the false-positive rate meaningless. The estimate shrinks toward zero and coverage rises, so the design looks better calibrated the more the fit was allowed to cheat"
 
+  [[target.mutant]]
+  id = "the-screen-reads-silence-as-a-failure"
+  find = "    return not any(got[name] is False for name in IDENTIFYING)"
+  replace = "    return not any(got[name] is not True for name in IDENTIFYING)"
+  models = "no verdict read as a rejection. The two identifying checks go silent below 11 and 30 pretest periods, so on any shorter panel the screen refuses every split and the grid comes back with nothing measured. A screen that refuses everything is worse than none, because the override becomes reflex"
+
+  [[target.mutant]]
+  id = "the-screen-sees-the-window-it-is-screening-for"
+  find = "    y_fit, x_fit = y[:n_fit], x[:n_fit]"
+  replace = "    y_fit, x_fit = y, x"
+  models = "the checks given the whole series instead of the fit window, so the screen chooses designs on the A/A window it is about to score them on. Every cell downstream becomes in-sample and coverage rises, which reads as a better calibrated design"
+
+  [[target.mutant]]
+  id = "the-check-rates-are-taken-after-the-screen"
+  find = "            for name, holds in verdicts.items():"
+  replace = "            for name, holds in (verdicts.items() if admit else ()):"
+  models = "the rates tallied over the measured splits instead of every split drawn. The two screened checks then hold on all of them by construction, so the field says nothing where it is most wanted, and a screened cell can no longer be compared with an unscreened one on it"
+
+  [[target.mutant]]
+  id = "a-check-that-never-ran-reports-a-rate-of-zero"
+  find = "                                rate=(held / ran) if ran else float(\"nan\"))"
+  replace = "                                rate=(held / ran) if ran else 0.0)"
+  models = "a check that reached no verdict reported as a check that failed every time. Zero out of twenty and zero out of zero are different findings, and reading the second as the first turns a window too short for a test into evidence against the design"
+
+  [[target.mutant]]
+  id = "a-misspelled-screen-name-becomes-the-default"
+  find = "    if isinstance(screen, str) and screen != IDENTIFICATION:"
+  replace = "    if isinstance(screen, str) and False:"
+  models = "the screen name unvalidated, so any string silently selects the identifying checks. A caller who writes 'backdating' meaning one check gets both, and one who writes 'none' meaning no screen gets the full screen, in each case with a table that does not say what they think it says"
+
+  [[target.mutant]]
+  id = "the-screen-widens-to-every-check-it-can-run"
+  find = "IDENTIFYING = (\"backdating\", \"stationary_residual\")"
+  replace = "IDENTIFYING = AGGREGATE_CHECKS"
+  models = "the screen refusing splits on the three residual checks as well. Those checks are about the spread of the errors, which is exactly what the cell's coverage measures, so the design would be screened on its own outcome and the cell would be conditioned on the thing it reports"
+
+  [[target.mutant]]
+  id = "the-table-loses-the-two-levels-that-detect-a-bad-scale"
+  find = "LEVELS = (0.99, 0.95, 0.90, 0.80, 0.50)"
+  replace = "LEVELS = (0.95, 0.90, 0.80)"
+  models = "the ends trimmed off the canonical table. A scale too small shows up first at 0.99, where the quantile is largest, and one too large shows up first at 0.50, where a short interval still has to miss half the time. Keeping only the middle leaves the table least able to see the error it exists to find"
+
 [[target]]
 name = "tbr-assumption-checks"
 module-path = "mlsynth/utils/tbr_helpers/diagnostics.py"

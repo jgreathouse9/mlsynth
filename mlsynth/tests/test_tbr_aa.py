@@ -542,7 +542,7 @@ def test_a_screen_is_applied_and_counted():
 
 def test_without_a_screen_nothing_is_rejected():
     c, = aa.coverage_grid(_wide(), n_treated=3, windows=(6,), levels=(0.90,),
-                          reps=20, seed=0)
+                          reps=20, seed=0, screen=None)
     assert c.screened is False
     assert c.n_rejected_by_screen == 0 and c.n_draws == 20
 
@@ -619,7 +619,7 @@ def test_the_grid_counts_coverage_and_not_the_gate_verdict():
     panel = _wide()
     n_test, reps, level, seed = 6, 60, 0.90, 21
     c, = aa.coverage_grid(panel, n_treated=3, windows=(n_test,),
-                          levels=(level,), reps=reps, seed=seed)
+                          levels=(level,), reps=reps, seed=seed, screen=None)
 
     rng = np.random.default_rng([seed, n_test])
     splits = [aa.random_split(rng, panel.shape[1], 3) for _ in range(reps)]
@@ -632,3 +632,303 @@ def test_the_grid_counts_coverage_and_not_the_gate_verdict():
         passes += d.passes
     assert c.n_covered == covers
     assert passes > covers, "no draw separates the two counts on this panel"
+
+
+# ============================================================================
+# The default screen, the canonical levels, and the checks the cells carry.
+#
+# A cell of the table is a coverage rate over splits of an untreated panel. On
+# its own it does not say what kind of design produced it, and the two
+# questions a reader has next are what was screened out and what the surviving
+# designs looked like. The first is answered by making the identification
+# checks the default screen; the second by carrying each check's hold rate on
+# the cell.
+#
+# The screen does not make a cell conditional on the relation holding. Checks
+# sized at five per cent cannot remove structural non-proportionality that is
+# present in nearly every split -- measured on a three-factor panel, screening
+# moved coverage from 0.597 to 0.618 while admitting 76% of splits, which is
+# inside the noise. What it buys is Ferman and Pinto (2017)'s comparability: a
+# design chosen by a screen has to be calibrated against placebo draws chosen
+# by the same screen, or the real design is held to a standard the reference
+# distribution was never held to.
+# ============================================================================
+
+def _breaks(seed=0, n=48, n_geos=12, n_fit=42, break_at=36, shift=60.0):
+    """A panel whose treated-side relation shifts inside the backdated tail.
+
+    The shift lands between ``break_at`` and ``n_fit``, which is the window the
+    backdating check scores, so a fit taken on the front of the pretest does
+    not predict it.
+    """
+    panel = _wide(seed=seed, n_geos=n_geos, n=n)
+    panel[break_at:n_fit, : n_geos // 2] += shift
+    return panel
+
+
+def _short(seed=0, n_geos=12, n=26):
+    """Long enough to backdate, too short for the stationarity check."""
+    return _wide(seed=seed, n_geos=n_geos, n=n)
+
+
+# ----------------------------------------------------------------- smoke
+def test_the_canonical_levels_are_the_five_the_table_is_read_at():
+    assert aa.LEVELS == (0.99, 0.95, 0.90, 0.80, 0.50)
+
+
+def test_the_grid_reads_the_canonical_levels_when_it_is_not_told_any():
+    cells = aa.coverage_grid(_wide(), n_treated=3, windows=(6,), reps=8, seed=0)
+    assert tuple(c.level for c in cells) == aa.LEVELS
+
+
+def test_a_cell_carries_a_rate_for_every_check_it_could_run():
+    c, = aa.coverage_grid(_wide(), n_treated=3, windows=(6,), levels=(0.90,),
+                          reps=8, seed=0)
+    assert tuple(r.name for r in c.checks) == aa.AGGREGATE_CHECKS
+
+
+# ------------------------------------------------------------------ unit
+@pytest.mark.parametrize("level", aa.LEVELS)
+def test_every_canonical_level_admits_the_default_threshold(level):
+    """``aa_draw`` defaults the threshold to 2 (1 - level), which the gate
+    validates against its floor of 1 - level. Every canonical level has to
+    clear that, or the table could not be read at it at all."""
+    assert 0.0 < level < 1.0
+    y, x = _series(seed=1)
+    d = aa.aa_draw(y, x, 6, level=level)
+    assert d.threshold > 1.0 - level
+
+
+def test_the_canonical_levels_descend_without_repeating():
+    assert list(aa.LEVELS) == sorted(set(aa.LEVELS), reverse=True)
+
+
+def test_the_checks_are_the_five_a_pair_of_aggregates_can_answer():
+    """Two of the seven need the panel frame, so they are absent and not
+    reported as passing."""
+    y, x = _series(seed=0)
+    got = aa.split_checks(y, x, 42, 6)
+    assert tuple(got) == aa.AGGREGATE_CHECKS
+    assert not set(got) & {"balanced_panel", "stable_membership"}
+
+
+def test_the_checks_never_see_the_window_they_screen_for():
+    """The A/A window is what the coverage is measured on. A screen that read
+    it would be choosing designs on the data it is about to score them on, and
+    every cell downstream would be in-sample."""
+    y, x = _series(seed=2)
+    n_fit, n_test = 42, 6
+    before = aa.split_checks(y, x, n_fit, n_test)
+    y2, x2 = y.copy(), x.copy()
+    y2[n_fit:] += 500.0
+    x2[n_fit:] -= 300.0
+    assert aa.split_checks(y2, x2, n_fit, n_test) == before
+
+
+def test_a_relation_that_broke_in_the_pretest_is_caught():
+    y, x = _series(seed=3)
+    y = y.copy()
+    y[36:42] += 80.0
+    assert aa.split_checks(y, x, 42, 6)["backdating"] is False
+
+
+def test_a_window_too_short_for_a_check_reports_no_verdict_and_not_a_pass():
+    y, x = _series(seed=4, n=26)
+    got = aa.split_checks(y, x, 20, 6)
+    assert got["stationary_residual"] is None
+    assert got["backdating"] is not None
+
+
+def test_the_default_screen_refuses_a_split_whose_relation_broke():
+    y, x = _series(seed=3)
+    y = y.copy()
+    y[36:42] += 80.0
+    assert aa.identification_screen(y, x, 42, 6) is False
+    assert aa.identification_screen(*_series(seed=3), 42, 6) is True
+
+
+def test_a_check_that_could_not_run_does_not_refuse_the_split():
+    """Silence is not a pass, and it is not a rejection either: the screen acts
+    on evidence. A screen that read no verdict as a failure would empty the
+    table on every panel too short for the stationarity check, and a screen
+    that refuses everything is worse than none."""
+    y, x = _series(seed=4, n=26)
+    got = aa.split_checks(y, x, 20, 6)
+    assert got["stationary_residual"] is None and got["backdating"] is True
+    assert aa.identification_screen(y, x, 20, 6) is True
+
+    c, = aa.coverage_grid(_short(), n_treated=3, windows=(6,), levels=(0.90,),
+                          reps=20, seed=0)
+    assert c.n_draws > 0
+
+
+def test_the_screen_is_on_by_default():
+    c, = aa.coverage_grid(_breaks(), n_treated=6, windows=(6,), levels=(0.90,),
+                          reps=20, seed=0)
+    assert c.screened is True
+    assert c.n_rejected_by_screen > 0
+
+
+def test_the_screen_can_be_turned_off():
+    c, = aa.coverage_grid(_breaks(), n_treated=6, windows=(6,), levels=(0.90,),
+                          reps=20, seed=0, screen=None)
+    assert c.screened is False
+    assert c.n_rejected_by_screen == 0 and c.n_draws == 20
+
+
+def test_the_default_screen_is_the_identification_pair_and_nothing_else():
+    """Asserted by reproducing it from the checks, so the name cannot drift
+    from the rule it stands for."""
+    def same(y, x, n_fit):
+        got = aa.split_checks(y, x, n_fit, 6)
+        return not any(got[n] is False for n in aa.IDENTIFYING)
+
+    kw = dict(n_treated=6, windows=(6,), levels=(0.90,), reps=20, seed=0)
+    default, = aa.coverage_grid(_breaks(), **kw)
+    spelled, = aa.coverage_grid(_breaks(), screen=same, **kw)
+    assert default.n_draws == spelled.n_draws
+    assert default.n_rejected_by_screen == spelled.n_rejected_by_screen
+    assert default.n_covered == spelled.n_covered
+
+
+def test_the_identifying_pair_is_the_two_checks_on_the_relation():
+    assert aa.IDENTIFYING == ("backdating", "stationary_residual")
+    assert set(aa.IDENTIFYING) < set(aa.AGGREGATE_CHECKS)
+
+
+def test_a_custom_screen_still_takes_the_three_arguments_it_always_did():
+    seen = []
+    def screen(y, x, n_fit):
+        seen.append(n_fit)
+        return len(seen) % 2 == 0
+    c, = aa.coverage_grid(_wide(), n_treated=3, windows=(6,), levels=(0.90,),
+                          reps=20, seed=0, screen=screen)
+    assert c.n_draws + c.n_rejected_by_screen == 20
+    assert all(n == N_PRE - 6 for n in seen)
+
+
+def test_every_cell_of_one_window_carries_the_same_check_rates():
+    """The checks are a property of the split and the fit window, so they do
+    not depend on the level the interval is read at or on which scale was
+    used."""
+    cells = aa.coverage_grid(_wide(), n_treated=3, windows=(6,),
+                             levels=(0.99, 0.50), variances=("iid", "hac"),
+                             reps=12, seed=0)
+    assert len({tuple((r.name, r.n_ran, r.n_held) for r in c.checks)
+                for c in cells}) == 1
+
+
+def test_the_check_rates_are_over_every_split_the_run_attempted():
+    """The denominator is the replications, not the splits that survived the
+    screen. Reported over the survivors, the two screened checks would be one
+    by construction and the field would say nothing."""
+    reps = 20
+    c, = aa.coverage_grid(_breaks(), n_treated=6, windows=(6,), levels=(0.90,),
+                          reps=reps, seed=0)
+    assert c.n_rejected_by_screen > 0
+    rates = {r.name: r for r in c.checks}
+    assert rates["backdating"].n_ran == reps
+    assert rates["backdating"].n_held < reps
+
+
+def test_turning_the_screen_on_does_not_move_the_check_rates():
+    """What makes a screened and an unscreened cell comparable on this field."""
+    kw = dict(n_treated=6, windows=(6,), levels=(0.90,), reps=20, seed=0)
+    on, = aa.coverage_grid(_breaks(), **kw)
+    off, = aa.coverage_grid(_breaks(), screen=None, **kw)
+    assert [(r.name, r.n_ran, r.n_held) for r in on.checks] == \
+           [(r.name, r.n_ran, r.n_held) for r in off.checks]
+    assert on.n_draws != off.n_draws
+
+
+def test_a_rate_separates_a_check_that_fired_from_one_that_could_not_run():
+    """Zero out of twenty and zero out of zero are different findings, and a
+    single fraction cannot tell them apart."""
+    c, = aa.coverage_grid(_short(), n_treated=3, windows=(6,), levels=(0.90,),
+                          reps=20, seed=0)
+    rates = {r.name: r for r in c.checks}
+    assert rates["stationary_residual"].n_ran == 0
+    assert not np.isfinite(rates["stationary_residual"].rate)
+    assert rates["backdating"].n_ran == 20
+
+
+def test_a_check_rate_is_internally_consistent():
+    for c in aa.coverage_grid(_wide(), n_treated=3, windows=(4, 8),
+                              levels=(0.90,), reps=16, seed=1):
+        for r in c.checks:
+            assert 0 <= r.n_held <= r.n_ran <= 16
+            if r.n_ran:
+                assert r.rate == pytest.approx(r.n_held / r.n_ran)
+            else:
+                assert not np.isfinite(r.rate)
+
+
+# ------------------------------------------------------------ edge cases
+def test_the_checks_survive_a_split_with_no_variation_in_it():
+    y = np.full(48, 7.0)
+    x = np.full(48, 3.0)
+    got = aa.split_checks(y, x, 42, 6)
+    assert tuple(got) == aa.AGGREGATE_CHECKS
+    assert all(v is None or isinstance(v, bool) for v in got.values())
+
+
+def test_a_screen_that_refuses_everything_still_reports_what_it_saw():
+    c, = aa.coverage_grid(_wide(), n_treated=3, windows=(6,), levels=(0.90,),
+                          reps=10, seed=0, screen=lambda y, x, n: False)
+    assert c.n_draws == 0 and c.n_rejected_by_screen == 10
+    assert not np.isfinite(c.coverage)
+    assert {r.name for r in c.checks} == set(aa.AGGREGATE_CHECKS)
+    assert any(r.n_ran == 10 for r in c.checks)
+
+
+def test_a_window_leaving_too_little_to_check_still_reports_no_verdict():
+    """A fit window of ten leaves two to backdate on, against the three a
+    held-out window needs, so the check that decides the default screen is the
+    first to go silent as the pretest shortens."""
+    y, x = _series(seed=6, n=16)
+    got = aa.split_checks(y, x, 10, 6)
+    assert got["backdating"] is None and got["stationary_residual"] is None
+    assert aa.identification_screen(y, x, 10, 6) is True
+
+
+# --------------------------------------------------------------- failure
+@pytest.mark.parametrize("name", ["backdating", "identification ", "", "none"])
+def test_a_screen_named_by_a_string_the_module_does_not_know_is_refused(name):
+    with pytest.raises(MlsynthConfigError, match="screen"):
+        aa.coverage_grid(_wide(), n_treated=3, windows=(6,), levels=(0.90,),
+                         reps=4, seed=0, screen=name)
+
+
+def test_the_checks_refuse_two_aggregates_of_different_lengths():
+    """Its own entry point, so it validates its own inputs: a caller reaching
+    `split_checks` directly has not been through `aa_draw`'s checks."""
+    with pytest.raises(MlsynthDataError, match="different lengths"):
+        aa.split_checks(np.zeros(48), np.zeros(40), 42, 6)
+
+
+def test_the_screen_is_refused_a_window_that_leaves_nothing_to_fit_on():
+    y, x = _series(seed=7, n=12)
+    with pytest.raises(MlsynthDataError, match="fit"):
+        aa.split_checks(y, x, 4, 6)
+
+
+# -------------------------------------------------------------- property
+@settings(max_examples=40, deadline=None,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(seed=st.integers(0, 2**16 - 1), n_test=st.integers(3, 10))
+def test_the_screen_admits_exactly_when_no_identifying_check_fired(seed, n_test):
+    y, x = _series(seed=seed)
+    n_fit = y.size - n_test
+    got = aa.split_checks(y, x, n_fit, n_test)
+    fired = any(got[n] is False for n in aa.IDENTIFYING)
+    assert aa.identification_screen(y, x, n_fit, n_test) is (not fired)
+
+
+@settings(max_examples=25, deadline=None,
+          suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(seed=st.integers(0, 2**16 - 1), reps=st.integers(2, 12))
+def test_no_check_runs_more_often_than_the_run_had_replications(seed, reps):
+    c, = aa.coverage_grid(_wide(seed=seed), n_treated=3, windows=(6,),
+                          levels=(0.90,), reps=reps, seed=seed)
+    assert all(0 <= r.n_held <= r.n_ran <= reps for r in c.checks)
+    assert c.n_draws + c.n_rejected_by_screen == reps

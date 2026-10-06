@@ -44,17 +44,38 @@ The floor is the reason ``threshold`` is validated against it. A threshold at
 or below :math:`1 - \text{level}` rejects every candidate, including a design
 whose interval sits dead on zero, so it is a configuration error and not a
 strict gate.
+
+What the default screen is for
+------------------------------
+
+:func:`coverage_grid` screens each split on the two checks that speak to the
+relation itself before measuring it. That does not make a cell conditional on
+the relation holding, and claiming it would be wrong. The checks are sized at
+five per cent, and structural non-proportionality is present in nearly every
+split of a panel that has it, so they have almost no power against it: on a
+three-factor panel screening moved coverage from 0.597 to 0.618 while admitting
+76 per cent of splits, and on a one-factor panel it moved 0.903 to 0.901 at 95
+per cent admitted. Both differences are inside the noise of either number.
+
+The screen earns its place on Ferman and Pinto (2017)'s argument instead. A
+search that picks its design on pretest fit has to be calibrated against
+placebo draws picked the same way, because screening the real design while
+leaving the reference distribution unscreened holds the two to different
+standards and over-rejects. So the default is comparability with a screened
+search, which is the thing the table is read against, and it is the default
+because a table built the other way is the wrong reference for one.
 """
 from __future__ import annotations
 
 import math
-from typing import Literal, Optional, Sequence
+from typing import Dict, Literal, Optional, Sequence, Tuple
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 from scipy import stats
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+from .diagnostics import _identification_checks, _residual_checks
 from .posterior import cumulative_posterior, cumulative_posterior_hac, fit_pretest
 
 #: Pretest periods a backdated fit needs before its interval means anything.
@@ -230,6 +251,99 @@ def aa_draw(y: np.ndarray, x: np.ndarray, n_test: int, *,
 #: degenerate one.
 NEUTRAL_PRIOR = 1.0 / 3.0
 
+#: The levels the table is read at. Three of them bracket the levels a design
+#: is normally reported at, and the two ends are there to catch a scale that is
+#: wrong by a factor: a scale too small shows up first at 0.99, where the
+#: quantile is largest, and a scale too large shows up first at 0.50, where a
+#: short interval still has to miss half the time.
+LEVELS = (0.99, 0.95, 0.90, 0.80, 0.50)
+
+#: The checks a treated and a control aggregate can answer between them, in the
+#: order :class:`~.diagnostics.AssumptionChecks` reports them. The other two
+#: checks read the panel frame -- whether every unit is observed in every
+#: period, and whether the two groups keep their members -- and a pair of
+#: summed series no longer carries either, so they are absent here and are not
+#: reported as passing.
+AGGREGATE_CHECKS = ("backdating", "stationary_residual", "serial_correlation",
+                    "normality", "homoskedasticity")
+
+#: The two of those that speak to the relation itself. The other three are
+#: about the errors around it: a split can pass all three while the relation
+#: the counterfactual extrapolates does not hold.
+IDENTIFYING = ("backdating", "stationary_residual")
+
+#: The name of the default screen, which refuses a split when either check in
+#: :data:`IDENTIFYING` fired.
+IDENTIFICATION = "identification"
+
+
+class CheckRate(BaseModel):
+    """How often one check held, over the splits a run drew.
+
+    Two counts and not one fraction, because a check that fired on none of the
+    splits and a check that could not run on any of them are different
+    findings, and a single rate cannot tell them apart.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(description="The check's name, as in AGGREGATE_CHECKS.")
+    n_ran: int = Field(
+        description="Splits on which the check returned a verdict. Below the "
+                    "replication count when the fit window was too short for "
+                    "it, which is silence and not a pass.")
+    n_held: int = Field(description="Of those, how many it held on.")
+    rate: float = Field(
+        description="n_held / n_ran. Not finite when the check never ran.")
+
+
+def split_checks(y: np.ndarray, x: np.ndarray, n_fit: int,
+                 n_test: int) -> Dict[str, Optional[bool]]:
+    """The five assumption checks a pair of aggregates can answer.
+
+    Only the first ``n_fit`` periods are read. The A/A window is the last
+    ``n_test``, which is what the coverage is measured on, so a screen built on
+    these checks is choosing designs without having seen the data it is about
+    to score them on. The backdating check splits the fit window again, fitting
+    on the front and scoring the ``n_test`` periods before ``n_fit``, so the
+    prediction it grades is the length of the one the draw makes.
+
+    Each value is True where the check held, False where it fired, and None
+    where the window was too short for it to say anything.
+    """
+    y = np.asarray(y, dtype=float).ravel()
+    x = np.asarray(x, dtype=float).ravel()
+    n_fit, n_test = int(n_fit), int(n_test)
+    if y.size != x.size:
+        raise MlsynthDataError(
+            f"the two aggregates have different lengths: {y.size} and {x.size}.")
+    if n_fit < MIN_FIT:
+        raise MlsynthDataError(
+            f"{n_fit} period(s) to fit on, against the {MIN_FIT} a backdated "
+            f"fit needs. There is nothing for the checks to read.")
+
+    y_fit, x_fit = y[:n_fit], x[:n_fit]
+    back, stationary = _identification_checks(y_fit, x_fit, n_fit, n_test)
+    fit = fit_pretest(y_fit, x_fit)
+    resid = y_fit - (fit.alpha + fit.beta * x_fit)
+    serial, normality, hetero = _residual_checks(resid, x_fit)
+    return {c.name: c.holds
+            for c in (back, stationary, serial, normality, hetero)}
+
+
+def identification_screen(y: np.ndarray, x: np.ndarray, n_fit: int,
+                          n_test: int) -> bool:
+    """Admit a split unless one of the two identifying checks fired.
+
+    A check that could not run does not refuse the split. Silence is not a
+    pass, and it is not a rejection either: the screen acts on evidence. Read
+    the other way, the screen would empty the table on every panel shorter than
+    the stationarity check's minimum, and a screen that refuses everything is
+    worse than no screen, because the override becomes reflex.
+    """
+    got = split_checks(y, x, n_fit, n_test)
+    return not any(got[name] is False for name in IDENTIFYING)
+
 
 class CoverageCell(BaseModel):
     """One (level, window, variance) cell of the calibration table."""
@@ -254,6 +368,15 @@ class CoverageCell(BaseModel):
     mean_width: float = Field(
         description="Mean interval width over the measured splits, in outcome "
                     "units. The cost side of a variance correction.")
+    checks: Tuple[CheckRate, ...] = Field(
+        default=(),
+        description="How often each assumption check held, over every split "
+                    "the run drew and not only the measured ones. The "
+                    "denominator is the replication count, so the field reads "
+                    "the same whether or not a screen was applied and a "
+                    "screened cell stays comparable with an unscreened one on "
+                    "it. What the screen removed is reported separately, by "
+                    "n_rejected_by_screen.")
 
 
 def random_split(rng: np.random.Generator, n_geos: int, n_treated: int,
@@ -297,10 +420,10 @@ def beta_interval(n_covered: int, n_draws: int, level: float = 0.90):
 
 
 def coverage_grid(panel: np.ndarray, *, n_treated: int,
-                  windows: Sequence[int], levels: Sequence[float],
+                  windows: Sequence[int], levels: Sequence[float] = LEVELS,
                   variances: Sequence[str] = ("iid",), reps: int = 200,
                   seed: int = 0, bandwidth: Optional[int] = None,
-                  screen=None, ci_level: float = 0.90):
+                  screen=IDENTIFICATION, ci_level: float = 0.90):
     """Coverage of the A/A interval over random splits of an untreated panel.
 
     ``panel`` is periods by geos, with no treatment anywhere. Each replication
@@ -309,9 +432,22 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
 
     The same split sequence is used at every level and variance, so the arms
     are compared on identical designs and a difference between them is the
-    variance and not the draw. ``screen`` is an optional
-    ``(y, x, n_fit) -> bool`` admitting a candidate, which is where a
-    design-time gate goes; rejected splits are counted, never measured.
+    variance and not the draw.
+
+    ``screen`` decides which splits are measured. It defaults to
+    :data:`IDENTIFICATION`, which refuses a split when either identifying check
+    fired; ``None`` measures every split; and a ``(y, x, n_fit) -> bool``
+    callable is a design-time gate of the caller's own. Rejected splits are
+    counted, never measured.
+
+    The default does not make a cell conditional on the relation holding.
+    Checks sized at five per cent cannot remove structural non-proportionality
+    that is present in nearly every split: on a three-factor panel screening
+    moved coverage from 0.597 to 0.618 while admitting 76% of splits, which is
+    inside the noise of either number. What it buys is Ferman and Pinto
+    (2017)'s comparability. A design chosen by a screen has to be calibrated
+    against placebo draws chosen by the same screen, and a table built without
+    one is the wrong reference distribution for a search that screens.
 
     Returns one :class:`CoverageCell` per (level, window, variance). No cell
     carries a verdict.
@@ -323,6 +459,11 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
     n_periods, n_geos = panel.shape
     if int(reps) < 1:
         raise MlsynthConfigError(f"reps must be at least one; got {reps}.")
+    if isinstance(screen, str) and screen != IDENTIFICATION:
+        raise MlsynthConfigError(
+            f"{screen!r} does not name a screen. Pass {IDENTIFICATION!r} for "
+            f"the identifying checks, None to measure every split, or a "
+            f"(y, x, n_fit) -> bool callable of your own.")
 
     cells = []
     for n_test in windows:
@@ -333,13 +474,33 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
         splits = [random_split(rng, n_geos, n_treated) for _ in range(int(reps))]
 
         admitted, rejected = [], 0
+        tally = {name: [0, 0] for name in AGGREGATE_CHECKS}
         for treated, control in splits:
             y = panel[:, treated].sum(axis=1)
             x = panel[:, control].sum(axis=1)
-            if screen is not None and not screen(y, x, n_fit):
+            verdicts = split_checks(y, x, n_fit, n_test)
+            if screen is None:
+                admit = True
+            elif isinstance(screen, str):
+                admit = not any(verdicts[n] is False for n in IDENTIFYING)
+            else:
+                admit = bool(screen(y, x, n_fit))
+            # Two counts per check: how often it reached a verdict, and how
+            # often that verdict held. Tallied over every split the run drew,
+            # the refused ones included, so the field reads the same whether
+            # or not a screen was applied and the two cells stay comparable
+            # on it. What the screen removed is n_rejected_by_screen.
+            for name, holds in verdicts.items():
+                if holds is not None:
+                    tally[name][0] += 1
+                    tally[name][1] += int(holds)
+            if not admit:
                 rejected += 1
                 continue
             admitted.append((y, x))
+        rates = tuple(CheckRate(name=name, n_ran=ran, n_held=held,
+                                rate=(held / ran) if ran else float("nan"))
+                      for name, (ran, held) in tally.items())
 
         for variance in variances:
             for level in levels:
@@ -360,5 +521,6 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
                     coverage=(covered / n) if n else float("nan"),
                     ci_lower=lo, ci_upper=hi,
                     mean_width=float(np.mean(widths)) if widths
-                               else float("nan")))
+                               else float("nan"),
+                    checks=rates))
     return cells
