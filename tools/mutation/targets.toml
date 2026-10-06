@@ -3439,6 +3439,48 @@ timeout = 240.0
   models = "the disjointness check removed, so a unit appearing in both the treated and control dicts is fitted against itself, reproduces itself exactly, and reports a zero gap and a clean approximability verdict for a design that was never identified"
 
 [[target]]
+name = "tbr-pointwise-posterior"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-variance-choice-does-not-reach-the-band"
+  find = "    hac = getattr(config, \"variance\", \"iid\") == \"hac\""
+  replace = "    hac = False"
+  models = "the config's variance honoured for the cumulative interval and ignored for the per-period one, so asking for HAC corrects one panel of the figure and leaves the other at the iid scale. Every number stays finite and the point estimates are untouched, because this is a variance correction"
+
+  [[target.mutant]]
+  id = "the-bandwidth-is-re-derived-instead-of-read"
+  find = "                bandwidth=bandwidth)"
+  replace = "                bandwidth=None)"
+  models = "an explicit hac_bandwidth accepted, recorded, and replaced by the default rule on the way into the per-period scale. The default is what most panels would have chosen anyway, so the two agree except where the caller disagreed with the rule"
+
+  [[target.mutant]]
+  id = "the-period-labels-drop-the-pretest"
+  find = "        periods=list(inputs.time_labels),"
+  replace = "        periods=list(inputs.time_labels[n_pre:]),"
+  models = "the labels covering the test window while the estimates cover the panel, so every per-period effect is attributed to the wrong period and the diagnostic half of the figure is plotted against the wrong axis. The values are all correct; only their alignment is not"
+
+  [[target.mutant]]
+  id = "the-posterior-uses-the-pretest-length-for-its-degrees-of-freedom"
+  find = "    lower, upper = interval(locs, scales, fit.df, level)"
+  replace = "    lower, upper = interval(locs, scales, fit.n_pretest, level)"
+  models = "n in place of n - 2, which is the transcription the t posterior invites. The band is merely a little narrower, so it still brackets every estimate and still widens with the level; only a check against the quantile itself notices"
+
+[[target]]
+name = "tbr-pointwise-plot"
+module-path = "mlsynth/utils/tbr_helpers/plotter.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-per-period-panel-loses-its-band"
+  find = "    if pw is not None:"
+  replace = "    if False:"
+  models = "the per-period panel falling back to the bare difference even where the posterior is available, which is the state this change exists to correct: a per-period effect indistinguishable from zero drawn identically to one that is not"
+
+[[target]]
 name = "tbr-montecarlo-harness"
 module-path = "benchmarks/studies/tbr_geo/mlsynth_coverage.py"
 test-command = "python -m pytest benchmarks/tests/test_tbr_montecarlo_harness.py -q -p no:cacheprovider"
