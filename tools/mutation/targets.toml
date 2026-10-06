@@ -3167,7 +3167,7 @@ timeout = 300.0
 [[target]]
 name = "tbr-hac"
 module-path = "mlsynth/utils/tbr_helpers/posterior.py"
-test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py mlsynth/tests/test_tbr.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]

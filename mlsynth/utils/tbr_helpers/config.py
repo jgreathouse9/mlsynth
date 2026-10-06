@@ -199,7 +199,11 @@ class TBRConfig(BaseEstimatorConfig):
         ge=0,
         description="Newey-West truncation lag under ``variance='hac'``. The "
                     "default follows the paper, ceil(T_pre ** 0.25). Zero keeps "
-                    "only the diagonal and so reproduces the iid scale.",
+                    "only the diagonal, which reproduces equation 6's "
+                    "test-window error term exactly and leaves a "
+                    "heteroskedasticity-robust sandwich in place of its "
+                    "coefficient term, so the scale is not equation 6's unless "
+                    "the residual variance is constant across the pretest.",
     )
 
     @field_validator("treat", "control_col", "cooldown_col", "cost_col",
