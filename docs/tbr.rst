@@ -204,6 +204,22 @@ per-period effect and spends it on the total.
 The scale is reported and not the standard deviation, which does not exist for
 four or fewer pretest periods.
 
+Setting :math:`T = 1` gives the effect in a single period, :math:`\phi_t`, whose
+scale collapses to
+
+.. math::
+
+   s \left( v_\alpha + 2 x_t v_{\alpha\beta} + v_\beta x_t^2 + 1 \right)^{1/2},
+
+so the per-period posterior is the same formula at one horizon. The estimator
+reports it on ``pointwise`` over the whole panel, and the test-window estimates
+sum to the final cumulative one. The pretest half is the fitted model's own
+residuals: on a well-specified fit they centre on zero and their intervals
+cover it at about the nominal rate, which makes the panel a fit diagnostic as
+well as a result. A per-period effect drawn without its interval cannot be
+read, since one indistinguishable from zero looks like one that is not, so
+``plot_tbr`` draws the band.
+
 Return on ad spend
 ------------------
 
@@ -767,15 +783,27 @@ cooldown and absent-cell paths a real untreated panel cannot reach.
 Every reported quantity agrees with the reference: the pretest coefficients and
 residual variance to the digit, the cumulative response effect to 6.4e-10, the
 cumulative cost effect to 7.3e-12, and the iROAS point estimate to 7.1e-15 with
-its interval to 2.4e-12. On the paper's own simulation design, the 90% and 50%
-posterior intervals attain 0.8999 and 0.4981 coverage over 36 cells at 2000
-replications each.
+its interval to 2.4e-12.
+
+Agreement is not calibration, and the two are checked separately. On the paper's
+own simulation design the study's port attains 0.8996 and 0.5024 coverage of the
+90% and 50% posterior intervals over 36 cells at 2000 replications each. The
+estimator itself is measured by `benchmarks/cases/tbr_montecarlo.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/tbr_montecarlo.py>`_,
+which runs the same grid through ``TBR.fit`` under two geo-assignment schemes:
+the free permutation the study draws, and the volume-matched pairing the
+authors' own R package uses. Both attain nominal coverage, and per cell the
+paper's own criterion is used -- the posterior of the rate under a neutral
+prior, :math:`\mathrm{Beta}(1/3 + y,\, 1/3 + n - y)`, has to contain the
+nominal rate.
 
 The study also records what Section 5.2's squared-bias-over-MSE figure measures.
 For any unbiased estimator that statistic has expectation :math:`1/n`, and it
-tracks that floor across a sixteenfold range of replication counts, landing on
-the published 0.04% at the paper's own 2000. The estimator is consistent with
-being unbiased; the figure reports the replication count.
+tracks that floor across a sixteenfold range of replication counts, reaching
+0.0391% over the full grid at the paper's own 2000 replications against the
+published 0.04%. The estimator is consistent with being unbiased; the figure
+reports the replication count, so the case asserts the iROAS median at 2.0 and
+carries the ratio as a diagnostic.
 
 The search is checked on the GeoLift panel this repository ships: the same
 treatment group and the same control group at every treatment size, the same

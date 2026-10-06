@@ -59,12 +59,24 @@ def one_replication(rng, n_pre, rho, c, n_geos=20, n_test=4, sigma_log=1.0):
             delta / cost)
 
 
+def cell_rng(seed, rho, c, n_pre):
+    """A generator belonging to one cell, and to nothing else.
+
+    One generator consumed across the grid makes a cell's draws depend on which
+    cells preceded it, so a cell requested alone and the same cell inside the
+    full grid are different experiments. Seeding per cell makes a cell's result
+    a function of ``(seed, rho, c, n_pre)`` and nothing else.
+    """
+    return np.random.default_rng([int(seed), int(round(rho * 1_000_000)),
+                                  int(round(c * 1_000_000)), int(n_pre)])
+
+
 def run(reps=2000, pres=PRES, seed=11, sigma_log=1.0):
-    rng = np.random.default_rng(seed)
     rows = []
     for rho in RHOS:
         for c in CS:
             for n_pre in pres:
+                rng = cell_rng(seed, rho, c, n_pre)
                 hits90 = hits50 = 0
                 est = np.empty(reps)
                 for r in range(reps):
