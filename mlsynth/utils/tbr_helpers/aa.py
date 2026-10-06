@@ -57,13 +57,25 @@ three-factor panel screening moved coverage from 0.597 to 0.618 while admitting
 76 per cent of splits, and on a one-factor panel it moved 0.903 to 0.901 at 95
 per cent admitted. Both differences are inside the noise of either number.
 
-The screen earns its place on Ferman and Pinto (2017)'s argument instead. A
-search that picks its design on pretest fit has to be calibrated against
-placebo draws picked the same way, because screening the real design while
-leaving the reference distribution unscreened holds the two to different
-standards and over-rejects. So the default is comparability with a screened
-search, which is the thing the table is read against, and it is the default
-because a table built the other way is the wrong reference for one.
+The screen earns its place on Ferman and Pinto (2017)'s condition instead.
+Their section 3 gives the requirement a placebo reference has to meet: a
+placebo's statistic shares the treated unit's null distribution only where the
+two have similar pre-intervention fit. Abadie et al. (2010) screen on one side
+of that, dropping placebos whose pre-intervention MSPE is 5 or 20 times the
+treated unit's and keeping every placebo that fits better, and the better
+fitting ones carry systematically smaller post statistics, so the treated unit
+looks extreme and the test over-rejects.
+
+The condition is similarity, which has no direction; the consequence has one,
+and here it points the other way. The reference this module builds is the
+table, and an unscreened table is the more dispersed population, so a screened
+design read against it is understated and not penalised. The error from
+leaving the table unscreened is conservative, which the measurements above
+show as far as they can see: screening raised coverage from 0.597 to 0.618 on
+the three-factor panel and left it at 0.901 against 0.903 on the one-factor
+one. So the default is a table drawn from the population the search will draw
+from, which is what makes it the reference for that search, and not a claim
+about which way an unscreened one would err.
 """
 from __future__ import annotations
 
@@ -445,9 +457,12 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
     that is present in nearly every split: on a three-factor panel screening
     moved coverage from 0.597 to 0.618 while admitting 76% of splits, which is
     inside the noise of either number. What it buys is Ferman and Pinto
-    (2017)'s comparability. A design chosen by a screen has to be calibrated
-    against placebo draws chosen by the same screen, and a table built without
-    one is the wrong reference distribution for a search that screens.
+    (2017)'s condition on a placebo reference: its members share the real
+    design's null distribution only where they match it in pretest fit. A
+    table built without the screen is drawn from a wider population than a
+    screened search draws from, so it is the reference for a different search.
+    Which way that errs is given in the module docstring; it is not the
+    over-rejection their one-sided case produces.
 
     Returns one :class:`CoverageCell` per (level, window, variance). No cell
     carries a verdict.
