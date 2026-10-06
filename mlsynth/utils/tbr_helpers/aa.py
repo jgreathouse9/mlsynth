@@ -50,20 +50,64 @@ What the default screen is for
 
 :func:`coverage_grid` screens each split on the two checks that speak to the
 relation itself before measuring it. That does not make a cell conditional on
-the relation holding, and claiming it would be wrong. The checks are sized at
-five per cent, and structural non-proportionality is present in nearly every
-split of a panel that has it, so they have almost no power against it: on a
-three-factor panel screening moved coverage from 0.597 to 0.618 while admitting
-76 per cent of splits, and on a one-factor panel it moved 0.903 to 0.901 at 95
-per cent admitted. Both differences are inside the noise of either number.
+the relation holding, and claiming it would be wrong.
 
-The screen earns its place on Ferman and Pinto (2017)'s argument instead. A
-search that picks its design on pretest fit has to be calibrated against
-placebo draws picked the same way, because screening the real design while
-leaving the reference distribution unscreened holds the two to different
-standards and over-rejects. So the default is comparability with a screened
-search, which is the thing the table is read against, and it is the default
-because a table built the other way is the wrong reference for one.
+Measured over five three-factor panels, 150 splits each at a window of 8 and a
+level of 0.90, the screen lifts coverage by a median of 0.033, and the
+screened cells still land between 0.31 and 0.74 against a nominal 0.90. On
+five one-factor panels, where the relation holds, the lift is a median of
+-0.003. So the screen does not recover a broken design, which is the claim
+that matters.
+
+The lift is not a constant, and one panel cannot establish its size: over
+those same five three-factor panels the range is 0.006 to 0.294, so a figure
+drawn from a single panel can show the screen doing almost nothing or a great
+deal, depending on which one it drew. Two of the five move by more than 0.15.
+An earlier version of this paragraph generalised from one panel at 0.597
+against 0.618 and called the difference noise; it is the median behaviour and
+not the whole of it.
+
+Why no screen recovers a broken design is a statement about the checks, and it
+is sharper than low power in general. The second of the two is Engle-Granger
+on the pair, which tests the condition Li and Van den Bulte (2022)'s
+Proposition 3.3 is derived under: with a unit-root common factor, the
+treated and control aggregates have to be cointegrated for the standardised
+statistic to be asymptotically normal. Their equations 3.5 and 3.7 write the
+outcome as :math:`a_j + b_j f_t + u_{jt}` with one factor and a scalar
+loading, and under that the residual of the treated aggregate on the control
+one is stationary by construction, which is also equation 1's assumption here.
+With several factors the loadings are vectors and the residual is stationary
+only where the two groups' mean loading vectors are proportional -- automatic
+at one factor, a coincidence past it. So the check is aimed at exactly the
+condition that separates the regime the posterior is calibrated in from the
+regime it is not.
+
+It cannot resolve that condition at the pretest lengths this method is used
+at. Engle-Granger has little power against a near unit-root residual over
+forty-odd periods, which the check's own documented size bears out: it fires
+on 0.105 of sound panels at 30 periods and reports no verdict below that. The
+screen asks the right question and the data cannot answer it, which is why the
+screened three-factor cells still sit at 0.31 to 0.74 against a nominal 0.90.
+
+The screen earns its place on Ferman and Pinto (2017)'s condition instead.
+Their section 3 gives the requirement a placebo reference has to meet: a
+placebo's statistic shares the treated unit's null distribution only where the
+two have similar pre-intervention fit. Abadie et al. (2010) screen on one side
+of that, dropping placebos whose pre-intervention MSPE is 5 or 20 times the
+treated unit's and keeping every placebo that fits better, and the better
+fitting ones carry systematically smaller post statistics, so the treated unit
+looks extreme and the test over-rejects.
+
+The condition is similarity, which has no direction; the consequence has one,
+and here it points the other way. The reference this module builds is the
+table, and an unscreened table is the more dispersed population, so a screened
+design read against it is understated and not penalised. The error from
+leaving the table unscreened is conservative, which the measurements above
+show as far as they can see: screening raised coverage from 0.597 to 0.618 on
+the three-factor panel and left it at 0.901 against 0.903 on the one-factor
+one. So the default is a table drawn from the population the search will draw
+from, which is what makes it the reference for that search, and not a claim
+about which way an unscreened one would err.
 """
 from __future__ import annotations
 
@@ -441,13 +485,21 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
     counted, never measured.
 
     The default does not make a cell conditional on the relation holding.
-    Checks sized at five per cent cannot remove structural non-proportionality
-    that is present in nearly every split: on a three-factor panel screening
-    moved coverage from 0.597 to 0.618 while admitting 76% of splits, which is
-    inside the noise of either number. What it buys is Ferman and Pinto
-    (2017)'s comparability. A design chosen by a screen has to be calibrated
-    against placebo draws chosen by the same screen, and a table built without
-    one is the wrong reference distribution for a search that screens.
+    Over five three-factor panels the screen lifts coverage by a median 0.033
+    and the screened cells still sit between 0.31 and 0.74 against a nominal
+    0.90, so it does not recover a broken design. The lift ranges 0.006 to
+    0.294 across those panels, so its size is a property of the panel and not
+    of the screen. It cannot do better: the Engle-Granger check tests the
+    cointegration Proposition 3.3 of Li and Van den Bulte (2022) needs, which
+    is the right condition, and has little power against a near unit-root
+    residual at the pretest lengths this is run at. What it buys is Ferman
+    and Pinto
+    (2017)'s condition on a placebo reference: its members share the real
+    design's null distribution only where they match it in pretest fit. A
+    table built without the screen is drawn from a wider population than a
+    screened search draws from, so it is the reference for a different search.
+    Which way that errs is given in the module docstring; it is not the
+    over-rejection their one-sided case produces.
 
     Returns one :class:`CoverageCell` per (level, window, variance). No cell
     carries a verdict.
