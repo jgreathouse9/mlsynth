@@ -3521,3 +3521,66 @@ timeout = 900.0
   find = "    rows = []\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = cell_rng(seed, rho, c, n_pre)"
   replace = "    rows = []\n    _shared = np.random.default_rng(seed)\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = _shared"
   models = "the same defect in the study that first reproduced the paper's coverage result. Its published numbers came from one full-grid run so they are internally consistent, but any subset re-run disagrees with them and the disagreement looks like a finding"
+
+[[target]]
+name = "tbr-factor-dgp"
+module-path = "benchmarks/studies/tbr_factor/dgp.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_factor_dimension.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-angle-is-measured-on-one-geo-not-the-group-mean"
+  find = "    a = lam[:n_treated].mean(axis=0)\n    b = lam[n_treated:].mean(axis=0)"
+  replace = "    a = lam[0]\n    b = lam[n_treated]"
+  models = "the collinearity read off two individual geos instead of the two group means. Aggregation is the whole reason the relation can hold at all, so a single geo's loading is not the quantity the fitted relation depends on. It still vanishes at one factor and still grows with the factor count, so only the correlation against the gap it is supposed to explain separates them"
+
+  [[target.mutant]]
+  id = "the-cosine-is-returned-instead-of-the-sine"
+  find = "    return float(np.sqrt(max(0.0, 1.0 - cos ** 2)))"
+  replace = "    return float(abs(cos))"
+  models = "the angle reported the wrong way round, so proportional loadings come back as one and orthogonal ones as zero. Every value stays inside the unit interval and the quantity still varies with the factor count, in the opposite direction"
+
+  [[target.mutant]]
+  id = "the-noiseless-gap-keeps-the-noise"
+  find = "    Y = lam @ f\n    y = Y[:n_treated].mean(axis=0)"
+  replace = "    Y = lam @ f + rng.normal(0.0, SIGMA, (n_geos, n_periods))\n    y = Y[:n_treated].mean(axis=0)"
+  models = "sampling noise left in the exactness check, so the one-factor gap is the noise level instead of machine precision and the separation between one factor and many collapses from twelve decades to none. The case's whole mechanism claim rests on that separation"
+
+  [[target.mutant]]
+  id = "the-fit-sees-the-whole-panel"
+  expected = "survived"
+  accepted-because = "EQUIVALENT with respect to what noiseless_gap measures, and recorded rather than dropped because the equivalence is the finding. The ratio of the pretest-fit gap to the whole-panel-fit gap is 0.91 to 1.06, median 1.00, over r in (2, 3, 5) crossed with k in (2, 5, 25), and both readings sit at machine precision at one factor. The gap is structural non-proportionality -- a fixed combination of factors present throughout the panel -- so it does not grow outside the fit window and no input separates the two readings. The assertion that would kill it, that extrapolating costs more than fitting in sample, was written first and the measurement refutes it. The pretest slice is kept because it mirrors what the estimator fits on, and the exactness claim the case asserts is carried by the twelve-decade separation, which both readings reproduce."
+  find = "    design = np.column_stack([np.ones_like(x[:n_pre]), x[:n_pre]])\n    coef, *_ = np.linalg.lstsq(design, y[:n_pre], rcond=None)"
+  replace = "    design = np.column_stack([np.ones_like(x), x])\n    coef, *_ = np.linalg.lstsq(design, y, rcond=None)"
+  models = "the affine fit taken over the whole panel instead of the pretest. Written expecting it to understate what extrapolation costs; measured, it does not, and the ratio of the pretest-fit gap to the whole-panel-fit gap is 0.91 to 1.06 with a median of 1.00 over r in (2, 3, 5) and k in (2, 5, 25). The gap is structural non-proportionality, a fixed combination of factors present throughout the panel, not an error that grows out of sample, so this metric is insensitive to the fit window and the mutant is equivalent. Kept as the record of that, and the pretest slice is kept because it mirrors what the estimator fits on"
+
+  [[target.mutant]]
+  id = "the-panel-is-not-shifted-positive"
+  find = "    Y = Y - Y.min() + 1.0"
+  replace = "    Y = Y"
+  models = "a mean-zero outcome handed to an estimator whose reported quantities include a percentage effect, so the denominator passes through zero. The shift moves the intercept and leaves every gap and the fitted slope unchanged, which is why it is safe to apply and unsafe to drop"
+
+[[target]]
+name = "tbr-factor-coverage"
+module-path = "benchmarks/studies/tbr_factor/coverage.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_factor_dimension.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-replication-index"
+  find = "                rows.append(one_replication(seed * 1_000_003 + i, r, k,"
+  replace = "                rows.append(one_replication(seed + len(rows), r, k,"
+  models = "a replication seed derived from how many rows have already been produced, so a cell's draws depend on which cells preceded it in the request. This is the defect the sibling Monte Carlo study was built with, where the same cell returned 192 hits of 200 alone and 179 inside the full grid. Every coverage figure stays plausible, so only an equality between two requests catches it"
+
+  [[target.mutant]]
+  id = "the-bound-takes-the-worst-multifactor-cell"
+  find = "        rates = [sum(v) / len(v) for v in by_k.values()]\n        out[\"multifactor_cov_max_over_k\"] = float(max(rates))"
+  replace = "        rates = [sum(v) / len(v) for v in by_k.values()]\n        out[\"multifactor_cov_max_over_k\"] = float(min(rates))"
+  models = "the least favourable multi-factor cell reported where the claim is an upper bound. Taking the minimum makes the bound easier to satisfy the worse one cell happens to be, so a single badly behaved treated-group size would carry a claim that is supposed to hold for the best of them"
+
+  [[target.mutant]]
+  id = "the-one-factor-cell-is-pooled-with-the-rest"
+  find = "        if row[\"r\"] > 1:"
+  replace = "        if row[\"r\"] >= 1:"
+  models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
+

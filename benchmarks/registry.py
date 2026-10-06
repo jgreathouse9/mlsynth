@@ -38,6 +38,7 @@ CASES = {
     "spsydid_lawa_diff": "benchmarks.cases.spsydid_lawa_diff",  # differential cross-val vs authors' functions_ssdid on the real Arizona LAWA CPS panel (SpSyDiD.fit() ATT + spillover agree to solver tolerance under canonical convention)
     "seq_sdid_mc": "benchmarks.cases.seq_sdid_mc",
     "tbr": "benchmarks.cases.tbr",  # cross-val vs google/matched_markets on two panels: design mode on the shipped GeoLift markets (also an A/A check) and a generated panel matched to the reference's shape for iROAS, cooldown and absent cells; reference values pinned as literals so the case is a gate without the reference present
+    "tbr_factor_dimension": "benchmarks.cases.tbr_factor_dimension",  # TBR is calibrated under the one-factor model its assumption is stated under and under-covers past it; the affine relation is exact at one factor to machine precision
     "tbr_montecarlo": "benchmarks.cases.tbr_montecarlo",  # Kerman section 5.2 Path B: interval coverage and iROAS bias through mlsynth.TBR, over the paper's (rho, c, pretest) grid and both geo-assignment schemes
     "geox_augsynth_geolift": "benchmarks.cases.geox_augsynth_geolift",  # cross-val vs R GeoLiftMarketSelection: the augsynth engine reproduces the published BestMarkets top five (rank, MDE, investment, abs_lift_in_zero)
     "tbrmm": "benchmarks.cases.tbrmm",  # cross-val vs google/matched_markets greedy_search: same treatment and control membership at every treatment size, gates and detectable impact
@@ -525,7 +526,8 @@ _RAW: dict[str, tuple[str, str]] = {
     "tasc_mc":                        ("B", "simulated"),
     "tasc_prop99":                    ("X", "empirical"),
     "tbr":                            ("X", "both"),
-      "tbr_montecarlo":                 ("B", "simulated"),
+    "tbr_factor_dimension":           ("B", "simulated"),
+    "tbr_montecarlo":                 ("B", "simulated"),
     "th_prop99":                      ("A", "empirical"),
     "tssc_brooklyn":                  ("A", "empirical"),
     "tssc_figure2":                   ("B", "simulated"),
