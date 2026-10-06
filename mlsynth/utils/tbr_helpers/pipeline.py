@@ -16,7 +16,8 @@ from .posterior import (
     iroas_simulated,
 )
 from .setup import build_inputs
-from .structures import CumulativeEffect, IROASResult, TBRFit, TBREstimate
+from .structures import (CumulativeEffect, IROASResult, PointwiseEffect,
+                         TBRFit, TBREstimate)
 
 FIXED_COST_TOL = 1e-10
 
@@ -33,6 +34,42 @@ def _as_cumulative(loc, scale, df, level, periods) -> CumulativeEffect:
         estimate=[float(v) for v in loc], scale=[float(v) for v in scale],
         lower=[float(v) for v in lo], upper=[float(v) for v in hi],
         level=float(level), df=int(df), periods=list(periods))
+
+
+def _pointwise(config, inputs, fit, n_pre: int, level: float) -> PointwiseEffect:
+    """The per-period effect and its posterior, at every period in the panel.
+
+    Equation 6 at a horizon of one period, which is what the cumulative
+    posterior returns for a one-period window, so this is the same code the
+    cumulative path uses and not a second reading of the paper's algebra. The
+    variance choice is honoured the same way too: both the iid and the HAC
+    form accept a window of one.
+
+    The pretest periods are included. They are the fitted model's residuals,
+    and section 3.3's figure draws them as a diagnostic beside the test window.
+    """
+    y, x = inputs.y, inputs.x
+    hac = getattr(config, "variance", "iid") == "hac"
+    bandwidth = getattr(config, "hac_bandwidth", None)
+
+    locs = np.empty(y.size, dtype=float)
+    scales = np.empty(y.size, dtype=float)
+    for t in range(y.size):
+        if hac:
+            loc, scale = cumulative_posterior_hac(
+                fit, y[:n_pre], x[:n_pre], y[t:t + 1], x[t:t + 1],
+                bandwidth=bandwidth)
+        else:
+            loc, scale = cumulative_posterior(fit, y[t:t + 1], x[t:t + 1])
+        locs[t], scales[t] = loc[-1], scale[-1]
+
+    lower, upper = interval(locs, scales, fit.df, level)
+    return PointwiseEffect(
+        estimate=locs.tolist(), scale=scales.tolist(),
+        lower=lower.tolist(), upper=upper.tolist(),
+        level=level, df=int(fit.df),
+        periods=list(inputs.time_labels),
+    )
 
 
 def estimate(config, *, treated=None, controls=None) -> TBREstimate:
@@ -134,6 +171,7 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
         tbr_fit=_as_fit(fit),
         cost_fit=cost_fit,
         cumulative=cumulative,
+        pointwise=_pointwise(config, inputs, fit, T0, level),
         cumulative_cost=cumulative_cost,
         iroas=iroas,
         intervention_periods=n_int,

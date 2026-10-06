@@ -204,6 +204,22 @@ per-period effect and spends it on the total.
 The scale is reported and not the standard deviation, which does not exist for
 four or fewer pretest periods.
 
+Setting :math:`T = 1` gives the effect in a single period, :math:`\phi_t`, whose
+scale collapses to
+
+.. math::
+
+   s \left( v_\alpha + 2 x_t v_{\alpha\beta} + v_\beta x_t^2 + 1 \right)^{1/2},
+
+so the per-period posterior is the same formula at one horizon. The estimator
+reports it on ``pointwise`` over the whole panel, and the test-window estimates
+sum to the final cumulative one. The pretest half is the fitted model's own
+residuals: on a well-specified fit they centre on zero and their intervals
+cover it at about the nominal rate, which makes the panel a fit diagnostic as
+well as a result. A per-period effect drawn without its interval cannot be
+read, since one indistinguishable from zero looks like one that is not, so
+``plot_tbr`` draws the band.
+
 Return on ad spend
 ------------------
 
