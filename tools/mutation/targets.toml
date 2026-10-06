@@ -3439,6 +3439,96 @@ timeout = 240.0
   models = "the disjointness check removed, so a unit appearing in both the treated and control dicts is fitted against itself, reproduces itself exactly, and reports a zero gap and a clean approximability verdict for a design that was never identified"
 
 [[target]]
+name = "tbr-assumption-checks"
+module-path = "mlsynth/utils/tbr_helpers/diagnostics.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_assumptions.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-durbin-watson-band-decides-again"
+  find = "    correlated = bool(np.isfinite(bg) and bg < ALPHA)"
+  replace = "    correlated = bool(np.isfinite(bg) and bg < ALPHA) or bool(np.isfinite(dw) and not DW_BAND[0] < dw < DW_BAND[1])"
+  models = "the defect this suite was built with: a design-time screening band read as a hypothesis test, which fires on 38% of sound panels at 12 pretest periods. Every individual verdict stays plausible and every fixture still passes, so only a measurement of how often it fires across many sound panels sees it"
+
+  [[target.mutant]]
+  id = "a-check-that-could-not-run-counts-as-failed"
+  find = "                       if c.holds is False)"
+  replace = "                       if not c.holds)"
+  models = "no verdict conflated with a failed verdict, so a pretest too short to judge is reported as a violation and warns the user about something nothing measured. The distinction between None and False is the whole point of reporting None"
+
+  [[target.mutant]]
+  id = "a-pretest-that-fits-exactly-reads-as-clean"
+  find = "    if float(resid @ resid) <= 0.0:"
+  replace = "    if False:"
+  models = "the degenerate pretest reaching the statistics, where Breusch-Godfrey returns p = 1 on residuals that are identically zero. A fit that said nothing scores perfectly on every residual check"
+
+  [[target.mutant]]
+  id = "the-fill-imbalance-is-never-reported"
+  find = "            holds=even,"
+  replace = "            holds=True,"
+  models = "absent cells counted and the imbalance across the treatment boundary not judged, so a panel whose fills land entirely in the test window reports them and calls itself sound. A filled cell is a zero in the group total, so that imbalance is confounded with the effect"
+
+  [[target.mutant]]
+  id = "nothing-ever-warns"
+  find = "            if not fired:\n                continue"
+  replace = "            if True:\n                continue"
+  models = "every check computed, recorded on the result, and never surfaced. A caller who does not read the result object learns nothing, which is the state this change exists to end"
+
+  [[target.mutant]]
+  id = "the-backdating-window-is-not-held-out"
+  find = "    T0 = n_pre - hold\n    fit = fit_pretest(y[:T0], x[:T0])"
+  replace = "    T0 = n_pre - hold\n    fit = fit_pretest(y[:n_pre], x[:n_pre])"
+  models = "the backdated fit given the answer. Fitting on the whole pretest and then scoring the tail makes the exercise in-sample, so it measures residual size and not predictive failure. The statistic stays finite and plausible on every fixture; only a panel whose treated unit trends away from every control separates the two, because in-sample the trend is absorbed by the slope"
+
+  [[target.mutant]]
+  id = "a-single-held-out-period-is-a-window"
+  find = "MIN_HOLD = 3"
+  replace = "MIN_HOLD = 1"
+  models = "a degenerate backdating exercise reported as a verdict. One held-out period is an F on one numerator degree of freedom, which is honest about its own size and almost powerless, so a short pretest gets a pass that nothing measured"
+
+  [[target.mutant]]
+  id = "the-stationarity-test-uses-dickey-fuller-critical-values"
+  find = "        from statsmodels.tsa.stattools import coint"
+  replace = "        from statsmodels.tsa.stattools import adfuller as coint"
+  models = "the linear-projection trap, in the form that survives a type check. An augmented Dickey-Fuller run on residuals from an estimated relation uses critical values that do not hold for them, and rejects the unit root too readily, so the check passes a panel whose difference carries a trend"
+
+  [[target.mutant]]
+  id = "the-short-pretest-stationarity-guard-is-dropped"
+  find = "MIN_PERIODS_STATIONARITY = 30"
+  replace = "MIN_PERIODS_STATIONARITY = 12"
+  models = "Engle-Granger asked for a verdict on a pretest too short to give one, which is a measured 100 per cent false-positive rate at 20 pretest periods. Every single verdict looks like a finding; only a size measurement across many sound panels sees it"
+
+  [[target.mutant]]
+  id = "a-nuisance-check-reads-as-a-failure-of-identification"
+  find = "    ((\"backdating\", \"stationary_residual\"),"
+  replace = "    ((\"backdating\", \"stationary_residual\", \"serial_correlation\", \"normality\", \"homoskedasticity\"),"
+  models = "the whole suite reported at the severity of its most serious member. Serially correlated or non-normal residuals cost the posterior interval its calibration and leave the point estimate alone, so telling the reader the counterfactual may be biased is false, and it fires on about a sixth of sound panels"
+
+  [[target.mutant]]
+  id = "the-did-comparison-is-fitted-on-the-held-out-window"
+  find = "    alpha_did = float(np.mean(y[:T0] - x[:T0]))"
+  replace = "    alpha_did = float(np.mean(y[T0:n_pre] - x[T0:n_pre]))"
+  models = "the difference-in-differences baseline given the held-out window TBR was denied. The ratio then compares an out-of-sample prediction against an in-sample fit, so it reads below one and reports that the slope adjustment did not pay for itself whenever it did"
+
+  [[target.mutant]]
+  id = "a-degenerate-backdated-fit-scores-perfectly"
+  find = "    if float(in_sample @ in_sample) <= 0.0:\n        return float(\"nan\"), float(\"nan\"), float(\"nan\"), float(\"nan\")"
+  replace = "    if False:\n        return float(\"nan\"), float(\"nan\"), float(\"nan\"), float(\"nan\")"
+  models = "a front window the fit reproduces exactly, scored anyway. The residual sum of squares is zero but equation 6's scale is not quite, so the standardised error is zero, the statistic is zero and the p-value is one: a fit that said nothing passes the identification check with the best score the check can give. This is the same hole a-pretest-that-fits-exactly-reads-as-clean covers for the residual checks"
+
+  [[target.mutant]]
+  id = "the-undefined-did-ratio-is-printed-as-a-word"
+  find = "                           if np.isfinite(did_ratio) else \". \")"
+  replace = "                           if True else \". \")"
+  models = "a 0/0 ratio formatted into user-facing text, so the detail reads \"difference-in-differences on the same window is nan times TBR's error\". The check's verdict is unaffected, which is why only an assertion about the text sees it"
+
+  [[target.mutant]]
+  id = "the-ratios-denominator-is-only-tested-against-zero"
+  find = "    defined = held > 1e-8 * in_rmse"
+  replace = "    defined = held > 0"
+  models = "a denominator that is zero to floating point but not to the comparison. A window TBR reproduces exactly leaves a held-out RMSE around 1e-16 while the in-sample one is order 1, so the ratio comes out near 2e15 and the detail reports difference-in-differences as quadrillions of times worse. The verdict is unaffected and the number is finite, so only a constructed exact tail sees it"
+
+[[target]]
 name = "tbr-pointwise-posterior"
 module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
 test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
