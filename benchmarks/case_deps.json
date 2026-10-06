@@ -257,6 +257,7 @@
   "mlsynth/utils/bvss_helpers/posterior.py",
   "mlsynth/utils/bvss_helpers/sampler.py",
   "mlsynth/utils/bvss_helpers/setup.py",
+  "mlsynth/utils/bvss_helpers/structures.py",
   "mlsynth/utils/datautils.py"
  ],
  "cast_aca": [
@@ -1007,6 +1008,7 @@
  "geox_mvbbsc_equivalence": [
   "basedata/german_reunification.csv",
   "mlsynth/utils/datautils.py",
+  "mlsynth/utils/geox_helpers/engine.py",
   "mlsynth/utils/geox_helpers/engines/__init__.py",
   "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py",
   "mlsynth/utils/mvbbsc_helpers/model.py"
@@ -2796,6 +2798,7 @@
   "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/diagnostics.py",
   "mlsynth/utils/tbr_helpers/pipeline.py",
   "mlsynth/utils/tbr_helpers/posterior.py",
   "mlsynth/utils/tbr_helpers/setup.py"
@@ -2812,6 +2815,7 @@
   "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/diagnostics.py",
   "mlsynth/utils/tbr_helpers/pipeline.py",
   "mlsynth/utils/tbr_helpers/posterior.py",
   "mlsynth/utils/tbr_helpers/setup.py"
