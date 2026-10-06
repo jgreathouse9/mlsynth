@@ -1051,3 +1051,64 @@ def test_a_constant_regressor_keeps_the_least_squares_route():
     assert fit.alpha == pytest.approx(float(want[0]), rel=1e-12)
     assert fit.beta == pytest.approx(float(want[1]), rel=1e-12)
     assert np.isfinite(fit.sigma_sq)
+
+
+# --- what a bandwidth of zero does, and does not, reproduce ------------------
+#
+# The config once described ``hac_bandwidth=0`` as reproducing the iid scale
+# while the estimator page described it as the heteroskedasticity-robust
+# sandwich and not equation 6. The page was right, and these two tests pin
+# which half of the scale agrees so the two descriptions cannot drift apart
+# again.
+
+def _ar1_pretest(n=40, rho=0.8, seed=0):
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(size=n)) + 100.0
+    e = rng.normal(0, 2.0, n)
+    for i in range(1, n):
+        e[i] += rho * e[i - 1]
+    return 12.0 + 1.1 * f + e, 40.0 + 3.0 * f + rng.normal(0, 2.0, n)
+
+
+def test_a_zero_bandwidth_reproduces_equation_sixs_error_term_exactly():
+    """The Bartlett sum at lag zero carries eqn 6's n/(n-2) correction."""
+    from mlsynth.utils.tbr_helpers.posterior import _newey_west
+    y, x = _ar1_pretest()
+    fit = fit_pretest(y, x)
+    design = np.column_stack([np.ones_like(x), x])
+    resid = y - design @ np.linalg.lstsq(design, y, rcond=None)[0]
+    lrv, _ = _newey_west(resid, design, 0)
+    assert lrv == pytest.approx(fit.sigma_sq, rel=1e-12)
+
+
+def test_a_zero_bandwidth_does_not_reproduce_the_whole_scale():
+    """The coefficient term becomes HC1, so the totals differ on a sample.
+
+    Measured on this pretest: the coefficient term comes back 16.81 against
+    equation 6's 21.92 and is 29% of the variance, so the scale lands 3.4%
+    below. The two agree in expectation under homoskedasticity, never exactly.
+    """
+    from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior_hac
+    y, x = _ar1_pretest(n=48)
+    n_fit = 40
+    fit = fit_pretest(y[:n_fit], x[:n_fit])
+    _, s_iid = cumulative_posterior(fit, y[n_fit:], x[n_fit:])
+    _, s_hac0 = cumulative_posterior_hac(
+        fit, y[:n_fit], x[:n_fit], y[n_fit:], x[n_fit:], bandwidth=0)
+    assert s_hac0[-1] != pytest.approx(s_iid[-1], rel=1e-6)
+    assert s_hac0[-1] == pytest.approx(s_iid[-1], rel=0.15)
+
+
+def test_a_homoskedastic_pretest_brings_the_two_scales_close():
+    """The condition the corrected description names, as a measurement."""
+    rng = np.random.default_rng(3)
+    n, n_fit = 200, 180
+    f = np.cumsum(rng.normal(size=n)) + 100.0
+    y = 12.0 + 1.1 * f + rng.normal(0, 2.0, n)      # constant variance
+    x = 40.0 + 3.0 * f + rng.normal(0, 2.0, n)
+    from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior_hac
+    fit = fit_pretest(y[:n_fit], x[:n_fit])
+    _, s_iid = cumulative_posterior(fit, y[n_fit:], x[n_fit:])
+    _, s_hac0 = cumulative_posterior_hac(
+        fit, y[:n_fit], x[:n_fit], y[n_fit:], x[n_fit:], bandwidth=0)
+    assert s_hac0[-1] == pytest.approx(s_iid[-1], rel=0.05)

@@ -3167,7 +3167,7 @@ timeout = 300.0
 [[target]]
 name = "tbr-hac"
 module-path = "mlsynth/utils/tbr_helpers/posterior.py"
-test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm_hac.py mlsynth/tests/test_tbrmm_hac_properties.py mlsynth/tests/test_tbr_hac_estimate.py mlsynth/tests/test_tbr.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]
@@ -3503,4 +3503,240 @@ timeout = 900.0
   find = "    fit = fit_pretest(y[:n_fit], x[:n_fit])"
   replace = "    fit = fit_pretest(y, x)"
   models = "the fit shown the window it is scored on, which makes the A/A estimate in-sample and the false-positive rate meaningless. The estimate shrinks toward zero and coverage rises, so the design looks better calibrated the more the fit was allowed to cheat"
+
+[[target]]
+name = "tbr-assumption-checks"
+module-path = "mlsynth/utils/tbr_helpers/diagnostics.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_assumptions.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-durbin-watson-band-decides-again"
+  find = "    correlated = bool(np.isfinite(bg) and bg < ALPHA)"
+  replace = "    correlated = bool(np.isfinite(bg) and bg < ALPHA) or bool(np.isfinite(dw) and not DW_BAND[0] < dw < DW_BAND[1])"
+  models = "the defect this suite was built with: a design-time screening band read as a hypothesis test, which fires on 38% of sound panels at 12 pretest periods. Every individual verdict stays plausible and every fixture still passes, so only a measurement of how often it fires across many sound panels sees it"
+
+  [[target.mutant]]
+  id = "a-check-that-could-not-run-counts-as-failed"
+  find = "                       if c.holds is False)"
+  replace = "                       if not c.holds)"
+  models = "no verdict conflated with a failed verdict, so a pretest too short to judge is reported as a violation and warns the user about something nothing measured. The distinction between None and False is the whole point of reporting None"
+
+  [[target.mutant]]
+  id = "a-pretest-that-fits-exactly-reads-as-clean"
+  find = "    if float(resid @ resid) <= 0.0:"
+  replace = "    if False:"
+  models = "the degenerate pretest reaching the statistics, where Breusch-Godfrey returns p = 1 on residuals that are identically zero. A fit that said nothing scores perfectly on every residual check"
+
+  [[target.mutant]]
+  id = "the-fill-imbalance-is-never-reported"
+  find = "            holds=even,"
+  replace = "            holds=True,"
+  models = "absent cells counted and the imbalance across the treatment boundary not judged, so a panel whose fills land entirely in the test window reports them and calls itself sound. A filled cell is a zero in the group total, so that imbalance is confounded with the effect"
+
+  [[target.mutant]]
+  id = "nothing-ever-warns"
+  find = "            if not fired:\n                continue"
+  replace = "            if True:\n                continue"
+  models = "every check computed, recorded on the result, and never surfaced. A caller who does not read the result object learns nothing, which is the state this change exists to end"
+
+  [[target.mutant]]
+  id = "the-backdating-window-is-not-held-out"
+  find = "    T0 = n_pre - hold\n    fit = fit_pretest(y[:T0], x[:T0])"
+  replace = "    T0 = n_pre - hold\n    fit = fit_pretest(y[:n_pre], x[:n_pre])"
+  models = "the backdated fit given the answer. Fitting on the whole pretest and then scoring the tail makes the exercise in-sample, so it measures residual size and not predictive failure. The statistic stays finite and plausible on every fixture; only a panel whose treated unit trends away from every control separates the two, because in-sample the trend is absorbed by the slope"
+
+  [[target.mutant]]
+  id = "a-single-held-out-period-is-a-window"
+  find = "MIN_HOLD = 3"
+  replace = "MIN_HOLD = 1"
+  models = "a degenerate backdating exercise reported as a verdict. One held-out period is an F on one numerator degree of freedom, which is honest about its own size and almost powerless, so a short pretest gets a pass that nothing measured"
+
+  [[target.mutant]]
+  id = "the-stationarity-test-uses-dickey-fuller-critical-values"
+  find = "        from statsmodels.tsa.stattools import coint"
+  replace = "        from statsmodels.tsa.stattools import adfuller as coint"
+  models = "the linear-projection trap, in the form that survives a type check. An augmented Dickey-Fuller run on residuals from an estimated relation uses critical values that do not hold for them, and rejects the unit root too readily, so the check passes a panel whose difference carries a trend"
+
+  [[target.mutant]]
+  id = "the-short-pretest-stationarity-guard-is-dropped"
+  find = "MIN_PERIODS_STATIONARITY = 30"
+  replace = "MIN_PERIODS_STATIONARITY = 12"
+  models = "Engle-Granger asked for a verdict on a pretest too short to give one, which is a measured 100 per cent false-positive rate at 20 pretest periods. Every single verdict looks like a finding; only a size measurement across many sound panels sees it"
+
+  [[target.mutant]]
+  id = "a-nuisance-check-reads-as-a-failure-of-identification"
+  find = "    ((\"backdating\", \"stationary_residual\"),"
+  replace = "    ((\"backdating\", \"stationary_residual\", \"serial_correlation\", \"normality\", \"homoskedasticity\"),"
+  models = "the whole suite reported at the severity of its most serious member. Serially correlated or non-normal residuals cost the posterior interval its calibration and leave the point estimate alone, so telling the reader the counterfactual may be biased is false, and it fires on about a sixth of sound panels"
+
+  [[target.mutant]]
+  id = "the-did-comparison-is-fitted-on-the-held-out-window"
+  find = "    alpha_did = float(np.mean(y[:T0] - x[:T0]))"
+  replace = "    alpha_did = float(np.mean(y[T0:n_pre] - x[T0:n_pre]))"
+  models = "the difference-in-differences baseline given the held-out window TBR was denied. The ratio then compares an out-of-sample prediction against an in-sample fit, so it reads below one and reports that the slope adjustment did not pay for itself whenever it did"
+
+  [[target.mutant]]
+  id = "a-degenerate-backdated-fit-scores-perfectly"
+  find = "    if float(in_sample @ in_sample) <= 0.0:\n        return float(\"nan\"), float(\"nan\"), float(\"nan\"), float(\"nan\")"
+  replace = "    if False:\n        return float(\"nan\"), float(\"nan\"), float(\"nan\"), float(\"nan\")"
+  models = "a front window the fit reproduces exactly, scored anyway. The residual sum of squares is zero but equation 6's scale is not quite, so the standardised error is zero, the statistic is zero and the p-value is one: a fit that said nothing passes the identification check with the best score the check can give. This is the same hole a-pretest-that-fits-exactly-reads-as-clean covers for the residual checks"
+
+  [[target.mutant]]
+  id = "the-undefined-did-ratio-is-printed-as-a-word"
+  find = "                           if np.isfinite(did_ratio) else \". \")"
+  replace = "                           if True else \". \")"
+  models = "a 0/0 ratio formatted into user-facing text, so the detail reads \"difference-in-differences on the same window is nan times TBR's error\". The check's verdict is unaffected, which is why only an assertion about the text sees it"
+
+  [[target.mutant]]
+  id = "the-ratios-denominator-is-only-tested-against-zero"
+  find = "    defined = held > 1e-8 * in_rmse"
+  replace = "    defined = held > 0"
+  models = "a denominator that is zero to floating point but not to the comparison. A window TBR reproduces exactly leaves a held-out RMSE around 1e-16 while the in-sample one is order 1, so the ratio comes out near 2e15 and the detail reports difference-in-differences as quadrillions of times worse. The verdict is unaffected and the number is finite, so only a constructed exact tail sees it"
+
+[[target]]
+name = "tbr-pointwise-posterior"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-variance-choice-does-not-reach-the-band"
+  find = "    hac = getattr(config, \"variance\", \"iid\") == \"hac\""
+  replace = "    hac = False"
+  models = "the config's variance honoured for the cumulative interval and ignored for the per-period one, so asking for HAC corrects one panel of the figure and leaves the other at the iid scale. Every number stays finite and the point estimates are untouched, because this is a variance correction"
+
+  [[target.mutant]]
+  id = "the-bandwidth-is-re-derived-instead-of-read"
+  find = "                bandwidth=bandwidth)"
+  replace = "                bandwidth=None)"
+  models = "an explicit hac_bandwidth accepted, recorded, and replaced by the default rule on the way into the per-period scale. The default is what most panels would have chosen anyway, so the two agree except where the caller disagreed with the rule"
+
+  [[target.mutant]]
+  id = "the-period-labels-drop-the-pretest"
+  find = "        periods=list(inputs.time_labels),"
+  replace = "        periods=list(inputs.time_labels[n_pre:]),"
+  models = "the labels covering the test window while the estimates cover the panel, so every per-period effect is attributed to the wrong period and the diagnostic half of the figure is plotted against the wrong axis. The values are all correct; only their alignment is not"
+
+  [[target.mutant]]
+  id = "the-posterior-uses-the-pretest-length-for-its-degrees-of-freedom"
+  find = "    lower, upper = interval(locs, scales, fit.df, level)"
+  replace = "    lower, upper = interval(locs, scales, fit.n_pretest, level)"
+  models = "n in place of n - 2, which is the transcription the t posterior invites. The band is merely a little narrower, so it still brackets every estimate and still widens with the level; only a check against the quantile itself notices"
+
+[[target]]
+name = "tbr-pointwise-plot"
+module-path = "mlsynth/utils/tbr_helpers/plotter.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-per-period-panel-loses-its-band"
+  find = "    if pw is not None:"
+  replace = "    if False:"
+  models = "the per-period panel falling back to the bare difference even where the posterior is available, which is the state this change exists to correct: a per-period effect indistinguishable from zero drawn identically to one that is not"
+
+[[target]]
+name = "tbr-montecarlo-harness"
+module-path = "benchmarks/studies/tbr_geo/mlsynth_coverage.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_montecarlo_harness.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-random-stream"
+  find = "    rows: List[Dict] = []\n    for rho in rhos:\n        for c in cs:\n            for n_pre in pres:\n                rng = cell_rng(seed, rho, c, n_pre, scheme)"
+  replace = "    rows: List[Dict] = []\n    _shared = np.random.default_rng(seed)\n    for rho in rhos:\n        for c in cs:\n            for n_pre in pres:\n                rng = _shared"
+  models = "the defect this harness was built with: one stream consumed across the grid, so a cell's draws depend on which cells preceded it. The same cell returned 192 hits of 200 alone and 179 inside the full grid, and that swing read as a difference between the two assignment schemes when the arms had been run over different cell sets. Every coverage figure stays plausible, which is why only an equality between two requests catches it"
+
+  [[target.mutant]]
+  id = "every-cell-draws-the-identical-stream"
+  find = "                rng = cell_rng(seed, rho, c, n_pre, scheme)"
+  replace = "                rng = np.random.default_rng(seed)"
+  models = "the first attempt at the mutant above, kept because it is a different defect and it survived. Re-seeding identically inside the loop is order-independent, so a cell still answers the same alone and in the grid; what it destroys is independence between cells, which no coverage figure shows and which understates the standard error of the pooled rate. Only an assertion on how the stream is derived sees it"
+
+  [[target.mutant]]
+  id = "the-stratified-scheme-stops-pairing-by-volume"
+  find = "        pairs = order.reshape(-1, 2)"
+  replace = "        pairs = order.reshape(2, -1).T"
+  models = "the volume sort kept and the pairing broken: the halves are split at the median instead of matched, so one group gets the large geos. Group sizes and the one-geo-per-stratum count are unchanged, so only the volume-balance invariant notices"
+
+  [[target.mutant]]
+  id = "the-injected-truth-stops-matching-the-true-iroas"
+  find = "    return response, response / TRUE_IROAS"
+  replace = "    return response, response / (TRUE_IROAS + 0.05)"
+  models = "the cost constant drifting off the response, so the design's true iROAS is no longer 2.0 while every coverage figure is still computed against the response. Coverage is unaffected -- it is measured on the cumulative effect -- and only the iROAS median moves, by an amount a loose tolerance would absorb"
+
+[[target]]
+name = "tbr-simulation-cell-rng"
+module-path = "benchmarks/studies/tbr_geo/simulation.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_simulation_cell_rng.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-random-stream"
+  find = "    rows = []\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = cell_rng(seed, rho, c, n_pre)"
+  replace = "    rows = []\n    _shared = np.random.default_rng(seed)\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = _shared"
+  models = "the same defect in the study that first reproduced the paper's coverage result. Its published numbers came from one full-grid run so they are internally consistent, but any subset re-run disagrees with them and the disagreement looks like a finding"
+
+[[target]]
+name = "tbr-factor-dgp"
+module-path = "benchmarks/studies/tbr_factor/dgp.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_factor_dimension.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-angle-is-measured-on-one-geo-not-the-group-mean"
+  find = "    a = lam[:n_treated].mean(axis=0)\n    b = lam[n_treated:].mean(axis=0)"
+  replace = "    a = lam[0]\n    b = lam[n_treated]"
+  models = "the collinearity read off two individual geos instead of the two group means. Aggregation is the whole reason the relation can hold at all, so a single geo's loading is not the quantity the fitted relation depends on. It still vanishes at one factor and still grows with the factor count, so only the correlation against the gap it is supposed to explain separates them"
+
+  [[target.mutant]]
+  id = "the-cosine-is-returned-instead-of-the-sine"
+  find = "    return float(np.sqrt(max(0.0, 1.0 - cos ** 2)))"
+  replace = "    return float(abs(cos))"
+  models = "the angle reported the wrong way round, so proportional loadings come back as one and orthogonal ones as zero. Every value stays inside the unit interval and the quantity still varies with the factor count, in the opposite direction"
+
+  [[target.mutant]]
+  id = "the-noiseless-gap-keeps-the-noise"
+  find = "    Y = lam @ f\n    y = Y[:n_treated].mean(axis=0)"
+  replace = "    Y = lam @ f + rng.normal(0.0, SIGMA, (n_geos, n_periods))\n    y = Y[:n_treated].mean(axis=0)"
+  models = "sampling noise left in the exactness check, so the one-factor gap is the noise level instead of machine precision and the separation between one factor and many collapses from twelve decades to none. The case's whole mechanism claim rests on that separation"
+
+  [[target.mutant]]
+  id = "the-fit-sees-the-whole-panel"
+  expected = "survived"
+  accepted-because = "EQUIVALENT with respect to what noiseless_gap measures, and recorded rather than dropped because the equivalence is the finding. The ratio of the pretest-fit gap to the whole-panel-fit gap is 0.91 to 1.06, median 1.00, over r in (2, 3, 5) crossed with k in (2, 5, 25), and both readings sit at machine precision at one factor. The gap is structural non-proportionality -- a fixed combination of factors present throughout the panel -- so it does not grow outside the fit window and no input separates the two readings. The assertion that would kill it, that extrapolating costs more than fitting in sample, was written first and the measurement refutes it. The pretest slice is kept because it mirrors what the estimator fits on, and the exactness claim the case asserts is carried by the twelve-decade separation, which both readings reproduce."
+  find = "    design = np.column_stack([np.ones_like(x[:n_pre]), x[:n_pre]])\n    coef, *_ = np.linalg.lstsq(design, y[:n_pre], rcond=None)"
+  replace = "    design = np.column_stack([np.ones_like(x), x])\n    coef, *_ = np.linalg.lstsq(design, y, rcond=None)"
+  models = "the affine fit taken over the whole panel instead of the pretest. Written expecting it to understate what extrapolation costs; measured, it does not, and the ratio of the pretest-fit gap to the whole-panel-fit gap is 0.91 to 1.06 with a median of 1.00 over r in (2, 3, 5) and k in (2, 5, 25). The gap is structural non-proportionality, a fixed combination of factors present throughout the panel, not an error that grows out of sample, so this metric is insensitive to the fit window and the mutant is equivalent. Kept as the record of that, and the pretest slice is kept because it mirrors what the estimator fits on"
+
+  [[target.mutant]]
+  id = "the-panel-is-not-shifted-positive"
+  find = "    Y = Y - Y.min() + 1.0"
+  replace = "    Y = Y"
+  models = "a mean-zero outcome handed to an estimator whose reported quantities include a percentage effect, so the denominator passes through zero. The shift moves the intercept and leaves every gap and the fitted slope unchanged, which is why it is safe to apply and unsafe to drop"
+
+[[target]]
+name = "tbr-factor-coverage"
+module-path = "benchmarks/studies/tbr_factor/coverage.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_factor_dimension.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-replication-index"
+  find = "                rows.append(one_replication(seed * 1_000_003 + i, r, k,"
+  replace = "                rows.append(one_replication(seed + len(rows), r, k,"
+  models = "a replication seed derived from how many rows have already been produced, so a cell's draws depend on which cells preceded it in the request. This is the defect the sibling Monte Carlo study was built with, where the same cell returned 192 hits of 200 alone and 179 inside the full grid. Every coverage figure stays plausible, so only an equality between two requests catches it"
+
+  [[target.mutant]]
+  id = "the-bound-takes-the-worst-multifactor-cell"
+  find = "        rates = [sum(v) / len(v) for v in by_k.values()]\n        out[\"multifactor_cov_max_over_k\"] = float(max(rates))"
+  replace = "        rates = [sum(v) / len(v) for v in by_k.values()]\n        out[\"multifactor_cov_max_over_k\"] = float(min(rates))"
+  models = "the least favourable multi-factor cell reported where the claim is an upper bound. Taking the minimum makes the bound easier to satisfy the worse one cell happens to be, so a single badly behaved treated-group size would carry a claim that is supposed to hold for the best of them"
+
+  [[target.mutant]]
+  id = "the-one-factor-cell-is-pooled-with-the-rest"
+  find = "        if row[\"r\"] > 1:"
+  replace = "        if row[\"r\"] >= 1:"
+  models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
 

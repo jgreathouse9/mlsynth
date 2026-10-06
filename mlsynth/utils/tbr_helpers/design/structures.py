@@ -78,7 +78,7 @@ class TBRMMPosterior(BaseModel):
         default=None,
         description="Newey-West truncation lag behind a 'hac' scale, and None "
                     "under 'iid'. Zero keeps only the diagonal, which is the "
-                    "independent case.")
+                    "heteroskedasticity-robust sandwich and not equation 6.")
 
 
 class TBRMMMarketEffect(BaseModel):
