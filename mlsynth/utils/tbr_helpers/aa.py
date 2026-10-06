@@ -50,12 +50,22 @@ What the default screen is for
 
 :func:`coverage_grid` screens each split on the two checks that speak to the
 relation itself before measuring it. That does not make a cell conditional on
-the relation holding, and claiming it would be wrong. The checks are sized at
-five per cent, and structural non-proportionality is present in nearly every
-split of a panel that has it, so they have almost no power against it: on a
-three-factor panel screening moved coverage from 0.597 to 0.618 while admitting
-76 per cent of splits, and on a one-factor panel it moved 0.903 to 0.901 at 95
-per cent admitted. Both differences are inside the noise of either number.
+the relation holding, and claiming it would be wrong.
+
+Measured over five three-factor panels, 150 splits each at a window of 8 and a
+level of 0.90, the screen lifts coverage by a median of 0.033, and the
+screened cells still land between 0.31 and 0.74 against a nominal 0.90. On
+five one-factor panels, where the relation holds, the lift is a median of
+-0.003. So the screen does not recover a broken design, which is the claim
+that matters.
+
+The lift is not a constant, and one panel cannot establish its size: over
+those same five three-factor panels the range is 0.006 to 0.294, so a figure
+drawn from a single panel can show the screen doing almost nothing or a great
+deal, depending on which one it drew. Two of the five move by more than 0.15.
+An earlier version of this paragraph generalised from one panel at 0.597
+against 0.618 and called the difference noise; it is the median behaviour and
+not the whole of it.
 
 The screen earns its place on Ferman and Pinto (2017)'s condition instead.
 Their section 3 gives the requirement a placebo reference has to meet: a
@@ -453,10 +463,11 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
     counted, never measured.
 
     The default does not make a cell conditional on the relation holding.
-    Checks sized at five per cent cannot remove structural non-proportionality
-    that is present in nearly every split: on a three-factor panel screening
-    moved coverage from 0.597 to 0.618 while admitting 76% of splits, which is
-    inside the noise of either number. What it buys is Ferman and Pinto
+    Over five three-factor panels the screen lifts coverage by a median 0.033
+    and the screened cells still sit between 0.31 and 0.74 against a nominal
+    0.90, so it does not recover a broken design. The lift ranges 0.006 to
+    0.294 across those panels, so its size is a property of the panel and not
+    of the screen. What it buys is Ferman and Pinto
     (2017)'s condition on a placebo reference: its members share the real
     design's null distribution only where they match it in pretest fit. A
     table built without the screen is drawn from a wider population than a
