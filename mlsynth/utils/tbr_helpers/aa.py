@@ -67,6 +67,28 @@ An earlier version of this paragraph generalised from one panel at 0.597
 against 0.618 and called the difference noise; it is the median behaviour and
 not the whole of it.
 
+Why no screen recovers a broken design is a statement about the checks, and it
+is sharper than low power in general. The second of the two is Engle-Granger
+on the pair, which tests the condition Li and Van den Bulte (2022)'s
+Proposition 3.3 is derived under: with a unit-root common factor, the
+treated and control aggregates have to be cointegrated for the standardised
+statistic to be asymptotically normal. Their equations 3.5 and 3.7 write the
+outcome as :math:`a_j + b_j f_t + u_{jt}` with one factor and a scalar
+loading, and under that the residual of the treated aggregate on the control
+one is stationary by construction, which is also equation 1's assumption here.
+With several factors the loadings are vectors and the residual is stationary
+only where the two groups' mean loading vectors are proportional -- automatic
+at one factor, a coincidence past it. So the check is aimed at exactly the
+condition that separates the regime the posterior is calibrated in from the
+regime it is not.
+
+It cannot resolve that condition at the pretest lengths this method is used
+at. Engle-Granger has little power against a near unit-root residual over
+forty-odd periods, which the check's own documented size bears out: it fires
+on 0.105 of sound panels at 30 periods and reports no verdict below that. The
+screen asks the right question and the data cannot answer it, which is why the
+screened three-factor cells still sit at 0.31 to 0.74 against a nominal 0.90.
+
 The screen earns its place on Ferman and Pinto (2017)'s condition instead.
 Their section 3 gives the requirement a placebo reference has to meet: a
 placebo's statistic shares the treated unit's null distribution only where the
@@ -467,7 +489,11 @@ def coverage_grid(panel: np.ndarray, *, n_treated: int,
     and the screened cells still sit between 0.31 and 0.74 against a nominal
     0.90, so it does not recover a broken design. The lift ranges 0.006 to
     0.294 across those panels, so its size is a property of the panel and not
-    of the screen. What it buys is Ferman and Pinto
+    of the screen. It cannot do better: the Engle-Granger check tests the
+    cointegration Proposition 3.3 of Li and Van den Bulte (2022) needs, which
+    is the right condition, and has little power against a near unit-root
+    residual at the pretest lengths this is run at. What it buys is Ferman
+    and Pinto
     (2017)'s condition on a placebo reference: its members share the real
     design's null distribution only where they match it in pretest fit. A
     table built without the screen is drawn from a wider population than a
