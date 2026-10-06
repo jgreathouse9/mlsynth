@@ -3527,3 +3527,87 @@ timeout = 900.0
   find = "    defined = held > 1e-8 * in_rmse"
   replace = "    defined = held > 0"
   models = "a denominator that is zero to floating point but not to the comparison. A window TBR reproduces exactly leaves a held-out RMSE around 1e-16 while the in-sample one is order 1, so the ratio comes out near 2e15 and the detail reports difference-in-differences as quadrillions of times worse. The verdict is unaffected and the number is finite, so only a constructed exact tail sees it"
+
+[[target]]
+name = "tbr-pointwise-posterior"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-variance-choice-does-not-reach-the-band"
+  find = "    hac = getattr(config, \"variance\", \"iid\") == \"hac\""
+  replace = "    hac = False"
+  models = "the config's variance honoured for the cumulative interval and ignored for the per-period one, so asking for HAC corrects one panel of the figure and leaves the other at the iid scale. Every number stays finite and the point estimates are untouched, because this is a variance correction"
+
+  [[target.mutant]]
+  id = "the-bandwidth-is-re-derived-instead-of-read"
+  find = "                bandwidth=bandwidth)"
+  replace = "                bandwidth=None)"
+  models = "an explicit hac_bandwidth accepted, recorded, and replaced by the default rule on the way into the per-period scale. The default is what most panels would have chosen anyway, so the two agree except where the caller disagreed with the rule"
+
+  [[target.mutant]]
+  id = "the-period-labels-drop-the-pretest"
+  find = "        periods=list(inputs.time_labels),"
+  replace = "        periods=list(inputs.time_labels[n_pre:]),"
+  models = "the labels covering the test window while the estimates cover the panel, so every per-period effect is attributed to the wrong period and the diagnostic half of the figure is plotted against the wrong axis. The values are all correct; only their alignment is not"
+
+  [[target.mutant]]
+  id = "the-posterior-uses-the-pretest-length-for-its-degrees-of-freedom"
+  find = "    lower, upper = interval(locs, scales, fit.df, level)"
+  replace = "    lower, upper = interval(locs, scales, fit.n_pretest, level)"
+  models = "n in place of n - 2, which is the transcription the t posterior invites. The band is merely a little narrower, so it still brackets every estimate and still widens with the level; only a check against the quantile itself notices"
+
+[[target]]
+name = "tbr-pointwise-plot"
+module-path = "mlsynth/utils/tbr_helpers/plotter.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_pointwise.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-per-period-panel-loses-its-band"
+  find = "    if pw is not None:"
+  replace = "    if False:"
+  models = "the per-period panel falling back to the bare difference even where the posterior is available, which is the state this change exists to correct: a per-period effect indistinguishable from zero drawn identically to one that is not"
+
+[[target]]
+name = "tbr-montecarlo-harness"
+module-path = "benchmarks/studies/tbr_geo/mlsynth_coverage.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_montecarlo_harness.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-random-stream"
+  find = "    rows: List[Dict] = []\n    for rho in rhos:\n        for c in cs:\n            for n_pre in pres:\n                rng = cell_rng(seed, rho, c, n_pre, scheme)"
+  replace = "    rows: List[Dict] = []\n    _shared = np.random.default_rng(seed)\n    for rho in rhos:\n        for c in cs:\n            for n_pre in pres:\n                rng = _shared"
+  models = "the defect this harness was built with: one stream consumed across the grid, so a cell's draws depend on which cells preceded it. The same cell returned 192 hits of 200 alone and 179 inside the full grid, and that swing read as a difference between the two assignment schemes when the arms had been run over different cell sets. Every coverage figure stays plausible, which is why only an equality between two requests catches it"
+
+  [[target.mutant]]
+  id = "every-cell-draws-the-identical-stream"
+  find = "                rng = cell_rng(seed, rho, c, n_pre, scheme)"
+  replace = "                rng = np.random.default_rng(seed)"
+  models = "the first attempt at the mutant above, kept because it is a different defect and it survived. Re-seeding identically inside the loop is order-independent, so a cell still answers the same alone and in the grid; what it destroys is independence between cells, which no coverage figure shows and which understates the standard error of the pooled rate. Only an assertion on how the stream is derived sees it"
+
+  [[target.mutant]]
+  id = "the-stratified-scheme-stops-pairing-by-volume"
+  find = "        pairs = order.reshape(-1, 2)"
+  replace = "        pairs = order.reshape(2, -1).T"
+  models = "the volume sort kept and the pairing broken: the halves are split at the median instead of matched, so one group gets the large geos. Group sizes and the one-geo-per-stratum count are unchanged, so only the volume-balance invariant notices"
+
+  [[target.mutant]]
+  id = "the-injected-truth-stops-matching-the-true-iroas"
+  find = "    return response, response / TRUE_IROAS"
+  replace = "    return response, response / (TRUE_IROAS + 0.05)"
+  models = "the cost constant drifting off the response, so the design's true iROAS is no longer 2.0 while every coverage figure is still computed against the response. Coverage is unaffected -- it is measured on the cumulative effect -- and only the iROAS median moves, by an amount a loose tolerance would absorb"
+
+[[target]]
+name = "tbr-simulation-cell-rng"
+module-path = "benchmarks/studies/tbr_geo/simulation.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_simulation_cell_rng.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cells-share-one-random-stream"
+  find = "    rows = []\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = cell_rng(seed, rho, c, n_pre)"
+  replace = "    rows = []\n    _shared = np.random.default_rng(seed)\n    for rho in RHOS:\n        for c in CS:\n            for n_pre in pres:\n                rng = _shared"
+  models = "the same defect in the study that first reproduced the paper's coverage result. Its published numbers came from one full-grid run so they are internally consistent, but any subset re-run disagrees with them and the disagreement looks like a finding"

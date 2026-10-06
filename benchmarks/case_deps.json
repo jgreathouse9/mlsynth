@@ -1172,6 +1172,30 @@
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
+ "lexscm_cumulative_az_mc": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/lexscm.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/config.py",
+  "mlsynth/utils/fast_scm_helpers/conflict.py",
+  "mlsynth/utils/fast_scm_helpers/fast_scm_control.py",
+  "mlsynth/utils/fast_scm_helpers/fast_scm_control_helpers.py",
+  "mlsynth/utils/fast_scm_helpers/fast_scm_setup.py",
+  "mlsynth/utils/fast_scm_helpers/feasibility.py",
+  "mlsynth/utils/fast_scm_helpers/inference.py",
+  "mlsynth/utils/fast_scm_helpers/lexpower.py",
+  "mlsynth/utils/fast_scm_helpers/lexsearch.py",
+  "mlsynth/utils/fast_scm_helpers/lexselect.py",
+  "mlsynth/utils/fast_scm_helpers/post_inference.py",
+  "mlsynth/utils/fast_scm_helpers/strata.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fast_scm_helpers/unit_effects.py",
+  "mlsynth/utils/marex_helpers/simulation.py",
+  "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/accelerate.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/solvers/minnorm.py"
+ ],
  "lexscm_cumulative_coverage": [
   "mlsynth/utils/fast_scm_helpers/post_inference.py"
  ],
@@ -1188,10 +1212,13 @@
   "mlsynth/utils/fast_scm_helpers/lexpower.py",
   "mlsynth/utils/fast_scm_helpers/lexsearch.py",
   "mlsynth/utils/fast_scm_helpers/lexselect.py",
+  "mlsynth/utils/fast_scm_helpers/post_inference.py",
   "mlsynth/utils/fast_scm_helpers/strata.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fast_scm_helpers/unit_effects.py",
   "mlsynth/utils/marex_helpers/simulation.py",
   "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/solvers/minnorm.py"
  ],
  "lexscm_walmart": [
@@ -1209,10 +1236,13 @@
   "mlsynth/utils/fast_scm_helpers/lexpower.py",
   "mlsynth/utils/fast_scm_helpers/lexsearch.py",
   "mlsynth/utils/fast_scm_helpers/lexselect.py",
+  "mlsynth/utils/fast_scm_helpers/post_inference.py",
   "mlsynth/utils/fast_scm_helpers/strata.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/fast_scm_helpers/unit_effects.py",
   "mlsynth/utils/post_fit.py",
   "mlsynth/utils/solvers/accelerate.py",
+  "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/solvers/minnorm.py"
  ],
  "linf_prop99": [

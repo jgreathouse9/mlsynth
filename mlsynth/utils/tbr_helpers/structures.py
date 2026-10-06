@@ -57,6 +57,37 @@ class CumulativeEffect(BaseModel):
         ..., description="Time labels of the horizons, in order.")
 
 
+class PointwiseEffect(BaseModel):
+    r"""The posterior of the per-period effect :math:`\phi_t`, over the panel.
+
+    The cumulative effect answers what the campaign did by time :math:`t`; this
+    answers what it did in the period. Equation 6 gives it with no new algebra:
+    at a horizon of one period the cumulative effect is the per-period effect
+    and :math:`\bar{x}_1` is :math:`x_t`, so the scale reduces to
+    :math:`s\sqrt{v_a + 2 x_t v_{ab} + v_b x_t^2 + 1}`.
+
+    Reported over the whole panel and not only the test window. The pretest
+    half is the fitted model's residuals, which section 3.3's figure draws as a
+    visual diagnostic: on a well-specified fit they centre on zero and their
+    intervals cover it at about the nominal rate.
+    """
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    estimate: List[float] = Field(
+        ..., description="Median per-period effect, the prediction error "
+                         "``y_t - (alpha + beta x_t)``.")
+    scale: List[float] = Field(
+        ..., description="Scale of the t-distribution at each period: eqn 6 at "
+                         "a horizon of one.")
+    lower: List[float] = Field(..., description="Lower posterior bound.")
+    upper: List[float] = Field(..., description="Upper posterior bound.")
+    level: float = Field(..., description="Two-sided interval level.")
+    df: int = Field(..., description="Degrees of freedom of the posterior.")
+    periods: List = Field(
+        ..., description="Time labels, the whole panel, in order.")
+
+
 class IROASResult(BaseModel):
     """Incremental return on ad spend, section 3.4."""
 
@@ -98,6 +129,12 @@ class TBREstimate(BaseEstimatorResults):
         default=None, description="Posterior of the cumulative response effect.")
     cumulative_cost: Optional[CumulativeEffect] = Field(
         default=None, description="Posterior of the cumulative cost effect.")
+    pointwise: Optional[PointwiseEffect] = Field(
+        default=None,
+        description="Posterior of the per-period response effect, over the "
+                    "whole panel. The test-window estimates sum to the final "
+                    "cumulative one; the pretest estimates are the fit's own "
+                    "residuals.")
     iroas: Optional[IROASResult] = Field(
         default=None, description="Incremental return on ad spend; None unless a "
                                   "cost column was supplied.")
