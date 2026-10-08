@@ -1,0 +1,16 @@
+T=104  season_amp=1.0  phase blocks=1  true threshold=2.2498
+    per_period     1.5623   ratio to truth  0.69
+    blocks         1.4710   ratio to truth  0.65
+    phase_matched  1.4199   ratio to truth  0.63
+T=208  season_amp=1.0  phase blocks=3  true threshold=2.2892
+    per_period     1.6970   ratio to truth  0.74
+    blocks         1.6087   ratio to truth  0.70
+    phase_matched  1.5929   ratio to truth  0.70
+T=208  season_amp=2.0  phase blocks=3  true threshold=2.5463
+    per_period     1.9153   ratio to truth  0.75
+    blocks         1.8078   ratio to truth  0.71
+    phase_matched  1.8138   ratio to truth  0.71
+T=208  season_amp=0.0  phase blocks=3  true threshold=2.0876
+    per_period     1.5505   ratio to truth  0.74
+    blocks         1.4764   ratio to truth  0.71
+    phase_matched  1.4551   ratio to truth  0.70
