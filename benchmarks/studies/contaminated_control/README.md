@@ -204,6 +204,54 @@ for a plain single-treated-unit synthetic control on comparable draws. The
 exposure grows as the pool shrinks or as a penalised design concentrates the
 weights.
 
+## What the two thresholds buy, measured end to end
+
+The blank-window threshold is better calibrated at the selected `k*`, and it
+places the crossover where a calibrated threshold should (40 replications per
+DGP, contamination swept as a multiple of `thr_oos`):
+
+| DGP | in-sample ratio | blank-window ratio | crossover |
+| --- | --- | --- | --- |
+| `fdid_ar1_rho.7` | 0.778 | 1.055 | 1.0 |
+| `hsc_shared_trend` | 0.637 | 1.061 | 1.0 |
+| `marex_native` | 1.008 | 1.077 | 1.0 |
+| `rank_shift_dormant` | 0.835 | 1.090 | 1.0 |
+| `rank_shift_ok` | 0.917 | 1.193 | 1.0 |
+| `pangeo_seasonal` | 0.367 | 0.577 | 2.0 |
+
+Five of six land on 1.0, against 1.25 to 3.0 under the in-sample threshold.
+Seasonality stays unfixed at 0.577.
+
+The calibration does not carry through to the decision. On the `panel` grid,
+where the contamination size depends on neither threshold, both rules are
+accurate and their costs are indistinguishable:
+
+| DGP | accuracy, in-sample | accuracy, blank-window | cost, in-sample | cost, blank-window | cost, best possible | cost, never repair |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fdid_ar1_rho.7` | 1.000 | 1.000 | 0.024 | 0.024 | 0.024 | 0.310 |
+| `marex_native` | 0.993 | 0.989 | 0.227 | 0.228 | 0.227 | 1.421 |
+| `rank_shift_ok` | 0.961 | 0.946 | 0.032 | 0.032 | 0.030 | 0.196 |
+| `rank_shift_dormant` | 0.957 | 0.918 | 0.028 | 0.030 | 0.027 | 0.144 |
+| `pangeo_seasonal` | 0.914 | 0.904 | 0.079 | 0.081 | 0.067 | 0.291 |
+| `hsc_shared_trend` | 0.900 | 0.896 | 0.306 | 0.309 | 0.279 | 1.048 |
+
+The in-sample rule is marginally ahead in five of six and tied in the sixth,
+and both sit within a few percent of the best choice available with hindsight.
+The two grids disagree because they ask different questions: the `thr_oos` grid
+concentrates the contamination around the threshold, which is where a decision
+is hard and a better threshold helps, and the `panel` grid spreads it over
+realistic magnitudes, where most calls are not close and the threshold's
+calibration stops mattering.
+
+So the blank window is what to use when reporting a threshold as a number, and
+the choice between the two does not change the repair-or-not call on contamination
+of a realistic size. Never repairing is the expensive policy everywhere, by four
+to six times.
+
+Repairing the data continues to beat re-weighting across every DGP, on the same
+grid: `iterative` against `renorm` runs 0.032/0.070, 0.717/1.763, 0.372/0.926,
+0.190/0.327, 0.049/0.094 and 0.050/0.082.
+
 ## Status
 
 Exploratory. Nothing here is wired into the library, and the repair is not a
