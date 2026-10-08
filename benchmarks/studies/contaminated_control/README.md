@@ -109,6 +109,15 @@ when there is nothing to repair is the expensive error. The two rank-shift rows
 overstate most because a post-period of 20 against a pre-period of 40 leaves
 room for a single blank block.
 
+That table averages over every unit standing in as `k*`, and so is optimistic
+about the market the repair is actually applied to. The contaminated market in
+the end-to-end arm is the one carrying the largest control weight, and it earned
+that weight by doing work the other donors cannot do, which makes it harder to
+reconstruct than an average market. For `pangeo_seasonal` the blank-window
+ratio is 0.942 averaged over all units and 0.577 at the largest-weight market.
+Calibration measured over all units is the cheap arm; calibration at the
+selected `k*` is the one that governs the decision.
+
 Phase mismatch under seasonality was the first explanation and it is wrong.
 `seasonality_negative.py` holds that result: blocks drawn at the post window's
 own seasonal phase do no better (0.63 against 0.65), and the understatement
@@ -129,7 +138,7 @@ unit's extrapolation.
 | --- | --- |
 | `dgps.py` | the six panels, all from the library's own simulation helpers |
 | `repair.py` | the contamination, the four arms, and both thresholds |
-| `run.py` | end to end: design, contaminate, repair, score both decision rules |
+| `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
 | `seasonality_negative.py` | the wrong explanation, kept as a negative result |
 | `analyze.py` | the tables |
@@ -146,6 +155,19 @@ python analyze.py results/end_to_end.csv
 `threshold_calibration.py` uses every unit as `k*` in turn and solves no
 mixed-integer design, so it is the cheap arm to re-run when a DGP is added.
 `run.py` solves one design per replication, which is where the time goes.
+
+Each replication in `run.py` is swept over two contamination grids off that one
+design solve, because no single grid answers both questions. On the `thr_oos`
+grid the contamination is a multiple of the replication's own out-of-sample
+threshold, which is what places the crossover at 1.0 when the threshold is
+calibrated. That grid cannot score the decision rules against each other: the
+contamination is then a fixed multiple of `thr_oos`, so the out-of-sample rule
+fires exactly when the multiple exceeds one and carries no per-replication
+information, while the in-sample rule compares against a separate quantity and
+keeps its variation. A comparison on that grid measures the grid. The `panel`
+grid sets the contamination as a multiple of the median pre-period unit
+standard deviation, which depends on neither threshold, and the decision
+comparison uses it.
 
 ## The six panels
 
