@@ -1,8 +1,22 @@
 """The end-to-end arm: design, contaminate, repair, score both thresholds.
 
-``pi`` is swept in units of each replication's out-of-sample threshold, so a
-calibrated ``thr_oos`` puts the naive/iterative crossover at ratio 1.0 and the
-DGPs become directly comparable despite their different scales.
+Each replication is swept over two ``pi`` grids off one design solve, because
+no single grid answers both questions.
+
+``thr_oos``
+    ``pi = ratio * thr_oos``. A calibrated out-of-sample threshold puts the
+    naive/iterative crossover at ratio 1.0, and the DGPs become comparable
+    despite their different scales. This grid cannot score the decision rules:
+    ``pi`` is then a fixed multiple of ``thr_oos``, so the out-of-sample rule
+    fires exactly when ``ratio > 1`` and carries no per-replication
+    information, while the in-sample rule keeps its cross-sectional variation.
+    Comparing the two on this grid measures the grid, not the rules.
+
+``panel``
+    ``pi = ratio * scale``, where ``scale`` is the median across units of the
+    standard deviation of their pre-period series. This depends on neither
+    threshold, so both rules vary replication to replication and the decision
+    comparison is a fair one.
 
     python run.py 40 results/end_to_end.csv
 """
@@ -49,24 +63,28 @@ def replication(name: str, seed: int) -> list[dict]:
     rec = reconstruct(YN, v, T0)
 
     post = slice(T0, T)
+    scale = float(np.median(YN[:T0].std(axis=0)))
     Yt = YN.copy()
     if YI is not None:
         Yt[post, treated] = YI[post, treated]
     else:
-        Yt[post, treated] += float(np.median(YN[:T0].std(axis=0)))
+        Yt[post, treated] += scale
     e_post = float(np.mean(Yt[post, rec.kstar]
                            - Yt[post][:, rec.clean] @ rec.weights))
 
     rows = []
-    for ratio in RATIOS:
-        pi = ratio * rec.thr_oos
-        est = arms(Yt, w, v, T0, rec, pi)
-        rows.append(dict(dgp=name, seed=seed, ratio=ratio, pi=pi, J=J,
-                         vk=rec.vk, n_blank_blocks=rec.n_blank_blocks,
-                         thr_in=rec.thr_in, thr_oos=rec.thr_oos, e_post=e_post,
-                         rule_in=abs(pi) > rec.thr_in,
-                         rule_oos=abs(pi) > rec.thr_oos,
-                         truth=abs(pi) > abs(e_post), **est))
+    for grid, unit in (("thr_oos", rec.thr_oos), ("panel", scale)):
+        for ratio in RATIOS:
+            pi = ratio * unit
+            est = arms(Yt, w, v, T0, rec, pi)
+            rows.append(dict(dgp=name, seed=seed, grid=grid, ratio=ratio, pi=pi,
+                             J=J, vk=rec.vk, scale=scale,
+                             n_blank_blocks=rec.n_blank_blocks,
+                             thr_in=rec.thr_in, thr_oos=rec.thr_oos,
+                             e_post=e_post,
+                             rule_in=abs(pi) > rec.thr_in,
+                             rule_oos=abs(pi) > rec.thr_oos,
+                             truth=abs(pi) > abs(e_post), **est))
     return rows
 
 

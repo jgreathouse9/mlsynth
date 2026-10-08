@@ -19,8 +19,8 @@ def main(path: str) -> None:
     print(f"replications per DGP: {d.groupby('dgp').seed.nunique().to_dict()}")
     print(f"max |iterative - iscm| = {np.abs(d.iterative - d.iscm).max():.2e}")
 
-    dev = np.abs((d[d.ratio > 0].naive - d[d.ratio > 0].oracle)
-                 + d[d.ratio > 0].vk * d[d.ratio > 0].pi).max()
+    pos = d[d.ratio > 0]
+    dev = np.abs((pos.naive - pos.oracle) + pos.vk * pos.pi).max()
     print(f"max deviation from  naive - oracle = -v_k * pi:  {dev:.2e}\n")
 
     print("=" * 84)
@@ -38,7 +38,7 @@ def main(path: str) -> None:
     print("\n" + "=" * 84)
     print("Crossover by pi / thr_oos. A calibrated threshold puts the flip at 1.0")
     print("=" * 84)
-    for name, g in d.groupby("dgp"):
+    for name, g in d[d.grid == "thr_oos"].groupby("dgp"):
         t = pd.DataFrame([
             dict(ratio=r, **{a: rms(h[a] - h.oracle) for a in ARMS})
             for r, h in g.groupby("ratio")])
@@ -47,10 +47,11 @@ def main(path: str) -> None:
         print(t.round(3).to_string(index=False))
 
     print("\n" + "=" * 84)
-    print("Decision accuracy and cost: in-sample rule against out-of-sample rule")
+    print("Decision accuracy and cost on the panel grid, which depends on")
+    print("neither threshold, so both rules vary replication to replication")
     print("=" * 84)
     acc = []
-    for name, g in d[d.ratio > 0].groupby("dgp"):
+    for name, g in d[(d.grid == "panel") & (d.ratio > 0)].groupby("dgp"):
         err_n = (g.naive - g.oracle).abs()
         err_i = (g.iterative - g.oracle).abs()
         row = dict(dgp=name)
