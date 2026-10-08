@@ -140,6 +140,8 @@ unit's extrapolation.
 | `repair.py` | the contamination, the four arms, and both thresholds |
 | `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
+| `spillover_pool.py` | admits the treated markets to the contaminated market's pool, where the cross-weight stops being zero |
+| `analyze_spillover.py` | tables for that arm |
 | `seasonality_negative.py` | the wrong explanation, kept as a negative result |
 | `analyze.py` | the tables |
 | `results/` | the runs behind the tables above |
@@ -185,6 +187,39 @@ comparison uses it.
 market hard to rebuild out of sample. There, repairing pays only for large
 contamination.
 
+## Where the two corrections stop agreeing
+
+The identity above holds because the treated markets are kept out of `k*`'s
+donor pool, which sets the cross-weight `l1` to zero. That exclusion is
+available in the exogenous case, since nothing the treatment did caused the
+contamination. Under spillover it may not be: Di Stefano and Mellace's
+motivating example has Austria at 42 percent of synthetic West Germany, and
+dropping West Germany from Austria's pool gives implausible spillover
+estimates.
+
+`spillover_pool.py` admits the treated markets and measures the consequence.
+The exclusion is not a free choice when the clean donors fit `k*` poorly: with
+the simplex free to use them, `l1` averages 0.36 across these panels and
+reaches 0.79 on `marex_native`.
+
+With the treated markets at total weight `l1`, the rebuild picks up `l1 * tau`
+over the post-period and the arms part company:
+
+    iterative error = v_k * e - v_k * l1 * tau
+    iscm error      = v_k * (e + delta * l1) / (1 - v_k * l1)
+
+for `e` the rebuild error and `delta` the design's own fit error. The leak in
+`iterative` scales with the treatment effect; the inclusive system removes that
+term and pays a `1 / (1 - v_k * l1)` inflation for it. Two predictions follow
+and the arm checks both: the gap between the arms is `v_k * l1 * tau`, so a
+regression of the observed gap on that quantity has slope one and intercept
+zero; and at `tau = 0` the arms agree however large `l1` is.
+
+This arm imposes a homogeneous treatment effect on every DGP, including the one
+shipping its own treated potential outcomes, so that `l1 * tau` is exact. It
+therefore says nothing about effects that vary across treated markets, where
+the leak becomes a weighted average that `l1` alone no longer summarises.
+
 ## Scope
 
 What is measured assumes the contaminated market is known, and known from
@@ -197,6 +232,15 @@ The contamination is a level shift on one market over the post-period. Two or
 more contaminated markets, and dynamic contamination, are not measured.
 Melnychuk (2024) reports the methods converging and degrading as the affected
 share of the donor pool rises.
+
+What is measured is contamination, not spillover. The distinction is where the
+donor pool comes in. These panels contaminate one market and leave the rest
+clean, so there is always clean material to rebuild from. Spillover decays with
+proximity, so the donors that best reconstruct a contaminated market are the
+ones most likely contaminated by the same leakage, and the repair's raw material
+is what spillover takes away. `spillover_pool.py` relaxes the cross-weight but
+keeps the clean pool, so it measures the machinery of the correction and not
+that harder problem.
 
 MAREX's own design spreads control weight thinly, which limits the exposure: a
 mean largest control weight of 0.08 to 0.19 across these panels, against 0.51
