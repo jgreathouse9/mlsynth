@@ -210,10 +210,61 @@ over the post-period and the arms part company:
 
 for `e` the rebuild error and `delta` the design's own fit error. The leak in
 `iterative` scales with the treatment effect; the inclusive system removes that
-term and pays a `1 / (1 - v_k * l1)` inflation for it. Two predictions follow
-and the arm checks both: the gap between the arms is `v_k * l1 * tau`, so a
-regression of the observed gap on that quantity has slope one and intercept
-zero; and at `tau = 0` the arms agree however large `l1` is.
+term and pays a `1 / (1 - v_k * l1)` inflation for it.
+
+Two predictions were stated before the run. The first holds and the second was
+wrong.
+
+The gap between the arms tracks the leak: regressing the observed
+`iscm - iterative` on `v_k * l1 * tau` gives slope 1.0075 and intercept
+-0.0002 at a correlation of 0.9972, and the mean gap matches the mean leak at
+0.1199 against 0.1183 and 0.3566 against 0.3549 for the two effect sizes.
+
+The second prediction was that the arms agree at `tau = 0` however large `l1`
+is. They do not: the largest disagreement is 0.202. The prediction contradicts
+the decomposition above, which was read for its leak term alone. Setting
+`tau = 0` in the two expressions leaves
+
+    iscm - iterative = v_k * l1 * (delta + v_k * e) / (1 - v_k * l1)
+
+which vanishes only when `l1` does. That corrected form is exact against the
+data: slope 1.0, intercept zero, and a largest deviation of 7.2e-15 over the
+570 replications with a non-zero cross-weight. The 150 replications where the
+simplex sets `l1 = 0` on its own still agree to 5.3e-15, so the study's
+headline identity is intact where it was claimed.
+
+The practical reading is that the inclusive system is not free. It removes a
+term proportional to `l1 * tau` and adds one proportional to `l1 * delta`, so
+it pays when the treatment effect is large against the design's own fit error
+and costs when it is not.
+
+That shows up directly in the cost. At `tau = 0` the inclusive system is
+marginally behind in five of six DGPs, by 0.001 to 0.017. At three times the
+panel scale it is ahead in all six, by 0.09 to 0.89. The determinant stays
+benign throughout, averaging 0.965 and never falling below 0.867, so the
+inflation is not what drives any of this.
+
+Admitting the treated markets also buys a better rebuild, and the pre-period
+rebuild error falls in all six DGPs when they are allowed in. Taking the two
+together, the inclusive pool with the inclusive correction beats the clean pool
+in four of six, ties one, and loses one:
+
+| DGP | clean pool, iterative | inclusive pool, iscm |
+| --- | --- | --- |
+| `pangeo_seasonal` | 0.190 | 0.121 |
+| `hsc_shared_trend` | 0.717 | 0.686 |
+| `rank_shift_ok` | 0.050 | 0.045 |
+| `rank_shift_dormant` | 0.049 | 0.045 |
+| `fdid_ar1_rho.7` | 0.032 | 0.031 |
+| `marex_native` | 0.372 | 0.381 |
+
+The seasonal panel gains most, which is the panel whose clean rebuild was worst
+and which defeated the threshold estimator earlier. Borrowing from the treated
+markets is how a poorly reconstructable market gets rebuilt, and the inclusive
+system is what makes the borrowing safe. Pairing the inclusive pool with the
+iterative correction is the combination to avoid: it carries the full leak, and
+at three times the panel scale it runs to 1.275 against 0.381 on
+`marex_native`.
 
 This arm imposes a homogeneous treatment effect on every DGP, including the one
 shipping its own treated potential outcomes, so that `l1 * tau` is exact. It
