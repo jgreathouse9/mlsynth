@@ -17,7 +17,7 @@ def main(path: str) -> None:
     print("=" * 92)
     print("The screen: does it find the contaminated market, and what else does it flag?")
     print("=" * 92)
-    s = d.groupby("dgp").agg(
+    s = d.groupby(["dgp", "selection"]).agg(
         reps=("seed", "nunique"), controls=("n_controls", "mean"),
         recall=("screen_found_kstar", "mean"),
         flagged=("n_flagged", "mean"), false_pos=("n_false_pos", "mean"))
@@ -26,7 +26,7 @@ def main(path: str) -> None:
 
     print("\nFalse positives at zero contamination (nothing to find):")
     z = d[d.ratio == 0.0]
-    print(z.groupby("dgp").agg(flagged=("n_flagged", "mean"),
+    print(z.groupby(["dgp", "selection"]).agg(flagged=("n_flagged", "mean"),
                                false_pos=("n_false_pos", "mean"),
                                recall=("screen_found_kstar", "mean")).round(2).to_string())
 
@@ -34,19 +34,19 @@ def main(path: str) -> None:
     print("What detection error costs: repair told the market, against repair given the screen")
     print("=" * 92)
     rows = []
-    for (name, r), g in d.groupby(["dgp", "ratio"]):
-        rows.append(dict(dgp=name, ratio=r,
+    for (name, sel, r), g in d.groupby(["dgp", "selection", "ratio"]):
+        rows.append(dict(dgp=name, selection=sel, ratio=r,
                          naive=rms(g.naive - g.oracle),
                          known=rms(g.known - g.oracle),
                          detected=rms(g.detected - g.oracle)))
     t = pd.DataFrame(rows)
-    print(t.pivot(index="dgp", columns="ratio").round(3).to_string())
+    print(t.pivot(index=["dgp", "selection"], columns="ratio").round(3).to_string())
 
     print("\nAveraged over contamination sizes above zero:")
     pos = d[d.ratio > 0]
     agg = []
-    for name, g in pos.groupby("dgp"):
-        agg.append(dict(dgp=name, naive=rms(g.naive - g.oracle),
+    for (name, sel), g in pos.groupby(["dgp", "selection"]):
+        agg.append(dict(dgp=name, selection=sel, naive=rms(g.naive - g.oracle),
                         known=rms(g.known - g.oracle),
                         detected=rms(g.detected - g.oracle),
                         detected_vs_known=rms(g.detected - g.oracle) - rms(g.known - g.oracle)))
@@ -55,6 +55,7 @@ def main(path: str) -> None:
     print("\n" + "=" * 92)
     print("RRSC, reported only where it passes the clean-panel applicability gate")
     print("=" * 92)
+    pos = pos[pos.selection == "S1"]          # RRSC is independent of the screen
     gate = d.drop_duplicates(["dgp", "seed"]).groupby("dgp").rrsc_gate_ok.mean()
     rows = []
     for name, g in pos.groupby("dgp"):
