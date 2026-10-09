@@ -274,10 +274,19 @@ the leak becomes a weighted average that `l1` alone no longer summarises.
 ## Scope
 
 What is measured assumes the contaminated market is known, and known from
-outside the outcome data. Identifying it from the panel instead is a different
-problem and is not addressed here: control markets looking unusual after the
-intervention is often the estimator working, and dropping the ones that look
-unusual is a specification search that biases toward finding effects.
+outside the outcome data. Identifying it from the panel is a different problem,
+not addressed in this study but addressed in the library: control markets
+looking unusual after the intervention is often the estimator working, and
+dropping the ones that look unusual is a specification search that biases
+toward finding effects, so the identification needs a method and not a glance.
+
+:class:`~mlsynth.SPOTSYNTH` is that method (O'Riordan and Gilligan-Lee 2025).
+It forecasts each donor's post-intervention values from pre-intervention donor
+data alone and flags the ones the forecast misses, returning the flagged set on
+``excluded_idx``, with sensitivity analysis bounding the bias from flagging a
+valid donor or missing an invalid one. Composing it with the repairs measured
+here is the obvious next arm, and it would measure what detection error costs
+the repair.
 
 The contamination is a level shift on one market over the post-period. Two or
 more contaminated markets, and dynamic contamination, are not measured.
@@ -292,6 +301,24 @@ ones most likely contaminated by the same leakage, and the repair's raw material
 is what spillover takes away. `spillover_pool.py` relaxes the cross-weight but
 keeps the clean pool, so it measures the machinery of the correction and not
 that harder problem.
+
+The library carries a method built for that harder case.
+:class:`~mlsynth.RRSC` (He, Li, Shi and Miao 2026) writes the direct and
+interference effects as a sparse-outlier component of a robust regression
+against pre-period factor loadings, so it needs neither a nominated set of
+contaminated markets nor a pool known to be clean, only that a majority of
+controls are unaffected without knowing which. It returns an average effect, an
+interval and a p-value for every unit.
+
+RRSC and the repairs measured here answer different questions, and the
+difference matters for an experimental design. RRSC replaces the weighting: it
+is an estimator, and the weights it implies come from the loadings it fits
+after the fact. The repairs here leave the design's committed ``w`` and ``v``
+untouched and change only the data the control aggregate reads. Where the
+weights were fixed before the experiment ran, that is the whole point, and RRSC
+cannot stand in for the repair however well it estimates. Where there is no
+such commitment, RRSC asks less of the analyst and should be the comparison
+this study is measured against.
 
 MAREX's own design spreads control weight thinly, which limits the exposure: a
 mean largest control weight of 0.08 to 0.19 across these panels, against 0.51
