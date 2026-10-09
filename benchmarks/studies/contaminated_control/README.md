@@ -140,6 +140,8 @@ unit's extrapolation.
 | `repair.py` | the contamination, the four arms, and both thresholds |
 | `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
+| `detection.py` | drops the assumption that the contaminated market is known, screening for it with SPOTSYNTH, and runs RRSC as a baseline |
+| `analyze_detection.py` | tables for that arm |
 | `spillover_pool.py` | admits the treated markets to the contaminated market's pool, where the cross-weight stops being zero |
 | `analyze_spillover.py` | tables for that arm |
 | `seasonality_negative.py` | the wrong explanation, kept as a negative result |
@@ -186,6 +188,33 @@ comparison uses it.
 4.54 against 0.27 for the rank-shift panels, because a common drift makes any
 market hard to rebuild out of sample. There, repairing pays only for large
 contamination.
+
+## Dropping the assumption that the market is known
+
+Every other arm is told which market was contaminated. `detection.py` is not.
+It screens with :class:`~mlsynth.SPOTSYNTH`, which forecasts each donor's
+post-intervention values from pre-intervention donor data alone and returns the
+donors the forecast misses, then repairs whatever the screen returns and
+compares that against the repair told the right answer. The difference is what
+detection error costs. A screen that misses the contaminated market leaves the
+bias in place; a screen that over-flags rebuilds clean markets for nothing and
+spends their contribution to the fit. The screen is run at its defaults, and its
+aggressiveness is a parameter (``ppi`` and ``selection``) that this arm does not
+turn, since tuning it against these results would fit the screen to the answer.
+
+The same arm runs :class:`~mlsynth.RRSC` as a baseline that needs neither a
+nominated market nor a clean pool. RRSC is reported only where it passes an
+applicability gate: on a clean panel of the same shape it must recover a known
+effect to within half its size. Its two regimes assume dimensions these panels
+do not all have, and its factor model assumes time-invariant loadings that a
+shared stochastic trend violates, so an ungated number would read as a finding
+about the method when it is a statement about the panel. An empty cell is a
+result: it says the estimator's conditions do not hold there.
+
+Both benchmarks are reported. Against the design's own oracle, which isolates
+what the contamination costs and matches the other arms; and against the true
+effect, which is the only fair benchmark for RRSC, since it never uses the
+design's weights and does not inherit the design's fit error.
 
 ## Where the two corrections stop agreeing
 
