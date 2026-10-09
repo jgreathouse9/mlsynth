@@ -40,7 +40,8 @@ from dgps import DGPS
 from run import design
 
 RATIOS = (0.0, 0.5, 1.0, 2.0, 4.0)
-GATE_TOL = 0.5          # clean-panel relative error RRSC must beat to be reported
+GATE_TOL = 0.15         # clean-panel relative error RRSC must beat to be reported
+SELECTIONS = ("S1", "S2")
 
 
 def _single_treated_panel(Y, w, controls, T0):
@@ -103,7 +104,7 @@ def replication(name, seed):
         gate_est, gate_ok = float("nan"), False
 
     rows = []
-    for ratio in RATIOS:
+    for sel, ratio in [(s_, r_) for s_ in SELECTIONS for r_ in RATIOS]:
         pi = ratio * scale
         Yc = Yt.copy()
         Yc[post, kstar] += pi
@@ -121,6 +122,7 @@ def replication(name, seed):
         try:
             scr = SPOTSYNTH(SPOTSYNTHConfig(df=sdf, outcome="y", treat="d",
                                             unitid="unit", time="time",
+                                            selection=sel,
                                             inference="frequentist")).fit().screen
             flagged = set(int(i) for i in scr.excluded_idx)
             found = kstar_local in flagged
@@ -138,7 +140,8 @@ def replication(name, seed):
         except Exception:
             rrsc = float("nan")
 
-        rows.append(dict(dgp=name, seed=seed, ratio=ratio, pi=pi, J=J, vk=float(v[kstar]),
+        rows.append(dict(dgp=name, seed=seed, selection=sel, ratio=ratio, pi=pi,
+                         J=J, vk=float(v[kstar]),
                          n_controls=len(controls), tau=scale, oracle=oracle, naive=naive,
                          known=known, detected=detected, rrsc=rrsc,
                          screen_found_kstar=found, n_flagged=n_flag, n_false_pos=n_fp,

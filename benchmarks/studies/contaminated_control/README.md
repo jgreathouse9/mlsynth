@@ -236,14 +236,23 @@ donors the forecast misses, then repairs whatever the screen returns and
 compares that against the repair told the right answer. The difference is what
 detection error costs. A screen that misses the contaminated market leaves the
 bias in place; a screen that over-flags rebuilds clean markets for nothing and
-spends their contribution to the fit. The screen is run at its defaults, and its
-aggressiveness is a parameter (``ppi`` and ``selection``) that this arm does not
-turn, since tuning it against these results would fit the screen to the answer.
+spends their contribution to the fit. Both of the screen's selection rules are run, because only one of them is a
+test. ``S1`` keeps the ``n_donors`` donors with the smallest forecast error and
+``n_donors`` defaults to half the pool, so it flags a fixed count whatever the
+data look like. A first run used that default and found every panel flagging
+50 to 54 percent of its controls, with the flagged count at zero contamination
+identical to the count overall. That is arithmetic, not a property of the
+method, and reporting it as one would have been a statement about the default.
+``S2`` keeps the donors whose realised value falls inside the forecast's
+posterior predictive interval, so its count responds to the data and ``ppi``
+sets the false-positive rate. Neither rule is tuned against these results.
 
 The same arm runs :class:`~mlsynth.RRSC` as a baseline that needs neither a
 nominated market nor a clean pool. RRSC is reported only where it passes an
 applicability gate: on a clean panel of the same shape it must recover a known
-effect to within half its size. Its two regimes assume dimensions these panels
+effect to within 15 percent of its size. An earlier version of this arm set that
+tolerance at half, which admits an estimator whose errors run near 40 percent,
+so the gate passed the configurations it existed to catch. Its two regimes assume dimensions these panels
 do not all have, and its factor model assumes time-invariant loadings that a
 shared stochastic trend violates, so an ungated number would read as a finding
 about the method when it is a statement about the panel. An empty cell is a
