@@ -140,6 +140,8 @@ unit's extrapolation.
 | `repair.py` | the contamination, the four arms, and both thresholds |
 | `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
+| `partial_id.py` | stops assuming the spillovers away, bounding the effect from the pre-period weight set |
+| `analyze_partial_id.py` | tables for that arm |
 | `detection.py` | drops the assumption that the contaminated market is known, screening for it with SPOTSYNTH, and runs RRSC as a baseline |
 | `analyze_detection.py` | tables for that arm |
 | `spillover_pool.py` | admits the treated markets to the contaminated market's pool, where the cross-weight stops being zero |
@@ -188,6 +190,42 @@ comparison uses it.
 4.54 against 0.27 for the rank-shift panels, because a common drift makes any
 market hard to rebuild out of sample. There, repairing pays only for large
 contamination.
+
+## What a committed design keeps when it stops assuming the spillovers away
+
+Every other arm removes the contamination and reports a number. Wei (2026)
+declines to: with the interference pattern unknown, outcomes alone do not
+separate the direct effect from the spillovers, and what the data support is a
+set. The device is that synthetic-control weights are not unique. For a
+committed treated aggregate ``w`` and any convex control weight ``v``,
+
+    tau_hat(v) = [ sum w_j Y^N_j - sum v_j Y^N_j ] + theta - v'gamma
+
+and the validity rule bounds that untreated discrepancy by ``M * d(v)``, with
+``d(v)`` the weight's pre-treatment discrepancy. Every weight is one inequality
+
+    | theta - v'gamma - tau_hat(v) |  <=  M * d(v)
+
+in the same unknowns. One weight leaves the effect bounded only by the
+spillover restriction; many weights, disagreeing in their post-period
+estimates, pin the spillover vector in the directions their differences span.
+
+This looked incompatible with an experimental design, which commits to one
+``v`` before the experiment and gets its credibility from doing so, while the
+identification consumes the set of them. It is not. Both the weights and their
+discrepancies are pre-period objects, fixed at ``T0`` before any post-period
+outcome exists, so a design can commit to one weight for running the experiment
+and keep the rest for the identification afterwards. Nothing in the set was
+chosen after seeing a result, so no specification search is involved.
+
+With a box restriction on the spillovers the set is a pair of linear programs
+in ``(theta, gamma)``. Sampling weights instead of representing the continuum
+exactly gives an outer approximation, so every width reported is conservative
+and the true set is at least that tight.
+
+An infeasible program is a result and not a failure. It says no direct effect
+and spillover vector satisfies every weight's inequality, so the envelope and
+the spillover bound are together refuted by the data.
 
 ## Dropping the assumption that the market is known
 
