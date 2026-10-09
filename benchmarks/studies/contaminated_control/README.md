@@ -263,6 +263,47 @@ what the contamination costs and matches the other arms; and against the true
 effect, which is the only fair benchmark for RRSC, since it never uses the
 design's weights and does not inherit the design's fit error.
 
+### What the two arms measured
+
+For the screen, recall decides and precision costs little. The fixed-size rule
+flags more and finds the contaminated market more often (0.735 to 0.915 against
+0.785 to 0.855), and the repair built on it is the better one in five of six
+panels. Missing the contaminated market leaves the whole bias in place, while
+rebuilding a clean market spends only its contribution to the fit, so a screen
+tuned for this use should err toward flagging. The test rule's false-positive
+behaviour varies by panel more than its averages suggest: with nothing
+contaminated it flags 1.5 markets on the serial-correlation and seasonal panels
+and 6.1 on the dormant-factor panel, which is more than the fixed rule flags
+there by construction.
+
+Both are far behind the repair that is told the answer, and sometimes behind
+doing nothing at all. Excess error over the known-market repair runs from 0.064
+to 1.048, and on the seasonal panel under the test rule the repaired estimate
+is worse than the uncorrected one (1.238 against 0.487). Detection quality, not
+repair quality, is what binds.
+
+RRSC, once the gate discriminates, beats the uncorrected estimate in four of the
+five panels where it is admissible, and on the dormant-factor panel it matches
+the repair that was told the right market (0.063 against 0.065, measured against
+the true effect). It does not match it elsewhere. The seasonal panel passes the
+gate in none of 40 replications, so it has no row.
+
+The partial-identification arm behaves as its algebra predicts and is dear. The
+weight set narrows the set by 35 percent on average at the tightest envelope,
+by 16 percent at the next, and by 6 percent at the loosest, since a loose
+envelope leaves the weight inequalities slack. The best single replication
+narrows by 99.5 percent. Coverage among feasible programs is 0.973. At the
+tightest envelope the programs on the shared-trend and seasonal panels are
+infeasible about 70 percent of the time, which refutes the envelope and the
+spillover bound together on those panels.
+
+The cost is width. The sets run from 2.2 to 23.8 in outcome units against
+effects of 0.8 to 8.4, so they are several times the quantity being estimated,
+while the uncorrected estimate's own error is 0.089 to 0.708. The arm buys
+freedom from the identifying assumptions at a price that would leave most
+practical questions open, which is the same shape as Wei's own application,
+where the inversion sets admit both signs.
+
 ## Where the two corrections stop agreeing
 
 The identity above holds because the treated markets are kept out of `k*`'s
