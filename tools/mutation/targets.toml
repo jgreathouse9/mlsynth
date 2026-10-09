@@ -3788,3 +3788,122 @@ timeout = 900.0
   replace = "        if row[\"r\"] >= 1:"
   models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
 
+[[target]]
+name = "tbrmm-objective"
+module-path = "mlsynth/utils/tbr_helpers/design/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm.py mlsynth/tests/test_tbrmm_gates.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "cusum-read-at-the-endpoint-instead-of-the-supremum"
+  find = "    stat = float(np.max(np.abs(np.cumsum(resid))) / (sigma * np.sqrt(resid.size)))"
+  replace = "    stat = float(np.abs(np.cumsum(resid))[-1] / (sigma * np.sqrt(resid.size)))"
+  models = "a CUSUM read at the end of the path instead of at its largest excursion. The residuals of a fit with an intercept sum to zero, so the endpoint is zero by construction and the gate passes every split it is ever shown"
+
+  [[target.mutant]]
+  id = "cusum-statistic-not-scaled-by-the-window-length"
+  find = "    stat = float(np.max(np.abs(np.cumsum(resid))) / (sigma * np.sqrt(resid.size)))"
+  replace = "    stat = float(np.max(np.abs(np.cumsum(resid))) / sigma)"
+  models = "a CUSUM statistic missing its square-root-of-n normalisation, so the statistic grows with the length of the scoring window and the gate refuses designs for having more history behind them"
+
+  [[target.mutant]]
+  id = "durbin-watson-on-the-levels-not-the-differences"
+  find = "    d = np.diff(resid)"
+  replace = "    d = resid[1:]"
+  models = "a Durbin-Watson statistic built from the residuals instead of their first differences. The ratio then sits near one for any input, which falls outside the accepted band, so the gate refuses every split and the search ranks on the tie-breakers alone"
+
+  [[target.mutant]]
+  id = "brownian-bridge-boundary-misaligned-by-one"
+  find = "    return bool(not np.any(np.abs(np.cumsum(resid / sigma))[:-1] > envelope))"
+  replace = "    return bool(not np.any(np.abs(np.cumsum(resid / sigma))[1:] > envelope))"
+  models = "the scaled CUSUM path compared against the boundary one position out of step, which drops the first excursion and tests the last one against a boundary belonging to an earlier period"
+
+  [[target.mutant]]
+  id = "fit-quality-scaled-by-the-window-not-the-degrees-of-freedom"
+  find = "    rss = fit.sigma_sq * fit.df"
+  replace = "    rss = fit.sigma_sq * y.size"
+  models = "a residual sum of squares reconstructed with the period count in place of the degrees of freedom, which overstates it and so understates the fit quality every split is ranked on, by a factor that depends on the window length"
+
+  [[target.mutant]]
+  id = "false-positive-rate-taken-at-the-far-interval-bound"
+  find = "    true_mean = min(abs(lower), abs(upper))"
+  replace = "    true_mean = max(abs(lower), abs(upper))"
+  models = "the false-positive probability evaluated at the interval bound furthest from zero instead of the nearest one. The result is no longer the lower bound the function promises, so the A/A gate refuses designs whose worst case alone exceeds the tolerance"
+
+  [[target.mutant]]
+  id = "the-aa-gate-admits-exactly-the-intervals-that-exclude-zero"
+  find = "    if lower * upper < 0.0:"
+  replace = "    if lower * upper > 0.0:"
+  models = "the A/A test's covering condition backwards: a held-out interval that covers zero is sent on to the probability check while one that excludes zero is admitted outright, which passes precisely the designs that found an effect in a window where there is none"
+
+  [[target.mutant]]
+  id = "the-aa-test-estimates-the-window-it-was-fitted-on"
+  find = "    loc, scale = cumulative_posterior(fit, y[n_pretest:], x[n_pretest:])"
+  replace = "    loc, scale = cumulative_posterior(fit, y[:n_pretest], x[:n_pretest])"
+  models = "an A/A test that estimates the periods its own regression was fitted to instead of the held-out ones. The cumulative estimate is then near zero by construction, so every candidate passes and the gate measures nothing"
+
+  [[target.mutant]]
+  id = "detectable-impact-drops-the-power-term"
+  find = "    return float((tq_sig + tq_pow) * n_test * sq * float(sigma))"
+  replace = "    return float((tq_sig - tq_pow) * n_test * sq * float(sigma))"
+  models = "a smallest detectable impact built from the significance quantile alone, the power quantile subtracted away instead of added. Every design then reports a sensitivity it does not have, and the search ranks on that number"
+
+  [[target.mutant]]
+  id = "the-paper-objective-maximises-its-best-term"
+  find = "        f = float(min(p_cusum, p_bg, r2))"
+  replace = "        f = float(max(p_cusum, p_bg, r2))"
+  models = "Au section 3.1's objective as a maximum of its three terms instead of a minimum, which rewards a split that fails one diagnostic outright as long as another is comfortable, where the minimum exists to make the weakest term decide"
+
+[[target]]
+name = "tbrmm-search"
+module-path = "mlsynth/utils/tbr_helpers/design/search.py"
+test-command = "python -m pytest mlsynth/tests/test_tbrmm.py mlsynth/tests/test_tbrmm_gates.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-treated-aggregate-built-from-the-control-group"
+  find = "            self._y[:, sorted(key[0])].sum(axis=1),"
+  replace = "            self._y[:, sorted(key[1])].sum(axis=1),"
+  models = "a scorer that regresses the control aggregate on itself, the treatment membership never read. The pretest then fits perfectly for every candidate and the search cannot tell one split from another"
+
+  [[target.mutant]]
+  id = "the-matching-climb-can-only-add-control-geos"
+  find = "            candidate = control ^ {geo}"
+  replace = "            candidate = control | {geo}"
+  models = "a matching step that can admit a control geo but never drop one, so the climb cannot prune the geo that is hurting the fit and the control group only ever grows"
+
+  [[target.mutant]]
+  id = "augmentation-takes-the-worst-candidate"
+  find = "        if best is None or score.key > best[0].key:"
+  replace = "        if best is None or score.key < best[0].key:"
+  models = "an augmentation step that adds the treatment-eligible geo scoring lowest instead of highest, which walks the climb downhill while still reporting one recommended design per size"
+
+  [[target.mutant]]
+  id = "a-geo-stays-in-the-control-group-after-joining-treatment"
+  find = "            candidate_control = set(control) - {geo}"
+  replace = "            candidate_control = set(control)"
+  models = "a candidate left in the control aggregate while it joins the treatment group, so one geo's sales enter both sides of the regression. This is the double count Au's R_uad gap describes and the subtraction exists to close"
+
+  [[target.mutant]]
+  id = "control-start-best-keeps-the-worse-design"
+  find = "        return [replace(max(a, b, key=lambda o: o.score.key),"
+  replace = "        return [replace(min(a, b, key=lambda o: o.score.key),"
+  models = "control_start='best' keeping the lower-scoring of the two walks at each size, which makes the option that is documented as never worse than either start worse than both"
+
+  [[target.mutant]]
+  id = "the-two-control-starts-are-swapped"
+  find = "        start = (set(pools[\"control\"]) - set(treatment)) if from_pool else control"
+  replace = "        start = (set(pools[\"control\"]) - set(treatment)) if not from_pool else control"
+  models = "the two control starts exchanged, so 'carried' re-derives the group from the pool and 'pool' carries the previous size's forward. The default then stops reproducing Algorithm 1 while still being named for it"
+
+  [[target.mutant]]
+  id = "a-treatment-size-with-no-control-geo-left-is-admitted"
+  find = "    room = n_treatment if spare else n_treatment - 1"
+  replace = "    room = n_treatment"
+  models = "a feasibility check that forgets to hold one control-eligible geo back when every such geo is also treatment eligible, admitting a K whose treatment group leaves no control aggregate to regress on"
+
+  [[target.mutant]]
+  id = "the-largest-treatment-size-is-dropped-from-the-menu"
+  find = "    for k in range(max(len(pools[\"forced\"]), 1), max_treatment_size + 1):"
+  replace = "    for k in range(max(len(pools[\"forced\"]), 1), max_treatment_size):"
+  models = "a menu that stops one size below max_treatment_size, so the largest treatment group the caller asked to be considered is never scored and never offered"
