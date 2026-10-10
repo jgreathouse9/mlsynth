@@ -64,6 +64,12 @@ def test_uniform_weights_give_an_effective_sample_size_of_n():
     assert rep.n_carrying_weight == 8
 
 
+def test_markets_given_no_weight_are_not_counted():
+    rep = contamination_report(_v(0.6, 0.4, 0.0, 0.0), market=0)
+    assert rep.n_carrying_weight == 2
+    assert rep.effective_sample_size == pytest.approx(1.0 / 0.52)
+
+
 def test_herfindahl_is_the_reciprocal_of_effective_sample_size():
     rep = contamination_report(_v(0.5, 0.25, 0.25), market=0)
     assert rep.herfindahl == pytest.approx(1.0 / rep.effective_sample_size)
