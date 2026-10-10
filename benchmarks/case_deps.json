@@ -723,6 +723,10 @@
   "mlsynth/utils/fdid_helpers/setup.py",
   "mlsynth/utils/fdid_helpers/structures.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "fdid_normality_mc": [
@@ -2804,6 +2808,23 @@
   "mlsynth/utils/tbr_helpers/setup.py"
  ],
  "tbr_factor_dimension": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/tbr.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/groupfit/fit.py",
+  "mlsynth/utils/groupfit/structures.py",
+  "mlsynth/utils/groupfit/sums.py",
+  "mlsynth/utils/groupfit/variance.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/diagnostics.py",
+  "mlsynth/utils/tbr_helpers/pipeline.py",
+  "mlsynth/utils/tbr_helpers/posterior.py",
+  "mlsynth/utils/tbr_helpers/setup.py"
+ ],
+ "tbr_montecarlo": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/tbr.py",
   "mlsynth/utils/datautils.py",
