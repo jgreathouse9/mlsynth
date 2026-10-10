@@ -142,6 +142,7 @@ unit's extrapolation.
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
 | `surrogate.py` | corrects through the delivery profile across time, never naming the contaminated market |
 | `surrogate_plot.py` | the mechanism and its two failure modes |
+| `response_shape.py` | the same projection when the response carries over, saturates and lags |
 | `closed_form_plot.py` | one draw, the three closed forms against what is measured |
 | `partial_id.py` | stops assuming the spillovers away, bounding the effect from the pre-period weight set |
 | `analyze_partial_id.py` | tables for that arm |
@@ -236,6 +237,39 @@ inherits the design's own fit error wherever that correlates with delivery, so
 the projection sits above the oracle even with nothing to correct. And it needs
 a campaign with variation to project on, so the two failure modes swept here are
 contamination that tracks the campaign and a campaign that is close to flat.
+
+### The projection under a realistic response
+
+The arm above imposes an effect proportional to delivery at the same instant.
+Media response carries over, saturates and lags, so the effect is a transform
+of the delivery path, `m_t = Sat(Adstock(rho))_{t-L}`, and projecting the gap
+on raw delivery projects onto the wrong regressor. `response_shape.py` sweeps
+five regimes and three choices of regressor: raw delivery, the true transform,
+and a transform whose carryover, saturation and lag are chosen by grid search
+on fit.
+
+The near-oracle result above survives only in the instantaneous linear regime.
+In a smoke run with nothing correlated to confuse it, projecting on raw
+delivery scored 0.375 under a linear response and 1.1 to 4.1 under the others,
+against 0.673 for making no correction, so under any of the three features the
+correction is worse than leaving the contamination alone.
+
+The reason unifies the failure modes and is a property of the transforms, not
+of any run. The projection needs variation in the effect driver, and
+carryover and saturation remove it. Against raw delivery's variation, adstock
+leaves 0.42 of it, saturation 0.64, and the three together 0.29. The near-flat
+campaign that defeated the projection sat at a standard deviation of 0.07; the
+realistic regime sits at 0.11. Flighting creates variation in delivery, and the
+response transform absorbs it before it reaches the effect. Knowing the
+transform therefore does not rescue the carryover and realistic regimes, since
+the variation it would need is the variation the transform removed. Lag is the
+exception: it shifts phase without destroying variation, and the true transform
+recovers it.
+
+Choosing the transform by fit is worse than not choosing one, in three of the
+five regimes including the linear one where there is nothing to fit. A
+three-parameter search on ten to twenty post periods overfits, which is a
+sample-size verdict and not a statement about contamination.
 
 ## What a committed design keeps when it stops assuming the spillovers away
 
