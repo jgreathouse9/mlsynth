@@ -140,6 +140,7 @@ unit's extrapolation.
 | `repair.py` | the contamination, the four arms, and both thresholds |
 | `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
+| `closed_form_plot.py` | one draw, the three closed forms against what is measured |
 | `partial_id.py` | stops assuming the spillovers away, bounding the effect from the pre-period weight set |
 | `analyze_partial_id.py` | tables for that arm |
 | `detection.py` | drops the assumption that the contaminated market is known, screening for it with SPOTSYNTH, and runs RRSC as a baseline |
@@ -190,6 +191,12 @@ comparison uses it.
 4.54 against 0.27 for the rank-shift panels, because a common drift makes any
 market hard to rebuild out of sample. There, repairing pays only for large
 contamination.
+
+`closed_form_plot.py` draws the three error expressions on a single
+replication, sweeping the contamination at zero cross-weight, sweeping the
+cross-weight at fixed contamination, and plotting the formulas against the
+measured values over 441 settings. The largest gap is 5.7e-15, so the
+expressions are exact and not approximations that happen to fit.
 
 ## What a committed design keeps when it stops assuming the spillovers away
 
