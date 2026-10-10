@@ -10,58 +10,30 @@ which is the Lorentz cone written as an indefinite quadratic. SCIP has a
 dedicated handler for that shape, ``nlhdlr_soc``, carrying the highest detect
 priority of any nonlinear handler (100, against 50 for ``convex`` and 0 for
 ``default``). It disaggregates an n-term cone into n small cones plus one
-linear row, a stronger and far more compact relaxation than linearizing each
-square separately.
+linear row.
 
-On MAREX's program it detects nothing. Every detection goes to ``default``,
-which separates the same two constraints with thousands of gradient cuts.
+On MAREX's program it takes nothing, and every row goes to ``default``, which
+builds one auxiliary per square, cuts each from below by tangents, and sums
+them in one linear row. Why, is ``causes.py`` and ``minimal.py``: cvxpy's
+encoding ties the cone's right side to one of its left components, and
+presolve plus the simplifier cancel the pair. What it costs is ``damage.py``
+and ``timing.py``: the cone's disaggregation is not a stronger relaxation -- the
+root bound is no higher -- but it is about a third cheaper in LP iterations
+and cuts, and about 14% faster on the geometric mean, unevenly.
 
     python detect.py results/detect.csv
 """
 from __future__ import annotations
 
 import os
-import re
 import sys
-import tempfile
 
 import cvxpy as cp
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from instruments import handler_rows
 from panels import program
-
-
-def handler_rows(model) -> dict:
-    """``(detects, detectall)`` per nonlinear handler, from SCIP's statistics.
-
-    ``writeStatistics`` is used instead of ``printStatistics`` because the
-    latter writes from C and does not reach a Python-level stdout redirect.
-    """
-    with tempfile.NamedTemporaryFile("w+", suffix=".txt", delete=False) as tf:
-        path = tf.name
-    try:
-        model.writeStatistics(path)
-        text = open(path).read()
-    finally:
-        os.unlink(path)
-    out = {}
-    for name in ("soc", "convex", "quadratic", "default"):
-        m = re.search(rf"\n *{name} *: *(\d+) *(\d+)", text)
-        out[name] = (int(m.group(1)), int(m.group(2))) if m else None
-    # The Constraints table's `nonlinear` row: Number MaxNumber #Separate
-    # #Propagate #EnfoLP #EnfoRelax #EnfoPS #Check #ResProp Cutoffs DomReds
-    # Cuts Applied Conss Children. Split the fields instead of counting them
-    # in a regex -- the Number column can carry a `+` suffix.
-    out["nonlinear_cuts"] = out["nonlinear_applied"] = None
-    for line in text.split("\n"):
-        if line.strip().startswith("nonlinear ") and ":" in line:
-            f = line.split(":", 1)[1].split()
-            if len(f) >= 13 and f[0].rstrip("+").isdigit():
-                out["nonlinear_cuts"] = int(f[11])
-                out["nonlinear_applied"] = int(f[12])
-                break
-    return out
 
 
 def measure(J: int, m_eq: int) -> dict:

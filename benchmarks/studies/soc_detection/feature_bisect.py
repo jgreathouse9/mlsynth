@@ -1,57 +1,56 @@
-"""Which feature of MAREX's program makes the SOC handler decline it?
+"""The first bisection, kept as the record of a wrong turn.
 
-``detect.py`` establishes that it does decline. This builds the same algebraic
-shape directly in PySCIPOpt, feature by feature, to find the one that matters.
-Each case emits the same cone, ``sum_i s_i^2 - t^2 <= 0`` with ``t >= 0``, and
-differs only in what surrounds it.
-
-The cases, and what each one rules out if the cone is still detected:
+``detect.py`` establishes that SCIP's SOC handler declines MAREX's cones. This
+script was the first attempt to find out why: rebuild the cone directly in
+PySCIPOpt and add MAREX's features one at a time, looking for the one that
+makes the handler decline.
 
 ``bare``
-    One cone, 7 terms, t free and carrying the objective. The control.
+    One cone, 7 terms, t free and carrying the objective.
 ``t_tied``
-    t pinned to the objective variable by ``t - obj == 1``, as cvxpy does
-    rather than letting t carry the objective itself. Rules out the
-    aggregation of that equality turning ``t^2`` into an offset square, which
-    the handler's own source says it does not detect.
+    t pinned to the objective variable by ``t - obj == 1``, the half of cvxpy's
+    encoding that ties the cone's right side to the objective.
 ``wide``
-    The cone widened to 20 terms, MAREX's fit-window length. Rules out size.
+    The cone widened to 20 terms, MAREX's fit-window length.
 ``varbound``
     The disjointness ``w_j <= z_j``, ``v_j <= 1 - z_j`` and the cardinality
-    constraint added around it. Rules out the integer structure.
+    constraint added around it.
 ``two_cones``
     Both cones, sharing the w and v variables, as the standard design emits.
-    Rules out the interaction between them.
 
-Every case detects. So the cause is not any of these, and the difference lives
-in the coefficients cvxpy emits rather than in the shape. ``reread.py``
-narrows it further: the written model reproduces the zero, so it is in the
-model and not in how cvxpy builds it.
+Every case detects, and the conclusion first drawn from that -- that the cause
+was in cvxpy's coefficients and not in the shape -- was wrong. It is the
+shape. cvxpy writes ``sum_squares(r) <= x`` as ``||(2r, 1 - x)|| <= 1 + x``,
+so one of the cone's *left* components, ``1 - x``, is affine in the same
+variable as its right side, ``1 + x``. Every case here encodes a standard cone
+``sum s_i^2 <= t^2`` with no such left component, so none of them could reach
+the cause: presolve merges the tied pair and the simplifier cancels their
+squares, and a bisection that never includes the pair cannot implicate it. The
+case named ``t_tied`` has the half of the tie that does no harm.
+
+``minimal.py`` is the reproducer that does reach it, with a twin that differs
+in that one feature, and ``causes.py`` counts the two mechanisms involved.
+The cases below still run and still detect; they answer a question the
+diagnosis did not need answered.
 
     python feature_bisect.py results/feature_bisect.csv
 """
 from __future__ import annotations
 
 import os
-import re
 import sys
-import tempfile
 
 import numpy as np
 import pandas as pd
 from pyscipopt import Model, quicksum
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from instruments import handler_rows
+
 
 def soc_detects(model) -> int | None:
-    with tempfile.NamedTemporaryFile("w+", suffix=".txt", delete=False) as tf:
-        path = tf.name
-    try:
-        model.writeStatistics(path)
-        text = open(path).read()
-    finally:
-        os.unlink(path)
-    m = re.search(r"\n *soc *: *(\d+) *(\d+)", text)
-    return int(m.group(1)) if m else None
+    rows = handler_rows(model)
+    return rows["soc"][1] if rows["soc"] else None
 
 
 def build(ncones: int, nterms: int, J: int, m_eq: int, varbound: bool,
@@ -79,7 +78,6 @@ def build(ncones: int, nterms: int, J: int, m_eq: int, varbound: bool,
             obj = model.addVar(lb=0, obj=1, vtype="C")
             model.addCons(t - obj == 1)
         else:
-            t.setAttr if False else None
             model.setObjective(t, "minimize")
         s = [model.addVar(lb=None, vtype="C") for _ in range(nterms)]
         for i in range(nterms):
