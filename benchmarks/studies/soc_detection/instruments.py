@@ -1,6 +1,6 @@
 """The study's measuring instruments, in one place so they can be tested.
 
-Four of them were wrong before they were tested, which is the reason they
+Five of them were wrong before they were tested, which is the reason they
 live here. The cut count read the wrong column of SCIP's constraint table. The
 ``DetectAll`` column was read as the number of times a handler was asked, when
 ``nlhdlr.c`` increments it only when the handler *participates*, so a zero
@@ -9,7 +9,9 @@ negative squares used a regular expression that could not see one written as
 ``-((2-<x>))^2``. And its replacement assumed every row reads ``expr <= rhs``,
 when presolve is free to flip a row to ``expr >= lhs`` -- a hypothesis property
 found a case where it did, and the count came out two where the cone had one.
-Each is pinned in ``benchmarks/tests/test_soc_detection_ladder.py`` against
+And it read only the ``(<x>)^2`` notation SCIP uses after presolve, when a row
+as written spells the same square ``<x>*<x>``, so on every unpresolved row it
+counted zero. Each is pinned in ``benchmarks/tests/test_soc_detection_ladder.py`` against
 inputs whose answer is known.
 """
 from __future__ import annotations
@@ -123,21 +125,40 @@ def _body_and_sense(row: str) -> tuple[str, str]:
     return body, "<="
 
 
+def _is_square(term: str) -> bool:
+    """Whether a term is a square, in either notation SCIP writes.
+
+    After presolve a square reads ``(<x>)^2`` or ``((2-<x>))^2``; in a row as
+    written it reads ``<x>*<x>``. A leading coefficient, ``3.5*``, is allowed
+    in both. A product of two different variables is bilinear, not a square.
+    """
+    if term.endswith("^2"):
+        return True
+    factors = [f.strip() for f in term.split("*")]
+    while factors and not factors[0].startswith("<"):
+        try:
+            float(factors[0])
+        except ValueError:
+            return False
+        factors = factors[1:]
+    return len(factors) == 2 and factors[0] == factors[1] and factors[0].startswith("<")
+
+
 def negative_squares(row: str) -> int:
     """How many top-level terms of a written row are minus a square, once the
     row is read as an upper bound.
 
     ``row`` is one ``[nonlinear]`` line as SCIP writes it. The expression is
-    split into top-level terms and a term counts when it ends in ``^2`` and
+    split into top-level terms and a term counts when it is a square and
     carries a minus sign in the ``<=`` orientation -- whether the base is a
-    variable, ``(<x>)``, or a sum, ``((2-<x>))``, and with or without a
-    coefficient. A row written ``expr >= lhs`` is the row ``-expr <= -lhs``, so
+    variable, ``(<x>)``, or a sum, ``((2-<x>))``, written ``^2`` or as
+    ``<x>*<x>``, and with or without a coefficient. A row written ``expr >= lhs`` is the row ``-expr <= -lhs``, so
     there the squares that count are the ones written with a plus.
     """
     expr, sense = _body_and_sense(row)
     wanted = "-" if sense == "<=" else "+"
     return sum(1 for sign, term in _split_terms(expr)
-               if sign == wanted and term.endswith("^2"))
+               if sign == wanted and _is_square(term))
 
 
 def presolved_rows(model) -> list[str]:
