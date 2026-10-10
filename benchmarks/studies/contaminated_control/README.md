@@ -143,6 +143,7 @@ unit's extrapolation.
 | `surrogate.py` | corrects through the delivery profile across time, never naming the contaminated market |
 | `surrogate_plot.py` | the mechanism and its two failure modes |
 | `response_shape.py` | the same projection when the response carries over, saturates and lags |
+| `response_shape_plot.py` | which regressors beat making no correction, by regime |
 | `closed_form_plot.py` | one draw, the three closed forms against what is measured |
 | `partial_id.py` | stops assuming the spillovers away, bounding the effect from the pre-period weight set |
 | `analyze_partial_id.py` | tables for that arm |
@@ -289,10 +290,31 @@ the variation it would need is the variation the transform removed. Lag is the
 exception: it shifts phase without destroying variation, and the true transform
 recovers it.
 
-Choosing the transform by fit is worse than not choosing one, in three of the
-five regimes including the linear one where there is nothing to fit. A
-three-parameter search on ten to twenty post periods overfits, which is a
-sample-size verdict and not a statement about contamination.
+Measured over 60 draws on each of the five panels, with the contamination
+present and uncorrelated with delivery, against 0.805 for making no correction
+and 0.403 for the oracle:
+
+| regime | variation left | raw delivery | transform by fit | true transform | repair told the market |
+| --- | --- | --- | --- | --- | --- |
+| linear | 1.00 | 0.506 | 5.982 | 0.506 | 0.519 |
+| lagged | 1.00 | 5.393 | 6.048 | 0.435 | 0.519 |
+| saturating | 0.64 | 1.522 | 5.377 | 0.681 | 0.519 |
+| carryover | 0.42 | 3.387 | 4.389 | 0.911 | 0.519 |
+| realistic | 0.29 | 4.350 | 3.260 | 1.694 | 0.519 |
+
+Raw delivery beats doing nothing in the linear regime alone, where it also
+matches the repair that is told the market. The true transform extends that to
+lag and saturation, and fails at carryover and at all three together, where
+knowing the shape cannot return the variation the shape removed. The repair
+that is told the market is unmoved across the row, since it never uses
+delivery.
+
+Choosing the transform by fit never beats doing nothing, in any regime. In the
+linear one, where the truth is what the search starts from, it turns a working
+0.506 into 5.982. Three parameters searched on ten to twenty post periods
+overfit, which is a verdict about sample size and not about contamination, and
+it is the sharpest argument in this study against tuning a correction on the
+same data it corrects.
 
 ## What a committed design keeps when it stops assuming the spillovers away
 
