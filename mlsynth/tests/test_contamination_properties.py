@@ -97,6 +97,35 @@ def test_the_concentration_summaries_agree(raw, k):
     assert rep.exposure <= rep.max_weight
 
 
+@given(WEIGHTS, st.integers(min_value=0, max_value=23),
+       st.integers(min_value=1, max_value=30), FINITE, FINITE)
+@settings(max_examples=200, deadline=None)
+def test_padding_with_unused_markets_changes_nothing(raw, k, pad, shock, att):
+    """A column the design gave no weight to is not a market.
+
+    Which units appear in the panel is a property of the data; which carry
+    control weight is the design. Appending unused units must leave every
+    quantity here untouched -- the exposure, the error, the breakdown point
+    and all four concentration summaries. The two sums over the weights are
+    compared to a tolerance, since numpy pairs its summands differently at
+    different lengths and the padded total can land one bit away.
+    """
+    v = _simplex(raw)
+    k %= v.size
+    padded = np.concatenate([v, np.zeros(pad)])
+    one = contamination_report(v, market=k, shock=shock, att=att)
+    two = contamination_report(padded, market=k, shock=shock, att=att)
+    for field in ("market", "exposure", "carries_weight", "bias",
+                  "max_weight", "n_carrying_weight"):
+        assert getattr(two, field) == getattr(one, field)
+    assert two.breakdown_shock == one.breakdown_shock or abs(
+        two.breakdown_shock - one.breakdown_shock) <= 1e-9 * (
+        1.0 + abs(one.breakdown_shock))
+    for field in ("effective_sample_size", "herfindahl"):
+        a, b = getattr(one, field), getattr(two, field)
+        assert abs(a - b) <= 1e-12 * (1.0 + abs(a))
+
+
 @given(WEIGHTS, st.integers(min_value=0, max_value=23), FINITE, FINITE)
 @settings(max_examples=200, deadline=None)
 def test_a_market_with_no_weight_is_inert(raw, k, shock, att):
@@ -111,3 +140,4 @@ def test_a_market_with_no_weight_is_inert(raw, k, shock, att):
     assert rep.exposure == 0.0
     assert rep.bias == 0.0
     assert rep.carries_weight is False
+    assert rep.n_carrying_weight < v.size
