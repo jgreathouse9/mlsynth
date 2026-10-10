@@ -52,13 +52,17 @@ def panel(J=12, T=24, T0=18, seed=3, n_good=5, hi=4.0):
     return df, T0
 
 
-def fit(cap=None, relaxed=False, m_eq=3, **kw):
+def fit(cap=None, relaxed=False, m_eq=3, design=None, lambda2=None, **kw):
     df, T0 = panel(**kw)
     cfg = dict(df=df, outcome="y", unitid="unit", time="time", T0=T0,
                program_type="MIQP", display_graph=False, inference=False,
                m_eq=m_eq, relaxed=relaxed)
     if cap is not None:
         cfg["max_control_weight"] = cap
+    if design is not None:
+        cfg["design"] = design
+    if lambda2 is not None:
+        cfg["lambda2"] = lambda2
     return MAREX(MAREXConfig(**cfg)).fit()
 
 
@@ -167,15 +171,37 @@ def test_the_tightest_feasible_cap_forces_uniform_control_weights():
 
 
 def test_the_relaxed_path_respects_the_cap_after_discretization():
-    """The QP's rounding renormalizes ``v``, which can break the cap.
+    """The rounded control weights land under the cap on a penalized design.
 
-    The relaxed path therefore projects back onto the capped simplex, so the
-    guarantee holds on both program paths even though only the exact one is
-    optimal subject to it.
+    The relaxed program's rounding renormalizes the control weights over the
+    units it did not treat, which lifts them by ``1 / sum`` of the mass that
+    survived. On the standard design this never bites: the objective matches
+    each cluster's own mean, the uniform vector attains it exactly and is
+    feasible for continuous ``z``, so the relaxed optimum is uniform and
+    rounding returns a uniform ``1 / n_controls``. Under a distance penalty on
+    the control weights the relaxed optimum concentrates instead -- it sits
+    against the cap at 0.2 here -- and rounding takes it to 0.3333, two thirds
+    above the ceiling. That is the case the water-filling exists for.
     """
-    res = fit(cap=0.2, relaxed=True)
+    res = fit(cap=0.2, relaxed=True, design="penalized", lambda2=1.0)
     assert cluster_control_weights(res).max() <= 0.2 + TOL
     assert control_weights(res).max() <= 0.2 + TOL
+
+
+def test_the_rounded_weights_stay_off_the_treated_markets():
+    """Water-filling redistributes within the control set, not over all units.
+
+    Spilling outside it would put the treated markets on both sides of the
+    comparison and leave the control weights summing to less than one over
+    the controls they are supposed to cover.
+    """
+    res = fit(cap=0.2, relaxed=True, design="penalized", lambda2=1.0)
+    v = cluster_control_weights(res)
+    w = np.asarray(res.globres.treated_weights_agg, dtype=float)
+    treated = w > 1e-8
+    assert treated.any()
+    assert np.all(v[treated] == 0.0)
+    assert v[~treated].sum() == pytest.approx(1.0)
 
 
 # ------------------------------------------------------------------ failures
