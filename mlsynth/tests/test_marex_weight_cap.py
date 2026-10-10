@@ -276,3 +276,23 @@ def test_passing_the_cap_as_none_explicitly_is_the_same_as_omitting_it():
                       program_type="MIQP", display_graph=False, inference=False,
                       m_eq=3, max_control_weight=None)
     assert cfg.max_control_weight is None
+
+
+def test_the_solution_pool_is_solved_under_the_cap_too():
+    """``top_K > 1`` re-solves with no-good cuts through a second call site.
+
+    The pool entries carry the control group by name, not its weights, so the
+    assertion is the count consequence: a cap of ``c`` needs at least
+    ``ceil(1/c)`` markets carrying control weight, in every pooled design and
+    not only the primary one. The cap is 0.125, needing eight, because the
+    uncapped pool on this panel returns control groups of 6, 7 and 6 -- a cap
+    of 0.2, needing five, would have passed without reaching the solver.
+    """
+    df, T0 = panel(J=12)
+    res = MAREX(MAREXConfig(
+        df=df, outcome="y", unitid="unit", time="time", T0=T0,
+        program_type="MIQP", display_graph=False, inference=False, m_eq=3,
+        max_control_weight=0.125, top_K=3)).fit()
+    assert res.pool, "no pool was built, so the second call site is untested"
+    for entry in res.pool:
+        assert len(entry["control_group"]) >= math.ceil(1.0 / 0.125)
