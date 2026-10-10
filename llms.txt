@@ -39,6 +39,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CSCIPCA** — Counterfactual and Synthetic Control with Instrumented PCA (Wang 2024).  (config: CSCIPCAConfig)
 - **CSCM** — Flexible count synthetic control estimator (Bonander 2021).  (config: CSCMConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
+- **ContaminationReport** — What one contaminated control market can do to a locked design.
 - **CounterfactualComparison** — Result of :func:`compare_counterfactuals`.
 - **DMLFM** — Dynamic multilevel latent factor model.
 - **DPSC** — Differentially private synthetic control estimator.  (config: DPSCConfig)

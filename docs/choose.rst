@@ -1236,3 +1236,9 @@ re-estimates it on truncated pre-treatment windows and profiles the effect
 against the pretreatment horizon -- a stable profile supports the causal
 reading, an unstable one says report an interval. It is the pretreatment-horizon
 companion to the in-space placebo and leave-one-out checks.
+
+If what you picked is an experimental design -- :doc:`marex` or :doc:`syndes`,
+where the control markets are committed to before the experiment runs --
+:doc:`contamination` is the companion for the other direction. It says what one
+control market going wrong afterwards costs the estimate, and what size of
+event it would take to overturn the conclusion, from the weights alone.
