@@ -3788,3 +3788,51 @@ timeout = 900.0
   replace = "        if row[\"r\"] >= 1:"
   models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
 
+
+[[target]]
+name = "contamination-triage"
+module-path = "mlsynth/utils/contamination.py"
+test-command = "python -m pytest mlsynth/tests/test_contamination.py mlsynth/tests/test_contamination_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-bias-is-reported-with-the-wrong-sign"
+  find = '        bias = -exposure * _validate_scalar(shock, "shock")'
+  replace = '        bias = exposure * _validate_scalar(shock, "shock")'
+  models = "the direction of the contamination error flipped. The analyst who reads it subtracts when they should add, so acting on the report leaves the estimate off by twice the contamination instead of correcting it, and the magnitude still agrees with every sanity check on size"
+
+  [[target.mutant]]
+  id = "the-breakdown-shock-scales-with-the-weight"
+  find = '        breakdown = tau / exposure if carries else float("inf")'
+  replace = '        breakdown = tau * exposure if carries else float("inf")'
+  models = "a breakdown point that falls as the market's weight falls. It inverts the reading the quantity exists to give: a market at v_k = 0.02 would be reported as overturning the result under a shock of a fiftieth the effect, when in truth it needs fifty times it, so the designs least able to be hurt look the most fragile"
+
+  [[target.mutant]]
+  id = "the-breakdown-shock-carries-the-effects-sign"
+  find = "        tau = abs(_validate_scalar(att, \"att\"))"
+  replace = "        tau = _validate_scalar(att, \"att\")"
+  models = "the sign of the measured effect read as the sign of the shock that would consume it. A negative effect then reports a negative breakdown shock, which no contamination of either sign can be compared against, and the triage question has no answer at all for exactly half of all designs"
+
+  [[target.mutant]]
+  id = "a-denormal-weight-is-inverted-anyway"
+  find = '        breakdown = tau / exposure if carries else float("inf")'
+  replace = '        breakdown = tau / exposure if exposure else float("inf")'
+  models = "the breakdown point computed from any non-zero weight, including one at the solver's noise floor. It is the defect hypothesis found: at v_k = 1e-300 the division overflows to inf by accident on some inputs and returns an unreadable finite figure on others, so the tolerance the report draws for carries_weight is not the tolerance it computes with"
+
+  [[target.mutant]]
+  id = "the-concentration-index-is-constant"
+  find = "        herfindahl=float((v ** 2).sum()),"
+  replace = "        herfindahl=float(v.sum() ** 2),"
+  models = "a Herfindahl index that squares the total instead of totalling the squares. Since the weights sum to 1 it reports 1.0 for every design, so the concentration summary is blind to the distinction it exists to draw and a design resting on one market reads the same as one spread over twenty"
+
+  [[target.mutant]]
+  id = "padding-zeros-count-as-markets"
+  find = "        n_carrying_weight=int((v > WEIGHT_TOL).sum()),"
+  replace = "        n_carrying_weight=int(v.size),"
+  models = "every column of the panel counted as a control market, including the ones the design gave no weight. A design concentrated in three markets out of forty then reports forty, and the one summary that says how many markets the answer actually rests on reports the size of the data instead"
+
+  [[target.mutant]]
+  id = "an-unknown-market-reads-the-first-ones-weight"
+  find = "        k = len(values)\n        values.append(0.0)"
+  replace = "        k = 0"
+  models = "a market absent from the control-weight map resolved to index 0. Asking about a treated market, or about a typo in a market name, then returns the weight and the bias of whichever market happens to come first in the map, which is the one failure mode of a name lookup that produces a confident wrong number instead of an error"
