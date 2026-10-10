@@ -181,6 +181,7 @@ class MAREX:
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
+                max_control_weight=self.config.max_control_weight,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -213,6 +214,7 @@ class MAREX:
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
                     covariate_weight=self.covariate_weight, standardize=self.standardize,
                     restrictions=restrictions,
+                    max_control_weight=self.config.max_control_weight,
                 )
                 if self.config.backend == "exact":
                     # One search keeps each cluster's top_K treated sets; the
