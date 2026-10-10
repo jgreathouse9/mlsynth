@@ -238,6 +238,29 @@ the projection sits above the oracle even with nothing to correct. And it needs
 a campaign with variation to project on, so the two failure modes swept here are
 contamination that tracks the campaign and a campaign that is close to flat.
 
+Measured over 60 draws on each of the five panels, with the contamination at
+twice the panel scale:
+
+| corr(gamma, rho) | naive | surrogate | repair told the market | oracle |
+| --- | --- | --- | --- | --- |
+| 0.00 | 0.805 | 0.432 | 0.519 | 0.403 |
+| 0.25 | 0.805 | 0.772 | 0.519 | 0.403 |
+| 0.50 | 0.805 | 1.216 | 0.519 | 0.403 |
+| 1.00 | 0.805 | 2.171 | 0.519 | 0.403 |
+
+With the profiles uncorrelated the projection beats the repair that is told
+which market was contaminated, 0.432 against 0.519, and approaches the oracle's
+0.403. The two carry different errors and that is why: the repair pays its
+rebuild error on a market that is hard to rebuild precisely because it carries
+the largest weight, while the projection pays only the design's fit error where
+it correlates with delivery. With strong flighting the second is the smaller of
+the two. The crossing with the uncorrected estimate is near a correlation of
+0.27.
+
+On a near-flat campaign the projection runs between 6.1 and 7.8 against the
+uncorrected 0.805, an order of magnitude worse than leaving the contamination
+alone.
+
 ### The projection under a realistic response
 
 The arm above imposes an effect proportional to delivery at the same instant.
