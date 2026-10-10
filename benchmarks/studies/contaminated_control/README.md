@@ -140,6 +140,8 @@ unit's extrapolation.
 | `repair.py` | the contamination, the four arms, and both thresholds |
 | `run.py` | end to end: design, contaminate, repair, score both decision rules over two contamination grids |
 | `threshold_calibration.py` | in-sample against blank-window threshold, needs no design solve |
+| `surrogate.py` | corrects through the delivery profile across time, never naming the contaminated market |
+| `surrogate_plot.py` | the mechanism and its two failure modes |
 | `closed_form_plot.py` | one draw, the three closed forms against what is measured |
 | `partial_id.py` | stops assuming the spillovers away, bounding the effect from the pre-period weight set |
 | `analyze_partial_id.py` | tables for that arm |
@@ -197,6 +199,43 @@ replication, sweeping the contamination at zero cross-weight, sweeping the
 cross-weight at fixed contamination, and plotting the formulas against the
 measured values over 441 settings. The largest gap is 5.7e-15, so the
 expressions are exact and not approximations that happen to fit.
+
+## Correcting across time instead of across markets
+
+Every other arm works across the cross-section: find the contaminated market,
+rebuild it, or down-weight it. This one works across time, and so never names
+it.
+
+A marketing experiment observes a second metric in every market -- impressions,
+reach, delivered spend -- that tracks the campaign intensity driving the effect.
+Liu, Tchetgen Tchetgen and Varjao (2024) call such a metric a surrogate: it
+loads on the same factors as the causal effect, not on the outcome. Writing the
+intensity at time t as `rho_t` and taking the effect to be driven by delivery,
+the post-period gap between the synthetic treated and synthetic control
+aggregates is
+
+    g_t = theta * rho_t + delta_t - v_k * gamma_t
+
+for `delta_t` the design's own per-period fit error and `gamma_t` the
+contamination. Regressing the gap on a constant and the delivery profile gives
+
+    b_hat = theta + [ cov(delta, rho) - v_k cov(gamma, rho) ] / var(rho)
+
+so the contamination leaves the slope exactly when its time profile is
+uncorrelated with the delivery profile, and a contamination constant over the
+post-period is absorbed by the intercept at no cost.
+
+What this trades is one assumption for another. It gives up needing to know
+which market was contaminated, which the detection arm shows is the binding
+constraint, and takes on a claim about shapes: that the contamination does not
+follow the flighting. That claim is partly checkable, since the media plan is
+known and the timing of an outside event often is too.
+
+It is not free in either of two ways, and the arm measures both. The slope also
+inherits the design's own fit error wherever that correlates with delivery, so
+the projection sits above the oracle even with nothing to correct. And it needs
+a campaign with variation to project on, so the two failure modes swept here are
+contamination that tracks the campaign and a campaign that is close to flat.
 
 ## What a committed design keeps when it stops assuming the spillovers away
 
