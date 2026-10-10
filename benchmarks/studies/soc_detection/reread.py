@@ -7,7 +7,12 @@ adds the constraints -- the order, the interface, some residual state on the
 model -- a re-read would detect. It does not, so the cause is in the model
 itself, and the written file is a self-contained reproducer.
 
-That file is what to send upstream. It needs nothing from this repository.
+It needs nothing from this repository, so it is the file to give anyone who
+wants to watch the presolve behaviour without installing mlsynth or cvxpy.
+Nothing in it is a SCIP defect: aggregation and the expansion of a squared sum
+are both correct simplifications, and together they recover the convex
+quadratic cvxpy started from. ``minimal.py`` is the same mechanism in six
+squares.
 
     python reread.py results/marex.cip
 """
@@ -20,7 +25,7 @@ import cvxpy as cp
 from pyscipopt import Model
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from detect import handler_rows
+from instruments import handler_rows
 from panels import program
 
 

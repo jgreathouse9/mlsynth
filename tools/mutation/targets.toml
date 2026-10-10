@@ -3788,3 +3788,75 @@ timeout = 900.0
   replace = "        if row[\"r\"] >= 1:"
   models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
 
+
+[[target]]
+name = "soc-detection-reproducer"
+module-path = "benchmarks/studies/soc_detection/minimal.py"
+test-command = "python -m pytest benchmarks/tests/test_soc_detection_ladder.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-probe-encodes-a-standard-cone"
+  find = "    model.addCons(quicksum(v * v for v in s) + u * u - tau * tau <= 0)"
+  replace = "    model.addCons(quicksum(v * v for v in s) - tau * tau <= 0)"
+  models = "the reproducer written as a standard cone, sum s^2 <= tau^2, where cvxpy emits the rotated identity. It is the shape every case of the study's first feature bisection had: the row keeps its negative square under any presolve, the reproducer stops reproducing, and a bisection built on it clears features it could never have implicated"
+
+  [[target.mutant]]
+  id = "the-tie-runs-through-a-constant"
+  find = "        model.addCons(u + x == 1)"
+  replace = "        model.addCons(u == 1)"
+  models = "u pinned to a constant instead of tied to x. The row keeps u^2 but there is nothing for presolve to merge with tau, so the failure vanishes; it stands for any encoding in which the cone's right side and one of its left components stop sharing a variable, the one feature the two-model comparison isolates"
+
+[[target]]
+name = "soc-detection-causes"
+module-path = "benchmarks/studies/soc_detection/causes.py"
+test-command = "python -m pytest benchmarks/tests/test_soc_detection_ladder.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-expansion-correction-is-a-no-op"
+  find = '    "no_expansion":   {"expr/pow/expandmaxexponent": 1},'
+  replace = '    "no_expansion":   {"expr/pow/expandmaxexponent": 2},'
+  models = "the correction for the second cause set to SCIP's own default. The configuration is the baseline under another name, the handler stays out, and the experiment reads that as expansion not being necessary -- one cause counted where there are two"
+
+  [[target.mutant]]
+  id = "the-aggregation-correction-is-a-no-op"
+  find = '    "no_aggregation": {"presolving/donotaggr": True},'
+  replace = '    "no_aggregation": {"presolving/donotaggr": False},'
+  models = "the correction for the first cause set to SCIP's own default, with the same consequence for the count: aggregation recorded as unnecessary because the configuration meant to remove it changed nothing"
+
+[[target]]
+name = "soc-detection-instruments"
+module-path = "benchmarks/studies/soc_detection/instruments.py"
+test-command = "python -m pytest benchmarks/tests/test_soc_detection_ladder.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-cut-count-reads-the-domreds-column"
+  find = '            out["nonlinear_cuts"] = int(fields[11])'
+  replace = '            out["nonlinear_cuts"] = int(fields[10])'
+  models = "the cut count read one column to the left, from DomReds. On the J = 12 run that reports 1,430 cuts where SCIP generated 4,627, plausible enough to quote, and the first version of this study did read a wrong column"
+
+  [[target.mutant]]
+  id = "the-square-counter-ignores-parenthesis-depth"
+  find = '        elif ch in "+-" and depth == 0:'
+  replace = '        elif ch in "+-":'
+  models = "terms split at every sign, including the ones inside a squared sum. It is the defect of the regular expression this counter replaced: a negative square written ((2+<x>))^2 breaks into pieces that no longer end in ^2, and the cone the corrections restore reads as still collapsed"
+
+  [[target.mutant]]
+  id = "exponent-signs-split-numbers"
+  find = '            if not (prev in "eE" and prev2.isdigit()):'
+  replace = "            if True:"
+  models = "the sign inside a coefficient's exponent, 2e-03, taken for a term boundary. The tail of the number becomes a term of its own and a positive square is counted as a negative one"
+
+  [[target.mutant]]
+  id = "the-counter-ignores-the-row-orientation"
+  find = '    wanted = "-" if sense == "<=" else "+"'
+  replace = '    wanted = "-"'
+  models = "every row read as an upper bound. Presolve is free to flip a row to expr >= lhs, and then the cone's negative square is written with a plus and the positive ones carry the minus -- the defect a hypothesis property found, on a cone with one negative square that counted two"
+
+  [[target.mutant]]
+  id = "the-empty-expression-guard-is-dropped"
+  find = '    if s and s[0] in "+-":'
+  replace = '    if s[:1] in "+-":'
+  models = "the original test, which reads an empty expression as starting with a sign because the empty string is a substring of every string, and then indexes past its end"
