@@ -59,6 +59,7 @@ def solve_marex(
     cumulative_block=0,
     cumulative_n_sim=2000,
     cumulative_seed=0,
+    max_control_weight=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -80,6 +81,7 @@ def solve_marex(
         costs=costs, budget=budget, covariates=covariates,
         covariate_weight=covariate_weight, standardize=standardize,
         solver=solver, verbose=verbose,
+        max_control_weight=max_control_weight,
     )
     # Restrictions are MIQP-only (the relaxed path's rounding can't guarantee
     # them); the config rejects the combination, so only the exact solver sees it.
@@ -270,6 +272,7 @@ def solve_marex(
             "n_treated": len(treated_labels),
             "n_control": len(control_labels),
             "control_weights_agg": control_w_map,
+            "max_control_weight": max_control_weight,
         },
     )
     # The realized effect as a standardized EffectResult (the family adapter).

@@ -35,7 +35,7 @@ import numbers
 
 import cvxpy as cp
 
-from ...exceptions import MlsynthConfigError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..solvers.active_set import solve_simplex_qp
 import numpy as np
 import pandas as pd
@@ -163,9 +163,15 @@ def init_cvxpy_variables(N, K, boolean=True):
 
 def build_constraints(w, v, z, M, cluster_members, cluster_labels,
                       m_eq, m_min, m_max, costs, budget_dict, exclusive,
-                      restrictions=None):
+                      restrictions=None, max_control_weight=None):
     """Simplex, disjointness, cardinality, cost, exclusivity, and (optional)
-    geographic-restriction constraints."""
+    geographic-restriction constraints.
+
+    ``max_control_weight`` caps every control weight at that value, per
+    cluster, and is skipped at 1 where the simplex already implies it. The aggregate control weights are a cluster-size-weighted mean of
+    the per-cluster columns, a convex combination, so a per-cluster cap implies
+    the same cap on the aggregate.
+    """
     N, K = M.shape
     constraints = []
     for k in range(K):
@@ -191,6 +197,12 @@ def build_constraints(w, v, z, M, cluster_members, cluster_labels,
         for j in members:
             constraints += [w[j, k_idx] <= z[j, k_idx]]
             constraints += [v[j, k_idx] <= 1 - z[j, k_idx]]
+            # A cap of 1 is implied by ``v >= 0`` and ``sum v == 1``, so it is
+            # not added: a redundant row changes nothing about the feasible set
+            # but does change the solver's arithmetic path, and the optimum
+            # would come back perturbed at its tolerance for no reason.
+            if max_control_weight is not None and float(max_control_weight) < 1.0:
+                constraints += [v[j, k_idx] <= float(max_control_weight)]
 
         if costs is not None:
             B_k = get_per_cluster_param(budget_dict, lab)
@@ -328,3 +340,72 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
         )
 
     return cp.Minimize(cp.sum(obj_terms))
+
+
+def cap_control_weights(v, cap, support=None, tol=1e-12, max_iter=100):
+    """Rescale ``v`` onto ``{x >= 0, sum x = 1, x <= cap}`` over ``support``.
+
+    The relaxed program's rounding renormalizes the control weights over the
+    units it did not treat, and renormalizing can lift a weight back above a
+    cap the QP respected. This puts it back by water-filling: clip every entry
+    to ``cap``, hand the freed mass to the entries still below it in proportion
+    to what they already hold, and repeat. Entries that start at zero take a
+    share only when the entries above zero cannot absorb the mass under the
+    cap, which is unavoidable -- a cap of ``c`` needs ``ceil(1/c)`` markets
+    carrying weight, so a support tighter than that cannot satisfy it.
+
+    Proportional redistribution is not the Euclidean projection onto that set
+    (which solves ``sum clip(v - theta, 0, cap) = 1`` for ``theta`` and so
+    subtracts a constant from every entry). It is chosen because it preserves
+    the ratios between the weights it does not clip, matching the
+    renormalization the surrounding discretization already performs, and
+    because least-squares distance to a rounded interior point is not a
+    quantity the design cares about.
+
+    Parameters
+    ----------
+    v : np.ndarray
+        Non-negative weights.
+    cap : float
+        The ceiling, in ``(0, 1]``.
+    support : np.ndarray of bool, optional
+        Entries allowed to carry weight. Defaults to all of them.
+
+    Returns
+    -------
+    np.ndarray
+        Weights summing to 1 with no entry above ``cap``, and zero outside
+        ``support``.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If the support is too small to hold a unit of weight under the cap.
+    """
+    x = np.clip(np.asarray(v, dtype=float).copy(), 0.0, None)
+    mask = np.ones(x.size, dtype=bool) if support is None else np.asarray(
+        support, dtype=bool)
+    x[~mask] = 0.0
+    n = int(mask.sum())
+    if n * cap < 1.0 - tol:
+        raise MlsynthEstimationError(
+            f"max_control_weight={cap:g} cannot be met by {n} control "
+            f"market(s): their weights must sum to 1, so at least "
+            f"{int(np.ceil(1.0 / cap))} are needed.")
+    total = x.sum()
+    x = x / total if total > 0 else np.where(mask, 1.0 / n, 0.0)
+
+    for _ in range(max_iter):
+        over = mask & (x > cap + tol)
+        if not over.any():
+            break
+        excess = float((x[over] - cap).sum())
+        x[over] = cap
+        free = mask & (x < cap - tol)
+        if not free.any():                            # pragma: no cover
+            break                                     # n * cap == 1 exactly
+        room = x[free]
+        share = room / room.sum() if room.sum() > tol else np.full(
+            room.size, 1.0 / room.size)
+        x[free] = room + excess * share
+    return np.clip(x, 0.0, cap)

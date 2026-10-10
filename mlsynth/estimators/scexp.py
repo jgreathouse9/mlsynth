@@ -180,6 +180,7 @@ class MAREX:
                 cumulative_block=self.config.cumulative_block,
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
+                max_control_weight=self.config.max_control_weight,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -213,6 +214,7 @@ class MAREX:
                     covariate_weight=self.covariate_weight, standardize=self.standardize,
                     solver=self.solver or cp.SCIP, verbose=self.verbose,
                     restrictions=restrictions,
+                    max_control_weight=self.config.max_control_weight,
                 )
                 pool = build_marex_pool(
                     raws, alpha=self.config.alpha, power=self.config.power_target,

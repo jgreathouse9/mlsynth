@@ -7,6 +7,7 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
+import numpy as np
 import pandas as pd
 import warnings
 from pydantic import Field, field_validator, model_validator
@@ -100,6 +101,25 @@ class MAREXConfig(BaseMAREXConfig):
     m_eq: Optional[int] = Field(default=None)
     m_min: Optional[int] = Field(default=None)
     m_max: Optional[int] = Field(default=None)
+    max_control_weight: Optional[float] = Field(
+        default=None,
+        description=(
+            "Ceiling on any single control market's weight, in (0, 1]. The "
+            "error an outside event in control market k puts on the estimate "
+            "is -v_k times the size of the event (see "
+            ":mod:`mlsynth.utils.contamination`), and v_k is fixed once the "
+            "design is locked, so this is the one point at which the exposure "
+            "is a decision. A cap of c gives three guarantees: no market can "
+            "move the estimate by more than c times its own shock, at least "
+            "ceil(1/c) markets carry weight, and the control group's effective "
+            "sample size is at least 1/c. The price is pre-period fit. "
+            "Feasibility needs c * (cluster size - treated count) >= 1 in every "
+            "cluster, which is checked here. Under ``relaxed=True`` the cap "
+            "enters the QP and the rounded weights are projected back onto the "
+            "capped simplex, so it holds on both program paths, though only the "
+            "exact program is optimal subject to it."
+        ),
+    )
     exclusive: bool = Field(default=True)
     relaxed: bool = Field(default=False, description="Relax the MIQP (continuous z) and discretise post hoc.")
     solver: Any = Field(default=None)
@@ -295,6 +315,21 @@ class MAREXConfig(BaseMAREXConfig):
                 f"max_per_stratum ({self.max_per_stratum}).")
         return self
 
+    @field_validator("max_control_weight")
+    @classmethod
+    def _check_max_control_weight(cls, value):
+        if value is None:
+            return value
+        x = float(value)
+        if not (x == x) or x in (float("inf"), float("-inf")):
+            raise MlsynthConfigError(
+                f"max_control_weight must be a finite number in (0, 1]; got {value!r}.")
+        if x <= 0.0 or x > 1.0:
+            raise MlsynthConfigError(
+                f"max_control_weight must lie in (0, 1]; got {x!r}. A cap of 1 "
+                "imposes nothing, and a cap at or below 0 admits no design.")
+        return x
+
     @model_validator(mode="after")
     def validate_design_params(cls, values: Any) -> Any:
         df = values.df
@@ -397,6 +432,39 @@ class MAREXConfig(BaseMAREXConfig):
                 raise MlsynthDataError(
                     f"m_min ({values.m_min}) cannot be greater than m_max ({values.m_max})"
                 )
+
+        # --- max_control_weight feasibility ---
+        # A cap of c on each control weight needs at least ceil(1/c) controls
+        # to carry a unit of weight. The controls are a cluster's members less
+        # the treated it selects, so the most favourable count is the smallest
+        # treated count the cardinality constraints admit: m_eq exactly, else
+        # m_min (defaulting to 1, since at least one unit is treated). If the
+        # cap fails against that count it fails against every feasible one, so
+        # the program is infeasible and saying so here beats a solver status.
+        if values.max_control_weight is not None:
+            cap = float(values.max_control_weight)
+            if cluster_col is not None:
+                sizes = (df.groupby(cluster_col, observed=True)[values.unitid]
+                         .nunique().to_numpy())
+            else:
+                sizes = np.asarray([df[values.unitid].nunique()])
+            treated_min = (int(values.m_eq) if values.m_eq is not None
+                           else int(values.m_min) if values.m_min is not None
+                           else 1)
+            controls_max = int(min(sizes) - treated_min)
+            if controls_max < 1:
+                raise MlsynthConfigError(
+                    f"max_control_weight needs at least one control market, but "
+                    f"the smallest cluster has {int(min(sizes))} units and at "
+                    f"least {treated_min} are treated.")
+            smallest = 1.0 / controls_max
+            if cap < smallest - 1e-12:
+                raise MlsynthConfigError(
+                    f"max_control_weight={cap:g} is infeasible: {controls_max} "
+                    f"control markets must carry a unit of weight, so no weight "
+                    f"can be capped below 1/{controls_max} = {smallest:g}. Pass "
+                    f"at least {smallest:g}, treat fewer markets, or add markets "
+                    f"to the panel.")
 
         # --- costs validation ---
         if values.costs is not None and not all(c > 0 for c in values.costs):

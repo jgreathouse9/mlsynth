@@ -19,6 +19,7 @@ from .formulation import (
     get_per_cluster_param,
     init_cvxpy_variables,
     precompute_distances,
+    cap_control_weights,
     prepare_clusters,
     prepare_fit_slices,
     build_membership_mask,
@@ -66,7 +67,7 @@ def solve_design(
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
-    warm_start=None, time_limit=None,
+    warm_start=None, time_limit=None, max_control_weight=None,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``).
 
@@ -96,7 +97,8 @@ def solve_design(
     w, v, z = init_cvxpy_variables(N, K)
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs_np, budget_dict,
-                                    exclusive, restrictions=restrictions)
+                                    exclusive, restrictions=restrictions,
+                                    max_control_weight=max_control_weight)
     # no-good cuts: forbid each previously chosen assignment so a re-solve finds
     # the next-best distinct design (solution pool).
     for pairs in (forbidden or []):
@@ -211,8 +213,14 @@ def solve_design_pool(Y_full, T0, clusters, *, top_K=1, **kwargs):
 
 def post_hoc_discretize(w_opt, v_opt, cluster_members, cluster_labels,
                         m_eq=None, m_min=None, m_max=None, trim_threshold=1e-2,
-                        Y_fit=None, Y_blank=None):
-    """Round relaxed weights to a feasible integer design (was internal)."""
+                        Y_fit=None, Y_blank=None, max_control_weight=None):
+    """Round relaxed weights to a feasible integer design (was internal).
+
+    With ``max_control_weight`` set, the renormalization below can lift a
+    control weight back above a cap the QP respected -- the mass that sat on
+    units now selected treated has to go somewhere -- so the rounded column is
+    projected onto the capped simplex over the control set.
+    """
     K = len(cluster_members)
     w_discrete = np.zeros_like(w_opt)
     v_discrete = np.zeros_like(v_opt)
@@ -252,6 +260,10 @@ def post_hoc_discretize(w_opt, v_opt, cluster_members, cluster_labels,
             v_k = np.zeros_like(v_k); v_k[mask] = v_sel / v_sel.sum()
         elif len(control_idx) > 0:
             v_k = np.zeros_like(v_k); v_k[mask] = 1.0 / len(control_idx)
+        if (max_control_weight is not None and float(max_control_weight) < 1.0
+                and len(control_idx) > 0):
+            v_k = cap_control_weights(v_k, float(max_control_weight),
+                                      support=mask)
         v_discrete[members, k_idx] = v_k
 
         if Y_blank is not None and len(treated_idx) > 0 and len(control_idx) > 0:
@@ -269,7 +281,7 @@ def solve_design_relaxed(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False, solver=None,
-    verbose=False, zeta=0.0, trim_threshold=1e-2,
+    verbose=False, zeta=0.0, trim_threshold=1e-2, max_control_weight=None,
 ):
     """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
@@ -284,7 +296,8 @@ def solve_design_relaxed(
 
     w, v, z = init_cvxpy_variables(N, K, boolean=False)   # continuous z in [0, 1]
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
-                                    m_eq, m_min, m_max, costs_np, budget_dict, exclusive)
+                                    m_eq, m_min, m_max, costs_np, budget_dict, exclusive,
+                                    max_control_weight=max_control_weight)
     constraints += [z <= 1]
     solver = solver or cp.CLARABEL
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
@@ -296,7 +309,8 @@ def solve_design_relaxed(
     w_opt_rel, v_opt_rel, z_opt_rel = w.value, v.value, z.value
     w_opt, v_opt, sel_t, sel_c, rmse_blank = post_hoc_discretize(
         w_opt_rel, v_opt_rel, cluster_members, cluster_labels, m_eq, m_min, m_max,
-        trim_threshold=trim_threshold, Y_fit=Y_fit, Y_blank=Y_blank)
+        trim_threshold=trim_threshold, Y_fit=Y_fit, Y_blank=Y_blank,
+        max_control_weight=max_control_weight)
 
     rmse_cluster = []
     for k_idx in range(K):
