@@ -3856,6 +3856,18 @@ timeout = 600.0
   models = "every row read as an upper bound. Presolve is free to flip a row to expr >= lhs, and then the cone's negative square is written with a plus and the positive ones carry the minus -- the defect a hypothesis property found, on a cone with one negative square that counted two"
 
   [[target.mutant]]
+  id = "the-counter-reads-only-the-presolved-notation"
+  find = '    return len(factors) == 2 and factors[0] == factors[1] and factors[0].startswith("<")'
+  replace = "    return False"
+  models = "squares recognised only as (<x>)^2, the notation SCIP uses after presolve. A row as written spells the same square <x>*<x>, so every unpresolved row counts zero: MAREX's cones read as having no negative square before presolve touched them, and the collapse looks like a property of the encoding instead of something presolve does"
+
+  [[target.mutant]]
+  id = "a-bilinear-term-counts-as-a-square"
+  find = '    return len(factors) == 2 and factors[0] == factors[1] and factors[0].startswith("<")'
+  replace = '    return len(factors) == 2 and factors[0].startswith("<")'
+  models = "any product of two variables counted as a square. The negative bilinear term -x*y is what anchors a rotated cone, a different shape the SOC handler detects by a different route, and counting it as a negative square would report a rotated cone as a standard one"
+
+  [[target.mutant]]
   id = "the-empty-expression-guard-is-dropped"
   find = '    if s and s[0] in "+-":'
   replace = '    if s[:1] in "+-":'

@@ -214,9 +214,20 @@ def test_statistics_with_a_plus_suffix_on_the_count_still_parse():
      "-14.7434067614696*(<t_s2>)^2+2*<t_y>-(<t_y>)^2 >= -0;", 1),
     ("[nonlinear] <c>: -1 <= (<a>)^2-(<b>)^2 <= 4;", 1),
     ("[nonlinear] <c>: (<a>)^2-(<b>)^2 == 0;", 1),
+    # a row as written, before presolve: squares spelled as products
+    ("[nonlinear] <c60>: <s1>*<s1>+<s2>*<s2>-<t>*<t> <= 0;", 1),
+    ("[nonlinear] <c>: 2*<s1>*<s1>-3.5*<t>*<t> <= 0;", 1),
+    ("[nonlinear] <c>: <s1>*<s1>-<x>*<y> <= 0;", 0),
 ])
+
 def test_the_negative_square_counter_on_known_rows(row, expected):
     assert negative_squares(row) == expected
+
+
+def test_the_counter_reads_marex_rows_as_written():
+    """Before presolve SCIP spells a square ``<x>*<x>``; each cone has one."""
+    rows = [line for line in open(CIP) if "[nonlinear]" in line]
+    assert [negative_squares(r) for r in rows] == [1, 1]
 
 
 def test_an_empty_or_linear_row_has_no_negative_square():
