@@ -1,0 +1,4 @@
+cpu: Intel(R) Xeon(R) Processor @ 2.80GHz
+cores visible: 4
+python 3.13.16, numpy 2.5.3, cvxpy 1.9.3
+threads pinned to 1 (OMP/OPENBLAS/MKL/VECLIB/NUMEXPR)

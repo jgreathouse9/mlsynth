@@ -103,6 +103,43 @@ and three panels each, alone on the machine:
 - every instance's objective is checked against SCIP's.
 
 The table below is rendered from `results/timing.csv` by `report.py`.
+Times are medians over the three panels at each size, and speedups are
+geometric means over the panels of each panel's ratio. Run on one core of an
+Intel Xeon at 2.80 GHz (`results/timing_env.txt`).
+
+| markets | candidates | search | SCIP, wall | SCIP, solver only | SCIP nodes | speedup, wall | speedup, solver only | enumeration |
+|---|---|---|---|---|---|---|---|---|
+| 12 (m = 3) | 220 | 0.024s | 0.98s | 0.93s | 29 to 41 | 32x | 30x | 0.13s |
+| 16 (m = 4) | 1,820 | 0.042s | 2.41s | 2.36s | 172 to 413 | 43x | 42x | 1.26s |
+| 20 (m = 5) | 15,504 | 0.129s | 5.60s | 5.54s | 429 to 847 | 73x | 72x | 13.21s |
+| 25 (m = 5) | 53,130 | 0.081s | 38.47s | 38.39s | 2,059 to 3,492 | 407x | 406x | not run |
+| 30 (m = 5) | 142,506 | 0.184s | 67.77s | 67.63s | 4,969 to 12,733 | 378x | 377x | not run |
+| 40 (m = 5) | 658,008 | 0.779s | 233.06s | 232.95s | 28,164 to 52,618 | 325x | 325x | not run |
+
+All 18 instances match SCIP's objective, SCIP's node count agreed across every
+repeat, and the load average stayed between 0.16 and 1.03. Panel by panel the
+ratio runs from 13x (J = 12) to 548x (J = 30).
+
+- SCIP's wall time and its own solving time differ by under 0.15 seconds
+  everywhere, so the time goes into the tree, not into cvxpy's compilation.
+- Plain enumeration, with no bound, already loses to SCIP at J = 20 (13.2
+  seconds against 5.6). The bound is what makes the search fast.
+- The search's time has two parts. At J = 20 and below most of it is exact
+  fits on candidates the bound could not rule out, 13 to 252 of them: with
+  few control markets the control fit is large, and the bound ignores it.
+  From J = 25 the control fit is nearly perfect for most treated sets, the
+  bound is nearly the whole objective, and usually one to six candidates
+  survive (64 and 130 on two panels). The time is then the batched bound
+  itself, about 1.2 microseconds per candidate.
+- That cost grows with the candidate count, `C(J, 5)`, which over this range
+  grew faster than SCIP's tree did: the speedup peaks near J = 25 and eases
+  to 325x at J = 40. Past some size the count wins outright, which is what
+  SYNDES's streaming and candidate limit are for.
+
+The prototype's first measurement reported 28x to 608x. It used one panel per
+size, ran beside other work, and left NumPy free to use every core. Its
+panel is one of the three here, and at J = 30 and 40 it is the hardest of
+the three for SCIP, so the larger figures overstated the typical case.
 
 ## Relation to SYNDES's exact backend
 
