@@ -29,7 +29,7 @@ def _shock_path(df: pd.DataFrame, time: str, shock: str, labels: Sequence) -> np
     values = df[shock]
     if values.isna().any():
         raise MlsynthDataError(f"EASC: the shock column {shock!r} has missing values.")
-    by_period = df.groupby(time)[shock]
+    by_period = df.groupby(time, observed=True)[shock]
     varying = by_period.nunique()
     if (varying > 1).any():
         bad = list(varying[varying > 1].index[:3])
@@ -42,7 +42,7 @@ def _shock_path(df: pd.DataFrame, time: str, shock: str, labels: Sequence) -> np
 def _exposure_index(df: pd.DataFrame, unitid: str, time: str, exposure: str, window_labels: Sequence,
                     units: Sequence) -> np.ndarray:
     inside = df[df[time].isin(list(window_labels))]
-    s = inside.groupby(unitid)[exposure].mean().reindex(list(units))
+    s = inside.groupby(unitid, observed=True)[exposure].mean().reindex(list(units))
     missing = [str(u) for u in s.index[s.isna()]]
     if missing:
         raise MlsynthDataError(
