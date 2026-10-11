@@ -90,6 +90,7 @@ At a glance
    Observed time-varying covariates?    ─► CPDA (residualise, then regress) · GSYNTH · SDID
    Missing cells in the panel?          ─► SNN · MCNNM · RMSI (side information)
    Interpolation across dissimilar donors? ─► MASC
+   Treated unusually exposed to an observed shock (oil price, FX)? ─► EASC (diagnose, then correct exposure)
    Grouped microdata / repeated cross-sections? ─► SCD (differenced group means, √n bands) · DSC (distribution) · DRSC (distribution | covariates)
    Different ESTIMAND / treatment type? ─► DSC (dist.) · DRSC (cond. dist.) · CTSC (dose) · SCMO (multi-outcome) · SI (arms)
    Forecasting a unit that has NOT adopted yet? ─► TWSF (prospective, past the end of the panel)
@@ -877,6 +878,20 @@ large relative to the pre-period?
   shows the fix: :doc:`vanillasc` with ``backend="penalized"`` (Abadie-L'Hour),
   whose penalty makes the solution unique and sparse for any positive
   :math:`\lambda`.
+
+Q1.11 · Is the treated unit unusually exposed to an observed common shock -- a
+commodity price, an exchange rate, demand in a partner market -- that moved with
+the trend before treatment and broke away from it afterwards?
+
+* No -- you are done; use the *Start here* method.
+* Yes -- a tight pre-treatment fit says almost nothing about the synthetic
+  unit's exposure to such a shock, and the post-treatment gap absorbs the
+  difference. :doc:`easc` measures this without looking at the treated unit's
+  post-treatment outcomes (the shock's partial leverage and the synthetic
+  unit's exposure imbalance), corrects the imbalance with a regression across
+  donors on a pre-determined exposure index, and reports bias-aware intervals
+  with a breakdown value. It needs that index for every unit and donors whose
+  exposure brackets the treated unit's.
 
 Part 2 — Many treated units
 ---------------------------
