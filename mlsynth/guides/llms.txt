@@ -49,6 +49,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **DTWSC** — Dynamic Synthetic Control estimator.  (config: DTWSCConfig)
 - **DesignComparison** — Result of :func:`compare_methods`.
 - **DesignSpec** — A design from any estimator, in the common cross-method currency.
+- **EASC** — Exposure-augmented synthetic control.  (config: EASCConfig)
 - **ESC** — Ensemble Synthetic Control estimator.  (config: ESCConfig)
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
