@@ -947,9 +947,9 @@ Coverage summary
      - Complete (CSCM, CTSC, DRSC, DSC, DTWSC, FSC, MEDSC, MOSC,
        MicroSynth, SCMO, SCTA, SI)
    * - Convex-hull relaxation
-     - 2
      - 3
-     - NSC, SRC verified;
+     - 4
+     - EASC, NSC, SRC verified;
        ISCM -- one-draw illustration only: the paper relies on a
        non-public panel and provides no Monte Carlo to reproduce
    * - High-dimensional donors
@@ -1011,9 +1011,9 @@ Coverage summary
      - 6
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
-     - 81
      - 82
-     - 81 of 82 estimators carry a replication.
+     - 83
+     - 82 of 83 estimators carry a replication.
 
 .. coverage-table-end
 
