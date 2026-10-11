@@ -29,6 +29,7 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     DTWSC,
+    EASC,
     ATEL, BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
     LPCA, MCNNM, MOSC, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
@@ -197,6 +198,11 @@ OBSERVATIONAL = [
     pytest.param(BSCM, {"n_iter": 60, "burn_in": 30, "chains": 2, "seed": 0}, id="BSCM"),
     pytest.param(DSCAR, {}, id="DSCAR"),
     pytest.param(DTWSC, {}, id="DTWSC"),
+    # EASC reads an exposure index and an observed shock: the panel's per-unit
+    # covariate and the period itself, which is identical across units. Five
+    # donors fit a regression with one growth-control sub-period.
+    pytest.param(EASC, {"exposure": "cov1", "shock": "time", "n_subperiods": 1},
+                 id="EASC"),
     pytest.param(ISCM, {}, id="ISCM"),
     pytest.param(SHC, {}, id="SHC"),
     pytest.param(SPILLSYNTH, {"method": "cd", "affected_units": ["u01"]},

@@ -666,6 +666,7 @@ class DesignResult(MlsynthResult):
 # ---------------------------------------------------------------------------
 _RELOCATED_CONFIGS = {
     "DTWSCConfig": "mlsynth.utils.dtwsc_helpers.config",
+    "EASCConfig": "mlsynth.utils.easc_helpers.config",
     "PANGEOConfig": "mlsynth.utils.pangeo_helpers.config",
     "FSCMConfig": "mlsynth.utils.fscm_helpers.config",
     "LEXSCMConfig": "mlsynth.utils.fast_scm_helpers.config",
