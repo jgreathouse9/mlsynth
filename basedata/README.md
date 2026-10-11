@@ -238,6 +238,19 @@ reads as a chain abbreviation. The
 `benchmarks.masini_common.load_retail` adds the treated-group total as unit `0`,
 which is the series the authors' `arco.m` explains.
 
+## Iran's 2012 sanctions and the oil price — Spruk (2026)
+
+| File | What it is | Used by |
+|---|---|---|
+| `iran_sanctions_oil.csv` | Iran and 21 developing-economy donors x 1996-2024: log GDP per capita (PPP, constant 2021 $), oil rents (% of GDP, 1996-2011), V-Dem oil income share, Brent price, sanctions flag (Iran from 2012) | EASC replication spike (`benchmarks/studies/easc_replicate`) |
+
+The Section 6 application of Spruk (2026), *"Synthetic Control under
+Out-of-Span Common Shocks: Diagnosis, Exposure Balance and Correction"*,
+arXiv:2610.05535, copied unchanged from the author's replication package. The
+19 normalisers form the baseline pool; Azerbaijan and Angola complete the
+exposure-feasible pool. Sources, checksums and the checks run on the data are in
+`iran_sanctions_oil.README.md`.
+
 ## Simulation donor pools
 
 | File | What it is | Used by |

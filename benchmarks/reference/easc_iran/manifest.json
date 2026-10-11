@@ -1,0 +1,12 @@
+{
+  "case": "easc_iran",
+  "title": "Spruk (2026) exposure-augmented SC: Iran 2012 sanctions and the Section 5 Monte Carlo, author's code run live",
+  "paper": "Spruk, R. (2026), 'Synthetic Control under Out-of-Span Common Shocks: Diagnosis, Exposure Balance and Correction', arXiv:2610.05535v1",
+  "reference_impl": "author's replication package (JAE submission): code/ebsc.py via app.py, app_inference.py, app_influence.py, phi_phase.py; code/mc.py draw and one_rep",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/easc_iran/capture.py --package <unzipped package>",
+  "data": [
+    "basedata/iran_sanctions_oil.csv"
+  ],
+  "note": "Consumed by benchmarks/studies/easc_replicate (a pre-build replication spike); no benchmark case or comparison.csv until the EASC estimator exists."
+}
