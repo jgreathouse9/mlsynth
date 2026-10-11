@@ -6,7 +6,7 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 import pandas as pd
 import warnings
 from pydantic import Field, field_validator, model_validator
@@ -102,6 +102,23 @@ class MAREXConfig(BaseMAREXConfig):
     m_max: Optional[int] = Field(default=None)
     exclusive: bool = Field(default=True)
     relaxed: bool = Field(default=False, description="Relax the MIQP (continuous z) and discretise post hoc.")
+    backend: Literal["mip", "exact"] = Field(
+        default="mip",
+        description=(
+            "How the design is solved. 'mip' (the default) hands the mixed-"
+            "integer program to SCIP. 'exact' searches treated sets directly: "
+            "naming the treated set splits the standard, penalized and "
+            "unit-penalized objectives into two independent simplex fits, so "
+            "each candidate costs two small quadratic programs instead of a "
+            "branch-and-bound node, and a closed-form bound on the treated fit "
+            "rules out all but a handful of candidates. It returns the same "
+            "optimum and the same result. It does not take "
+            "design='weakly_targeted', a cost budget, relaxed=True, or the "
+            "branch-and-bound settings (solver, warm_start, time_limit), and "
+            "each cluster is searched on its own, so no border conflict or "
+            "stratum quota may span two clusters."
+        ),
+    )
     solver: Any = Field(default=None)
     verbose: bool = Field(default=False)
     warm_start: Optional[List] = Field(
@@ -281,6 +298,37 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "cumulative_n_sim must be >= 2 to take a quantile.")
         return v
+
+    @model_validator(mode="after")
+    def _validate_backend(self) -> "MAREXConfig":
+        """Refuse, before any solve, what the exact backend cannot solve."""
+        if self.backend != "exact":
+            return self
+        problems = []
+        if self.relaxed:
+            problems.append(
+                "relaxed=True solves the continuous relaxation and rounds it, "
+                "while the exact backend solves the integer design directly")
+        if self.design not in ("standard", "penalized", "unit_penalized"):
+            problems.append(
+                f"design={self.design!r} couples the treated and control "
+                f"weights, so naming the treated set does not split the "
+                f"objective; the exact backend solves 'standard', 'penalized' "
+                f"and 'unit_penalized'")
+        if self.costs is not None or self.budget is not None:
+            problems.append(
+                "a cost budget constrains the treated weights, which the "
+                "exact backend's per-candidate fit does not take")
+        for name in ("warm_start", "time_limit", "solver"):
+            if getattr(self, name) is not None:
+                problems.append(
+                    f"{name} configures SCIP's branch-and-bound, which the "
+                    f"exact backend does not run")
+        if problems:
+            raise MlsynthConfigError(
+                "backend='exact' cannot honour this configuration: "
+                + "; ".join(problems) + ". Use backend='mip'.")
+        return self
 
     @model_validator(mode="after")
     def _validate_geo_quota(self) -> "MAREXConfig":

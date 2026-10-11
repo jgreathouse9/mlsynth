@@ -60,6 +60,38 @@ def _aggregate_weights(w_opt, v_opt, cluster_members, N, K):
     return w_agg, v_agg, cluster_sizes
 
 
+def finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
+                  cluster_labels, cluster_members, N, K, T0, blank_periods,
+                  T_fit, Y_fit, Y_blank, design, clusters, objective):
+    """The design dict both backends return, from their solved weights.
+
+    ``solve_design`` (the MIQP) and
+    :func:`mlsynth.utils.marex_helpers.exact.solve_design_exact` (the search)
+    reach ``w``, ``v`` and ``z`` differently and hand them here, so everything
+    downstream -- inference, post-fit diagnostics, the result object and the
+    solution pool -- reads one structure whichever backend produced it.
+    """
+    rmse_cluster = []
+    for k_idx in range(K):
+        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
+        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]
+                     / np.sum(w_opt[treated_idx, k_idx])) if len(treated_idx) > 0 else np.zeros(T_fit)
+        y_control = Y_fit.T @ v_opt[:, k_idx]
+        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
+
+    w_agg, v_agg, cluster_sizes = _aggregate_weights(w_opt, v_opt, cluster_members, N, K)
+    return {
+        "df": Y_full, "w_opt": w_opt, "v_opt": v_opt, "z_opt": z_opt,
+        "Xbar_clusters": Xbar_clusters, "cluster_labels": list(cluster_labels),
+        "cluster_members": cluster_members, "w_agg": w_agg, "v_agg": v_agg,
+        "cluster_sizes": cluster_sizes, "T0": T0, "blank_periods": blank_periods,
+        "T_fit": T_fit, "Y_fit": Y_fit, "Y_blank": Y_blank,
+        "rmse_cluster": rmse_cluster, "design": design,
+        "original_cluster_vector": clusters,
+        "objective": objective,
+    }
+
+
 def solve_design(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
@@ -163,26 +195,11 @@ def solve_design(
                 f"m_min={mn}, m_max={mx}); treating the feasible region as "
                 f"exhausted."
             )
-    Y_full_T = Y_full_np.T
-    rmse_cluster = []
-    for k_idx in range(K):
-        treated_idx = np.where(w_opt[:, k_idx] > 1e-8)[0]
-        y_treated = (Y_fit[treated_idx, :].T @ w_opt[treated_idx, k_idx]
-                     / np.sum(w_opt[treated_idx, k_idx])) if len(treated_idx) > 0 else np.zeros(T_fit)
-        y_control = Y_fit.T @ v_opt[:, k_idx]
-        rmse_cluster.append(np.sqrt(np.mean((y_treated - y_control) ** 2)))
-
-    w_agg, v_agg, cluster_sizes = _aggregate_weights(w_opt, v_opt, cluster_members, N, K)
-    return {
-        "df": Y_full, "w_opt": w_opt, "v_opt": v_opt, "z_opt": z_opt,
-        "Xbar_clusters": Xbar_clusters, "cluster_labels": list(cluster_labels),
-        "cluster_members": cluster_members, "w_agg": w_agg, "v_agg": v_agg,
-        "cluster_sizes": cluster_sizes, "T0": T0, "blank_periods": blank_periods,
-        "T_fit": T_fit, "Y_fit": Y_fit, "Y_blank": Y_blank,
-        "rmse_cluster": rmse_cluster, "design": design,
-        "original_cluster_vector": clusters,
-        "objective": float(prob.value) if prob.value is not None else float("nan"),
-    }
+    objective = float(prob.value) if prob.value is not None else float("nan")
+    return finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
+                         cluster_labels, cluster_members, N, K, T0,
+                         blank_periods, T_fit, Y_fit, Y_blank, design, clusters,
+                         objective)
 
 
 def solve_design_pool(Y_full, T0, clusters, *, top_K=1, **kwargs):
