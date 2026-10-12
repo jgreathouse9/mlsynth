@@ -71,6 +71,7 @@ ESTIMATORS: Dict[str, str] = {
     # Relaxing the convex-hull assumption.
     "NSC": "hull",
     "ISCM": "hull",
+    "EASC": "hull",
     "SRC": "hull",
 
     # Donor pools large relative to the pre-period.

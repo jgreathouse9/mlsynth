@@ -3896,3 +3896,141 @@ timeout = 900.0
   find = "                    raws = solve_design_exact_pool(**pool_kw)"
   replace = "                    raws = solve_design_pool(solver=cp.SCIP, verbose=False, **pool_kw)"
   models = "the top-K pool built by the MIQP whatever the backend: the pool is correct, the run takes as long as it always did, and the speed the backend exists for is lost on the one path that re-solves top_K times"
+
+# EASC (Spruk 2026). The kernels are pure NumPy, so each target runs only the
+# property tests that bear on it; the frontier's tests solve CLARABEL
+# programmes and run under their own target.
+
+[[target]]
+name = "easc-diagnostics"
+module-path = "mlsynth/utils/easc_helpers/diagnostics.py"
+test-command = "python -m pytest mlsynth/tests/test_easc_properties.py -q -p no:cacheprovider -k 'not frontier and not selection'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "factors-keep-the-exposure-channel"
+  find = "    if exposure is not None:"
+  replace = "    if False:"
+  models = "latent factors estimated without removing each period's projection on the exposure index, so the part of donors' outcomes that the exposure channel drives is folded into the latent factors and the shock looks less out of span than it is"
+
+  [[target.mutant]]
+  id = "leverage-moments-over-all-periods"
+  find = "    S0 = G[pre].T @ G[pre] / pre.sum()"
+  replace = "    S0 = G.T @ G / G.shape[0]"
+  models = "S_0 taken over every period instead of the pre-treatment period, which lets the post-treatment break shrink its own leverage -- the quantity whose job is to detect that break (Proposition 1)"
+
+  [[target.mutant]]
+  id = "phase-leverage-averages-period-leverages"
+  find = """    gb = G[mask].mean(axis=0)
+    return float(np.sqrt(max(gb @ _pre_moment_inverse(G, pre) @ gb, 0.0)))"""
+  replace = """    Si = _pre_moment_inverse(G, pre)
+    return float(np.mean(np.sqrt(np.maximum(np.einsum("ti,ij,tj->t", G[mask], Si, G[mask]), 0.0))))"""
+  models = "a phase's leverage taken as the mean of its periods' leverages, an upper bound on the leverage of the averaged factor vector that inflates every phase's bias bound and breaks Corollary 1(a) for phases"
+
+  [[target.mutant]]
+  id = "partial-leverage-scaled-by-the-shock"
+  find = "    return res / sr, float(1.0 - res[pre].var() / var_x)"
+  replace = "    return res / np.sqrt(var_x), float(1.0 - res[pre].var() / var_x)"
+  models = "ell_t standardised by the shock's own pre-period spread instead of its residual's, which shrinks it by sqrt(1 - R^2) -- most of all in the silent-factor case, where R^2 is near one"
+
+  [[target.mutant]]
+  id = "distance-to-the-donor-mean"
+  find = "    return float(max(0.0, s1 - s0.max(), s0.min() - s1))"
+  replace = "    return float(abs(s1 - s0.mean()))"
+  models = "d_min measured to the donors' average exposure instead of their range, which reports a treated unit inside the exposure hull as outside it and misplaces EBSC-min"
+
+[[target]]
+name = "easc-correction"
+module-path = "mlsynth/utils/easc_helpers/correction.py"
+test-command = "python -m pytest mlsynth/tests/test_easc_properties.py -q -p no:cacheprovider -k 'not frontier and not selection'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "growth-controls-reach-the-base-period"
+  find = "    before = before[before < base]"
+  replace = "    before = before[before <= base]"
+  models = "growth controls whose last sub-period ends at the base period, so they share Y_jb's noise with the dependent variable Y_jt - Y_jb"
+
+  [[target.mutant]]
+  id = "regression-without-growth-controls"
+  find = "    return np.column_stack([np.ones(s0.size), s0, C])"
+  replace = "    return np.column_stack([np.ones(s0.size), s0])"
+  models = "the exposure regression without the growth controls, so phi_t absorbs any correlation between exposure and donors' latent loadings (Proposition 4(a)); in the paper's application dropping them moves the 2018-24 estimate from 0.109 to 0.041"
+
+  [[target.mutant]]
+  id = "period-se-without-the-inflation-factor"
+  find = "    se = np.sqrt((J - 1) / J * ((replicates - replicates.mean(0)) ** 2).sum(0))"
+  replace = "    se = np.sqrt(((replicates - replicates.mean(0)) ** 2).sum(0) / J)"
+  models = "the per-period jackknife variance without its (J - 1) factor, understating the correction's sampling error, which EASC's noise scale adds in quadrature"
+
+  [[target.mutant]]
+  id = "phase-se-without-the-inflation-factor"
+  find = "    return float(np.sqrt((J - 1) / J * ((ja - ja.mean()) ** 2).sum()))"
+  replace = "    return float(np.sqrt(((ja - ja.mean()) ** 2).sum() / J))"
+  models = "the jackknife variance of a phase average without its (J - 1) factor, the same understatement on the text's version of the correction variance"
+
+  [[target.mutant]]
+  id = "correction-added-not-subtracted"
+  find = "    return np.asarray(y1, dtype=float) - np.asarray(Y0, dtype=float) @ w - np.asarray(phi) * ei, ei"
+  replace = "    return np.asarray(y1, dtype=float) - np.asarray(Y0, dtype=float) @ w + np.asarray(phi) * ei, ei"
+  models = "the correction applied with the wrong sign, which doubles the exposure bias it exists to remove"
+
+  [[target.mutant]]
+  id = "exposure-identified-by-rank-alone"
+  find = "    return bool(np.linalg.matrix_rank(X) > np.linalg.matrix_rank(without))"
+  replace = "    return bool(np.linalg.matrix_rank(X) >= 2)"
+  models = "an identification check that asks only whether the design has rank, so an index that is constant across donors or a linear function of the growth controls passes, and phi_t becomes an arbitrary minimum-norm split"
+
+[[target]]
+name = "easc-inference"
+module-path = "mlsynth/utils/easc_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_easc_properties.py -q -p no:cacheprovider -k 'bias or breakdown or interval or placebo'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "bias-added-to-the-normal-quantile"
+  find = "    return float(np.sqrt(ncx2.ppf(1 - alpha, df=1, nc=b ** 2)))"
+  replace = "    return float(b + norm.ppf(1 - alpha / 2))"
+  models = "the naive bias-aware interval, estimate +/- (bias bound + z sd): valid, but longer than Proposition 5's, so every breakdown value comes out too small"
+
+  [[target.mutant]]
+  id = "bias-bound-without-leverage"
+  find = "    return cv_bias_aware(M * kappa * rmspe / sd, alpha) * sd"
+  replace = "    return cv_bias_aware(M * rmspe / sd, alpha) * sd"
+  models = "a bias bound of M RMSPE that forgets the leverage, so the post-treatment extrapolation the bound exists to price is ignored"
+
+  [[target.mutant]]
+  id = "placebo-gaps-left-unstandardised"
+  find = "    z = np.asarray(placebo_means, dtype=float) / np.asarray(placebo_rmspe, dtype=float)"
+  replace = "    z = np.asarray(placebo_means, dtype=float) / treated_rmspe"
+  models = "the noise scale from the placebos' raw phase averages, which lets the worst-fitting placebos dominate it -- the reason Abadie et al. (2010) divide by each placebo's own pre-period fit"
+
+  [[target.mutant]]
+  id = "p-value-forgets-the-treated-unit"
+  find = "    return float((1 + np.sum(ratios >= stat)) / (ratios.size + 1))"
+  replace = "    return float(np.sum(ratios >= stat) / ratios.size)"
+  models = "a placebo p-value over the donors alone, which can reach zero and so overstates significance"
+
+[[target]]
+name = "easc-frontier"
+module-path = "mlsynth/utils/easc_helpers/frontier.py"
+test-command = "python -m pytest mlsynth/tests/test_easc_properties.py -q -p no:cacheprovider -k 'frontier or selection'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "frontier-from-zero-tolerance"
+  find = "        d = dmin + g * max(d_sc - dmin, 0.0) + 1e-9"
+  replace = "        d = g * d_sc + 1e-9"
+  models = "a frontier whose grid starts at zero imbalance instead of d_min, infeasible whenever the treated unit lies outside the donors' exposure range (Proposition 3(a))"
+
+  [[target.mutant]]
+  id = "selection-ignores-the-correction-variance"
+  find = "    return np.array([np.mean(k2 * e + se2 * x ** 2) for e, x in zip(extra, np.asarray(ei, dtype=float))])"
+  replace = "    return np.array([np.mean(k2 * e) for e, x in zip(extra, np.asarray(ei, dtype=float))])"
+  models = "EASC* chosen on the misfit term alone, which always selects the synthetic-control end and leaves the frontier decorative"
+
+  [[target.mutant]]
+  id = "ties-go-to-the-synthetic-control-end"
+  find = "    return int(np.argmin(np.asarray(criterion, dtype=float)))"
+  replace = "    return int(len(criterion) - 1 - np.argmin(np.asarray(criterion, dtype=float)[::-1]))"
+  models = "ties in the EASC* criterion resolved toward the synthetic-control end instead of toward balance, as the reference does"

@@ -92,6 +92,7 @@ from .estimators.dsc import DSC
 from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
 from .estimators.dtwsc import DTWSC
+from .estimators.easc import EASC
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.vanillasc import VanillaSC
@@ -213,6 +214,7 @@ __all__ = [
     "truncated_history", "TruncatedHistoryResult", "TruncatedHistoryWindow",
     "DSCAR",
     "DTWSC",
+    "EASC",
     "SPILLSYNTH",
     "CTSC",
     "SNN",

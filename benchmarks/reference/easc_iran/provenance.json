@@ -1,0 +1,62 @@
+{
+  "generated_at": "2026-10-11T11:47:51Z",
+  "git_sha": "351408d5cfe43083a7414ed638cdde7d764b5eb5",
+  "platform": "Linux-6.18.44-fc-v114-x86_64-with-glibc2.39",
+  "python": "3.13.16",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "pandas": "3.0.5",
+  "cvxpy": "1.9.3",
+  "command": "python benchmarks/reference/easc_iran/capture.py --package <unzipped package>",
+  "package": "esc-scm-replication (author's JAE submission package; not public at capture time)",
+  "package_files": [
+    {
+      "path": "code/ebsc.py",
+      "sha256": "2cd69f427e5917f6dda66cf995bb462fbdd77d67857ec9465100b04d714f46f9"
+    },
+    {
+      "path": "code/app.py",
+      "sha256": "94771bba1792b0262ea57fc354add039af8ca3b783cd337143abf42588ff1244"
+    },
+    {
+      "path": "code/app_inference.py",
+      "sha256": "670ebcd4743f85e2feb88185147fcb118e11b78d01840ad94823490e25dd53f0"
+    },
+    {
+      "path": "code/app_influence.py",
+      "sha256": "bc479f912f4deb80efee91ff664395aa5dfd8b64b40f2ceb609b6bd165e7452d"
+    },
+    {
+      "path": "code/phi_phase.py",
+      "sha256": "1f60b1a585a049abf1d9fb2d07ea2e7a60d63747cb1c2f2543eadd4458d534ed"
+    },
+    {
+      "path": "code/mc.py",
+      "sha256": "24f12491126e332b8b4bc31b07b2f0c23697b98263b35b844b180a6b20640ccc"
+    },
+    {
+      "path": "code/modern.py",
+      "sha256": "2449af8c34a87fb4eb924ee0397f6391d0b77daa7bdd960e00f37997e700ec74"
+    },
+    {
+      "path": "code/scm.py",
+      "sha256": "e5f1459c653830b603bde61061a1c5ded3b0188c82b599d15835754311dfe58b"
+    },
+    {
+      "path": "data/panel_2012.csv",
+      "sha256": "afc35ee8094e090de78c9f7fe4e6cce8f97bbe4ed151e0abf655ee47c1451341"
+    },
+    {
+      "path": "data/oilrents.csv",
+      "sha256": "980004d25bbb43a876a60fbf3070310c369825b4d9a62136788b30610c20b84e"
+    },
+    {
+      "path": "data/brent.csv",
+      "sha256": "e5a57769bda65b93e9516e7a2891f855d5895edeb365febca60f1a493b08822d"
+    }
+  ],
+  "basedata": {
+    "path": "basedata/iran_sanctions_oil.csv",
+    "sha256": "1c5b19a1bb07db8449f9c86a927a58737d98d32e0fd07bc2b1c091ca48b38c06"
+  }
+}
