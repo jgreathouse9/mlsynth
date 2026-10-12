@@ -597,7 +597,7 @@ uniform weights, and predictors normalised to unit variance (``standardize``).
        "design": "standard",
        "standardize": True,        # unit-variance predictors (paper's normalisation)
        "inference": True,
-       "display_graph": True,
+       "display_graphs": True,
    }).fit()
 
    print("treated stores:", res.treated_units)              # [1, 15]
@@ -750,7 +750,7 @@ Example
        "m_eq": 2,           # treat exactly two markets
        "design": "standard",
        "inference": True,   # blank_periods defaults to floor(0.3 * T0) = 12
-       "display_graph": True,
+       "display_graphs": True,
    }).fit()
 
    print("treated markets:", res.treated_units)

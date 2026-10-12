@@ -862,7 +862,7 @@ class TestEstimatorErrorPaths:
         monkeypatch.setattr(syn_mod.SYNDES, "_fit_single", orig)
 
     def test_plotting_failure_wrapped(self, panel, monkeypatch):
-        # display_graph=True + plot_syndes_design raising → MlsynthPlottingError
+        # display_graphs=True + plot_syndes_design raising → MlsynthPlottingError
         # (lines 315-318 of syndes.py).
         import mlsynth.estimators.syndes as syn_mod
         from mlsynth.exceptions import MlsynthPlottingError
@@ -874,7 +874,7 @@ class TestEstimatorErrorPaths:
             SYNDES({"df": panel, "outcome": "y", "unitid": "unit",
                     "time": "time", "K": 2, "mode": "two_way_global",
                     "post_col": "post", "run_inference": False,
-                    "display_graph": True}).fit()
+                    "display_graphs": True}).fit()
 
 
 # ----------------------------------------------------------------------

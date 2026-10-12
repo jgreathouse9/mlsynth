@@ -100,7 +100,7 @@ class SPCD:
         Pre/post split specification (mirrors SYNDES's interface).
     solver : optional
         Passed to cvxpy when ``weights="exact"``.
-    display_graph : bool
+    display_graphs : bool
         Whether to plot synthetic treated/control series after fit.
     verbose : bool
         Solver verbosity flag.
@@ -140,7 +140,7 @@ class SPCD:
         self.arm: Optional[str] = config.arm
 
         self.solver: Any = config.solver
-        self.display_graph: bool = config.display_graph
+        self.display_graphs: bool = config.display_graphs
         self.verbose: bool = config.verbose
 
         # Inference and power analysis controls (see SPCDConfig docs).
@@ -295,7 +295,7 @@ class SPCD:
         try:
             if self.arm is None:
                 results = self._fit_single(self.df)
-                if self.display_graph:
+                if self.display_graphs:
                     try:
                         plot_spcd_design(results)
                     except Exception as exc:
@@ -323,7 +323,7 @@ class SPCD:
                 pooled_weights=self.pooled_weights if pooled_power is not None else None,
             )
 
-            if self.display_graph:
+            if self.display_graphs:
                 for arm_result in arm_designs.values():
                     try:
                         plot_spcd_design(arm_result)

@@ -71,7 +71,7 @@ class SYNDESConfig(BaseMAREXConfig):
         of the paper).
     solver : Any
         CVXPY-compatible MIP solver. Defaults to SCIP.
-    display_graph : bool
+    display_graphs : bool
         Whether to plot the design.
     verbose : bool
         Solver verbosity.
@@ -167,7 +167,7 @@ class SYNDESConfig(BaseMAREXConfig):
             "bound; it does not change the returned design."
         ),
     )
-    display_graph: bool = Field(default=False,
+    display_graphs: bool = Field(default=False,
                                  description="Whether to render the SYNDES design plot.")
     verbose: bool = Field(default=False,
                            description="Solver verbosity flag.")

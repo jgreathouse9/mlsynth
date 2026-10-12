@@ -1437,7 +1437,7 @@ class TestCoverageMopUp:
                    "T0": 10, "m_eq": 2}).fit()
 
     def test_fit_wraps_plotting_failure(self, panel, monkeypatch):
-        # display_graph=True + plot_marex raising RuntimeError ⇒
+        # display_graphs=True + plot_marex raising RuntimeError ⇒
         # MlsynthPlottingError (lines 147-149 of scexp.py).
         import mlsynth.estimators.scexp as scexp_mod
         from mlsynth.exceptions import MlsynthPlottingError
@@ -1447,13 +1447,13 @@ class TestCoverageMopUp:
         monkeypatch.setattr(scexp_mod, "plot_marex", _boom)
         with pytest.raises(MlsynthPlottingError, match="MAREX plotting"):
             MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-                   "T0": 10, "m_eq": 2, "display_graph": True}).fit()
+                   "T0": 10, "m_eq": 2, "display_graphs": True}).fit()
 
     def test_fit_display_graph_succeeds(self, panel):
-        # display_graph=True with the real plotter must complete without error
+        # display_graphs=True with the real plotter must complete without error
         # (covers the successful branch at lines 142-143 of scexp.py).
         res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-                     "T0": 10, "m_eq": 2, "display_graph": True}).fit()
+                     "T0": 10, "m_eq": 2, "display_graphs": True}).fit()
         assert res.post_fit is not None
         _plt.close("all")
 
@@ -1509,4 +1509,4 @@ class TestCoverageMopUp:
         monkeypatch.setattr(scexp_mod, "plot_marex", _boom)
         with pytest.raises(MlsynthPlottingError, match="plot already broken"):
             MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-                   "T0": 10, "m_eq": 2, "display_graph": True}).fit()
+                   "T0": 10, "m_eq": 2, "display_graphs": True}).fit()

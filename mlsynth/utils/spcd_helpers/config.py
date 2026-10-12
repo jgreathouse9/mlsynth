@@ -52,7 +52,7 @@ class SPCDConfig(BaseMAREXConfig):
         Column indicating post-treatment periods.
     solver : Any, optional
         CVXPY-compatible solver. Used only when ``weights="exact"``.
-    display_graph : bool
+    display_graphs : bool
         Whether to display the synthetic treated/control plot.
     verbose : bool
         Solver verbosity.
@@ -120,7 +120,7 @@ class SPCDConfig(BaseMAREXConfig):
         default=None,
         description="CVXPY-compatible solver, only used when weights='exact'.",
     )
-    display_graph: bool = Field(default=False, description="Whether to display SPCD plots.")
+    display_graphs: bool = Field(default=False, description="Whether to display SPCD plots.")
     verbose: bool = Field(default=False, description="Whether to print solver progress.")
 
     # ------------------------------------------------------------------

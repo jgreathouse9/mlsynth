@@ -74,7 +74,7 @@ def _fit_capturing_solver(df, **over):
     """
     cfg = dict(df=df, outcome="Y", unitid="unit", time="time", post_col="post",
                design="weakly_targeted", standardize=True,
-               blank_periods=BLANK, verbose=False, display_graph=False)
+               blank_periods=BLANK, verbose=False, display_graphs=False)
     cfg.update(over)
     # ``beta`` ties the control synthetic to the treated one and the config
     # accepts it only for the weakly-targeted design. Near zero it leaves the
@@ -300,7 +300,7 @@ def _lexscm_gram(df, m):
     try:
         LEXSCM(dict(df=df, outcome="Y", unitid="unit", time="time",
                     candidate_col="elig", post_col="post", m=m, top_K=3,
-                    display_graph=False, verbose=False)).fit()
+                    display_graphs=False, verbose=False)).fit()
     except Stop:
         pass
     finally:

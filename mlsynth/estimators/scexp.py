@@ -88,7 +88,7 @@ class MAREX:
         self.relaxed: bool = getattr(config, "relaxed", False)
         self.warm_start = config.warm_start
         self.time_limit = config.time_limit
-        self.display_graph: bool = config.display_graph
+        self.display_graphs: bool = config.display_graphs
         # geographic design restrictions
         self.to_be_treated = config.to_be_treated
         self.not_to_be_treated = config.not_to_be_treated
@@ -229,7 +229,7 @@ class MAREX:
             except Exception as exc:
                 raise MlsynthEstimationError(f"MAREX pool failed: {exc}") from exc
 
-        if self.display_graph:
+        if self.display_graphs:
             try:
                 plot_marex(results, plot_type="treatment")
             except MlsynthPlottingError:

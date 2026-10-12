@@ -144,7 +144,7 @@ def arm_panel():
 
 class TestMultiArm:
     _cfg = dict(outcome="y", unitid="unitid", time="time", post_col="post",
-                display_graph=False)
+                display_graphs=False)
 
     def test_arm_returns_multiarm_per_arm_designs(self, arm_panel):
         res = SPCD({"df": arm_panel, "arm": "arm", **self._cfg}).fit()

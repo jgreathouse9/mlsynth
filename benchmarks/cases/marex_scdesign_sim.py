@@ -90,7 +90,7 @@ def _fit(df: pd.DataFrame, k_cardinality: int):
         "T_post": T_TOTAL - T_NAUGHT,
         "m_min": 1, "m_max": k_cardinality,
         "design": "standard", "program_type": "MIQP", "relaxed": False,
-        "inference": False, "display_graph": False,
+        "inference": False, "display_graphs": False,
         "covariates": _COVS, "standardize": True,
     }).fit()
     selected = sorted(int(u) for u in res.selected_units)

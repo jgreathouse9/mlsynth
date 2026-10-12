@@ -88,7 +88,7 @@ def _fit(df: pd.DataFrame, rule):
             "df": df, "outcome": "y", "unitid": "unitid", "time": "time",
             "candidate_col": "candidate", "m": M, "post_col": "post",
             "n_post_grid": [N_POST], "top_K": TOP_K, "verbose": False,
-            "display_graph": False,
+            "display_graphs": False,
         }).fit()
     finally:
         lexscm_module.select_design = SHIPPED

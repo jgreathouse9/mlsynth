@@ -277,7 +277,7 @@ class SIV:
                 },
             )
 
-            if self.config.display_graph:
+            if self.config.display_event_study:
                 try:
                     plot_event_study(results)
                 except Exception as exc:

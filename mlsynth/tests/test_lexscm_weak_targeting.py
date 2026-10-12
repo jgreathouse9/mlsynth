@@ -128,7 +128,7 @@ class TestEstimatorWiring:
     def test_fit_weakly_targeted_weights_near_uniform(self):
         base = dict(df=_panel(), outcome="y", unitid="unitid", time="time",
                     candidate_col="candidate", m=3, post_col="post",
-                    display_graph=False, verbose=False)
+                    display_graphs=False, verbose=False)
         rg = LEXSCM({**base, "targeting_penalty": 1e4}).fit()
         wg = np.array(list(rg.search.candidates[0].treated_weight_dict.values()))
         np.testing.assert_allclose(wg, np.full(len(wg), 1.0 / len(wg)), atol=1e-2)

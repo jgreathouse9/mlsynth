@@ -324,7 +324,7 @@ class SYNDES:
         self.gap_limit: Optional[float] = config.gap_limit
         self.time_limit: Optional[float] = config.time_limit
         self.certify: bool = config.certify
-        self.display_graph: bool = config.display_graph
+        self.display_graphs: bool = config.display_graphs
         self.verbose: bool = config.verbose
         self.costs = config.costs
         self.budget = config.budget
@@ -577,7 +577,7 @@ class SYNDES:
             results, power_curve=_syndes_power_curve(results, self.alpha)
         )
 
-        if self.display_graph:
+        if self.display_graphs:
             try:
                 plot_syndes_design(results)
             except Exception as exc:

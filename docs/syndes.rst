@@ -1448,7 +1448,7 @@ pre-period RMSE), ``D2`` the next, and so on. The recommended design need not be
 ``D1`` -- when power outweighs fit it is a higher-numbered design with a smaller
 MDE, which is exactly the trade-off the recommendation surfaces.
 
-When ``display_graph=True`` and a pool exists, two figures are drawn: Panel A,
+When ``display_graphs=True`` and a pool exists, two figures are drawn: Panel A,
 the normal SYNDES design plot (synthetic treated vs synthetic control), and
 Panel B, this fit-versus-power Pareto frontier with the recommended design
 starred (x-axis: the pre-period RMSE). Panel B can also be drawn on its own with

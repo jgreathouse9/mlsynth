@@ -297,7 +297,7 @@ def from_marex(res) -> List[DesignSpec]:
 _SYNDES_DEFAULTS: Dict[str, Any] = dict(
     mode="two_way_global", gap_limit=0.05, time_limit=20.0, run_inference=False,
 )
-_LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graph=False, verbose=False)
+_LEXSCM_DEFAULTS: Dict[str, Any] = dict(display_graphs=False, verbose=False)
 
 # The geographic-design constraint vocabulary, identical across the method
 # configs (SYNDES / LEXSCM / MAREX). ``compare_methods`` routes a single
@@ -309,7 +309,7 @@ _GEO_CONSTRAINT_KEYS = frozenset({
     "stratum_col", "min_per_stratum", "max_per_stratum",
     "size_col", "min_size", "max_size",
 })
-_MAREX_DEFAULTS: Dict[str, Any] = dict(design="standard", display_graph=False,
+_MAREX_DEFAULTS: Dict[str, Any] = dict(design="standard", display_graphs=False,
                                        verbose=False)
 
 

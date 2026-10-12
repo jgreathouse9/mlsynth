@@ -55,7 +55,7 @@ _CFG = {
     "T0": 128, "blank_periods": 28, "T_post": 15, "m_eq": 2,  # fit 1..100, blank 101..128, exp 129..143
     "covariates": _COVS, "standardize": True, "design": "standard",
     "program_type": "MIQP", "relaxed": False, "inference": True,
-    "display_graph": False,
+    "display_graphs": False,
 }
 
 

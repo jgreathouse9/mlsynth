@@ -75,7 +75,7 @@ _CFG = {
     "T0": T_NAUGHT, "blank_periods": T_NAUGHT - T_PRIME,
     "T_post": T_TOTAL - T_NAUGHT,
     "design": "standard", "program_type": "MIQP", "relaxed": False,
-    "inference": False, "display_graph": False,
+    "inference": False, "display_graphs": False,
 }
 
 

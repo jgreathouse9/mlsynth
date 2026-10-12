@@ -46,14 +46,14 @@ _INF = dict(mde_n_sims=60, mde_n_trials=30, mde_horizon_grid=[2, 5, 8])
 def _single_with_power():
     return SPCD({"df": _make_panel(), "outcome": "y", "unitid": "unitid",
                  "time": "time", "post_col": "post",
-                 "enable_inference": True, "display_graph": False,
+                 "enable_inference": True, "display_graphs": False,
                  **_INF}).fit()
 
 
 def _single_no_inference():
     return SPCD({"df": _make_panel(), "outcome": "y", "unitid": "unitid",
                  "time": "time", "post_col": "post",
-                 "enable_inference": False, "display_graph": False}).fit()
+                 "enable_inference": False, "display_graphs": False}).fit()
 
 
 def _multi_arm_with_power():
@@ -62,7 +62,7 @@ def _multi_arm_with_power():
     df["arm"] = np.where(code < 8, "A", np.where(code < 16, "B", "C"))
     return SPCD({"df": df, "arm": "arm", "outcome": "y", "unitid": "unitid",
                  "time": "time", "post_col": "post",
-                 "enable_inference": True, "display_graph": False,
+                 "enable_inference": True, "display_graphs": False,
                  **_INF}).fit()
 
 
@@ -162,6 +162,6 @@ def test_spcd_design_no_post(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     df = _make_panel(T=50, T_post=0).drop(columns=["post"])
     res = SPCD({"df": df, "outcome": "y", "unitid": "unitid", "time": "time",
-                "enable_inference": False, "display_graph": False}).fit()
+                "enable_inference": False, "display_graphs": False}).fit()
     plot_spcd_design(res)
     assert not any(p.suffix == ".png" for p in tmp_path.iterdir())

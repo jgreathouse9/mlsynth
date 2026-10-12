@@ -911,7 +911,7 @@ well as a multi-arm :class:`SPCDMultiArmResults`.
        "post_col": "post",        # or T0=...
        "variant": "norm_spcd",    # iteration box; "spcd" also available
        "weights": "empirical",    # paper's experimental default; "exact" uses cvxpy
-       "display_graph": True,
+       "display_graphs": True,
    }
 
    results = SPCD(config).fit()

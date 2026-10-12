@@ -217,7 +217,7 @@ class LEXSCM:
         self.power_target: float = config.power_target
         self.imbalance_tol: float = config.imbalance_tol
 
-        self.display_graph: bool = config.display_graph
+        self.display_graphs: bool = config.display_graphs
 
         # =========================================================
         # SYSTEM
@@ -701,7 +701,7 @@ class LEXSCM:
             ),
         )
 
-        if self.display_graph:
+        if self.display_graphs:
             lexplot(results)
 
         return results

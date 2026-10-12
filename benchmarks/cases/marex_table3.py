@@ -109,7 +109,7 @@ def _sc_rmse(weights: dict, m: int, n_panels: int) -> float:
             "T_post": T_TOTAL - T_NAUGHT,
             "m_min": 1, "m_max": m,
             "design": "standard", "program_type": "MIQP", "relaxed": False,
-            "inference": False, "display_graph": False,
+            "inference": False, "display_graphs": False,
             "covariates": _COVS, "standardize": True,
         }).fit()
         w = np.asarray(res.globres.treated_weights_agg, dtype=float)

@@ -27,7 +27,7 @@ def _cfg(df, **over):
                 candidate_col="candidate", post_col="post",
                 m=4, top_K=8, frac_E=0.7, budget=None,
                 n_post_grid=[2, 3, 4], n_sims=200, mde_horizon="early_mean",
-                display_graph=False, verbose=False, seed=7)
+                display_graphs=False, verbose=False, seed=7)
     base.update(over)
     return base
 

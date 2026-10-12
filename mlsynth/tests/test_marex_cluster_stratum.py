@@ -45,7 +45,7 @@ def _panel(N=8, T=14, seed=0):
 
 
 _BASE = dict(outcome="Y", unitid="unit", time="time", T0=10,
-             inference=False, display_graph=False, verbose=False)
+             inference=False, display_graphs=False, verbose=False)
 
 
 def _treated(res):

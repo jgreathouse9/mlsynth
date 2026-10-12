@@ -615,12 +615,12 @@ class TestLEXSCMPostFitAndBranches:
         assert res.report is None
 
     def test_display_graph_runs(self, panel_df, monkeypatch):
-        # Smoke: display_graph=True triggers lexplot at the end of fit().
+        # Smoke: display_graphs=True triggers lexplot at the end of fit().
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as _plt
         monkeypatch.setattr(_plt, "show", lambda: None)
-        res = LEXSCM({"df": panel_df, "display_graph": True,
+        res = LEXSCM({"df": panel_df, "display_graphs": True,
                        **self._est_kwargs("late")}).fit()
         assert res.report is not None
         _plt.close("all")

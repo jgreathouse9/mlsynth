@@ -73,7 +73,10 @@ class MTGPConfig(BaseEstimatorConfig):
     max_tree_depth: int = Field(default=13, ge=1)
     ci_alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
     seed: int = Field(default=0)
-    display_graphs: bool = Field(default=False)
+    display_graphs: bool = Field(
+        default=False,
+        description="Whether to display plots of results.",
+    )
     verbose: bool = Field(default=False)
 
     @model_validator(mode="after")

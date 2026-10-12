@@ -803,7 +803,7 @@ class TestEstimatorCarriesTheCertificate:
         monkeypatch.setattr(lexscm_mod, "select_treated_designs", recording)
 
         res = LEXSCM(dict(df=self._panel(), outcome="Y", unitid="unit", time="time",
-                          candidate_col="elig", m=3, top_K=5, display_graph=False,
+                          candidate_col="elig", m=3, top_K=5, display_graphs=False,
                           verbose=False)).fit()
 
         stats = res.search.selection["stats"]

@@ -67,6 +67,9 @@ class BVSSConfig(BaseEstimatorConfig):
     init_phi: float = Field(default=0.8, gt=0)
     init_tau: float = Field(default=1.0, gt=0)
     init_mu: Optional[List[float]] = Field(default=None)
-    display_graphs: bool = Field(default=False)
+    display_graphs: bool = Field(
+        default=False,
+        description="Whether to display plots of results.",
+    )
     verbose: bool = Field(default=False)
     seed: Optional[int] = Field(default=None)

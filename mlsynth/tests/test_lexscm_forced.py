@@ -96,7 +96,7 @@ def _panel(seed=4, T=24, n=8):
 def _fit(df, **over):
     from mlsynth.estimators.lexscm import LEXSCM
     cfg = dict(df=df, outcome="Y", unitid="unit", time="time",
-               candidate_col="elig", m=3, top_K=5, display_graph=False,
+               candidate_col="elig", m=3, top_K=5, display_graphs=False,
                verbose=False)
     cfg.update(over)
     return LEXSCM(cfg).fit()

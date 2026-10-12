@@ -135,7 +135,7 @@ class TestLexscmSeed:
         df = _panel(J=10, T=16, seed=1, candidate=True)
         lex = LEXSCM({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
                       "candidate_col": "candidate", "m": 2,
-                      "display_graph": False}).fit()
+                      "display_graphs": False}).fit()
         seed = lexscm_warm_start(lex)
         assert len(seed) == 2
         cold = MAREX({"df": df, **BASE}).fit()

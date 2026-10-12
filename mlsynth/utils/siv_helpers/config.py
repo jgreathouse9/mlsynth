@@ -110,7 +110,7 @@ class SIVConfig(BaseEstimatorConfig):
         default=1400,
         description="Random seed for conformal permutation sampling.",
     )
-    display_graph: bool = Field(
+    display_event_study: bool = Field(
         default=False,
         description="Whether to plot the event-study coefficients.",
     )

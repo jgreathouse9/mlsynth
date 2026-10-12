@@ -64,7 +64,10 @@ class BSCMConfig(BaseEstimatorConfig):
     chains: int = Field(default=4, ge=1)
     spike_scale: float = Field(default=(0.001) ** 0.5, gt=0)
     ci_alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
-    display_graphs: bool = Field(default=False)
+    display_graphs: bool = Field(
+        default=False,
+        description="Whether to display plots of results.",
+    )
     verbose: bool = Field(default=False)
     seed: Optional[int] = Field(default=None)
 
