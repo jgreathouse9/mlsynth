@@ -1,0 +1,7053 @@
+{
+ "paper": "arXiv:2610.05535v1",
+ "python": "3.13.16",
+ "path_a": {
+  "cross_validation": {
+   "base: SC weights": 7.210625735387666e-09,
+   "base: exposure s0": 0.0,
+   "base: dmin": 0.0,
+   "base: ei_sc": 1.037123809055629e-07,
+   "base: rmspe_sc": 1.8533163372025374e-10,
+   "base: r2": 1.1102230246251565e-16,
+   "base: r2_all": 2.220446049250313e-16,
+   "base: ei_min": 3.552713678800501e-15,
+   "base: rmspe_min": 1.2212453270876722e-15,
+   "base: ei_tuned": 5.204035780081995e-08,
+   "base: kappa (29 periods)": 2.7000623958883807e-13,
+   "base: kappa_lat (29 periods)": 6.821210263296962e-13,
+   "base: partial (29 periods)": 2.1316282072803006e-14,
+   "base: partial_all (29 periods)": 1.0125233984581428e-13,
+   "base: phi (29 periods)": 6.94702542020087e-17,
+   "base: se_phi (29 periods)": 6.505213034913027e-17,
+   "base: g_sc (29 periods)": 2.272424026728004e-09,
+   "base: g_easc (29 periods)": 9.806314371640923e-10,
+   "base: g_ebsc_min (29 periods)": 3.552713678800501e-15,
+   "base: g_easc_tuned (29 periods)": 8.208797218356434e-10,
+   "base: frontier tolerances (41)": 1.037123809055629e-07,
+   "base: frontier EI (41)": 1.011226089531192e-07,
+   "base: frontier RMSPE (41)": 1.315343750585285e-09,
+   "base: frontier criterion (41)": 2.214253811416711e-07,
+   "base: frontier weights (41 x J)": 1.796588405822419e-08,
+   "base: EASC* frontier point": 0.0,
+   "base: inference tau (2 estimators x 3 phases)": 1.6220561421809165e-09,
+   "base: inference sd (2 estimators x 3 phases)": 4.734115906512848e-07,
+   "base: inference sdm (2 estimators x 3 phases)": 5.379243922520871e-08,
+   "base: inference kbar (2 estimators x 3 phases)": 1.63069557856943e-12,
+   "base: inference pval (2 estimators x 3 phases)": 0.0,
+   "base: inference Mstar (2 estimators x 3 phases)": 4.105699613621283e-07,
+   "base: inference Mstar_mad (2 estimators x 3 phases)": 3.473172405232816e-07,
+   "base: inference CI bounds at M = 0, 0.5, 1": 9.294917236446487e-07,
+   "base: phase phi and jackknife se (shock)": 7.589415207398531e-18,
+   "base: phase phi and jackknife se (relief)": 1.734723475976807e-17,
+   "base: phase phi and jackknife se (siege)": 1.3877787807814457e-17,
+   "base: hat values": 5.551115123125783e-16,
+   "base: delete-one-donor phi x 100": 4.218847493575595e-15,
+   "base: leverage with k = 1": 7.460698725481052e-13,
+   "base: leverage with k = 2": 1.63069557856943e-12,
+   "base: leverage with k = 3": 4.206412995699793e-12,
+   "ext: SC weights": 2.692791054026422e-08,
+   "ext: exposure s0": 0.0,
+   "ext: dmin": 0.0,
+   "ext: ei_sc": 2.0903309660980085e-07,
+   "ext: rmspe_sc": 6.239728560231139e-10,
+   "ext: r2": 1.1102230246251565e-16,
+   "ext: r2_all": 4.440892098500626e-16,
+   "ext: ei_min": 0.0,
+   "ext: rmspe_min": 4.163336342344337e-16,
+   "ext: ei_tuned": 1.049264142238826e-07,
+   "ext: kappa (29 periods)": 4.18509671362699e-12,
+   "ext: kappa_lat (29 periods)": 5.044853423896711e-13,
+   "ext: partial (29 periods)": 9.769962616701378e-15,
+   "ext: partial_all (29 periods)": 6.270539643082884e-13,
+   "ext: phi (29 periods)": 3.903127820947816e-17,
+   "ext: se_phi (29 periods)": 3.0791341698588326e-17,
+   "ext: g_sc (29 periods)": 5.491148868941309e-09,
+   "ext: g_easc (29 periods)": 3.736951789679033e-09,
+   "ext: g_ebsc_min (29 periods)": 7.105427357601002e-15,
+   "ext: g_easc_tuned (29 periods)": 1.8923230621359366e-09,
+   "ext: frontier tolerances (41)": 2.0903309660980085e-07,
+   "ext: frontier EI (41)": 2.038025055384196e-07,
+   "ext: frontier RMSPE (41)": 1.934097014488767e-10,
+   "ext: frontier criterion (41)": 1.1860880277936303e-08,
+   "ext: frontier weights (41 x J)": 2.240842575385038e-08,
+   "ext: EASC* frontier point": 0.0,
+   "ext: inference tau (2 estimators x 3 phases)": 3.562448364080595e-09,
+   "ext: inference sd (2 estimators x 3 phases)": 2.9746088228699286e-07,
+   "ext: inference sdm (2 estimators x 3 phases)": 1.2631244256655627e-06,
+   "ext: inference kbar (2 estimators x 3 phases)": 4.256150987203e-12,
+   "ext: inference pval (2 estimators x 3 phases)": 0.0,
+   "ext: inference Mstar (2 estimators x 3 phases)": 8.964452045956417e-07,
+   "ext: inference Mstar_mad (2 estimators x 3 phases)": 4.771905745104554e-06,
+   "ext: inference CI bounds at M = 0, 0.5, 1": 5.838991190831866e-07,
+   "ext: phase phi and jackknife se (shock)": 2.8731357570865868e-18,
+   "ext: phase phi and jackknife se (relief)": 3.469446951953614e-18,
+   "ext: phase phi and jackknife se (siege)": 1.0408340855860843e-17,
+   "ext: hat values": 3.497202527569243e-15,
+   "ext: delete-one-donor phi x 100": 3.1086244689504383e-15,
+   "ext: leverage with k = 1": 2.318145675417327e-13,
+   "ext: leverage with k = 2": 4.256150987203e-12,
+   "ext: leverage with k = 3": 1.0025758001575014e-11,
+   "robustness (13 specifications): ei_sc": 2.0903648767500727e-07,
+   "robustness (13 specifications): ei_t": 1.0496901836631878e-07,
+   "robustness (13 specifications): rmspe_min": 4.2281067536009687e-11,
+   "robustness (13 specifications): dmin": 3.628404521283102e-11,
+   "robustness (13 specifications): sc_shock": 9.325539229720903e-10,
+   "robustness (13 specifications): sc_relief": 1.3579539576147326e-09,
+   "robustness (13 specifications): sc_siege": 3.5397882125476343e-09,
+   "robustness (13 specifications): easc_shock": 8.761212449970301e-10,
+   "robustness (13 specifications): easc_relief": 5.73225210354078e-10,
+   "robustness (13 specifications): easc_siege": 1.8460113160312375e-09,
+   "robustness (13 specifications): easct_shock": 2.048064162707419e-09,
+   "robustness (13 specifications): easct_relief": 2.6703060457267114e-09,
+   "robustness (13 specifications): easct_siege": 4.07568126470359e-09,
+   "robustness (13 specifications): ebmin_shock": 4.8079651371324417e-11,
+   "robustness (13 specifications): ebmin_relief": 3.665619197068537e-11,
+   "robustness (13 specifications): ebmin_siege": 4.704048262027527e-11
+  },
+  "display": [
+   {
+    "quantity": "Table 4 base s1",
+    "ours": 22.8734625,
+    "printed": 22.87,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base s0_min",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base s0_max",
+    "ours": 16.56011875,
+    "printed": 16.56,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base dmin",
+    "ours": 6.313343749999998,
+    "printed": 6.31,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base ei_sc",
+    "ours": 15.526793845063512,
+    "printed": 15.53,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base rmspe_sc",
+    "ours": 0.014448333310299676,
+    "printed": 0.0144,
+    "decimals": 4,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base rmspe_min",
+    "ours": 0.3485958948577189,
+    "printed": 0.3486,
+    "decimals": 4,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base r2",
+    "ours": 0.9208702595976272,
+    "printed": 0.921,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base max_ell_pre",
+    "ours": 1.8321467474853315,
+    "printed": 1.83,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base max_ell_post",
+    "ours": 10.759736218828925,
+    "printed": 10.76,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa SC shock",
+    "ours": 7.864302121253631,
+    "printed": 7.86,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa EASC shock",
+    "ours": 7.67304430256431,
+    "printed": 7.67,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa SC relief",
+    "ours": 18.947142452889956,
+    "printed": 18.95,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa EASC relief",
+    "ours": 17.307580838743814,
+    "printed": 17.31,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa SC siege",
+    "ours": 26.72179583598614,
+    "printed": 26.72,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 base kappa EASC siege",
+    "ours": 25.29307094650041,
+    "printed": 25.29,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base SC shock",
+    "ours": -0.12710487406744653,
+    "printed": -0.127,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base SC relief",
+    "ours": -0.08727703584204605,
+    "printed": -0.087,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base SC siege",
+    "ours": -0.08935606696021203,
+    "printed": -0.089,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC shock",
+    "ours": -0.15152389464307425,
+    "printed": -0.152,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC relief",
+    "ours": -0.03278839266733208,
+    "printed": -0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC siege",
+    "ours": 0.08618697372737354,
+    "printed": 0.086,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC* shock",
+    "ours": -0.15151679912211177,
+    "printed": -0.152,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC* relief",
+    "ours": -0.03277906457570434,
+    "printed": -0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A base EASC* siege",
+    "ours": 0.08619525210710159,
+    "printed": 0.086,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock pval",
+    "ours": 0.05,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock sd",
+    "ours": 0.04878596954348154,
+    "printed": 0.049,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock kbar",
+    "ours": 7.864302121253631,
+    "printed": 7.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock Mstar",
+    "ours": 0.41163631937652817,
+    "printed": 0.41,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock Mstar_mad",
+    "ours": 0.5532727480654763,
+    "printed": 0.55,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock ci0[0]",
+    "ours": -0.22272361732353835,
+    "printed": -0.22,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock ci0[1]",
+    "ours": -0.03148613081135472,
+    "printed": -0.03,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock ci05[0]",
+    "ours": -0.26418038376209607,
+    "printed": -0.26,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC shock ci05[1]",
+    "ours": 0.009970635627203017,
+    "printed": 0.01,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief pval",
+    "ours": 0.3,
+    "printed": 0.3,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief sd",
+    "ours": 0.11128012756354702,
+    "printed": 0.111,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief kbar",
+    "ours": 18.947142452889956,
+    "printed": 18.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief ci0[0]",
+    "ours": -0.30538207806162115,
+    "printed": -0.31,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief ci0[1]",
+    "ours": 0.13082800637752906,
+    "printed": 0.13,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief ci05[0]",
+    "ours": -0.40721567830671107,
+    "printed": -0.41,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC relief ci05[1]",
+    "ours": 0.23266160662261898,
+    "printed": 0.23,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege pval",
+    "ours": 0.35,
+    "printed": 0.35,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege sd",
+    "ours": 0.17957287782041226,
+    "printed": 0.18,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege kbar",
+    "ours": 26.72179583598614,
+    "printed": 26.7,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege ci0[0]",
+    "ours": -0.4413124400884315,
+    "printed": -0.44,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege ci0[1]",
+    "ours": 0.26260030616800745,
+    "printed": 0.26,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege ci05[0]",
+    "ours": -0.5778981768888869,
+    "printed": -0.58,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base SC siege ci05[1]",
+    "ours": 0.39918604296846283,
+    "printed": 0.4,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock pval",
+    "ours": 0.05,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock sd",
+    "ours": 0.06427511623429187,
+    "printed": 0.064,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock kbar",
+    "ours": 7.67304430256431,
+    "printed": 7.7,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock Mstar",
+    "ours": 0.40683524658209946,
+    "printed": 0.41,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock Mstar_mad",
+    "ours": 0.48756879668286673,
+    "printed": 0.49,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock ci0[0]",
+    "ours": -0.2775008075644121,
+    "printed": -0.28,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock ci0[1]",
+    "ours": -0.025546981721736445,
+    "printed": -0.03,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock ci05[0]",
+    "ours": -0.3129105466519372,
+    "printed": -0.31,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC shock ci05[1]",
+    "ours": 0.00986275736578865,
+    "printed": 0.01,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief pval",
+    "ours": 0.55,
+    "printed": 0.55,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief sd",
+    "ours": 0.15007893152166205,
+    "printed": 0.15,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief kbar",
+    "ours": 17.307580838743814,
+    "printed": 17.3,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief ci0[0]",
+    "ours": -0.32693769328804273,
+    "printed": -0.33,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief ci0[1]",
+    "ours": 0.2613609079533786,
+    "printed": 0.26,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief ci05[0]",
+    "ours": -0.4053470662179341,
+    "printed": -0.41,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC relief ci05[1]",
+    "ours": 0.33977028088326994,
+    "printed": 0.34,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege pval",
+    "ours": 0.3,
+    "printed": 0.3,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege sd",
+    "ours": 0.24379809310831035,
+    "printed": 0.244,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege kbar",
+    "ours": 25.29307094650041,
+    "printed": 25.3,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege ci0[0]",
+    "ours": -0.3916485082644575,
+    "printed": -0.39,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege ci0[1]",
+    "ours": 0.5640224557192046,
+    "printed": 0.56,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege ci05[0]",
+    "ours": -0.49947745145396666,
+    "printed": -0.5,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 base EASC siege ci05[1]",
+    "ours": 0.6718513989087137,
+    "printed": 0.67,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base 100 x phi shock",
+    "ours": 0.15727020542229553,
+    "printed": 0.16,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base jackknife t shock",
+    "ours": 0.6292998531009144,
+    "printed": 0.6,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base 100 x phi relief",
+    "ours": -0.3509329982637577,
+    "printed": -0.35,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base jackknife t relief",
+    "ours": -0.5881056999054485,
+    "printed": -0.6,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base 100 x phi siege",
+    "ours": -1.1305813836344365,
+    "printed": -1.13,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C base jackknife t siege",
+    "ours": -1.1643687267520082,
+    "printed": -1.2,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=1 R2",
+    "ours": 0.9203453444204841,
+    "printed": 0.92,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=1 kappa shock",
+    "ours": 3.3719732977254657,
+    "printed": 3.4,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=1 kappa relief",
+    "ours": 9.657710560822386,
+    "printed": 9.7,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=1 kappa siege",
+    "ours": 11.457214291794273,
+    "printed": 11.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=1 M* (SC, 2012-15)",
+    "ours": 0.9600409296958309,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=2 R2",
+    "ours": 0.9208702595976272,
+    "printed": 0.921,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=2 kappa shock",
+    "ours": 7.864302121253631,
+    "printed": 7.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=2 kappa relief",
+    "ours": 18.947142452889956,
+    "printed": 18.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=2 kappa siege",
+    "ours": 26.72179583598614,
+    "printed": 26.7,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=2 M* (SC, 2012-15)",
+    "ours": 0.41163631937652817,
+    "printed": 0.41,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=3 R2",
+    "ours": 0.9222933375512268,
+    "printed": 0.922,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=3 kappa shock",
+    "ours": 10.883473863941934,
+    "printed": 10.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=3 kappa relief",
+    "ours": 34.218422495411225,
+    "printed": 34.2,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=3 kappa siege",
+    "ours": 56.406043001115385,
+    "printed": 56.4,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors base k=3 M* (SC, 2012-15)",
+    "ours": 0.29744476994456226,
+    "printed": 0.3,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext s1",
+    "ours": 22.8734625,
+    "printed": 22.87,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext s0_min",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext s0_max",
+    "ours": 38.4214875,
+    "printed": 38.42,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext dmin",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext ei_sc",
+    "ours": 15.526793845063512,
+    "printed": 15.53,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext rmspe_sc",
+    "ours": 0.01444833331029916,
+    "printed": 0.0144,
+    "decimals": 4,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext rmspe_min",
+    "ours": 0.05262093407938907,
+    "printed": 0.0526,
+    "decimals": 4,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext r2",
+    "ours": 0.9145956738430457,
+    "printed": 0.915,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext max_ell_pre",
+    "ours": 1.894265291431747,
+    "printed": 1.89,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext max_ell_post",
+    "ours": 8.215370754324953,
+    "printed": 8.22,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa SC shock",
+    "ours": 12.11865439286309,
+    "printed": 12.12,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa EASC shock",
+    "ours": 12.106700420134386,
+    "printed": 12.11,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa SC relief",
+    "ours": 28.123294616505977,
+    "printed": 28.12,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa EASC relief",
+    "ours": 27.537280765803725,
+    "printed": 27.54,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa SC siege",
+    "ours": 40.401321443127785,
+    "printed": 40.4,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 4 ext kappa EASC siege",
+    "ours": 39.94908989962829,
+    "printed": 39.95,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext SC shock",
+    "ours": -0.12710487406744608,
+    "printed": -0.127,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext SC relief",
+    "ours": -0.08727703584204605,
+    "printed": -0.087,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext SC siege",
+    "ours": -0.08935606696021178,
+    "printed": -0.089,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EBSC-min shock",
+    "ours": -0.10888171460122953,
+    "printed": -0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EBSC-min relief",
+    "ours": -0.021802632505642627,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EBSC-min siege",
+    "ours": 0.053635921418774046,
+    "printed": 0.054,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC shock",
+    "ours": -0.12222595354712257,
+    "printed": -0.122,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC relief",
+    "ours": -0.010703451136283355,
+    "printed": -0.011,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC siege",
+    "ours": 0.10941080443440518,
+    "printed": 0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC* shock",
+    "ours": -0.12222228720781712,
+    "printed": -0.122,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC* relief",
+    "ours": -0.010697329062840856,
+    "printed": -0.011,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5A ext EASC* siege",
+    "ours": 0.10941595292545211,
+    "printed": 0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock pval",
+    "ours": 0.045454545454545456,
+    "printed": 0.045,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock sd",
+    "ours": 0.04806791390450115,
+    "printed": 0.048,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock kbar",
+    "ours": 12.11865439286309,
+    "printed": 12.1,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock Mstar",
+    "ours": 0.27400755588444714,
+    "printed": 0.27,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock Mstar_mad",
+    "ours": 0.3462646987290465,
+    "printed": 0.35,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock ci0[0]",
+    "ours": -0.22131625413224043,
+    "printed": -0.22,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock ci0[1]",
+    "ours": -0.032893494002651735,
+    "printed": -0.03,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock ci05[0]",
+    "ours": -0.2937167644594393,
+    "printed": -0.29,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC shock ci05[1]",
+    "ours": 0.039507016324547145,
+    "printed": 0.04,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief pval",
+    "ours": 0.36363636363636365,
+    "printed": 0.364,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief sd",
+    "ours": 0.11107067160974736,
+    "printed": 0.111,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief kbar",
+    "ours": 28.123294616505977,
+    "printed": 28.1,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief ci0[0]",
+    "ours": -0.30497155193582637,
+    "printed": -0.3,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief ci0[1]",
+    "ours": 0.13041748025173425,
+    "printed": 0.13,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief ci05[0]",
+    "ours": -0.4731394613618465,
+    "printed": -0.47,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC relief ci05[1]",
+    "ours": 0.2985853896777544,
+    "printed": 0.3,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege pval",
+    "ours": 0.5,
+    "printed": 0.5,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege sd",
+    "ours": 0.1813958605084875,
+    "printed": 0.181,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege kbar",
+    "ours": 40.401321443127785,
+    "printed": 40.4,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege ci0[0]",
+    "ours": -0.4448854205014988,
+    "printed": -0.44,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege ci0[1]",
+    "ours": 0.2661732865810752,
+    "printed": 0.27,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege ci05[0]",
+    "ours": -0.6795926027226876,
+    "printed": -0.68,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext SC siege ci05[1]",
+    "ours": 0.500880468802264,
+    "printed": 0.5,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock pval",
+    "ours": 0.09090909090909091,
+    "printed": 0.091,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock sd",
+    "ours": 0.05182041793234805,
+    "printed": 0.052,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock kbar",
+    "ours": 12.106700420134386,
+    "printed": 12.1,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock Mstar",
+    "ours": 0.2082707967168003,
+    "printed": 0.21,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock Mstar_mad",
+    "ours": 0.2738436163806987,
+    "printed": 0.27,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock ci0[0]",
+    "ours": -0.2237921063583383,
+    "printed": -0.22,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock ci0[1]",
+    "ours": -0.020659800735906828,
+    "printed": -0.02,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock ci05[0]",
+    "ours": -0.2949239069598686,
+    "printed": -0.29,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC shock ci05[1]",
+    "ours": 0.050471999865623424,
+    "printed": 0.05,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief pval",
+    "ours": 0.9090909090909091,
+    "printed": 0.909,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief sd",
+    "ours": 0.11716104058706946,
+    "printed": 0.117,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief kbar",
+    "ours": 27.537280765803725,
+    "printed": 27.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief ci0[0]",
+    "ours": -0.240334871078175,
+    "printed": -0.24,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief ci0[1]",
+    "ours": 0.2189279688056083,
+    "printed": 0.22,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief ci05[0]",
+    "ours": -0.4023503825355524,
+    "printed": -0.4,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC relief ci05[1]",
+    "ours": 0.3809434802629857,
+    "printed": 0.38,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege pval",
+    "ours": 0.2727272727272727,
+    "printed": 0.273,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege sd",
+    "ours": 0.18265544674145398,
+    "printed": 0.183,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege kbar",
+    "ours": 39.94908989962829,
+    "printed": 39.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege Mstar",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege Mstar_mad",
+    "ours": 0.0,
+    "printed": 0.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege ci0[0]",
+    "ours": -0.24858729275891858,
+    "printed": -0.25,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege ci0[1]",
+    "ours": 0.46740890162772897,
+    "printed": 0.47,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege ci05[0]",
+    "ours": -0.4796309238324442,
+    "printed": -0.48,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5 ext EASC siege ci05[1]",
+    "ours": 0.6984525327012546,
+    "printed": 0.7,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext 100 x phi shock",
+    "ours": -0.031422588391451345,
+    "printed": -0.03,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext jackknife t shock",
+    "ours": -0.395448509350912,
+    "printed": -0.4,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext 100 x phi relief",
+    "ours": -0.4931706150662134,
+    "printed": -0.49,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext jackknife t relief",
+    "ours": -1.9286573306906474,
+    "printed": -1.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext 100 x phi siege",
+    "ours": -1.2801539930138996,
+    "printed": -1.28,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 5C ext jackknife t siege",
+    "ours": -3.6345582711451994,
+    "printed": -3.6,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Section 6.3 hat value AGO",
+    "ours": 0.6989137720063399,
+    "printed": 0.7,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Section 6.3 hat value AZE",
+    "ours": 0.6083711586867399,
+    "printed": 0.61,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=1 R2",
+    "ours": 0.914595446599848,
+    "printed": 0.915,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=1 kappa shock",
+    "ours": 2.249498736740865,
+    "printed": 2.2,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=1 kappa relief",
+    "ours": 6.307537363554195,
+    "printed": 6.3,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=1 kappa siege",
+    "ours": 6.871303855622297,
+    "printed": 6.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=1 M* (SC, 2012-15)",
+    "ours": 1.4761523607733655,
+    "printed": 1.48,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=2 R2",
+    "ours": 0.9145956738430457,
+    "printed": 0.915,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=2 kappa shock",
+    "ours": 12.11865439286309,
+    "printed": 12.1,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=2 kappa relief",
+    "ours": 28.123294616505977,
+    "printed": 28.1,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=2 kappa siege",
+    "ours": 40.401321443127785,
+    "printed": 40.4,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=2 M* (SC, 2012-15)",
+    "ours": 0.27400755588444714,
+    "printed": 0.27,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=3 R2",
+    "ours": 0.9183177476621066,
+    "printed": 0.918,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=3 kappa shock",
+    "ours": 14.511275516349025,
+    "printed": 14.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=3 kappa relief",
+    "ours": 37.47003242912899,
+    "printed": 37.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=3 kappa siege",
+    "ours": 56.84926838663818,
+    "printed": 56.8,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Appendix factors ext k=3 M* (SC, 2012-15)",
+    "ours": 0.22882915199670742,
+    "printed": 0.23,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 1996-2011 (baseline): EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 1996-2011 (baseline): EASC shock",
+    "ours": -0.15152389464307425,
+    "printed": -0.152,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 1996-2011 (baseline): EASC relief",
+    "ours": -0.03278839266733208,
+    "printed": -0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 1996-2011 (baseline): EASC siege",
+    "ours": 0.08618697372737354,
+    "printed": 0.086,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 1996-2011 (baseline): EBSC-min feasible",
+    "ours": false,
+    "printed": false,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Oil rents 2002-2011: EI(SC)",
+    "ours": 16.765381619724387,
+    "printed": 16.8,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 2002-2011: EASC shock",
+    "ours": -0.15337160533972366,
+    "printed": -0.153,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 2002-2011: EASC relief",
+    "ours": -0.03959768838342298,
+    "printed": -0.04,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 2002-2011: EASC siege",
+    "ours": 0.06874737928497619,
+    "printed": 0.069,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Oil rents 2002-2011: EBSC-min feasible",
+    "ours": false,
+    "printed": false,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 V-Dem oil income share: EI(SC)",
+    "ours": 1.5630278266190194,
+    "printed": 1.6,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 V-Dem oil income share: EASC shock",
+    "ours": -0.13663470938066058,
+    "printed": -0.137,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 V-Dem oil income share: EASC relief",
+    "ours": -0.05825206316874449,
+    "printed": -0.058,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 V-Dem oil income share: EASC siege",
+    "ours": 0.0020062055104555954,
+    "printed": 0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 V-Dem oil income share: EBSC-min feasible",
+    "ours": false,
+    "printed": false,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 No pre-treatment growth controls: EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 No pre-treatment growth controls: EASC shock",
+    "ours": -0.1464881181432664,
+    "printed": -0.146,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 No pre-treatment growth controls: EASC relief",
+    "ours": -0.05684033498239407,
+    "printed": -0.057,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 No pre-treatment growth controls: EASC siege",
+    "ours": 0.003744319384831351,
+    "printed": 0.004,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 No pre-treatment growth controls: EBSC-min feasible",
+    "ours": false,
+    "printed": false,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EASC shock",
+    "ours": -0.12222595354712257,
+    "printed": -0.122,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EASC relief",
+    "ours": -0.010703451136283355,
+    "printed": -0.011,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EASC siege",
+    "ours": 0.10941080443440518,
+    "printed": 0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EBSC-min feasible",
+    "ours": true,
+    "printed": true,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EBSC-min shock",
+    "ours": -0.10888171460122953,
+    "printed": -0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EBSC-min relief",
+    "ours": -0.021802632505642627,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool (21): EBSC-min siege",
+    "ours": 0.053635921418774046,
+    "printed": 0.054,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EI(SC)",
+    "ours": 1.5630278266190194,
+    "printed": 1.6,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EASC shock",
+    "ours": -0.1254181651328078,
+    "printed": -0.125,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EASC relief",
+    "ours": -0.05977889082677479,
+    "printed": -0.06,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EASC siege",
+    "ours": -0.015204092327989877,
+    "printed": -0.015,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EBSC-min feasible",
+    "ours": true,
+    "printed": true,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EBSC-min shock",
+    "ours": -0.11490773972573542,
+    "printed": -0.115,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EBSC-min relief",
+    "ours": -0.05622970368163127,
+    "printed": -0.056,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, V-Dem share: EBSC-min siege",
+    "ours": -0.02612385083972159,
+    "printed": -0.026,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EASC shock",
+    "ours": -0.1259700817464746,
+    "printed": -0.126,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EASC relief",
+    "ours": -0.018272813242612682,
+    "printed": -0.018,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EASC siege",
+    "ours": 0.1013871893821939,
+    "printed": 0.101,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EBSC-min feasible",
+    "ours": true,
+    "printed": true,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EBSC-min shock",
+    "ours": -0.10888171460370799,
+    "printed": -0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EBSC-min relief",
+    "ours": -0.021802632507341713,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Azerbaijan (20): EBSC-min siege",
+    "ours": 0.05363592142918984,
+    "printed": 0.054,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Angola (20): EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Angola (20): EASC shock",
+    "ours": -0.12310886475152294,
+    "printed": -0.123,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Angola (20): EASC relief",
+    "ours": 0.015755738043691556,
+    "printed": 0.016,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Angola (20): EASC siege",
+    "ours": 0.13759965135508417,
+    "printed": 0.138,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool without Angola (20): EBSC-min feasible",
+    "ours": false,
+    "printed": false,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EI(SC)",
+    "ours": 14.85393079016211,
+    "printed": 14.9,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EASC shock",
+    "ours": -0.12281133382387875,
+    "printed": -0.123,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EASC relief",
+    "ours": -0.01244384954461417,
+    "printed": -0.012,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EASC siege",
+    "ours": 0.10852842526913643,
+    "printed": 0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EBSC-min feasible",
+    "ours": true,
+    "printed": true,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EBSC-min shock",
+    "ours": -0.10749871730840255,
+    "printed": -0.107,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EBSC-min relief",
+    "ours": -0.020364755736656193,
+    "printed": -0.02,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, oil rents 1996-2005: EBSC-min siege",
+    "ours": 0.055419570226844836,
+    "printed": 0.055,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EI(SC)",
+    "ours": 15.526793845063512,
+    "printed": 15.5,
+    "decimals": 1,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EASC shock",
+    "ours": -0.12462590905605672,
+    "printed": -0.125,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EASC relief",
+    "ours": -0.030696089083660442,
+    "printed": -0.031,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EASC siege",
+    "ours": 0.04061007684601132,
+    "printed": 0.041,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EBSC-min feasible",
+    "ours": true,
+    "printed": true,
+    "match": true
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EBSC-min shock",
+    "ours": -0.10888171460122953,
+    "printed": -0.109,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EBSC-min relief",
+    "ours": -0.021802632505642627,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "Table 7 Exposure-feasible pool, no growth controls: EBSC-min siege",
+    "ours": 0.053635921418774046,
+    "printed": 0.054,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   }
+  ],
+  "easc_variance_choice": [
+   {
+    "pool": "base",
+    "phase": "shock",
+    "sd_code": 0.06427511623429187,
+    "sd_text": 0.06266038533302927,
+    "Mstar_code": 0.40683524658209946,
+    "Mstar_text": 0.43309030852000135
+   },
+   {
+    "pool": "base",
+    "phase": "relief",
+    "sd_code": 0.15007893152166205,
+    "sd_text": 0.1496760545724163,
+    "Mstar_code": 0.0,
+    "Mstar_text": 0.0
+   },
+   {
+    "pool": "base",
+    "phase": "siege",
+    "sd_code": 0.24379809310831035,
+    "sd_text": 0.24285019171119507,
+    "Mstar_code": 0.0,
+    "Mstar_text": 0.0
+   },
+   {
+    "pool": "ext",
+    "phase": "shock",
+    "sd_code": 0.05182041793234805,
+    "sd_text": 0.05028951557189313,
+    "Mstar_code": 0.2082707967168003,
+    "Mstar_text": 0.22399298396654385
+   },
+   {
+    "pool": "ext",
+    "phase": "relief",
+    "sd_code": 0.11716104058706946,
+    "sd_text": 0.11710176229157661,
+    "Mstar_code": 0.0,
+    "Mstar_text": 0.0
+   },
+   {
+    "pool": "ext",
+    "phase": "siege",
+    "sd_code": 0.18265544674145398,
+    "sd_text": 0.18237258927226757,
+    "Mstar_code": 0.0,
+    "Mstar_text": 0.0
+   }
+  ],
+  "tally": {
+   "cells": 270,
+   "match": 270,
+   "mismatches": []
+  }
+ },
+ "frontier_solver": {
+  "base": {
+   "points": 41,
+   "max_abs_rmspe": 7.064118408284248e-09,
+   "max_abs_ei": 0.0014577218983955476,
+   "max_abs_weight": 0.0001604777081557207,
+   "seconds_active_set": 5.81,
+   "seconds_clarabel": 0.08
+  },
+  "ext": {
+   "points": 41,
+   "max_abs_rmspe": 9.490450840130005e-09,
+   "max_abs_ei": 0.0012301897061171019,
+   "max_abs_weight": 0.00013538812831834224,
+   "seconds_active_set": 4.69,
+   "seconds_clarabel": 0.08
+  }
+ },
+ "path_b": {
+  "draws_bitwise": "36/36",
+  "per_replication_maxdiff": {
+   "err": 1.7309063488069043e-09,
+   "inf": 7.51155981859597e-09,
+   "diag": 1.7365223925480677e-08,
+   "coverage_flips": 0
+  },
+  "reps": 500,
+  "designs": [
+   "S0",
+   "S1",
+   "S2",
+   "S3",
+   "S4",
+   "S5",
+   "S6",
+   "S7",
+   "S8",
+   "S9",
+   "S10",
+   "S11"
+  ],
+  "seconds": 168.9,
+  "summary": {
+   "bias": {
+    "S0|shock|SC": 0.0005597596655082099,
+    "S0|relief|SC": -0.0002202119005368591,
+    "S0|siege|SC": -1.196299954013097e-05,
+    "S0|shock|EBSC-min": -0.004826809847766339,
+    "S0|relief|EBSC-min": -0.002262246873897525,
+    "S0|siege|EBSC-min": -0.002243406593080219,
+    "S0|shock|EASC": 0.0007641961683843739,
+    "S0|relief|EASC": -0.0008781004761543052,
+    "S0|siege|EASC": 0.00019656739711903265,
+    "S0|shock|EASC*": 0.0008595836075645003,
+    "S0|relief|EASC*": -0.0010414714824156116,
+    "S0|siege|EASC*": 8.128315798624269e-05,
+    "S1|shock|SC": 0.0019896609279851036,
+    "S1|relief|SC": 0.001413479041018438,
+    "S1|siege|SC": 0.003346049830110078,
+    "S1|shock|EBSC-min": -0.003657293155278391,
+    "S1|relief|EBSC-min": -0.007179890724968771,
+    "S1|siege|EBSC-min": -0.006109206224348015,
+    "S1|shock|EASC": 0.007771681293082155,
+    "S1|relief|EASC": 0.002821458814438472,
+    "S1|siege|EASC": -0.0036261869140050127,
+    "S1|shock|EASC*": 0.007724314772035463,
+    "S1|relief|EASC*": 0.0031215760917393956,
+    "S1|siege|EASC*": -0.0030683057674080337,
+    "S2|shock|SC": -0.04565789820445349,
+    "S2|relief|SC": -0.13771694833549997,
+    "S2|siege|SC": -0.15894254173016914,
+    "S2|shock|EBSC-min": -0.02101861018420126,
+    "S2|relief|EBSC-min": -0.07243922080502209,
+    "S2|siege|EBSC-min": -0.08621869132118921,
+    "S2|shock|EASC": 0.0033207936949638914,
+    "S2|relief|EASC": 0.0011138629264677855,
+    "S2|siege|EASC": -0.0033626854885635735,
+    "S2|shock|EASC*": 0.003360712406518626,
+    "S2|relief|EASC*": 0.0012134653970711964,
+    "S2|siege|EASC*": -0.003196654122256673,
+    "S3|shock|SC": -0.009817754406154261,
+    "S3|relief|SC": -0.028521758655263442,
+    "S3|siege|SC": -0.03414510073553224,
+    "S3|shock|EBSC-min": -0.0022362307026339017,
+    "S3|relief|EBSC-min": -0.00229825333483353,
+    "S3|siege|EBSC-min": -0.004488198845245042,
+    "S3|shock|EASC": 0.0005932532437510425,
+    "S3|relief|EASC": 0.0007926748312271783,
+    "S3|siege|EASC": -0.0017647929695780809,
+    "S3|shock|EASC*": 0.00048482733737232166,
+    "S3|relief|EASC*": 0.0006398045413627835,
+    "S3|siege|EASC*": -0.0018814923411193231,
+    "S4|shock|SC": -0.04394400725458053,
+    "S4|relief|SC": -0.13434200745870947,
+    "S4|siege|SC": -0.15437257147543593,
+    "S4|shock|EBSC-min": -0.017207091485701487,
+    "S4|relief|EBSC-min": -0.08215486728246887,
+    "S4|siege|EBSC-min": -0.09743010120999869,
+    "S4|shock|EASC": 0.001870763732040511,
+    "S4|relief|EASC": -0.007376665560876036,
+    "S4|siege|EASC": -0.010578333677214004,
+    "S4|shock|EASC*": 0.0010744085697168585,
+    "S4|relief|EASC*": -0.009952261055570063,
+    "S4|siege|EASC*": -0.014052100765837211,
+    "S5|shock|SC": -0.025734730287519148,
+    "S5|relief|SC": -0.07781854569983493,
+    "S5|siege|SC": -0.0909575118751042,
+    "S5|shock|EBSC-min": 0.007146750910525545,
+    "S5|relief|EBSC-min": -0.010823631307262268,
+    "S5|siege|EBSC-min": -0.017175556228153567,
+    "S5|shock|EASC": 0.015281464015987803,
+    "S5|relief|EASC": 0.03569207995362807,
+    "S5|siege|EASC": 0.03451329515448584,
+    "S5|shock|EASC*": 0.014689197414765733,
+    "S5|relief|EASC*": 0.0348869566321477,
+    "S5|siege|EASC*": 0.033703082771504626,
+    "S6|shock|SC": -0.01421976648939561,
+    "S6|relief|SC": -0.04376840560012806,
+    "S6|siege|SC": -0.05029637234403879,
+    "S6|shock|EBSC-min": -0.00621033974587413,
+    "S6|relief|EBSC-min": -0.02150340763871631,
+    "S6|siege|EBSC-min": -0.024512354159970197,
+    "S6|shock|EASC": -0.0046467638029205815,
+    "S6|relief|EASC": -0.016960637727684753,
+    "S6|siege|EASC": -0.020364476223355,
+    "S6|shock|EASC*": -0.005135775301724191,
+    "S6|relief|EASC*": -0.0181253040309495,
+    "S6|siege|EASC*": -0.021579031317268474,
+    "S7|shock|SC": -0.034577463162357235,
+    "S7|relief|SC": -0.10764613826251347,
+    "S7|siege|SC": -0.12356931747885329,
+    "S7|shock|EBSC-min": -0.020350803000923498,
+    "S7|relief|EBSC-min": -0.06912360967444053,
+    "S7|siege|EBSC-min": -0.07923803489027861,
+    "S7|shock|EASC": 0.006639235474730087,
+    "S7|relief|EASC": 0.005284464703234131,
+    "S7|siege|EASC": 0.001373414666180448,
+    "S7|shock|EASC*": 0.006536117884882842,
+    "S7|relief|EASC*": 0.005168194832733677,
+    "S7|siege|EASC*": 0.0012650565237405046,
+    "S8|shock|SC": -0.008511300131048892,
+    "S8|relief|SC": -0.026586756033483917,
+    "S8|siege|SC": -0.02973794104944505,
+    "S8|shock|EBSC-min": -0.00017945452916376026,
+    "S8|relief|EBSC-min": -0.0003209584527500232,
+    "S8|siege|EBSC-min": -0.0004973320927847314,
+    "S8|shock|EASC": 0.0015727315638412213,
+    "S8|relief|EASC": 0.0013636926503811273,
+    "S8|siege|EASC": 0.0007502828567755513,
+    "S8|shock|EASC*": 0.0015396206333148413,
+    "S8|relief|EASC*": 0.001370959163061926,
+    "S8|siege|EASC*": 0.0008412110775809924,
+    "S9|shock|SC": -0.009606794295396669,
+    "S9|relief|SC": -0.03179939904963164,
+    "S9|siege|SC": -0.0328026871304459,
+    "S9|shock|EBSC-min": 0.0014457864707096643,
+    "S9|relief|EBSC-min": -0.0012173435513864184,
+    "S9|siege|EBSC-min": 0.0010268122762158716,
+    "S9|shock|EASC": 4.145451417656854e-05,
+    "S9|relief|EASC": -0.006270920235240987,
+    "S9|siege|EASC": -0.002500634715368522,
+    "S9|shock|EASC*": -3.4425483936664894e-05,
+    "S9|relief|EASC*": -0.005677142196289821,
+    "S9|siege|EASC*": -0.001771435991570113,
+    "S10|shock|SC": 0.019012578466150395,
+    "S10|relief|SC": 0.021667537251221454,
+    "S10|siege|SC": 0.0356945165705995,
+    "S10|shock|EBSC-min": 0.043866456367226296,
+    "S10|relief|EBSC-min": 0.08055754930237873,
+    "S10|siege|EBSC-min": 0.10797041496804377,
+    "S10|shock|EASC": 0.03078371750819627,
+    "S10|relief|EASC": 0.05658814090718417,
+    "S10|siege|EASC": 0.07368499941870368,
+    "S10|shock|EASC*": 0.03090983556397088,
+    "S10|relief|EASC*": 0.056642264244278394,
+    "S10|siege|EASC*": 0.07393442101734643,
+    "S11|shock|SC": -0.012257825384058774,
+    "S11|relief|SC": -0.0471010201420741,
+    "S11|siege|SC": -0.0832757601765631,
+    "S11|shock|EBSC-min": -0.0021770060398259208,
+    "S11|relief|EBSC-min": -0.016025996545522225,
+    "S11|siege|EBSC-min": -0.043052011223968775,
+    "S11|shock|EASC": -0.0020440347315798246,
+    "S11|relief|EASC": -0.01718179891973317,
+    "S11|siege|EASC": -0.046135727213158416,
+    "S11|shock|EASC*": -0.002080543384614545,
+    "S11|relief|EASC*": -0.017198586118648274,
+    "S11|siege|EASC*": -0.046070407839801236
+   },
+   "rmse": {
+    "S0|shock|SC": 0.01833471425647256,
+    "S0|relief|SC": 0.026001412858758226,
+    "S0|siege|SC": 0.03009981492044004,
+    "S0|shock|EBSC-min": 0.31645136315889244,
+    "S0|relief|EBSC-min": 0.33181678400197234,
+    "S0|siege|EBSC-min": 0.3455763417736429,
+    "S0|shock|EASC": 0.03089645078846225,
+    "S0|relief|EASC": 0.04602486952624266,
+    "S0|siege|EASC": 0.057981637953367145,
+    "S0|shock|EASC*": 0.028613222037643608,
+    "S0|relief|EASC*": 0.04108739073720666,
+    "S0|siege|EASC*": 0.04980814689874592,
+    "S1|shock|SC": 0.023338154033705226,
+    "S1|relief|SC": 0.03356921807782096,
+    "S1|siege|SC": 0.042303518209644744,
+    "S1|shock|EBSC-min": 0.33325767699620107,
+    "S1|relief|EBSC-min": 0.3450555748926235,
+    "S1|siege|EBSC-min": 0.35781072656771856,
+    "S1|shock|EASC": 0.03474273994073586,
+    "S1|relief|EASC": 0.049484615707222644,
+    "S1|siege|EASC": 0.06425821839297866,
+    "S1|shock|EASC*": 0.03460181325998985,
+    "S1|relief|EASC*": 0.04909435276571896,
+    "S1|siege|EASC*": 0.06371994121987426,
+    "S2|shock|SC": 0.05115272303421562,
+    "S2|relief|SC": 0.143386534779582,
+    "S2|siege|SC": 0.16575971491817706,
+    "S2|shock|EBSC-min": 0.3313342737568188,
+    "S2|relief|EBSC-min": 0.3509042589195905,
+    "S2|siege|EBSC-min": 0.3687548963649052,
+    "S2|shock|EASC": 0.03264579537582349,
+    "S2|relief|EASC": 0.049702357529199125,
+    "S2|siege|EASC": 0.06332055108304031,
+    "S2|shock|EASC*": 0.032820146800742356,
+    "S2|relief|EASC*": 0.04993572530778239,
+    "S2|siege|EASC*": 0.06368706716611036,
+    "S3|shock|SC": 0.02325841801034961,
+    "S3|relief|SC": 0.04680200821194839,
+    "S3|siege|SC": 0.05615507911318334,
+    "S3|shock|EBSC-min": 0.030318003909906386,
+    "S3|relief|EBSC-min": 0.03989915550793539,
+    "S3|siege|EBSC-min": 0.050328137373505694,
+    "S3|shock|EASC": 0.02056566592385489,
+    "S3|relief|EASC": 0.028866330904780965,
+    "S3|siege|EASC": 0.03627748732514111,
+    "S3|shock|EASC*": 0.020509433150195277,
+    "S3|relief|EASC*": 0.028740380295879053,
+    "S3|siege|EASC*": 0.03605398523297655,
+    "S4|shock|SC": 0.05041443721916056,
+    "S4|relief|SC": 0.1403607602332954,
+    "S4|siege|SC": 0.16237593084777507,
+    "S4|shock|EBSC-min": 0.3009415436554106,
+    "S4|relief|EBSC-min": 0.3200711607471683,
+    "S4|siege|EBSC-min": 0.3358133902725272,
+    "S4|shock|EASC": 0.04758168003984811,
+    "S4|relief|EASC": 0.10537488540579748,
+    "S4|siege|EASC": 0.12482508300455658,
+    "S4|shock|EASC*": 0.04784021071650143,
+    "S4|relief|EASC*": 0.1057845111991381,
+    "S4|siege|EASC*": 0.12501721211259031,
+    "S5|shock|SC": 0.03350741012901346,
+    "S5|relief|SC": 0.08505871931922387,
+    "S5|siege|SC": 0.1003747253775601,
+    "S5|shock|EBSC-min": 0.3298174403329184,
+    "S5|relief|EBSC-min": 0.340877883742541,
+    "S5|siege|EBSC-min": 0.35797559554308794,
+    "S5|shock|EASC": 0.03476551846514906,
+    "S5|relief|EASC": 0.06133409045049801,
+    "S5|siege|EASC": 0.07568183611150775,
+    "S5|shock|EASC*": 0.034262651394504545,
+    "S5|relief|EASC*": 0.060470763239889334,
+    "S5|siege|EASC*": 0.07393407415216248,
+    "S6|shock|SC": 0.024614786632235035,
+    "S6|relief|SC": 0.05490471574155909,
+    "S6|siege|SC": 0.06286192853550424,
+    "S6|shock|EBSC-min": 0.03247441377738899,
+    "S6|relief|EBSC-min": 0.04799758433121569,
+    "S6|siege|EBSC-min": 0.05638546368186441,
+    "S6|shock|EASC": 0.021042590511132983,
+    "S6|relief|EASC": 0.03543633364256035,
+    "S6|siege|EASC": 0.04198445988562263,
+    "S6|shock|EASC*": 0.020877540342502478,
+    "S6|relief|EASC*": 0.03533865824779331,
+    "S6|siege|EASC*": 0.04158713862019027,
+    "S7|shock|SC": 0.04086650011433574,
+    "S7|relief|SC": 0.11364242159782866,
+    "S7|siege|SC": 0.13087748355616413,
+    "S7|shock|EBSC-min": 0.15923772296845012,
+    "S7|relief|EBSC-min": 0.18796257360007912,
+    "S7|siege|EBSC-min": 0.21096504396224056,
+    "S7|shock|EASC": 0.024900522451931133,
+    "S7|relief|EASC": 0.03691859785836552,
+    "S7|siege|EASC": 0.0457779949849998,
+    "S7|shock|EASC*": 0.024887699217131604,
+    "S7|relief|EASC*": 0.036817921182641114,
+    "S7|siege|EASC*": 0.045543367258712025,
+    "S8|shock|SC": 0.022477628330857067,
+    "S8|relief|SC": 0.04646447115596707,
+    "S8|siege|SC": 0.05202406649294919,
+    "S8|shock|EBSC-min": 0.03128080769238053,
+    "S8|relief|EBSC-min": 0.03985494738861815,
+    "S8|siege|EBSC-min": 0.04528500063723463,
+    "S8|shock|EASC": 0.020606211787293768,
+    "S8|relief|EASC": 0.02878477832795139,
+    "S8|siege|EASC": 0.033678391916712694,
+    "S8|shock|EASC*": 0.02057183624040778,
+    "S8|relief|EASC*": 0.02866099771681975,
+    "S8|siege|EASC*": 0.03354781566286491,
+    "S9|shock|SC": 0.027125558816322386,
+    "S9|relief|SC": 0.09172629323446405,
+    "S9|siege|SC": 0.14037383333563752,
+    "S9|shock|EBSC-min": 0.03717836256873122,
+    "S9|relief|EBSC-min": 0.12552640942305554,
+    "S9|siege|EBSC-min": 0.1908161760640102,
+    "S9|shock|EASC": 0.02628138668342198,
+    "S9|relief|EASC": 0.1010874903129479,
+    "S9|siege|EASC": 0.15203700627997158,
+    "S9|shock|EASC*": 0.026132958109870135,
+    "S9|relief|EASC*": 0.09869148121253947,
+    "S9|siege|EASC*": 0.14853802323451135,
+    "S10|shock|SC": 0.0467227311517988,
+    "S10|relief|SC": 0.15499451215726887,
+    "S10|siege|SC": 0.24493711229723578,
+    "S10|shock|EBSC-min": 0.07453151855834919,
+    "S10|relief|EBSC-min": 0.19655392901786115,
+    "S10|siege|EBSC-min": 0.3045467243449699,
+    "S10|shock|EASC": 0.0522672593416098,
+    "S10|relief|EASC": 0.16224256774253867,
+    "S10|siege|EASC": 0.24990159761884842,
+    "S10|shock|EASC*": 0.05234415193342061,
+    "S10|relief|EASC*": 0.16193585833169888,
+    "S10|siege|EASC*": 0.24940216227352688,
+    "S11|shock|SC": 0.02372610356580869,
+    "S11|relief|SC": 0.06207847905196117,
+    "S11|siege|SC": 0.09811950422242291,
+    "S11|shock|EBSC-min": 0.030253483333501446,
+    "S11|relief|EBSC-min": 0.04187369810486066,
+    "S11|siege|EBSC-min": 0.06549806218988853,
+    "S11|shock|EASC": 0.020145165050531818,
+    "S11|relief|EASC": 0.03460734028806895,
+    "S11|siege|EASC": 0.05994476180737649,
+    "S11|shock|EASC*": 0.02002553656185533,
+    "S11|relief|EASC*": 0.03436570242034394,
+    "S11|siege|EASC*": 0.05960845055594779
+   },
+   "coverage": {
+    "S0|shock|SC|0.0": 0.874,
+    "S0|shock|SC|0.5": 0.944,
+    "S0|shock|SC|1.0": 0.988,
+    "S0|relief|SC|0.0": 0.87,
+    "S0|relief|SC|0.5": 0.972,
+    "S0|relief|SC|1.0": 0.996,
+    "S0|siege|SC|0.0": 0.91,
+    "S0|siege|SC|0.5": 0.98,
+    "S0|siege|SC|1.0": 0.998,
+    "S0|shock|EASC|0.0": 0.966,
+    "S0|shock|EASC|0.5": 0.984,
+    "S0|shock|EASC|1.0": 0.988,
+    "S0|relief|EASC|0.0": 0.94,
+    "S0|relief|EASC|0.5": 0.96,
+    "S0|relief|EASC|1.0": 0.978,
+    "S0|siege|EASC|0.0": 0.966,
+    "S0|siege|EASC|0.5": 0.972,
+    "S0|siege|EASC|1.0": 0.99,
+    "S1|shock|SC|0.0": 0.996,
+    "S1|shock|SC|0.5": 1.0,
+    "S1|shock|SC|1.0": 1.0,
+    "S1|relief|SC|0.0": 0.994,
+    "S1|relief|SC|0.5": 1.0,
+    "S1|relief|SC|1.0": 1.0,
+    "S1|siege|SC|0.0": 0.996,
+    "S1|siege|SC|0.5": 1.0,
+    "S1|siege|SC|1.0": 1.0,
+    "S1|shock|EASC|0.0": 0.984,
+    "S1|shock|EASC|0.5": 0.998,
+    "S1|shock|EASC|1.0": 1.0,
+    "S1|relief|EASC|0.0": 0.992,
+    "S1|relief|EASC|0.5": 0.998,
+    "S1|relief|EASC|1.0": 1.0,
+    "S1|siege|EASC|0.0": 0.988,
+    "S1|siege|EASC|0.5": 1.0,
+    "S1|siege|EASC|1.0": 1.0,
+    "S2|shock|SC|0.0": 0.94,
+    "S2|shock|SC|0.5": 0.988,
+    "S2|shock|SC|1.0": 1.0,
+    "S2|relief|SC|0.0": 0.654,
+    "S2|relief|SC|0.5": 0.962,
+    "S2|relief|SC|1.0": 1.0,
+    "S2|siege|SC|0.0": 0.7,
+    "S2|siege|SC|0.5": 0.978,
+    "S2|siege|SC|1.0": 1.0,
+    "S2|shock|EASC|0.0": 0.998,
+    "S2|shock|EASC|0.5": 1.0,
+    "S2|shock|EASC|1.0": 1.0,
+    "S2|relief|EASC|0.0": 0.994,
+    "S2|relief|EASC|0.5": 1.0,
+    "S2|relief|EASC|1.0": 1.0,
+    "S2|siege|EASC|0.0": 0.996,
+    "S2|siege|EASC|0.5": 1.0,
+    "S2|siege|EASC|1.0": 1.0,
+    "S3|shock|SC|0.0": 0.928,
+    "S3|shock|SC|0.5": 0.97,
+    "S3|shock|SC|1.0": 0.996,
+    "S3|relief|SC|0.0": 0.9,
+    "S3|relief|SC|0.5": 0.98,
+    "S3|relief|SC|1.0": 0.996,
+    "S3|siege|SC|0.0": 0.908,
+    "S3|siege|SC|0.5": 0.978,
+    "S3|siege|SC|1.0": 0.998,
+    "S3|shock|EASC|0.0": 0.934,
+    "S3|shock|EASC|0.5": 0.972,
+    "S3|shock|EASC|1.0": 0.994,
+    "S3|relief|EASC|0.0": 0.92,
+    "S3|relief|EASC|0.5": 0.972,
+    "S3|relief|EASC|1.0": 0.996,
+    "S3|siege|EASC|0.0": 0.946,
+    "S3|siege|EASC|0.5": 0.982,
+    "S3|siege|EASC|1.0": 0.996,
+    "S4|shock|SC|0.0": 0.932,
+    "S4|shock|SC|0.5": 0.988,
+    "S4|shock|SC|1.0": 1.0,
+    "S4|relief|SC|0.0": 0.68,
+    "S4|relief|SC|0.5": 0.96,
+    "S4|relief|SC|1.0": 0.998,
+    "S4|siege|SC|0.0": 0.718,
+    "S4|siege|SC|0.5": 0.964,
+    "S4|siege|SC|1.0": 1.0,
+    "S4|shock|EASC|0.0": 0.966,
+    "S4|shock|EASC|0.5": 0.982,
+    "S4|shock|EASC|1.0": 0.994,
+    "S4|relief|EASC|0.0": 0.846,
+    "S4|relief|EASC|0.5": 0.914,
+    "S4|relief|EASC|1.0": 0.962,
+    "S4|siege|EASC|0.0": 0.878,
+    "S4|siege|EASC|0.5": 0.926,
+    "S4|siege|EASC|1.0": 0.974,
+    "S5|shock|SC|0.0": 0.884,
+    "S5|shock|SC|0.5": 0.964,
+    "S5|shock|SC|1.0": 0.994,
+    "S5|relief|SC|0.0": 0.69,
+    "S5|relief|SC|0.5": 0.916,
+    "S5|relief|SC|1.0": 0.988,
+    "S5|siege|SC|0.0": 0.704,
+    "S5|siege|SC|0.5": 0.924,
+    "S5|siege|SC|1.0": 0.992,
+    "S5|shock|EASC|0.0": 0.952,
+    "S5|shock|EASC|0.5": 0.97,
+    "S5|shock|EASC|1.0": 0.992,
+    "S5|relief|EASC|0.0": 0.902,
+    "S5|relief|EASC|0.5": 0.944,
+    "S5|relief|EASC|1.0": 0.97,
+    "S5|siege|EASC|0.0": 0.924,
+    "S5|siege|EASC|0.5": 0.96,
+    "S5|siege|EASC|1.0": 0.982,
+    "S6|shock|SC|0.0": 0.896,
+    "S6|shock|SC|0.5": 0.97,
+    "S6|shock|SC|1.0": 0.994,
+    "S6|relief|SC|0.0": 0.836,
+    "S6|relief|SC|0.5": 0.958,
+    "S6|relief|SC|1.0": 0.992,
+    "S6|siege|SC|0.0": 0.858,
+    "S6|siege|SC|0.5": 0.966,
+    "S6|siege|SC|1.0": 0.996,
+    "S6|shock|EASC|0.0": 0.952,
+    "S6|shock|EASC|0.5": 0.974,
+    "S6|shock|EASC|1.0": 0.988,
+    "S6|relief|EASC|0.0": 0.906,
+    "S6|relief|EASC|0.5": 0.95,
+    "S6|relief|EASC|1.0": 0.986,
+    "S6|siege|EASC|0.0": 0.94,
+    "S6|siege|EASC|0.5": 0.968,
+    "S6|siege|EASC|1.0": 0.994,
+    "S7|shock|SC|0.0": 0.95,
+    "S7|shock|SC|0.5": 0.99,
+    "S7|shock|SC|1.0": 0.998,
+    "S7|relief|SC|0.0": 0.806,
+    "S7|relief|SC|0.5": 0.974,
+    "S7|relief|SC|1.0": 1.0,
+    "S7|siege|SC|0.0": 0.81,
+    "S7|siege|SC|0.5": 0.974,
+    "S7|siege|SC|1.0": 1.0,
+    "S7|shock|EASC|0.0": 0.99,
+    "S7|shock|EASC|0.5": 1.0,
+    "S7|shock|EASC|1.0": 1.0,
+    "S7|relief|EASC|0.0": 0.996,
+    "S7|relief|EASC|0.5": 1.0,
+    "S7|relief|EASC|1.0": 1.0,
+    "S7|siege|EASC|0.0": 0.996,
+    "S7|siege|EASC|0.5": 0.998,
+    "S7|siege|EASC|1.0": 1.0,
+    "S8|shock|SC|0.0": 0.94,
+    "S8|shock|SC|0.5": 0.984,
+    "S8|shock|SC|1.0": 0.996,
+    "S8|relief|SC|0.0": 0.916,
+    "S8|relief|SC|0.5": 0.988,
+    "S8|relief|SC|1.0": 0.998,
+    "S8|siege|SC|0.0": 0.944,
+    "S8|siege|SC|0.5": 0.986,
+    "S8|siege|SC|1.0": 1.0,
+    "S8|shock|EASC|0.0": 0.94,
+    "S8|shock|EASC|0.5": 0.976,
+    "S8|shock|EASC|1.0": 0.988,
+    "S8|relief|EASC|0.0": 0.934,
+    "S8|relief|EASC|0.5": 0.964,
+    "S8|relief|EASC|1.0": 0.988,
+    "S8|siege|EASC|0.0": 0.946,
+    "S8|siege|EASC|0.5": 0.974,
+    "S8|siege|EASC|1.0": 0.992,
+    "S9|shock|SC|0.0": 0.926,
+    "S9|shock|SC|0.5": 0.984,
+    "S9|shock|SC|1.0": 0.99,
+    "S9|relief|SC|0.0": 0.946,
+    "S9|relief|SC|0.5": 0.98,
+    "S9|relief|SC|1.0": 0.996,
+    "S9|siege|SC|0.0": 0.944,
+    "S9|siege|SC|0.5": 0.984,
+    "S9|siege|SC|1.0": 0.998,
+    "S9|shock|EASC|0.0": 0.944,
+    "S9|shock|EASC|0.5": 0.982,
+    "S9|shock|EASC|1.0": 0.994,
+    "S9|relief|EASC|0.0": 0.95,
+    "S9|relief|EASC|0.5": 0.978,
+    "S9|relief|EASC|1.0": 0.994,
+    "S9|siege|EASC|0.0": 0.968,
+    "S9|siege|EASC|0.5": 0.984,
+    "S9|siege|EASC|1.0": 0.998,
+    "S10|shock|SC|0.0": 0.956,
+    "S10|shock|SC|0.5": 0.994,
+    "S10|shock|SC|1.0": 1.0,
+    "S10|relief|SC|0.0": 0.972,
+    "S10|relief|SC|0.5": 1.0,
+    "S10|relief|SC|1.0": 1.0,
+    "S10|siege|SC|0.0": 0.982,
+    "S10|siege|SC|0.5": 0.998,
+    "S10|siege|SC|1.0": 1.0,
+    "S10|shock|EASC|0.0": 0.952,
+    "S10|shock|EASC|0.5": 0.986,
+    "S10|shock|EASC|1.0": 0.996,
+    "S10|relief|EASC|0.0": 0.978,
+    "S10|relief|EASC|0.5": 0.994,
+    "S10|relief|EASC|1.0": 0.998,
+    "S10|siege|EASC|0.0": 0.97,
+    "S10|siege|EASC|0.5": 0.996,
+    "S10|siege|EASC|1.0": 0.998,
+    "S11|shock|SC|0.0": 0.92,
+    "S11|shock|SC|0.5": 0.974,
+    "S11|shock|SC|1.0": 0.996,
+    "S11|relief|SC|0.0": 0.838,
+    "S11|relief|SC|0.5": 0.954,
+    "S11|relief|SC|1.0": 0.988,
+    "S11|siege|SC|0.0": 0.75,
+    "S11|siege|SC|0.5": 0.904,
+    "S11|siege|SC|1.0": 0.98,
+    "S11|shock|EASC|0.0": 0.958,
+    "S11|shock|EASC|0.5": 0.984,
+    "S11|shock|EASC|1.0": 0.994,
+    "S11|relief|EASC|0.0": 0.904,
+    "S11|relief|EASC|0.5": 0.952,
+    "S11|relief|EASC|1.0": 0.986,
+    "S11|siege|EASC|0.0": 0.804,
+    "S11|siege|EASC|0.5": 0.9,
+    "S11|siege|EASC|1.0": 0.97
+   },
+   "length": {
+    "S0|shock|SC|0.0": 0.06634189511433734,
+    "S0|shock|SC|0.5": 0.0896933721773118,
+    "S0|shock|SC|1.0": 0.1235193356602989,
+    "S0|relief|SC|0.0": 0.0924730933043796,
+    "S0|relief|SC|0.5": 0.14904171945832048,
+    "S0|relief|SC|1.0": 0.22045307166782804,
+    "S0|siege|SC|0.0": 0.11470965863909635,
+    "S0|siege|SC|0.5": 0.18228139093393458,
+    "S0|siege|SC|1.0": 0.2682562407011417,
+    "S0|shock|EASC|0.0": 0.1390794899451003,
+    "S0|shock|EASC|0.5": 0.14977250525351574,
+    "S0|shock|EASC|1.0": 0.17316984036572258,
+    "S0|relief|EASC|0.0": 0.19712669182077736,
+    "S0|relief|EASC|0.5": 0.21124541013008616,
+    "S0|relief|EASC|1.0": 0.24232555018450092,
+    "S0|siege|EASC|0.0": 0.26100906941076646,
+    "S0|siege|EASC|0.5": 0.27947053564923047,
+    "S0|siege|EASC|1.0": 0.32023058347658356,
+    "S1|shock|SC|0.0": 0.16141413409996097,
+    "S1|shock|SC|0.5": 0.2074116378910587,
+    "S1|shock|SC|1.0": 0.27839474739632053,
+    "S1|relief|SC|0.0": 0.22848486215795855,
+    "S1|relief|SC|0.5": 0.2932680846591155,
+    "S1|relief|SC|1.0": 0.3932479516363806,
+    "S1|siege|SC|0.0": 0.2871577098821705,
+    "S1|siege|SC|0.5": 0.3780844445307811,
+    "S1|siege|SC|1.0": 0.5139939472680322,
+    "S1|shock|EASC|0.0": 0.18968523654703293,
+    "S1|shock|EASC|0.5": 0.23119470268503517,
+    "S1|shock|EASC|1.0": 0.30074324339506325,
+    "S1|relief|EASC|0.0": 0.2719973842363919,
+    "S1|relief|EASC|0.5": 0.32872040846266715,
+    "S1|relief|EASC|1.0": 0.42490574263680275,
+    "S1|siege|EASC|0.0": 0.34806752160506277,
+    "S1|siege|EASC|0.5": 0.4272051798168169,
+    "S1|siege|EASC|1.0": 0.5577649320747514,
+    "S2|shock|SC|0.0": 0.18279921947965022,
+    "S2|shock|SC|0.5": 0.24409160510351582,
+    "S2|shock|SC|1.0": 0.33420633205206485,
+    "S2|relief|SC|0.0": 0.32562219061019504,
+    "S2|relief|SC|0.5": 0.46203220591852184,
+    "S2|relief|SC|1.0": 0.6504271132107927,
+    "S2|siege|SC|0.0": 0.39293487287710543,
+    "S2|siege|SC|0.5": 0.5573679201559396,
+    "S2|siege|SC|1.0": 0.784561838896077,
+    "S2|shock|EASC|0.0": 0.19670886177488586,
+    "S2|shock|EASC|0.5": 0.2401862582132233,
+    "S2|shock|EASC|1.0": 0.31272231284203317,
+    "S2|relief|EASC|0.0": 0.2751232169172571,
+    "S2|relief|EASC|0.5": 0.33274808982914894,
+    "S2|relief|EASC|1.0": 0.4303965465721378,
+    "S2|siege|EASC|0.0": 0.35305445991792195,
+    "S2|siege|EASC|0.5": 0.4324366750090025,
+    "S2|siege|EASC|1.0": 0.563845998499577,
+    "S3|shock|SC|0.0": 0.09260259641982055,
+    "S3|shock|SC|0.5": 0.12300497189412128,
+    "S3|shock|SC|1.0": 0.16797046541549576,
+    "S3|relief|SC|0.0": 0.17543129837856208,
+    "S3|relief|SC|0.5": 0.243270667516617,
+    "S3|relief|SC|1.0": 0.33902195658794654,
+    "S3|siege|SC|0.0": 0.21311607528830406,
+    "S3|siege|SC|0.5": 0.29635371439491415,
+    "S3|siege|SC|1.0": 0.41352222607169986,
+    "S3|shock|EASC|0.0": 0.08626785698620494,
+    "S3|shock|EASC|0.5": 0.10939911337148692,
+    "S3|shock|EASC|1.0": 0.14577477473059128,
+    "S3|relief|EASC|0.0": 0.1250476929041752,
+    "S3|relief|EASC|0.5": 0.15671236436973426,
+    "S3|relief|EASC|1.0": 0.20737583127870443,
+    "S3|siege|EASC|0.0": 0.15987741042434334,
+    "S3|siege|EASC|0.5": 0.20469489078531888,
+    "S3|siege|EASC|1.0": 0.2741930750071011,
+    "S4|shock|SC|0.0": 0.18156472184327702,
+    "S4|shock|SC|0.5": 0.24127708447814408,
+    "S4|shock|SC|1.0": 0.3295546140356337,
+    "S4|relief|SC|0.0": 0.3283139606479619,
+    "S4|relief|SC|0.5": 0.4623629579892488,
+    "S4|relief|SC|1.0": 0.6486932189465149,
+    "S4|siege|SC|0.0": 0.3931741536088253,
+    "S4|siege|SC|0.5": 0.5553871142454596,
+    "S4|siege|SC|1.0": 0.7802735079317942,
+    "S4|shock|EASC|0.0": 0.21508624167155796,
+    "S4|shock|EASC|0.5": 0.2565085753647885,
+    "S4|shock|EASC|1.0": 0.32759351863057007,
+    "S4|relief|EASC|0.0": 0.3492254810381181,
+    "S4|relief|EASC|0.5": 0.4030970367096826,
+    "S4|relief|EASC|1.0": 0.5002205300602148,
+    "S4|siege|EASC|0.0": 0.42809514949272387,
+    "S4|siege|EASC|0.5": 0.5031127851451149,
+    "S4|siege|EASC|1.0": 0.6337291404523169,
+    "S5|shock|SC|0.0": 0.11632110281637364,
+    "S5|shock|SC|0.5": 0.15530568322319618,
+    "S5|shock|SC|1.0": 0.21262847592760642,
+    "S5|relief|SC|0.0": 0.2033894464147124,
+    "S5|relief|SC|0.5": 0.2924573732938991,
+    "S5|relief|SC|1.0": 0.41402728130100036,
+    "S5|siege|SC|0.0": 0.2507011109078093,
+    "S5|siege|SC|0.5": 0.3605772937263135,
+    "S5|siege|SC|1.0": 0.510530561762385,
+    "S5|shock|EASC|0.0": 0.14827531298340493,
+    "S5|shock|EASC|0.5": 0.1731389940374358,
+    "S5|shock|EASC|1.0": 0.21810481182579058,
+    "S5|relief|EASC|0.0": 0.21203479846612197,
+    "S5|relief|EASC|0.5": 0.24560929821490657,
+    "S5|relief|EASC|1.0": 0.30709837981336513,
+    "S5|siege|EASC|0.0": 0.28280441653494803,
+    "S5|siege|EASC|0.5": 0.33017660596000425,
+    "S5|siege|EASC|1.0": 0.415352684623943,
+    "S6|shock|SC|0.0": 0.09337556904723181,
+    "S6|shock|SC|0.5": 0.12411724020643577,
+    "S6|shock|SC|1.0": 0.16955491550510307,
+    "S6|relief|SC|0.0": 0.16863689049393804,
+    "S6|relief|SC|0.5": 0.23612465629978516,
+    "S6|relief|SC|1.0": 0.3304908496357562,
+    "S6|siege|SC|0.0": 0.20426146274062806,
+    "S6|siege|SC|0.5": 0.286951623514502,
+    "S6|siege|SC|1.0": 0.4022293766865148,
+    "S6|shock|EASC|0.0": 0.09305724111092771,
+    "S6|shock|EASC|0.5": 0.1161191610163514,
+    "S6|shock|EASC|1.0": 0.15322414437083606,
+    "S6|relief|EASC|0.0": 0.14195062721603255,
+    "S6|relief|EASC|0.5": 0.1717579324108908,
+    "S6|relief|EASC|1.0": 0.2220480648381775,
+    "S6|siege|EASC|0.0": 0.17875469028558943,
+    "S6|siege|EASC|0.5": 0.22144325963706746,
+    "S6|siege|EASC|1.0": 0.2907884731410165,
+    "S7|shock|SC|0.0": 0.16635705321494265,
+    "S7|shock|SC|0.5": 0.2133395719129232,
+    "S7|shock|SC|1.0": 0.2860139771453811,
+    "S7|relief|SC|0.0": 0.3042958095078103,
+    "S7|relief|SC|0.5": 0.41186260974957445,
+    "S7|relief|SC|1.0": 0.5675409819401038,
+    "S7|siege|SC|0.0": 0.3614145952167631,
+    "S7|siege|SC|0.5": 0.49335344746929544,
+    "S7|siege|SC|1.0": 0.6825213791862313,
+    "S7|shock|EASC|0.0": 0.16048477483178022,
+    "S7|shock|EASC|0.5": 0.1949424415371608,
+    "S7|shock|EASC|1.0": 0.2530638078922178,
+    "S7|relief|EASC|0.0": 0.23362912385829776,
+    "S7|relief|EASC|0.5": 0.2809663224293006,
+    "S7|relief|EASC|1.0": 0.3622327391969491,
+    "S7|siege|EASC|0.0": 0.2887443162080471,
+    "S7|siege|EASC|0.5": 0.3557046351725065,
+    "S7|siege|EASC|1.0": 0.4660222786371686,
+    "S8|shock|SC|0.0": 0.09331491493640483,
+    "S8|shock|SC|0.5": 0.12461789463891035,
+    "S8|shock|SC|1.0": 0.1706434452758342,
+    "S8|relief|SC|0.0": 0.17412551310949476,
+    "S8|relief|SC|0.5": 0.24377507172388868,
+    "S8|relief|SC|1.0": 0.3412058217869145,
+    "S8|siege|SC|0.0": 0.21059268626066135,
+    "S8|siege|SC|0.5": 0.29586870233289503,
+    "S8|siege|SC|1.0": 0.41475623381954424,
+    "S8|shock|EASC|0.0": 0.08720167934098674,
+    "S8|shock|EASC|0.5": 0.11064907473224606,
+    "S8|shock|EASC|1.0": 0.14751605268285073,
+    "S8|relief|EASC|0.0": 0.12276282001484165,
+    "S8|relief|EASC|0.5": 0.15395147576531595,
+    "S8|relief|EASC|1.0": 0.20380388785658504,
+    "S8|siege|EASC|0.0": 0.15752398045509047,
+    "S8|siege|EASC|0.5": 0.20103817382897882,
+    "S8|siege|EASC|1.0": 0.2688559830467864,
+    "S9|shock|SC|0.0": 0.11386589093801365,
+    "S9|shock|SC|0.5": 0.15162235144057337,
+    "S9|shock|SC|1.0": 0.20731668900140776,
+    "S9|relief|SC|0.0": 0.39620166985612615,
+    "S9|relief|SC|0.5": 0.5432008653659859,
+    "S9|relief|SC|1.0": 0.7531569918405557,
+    "S9|siege|SC|0.0": 0.5981389933608356,
+    "S9|siege|SC|0.5": 0.8225789112125201,
+    "S9|siege|SC|1.0": 1.1421621531460229,
+    "S9|shock|EASC|0.0": 0.11346285366898431,
+    "S9|shock|EASC|0.5": 0.14371353630721478,
+    "S9|shock|EASC|1.0": 0.191230332750589,
+    "S9|relief|EASC|0.0": 0.4039422073634911,
+    "S9|relief|EASC|0.5": 0.5199475384321136,
+    "S9|relief|EASC|1.0": 0.6978823209265681,
+    "S9|siege|EASC|0.0": 0.6294268623101685,
+    "S9|siege|EASC|0.5": 0.8127280307722773,
+    "S9|siege|EASC|1.0": 1.0930065943919376,
+    "S10|shock|SC|0.0": 0.1942870843912918,
+    "S10|shock|SC|0.5": 0.2609710311549045,
+    "S10|shock|SC|1.0": 0.3583713385520414,
+    "S10|relief|SC|0.0": 0.6363279186669826,
+    "S10|relief|SC|0.5": 0.8761374407807286,
+    "S10|relief|SC|1.0": 1.2172272660301195,
+    "S10|siege|SC|0.0": 0.9801492093418107,
+    "S10|siege|SC|0.5": 1.3458524057367387,
+    "S10|siege|SC|1.0": 1.8675456543157638,
+    "S10|shock|EASC|0.0": 0.19021798354783173,
+    "S10|shock|EASC|0.5": 0.24355367153802276,
+    "S10|shock|EASC|1.0": 0.326279344610791,
+    "S10|relief|EASC|0.0": 0.627025036845515,
+    "S10|relief|EASC|0.5": 0.8123499501063123,
+    "S10|relief|EASC|1.0": 1.0953480460308516,
+    "S10|siege|EASC|0.0": 1.0042359085381054,
+    "S10|siege|EASC|0.5": 1.3040383944709764,
+    "S10|siege|EASC|1.0": 1.760432342467559,
+    "S11|shock|SC|0.0": 0.0952872454257745,
+    "S11|shock|SC|0.5": 0.12629076305696307,
+    "S11|shock|SC|1.0": 0.1722851943924676,
+    "S11|relief|SC|0.0": 0.18797023576740213,
+    "S11|relief|SC|0.5": 0.25613262868941733,
+    "S11|relief|SC|1.0": 0.3541190508129257,
+    "S11|siege|SC|0.0": 0.2525918365866712,
+    "S11|siege|SC|0.5": 0.33442729905960983,
+    "S11|siege|SC|1.0": 0.455989839248268,
+    "S11|shock|EASC|0.0": 0.08838185564883848,
+    "S11|shock|EASC|0.5": 0.11217044116445567,
+    "S11|shock|EASC|1.0": 0.14950897979030012,
+    "S11|relief|EASC|0.0": 0.12908543985682355,
+    "S11|relief|EASC|0.5": 0.1615048267988609,
+    "S11|relief|EASC|1.0": 0.21346236603149757,
+    "S11|siege|EASC|0.0": 0.1807879437479537,
+    "S11|siege|EASC|0.5": 0.22500483285998582,
+    "S11|siege|EASC|1.0": 0.296408696562666
+   }
+  },
+  "display": [
+   {
+    "quantity": "MC bias S0|relief|EASC",
+    "ours": -0.0008781004761543052,
+    "printed": -0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|relief|EASC*",
+    "ours": -0.0010414714824156116,
+    "printed": -0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|relief|EBSC-min",
+    "ours": -0.002262246873897525,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|relief|SC",
+    "ours": -0.0002202119005368591,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|shock|EASC",
+    "ours": 0.0007641961683843739,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|shock|EASC*",
+    "ours": 0.0008595836075645003,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|shock|EBSC-min",
+    "ours": -0.004826809847766339,
+    "printed": -0.005,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|shock|SC",
+    "ours": 0.0005597596655082099,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|siege|EASC",
+    "ours": 0.00019656739711903265,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|siege|EASC*",
+    "ours": 8.128315798624269e-05,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|siege|EBSC-min",
+    "ours": -0.002243406593080219,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S0|siege|SC",
+    "ours": -1.196299954013097e-05,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|relief|EASC",
+    "ours": 0.002821458814438472,
+    "printed": 0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|relief|EASC*",
+    "ours": 0.0031215760917393956,
+    "printed": 0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|relief|EBSC-min",
+    "ours": -0.007179890724968771,
+    "printed": -0.007,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|relief|SC",
+    "ours": 0.001413479041018438,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|shock|EASC",
+    "ours": 0.007771681293082155,
+    "printed": 0.008,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|shock|EASC*",
+    "ours": 0.007724314772035463,
+    "printed": 0.008,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|shock|EBSC-min",
+    "ours": -0.003657293155278391,
+    "printed": -0.004,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|shock|SC",
+    "ours": 0.0019896609279851036,
+    "printed": 0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|siege|EASC",
+    "ours": -0.0036261869140050127,
+    "printed": -0.004,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|siege|EASC*",
+    "ours": -0.0030683057674080337,
+    "printed": -0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|siege|EBSC-min",
+    "ours": -0.006109206224348015,
+    "printed": -0.006,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S1|siege|SC",
+    "ours": 0.003346049830110078,
+    "printed": 0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|relief|EASC",
+    "ours": 0.0011138629264677855,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|relief|EASC*",
+    "ours": 0.0012134653970711964,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|relief|EBSC-min",
+    "ours": -0.07243922080502209,
+    "printed": -0.072,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|relief|SC",
+    "ours": -0.13771694833549997,
+    "printed": -0.138,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|shock|EASC",
+    "ours": 0.0033207936949638914,
+    "printed": 0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|shock|EASC*",
+    "ours": 0.003360712406518626,
+    "printed": 0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|shock|EBSC-min",
+    "ours": -0.02101861018420126,
+    "printed": -0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|shock|SC",
+    "ours": -0.04565789820445349,
+    "printed": -0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|siege|EASC",
+    "ours": -0.0033626854885635735,
+    "printed": -0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|siege|EASC*",
+    "ours": -0.003196654122256673,
+    "printed": -0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|siege|EBSC-min",
+    "ours": -0.08621869132118921,
+    "printed": -0.086,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S2|siege|SC",
+    "ours": -0.15894254173016914,
+    "printed": -0.159,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|relief|EASC",
+    "ours": 0.0007926748312271783,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|relief|EASC*",
+    "ours": 0.0006398045413627835,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|relief|EBSC-min",
+    "ours": -0.00229825333483353,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|relief|SC",
+    "ours": -0.028521758655263442,
+    "printed": -0.029,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|shock|EASC",
+    "ours": 0.0005932532437510425,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|shock|EASC*",
+    "ours": 0.00048482733737232166,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|shock|EBSC-min",
+    "ours": -0.0022362307026339017,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|shock|SC",
+    "ours": -0.009817754406154261,
+    "printed": -0.01,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|siege|EASC",
+    "ours": -0.0017647929695780809,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|siege|EASC*",
+    "ours": -0.0018814923411193231,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|siege|EBSC-min",
+    "ours": -0.004488198845245042,
+    "printed": -0.004,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S3|siege|SC",
+    "ours": -0.03414510073553224,
+    "printed": -0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|relief|EASC",
+    "ours": -0.007376665560876036,
+    "printed": -0.007,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|relief|EASC*",
+    "ours": -0.009952261055570063,
+    "printed": -0.01,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|relief|EBSC-min",
+    "ours": -0.08215486728246887,
+    "printed": -0.082,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|relief|SC",
+    "ours": -0.13434200745870947,
+    "printed": -0.134,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|shock|EASC",
+    "ours": 0.001870763732040511,
+    "printed": 0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|shock|EASC*",
+    "ours": 0.0010744085697168585,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|shock|EBSC-min",
+    "ours": -0.017207091485701487,
+    "printed": -0.017,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|shock|SC",
+    "ours": -0.04394400725458053,
+    "printed": -0.044,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|siege|EASC",
+    "ours": -0.010578333677214004,
+    "printed": -0.011,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|siege|EASC*",
+    "ours": -0.014052100765837211,
+    "printed": -0.014,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|siege|EBSC-min",
+    "ours": -0.09743010120999869,
+    "printed": -0.097,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S4|siege|SC",
+    "ours": -0.15437257147543593,
+    "printed": -0.154,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|relief|EASC",
+    "ours": 0.03569207995362807,
+    "printed": 0.036,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|relief|EASC*",
+    "ours": 0.0348869566321477,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|relief|EBSC-min",
+    "ours": -0.010823631307262268,
+    "printed": -0.011,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|relief|SC",
+    "ours": -0.07781854569983493,
+    "printed": -0.078,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|shock|EASC",
+    "ours": 0.015281464015987803,
+    "printed": 0.015,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|shock|EASC*",
+    "ours": 0.014689197414765733,
+    "printed": 0.015,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|shock|EBSC-min",
+    "ours": 0.007146750910525545,
+    "printed": 0.007,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|shock|SC",
+    "ours": -0.025734730287519148,
+    "printed": -0.026,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|siege|EASC",
+    "ours": 0.03451329515448584,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|siege|EASC*",
+    "ours": 0.033703082771504626,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|siege|EBSC-min",
+    "ours": -0.017175556228153567,
+    "printed": -0.017,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S5|siege|SC",
+    "ours": -0.0909575118751042,
+    "printed": -0.091,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|relief|EASC",
+    "ours": -0.016960637727684753,
+    "printed": -0.017,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|relief|EASC*",
+    "ours": -0.0181253040309495,
+    "printed": -0.018,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|relief|EBSC-min",
+    "ours": -0.02150340763871631,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|relief|SC",
+    "ours": -0.04376840560012806,
+    "printed": -0.044,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|shock|EASC",
+    "ours": -0.0046467638029205815,
+    "printed": -0.005,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|shock|EASC*",
+    "ours": -0.005135775301724191,
+    "printed": -0.005,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|shock|EBSC-min",
+    "ours": -0.00621033974587413,
+    "printed": -0.006,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|shock|SC",
+    "ours": -0.01421976648939561,
+    "printed": -0.014,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|siege|EASC",
+    "ours": -0.020364476223355,
+    "printed": -0.02,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|siege|EASC*",
+    "ours": -0.021579031317268474,
+    "printed": -0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|siege|EBSC-min",
+    "ours": -0.024512354159970197,
+    "printed": -0.025,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S6|siege|SC",
+    "ours": -0.05029637234403879,
+    "printed": -0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|relief|EASC",
+    "ours": 0.005284464703234131,
+    "printed": 0.005,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|relief|EASC*",
+    "ours": 0.005168194832733677,
+    "printed": 0.005,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|relief|EBSC-min",
+    "ours": -0.06912360967444053,
+    "printed": -0.069,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|relief|SC",
+    "ours": -0.10764613826251347,
+    "printed": -0.108,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|shock|EASC",
+    "ours": 0.006639235474730087,
+    "printed": 0.007,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|shock|EASC*",
+    "ours": 0.006536117884882842,
+    "printed": 0.007,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|shock|EBSC-min",
+    "ours": -0.020350803000923498,
+    "printed": -0.02,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|shock|SC",
+    "ours": -0.034577463162357235,
+    "printed": -0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|siege|EASC",
+    "ours": 0.001373414666180448,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|siege|EASC*",
+    "ours": 0.0012650565237405046,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|siege|EBSC-min",
+    "ours": -0.07923803489027861,
+    "printed": -0.079,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S7|siege|SC",
+    "ours": -0.12356931747885329,
+    "printed": -0.124,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|shock|EASC",
+    "ours": 0.0015727315638412213,
+    "printed": 0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|shock|EASC*",
+    "ours": 0.0015396206333148413,
+    "printed": 0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|shock|EBSC-min",
+    "ours": -0.00017945452916376026,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|shock|SC",
+    "ours": -0.008511300131048892,
+    "printed": -0.009,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|siege|EASC",
+    "ours": 0.0007502828567755513,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|siege|EASC*",
+    "ours": 0.0008412110775809924,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|siege|EBSC-min",
+    "ours": -0.0004973320927847314,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S8|siege|SC",
+    "ours": -0.02973794104944505,
+    "printed": -0.03,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|shock|EASC",
+    "ours": 4.145451417656854e-05,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|shock|EASC*",
+    "ours": -3.4425483936664894e-05,
+    "printed": 0.0,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|shock|EBSC-min",
+    "ours": 0.0014457864707096643,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|shock|SC",
+    "ours": -0.009606794295396669,
+    "printed": -0.01,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|siege|EASC",
+    "ours": -0.002500634715368522,
+    "printed": -0.003,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|siege|EASC*",
+    "ours": -0.001771435991570113,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|siege|EBSC-min",
+    "ours": 0.0010268122762158716,
+    "printed": 0.001,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S9|siege|SC",
+    "ours": -0.0328026871304459,
+    "printed": -0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|shock|EASC",
+    "ours": 0.03078371750819627,
+    "printed": 0.031,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|shock|EASC*",
+    "ours": 0.03090983556397088,
+    "printed": 0.031,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|shock|EBSC-min",
+    "ours": 0.043866456367226296,
+    "printed": 0.044,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|shock|SC",
+    "ours": 0.019012578466150395,
+    "printed": 0.019,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|siege|EASC",
+    "ours": 0.07368499941870368,
+    "printed": 0.074,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|siege|EASC*",
+    "ours": 0.07393442101734643,
+    "printed": 0.074,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|siege|EBSC-min",
+    "ours": 0.10797041496804377,
+    "printed": 0.108,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S10|siege|SC",
+    "ours": 0.0356945165705995,
+    "printed": 0.036,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|shock|EASC",
+    "ours": -0.0020440347315798246,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|shock|EASC*",
+    "ours": -0.002080543384614545,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|shock|EBSC-min",
+    "ours": -0.0021770060398259208,
+    "printed": -0.002,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|shock|SC",
+    "ours": -0.012257825384058774,
+    "printed": -0.012,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|siege|EASC",
+    "ours": -0.046135727213158416,
+    "printed": -0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|siege|EASC*",
+    "ours": -0.046070407839801236,
+    "printed": -0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|siege|EBSC-min",
+    "ours": -0.043052011223968775,
+    "printed": -0.043,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC bias S11|siege|SC",
+    "ours": -0.0832757601765631,
+    "printed": -0.083,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|relief|EASC",
+    "ours": 0.04602486952624266,
+    "printed": 0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|relief|EASC*",
+    "ours": 0.04108739073720666,
+    "printed": 0.041,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|relief|EBSC-min",
+    "ours": 0.33181678400197234,
+    "printed": 0.332,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|relief|SC",
+    "ours": 0.026001412858758226,
+    "printed": 0.026,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|shock|EASC",
+    "ours": 0.03089645078846225,
+    "printed": 0.031,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|shock|EASC*",
+    "ours": 0.028613222037643608,
+    "printed": 0.029,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|shock|EBSC-min",
+    "ours": 0.31645136315889244,
+    "printed": 0.316,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|shock|SC",
+    "ours": 0.01833471425647256,
+    "printed": 0.018,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|siege|EASC",
+    "ours": 0.057981637953367145,
+    "printed": 0.058,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|siege|EASC*",
+    "ours": 0.04980814689874592,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|siege|EBSC-min",
+    "ours": 0.3455763417736429,
+    "printed": 0.346,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S0|siege|SC",
+    "ours": 0.03009981492044004,
+    "printed": 0.03,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|relief|EASC",
+    "ours": 0.049484615707222644,
+    "printed": 0.049,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|relief|EASC*",
+    "ours": 0.04909435276571896,
+    "printed": 0.049,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|relief|EBSC-min",
+    "ours": 0.3450555748926235,
+    "printed": 0.345,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|relief|SC",
+    "ours": 0.03356921807782096,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|shock|EASC",
+    "ours": 0.03474273994073586,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|shock|EASC*",
+    "ours": 0.03460181325998985,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|shock|EBSC-min",
+    "ours": 0.33325767699620107,
+    "printed": 0.333,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|shock|SC",
+    "ours": 0.023338154033705226,
+    "printed": 0.023,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|siege|EASC",
+    "ours": 0.06425821839297866,
+    "printed": 0.064,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|siege|EASC*",
+    "ours": 0.06371994121987426,
+    "printed": 0.064,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|siege|EBSC-min",
+    "ours": 0.35781072656771856,
+    "printed": 0.358,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S1|siege|SC",
+    "ours": 0.042303518209644744,
+    "printed": 0.042,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|relief|EASC",
+    "ours": 0.049702357529199125,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|relief|EASC*",
+    "ours": 0.04993572530778239,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|relief|EBSC-min",
+    "ours": 0.3509042589195905,
+    "printed": 0.351,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|relief|SC",
+    "ours": 0.143386534779582,
+    "printed": 0.143,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|shock|EASC",
+    "ours": 0.03264579537582349,
+    "printed": 0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|shock|EASC*",
+    "ours": 0.032820146800742356,
+    "printed": 0.033,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|shock|EBSC-min",
+    "ours": 0.3313342737568188,
+    "printed": 0.331,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|shock|SC",
+    "ours": 0.05115272303421562,
+    "printed": 0.051,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|siege|EASC",
+    "ours": 0.06332055108304031,
+    "printed": 0.063,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|siege|EASC*",
+    "ours": 0.06368706716611036,
+    "printed": 0.064,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|siege|EBSC-min",
+    "ours": 0.3687548963649052,
+    "printed": 0.369,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S2|siege|SC",
+    "ours": 0.16575971491817706,
+    "printed": 0.166,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|relief|EASC",
+    "ours": 0.028866330904780965,
+    "printed": 0.029,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|relief|EASC*",
+    "ours": 0.028740380295879053,
+    "printed": 0.029,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|relief|EBSC-min",
+    "ours": 0.03989915550793539,
+    "printed": 0.04,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|relief|SC",
+    "ours": 0.04680200821194839,
+    "printed": 0.047,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|shock|EASC",
+    "ours": 0.02056566592385489,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|shock|EASC*",
+    "ours": 0.020509433150195277,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|shock|EBSC-min",
+    "ours": 0.030318003909906386,
+    "printed": 0.03,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|shock|SC",
+    "ours": 0.02325841801034961,
+    "printed": 0.023,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|siege|EASC",
+    "ours": 0.03627748732514111,
+    "printed": 0.036,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|siege|EASC*",
+    "ours": 0.03605398523297655,
+    "printed": 0.036,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|siege|EBSC-min",
+    "ours": 0.050328137373505694,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S3|siege|SC",
+    "ours": 0.05615507911318334,
+    "printed": 0.056,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|relief|EASC",
+    "ours": 0.10537488540579748,
+    "printed": 0.105,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|relief|EASC*",
+    "ours": 0.1057845111991381,
+    "printed": 0.106,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|relief|EBSC-min",
+    "ours": 0.3200711607471683,
+    "printed": 0.32,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|relief|SC",
+    "ours": 0.1403607602332954,
+    "printed": 0.14,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|shock|EASC",
+    "ours": 0.04758168003984811,
+    "printed": 0.048,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|shock|EASC*",
+    "ours": 0.04784021071650143,
+    "printed": 0.048,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|shock|EBSC-min",
+    "ours": 0.3009415436554106,
+    "printed": 0.301,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|shock|SC",
+    "ours": 0.05041443721916056,
+    "printed": 0.05,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|siege|EASC",
+    "ours": 0.12482508300455658,
+    "printed": 0.125,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|siege|EASC*",
+    "ours": 0.12501721211259031,
+    "printed": 0.125,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|siege|EBSC-min",
+    "ours": 0.3358133902725272,
+    "printed": 0.336,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S4|siege|SC",
+    "ours": 0.16237593084777507,
+    "printed": 0.162,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|relief|EASC",
+    "ours": 0.06133409045049801,
+    "printed": 0.061,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|relief|EASC*",
+    "ours": 0.060470763239889334,
+    "printed": 0.06,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|relief|EBSC-min",
+    "ours": 0.340877883742541,
+    "printed": 0.341,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|relief|SC",
+    "ours": 0.08505871931922387,
+    "printed": 0.085,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|shock|EASC",
+    "ours": 0.03476551846514906,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|shock|EASC*",
+    "ours": 0.034262651394504545,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|shock|EBSC-min",
+    "ours": 0.3298174403329184,
+    "printed": 0.33,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|shock|SC",
+    "ours": 0.03350741012901346,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|siege|EASC",
+    "ours": 0.07568183611150775,
+    "printed": 0.076,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|siege|EASC*",
+    "ours": 0.07393407415216248,
+    "printed": 0.074,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|siege|EBSC-min",
+    "ours": 0.35797559554308794,
+    "printed": 0.358,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S5|siege|SC",
+    "ours": 0.1003747253775601,
+    "printed": 0.1,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|relief|EASC",
+    "ours": 0.03543633364256035,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|relief|EASC*",
+    "ours": 0.03533865824779331,
+    "printed": 0.035,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|relief|EBSC-min",
+    "ours": 0.04799758433121569,
+    "printed": 0.048,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|relief|SC",
+    "ours": 0.05490471574155909,
+    "printed": 0.055,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|shock|EASC",
+    "ours": 0.021042590511132983,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|shock|EASC*",
+    "ours": 0.020877540342502478,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|shock|EBSC-min",
+    "ours": 0.03247441377738899,
+    "printed": 0.032,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|shock|SC",
+    "ours": 0.024614786632235035,
+    "printed": 0.025,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|siege|EASC",
+    "ours": 0.04198445988562263,
+    "printed": 0.042,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|siege|EASC*",
+    "ours": 0.04158713862019027,
+    "printed": 0.042,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|siege|EBSC-min",
+    "ours": 0.05638546368186441,
+    "printed": 0.056,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S6|siege|SC",
+    "ours": 0.06286192853550424,
+    "printed": 0.063,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|relief|EASC",
+    "ours": 0.03691859785836552,
+    "printed": 0.037,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|relief|EASC*",
+    "ours": 0.036817921182641114,
+    "printed": 0.037,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|relief|EBSC-min",
+    "ours": 0.18796257360007912,
+    "printed": 0.188,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|relief|SC",
+    "ours": 0.11364242159782866,
+    "printed": 0.114,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|shock|EASC",
+    "ours": 0.024900522451931133,
+    "printed": 0.025,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|shock|EASC*",
+    "ours": 0.024887699217131604,
+    "printed": 0.025,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|shock|EBSC-min",
+    "ours": 0.15923772296845012,
+    "printed": 0.159,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|shock|SC",
+    "ours": 0.04086650011433574,
+    "printed": 0.041,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|siege|EASC",
+    "ours": 0.0457779949849998,
+    "printed": 0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|siege|EASC*",
+    "ours": 0.045543367258712025,
+    "printed": 0.046,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|siege|EBSC-min",
+    "ours": 0.21096504396224056,
+    "printed": 0.211,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S7|siege|SC",
+    "ours": 0.13087748355616413,
+    "printed": 0.131,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|shock|EASC",
+    "ours": 0.020606211787293768,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|shock|EASC*",
+    "ours": 0.02057183624040778,
+    "printed": 0.021,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|shock|EBSC-min",
+    "ours": 0.03128080769238053,
+    "printed": 0.031,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|shock|SC",
+    "ours": 0.022477628330857067,
+    "printed": 0.022,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|siege|EASC",
+    "ours": 0.033678391916712694,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|siege|EASC*",
+    "ours": 0.03354781566286491,
+    "printed": 0.034,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|siege|EBSC-min",
+    "ours": 0.04528500063723463,
+    "printed": 0.045,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S8|siege|SC",
+    "ours": 0.05202406649294919,
+    "printed": 0.052,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|shock|EASC",
+    "ours": 0.02628138668342198,
+    "printed": 0.026,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|shock|EASC*",
+    "ours": 0.026132958109870135,
+    "printed": 0.026,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|shock|EBSC-min",
+    "ours": 0.03717836256873122,
+    "printed": 0.037,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|shock|SC",
+    "ours": 0.027125558816322386,
+    "printed": 0.027,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|siege|EASC",
+    "ours": 0.15203700627997158,
+    "printed": 0.152,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|siege|EASC*",
+    "ours": 0.14853802323451135,
+    "printed": 0.149,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|siege|EBSC-min",
+    "ours": 0.1908161760640102,
+    "printed": 0.191,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S9|siege|SC",
+    "ours": 0.14037383333563752,
+    "printed": 0.14,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|shock|EASC",
+    "ours": 0.0522672593416098,
+    "printed": 0.052,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|shock|EASC*",
+    "ours": 0.05234415193342061,
+    "printed": 0.052,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|shock|EBSC-min",
+    "ours": 0.07453151855834919,
+    "printed": 0.075,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|shock|SC",
+    "ours": 0.0467227311517988,
+    "printed": 0.047,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|siege|EASC",
+    "ours": 0.24990159761884842,
+    "printed": 0.25,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|siege|EASC*",
+    "ours": 0.24940216227352688,
+    "printed": 0.249,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|siege|EBSC-min",
+    "ours": 0.3045467243449699,
+    "printed": 0.305,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S10|siege|SC",
+    "ours": 0.24493711229723578,
+    "printed": 0.245,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|shock|EASC",
+    "ours": 0.020145165050531818,
+    "printed": 0.02,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|shock|EASC*",
+    "ours": 0.02002553656185533,
+    "printed": 0.02,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|shock|EBSC-min",
+    "ours": 0.030253483333501446,
+    "printed": 0.03,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|shock|SC",
+    "ours": 0.02372610356580869,
+    "printed": 0.024,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|siege|EASC",
+    "ours": 0.05994476180737649,
+    "printed": 0.06,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|siege|EASC*",
+    "ours": 0.05960845055594779,
+    "printed": 0.06,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|siege|EBSC-min",
+    "ours": 0.06549806218988853,
+    "printed": 0.065,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC rmse S11|siege|SC",
+    "ours": 0.09811950422242291,
+    "printed": 0.098,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|EASC|0.0",
+    "ours": 0.94,
+    "printed": 0.94,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|EASC|0.5",
+    "ours": 0.96,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|EASC|1.0",
+    "ours": 0.978,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|SC|0.0",
+    "ours": 0.87,
+    "printed": 0.87,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|SC|0.5",
+    "ours": 0.972,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|relief|SC|1.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|EASC|0.0",
+    "ours": 0.966,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|EASC|0.5",
+    "ours": 0.972,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|EASC|1.0",
+    "ours": 0.99,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|SC|0.0",
+    "ours": 0.91,
+    "printed": 0.91,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|SC|0.5",
+    "ours": 0.98,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S0|siege|SC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|EASC|0.0",
+    "ours": 0.992,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|EASC|0.5",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|SC|0.0",
+    "ours": 0.994,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|SC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|relief|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|EASC|0.0",
+    "ours": 0.988,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|EASC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|SC|0.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|SC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S1|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|EASC|0.0",
+    "ours": 0.994,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|EASC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|SC|0.0",
+    "ours": 0.654,
+    "printed": 0.65,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|SC|0.5",
+    "ours": 0.962,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|relief|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|EASC|0.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|EASC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|SC|0.0",
+    "ours": 0.7,
+    "printed": 0.7,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|SC|0.5",
+    "ours": 0.978,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S2|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|EASC|0.0",
+    "ours": 0.92,
+    "printed": 0.92,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|EASC|0.5",
+    "ours": 0.972,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|EASC|1.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|SC|0.0",
+    "ours": 0.9,
+    "printed": 0.9,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|SC|0.5",
+    "ours": 0.98,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|relief|SC|1.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|EASC|0.0",
+    "ours": 0.946,
+    "printed": 0.95,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|EASC|0.5",
+    "ours": 0.982,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|EASC|1.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|SC|0.0",
+    "ours": 0.908,
+    "printed": 0.91,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|SC|0.5",
+    "ours": 0.978,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S3|siege|SC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|EASC|0.0",
+    "ours": 0.846,
+    "printed": 0.85,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|EASC|0.5",
+    "ours": 0.914,
+    "printed": 0.91,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|EASC|1.0",
+    "ours": 0.962,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|SC|0.0",
+    "ours": 0.68,
+    "printed": 0.68,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|SC|0.5",
+    "ours": 0.96,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|relief|SC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|EASC|0.0",
+    "ours": 0.878,
+    "printed": 0.88,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|EASC|0.5",
+    "ours": 0.926,
+    "printed": 0.93,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|EASC|1.0",
+    "ours": 0.974,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|SC|0.0",
+    "ours": 0.718,
+    "printed": 0.72,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|SC|0.5",
+    "ours": 0.964,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S4|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|EASC|0.0",
+    "ours": 0.902,
+    "printed": 0.9,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|EASC|0.5",
+    "ours": 0.944,
+    "printed": 0.94,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|EASC|1.0",
+    "ours": 0.97,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|SC|0.0",
+    "ours": 0.69,
+    "printed": 0.69,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|SC|0.5",
+    "ours": 0.916,
+    "printed": 0.92,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|relief|SC|1.0",
+    "ours": 0.988,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|EASC|0.0",
+    "ours": 0.924,
+    "printed": 0.92,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|EASC|0.5",
+    "ours": 0.96,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|EASC|1.0",
+    "ours": 0.982,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|SC|0.0",
+    "ours": 0.704,
+    "printed": 0.7,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|SC|0.5",
+    "ours": 0.924,
+    "printed": 0.92,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S5|siege|SC|1.0",
+    "ours": 0.992,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|EASC|0.0",
+    "ours": 0.906,
+    "printed": 0.91,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|EASC|0.5",
+    "ours": 0.95,
+    "printed": 0.95,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|EASC|1.0",
+    "ours": 0.986,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|SC|0.0",
+    "ours": 0.836,
+    "printed": 0.84,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|SC|0.5",
+    "ours": 0.958,
+    "printed": 0.96,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|relief|SC|1.0",
+    "ours": 0.992,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|EASC|0.0",
+    "ours": 0.94,
+    "printed": 0.94,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|EASC|0.5",
+    "ours": 0.968,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|EASC|1.0",
+    "ours": 0.994,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|SC|0.0",
+    "ours": 0.858,
+    "printed": 0.86,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|SC|0.5",
+    "ours": 0.966,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S6|siege|SC|1.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|EASC|0.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|EASC|0.5",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|SC|0.0",
+    "ours": 0.806,
+    "printed": 0.81,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|SC|0.5",
+    "ours": 0.974,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|relief|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|EASC|0.0",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|EASC|0.5",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|EASC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|SC|0.0",
+    "ours": 0.81,
+    "printed": 0.81,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|SC|0.5",
+    "ours": 0.974,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S7|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|EASC|0.0",
+    "ours": 0.946,
+    "printed": 0.95,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|EASC|0.5",
+    "ours": 0.974,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|EASC|1.0",
+    "ours": 0.992,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|SC|0.0",
+    "ours": 0.944,
+    "printed": 0.94,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|SC|0.5",
+    "ours": 0.986,
+    "printed": 0.99,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S8|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|EASC|0.0",
+    "ours": 0.968,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|EASC|0.5",
+    "ours": 0.984,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|EASC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|SC|0.0",
+    "ours": 0.944,
+    "printed": 0.94,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|SC|0.5",
+    "ours": 0.984,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S9|siege|SC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|EASC|0.0",
+    "ours": 0.97,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|EASC|0.5",
+    "ours": 0.996,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|EASC|1.0",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|SC|0.0",
+    "ours": 0.982,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|SC|0.5",
+    "ours": 0.998,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S10|siege|SC|1.0",
+    "ours": 1.0,
+    "printed": 1.0,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|EASC|0.0",
+    "ours": 0.804,
+    "printed": 0.8,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|EASC|0.5",
+    "ours": 0.9,
+    "printed": 0.9,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|EASC|1.0",
+    "ours": 0.97,
+    "printed": 0.97,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|SC|0.0",
+    "ours": 0.75,
+    "printed": 0.75,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|SC|0.5",
+    "ours": 0.904,
+    "printed": 0.9,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC coverage S11|siege|SC|1.0",
+    "ours": 0.98,
+    "printed": 0.98,
+    "decimals": 2,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|EASC|0.0",
+    "ours": 0.19712669182077736,
+    "printed": 0.197,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|EASC|0.5",
+    "ours": 0.21124541013008616,
+    "printed": 0.211,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|EASC|1.0",
+    "ours": 0.24232555018450092,
+    "printed": 0.242,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|SC|0.0",
+    "ours": 0.0924730933043796,
+    "printed": 0.092,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|SC|0.5",
+    "ours": 0.14904171945832048,
+    "printed": 0.149,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|relief|SC|1.0",
+    "ours": 0.22045307166782804,
+    "printed": 0.22,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|EASC|0.0",
+    "ours": 0.26100906941076646,
+    "printed": 0.261,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|EASC|0.5",
+    "ours": 0.27947053564923047,
+    "printed": 0.279,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|EASC|1.0",
+    "ours": 0.32023058347658356,
+    "printed": 0.32,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|SC|0.0",
+    "ours": 0.11470965863909635,
+    "printed": 0.115,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|SC|0.5",
+    "ours": 0.18228139093393458,
+    "printed": 0.182,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S0|siege|SC|1.0",
+    "ours": 0.2682562407011417,
+    "printed": 0.268,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|EASC|0.0",
+    "ours": 0.2719973842363919,
+    "printed": 0.272,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|EASC|0.5",
+    "ours": 0.32872040846266715,
+    "printed": 0.329,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|EASC|1.0",
+    "ours": 0.42490574263680275,
+    "printed": 0.425,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|SC|0.0",
+    "ours": 0.22848486215795855,
+    "printed": 0.228,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|SC|0.5",
+    "ours": 0.2932680846591155,
+    "printed": 0.293,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|relief|SC|1.0",
+    "ours": 0.3932479516363806,
+    "printed": 0.393,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|EASC|0.0",
+    "ours": 0.34806752160506277,
+    "printed": 0.348,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|EASC|0.5",
+    "ours": 0.4272051798168169,
+    "printed": 0.427,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|EASC|1.0",
+    "ours": 0.5577649320747514,
+    "printed": 0.558,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|SC|0.0",
+    "ours": 0.2871577098821705,
+    "printed": 0.287,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|SC|0.5",
+    "ours": 0.3780844445307811,
+    "printed": 0.378,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S1|siege|SC|1.0",
+    "ours": 0.5139939472680322,
+    "printed": 0.514,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|EASC|0.0",
+    "ours": 0.2751232169172571,
+    "printed": 0.275,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|EASC|0.5",
+    "ours": 0.33274808982914894,
+    "printed": 0.333,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|EASC|1.0",
+    "ours": 0.4303965465721378,
+    "printed": 0.43,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|SC|0.0",
+    "ours": 0.32562219061019504,
+    "printed": 0.326,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|SC|0.5",
+    "ours": 0.46203220591852184,
+    "printed": 0.462,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|relief|SC|1.0",
+    "ours": 0.6504271132107927,
+    "printed": 0.65,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|EASC|0.0",
+    "ours": 0.35305445991792195,
+    "printed": 0.353,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|EASC|0.5",
+    "ours": 0.4324366750090025,
+    "printed": 0.432,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|EASC|1.0",
+    "ours": 0.563845998499577,
+    "printed": 0.564,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|SC|0.0",
+    "ours": 0.39293487287710543,
+    "printed": 0.393,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|SC|0.5",
+    "ours": 0.5573679201559396,
+    "printed": 0.557,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S2|siege|SC|1.0",
+    "ours": 0.784561838896077,
+    "printed": 0.785,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|EASC|0.0",
+    "ours": 0.1250476929041752,
+    "printed": 0.125,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|EASC|0.5",
+    "ours": 0.15671236436973426,
+    "printed": 0.157,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|EASC|1.0",
+    "ours": 0.20737583127870443,
+    "printed": 0.207,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|SC|0.0",
+    "ours": 0.17543129837856208,
+    "printed": 0.175,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|SC|0.5",
+    "ours": 0.243270667516617,
+    "printed": 0.243,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|relief|SC|1.0",
+    "ours": 0.33902195658794654,
+    "printed": 0.339,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|EASC|0.0",
+    "ours": 0.15987741042434334,
+    "printed": 0.16,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|EASC|0.5",
+    "ours": 0.20469489078531888,
+    "printed": 0.205,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|EASC|1.0",
+    "ours": 0.2741930750071011,
+    "printed": 0.274,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|SC|0.0",
+    "ours": 0.21311607528830406,
+    "printed": 0.213,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|SC|0.5",
+    "ours": 0.29635371439491415,
+    "printed": 0.296,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S3|siege|SC|1.0",
+    "ours": 0.41352222607169986,
+    "printed": 0.414,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|EASC|0.0",
+    "ours": 0.3492254810381181,
+    "printed": 0.349,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|EASC|0.5",
+    "ours": 0.4030970367096826,
+    "printed": 0.403,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|EASC|1.0",
+    "ours": 0.5002205300602148,
+    "printed": 0.5,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|SC|0.0",
+    "ours": 0.3283139606479619,
+    "printed": 0.328,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|SC|0.5",
+    "ours": 0.4623629579892488,
+    "printed": 0.462,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|relief|SC|1.0",
+    "ours": 0.6486932189465149,
+    "printed": 0.649,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|EASC|0.0",
+    "ours": 0.42809514949272387,
+    "printed": 0.428,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|EASC|0.5",
+    "ours": 0.5031127851451149,
+    "printed": 0.503,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|EASC|1.0",
+    "ours": 0.6337291404523169,
+    "printed": 0.634,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|SC|0.0",
+    "ours": 0.3931741536088253,
+    "printed": 0.393,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|SC|0.5",
+    "ours": 0.5553871142454596,
+    "printed": 0.555,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S4|siege|SC|1.0",
+    "ours": 0.7802735079317942,
+    "printed": 0.78,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|EASC|0.0",
+    "ours": 0.21203479846612197,
+    "printed": 0.212,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|EASC|0.5",
+    "ours": 0.24560929821490657,
+    "printed": 0.246,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|EASC|1.0",
+    "ours": 0.30709837981336513,
+    "printed": 0.307,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|SC|0.0",
+    "ours": 0.2033894464147124,
+    "printed": 0.203,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|SC|0.5",
+    "ours": 0.2924573732938991,
+    "printed": 0.292,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|relief|SC|1.0",
+    "ours": 0.41402728130100036,
+    "printed": 0.414,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|EASC|0.0",
+    "ours": 0.28280441653494803,
+    "printed": 0.283,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|EASC|0.5",
+    "ours": 0.33017660596000425,
+    "printed": 0.33,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|EASC|1.0",
+    "ours": 0.415352684623943,
+    "printed": 0.415,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|SC|0.0",
+    "ours": 0.2507011109078093,
+    "printed": 0.251,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|SC|0.5",
+    "ours": 0.3605772937263135,
+    "printed": 0.361,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S5|siege|SC|1.0",
+    "ours": 0.510530561762385,
+    "printed": 0.511,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|EASC|0.0",
+    "ours": 0.14195062721603255,
+    "printed": 0.142,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|EASC|0.5",
+    "ours": 0.1717579324108908,
+    "printed": 0.172,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|EASC|1.0",
+    "ours": 0.2220480648381775,
+    "printed": 0.222,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|SC|0.0",
+    "ours": 0.16863689049393804,
+    "printed": 0.169,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|SC|0.5",
+    "ours": 0.23612465629978516,
+    "printed": 0.236,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|relief|SC|1.0",
+    "ours": 0.3304908496357562,
+    "printed": 0.33,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|EASC|0.0",
+    "ours": 0.17875469028558943,
+    "printed": 0.179,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|EASC|0.5",
+    "ours": 0.22144325963706746,
+    "printed": 0.221,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|EASC|1.0",
+    "ours": 0.2907884731410165,
+    "printed": 0.291,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|SC|0.0",
+    "ours": 0.20426146274062806,
+    "printed": 0.204,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|SC|0.5",
+    "ours": 0.286951623514502,
+    "printed": 0.287,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S6|siege|SC|1.0",
+    "ours": 0.4022293766865148,
+    "printed": 0.402,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|EASC|0.0",
+    "ours": 0.23362912385829776,
+    "printed": 0.234,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|EASC|0.5",
+    "ours": 0.2809663224293006,
+    "printed": 0.281,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|EASC|1.0",
+    "ours": 0.3622327391969491,
+    "printed": 0.362,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|SC|0.0",
+    "ours": 0.3042958095078103,
+    "printed": 0.304,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|SC|0.5",
+    "ours": 0.41186260974957445,
+    "printed": 0.412,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|relief|SC|1.0",
+    "ours": 0.5675409819401038,
+    "printed": 0.568,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|EASC|0.0",
+    "ours": 0.2887443162080471,
+    "printed": 0.289,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|EASC|0.5",
+    "ours": 0.3557046351725065,
+    "printed": 0.356,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|EASC|1.0",
+    "ours": 0.4660222786371686,
+    "printed": 0.466,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|SC|0.0",
+    "ours": 0.3614145952167631,
+    "printed": 0.361,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|SC|0.5",
+    "ours": 0.49335344746929544,
+    "printed": 0.493,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S7|siege|SC|1.0",
+    "ours": 0.6825213791862313,
+    "printed": 0.683,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|EASC|0.0",
+    "ours": 0.15752398045509047,
+    "printed": 0.158,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|EASC|0.5",
+    "ours": 0.20103817382897882,
+    "printed": 0.201,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|EASC|1.0",
+    "ours": 0.2688559830467864,
+    "printed": 0.269,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|SC|0.0",
+    "ours": 0.21059268626066135,
+    "printed": 0.211,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|SC|0.5",
+    "ours": 0.29586870233289503,
+    "printed": 0.296,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S8|siege|SC|1.0",
+    "ours": 0.41475623381954424,
+    "printed": 0.415,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|EASC|0.0",
+    "ours": 0.6294268623101685,
+    "printed": 0.629,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|EASC|0.5",
+    "ours": 0.8127280307722773,
+    "printed": 0.813,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|EASC|1.0",
+    "ours": 1.0930065943919376,
+    "printed": 1.093,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|SC|0.0",
+    "ours": 0.5981389933608356,
+    "printed": 0.598,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|SC|0.5",
+    "ours": 0.8225789112125201,
+    "printed": 0.823,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S9|siege|SC|1.0",
+    "ours": 1.1421621531460229,
+    "printed": 1.142,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|EASC|0.0",
+    "ours": 1.0042359085381054,
+    "printed": 1.004,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|EASC|0.5",
+    "ours": 1.3040383944709764,
+    "printed": 1.304,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|EASC|1.0",
+    "ours": 1.760432342467559,
+    "printed": 1.76,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|SC|0.0",
+    "ours": 0.9801492093418107,
+    "printed": 0.98,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|SC|0.5",
+    "ours": 1.3458524057367387,
+    "printed": 1.346,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S10|siege|SC|1.0",
+    "ours": 1.8675456543157638,
+    "printed": 1.868,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|EASC|0.0",
+    "ours": 0.1807879437479537,
+    "printed": 0.181,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|EASC|0.5",
+    "ours": 0.22500483285998582,
+    "printed": 0.225,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|EASC|1.0",
+    "ours": 0.296408696562666,
+    "printed": 0.296,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|SC|0.0",
+    "ours": 0.2525918365866712,
+    "printed": 0.253,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|SC|0.5",
+    "ours": 0.33442729905960983,
+    "printed": 0.334,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   },
+   {
+    "quantity": "MC length S11|siege|SC|1.0",
+    "ours": 0.455989839248268,
+    "printed": 0.456,
+    "decimals": 3,
+    "match": true,
+    "off_by_digits": 0
+   }
+  ],
+  "tally": {
+   "cells": 496,
+   "match": 496,
+   "mismatches": []
+  }
+ }
+}
