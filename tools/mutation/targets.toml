@@ -3855,6 +3855,12 @@ timeout = 900.0
   replace = "        if False:"
   models = "a border conflict between two clusters accepted although each cluster is searched apart, so it can never be enforced and the design can treat both markets"
 
+  [[target.mutant]]
+  id = "the-search-needs-scip"
+  find = "import numpy as np"
+  replace = "import numpy as np\nimport pyscipopt  # noqa: F401"
+  models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
+
 [[target]]
 name = "marex-exact-config"
 module-path = "mlsynth/utils/marex_helpers/config.py"

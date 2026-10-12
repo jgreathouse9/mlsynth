@@ -544,3 +544,44 @@ def test_a_range_of_one_treated_count_matches_m_eq():
     b = _fit(df, T0, "exact", m_eq=2)
     assert _treated(a) == _treated(b)
     assert a.globres.objective == pytest.approx(b.globres.objective)
+
+
+_WITHOUT_PYSCIPOPT = r"""
+import sys
+sys.modules["pyscipopt"] = None          # import pyscipopt -> ImportError
+import cvxpy as cp
+assert "SCIP" not in cp.installed_solvers()
+sys.path.insert(0, {tests!r})
+from test_marex_exact_backend import _panel, _fit
+df, T0 = _panel()
+res = _fit(df, T0, "exact", m_eq=2)
+assert res.study.backend == "exact"
+print("treated", sorted(map(str, res.assignment["treated"])))
+"""
+
+
+def test_the_exact_backend_runs_without_pyscipopt():
+    """SCIP is an optional extra; the search has to work on a base install.
+
+    The monkeypatch above stops a solve that names SCIP. This goes further and
+    removes ``pyscipopt`` before cvxpy loads, which is what a user without the
+    ``design`` extra has.
+
+    The child's traceback goes to captured output, not into the failure
+    message. ``conftest.py`` turns a failure whose message names a missing
+    solver into a skip, and a missing SCIP is the failure this test exists to
+    report: with the traceback in the message, a fit routed to the MIQP was
+    reported as skipped.
+    """
+    import os
+    import subprocess
+    import sys
+
+    code = _WITHOUT_PYSCIPOPT.format(tests=os.path.dirname(os.path.abspath(__file__)))
+    run = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                         text=True, timeout=300)
+    if run.returncode != 0 or "treated" not in run.stdout:
+        print(run.stdout[-2000:], run.stderr[-4000:], sep="\n")
+        pytest.fail("the exact backend did not finish in a process without "
+                    "pyscipopt; its traceback is in the captured output",
+                    pytrace=False)
