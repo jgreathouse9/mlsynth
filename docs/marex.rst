@@ -422,6 +422,23 @@ one to :math:`N - 1` is a candidate, :math:`2^N - 2` sets in all, which passes
 the limit at 25 markets. The count is of the sets the restrictions allow, so
 forcing markets in or out raises the cluster size the search can take.
 
+On the Walmart design below (45 stores, two treated), the whole fit, inference
+included, takes 0.03 seconds with ``backend="exact"`` and returns the same two
+stores and the same p-value as the MIQP, whose design step took between 46 and
+83 seconds on the same data. On simulated one-cluster panels of 12 to 40
+markets with three to five treated, three panels per size and both backends on
+one core, the search took 9 to 524 milliseconds and SCIP 0.5 to 249 seconds.
+The geometric-mean speedup per size was 48 at 12 markets, 96 at 16, 121 at 20,
+and between 345 and 482 from 25 to 40 markets. Every panel returned SCIP's
+treated set, with an objective at or below SCIP's. From 25 markets on, the
+search's time grows about as fast as the number of candidates, under a
+microsecond each at forty markets; SCIP's follows its proof of optimality.
+From 12 to 40 markets SCIP's median time grew 235-fold and the search's 29-fold,
+though above 25 markets the search's grew faster and the speedup eased from its
+peak. The script and its results are in
+`benchmarks/studies/marex_exact_backend
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_exact_backend>`_.
+
 ``res.study.backend`` records which backend ran, and ``res.globres.objective``
 the design objective it reached, which is the number to compare across
 backends. The two reach the same objective. Where the objective is nearly flat
@@ -785,7 +802,9 @@ and the permutation test fails to reject the null of no effect
    ``standardize=True``; the unit-variance normalisation is essential here
    because Walmart stores differ enormously in sales level, and without it the
    level differences dominate the match. The solve takes roughly a minute with
-   the open-source SCIP solver (the paper used commercial Gurobi).
+   the open-source SCIP solver (the paper used commercial Gurobi). With
+   ``backend="exact"`` the whole fit takes about 0.03 seconds and returns the
+   same two stores (:ref:`marex-search-backend`).
 
 .. note::
 

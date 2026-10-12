@@ -1,0 +1,16 @@
+# walmart_fit.py (the docs example, whole fit, inference included)
+exact end-to-end fit median 0.029 s treated [1, 15] p 0.937 objective 0.1776544245291111 load 0.83935546875
+mip end-to-end fit median 78.867 s treated [1, 15] p 0.937 objective 0.17765452977105353 load 0.9609375
+
+# walmart_scip_repeat.py, a fresh process per run (the estimator's panel)
+PYTHONHASHSEED=0
+MIQP design step, file order: 80.77 s objective 0.17765452977105353
+PYTHONHASHSEED=0
+MIQP design step, file order: 80.7 s objective 0.17765452977105353
+PYTHONHASHSEED=1
+MIQP design step, file order: 80.48 s objective 0.17765452977105353
+
+# walmart_layout.py
+predictors bitwise equal: False | target bitwise equal: False | max target diff: 1.1102230246251565e-15
+C order MIQP design step: 48.05 s objective 0.17765447075136673
+F order MIQP design step: 82.79 s objective 0.17765452977105353
