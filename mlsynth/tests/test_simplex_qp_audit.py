@@ -218,6 +218,8 @@ INELIGIBLE = {
         "the same moment bounds, on the inference path",
     ("dsc_helpers/weights.py", "w"):
         "sum-to-one without non-negativity, which is the other weight option",
+    ("easc_helpers/frontier.py", "self.w"):
+        "an exposure band |s1 - s0 @ w| <= d on top of the simplex: the frontier",
     ("helperutils.py", "donor_weights_variable"):
         "donor weights, which are not constrained non-negative",
     ("helperutils.py", "time_weights_variable"):
