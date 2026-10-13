@@ -55,7 +55,7 @@ import numpy as np
 import pandas as pd
 
 from mlsynth import VanillaSC
-from mlsynth.utils.bilevel.minnorm import solve_simplex_minnorm
+from mlsynth.utils.solvers.minnorm import solve_simplex_minnorm
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "fred_gdpc1.csv")
