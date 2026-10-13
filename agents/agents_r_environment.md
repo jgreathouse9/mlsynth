@@ -44,11 +44,23 @@ has it — installing the prebuilt binary is faster and avoids a compile.
 
 If `apt-get update` fails with a 405/403 through the proxy, a third-party PPA is
 usually the culprit (deadsnakes / ondrej are commonly pre-added and are NOT on the
-allowlist). Disable them and retry:
+allowlist). Disable those two by name and retry:
 
 ```bash
-for f in /etc/apt/sources.list.d/*.sources; do mv "$f" "$f.disabled"; done
+for f in /etc/apt/sources.list.d/*deadsnakes* /etc/apt/sources.list.d/*ondrej*; do
+  [ -e "$f" ] && mv "$f" "$f.disabled"
+done
 DEBIAN_FRONTEND=noninteractive apt-get update -qq
+```
+
+Name the PPAs. A blanket `for f in /etc/apt/sources.list.d/*.sources` also matches
+`ubuntu.sources`, which on noble carries the main archive — disabling it leaves apt
+with no repositories at all, and the next `apt-cache policy r-base` reports no
+candidate, which reads as "r-base is unavailable" instead of "you turned the archive
+off". If that has already happened, restore everything and redo it by name:
+
+```bash
+for f in /etc/apt/sources.list.d/*.disabled; do mv "$f" "${f%.disabled}"; done
 ```
 
 ## Step 2 — the non-apt leaves via pinned `git clone`
@@ -134,3 +146,25 @@ was found (`multi_synth_qp.R:98`). See the PPSCM worked example in `agents_tests
 - Keep the R reference out of the Python test path. Live-R cross-checks are captured
   once into `benchmarks/reference/<case>/` (`reference.out` + `reference.json`) and
   the Python tests assert against those frozen numbers — CI has no R.
+- apt on noble gives R 4.3.3. A package that assumes base R >= 4.4 installs and loads
+  without complaint, then fails at call time — `%||%` moved into base in 4.4.0, so a
+  package using it without importing it from rlang raises
+  `could not find function "%||%"` inside every affected call. A `DESCRIPTION` that
+  claims `R (>= 3.5.2)` does not rule this out (`LasForecast` 1.0.0 is one such).
+  A namespace's lookup chain ends at `globalenv()`, so the shim is one line in the
+  driver script, before the package is called:
+
+  ```r
+  if (!exists("%||%", envir = baseenv())) `%||%` <- function(x, y) if (is.null(x)) y else x
+  ```
+
+  The package's own imports environment is locked, so `assign(..., envir =
+  parent.env(asNamespace(pkg)))` fails; `globalenv()` is the way in.
+- A reference whose driver wraps each fit in `tryCatch` can report a failure as a
+  result. `LasForecast::roll_predict` returns `NA` forecasts on error while leaving
+  `beta_hat` at the zero matrix it was initialised with, which reads as "the method
+  selected no predictors" — a plausible finding, and wrong. Before interpreting any
+  reference output, check that the forecasts are non-`NA`, and assert an identity the
+  reference must satisfy: a random-walk column has to equal the previous observation,
+  which also pins down the row alignment (`roll_predict`'s first target is
+  `roll_window + 2`, not `+ 1`).

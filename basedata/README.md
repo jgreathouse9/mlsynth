@@ -55,6 +55,21 @@ slices, plus a larger raw-state pool:
 |---|---|---|
 | `hpv_cervical_ddd.csv` | 39-state × 17-year (2003–2019) panel of age-adjusted cervical-cancer incidence (`cervix_adj`) by 5-year `age` band (20–24 + 30–49), from public NPCR/SEER via the authors' repo `jsemprini/Virginia_HPVmandate_causal`; the `age` dimension is the subgroup for the synthetic triple difference (20–24 exposed, older bands control) | SDID synthetic-triple-difference (SC-DDD) replication |
 
+## US real GDP — Klößner & Pfeifer (2018)
+
+| File | What it is | Used by |
+|------|------------|---------|
+| `fred_gdpc1.csv` | FRED series `GDPC1` (US real GDP, quarterly, seasonally adjusted, chained dollars) in **levels**, 1947Q1–2026Q2 | `kp_scm_forecast` benchmark case |
+
+Levels, not growth. The replication rebuilds the paper's series as
+`((L_t / L_{t-1})^4 - 1) * 100` and cuts it to 1947Q2–2015Q1 — storing the
+levels keeps the transformation visible in the case instead of baked into the
+file, and leaves the series usable at other horizons. FRED serves `GDPC1` under
+several transformations behind one series id, and the year-over-year variant is
+a different series with roughly a third the one-step-ahead forecast error and
+`acf(1) = 0.85` against `0.36`; the quarterly annualised rate is the one the
+paper's Figure 1 plots.
+
 ## German reunification — Abadie, Diamond & Hainmueller (2015)
 
 The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depths:
