@@ -11,6 +11,7 @@ from dataclasses import replace as _dc_replace
 from ...config_models import WeightsResults
 from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
+from .exact import solve_design_exact
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
     MAREXClusterDesign,
@@ -59,12 +60,18 @@ def solve_marex(
     cumulative_block=0,
     cumulative_n_sim=2000,
     cumulative_seed=0,
+    backend="mip",
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
     With ``relaxed=True`` the continuous-``z`` QP with post-hoc discretization is
     used; otherwise the exact MIQP. With ``inference=True``, blank-period
     placebo inference is computed for every cluster and the aggregate.
+
+    ``backend="exact"`` solves the design by searching treated sets
+    (:func:`mlsynth.utils.marex_helpers.exact.solve_design_exact`) instead of
+    handing the MIQP to SCIP; it returns the same design dict, so everything
+    after the solve is shared.
 
     ``cumulative_band=True`` adds a band for the total post-period effect to that
     inference, block-resampling the blank-period effects with block length
@@ -81,13 +88,22 @@ def solve_marex(
         covariate_weight=covariate_weight, standardize=standardize,
         solver=solver, verbose=verbose,
     )
-    # Restrictions are MIQP-only (the relaxed path's rounding can't guarantee
-    # them); the config rejects the combination, so only the exact solver sees it.
-    if not relaxed:
+    if backend == "exact":
+        # The search takes the restrictions and none of branch-and-bound's
+        # knobs; the config refuses those with this backend.
+        for knob in ("solver", "verbose"):
+            solve_kw.pop(knob)
         solve_kw["restrictions"] = restrictions
-        solve_kw["warm_start"] = warm_start
-        solve_kw["time_limit"] = time_limit
-    raw = solve(**solve_kw)
+        raw = solve_design_exact(**solve_kw)
+    else:
+        # Restrictions are not taken by the relaxed path, whose rounding can't
+        # guarantee them; the config rejects the combination, so only the
+        # MIQP sees them.
+        if not relaxed:
+            solve_kw["restrictions"] = restrictions
+            solve_kw["warm_start"] = warm_start
+            solve_kw["time_limit"] = time_limit
+        raw = solve(**solve_kw)
 
     df = raw["df"]
     Y_full_np = df.to_numpy() if hasattr(df, "to_numpy") else np.asarray(df)
@@ -221,11 +237,13 @@ def solve_marex(
         treated_weights_agg=adj_treated, control_weights_agg=adj_control,
         synthetic_treated=g_syn_t, synthetic_control=g_syn_c,
         inference=_maybe_infer(g_syn_t, g_syn_c),
+        objective=float(raw.get("objective", float("nan"))),
     )
 
     study = MAREXStudy(
         design=design, T0=T0_eff, blank_periods=blank_periods,
         beta=beta, lambda1=lambda1 or lambda1_unit, lambda2=lambda2, xi=xi,
+        backend=backend,
     )
 
     # Standardized post-fit diagnostics (ATE / total / lift / RMSEs / SMDs).

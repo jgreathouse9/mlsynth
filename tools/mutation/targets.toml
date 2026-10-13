@@ -3789,6 +3789,114 @@ timeout = 900.0
   models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
 
 
+[[target]]
+name = "marex-exact-search"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-first-pass-certifies-alone"
+  find = "    if len(buf_sets) == BUFFER and ("
+  replace = "    if False and ("
+  models = "the buffer of best-bounded candidates trusted to certify the result on its own. The search is exact on every panel small enough for the buffer to hold every candidate under the incumbent and wrong beyond it, which no default-sized panel reaches; it is the defect the first draft had"
+
+  [[target.mutant]]
+  id = "the-second-pass-rescores-seen-designs"
+  find = "                if S not in seen:"
+  replace = "                if True:"
+  models = "the second pass offering designs the first pass already scored, so a top-K pool can hold one treated set twice and report it as two designs"
+
+  [[target.mutant]]
+  id = "the-bound-forgets-the-target"
+  find = "    Bc = B - A[:, None]"
+  replace = "    Bc = B"
+  models = "the closed-form bound computed on the raw columns. It then bounds the distance of a convex combination to zero instead of to the cluster mean, which can exceed the true fit, and a bound that exceeds the fit discards the optimum"
+
+  [[target.mutant]]
+  id = "designs-ranked-by-the-treated-fit-alone"
+  find = "        best.offer(ClusterDesign(value=g + h, treated=tuple(S),"
+  replace = "        best.offer(ClusterDesign(value=g, treated=tuple(S),"
+  models = "the treated-side fit taken for the objective, which is what the bound reads. The control fit, half the objective, stops deciding between designs"
+
+  [[target.mutant]]
+  id = "donor-rules-ignored"
+  find = "            drop |= excluded.get(i, set())"
+  replace = "            drop |= set()"
+  models = "exclude_bordering_donors accepted and recorded while every control pool keeps the treated markets' neighbours, the shape of an option that reads as applied and is not"
+
+  [[target.mutant]]
+  id = "conflict-pairs-unchecked"
+  find = "    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets)"
+  replace = "    check = bool(filt.strata or filt.forbidden_sets)"
+  models = "the walk taking the fast path whenever there is no stratum, so border conflicts, which only a test on the finished candidate can see, are never checked and two bordering markets can both be treated"
+
+  [[target.mutant]]
+  id = "the-range-drops-its-top"
+  find = "    return list(range(lo, hi + 1))"
+  replace = "    return list(range(lo, hi))"
+  models = "m_max excluded from its own range, so the largest treated count is never searched and m_min = m_max leaves nothing to search at all"
+
+  [[target.mutant]]
+  id = "every-cluster-fits-the-first-target"
+  find = "                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,"
+  replace = "                X_fit[members].T, Xbar_clusters[0], sizes, filt=filt,"
+  models = "every cluster matched to the first cluster's predictor mean instead of its own, invisible with one cluster, which is the default"
+
+  [[target.mutant]]
+  id = "the-unit-penalty-is-dropped"
+  find = "            a += xi * per_unit_reproducibility(X_fit, members)[members]"
+  replace = "            a += 0.0"
+  models = "the xi term of the unit-penalized design left out of the treated fit, so the search optimises a different objective from the one MAREX states while every other design still agrees with the MIQP"
+
+  [[target.mutant]]
+  id = "a-spanning-conflict-passes"
+  find = "        if cluster_of[i] != cluster_of[j]:"
+  replace = "        if False:"
+  models = "a border conflict between two clusters accepted although each cluster is searched apart, so it can never be enforced and the design can treat both markets"
+
+  [[target.mutant]]
+  id = "the-search-needs-scip"
+  find = "import numpy as np"
+  replace = "import numpy as np\nimport pyscipopt  # noqa: F401"
+  models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
+
+[[target]]
+name = "marex-exact-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-exact-backend-accepts-a-solver-it-never-calls"
+  find = '        for name in ("warm_start", "time_limit", "solver"):'
+  replace = '        for name in ("warm_start", "time_limit"):'
+  models = "solver accepted with backend='exact' and silently unused, so a user who asked for a particular solver gets the search with no word that their choice did nothing"
+
+[[target]]
+name = "marex-exact-routing"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "exact-recorded-but-the-mip-runs"
+  find = "        raw = solve_design_exact(**solve_kw)"
+  replace = "        raw = solve_design(**solve_kw)"
+  models = "backend='exact' accepted and recorded on the study while the MIQP runs. SCIP finds the same optimum, so every comparison with the MIQP passes and the study still reads 'exact'; only a fit with SCIP made unreachable can tell. It is the recorded-but-unapplied shape that reached main twice before"
+
+[[target]]
+name = "marex-exact-pool-routing"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-pool-falls-back-to-the-mip"
+  find = "                    raws = solve_design_exact_pool(**pool_kw)"
+  replace = "                    raws = solve_design_pool(solver=cp.SCIP, verbose=False, **pool_kw)"
+  models = "the top-K pool built by the MIQP whatever the backend: the pool is correct, the run takes as long as it always did, and the speed the backend exists for is lost on the one path that re-solves top_K times"
+
 # EASC (Spruk 2026). The kernels are pure NumPy, so each target runs only the
 # property tests that bear on it; the frontier's tests solve CLARABEL
 # programmes and run under their own target.
