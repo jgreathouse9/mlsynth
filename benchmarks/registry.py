@@ -405,6 +405,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "hsc_mc":                         ("B", "simulated"),
     "ibex_dap":                       ("X", "empirical"),
     "illenberger_rtm":                ("B", "simulated"),
+    "kp_scm_forecast":                ("A", "empirical"),
     "lamba_tigers":                   ("X", "empirical"),
     "lexscm_design_mc":               ("B", "simulated"),
     "lexscm_walmart":                 ("A", "empirical"),
