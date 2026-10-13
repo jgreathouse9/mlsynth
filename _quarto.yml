@@ -20,10 +20,12 @@ book:
         - index.qmd
         - math.qmd
         - averages.qmd
-        # Parked (renamed to *.qmd.hold so Quarto skips it; contents preserved).
-        # The mlsynth API layer is being deprecated, so the standalone
-        # "Intro to mlsynth" chapter is removed from the ladder for now.
-        # - mlsynthbasic.qmd
+        # Restored to the ladder 2026-09. It was parked in July on the
+        # expectation that the mlsynth API layer would be deprecated; that did
+        # not happen -- the config + .fit() contract on main is intact, and the
+        # chapter is now written against it (and sets execute.eval: true, so its
+        # code runs in CI instead of rendering as dead listings).
+        - mlsynthbasic.qmd
 
     - part: "Estimation and Inference"
       chapters:

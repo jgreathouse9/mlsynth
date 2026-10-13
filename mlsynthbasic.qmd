@@ -1,0 +1,206 @@
+---
+# This chapter's code runs against the installed mlsynth (CI installs it from
+# requirements.txt), so it executes even while the project default is
+# execute.eval: false. Every snippet below was run against mlsynth on main
+# before being written down.
+execute:
+  eval: true
+---
+
+# Getting Started with mlsynth
+
+This is not a book about Python. Python is simply the language I use to estimate synthetic control methods, and `mlsynth` is the package I wrote to do it. The book is not about `mlsynth` either, but I lean on it constantly to keep the examples short, so this chapter covers enough of it that the rest of the book reads without friction.
+
+The plan is small. You will install the package, learn the one pattern every estimator follows, learn what an estimator hands back to you when it is finished, and meet the two utilities I reach for before any estimation at all.
+
+## Installing mlsynth
+
+`mlsynth` installs from GitHub:
+
+```{shell}
+pip install git+https://github.com/jgreathouse9/mlsynth.git
+```
+
+It needs Python 3.10 or newer. The install pulls in the usual scientific stack — `numpy`, `pandas`, `scipy`, `matplotlib`, `scikit-learn`, `statsmodels` — plus four you may not have met: `cvxpy` (the convex solver that does the actual weight-finding in [the convex synthetic control chapter](cvxscm.html)), `pydantic` (which validates your inputs before any arithmetic happens), `pyarrow`, and `PyYAML`.
+
+A handful of estimators need heavier machinery — a mixed-integer solver, or JAX — and those are optional extras, not part of the base install, so the package stays light for everyone who does not need them:
+
+```{shell}
+pip install "mlsynth[design] @ git+https://github.com/jgreathouse9/mlsynth.git"
+```
+
+Nothing in this book needs an extra. The base install is enough.
+
+## One pattern, every estimator
+
+Every estimator in `mlsynth` works the same way, and once you have seen it once you have seen all of them:
+
+1. Put your panel in a long `DataFrame` — one row per unit per period.
+2. Write a configuration describing which column is which.
+3. Hand that configuration to an estimator class and call `.fit()`.
+
+That is the whole interface. The configuration is a Python dictionary: a structure that stores key–value pairs, where each key names a piece of information and the value holds it. Five keys are required by every estimator, and together they say what each column of your panel means.
+
+::: {.definition title="The five required configuration keys" data-link="#def-config-keys"}
+- `df` — the long panel `DataFrame`.
+- `unitid` — the column naming the cross-sectional units (states, regions, stores).
+- `time` — the column naming the time periods.
+- `outcome` — the column holding the variable you care about.
+- `treat` — the column holding the treatment indicator: `1` when that unit is under treatment in that period, `0` otherwise.
+:::
+
+Here is the whole thing on Proposition 99, California's 1988 tobacco tax. I use the Forward DID estimator (`FDID`) because it needs no tuning. [The control-group mean chapter](did.html) is where the method itself gets explained; here it is only a vehicle for showing the interface.
+
+```{python}
+import pandas as pd
+from mlsynth import FDID
+
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv"
+data = pd.read_csv(url)
+
+config = {
+    "df": data,
+    "outcome": "cigsale",
+    "treat": "Proposition 99",
+    "unitid": "state",
+    "time": "year",
+}
+
+result = FDID(config).fit()
+```
+
+Notice what I did not do. I did not pivot the panel into a wide matrix, separate California from the other states, work out where the pre-treatment period ends, or assemble a donor matrix. The estimator did all of it from those five keys. This matters more than it looks: every one of those steps is a place to introduce a silent off-by-one that produces a number instead of an error.
+
+The configuration is validated before anything is computed. Misspell a column name and you get a clear complaint immediately, not a confusing failure three functions deep. That is `pydantic` doing its job, and it is deliberate — a synthetic control estimate that is wrong without saying so is worse than one that refuses to run.
+
+## What you get back
+
+This is the part that repays a few minutes of attention, because it is where beginners usually stall.
+
+`.fit()` returns a *result object*, not a number and not a dictionary. Every estimator in the package returns the same shape of object, so what you learn here transfers to all of them. The things you most often want are available directly:
+
+```{python}
+print(f"ATT:            {result.att:.3f}")
+print(f"95% interval:   ({result.att_ci[0]:.3f}, {result.att_ci[1]:.3f})")
+print(f"Pre-period RMSE: {result.pre_rmse:.3f}")
+```
+
+The ATT here is about $-13.6$ cigarette packs per capita: California smoked roughly fourteen packs per person per year less than its synthetic counterpart after the tax. The pre-period RMSE of about $1.2$ packs says the synthetic California tracked the real one closely before 1989, which is what licenses reading the gap afterwards as an effect.
+
+Three more accessors carry the series and the weights:
+
+```{python}
+import numpy as np
+
+print("counterfactual:", np.round(result.counterfactual[:5], 2), "...")
+print("gap:           ", np.round(result.gap[:5], 2), "...")
+
+chosen = {k: round(v, 3) for k, v in result.donor_weights.items() if v > 1e-6}
+print("donors used:   ", chosen)
+```
+
+`counterfactual` is the synthetic California — what the model says would have happened without the tax. `gap` is the observed series minus that counterfactual, period by period; it is the treatment effect over time, and it is what gets plotted in every synthetic control paper you have read. `donor_weights` maps each control state to its weight. Forward DID picked four states and split the weight evenly among them, which is a property of that particular estimator, not of synthetic control generally — [the convex synthetic control chapter](cvxscm.html) builds estimators that choose unequal weights.
+
+Because the result object knows how to draw itself, you do not have to:
+
+```{python}
+result.plot()
+```
+
+The vertical line marks the intervention. Before it, the two series should sit on top of each other; after it, the distance between them is the estimate.
+
+::: {.callout-note}
+Older code you may find online sets `"display_graphs": True` in the configuration and lets `.fit()` draw as a side effect. That still works, but `result.plot()` is the better habit: it separates computing from drawing, so you can fit once and plot whenever — or never, if you are running a hundred fits in a loop and want none of them on screen.
+:::
+
+If you want to change how the figure looks, the configuration takes a `plot` entry:
+
+```{python}
+from mlsynth.config_models import PlotConfig
+
+styled = FDID({**config, "plot": PlotConfig(
+    counterfactual_colors=["red"],
+    title="Proposition 99: California vs. its synthetic control",
+)}).fit()
+```
+
+## Preparing data with dataprep
+
+`dataprep` is the function underneath all of this. The estimators call it for you, so most of the time you never touch it — but when you want the raw pieces, to build something yourself or to check what the estimator saw, this is how you get them.
+
+Many synthetic control methods want the panel wide: rows are time periods, columns are units, treated and donors separated, pre- and post-treatment periods identified. `dataprep` does that conversion, and it checks the panel is strongly balanced along the way — every unit observed in every period, no duplicated unit–period rows. A panel that fails those checks raises instead of returning something subtly malformed.
+
+```{python}
+from mlsynth.utils.datautils import dataprep
+
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/basque_data.csv"
+basque = pd.read_csv(url)
+
+prepped = dataprep(basque, "regionname", "year", "gdpcap", "terrorism")
+
+print("treated unit:  ", prepped["treated_unit_name"])
+print("pre / post:    ", prepped["pre_periods"], "/", prepped["post_periods"])
+print("donor matrix:  ", prepped["donor_matrix"].shape, "(periods x donors)")
+print("keys available:", sorted(prepped.keys()))
+```
+
+The arguments go in the order *data, unit, time, outcome, treatment*. The return is a dictionary, and the pieces you will use most are `y` (the treated unit's outcome vector), `donor_matrix` (the same outcome for every untreated region, one column each), `pre_periods` (how many periods precede the intervention), and `time_labels` (the period labels, for plotting).
+
+```{python}
+y = prepped["y"]
+Y0 = prepped["donor_matrix"]
+T0 = prepped["pre_periods"]
+time = prepped["time_labels"]
+```
+
+Those four objects are the whole problem. Every method in this book is a different answer to one question: what combination of the columns of `Y0` best reproduces `y` over the first `T0` periods?
+
+## Looking before you estimate
+
+Before fitting anything, look at the data. `sc_diagplot` draws the treated unit against the donor pool and the donors' mean:
+
+```{python}
+from mlsynth.utils.helperutils import sc_diagplot
+
+url = "https://raw.githubusercontent.com/jgreathouse9/mlsynth/refs/heads/main/basedata/smoking_data.csv"
+data = pd.read_csv(url)
+
+sc_diagplot([{
+    "df": data,
+    "unitid": "state",
+    "time": "year",
+    "outcome": "cigsale",
+    "treat": "Proposition 99",
+}])
+```
+
+The configuration is the same five keys as before, wrapped in a list because the function accepts several panels at once for side-by-side comparison.
+
+What you are looking for is whether the treated unit is *inside* the donor pool's range before treatment. If California sits in the middle of the cloud, some weighted average of those states can plausibly reproduce it. If it sits above every donor, no convex combination can reach it, and the methods in [the convex synthetic control chapter](cvxscm.html) will fit poorly no matter how you tune them — a fact the plot tells you in one second and the estimator tells you much later, if at all. Looking first is cheap.
+
+::: {.problem title="Reading the interface" data-link="#problem-reading-the-interface"}
+Load the Proposition 99 data and fit `FDID` as above.
+
+1. What does `result.gap` contain in the periods *before* 1989, and why is it not exactly zero?
+2. `result.att` is a single number summarizing `result.gap`. Over which periods is that summary taken?
+:::
+
+::: {.problem title="From dataprep to arithmetic" data-link="#problem-from-dataprep-to-arithmetic"}
+Using the Basque panel and `dataprep` as above:
+
+1. Compute the simple average of the donor regions in each period — that is, the row means of `Y0` — and plot it against `y`.
+2. This is the control-group mean of [the control-group mean chapter](did.html), computed by hand. How well does it track the Basque Country before 1975?
+3. What would have to be true about the donor regions for this equally-weighted average to be a credible counterfactual?
+:::
+
+::: {.problem title="When the hull is empty" data-link="#problem-when-the-hull-is-empty"}
+Run `sc_diagplot` on the Proposition 99 panel and find the periods where California lies outside the range of every donor state.
+
+Explain what a weighted average with non-negative weights summing to one can and cannot do in those periods. You are deriving, ahead of time, a limitation we spend all of [the convex synthetic control chapter](cvxscm.html) dealing with.
+:::
+
+## Conclusion
+
+Everything in `mlsynth` is the same three steps: describe the panel in a dictionary, pass it to an estimator, call `.fit()`. What comes back is always the same kind of object, so `result.att`, `result.gap`, `result.counterfactual`, `result.donor_weights` and `result.plot()` mean the same thing whichever estimator produced them. Underneath, `dataprep` turns your long panel into the treated vector `y` and the donor matrix `Y0`, and `sc_diagplot` shows you whether those two objects stand a chance before you spend any effort on estimation.
+
+The rest of the book is about the interesting question the interface hides: given `y` and `Y0`, how should the weights be chosen? We start, in the next chapter, with the simplest possible answer — give every donor the same weight — and spend the remainder of the book discovering why that is not good enough.
