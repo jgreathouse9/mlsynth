@@ -4034,3 +4034,39 @@ timeout = 600.0
   find = "    return int(np.argmin(np.asarray(criterion, dtype=float)))"
   replace = "    return int(len(criterion) - 1 - np.argmin(np.asarray(criterion, dtype=float)[::-1]))"
   models = "ties in the EASC* criterion resolved toward the synthetic-control end instead of toward balance, as the reference does"
+
+[[target]]
+name = "pda-hcw-holdout"
+module-path = "mlsynth/utils/pda_helpers/hcw/holdout.py"
+test-command = "python -m pytest mlsynth/tests/test_pda_hcw_holdout.py mlsynth/tests/test_pda_hcw_holdout_properties.py -q -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "holdout-scores-the-training-window"
+  find = 'window = slice(int(origin), int(origin) + horizon)'
+  replace = 'window = slice(int(origin) - horizon, int(origin))'
+  models = "a holdout that scores the periods the refit was just trained on, so the reported error is in-sample optimism and the ratio sits near one however badly the fit extrapolates"
+
+  [[target.mutant]]
+  id = "holdout-ratio-inverted"
+  find = 'ratio = held_out / in_sample if in_sample > 0 else float("nan")'
+  replace = 'ratio = in_sample / held_out if in_sample > 0 else float("nan")'
+  models = "a ratio reported upside down, so the fits that fail hardest out of sample are the ones that look safest"
+
+  [[target.mutant]]
+  id = "holdout-floor-ignores-the-donor-count"
+  find = 'else max(MIN_HOLDOUT_TRAIN, X.shape[1] + 2)'
+  replace = 'else MIN_HOLDOUT_TRAIN'
+  models = "a training floor that does not grow with the donor pool, so the earliest origins fit more parameters than they have rows and the diagnostic reports the degeneracy of its own refits"
+
+  [[target.mutant]]
+  id = "holdout-windows-overlap"
+  find = 'return range(int(min_train), int(pre_periods) - int(horizon) + 1, int(horizon))'
+  replace = 'return range(int(min_train), int(pre_periods) - int(horizon) + 1, 1)'
+  models = "origins stepping by one period instead of a whole window, so consecutive windows overlap, the same period is scored repeatedly and the errors stop being exchangeable"
+
+  [[target.mutant]]
+  id = "holdout-baseline-includes-the-post-period"
+  find = 'in_sample = _rmse(y[:T0] - np.asarray(fit(y, X, T0), dtype=float).ravel()[:T0])'
+  replace = 'in_sample = _rmse(y - np.asarray(fit(y, X, T0), dtype=float).ravel())'
+  models = "an in-sample baseline measured over the whole sample, so the treatment effect itself inflates the denominator and a real extrapolation failure is divided away"

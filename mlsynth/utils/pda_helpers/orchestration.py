@@ -16,7 +16,7 @@ from .lasso import (
     lasso_mbic_alpha,
 )
 from .fs import forward_select, fs_ate_inference
-from .hcw import fit_hcw, hcw_ate_inference
+from .hcw import fit_hcw, hcw_ate_inference, rolling_origin_holdout
 from .rf import rf_select, rf_ate_inference
 from ..inferutils import pda_prediction_intervals
 from ..conformal import resample_cumulative_paths
@@ -104,7 +104,8 @@ def run_pda(
     l2_standardize: bool = True, l2_tau_grid: Optional[Sequence[float]] = None,
     lasso_criterion: str = "cv", lasso_mbic_const: float = MBIC_CONST,
     hcw_criterion: str = "AICc", hcw_nvmax: Optional[int] = None,
-    hcw_backend: str = "fw", rf_kwargs: Optional[Dict[str, Any]] = None,
+    hcw_backend: str = "fw", hcw_holdout: Optional[int] = None,
+    rf_kwargs: Optional[Dict[str, Any]] = None,
     prediction_intervals: bool = False, cumulative_band: bool = False,
     pi_n_boot: int = 999, pi_dependent: bool = True,
     pi_seed: Optional[int] = 0,
@@ -217,10 +218,21 @@ def run_pda(
                 cum_band = cumulative_supt_band(
                     (y - cf)[T0:], pis["error_paths"], alpha=alpha)
 
+        holdout = None
+        if m == HCW and hcw_holdout is not None:
+            # fit_hcw's counterfactual spans every period, so a refit at an
+            # origin predicts the window after it without any reindexing.
+            def _fit_at(y_in, X_in, origin):
+                return fit_hcw(y_in, X_in, int(origin), criterion=hcw_criterion,
+                               nvmax=hcw_nvmax, backend=hcw_backend)[3]
+
+            holdout = rolling_origin_holdout(y, X, T0, int(hcw_holdout), _fit_at)
+
         fits[m] = PDAMethodFit(
             name=m, beta=beta, intercept=intercept, counterfactual=cf,
             gap=y - cf, att=att, att_se=se, ci=ci, p_value=p,
             donor_weights=_weights_dict(beta, labels),
-            selected_donors=selected, prediction_intervals=pis, cumulative_band=cum_band, metadata=meta,
+            selected_donors=selected, prediction_intervals=pis,
+            cumulative_band=cum_band, holdout=holdout, metadata=meta,
         )
     return fits

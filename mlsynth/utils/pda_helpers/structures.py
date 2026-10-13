@@ -118,6 +118,29 @@ class PDACumulativeBand:
 
 
 @dataclass(frozen=True)
+class PDAHoldout:
+    """Rolling-origin holdout error for a pre-period fit.
+
+    ``ratio`` is the summary: held-out root mean squared error over in-sample.
+    Near one, the fit extrapolates about as well as it interpolates. Much above
+    one, the donor coefficients are chasing the pre-period, and the post-period
+    counterfactual rests on a relation the data has not tested.
+
+    ``errors`` are per period in time order, ``horizon`` of them per origin, each
+    from a refit that never saw the period it scores.
+    """
+
+    horizon: int                  # periods scored per origin, and the stride
+    min_train: int                # shortest training block admitted
+    origins: np.ndarray           # the origins scored
+    errors: np.ndarray            # (n_origins * horizon,) out-of-sample errors
+    held_out_rmse: float
+    in_sample_rmse: float         # the full pre-period fit, for comparison
+    ratio: float                  # held_out_rmse / in_sample_rmse
+    n_origins: int
+
+
+@dataclass(frozen=True)
 class PDAMethodFit:
     """A single PDA-variant fit (l2 / lasso / fs)."""
 
@@ -134,6 +157,7 @@ class PDAMethodFit:
     selected_donors: Optional[List[Any]] = None      # fs / lasso support
     prediction_intervals: Optional[Dict[str, Any]] = None  # Jiang et al. (2025) PIs
     cumulative_band: Optional[PDACumulativeBand] = None     # sup-t running total
+    holdout: Optional[PDAHoldout] = None             # hcw rolling-origin holdout
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
