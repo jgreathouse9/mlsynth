@@ -1,0 +1,9 @@
+{
+  "case": "sl_tennessee",
+  "title": "SL against an R transcription of Viviano-Bradic's own expert library (Medicaid expansion panel)",
+  "paper": "Viviano & Bradic (2023), Journal of Econometrics 234(2): 691-713",
+  "reference_impl": "R, glmnet 4.1-8; experts and weighting transcribed from the authors' libraries/library.R (generate_experts, Exp_algorithm), with the two corrections of issue #651 marked in the script",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/sl_tennessee/reference.R",
+  "data": ["basedata/sl_tennessee_medcost.csv"]
+}

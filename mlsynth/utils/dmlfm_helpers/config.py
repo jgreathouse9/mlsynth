@@ -51,6 +51,15 @@ class DMLFMConfig(BaseEstimatorConfig):
                          description="Credible-interval level; 0.05 gives 95% bands.")
     seed: int = Field(default=0, description="RNG seed.")
 
+    prior: Literal["lasso", "horseshoe"] = Field(
+        default="lasso",
+        description=(
+            "Shrinkage prior on every block the ``*lasso`` flags switch on. "
+            "``lasso`` is the Bayesian lasso of Pang, Liu & Xu (2022), the "
+            "validated default. ``horseshoe`` is the global-local prior of "
+            "Ma et al. (2026); it takes no hyperparameters, so ``a1``-``p2`` "
+            "are ignored under it."),
+    )
     xlasso: bool = Field(default=False, description="Shrink the constant coefficients.")
     zlasso: bool = Field(default=False,
                          description="Shrink the unit-varying coefficient scales.")

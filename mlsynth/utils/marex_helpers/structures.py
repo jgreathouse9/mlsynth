@@ -26,7 +26,12 @@ from ..conformal.structure import CumulativeConformalBand
 
 @dataclass(frozen=True)
 class MAREXStudy:
-    """Design hyperparameters of a MAREX study (was ``StudyConfig``)."""
+    """Design hyperparameters of a MAREX study (was ``StudyConfig``).
+
+    ``backend`` records which solver produced the design: ``"mip"`` for SCIP's
+    mixed-integer program, ``"exact"`` for the search over treated sets in
+    :mod:`mlsynth.utils.marex_helpers.exact`.
+    """
 
     design: str
     T0: int
@@ -35,6 +40,7 @@ class MAREXStudy:
     lambda1: float = 0.0
     lambda2: float = 0.0
     xi: float = 0.0
+    backend: str = "mip"
 
 
 @dataclass(frozen=True)
@@ -151,6 +157,11 @@ class MAREXGlobalDesign:
         Aggregate synthetic control outcome, shape ``(T,)``.
     inference : MAREXInference, optional
         Aggregate inference (``None`` unless requested).
+    objective : float, optional
+        The design objective at the solution: the fit terms of every cluster,
+        plus any penalty the design adds. Comparable across backends, so it is
+        how a search and the MIQP are checked against each other; SCIP reports
+        it to its own tolerance.
     """
 
     Y_full: np.ndarray
@@ -161,6 +172,7 @@ class MAREXGlobalDesign:
     synthetic_treated: np.ndarray
     synthetic_control: np.ndarray
     inference: Optional[MAREXInference] = None
+    objective: Optional[float] = None
 
 
 @dataclass(frozen=True)

@@ -155,29 +155,55 @@ def test_pre_period_fit_is_reasonable():
     assert pre_rmse < 5.0                           # tracks the pre-period
 
 
+# Longer than _FAST, and the length is the point: see
+# test_scale_invariance_of_weights.
+_CONVERGED = dict(n_warmup=400, n_samples=400, n_chains=1, seed=0,
+                  display_graphs=False)
+
+
 def test_scale_invariance_of_weights():
     """B-MV standardizes internally, so rescaling every series leaves the
-    posterior weights (approximately) unchanged and scales the ATT by the same
-    factor.
+    posterior weights unchanged and scales the ATT by the same factor.
 
-    The invariance is exact in real arithmetic (the pre-period standardization
-    removes the scale), but NUTS is a stochastic, finite-precision sampler: the
-    float32 standardized inputs for ``y`` and ``1000*y`` are only bit-identical
-    on some JAX/NumPyro builds. On others the short ``_FAST`` chains amplify a
-    ~1e-6 float difference to ~1e-2 in the posterior-mean weights. Assert
-    invariance to MCMC / finite-precision error, not to machine epsilon, so the
-    check is robust across sampler builds rather than passing only where the
-    inputs happen to round identically.
+    The invariance is exact in real arithmetic, and the sampler is where it
+    stops being exact. ``(1000*y - mean(1000*y)) / std(1000*y)`` is not bitwise
+    ``(y - mean(y)) / std(y)``: in float64 the two standardized panels differ
+    by about 1e-14, and NUTS is chaotic, so it carries that into the draws.
+    NumPyro samples in single precision by default, where 1e-14 rounds away and
+    the two inputs really are bit-identical, which is why this check can come
+    back at 0.0 exactly. MTGP and BPSCS call ``numpyro.enable_x64()`` at import
+    and it is process-wide, so which of the two happens here depends on what
+    else the process imported. Both have to pass.
+
+    So the bound is the sampler's own reproducibility, measured in the same
+    process on the same panel: refitting at another seed. Rescaling must not
+    move the weights further than re-running does. That comparison is
+    build-independent, where a fixed constant is not -- at ``_FAST``'s 80 draws
+    the seed-to-seed spread measured 0.036 here against the 0.05 constant this
+    check used to carry, and CI saw 0.059 on a different JAX build. A constant
+    1.4x above the noise floor was passing on luck.
+
+    The absolute floor stays at 0.05 because two seeds can land close together
+    by chance, and that is not evidence against the invariance.
     """
     pytest.importorskip("numpyro")
     df = _hull_panel()
-    res1 = MVBBSC(_cfg(df=df, **_FAST)).fit()
     df2 = df.copy()
     df2["y"] = df2["y"] * 1000.0
-    res2 = MVBBSC(_cfg(df=df2, **_FAST)).fit()
+
+    res1 = MVBBSC(_cfg(df=df, **_CONVERGED)).fit()
+    res2 = MVBBSC(_cfg(df=df2, **_CONVERGED)).fit()
+    rerun = MVBBSC(_cfg(df=df, **{**_CONVERGED, "seed": 1})).fit()
+
     w1 = np.array(list(res1.weights.donor_weights.values()))
     w2 = np.array(list(res2.weights.donor_weights.values()))
-    assert np.allclose(w1, w2, atol=0.05)                 # simplex weights, MCMC-close
+    w_rerun = np.array(list(rerun.weights.donor_weights.values()))
+
+    moved = float(np.max(np.abs(w2 - w1)))
+    spread = float(np.max(np.abs(w_rerun - w1)))
+    assert moved <= max(spread, 0.05), (
+        f"rescaling moved the weights by {moved:.4f}, more than the "
+        f"{spread:.4f} a re-run moves them")
     assert res2.att == pytest.approx(res1.att * 1000.0, rel=0.05)
 
 

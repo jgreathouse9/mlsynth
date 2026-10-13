@@ -1,0 +1,12 @@
+# case: geox_mvbbsc_equivalence
+# generated_at: 2026-09-20T12:13:17Z
+# mlsynth_version: 2.0.0
+# estimator: GEOX engine
+# config: {"engine": "mvbbsc", "n_chains": 4, "n_samples": 500, "n_warmup": 500, "seed": 0, "target_accept": 0.9}
+# reference_impl: mlsynth.utils.mvbbsc_helpers.model.run_mvbbsc (the estimator the engine wraps)
+# reference_version: same process, same seed, canonical donor order
+quantity,mlsynth,reference,abs_diff
+posterior_mean_counterfactual_maxabs,33824.5721,33824.5721,0.0
+mean_post_ATT,-2071.685,-2071.685,0.0
+donor_weight_sum,1.0,1.0,0.0
+donor_weight_max,0.166897,0.166897,0.0

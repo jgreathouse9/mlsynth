@@ -30,13 +30,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel import accelerate as ACC
-from mlsynth.utils.bilevel.accelerate import (
+from mlsynth.utils.solvers import accelerate as ACC
+from mlsynth.utils.solvers.accelerate import (
     fista_warm_start_batch,
     simplex_project,
     simplex_project_batch,
 )
-from mlsynth.utils.bilevel.minnorm import solve_simplex_minnorm_batch
+from mlsynth.utils.solvers.minnorm import solve_simplex_minnorm_batch
 
 
 # --------------------------------------------------------------------------- #
@@ -244,7 +244,7 @@ class TestWorkDone:
         calls = []
         real = ACC.fista_warm_start_batch
         monkeypatch.setattr(
-            "mlsynth.utils.bilevel.minnorm.fista_warm_start_batch",
+            "mlsynth.utils.solvers.minnorm.fista_warm_start_batch",
             lambda G, **kw: (calls.append(G.shape) or real(G, **kw)))
         solve_simplex_minnorm_batch(ridged_batch(S=10, J=4, T=6))
         assert calls == []
@@ -253,7 +253,7 @@ class TestWorkDone:
         calls = []
         real = ACC.fista_warm_start_batch
         monkeypatch.setattr(
-            "mlsynth.utils.bilevel.minnorm.fista_warm_start_batch",
+            "mlsynth.utils.solvers.minnorm.fista_warm_start_batch",
             lambda G, **kw: (calls.append(G.shape) or real(G, **kw)))
         G = ridged_batch(S=10, J=90, T=30)
         solve_simplex_minnorm_batch(G, warm_start=np.full((10, 90), 1 / 90))
@@ -263,7 +263,7 @@ class TestWorkDone:
         calls = []
         real = ACC.fista_warm_start_batch
         monkeypatch.setattr(
-            "mlsynth.utils.bilevel.minnorm.fista_warm_start_batch",
+            "mlsynth.utils.solvers.minnorm.fista_warm_start_batch",
             lambda G, **kw: (calls.append(G.shape) or real(G, **kw)))
         solve_simplex_minnorm_batch(ridged_batch(S=10, J=90, T=30), accelerate=False)
         assert calls == []

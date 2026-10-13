@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Refuse to commit while a tool is rewriting the working tree.
+#
+# tools/mutation/run_mutants.py edits source files in place: it writes a
+# mutant, runs the tests, restores the file, and moves to the next one. A
+# formatter, a codemod or a --fix linter does the same. While any of those is
+# running the tree is not yours, and `git status` is a snapshot, not a lock --
+# a clean status one second and `git add` the next can stage whatever the other
+# process wrote in between.
+#
+# This has happened twice. Commit 4c836c51 shipped the mutant
+# `the-draws-are-made-and-thrown-away` into sweep_lambda's forward pass, and
+# 591beb0b shipped `warp-tail-not-carried-forward` into DTWSC's
+# _counterfactual. Both read as features: the docstring described behaviour the
+# code no longer had, and nothing failed, because a mutant that is merely
+# present fails nothing by design. Each survived until someone read a diff.
+#
+# CLAUDE.md asks for the habit in prose. This enforces it at the moment of the
+# mistake, which is the only moment that helps.
+set -euo pipefail
+
+if [ "${MLSYNTH_ALLOW_COMMIT_DURING_MUTATION:-}" = "1" ]; then
+    echo "pre-commit: mutation guard overridden by request." >&2
+    exit 0
+fi
+
+# Match the process, not the mention. `pgrep -f run_mutants.py` also matches a
+# shell whose command line merely contains the string -- the wrapper that
+# launched the runner, an editor, this hook's own parent -- and a guard that
+# refuses every commit is worse than no guard, because the override becomes
+# reflex. So inspect argv: a real holder has an argument that *ends* with the
+# script name, which `bash -c "... run_mutants.py ..."` does not.
+holders=""
+for script in "run_mutants.py" "cosmic_ray" "cosmic-ray"; do
+    for pid in $(pgrep -f "$script" 2>/dev/null || true); do
+        [ "$pid" = "$$" ] && continue
+        [ -r "/proc/$pid/cmdline" ] || continue
+        if tr '\0' '\n' < "/proc/$pid/cmdline" \
+             | grep -qE "(^|/)${script}$|(^|/)${script}\$"; then
+            holders="$holders $script($pid)"
+        fi
+    done
+done
+
+if [ -n "$holders" ]; then
+    cat >&2 <<MSG
+pre-commit: refusing to commit while the working tree is held by:$holders
+
+That process edits source files in place, so what is staged right now may be a
+planted mutant rather than your work. This has shipped twice: 4c836c51 and
+591beb0b.
+
+Wait for it to finish and check \`git diff\` before committing. If you are
+certain the staged paths are untouched by it, re-run with
+MLSYNTH_ALLOW_COMMIT_DURING_MUTATION=1.
+MSG
+    exit 1
+fi

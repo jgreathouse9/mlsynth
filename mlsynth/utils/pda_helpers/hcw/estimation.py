@@ -232,9 +232,12 @@ def best_subset_select(
 ) -> List[int]:
     """Best-subset donor selection by ``criterion`` (HCW Section 5 / ``pampe``).
 
-    For every model size ``r = 0, 1, ..., nvmax`` the subset of ``r`` donors with
+    For every model size ``r = 1, ..., nvmax`` the subset of ``r`` donors with
     the smallest pre-period RSS is found, and the size (and subset) minimising
-    ``criterion`` is returned. The default ``backend="fw"`` is the exact
+    ``criterion`` is returned. Size zero is not searched: HCW Section 5 selects
+    among subsets of the controls, and pampe's ``regsubsets`` enumerates sizes
+    ``1..nvmax``, so an intercept-only counterfactual -- the treated unit's own
+    pre-period mean, extrapolated across the post window -- is not a candidate. The default ``backend="fw"`` is the exact
     Furnival-Wilson search; for a large pool it stops at ``node_budget`` and
     returns the best incumbent found with an optimality gap rather than refusing.
     ``backend="scip"`` selects the optional SCIP mixed-integer solver (requires
@@ -242,7 +245,9 @@ def best_subset_select(
     ``stats`` dict to receive the search diagnostics (node count / gap /
     certification).
 
-    Returns the selected donor column indices (a possibly empty list).
+    Returns the selected donor column indices. The list is empty only when no
+    model of size one is feasible at all, i.e. ``nvmax`` resolves to zero
+    because ``T0 <= 2`` leaves no residual degrees of freedom.
     """
     if criterion not in _CRITERIA:
         raise MlsynthEstimationError(
@@ -281,13 +286,17 @@ def best_subset_select(
 
 
 def _best_subset_exhaustive(G, Zty, yty, N, n, r_max, criterion) -> List[int]:
-    """Brute-force best subset: score every subset up to ``r_max`` by criterion.
+    """Brute-force best subset: score every subset of size 1..``r_max``.
 
     The reference search -- correct by construction and the oracle that
     :func:`_best_subset_bnb` is validated against.
     """
+    # The search starts at size one. HCW Section 5 selects among subsets of the
+    # control units and pampe's ``regsubsets`` enumerates sizes 1..nvmax, so the
+    # intercept-only model is not a candidate: a counterfactual built from the
+    # treated unit's own pre-period mean uses no control at all.
     best_idx: List[int] = []
-    best_ic = info_criterion(_subset_rss(G, Zty, yty, ()), n, 1, criterion)
+    best_ic = np.inf
     for r in range(1, r_max + 1):
         for combo in combinations(range(N), r):
             ic = info_criterion(_subset_rss(G, Zty, yty, combo), n, r + 1, criterion)
@@ -488,7 +497,10 @@ def _best_subset_fw(
     ])
     order = sorted(range(N), key=lambda j: red[j], reverse=True)
 
-    best_ic = [info_criterion(tss, n, 1, criterion)]
+    # Size zero is excluded from the search; see ``_best_subset_exhaustive``.
+    # ``best_rss[0] = tss`` below still records the intercept-only residual
+    # sum of squares, which the branch bounds are computed against.
+    best_ic = [np.inf]
     best_idx: List[int] = []
     best_rss = np.full(r_max + 1, np.inf)
     best_rss[0] = tss

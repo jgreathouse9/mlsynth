@@ -11,19 +11,25 @@ Abadie-Diamond-Hainmueller (2010) simplex-constrained program,
 
 This combines the denoising robustness of PCR with the
 non-extrapolation and interpretability properties of convex synthetic
-control weights. The simplex least-squares program is solved directly with
-cvxpy (CLARABEL), so this module has no dependency on the legacy ``estutils``
-optimizer.
+control weights.
+
+The program is the library's shared simplex least-squares solve, reached
+through :func:`~mlsynth.utils.solvers.active_set.solve_simplex_qp`. That
+solver minimises the squared residual where the display above minimises the
+norm; squaring is monotone on the non-negative reals, so the two have the same
+minimiser. The active set solves the equality-constrained system on each free
+set directly, which makes the answer exact under a rescaling of the panel
+where a conic solver stops a few 1e-05 short.
 """
 
 from __future__ import annotations
 
 from typing import List, Optional
 
-import cvxpy as cp
 import numpy as np
 
 from ....exceptions import MlsynthEstimationError
+from ...solvers.active_set import solve_simplex_qp
 
 
 def solve_simplex(
@@ -53,15 +59,12 @@ def solve_simplex(
             f"rows but target has {target_pre.shape[0]}."
         )
 
-    J = denoised_donor_pre.shape[1]
-    w = cp.Variable(J)
-    objective = cp.Minimize(cp.norm(target_pre - denoised_donor_pre @ w, 2))
-    constraints = [w >= 0, cp.sum(w) == 1]
-    problem = cp.Problem(objective, constraints)
-    problem.solve(solver=cp.CLARABEL)
-
-    if w.value is None:
+    if denoised_donor_pre.shape[1] == 0:
         raise MlsynthEstimationError(
-            f"Simplex weight solve did not converge (status: {problem.status})."
+            "No donors: sum(w) == 1 has no solution over an empty pool."
         )
-    return np.asarray(w.value, dtype=float)
+
+    try:
+        return solve_simplex_qp(denoised_donor_pre, target_pre)
+    except ValueError as exc:  # pragma: no cover - the guards above precede it
+        raise MlsynthEstimationError(f"Simplex weight solve failed: {exc}") from exc

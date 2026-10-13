@@ -27,12 +27,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.minnorm import (
+from mlsynth.utils.solvers.minnorm import (
     gram_reduction_is_safe,
     simplex_gram,
     solve_simplex_minnorm,
 )
-from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 
 def _solvers_agree(B, A, atol=1e-6):
@@ -64,7 +64,7 @@ def _sparse_fit_target(rng, m, J):
 # 1. The predicate agrees with what the solvers do
 # --------------------------------------------------------------------------- #
 def test_unique_when_the_target_is_outside_the_hull():
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(0)
     B, A = _outside_hull_target(rng, 8, 39)
@@ -76,7 +76,7 @@ def test_unique_when_the_target_is_outside_the_hull():
 def test_not_unique_when_the_target_is_inside_the_hull():
     """More donors than rows *and* a reachable target: the optimal set is a face
     and the two exact solvers land on different points of it."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(0)
     B, A = _in_hull_target(rng, 8, 39)
@@ -90,7 +90,7 @@ def test_sparse_fits_are_unique_however_wide_the_donor_pool(m, J):
     """The shape the old guard rejected. A donor pool far wider than the
     pre-period still gives a unique optimum when the fit is imperfect, because
     the solution is sparse and no null direction is feasible at it."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(m * 100 + J)
     B, A = _sparse_fit_target(rng, m, J)
@@ -104,7 +104,7 @@ def test_the_predicate_never_disagrees_with_the_solvers(seed):
     """Fuzz across regimes: whenever the predicate says unique, the two exact
     solvers must agree. That is the only direction that matters -- a false
     'unique' would silently change an answer."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(seed)
     m = int(rng.integers(4, 40))
@@ -126,7 +126,7 @@ def test_the_predicate_never_disagrees_with_the_solvers(seed):
 # --------------------------------------------------------------------------- #
 def test_full_column_rank_designs_are_always_unique():
     """Anything the old shape guard admits, this admits too."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(3)
     for m, J in [(40, 20), (30, 12), (60, 25)]:
@@ -138,7 +138,7 @@ def test_full_column_rank_designs_are_always_unique():
 
 def test_it_admits_shapes_the_rank_test_rejects():
     """The point of the change: the ordinary synthetic-control geometry."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(4)
     B, A = _sparse_fit_target(rng, 19, 38)
@@ -150,7 +150,7 @@ def test_it_admits_shapes_the_rank_test_rejects():
 # 3. Edges
 # --------------------------------------------------------------------------- #
 def test_single_donor():
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     B = np.array([[2.0], [3.0]])
     assert simplex_optimum_is_unique(B, np.array([1.0, 1.0]), np.array([1.0])) is True
@@ -158,7 +158,7 @@ def test_single_donor():
 
 def test_duplicate_donors_carrying_weight_are_not_unique():
     """Two identical donors both in the support: weight can slide between them."""
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     rng = np.random.default_rng(5)
     B = rng.normal(size=(10, 3))
@@ -170,7 +170,7 @@ def test_duplicate_donors_carrying_weight_are_not_unique():
 
 
 def test_all_donors_identical():
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     B = np.tile(np.array([[1.0], [2.0], [3.0]]), (1, 4))
     A = B[:, 0].copy()
@@ -179,7 +179,7 @@ def test_all_donors_identical():
 
 
 def test_rejects_mismatched_weights():
-    from mlsynth.utils.bilevel.minnorm import simplex_optimum_is_unique
+    from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
     with pytest.raises(ValueError):
         simplex_optimum_is_unique(np.ones((4, 3)), np.ones(4), np.ones(2))

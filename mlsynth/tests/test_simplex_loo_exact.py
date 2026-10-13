@@ -21,7 +21,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.ridge_augment import simplex_qp
+from mlsynth.utils.solvers.ridge_augment import simplex_qp
 
 
 def _loop(M, n=None):
@@ -47,7 +47,7 @@ def _panel(rng, T0, J, kind="sparse"):
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("T0,J", [(19, 38), (30, 12), (89, 49), (12, 60), (8, 20)])
 def test_matches_the_one_at_a_time_solve(T0, J):
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(T0 * 100 + J), T0, J)
     got = solve_simplex_loo_exact(M)
@@ -57,7 +57,7 @@ def test_matches_the_one_at_a_time_solve(T0, J):
 
 
 def test_each_row_is_on_the_simplex_and_excludes_itself():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(1), 20, 15)
     W = solve_simplex_loo_exact(M)
@@ -70,7 +70,7 @@ def test_each_row_is_on_the_simplex_and_excludes_itself():
 def test_fitted_values_match_the_loop_even_where_weights_need_not():
     """On a family member whose minimiser is a face the weights may legitimately
     differ; the fit never may."""
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     rng = np.random.default_rng(2)
     M = _panel(rng, 6, 25)                        # wide and short: faces likely
@@ -89,7 +89,7 @@ def test_fitted_values_match_the_loop_even_where_weights_need_not():
 def test_non_unique_members_reproduce_the_incumbent_solver_exactly():
     """A panel built so several members have a face for a minimiser. Those must
     come back bit-comparable to the one-at-a-time solve, not merely optimal."""
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     rng = np.random.default_rng(3)
     base = np.cumsum(rng.normal(size=(5, 4)), axis=0) + 20.0
@@ -100,14 +100,14 @@ def test_non_unique_members_reproduce_the_incumbent_solver_exactly():
 
 
 def test_collinear_donors_reproduce_the_incumbent_solver():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(4), 15, 10, kind="collinear")
     np.testing.assert_allclose(solve_simplex_loo_exact(M), _loop(M), atol=1e-7)
 
 
 def test_info_reports_how_many_members_fell_back():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     rng = np.random.default_rng(5)
     base = np.cumsum(rng.normal(size=(5, 4)), axis=0) + 20.0
@@ -126,7 +126,7 @@ def test_info_reports_how_many_members_fell_back():
 # 3. Edges
 # --------------------------------------------------------------------------- #
 def test_two_donors():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(7), 10, 2)
     W = solve_simplex_loo_exact(M)
@@ -134,14 +134,14 @@ def test_two_donors():
 
 
 def test_rejects_a_single_donor():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     with pytest.raises(ValueError, match="at least two"):
         solve_simplex_loo_exact(np.ones((5, 1)))
 
 
 def test_rejects_a_non_matrix():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     with pytest.raises(ValueError, match="2-D"):
         solve_simplex_loo_exact(np.ones(5))
@@ -149,7 +149,7 @@ def test_rejects_a_non_matrix():
 
 @pytest.mark.parametrize("bad", [0, -1, 9])
 def test_rejects_an_out_of_range_target_count(bad):
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(8), 10, 6)
     with pytest.raises(ValueError, match="n_targets"):
@@ -159,7 +159,7 @@ def test_rejects_an_out_of_range_target_count(bad):
 def test_a_target_border_leaves_later_columns_as_donors_only():
     """A permutation placebo needs the treated unit in every pool without being
     a placebo itself, which is what ``n_targets`` short of ``J`` gives."""
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = _panel(np.random.default_rng(9), 14, 8)
     W = solve_simplex_loo_exact(M, n_targets=5)
@@ -168,7 +168,7 @@ def test_a_target_border_leaves_later_columns_as_donors_only():
 
 
 def test_identical_donors_still_returns_simplex_rows():
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     M = np.tile(np.array([[1.0], [2.0], [3.0]]), (1, 4))
     W = solve_simplex_loo_exact(M)
@@ -182,7 +182,7 @@ def test_the_fallback_solver_is_the_callers_own():
     to CVXPY when the active set reports failure on itself. A batch standing in
     for the engine's placebo loop has to re-solve with that wrapper, not with
     the bare active set underneath it."""
-    from mlsynth.utils.bilevel.minnorm import solve_simplex_loo_exact
+    from mlsynth.utils.solvers.minnorm import solve_simplex_loo_exact
 
     seen = []
 

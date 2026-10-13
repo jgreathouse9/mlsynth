@@ -39,7 +39,7 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         Whether to apply SVD-based donor clustering before the PCR fit.
     estimator : {"frequentist", "bayesian"}
         Frequentist QP versus Bayesian posterior for the PCR family.
-    rpca_method : {"PCP", "HQF"}
+    rpca_method : {"PCP", "HQF", "HSVT", "FGRC"}
         Robust-PCA decomposition for the RPCA family.
     lambda_penalty, p, q : float or None
         Elastic-net-style regularization knobs forwarded to the
@@ -69,7 +69,7 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
         default="frequentist",
         description="Frequentist QP or Bayesian posterior for the PCR family.",
     )
-    rpca_method: Literal["PCP", "HQF", "HSVT"] = Field(
+    rpca_method: Literal["PCP", "HQF", "HSVT", "FGRC"] = Field(
         default="PCP",
         description="Robust-PCA / low-rank denoiser for the RPCA family: 'PCP' "
                     "(Candes et al. 2011, default), 'HQF' (Wang et al. 2023), or "
@@ -110,6 +110,30 @@ class CLUSTERSCConfig(BaseEstimatorConfig):
     fgrc_order: int = Field(
         default=4, ge=2,
         description="fGRC B-spline order (cluster_method='fgrc'; 4 = cubic).",
+    )
+    fgrc_keep: Literal["all", "cluster"] = Field(
+        default="all",
+        description="For rpca_method='FGRC': which part of the fGRC subspace "
+                    "denoises the donors. 'all' keeps the disturbing block "
+                    "(rank c1+c2); 'cluster' projects it out (rank c1). Keep "
+                    "'all' unless you have measured otherwise -- the "
+                    "disturbing block carries between-donor spread, and "
+                    "without it a convex weight step may be unable to reach "
+                    "the treated unit at all.",
+    )
+    fgrc_n_random: int = Field(
+        default=40, ge=1,
+        description="fGRC restarts of the loading matrix, keeping the "
+                    "lowest-loss solution (cluster_method='fgrc'). Yamamoto and "
+                    "Hwang (2017) report that the number of local optima varies "
+                    "with the data and recommend many random starts; raise this "
+                    "on a panel whose labels move between runs.",
+    )
+    fgrc_nstart: int = Field(
+        default=40, ge=1,
+        description="fGRC k-means starts within each loading restart "
+                    "(cluster_method='fgrc'). Raise it alongside fgrc_n_random "
+                    "when the cluster assignment is unstable.",
     )
     hsvt_rank_method: Literal["usvt", "cumvar", "fixed"] = Field(
         default="usvt",

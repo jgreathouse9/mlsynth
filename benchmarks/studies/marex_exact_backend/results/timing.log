@@ -1,0 +1,29 @@
+python 3.13.16, numpy 2.5.3, cvxpy 1.9.3, threads pinned to 1
+walmart J=45 m=2         search   0.0025s  MIQP    46.12s  x 18712.6  obj 0.1776544245 vs 0.1776544708  same set True  match True  load 0.69->0.90
+J=12 m=3 seed=3          search   0.0174s  MIQP     0.69s  x    39.5  obj 6.722141149 vs 6.722141325  same set True  match True  load 0.90->0.91
+J=12 m=3 seed=11         search   0.0202s  MIQP     0.55s  x    27.1  obj 8.936936874 vs 8.936936918  same set True  match True  load 0.91->0.91
+J=12 m=3 seed=42         search   0.0085s  MIQP     0.88s  x   102.7  obj 7.30468395 vs 7.304684017  same set True  match True  load 0.91->0.91
+J=16 m=4 seed=3          search   0.0152s  MIQP     1.56s  x   102.6  obj 4.555069738 vs 4.555069922  same set True  match True  load 0.91->0.91
+J=16 m=4 seed=11         search   0.0098s  MIQP     2.13s  x   216.3  obj 4.308121208 vs 4.308121298  same set True  match True  load 0.91->0.93
+J=16 m=4 seed=42         search   0.0686s  MIQP     2.72s  x    39.7  obj 5.999932787 vs 5.999932922  same set True  match True  load 0.93->0.93
+J=20 m=5 seed=3          search   0.0189s  MIQP     4.10s  x   216.9  obj 2.90643823 vs 2.906438282  same set True  match True  load 0.93->0.95
+J=20 m=5 seed=11         search   0.0574s  MIQP     3.48s  x    60.7  obj 1.743499158 vs 1.743499303  same set True  match True  load 0.95->0.96
+J=20 m=5 seed=42         search   0.0537s  MIQP     7.19s  x   133.8  obj 1.919791943 vs 1.919792015  same set True  match True  load 0.96->0.97
+J=25 m=5 seed=3          search   0.0558s  MIQP    27.41s  x   491.2  obj 2.116880897 vs 2.116880969  same set True  match True  load 0.97->0.98
+J=25 m=5 seed=11         search   0.0427s  MIQP    17.70s  x   415.0  obj 0.907898603 vs 0.90789869  same set True  match True  load 0.98->1.12
+J=25 m=5 seed=42         search   0.0516s  MIQP    28.28s  x   548.4  obj 2.030746655 vs 2.030746822  same set True  match True  load 1.12->1.07
+J=30 m=5 seed=3          search   0.1136s  MIQP    66.52s  x   585.5  obj 1.534086137 vs 1.534086205  same set True  match True  load 1.07->1.02
+J=30 m=5 seed=11         search   0.1363s  MIQP    45.23s  x   331.8  obj 1.105555581 vs 1.105555741  same set True  match True  load 1.02->1.01
+J=30 m=5 seed=42         search   0.1187s  MIQP    37.28s  x   313.9  obj 0.7582876222 vs 0.7582878787  same set True  match True  load 1.01->1.00
+J=40 m=5 seed=3          search   0.4993s  MIQP   249.34s  x   499.4  obj 1.1112245 vs 1.111224716  same set True  match True  load 1.00->1.00
+J=40 m=5 seed=11         search   0.5242s  MIQP   162.09s  x   309.2  obj 0.9268508674 vs 0.9268510274  same set True  match True  load 1.00->1.00
+J=40 m=5 seed=42         search   0.5030s  MIQP   133.36s  x   265.1  obj 0.5812077853 vs 0.5812079971  same set True  match True  load 1.00->1.00
+
+per size, geometric mean speedup over seeds:
+  J=12 m=3: search median 0.0174s, MIQP median 0.69s, x47.9, all match True
+  J=16 m=4: search median 0.0152s, MIQP median 2.13s, x95.9, all match True
+  J=20 m=5: search median 0.0537s, MIQP median 4.10s, x120.7, all match True
+  J=25 m=5: search median 0.0516s, MIQP median 27.41s, x481.7, all match True
+  J=30 m=5: search median 0.1187s, MIQP median 45.23s, x393.6, all match True
+  J=40 m=5: search median 0.5030s, MIQP median 162.09s, x344.6, all match True
+exit: 0

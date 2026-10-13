@@ -34,7 +34,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.simplex import (project_simplex,
+from mlsynth.utils.solvers.simplex import (project_simplex,
                                            project_simplex_cols,
                                            simplex_lstsq)
 
@@ -138,21 +138,21 @@ class TestTheMaskedProjection:
 # ------------------------------------------------------------- smoke
 class TestSmoke:
     def test_it_returns_one_column_per_target(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=12)
         W = simplex_lstsq_loo(M)
         assert W.shape == (12, 12)
 
     def test_every_column_is_on_the_simplex(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         W = simplex_lstsq_loo(_rank_deficient(n=12))
         np.testing.assert_allclose(W.sum(axis=0), 1.0, atol=1e-9)
         assert (W >= -1e-12).all()
 
     def test_the_left_out_column_gets_exactly_no_weight(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         W = simplex_lstsq_loo(_rank_deficient(n=12))
         assert (np.diag(W) == 0.0).all()
@@ -169,7 +169,7 @@ class TestItSolvesTheSameProblem:
         they give against the full one. That can only hold if the excluded
         column contributes nothing.
         """
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=10)
         W = simplex_lstsq_loo(M)
@@ -195,7 +195,7 @@ class TestItSolvesTheSameProblem:
         relative, because a column that already fits to 1e-6 makes any ratio
         meaningless.
         """
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=10)
         mine = _objectives(M, simplex_lstsq_loo(M), 10)
@@ -204,7 +204,7 @@ class TestItSolvesTheSameProblem:
         assert mine.sum() == pytest.approx(loop.sum(), rel=1e-3)
 
     def test_on_a_unique_optimum_the_weights_match_the_loop(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _well_conditioned()
         np.testing.assert_allclose(simplex_lstsq_loo(M), _loop(M, M.shape[1]),
@@ -216,7 +216,7 @@ class TestItSolvesTheSameProblem:
         per-column ratios are meaningless where a column fits to 1e-6. The
         total is what a permutation distribution is built from.
         """
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient()
         n = M.shape[1]
@@ -228,7 +228,7 @@ class TestItSolvesTheSameProblem:
         """A donor with an exact duplicate elsewhere must be reconstructed by
         that duplicate, which is the one case where the optimum is a corner and
         so is identified."""
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         rng = np.random.default_rng(7)
         M = rng.normal(size=(10, 5))
@@ -241,7 +241,7 @@ class TestItSolvesTheSameProblem:
 # ------------------------------------------------------------- the border
 class TestTheBorder:
     def test_columns_past_n_targets_are_donors_but_never_targets(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=10)
         W = simplex_lstsq_loo(M, n_targets=7)
@@ -252,7 +252,7 @@ class TestTheBorder:
         """The permutation form needs the treated unit available to every
         placebo. A border that could never be used would make the option
         vacuous."""
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         rng = np.random.default_rng(11)
         M = rng.normal(size=(12, 5))
@@ -261,7 +261,7 @@ class TestTheBorder:
         assert W[4, 0] > 0.99
 
     def test_the_default_is_every_column(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=8)
         np.testing.assert_array_equal(simplex_lstsq_loo(M),
@@ -271,13 +271,13 @@ class TestTheBorder:
 # ------------------------------------------------------------- edges
 class TestEdgeCases:
     def test_two_columns_leaves_a_single_donor(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         W = simplex_lstsq_loo(_rank_deficient(m=5, n=2))
         np.testing.assert_allclose(W, [[0.0, 1.0], [1.0, 0.0]], atol=1e-12)
 
     def test_one_target_against_a_border(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         W = simplex_lstsq_loo(_rank_deficient(m=5, n=4), n_targets=1)
         assert W.shape == (4, 1)
@@ -285,7 +285,7 @@ class TestEdgeCases:
         assert W.sum() == pytest.approx(1.0, abs=1e-9)
 
     def test_a_ridge_shrinks_the_weights_toward_uniform(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         M = _rank_deficient(n=12)
         plain = simplex_lstsq_loo(M)
@@ -297,25 +297,25 @@ class TestEdgeCases:
 # ------------------------------------------------------------- failures
 class TestFailuresAreReported:
     def test_a_single_column_has_nothing_to_fit_against(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         with pytest.raises(ValueError, match="at least two"):
             simplex_lstsq_loo(np.ones((4, 1)))
 
     def test_more_targets_than_columns_is_an_error(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         with pytest.raises(ValueError, match="n_targets"):
             simplex_lstsq_loo(_rank_deficient(n=5), n_targets=6)
 
     def test_no_targets_is_an_error(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         with pytest.raises(ValueError, match="n_targets"):
             simplex_lstsq_loo(_rank_deficient(n=5), n_targets=0)
 
     def test_a_one_dimensional_input_is_an_error(self):
-        from mlsynth.utils.bilevel.simplex import simplex_lstsq_loo
+        from mlsynth.utils.solvers.simplex import simplex_lstsq_loo
 
         with pytest.raises(ValueError, match="2-D"):
             simplex_lstsq_loo(np.arange(5.0))

@@ -113,7 +113,12 @@ def exact_weights(
 
     problem = cp.Problem(objective, constraints)
     try:
-        problem.solve(solver=solver, verbose=verbose)
+        # ``solver=None`` is the same as passing no solver at all: cvxpy ranks
+        # the installed solvers and takes the highest, which is mosek wherever
+        # mosek is installed -- and mosek without a licence raises. So the
+        # default is named here. CLARABEL is what the other cvxpy sites in the
+        # library ask for; an explicit ``solver`` still overrides it.
+        problem.solve(solver=solver or cp.CLARABEL, verbose=verbose)
     except Exception as exc:
         raise MlsynthEstimationError(f"Eq. (6) QP failed to solve: {exc}") from exc
 

@@ -24,6 +24,7 @@ from ..utils.fast_scm_helpers.fast_scm_setup import (
 
 # Utilities - Search and Evaluation
 from ..utils.fast_scm_helpers.lexsearch import select_treated_designs
+from ..utils.fast_scm_helpers.unit_level import unit_level_gram
 from ..utils.fast_scm_helpers.fast_scm_control import evaluate_candidates
 from ..utils.fast_scm_helpers.conflict import build_conflict_matrix
 # Utilities - Power and Ranking
@@ -34,6 +35,7 @@ from ..utils.fast_scm_helpers.inference import compute_moving_block_conformal_ci
 
 from dataclasses import dataclass, field
 
+from ..utils.fast_scm_helpers.unit_effects import per_treated_unit_effects
 from ..utils.fast_scm_helpers.structure import (
     SEDCandidate,
     LEXSCMResults,
@@ -203,6 +205,8 @@ class LEXSCM:
         self.top_K: int = config.top_K
         self.top_P: int = config.top_P
         self.targeting_penalty: float = config.targeting_penalty
+        self.unit_level_penalty: float = config.unit_level_penalty
+        self.min_treated_weight: float = config.min_treated_weight
 
         # =========================================================
         # INFERENCE / POWER
@@ -460,9 +464,24 @@ class LEXSCM:
                     f"to_be_treated markets {missing} are not in the panel."
                 )
 
+        # The Unit-level term of Abadie & Zhao's equation (10) folds into the
+        # Gram the search already runs on, the way targeting_penalty does: each
+        # candidate's reproducibility by the donors is a per-unit constant, so
+        # one matrix serves every tuple and the penalty costs nothing per tuple.
+        if self.min_treated_weight * self.m >= 1.0:
+            raise MlsynthConfigError(
+                f"min_treated_weight={self.min_treated_weight} on m={self.m} "
+                f"treated markets needs {self.min_treated_weight * self.m:.3g} "
+                f"of the weight, and the simplex has 1."
+            )
+        G_search = G
+        if self.unit_level_penalty > 0:
+            G_search, _ = unit_level_gram(
+                G, X_E, candidate_idx, self.unit_level_penalty)
+
         # ---------- Stage 1: treated-tuple selection (lexsearch) ----------
         search = select_treated_designs(
-            G=G,
+            G=G_search,
             candidate_idx=candidate_idx,
             m=self.m,
             top_K=self.top_K,
@@ -477,6 +496,7 @@ class LEXSCM:
             max_per_stratum=self.max_per_stratum,
             size_band=size_band,
             targeting_penalty=self.targeting_penalty,
+            min_treated_weight=self.min_treated_weight,
             forced=forced_idx,
         )
         selection_results = {"top_tuples": search["top_designs"], "stats": search["stats"]}
@@ -541,8 +561,9 @@ class LEXSCM:
             "explanation": recommendation.explanation,
         }
 
+        Y_full = self.Y
         if self.post_col is not None and not self.post_df.empty:
-            y_pop_mean_t, candidate_results = _run_post_intervention_updates(
+            y_pop_mean_t, candidate_results, Y_full = _run_post_intervention_updates(
                 candidate_results=candidate_results,
                 Y_pre=self.Y,
                 post_df=self.post_df,
@@ -687,6 +708,18 @@ class LEXSCM:
                 "outcome": self.outcome,
             },
             # --- grouped detail ---
+            # Each treated unit against its own synthetic control, over the
+            # control pool this design chose. One simplex solve per treated
+            # unit, for the winner only -- never inside the candidate search.
+            unit_effects=per_treated_unit_effects(
+                Y_full, list(unit_index.labels),
+                treated=best_candidate.treated_weight_dict_full
+                or best_candidate.treated_weight_dict,
+                control=best_candidate.control_weight_dict_full
+                or best_candidate.control_weight_dict,
+                fit_idx=np.arange(n_fit_time), blank_idx=B_idx,
+                post_idx=np.arange(self.Y.shape[0], Y_full.shape[0]),
+            ),
             search=LEXSCMSearch(
                 shortlist=shortlist,
                 candidates=candidate_results,

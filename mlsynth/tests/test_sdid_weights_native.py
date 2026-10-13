@@ -2,7 +2,7 @@
 
 The SDID unit- and time-weight programs are simplex-constrained least squares
 with a free intercept (and, for unit weights, an L2 ridge). Both reduce to the
-library's active-set simplex QP (``bilevel.active_set.solve_simplex_qp``) once
+library's active-set simplex QP (``solvers.active_set.solve_simplex_qp``) once
 the intercept is profiled out by centering over the observation axis and the
 ridge is folded in by augmenting the design with a ``sqrt(lambda) * I`` block.
 

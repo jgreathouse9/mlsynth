@@ -27,7 +27,7 @@ import numpy as np
 from .mscmt import solve_mscmt
 from .regression_v import solve_regression
 from .penalized import solve_penalized
-from .simplex import mspe
+from ..solvers.simplex import mspe
 from .stages import (
     _lower_level_weights,
     corner_solutions,

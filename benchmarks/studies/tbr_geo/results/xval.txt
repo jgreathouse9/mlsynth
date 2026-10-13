@@ -1,0 +1,26 @@
+dataprep accepts the filled panel: Ywide (93, 100)
+
+sales:  rank-deficient design = False
+  alpha, beta   mine=[-421.72940805    0.99970012]  ref=[-421.72940805    0.99970012]
+  s^2           mine=358331.83595838  ref=358331.83595838
+  max |d loc|   6.403e-10    max |d scale| 7.198e-08
+  Delta(T)      mine=143028.620641  ref=143028.620641
+
+/home/user/google/matched_markets/matched_markets/methodology/tbr.py:117: SingularMatrixWarning: The design matrix is rank-deficient. The model parameters are not uniquely determined.
+  self.pre_period_model = sm.OLS(treat_vec.values, cntrl_mat.values).fit()
+cost:  rank-deficient design = True
+  alpha, beta   mine=[0. 0.]  ref=[0. 0.]
+  s^2           mine=0.00000000  ref=0.00000000
+  max |d loc|   7.276e-12    max |d scale| 0.000e+00
+  Delta(T)      mine=50000.000000  ref=50000.000000
+
+fixed-cost scenario (section 3.4): True;  total incremental cost 50000.0000
+/home/user/google/matched_markets/matched_markets/methodology/tbr.py:117: SingularMatrixWarning: The design matrix is rank-deficient. The model parameters are not uniquely determined.
+  self.pre_period_model = sm.OLS(treat_vec.values, cntrl_mat.values).fit()
+
+  quantity                             mine        reference       diff
+  iROAS point                    2.86057241       2.86057241   7.11e-15
+  iROAS 90% lower                2.56727291       2.56727291   2.43e-12
+  iROAS 90% upper                3.15387191       3.15387191   2.42e-12
+  incremental cost           50000.00000000   50000.00000000   0.00e+00
+  incremental response      143028.62064106  143028.62064106   3.49e-10

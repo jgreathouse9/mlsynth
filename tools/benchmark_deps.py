@@ -118,6 +118,34 @@ def combine(slices, base: dict) -> dict:
     return out
 
 
+def should_record_inventory(from_slices, merged) -> tuple[bool, str]:
+    """Whether this combine may settle what nothing covers.
+
+    The inventory turns an unclaimed reachable file from doubt into an answer:
+    the sweep looked and no case ran it. Two things make that sound, and only
+    one of them needs checking here.
+
+    A case with no entry at all is always selected (``select`` runs an unmeasured
+    case unconditionally), so a case that skipped or died cannot be silenced by
+    an inventory. Its absence is safe.
+
+    What is not safe is an entry older than the tree. A file added after a case
+    was measured does not appear in that case's entry whether or not the case
+    executes it, so recording the file as covered-by-nothing would rest on a
+    measurement taken before it existed. The inventory is therefore written only
+    when every entry in the merged map came from this run's slices, which makes
+    each entry exactly as old as the inventory beside it.
+    """
+    stale = sorted(set(merged) - set(from_slices))
+    if stale:
+        return False, (
+            f"{len(stale)} entr(y/ies) predate this run's slices, so the tree "
+            f"may have changed under them: {', '.join(stale[:5])}"
+            + (" ..." if len(stale) > 5 else "")
+        )
+    return True, f"every one of {len(set(merged))} entr(y/ies) measured in this run"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--case", action="append", default=[],
@@ -138,9 +166,22 @@ def main() -> int:
     from benchmarks import case_deps, registry
 
     if args.combine:
+        import json as _json
+        from_slices = set()
+        for sl in args.combine:
+            from_slices.update(_json.loads(Path(sl).read_text()))
         merged = combine(args.combine, base=case_deps.load())
         case_deps.save(merged, Path(args.out) if args.out else None)
         print(f"{len(merged)} case(s) mapped from {len(args.combine)} slice(s)")
+
+        ok, why = should_record_inventory(from_slices, merged)
+        if ok:
+            files = case_deps.reachable_inventory()
+            case_deps.save_swept(files, cases=len(merged))
+            print(f"inventory: {len(files)} reachable file(s) recorded "
+                  f"({why}); unclaimed ones now narrow the selection")
+        else:
+            print(f"inventory: not recorded -- {why}")
         return 0
 
     names = list(registry.CASES) if args.all else args.case

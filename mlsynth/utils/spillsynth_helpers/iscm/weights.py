@@ -19,7 +19,11 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from ...bilevel import (
-    BilevelProblem, bias_corrected_gaps, simplex_lstsq, solve_bilevel)
+    BilevelProblem,
+    bias_corrected_gaps,
+    solve_bilevel,
+)
+from ...solvers.simplex import simplex_lstsq
 
 
 def _standardize(P_target: np.ndarray, P_donors: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

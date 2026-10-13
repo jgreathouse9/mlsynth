@@ -425,7 +425,7 @@ class VanillaSCConfig(BaseEstimatorConfig):
     ttest_K: Union[int, Literal["auto"]] = Field(
         default=3,
         description="Cross-fitting folds for inference='ttest' (Chernozhukov-"
-                    "Wuthrich-Zhu 2025): an int >= 2, or 'auto' to select K from "
+                    "Wuthrich-Zhu 2026): an int >= 2, or 'auto' to select K from "
                     "the SC-residual persistence and the RAE formula per their "
                     "Sec 3.2. K=3 is the small-T0 benchmark; larger K tightens "
                     "the interval.",

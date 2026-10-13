@@ -25,7 +25,7 @@ pipeline pluggable.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from pydantic import ConfigDict, Field
@@ -153,6 +153,30 @@ class FMAInference:
     bootstrap_n_replicates : int
         Number of bootstrap draws actually completed.
 
+    percentile_t_att_se : float
+        ``sqrt(Omega_hat / T2)``, the heteroskedasticity-robust standard
+        error of the average ATT (Wang, Racine & Wang 2025, Appendix
+        A.1). Not the Theorem 3.1 standard error: that one assumes the
+        treated unit's error variance is constant over the pre-period,
+        and the two coincide only in that case.
+    percentile_t_att_lower : float
+    percentile_t_att_upper : float
+        ``(1 - alpha)`` studentized-bootstrap CI bounds for the average
+        ATT (Equation 10). Asymmetric around ``att`` whenever the
+        bootstrap distribution of the statistic is skewed.
+    percentile_t_att_p_value : float
+        Two-sided bootstrap test of ``H_0: ATT = 0``, from the same
+        inversion. Bounded below by ``2 / (M + 1)``, so ``M`` draws
+        never report a p-value they cannot resolve.
+    percentile_t_omega : float
+        ``Omega_hat``, the variance of ``sqrt(T2) (ATT_hat - ATT)``.
+    percentile_t_statistics : np.ndarray
+        The ``M`` draws of the studentized statistic ``S*``. Roughly
+        standard normal when the asymptotics have taken hold, so its
+        spread against 1 is a read on how far they have.
+    percentile_t_n_replicates : int
+        Draws that produced a finite statistic.
+
     placebo_att_curves : np.ndarray
         ``(N_co, T)`` matrix of pseudo-ATT curves (one per control
         used as a placebo treated unit). Empty when
@@ -183,6 +207,16 @@ class FMAInference:
     )
     bootstrap_n_replicates: int = 0
 
+    percentile_t_att_se: float = float("nan")
+    percentile_t_att_lower: float = float("nan")
+    percentile_t_att_upper: float = float("nan")
+    percentile_t_att_p_value: float = float("nan")
+    percentile_t_omega: float = float("nan")
+    percentile_t_statistics: np.ndarray = field(
+        default_factory=lambda: np.asarray([], dtype=float)
+    )
+    percentile_t_n_replicates: int = 0
+
     placebo_att_curves: np.ndarray = field(
         default_factory=lambda: np.asarray([], dtype=float)
     )
@@ -192,6 +226,30 @@ class FMAInference:
     placebo_quantile_upper: np.ndarray = field(
         default_factory=lambda: np.asarray([], dtype=float)
     )
+
+    def primary_att_interval(self) -> Tuple[float, float, float, float]:
+        """The ATT-level interval mirrored into the standardized slot.
+
+        Returns ``(se, lower, upper, p_value)``: the Theorem 3.1 interval
+        when it was computed, else the percentile-t interval. Both target
+        the post-period average, so either populates the base contract's
+        ``att_ci``; the Web Appendix F band is per-period and the placebo
+        band is a distribution over units, so neither can. All NaN when no
+        ATT-level procedure ran.
+        """
+        if not np.isnan(self.asymptotic_att_se):
+            return (
+                self.asymptotic_att_se,
+                self.asymptotic_att_lower,
+                self.asymptotic_att_upper,
+                self.asymptotic_att_p_value,
+            )
+        return (
+            self.percentile_t_att_se,
+            self.percentile_t_att_lower,
+            self.percentile_t_att_upper,
+            self.percentile_t_att_p_value,
+        )
 
 
 class FMAResults(BaseEstimatorResults):

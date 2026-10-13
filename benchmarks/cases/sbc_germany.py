@@ -120,7 +120,7 @@ def comparison() -> dict:
     import numpy as np
 
     from benchmarks.reference import load_reference
-    from mlsynth.utils.bilevel.simplex import simplex_lstsq
+    from mlsynth.utils.solvers.simplex import simplex_lstsq
     from mlsynth.utils.sbc_helpers.hamilton import fit_hamilton_filter
     from mlsynth.utils.sbc_helpers.trend_forecast import forecast_treated_trend
 

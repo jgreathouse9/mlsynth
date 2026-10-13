@@ -48,6 +48,18 @@ KILLED = "killed"
 SURVIVED = "survived"
 NOT_APPLIED = "not-applied"
 
+# The catalogue is configuration, and this harness reads it with .get(), so a
+# misspelled key is not an error -- it is a silently ignored instruction. That
+# has already reddened the weekly job: active-set-linear-ray's accepted survivor
+# was recorded as `equivalent` / `equivalent-reason`, which nothing reads, so
+# `expected` defaulted to `killed` and the mutant failed the run with its own
+# justification sitting unread two lines above the failure. The
+# library forbids extra fields on every config (`extra="forbid"`); the
+# catalogue that scores it gets the same treatment.
+TARGET_KEYS = frozenset({"name", "module-path", "test-command", "timeout", "mutant"})
+MUTANT_KEYS = frozenset({"id", "find", "replace", "models", "expected",
+                         "accepted-because"})
+
 
 @dataclass(frozen=True)
 class Mutant:
@@ -82,6 +94,8 @@ def load_targets(path: Path) -> List[Target]:
     data = tomllib.loads(Path(path).read_text())
     targets = []
     for entry in data.get("target", []):
+        _reject_unknown(f"target {entry.get('name', '<unnamed>')!r}",
+                        entry, TARGET_KEYS)
         targets.append(Target(
             name=entry["name"],
             module_path=Path(entry["module-path"]),
@@ -92,6 +106,22 @@ def load_targets(path: Path) -> List[Target]:
     return targets
 
 
+def _reject_unknown(where: str, entry: dict, allowed: frozenset) -> None:
+    """Refuse a catalogue entry carrying a key this harness does not read.
+
+    A key that is not read is an instruction that does not run, and the entry
+    reads as though it does. Naming the nearest allowed key makes the usual
+    cause -- a near-miss spelling -- visible from the message.
+    """
+    unknown = sorted(set(entry) - allowed)
+    if unknown:
+        raise ValueError(
+            f"{where}: unknown key(s) {', '.join(repr(k) for k in unknown)}. "
+            f"This harness reads only {', '.join(sorted(allowed))}. A key it "
+            f"does not read is ignored, so the entry would score differently "
+            f"from how it reads.")
+
+
 def _mutant(target: str, entry: dict) -> Mutant:
     """Build one ``Mutant``, refusing an acceptance that states nothing.
 
@@ -100,9 +130,10 @@ def _mutant(target: str, entry: dict) -> Mutant:
     admitted with ``accepted-because`` beside it, and a reason on its own is
     refused too: it reads as accepted while the run keeps failing on it.
     """
+    where = f"{target}/{entry.get('id', '<unnamed>')}"
+    _reject_unknown(where, entry, MUTANT_KEYS)
     expected = entry.get("expected", KILLED)
     because = entry.get("accepted-because", "")
-    where = f"{target}/{entry.get('id', '<unnamed>')}"
     if expected not in (KILLED, SURVIVED):
         raise ValueError(
             f"{where}: expected must be {KILLED!r} or {SURVIVED!r}; got {expected!r}")

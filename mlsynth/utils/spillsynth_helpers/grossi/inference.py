@@ -24,9 +24,12 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from ...bilevel import (
-    BilevelProblem, bias_corrected_gaps, penalized_weights, simplex_lstsq,
+    BilevelProblem,
+    bias_corrected_gaps,
+    penalized_weights,
     solve_penalized,
 )
+from ...solvers.simplex import simplex_lstsq
 
 
 def _std_cov(p_t: np.ndarray, P_d: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

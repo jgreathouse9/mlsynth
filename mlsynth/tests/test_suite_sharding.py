@@ -38,9 +38,44 @@ def test_one_shard_keeps_everything():
     assert select_shard_modules(MODULES, shard=0, num_shards=1) == sorted(MODULES)
 
 
-def test_shard_is_a_round_robin_slice():
-    got = select_shard_modules(MODULES, shard=1, num_shards=3)
-    assert got == sorted(MODULES)[1::3]
+def test_a_slow_module_is_not_stacked_with_other_slow_ones():
+    """The property round-robin could not give. ``sorted(...)[shard::n]`` is
+    blind to duration, so the two slowest files land together whenever their
+    sorted positions happen to be ``n`` apart -- which is how shard 0 came to
+    measure about twice shard 1 (#479). Packing longest-first puts them in
+    different shards by construction."""
+    durations = {"a.py": 100.0, "b.py": 1.0, "c.py": 100.0, "d.py": 1.0}
+    shards = [select_shard_modules(list(durations), shard=i, num_shards=2,
+                                   durations=durations)
+              for i in range(2)]
+    for s in shards:
+        assert sum(durations[m] for m in s) == pytest.approx(101.0)
+
+
+def test_the_split_balances_time_not_file_count():
+    """One slow file is a fair share against many fast ones, and the shard
+    holding it is allowed to hold fewer files."""
+    durations = {"slow.py": 60.0, **{f"fast{i}.py": 1.0 for i in range(60)}}
+    shards = [select_shard_modules(list(durations), shard=i, num_shards=2,
+                                   durations=durations)
+              for i in range(2)]
+    totals = [sum(durations[m] for m in s) for s in shards]
+    assert max(totals) - min(totals) <= 1.0
+    assert min(len(s) for s in shards) == 1          # the slow file, alone
+
+
+def test_an_unmeasured_module_is_assumed_typical():
+    """A file the map has never seen is charged the median, not zero. Charging
+    zero would pile every new test file into one shard, which is the failure
+    the map exists to prevent."""
+    durations = {"a.py": 1.0, "b.py": 3.0, "c.py": 5.0}
+    shards = [select_shard_modules(list(durations) + ["new.py"], shard=i,
+                                   num_shards=2, durations=durations)
+              for i in range(2)]
+    placed = [s for s in shards if "new.py" in s]
+    assert len(placed) == 1
+    # median of {1,3,5} is 3, so it is not the lightest possible placement
+    assert sum(durations.get(m, 3.0) for m in placed[0]) >= 3.0
 
 
 def test_shards_partition_exactly():
@@ -70,11 +105,16 @@ def test_duplicates_collapse():
     assert got == sorted(MODULES)[0::2]
 
 
-def test_shard_sizes_differ_by_at_most_one():
+def test_shard_durations_differ_by_at_most_the_slowest_module():
+    """The bound packing longest-first gives. Counts may differ freely now --
+    that is the point -- but no shard can exceed the lightest by more than one
+    module's own cost, because the packer would have put it elsewhere."""
+    durations = {m: float(len(m)) for m in MODULES}
     n = 3
-    sizes = [len(select_shard_modules(MODULES, shard=i, num_shards=n))
-             for i in range(n)]
-    assert max(sizes) - min(sizes) <= 1
+    shards = [select_shard_modules(MODULES, shard=i, num_shards=n,
+                                   durations=durations) for i in range(n)]
+    totals = [sum(durations[m] for m in s) for s in shards]
+    assert max(totals) - min(totals) <= max(durations.values())
 
 
 def test_more_shards_than_modules_leaves_some_empty_not_broken():

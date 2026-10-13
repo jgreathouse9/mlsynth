@@ -94,6 +94,36 @@ and let
 The prediction error is
 :math:`u_{i,t} \coloneqq y_{i,t}(\infty) - (\widehat a_i + \mathbf{Y}_t(\infty)'\widehat{\mathbf{b}}_i)`.
 
+That argmin need not be a single point, and with more donor units than clean
+pre-periods it usually is not: :math:`\mathbf{b}` carries :math:`N-1` free
+coordinates against :math:`T_0` residuals, so unit :math:`i` is reproducible by
+a whole face of :math:`\mathcal{W}_i` and every point of that face fits the
+pre-period equally well. The points of such a face agree before :math:`T_0` and
+need not agree after it. They are one fit and several counterfactuals.
+
+The authors' Guanajuato panel is such a case. On the cartel-count outcome the
+clean pre-period block is 33 units by 15 periods and its demeaned form has rank
+7, so the donors span far less than their number suggests. Two sets of units
+have demeaned pre-period paths that coincide exactly, one of four and one of
+five, the latter because those series are constant before treatment and demean
+to zero. Relabelling the donor columns moves a fitted weight by up to 0.48, and
+an event-time ATT by 0.03: the data does not choose among the points of the
+face, so the solver does.
+
+Where the fit leaves the weights undetermined, mlsynth reproduces the reference
+implementation's choice, which is what makes the published estimates replicate.
+The alternative is a stated tie-break, and one was measured: report the
+minimiser of least Euclidean norm, which splits evenly between identical donors
+and, on a well-separated face, depends on neither the donor order nor the units
+of measurement. On this panel it is the weaker option twice over. It does not
+remove the order-dependence, because the face is approached to within the
+conditioning of a rank-7 block and not reached cleanly -- relabelling still
+moves a weight by 0.03. And it costs the replication: the worst cartel-count
+cell against the reference goes from 1.0e-03 to 9.1e-03, outside the band
+``benchmarks/cases/ssc_guanajuato.py`` pins. Either way the data does not
+determine the counterfactual here; a tie-break fixes only which of the equally
+good answers is printed.
+
 *Step 2 -- joint effect estimation.* With selector matrices :math:`\mathbf{A}_s`
 mapping :math:`\boldsymbol{\tau}` to the period-:math:`(T_0+s)` effect vector, the GLS
 estimator (paper eq. 2.4) is

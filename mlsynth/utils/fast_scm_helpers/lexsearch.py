@@ -51,7 +51,7 @@ from .conflict import is_independent
 from . import strata as _strata
 from .feasibility import audit_feasibility
 from ...exceptions import MlsynthConfigError
-from ...utils.bilevel.minnorm import (
+from ...utils.solvers.minnorm import (
     solve_simplex_minnorm,
     solve_simplex_minnorm_batch,
 )
@@ -91,7 +91,7 @@ def _afw_batched(Qs: np.ndarray, iters: int = 80) -> np.ndarray:
 
     This replaced a fixed number of away-step Frank-Wolfe iterations. Frank-Wolfe
     converges sublinearly, and on a panel with one dominant factor -- which is
-    what a geo panel is, 97% of the DMA panel's two-way-demeaned variance in a
+    what a geo panel is, 97% of one measured panel's variance sat in a
     single component -- the columns are near-collinear and a fixed budget stops
     short of the optimum. At 80 iterations the median relative error on that
     panel was 9%, high on two thirds of subsets. Since these losses *rank*
@@ -506,6 +506,7 @@ def select_treated_designs(
     max_per_stratum: Optional[int] = None,
     size_band: Optional[Any] = None,
     targeting_penalty: float = 0.0,
+    min_treated_weight: float = 0.0,
     forced: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Select the ``top_K`` treated m-tuples with smallest imbalance.
@@ -631,7 +632,18 @@ def select_treated_designs(
     for rank, (S, _approx) in enumerate(raw, start=1):
         S = [int(x) for x in S]
         # Penalized weights/loss on G + gamma I; true targeting imbalance on G.
-        loss, w, _ = _afw_single(Gsearch[np.ix_(S, S)], iters=600, tol=1e-14)
+        # A weight floor keeps every selected market contributing: the
+        # unit-level penalty answers an unreachable market by zeroing its
+        # weight, and m here is a treatment budget, so a zero weight spends it
+        # on a market the estimator then ignores.
+        if min_treated_weight > 0.0:
+            from .unit_level import solve_penalised_weights
+            w, _ = solve_penalised_weights(Gsearch[np.ix_(S, S)],
+                                           np.zeros(len(S)),
+                                           min_weight=min_treated_weight)
+            loss = float(w @ Gsearch[np.ix_(S, S)] @ w)
+        else:
+            loss, w, _ = _afw_single(Gsearch[np.ix_(S, S)], iters=600, tol=1e-14)
         imb2 = float(w @ G[np.ix_(S, S)] @ w)
         tc = float(unit_costs[S].sum()) if unit_costs is not None else 0.0
         d = TreatedDesign(

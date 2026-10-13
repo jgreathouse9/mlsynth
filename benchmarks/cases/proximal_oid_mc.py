@@ -44,7 +44,7 @@ Two mutually reinforcing pieces, both cheap:
 
 * Statistical core (``M = 15000`` reps). Driven at the array level
   (:func:`..pi.overid.estimate_pi_overid` for the over-identified 2SLS bridge,
-  :func:`..bilevel.active_set.solve_simplex_qp` for the simplex SC) at ~0.2 ms
+  :func:`..solvers.active_set.solve_simplex_qp` for the simplex SC) at ~0.2 ms
   a rep, so 15k reps run in ~3.5 s. The large ``M`` makes the pinned centres
   precise (the Monte Carlo standard error on the mean bias is ~0.003), so the
   tolerances are tight.
@@ -85,7 +85,7 @@ def _draw(rng):
 def _mc(base_seed: int):
     """Mean ATT + 95% coverage of PIOID, and the naive-SC bias, over ``M`` draws."""
     from mlsynth.utils.proximal_helpers.pi.overid import estimate_pi_overid
-    from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+    from mlsynth.utils.solvers.active_set import solve_simplex_qp
 
     rng = np.random.default_rng(base_seed)
     pioid_att = np.empty(M)

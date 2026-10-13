@@ -21,7 +21,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.minnorm import gram_reduction_is_safe
+from mlsynth.utils.solvers.minnorm import gram_reduction_is_safe
 from mlsynth.utils.sdid_helpers.weights import _solve_intercept_simplex
 
 

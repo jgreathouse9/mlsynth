@@ -180,6 +180,7 @@ class MAREX:
                 cumulative_block=self.config.cumulative_block,
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
+                backend=self.config.backend,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -202,7 +203,7 @@ class MAREX:
                 # 30% pre-tail convention shared by the MAREX-family estimators.
                 pool_blank = (panel.blank_periods if panel.blank_periods > 0
                               else max(1, int(0.3 * panel.T0)))
-                raws = solve_design_pool(
+                pool_kw = dict(
                     Y_full=panel.Y_full, T0=panel.T0, clusters=panel.clusters,
                     top_K=self.config.top_K, blank_periods=pool_blank,
                     m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
@@ -211,9 +212,17 @@ class MAREX:
                     lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
                     covariate_weight=self.covariate_weight, standardize=self.standardize,
-                    solver=self.solver or cp.SCIP, verbose=self.verbose,
                     restrictions=restrictions,
                 )
+                if self.config.backend == "exact":
+                    # One search keeps each cluster's top_K treated sets; the
+                    # MIQP re-solves once per design with a no-good cut.
+                    from ..utils.marex_helpers.exact import solve_design_exact_pool
+                    raws = solve_design_exact_pool(**pool_kw)
+                else:
+                    raws = solve_design_pool(
+                        solver=self.solver or cp.SCIP, verbose=self.verbose,
+                        **pool_kw)
                 pool = build_marex_pool(
                     raws, alpha=self.config.alpha, power=self.config.power_target,
                     n_post=self.config.T_post or 1)

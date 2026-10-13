@@ -275,25 +275,69 @@ def test_predict_before_fit_raises(incrementality_synth_panel):
 # RelaxationCV: _generate_tau_grid (valid behavior)
 # ======================================================
 
-def test_generate_tau_grid_valid(incrementality_synth_panel):
+def _reference_tau_bounds(X, y):
+    """eta_bar and eta_low solved independently, per Liao-Shi-Zheng eq. 9-10."""
+    import cvxpy as cp
+    T, J = X.shape
+    Sigma, Upsilon = X.T @ X / T, X.T @ y / T
+    gam = cp.Variable()
+    eta_bar = cp.Problem(cp.Minimize(
+        cp.norm_inf(Sigma @ np.full(J, 1.0 / J) - Upsilon + gam * np.ones(J)))
+    ).solve(solver=cp.CLARABEL)
+    w, gam2 = cp.Variable(J), cp.Variable()
+    eta_low = cp.Problem(
+        cp.Minimize(cp.norm_inf(Sigma @ w - Upsilon + gam2 * np.ones(J))),
+        [cp.sum(w) == 1, w >= 0],
+    ).solve(solver=cp.CLARABEL)
+    return float(eta_bar), float(eta_low)
+
+
+def test_generate_tau_grid_spans_the_feasible_relaxation_range(incrementality_synth_panel):
+    """The grid runs from "equal weights just feasible" down to "any simplex
+    weight just feasible".
+
+    It used to run from ``||X'y||_inf`` down to a hard-coded ``1e-5``, which is
+    a Lasso penalty path and not a statement about this program's feasibility at
+    either end. On the Liao-Shi-Zheng design that put every grid point either
+    above ``eta_bar`` (where the constraint is vacuous, so L2, entropy and EL all
+    return the equal weights) or below ``eta_low`` (where the program is
+    infeasible), and the fit silently returned ``1/J``.
+    """
     y, X, T0 = incrementality_synth_panel
     n_taus = 20
     model = RelaxationCV(n_taus=n_taus)
 
     model._generate_tau_grid(X, y)
 
-    assert hasattr(model, "taus_")
+    eta_bar, eta_low = _reference_tau_bounds(X, y)
+
     assert model.taus_.shape[0] == n_taus
     assert np.all(np.isfinite(model.taus_))
     assert np.all(model.taus_ > 0)
     assert np.all(model.taus_[:-1] > model.taus_[1:])
-    assert np.isclose(model.taus_[-1], 1e-5, rtol=1e-8)
-    assert np.isclose(
-        model.taus_[0],
-        np.linalg.norm(X.T @ y, np.inf),
-        rtol=1e-8
-    )
+    assert np.isclose(model.taus_[0], eta_bar * 1.01, rtol=1e-6)
+    assert np.isclose(model.taus_[-1], eta_low * 1.01, rtol=1e-6)
 
+
+def test_tau_grid_has_no_vacuous_or_infeasible_points(incrementality_synth_panel):
+    """The invariant the old grid violated, stated directly.
+
+    Every interior point must constrain the fit (``tau <= eta_bar``) and admit a
+    solution (``tau >= eta_low``). Only the endpoints may sit on the boundary,
+    and only by the 1% widening.
+    """
+    y, X, _ = incrementality_synth_panel
+    model = RelaxationCV(n_taus=25)
+
+    model._generate_tau_grid(X, y)
+
+    eta_bar, eta_low = _reference_tau_bounds(X, y)
+
+    assert model.taus_.max() <= eta_bar * 1.01 + 1e-12
+    assert model.taus_.min() >= eta_low * 1.01 - 1e-12
+    interior = model.taus_[1:-1]
+    assert np.all(interior <= eta_bar), "a grid point leaves the constraint vacuous"
+    assert np.all(interior >= eta_low), "a grid point is infeasible"
 
 
 def test_coefficients_not_constant(incrementality_synth_panel):
@@ -317,22 +361,42 @@ def test_coefficients_not_constant(incrementality_synth_panel):
 # RelaxationCV: _generate_tau_grid (hard failures)
 # ======================================================
 
-def test_generate_tau_grid_raises_on_near_zero_signal():
-    rng = np.random.default_rng(123)
+def test_orthogonal_outcome_is_a_well_posed_relaxation():
+    """``y`` orthogonal to ``X`` is not a degenerate relaxation problem.
 
+    The old grid raised "no identifying signal" here because ``||X'y||_inf`` is
+    ~0. That is a statement about a Lasso path. This program constrains
+    ``Sigma w - Upsilon + gamma 1``, which stays informative when ``Upsilon``
+    vanishes, so a grid exists and is built.
+    """
+    rng = np.random.default_rng(123)
     T, J = 30, 5
     X = rng.normal(size=(T, J))
-
-    # Force orthogonality → no identifying signal
     y = rng.normal(size=T)
     y = y - X @ np.linalg.lstsq(X, y, rcond=None)[0]
 
     model = RelaxationCV(n_taus=10)
+    model._generate_tau_grid(X, y)
 
-    with pytest.raises(
-        MlsynthEstimationError,
-        match="tau|identif|signal|X.T @ y"
-    ):
+    assert model.taus_.shape[0] == 10
+    assert np.all(model.taus_ > 0)
+
+
+def test_generate_tau_grid_raises_when_equal_weights_already_balance():
+    """The genuinely degenerate case: every tau >= 0 is vacuous.
+
+    When ``Sigma 1/J - Upsilon`` is constant across donors the free intercept
+    ``gamma`` absorbs it exactly, so ``eta_bar = 0`` and no relaxation level
+    constrains anything. ``X = I`` with a constant ``y`` is such a design -- and
+    four grid tests used to run on fixtures of exactly that shape, where the
+    estimator has nothing to do and any bound would have passed.
+    """
+    X = np.eye(5)
+    y = np.ones(5) * 0.1
+
+    model = RelaxationCV(n_taus=10)
+
+    with pytest.raises(MlsynthEstimationError, match="(?i)signal|vacuous|balance"):
         model._generate_tau_grid(X, y)
 
 
@@ -417,26 +481,36 @@ def test_generate_tau_grid_upper_limit_equals_lower_limit():
         model._process_tau_grid(X, y)
 
 
-def test_generate_tau_grid_single_feature():
-    """Check grid generation with J=1 (single donor)"""
+def test_generate_tau_grid_single_donor_is_vacuous():
+    """With one donor the simplex is the single point ``w = 1``.
+
+    There is nothing for a relaxation level to choose between, so ``eta_bar``
+    and ``eta_low`` coincide at zero and the grid is refused. The old bound
+    manufactured one anyway.
+    """
     X = np.ones((10, 1))
-    y = np.arange(1, 11)
+    y = np.arange(1, 11).astype(float)
     model = RelaxationCV(tau=None, n_taus=5)
 
-    model._process_tau_grid(X, y)
-    assert model.taus_.shape[0] == model.n_taus
-    assert np.all(model.taus_ > 0)
+    with pytest.raises(MlsynthEstimationError, match="(?i)signal|vacuous|balance"):
+        model._process_tau_grid(X, y)
 
 
 def test_generate_tau_grid_large_signal():
-    """Ensure large signals do not break geomspace"""
-    X = np.eye(5)
-    y = np.ones(5) * 1e5
+    """Ensure large signals do not break geomspace.
+
+    Uses a non-degenerate panel: ``X = I`` with constant ``y`` makes the
+    balance residual constant, which the intercept absorbs exactly.
+    """
+    rng = np.random.default_rng(11)
+    X = rng.normal(size=(20, 5)) * 1e3
+    y = rng.normal(size=20) * 1e5
     model = RelaxationCV(tau=None, n_taus=4)
 
     model._process_tau_grid(X, y)
     assert model.taus_.shape[0] == model.n_taus
     assert model.taus_[0] > model.taus_[-1]
+    assert np.all(np.isfinite(model.taus_))
 
 
 # ------------------------------
@@ -525,15 +599,37 @@ def test_process_tau_grid_scalar_equals_none():
     assert model.tau_ == tau_val
 
 
-def test_generate_tau_grid_degenerate_but_finite():
-    """Signal barely above lower_limit should succeed"""
-    X = np.eye(5)
-    y = np.ones(5) * 1.1e-5  # slightly above lower_limit
+def test_generate_tau_grid_tiny_signal_still_succeeds():
+    """A small but non-degenerate signal still yields a usable grid."""
+    rng = np.random.default_rng(12)
+    X = rng.normal(size=(20, 5)) * 1e-2
+    y = rng.normal(size=20) * 1e-2
     model = RelaxationCV(tau=None, n_taus=3)
 
     model._process_tau_grid(X, y)
     assert np.all(model.taus_ > 0)
     assert model.taus_.shape[0] == 3
+
+
+def test_tau_bounds_refuse_a_scale_below_solver_precision():
+    """Both bounds are solved, so they inherit the solver's absolute tolerance.
+
+    At a raw scale of ``1e-5`` the balance residuals are ``~1e-11``, under
+    CLARABEL's tolerance, and the solved ``eta_low`` comes back *above*
+    ``eta_bar`` -- impossible, since ``eta_low`` minimises over a set containing
+    the equal weights. The grid is refused instead of being built on a bound
+    that did not converge.
+
+    This is why ``RESCM`` standardizes donors by default: that path is scale
+    invariant and selects the same ``tau`` at ``1e-5``, ``1e-2`` and ``1``.
+    """
+    rng = np.random.default_rng(12)
+    X = rng.normal(size=(20, 5)) * 1e-5
+    y = rng.normal(size=20) * 1e-5
+    model = RelaxationCV(tau=None, n_taus=3)
+
+    with pytest.raises(MlsynthEstimationError, match="(?i)empty tau range|not below"):
+        model._process_tau_grid(X, y)
 
 
 
@@ -783,8 +879,9 @@ def test_fit_with_scalar_tau_skips_cv():
 # 4. Fit handles edge case small tau grid
 # ------------------------------
 def test_fit_with_small_tau_grid():
-    X = np.eye(5)
-    y = np.ones(5) * 0.1
+    rng = np.random.default_rng(13)
+    X = rng.normal(size=(20, 5))
+    y = rng.normal(size=20)
 
     model = RelaxationCV(tau=None, n_taus=2, n_splits=2)
 

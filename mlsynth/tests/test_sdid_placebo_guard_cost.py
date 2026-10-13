@@ -28,7 +28,7 @@ import pandas as pd
 import pytest
 
 from mlsynth import SDID
-from mlsynth.utils.bilevel import minnorm
+from mlsynth.utils.solvers import minnorm
 from mlsynth.utils.sdid_helpers import weights as sdid_weights
 
 

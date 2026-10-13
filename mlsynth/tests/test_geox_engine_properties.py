@@ -14,6 +14,17 @@ that contract prefers -- a pure function of two arrays -- with the caveat that a
 solver runs inside it, so tolerances come from measured solver spread and the
 example counts stay modest.
 
+No relation can hold tighter than the fit repeats, so the tolerance comes from
+the engine. A deterministic program reproduces itself to solver precision; a
+sampler reproduces itself only to its posterior sampling error, and each engine
+declares which it is through ``Engine.fit_tolerance``. The standardization a
+Bayesian engine applies is equivariant in exact arithmetic and differs in the
+last ulps in floating point -- about 1e-14 -- and NUTS is chaotic, so that
+difference grows to the size of a re-run. Measured on the mvbbsc engine, a
+rescale moves the posterior weights by up to 1.1e-2 and refitting the same panel
+at another seed moves them by 1.2e-2: the transformation costs no more than
+running it again, which is the claim the relation is really making.
+
 The relations asserted are the metamorphic ones that carry the estimator's
 meaning:
 
@@ -34,9 +45,18 @@ Named degenerate panels are kept as ``@example`` instead of left to the
 generator: a single donor, a constant treated series, and a donor pool that
 already reproduces the treated path exactly are the corners a real geo panel
 produces.
+
+Not every engine can run everywhere. One of them needs an optional dependency,
+so the parametrization reads ``Engine.requires`` and skips an engine whose
+imports are absent. Without that, registering such an engine turns this suite
+red in every environment installing the base requirements alone -- which is
+what happened, and which the PR gate could not see, because it installs numpyro
+explicitly while the daily badge and the mutation matrix do not.
 """
 
 from __future__ import annotations
+
+import importlib.util
 
 import numpy as np
 import pytest
@@ -45,10 +65,39 @@ from hypothesis import strategies as st
 
 from mlsynth.utils.geox_helpers.engines import ENGINE_NAMES, resolve_engine
 
-ENGINES = sorted(ENGINE_NAMES)
 
-# Solver tolerance. Both engines run a numerical program, so equalities that are
-# exact in arithmetic hold to solver precision and not to machine epsilon.
+def _importable(module: str) -> bool:
+    """Whether ``module`` can be imported, without importing it."""
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _engines():
+    """Every registered engine, skipped where its optional imports are absent.
+
+    An engine declares what it needs through ``Engine.requires``, so this asks
+    the registry instead of naming engines: the suite keeps covering whatever is
+    registered, and an engine that cannot run in this environment is reported
+    absent and not broken.
+    """
+    params = []
+    for name in sorted(ENGINE_NAMES):
+        missing = [m for m in resolve_engine(name).requires if not _importable(m)]
+        marks = ()
+        if missing:
+            marks = pytest.mark.skip(
+                reason=f"the {name} engine needs {', '.join(missing)}")
+        params.append(pytest.param(name, marks=marks))
+    return params
+
+
+ENGINES = _engines()
+
+# Default tolerance, for an engine that solves a deterministic program: the
+# equalities are exact in arithmetic and hold to solver precision, not to
+# machine epsilon. An engine that samples declares a wider one.
 _ATOL = 1e-6
 _RTOL = 1e-6
 
@@ -92,14 +141,18 @@ class TestMetamorphicRelations:
         # Y -> cY scales the ATT by c and leaves the donor weights unchanged.
         y, Y0, n_pre, end = case
         eng = resolve_engine(engine)
+        tol = eng.fit_tolerance
         c = 7.5
         base = eng.fit_once(y, Y0, n_pre, n_pre, end, 1)
         scaled = eng.fit_once(y * c, Y0 * c, n_pre, n_pre, end, 1)
         np.testing.assert_allclose(scaled.donor_weights, base.donor_weights,
-                                   atol=_ATOL)
+                                   atol=tol)
+        # The ATT is a mean gap, so the fit's own pre-period gap is its unit;
+        # taking the tolerance from there scales with the panel, as a fixed
+        # absolute one does not.
         np.testing.assert_allclose(eng.att(scaled, y * c, n_pre, end),
                                    c * eng.att(base, y, n_pre, end),
-                                   rtol=_RTOL, atol=_ATOL)
+                                   rtol=tol, atol=tol * scaled.pre_rmspe)
 
     @_SETTINGS
     @given(case=panels())
@@ -108,14 +161,15 @@ class TestMetamorphicRelations:
         # neither the weights nor the estimated effect.
         y, Y0, n_pre, end = case
         eng = resolve_engine(engine)
+        tol = eng.fit_tolerance
         a = 123.0
         base = eng.fit_once(y, Y0, n_pre, n_pre, end, 1)
         shifted = eng.fit_once(y + a, Y0 + a, n_pre, n_pre, end, 1)
         np.testing.assert_allclose(shifted.donor_weights, base.donor_weights,
-                                   atol=_ATOL)
+                                   atol=tol)
         np.testing.assert_allclose(eng.att(shifted, y + a, n_pre, end),
                                    eng.att(base, y, n_pre, end),
-                                   rtol=_RTOL, atol=_ATOL)
+                                   rtol=tol, atol=tol * shifted.pre_rmspe)
 
     @_SETTINGS
     @given(case=panels(), key=st.integers(min_value=0, max_value=2**31 - 1))

@@ -120,7 +120,8 @@ class FSCMSelectionPath:
     order: List[Any]                  # donor labels in the order selected
     train_rmspe: np.ndarray           # (K,) in-sample pre-period RMSPE
     test_rmspe: np.ndarray            # (K,) rolling-origin CV RMSPE
-    optimal_size: int                 # argmin test_rmspe (number of donors)
+    optimal_size: int
+    saturated_at: Optional[int] = None                 # argmin test_rmspe (number of donors)
 
 
 class FSCMResults(BaseEstimatorResults):

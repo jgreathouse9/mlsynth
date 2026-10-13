@@ -30,7 +30,7 @@ import numpy as np
 import pytest
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.bilevel.ridge_inference import (conformal_pvalue,
+from mlsynth.utils.conformal.ridge_inference import (conformal_pvalue,
                                                    conformal_pvalue_sweep)
 
 
@@ -129,7 +129,7 @@ def _pivots_of(call):
     what makes this a measurement of the path actually taken, not of a
     reimplementation of it.
     """
-    from mlsynth.utils.bilevel import active_set
+    from mlsynth.utils.solvers import active_set
 
     real = active_set.solve_simplex_qp
     spent = []

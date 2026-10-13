@@ -32,6 +32,26 @@ class PPSCMConfig(BaseEstimatorConfig):
             "augsynth's heuristic."
         ),
     )
+    @field_validator("nu")
+    @classmethod
+    def _validate_nu(cls, v):
+        if isinstance(v, str):
+            return v
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ValueError(
+                f"nu must be a number in [0, 1] or 'auto'; got {v!r}."
+            )
+        if not 0.0 <= float(v) <= 1.0:
+            raise ValueError(
+                f"nu must lie in [0, 1] or be 'auto'; got {v!r}. It weights the "
+                "pooled imbalance term and 1 - nu weights the separate one, so "
+                "outside that interval one of them is negative and the objective "
+                "is no longer convex -- the solver refuses it without naming the "
+                "field responsible. Zero is a separate SCM per treated unit and "
+                "one is the fully pooled fit."
+            )
+        return float(v)
+
     fixedeff: bool = Field(
         default=True,
         description=(

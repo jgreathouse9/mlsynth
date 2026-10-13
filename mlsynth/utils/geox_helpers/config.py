@@ -126,8 +126,11 @@ class GEOXConfig(BaseMAREXConfig):
         "counterfactual, so it suits either engine. 'conformal' permutes "
         "pre-period residuals and is available on 'augsynth' alone, since "
         "SDID's time weights exist to say pre-periods are not exchangeable. "
-        "Absent, each engine takes its own default: placebo for sdid, "
-        "conformal for augsynth, which is GeoLift's choice.",
+        "'bayes' is the posterior predictive of a Bayesian engine and is "
+        "available on 'mvbbsc' alone, where it is also the only admissible "
+        "null: the interval is the one the fit produced. Absent, each engine "
+        "takes its own default: placebo for sdid, conformal for augsynth, "
+        "which is GeoLift's choice, and bayes for mvbbsc.",
     )
     ns: int = Field(
         default=1000,
@@ -286,10 +289,22 @@ class GEOXConfig(BaseMAREXConfig):
                 f"unknown engine {self.engine!r}; available engines are "
                 f"{sorted(ENGINE_NAMES)}.")
         if self.inference is not None and self.inference not in (
-                "placebo", "conformal"):
+                "placebo", "conformal", "bayes"):
             raise MlsynthConfigError(
-                f"inference must be 'placebo' or 'conformal'; got "
+                f"inference must be 'placebo', 'conformal' or 'bayes'; got "
                 f"{self.inference!r}.")
+        if self.inference == "bayes" and self.engine != "mvbbsc":
+            raise MlsynthConfigError(
+                f"inference='bayes' is the posterior of a Bayesian engine and "
+                f"the {self.engine!r} engine has no posterior to report. Use "
+                "engine='mvbbsc', or inference='placebo' / 'conformal'.")
+        if self.engine == "mvbbsc" and self.inference in ("placebo", "conformal"):
+            raise MlsynthConfigError(
+                f"the mvbbsc engine cannot use {self.inference!r} inference: "
+                "its interval is the posterior predictive the fit came from, "
+                "and substituting a different null would report a quantity the "
+                "estimator did not produce. Use inference='bayes', or an "
+                "engine whose null is frequentist.")
         if self.engine == "sdid" and self.inference == "conformal":
             raise MlsynthConfigError(
                 "the sdid engine cannot use conformal inference: the "
@@ -306,8 +321,8 @@ class GEOXConfig(BaseMAREXConfig):
         # Resolve the engine's default null once, so the rest of the pipeline
         # never has to ask which engine it is running.
         if self.inference is None:
-            self.inference = ("conformal" if self.engine == "augsynth"
-                              else "placebo")
+            self.inference = {"augsynth": "conformal",
+                              "mvbbsc": "bayes"}.get(self.engine, "placebo")
         if self.engine == "augsynth" and self.fixed_effects is None:
             self.fixed_effects = True     # augsynth's fixedeff, GeoLift's default
         if self.conformal_type not in ("iid", "block"):

@@ -25,8 +25,8 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import cvxpy as cp
 
+from ..solvers.active_set import solve_simplex_qp
 from .solvers import simplex_weights
 from .structures import (
     AVERAGED,
@@ -120,7 +120,7 @@ def _scheme_weights(M, treated_idx, donor_idx, augment, ridge_lambda,
     if col_scale is not None:
         M = M * np.asarray(col_scale, dtype=float)[None, :]
     if augment == "ridge":
-        from ..bilevel.ridge_augment import ridge_augment_weights
+        from ..solvers.ridge_augment import ridge_augment_weights
         ra = ridge_augment_weights(
             M[treated_idx], M[donor_idx].T, lambda_=ridge_lambda)
         return np.asarray(ra.W, dtype=float)
@@ -184,10 +184,7 @@ def model_average(inputs: SCMOInputs, fits: List[SCMOMethodFit]) -> SCMOMethodFi
     y = inputs.y_treated
     cfs = np.column_stack([f.counterfactual for f in fits])      # (T, M)
     M = cfs.shape[1]
-    lam = cp.Variable(M)
-    cp.Problem(cp.Minimize(cp.sum_squares(y[:T0] - cfs[:T0] @ lam)),
-               [lam >= 0, cp.sum(lam) == 1]).solve(solver=cp.OSQP)
-    lam = np.clip(np.asarray(lam.value).ravel(), 0.0, None)
+    lam = np.clip(solve_simplex_qp(cfs[:T0], y[:T0]), 0.0, None)
     cf = cfs @ lam
     att, pre_rmse, gap = _effects(y, cf, T0)
     w = sum(lam[m] * fits[m].weights for m in range(M))

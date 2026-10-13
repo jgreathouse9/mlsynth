@@ -11,15 +11,17 @@ import os
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel import (
-    BilevelSCM,
+from mlsynth.utils.bilevel import BilevelSCM
+from mlsynth.utils.solvers.ridge_augment import (
     best_lambda,
     build_matching,
-    conformal_intervals,
-    conformal_pvalue,
     generate_lambdas,
     ridge_augment_weights,
     solve_ridge,
+)
+from mlsynth.utils.conformal.ridge_inference import (
+    conformal_intervals,
+    conformal_pvalue,
 )
 
 cp = pytest.importorskip("cvxpy")  # ridge base is an exact simplex QP
@@ -381,7 +383,7 @@ def _conf_panel(T=20, J=4, pre=15, seed=3):
 def test_conformal_pvalue_block_is_seed_invariant():
     """Block uses the deterministic T cyclic shifts, not random draws."""
     import numpy as np
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
     y, Y0, pre = _conf_panel()
     a = conformal_pvalue(y, Y0, pre, conformal_type="block", ns=100, seed=0)
     b = conformal_pvalue(y, Y0, pre, conformal_type="block", ns=100, seed=12345)
@@ -389,7 +391,7 @@ def test_conformal_pvalue_block_is_seed_invariant():
 
 
 def test_conformal_pvalue_iid_depends_on_seed():
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
     y, Y0, pre = _conf_panel()
     a = conformal_pvalue(y, Y0, pre, conformal_type="iid", ns=50, seed=0)
     b = conformal_pvalue(y, Y0, pre, conformal_type="iid", ns=50, seed=999)
@@ -399,7 +401,7 @@ def test_conformal_pvalue_iid_depends_on_seed():
 def test_conformal_pvalue_block_matches_cyclic_shift_reference():
     """The block p-value equals mean(obs <= stat over the T np.roll shifts)."""
     import numpy as np
-    from mlsynth.utils.bilevel.ridge_inference import (
+    from mlsynth.utils.conformal.ridge_inference import (
         conformal_pvalue, _augmented_gaps, _stat,
     )
     y, Y0, pre = _conf_panel()
@@ -411,7 +413,7 @@ def test_conformal_pvalue_block_matches_cyclic_shift_reference():
 
 
 def test_conformal_pvalue_bad_type_raises():
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
     y, Y0, pre = _conf_panel()
     with pytest.raises(ValueError, match="conformal_type"):
         conformal_pvalue(y, Y0, pre, conformal_type="bootstrap")

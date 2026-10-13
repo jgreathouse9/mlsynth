@@ -190,6 +190,42 @@ with a de-meaned (intercept-shifted) variant
 (y_{jtk} - \bar{y}_{j \cdot k})` when ``demean=True``
 ([DoudchenkoImbens2017]_; Sun-Ben-Michael-Feller Eq. 1).
 
+Which minimiser, when there is more than one
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both programs above ask for an argmin, and an argmin need not be a single
+point. The objective is flat along any direction that leaves every balanced
+quantity unchanged, so whenever the donors can reproduce the treated unit's
+matching vector in more than one way, the minimisers form a whole face of the
+simplex and every point of it fits equally well.
+
+This is not a rare corner. The averaged scheme collapses :math:`K` outcomes
+into one series, so a spec that measures its outcomes in a single period leaves
+one equation in :math:`N_0` unknowns. On the West German panel of the
+illustration below that is one equation in sixteen donors, and the face of
+exact minimisers is fourteen-dimensional.
+
+A solver handed such a program returns one of those points, chosen by the order
+it happened to examine the donors. Relabelling the donors then changes the
+reported weights, and with them the counterfactual and the ATT, without any of
+the data having changed. On that panel relabelling moved the weights by 0.419
+and the ATT across a range of several hundred.
+
+mlsynth picks the point by a rule instead: among the minimisers it returns the
+one of smallest norm, which is the most even spreading of weight consistent
+with the fit. Two properties make this the natural choice. It is the point the
+authors' own program selects -- their quadratic program carries a small ridge
+on :math:`\mathbf{w}`, and a vanishing ridge selects the least-norm minimiser
+-- and on the simplex :math:`\lVert \mathbf{w} - c\mathbf{1} \rVert^2 =
+\lVert \mathbf{w} \rVert^2 - 2c + N_0 c^2`, so least norm and least distance
+from equal weights are the same selection.
+
+Where the minimiser is already a single point the rule changes nothing, which
+is the case for the concatenated scheme on any panel with several matching
+columns. On the West German panel it moves the concatenated weights by
+:math:`1.5 \times 10^{-7}` and the separate-scheme ATT by 0.004, while the
+averaged scheme's pre-period fit improves more than fourfold.
+
 Why more outcomes help
 ~~~~~~~~~~~~~~~~~~~~~~~
 

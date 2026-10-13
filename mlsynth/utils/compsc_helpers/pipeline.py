@@ -29,7 +29,7 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from ..bilevel.active_set import solve_simplex_qp
+from ..solvers.active_set import solve_simplex_qp
 
 
 # --------------------------------------------------------------------------- #

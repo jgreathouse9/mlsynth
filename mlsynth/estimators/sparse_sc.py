@@ -33,7 +33,12 @@ import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
-from ..config_models import InferenceResults, SparseSCConfig, WeightsResults
+from ..config_models import (
+    InferenceResults,
+    MethodDetailsResults,
+    SparseSCConfig,
+    WeightsResults,
+)
 from ..utils.results_helpers import build_effect_submodels
 from ..exceptions import (
     MlsynthConfigError,
@@ -44,6 +49,10 @@ from ..exceptions import (
 from ..utils.sparse_sc_helpers.inference import conformal_inference, run_placebo
 from ..utils.sparse_sc_helpers.optimization import recover_w, sweep_lambda
 from ..utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
+from ..utils.sparse_sc_helpers.diagnostics import (
+    assess_degeneracy,
+    warn_if_degenerate,
+)
 from ..utils.sparse_sc_helpers.structures import (
     SparseSCDesign,
     SparseSCInference,
@@ -111,6 +120,7 @@ class SparseSC:
 
         self.covariates = config.covariates
         self.outcome_lag_periods = config.outcome_lag_periods
+        self.anchor_covariate = config.anchor_covariate
         self.T0_train = config.T0_train
         self.lambda_grid = (
             np.asarray(config.lambda_grid, dtype=float)
@@ -123,6 +133,8 @@ class SparseSC:
         self.use_analytical_grad: bool = config.use_analytical_grad
         self.warm_start: bool = config.warm_start
         self.robust_selection: bool = config.robust_selection
+        self.outer_restarts: int = config.outer_restarts
+        self.outer_restart_seed: int = config.outer_restart_seed
         self.run_inference: bool = config.run_inference
         self.inference_method: str = config.inference_method
         self.conformal_window: str = config.conformal_window
@@ -147,6 +159,7 @@ class SparseSC:
                 df=self.df, outcome=self.outcome, treat=self.treat,
                 unitid=self.unitid, time=self.time,
                 covariates=self.covariates,
+                anchor_covariate=self.anchor_covariate,
                 outcome_lag_periods=self.outcome_lag_periods,
                 T0_train=self.T0_train,
                 standardize=self.standardize,
@@ -163,6 +176,8 @@ class SparseSC:
                 use_analytical_grad=self.use_analytical_grad,
                 warm_start=self.warm_start,
                 robust=self.robust_selection,
+                outer_restarts=self.outer_restarts,
+                outer_restart_seed=self.outer_restart_seed,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
@@ -310,6 +325,38 @@ class SparseSC:
                                    else inputs.time_labels[-1]),
                 prediction_interval=(scpi_obj.to_prediction_interval_spec()
                                      if scpi_obj is not None else None),
+            )
+            # The outer solve is non-convex, so which critical point was
+            # reached is a property of the run the caller may need to act on.
+            degeneracy = assess_degeneracy(design)
+            warn_if_degenerate(degeneracy, inputs.predictor_names)
+            submodels["method_details"] = MethodDetailsResults(
+                method_name="SparseSC",
+                is_recommended=True,
+                parameters_used={
+                    "outer_loss_window": self.outer_loss_window,
+                    "anchor_predictor": (
+                        inputs.predictor_names[0]
+                        if len(inputs.predictor_names) else None),
+                    "outer_restarts": int(self.outer_restarts),
+                    "outer_restart_seed": int(self.outer_restart_seed),
+                    "robust_selection": bool(self.robust_selection),
+                    "warm_start": bool(self.warm_start),
+                    "opt_lambda": float(opt_lambda),
+                    "dim_u": degeneracy.dim_u,
+                    "n_predictors": degeneracy.n_predictors,
+                    "n_active_donors": degeneracy.n_active_donors,
+                    "n_donors": degeneracy.n_donors,
+                    "n_anchor_only_grid": degeneracy.n_anchor_only_grid,
+                    "n_distinct_supports": degeneracy.n_distinct_supports,
+                    "n_grid": degeneracy.n_grid,
+                    "lambda_grid_max": degeneracy.lambda_grid_max,
+                    "support_tol": degeneracy.support_tol,
+                    "active_tol": degeneracy.active_tol,
+                    "anchor_only": degeneracy.anchor_only,
+                    "nothing_pruned": degeneracy.nothing_pruned,
+                    "penalty_at_grid_edge": degeneracy.penalty_at_grid_edge,
+                },
             )
             results = SparseSCResults(
                 **submodels,

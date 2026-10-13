@@ -4,7 +4,7 @@ Ridge ASCM — Augmented Synthetic Control (Ben-Michael, Feller & Rothstein 2021
 ===============================================================================
 
 :Estimator: :doc:`../vanillasc` — the ridge-augmentation layer
-   (:func:`mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`).
+   (:func:`mlsynth.utils.solvers.ridge_augment.ridge_augment_weights`).
 :Source: Ben-Michael, Feller & Rothstein (2021), *"The Augmented Synthetic
    Control Method,"* JASA 116(536); reference implementation: the ``augsynth``
    R package (``ebenmichael/augsynth``).

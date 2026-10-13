@@ -19,7 +19,7 @@ Levels: smoke, unit invariants, edge.
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 from mlsynth.utils.conformal import cumulative_conformal_by_inversion
 from mlsynth.utils.conformal.inversion import confidence_set_bounds
 
@@ -55,7 +55,7 @@ def _pivots_of(call):
     attribute is seen by the code under test; the replacement forwards to the
     real solver and only records its work.
     """
-    from mlsynth.utils.bilevel import active_set
+    from mlsynth.utils.solvers import active_set
 
     real = active_set.solve_simplex_qp
     spent = []

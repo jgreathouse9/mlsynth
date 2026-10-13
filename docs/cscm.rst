@@ -168,5 +168,8 @@ Core API
 .. [CSCM] Bonander, C. (2021). A (Flexible) Synthetic Control Method for Count
    Data and Other Non-Negative Outcomes. *Epidemiology*, 32(4), e18-e19.
 
-.. [CWZ] Chernozhukov, V., Wuthrich, K., & Zhu, Y. (2021). Practical and robust
-   t-test based inference for synthetic control and related methods.
+.. [CWZ] Chernozhukov, V., Wuthrich, K., & Zhu, Y. (2026). Debiasing and
+   t-Tests for Synthetic Control Inference on Average Causal Effects.
+   *Journal of Political Economy*, 134(9). https://doi.org/10.1086/742424
+   (previously circulated as "Practical and Robust t-Test Based Inference for
+   Synthetic Control and Related Methods").

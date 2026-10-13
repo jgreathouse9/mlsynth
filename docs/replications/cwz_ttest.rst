@@ -4,8 +4,11 @@ A t-test for synthetic controls (Chernozhukov, Wüthrich & Zhu)
 ==============================================================
 
 :Estimator: :doc:`../vanillasc` — :class:`mlsynth.VanillaSC`, ``inference="ttest"``
-:Source: Chernozhukov, V., Wüthrich, K., & Zhu, Y., *"A t-test for synthetic
-   controls"* (arXiv:1812.10820), Tables 1, 3 and 5.
+:Source: Chernozhukov, V., Wüthrich, K., & Zhu, Y. (2026). *"Debiasing and
+   t-Tests for Synthetic Control Inference on Average Causal Effects"*,
+   Journal of Political Economy 134(9), https://doi.org/10.1086/742424
+   (previously circulated as *"A t-test for synthetic controls"*,
+   arXiv:1812.10820). Tables 1, 3 and 5.
 :Replication type: Path A on the authors' data and Path B on their simulation
    design, both cross-validated against their own R.
 :Status: verified — the empirical estimate, the Table 3 Monte Carlo and the

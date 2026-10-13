@@ -29,10 +29,12 @@ _HAS_NUMPYRO = importlib.util.find_spec("numpyro") is not None
 
 from mlsynth import (
     DTWSC,
-    BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
+    EASC,
+    ATEL, BFSC, BPSCS, BSCM, BVSS, CAST, CFM, CLUSTERSC, CSCIPCA, CSCM, DPSC, DSCAR, ESC, GSYNTH, ISCM, FDID, FMA, FSCM, HSC, LEXSCM, MAREX, MASC, MEDSC,
     COMPSC,
     LPCA, MCNNM, MOSC, MSQRT, MTGP, MVBBSC, NSC, PDA, PROPSC, PROXIMAL, RESCM, RMSI, RRSC, SBC, SCMO, SCUL, SDID,
     PPSCM, SequentialSDID, SHC, SNN, SparseSC, SPILLSYNTH, SPOTSYNTH, SSC, TASC,
+    TBR,
     TSSC,
     VanillaSC,
 )
@@ -180,6 +182,12 @@ OBSERVATIONAL = [
     pytest.param(CSCIPCA, {"df": _make_cscipca_panel(),
                            "covariates": ["x0", "x1", "x2"], "n_factors": 2,
                            "inference": False}, id="CSCIPCA"),
+    # ATEL's sieve weights come from the covariates, and n_factors must be a
+    # multiple of their count; the bandwidth is pinned so the contract test does
+    # not pay for the cross-validation loop.
+    pytest.param(ATEL, {"df": _make_cscipca_panel(),
+                        "covariates": ["x0", "x1"], "n_factors": 2,
+                        "bandwidth": 0.8}, id="ATEL"),
     pytest.param(MEDSC, {"df": _make_medsc_panel(), "mediator": "price",
                          "inference": False}, id="MEDSC"),
     pytest.param(SDID, {}, id="SDID"),
@@ -190,6 +198,11 @@ OBSERVATIONAL = [
     pytest.param(BSCM, {"n_iter": 60, "burn_in": 30, "chains": 2, "seed": 0}, id="BSCM"),
     pytest.param(DSCAR, {}, id="DSCAR"),
     pytest.param(DTWSC, {}, id="DTWSC"),
+    # EASC reads an exposure index and an observed shock: the panel's per-unit
+    # covariate and the period itself, which is identical across units. Five
+    # donors fit a regression with one growth-control sub-period.
+    pytest.param(EASC, {"exposure": "cov1", "shock": "time", "n_subperiods": 1},
+                 id="EASC"),
     pytest.param(ISCM, {}, id="ISCM"),
     pytest.param(SHC, {}, id="SHC"),
     pytest.param(SPILLSYNTH, {"method": "cd", "affected_units": ["u01"]},
@@ -351,7 +364,12 @@ def _make_design_panel(n_units=15, T=40, T_post=12, n_candidates=8, L=2,
         for t in range(T):
             rows.append({"unitid": f"u{i:02d}", "time": t, "y": Y[t, i],
                          "post": int(t >= T - T_post),
-                         "candidate": int(i < n_candidates)})
+                         "candidate": int(i < n_candidates),
+                         # TBR's named mode reads two group flags where the
+                         # others read a candidate pool; ignored by LEXSCM and
+                         # MAREX, which take `candidate_col`.
+                         "is_treatment": int(i < 2),
+                         "is_control": int(i >= 2)})
     return pd.DataFrame(rows)
 
 
@@ -371,6 +389,22 @@ DESIGN = [
          "design": "standard", "post_col": "post", "m_eq": 3, "relaxed": True},
         id="MAREX",
     ),
+    # TBR is one estimator with two ways of arriving at the groups, and both
+    # return a DesignResult: a named split has nothing to choose between, so its
+    # `designs` is empty, and the estimate is on `report` either way.
+    pytest.param(
+        TBR,
+        {"outcome": "y", "unitid": "unitid", "time": "time",
+         "treatment_col": "is_treatment", "control_col": "is_control",
+         "post_col": "post"},
+        id="TBR-named",
+    ),
+    pytest.param(
+        TBR,
+        {"outcome": "y", "unitid": "unitid", "time": "time",
+         "max_treatment_size": 3, "n_test": 6, "post_col": "post"},
+        id="TBR-searched",
+    ),
 ]
 
 
@@ -380,18 +414,18 @@ def fitted_designs():
     return {p.id: p.values[0]({"df": df, **p.values[1]}).fit() for p in DESIGN}
 
 
-@pytest.mark.parametrize("Est, extra", DESIGN)
-def test_is_design_result(Est, extra, fitted_designs):
-    res = fitted_designs[Est.__name__]
+@pytest.mark.parametrize("case", [p.id for p in DESIGN])
+def test_is_design_result(case, fitted_designs):
+    res = fitted_designs[case]
     assert isinstance(res, MlsynthResult)
     assert isinstance(res, DesignResult)
     assert not isinstance(res, EffectResult)  # the design family, not the report
 
 
-@pytest.mark.parametrize("Est, extra", DESIGN)
-def test_design_resolves_to_effect_report(Est, extra, fitted_designs):
+@pytest.mark.parametrize("case", [p.id for p in DESIGN])
+def test_design_resolves_to_effect_report(case, fitted_designs):
     """A realized design exposes its effect report as an EffectResult."""
-    res = fitted_designs[Est.__name__]
+    res = fitted_designs[case]
     assert res.selected_units is not None and len(res.selected_units) > 0
     report = res.report
     assert isinstance(report, EffectResult)
@@ -404,3 +438,8 @@ def test_design_resolves_to_effect_report(Est, extra, fitted_designs):
     assert cf.ndim == 1 and cf.shape == gap.shape
     ci = report.att_ci
     assert ci is None or (len(ci) == 2 and ci[0] <= ci[1])
+    # The weights container is populated even where there are no donor weights
+    # to put in it, because a caller reads it to find that out.
+    assert not report.weights.is_empty
+    dumped = report.model_dump()
+    assert "effects" in dumped and dumped["effects"]["att"] is not None

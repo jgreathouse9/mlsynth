@@ -6,6 +6,7 @@ inference, typed result assembly, and a plotting wrapper.
 """
 
 from .structures import (
+    ADID,
     DID,
     FDID,
     FDIDInputs,
@@ -13,8 +14,9 @@ from .structures import (
     FDIDResults,
 )
 from .setup import prepare_fdid_inputs
-from .estimation import did_from_mean, forward_did_select
+from .estimation import adid_from_mean, did_from_mean, forward_did_select
 from .inference import (
+    adid_inference,
     block_mean_variance,
     did_inference,
     hac_lag,
@@ -24,14 +26,17 @@ from .results_assembly import assemble_fdid_results
 from .plotter import plot_fdid
 
 __all__ = [
+    "ADID",
     "DID",
     "FDID",
     "FDIDInputs",
     "FDIDMethodFit",
     "FDIDResults",
     "prepare_fdid_inputs",
+    "adid_from_mean",
     "did_from_mean",
     "forward_did_select",
+    "adid_inference",
     "block_mean_variance",
     "did_inference",
     "hac_lag",

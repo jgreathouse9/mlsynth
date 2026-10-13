@@ -30,7 +30,7 @@ it keeps paying for its SVD, which is asserted here so the limit is visible.
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.minnorm import (
+from mlsynth.utils.solvers.minnorm import (
     gram_reduction_is_safe,
     ridged_gram_reduction_is_safe,
 )

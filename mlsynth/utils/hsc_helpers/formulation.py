@@ -26,6 +26,7 @@ import cvxpy as cp
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from ..solvers.active_set import solve_simplex_qp
 
 
 def difference_operator(T: int, q: int) -> np.ndarray:
@@ -143,22 +144,56 @@ def fit_donor_weights(
         Non-negative donor weights summing to one, shape ``(N,)``.
     """
 
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y, dtype=float).ravel()
+    W = np.asarray(W, dtype=float)
+
+    if X.ndim != 2:
+        raise MlsynthEstimationError("HSC: X must be 2D (periods, donors).")
     N = X.shape[1]
-    H0 = X.T @ W @ X
-    H_sym = 0.5 * (H0 + H0.T)
+    if N == 0:
+        raise MlsynthEstimationError(
+            "HSC: no donors, so sum(omega) == 1 has no solution."
+        )
+    T = X.shape[0]
+    if Y.shape[0] != T or W.shape != (T, T):
+        raise MlsynthEstimationError(
+            f"HSC: shapes disagree: X has {T} rows, Y has {Y.shape[0]} and W is "
+            f"{W.shape}, expected ({T}, {T})."
+        )
+
+    # The metric is a seminorm, so factor it as W = L'L and carry the ridge as
+    # design rows with no target (Zou and Hastie 2005, Lemma 1):
+    #
+    #     B = [L X ; sqrt(c) I],  A = [L Y ; 0]
+    #
+    # gives B'B = X'WX + cI and B'A = X'WY, which is this program written as a
+    # residual. Going through W and not the Gram X'WX is what keeps it accurate:
+    # the Gram squares the design's condition number, while a symmetric
+    # eigendecomposition of W is backward stable. Negative eigenvalues are
+    # rounding on a PSD matrix, so they clamp to zero.
+    W_sym = 0.5 * (W + W.T)
+    evals, evecs = np.linalg.eigh(W_sym)
+    L = np.sqrt(np.maximum(evals, 0.0))[:, None] * evecs.T
+    LX = L @ X
+
+    # trace(X'WX) = ||LX||_F^2, so the relative ridge needs no Gram either.
     coef = (
         float(ridge_abs)
         if ridge_abs is not None
-        else ridge * (np.trace(H0) / max(N, 1))
+        else ridge * (float(np.sum(LX * LX)) / max(N, 1))
     )
-    H = H_sym + coef * np.eye(N)
-    f = X.T @ W @ Y
-    omega = cp.Variable(N)
-    problem = cp.Problem(
-        cp.Minimize(cp.quad_form(omega, cp.psd_wrap(H)) - 2.0 * f @ omega),
-        [omega >= 0, cp.sum(omega) == 1],
-    )
-    problem.solve(solver=solver or cp.CLARABEL)
-    if omega.value is None:
-        raise MlsynthEstimationError("HSC donor-weight QP failed to solve.")
-    return np.clip(np.asarray(omega.value, dtype=float), 0.0, None)
+    if coef < 0.0:
+        raise MlsynthEstimationError(
+            f"HSC: the ridge coefficient is negative ({coef}); it penalises "
+            "||omega||^2 and cannot be."
+        )
+
+    B = np.vstack([LX, np.sqrt(coef) * np.eye(N)])
+    A = np.concatenate([L @ Y, np.zeros(N)])
+    try:
+        return solve_simplex_qp(B, A)
+    except ValueError as exc:  # pragma: no cover - the guards above precede it
+        raise MlsynthEstimationError(
+            f"HSC donor-weight QP failed to solve: {exc}"
+        ) from exc

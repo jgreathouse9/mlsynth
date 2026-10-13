@@ -6,10 +6,13 @@ except PackageNotFoundError:  # not installed (e.g. run from a source checkout)
 
 from .estimators.tssc import TSSC ## Check
 from .estimators.fma import FMA ## Check
+from .estimators.atel import ATEL ## Check
 from .estimators.cfm import CFM ## Check
 from .estimators.gsynth import GSYNTH ## Check
 from .estimators.cscipca import CSCIPCA ## Check
 from .estimators.medsc import MEDSC ## Check
+from .estimators.cpda import CPDA
+from .estimators.sl import SL
 from .estimators.pda import PDA ## Check
 from .estimators.fdid import FDID ## Check
 from .estimators.clustersc import CLUSTERSC ## Check
@@ -58,6 +61,7 @@ from .utils.counterfactual_compare import (
 )
 from .estimators.spcd import SPCD
 from .estimators.geox import GEOX
+from .estimators.tbr import TBR
 from .utils.geox_helpers.plotter import (
     plot_mde_ranking,
     plot_geox_design,
@@ -88,6 +92,7 @@ from .estimators.dsc import DSC
 from .estimators.drosc import DROSC
 from .estimators.dscar import DSCAR
 from .estimators.dtwsc import DTWSC
+from .estimators.easc import EASC
 from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.vanillasc import VanillaSC
@@ -129,10 +134,13 @@ __all__ = [
     "HSC",
     "TSSC",
     "FMA",
+    "ATEL",
     "CFM",
     "GSYNTH",
     "CSCIPCA",
     "MEDSC",
+    "CPDA",
+    "SL",
     "PDA",
     "FDID",
     "CLUSTERSC",
@@ -160,6 +168,7 @@ __all__ = [
     "LEXSCM",
     "SPCD",
     "GEOX",
+    "TBR",
     "plot_geox_design",
     "plot_mde_ranking",
     "TASC",
@@ -205,6 +214,7 @@ __all__ = [
     "truncated_history", "TruncatedHistoryResult", "TruncatedHistoryWindow",
     "DSCAR",
     "DTWSC",
+    "EASC",
     "SPILLSYNTH",
     "CTSC",
     "SNN",

@@ -1,0 +1,23 @@
+{
+  "reference": "https://github.com/michioyamamoto/grc",
+  "package": "grc 0.8 (Michio Yamamoto), built from src/OptimGRC_C.c in that repo",
+  "generator": "benchmarks/R/fgrc_grc_crossval.R",
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "captured": "2026-09-23",
+  "note": "GRC() is not reproducible across R processes: with panel, start and seed pinned, the c1=1 configuration returned 1217.30913315 on one run and 1217.46083840 on the next. These fits are one capture; the case measures properties that do not depend on which optimum was reached.",
+  "sha256_16": {
+    "s0_c1_0_k3_A.csv": "5a4a34489511611a",
+    "s0_c1_0_k3_A0.csv": "9ccecd7af59cb00d",
+    "s0_c1_0_k3_X.csv": "921a9d4aa473c33d",
+    "s0_c1_0_k3_cl.csv": "950bd88dadc92a54",
+    "s1_c2_0_k3_A.csv": "7e47c71806161876",
+    "s1_c2_0_k3_A0.csv": "d398f052094d1bf9",
+    "s1_c2_0_k3_X.csv": "3ee59b73d817ea9c",
+    "s1_c2_0_k3_cl.csv": "5a4976b6eb0e2d0d",
+    "s2_c2_1_k3_A.csv": "271480d89a732147",
+    "s2_c2_1_k3_A0.csv": "20ce7b4076a0045e",
+    "s2_c2_1_k3_X.csv": "54d2442062a109dc",
+    "s2_c2_1_k3_cl.csv": "eeced9d769e66134",
+    "summary.csv": "c577890b52ff13f9"
+  }
+}

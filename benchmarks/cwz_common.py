@@ -120,7 +120,7 @@ def moving_block_pvalue(y: np.ndarray, Y0: np.ndarray, pre_periods: int) -> floa
     ``VanillaSC(inference="conformal", conformal_type="block")`` measures, at a
     fraction of the cost of building a DataFrame per draw.
     """
-    from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+    from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 
     return float(
         conformal_pvalue(y, Y0, pre_periods, conformal_type="block", refit="sc")

@@ -44,19 +44,14 @@ def _outcome_only_simplex(y: np.ndarray, Y0: np.ndarray) -> np.ndarray:
     ``scinference``'s ``estimators.R::sc`` (``limSolve::lsei``). Used as the
     default per-fold solver when the caller supplies no ``weight_fn``.
     """
-    import cvxpy as cp
+    from .solvers.active_set import solve_simplex_qp
 
-    J = Y0.shape[1]
-    w = cp.Variable(J)
-    cp.Problem(
-        cp.Minimize(cp.sum_squares(Y0 @ w - y)),
-        [cp.sum(w) == 1, w >= 0],
-    ).solve(solver=cp.OSQP, eps_abs=1e-9, eps_rel=1e-9, max_iter=200000)
-    if w.value is None:  # pragma: no cover - defensive: OSQP non-convergence
+    try:
+        return solve_simplex_qp(Y0, y)
+    except Exception as exc:  # pragma: no cover - defensive: degenerate fold
         raise MlsynthEstimationError(
             "outcome-only simplex SC failed to solve in debiased_sc_ttest"
-        )
-    return np.asarray(w.value).ravel()
+        ) from exc
 
 
 # ``split_conformal_quantile`` now lives with the rest of the conformal machinery
@@ -74,10 +69,11 @@ def debiased_sc_ttest(
     alpha: float = 0.1,
     weight_fn: Optional[WeightFn] = None,
 ) -> Dict[str, Any]:
-    r"""Debiased synthetic-control *t*-test for the ATT (CWZ 2025).
+    r"""Debiased synthetic-control *t*-test for the ATT (CWZ 2026).
 
     Implements the K-fold cross-fitting debiasing and self-normalized
-    *t*-statistic of Chernozhukov, Wuthrich & Zhu (2025), a faithful port of the
+    *t*-statistic of Chernozhukov, Wuthrich & Zhu (2026, JPE 134(9)), a faithful
+    port of the
     authors' ``scinference`` package (``ttest.R::sc.cf``). The pre-period is split
     into ``K`` consecutive blocks of length ``r = min(floor(T0/K), T1)``; for each
     block ``H_k`` the weights are refit on the block's complement and
@@ -121,7 +117,10 @@ def debiased_sc_ttest(
     -------
     dict
         ``att``, ``se``, ``tstat``, ``dof`` (``=K-1``), ``ci_lower``,
-        ``ci_upper``, ``tau_k`` ((K,) array), ``K``, ``r``, ``alpha``.
+        ``ci_upper``, ``tau_k`` ((K,) array), ``cf_post`` ((T1,) debiased
+        post-period counterfactual, the fold average of
+        ``Y0_post @ w_k + block_gap_k``, whose mean gap against ``y_post`` is
+        ``att`` identically), ``K``, ``r``, ``alpha``.
 
     Raises
     ------
@@ -167,6 +166,7 @@ def debiased_sc_ttest(
     offset = T0 - r * K
 
     tau = np.empty(K)
+    cf_folds = np.empty((K, T1))
     for k in range(K):
         block = np.arange(offset + k * r, offset + k * r + r)
         keep = np.setdiff1d(np.arange(T0), block)
@@ -178,8 +178,17 @@ def debiased_sc_ttest(
         post_gap = float(np.mean(y_post - Y0_post @ w))
         block_gap = float(np.mean(y_pre[block] - Y0_pre[block] @ w))
         tau[k] = post_gap - block_gap
+        # Fold k's debiased counterfactual path over the post window: the fold's
+        # SC prediction raised by the bias it shows on its own held-out block.
+        cf_folds[k] = Y0_post @ w + block_gap
 
     att = float(tau.mean())
+    # Averaging the fold paths gives a counterfactual whose post-period mean gap
+    # is ``att`` identically:
+    #   mean_t(y_t - K^-1 sum_k (x_t'w_k + b_k)) = K^-1 sum_k (post_gap_k - b_k).
+    # Reporting it alongside the ATT keeps the series, the point estimate and
+    # the interval describing one estimator.
+    cf_post = cf_folds.mean(axis=0)
     se = float(np.sqrt(1.0 + (K * r) / T1) * tau.std(ddof=1) / np.sqrt(K))
     tstat = att / se if se > 0 else np.inf * np.sign(att)
     crit = float(_t.ppf(1 - alpha / 2, K - 1))
@@ -191,6 +200,7 @@ def debiased_sc_ttest(
         "ci_lower": att - crit * se,
         "ci_upper": att + crit * se,
         "tau_k": tau,
+        "cf_post": cf_post,
         "K": K,
         "r": r,
         "alpha": alpha,

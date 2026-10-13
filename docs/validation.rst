@@ -9,9 +9,9 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **87 cross-validation checks** against original
-implementations across **44 estimators** -- 34 reproduce the reference to display precision, 29 to
-within two percent. A further 4 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+Coverage: **88 cross-validation checks** against original
+implementations across **45 estimators** -- 35 reproduce the reference to display precision, 29 to
+within two percent. A further 5 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -77,6 +77,10 @@ Summary
      - 1
      - 1 close
      - 0.71
+   * - :ref:`GEOX engine <val-geox-engine>`
+     - 1
+     - 1 exact
+     - 0
    * - :ref:`LINF <val-linf>`
      - 2
      - 1 tight · 1 close
@@ -505,6 +509,28 @@ GEOX
      - 0.71
      - close
      - `geox_sdid_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_sdid_equivalence.py>`__
+
+.. _val-geox-engine:
+
+GEOX engine
+-----------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 8 12 14 16
+
+   * - Reference
+     - Dataset
+     - #
+     - max \|Δ\|
+     - Verdict
+     - Case
+   * - mlsynth.utils.mvbbsc_helpers.model.run_mvbbsc (the estimator the engine wraps)
+     - —
+     - 4
+     - 0
+     - exact — matches to display precision
+     - `geox_mvbbsc_equivalence <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/geox_mvbbsc_equivalence.py>`__
 
 .. _val-linf:
 
@@ -1459,4 +1485,6 @@ action records them once its toolchain provisions.
      - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
    * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__
      - —
+   * - `sl_tennessee <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/sl_tennessee.py>`__
+     - R, glmnet 4.1-8; experts and weighting transcribed from the authors' libraries/library.R (generate_experts, Exp_algorithm), with the two corrections of issue #651 marked in the script
 

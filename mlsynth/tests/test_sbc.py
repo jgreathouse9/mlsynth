@@ -328,7 +328,7 @@ class TestSolveSBCWeights:
 
     def test_simplex_matches_cvxpy_reference(self):
         # The simplex solve now runs through the in-house FISTA QP
-        # (bilevel.simplex.simplex_lstsq) rather than cvxpy. Guard against
+        # (solvers.simplex.simplex_lstsq) and not cvxpy. Guard against
         # drift by checking it against a direct cvxpy solve of the same
         # program: min ||ct - cd w||^2 s.t. w >= 0, sum(w) = 1.
         import cvxpy as cp

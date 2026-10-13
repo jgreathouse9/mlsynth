@@ -71,12 +71,15 @@ ESTIMATORS: Dict[str, str] = {
     # Relaxing the convex-hull assumption.
     "NSC": "hull",
     "ISCM": "hull",
+    "EASC": "hull",
     "SRC": "hull",
 
     # Donor pools large relative to the pre-period.
     "CLUSTERSC": "highdim",
     "MLSC": "highdim",
     "PDA": "highdim",
+    "CPDA": "highdim",
+    "SL": "highdim",
     "RESCM": "highdim",
     "FSCM": "highdim",
     "SparseSC": "highdim",
@@ -89,6 +92,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # State-space and factor models.
     "FMA": "time",
+    "ATEL": "time",
     "TASC": "time",
     "CFM": "time",
     "CSCIPCA": "time",
@@ -143,6 +147,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # Assignment is randomized, over few large units.
     "MUSC": "randomized",
+    "TBR": "randomized",
 
     # Forecasting past the end of the panel, for a unit that has not adopted.
     "TWSF": "forecasting",

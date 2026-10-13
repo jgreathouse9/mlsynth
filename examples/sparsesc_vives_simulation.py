@@ -40,7 +40,7 @@ import numpy as np, pandas as pd
 from concurrent.futures import ProcessPoolExecutor
 from mlsynth.utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
 from mlsynth.utils.sparse_sc_helpers.optimization import sweep_lambda, recover_w
-from mlsynth.utils.fscm_helpers.bilevel.simplex import simplex_lstsq
+from mlsynth.utils.solvers.simplex import simplex_lstsq
 
 def scm_maha_w(X1, X0):
     """Standard SCM with the paper's fixed V = (X0' X0)^{-1} (full Mahalanobis).

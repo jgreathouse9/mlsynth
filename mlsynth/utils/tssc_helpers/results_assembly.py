@@ -34,7 +34,7 @@ def build_summary(
     ``selection`` is None when the caller forced a variant via
     ``TSSCConfig.method``: Step 1 is skipped in that case, so there is no
     recommendation and no restriction tests to report. The Step-1 fields are
-    then omitted from ``method_details`` rather than filled with the forced
+    then omitted from ``method_details``, not filled with the forced
     choice, which would misreport the test as having endorsed it.
     ``method_name`` names the variant actually fit, and is required when
     ``selection`` is absent.

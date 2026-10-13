@@ -9,8 +9,7 @@ interval breaks. The DGP
 effect, so coverage is whether the CI contains 0.
 
 Across the three variance regimes (``equal`` / ``treated_smaller`` /
-``treated_larger``) FMA's 95% CI covers at ~0.95-0.97 -- near nominal in every
-cell:
+``treated_larger``) FMA's 95% CI covers near nominal in every cell:
 
   =================  ===============
   variance regime    FMA coverage
@@ -24,6 +23,22 @@ Path B (the paper's simulation): the case asserts every cell covers near the
 nominal 95% -- the paper's headline that coverage is robust to variance
 inequality -- not exact cells (fewer reps than the paper's 100,000).
 Deterministic (seeded).
+
+What this case does not do is pin a value. Coverage is a property both a
+correct and an incorrect variance estimator can satisfy, and this design has
+T1 = 30 against r + 1 = 4 regressors, where a degrees-of-freedom correction
+moves the standard error by only sqrt(30/26) = 1.07. FMA shipped a variance
+that was wrong by a factor of 1.35 on the authors' own panel and every cell
+here stayed inside its tolerance throughout. The check with the power to catch
+that is a reference pin, and it lives in
+``mlsynth/tests/test_fma.py::TestAsymptoticMatchesTheAuthorsImplementation``,
+which compares the standard error against the authors' Web Appendix I MATLAB
+on HCW's Hong Kong panel to six significant figures.
+
+Wang, Racine & Wang (2025) Tables 1-2 measure this interval under-covering at
+short pre-periods -- 0.91-0.93 at T1 = 30, falling to 0.80 at T1 = 10 -- so the
+cells below sit slightly under 0.95 by construction, not by defect. The
+studentized bootstrap that corrects it is ``fma_percentile_t_mc``.
 """
 from __future__ import annotations
 
@@ -31,7 +46,7 @@ import warnings
 
 import numpy as np
 
-M = 40
+M = 120
 
 
 def _coverage(dgp: str, variance_case: str) -> float:
@@ -61,7 +76,14 @@ def run() -> dict:
         "cov_dgp2_equal": _coverage("dgp2", "equal"),
     }
     cells["min_coverage"] = float(min(cells.values()))
-    cells["all_near_nominal"] = float(all(c >= 0.88 for c in
+    # 0.85 is the floor the per-cell targets already imply (0.95 with a
+    # tolerance of 0.10). It was 0.88, which was stricter than the cells it
+    # summarised and was calibrated while the variance estimator was inflated
+    # by a degrees-of-freedom correction the paper does not apply. With that
+    # corrected the interval covers where Wang, Racine & Wang measure it --
+    # 0.91-0.93 at T1 = 30 -- so a floor above that asserts something the
+    # source says is false.
+    cells["all_near_nominal"] = float(all(c >= 0.85 for c in
                                           list(cells.values())[:4]))
     return cells
 

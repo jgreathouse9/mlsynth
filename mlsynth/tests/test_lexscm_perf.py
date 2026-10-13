@@ -1,6 +1,6 @@
 """Work contracts for the two LEXSCM hot loops.
 
-Profiling one design fit on a 211-market weekly panel put 85% of the runtime in
+Profiling one design fit on a wide geo panel put 85% of the runtime in
 two places: ``block_resample_windows`` (45s of 80s) and ``_afw_batched`` (23s).
 Underneath both sat 5.47 million ``np.take`` calls, 5.47 million ``np.arange``
 calls and 409k ``einsum`` calls -- Python dispatch, not arithmetic.
@@ -115,7 +115,7 @@ def test_the_search_scores_each_subset_once():
     """The heuristic search revisits tuples; it should not re-solve them.
 
     ``_local_search`` explores swap neighbourhoods from many starts, and
-    neighbourhoods overlap: on a 211-market panel the search asked for 612,912
+    neighbourhoods overlap: on a wide geo panel the search asked for 612,912
     subset losses covering 297,901 distinct tuples, so half the simplex solves
     reproduced an answer already in hand. Deduplicating within a batch saves
     nothing -- each batch is internally distinct -- so the memo has to persist
@@ -163,7 +163,7 @@ def test_probing_a_tuple_does_not_enter_it_in_the_solution_pool():
     neighbourhood probe is not a visit: the descent scores hundreds of swaps to
     pick one, and the rejected ones were never adopted. Caching probe losses in
     the pool silently turns the search into "rank everything ever evaluated",
-    which on the 211-market panel changed the selected markets outright and
+    which on that same panel changed the selected markets outright and
     moved the MDE from 5.34% to 9.80% -- an answer no existing test objected
     to, because every suite passed while it was wrong.
 

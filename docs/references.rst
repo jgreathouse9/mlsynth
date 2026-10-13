@@ -55,6 +55,9 @@ References
 
 
 
+.. [LiVdB2022] Li, Kathleen T., and Christophe Van den Bulte. *"Augmented Difference-in-Differences."* Marketing Science, vol. 41, no. 5, 2022. `doi:10.1287/mksc.2022.1406 <https://doi.org/10.1287/mksc.2022.1406>`_.
+
+
 .. [Li2024] Li, Kathleen T. *"Frontiers: A Simple Forward Difference-in-Differences Method."* Marketing Science, vol. 43, no. 2, 2024, pp. 239–468. `doi:10.1287/mksc.2022.0212 <https://doi.org/10.1287/mksc.2022.0212>`_.
 
 
@@ -90,6 +93,18 @@ References
     "Forward-selected panel data approach for program evaluation." 
     *Journal of Econometrics*, 234(2): 512-535, 2023. 
     DOI: https://doi.org/10.1016/j.jeconom.2021.04.009
+
+.. [rfPDA]
+    Liu, Guannan, Long, Wei, and Luo, Xuehong.
+    "A Random Forest-Based Panel Data Approach for Program Evaluation."
+    *Journal of Applied Econometrics*, 40(5): 591-607, 2025.
+    DOI: https://doi.org/10.1002/jae.3123
+
+.. [West1997]
+    West, Kenneth D.
+    "Another heteroskedasticity- and autocorrelation-consistent covariance matrix estimator."
+    *Journal of Econometrics*, 76(1-2): 171-191, 1997.
+    DOI: https://doi.org/10.1016/0304-4076(95)01788-7
 
 .. [sdid]
     Clarke, Damian, Pailañir, Daniel, Athey, Susan, and Imbens, Guido. 
@@ -415,7 +430,9 @@ References
     Rho, Saeyoung, Illick, Cyrus, Narasipura, Samhitha, Abadie, Alberto,
     Hsu, Daniel, and Misra, Vishal.
     "Time-Aware Synthetic Control."
-    *arXiv Preprint*, 2601.03099, 2026.
+    *Proceedings of the 29th International Conference on Artificial
+    Intelligence and Statistics (AISTATS)*, PMLR 300, 2026.
+    Preprint: `arXiv:2601.03099 <https://arxiv.org/abs/2601.03099>`_.
     URL: https://arxiv.org/abs/2601.03099
 
 .. [ADH]

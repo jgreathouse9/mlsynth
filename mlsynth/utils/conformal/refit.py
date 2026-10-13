@@ -98,7 +98,7 @@ def conformal_refit_gaps(
         did not ask for with no output showing it.
     ridge_kwargs : dict, optional
         Hyper-parameters forwarded to
-        :func:`~mlsynth.utils.bilevel.ridge_augment.ridge_augment_weights`.
+        :func:`~mlsynth.utils.solvers.ridge_augment.ridge_augment_weights`.
         Ignored by the ``"sc"`` rule, which has none.
     warm_start : np.ndarray, optional
         Previous simplex weights to seed the solve with; the two rules both
@@ -145,13 +145,13 @@ def conformal_refit_gaps(
                 "the 'sc' refit rule matches on outcomes only and cannot use "
                 "covariates; pass rule='ridge' to include them, or drop Z0/z1."
             )
-        from ..bilevel.ridge_augment import simplex_qp
+        from ..solvers.ridge_augment import simplex_qp
 
         w = np.asarray(simplex_qp(Y0, y, warm_start=warm_start), dtype=float)
         gaps = y - Y0 @ w
         return (gaps, w) if return_base else gaps
 
-    from ..bilevel.ridge_augment import ridge_augment_weights
+    from ..solvers.ridge_augment import ridge_augment_weights
 
     ra = ridge_augment_weights(
         y, Y0, Z0=Z0, z1=z1, warm_start=warm_start, **(ridge_kwargs or {})

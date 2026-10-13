@@ -45,10 +45,9 @@ def _holdout_resid(yT, yC, e_idx, b_idx, augment, trend):
     X = np.column_stack(cols)
     y = yT if augment else yT - yC
     XE = X[e_idx]
-    try:
-        beta = np.linalg.solve(XE.T @ XE, XE.T @ y[e_idx])
-    except np.linalg.LinAlgError:
-        beta = np.linalg.lstsq(XE, y[e_idx], rcond=None)[0]
+    # The same QR route the effects module uses, so a residual computed here
+    # and an ATT reported there rest on the same fit.
+    beta = np.linalg.lstsq(XE, y[e_idx], rcond=None)[0]
     return y[b_idx] - X[b_idx] @ beta
 
 

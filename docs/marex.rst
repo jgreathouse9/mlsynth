@@ -144,6 +144,9 @@ starts the branch-and-bound from a strong incumbent instead of hunting for one.
 Paired with ``time_limit`` (seconds), MAREX then returns the best design found
 within the budget — typically the seed, confirmed or refined — instead of paying
 the full optimality proof. Both default to off and apply to the exact MIQP only.
+For the ``standard``, ``penalized`` and ``unit_penalized`` designs,
+``backend="exact"`` skips the MIQP and finds the same optimum by searching
+treated sets directly (:ref:`marex-search-backend`).
 
 ``mlsynth`` exposes four objective variants through ``design`` (clear names
 that map to the paper's formulations):
@@ -154,8 +157,23 @@ that map to the paper's formulations):
   the control synthetic to it (weight ``beta``);
 * ``"penalized"`` — ``standard`` plus a distance penalty that down-weights
   units far from the population mean (``lambda1`` / ``lambda2``);
-* ``"unit_penalized"`` — ``standard`` plus unit-level penalties
-  (``lambda1_unit`` / ``lambda2_unit``).
+* ``"unit_penalized"`` — ``standard`` plus unit-level penalties (``xi`` /
+  ``lambda1_unit``).
+
+The ``xi`` term is formulation (10): it charges each candidate treated unit for
+how well the remaining controls reproduce that unit, weighted by how much of
+the synthetic treated it carries. The charge for a given unit is a minimum over
+the control weights fitted to it alone, so it does not depend on the design
+being chosen; ``mlsynth`` solves those per-unit problems once and the penalty is
+then linear in the treated weights. Writing it as the treated weight times the
+joint design's own fit to that unit gives a different objective, and one that is
+not convex in the two weight vectors together.
+
+The paper's control-side counterpart ``lambda2_unit`` is accepted only as
+``0``. It pairs the treated weights against the control weights through a
+distance matrix, which is bilinear in two decision variables; ``lambda1_unit``
+charges the treated side against the population target, and the ``penalized``
+design charges both sides against it separately.
 
 Covariates
 ^^^^^^^^^^
@@ -213,8 +231,9 @@ constraints on the MIP:
   from its (within-cluster) control pool, so a market partly treated by spillover
   never sits in its counterfactual. Requires ``adjacency``.
 
-These are supported in the exact MIQP only (not ``relaxed=True``, whose post-hoc
-rounding cannot guarantee them). An over-constrained design -- e.g. forbidding
+These are supported in the exact MIQP and in the search backend
+(:ref:`marex-search-backend`), not with ``relaxed=True``, whose post-hoc
+rounding cannot guarantee them. An over-constrained design -- e.g. forbidding
 every market of a region, leaving its required treated synthetic with no member
 -- raises a translated :class:`~mlsynth.exceptions.MlsynthEstimationError` naming
 the restrictions. The example below runs on the bundled real US DMA contiguity
@@ -285,6 +304,149 @@ So a stratum quota is not an alternative to ``cluster``; in MAREX it is a
 property *of* the clustering. Drop ``cluster`` (a single global cluster) and you
 recover one design against the whole-population mean -- a different estimand, not
 a constrained version of the clustered one.
+
+.. _marex-search-backend:
+
+Solving the design by search
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``backend`` chooses how the design is solved. The default, ``"mip"``, hands the
+mixed-integer program above to SCIP. ``"exact"`` searches over treated sets
+directly and returns the same optimal design. It calls no mixed-integer solver,
+so it also runs on a base install, without the ``design`` extra that provides
+``pyscipopt``.
+
+The search works because fixing the treated set splits the problem in two. In
+one cluster, write :math:`\mathcal{S}` for the treated markets,
+:math:`\mathcal{N}_0(\mathcal{S})` for the cluster's other markets, and
+:math:`\Delta^{\mathcal{S}}` for the weight vectors on :math:`\mathcal{S}` that
+are non-negative and sum to one. In the ``standard`` design the treated weights
+live on :math:`\mathcal{S}` and the control weights on
+:math:`\mathcal{N}_0(\mathcal{S})`, and no term of the objective involves both,
+so once :math:`\mathcal{S}` is named the design is two separate
+synthetic-control fits:
+
+.. math::
+
+   f(\mathcal{S}) =
+     \underbrace{\min_{\mathbf{w} \in \Delta^{\mathcal{S}}}
+       \Bigl\| \bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j
+       \Bigr\|_2^2}_{g(\mathcal{S})}
+     \;+\;
+     \underbrace{\min_{\mathbf{v} \in \Delta^{\mathcal{N}_0(\mathcal{S})}}
+       \Bigl\| \bar{\mathbf{x}}
+         - \sum_{j \in \mathcal{N}_0(\mathcal{S})} v_j \mathbf{x}_j
+       \Bigr\|_2^2}_{h(\mathcal{S})}.
+
+Each fit is a small quadratic program that ``mlsynth`` solves exactly with an
+active-set method. The ``penalized`` and ``unit_penalized`` designs add
+penalties that are non-negative and linear in :math:`\mathbf{w}` or in
+:math:`\mathbf{v}`, and the split survives them. The optimal design is the
+:math:`\mathcal{S}` with the smallest :math:`f(\mathcal{S})` among the treated
+sets the cardinality (``m_eq``, or ``m_min`` and ``m_max``) allows, and the
+binary variables of the MIQP are one way of searching those sets.
+
+Fitting every candidate is what Abadie and Zhao's own cardinality routine does
+(``Synthetic_Experiment_Cardinality_Constraint`` in their code). It is exact,
+but it pays two fits per candidate, and :math:`m` treated among :math:`N`
+markets is :math:`\binom{N}{m}` candidates. The search fits few of them, because
+:math:`g(\mathcal{S})` has a lower bound that costs much less than the fit. The
+weights sum to one, so :math:`\bar{\mathbf{x}} - \sum_j w_j \mathbf{x}_j =
+-\sum_j w_j (\mathbf{x}_j - \bar{\mathbf{x}})`: the fit is unchanged when every
+predictor vector is measured from the target. Let
+:math:`\mathbf{G}_{\mathcal{S}}` hold the inner products of those centred
+vectors for the markets in :math:`\mathcal{S}`. Dropping only the requirement
+that the weights be non-negative leaves a problem with a closed-form answer,
+
+.. math::
+
+   g(\mathcal{S}) \;\ge\; \min_{\mathbf{1}^\top \mathbf{w} = 1}
+   \mathbf{w}^\top \mathbf{G}_{\mathcal{S}} \mathbf{w}
+   \;=\; \frac{1}{\mathbf{1}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{1}},
+
+with equality when the minimiser has no negative weight. When the design adds a
+penalty :math:`\mathbf{a}^\top \mathbf{w}` to the treated fit, the bound becomes
+:math:`(2 + t)^2 / (4s) - u/4`, with
+:math:`s = \mathbf{1}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{1}`,
+:math:`t = \mathbf{1}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}` and
+:math:`u = \mathbf{a}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}`. When
+:math:`\mathbf{G}_{\mathcal{S}}` is singular (more treated markets than
+predictors, or a market that matches the target exactly) the bound is set to
+zero, which discards nothing. The bound is one small linear solve, computed for
+thousands of candidates in a single call. Since
+:math:`f(\mathcal{S}) \ge g(\mathcal{S})`, a candidate whose bound already
+exceeds the best design found so far cannot be optimal, and the search discards
+it without fitting it.
+
+The search reads the candidates once, keeps the 512 with the smallest bounds,
+and fits those in order of bound; the best of them becomes the incumbent. If
+every kept bound is still under the incumbent, a candidate outside the 512 could
+yet win, and a second pass fits every candidate whose bound is under the
+incumbent. Each candidate is then either fitted or excluded by its bound, so the
+design returned is the optimum of the program SCIP solves. The design and
+everything computed from it, inference and the post-fit included, go through
+the same code for both backends.
+
+The geographic restrictions carry over, within each cluster. ``to_be_treated``,
+``not_to_be_treated``, the size band and the stratum quotas decide which treated
+sets exist, so the search generates only the sets they allow (with the
+enumeration of SYNDES's search, :doc:`syndes`) and counts them exactly. Border
+and same-cluster conflicts are checked on each candidate.
+``exclude_bordering_donors`` removes a candidate's bordering markets from its
+control pool, which changes :math:`h(\mathcal{S})` and leaves
+:math:`g(\mathcal{S})` and its bound alone. The clusters share no weights, so
+each is searched on its own; a border conflict between markets of two clusters,
+or a stratum quota that counts markets in two clusters, would tie those searches
+together, and ``backend="exact"`` refuses it. With ``top_K > 1`` each cluster's
+search keeps its ``top_K`` best treated sets, and the pool is the ``top_K``
+smallest totals of one choice per cluster; the MIQP builds the same pool by
+re-solving once per design, with a cut excluding the designs already found.
+
+``backend="exact"`` refuses, when the configuration is built and with a message
+naming ``backend="mip"``:
+
+* ``design="weakly_targeted"``, whose term
+  :math:`\beta \|\sum_j w_j \mathbf{x}_j - \sum_j v_j \mathbf{x}_j\|_2^2` ties
+  the control weights to the treated ones, so fixing :math:`\mathcal{S}` no
+  longer splits the objective;
+* ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
+  a second constraint on the treated fit that the search's simplex solver does
+  not take;
+* ``relaxed=True``, and the branch-and-bound settings ``solver``,
+  ``warm_start`` and ``time_limit``, which have nothing to act on.
+
+A cluster with more than twenty million admissible treated sets is refused when
+the design is solved, with the same pointer to the MIQP. Five treated among
+forty markets is 658,008 candidates. With no treated count set, every size from
+one to :math:`N - 1` is a candidate, :math:`2^N - 2` sets in all, which passes
+the limit at 25 markets. The count is of the sets the restrictions allow, so
+forcing markets in or out raises the cluster size the search can take.
+
+On the Walmart design below (45 stores, two treated), the whole fit, inference
+included, takes 0.03 seconds with ``backend="exact"`` and returns the same two
+stores and the same p-value as the MIQP, whose design step took between 46 and
+83 seconds on the same data. On simulated one-cluster panels of 12 to 40
+markets with three to five treated, three panels per size and both backends on
+one core, the search took 9 to 524 milliseconds and SCIP 0.5 to 249 seconds.
+The geometric-mean speedup per size was 48 at 12 markets, 96 at 16, 121 at 20,
+and between 345 and 482 from 25 to 40 markets. Every panel returned SCIP's
+treated set, with an objective at or below SCIP's. From 25 markets on, the
+search's time grows about as fast as the number of candidates, under a
+microsecond each at forty markets; SCIP's follows its proof of optimality.
+From 12 to 40 markets SCIP's median time grew 235-fold and the search's 29-fold,
+though above 25 markets the search's grew faster and the speedup eased from its
+peak. The script and its results are in
+`benchmarks/studies/marex_exact_backend
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_exact_backend>`_.
+
+``res.study.backend`` records which backend ran, and ``res.globres.objective``
+the design objective it reached, which is the number to compare across
+backends. The two reach the same objective. Where the objective is nearly flat
+in some direction their weights can differ: SCIP stops once it is within its
+tolerance of the optimum, so on one of the test panels its ``unit_penalized``
+weights sit :math:`10^{-3}` from the search's while its objective is higher by
+three parts in :math:`10^{8}`. The search's weights come from an exact fit of
+the selected treated set.
 
 Inference
 ^^^^^^^^^
@@ -460,9 +622,21 @@ What the surface looks like
 
    p.sigma_placebo                         # σ̂ used (from blank or pre window)
    p.serial_correlation                    # ρ̂ AR(1) of the placebo gaps
+   p.placebo_bias                          # mean placebo gap; 0 for an unbiased design
+   p.placebo_bias_pvalue                   # is that offset distinguishable from 0?
+   p.n_placebo, p.sigma_ci                 # periods σ̂ rests on, and its interval
    p.baseline                              # mean(synthetic_control) on post window
    p.alpha, p.power_target                 # 0.05 / 0.80 by default
-   p.method                                # "analytical_ar1"
+   p.method                                # "analytical_ar1_mean_gap"
+
+   pt = p.headline
+   pt.critical_value                       # t quantile the MDE is built at
+   pt.mde_ci                               # MDE at the ends of p.sigma_ci
+
+Test an observed effect against ``pt.critical_value``, not against 1.96. The
+noise scale is estimated from the placebo window, so the pivot follows a
+Student-t on that window's effective degrees of freedom; the Gaussian quantile
+gives a nominal 5% test a true size above 10% on a short, persistent window.
 
 The default horizon grid covers :math:`T \in \{1, 2, 4, 6, 8, 12\}` plus the
 realised ``n_post``, so the table also doubles as a *"how long do I need to
@@ -628,7 +802,9 @@ and the permutation test fails to reject the null of no effect
    ``standardize=True``; the unit-variance normalisation is essential here
    because Walmart stores differ enormously in sales level, and without it the
    level differences dominate the match. The solve takes roughly a minute with
-   the open-source SCIP solver (the paper used commercial Gurobi).
+   the open-source SCIP solver (the paper used commercial Gurobi). With
+   ``backend="exact"`` the whole fit takes about 0.03 seconds and returns the
+   same two stores (:ref:`marex-search-backend`).
 
 .. note::
 
@@ -669,6 +845,9 @@ onto ``mlsynth``'s implementation, which was checked against it:
      - ``design="penalized"`` (identical :math:`\lambda` distance penalty)
    * - Cardinality formulation
      - ``m_eq`` / ``m_min`` / ``m_max``
+   * - Cardinality routine (every partition, ``quadprog`` on each side)
+     - ``backend="exact"`` (the same enumeration, with a bound that skips most
+       of the fits)
    * - Predictors :math:`\mathbf{x} = [\mathbf{y}^E ; \mathbf{z}]`
      - ``covariates=[...]`` (matched on pre-outcomes + covariates)
    * - "treated = smaller set" swap

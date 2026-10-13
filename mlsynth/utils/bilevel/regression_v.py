@@ -55,7 +55,7 @@ from typing import Optional
 
 import numpy as np
 
-from .simplex import simplex_lstsq
+from ..solvers.simplex import simplex_lstsq
 from .structure import BilevelProblem, BilevelSolution
 
 __all__ = ["regression_v", "solve_regression"]

@@ -66,6 +66,35 @@ class LEXSCMConfig(BaseMAREXConfig):
                     "selects the best equal-weight m-tuple."
     )
 
+    unit_level_penalty: float = Field(
+        default=0.0, ge=0.0,
+        description="Unit-level penalty (xi >= 0) from Abadie & Zhao's "
+                    "equation (10). 0 (default) scores a treated tuple only on "
+                    "how well its aggregate reproduces the population target. "
+                    "xi > 0 adds xi * sum_j w_j ||x_j - sum_i v_ij x_i||^2, "
+                    "each treated market's own reproducibility by the donors "
+                    "outside the tuple, weighted by its share of the aggregate. "
+                    "Reach for it when the design may pick markets no donor "
+                    "combination can rebuild: on a 62-market panel at m=8 the "
+                    "unpenalised design chose the two largest markets, gave "
+                    "them 58% of the weight, and its aggregate interval missed "
+                    "the truth. xi is in squared units of the design matrix, so "
+                    "it does not transfer between panels unscaled."
+    )
+
+    min_treated_weight: float = Field(
+        default=0.0, ge=0.0, lt=1.0,
+        description="Floor on every treated market's weight (0 = none). The "
+                    "unit-level penalty answers an unreachable market by giving "
+                    "it less weight, and at large xi it drives the weight to "
+                    "zero -- Abadie & Zhao allow that, since their cardinality "
+                    "constraint is a range, but LEXSCM's m is a budget: m "
+                    "markets get treated and paid for, so a zero weight spends "
+                    "budget on a market the estimator then ignores. A floor "
+                    "keeps ||w||_0 = m. It must satisfy m * min_treated_weight "
+                    "< 1."
+    )
+
     # =========================================================
     # SPILLOVER / INTERFERENCE EXCLUSIONS (Vives-i-Bastida 2022)
     # =========================================================

@@ -1,19 +1,36 @@
 == REFERENCE VALUES ==
-fdid_att	0.025405
-fdid_att_pct	53.843067
-fdid_r2_pre	0.842784
+fdid_att	0.025404935753
+fdid_att_pct	53.843067355557
+fdid_r2_pre	0.842783512747
 fdid_n_controls	9
-did_att	0.031721
-did_att_pct	77.620322
-did_r2_pre	0.504647
+did_att	0.031721157431
+did_att_pct	77.620322004948
+did_r2_pre	0.504646690701
+m_fdid_att	0.025404935753
+m_fdid_att_pct	53.843067355557
+m_fdid_r2_pre	0.842783512747
+m_fdid_n_controls	9
+m_fdid_satt	5.494085948678
+m_fdid_se	0.004624051387
+m_fdid_p_value	0.000000039274
+m_fdid_ci_lo	0.016341795034
+m_fdid_ci_hi	0.034468076472
+m_did_att	0.031721157431
+m_did_att_pct	77.620322004948
+m_did_r2_pre	0.504646690701
+m_did_satt	3.864718654291
+m_did_se	0.008207882712
+m_did_p_value	0.000111217321
+m_did_ci_lo	0.015633707315
+m_did_ci_hi	0.047808607548
 == SESSION INFO ==
 R version 4.3.3 (2024-02-29)
 Platform: x86_64-pc-linux-gnu (64-bit)
 Running under: Ubuntu 24.04.4 LTS
 
 Matrix products: default
-BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.12.0 
-LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.12.0
+BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3 
+LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/libopenblasp-r0.3.26.so;  LAPACK version 3.12.0
 
 locale:
  [1] LC_CTYPE=C.UTF-8    LC_NUMERIC=C        LC_TIME=C          
@@ -29,3 +46,4 @@ attached base packages:
 
 loaded via a namespace (and not attached):
 [1] compiler_4.3.3
+GNU Octave 8.4.0

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .structures import DID, FDID, FDIDInputs, FDIDMethodFit, FDIDResults
+from .structures import ADID, DID, FDID, FDIDInputs, FDIDMethodFit, FDIDResults
 
 
 def _build_method_fit(
@@ -43,6 +43,7 @@ def _build_method_fit(
         pre_rmse=fit.get("T0 RMSE"),
         r_squared=fit.get("R-Squared"),
         intercept=inference.get("Intercept"),
+        slope=inference.get("Slope"),
         p_value=inference.get("P-Value"),
         ci=inference.get("95% CI", (np.nan, np.nan)),
         selected_indices=list(selected_indices),
@@ -64,7 +65,7 @@ def assemble_fdid_results(
     Parameters
     ----------
     selector_output : dict
-        ``{"DID": ..., "FDID": ...}`` as returned by
+        ``{"DID": ..., "FDID": ..., "ADID": ...}`` as returned by
         :func:`mlsynth.utils.fdid_helpers.estimation.forward_did_select`.
     inputs : FDIDInputs
         Preprocessed panel.
@@ -90,4 +91,16 @@ def assemble_fdid_results(
         DID, did_raw, treated, all_indices, donor_names, inputs.pre_periods
     )
 
-    return FDIDResults(inputs=inputs, fdid=fdid_fit, did=did_fit)
+    adid_raw = selector_output.get(ADID)
+    adid_fit = (
+        _build_method_fit(ADID, adid_raw, treated, all_indices, donor_names,
+                          inputs.pre_periods)
+        if adid_raw is not None else None
+    )
+    metadata = {}
+    if adid_fit is None:
+        metadata["adid_unavailable"] = selector_output.get(
+            "ADID_unavailable", "not computed")
+
+    return FDIDResults(inputs=inputs, fdid=fdid_fit, did=did_fit,
+                       adid=adid_fit, metadata=metadata)

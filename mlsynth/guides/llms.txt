@@ -24,6 +24,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 
 ## Estimators
 
+- **ATEL** — Average Treatment Effect Localization for a single treated unit.  (config: ATELConfig)
 - **BEAST** — Immunized doubly-robust synthetic control estimator.  (config: BEASTConfig)
 - **BFSC** — Bayesian Factor Synthetic Control (Pinkney 2021).  (config: BFSCConfig)
 - **BPSCS** — Bayesian Penalized Synthetic Control under Spillovers (Fernandez-Morales et al. 2026).  (config: BPSCSConfig)
@@ -34,6 +35,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **CLUSTERSC** — Cluster-based Synthetic Control estimator.  (config: CLUSTERSCConfig)
 - **CMBSTS** — Causal Multivariate Bayesian Structural Time Series estimator.  (config: CMBSTSConfig)
 - **COMPSC** — Compositional synthetic control estimator (Aitchison geometry).  (config: COMPSCConfig)
+- **CPDA** — Covariate-adjusted panel data approach estimator.  (config: CPDAConfig)
 - **CSCIPCA** — Counterfactual and Synthetic Control with Instrumented PCA (Wang 2024).  (config: CSCIPCAConfig)
 - **CSCM** — Flexible count synthetic control estimator (Bonander 2021).  (config: CSCMConfig)
 - **CTSC** — Continuous-Treatment Synthetic Control estimator.  (config: CTSCConfig)
@@ -47,6 +49,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **DTWSC** — Dynamic Synthetic Control estimator.  (config: DTWSCConfig)
 - **DesignComparison** — Result of :func:`compare_methods`.
 - **DesignSpec** — A design from any estimator, in the common cross-method currency.
+- **EASC** — Exposure-augmented synthetic control.  (config: EASCConfig)
 - **ESC** — Ensemble Synthetic Control estimator.  (config: ESCConfig)
 - **FDID** — Forward Difference-in-Differences (FDID) estimator.  (config: FDIDConfig)
 - **FMA** — Factor Model Approach (Li & Sonnier 2023) estimator.  (config: FMAConfig)
@@ -90,6 +93,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SHC** — Synthetic Historical Control (SHC) estimator.  (config: SHCConfig)
 - **SI** — Synthetic Interventions (SI) estimator.  (config: SIConfig)
 - **SIV** — Synthetic Instrumental Variables estimator.  (config: SIVConfig)
+- **SL** — Synthetic learner estimator.  (config: SLConfig)
 - **SNN** — Synthetic Nearest Neighbors (causal matrix completion) estimator.  (config: SNNConfig)
 - **SPCD** — Synthetic Principal Component Design (SPCD) estimator.  (config: SPCDConfig)
 - **SPILLSYNTH** — Spillover-aware synthetic control estimator.  (config: SPILLSYNTHConfig)
@@ -104,6 +108,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SpSyDiD** — Spatial Synthetic Difference-in-Differences estimator.  (config: SpSyDiDConfig)
 - **SparseSC** — L1-penalized Sparse Synthetic Control estimator.  (config: SparseSCConfig)
 - **TASC** — Time-Aware Synthetic Control (TASC) estimator.  (config: TASCConfig)
+- **TBR** — Time-Based Regression.  (config: TBRConfig)
 - **TSSC** — Two-Step Synthetic Control (TSSC) estimator.  (config: TSSCConfig)
 - **TWSF** — Forecast a never-treated unit's treated outcome past the end of the panel.  (config: TWSFConfig)
 - **TruncatedHistoryResult** — The TH stability profile across truncated pre-treatment windows.

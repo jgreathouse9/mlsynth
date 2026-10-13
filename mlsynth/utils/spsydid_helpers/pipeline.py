@@ -46,6 +46,44 @@ from .weights import (
 )
 
 
+
+def effect_columns_are_identified(Xw: np.ndarray, n_effects: int = 2) -> bool:
+    """Whether the last ``n_effects`` columns each add a dimension to ``Xw``.
+
+    The SpSyDiD WLS design is ``[intercept, unit dummies, time dummies, D, WD]``
+    and ``tau`` / ``tau_s`` are read off the last two columns. Those two are
+    identified exactly when removing them costs the rank two dimensions:
+
+    .. math:: \mathrm{rank}(X_w) - \mathrm{rank}(X_w[:, :-2]) = 2
+
+    A deficiency anywhere in the nuisance block cancels out of that difference,
+    which is the point: a zero-weight period empties its time dummy, and a
+    zero-weighted reference period leaves the intercept equal to the sum of the
+    surviving dummies, and neither touches what the caller reads. A deficiency
+    that does reach an effect column -- ``D`` and ``WD`` collinear, or either
+    with no variation left under the weights -- shows up as a difference below
+    two.
+
+    ``rank(Xw) < Xw.shape[1]`` cannot tell those apart, which is why it is not
+    the predicate.
+    """
+    Xw = np.asarray(Xw, dtype=float)
+    if Xw.ndim != 2:
+        raise ValueError("Xw must be 2-D (observations, columns).")
+    if Xw.shape[1] < n_effects:
+        raise ValueError(
+            f"Xw has {Xw.shape[1]} columns, fewer than the {n_effects} effect "
+            "columns the check is about."
+        )
+    full = int(np.linalg.matrix_rank(Xw))
+    nuisance = (
+        int(np.linalg.matrix_rank(Xw[:, :-n_effects]))
+        if Xw.shape[1] > n_effects
+        else 0
+    )
+    return full - nuisance == n_effects
+
+
 def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
     """Run Algorithm 1 of Serenini & Masek (2024)."""
 
@@ -147,16 +185,28 @@ def run_spsydid(inputs: SpSyDiDInputs) -> SpSyDiDResults:
             f"SpSyDiD final WLS failed: {exc}"
         ) from exc
 
-    # A rank-deficient design means tau / tau_s are not separately
-    # identified (e.g. WD collinear with D, or zero-weight rows collapsing
-    # the effective rank). ``lstsq`` silently returns a minimum-norm
-    # solution, so flag it rather than report a spuriously precise estimate.
-    if rank < n_cols:
+    # ``lstsq`` returns a minimum-norm solution on a deficient design without
+    # saying so, and tau / tau_s are read off the last two columns, so what
+    # matters is whether the deficiency reaches those two and not whether the
+    # design is deficient at all.
+    #
+    # It usually is, and benignly. A period carrying zero weight empties its own
+    # time dummy, and a zero-weighted *reference* period leaves the intercept
+    # equal to the sum of the surviving dummies on the rows that remain; a donor
+    # carrying zero weight empties its unit dummy the same way. On one synthetic
+    # panel three zero-weight pre-periods -- one of them the reference -- take
+    # the rank from 23 to 20 while the null space keeps components of 1e-16 on
+    # the two effect columns, so both effects are still pinned. Warning there
+    # would report a problem the caller does not have.
+    if not effect_columns_are_identified(Xw):
         warnings.warn(
-            "SpSyDiD WLS design matrix is rank-deficient "
-            f"(rank {rank} < {n_cols} columns); the direct (tau) and "
-            "spillover (tau_s) coefficients may not be separately "
-            "identified and lstsq returned a minimum-norm solution.",
+            "SpSyDiD WLS cannot separate the direct (tau) and spillover "
+            f"(tau_s) effects: the design has rank {rank} of {n_cols} columns "
+            "and dropping D and WD costs fewer than two dimensions, so at "
+            "least one of them lies in the span of the rest (D and WD "
+            "collinear, or an effect column with no variation under the "
+            "weights). lstsq returned a minimum-norm solution, so the reported "
+            "tau and tau_s are one of several answers.",
             RuntimeWarning,
             stacklevel=2,
         )

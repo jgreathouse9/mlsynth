@@ -1,0 +1,11 @@
+{
+  "case": "pda_hcw_cepa",
+  "title": "HCW best-subset panel-data approach, CEPA 2004:Q1 (the paper's headline)",
+  "paper": "Hsiao, Ching & Wan (2012), J. Applied Econometrics 27(5), pp. 725-728",
+  "reference_impl": "leaps::regsubsets + AICc + lm -- the engine the CRAN package pampe wraps. pampe is archived on CRAN and was not installable here, so unlike pda_hcw_hongkong this calls the engine directly.",
+  "path_type": "cross-validation",
+  "command": "Rscript benchmarks/reference/pda_hcw_cepa/reference.R",
+  "data": [
+    "basedata/HongKong.csv"
+  ]
+}

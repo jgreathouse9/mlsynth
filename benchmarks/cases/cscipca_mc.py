@@ -109,7 +109,7 @@ def _draw(seed: int, alpha_obs: float):
 
 
 def _naive_sc_bias(df: pd.DataFrame, T0: int, true_att: float) -> float:
-    from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+    from mlsynth.utils.solvers.active_set import solve_simplex_qp
     piv = df.pivot(index="unit", columns="time", values="y")
     treated_id = df[df["D"] == 1]["unit"].iloc[0]
     y_tr = piv.loc[treated_id].to_numpy()

@@ -30,12 +30,65 @@ control behind a single estimator.
   (Candes, Li, Ma & Wright 2011) or half-quadratic non-convex
   regularisation (Wang, Li, So & Liu 2023), then non-negative least
   squares against the low-rank donor matrix. On top of this default
-  path mlsynth adds three opt-in pieces, each documented below:
+  path mlsynth adds four opt-in pieces, each documented below:
   subspace-separation clustering (fGRC, Yamamoto and Hwang 2017) in
   place of the FPCA silhouette step, a signal-recovery HSVT denoiser
   whose rank is read from the donor spectrum in place of the fixed
-  Candes penalty, and simplex weights in place of non-negative least
-  squares.
+  Candes penalty, an FGRC denoiser that reuses the subspace that same
+  clustering already fit, and simplex weights in place of non-negative
+  least squares.
+
+Denoising with the clustering's own subspace
+--------------------------------------------
+
+``rpca_method="FGRC"`` denoises the donors with the subspace the fGRC
+clustering step already estimated, instead of deriving a second one.
+
+Yamamoto and Hwang estimate the cluster subspace :math:`\mathbf{A}_1`, the
+disturbing subspace :math:`\mathbf{A}_2` and the partition together; their
+routine returns all three. The other denoisers ignore that and fit a fresh
+low-rank structure, so a pipeline running fGRC clustering followed by PCP
+answers the same question twice with two unrelated answers. Setting
+``rpca_method="FGRC"`` alongside ``cluster_method="fgrc"`` uses one.
+
+``fgrc_keep`` decides whether the disturbing block survives the projection.
+The default, ``"all"``, keeps it: the denoised donors are
+:math:`\mathbf{G}\mathbf{A}\mathbf{A}^{\top}` at rank :math:`c_1 + c_2`.
+Setting ``"cluster"`` projects onto :math:`\mathbf{A}_1` alone.
+
+Keep the default. Setting ``"cluster"`` is structurally wrong for this use,
+and the reason is a property of the construction, not of any panel.
+
+fGRC splits the subspace by what discriminates clusters.
+:math:`\mathbf{A}_1` holds the directions that separate the groups, and
+:math:`\mathbf{A}_2` holds the high-variance directions that do not. On the
+Basque donor pool the two columns of :math:`\mathbf{A}_1` are 70% between
+cluster but carry 3.7% of the variance between them, while
+:math:`\mathbf{A}_2` carries 95.4% of the variance and 95.4% of that is
+within cluster. That is the separation doing its job: it keeps a
+variance-dominant direction from swamping the grouping.
+
+The donors a synthetic control combines are the members of the treated
+unit's own cluster. Being one cluster, they barely differ along
+:math:`\mathbf{A}_1` -- there is nothing left for it to discriminate --
+so everything distinguishing them sits in :math:`\mathbf{A}_2`. Projecting
+onto :math:`\mathbf{A}_1` alone therefore discards the whole of the
+variation the weights are fitted on. Measured on Basque, West Germany and
+Proposition 99, between-donor spread falls to between 18% and 40% of raw and
+the weight step puts all the weight on one donor on every one of them.
+
+The collapse is not the same as the sign flip. Where the flattened envelope
+also falls below the treated unit, no convex combination can reach it and the
+returned effect comes back with the wrong sign -- Basque gives +1.617 against
+about -0.70. That needs the treated unit to leave the hull, which happens on
+Basque and West Germany but not on Proposition 99, where the fit collapses
+onto one donor anyway. The flattening is structural; leaving the hull is what
+turns it from a much worse answer into a wrong-signed one.
+
+The setting stays because it is the paper's own construction and the
+separation is correct for the clustering it was designed for. A direction can
+be disturbing for one task and the entire signal for the next, and here the
+two are the same subspace.
 
 Either family can be selected via :py:attr:`CLUSTERSCConfig.method`
 (``"pcr"``, ``"rpca"``, or ``"both"``); when both run, the
@@ -551,6 +604,67 @@ treated unit, not a full partition of the panel; the subspace dimensions
 ``fgrc_order`` carry the paper's defaults. The port is validated to
 machine precision against the authors' compiled ``OptimGRC`` routine
 (``mlsynth/tests/test_fgrc.py``).
+
+The fGRC objective has local optima, and how many depends on the data:
+Yamamoto and Hwang report that the count varies across their simulation
+conditions and recommend running the method from many random initial
+starts. Two settings control that. ``fgrc_n_random`` restarts the loading
+matrix and ``fgrc_nstart`` restarts the k-means step inside each of
+those, and the lowest-loss solution is the one kept. Both default to
+``40``, which is already more generous than the authors' own R package,
+whose ``N.random`` defaults to ``1``. Raise them when the cluster
+assignment moves between runs on a panel: the restarts minimise over
+starting points, so spending more of them can only lower the retained
+loss, never change what is being optimised.
+Choosing :math:`K` is harder than it looks, and the rule the authors
+propose for it does not survive contact with panels this size. Yamamoto
+and Hwang give a self-consistency check: for a candidate :math:`K`, fit
+the method, compute the Gap statistic of Tibshirani, Walther and Hastie
+(2001) on the resulting component scores over a wider grid of :math:`k`,
+and accept :math:`K` when
+
+.. math:: \operatorname*{argmax}_k \operatorname{Gap}(k \mid L_C, L_D, K) = K.
+
+mlsynth implements it in ``mlsynth.utils.clustersc_helpers.rpca.selection``,
+and leaves it there. No configuration wires it to ``fgrc_k``, for two
+measured reasons.
+
+The acceptance is not independent evidence. The Gap is read on
+:math:`\mathbf{G}\mathbf{A}_1`, the subspace fGRC chose *under the
+assumption of* :math:`K` clusters by minimising within-cluster scatter in
+exactly those coordinates, against reference clouds drawn inside that
+same fixed subspace, which never pay the cost of having chosen it. On
+white noise at :math:`N = 30` with :math:`L_D = 1`, the fitted subspace
+puts its Gap maximum at :math:`K` in 10 to 11 replications out of 12; a
+random two-dimensional projection of the same basis matrix does so in 0
+to 2, which is chance. The acceptance rate on data with nothing to find
+is accordingly uncontrolled, and it is worst in the small-:math:`N`,
+:math:`L_D = 1` regime panel data lives in: on structureless panels of 18
+units, every replication accepted a candidate.
+
+A maximum at an end of the evaluation grid is a property of the grid. On
+the 17-unit Basque panel the Gap maximum moves with the grid it is read
+over -- 1, 6, 8, 10, 12 and 16 for grids :math:`1\ldots4` through
+:math:`1\ldots16` -- so the ranks the relaxation step reads off are the
+candidate list sorted by distance from the edge, and the :math:`K` it
+returns changes the donor pool from 15 units to 9 and the ATT from
+:math:`-0.365` to :math:`-1.212`.
+
+The selector reports both conditions. ``boundary`` lists the candidates
+whose curve peaked at an end of the grid, they are excluded from the
+accepted set and from the relaxation, and when that leaves nothing
+``selected_k`` is ``None``. ``one_se`` carries Tibshirani's
+one-standard-error reading of the same curves, which is the conservative
+instrument of the two: across 18 structureless panels it answered
+:math:`k = 1` on all 54 candidate curves, and on the paper's planted
+design it answers 3. On Basque it answers 1 for every candidate.
+
+So ``fgrc_k`` stays yours to set, and the diagnostic is something to run
+deliberately and read, not a number to accept. Only this stage of the
+authors' Algorithm 1 is implemented: the smoothing :math:`\lambda` by
+generalised cross-validation and the penalties
+:math:`(\rho_1, \rho_2)` by the Calinski-Harabasz pseudo-F index are
+taken from the configuration instead of searched.
 
 RPCA-SC tuning via leave-one-time-out cross-validation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

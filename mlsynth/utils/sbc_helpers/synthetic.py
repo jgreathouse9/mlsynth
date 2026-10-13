@@ -18,7 +18,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
-from ..bilevel.simplex import simplex_lstsq
+from ..solvers.simplex import simplex_lstsq
 
 
 def solve_sbc_weights(

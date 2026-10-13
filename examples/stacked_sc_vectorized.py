@@ -62,9 +62,9 @@ def project_simplex_cols(V: np.ndarray, z: float = 1.0) -> np.ndarray:
 
     The column-wise form of the exact sort-based algorithm (Held, Wolfe & Crowder
     1974; Duchi et al. 2008) that
-    :func:`mlsynth.utils.bilevel.simplex.project_simplex` applies to one vector.
+    :func:`mlsynth.utils.solvers.simplex.project_simplex` applies to one vector.
     The threshold ``theta`` is found per column by a single argmax over the
-    reversed condition array rather than a Python loop.
+    reversed condition array, not a Python loop.
     """
     n, k = V.shape
     U = -np.sort(-V, axis=0)                        # descending within each column

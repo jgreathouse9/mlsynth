@@ -171,7 +171,7 @@ def _fit(study: str) -> dict:
     # simplex solution it starts from. This is the quantity that separates the
     # two studies, and the one a clamped penalty grid would move while leaving
     # the pre-fit picture unchanged.
-    from mlsynth.utils.bilevel.minnorm import simplex_gram, solve_simplex_minnorm
+    from mlsynth.utils.solvers.minnorm import simplex_gram, solve_simplex_minnorm
     w_scm = solve_simplex_minnorm(simplex_gram(Y0_pre, y_pre))
     r_scm = float(np.linalg.norm(Y0_pre @ w_scm - y_pre))
     r_ridge = float(np.linalg.norm(Y0_pre @ w - y_pre))
@@ -194,7 +194,7 @@ def _loo_rmse(y, Y0, lam):
     The penalty is forced, so this measures the augmentation itself and not the
     package's choice of penalty.
     """
-    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+    from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
     T0 = len(y)
     errs = []
     for t in range(T0):
@@ -226,7 +226,7 @@ def _extrapolation_probe(study: str) -> dict:
     perfect simplex fit and with an augmentation that was switched off, and only
     the second is true here.
     """
-    from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+    from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
 
     y, Y0, _ = donor_pre_matrix(study)
     with warnings.catch_warnings():

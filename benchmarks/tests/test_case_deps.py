@@ -472,3 +472,156 @@ class TestProseIsProseWhereverItSits:
         """The reads a case makes are measured, so these are claimable and their
         absence from the map is real doubt."""
         assert case_deps.select([path], ["a", "b"], self.MAP) == ["a", "b"]
+
+
+# --------------------------------------------------------------------------
+# The sweep inventory: "never measured" and "measured and covered by nothing"
+# are different facts, and the map used to store only the first.
+# --------------------------------------------------------------------------
+class TestSweepInventory:
+    """A complete sweep settles a file's status even when nothing claims it.
+
+    The manifest holds positive claims, so an unclaimed file under a reachable
+    prefix has two readings: the sweep never ran on the case that would have
+    claimed it, or the sweep ran on everything and no case executes it. The
+    first is doubt and widens the selection; the second is an answer and does
+    not. Without the distinction every uncovered file widened the selection to
+    the whole registry, which is the state 780 of ``mlsynth``'s Python files
+    were in.
+    """
+
+    MAP = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+    UNCLAIMED = "mlsynth/utils/lonely_helpers/engine.py"
+
+    def test_an_unclaimed_file_is_a_hole_without_an_inventory(self):
+        """Today's behaviour, which has to survive the change."""
+        assert case_deps.select([self.UNCLAIMED], ["a", "b"], self.MAP,
+                                swept=frozenset()) == ["a", "b"]
+
+    def test_a_swept_unclaimed_file_is_not_a_hole(self):
+        """The sweep looked at it and no case ran it, so nothing can reach it."""
+        assert case_deps.select([self.UNCLAIMED], ["a", "b"], self.MAP,
+                                swept=frozenset({self.UNCLAIMED})) == []
+
+    def test_a_file_absent_from_the_inventory_is_still_a_hole(self):
+        """Added after the sweep, so the sweep says nothing about it."""
+        assert case_deps.select(["mlsynth/utils/brand_new.py"], ["a", "b"],
+                                self.MAP,
+                                swept=frozenset({self.UNCLAIMED})) == ["a", "b"]
+
+    def test_the_inventory_does_not_suppress_a_positive_match(self):
+        """Being swept is not an exemption: a claimed file still selects."""
+        assert case_deps.select(["mlsynth/x.py"], ["a", "b"], self.MAP,
+                                swept=frozenset({"mlsynth/x.py"})) == ["a"]
+
+    def test_a_case_with_no_entry_still_runs_whatever_the_inventory_says(self):
+        """An unmeasured case is unmeasured; the inventory is about files."""
+        assert case_deps.select([self.UNCLAIMED], ["a", "b", "c"], self.MAP,
+                                swept=frozenset({self.UNCLAIMED})) == ["c"]
+
+    def test_an_absent_inventory_file_loads_as_empty(self, tmp_path):
+        assert case_deps.load_swept(tmp_path / "nope.json") == frozenset()
+
+    def test_a_malformed_inventory_is_refused(self, tmp_path):
+        p = tmp_path / "swept.json"
+        p.write_text('{"files": "mlsynth/x.py"}')      # a string, not a list
+        with pytest.raises(ValueError, match="list of repository-relative"):
+            case_deps.load_swept(p)
+
+    def test_a_round_trip_through_the_writer(self, tmp_path):
+        p = tmp_path / "swept.json"
+        case_deps.save_swept(["mlsynth/b.py", "mlsynth/a.py", "mlsynth/a.py"],
+                             cases=7, path=p)
+        assert case_deps.load_swept(p) == frozenset({"mlsynth/a.py",
+                                                     "mlsynth/b.py"})
+        import json as _json
+        body = _json.loads(p.read_text())
+        assert body["files"] == ["mlsynth/a.py", "mlsynth/b.py"]  # sorted, unique
+        assert body["cases"] == 7 and body["generated"]
+
+
+class TestInventoryWalk:
+    """``reachable_inventory`` mirrors the structural filters in ``_is_hole``.
+
+    Anything it leaves out is already not a hole for a reason of its own, so
+    recording it would add nothing; anything it includes is a path whose
+    unclaimed status would otherwise be read as doubt.
+    """
+
+    def test_it_mirrors_the_structural_filters(self, tmp_path):
+        for rel in ("mlsynth/utils/thing.py",
+                    "mlsynth/__init__.py",
+                    "mlsynth/tests/test_thing.py",
+                    "mlsynth/utils/NOTES.rst",
+                    "benchmarks/cases/x.py",
+                    "benchmarks/tests/test_x.py",
+                    "basedata/panel.csv",
+                    "docs/thing.rst"):
+            f = tmp_path / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("x")
+        got = set(case_deps.reachable_inventory(tmp_path))
+        assert got == {"mlsynth/utils/thing.py", "benchmarks/cases/x.py",
+                       "basedata/panel.csv"}, got
+
+    def test_a_swept_inventory_closes_the_hole_it_records(self, tmp_path):
+        (tmp_path / "mlsynth/utils").mkdir(parents=True)
+        (tmp_path / "mlsynth/utils/lonely.py").write_text("x")
+        inv = frozenset(case_deps.reachable_inventory(tmp_path))
+        m = {"a": ["mlsynth/x.py"]}
+        assert case_deps.select(["mlsynth/utils/lonely.py"], ["a"], m,
+                                swept=frozenset()) == ["a"]
+        assert case_deps.select(["mlsynth/utils/lonely.py"], ["a"], m,
+                                swept=inv) == []
+
+
+class TestInventoryIsOnlyWrittenForAFreshSweep:
+    """An entry older than the tree cannot settle what nothing covers.
+
+    A case with no entry is always selected, so a skipped or dead case is safe.
+    A *stale* entry is not: a file added after that case was measured is absent
+    from its entry whether or not the case executes it.
+    """
+
+    @staticmethod
+    def _decide(from_slices, merged):
+        from tools.benchmark_deps import should_record_inventory
+        return should_record_inventory(from_slices, merged)
+
+    def test_every_entry_measured_in_this_run_is_recorded(self):
+        ok, why = self._decide({"a", "b"}, {"a": [], "b": []})
+        assert ok and "measured in this run" in why
+
+    def test_an_entry_carried_from_the_base_blocks_it(self):
+        ok, why = self._decide({"a"}, {"a": [], "b": []})
+        assert not ok and "b" in why and "predate" in why
+
+    def test_slices_may_cover_more_than_the_merged_map(self):
+        assert self._decide({"a", "b", "c"}, {"a": [], "b": []})[0]
+
+
+# The invariant the inventory promises, over the input domain: it can only
+# narrow. Recording what a sweep found can never add a case to the selection,
+# because `swept` is consulted in exactly one place -- the hole test -- and a
+# hole is the thing that widens.
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+_PATHS = st.sampled_from([
+    "mlsynth/x.py", "mlsynth/y.py", "mlsynth/utils/unclaimed.py",
+    "mlsynth/utils/other.py", "mlsynth/tests/test_a.py", "docs/a.rst",
+    "basedata/p.csv", "benchmarks/cases/a.py", "requirements.txt",
+])
+
+
+@given(changed=st.lists(_PATHS, max_size=6),
+       swept=st.lists(_PATHS, max_size=6),
+       added=st.lists(_PATHS, max_size=3))
+@settings(max_examples=250, deadline=None)
+def test_an_inventory_can_only_narrow_the_selection(changed, swept, added):
+    m = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+    cases = ["a", "b", "c"]
+    wide = case_deps.select(changed, cases, m, added=added, swept=frozenset())
+    narrow = case_deps.select(changed, cases, m, added=added,
+                              swept=frozenset(swept))
+    assert set(narrow) <= set(wide)

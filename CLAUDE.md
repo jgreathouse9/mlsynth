@@ -98,10 +98,29 @@ output), **unit** tests of its invariants (assert invariants, not brittle
 floats), **edge-case** tests (empty / degenerate inputs: no donors, single
 donor, no pre-periods, near-singular / collinear, treatment at `t=0`), and
 **failure** tests (invalid input raises the correct translated `Mlsynth*Error`
-and a test asserts the failure is *reported*, not swallowed). A change is not
-done until it is red→green across these levels and the new code is fully
-covered — defensive / unreachable branches get `# pragma: no cover` with a
-stated reason, never an untested gap. The layered architecture, patterns,
+and a test asserts the failure is *reported*, not swallowed). Two instruments
+sit beside those four and are equally non-optional: a **`hypothesis` property**
+for every invariant the unit promises, asserted over the input domain and not
+only at the fixture, and a **mutant** in `tools/mutation/targets.toml` for each
+defect the change could reintroduce, carrying a `models` line that names it and
+confirmed killed.
+
+A change is not done until it is red→green across the four levels, the
+invariants hold generatively, every mutant for it is killed, and the new code is
+fully covered — defensive / unreachable branches get `# pragma: no cover` with a
+stated reason, never an untested gap. Each instrument is blind where the next
+one looks: coverage says the line ran, an example says one input gives one
+answer, a property says the invariant holds across the domain, and only a mutant
+says the assertion would notice the code being wrong. A suite can be green at
+full coverage and assert nothing.
+
+```bash
+python tools/mutation/run_mutants.py --target <name>   # expect every mutant killed
+```
+
+This binds hardest under `/rca`, where the subject is by definition a defect
+that escaped the suite once already: the ladder's rung 3 is a property and its
+rung 5 is a mutant, one per cause found. The layered architecture, patterns,
 exception contract, and the instrument-selection contract — which of
 `coverage` / `pytest` / `hypothesis` / `cosmic-ray` answers which question, and
 why two of them are complements — live in `agents/agents_tests.md`, along with
@@ -214,6 +233,71 @@ migration or refactor PR.
 - Develop on the assigned feature branch; commit with clear messages.
 - Commit author/committer email: `noreply@anthropic.com`.
 - Don't create a PR unless asked.
+
+### Never `git add -A` while a tool holds the working tree
+
+`tools/mutation/run_mutants.py` edits source files **in place**: it writes a
+mutant, runs the tests, restores the file, and moves to the next one. A
+formatter, a codemod or a `--fix` linter does the same. While any of those is
+running, the tree is not yours.
+
+`git status` is a snapshot, not a lock. A clean status one second and
+`git add -A` the next can stage whatever the other process wrote in between,
+and this has already happened twice. Commit `4c836c51` on
+`claude/focused-cray-8d0vkh` shipped the mutant
+`the-draws-are-made-and-thrown-away` into `sweep_lambda`'s forward pass,
+
+```
+-        res, f_true = _solve(lam, starts + _restarts(idx, 0))
++        res, f_true = _solve(lam, starts)
+```
+
+which left `outer_restarts` accepted, recorded on the result and documented,
+while the draws were built and discarded. A planted defect, pushed, reading as
+a feature. It survived until the next `git diff` because nothing fails when a
+mutant is merely *present* -- that is the whole design of a mutant.
+
+Commit `591beb0b` on `claude/simplex-swaps-direct` did it again, through
+`git reset --soft` followed by `git add -A` while the runner held the tree. It
+shipped `warp-tail-not-carried-forward` into DTWSC's `_counterfactual`,
+
+```
+-    block = _carry_forward(warped)[:, used]
++    block = warped[:, used]
+```
+
+so the docstring described a carried-forward warp tail and the code read the
+raw one. The second time is the argument for the rule: the first incident was
+diagnosed, written up, and the same window caught the next commit anyway, which
+is what a habit does that a memory of an incident does not.
+
+So:
+
+- Stage named paths (`git add path/to/file`), not `-A` or `.`, whenever a
+  background job could be writing to the repository.
+- Before committing, check the diff of what you are about to stage, not just
+  `git status`. `git diff --cached` after staging costs one command.
+- Prefer waiting for a mutation run to finish over committing beside it. If the
+  commit cannot wait, stage the exact files the change touches and confirm the
+  staged diff contains only intended lines.
+- A commit whose message says a verification run is still in progress is a
+  commit made inside exactly the window this rule is about.
+
+The repository now enforces this rather than asking for it. `.githooks/pre-commit`
+refuses to commit while a process whose argv names `run_mutants.py` or
+`cosmic-ray` is alive, and names the two incidents in its message. Enable it once
+per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+It matches on argv, not on `pgrep -f`, because the looser form also matches the
+shell that launched the runner and refuses on a clean tree -- a guard that
+refuses everything is worse than none, since the override becomes reflex.
+`MLSYNTH_ALLOW_COMMIT_DURING_MUTATION=1` is that override, for the case where
+the staged paths are known to be untouched. The discrimination is pinned in
+`tools/tests/test_pre_commit_mutation_guard.py`.
 
 ### One estimator, one branch, one scope
 

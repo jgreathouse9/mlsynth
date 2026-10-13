@@ -28,7 +28,7 @@ unlike the :math:`2^N` exhaustive subset search.
 The donor (and predictor) weights are computed by the bilevel optimization
 of Malo, Eskelinen, Zhou and Kuosmanen [malo2023computing]_, implemented from
 scratch in :mod:`mlsynth.utils.fscm_helpers.bilevel` -- no external QP solver
-is used. Two switches control the estimator:
+is used; the simplex programs go through the library's own exact active set. Two switches control the estimator:
 
 * ``forward_selection`` (default ``True``) -- when ``True``, run the greedy
   forward selection with rolling-origin out-of-sample validation, fitting each
@@ -108,12 +108,25 @@ certified (the paper notes the optimum is usually a corner found early):
 3. Tykhonov-regularized descent (Section 3.3) -- only if a gap remains,
    descend over :math:`\mathbf{V}` for a vanishing regularization sequence.
 
-The lower-level (and the trajectory-mode) simplex problems are solved by a
-self-contained FISTA projected-gradient routine
-(:func:`~mlsynth.utils.fscm_helpers.bilevel.simplex_lstsq`), which matches a
-reference QP solver to ~1e-8. In predictor mode the optimal :math:`\mathbf{V}`
-is computed once on the full donor pool and reused through forward
-selection.
+Both the lower-level and the trajectory-mode simplex problems are solved
+exactly, by the primal active-set method behind
+:func:`~mlsynth.utils.weights.solve_weights`. It terminates finitely at the
+minimiser and returns a Karush-Kuhn-Tucker residual with each answer, so the
+weights come with a proof of optimality and donors off the support come back at
+exactly zero.
+
+A projected-gradient routine was used here previously and stops short on a wide
+pool. On the full 38-donor Proposition 99 panel it lands 3.9e-2 above the
+minimum pre-treatment sum of squares with weights off by 0.011, and at a
+ten-period window 1.6e-1 above with weights off by 0.080. Forward selection
+refits on expanding windows at every rolling origin, so that error entered
+every term of the criterion the donors are ranked by. Its effect on the final
+estimate is small, because selection hands the solver a two- or three-donor
+pool where the routine converged to 1e-10; its effect on the cost is not, and
+the exact solve runs the Proposition 99 fit about fifty times faster.
+
+In predictor mode the optimal :math:`\mathbf{V}` is computed once on the full
+donor pool and reused through forward selection.
 
 The forward stepwise algorithm
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,6 +147,56 @@ on the full pre-period over :math:`U_{k^\ast}` to form the counterfactual
 :math:`\widehat{y}_{1t} = \mathbf{Y}_{0,t,U_{k^\ast}}\mathbf{w}^\ast`, the gap
 :math:`\tau_t = y_{1t} - \widehat{y}_{1t}`, and the ATT
 :math:`\widehat{\tau} = |\mathcal{T}_2|^{-1}\sum_{t\in\mathcal{T}_2}\tau_t`.
+
+Two properties of this procedure decide how its output should be read.
+
+*The in-sample path cannot rise.* Step 2 adds one donor at a time and each step
+minimises the same in-sample criterion, so the sequence
+:math:`\mathrm{RMSPE}(U_1), \mathrm{RMSPE}(U_2), \ldots` is non-increasing.
+The reason is that the :math:`k`-donor simplex is the face of the
+:math:`(k+1)`-donor simplex on which the new weight is zero, so admitting a
+donor can never make the best achievable fit worse. A reported path that rises
+is therefore not a feature of the data; it means the weights at some step were
+not the minimiser. Proposition 99 exhibited exactly that, a rise of 3.5e-05 at
+steps 8 to 10, when the inner problems were solved by a projected-gradient
+routine that stopped short once the fit had saturated. The path is now flat to
+6.7e-16 in the saturated region, and the invariant is asserted in
+``mlsynth/tests/test_fscm_scan_properties.py`` over a generated panel family.
+
+*The validation curve compares greedy models, not best-of-size models.* Step 3
+takes the argmin over :math:`\mathrm{CV}(U_k)`, and each :math:`U_k` is the set
+greedy reached at size :math:`k`, which is not in general the best set of that
+size. Greedy commits to its first pick and cannot undo it. On Proposition 99 the
+best pair of donors scores 2.58 in-sample against the 3.98 of the pair greedy
+reaches, 54 percent worse, because greedy takes Montana at :math:`k = 1` and the
+best pair contains neither Montana nor Nevada together; by :math:`k = 3` greedy
+has caught up and matches the exhaustive optimum exactly. So :math:`k^\ast` is
+the best size along one path and not the best size overall, and a dip or kink in
+the curve can reflect where greedy was on that path as much as what the data
+support. On both canonical panels the set at the chosen size is the exhaustive
+optimum, so nothing reported here depends on the distinction; whether it can
+invert a size choice on some other panel is open, and tracked.
+
+*The scan stops where the in-sample score stops improving.* Past that point
+every remaining candidate scores identically -- 32 of 38 on Proposition 99, to
+the last digit -- and each gives a unique optimum that puts exactly zero on the
+donor it adds. They are one model under many labels, and which one the scan
+takes is decided by the order candidates happen to be evaluated in. The
+out-of-sample score does not follow, because the rolling windows are shorter
+than the full pre-period and the donor is not rejected on them: on Proposition
+99 the validation score moves from 2.816 to 2.893 to 2.895 over sizes 6 to 8
+while the in-sample sum of squares is pinned. Since :math:`k^\ast` is the argmin
+of that curve, continuing past saturation would let the tie-break choose the
+donor count. The scan therefore stops, ``selection_path.saturated_at`` records
+where, and a :math:`k^\ast` at the boundary raises a warning. Proposition 99
+saturates after six donors and Basque after three, both well past the size each
+selects.
+
+Where the scan saturates also measures how well the inner problems are solved.
+An approximate solver stops short of each optimum, and as the fit improves that
+shortfall shrinks, so steps that buy nothing register as gains: the
+projected-gradient routine used previously saturates after eight donors on
+Proposition 99 where the exact solver saturates after six.
 
 When ``forward_selection=False`` the selection and cross-validation are skipped:
 the estimator returns the single full bilevel solve over all donors (the
@@ -321,12 +384,16 @@ Verification
    optimum of Malo et al. [malo2023computing]_ exactly (:math:`R^2 = 0.979`,
    Table 1 donor weights), which the *Synth* package does not reach.
 
-   Solver. The self-contained FISTA simplex solver agrees with a reference
-   QP solver to ~1e-8 over random problems; the bilevel ``unconstrained``
-   feasibility certificate, corner-solution bounds, and a determinism check are
-   unit-tested (``mlsynth/tests/test_fscm_bilevel.py``). All four
-   ``forward_selection`` x ``covariates`` combinations are exercised in
-   ``mlsynth/tests/test_fscm.py``.
+   Solver. Every simplex solve carries a KKT residual below 1e-9, which
+   settles optimality outright: the constraint set has non-empty relative
+   interior, so the conditions are necessary and sufficient. Moving the
+   trajectory path onto the exact solver changed the Proposition 99 ATT from
+   -20.150227 to -20.151918 and left the Basque ATT unmoved, and selected the
+   same donors on both; ``mlsynth/tests/test_fscm_weight_solver.py`` pins that.
+   The bilevel ``unconstrained`` feasibility certificate, corner-solution
+   bounds, and a determinism check are unit-tested
+   (``mlsynth/tests/test_fscm_bilevel.py``). All four ``forward_selection`` x
+   ``covariates`` combinations are exercised in ``mlsynth/tests/test_fscm.py``.
 
 Core API
 --------

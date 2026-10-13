@@ -75,7 +75,7 @@ def perdrop_gold():
 @pytest.fixture(scope="module")
 def fitted(kansas):
     """mlsynth's jackknife+ run once, reused across assertions (89 refits)."""
-    from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+    from mlsynth.utils.jackknife_plus import jackknife_plus
     y_pre, Y0_pre, y_post, Y0_post = kansas
     return jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, alpha=0.05)
 
@@ -92,7 +92,7 @@ class TestPanelPrep:
 
     def test_prep_reproduces_augsynths_point_estimate(self, kansas):
         """If this fails, the panel is wrong and every other test is vacuous."""
-        from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+        from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
         y_pre, Y0_pre, y_post, Y0_post = kansas
         w = ridge_augment_weights(y_pre, Y0_pre).W
         att = float(np.mean(y_post - Y0_post.T @ w))
@@ -151,8 +151,8 @@ class TestPerDropSeam:
         would give 89 different penalties and a different interval, so this
         pins the choice rather than leaving it to the default.
         """
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
-        from mlsynth.utils.bilevel.ridge_augment import ridge_augment_weights
+        from mlsynth.utils.jackknife_plus import jackknife_plus
+        from mlsynth.utils.solvers.ridge_augment import ridge_augment_weights
         y_pre, Y0_pre, y_post, Y0_post = kansas
         full_lambda = ridge_augment_weights(y_pre, Y0_pre).lambda_
         got = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post)
@@ -177,7 +177,7 @@ class TestAssembledBounds:
         branch takes the min and max of ``est`` widened by a quantile of
         ``|err|``. A port validated under one is validated under neither.
         """
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         g = self._gold(conservative)
         got = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, alpha=0.05,
@@ -199,7 +199,7 @@ class TestAssembledBounds:
 
     def test_the_two_settings_actually_differ(self, kansas):
         """Otherwise the parametrised test above proves half of what it claims."""
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         a = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, conservative=False)
         b = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, conservative=True)
@@ -216,7 +216,7 @@ class TestAssembledBounds:
         of 17 periods. Pinned so nobody later "corrects" the branch to enforce
         an ordering augsynth does not have.
         """
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         a = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, conservative=False)
         b = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, conservative=True)
@@ -226,7 +226,7 @@ class TestAssembledBounds:
     def test_conservative_width_is_the_envelope_plus_two_error_quantiles(
             self, kansas):
         """The exact construction, which is what is actually invariant."""
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         b = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post, conservative=True,
                            alpha=0.05)
@@ -250,7 +250,7 @@ class TestAssembledBounds:
         bounds. Getting this wrong yields an interval of the right width about
         the wrong centre, which end-to-end agreement on width would not catch.
         """
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         r = jackknife_plus(y_pre, Y0_pre, y_post, Y0_post)
         y1 = np.append(y_post, y_post.mean())
@@ -268,7 +268,7 @@ class TestQuantileConvention:
     """
 
     def test_matches_r_type7_on_a_known_vector(self):
-        from mlsynth.utils.bilevel.jackknife_plus import _quantile
+        from mlsynth.utils.jackknife_plus import _quantile
         x = np.array([1.0, 2.0, 3.0, 4.0])
         # R: quantile(c(1,2,3,4), c(0.025, 0.5, 0.975)) -> 1.075 2.5 3.925
         np.testing.assert_allclose(
@@ -280,7 +280,7 @@ class TestFailures:
     """Invalid input is refused with a translated error, not a bare numpy one."""
 
     def test_alpha_outside_the_unit_interval_is_refused(self, kansas):
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         y_pre, Y0_pre, y_post, Y0_post = kansas
         for bad in (0.0, 1.0, -0.1, 1.5):
             with pytest.raises(MlsynthEstimationError, match="alpha"):
@@ -288,14 +288,14 @@ class TestFailures:
 
     def test_too_few_pre_periods_is_refused_with_a_reason(self):
         """Dropping a period must leave enough to refit on."""
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         rng = np.random.default_rng(0)
         with pytest.raises(MlsynthEstimationError, match="pre-treatment"):
             jackknife_plus(rng.normal(size=2), rng.normal(size=(2, 3)),
                            rng.normal(size=4), rng.normal(size=(3, 4)))
 
     def test_mismatched_donor_counts_are_refused(self):
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         rng = np.random.default_rng(1)
         with pytest.raises(MlsynthEstimationError, match="donor"):
             jackknife_plus(rng.normal(size=10), rng.normal(size=(10, 5)),
@@ -304,7 +304,7 @@ class TestFailures:
     def test_a_transposed_pre_period_matrix_is_refused(self):
         """``Y0_pre`` is (T0, J); handed (J, T0) the maths would run silently on
         the wrong axis for a square-ish panel, so the shape is checked."""
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         rng = np.random.default_rng(3)
         with pytest.raises(MlsynthEstimationError, match="Y0_pre"):
             jackknife_plus(rng.normal(size=10), rng.normal(size=(4, 10)),
@@ -312,14 +312,14 @@ class TestFailures:
 
     def test_post_period_length_mismatch_is_refused(self):
         """Treated and donor post-periods must describe the same periods."""
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         rng = np.random.default_rng(4)
         with pytest.raises(MlsynthEstimationError, match="period"):
             jackknife_plus(rng.normal(size=10), rng.normal(size=(10, 4)),
                            rng.normal(size=5), rng.normal(size=(4, 3)))
 
     def test_no_post_periods_is_refused(self):
-        from mlsynth.utils.bilevel.jackknife_plus import jackknife_plus
+        from mlsynth.utils.jackknife_plus import jackknife_plus
         rng = np.random.default_rng(2)
         with pytest.raises(MlsynthEstimationError, match="post-treatment"):
             jackknife_plus(rng.normal(size=10), rng.normal(size=(10, 4)),

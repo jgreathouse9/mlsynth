@@ -89,15 +89,17 @@ def best_subset_scip(
     """Best-subset donor selection by SCIP MIQP, chosen by ``criterion``.
 
     Solves the cardinality-constrained least squares to optimality for each size
-    ``0 <= k <= r_max`` and returns the support minimising the information
+    ``1 <= k <= r_max`` and returns the support minimising the information
     criterion. ``stats`` (if given) receives ``backend``, ``optimality_gap``
     (the worst SCIP gap over the per-size solves) and ``certified`` (whether
     every solve was proved optimal). ``time_limit`` caps each per-size solve.
     """
     Sxx, Sxy, syy = _centered_gram(G, Zty, yty, n)
 
+    # Size zero is not a candidate: HCW Section 5 and pampe's regsubsets both
+    # search sizes 1..nvmax, so an intercept-only counterfactual is excluded.
     best_idx: List[int] = []
-    best_ic = info_criterion(syy, n, 1, criterion)   # intercept-only (k = 0)
+    best_ic = float("inf")
     worst_gap = 0.0
     all_optimal = True
 

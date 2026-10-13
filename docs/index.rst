@@ -223,6 +223,7 @@ measures that claim directly, which a reproduced number cannot.
    properties
    benchmarks
    cumulative_calibration
+   sunny_screen
    references
 
 .. toctree::
@@ -272,6 +273,7 @@ measures that claim directly, which a reproduced number cannot.
 
    iscm
    nsc
+   easc
 
 
 .. toctree::
@@ -300,6 +302,10 @@ measures that claim directly, which a reproduced number cannot.
    sparse_sc
    beast
    dpsc
+   cpda
+   tbr
+   sl
+
    pda
    scul
    esc
@@ -311,6 +317,7 @@ measures that claim directly, which a reproduced number cannot.
 
    tasc
    fma
+   atel
    cfm
    gsynth
    cscipca

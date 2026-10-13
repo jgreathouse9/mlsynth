@@ -158,7 +158,7 @@ def test_no_forward_selection_trajectory(panel):
     res = FSCM(_cfg(panel, forward_selection=False)).fit()
     assert res.metadata["forward_selection"] is False
     assert res.selection_path is None
-    assert res.metadata["solver"] == "simplex_lstsq"
+    assert res.metadata["solver"] == "simplex:active-set"
     assert res.weights_vector.sum() == pytest.approx(1.0, abs=1e-6)
     # Reported donors are the weight-bearing ones from the full solve.
     assert all(w > 0 for w in res.weights_vector)

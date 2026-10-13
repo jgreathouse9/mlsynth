@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ..bilevel.ridge_augment import ridge_augment_weights, simplex_qp
+from ..solvers.ridge_augment import ridge_augment_weights, simplex_qp
 from ..scmo_helpers.inference import conformal_inference
 from .structures import SCTAFit, SCTAInputs
 

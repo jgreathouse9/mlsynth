@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import ConfigDict
 
@@ -125,6 +125,25 @@ class Inference:
     ci_upper: Optional[float] = None
 
     treated_col_idx: Optional[list] = field(default_factory=list)
+
+    # Moving-block conformal outputs. These were attached dynamically, so they
+    # were undiscoverable from the type and silently absent when the CI had not
+    # been computed.
+    lift_pct: Optional[float] = None
+    lift_pct_lower: Optional[float] = None
+    lift_pct_upper: Optional[float] = None
+    total_lift: Optional[float] = None
+    total_lift_lower: Optional[float] = None
+    total_lift_upper: Optional[float] = None
+    pointwise_lower: Optional[np.ndarray] = None
+    pointwise_upper: Optional[np.ndarray] = None
+    #: True when no constant per-period effect was consistent with the data, in
+    #: which case the interval fields are NaN. A measured 4 per cent of units at
+    #: a 100-period blank window, 14 per cent at 24.
+    conformal_empty: Optional[bool] = None
+    #: Width of the theta grid the acceptance set was searched over, so a caller
+    #: can tell an interval determined by the data from one clipped by the search.
+    conformal_grid_span: Optional[float] = None
 
 # =========================================================
 # WEIGHTS
@@ -301,6 +320,8 @@ class LEXSCMPanel:
     population_mean: np.ndarray
 
 
+from .unit_effects import TreatedUnitEffect
+
 class LEXSCMResults(DesignResult):
     """Top-level container returned by :meth:`mlsynth.LEXSCM.fit`.
 
@@ -326,6 +347,15 @@ class LEXSCMResults(DesignResult):
       ``candidates``, ``winner``, ``selection``.
     * ``panel`` -- the panel structure (:class:`LEXSCMPanel`): ``time``,
       ``units``, ``outcome``, ``population_mean``.
+    * ``unit_effects`` -- one
+      :class:`~mlsynth.utils.fast_scm_helpers.unit_effects.TreatedUnitEffect`
+      per treated unit carrying weight: its own synthetic control over the
+      design's control pool, its gap over the fit, blank and post windows, and
+      the blank-window approximability verdict. The design's own numbers are
+      the aggregate; these are the per-unit decomposition of Abadie and Zhao's
+      equation (10), and they are what
+      :func:`~mlsynth.utils.fast_scm_helpers.post_inference.unit_level_cumulative`
+      consumes.
     """
 
     model_config = ConfigDict(
@@ -333,3 +363,4 @@ class LEXSCMResults(DesignResult):
 
     search: LEXSCMSearch
     panel: LEXSCMPanel
+    unit_effects: Tuple[TreatedUnitEffect, ...] = ()

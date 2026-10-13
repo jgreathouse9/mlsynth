@@ -395,6 +395,11 @@ def _run_post_intervention_updates(
     -------
     y_pop_mean_t : np.ndarray
         Population mean over full time horizon.
+    Y_full : np.ndarray
+        The stacked pre+post outcome matrix the update ran on, time by unit.
+        Returned so a caller needing the post window -- the per-unit effects on
+        the winning design -- reads the same matrix the candidates were updated
+        against instead of stacking its own.
     candidate_results : list
         Updated candidates with post-intervention quantities.
     """
@@ -406,7 +411,7 @@ def _run_post_intervention_updates(
 
     # No post period → nothing to update
     if len(post_idx) == 0 or post_df is None or post_df.empty:
-        return y_pop_mean_t, candidate_results
+        return y_pop_mean_t, candidate_results, Y_pre
 
     # =========================================================
     # 2. Build full outcome matrix
@@ -456,4 +461,4 @@ def _run_post_intervention_updates(
             seed=seed
         )
 
-    return y_pop_mean_t, candidate_results
+    return y_pop_mean_t, candidate_results, Y_full

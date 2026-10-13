@@ -22,7 +22,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.mlsc_helpers.crossval import select_lambda_cv
 from mlsynth.utils.mlsc_helpers.optimization import _augmented_design
 from mlsynth.utils.mlsc_helpers.penalty import build_penalty_matrix
@@ -127,7 +127,7 @@ def test_batched_weights_are_on_the_simplex():
 # 2. The penalty enters the Gram affinely -- the identity the batch rests on
 # --------------------------------------------------------------------------- #
 def test_gram_is_affine_in_the_penalty():
-    from mlsynth.utils.bilevel.minnorm import simplex_gram
+    from mlsynth.utils.solvers.minnorm import simplex_gram
     from mlsynth.utils.mlsc_helpers.penalty import build_sqrt_factor
 
     inputs, _, _ = _setup(seed=7)

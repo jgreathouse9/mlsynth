@@ -15,7 +15,7 @@ Tests should validate *behavior and invariants*, not implementation details.
 
 The guiding principle is:
 
-> `mlsynth` tests validate econometric behavior and public API guarantees rather than internal implementation details.
+> `mlsynth` tests validate econometric behavior and public API guarantees, not internal implementation details.
 
 ---
 
@@ -170,10 +170,31 @@ Every new unit of behavior ships with **at least** these levels:
   test asserts the failure is **reported** (right type, informative message),
   never silently swallowed or leaked as a raw solver / NumPy / CVXPY error.
 
-A change is not "done" until it is red→green across these levels **and** the new
+Two instruments sit beside the four levels, and a change is not done without
+them either:
+
+- **Property** — every invariant the unit promises is asserted over the input
+  domain with `hypothesis`, not only at the fixture. Scale, location,
+  permutation, duplication, feasibility, normalization, monotonicity,
+  equivariance: if the docstring claims it, a property asserts it. Asserting an
+  invariant at one fixture tests an example; the claim is about the domain.
+- **Mutant** — each defect the change could plausibly reintroduce is entered in
+  `tools/mutation/targets.toml` with a `models` line naming it, and is killed.
+  A survivor is a question with two answers and both must be recorded: the
+  assertion is too weak, or the mutant is equivalent.
+
+A change is not "done" until it is red→green across the four levels, the
+invariants hold generatively, every mutant for it is killed, **and** the new
 code is fully covered. Genuinely unreachable / defensive branches are excluded
 with `# pragma: no cover` plus a one-line reason — never with an untested gap.
 Measure with the per-estimator coverage command in `CLAUDE.md`.
+
+The order of those four is the order of what they rule out, and each is blind
+where the next one looks. Coverage says the line ran. An example says one input
+gives one answer. A property says the invariant holds across the domain. Only a
+mutant says the assertion would notice the code being wrong. A suite can be
+green at full coverage and assert nothing, and the only instrument that reports
+it is the one people skip.
 
 The layered architecture below says *where* each level lives; this section says
 the levels are *non-optional* and come *first*.
@@ -270,7 +291,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
 5. **Reason about each disagreement — it is usually meaningful.** A seam
    mismatch is a finding, not noise: a different solver root, a truncation
    tolerance, a floating-point reassociation. Name *why* before you "fix" it, so
-   the fix is faithful rather than a fudge that happens to match on this dataset.
+   the fix is faithful and not a fudge that happens to match on this dataset.
 6. **Pin the resolved boundary.** Distill each differential probe into a
    permanent unit test that pins the *reference form* (e.g. the p-value is
    `1 - mean(|r| < s)`, including the boundary case), and add a **durable
@@ -300,7 +321,7 @@ they can be compared intermediate-by-intermediate, not just end-to-end.
   actually applies.
 - **Mind the achievable discrete level.** A short pre-period caps the conformal
   level (the finest is `2/(T0+1)`); the reference errors or coarsens there, and
-  the comparison must use the same achievable α rather than a nominal 0.05.
+  the comparison must use the same achievable α, not a nominal 0.05.
 - **Isolate the disagreement to a *scalar*, then find the line that computes
   it.** When end-to-end numbers are close-but-off, do not sweep hyper-parameters
   hoping to land the match — that is guessing, and it can "fix" the wrong thing.
@@ -734,11 +755,21 @@ below *k* have not been ruled out yet.
 | 4 | Why did the input reach it? | Which contract was never enforced? | edge and failure tests, config validators |
 | 5 | Why did nobody notice? | Would the suite have caught this? | mutation, semantic or `cosmic-ray` |
 
-Rung 5 is not decoration. It is the RCA step that asks whether the corrective
-action worked, and it is the one people skip. A fix whose mutant survives has not
-been verified; it has been asserted. Add the mutant to
+Rungs 3 and 5 are not decoration, and they are the two that get skipped.
+
+Rung 3 asks which invariant the behaviour violates, and the answer belongs in a
+`hypothesis` property. Reaching it with one fixture finds the symptom at one
+input; the cause is a statement about the domain, and a diagnosis that cannot be
+stated as a property has not reached rung 3. A fixture that fails to reproduce a
+defect is evidence that the fixture does not reach the fault, not that the code
+is sound.
+
+Rung 5 asks whether the corrective action worked. A fix whose mutant survives
+has not been verified; it has been asserted. Add the mutant to
 `tools/mutation/targets.toml` with a `models` line naming the defect it stands
-for, and confirm it is killed.
+for, and confirm it is killed. Where the diagnosis found several causes, each
+gets its own mutant: one mutant for a ladder with three causes leaves two of
+them unpinned.
 
 Rungs branch. One why can have several answers, and each answer is its own
 descent -- the malformed objective below has two independent faults that both
@@ -1050,6 +1081,157 @@ it, and would have killed it wherever on the return path it appeared. It is
 simply not the reason any number is wrong.
 
 
+## Worked example: five wrong fixes before the right diagnosis
+
+The three examples above each reach a cause. This one is about the walk, because
+the walk took five wrong turns and every one of them was a measurement that came
+back the opposite of what the hypothesis predicted. A ladder earns its keep by making wrong turns cheap and legible, not by going
+straight down.
+
+The subject is `SparseSC` on Vives-i-Bastida's Proposition 99 specification. The
+method fits predictor weights `v`, the donor weights solve a simplex QP under
+the metric `diag(v)`, and `lambda` is selected on a held-out block. The paper
+reports an ATT of `-18.5` on its 7-predictor specification and `-18.2` on its
+40-predictor one, and the near-equality is the paper's own claim: the estimate
+survives widening the predictor set.
+
+**Rung 0 half-passes, which is the worst case.** The k=7 fit gives `-18.852`
+against `-18.5`, close enough to read as correct. The k=40 fit gives `-29.035`
+against `-18.2`. One specification agrees and the neighbouring one is off by
+more than half the effect, so the estimator cannot be dismissed or trusted.
+
+**Position clears five links in one measurement.** The chain is
+
+```
+ATT  <-  aggregation  <-  gap  <-  counterfactual  <-  donor weights w
+     <-  inner QP + v  <-  outer solve  <-  lambda selection  <-  data
+```
+
+Feeding the author's own stored `v` vectors through this pipeline returns
+`-18.538` at k=7 and `-18.206` at k=40, reproducing both published figures. That
+single run clears ingestion, the inner QP, the counterfactual, the gap and the
+aggregation: given the right `v` everything downstream is right. Whatever is
+wrong is at or above the outer solve. Two hypotheses died here that had already
+cost measurements, and both were readable, not measurable:
+
+* *The augmented predictors carry missing values that corrupt selection.* Wrong.
+  Reading `setup._per_unit_pre_means` shows the per-unit pre-treatment mean
+  collapse handles NaN exactly as Synth's special predictors do. Retracted.
+* *The outer objective is evaluated on the wrong block.* Wrong, and a one-line
+  check on the config would have said so: `outer_loss_window` already defaulted
+  to `"training"`, matching the driver. The module docstring said `"validation"`
+  was "(default, paper)", so this was a fault -- in the docstring, which is the
+  anti-pattern about taking a comment's word for it, arriving by the back door.
+
+**Rung 2 localises it and the number is large.** At k=40 L-BFGS-B, Nelder-Mead
+and basinhopping from the driver's start all return a training loss of exactly
+`77.4199`, where the author's `v` sits at `1.4495` -- a factor of 53. Three
+method families agreeing on one value is not a coincidence, it is a description
+of the landscape.
+
+**Rung 3: why that point is stationary.** On a face of the simplex where
+`|A|` donors are active, `w*(v)` has `|A| - 1` degrees of freedom, so the
+envelope gradient carries no information about the donors that are out, and at
+`|A| = 1` it is identically zero. Such points are cheap to reach and the cold
+start reaches one: the k=40 solve sits on two donors.
+
+Now the wrong turns, in order.
+
+**Wrong turn 1: search over supports.** If the optimum is a corner, drop the
+continuous `v` and do forward stepwise selection over predictor subsets. Built
+with three scoring rules. Falsified by inspecting the author's own answer: his
+k=40 `v` is *dense* -- no entry below `1e-6` of the maximum, the top three
+carrying 58% of the L1 mass, a dynamic range of 1244. Indicator supports reach a
+training loss of 20 to 32 against `1.4495`, and no truncation of his own vector
+does better. The premise came from the k=7 vector, which does collapse onto one
+predictor by roughly `1e5`. Generalising the k=7 geometry to k=40 was the error,
+and reading the k=40 vector before building the search would have caught it.
+
+**Wrong turn 2: penalise the dispersion of `log v`.** The paper's `lambda ||v||_1`
+is not scale-invariant while `w*(cv) = w*(v)` is, so the penalty only bites
+through whichever predictor was pinned at 1 -- a real defect, and the proposed
+replacement was a scale-invariant dispersion penalty. Falsified by shrinking a
+solution along `v(t) = exp(t log v)`: the held-out MSE stays near 30 for `t` in
+`[0.8, 1.0]` and *rises* to 95 at the dispersion the author's vector has. His
+solution differs in direction, not magnitude, so a penalty that only controls
+magnitude cannot steer to it. The scale-invariance criticism stands; the fix
+built on it does not.
+
+**Wrong turn 3: smooth the inner QP and anneal.** Ridge continuation on
+`H + eps I` keeps every donor interior so the gradient stops being blind. The
+first implementation changed nothing, and the reason is the invariance again:
+L-BFGS-B simply inflated `v` until `H(v)` swamped `eps I`. Pinning the scale is
+what makes the ridge bite -- and then *which* scale is pinned decides the
+outcome. Normalising the arithmetic mean holds `trace(H(v))` at the ridge's own
+scale for the whole path, so the smoothing never releases: 25 of 30 starts froze
+at the uniform-`w` solution, median training loss equal to the maximum.
+Centring `log v` lets `trace(H)` grow as structure develops and reaches
+`0.7128`. Same idea, two normalisations, a factor of 260 between them.
+
+**Wrong turn 4: restarts will make the fast gradient safe.** The envelope
+gradient is 70x cheaper in inner-QP calls. The docs kept the finite-difference
+default on the grounds that the clean gradient "settles on a much worse critical
+point that even multi-start restarts do not escape" -- written before random
+restarts existed, so it was re-measured. It got worse with more restarts, not
+better: at 12 restarts the fit keeps 10 of 33 predictors at pre-RMSE 4.655; at
+24 it drives `lambda*` to **zero**, keeps 27 of 33, and puts the largest donor
+weight on Illinois, outside the ADH pool. The documented conclusion was right
+for a reason the document did not give.
+
+**Wrong turn 5: screen the draws instead of descending from all of them.** A
+descent costs hundreds of inner QPs and evaluating the objective at a draw costs
+one, so draw wide and descend narrow. The single-`lambda` measurement was
+emphatic: Spearman `+0.65` between the objective at the start and at the end,
+and descending from the 4 best-starting draws of 120 reached the same optimum as
+descending from all 120, where a random 4 reached 58.9 against 9.7. End to end in
+the sweep it lost: `-20.475` at pool-40-keep-6 and `-19.208` at pool-120-keep-8,
+against `-18.751` descending all 12. The isolated measurement had no power over
+the sweep, because the champion mechanism carries solutions across `lambda` and
+a draw's standing at one grid point does not survive that. Rule 2 of the descent
+-- clearing requires power -- applies to a lever being adopted exactly as it
+applies to a candidate being cleared.
+
+**The bottom: two causes, and the second is about the method, not the port.**
+
+1. *Nothing asserted that the critical point reached was any good.* The sweep
+   offered L-BFGS-B four starts that all lie in one region. Corrective action:
+   `outer_restarts`, log-normal draws around the cold init, with the per-solve
+   ordering asserted and the sweep-level ordering explicitly not asserted,
+   because it is false -- a better solve at `lambda_i` becomes the champion for
+   `lambda_{i+1}` and can move it into a different basin.
+
+2. *The minimiser of the stated program is not the good answer.* Measured three
+   ways. Differential evolution reaches a training loss of `0.6588`, below the
+   author's `1.4495`, and returns `-19.536` against his `-18.206`. The
+   multi-start prototype at `lambda = 0` reaches `0.7128` with held-out MSE 29.3
+   where his vector gives 18.03. And inside the library, the analytic gradient
+   with 24 restarts solves the outer problem well enough to drive `lambda*` to 0
+   and destroy the predictor selection entirely. The author's published figure
+   comes from an `fmincon` run that stopped early; the under-solve is why the
+   number is good.
+
+The second cause is not fixable by this library and is not a defect in it. It is
+a property of the specification: the penalty, not the optimiser, is what makes
+the method work, and finite differences' gradient noise had been acting as an
+unacknowledged second regulariser. What the port owes its users is the first
+cause fixed, the second documented, and a default that does not sit at an
+unexamined edge.
+
+**Rung 5 is where this example earns its place.** The suite asserted the ATT.
+The Prop 99 benchmark's tolerance on that ATT had been widened to `+/- 1.75` to
+admit both basins, with an inline comment calling the split "a genuine open
+problem, left to future work". So the suite had not merely failed to catch the
+defect -- it had been taught to accept it, and the note explaining why is the
+artifact that made the defect look settled. A widened tolerance with a
+paragraph attached is the most durable way to lose a bug, because it reads as
+diligence.
+
+Both confirmation questions answer *no* for cause 1: with several starts the
+failure does not occur, and with the per-solve ordering asserted it does not
+recur silently. For cause 2 the honest answer is that it is not corrected, only
+bounded and written down, which is why `outer_restarts` defaults to 4 and not to
+the largest number the budget allows.
+
 # Four Instruments, Four Questions
 
 Testing `mlsynth` uses four instruments, and they are not interchangeable. Each
@@ -1065,8 +1247,8 @@ from which question it asks.
 
 Status: `pytest`, `pytest-cov`, `pytest-xdist`, `coverage` and `hypothesis` are
 wired up and run in CI. Mutation runs are wired up as the semantic catalogue in
-`tools/mutation`, on a weekly out-of-band workflow; `cosmic-ray` itself cannot
-currently be installed (see below).
+`tools/mutation`, on a weekly out-of-band workflow. `cosmic-ray` installs again
+as of setuptools 84.0.0 and is not yet wired in (see below).
 
 ## Two of them are complements, not substitutes
 
@@ -1105,7 +1287,7 @@ unreachable branches.
 ## The two mutation instruments
 
 Mutation runs come in two forms here, and the split follows from the frame
-above rather than from tooling convenience.
+above and not from tooling convenience.
 
 A **syntactic sweep** (`cosmic-ray`) applies general operators over the syntax
 tree — replace a binary operator, flip a comparison, delete a statement —
@@ -1128,12 +1310,17 @@ does not depend on.
 The practical rule: generic operator swaps do not go in the catalogue. They
 duplicate the sweep partially and worse.
 
-`cosmic-ray` is currently blocked upstream — its `yattag` dependency ships a
-legacy `setup.py` that modern setuptools rejects — so only the catalogue runs
-today. `module-path`, `test-command` and `timeout` in `targets.toml` are
+`cosmic-ray` was blocked for a time by its `yattag` dependency, which ships a
+legacy `setup.py`. The dependency has not changed — yattag 1.16.1 is the latest
+release and still opens with `from distutils.core import setup` — but the
+toolchain has, and under setuptools 84.0.0 on Python 3.11 the wheel builds and
+`cosmic-ray` 8.7.0 installs and runs. The blocker was environment-side and not
+upstream, so a stricter setuptools could reinstate it; check before relying on it.
+
+Only the catalogue runs today, and that is now a wiring task and not a blocked
+one. `module-path`, `test-command` and `timeout` in `targets.toml` are
 cosmic-ray's own configuration keys, and `emit_cosmic_ray_config.py` renders a
-valid session config from them, so the blocker costs a `pip install` and not a
-redesign.
+valid session config from them.
 
 A harness that scores mutants has failure modes of its own, and all four of
 these were hit while building this one: a mutant that never applied must not be
@@ -1461,7 +1648,7 @@ with pytest.raises(MlsynthEstimationError):
     estimator.fit()
 ```
 
-rather than low-level internal exceptions.
+and not low-level internal exceptions.
 
 ---
 

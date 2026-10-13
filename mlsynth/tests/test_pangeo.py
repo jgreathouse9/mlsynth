@@ -428,6 +428,133 @@ class TestEffects:
 # Augmented-DiD inference (Li & Van den Bulte 2022)
 # ----------------------------------------------------------------------
 
+class TestADIDOneRoute:
+    """All four ADID fit sites solve the least-squares problem the same way.
+
+    ``_adid`` reported the ATT from an ``lstsq`` fit while
+    ``adid_counterfactual`` (the plotted line), ``_adid_att_batch`` and the
+    pipeline's residual fit solved the normal equations. Forming ``X'X`` squares
+    the design's conditioning, and PANGEO's default design is three columns --
+    a constant, the control aggregate and a time trend -- whose Gram matrix runs
+    to 1e08 on the benchmark panel and further on a longer trend.
+    """
+
+    @staticmethod
+    def _ill_conditioned(seed, scale=1000.0, T_pre=20):
+        """A design whose exact coefficients are known, so no referee is needed.
+
+        ``y = X beta`` exactly, so the least-squares answer is ``beta`` itself
+        and any departure is the solver's. ``cond(X'X)`` is about 4e12 here,
+        which a long time trend beside a level-valued control aggregate reaches
+        without being contrived.
+        """
+        rng = np.random.default_rng(seed)
+        t = np.arange(T_pre, dtype=float) * scale
+        YC = 100.0 + rng.normal(0, 0.6, T_pre)
+        X = np.column_stack([np.ones(T_pre), YC, t])
+        beta = np.array([100.0, 0.5, 0.01])
+        return X, X @ beta, beta
+
+    def test_the_fit_recovers_coefficients_it_was_built_from(self):
+        """Solving ``X'X b = X'y`` loses about eleven digits at this
+        conditioning; going through ``lstsq`` loses two or three.
+
+        Measured over 200 draws against a float128 QR referee that never forms
+        ``X'X``, the normal equations are 59x to 142x less accurate at the
+        median and worse on 94% to 99% of draws.
+        """
+        from mlsynth.utils.pangeo_helpers.effects import adid_counterfactual
+
+        worst = 0.0
+        for seed in range(6):
+            X, y, beta = self._ill_conditioned(seed)
+            # adid_counterfactual builds [1, YC, t] itself, so hand it the
+            # control aggregate and the response it was generated from.
+            YC = X[:, 1]
+            T_pre = X.shape[0]
+            got = adid_counterfactual(y, YC, T_pre, augment=True, trend=True)
+            worst = max(worst, float(np.max(np.abs(got - y) / np.abs(y))))
+        assert worst < 1e-13
+
+    def test_the_plotted_counterfactual_and_the_reported_att_share_a_fit(self):
+        """``adid_counterfactual`` draws the line and ``_adid`` reports the ATT.
+        Two routes to one beta let the picture and the number disagree.
+        """
+        from mlsynth.utils.pangeo_helpers.effects import (
+            _adid, adid_counterfactual)
+
+        rng = np.random.default_rng(0)
+        T_pre, T_post, scale = 20, 6, 1000.0
+        T = T_pre + T_post
+        t = np.arange(T, dtype=float) * scale
+        YC = 100.0 + rng.normal(0, 0.6, T)
+        YT = 100.0 + 0.5 * YC + 0.01 * t + rng.normal(0, 0.6, T)
+        YT[T_pre:] += 4.0
+
+        drawn = adid_counterfactual(YT, YC, T_pre, True, True)
+        reported = np.asarray(
+            _adid(YT, YC, T_pre, T_post, True, True, 0.05)["counterfactual"],
+            dtype=float)
+        np.testing.assert_allclose(drawn, reported, rtol=1e-14)
+
+    def test_the_batched_att_matches_the_single_fit(self):
+        """``_adid_att_batch`` is the per-pair ATT without a Python loop.
+
+        Its docstring used to caveat that it matched :func:`_adid` only up to
+        the difference between ``lstsq`` and the normal equations, which was
+        8.4e-13 here. Both sides now factorise instead of squaring, and what is
+        left is that ``lstsq`` is an SVD and the batched path a QR -- two stable
+        factorisations of the same problem, agreeing to 1.4e-14.
+        """
+        from mlsynth.utils.pangeo_helpers.effects import _adid, _adid_att_batch
+
+        rng = np.random.default_rng(3)
+        T_pre, T_post, scale = 20, 6, 1000.0
+        T = T_pre + T_post
+        t = np.arange(T, dtype=float) * scale
+        YC = 100.0 + rng.normal(0, 0.6, T)
+        YT = 100.0 + 0.5 * YC + 0.01 * t + rng.normal(0, 0.6, T)
+        YT[T_pre:] += 4.0
+
+        one = _adid(YT, YC, T_pre, T_post, True, True, 0.05)["att"]
+        many = float(_adid_att_batch(YT[None, :], YC[None, :], T_pre,
+                                     True, True)[0])
+        np.testing.assert_allclose(many, one, rtol=1e-13)
+
+    def test_the_prediction_variance_avoids_the_squared_gram(self):
+        """Appendix A.1's ``Sigma_1`` needs ``xbar' (X'X)^-1 xbar`` at the
+        post-period mean, which sits outside the fitting window. Taking it from
+        the QR factor keeps the conditioning at ``cond(X)`` instead of its
+        square.
+        """
+        from mlsynth.utils.pangeo_helpers.effects import _adid
+
+        rng = np.random.default_rng(0)
+        T_pre, T_post, scale = 20, 6, 1000.0
+        T = T_pre + T_post
+        t = np.arange(T, dtype=float) * scale
+        YC = 100.0 + rng.normal(0, 0.6, T)
+        YT = 100.0 + 0.5 * YC + 0.01 * t + rng.normal(0, 0.6, T)
+        YT[T_pre:] += 4.0
+        X = np.column_stack([np.ones(T), YC, t])
+
+        Q, R = np.linalg.qr(X[:T_pre])
+        z = np.linalg.solve(R.T, X[T_pre:].mean(axis=0))
+        expected_pred_term = float(z @ z)
+
+        r = _adid(YT, YC, T_pre, T_post, True, True, 0.05)
+        e = np.asarray(YT[:T_pre], float) - X[:T_pre] @ np.linalg.lstsq(
+            X[:T_pre], YT[:T_pre], rcond=None)[0]
+        from mlsynth.utils.pangeo_helpers.effects import _lr_variance
+        omega2 = _lr_variance(e, 3)
+        expected_se = float(np.sqrt(omega2 * (expected_pred_term + 1.0 / T_post)))
+        # The residual is refit here instead of being read out of _adid, so omega2
+        # carries its own rounding into the comparison; 1e-10 is what that
+        # reconstruction supports, and it is far inside the 2.2e-12 the squared
+        # Gram costs on pred_term alone at this conditioning.
+        np.testing.assert_allclose(r["se"], expected_se, rtol=1e-10)
+
+
 class TestADIDInference:
     def _design_and_score(self, seed, tau, **sim):
         d = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B", "C"),

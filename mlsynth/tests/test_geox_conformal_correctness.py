@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlsynth.utils.bilevel.ridge_inference import conformal_pvalue
+from mlsynth.utils.conformal.ridge_inference import conformal_pvalue
 from mlsynth.utils.geox_helpers.engines import resolve_engine
 from mlsynth.utils.geox_helpers.windows import (
     backtest_pre_periods,

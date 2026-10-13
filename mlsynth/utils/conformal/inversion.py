@@ -19,7 +19,7 @@ attained exactly) the inclusive rule widens every per-period interval by 15 to
 
 The strict rule is what ``scinference::confidence_interval`` uses
 (``ci_grid[ps_temp > alpha]``, v1.0.0 at ``567c688``) and what
-:func:`~mlsynth.utils.bilevel.ridge_inference.conformal_att_interval` already
+:func:`~mlsynth.utils.conformal.ridge_inference.conformal_att_interval` already
 used for its bracketing search.
 
 References

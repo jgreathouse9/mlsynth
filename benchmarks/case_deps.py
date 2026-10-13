@@ -80,6 +80,16 @@ RE_EXPORT_ONLY = ("mlsynth/__init__.py",)
 
 PATH = Path(__file__).resolve().parent / "case_deps.json"
 
+#: Where a complete sweep records the reachable files that existed when it ran.
+#: The manifest holds positive claims only, so an unclaimed file under
+#: :data:`REACHABLE` is ambiguous: either nothing measured it, or everything did
+#: and no case executes it. The first is doubt and widens the selection; the
+#: second is an answer. This file is what separates them, and it is written only
+#: by a sweep that produced an entry for every registered case -- a case that
+#: raised contributes no entry, and its files would otherwise read as uncovered
+#: when they were merely unmeasured.
+SWEPT_PATH = Path(__file__).resolve().parent / "case_deps_swept.json"
+
 
 def load(path: Path | None = None) -> Dict[str, List[str]]:
     """The manifest as shipped, or an empty map when it has not been built."""
@@ -96,18 +106,90 @@ def save(manifest: Mapping[str, Iterable[str]], path: Path | None = None) -> Non
     p.write_text(json.dumps(tidy, indent=1) + "\n")
 
 
+def load_swept(path: Path | None = None) -> frozenset:
+    """The files a complete sweep measured, or an empty set when none has run.
+
+    An empty set is the conservative answer and reproduces the behaviour from
+    before the inventory existed: every unclaimed reachable file is a hole.
+    """
+    p = SWEPT_PATH if path is None else Path(path)
+    if not p.exists():
+        return frozenset()
+    body = json.loads(p.read_text())
+    files = body.get("files") if isinstance(body, dict) else body
+    if not isinstance(files, list) or any(not isinstance(f, str) for f in files):
+        raise ValueError(
+            f"{p} must hold a list of repository-relative paths under "
+            f'"files"; got {type(files).__name__}. Regenerate it with '
+            f"`python tools/benchmark_deps.py --combine <slices>` over a sweep "
+            f"that covered every registered case."
+        )
+    return frozenset(files)
+
+
+def save_swept(files: Iterable[str], *, cases: int,
+               path: Path | None = None) -> None:
+    """Record the sweep's inventory, sorted and deduplicated.
+
+    ``cases`` is how many cases the sweep produced an entry for, kept so a
+    reader can tell the inventory came from a complete run.
+    """
+    import datetime as _dt
+
+    p = SWEPT_PATH if path is None else Path(path)
+    body = {
+        "generated": _dt.datetime.now(_dt.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"),
+        "cases": int(cases),
+        "files": sorted(set(files)),
+    }
+    p.write_text(json.dumps(body, indent=1) + "\n")
+
+
+def reachable_inventory(root: Path | None = None) -> List[str]:
+    """Every file a case could have claimed, as a sweep would see the tree.
+
+    The filters mirror :func:`_is_hole`'s structural ones, so the inventory
+    holds exactly the paths whose unclaimed status is otherwise ambiguous.
+    Anything this leaves out is not a hole for a reason of its own and needs no
+    record.
+    """
+    base = Path(root) if root is not None else PATH.parent.parent
+    out = []
+    for prefix in REACHABLE:
+        for f in sorted((base / prefix).rglob("*")):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(base).as_posix()
+            if "__pycache__" in rel:
+                continue
+            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:
+                continue
+            if rel.endswith(PROSE_SUFFIXES):
+                continue
+            out.append(rel)
+    return out
+
+
 def _case_source(name: str) -> str:
     """The case's own module, which always selects it."""
     return f"benchmarks/cases/{name}.py"
 
 
-def _is_hole(path: str, known: set, created: set) -> bool:
+def _is_hole(path: str, known: set, created: set,
+             swept: frozenset = frozenset()) -> bool:
     """Whether ``path`` is a dependency the map failed to record.
 
     A hole widens the selection to the whole registry, so the question is not
-    "did the map claim this?" but "could it have?". Three kinds of path answer
-    no by construction and are not holes; everything else under
-    :data:`REACHABLE` that no entry names is.
+    "did the map claim this?" but "could it have?". Four kinds of path answer no
+    by construction and are not holes; everything else under :data:`REACHABLE`
+    that no entry names is.
+
+    The fourth is ``swept``: a file a complete sweep measured and no case
+    executed is covered by nothing, which is an answer and not a gap. Without
+    it, library code no benchmark reaches widened every selection that touched
+    it -- the common case, since the manifest claims 673 files and the reachable
+    tree holds far more.
     """
     if not path.startswith(REACHABLE):
         return False
@@ -116,6 +198,8 @@ def _is_hole(path: str, known: set, created: set) -> bool:
     if path.endswith(PROSE_SUFFIXES):
         return False
     if path in created:
+        return False
+    if path in swept:
         return False
     return path not in known
 
@@ -126,6 +210,7 @@ def select(
     manifest: Mapping[str, Sequence[str]] | None = None,
     *,
     added: Sequence[str] = (),
+    swept: frozenset | None = None,
 ) -> List[str]:
     """The cases a diff can reach, in the order ``cases`` gives them.
 
@@ -142,6 +227,10 @@ def select(
         cannot have been executed by a pre-existing case, so its absence from
         the map is not a hole. It still selects on a positive match, which is
         what runs a newly added case.
+    swept : frozenset of str, optional
+        The files a complete sweep measured, from :func:`load_swept`. One of
+        these that no entry claims is covered by nothing, so it is not a hole.
+        Pass ``frozenset()`` to treat every unclaimed file as doubt.
 
     Returns
     -------
@@ -164,12 +253,14 @@ def select(
             f"creates; pass () when the diff adds nothing."
         )
     m = load() if manifest is None else manifest
+    seen = load_swept() if swept is None else frozenset(swept)
     changed = [str(c) for c in changed]
     created = {str(a) for a in added}
 
     known = {p for deps in m.values() for p in deps}
     known.update(_case_source(name) for name in m)
-    unmapped_change = [c for c in changed if _is_hole(c, known, created)]
+    unmapped_change = [c for c in changed
+                       if _is_hole(c, known, created, seen)]
     if unmapped_change:
         return list(cases)
 

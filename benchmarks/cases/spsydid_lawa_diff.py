@@ -32,6 +32,28 @@ Panel and W
   matrix and the CPS extract. Arizona (FIPS 4) has four present neighbours (CA,
   NV, CO, NM).
 
+What each leg establishes
+-------------------------
+The unit-weight leg is an independent cross-check: those numbers come from the
+authors' own ``fit_unit_weights`` and are compared against weights mlsynth
+solved for itself.
+
+The ATT and spillover legs are weaker than their names suggest, and knowing
+which is which matters when they move. The authors' notebook regresses on
+``[const, treatment, after_treatment, interaction]`` with ``sm.WLS`` and adds
+``1e-5`` to every weight; mlsynth runs the two-way fixed-effects form,
+``[intercept, unit dummies, time dummies, D, WD]``, with no nudge. Those are
+different specifications, so ``_reference_canonical`` below does not use theirs
+-- it rebuilds mlsynth's design and solves it with ``lstsq``. The ATT leg
+therefore compares mlsynth's regression against a reimplementation of
+mlsynth's regression, fed the authors' weights. It catches a weight that moved
+and an assembly step that broke; it cannot catch a fault in the specification
+itself, because both sides share it.
+
+Porting the authors' regression as a third comparison would close that, and is
+its own piece of work: the two specifications need not agree once ``WD`` is in
+the model, so the expected tolerance has to be derived and not assumed.
+
 Reference: serenini/spatial_SDID (cloned on demand, pinned; no licence, not
 vendored) -- its ``fit_unit_weights`` / ``fit_time_weights`` under the canonical
 final regression.
@@ -94,6 +116,20 @@ def _panel_and_W():
     return p, W1, common, T, T0
 
 
+_SOLVER_ENVIRONMENT_SIGNS = ("license", "licence", "solvererror", "not installed")
+
+
+def _is_a_solver_environment_failure(exc: BaseException) -> bool:
+    """Whether ``exc`` says a solver is unavailable, not that a number is wrong.
+
+    Matched on the message because the exception type belongs to whichever
+    backend cvxpy chose, and importing those to catch them would make this case
+    depend on the very installs it is trying to tolerate.
+    """
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(sign in text for sign in _SOLVER_ENVIRONMENT_SIGNS)
+
+
 def _reference_canonical(panel, common, T, T0):
     """Authors' fitted SDID weights + canonical convention -> (att, tau_s, unit_weights)."""
     from benchmarks.reference.clone_spsydid import import_functions_ssdid
@@ -101,10 +137,23 @@ def _reference_canonical(panel, common, T, T0):
     fns = import_functions_ssdid()
     affected = set(panel[(panel["spillover"] > 0) & (~panel["treatment"])]["ID"].unique())
     data1 = panel[~panel["ID"].isin(affected)].copy()
+    # The reference solves its two QPs through cvxpy with no solver named, so
+    # cvxpy picks the highest-ranked one installed. Where that is an unlicensed
+    # MOSEK the solve raises, which is an environment fact and not a
+    # disagreement, so it skips. CI keeps this case in a job without MOSEK for
+    # exactly that reason; a developer machine carrying both it and ``toolz``
+    # would otherwise read a licence error as a failed cross-check.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        uw = fns.fit_unit_weights(data1, "UR2", "month", "ID", "treatment", "after_treatment")
-        tw = fns.fit_time_weights(data1, "UR2", "month", "ID", "treatment", "after_treatment")
+        try:
+            uw = fns.fit_unit_weights(data1, "UR2", "month", "ID", "treatment", "after_treatment")
+            tw = fns.fit_time_weights(data1, "UR2", "month", "ID", "treatment", "after_treatment")
+        except Exception as exc:  # noqa: BLE001 - narrowed on the message below
+            if _is_a_solver_environment_failure(exc):
+                raise BenchmarkSkipped(
+                    f"the reference's cvxpy solver is unavailable here: {exc}"
+                ) from exc
+            raise
 
     Tpost = T - T0
     N_sp = len(affected)

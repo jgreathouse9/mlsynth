@@ -28,7 +28,7 @@ import numpy as np
 from .structure import BilevelProblem
 from .determine_v import canonical_v_diagnostics
 from .solver import solve_bilevel
-from .ridge_augment import simplex_qp
+from ..solvers.ridge_augment import simplex_qp
 
 _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "regression",
              "penalized")
@@ -313,7 +313,7 @@ class BilevelSCM:
         lambda_ = None
         augment_diagnostics: Dict[str, Any] = {}
         if self.augment == "ridge":
-            from .ridge_augment import ridge_augment_weights
+            from ..solvers.ridge_augment import ridge_augment_weights
 
             # Auxiliary covariates (if any) are stacked into the matching matrix
             # (augsynth parallel-inclusion default). X0 is (P, J), X1 is (P,);

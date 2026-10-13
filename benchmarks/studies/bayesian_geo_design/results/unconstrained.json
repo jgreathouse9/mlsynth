@@ -1,0 +1,128 @@
+{
+  "augsynth": {
+    "n_designs": 106,
+    "top5": [
+      {
+        "markets": [
+          "jacksonville",
+          "milwaukee",
+          "new orleans"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 64523.625
+      },
+      {
+        "markets": [
+          "jacksonville",
+          "milwaukee",
+          "new orleans"
+        ],
+        "duration": 10,
+        "rank": 1.0,
+        "mde": 0.1,
+        "investment": 89992.5
+      },
+      {
+        "markets": [
+          "chicago",
+          "portland"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.1,
+        "investment": 64563.75
+      },
+      {
+        "markets": [
+          "chicago",
+          "cincinnati",
+          "houston",
+          "portland"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 74118.375
+      },
+      {
+        "markets": [
+          "nashville",
+          "san diego"
+        ],
+        "duration": 15,
+        "rank": 5.0,
+        "mde": 0.1,
+        "investment": 76404.75
+      }
+    ],
+    "chicago_portland_rank": 1.0,
+    "chicago_in_top5": true
+  },
+  "mvbbsc": {
+    "n_designs": 174,
+    "top5": [
+      {
+        "markets": [
+          "chicago",
+          "portland"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 32281.875
+      },
+      {
+        "markets": [
+          "detroit",
+          "jacksonville",
+          "milwaukee",
+          "new orleans"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 78628.125
+      },
+      {
+        "markets": [
+          "houston",
+          "nashville",
+          "san diego"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 62437.125
+      },
+      {
+        "markets": [
+          "atlanta",
+          "las vegas",
+          "saint paul"
+        ],
+        "duration": 15,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 69588.375
+      },
+      {
+        "markets": [
+          "boston",
+          "detroit",
+          "jacksonville",
+          "milwaukee",
+          "new orleans"
+        ],
+        "duration": 10,
+        "rank": 1.0,
+        "mde": 0.05,
+        "investment": 70634.625
+      }
+    ],
+    "chicago_portland_rank": 1.0,
+    "chicago_in_top5": true
+  },
+  "top5_overlap": 1
+}

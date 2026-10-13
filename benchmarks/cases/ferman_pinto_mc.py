@@ -110,7 +110,7 @@ def _sim_panels(seed, T0, T1, nreps):
 
 
 def _simplex(B, A, warm_start=None):
-    from mlsynth.utils.bilevel.active_set import solve_simplex_qp
+    from mlsynth.utils.solvers.active_set import solve_simplex_qp
     return solve_simplex_qp(B, A, warm_start=warm_start)
 
 

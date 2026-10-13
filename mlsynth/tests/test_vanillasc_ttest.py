@@ -1,6 +1,6 @@
 """Integration tests for ``VanillaSC(inference="ttest")``.
 
-Wires the Chernozhukov, Wuthrich & Zhu (2025) debiased SC t-test
+Wires the Chernozhukov, Wuthrich & Zhu (2026) debiased SC t-test
 (``utils/inferutils.debiased_sc_ttest``) into VanillaSC: the per-fold weights
 are refit with the configured backend on each pre-period block-complement.
 Pinned on the two canonical SC datasets — Basque terrorism and California
