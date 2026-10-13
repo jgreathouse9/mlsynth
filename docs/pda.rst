@@ -274,6 +274,73 @@ default; ``lrvar_lag`` switches to a fixed-lag Bartlett estimator), and
 ``prediction_intervals=True`` attaches the Jiang et al. per-period intervals
 described below.
 
+Testing the extrapolation (``hcw_holdout``)
+-------------------------------------------
+
+Steps 1 to 4 choose the controls and the coefficients by minimising the
+pre-period residual sum of squares, and then push that fitted relation past
+:math:`T_0`. The pre-period fit cannot tell you whether the second half of that
+sentence is safe, because it is the quantity the first half minimised. With a
+short pre-period the two come apart: a regression with an intercept and one
+control fits any three points closely, and reports a small
+:math:`\mathrm{RSS}` whether or not the relation it found is the one that holds
+out of sample.
+
+Setting ``hcw_holdout=L`` measures the difference. An origin :math:`o` slides
+across the pre-period; at each one, ``hcw`` refits on periods
+:math:`\mathcal{T} = \{1, \dots, o\}` alone and predicts the next :math:`L`
+periods, which that refit never saw:
+
+.. math::
+
+   e_t \;=\; y_t \;-\; \left( \hat{\mu}^{(o)} + \sum_{j \in \hat{S}^{(o)}}
+   \hat{\beta}^{(o)}_j \, y_{jt} \right), \qquad t = o+1, \dots, o+L .
+
+Origins step by :math:`L`, so the windows do not overlap and no period is scored
+twice. The earliest origin leaves the widest control model a residual degree of
+freedom, which is a lower floor than the one the conformal band machinery uses:
+a band calibrated on a degenerate fit would report that degeneracy instead of
+the method's error, whereas a pre-period too short to extrapolate is exactly the
+condition this diagnostic exists to report.
+
+The summary is the ratio
+
+.. math::
+
+   \mathrm{ratio} \;=\; \frac{\mathrm{RMSE}_{\text{held out}}}
+                               {\mathrm{RMSE}_{\text{in sample}}} ,
+
+held-out error over the error of the full pre-period fit. Near one, the fit
+extrapolates about as well as it interpolates. Much above one, the coefficients
+are tracking the pre-period and the post-period counterfactual rests on a
+relation the data has not tested. The ratio is scale-free, so it reads the same
+across panels measured in different units.
+
+The result is a :class:`~mlsynth.utils.pda_helpers.PDAHoldout` on the fit:
+
+.. code-block:: python
+
+   res = PDA(PDAConfig(df=df, unitid="unit", time="time", outcome="y",
+                       treat="D", method="hcw", hcw_holdout=2)).fit()
+   h = res.fits["hcw"].holdout
+   h.ratio            # held-out RMSE / in-sample RMSE
+   h.errors           # per-period out-of-sample errors, in time order
+   h.origins          # the origins scored
+
+When the pre-period admits no origin at all -- too few periods for the training
+floor and one whole window -- nothing is scored, the summary fields are
+``nan``, and a warning says so. That is a result: the extrapolation the
+estimator is about to perform is untested, and the panel cannot test it.
+
+An example of the gap this closes. Aleman, Busch, Santaeulalia-Llopis and
+Surovtseva (2026) estimate the effect of California's 1988 minimum wage rise by
+regressing California's mean retail wage on a control group's over four
+pre-policy years, then extrapolating. The four-point fit is tight. Extending the
+same regression to nine pre-policy years moves the slope from 0.66 to 1.15,
+takes its confidence interval from one that covers 1 to one that excludes it,
+and roughly halves the estimated effect. The pre-period fit statistic is similar
+in both specifications; a holdout separates them.
+
 L2-relaxation (``l2``, Shi & Wang)
 ----------------------------------
 
