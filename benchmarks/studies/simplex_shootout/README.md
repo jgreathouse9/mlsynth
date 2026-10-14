@@ -8,7 +8,7 @@ over 39 panels in 6 families, to answer one question: which one should the
 library reach for by default, and where does a different one win by enough to
 matter.
 
-Run with `python benchmarks/studies/simplex_shootout/run.py`. Timings are the
+Run with `python -m benchmarks.studies.simplex_shootout.run`. Timings are the
 best of repeated solves per panel; `results/raw.json` holds one row per
 (panel, algorithm) with microseconds, iterations, terminal status, relative
 objective excess against the best objective any solver reached, feasibility, and
