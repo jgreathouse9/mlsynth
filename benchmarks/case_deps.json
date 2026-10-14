@@ -1154,6 +1154,23 @@
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
+ "kp_scm_forecast": [
+  "basedata/fred_gdpc1.csv",
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/vanillasc.py",
+  "mlsynth/utils/bilevel/engine.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/effectutils.py",
+  "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/helperutils.py",
+  "mlsynth/utils/results_helpers.py",
+  "mlsynth/utils/solvers/accelerate.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/solvers/minnorm.py",
+  "mlsynth/utils/solvers/ridge_augment.py",
+  "mlsynth/utils/vanillasc_helpers/config.py",
+  "mlsynth/utils/vanillasc_helpers/pipeline.py"
+ ],
  "lamba_tigers": [
   "basedata/tiger_reserves.csv",
   "mlsynth/config_models.py",
