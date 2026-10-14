@@ -344,8 +344,9 @@ class MAREXConfig(BaseMAREXConfig):
         if self.max_control_weight is not None:
             problems.append(
                 "max_control_weight bounds each control weight above, and the "
-                "search scores a candidate by its control fit over the plain "
-                "simplex; the cap would have to enter that fit")
+                "search's per-candidate fit puts the control weights on the "
+                "simplex with no upper bound; the cap would have to enter "
+                "that fit")
         for name in ("warm_start", "time_limit", "solver"):
             if getattr(self, name) is not None:
                 problems.append(

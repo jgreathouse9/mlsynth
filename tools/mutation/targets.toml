@@ -3976,6 +3976,12 @@ timeout = 900.0
   replace = '        for name in ("warm_start", "time_limit"):'
   models = "solver accepted with backend='exact' and silently unused, so a user who asked for a particular solver gets the search with no word that their choice did nothing"
 
+  [[target.mutant]]
+  id = "the-exact-backend-accepts-a-cap-it-cannot-impose"
+  find = "        if self.max_control_weight is not None:"
+  replace = "        if False:"
+  models = "the control-weight cap accepted under backend='exact', which scores each candidate by its control fit over the plain simplex. The cap is then recorded on the config and never imposed, so a design asked for a ceiling of 0.2 can return a control market carrying 0.5, which is the failure the cap exists to prevent"
+
 [[target]]
 name = "marex-exact-routing"
 module-path = "mlsynth/utils/marex_helpers/orchestration.py"

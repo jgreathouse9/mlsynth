@@ -327,6 +327,7 @@ def test_duplicate_markets_reach_the_same_objective_as_the_mip():
 @pytest.mark.parametrize("over, fragment", [
     ({"relaxed": True}, "relaxed"),
     ({"costs": [1.0] * 9, "budget": 3}, "budget"),
+    ({"max_control_weight": 0.5}, "max_control_weight"),
     ({"warm_start": ["u0"]}, "warm_start"),
     ({"time_limit": 5.0}, "time_limit"),
     ({"solver": "SCIP"}, "solver"),
@@ -342,6 +343,7 @@ def test_the_same_options_stay_valid_for_the_mip():
     MAREXConfig(**_cfg(df, T0, "mip", m_eq=2, relaxed=True))
     MAREXConfig(**_cfg(df, T0, "mip", m_eq=2, design="weakly_targeted",
                        beta=1.0))
+    MAREXConfig(**_cfg(df, T0, "mip", m_eq=2, max_control_weight=0.5))
 
 
 def test_a_conflict_across_clusters_is_refused():

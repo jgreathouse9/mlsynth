@@ -480,8 +480,8 @@ naming ``backend="mip"``:
   a second constraint on the treated fit that the search's simplex solver does
   not take;
 * ``max_control_weight``, which bounds each control weight above, while the
-  search scores a candidate by its control fit over the plain simplex
-  (:ref:`marex-control-weight-cap`);
+  search's per-candidate fit puts the control weights on the simplex with no
+  upper bound (:ref:`marex-control-weight-cap`);
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
 

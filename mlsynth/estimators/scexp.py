@@ -218,8 +218,12 @@ class MAREX:
                 )
                 if self.config.backend == "exact":
                     # One search keeps each cluster's top_K treated sets; the
-                    # MIQP re-solves once per design with a no-good cut.
+                    # MIQP re-solves once per design with a no-good cut. The
+                    # search does not take the control-weight cap, and the
+                    # config refuses a cap with this backend, so dropping it
+                    # here loses nothing.
                     from ..utils.marex_helpers.exact import solve_design_exact_pool
+                    pool_kw.pop("max_control_weight")
                     raws = solve_design_exact_pool(**pool_kw)
                 else:
                     raws = solve_design_pool(
