@@ -1,0 +1,219 @@
+{
+  "numpy": "2.4.6",
+  "panels": [
+    {
+      "all_pass": true,
+      "checks": [
+        {
+          "abs_diff": 0.00042051972159251605,
+          "expected": 1.339,
+          "got": 1.3385794802784075,
+          "pass": true,
+          "quantity": "twfe.coef",
+          "source": "log_hh2015.txt:3",
+          "tol": 0.0005
+        },
+        {
+          "abs_diff": 0.0002639510943463208,
+          "expected": 0.161,
+          "got": 0.16126395109434633,
+          "pass": true,
+          "quantity": "twfe.se_hc1",
+          "source": "log_hh2015.txt:3",
+          "tol": 0.0005
+        },
+        {
+          "abs_diff": 0.00045005567126921164,
+          "expected": 8.301,
+          "got": 8.300549944328731,
+          "pass": true,
+          "quantity": "twfe.t",
+          "source": "log_hh2015.txt:3",
+          "tol": 0.001
+        },
+        {
+          "abs_diff": 0.000261637406293147,
+          "expected": 4.206,
+          "got": 4.2062616374062936,
+          "pass": true,
+          "quantity": "twfe.residual_sd",
+          "source": "log_hh2015.txt:11",
+          "tol": 0.0005
+        },
+        {
+          "abs_diff": 0.0,
+          "expected": 21779,
+          "got": 21779,
+          "pass": true,
+          "quantity": "twfe.dof",
+          "source": "log_hh2015.txt:15-22",
+          "tol": 0
+        },
+        {
+          "abs_diff": 0.00028237470271896825,
+          "expected": 1.767,
+          "got": 1.7672823747027189,
+          "pass": true,
+          "quantity": "fect.att_obs_weighted",
+          "source": "log_hh2015.txt:66",
+          "tol": 0.002
+        },
+        {
+          "abs_diff": 0.0001735757870786614,
+          "expected": 1.249,
+          "got": 1.2488264242129214,
+          "pass": true,
+          "quantity": "fect.att_unit_weighted",
+          "source": "log_hh2015.txt:67",
+          "tol": 0.002
+        }
+      ],
+      "min_T0": 5,
+      "mlsynth_today": {
+        "after min.T0=5": {
+          "GSYNTH(r=0)": {
+            "att": null,
+            "ran": false,
+            "refusal": "GSYNTH needs absorbing adoption -- treatment that turns on and stays on -- because each treated unit's loadings are fit on one contiguous pre-treatment block. Treatment reverses for [3215, 4034]."
+          },
+          "MCNNM": {
+            "att": null,
+            "ran": false,
+            "refusal": "Some unit is treated at the earliest period."
+          }
+        },
+        "any_fit_succeeded": false,
+        "estimation sample": {
+          "GSYNTH(r=0)": {
+            "att": null,
+            "ran": false,
+            "refusal": "GSYNTH needs absorbing adoption -- treatment that turns on and stays on -- because each treated unit's loadings are fit on one contiguous pre-treatment block. Treatment reverses for [3215, 4034]."
+          },
+          "MCNNM": {
+            "att": null,
+            "ran": false,
+            "refusal": "Some unit is treated at the earliest period."
+          }
+        }
+      },
+      "panel": "hh2015",
+      "sample": {
+        "n_treated_obs": 2296,
+        "n_treated_units": 505,
+        "n_units": 917,
+        "n_units_dropped": 294
+      },
+      "study": "Hainmueller & Hangartner (2019), Swiss naturalisation",
+      "unchecked": {
+        "fect.se_obs_weighted": {
+          "expected": 0.2021,
+          "source": "log_hh2015.txt:66 -- 1000 block bootstrap"
+        },
+        "mc.att_obs_weighted": {
+          "expected": 1.767,
+          "source": "log_hh2015.txt:112 -- MC collapses onto FEct"
+        },
+        "mc.lambda_norm_star": {
+          "expected": 1.0,
+          "source": "log_hh2015.txt:100 -- max regularisation"
+        },
+        "placebo.att": {
+          "expected": 0.1455,
+          "source": "log_hh2015.txt:86"
+        },
+        "placebo.p_value": {
+          "expected": 0.422,
+          "source": "log_hh2015.txt:86"
+        }
+      },
+      "worst_relative_error": 0.0016394477909709366
+    },
+    {
+      "all_pass": true,
+      "checks": [
+        {
+          "abs_diff": 0.00025161627138524725,
+          "expected": -0.015,
+          "got": -0.014748383728614752,
+          "pass": true,
+          "quantity": "twfe.coef",
+          "source": "log_fm2015.txt:5",
+          "tol": 0.0005
+        },
+        {
+          "abs_diff": 0.00017046670341989284,
+          "expected": -0.03396,
+          "got": -0.033789533296580104,
+          "pass": true,
+          "quantity": "fect.att_obs_weighted",
+          "source": "log_fm2015.txt:53",
+          "tol": 0.0003
+        },
+        {
+          "abs_diff": 0.0001427340771221891,
+          "expected": -0.07488,
+          "got": -0.07473726592287781,
+          "pass": true,
+          "quantity": "fect.att_unit_weighted",
+          "source": "log_fm2015.txt:54",
+          "tol": 0.0003
+        }
+      ],
+      "min_T0": 4,
+      "mlsynth_today": {
+        "after min.T0=4": {
+          "GSYNTH(r=0)": {
+            "att": null,
+            "ran": false,
+            "refusal": "The panel is not strongly balanced. Not all units have observations for all unique time periods in the dataset."
+          },
+          "MCNNM": {
+            "att": null,
+            "ran": false,
+            "refusal": "Panel is unbalanced (missing unit-time cells)."
+          }
+        },
+        "any_fit_succeeded": false,
+        "estimation sample": {
+          "GSYNTH(r=0)": {
+            "att": null,
+            "ran": false,
+            "refusal": "The panel is not strongly balanced. Not all units have observations for all unique time periods in the dataset."
+          },
+          "MCNNM": {
+            "att": null,
+            "ran": false,
+            "refusal": "Panel is unbalanced (missing unit-time cells)."
+          }
+        }
+      },
+      "panel": "fm2015",
+      "sample": {
+        "n_treated_obs": 2069,
+        "n_treated_units": 341,
+        "n_units": 418,
+        "n_units_dropped": 14
+      },
+      "study": "Fouirnaies & Mutlu-Eren (2015), English council grants",
+      "unchecked": {
+        "ife.att_obs_weighted": {
+          "expected": 0.006397,
+          "source": "log_fm2015.txt:84 -- method='ife', r=2"
+        },
+        "mc.att_obs_weighted": {
+          "expected": -0.01591,
+          "source": "log_fm2015.txt:129 -- lambda.norm*=0.1778"
+        },
+        "twfe.residual_sd": {
+          "expected": 0.403,
+          "source": "log_fm2015.txt:11 -- fastplm's own dof convention"
+        }
+      },
+      "worst_relative_error": 0.016774418092349818
+    }
+  ],
+  "python": "3.11.17",
+  "reference": "Liu, Wang & Xu (2022), 10.1111/ajps.12723",
+  "replication_package": "10.7910/DVN/ZVC9W5 (ships fect 0.4.1)",
+  "targets_from": "the authors' own stdout logs, cited per check"
+}

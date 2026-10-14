@@ -311,6 +311,23 @@ other industry and year range from the CEPR releases (all 49 industries over
 Full column list, the differences between the five wage measures, and the
 absence of any sub-state geography are in `cepr_org_retail.README.md`.
 
+## Counterfactual estimators for TSCS data - Liu, Wang & Xu (2022)
+
+| File | What it is | Used by |
+|---|---|---|
+| `hh2015_naturalization.parquet` | 1211 Swiss municipalities x 1990-2010, minority naturalisation rate and an indirect-democracy indicator (Hainmueller & Hangartner 2019) | the FEct replication spike |
+| `fm2015_council_grants.parquet` | 432 English local councils x 1992-2012, log specific grants per capita and a partisan-alignment indicator (Fouirnaies & Mutlu-Eren 2015) | the same |
+
+The two empirical examples of Liu, Wang and Xu (2022), taken from their AJPS
+Dataverse package (DOI 10.7910/DVN/ZVC9W5) and rebuilt by
+`benchmarks/data/build_fect_examples.py`. Stored as supplied: the estimation
+samples the paper reports are formed by `complete.cases`, which the study
+applies itself so the dropped rows stay visible.
+
+Both carry treatment structures no mlsynth estimator currently accepts --
+reversal, units treated from the first period, and an unbalanced panel -- which
+is what `benchmarks/studies/fect_replicate/` measures.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
