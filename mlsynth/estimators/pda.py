@@ -107,6 +107,7 @@ class PDA:
                        hcw_criterion=self.config.hcw_criterion,
                        hcw_nvmax=self.config.hcw_nvmax,
                        hcw_backend=self.config.hcw_backend,
+                       hcw_holdout=self.config.hcw_holdout,
                        rf_kwargs=dict(
                            split=self.config.rf_split,
                            train_fraction=self.config.rf_train_fraction,

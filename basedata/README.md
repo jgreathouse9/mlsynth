@@ -294,6 +294,23 @@ effect of loading overlap. `F.source` and `F.u.source` hold normal and uniform
 factors; `L.source` holds the loadings, with column 20 serving as the unit fixed
 effect. The file is the archive's own, unmodified.
 
+## CPS retail wages and state minimum wages, 1979-1991
+
+| File | What it is | Used by |
+|---|---|---|
+| `cepr_org_retail.parquet` | 604,271 retail-trade person-interview records from the CPS quarter-sample that answers the earnings questions, 51 states, 1979-1991 (CEPR Uniform Extracts) | the `hcw_holdout` worked example; minimum-wage designs |
+| `vz_minimum_wage.csv` | effective state minimum wages 1979-1991 (Vaghul & Zipperer 2016), with the year each state's own minimum first rose after 1987 | the same |
+
+Individual records, not a panel: aggregate them to whatever unit a design needs.
+This is the slice the California minimum-wage example uses -- Card's sector, and
+the years between CEPR's first usable earnings data and the federal minimum
+reaching California's. `benchmarks/data/build_cepr_org.py` rebuilds this or any
+other industry and year range from the CEPR releases (all 49 industries over
+1979-1993 is about 94 MB, which is why only the slice is committed), and
+`benchmarks/data/build_vz_minimum_wage.py` rebuilds the minimum-wage file.
+Full column list, the differences between the five wage measures, and the
+absence of any sub-state geography are in `cepr_org_retail.README.md`.
+
 ## Other datasets
 
 The remaining files back a single estimator's replication each — e.g.
