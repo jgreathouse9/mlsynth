@@ -13,6 +13,8 @@ nothing here is pinned; the agreement between the backends is pinned in
 python benchmarks/studies/marex_exact_backend/timing.py \
     benchmarks/studies/marex_exact_backend/results/timing.csv
 python benchmarks/studies/marex_exact_backend/walmart_fit.py
+python -m benchmarks.studies.marex_exact_backend.check_bounds \
+    benchmarks/studies/marex_exact_backend/results/check_bounds.csv
 PYTHONHASHSEED=0 python benchmarks/studies/marex_exact_backend/walmart_scip_repeat.py
 python benchmarks/studies/marex_exact_backend/walmart_layout.py
 ```
@@ -27,7 +29,9 @@ Run them from the repository root; they read `basedata/walmart_weekly_sales.csv`
 | `walmart_fit.py` | the Walmart example of `docs/marex.rst`, the whole fit, with each backend |
 | `walmart_scip_repeat.py` | the Walmart MIQP in a fresh process, under a fixed hash seed |
 | `walmart_layout.py` | the Walmart MIQP on the same values in two memory layouts |
+| `check_bounds.py` | enumerates every treated set and tests that the pruning bound is a lower bound |
 | `results/timing.csv`, `results/timing.log` | the run behind the tables below |
+| `results/check_bounds.csv` | the bound check, one row per panel and penalty setting |
 | `results/walmart.log` | the output of the three Walmart scripts |
 
 ## How it was measured
@@ -78,6 +82,38 @@ the candidate count, 2.3-fold for 2.7 times the candidates from 25 to 30 and
 
 The Walmart row's SCIP time is the faster of two that the same data produced;
 the last section has the other and the reason.
+
+## Is the pruning sound
+
+The times above are bought by a bound. The search fits a candidate only when
+its bound sits under the incumbent, so a bound that ever exceeds the fit it
+bounds discards the optimum and still returns fast. Speed and correctness come
+from the same mechanism, and timing alone cannot separate them.
+
+`check_bounds.py` enumerates every treated set on the panels small enough to
+fit all of them, and compares `treated_fit_bound` with the exact `side_fit` it
+claims to bound. Both closed forms are exercised: the plain treated fit is
+`1 / 1'G^-1 1`, the penalized one is `(2 + t)^2 / 4s - u / 4`, and only the
+second reads the linear term, so a run without penalties never touches it.
+
+Over 424,044 treated sets in 24 panel-and-penalty configurations, from 12
+markets to 25:
+
+| quantity | result |
+| --- | --- |
+| sets where `bound > fit` beyond `PRUNE_MARGIN` | 0 |
+| worst relative excess | 1.7e-14 |
+| sets where `bound == fit` | 52.6% on average, 36% to 69% by panel |
+
+The second row is machine precision, so the bound never discards a candidate it
+should have kept. The third says why the search is fast: on about half the
+candidates the sum-to-one minimiser is already non-negative, the simplex
+constraint is slack, and the closed form is the fit itself, not a bound on it.
+
+The check discriminates. Inflating the bound by 5% turns 211 of 220 sets on the
+first panel into violations. Dropping the centring, which is the
+`the-bound-forgets-the-target` mutant in `tools/mutation/targets.toml`, turns
+all 220 into violations with a worst excess of 1150.
 
 ## The Walmart fit, end to end
 
