@@ -112,6 +112,8 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
                     D2_list=None, solver=cp.SCIP):
     """The weights of a fixed selection ``z_sel``, and their objective.
 
+    ``z_sel`` is rounded at 0.5 before anything else reads it.
+
     For the ``standard``, ``penalized`` and ``unit_penalized`` designs with no
     cost budget and exclusive arms, fixing the selection splits each cluster
     into a treated fit and a control fit, and both are solved exactly by the
@@ -196,7 +198,10 @@ def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel
                  restrictions, design, beta, lambda1, lambda2, xi, lambda1_unit,
                  lambda2_unit, D1, D2_list, solver):
     N, K = M.shape
-    z_fixed = np.asarray(z_sel, dtype=float)
+    # Rounded here as well as by the caller: a selection pinned at a binary a
+    # solver left near 1e-6 would admit a treated weight of that size, the
+    # defect the refit exists to remove.
+    z_fixed = (np.asarray(z_sel, dtype=float) > 0.5).astype(float)
     w, v, z = init_cvxpy_variables(N, K, boolean=False)
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs, budget_dict,

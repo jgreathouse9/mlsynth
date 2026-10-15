@@ -4084,10 +4084,17 @@ timeout = 1200.0
   models = "the refit computed and thrown away, so the design reported is SCIP's point as returned: on the panel that exposed the defect, four treated markets under m_eq=3, control weights summing to 0.854, and an objective of 6.7399 whose weights score 117.4"
 
   [[target.mutant]]
-  id = "the-refit-takes-the-raw-selection"
-  find = "    z_opt = z_round.astype(float)"
-  replace = "    z_opt = np.asarray(z_opt, dtype=float)"
-  models = "the refit pinned to SCIP's selection as returned instead of its rounding. A binary left at 1e-6 then counts as unselected in one place and selected in another, the inconsistency the refit exists to remove"
+  id = "the-qp-refit-pins-the-raw-selection"
+  find = "    z_fixed = (np.asarray(z_sel, dtype=float) > 0.5).astype(float)"
+  replace = "    z_fixed = np.asarray(z_sel, dtype=float)"
+  models = "the QP refit pinned to a selection as given instead of its rounding. A binary SCIP left at 1e-6 then admits a treated weight of 1e-6 beside a full control weight for the coupled and budgeted designs, the defect the refit exists to remove"
+
+  # Recorded, not carried: passing SCIP's raw selection to the refit from
+  # solve_design ("z_opt = np.asarray(z_opt, dtype=float)") is an equivalent
+  # mutant. Both refit paths round their input at 0.5 and the orchestrator
+  # reads the selection the same way, so every number reported is unchanged.
+  # It survived, correctly, and is retired here so nobody re-adds it expecting
+  # a kill; the rounding it modelled is pinned inside the refit instead.
 
   [[target.mutant]]
   id = "every-design-refits-through-the-qp"

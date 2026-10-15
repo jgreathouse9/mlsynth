@@ -164,6 +164,42 @@ def test_the_weakly_targeted_refit_solves_the_fixed_selection():
     assert obj == pytest.approx(ref, rel=1e-5)
 
 
+def test_the_qp_refit_reports_exact_zeros_whatever_the_solver():
+    """CLARABEL, an interior-point solver, leaves forced-zero weights at about
+    1e-10; the orchestrator reads treated markets off the weights, so the
+    refit must return them as zero, not as solver noise."""
+    import cvxpy as cp
+    p = _pieces(seed=3)
+    treated = [0, 2, 5]
+    control = [j for j in range(p["N"]) if j not in treated]
+    w, v, obj = _refit(p, tuple(treated), m_eq=3, design="weakly_targeted",
+                       beta=1.0, solver=cp.CLARABEL)
+    assert (w[control, 0] == 0.0).all()
+    assert (v[treated, 0] == 0.0).all()
+    ref = _joint_weakly(p["X"].T, p["Xbar"][0], treated, control, 1.0)
+    assert obj == pytest.approx(ref, rel=1e-5)
+
+
+@pytest.mark.parametrize("design, extra", [
+    ("standard", {}),
+    ("weakly_targeted", {"beta": 1.0}),
+])
+def test_a_selection_left_at_solver_tolerance_is_rounded(design, extra):
+    """The defect's own input: a binary SCIP left at 1e-6. Both refit paths
+    round it, so that market gets no treated weight and keeps its control
+    weight."""
+    p = _pieces(seed=3)
+    z = _selection(p["N"], (0, 2, 5))
+    z[4, 0] = 1e-6
+    w, v, obj = refit_selection(p["X"], p["Xbar"], p["members"], p["labels"],
+                                p["M"], z, m_eq=3, D1=p["D1"], D2_list=p["D2"],
+                                design=design, **extra)
+    clean = _refit(p, (0, 2, 5), m_eq=3, design=design, **extra)
+    assert w[4, 0] == 0.0
+    assert obj == pytest.approx(clean[2], rel=1e-9)
+    np.testing.assert_allclose(v, clean[1], atol=1e-9)
+
+
 def test_donor_exclusions_shrink_the_control_pool():
     p = _pieces()
     rules = DesignRestrictions(donor_exclusion=[(0, 3)])
