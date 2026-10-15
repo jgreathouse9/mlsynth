@@ -38,6 +38,42 @@ with ``G = B~'B~`` restricted to ``S``, ``s = 1'G^-1 1``, ``t = 1'G^-1 a`` and
 minimiser is already non-negative. SYNDES's exact backend bounds its own
 objective the same way (:mod:`mlsynth.utils.syndes_helpers.gram`).
 
+The weakly-targeted design. Its objective ties the synthetic control to the
+synthetic treated instead of to the target,
+
+    ||A - B w||^2 + beta ||B w - B v||^2,
+
+so naming ``S`` does not split it: the treated and control weights still share
+a term. What naming ``S`` leaves is a convex problem over a product of two
+simplexes, ``min_w phi(w)`` with ``phi(w) = ||A - B_S w||^2 + beta d(B_S w)^2``
+and ``d`` the distance to the control hull ``conv(B_C)``. :func:`coupled_fit`
+minimises ``phi`` by Newton steps over the faces of the control simplex. On a
+face ``F`` the projection of ``t`` onto the face's affine hull is
+``c0 + P (t - c0)``, with ``P`` the projector onto the span of the face's edge
+directions, so the residual is ``(I - P)(t - c0)`` and ``phi`` restricted to the
+face is one least-squares fit over the treated simplex, with rows
+``[B_S; sqrt(beta) (I - P) B_S]`` and target ``[A; sqrt(beta) (I - P) c0]``.
+That fit is the step. A step is kept only if the true ``phi``, with the
+controls refitted exactly, falls; otherwise it is halved, and when no halving
+helps the fit takes one alternating sweep (the treated fit to
+``(A + beta B v) / (1 + beta)``, then the controls) instead.
+
+Each step solves the current face exactly, so the step count does not grow with
+``beta``: across random problems it was at most three. The alternation it
+replaced converges at the rate ``beta / (1 + beta)`` and took a median of 1,750
+sweeps per candidate at ``beta = 100`` on GeoLift's 40 markets. The fit stops
+on the Frank-Wolfe gap, ``sum over blocks of grad'x - min_j grad_j``, which
+bounds the distance to the optimum from above, and raises when the gap has not
+closed within ``COUPLED_MAX_ITER`` steps.
+
+The same gap gives a certified lower bound at every step, the value less the
+gap. The search hands each fit the incumbent as a cutoff, and a fit stops and
+discards its candidate as soon as that lower bound clears it. The coupling term
+is non-negative, so the treated-side fit and its bound still sit under the
+objective and prune before any fit; at large ``beta`` they prune little,
+because the coupling dominates the objective and they cannot see it, and the
+cutoff is what keeps each surviving candidate to about one step.
+
 Restrictions. Forced units, forbidden units and stratum quotas decide which
 candidates exist, so :class:`~mlsynth.utils.syndes_helpers.enumeration.SearchSpace`
 builds candidates inside them and counts them exactly; conflict pairs are a
@@ -47,10 +83,10 @@ sees, since it reads only the treated side. Clusters are searched independently,
 so a conflict pair or a stratum that spans two clusters couples their searches
 and is refused.
 
-What this backend does not solve. ``design="weakly_targeted"`` couples the two
-sides; a cost budget constrains the treated weights; ``relaxed`` and the
-branch-and-bound knobs (``solver``, ``warm_start``, ``time_limit``) belong to the
-MIQP. The config refuses each with ``backend="exact"``. Above
+What this backend does not solve. A cost budget constrains the treated
+weights; ``relaxed`` and the branch-and-bound knobs (``solver``, ``warm_start``,
+``time_limit``) belong to the MIQP; a negative ``beta`` makes the coupling
+concave. The config refuses each with ``backend="exact"``. Above
 ``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being affordable
 and the search raises with the MIQP as the way out.
 """
@@ -82,6 +118,15 @@ from .optimization import _augment_fit, finish_design
 
 #: Designs whose objective splits into a treated term and a control term.
 SEPARABLE_DESIGNS = frozenset({"standard", "penalized", "unit_penalized"})
+
+#: Designs the backend solves: the separable ones, and the coupled one.
+EXACT_DESIGNS = SEPARABLE_DESIGNS | {"weakly_targeted"}
+
+#: The coupled fit stops when its Frank-Wolfe gap is under this, relative.
+COUPLED_TOL = 1e-10
+
+#: Steps the coupled fit may take before it raises uncertified.
+COUPLED_MAX_ITER = 20_000
 
 #: Above this many candidates in one cluster the search refuses and names the MIQP.
 CANDIDATE_LIMIT = 20_000_000
@@ -130,6 +175,115 @@ def side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
     if linear is not None:
         value += float(np.dot(linear, w))
     return value, w
+
+
+class CoupledFitNotCertified(MlsynthEstimationError):
+    """The coupled fit ran out of sweeps before its gap closed."""
+
+
+def _coupled_point(Bs: np.ndarray, Bc: np.ndarray, A: np.ndarray, beta: float,
+                   w: np.ndarray, v_start: Optional[np.ndarray]
+                   ) -> Tuple[float, float, np.ndarray, np.ndarray]:
+    """At treated weights ``w``: the best controls, the value and its gap.
+
+    The controls are the exact simplex fit to ``B_S w``. The Frank-Wolfe gap,
+    ``sum over blocks of grad'x - min_j grad_j``, bounds the value's distance to
+    the joint minimum from above.
+    """
+    t = Bs @ w
+    v = np.asarray(solve_simplex_qp(Bc, t, warm_start=v_start), dtype=float)
+    c = Bc @ v
+    r, d = t - A, t - c
+    value = float(r @ r + beta * (d @ d))
+    grad_w = 2.0 * (Bs.T @ (r + beta * d))
+    grad_v = -2.0 * beta * (Bc.T @ d)
+    gap = float(grad_w @ w - grad_w.min()) + float(grad_v @ v - grad_v.min())
+    return value, gap, v, c
+
+
+def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
+                control: Sequence[int], beta: float, *,
+                w0: Optional[np.ndarray] = None, tol: Optional[float] = None,
+                max_iter: Optional[int] = None, cutoff: Optional[float] = None,
+                return_info: bool = False):
+    """``min ||A - B_S w||^2 + beta ||B_S w - B_C v||^2`` over two simplexes.
+
+    Newton steps over the faces of the control simplex (see the module
+    docstring), each accepted only if the value falls, with an alternating
+    sweep when no step does. Stops once the Frank-Wolfe gap is under
+    ``tol * (1 + value)``; the value returned is then within that of the joint
+    minimum. ``w0`` starts the treated weights, by default at the treated fit
+    alone.
+
+    With ``cutoff``, the fit returns ``None`` as soon as its certified lower
+    bound, the value less the gap, exceeds it: the candidate cannot beat a
+    design already found, and finishing the fit would only confirm that.
+
+    Returns the value and the weights, in the order of ``treated`` and
+    ``control``, and with ``return_info`` a dict counting ``iterations``,
+    ``newton_steps`` and ``sweeps``.
+
+    Raises
+    ------
+    CoupledFitNotCertified
+        When ``max_iter`` steps leave the gap open. The value reached is above
+        the minimum by an unknown amount, and ranking candidates on it could
+        discard the optimal design.
+    """
+    tol = COUPLED_TOL if tol is None else float(tol)
+    max_iter = COUPLED_MAX_ITER if max_iter is None else int(max_iter)
+    beta = float(beta)
+    root = np.sqrt(beta)
+    Bs = B[:, list(treated)]
+    Bc = B[:, list(control)]
+    w = (np.asarray(solve_simplex_qp(Bs, A), dtype=float) if w0 is None
+         else np.asarray(w0, dtype=float))
+    value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, None)
+    newton = sweeps = 0
+    for it in range(max_iter + 1):
+        if cutoff is not None and value - gap > cutoff:
+            return None
+        if gap <= tol * (1.0 + abs(value)):
+            if return_info:
+                return value, w, v, {"iterations": newton + sweeps,
+                                     "newton_steps": newton, "sweeps": sweeps}
+            return value, w, v
+        if it == max_iter:
+            break
+        # On the face F of the control simplex the projection of t onto the
+        # face's affine hull is c0 + P (t - c0), P the projector onto the span
+        # of the face's edge directions, so the residual is (I - P)(t - c0)
+        # and the value on F is one least-squares fit over the treated simplex.
+        face = Bc[:, v > 0]
+        c0 = face.mean(axis=1)
+        edges = face[:, 1:] - face[:, :1]
+        U, sv, _ = np.linalg.svd(edges, full_matrices=False)
+        span = U[:, sv > 1e-12 * max(1.0, sv.max(initial=0.0))]
+        off_face = lambda X: X - span @ (span.T @ X)
+        design = np.vstack([Bs, root * off_face(Bs)])
+        target = np.concatenate([A, root * off_face(c0)])
+        w_face = np.asarray(solve_simplex_qp(design, target, warm_start=w),
+                            dtype=float)
+        step, moved = 1.0, False
+        for _ in range(8):
+            w_try = w + step * (w_face - w)
+            trial = _coupled_point(Bs, Bc, A, beta, w_try, v)
+            if trial[0] < value - 1e-15 * (1.0 + abs(value)):
+                w, (value, gap, v, c) = w_try, trial
+                newton += 1
+                moved = True
+                break
+            step *= 0.5
+        if not moved:
+            w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta),
+                                            warm_start=w), dtype=float)
+            value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, v)
+            sweeps += 1
+    raise CoupledFitNotCertified(
+        f"The weakly-targeted fit of a candidate treated set was not certified "
+        f"within {max_iter:,} steps (Frank-Wolfe gap {gap:.3g}). Its value "
+        f"is an upper bound only, so the search cannot rank on it; use "
+        f"backend='mip'.")
 
 
 def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
@@ -267,6 +421,7 @@ def search_cluster(
     donor_exclusion: Sequence[Tuple[int, int]] = (),
     top_k: int = 1,
     candidate_limit: Optional[int] = None,
+    beta: Optional[float] = None,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -288,15 +443,30 @@ def search_cluster(
         How many designs to return.
     candidate_limit : int, optional
         Refuse above this many candidates; defaults to ``CANDIDATE_LIMIT``.
+    beta : float, optional
+        The weakly-targeted coupling. When given, each candidate is priced by
+        :func:`coupled_fit` instead of two independent fits; it takes no
+        penalty vectors.
 
     Raises
     ------
     MlsynthConfigError
-        Above the candidate limit.
+        Above the candidate limit, for a negative ``beta``, or for ``beta``
+        with a penalty vector.
     MlsynthEstimationError
         When no admissible design exists.
     """
     n = B.shape[1]
+    if beta is not None:
+        if beta < 0:
+            raise MlsynthConfigError(
+                f"beta must be >= 0; a negative beta makes the coupling term "
+                f"concave and the design has no minimum to certify. Got {beta}.")
+        if linear_treated is not None or linear_control is not None:
+            raise MlsynthConfigError(
+                "beta prices the weakly-targeted design, which has no linear "
+                "penalty; a search given both would optimise an objective "
+                "MAREX does not state.")
     limit = CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
     total = count_candidates(n, sizes, filt)
     if total > limit:
@@ -329,8 +499,18 @@ def search_cluster(
         control = [j for j in range(n) if j not in drop]
         if not control:
             return
-        h, v = side_fit(B, A, control, None if lin_c is None else lin_c[control])
-        best.offer(ClusterDesign(value=g + h, treated=tuple(S),
+        if beta is None:
+            h, v = side_fit(B, A, control,
+                            None if lin_c is None else lin_c[control])
+            value = g + h
+        else:
+            cut = best.cutoff
+            fit = coupled_fit(B, A, cols, control, beta, w0=w,
+                              cutoff=cut + margin(cut) if np.isfinite(cut) else None)
+            if fit is None:
+                return
+            value, w, v = fit
+        best.offer(ClusterDesign(value=value, treated=tuple(S),
                                  control=tuple(control), w=w, v=v))
 
     # Pass 1: price every candidate, keep the BUFFER best-bounded.
@@ -480,10 +660,10 @@ def _designs(
     covariates=None, covariate_weight=1.0, standardize=False,
     restrictions=None, top_k=1,
 ) -> List[Dict[str, Any]]:
-    if design not in SEPARABLE_DESIGNS:
+    if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
-            f"The exact backend solves the separable designs "
-            f"({', '.join(sorted(SEPARABLE_DESIGNS))}); got design={design!r}.")
+            f"The exact backend solves the designs "
+            f"{', '.join(sorted(EXACT_DESIGNS))}; got design={design!r}.")
     if costs is not None or budget is not None:
         raise MlsynthConfigError(
             "The exact backend does not take a cost budget, which constrains "
@@ -521,7 +701,10 @@ def _designs(
             designs = search_cluster(
                 X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,
                 linear_treated=a, linear_control=b, donor_exclusion=donors,
-                top_k=top_k)
+                top_k=top_k,
+                beta=beta if design == "weakly_targeted" else None)
+        except CoupledFitNotCertified:
+            raise
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
                 f"MAREX design is infeasible under the active restrictions "

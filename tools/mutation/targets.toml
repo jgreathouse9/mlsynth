@@ -3815,8 +3815,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "designs-ranked-by-the-treated-fit-alone"
-  find = "        best.offer(ClusterDesign(value=g + h, treated=tuple(S),"
-  replace = "        best.offer(ClusterDesign(value=g, treated=tuple(S),"
+  find = "            value = g + h"
+  replace = "            value = g"
   models = "the treated-side fit taken for the objective, which is what the bound reads. The control fit, half the objective, stops deciding between designs"
 
   [[target.mutant]]
@@ -3860,6 +3860,109 @@ timeout = 900.0
   find = "import numpy as np"
   replace = "import numpy as np\nimport pyscipopt  # noqa: F401"
   models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
+
+[[target]]
+name = "marex-exact-coupled"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-fit-returns-its-starting-point"
+  find = "        if gap <= tol * (1.0 + abs(value)):"
+  replace = "        if True:"
+  models = "the fit returning the treated fit alone with its best controls, before any step. At small beta that point is already optimal, so a fixture at the default beta of 1e-6 cannot see it; at beta = 100 the coupling has not been accounted for and the value is above the joint minimum"
+
+  [[target.mutant]]
+  id = "the-newton-step-forgets-the-face"
+  find = "        off_face = lambda X: X - span @ (span.T @ X)"
+  replace = "        off_face = lambda X: X"
+  models = "the face step built without projecting out the face's directions, so it minimises the distance to one point of the face and not to the face. The step is rarely a descent, the fit falls back to alternating sweeps at their beta / (1 + beta) rate, and every answer stays right while the cost returns to what the step was introduced to remove"
+
+  [[target.mutant]]
+  id = "a-step-is-kept-without-descent"
+  find = "            if trial[0] < value - 1e-15 * (1.0 + abs(value)):"
+  replace = "            if True:"
+  models = "a face step kept whatever it does to the value. The face model is exact only on the current face, so a step that crosses into another face can raise the value, and without the check nothing stops the fit from cycling"
+
+  [[target.mutant]]
+  id = "the-fallback-sweep-is-dropped"
+  find = "        if not moved:"
+  replace = "        if False:"
+  models = "no alternating sweep when no face step descends. Where the starting point is already all but optimal and the step cannot improve it by a resolvable amount, the fit then repeats the same rejected step until it runs out of iterations and raises on a candidate it could have certified"
+
+  [[target.mutant]]
+  id = "the-treated-step-ignores-the-controls"
+  find = "            w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta),"
+  replace = "            w = np.asarray(solve_simplex_qp(Bs, A,"
+  models = "the fallback sweep's treated fit aimed at the target alone, so it returns the starting point and the fit makes no progress on the candidates that need the sweep"
+
+  [[target.mutant]]
+  id = "the-cutoff-reads-the-upper-value"
+  find = "        if cutoff is not None and value - gap > cutoff:"
+  replace = "        if cutoff is not None and value > cutoff:"
+  models = "a candidate discarded because its current value, an upper bound, is above the incumbent. Early in the fit that value is above the candidate's own minimum, so a candidate that would beat the incumbent can be thrown away; only the value less the gap certifies that it cannot"
+
+  [[target.mutant]]
+  id = "the-search-withholds-its-incumbent"
+  find = "                              cutoff=cut + margin(cut) if np.isfinite(cut) else None)"
+  replace = "                              cutoff=None)"
+  models = "the search never passing the incumbent to the fit. Every design is still right, and every losing candidate is fitted to convergence, which at large beta is nearly all of them"
+
+  [[target.mutant]]
+  id = "the-design-reports-the-treated-fit-alone"
+  find = "            value, w, v = fit"
+  replace = "            value, _, v = fit"
+  models = "the coupled value reported with the treated weights from the uncoupled start. The value and the treated set are right, so every comparison of objectives passes, while the weights on the result do not attain the value stated beside them"
+
+  [[target.mutant]]
+  id = "an-uncertified-fit-is-returned"
+  find = "    raise CoupledFitNotCertified("
+  replace = "    return value, w, v\n    raise CoupledFitNotCertified("
+  models = "running out of steps treated as convergence: the value is an upper bound by an unknown amount, the search ranks on it, and the optimal design can be discarded with nothing raised"
+
+  [[target.mutant]]
+  id = "uncertified-reported-as-infeasible"
+  find = "        except CoupledFitNotCertified:"
+  replace = "        except ():"
+  models = "a fit that could not be certified relabelled as an infeasible design, so the user is told to loosen restrictions and the cardinality when the configuration is feasible and the remedy is backend='mip'"
+
+  [[target.mutant]]
+  id = "the-coupling-is-dropped"
+  find = "                beta=beta if design == \"weakly_targeted\" else None)"
+  replace = "                beta=None)"
+  models = "design='weakly_targeted' accepted and recorded while each cluster is searched as the standard design. Both are valid designs with plausible answers, so nothing fails until the result is compared with the MIQP"
+
+  [[target.mutant]]
+  id = "beta-with-a-penalty-accepted"
+  find = "        if linear_treated is not None or linear_control is not None:"
+  replace = "        if False:"
+  models = "a search given both beta and a penalty vector, where the penalty is silently dropped by the coupled oracle, which takes none"
+
+  [[target.mutant]]
+  id = "a-negative-beta-searched"
+  find = "        if beta < 0:"
+  replace = "        if False:"
+  models = "a negative beta passed to the fit. The coupling term is then concave, the face step's stacked rows take the square root of a negative number, and the sweep's target divides by 1 + beta, which is zero at beta = -1"
+
+  # Recorded, not carried: dropping the control block from the Frank-Wolfe gap
+  # ("gap = float(grad_w @ w - grad_w.min())") is an equivalent mutant since
+  # the fit moved to face steps. Every point the fit evaluates pairs the treated
+  # weights with the exact control fit to them, so the control block's gap is
+  # zero to the inner solver's tolerance and the sum and its first term agree.
+  # It is retired here so nobody re-adds it expecting a kill.
+
+[[target]]
+name = "marex-exact-coupled-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-config-accepts-a-negative-beta"
+  find = '        if self.design == "weakly_targeted" and self.beta < 0:'
+  replace = "        if False:"
+  models = "a negative beta accepted at construction and refused only once the search starts, after the panel is prepared; the config is where MAREX fails early"
 
 [[target]]
 name = "marex-exact-config"
