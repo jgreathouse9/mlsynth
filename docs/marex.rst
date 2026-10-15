@@ -416,33 +416,49 @@ The ``weakly_targeted`` design ties the two sides together. Its objective is
 
 and its second term involves both sets of weights, so naming
 :math:`\mathcal{S}` no longer leaves two separate fits. It leaves a convex
-problem whose two halves are each a fit the search already solves. With the
-control weights fixed, giving a synthetic control :math:`\mathbf{c}`, the
-treated step minimises
-:math:`\|\bar{\mathbf{x}} - \mathbf{u}\|^2 + \beta\|\mathbf{c} - \mathbf{u}\|^2`
-over the synthetic treated :math:`\mathbf{u}`. That is :math:`1 + \beta` times
-the squared distance from :math:`\mathbf{u}` to
-:math:`(\bar{\mathbf{x}} + \beta \mathbf{c}) / (1 + \beta)`, plus a constant:
-one synthetic-control fit to a blended target. With the treated weights fixed,
-the control step is a synthetic-control fit to the synthetic treated. The search
-alternates the two.
+problem in the treated weights alone,
+:math:`\phi(\mathbf{w}) = \|\bar{\mathbf{x}} - \mathbf{u}\|^2 + \beta\, d(\mathbf{u})^2`
+with :math:`\mathbf{u} = \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j` the synthetic
+treated and :math:`d(\mathbf{u})` its distance to the convex hull of the control
+markets, since for a given synthetic treated the best synthetic control is the
+nearest point of that hull.
 
-Exact minimisation over two blocks of a convex function converges to its minimum
-(Grippo and Sciandrone 2000), but slowly when :math:`\beta` is large: the two
-synthetics then pull on each other and each step moves little, so a rule that
-stopped on a small step could stop above the minimum. The alternation stops on
-a certificate instead. The Frank-Wolfe gap, the improvement the best vertex of
-each simplex offers along the gradient, bounds the distance to the minimum from
-above, and the fit stops when the gap is under :math:`10^{-10}` of the
-objective. A fit whose gap is still open after 20,000 sweeps raises with a
-message naming ``backend="mip"``, since ranking candidates on an uncertified
-value could discard the optimal design. On ten of the GeoLift markets with two
-treated, the fit took at most one sweep at the default :math:`\beta = 10^{-6}`,
-4 at :math:`\beta = 0.01`, 28 at :math:`\beta = 1` and 426 at
-:math:`\beta = 100`, the range Abadie and Zhao sweep in their simulations. The
-coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
+The search minimises :math:`\phi` one face of that hull at a time. The nearest
+point of a face's affine hull moves linearly with :math:`\mathbf{u}`, so on the
+face where the current synthetic control sits, :math:`\phi` is a quadratic in
+:math:`\mathbf{w}`, and minimising it over the treated simplex is a single
+synthetic-control fit with a stacked design. That fit is the step. The search
+keeps a step only if :math:`\phi`, with the controls refitted exactly, goes
+down; it halves the step otherwise, and if no halving helps it takes one
+alternating step (the treated fit to
+:math:`(\bar{\mathbf{x}} + \beta \mathbf{c}) / (1 + \beta)` for the current
+synthetic control :math:`\mathbf{c}`, then the controls). Because each step
+solves its face exactly, the number of steps does not grow with :math:`\beta`:
+across 400 random problems it was never more than three, at :math:`\beta` from 0 to
+100. Plain alternation between the two fits converges at the rate
+:math:`\beta / (1 + \beta)` and needed a median of 1,750 steps per candidate at
+:math:`\beta = 100` on GeoLift's forty markets.
+
+The fit stops on a certificate, not on a small step. The Frank-Wolfe gap, the
+improvement the best vertex of each simplex offers along the gradient, bounds
+the distance to the minimum from above, and the fit stops when the gap is under
+:math:`10^{-10}` of the objective. A fit whose gap is still open after 20,000
+steps raises with a message naming ``backend="mip"``, since ranking candidates
+on an uncertified value could discard the optimal design. The same gap gives a
+certified lower bound at every step, the objective less the gap. The search
+hands each fit the objective of the best design found so far, and the fit stops and discards its
+candidate as soon as that lower bound is above it.
+
+The coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
 still holds and the bound and both passes prune as they do for the other
-designs.
+designs. At large :math:`\beta` they prune little, because the coupling term
+then dominates the objective and a bound on the treated fit cannot see it. On
+GeoLift's forty markets with four treated, the search fitted 274 of the 91,390
+candidates at :math:`\beta = 1` and took 1.2 seconds. At :math:`\beta = 100` it
+fitted 82,415 and took 7.9 minutes; all but four of those fits were discarded
+on a certified lower bound before converging, after one or two steps. Before the face steps and the cutoff, the same
+searches took 25 seconds and, by extrapolation from the measured cost per
+candidate, about five days.
 
 Abadie and Zhao's enumeration solves two separate synthetic-control problems per
 candidate (supplementary appendix, Section OA.6), and they solve this design by

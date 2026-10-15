@@ -3,10 +3,12 @@
 The weakly-targeted objective ties the synthetic control to the synthetic
 treated, ``||A - B w||^2 + beta ||B w - B v||^2``, so naming the treated set
 does not split it into two independent fits the way the standard design splits.
-It leaves a convex problem over a product of two simplexes, which the backend
-solves by alternating the two exact simplex fits and stops on a Frank-Wolfe
-certificate: the value it returns is within a stated tolerance of the joint
-optimum, not merely a point where progress slowed.
+It leaves a convex problem over a product of two simplexes. The backend solves
+it by Newton steps over the faces of the control simplex, each one an exact
+simplex fit, and stops on a Frank-Wolfe certificate: the value it returns is
+within a stated tolerance of the joint optimum, not merely a point where
+progress slowed. Given the incumbent's value as a cutoff, the fit stops as soon
+as its certified lower bound clears it, and reports the candidate as discarded.
 
 The search around that oracle is unchanged. The coupling term is
 non-negative, so the treated-side fit and its closed-form bound are still lower
@@ -246,13 +248,11 @@ def test_an_uncertified_oracle_raises_instead_of_returning_its_value(monkeypatch
     amount; ranking candidates on it could discard the optimal design."""
     B, A = _problem(5, n=9)
     with pytest.raises(MlsynthEstimationError, match="certif"):
-        coupled_fit(B, A, [0, 1], list(range(2, 9)), 100.0, max_iter=2,
-                    tol=1e-14)
+        coupled_fit(B, A, [0, 1], list(range(2, 9)), 100.0, max_iter=0)
 
 
 def test_an_uncertified_design_is_reported_through_the_fit(monkeypatch):
-    monkeypatch.setattr(exact_mod, "COUPLED_MAX_ITER", 1)
-    monkeypatch.setattr(exact_mod, "COUPLED_TOL", 1e-15)
+    monkeypatch.setattr(exact_mod, "COUPLED_MAX_ITER", 0)
     df, T0 = _panel()
     with pytest.raises(MlsynthEstimationError, match="backend='mip'") as info:
         _fit(df, T0, "exact", m_eq=2, design="weakly_targeted", beta=100.0)
@@ -313,6 +313,77 @@ def test_the_weakly_targeted_search_never_reaches_scip(monkeypatch):
     assert res.study.backend == "exact"
 
 
+# ------------------------------------------- the Newton fit and the cutoff
+def _fallback_problem(seed=12):
+    """A problem on which the Newton step cannot improve and a sweep must
+    close the gap: the fit's start is already all but optimal at beta = 1e-6."""
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(3, 10))
+    B = rng.normal(size=(8, n)) + rng.normal(size=(8, 1)) * 2.0
+    m = int(rng.integers(1, n))
+    return B, B.mean(axis=1), list(range(m)), list(range(m, n))
+
+
+@pytest.mark.parametrize("beta", (1e-6, 0.01, 1.0, 100.0))
+def test_the_fit_certifies_in_a_few_steps_at_every_beta(beta):
+    """The alternation this replaced converges at rate beta / (1 + beta), a
+    median of 1,750 sweeps per candidate at beta = 100 on GeoLift; each Newton
+    step solves the current face exactly, so the count does not grow with beta."""
+    B, A = _problem(5, n=9)
+    S, C = [0, 1], list(range(2, 9))
+    value, w, v, info = coupled_fit(B, A, S, C, beta, return_info=True)
+    assert info["iterations"] <= 5
+    assert value == pytest.approx(_joint(B, A, tuple(S), C, beta), rel=1e-7)
+
+
+def test_the_fallback_sweep_certifies_where_a_newton_step_cannot_improve():
+    B, A, S, C = _fallback_problem()
+    value, w, v, info = coupled_fit(B, A, S, C, 1e-6, return_info=True)
+    assert info["sweeps"] >= 1
+    assert value == pytest.approx(_joint(B, A, tuple(S), C, 1e-6), rel=1e-7)
+
+
+def test_a_cutoff_above_the_optimum_never_discards():
+    B, A = _problem(6, n=8)
+    S, C = [0, 3], [1, 2, 4, 5, 6, 7]
+    fstar = coupled_fit(B, A, S, C, 100.0)[0]
+    fit = coupled_fit(B, A, S, C, 100.0, cutoff=fstar * (1 + 1e-6) + 1e-12)
+    assert fit is not None
+    assert fit[0] == pytest.approx(fstar, rel=1e-12)
+
+
+def test_a_cutoff_below_the_optimum_discards():
+    B, A = _problem(6, n=8)
+    S, C = [0, 3], [1, 2, 4, 5, 6, 7]
+    fstar = coupled_fit(B, A, S, C, 100.0)[0]
+    assert coupled_fit(B, A, S, C, 100.0, cutoff=fstar * (1 - 1e-3)) is None
+
+
+def test_the_search_hands_the_fit_its_incumbent(monkeypatch):
+    """The cutoff is what discards losing candidates early; a search that never
+    passed it would return the same designs at the old cost."""
+    cutoffs = []
+    real = exact_mod.coupled_fit
+
+    def spy(*args, **kwargs):
+        cutoffs.append(kwargs.get("cutoff"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(exact_mod, "coupled_fit", spy)
+    B, A = _problem(7, n=10)
+    search_cluster(B, A, sizes=[3], filt=SubsetFilter(), beta=100.0)
+    finite = [c for c in cutoffs if c is not None and np.isfinite(c)]
+    assert len(cutoffs) > 1 and len(finite) == len(cutoffs) - 1
+
+
+def test_a_large_beta_search_matches_plain_enumeration():
+    B, A = _problem(8, n=12)
+    designs = search_cluster(B, A, sizes=[3], filt=SubsetFilter(), beta=100.0)
+    value, S = _brute_force(B, A, 3, 100.0)
+    assert designs[0].treated == S
+    assert designs[0].value == pytest.approx(value, rel=1e-9, abs=1e-12)
+
+
 # ------------------------------------------------------------------ property
 @given(seed=st.integers(0, 10_000), n=st.integers(3, 7), m=st.integers(1, 3),
        beta=st.sampled_from([0.0, 1e-6, 0.01, 1.0, 100.0]))
@@ -354,3 +425,32 @@ def test_the_oracle_matches_a_conic_solve_over_the_domain(seed, n, beta):
     ref = _joint(B, A, tuple(S), C, beta)
     assert value <= ref + 1e-6 * (1.0 + abs(ref))
     assert value == pytest.approx(ref, rel=1e-5, abs=1e-8)
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(3, 9),
+       beta=st.sampled_from([0.0, 1e-6, 0.01, 1.0, 100.0]))
+@settings(max_examples=60, deadline=None)
+def test_the_fit_needs_few_steps_over_the_domain(seed, n, beta):
+    B, A = _problem(seed, n=n, T=8)
+    m = 1 + seed % (n - 1)
+    info = coupled_fit(B, A, list(range(m)), list(range(m, n)), beta,
+                       return_info=True)[3]
+    assert info["iterations"] <= 10
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(3, 8),
+       beta=st.sampled_from([0.01, 1.0, 100.0]),
+       ratio=st.floats(0.5, 1.5))
+@settings(max_examples=60, deadline=None)
+def test_a_discarded_fit_could_not_have_beaten_its_cutoff(seed, n, beta, ratio):
+    """None is a certificate: the joint optimum is at least the cutoff. A
+    returned fit is the optimum itself."""
+    B, A = _problem(seed, n=n, T=8)
+    S, C = [0], list(range(1, n))
+    fstar = coupled_fit(B, A, S, C, beta)[0]
+    cutoff = ratio * fstar
+    fit = coupled_fit(B, A, S, C, beta, cutoff=cutoff)
+    if fit is None:
+        assert fstar >= cutoff * (1 - 1e-9) - 1e-12
+    else:
+        assert fit[0] == pytest.approx(fstar, rel=1e-9, abs=1e-12)

@@ -3868,34 +3868,58 @@ test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.
 timeout = 900.0
 
   [[target.mutant]]
-  id = "the-coupled-fit-stops-after-one-sweep"
+  id = "the-fit-returns-its-starting-point"
   find = "        if gap <= tol * (1.0 + abs(value)):"
   replace = "        if True:"
-  models = "the alternation returning after its first sweep. At small beta one sweep is already the optimum, so a fixture at the default beta of 1e-6 cannot see it; at beta = 100 the blocks are still chasing each other and the value is above the joint minimum"
+  models = "the fit returning the treated fit alone with its best controls, before any step. At small beta that point is already optimal, so a fixture at the default beta of 1e-6 cannot see it; at beta = 100 the coupling has not been accounted for and the value is above the joint minimum"
 
   [[target.mutant]]
-  id = "the-gap-forgets-the-control-block"
-  find = "        gap = float(grad_w @ w - grad_w.min()) + float(grad_v @ v - grad_v.min())"
-  replace = "        gap = float(grad_w @ w - grad_w.min())"
-  models = "a certificate that reads only the treated block. The treated step is exact given the controls, so its own gap is near zero after every sweep and the fit stops wherever it is; the stop then reads as certified while the control block is far from optimal"
+  id = "the-newton-step-forgets-the-face"
+  find = "        off_face = lambda X: X - span @ (span.T @ X)"
+  replace = "        off_face = lambda X: X"
+  models = "the face step built without projecting out the face's directions, so it minimises the distance to one point of the face and not to the face. The step is rarely a descent, the fit falls back to alternating sweeps at their beta / (1 + beta) rate, and every answer stays right while the cost returns to what the step was introduced to remove"
+
+  [[target.mutant]]
+  id = "a-step-is-kept-without-descent"
+  find = "            if trial[0] < value - 1e-15 * (1.0 + abs(value)):"
+  replace = "            if True:"
+  models = "a face step kept whatever it does to the value. The face model is exact only on the current face, so a step that crosses into another face can raise the value, and without the check nothing stops the fit from cycling"
+
+  [[target.mutant]]
+  id = "the-fallback-sweep-is-dropped"
+  find = "        if not moved:"
+  replace = "        if False:"
+  models = "no alternating sweep when no face step descends. Where the starting point is already all but optimal and the step cannot improve it by a resolvable amount, the fit then repeats the same rejected step until it runs out of iterations and raises on a candidate it could have certified"
 
   [[target.mutant]]
   id = "the-treated-step-ignores-the-controls"
-  find = "        w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta)),"
-  replace = "        w = np.asarray(solve_simplex_qp(Bs, A),"
-  models = "the treated step fitted to the target alone, so the treated weights never move toward the synthetic control and the alternation is a treated fit followed by a control fit to it: the standard design's two fits in sequence, priced under the coupled objective"
+  find = "            w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta),"
+  replace = "            w = np.asarray(solve_simplex_qp(Bs, A,"
+  models = "the fallback sweep's treated fit aimed at the target alone, so it returns the starting point and the fit makes no progress on the candidates that need the sweep"
+
+  [[target.mutant]]
+  id = "the-cutoff-reads-the-upper-value"
+  find = "        if cutoff is not None and value - gap > cutoff:"
+  replace = "        if cutoff is not None and value > cutoff:"
+  models = "a candidate discarded because its current value, an upper bound, is above the incumbent. Early in the fit that value is above the candidate's own minimum, so a candidate that would beat the incumbent can be thrown away; only the value less the gap certifies that it cannot"
+
+  [[target.mutant]]
+  id = "the-search-withholds-its-incumbent"
+  find = "                              cutoff=cut + margin(cut) if np.isfinite(cut) else None)"
+  replace = "                              cutoff=None)"
+  models = "the search never passing the incumbent to the fit. Every design is still right, and every losing candidate is fitted to convergence, which at large beta is nearly all of them"
 
   [[target.mutant]]
   id = "the-design-reports-the-treated-fit-alone"
-  find = "            value, w, v = coupled_fit(B, A, cols, control, beta, w0=w)"
-  replace = "            value, _, v = coupled_fit(B, A, cols, control, beta, w0=w)"
+  find = "            value, w, v = fit"
+  replace = "            value, _, v = fit"
   models = "the coupled value reported with the treated weights from the uncoupled start. The value and the treated set are right, so every comparison of objectives passes, while the weights on the result do not attain the value stated beside them"
 
   [[target.mutant]]
   id = "an-uncertified-fit-is-returned"
   find = "    raise CoupledFitNotCertified("
   replace = "    return value, w, v\n    raise CoupledFitNotCertified("
-  models = "running out of sweeps treated as convergence: the value is an upper bound by an unknown amount, the search ranks on it, and the optimal design can be discarded with nothing raised"
+  models = "running out of steps treated as convergence: the value is an upper bound by an unknown amount, the search ranks on it, and the optimal design can be discarded with nothing raised"
 
   [[target.mutant]]
   id = "uncertified-reported-as-infeasible"
@@ -3919,7 +3943,14 @@ timeout = 900.0
   id = "a-negative-beta-searched"
   find = "        if beta < 0:"
   replace = "        if False:"
-  models = "a negative beta passed to the alternation. The coupling term is then concave, the treated step's target divides by 1 + beta, and at beta = -1 by zero"
+  models = "a negative beta passed to the fit. The coupling term is then concave, the face step's stacked rows take the square root of a negative number, and the sweep's target divides by 1 + beta, which is zero at beta = -1"
+
+  # Recorded, not carried: dropping the control block from the Frank-Wolfe gap
+  # ("gap = float(grad_w @ w - grad_w.min())") is an equivalent mutant since
+  # the fit moved to face steps. Every point the fit evaluates pairs the treated
+  # weights with the exact control fit to them, so the control block's gap is
+  # zero to the inner solver's tolerance and the sum and its first term agree.
+  # It is retired here so nobody re-adds it expecting a kill.
 
 [[target]]
 name = "marex-exact-coupled-config"
