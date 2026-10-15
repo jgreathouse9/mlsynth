@@ -131,6 +131,17 @@ with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
+From SCIP's solution MAREX keeps only the selection. SCIP counts a binary
+within its integrality tolerance of an integer as integral, so a selection
+variable left near :math:`10^{-6}` rounds to "not treated" while still allowing
+a treated weight of that size, and a market can then carry weight on both sides
+of the design. On one five-market test panel SCIP's point did exactly that: it
+used a market as a treated unit with weight :math:`10^{-6}` and as a control
+with weight 0.146, and reached an objective below that of any feasible design.
+MAREX therefore fixes the selection at its rounding and refits the weights with
+the selection held constant, which is a convex QP, so the weights and objective
+it reports belong to the design the selection defines.
+
 Most of the MIQP's cost is SCIP *proving* a design optimal, which grows steeply
 with the number of markets and treated units. Two options manage that. A
 ``warm_start`` (a list of treated unit labels) seeds the search with a known
@@ -508,12 +519,13 @@ peak. The script and its results are in
 
 ``res.study.backend`` records which backend ran, and ``res.globres.objective``
 the design objective it reached, which is the number to compare across
-backends. The two reach the same objective. Where the objective is nearly flat
-in some direction their weights can differ: SCIP stops once it is within its
-tolerance of the optimum, so on one of the test panels its ``unit_penalized``
-weights sit :math:`10^{-3}` from the search's while its objective is higher by
-three parts in :math:`10^{8}`. The search's weights come from an exact fit of
-the selected treated set.
+backends. The two reach the same objective. Both report weights fitted to the
+selected treated set, the search by an exact active-set fit and the MIQP by the
+refit above, so on the test panels the two agree to within
+:math:`5 \times 10^{-6}` in the weights and :math:`3 \times 10^{-9}` relative in
+the objective. Where the objective is flat in some direction the optimal weights
+are not unique, and the two can then return different weights at the same
+objective.
 
 Inference
 ^^^^^^^^^

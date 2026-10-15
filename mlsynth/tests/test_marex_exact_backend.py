@@ -86,12 +86,11 @@ def _treated(res):
 def _assert_same_design(exact, mip):
     """Same treated markets, and an optimum no worse than SCIP's.
 
-    The weights are compared loosely on purpose. Where the objective is flat in
-    some direction SCIP stops within its tolerance and its weights can sit 1e-3
-    from the optimum while the objective agrees to 1e-8 -- on the
-    unit-penalized fixture the search's design is the better of the two. What
-    the two backends must agree on is the optimum value, and the search may
-    only ever be lower.
+    The weights are compared loosely on purpose. Both backends fit the weights
+    of the selected set, but where the objective is flat in some direction the
+    optimal weights are not unique and two correct fits can differ. What the
+    two backends must agree on is the optimum value, and the search may only
+    ever be lower.
     """
     oe, om = exact.globres.objective, mip.globres.objective
     assert oe <= om + 1e-6 * (1.0 + abs(om))

@@ -4,6 +4,14 @@
 ``solve_design_relaxed`` relaxes ``z`` to ``[0, 1]``, solves the QP, then
 discretizes post hoc. Both return a raw result dict consumed by the
 orchestrator.
+
+SCIP accepts a binary within its integrality tolerance of an integer, so a
+selection left near ``1e-6`` rounds to "not selected" while still admitting a
+treated weight of that size, and a market can carry weight on both sides of the
+design. ``solve_design`` therefore takes only the selection from SCIP: it fixes
+``z`` at its rounding and refits the weights by :func:`refit_selection` with
+the selection held constant, so the weights and objective reported are those of
+the design the selection defines.
 """
 
 from __future__ import annotations
@@ -90,6 +98,134 @@ def finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
         "original_cluster_vector": clusters,
         "objective": objective,
     }
+
+
+#: Designs whose refit is two exact simplex fits per cluster (see refit_selection).
+_SEPARABLE = frozenset({"standard", "penalized", "unit_penalized"})
+
+
+def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
+                    z_sel, *, m_eq=None, m_min=None, m_max=None, costs=None,
+                    budget_dict=None, exclusive=True, restrictions=None,
+                    design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
+                    xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, D1=None,
+                    D2_list=None, solver=cp.SCIP):
+    """The weights of a fixed selection ``z_sel``, and their objective.
+
+    ``z_sel`` is rounded at 0.5 before anything else reads it.
+
+    For the ``standard``, ``penalized`` and ``unit_penalized`` designs with no
+    cost budget and exclusive arms, fixing the selection splits each cluster
+    into a treated fit and a control fit, and both are solved exactly by the
+    active-set simplex solver: the computation the exact backend's search runs
+    on each candidate, so a weight the optimum puts at zero is exactly zero.
+    Otherwise the MIQP's own constraints and objective are rebuilt with ``z``
+    continuous and pinned to ``z_sel``, a convex QP, and handed to ``solver``,
+    the solver the MIQP used.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        When the selection breaks the cardinality or a restriction, leaves a
+        cluster with no control market, or the QP is not solved to optimality.
+    """
+    if (design in _SEPARABLE and costs is None and budget_dict is None
+            and exclusive):
+        return _refit_by_simplex_fits(
+            X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel,
+            m_eq=m_eq, m_min=m_min, m_max=m_max, restrictions=restrictions,
+            design=design, lambda1=lambda1, lambda2=lambda2, xi=xi,
+            lambda1_unit=lambda1_unit, D1=D1)
+    return _refit_by_qp(
+        X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel,
+        m_eq=m_eq, m_min=m_min, m_max=m_max, costs=costs,
+        budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
+        design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
+        lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
+        D2_list=D2_list, solver=solver)
+
+
+def _refit_by_simplex_fits(X_fit, Xbar_clusters, cluster_members, cluster_labels,
+                           M, z_sel, *, m_eq, m_min, m_max, restrictions, design,
+                           lambda1, lambda2, xi, lambda1_unit, D1):
+    from .exact import _local_rules, _penalties, side_fit   # exact imports this module
+
+    N, K = M.shape
+    selected = np.asarray(z_sel, dtype=float) > 0.5
+    cluster_of = np.array([int(np.argmax(M[j])) for j in range(N)])
+    w_fit, v_fit, total = np.zeros((N, K)), np.zeros((N, K)), 0.0
+    for k_idx, lab in enumerate(cluster_labels):
+        members = np.asarray(cluster_members[k_idx])
+        treated = [i for i, j in enumerate(members) if selected[j, k_idx]]
+        me = get_per_cluster_param(m_eq, lab)
+        mn = get_per_cluster_param(m_min, lab)
+        mx = get_per_cluster_param(m_max, lab)
+        if ((me is not None and len(treated) != int(me))
+                or (mn is not None and len(treated) < int(mn))
+                or (mx is not None and len(treated) > int(mx))):
+            raise MlsynthEstimationError(
+                f"MAREX cannot refit the selected design: cluster {lab!r} has "
+                f"{len(treated)} selected markets (m_eq={me}, m_min={mn}, "
+                f"m_max={mx}).")
+        filt, donors = _local_rules(restrictions, members, cluster_of)
+        if not treated or not filt.accepts(tuple(treated)):
+            raise MlsynthEstimationError(
+                f"MAREX cannot refit the selected design: the selection in "
+                f"cluster {lab!r} breaks a forced, forbidden, conflict or "
+                f"stratum restriction.")
+        drop = set(treated)
+        for i, j in donors:
+            if i in drop:
+                drop.add(j)
+        control = [i for i in range(len(members)) if i not in drop]
+        if not control:
+            raise MlsynthEstimationError(
+                f"MAREX cannot refit the selected design: cluster {lab!r} has "
+                f"no control market left.")
+        B, A = X_fit[members].T, Xbar_clusters[k_idx]
+        a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,
+                          xi, lambda1_unit)
+        g, w = side_fit(B, A, treated, None if a is None else a[treated])
+        h, v = side_fit(B, A, control, None if b is None else b[control])
+        w_fit[members[treated], k_idx] = w
+        v_fit[members[control], k_idx] = v
+        total += g + h
+    return w_fit, v_fit, float(total)
+
+
+def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel,
+                 *, m_eq, m_min, m_max, costs, budget_dict, exclusive,
+                 restrictions, design, beta, lambda1, lambda2, xi, lambda1_unit,
+                 lambda2_unit, D1, D2_list, solver):
+    N, K = M.shape
+    # Rounded here as well as by the caller: a selection pinned at a binary a
+    # solver left near 1e-6 would admit a treated weight of that size, the
+    # defect the refit exists to remove.
+    z_fixed = (np.asarray(z_sel, dtype=float) > 0.5).astype(float)
+    w, v, z = init_cvxpy_variables(N, K, boolean=False)
+    constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
+                                    m_eq, m_min, m_max, costs, budget_dict,
+                                    exclusive, restrictions=restrictions)
+    constraints = constraints + [z == z_fixed]
+    objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
+                                design, beta, lambda1, lambda2, xi,
+                                lambda1_unit, lambda2_unit, D1, D2_list)
+    prob = cp.Problem(objective, constraints)
+    prob.solve(solver=solver)
+    if prob.status != cp.OPTIMAL or w.value is None or v.value is None:
+        raise MlsynthEstimationError(
+            f"MAREX cannot refit the selected design (solver status: "
+            f"{prob.status}); the selection is infeasible under the design's "
+            f"constraints or the QP did not solve.")
+    # Entries the constraints force to zero are set to exactly zero: the
+    # orchestrator classifies markets by their weights, and a solver leaves
+    # them at its own tolerance.
+    selected = z_fixed > 0.5
+    w_fit = np.where(selected, np.maximum(w.value, 0.0), 0.0)
+    v_fit = np.where(np.asarray(M) > 0, np.maximum(v.value, 0.0), 0.0)
+    if exclusive:
+        v_fit = np.where(selected, 0.0, v_fit)
+    return w_fit, v_fit, float(prob.value)
 
 
 def solve_design(
@@ -195,7 +331,14 @@ def solve_design(
                 f"m_min={mn}, m_max={mx}); treating the feasible region as "
                 f"exhausted."
             )
-    objective = float(prob.value) if prob.value is not None else float("nan")
+    z_opt = z_round.astype(float)
+    w_opt, v_opt, objective = refit_selection(
+        X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_opt,
+        m_eq=m_eq, m_min=m_min, m_max=m_max, costs=costs_np,
+        budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
+        design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
+        lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
+        D2_list=D2_list, solver=solver if solver is not None else cp.SCIP)
     return finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
                          cluster_labels, cluster_members, N, K, T0,
                          blank_periods, T_fit, Y_fit, Y_blank, design, clusters,
