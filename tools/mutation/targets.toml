@@ -3976,6 +3976,12 @@ timeout = 900.0
   replace = '        for name in ("warm_start", "time_limit"):'
   models = "solver accepted with backend='exact' and silently unused, so a user who asked for a particular solver gets the search with no word that their choice did nothing"
 
+  [[target.mutant]]
+  id = "the-exact-backend-accepts-a-cap-it-cannot-impose"
+  find = "        if self.max_control_weight is not None:"
+  replace = "        if False:"
+  models = "the control-weight cap accepted under backend='exact', which scores each candidate by its control fit over the plain simplex. The cap is then recorded on the config and never imposed, so a design asked for a ceiling of 0.2 can return a control market carrying 0.5, which is the failure the cap exists to prevent"
+
 [[target]]
 name = "marex-exact-routing"
 module-path = "mlsynth/utils/marex_helpers/orchestration.py"
@@ -4173,3 +4179,116 @@ timeout = 180.0
   find = 'in_sample = _rmse(y[:T0] - np.asarray(fit(y, X, T0), dtype=float).ravel()[:T0])'
   replace = 'in_sample = _rmse(y - np.asarray(fit(y, X, T0), dtype=float).ravel())'
   models = "an in-sample baseline measured over the whole sample, so the treatment effect itself inflates the denominator and a real extrapolation failure is divided away"
+[[target]]
+name = "contamination-triage"
+module-path = "mlsynth/utils/contamination.py"
+test-command = "python -m pytest mlsynth/tests/test_contamination.py mlsynth/tests/test_contamination_properties.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-bias-is-reported-with-the-wrong-sign"
+  find = '        bias = -exposure * _validate_scalar(shock, "shock")'
+  replace = '        bias = exposure * _validate_scalar(shock, "shock")'
+  models = "the direction of the contamination error flipped. The analyst who reads it subtracts when they should add, so acting on the report leaves the estimate off by twice the contamination instead of correcting it, and the magnitude still agrees with every sanity check on size"
+
+  [[target.mutant]]
+  id = "the-breakdown-shock-scales-with-the-weight"
+  find = '        breakdown = tau / exposure if carries else float("inf")'
+  replace = '        breakdown = tau * exposure if carries else float("inf")'
+  models = "a breakdown point that falls as the market's weight falls. It inverts the reading the quantity exists to give: a market at v_k = 0.02 would be reported as overturning the result under a shock of a fiftieth the effect, when in truth it needs fifty times it, so the designs least able to be hurt look the most fragile"
+
+  [[target.mutant]]
+  id = "the-breakdown-shock-carries-the-effects-sign"
+  find = "        tau = abs(_validate_scalar(att, \"att\"))"
+  replace = "        tau = _validate_scalar(att, \"att\")"
+  models = "the sign of the measured effect read as the sign of the shock that would consume it. A negative effect then reports a negative breakdown shock, which no contamination of either sign can be compared against, and the triage question has no answer at all for exactly half of all designs"
+
+  [[target.mutant]]
+  id = "a-denormal-weight-is-inverted-anyway"
+  find = '        breakdown = tau / exposure if carries else float("inf")'
+  replace = '        breakdown = tau / exposure if exposure else float("inf")'
+  models = "the breakdown point computed from any non-zero weight, including one at the solver's noise floor. It is the defect hypothesis found: at v_k = 1e-300 the division overflows to inf by accident on some inputs and returns an unreadable finite figure on others, so the tolerance the report draws for carries_weight is not the tolerance it computes with"
+
+  [[target.mutant]]
+  id = "the-concentration-index-is-constant"
+  find = "        herfindahl=float((v ** 2).sum()),"
+  replace = "        herfindahl=float(v.sum() ** 2),"
+  models = "a Herfindahl index that squares the total instead of totalling the squares. Since the weights sum to 1 it reports 1.0 for every design, so the concentration summary is blind to the distinction it exists to draw and a design resting on one market reads the same as one spread over twenty"
+
+  [[target.mutant]]
+  id = "padding-zeros-count-as-markets"
+  find = "        n_carrying_weight=int((v > WEIGHT_TOL).sum()),"
+  replace = "        n_carrying_weight=int(v.size),"
+  models = "every column of the panel counted as a control market, including the ones the design gave no weight. A design concentrated in three markets out of forty then reports forty, and the one summary that says how many markets the answer actually rests on reports the size of the data instead"
+
+  [[target.mutant]]
+  id = "an-unknown-market-reads-the-first-ones-weight"
+  find = "        k = len(values)\n        values.append(0.0)"
+  replace = "        k = 0"
+  models = "a market absent from the control-weight map resolved to index 0. Asking about a treated market, or about a typo in a market name, then returns the weight and the bias of whichever market happens to come first in the map, which is the one failure mode of a name lookup that produces a confident wrong number instead of an error"
+
+[[target]]
+name = "marex-weight-cap"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weight_cap.py mlsynth/tests/test_marex_weight_cap_properties.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-cap-constrains-the-treated-side"
+  find = "                constraints += [v[j, k_idx] <= float(max_control_weight)]"
+  replace = "                constraints += [w[j, k_idx] <= float(max_control_weight)]"
+  models = "the ceiling applied to the treated weights instead of the control weights. It is the one substitution that leaves a feasible program and a plausible design while doing nothing about the quantity the option exists for: the contamination exposure v_k stays wherever the optimizer put it, and the treated side is restricted for no reason"
+
+  [[target.mutant]]
+  id = "the-excess-weight-is-dropped"
+  find = "        x[free] = room + excess * share"
+  replace = "        x[free] = room"
+  models = "clipping without redistribution, so the control weights sum to less than one. The synthetic control is then a fraction of the comparison it should be, biasing the effect by the discarded share of the level, and every weight still satisfies the cap"
+
+  [[target.mutant]]
+  id = "water-filling-makes-one-pass"
+  find = "    for _ in range(max_iter):"
+  replace = "    for _ in range(1):"
+  models = "a single clip-and-redistribute pass. Redistribution can lift a free entry above the cap, which the next pass clips, so one pass leaves the cap violated on exactly the inputs where several entries sit near it -- the ones a tight cap produces"
+
+[[target]]
+name = "marex-weight-cap-plumbing"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weight_cap.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-cap-is-recorded-but-never-imposed"
+  find = "        max_control_weight=max_control_weight,\n    )"
+  replace = "        max_control_weight=None,\n    )"
+  models = "the cap accepted by the config, carried onto the result's summary_stats and documented, while the solver never sees it. This is the shape of the two mutants that reached main on earlier branches: an option that reads as a feature everywhere a reader would look, and has no effect. Only an assertion on the returned weights catches it"
+
+[[target]]
+name = "marex-weight-cap-rounding"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weight_cap.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-rounded-weights-are-not-capped"
+  find = "        if (max_control_weight is not None and float(max_control_weight) < 1.0\n                and len(control_idx) > 0):"
+  replace = "        if False:"
+  models = "the relaxed path's rounding left uncapped. The QP respects the cap, but discretization renormalizes the control weights over the units it did not treat, so the mass that sat on a now-treated unit lifts a control weight back above the ceiling. The exact path stays correct, so only a test that fits with relaxed=True sees it"
+
+  [[target.mutant]]
+  id = "capped-weight-spills-onto-treated-markets"
+  find = "                                      support=mask)"
+  replace = "                                      support=None)"
+  models = "water-filling over every unit in the cluster instead of the control set, so the redistributed mass lands partly on units the design selected for treatment. The control weights then sum to less than one over the controls, and the treated markets appear on both sides of the comparison, which is the disjointness the design exists to maintain"
+
+[[target]]
+name = "marex-weight-cap-feasibility"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weight_cap.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "feasibility-is-checked-against-the-largest-cluster"
+  find = "            controls_max = int(min(sizes) - treated_min)"
+  replace = "            controls_max = int(max(sizes) - treated_min)"
+  models = "the smallest feasible cap computed from the largest cluster. A cap that the biggest cluster can meet and the smallest cannot is then accepted, and the user gets an infeasible solver status from inside the optimizer instead of a message naming the cap it would take"

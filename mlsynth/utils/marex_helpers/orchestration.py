@@ -61,6 +61,7 @@ def solve_marex(
     cumulative_n_sim=2000,
     cumulative_seed=0,
     backend="mip",
+    max_control_weight=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -87,11 +88,15 @@ def solve_marex(
         costs=costs, budget=budget, covariates=covariates,
         covariate_weight=covariate_weight, standardize=standardize,
         solver=solver, verbose=verbose,
+        max_control_weight=max_control_weight,
     )
     if backend == "exact":
         # The search takes the restrictions and none of branch-and-bound's
-        # knobs; the config refuses those with this backend.
-        for knob in ("solver", "verbose"):
+        # knobs; the config refuses those with this backend. It also does not
+        # take the control-weight cap, which constrains the per-candidate
+        # control fit the search solves in closed form; the config refuses a
+        # cap here, so dropping it loses nothing.
+        for knob in ("solver", "verbose", "max_control_weight"):
             solve_kw.pop(knob)
         solve_kw["restrictions"] = restrictions
         raw = solve_design_exact(**solve_kw)
@@ -288,6 +293,7 @@ def solve_marex(
             "n_treated": len(treated_labels),
             "n_control": len(control_labels),
             "control_weights_agg": control_w_map,
+            "max_control_weight": max_control_weight,
         },
     )
     # The realized effect as a standardized EffectResult (the family adapter).

@@ -479,6 +479,9 @@ naming ``backend="mip"``:
 * ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
   a second constraint on the treated fit that the search's simplex solver does
   not take;
+* ``max_control_weight``, which bounds each control weight above, while the
+  search's per-candidate fit puts the control weights on the simplex with no
+  upper bound (:ref:`marex-control-weight-cap`);
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
 
@@ -514,6 +517,70 @@ tolerance of the optimum, so on one of the test panels its ``unit_penalized``
 weights sit :math:`10^{-3}` from the search's while its objective is higher by
 three parts in :math:`10^{8}`. The search's weights come from an exact fit of
 the selected treated set.
+.. _marex-control-weight-cap:
+
+Capping a single control market's exposure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The design commits to its control weights at :math:`T_0`, which is what keeps
+them honest, and also means it cannot react to anything that happens afterwards.
+If an outside event hits control market :math:`k` during the experiment -- a
+competitor launch, a store closure, a pricing change -- and shifts that market's
+outcome by :math:`\pi`, the reported effect is off by exactly
+
+.. math::
+
+   \hat{\tau}_{\text{observed}} - \hat{\tau}_{\text{clean}} = -v_k \pi ,
+
+since the control synthetic is :math:`\sum_j v_j y_{jt}` and only market
+:math:`k` moved. The exposure to any one market is therefore the weight the
+optimizer gave it, and :math:`T_0` is the only point at which that is a
+decision. :doc:`contamination` reads it off a fitted design.
+
+``max_control_weight`` makes it a decision. It adds :math:`v_{jk} \le c` for
+every unit and cluster, so no control weight exceeds :math:`c`. Three
+consequences follow for free, whatever the optimizer does with the freedom
+left to it:
+
+* no single market can move the estimate by more than :math:`c` times its own
+  shock;
+* at least :math:`\lceil 1/c \rceil` markets carry control weight, since the
+  weights sum to one;
+* the control group's effective sample size :math:`1 / \sum_j v_j^2` is at least
+  :math:`1/c`, because :math:`\sum_j v_j^2 \le c \sum_j v_j = c`.
+
+The constraint is imposed per cluster. The aggregate control weights are a
+cluster-size-weighted mean of the per-cluster columns, a convex combination, so
+the per-cluster cap implies the same cap on the aggregate.
+
+The price is pre-period fit, and it is the usual trade: the optimizer was
+concentrating on those markets because they matched the cluster mean best. On
+the twelve-market panel in ``mlsynth/tests/test_marex_weight_cap.py`` the
+unconstrained design puts 0.4916 on one market and holds an effective 3.34
+control markets; a cap of 0.2 spreads it over eight for an effective 6.85, and
+the worst-case pre-fit RMSE moves from 0.6588 to 0.6598. How much fit a given
+panel gives up is an empirical question -- measure it on yours by fitting both.
+
+Feasibility is checked when the config is built, against the smallest cluster:
+:math:`c` times (cluster size less the treated count) must be at least one,
+with the treated count read from ``m_eq`` exactly or ``m_min`` otherwise. If the
+cap fails against the most favourable treated count it fails against every
+feasible one, so the program is infeasible, and the refusal names the smallest
+cap that would work. A cap of 1 is implied by the simplex and is not added to
+the program.
+
+Under ``relaxed=True`` the cap enters the relaxed QP, and the rounding that
+follows renormalizes the control weights over the units it did not treat, which
+can lift one back above the ceiling. The rounded weights are water-filled back
+under the cap: clip to the ceiling, hand the freed mass to the weights still
+below it in proportion to what they hold, repeat. So the guarantee holds on
+both program paths, though only the MIQP is optimal subject to it. The cap is
+not available under ``backend="exact"``, which refuses it when the config is
+built.
+
+.. code-block:: python
+
+   MAREX({**B, "m_eq": 3, "max_control_weight": 0.2}).fit()
 
 Inference
 ^^^^^^^^^

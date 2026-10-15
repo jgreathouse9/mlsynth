@@ -113,6 +113,11 @@ from .utils.spcd_helpers.plotter import (
     plot_power_curves,
     plot_detectability,
 )
+from .utils.contamination import (
+    ContaminationReport,
+    contamination_report,
+    control_exposure,
+)
 from .utils.truncated_history import (
     truncated_history,
     TruncatedHistoryResult,
@@ -212,6 +217,7 @@ __all__ = [
     "ISCM",
     "VanillaSC",
     "truncated_history", "TruncatedHistoryResult", "TruncatedHistoryWindow",
+    "ContaminationReport", "contamination_report", "control_exposure",
     "DSCAR",
     "DTWSC",
     "EASC",
