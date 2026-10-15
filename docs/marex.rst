@@ -155,9 +155,8 @@ starts the branch-and-bound from a strong incumbent instead of hunting for one.
 Paired with ``time_limit`` (seconds), MAREX then returns the best design found
 within the budget — typically the seed, confirmed or refined — instead of paying
 the full optimality proof. Both default to off and apply to the exact MIQP only.
-For the ``standard``, ``penalized`` and ``unit_penalized`` designs,
-``backend="exact"`` skips the MIQP and finds the same optimum by searching
-treated sets directly (:ref:`marex-search-backend`).
+For every design, ``backend="exact"`` skips the MIQP and finds the same optimum
+by searching treated sets directly (:ref:`marex-search-backend`).
 
 ``mlsynth`` exposes four objective variants through ``design`` (clear names
 that map to the paper's formulations):
@@ -413,13 +412,81 @@ search keeps its ``top_K`` best treated sets, and the pool is the ``top_K``
 smallest totals of one choice per cluster; the MIQP builds the same pool by
 re-solving once per design, with a cut excluding the designs already found.
 
+The ``weakly_targeted`` design ties the two sides together. Its objective is
+
+.. math::
+
+   f(\mathcal{S}) =
+     \min_{\mathbf{w} \in \Delta^{\mathcal{S}},\;
+           \mathbf{v} \in \Delta^{\mathcal{N}_0(\mathcal{S})}}
+     \Bigl\| \bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j
+     \Bigr\|_2^2
+     + \beta \Bigl\| \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j
+       - \sum_{j \in \mathcal{N}_0(\mathcal{S})} v_j \mathbf{x}_j
+     \Bigr\|_2^2,
+
+and its second term involves both sets of weights, so naming
+:math:`\mathcal{S}` no longer leaves two separate fits. It leaves a convex
+problem in the treated weights alone,
+:math:`\phi(\mathbf{w}) = \|\bar{\mathbf{x}} - \mathbf{u}\|^2 + \beta\, d(\mathbf{u})^2`
+with :math:`\mathbf{u} = \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j` the synthetic
+treated and :math:`d(\mathbf{u})` its distance to the convex hull of the control
+markets, since for a given synthetic treated the best synthetic control is the
+nearest point of that hull.
+
+The search minimises :math:`\phi` one face of that hull at a time. The nearest
+point of a face's affine hull moves linearly with :math:`\mathbf{u}`, so on the
+face where the current synthetic control sits, :math:`\phi` is a quadratic in
+:math:`\mathbf{w}`, and minimising it over the treated simplex is a single
+synthetic-control fit with a stacked design. That fit is the step. The search
+keeps a step only if :math:`\phi`, with the controls refitted exactly, goes
+down; it halves the step otherwise, and if no halving helps it takes one
+alternating step (the treated fit to
+:math:`(\bar{\mathbf{x}} + \beta \mathbf{c}) / (1 + \beta)` for the current
+synthetic control :math:`\mathbf{c}`, then the controls). Because each step
+solves its face exactly, the number of steps does not grow with :math:`\beta`:
+across 400 random problems it was never more than three, at :math:`\beta` from 0 to
+100. Plain alternation between the two fits converges at the rate
+:math:`\beta / (1 + \beta)` and needed a median of 1,750 steps per candidate at
+:math:`\beta = 100` on GeoLift's forty markets.
+
+The fit stops on a certificate, not on a small step. The Frank-Wolfe gap, the
+improvement the best vertex of each simplex offers along the gradient, bounds
+the distance to the minimum from above, and the fit stops when the gap is under
+:math:`10^{-10}` of the objective. A fit whose gap is still open after 20,000
+steps raises with a message naming ``backend="mip"``, since ranking candidates
+on an uncertified value could discard the optimal design. The same gap gives a
+certified lower bound at every step, the objective less the gap. The search
+hands each fit the objective of the best design found so far, and the fit stops and discards its
+candidate as soon as that lower bound is above it.
+
+The coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
+still holds and the bound and both passes prune as they do for the other
+designs. At large :math:`\beta` they prune little, because the coupling term
+then dominates the objective and a bound on the treated fit cannot see it. On
+GeoLift's forty markets with four treated, the search fitted 274 of the 91,390
+candidates at :math:`\beta = 1` and took 1.2 seconds. At :math:`\beta = 100` it
+fitted 82,415 and took 7.9 minutes; all but four of those fits were discarded
+on a certified lower bound before converging, after one or two steps. Before the face steps and the cutoff, the same
+searches took 25 seconds and, by extrapolation from the measured cost per
+candidate, about five days. SCIP, given 30 minutes on each of the same two
+problems through ``backend="mip"``, stopped at designs whose objectives were 2.1
+times the optimum at :math:`\beta = 1` and 2.3 times it at :math:`\beta = 100`,
+without a proof of optimality for either.
+
+Abadie and Zhao's enumeration solves two separate synthetic-control problems per
+candidate (supplementary appendix, Section OA.6), and they solve this design by
+their quadratic-programming route instead: a non-convex quadratically
+constrained program passed to Gurobi. They report numerical errors of up to
+0.001 in the weights from it, round the weights to two digits, and set weights
+at or below 0.01 to zero. The search solves the same program and returns its
+weights unrounded.
+
 ``backend="exact"`` refuses, when the configuration is built and with a message
 naming ``backend="mip"``:
 
-* ``design="weakly_targeted"``, whose term
-  :math:`\beta \|\sum_j w_j \mathbf{x}_j - \sum_j v_j \mathbf{x}_j\|_2^2` ties
-  the control weights to the treated ones, so fixing :math:`\mathcal{S}` no
-  longer splits the objective;
+* a negative ``beta``, which makes the weakly-targeted coupling concave, so the
+  design has no minimum to certify;
 * ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
   a second constraint on the treated fit that the search's simplex solver does
   not take;

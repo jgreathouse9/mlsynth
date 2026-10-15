@@ -325,7 +325,6 @@ def test_duplicate_markets_reach_the_same_objective_as_the_mip():
 # -------------------------------------------------------------- failures
 @pytest.mark.parametrize("over, fragment", [
     ({"relaxed": True}, "relaxed"),
-    ({"design": "weakly_targeted", "beta": 1.0}, "weakly_targeted"),
     ({"costs": [1.0] * 9, "budget": 3}, "budget"),
     ({"warm_start": ["u0"]}, "warm_start"),
     ({"time_limit": 5.0}, "time_limit"),
@@ -481,7 +480,7 @@ def test_lambda2_unit_is_refused():
 
 
 @pytest.mark.parametrize("over, fragment", [
-    ({"design": "weakly_targeted"}, "separable"),
+    ({"design": "no_such_design"}, "no_such_design"),
     ({"costs": np.ones(9), "budget": 3}, "budget"),
     ({"design": "unit_penalized", "lambda2_unit": 0.1}, "lambda2_unit"),
 ])
