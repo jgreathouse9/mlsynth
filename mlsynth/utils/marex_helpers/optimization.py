@@ -44,16 +44,28 @@ def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
     outcomes only. With ``standardize=True`` each predictor column is scaled to
     unit variance across units (the paper's Walmart normalisation), so the match
     is not dominated by high-level series.
+
+    ``covariate_weight`` multiplies the covariate columns after the
+    standardisation, as in Vives-i-Bastida (2022, Algorithm 1): standardise
+    every predictor, then weight it. Weighting first would be undone by the
+    division, leaving every weight with the same design. A column that is
+    constant across units, up to rounding, is left unscaled: under simplex
+    weights it adds nothing to the objective, and dividing its rounding noise
+    would turn it into a column of order 1e15.
     """
     X = Y_fit
+    n_out = Y_fit.shape[1]
     if covariates is not None:
         cov = np.asarray(covariates, dtype=float)
         if cov.ndim == 1:
             cov = cov[:, None]
-        X = np.hstack([Y_fit, covariate_weight * cov])
+        X = np.hstack([Y_fit, cov])
     if standardize:
         sd = X.std(axis=0)
-        X = X / np.where(sd == 0, 1.0, sd)
+        flat = sd <= 1e-12 * np.abs(X).max(axis=0, initial=0.0)
+        X = X / np.where(flat, 1.0, sd)
+    if covariates is not None:
+        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])
     return X
 
 
