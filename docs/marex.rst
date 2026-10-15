@@ -458,7 +458,10 @@ candidates at :math:`\beta = 1` and took 1.2 seconds. At :math:`\beta = 100` it
 fitted 82,415 and took 7.9 minutes; all but four of those fits were discarded
 on a certified lower bound before converging, after one or two steps. Before the face steps and the cutoff, the same
 searches took 25 seconds and, by extrapolation from the measured cost per
-candidate, about five days.
+candidate, about five days. SCIP, given 30 minutes on each of the same two
+problems through ``backend="mip"``, stopped at designs whose objectives were 2.1
+times the optimum at :math:`\beta = 1` and 2.3 times it at :math:`\beta = 100`,
+without a proof of optimality for either.
 
 Abadie and Zhao's enumeration solves two separate synthetic-control problems per
 candidate (supplementary appendix, Section OA.6), and they solve this design by
