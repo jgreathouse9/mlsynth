@@ -1,0 +1,4 @@
+J,m_eq,objective,nodes,lp_iters,root_bound,soc_detects,convex_detects,default_detects,nonlinear_cuts,nonlinear_cuts_applied
+12,3,6.722141,37,8891,0.221222,0,0,76,4627,4304
+16,4,4.55507,172,33987,0.242297,0,0,76,15554,14183
+20,5,2.906438,520,78857,0.221546,0,0,76,38605,35008
