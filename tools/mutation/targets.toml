@@ -823,20 +823,26 @@ timeout = 400.0
 [[target]]
 name = "simplex-active-set-seeding"
 module-path = "mlsynth/utils/solvers/active_set.py"
-test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_sdid_warm_start_accel.py mlsynth/tests/test_fista_support_patience.py mlsynth/tests/test_bilevel_penalized_qp.py -q -p no:cacheprovider"
 timeout = 600.0
 
   [[target.mutant]]
   id = "seeding-is-a-property-of-one-call-site"
-  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start(B, A)"
-  replace = "    if False:\n        warm_start = fista_warm_start(B, A)"
+  find = "    if warm_start is None and accelerate and linear is None:\n        warm_start = priced_seed(B, A)"
+  replace = "    if False:\n        warm_start = priced_seed(B, A)"
   models = "the defect this change fixed. With the seed computed in one caller instead of in the solver, the other twelve call sites start from the uniform point and the active set sheds one donor per pivot: 117 inner solves for SDID on a 101x120 panel against 31 for VanillaSC on the same panel. Every weight is still correct, so only a work assertion can see it"
 
   [[target.mutant]]
   id = "seeding-overrides-the-callers-warm-start"
-  find = "    if warm_start is None and accelerate and J >= ACCEL_MIN_DONORS:"
-  replace = "    if accelerate and J >= ACCEL_MIN_DONORS:"
+  find = "    if warm_start is None and accelerate and linear is None:"
+  replace = "    if accelerate and linear is None:"
   models = "a seed recomputed on top of one the caller already has. The placebo loop chains the previous draw's solution through this argument, so discarding it pays for a FISTA run per draw to replace a start that was already on the answer"
+
+  [[target.mutant]]
+  id = "the-seed-is-taken-on-a-program-with-a-linear-term"
+  find = "    if warm_start is None and accelerate and linear is None:"
+  replace = "    if warm_start is None and accelerate:"
+  models = "the seed applied where the loop's guarantee is weaker. With a linear term the loop never tests stationarity on the free variables, so the point it accepts is the minimiser only when the free set it reaches is narrow enough for the subproblem to be bounded; eliminating from the uniform point reaches such a set and a priced support does not. On the bilevel penalized program at lambda = 1e-6 it returns an objective 0.46 per cent above the cvxpy optimum on six donors against Abadie-L'Hour's bound of five, reported as converged and passing the post-hoc guard"
 
 [[target]]
 name = "fista-support-stop"

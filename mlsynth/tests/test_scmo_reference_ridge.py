@@ -121,14 +121,21 @@ def test_a_face_of_minimisers_is_resolved_the_same_way_whatever_the_donor_order(
 
 def test_the_plain_program_does_not_have_that_invariant():
     """The instrument has power: the same sweep on the unridged program finds a
-    different answer. A test that passed on both could not separate them."""
+    different answer. A test that passed on both could not separate them.
+
+    The foil is the cold path, because the seeding rule decides whether the
+    unridged program moves at all. A rule that prices the columns is equivariant
+    wherever the prices are distinct, so under one this design's plain solve
+    returns the same 2-sparse vertex for every relabelling and there is nothing
+    to separate. Cold it moves by 1.5e-1.
+    """
     B, A = _face_problem(J=6)
-    w0 = solve_simplex_qp(B, A)
+    w0 = solve_simplex_qp(B, A, accelerate=False)
     rng = np.random.default_rng(3)
     worst = 0.0
     for _ in range(25):
         perm = rng.permutation(B.shape[1])
-        wp = solve_simplex_qp(B[:, perm], A)
+        wp = solve_simplex_qp(B[:, perm], A, accelerate=False)
         back = np.empty_like(wp)
         back[perm] = wp
         worst = max(worst, float(np.abs(back - w0).max()))
@@ -149,15 +156,23 @@ def test_the_selected_point_has_the_smallest_norm_among_the_minimisers():
 def test_a_face_centred_on_the_uniform_mix_cannot_separate_the_two_programs():
     """Recorded because it is the trap this file fell into first. The plain
     program looks order-invariant on such a design, for a reason that has
-    nothing to do with the ridge."""
+    nothing to do with the ridge: the cold start is the uniform weights, that
+    point is already on this face, and the solve returns it without pivoting.
+
+    The trap belongs to the start, not to the solver, so the cold path is named
+    here. A seeding rule that prices the columns starts somewhere else and gets
+    no such symmetry -- on this design it returns a 2-sparse vertex and
+    relabelling moves it by 8.3e-1, which is the opposite failure and is
+    covered by the sweep above.
+    """
     B = np.arange(1.0, 7.0).reshape(1, 6)
     A = np.array([B.mean()])
-    w0 = solve_simplex_qp(B, A)
+    w0 = solve_simplex_qp(B, A, accelerate=False)
     assert np.allclose(w0, 1.0 / 6.0, atol=1e-9)
     rng = np.random.default_rng(3)
     for _ in range(10):
         perm = rng.permutation(6)
-        wp = solve_simplex_qp(B[:, perm], A)
+        wp = solve_simplex_qp(B[:, perm], A, accelerate=False)
         back = np.empty_like(wp)
         back[perm] = wp
         assert np.abs(back - w0).max() == pytest.approx(0.0, abs=1e-12)

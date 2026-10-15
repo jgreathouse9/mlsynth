@@ -1,6 +1,6 @@
 """Every cold entry into the simplex solver seeds itself, SDID's two included.
 
-The FISTA warm start used to be computed in ``ridge_augment.simplex_qp``, so
+The seed used to be a FISTA pass computed in ``ridge_augment.simplex_qp``, so
 being accelerated was a property of that one entry point. Of the thirteen call
 sites in the library, twelve never supplied a warm start -- MEDSC, SCD, COMPSC,
 StackedSC, mlSC, the proximal over-identified weights, the ``minnorm`` fallbacks,
@@ -13,6 +13,13 @@ That is what made SDID slow. On a 101x120 panel its two programs took 117 inner
 least-squares solves between them, while ``VanillaSC`` on the same panel took 31
 through the accelerated door.
 
+The seed is now :func:`~mlsynth.utils.solvers.accelerate.priced_seed`, which
+prices the columns at the uniform point and keeps the ``SEED_KEEP`` whose reduced
+gradient is most negative, capped at ``m + 1``. Its gate is that budget and not
+the pool's width: a pool no wider than the cap has nothing to price away and
+takes the untouched cold path, and everything wider is pruned. So the fixtures
+below are sized against ``SEED_KEEP`` and not against a donor floor.
+
 The gate now lives in the solver. These tests pin the consequences: SDID's
 weights are unchanged to the last bit, its pivot count collapses, and the gate
 still respects the two cases that must skip it.
@@ -24,7 +31,7 @@ import pytest
 
 from mlsynth import SDID
 from mlsynth.utils.solvers import active_set
-from mlsynth.utils.solvers.accelerate import ACCEL_MIN_DONORS
+from mlsynth.utils.solvers.accelerate import SEED_KEEP
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.sdid_helpers.weights import _solve_intercept_simplex
 
@@ -57,22 +64,22 @@ def _fit(df, **overrides):
 
 
 def _cold(monkeypatch):
-    """Raise the gate out of reach, restoring the pre-change cold path."""
-    monkeypatch.setattr(active_set, "ACCEL_MIN_DONORS", 10 ** 9)
+    """Decline every seed, restoring the pre-change cold path."""
+    monkeypatch.setattr(active_set, "priced_seed", lambda B, A, **kw: None)
 
 
 class _Spy:
-    """Counts calls to ``fista_warm_start`` as the solver makes them."""
+    """Counts the seeds the solver computes for itself, with their shapes."""
 
     def __init__(self, monkeypatch):
         self.calls = []
-        real = active_set.fista_warm_start
+        real = active_set.priced_seed
 
         def spy(design, target, **kwargs):
             self.calls.append(np.asarray(design).shape)
             return real(design, target, **kwargs)
 
-        monkeypatch.setattr(active_set, "fista_warm_start", spy)
+        monkeypatch.setattr(active_set, "priced_seed", spy)
 
     def __len__(self):
         return len(self.calls)
@@ -88,8 +95,9 @@ class TestSmoke:
         assert len(result.weights.donor_weights) == 90
 
     def test_the_panel_is_wide_enough_to_engage_the_gate(self):
-        """The premise of the file: 90 donors clears ``ACCEL_MIN_DONORS``."""
-        assert 90 >= ACCEL_MIN_DONORS
+        """The premise of the file: 90 donors is wider than the seed's budget, so
+        there is something to price away."""
+        assert 90 > SEED_KEEP
 
 
 # --------------------------------------------------------------------------- #
@@ -129,7 +137,7 @@ class TestAnswerUnchanged:
             intercept_a, weights_a = _solve_intercept_simplex(design, target, ridge)
             _cold(monkeypatch)
             intercept_b, weights_b = _solve_intercept_simplex(design, target, ridge)
-            monkeypatch.setattr(active_set, "ACCEL_MIN_DONORS", ACCEL_MIN_DONORS)
+            monkeypatch.undo()
             np.testing.assert_allclose(weights_a, weights_b, rtol=0, atol=1e-12)
             assert intercept_a == pytest.approx(intercept_b, rel=0, abs=1e-10)
 
@@ -138,7 +146,29 @@ class TestAnswerUnchanged:
 # 3. the work the seam removes
 # --------------------------------------------------------------------------- #
 class TestWorkReduction:
-    def test_sdid_takes_fewer_pivots(self, monkeypatch):
+    def test_sdid_takes_more_pivots_and_less_time(self, monkeypatch):
+        """The direction is inverted here, and the reason is the ridge.
+
+        SDID stacks ``sqrt(ridge) I`` beneath its design, and a ridge exists to
+        spread weight, so its optima are dense: on this panel the support is 65
+        of 90 donors on one program and 14 of 30 on the other. A seed keeping
+        ``SEED_KEEP`` columns therefore undershoots badly, and the release rule
+        lets exactly one donor back per pivot, so the pivot count rises. What
+        does not rise is the cost, because an add-back pivot solves on a small
+        free set:
+
+            cold        41 pivots   16.2 ms
+            k=4         73 pivots   15.0 ms
+            k=8         67 pivots   14.2 ms
+            k=16        59 pivots   14.1 ms
+            k=64        37 pivots   12.1 ms
+
+        So the pivot count is a proxy that stops tracking the cost on a dense
+        optimum, and this test asserts the measured direction of both instead of
+        the one that reads better. ``test_cold_work_scales_with_the_pool_and_
+        seeded_work_does_not`` keeps the pivot-reduction claim where it holds --
+        an unridged pool, where the optimum is sparse.
+        """
         pivots = {"seeded": [], "cold": []}
         real = solve_simplex_qp
 
@@ -153,15 +183,55 @@ class TestWorkReduction:
 
         monkeypatch.setattr(sdid_weights, "solve_simplex_qp",
                             recording(pivots["seeded"]))
-        _fit(_panel())
+        seeded = _fit(_panel())
 
         _cold(monkeypatch)
         monkeypatch.setattr(sdid_weights, "solve_simplex_qp",
                             recording(pivots["cold"]))
-        _fit(_panel())
+        cold = _fit(_panel())
 
         assert len(pivots["seeded"]) == len(pivots["cold"]) > 0
-        assert sum(pivots["seeded"]) < sum(pivots["cold"])
+        assert sum(pivots["seeded"]) > sum(pivots["cold"]), (
+            "on a ridged program the seed undershoots a dense optimum, so it "
+            "should take more pivots; fewer would mean the ridge stopped "
+            "spreading the weight"
+        )
+        assert seeded.effects.att == pytest.approx(cold.effects.att, rel=0, abs=1e-12)
+
+    def test_the_ridged_programs_optima_really_are_dense(self):
+        """Power for the test above: it explains itself by the support size, so
+        the support size is asserted. A sparse optimum here would make the pivot
+        direction above an unexplained accident."""
+        import mlsynth.utils.sdid_helpers.weights as sdid_weights
+
+        seen = []
+        real = solve_simplex_qp
+
+        def rec(B, A, **kwargs):
+            w = real(B, A, **kwargs)
+            arr = w[0] if isinstance(w, tuple) else w
+            seen.append((B.shape[1], int((np.asarray(arr) > 1e-9).sum())))
+            return w
+
+        sdid_weights.solve_simplex_qp = rec
+        try:
+            _fit(_panel())
+        finally:
+            sdid_weights.solve_simplex_qp = real
+        assert seen, "no simplex program was solved"
+        # Both programs are dense as a fraction of their pool -- 65 of 90 and 14
+        # of 30 on this panel -- which is what a ridge does. Only the first
+        # exceeds a budget of 16, and it is the one that drives the pivot count:
+        # undershooting a 65-donor support by 49 costs one add-back apiece.
+        for J, support in seen:
+            assert support >= 0.4 * J, (
+                f"support {support} of {J} is sparse, so this program is not "
+                f"the dense case the pivot direction above rests on"
+            )
+        assert max(s for _, s in seen) > SEED_KEEP, (
+            f"no program's support exceeds the seed budget {SEED_KEEP}, so "
+            f"nothing here undershoots and the pivot count should not rise"
+        )
 
     @pytest.mark.parametrize("J", [100, 160, 240])
     def test_cold_work_scales_with_the_pool_and_seeded_work_does_not(self, J):
@@ -193,10 +263,18 @@ class TestGate:
         _fit(_panel())
         assert len(spy) > 0
 
-    def test_skipped_below_the_donor_floor(self, monkeypatch):
+    def test_declined_on_a_pool_no_wider_than_the_budget(self, monkeypatch):
+        """``priced_seed`` is called and returns ``None``: with ``SEED_KEEP``
+        donors there is nothing to price away, so the solve starts uniform. The
+        fixture is sized off the constant, so retuning it cannot make this pass
+        for the wrong reason."""
         spy = _Spy(monkeypatch)
-        _fit(_panel(n_donors=ACCEL_MIN_DONORS - 2, n_periods=30, n_pre=20))
-        assert len(spy) == 0
+        _fit(_panel(n_donors=SEED_KEEP, n_periods=30, n_pre=20))
+        assert len(spy) > 0, "the seed is consulted even when it declines"
+        from mlsynth.utils.solvers.accelerate import priced_seed as real_seed
+        rng = np.random.default_rng(0)
+        B = rng.normal(size=(20, SEED_KEEP))
+        assert real_seed(B, rng.normal(size=20)) is None
 
     def test_skipped_when_the_caller_already_warm_starts(self, monkeypatch):
         """The placebo fallback chains the previous draw's solution; a chained

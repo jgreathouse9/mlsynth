@@ -85,6 +85,104 @@ SEED_SPECTRAL_ITERS = 3
 BATCH_ACCEL_MIN_DONORS = 30
 
 
+# How many columns the priced seed keeps. The active set restores any it wants
+# back, one pivot each, so this is a starting guess and not a screen: too few
+# costs add-back pivots, too many costs a larger free-set solve at every pivot.
+#
+# The first value here was tuned on 18 random Gaussian shapes alone and came out
+# at 16. Those panels end on supports of 6 to 127, and real synthetic-control
+# panels end on 3 to 7, so the fixture did not resemble the thing. Swept again
+# over four families, as total solve time relative to each family's own best:
+#
+#     family (supports)        k=3    k=4    k=8   k=16   k=24
+#     classic   (3-7)         1.00   1.04   1.45   2.40   2.64
+#     factor    (8-14)        1.00   1.09   1.10   1.24   1.60
+#     gaussian  (6-127)       1.44   1.42   1.27   1.01   1.00
+#     SDID ridged (14-65)       --   1.24   1.17   1.17     --
+#     worst case              1.44   1.42   1.45   2.40   2.64
+#
+# classic is Basque, German reunification and Proposition 99. The fourth family
+# is the one that decides nothing and explains the most: SDID stacks
+# ``sqrt(ridge) I`` beneath its design and a ridge exists to spread weight, so
+# its optima are dense -- 65 of 90 donors on one program. The seed undershoots
+# there and the pivot count rises (41 cold to 73 at k=4) while the time still
+# falls (16.2 ms to 15.0), because an add-back pivot solves on a small free set.
+#
+# So the asymmetry is the whole argument: guessing small costs at most 1.44x and
+# guessing large costs 2.64x, and 4 is where the worst case bottoms out. It is a
+# minimax choice over four families and not the winner on any one of them.
+SEED_KEEP = 4
+
+
+def priced_seed(B: np.ndarray, A: np.ndarray, *,
+                keep: int = SEED_KEEP) -> Optional[np.ndarray]:
+    """A feasible seed naming the most improving columns, or ``None``.
+
+    The cost of a cold solve is finding the support, and on a wide pool the
+    active set finds it by elimination: from the uniform point it sheds one
+    donor per pivot, so the work scales with the pool. Measured pivot counts,
+    cold: 153 on a 10x160 design, 32 on Prop 99's 19x38 for a support of 6.
+
+    This names a candidate support instead of eliminating toward one. At the
+    uniform point ``w0`` the reduced gradient is ``B'(B w0 - A)``, and its most
+    negative entries are the columns that most improve the fit. ``keep`` of them
+    are kept, capped at ``m + 1`` -- the largest support an identified optimum
+    can have, since the free block with the sum-to-one row appended has to have
+    full column rank. One matrix-vector product and an ``argpartition``.
+
+    ``None`` when the cap is at least ``J``, since there is nothing to price
+    away. Tall designs -- the ordinary synthetic-control shape, more pre-periods
+    than donors -- therefore take the untouched cold path.
+
+    Against the alternatives, in milliseconds per solve (cold / FISTA / priced):
+
+        10x160    8.52 / 10.37 / 0.58      97x100    13.27 /  8.50 / 0.52
+        30x300   57.49 / 13.75 / 0.55      99x200    76.55 / 10.91 / 0.86
+        19x38     1.35 /  4.65 / 0.30     159x200    97.08 / 12.06 / 0.68
+
+    The last three are where a seed capped at ``m + 1`` lost: a pool barely wider
+    than that bound prunes almost nothing, while ``keep`` columns prune to a
+    small free set whatever ``m`` is.
+
+    It is speed only, on the same contract as the rest of this module: the active
+    set certifies KKT optimality over every column, so a seed decides which
+    pivots happen and not what is returned. Over 500 fuzzed designs with an
+    identified optimum the seeded and cold solves agree bit for bit. Over 400
+    fuzzed designs of every shape the objective agrees to 7.08e-15 relative and
+    the weights differ in 145, every one of which
+    :func:`~mlsynth.utils.solvers.minnorm.simplex_optimum_is_unique` rejects --
+    so the point moves only where it was a property of pivot order to begin with,
+    which is equally true of the FISTA seed this replaced.
+
+    Parameters
+    ----------
+    B : np.ndarray, shape (m, J)
+        Donor design.
+    A : np.ndarray, shape (m,)
+        Target.
+
+    keep : int
+        How many columns to keep, capped at ``m + 1``. See :data:`SEED_KEEP`.
+
+    Returns
+    -------
+    np.ndarray or None
+        A point on the simplex with ``min(keep, m + 1)`` equal nonzero weights,
+        or ``None`` when the pool is not wider than that.
+    """
+    B = np.asarray(B, dtype=float)
+    A = np.asarray(A, dtype=float).ravel()
+    m, J = B.shape
+    k = min(int(keep), m + 1)
+    if k >= J:
+        return None
+    gradient = B.T @ (B.sum(axis=1) / J - A)
+    keep = np.argpartition(gradient, k - 1)[:k]
+    seed = np.zeros(J)
+    seed[keep] = 1.0 / k
+    return seed
+
+
 def simplex_project(v: np.ndarray) -> np.ndarray:
     """Exact Euclidean projection of ``v`` onto ``{w >= 0, sum w = 1}``.
 
