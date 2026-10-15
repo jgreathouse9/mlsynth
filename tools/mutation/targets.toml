@@ -4070,3 +4070,75 @@ timeout = 180.0
   find = 'in_sample = _rmse(y[:T0] - np.asarray(fit(y, X, T0), dtype=float).ravel()[:T0])'
   replace = 'in_sample = _rmse(y - np.asarray(fit(y, X, T0), dtype=float).ravel())'
   models = "an in-sample baseline measured over the whole sample, so the treatment effect itself inflates the denominator and a real extrapolation failure is divided away"
+
+[[target]]
+name = "marex-mip-refit"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_mip_polish.py mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-mip-skips-the-refit"
+  find = "    w_opt, v_opt, objective = refit_selection("
+  replace = "    objective = float(prob.value)\n    _discarded = refit_selection("
+  models = "the refit computed and thrown away, so the design reported is SCIP's point as returned: on the panel that exposed the defect, four treated markets under m_eq=3, control weights summing to 0.854, and an objective of 6.7399 whose weights score 117.4"
+
+  [[target.mutant]]
+  id = "the-refit-takes-the-raw-selection"
+  find = "    z_opt = z_round.astype(float)"
+  replace = "    z_opt = np.asarray(z_opt, dtype=float)"
+  models = "the refit pinned to SCIP's selection as returned instead of its rounding. A binary left at 1e-6 then counts as unselected in one place and selected in another, the inconsistency the refit exists to remove"
+
+  [[target.mutant]]
+  id = "every-design-refits-through-the-qp"
+  find = "    if (design in _SEPARABLE and costs is None and budget_dict is None"
+  replace = "    if (False and design in _SEPARABLE and costs is None and budget_dict is None"
+  models = "the separable designs refitted by the general QP instead of their two exact simplex fits. With an interior-point solver a selected market whose optimal weight is zero comes back at 1e-6, reads as treated, and the reported treated set grows"
+
+  [[target.mutant]]
+  id = "the-refit-ignores-the-cardinality"
+  find = "        if ((me is not None and len(treated) != int(me))"
+  replace = "        if False and ((me is not None and len(treated) != int(me))"
+  models = "the exact refit accepting a selection of the wrong size, so a design that breaks m_eq, m_min or m_max is fitted and reported as if it were feasible"
+
+  [[target.mutant]]
+  id = "the-refit-ignores-the-restrictions"
+  find = "        if not treated or not filt.accepts(tuple(treated)):"
+  replace = "        if not treated:"
+  models = "the exact refit accepting a selection that leaves out a forced market or treats a forbidden or conflicting one"
+
+  [[target.mutant]]
+  id = "the-refit-forgets-donor-exclusions"
+  find = "                drop.add(j)"
+  replace = "                pass"
+  models = "exclude_bordering_donors honoured by SCIP's selection and dropped by the refit, so a treated market's neighbours return to its control pool and the reported objective is below what the restricted design can reach"
+
+  [[target.mutant]]
+  id = "the-refit-drops-the-penalties"
+  find = "        a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,"
+  replace = "        a, b = None, None; _unused = (design, k_idx, members, X_fit, D1, lambda1, lambda2,"
+  models = "the penalized and unit-penalized refits fitted as the standard design, so the weights and objective reported omit the penalty SCIP optimised"
+
+  [[target.mutant]]
+  id = "the-qp-refit-lets-the-selection-float"
+  find = "    constraints = constraints + [z == z_fixed]"
+  replace = "    constraints = constraints"
+  models = "the selection left free in the QP refit, which is then the continuous relaxation: the uniform weights reproduce the target and the reported objective is near zero whatever SCIP selected"
+
+  [[target.mutant]]
+  id = "solver-noise-left-on-unselected-markets"
+  find = "    w_fit = np.where(selected, np.maximum(w.value, 0.0), 0.0)"
+  replace = "    w_fit = np.asarray(w.value)"
+  models = "treated weights off the selection left at the QP solver's tolerance instead of zero. The orchestrator classifies markets by their weights, so a market could read as treated on noise"
+
+  [[target.mutant]]
+  id = "the-control-side-keeps-the-treated-markets"
+  find = "        v_fit = np.where(selected, 0.0, v_fit)"
+  replace = "        v_fit = v_fit"
+  models = "control weights on selected markets left at the solver's tolerance under exclusive=True, the same classification hazard on the control side"
+
+  [[target.mutant]]
+  id = "an-unsolved-refit-is-not-reported"
+  find = "    if prob.status != cp.OPTIMAL or w.value is None or v.value is None:"
+  replace = "    if False:"
+  models = "a QP refit the solver did not finish treated as done: a selection the constraints reject surfaces as a TypeError from the missing values, not as the estimation error that names the cause"
