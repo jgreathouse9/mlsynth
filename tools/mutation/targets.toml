@@ -3815,8 +3815,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "designs-ranked-by-the-treated-fit-alone"
-  find = "        best.offer(ClusterDesign(value=g + h, treated=tuple(S),"
-  replace = "        best.offer(ClusterDesign(value=g, treated=tuple(S),"
+  find = "            value = g + h"
+  replace = "            value = g"
   models = "the treated-side fit taken for the objective, which is what the bound reads. The control fit, half the objective, stops deciding between designs"
 
   [[target.mutant]]
@@ -3860,6 +3860,78 @@ timeout = 900.0
   find = "import numpy as np"
   replace = "import numpy as np\nimport pyscipopt  # noqa: F401"
   models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
+
+[[target]]
+name = "marex-exact-coupled"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-coupled-fit-stops-after-one-sweep"
+  find = "        if gap <= tol * (1.0 + abs(value)):"
+  replace = "        if True:"
+  models = "the alternation returning after its first sweep. At small beta one sweep is already the optimum, so a fixture at the default beta of 1e-6 cannot see it; at beta = 100 the blocks are still chasing each other and the value is above the joint minimum"
+
+  [[target.mutant]]
+  id = "the-gap-forgets-the-control-block"
+  find = "        gap = float(grad_w @ w - grad_w.min()) + float(grad_v @ v - grad_v.min())"
+  replace = "        gap = float(grad_w @ w - grad_w.min())"
+  models = "a certificate that reads only the treated block. The treated step is exact given the controls, so its own gap is near zero after every sweep and the fit stops wherever it is; the stop then reads as certified while the control block is far from optimal"
+
+  [[target.mutant]]
+  id = "the-treated-step-ignores-the-controls"
+  find = "        w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta)),"
+  replace = "        w = np.asarray(solve_simplex_qp(Bs, A),"
+  models = "the treated step fitted to the target alone, so the treated weights never move toward the synthetic control and the alternation is a treated fit followed by a control fit to it: the standard design's two fits in sequence, priced under the coupled objective"
+
+  [[target.mutant]]
+  id = "the-design-reports-the-treated-fit-alone"
+  find = "            value, w, v = coupled_fit(B, A, cols, control, beta, w0=w)"
+  replace = "            value, _, v = coupled_fit(B, A, cols, control, beta, w0=w)"
+  models = "the coupled value reported with the treated weights from the uncoupled start. The value and the treated set are right, so every comparison of objectives passes, while the weights on the result do not attain the value stated beside them"
+
+  [[target.mutant]]
+  id = "an-uncertified-fit-is-returned"
+  find = "    raise CoupledFitNotCertified("
+  replace = "    return value, w, v\n    raise CoupledFitNotCertified("
+  models = "running out of sweeps treated as convergence: the value is an upper bound by an unknown amount, the search ranks on it, and the optimal design can be discarded with nothing raised"
+
+  [[target.mutant]]
+  id = "uncertified-reported-as-infeasible"
+  find = "        except CoupledFitNotCertified:"
+  replace = "        except ():"
+  models = "a fit that could not be certified relabelled as an infeasible design, so the user is told to loosen restrictions and the cardinality when the configuration is feasible and the remedy is backend='mip'"
+
+  [[target.mutant]]
+  id = "the-coupling-is-dropped"
+  find = "                beta=beta if design == \"weakly_targeted\" else None)"
+  replace = "                beta=None)"
+  models = "design='weakly_targeted' accepted and recorded while each cluster is searched as the standard design. Both are valid designs with plausible answers, so nothing fails until the result is compared with the MIQP"
+
+  [[target.mutant]]
+  id = "beta-with-a-penalty-accepted"
+  find = "        if linear_treated is not None or linear_control is not None:"
+  replace = "        if False:"
+  models = "a search given both beta and a penalty vector, where the penalty is silently dropped by the coupled oracle, which takes none"
+
+  [[target.mutant]]
+  id = "a-negative-beta-searched"
+  find = "        if beta < 0:"
+  replace = "        if False:"
+  models = "a negative beta passed to the alternation. The coupling term is then concave, the treated step's target divides by 1 + beta, and at beta = -1 by zero"
+
+[[target]]
+name = "marex-exact-coupled-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-config-accepts-a-negative-beta"
+  find = '        if self.design == "weakly_targeted" and self.beta < 0:'
+  replace = "        if False:"
+  models = "a negative beta accepted at construction and refused only once the search starts, after the panel is prepared; the config is where MAREX fails early"
 
 [[target]]
 name = "marex-exact-config"

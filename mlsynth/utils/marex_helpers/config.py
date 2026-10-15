@@ -111,9 +111,11 @@ class MAREXConfig(BaseMAREXConfig):
             "unit-penalized objectives into two independent simplex fits, so "
             "each candidate costs two small quadratic programs instead of a "
             "branch-and-bound node, and a closed-form bound on the treated fit "
-            "rules out all but a handful of candidates. It returns the same "
-            "optimum and the same result. It does not take "
-            "design='weakly_targeted', a cost budget, relaxed=True, or the "
+            "rules out all but a handful of candidates. The weakly-targeted "
+            "objective couples the two fits; each candidate is then solved by "
+            "alternating them until a Frank-Wolfe certificate closes. It "
+            "returns the same optimum and the same result. It does not take "
+            "a cost budget, relaxed=True, a negative beta, or the "
             "branch-and-bound settings (solver, warm_start, time_limit), and "
             "each cluster is searched on its own, so no border conflict or "
             "stratum quota may span two clusters."
@@ -309,12 +311,10 @@ class MAREXConfig(BaseMAREXConfig):
             problems.append(
                 "relaxed=True solves the continuous relaxation and rounds it, "
                 "while the exact backend solves the integer design directly")
-        if self.design not in ("standard", "penalized", "unit_penalized"):
+        if self.design == "weakly_targeted" and self.beta < 0:
             problems.append(
-                f"design={self.design!r} couples the treated and control "
-                f"weights, so naming the treated set does not split the "
-                f"objective; the exact backend solves 'standard', 'penalized' "
-                f"and 'unit_penalized'")
+                f"beta={self.beta} makes the weakly-targeted coupling concave, "
+                f"so the design has no minimum to certify; beta must be >= 0")
         if self.costs is not None or self.budget is not None:
             problems.append(
                 "a cost budget constrains the treated weights, which the "

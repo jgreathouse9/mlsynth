@@ -144,9 +144,8 @@ starts the branch-and-bound from a strong incumbent instead of hunting for one.
 Paired with ``time_limit`` (seconds), MAREX then returns the best design found
 within the budget — typically the seed, confirmed or refined — instead of paying
 the full optimality proof. Both default to off and apply to the exact MIQP only.
-For the ``standard``, ``penalized`` and ``unit_penalized`` designs,
-``backend="exact"`` skips the MIQP and finds the same optimum by searching
-treated sets directly (:ref:`marex-search-backend`).
+For every design, ``backend="exact"`` skips the MIQP and finds the same optimum
+by searching treated sets directly (:ref:`marex-search-backend`).
 
 ``mlsynth`` exposes four objective variants through ``design`` (clear names
 that map to the paper's formulations):
@@ -402,13 +401,62 @@ search keeps its ``top_K`` best treated sets, and the pool is the ``top_K``
 smallest totals of one choice per cluster; the MIQP builds the same pool by
 re-solving once per design, with a cut excluding the designs already found.
 
+The ``weakly_targeted`` design ties the two sides together. Its objective is
+
+.. math::
+
+   f(\mathcal{S}) =
+     \min_{\mathbf{w} \in \Delta^{\mathcal{S}},\;
+           \mathbf{v} \in \Delta^{\mathcal{N}_0(\mathcal{S})}}
+     \Bigl\| \bar{\mathbf{x}} - \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j
+     \Bigr\|_2^2
+     + \beta \Bigl\| \sum_{j \in \mathcal{S}} w_j \mathbf{x}_j
+       - \sum_{j \in \mathcal{N}_0(\mathcal{S})} v_j \mathbf{x}_j
+     \Bigr\|_2^2,
+
+and its second term involves both sets of weights, so naming
+:math:`\mathcal{S}` no longer leaves two separate fits. It leaves a convex
+problem whose two halves are each a fit the search already solves. With the
+control weights fixed, giving a synthetic control :math:`\mathbf{c}`, the
+treated step minimises
+:math:`\|\bar{\mathbf{x}} - \mathbf{u}\|^2 + \beta\|\mathbf{c} - \mathbf{u}\|^2`
+over the synthetic treated :math:`\mathbf{u}`. That is :math:`1 + \beta` times
+the squared distance from :math:`\mathbf{u}` to
+:math:`(\bar{\mathbf{x}} + \beta \mathbf{c}) / (1 + \beta)`, plus a constant:
+one synthetic-control fit to a blended target. With the treated weights fixed,
+the control step is a synthetic-control fit to the synthetic treated. The search
+alternates the two.
+
+Exact minimisation over two blocks of a convex function converges to its minimum
+(Grippo and Sciandrone 2000), but slowly when :math:`\beta` is large: the two
+synthetics then pull on each other and each step moves little, so a rule that
+stopped on a small step could stop above the minimum. The alternation stops on
+a certificate instead. The Frank-Wolfe gap, the improvement the best vertex of
+each simplex offers along the gradient, bounds the distance to the minimum from
+above, and the fit stops when the gap is under :math:`10^{-10}` of the
+objective. A fit whose gap is still open after 20,000 sweeps raises with a
+message naming ``backend="mip"``, since ranking candidates on an uncertified
+value could discard the optimal design. On ten of the GeoLift markets with two
+treated, the fit took at most one sweep at the default :math:`\beta = 10^{-6}`,
+4 at :math:`\beta = 0.01`, 28 at :math:`\beta = 1` and 426 at
+:math:`\beta = 100`, the range Abadie and Zhao sweep in their simulations. The
+coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
+still holds and the bound and both passes prune as they do for the other
+designs.
+
+Abadie and Zhao's enumeration solves two separate synthetic-control problems per
+candidate (supplementary appendix, Section OA.6), and they solve this design by
+their quadratic-programming route instead: a non-convex quadratically
+constrained program passed to Gurobi. They report numerical errors of up to
+0.001 in the weights from it, round the weights to two digits, and set weights
+at or below 0.01 to zero. The search solves the same program and returns its
+weights unrounded.
+
 ``backend="exact"`` refuses, when the configuration is built and with a message
 naming ``backend="mip"``:
 
-* ``design="weakly_targeted"``, whose term
-  :math:`\beta \|\sum_j w_j \mathbf{x}_j - \sum_j v_j \mathbf{x}_j\|_2^2` ties
-  the control weights to the treated ones, so fixing :math:`\mathcal{S}` no
-  longer splits the objective;
+* a negative ``beta``, which makes the weakly-targeted coupling concave, so the
+  design has no minimum to certify;
 * ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
   a second constraint on the treated fit that the search's simplex solver does
   not take;

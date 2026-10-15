@@ -38,6 +38,28 @@ with ``G = B~'B~`` restricted to ``S``, ``s = 1'G^-1 1``, ``t = 1'G^-1 a`` and
 minimiser is already non-negative. SYNDES's exact backend bounds its own
 objective the same way (:mod:`mlsynth.utils.syndes_helpers.gram`).
 
+The weakly-targeted design. Its objective ties the synthetic control to the
+synthetic treated instead of to the target,
+
+    ||A - B w||^2 + beta ||B w - B v||^2,
+
+so naming ``S`` does not split it: the treated and control weights still share
+a term. What naming ``S`` leaves is a convex problem over a product of two
+simplexes, and :func:`coupled_fit` solves it by alternating the two exact
+simplex fits. With ``v`` fixed the treated step is a single simplex fit to the
+blended target ``(A + beta B v) / (1 + beta)``, because
+``||A - u||^2 + beta ||c - u||^2`` is ``(1 + beta)`` times the squared distance
+from ``u`` to that point plus a constant; with ``w`` fixed the control step is a
+simplex fit to ``B w``. Two-block exact minimisation of a convex function over
+compact convex blocks converges to its minimum (Grippo and Sciandrone 2000),
+but at large ``beta`` the blocks chase each other and each sweep gains little,
+so a stop on slow progress can stop above the optimum. The fit stops instead on
+the Frank-Wolfe gap, ``sum over blocks of grad'x - min_j grad_j``, which bounds
+the distance to the optimum from above, and raises when the gap has not closed
+within ``COUPLED_MAX_ITER`` sweeps. The coupling term is non-negative, so the
+treated-side fit and its bound still sit under the objective and the search
+prunes exactly as it does for the separable designs.
+
 Restrictions. Forced units, forbidden units and stratum quotas decide which
 candidates exist, so :class:`~mlsynth.utils.syndes_helpers.enumeration.SearchSpace`
 builds candidates inside them and counts them exactly; conflict pairs are a
@@ -47,10 +69,10 @@ sees, since it reads only the treated side. Clusters are searched independently,
 so a conflict pair or a stratum that spans two clusters couples their searches
 and is refused.
 
-What this backend does not solve. ``design="weakly_targeted"`` couples the two
-sides; a cost budget constrains the treated weights; ``relaxed`` and the
-branch-and-bound knobs (``solver``, ``warm_start``, ``time_limit``) belong to the
-MIQP. The config refuses each with ``backend="exact"``. Above
+What this backend does not solve. A cost budget constrains the treated
+weights; ``relaxed`` and the branch-and-bound knobs (``solver``, ``warm_start``,
+``time_limit``) belong to the MIQP; a negative ``beta`` makes the coupling
+concave. The config refuses each with ``backend="exact"``. Above
 ``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being affordable
 and the search raises with the MIQP as the way out.
 """
@@ -82,6 +104,15 @@ from .optimization import _augment_fit, finish_design
 
 #: Designs whose objective splits into a treated term and a control term.
 SEPARABLE_DESIGNS = frozenset({"standard", "penalized", "unit_penalized"})
+
+#: Designs the backend solves: the separable ones, and the coupled one.
+EXACT_DESIGNS = SEPARABLE_DESIGNS | {"weakly_targeted"}
+
+#: The coupled fit stops when its Frank-Wolfe gap is under this, relative.
+COUPLED_TOL = 1e-10
+
+#: Sweeps the coupled fit may take before it raises uncertified.
+COUPLED_MAX_ITER = 20_000
 
 #: Above this many candidates in one cluster the search refuses and names the MIQP.
 CANDIDATE_LIMIT = 20_000_000
@@ -130,6 +161,60 @@ def side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
     if linear is not None:
         value += float(np.dot(linear, w))
     return value, w
+
+
+class CoupledFitNotCertified(MlsynthEstimationError):
+    """The coupled fit ran out of sweeps before its gap closed."""
+
+
+def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
+                control: Sequence[int], beta: float, *,
+                w0: Optional[np.ndarray] = None, tol: Optional[float] = None,
+                max_iter: Optional[int] = None
+                ) -> Tuple[float, np.ndarray, np.ndarray]:
+    """``min ||A - B_S w||^2 + beta ||B_S w - B_C v||^2`` over two simplexes.
+
+    Alternates the two exact simplex fits (see the module docstring) and stops
+    once the Frank-Wolfe gap is under ``tol * (1 + value)``; the value returned
+    is then within that of the joint minimum. ``w0`` starts the treated
+    weights, by default at the treated fit alone.
+
+    Returns the value and the weights, in the order of ``treated`` and
+    ``control``.
+
+    Raises
+    ------
+    CoupledFitNotCertified
+        When ``max_iter`` sweeps leave the gap open. The value reached is above
+        the minimum by an unknown amount, and ranking candidates on it could
+        discard the optimal design.
+    """
+    tol = COUPLED_TOL if tol is None else float(tol)
+    max_iter = COUPLED_MAX_ITER if max_iter is None else int(max_iter)
+    beta = float(beta)
+    Bs = B[:, list(treated)]
+    Bc = B[:, list(control)]
+    w = (np.asarray(solve_simplex_qp(Bs, A), dtype=float) if w0 is None
+         else np.asarray(w0, dtype=float))
+    gap = np.inf
+    for _ in range(max_iter):
+        v = np.asarray(solve_simplex_qp(Bc, Bs @ w), dtype=float)
+        c = Bc @ v
+        w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta)),
+                       dtype=float)
+        u = Bs @ w
+        r, d = u - A, u - c
+        value = float(r @ r + beta * (d @ d))
+        grad_w = 2.0 * (Bs.T @ (r + beta * d))
+        grad_v = -2.0 * beta * (Bc.T @ d)
+        gap = float(grad_w @ w - grad_w.min()) + float(grad_v @ v - grad_v.min())
+        if gap <= tol * (1.0 + abs(value)):
+            return value, w, v
+    raise CoupledFitNotCertified(
+        f"The weakly-targeted fit of a candidate treated set was not certified "
+        f"within {max_iter:,} sweeps (Frank-Wolfe gap {gap:.3g}). Its value "
+        f"is an upper bound only, so the search cannot rank on it; use "
+        f"backend='mip'.")
 
 
 def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
@@ -267,6 +352,7 @@ def search_cluster(
     donor_exclusion: Sequence[Tuple[int, int]] = (),
     top_k: int = 1,
     candidate_limit: Optional[int] = None,
+    beta: Optional[float] = None,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -288,15 +374,30 @@ def search_cluster(
         How many designs to return.
     candidate_limit : int, optional
         Refuse above this many candidates; defaults to ``CANDIDATE_LIMIT``.
+    beta : float, optional
+        The weakly-targeted coupling. When given, each candidate is priced by
+        :func:`coupled_fit` instead of two independent fits; it takes no
+        penalty vectors.
 
     Raises
     ------
     MlsynthConfigError
-        Above the candidate limit.
+        Above the candidate limit, for a negative ``beta``, or for ``beta``
+        with a penalty vector.
     MlsynthEstimationError
         When no admissible design exists.
     """
     n = B.shape[1]
+    if beta is not None:
+        if beta < 0:
+            raise MlsynthConfigError(
+                f"beta must be >= 0; a negative beta makes the coupling term "
+                f"concave and the design has no minimum to certify. Got {beta}.")
+        if linear_treated is not None or linear_control is not None:
+            raise MlsynthConfigError(
+                "beta prices the weakly-targeted design, which has no linear "
+                "penalty; a search given both would optimise an objective "
+                "MAREX does not state.")
     limit = CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
     total = count_candidates(n, sizes, filt)
     if total > limit:
@@ -329,8 +430,13 @@ def search_cluster(
         control = [j for j in range(n) if j not in drop]
         if not control:
             return
-        h, v = side_fit(B, A, control, None if lin_c is None else lin_c[control])
-        best.offer(ClusterDesign(value=g + h, treated=tuple(S),
+        if beta is None:
+            h, v = side_fit(B, A, control,
+                            None if lin_c is None else lin_c[control])
+            value = g + h
+        else:
+            value, w, v = coupled_fit(B, A, cols, control, beta, w0=w)
+        best.offer(ClusterDesign(value=value, treated=tuple(S),
                                  control=tuple(control), w=w, v=v))
 
     # Pass 1: price every candidate, keep the BUFFER best-bounded.
@@ -480,10 +586,10 @@ def _designs(
     covariates=None, covariate_weight=1.0, standardize=False,
     restrictions=None, top_k=1,
 ) -> List[Dict[str, Any]]:
-    if design not in SEPARABLE_DESIGNS:
+    if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
-            f"The exact backend solves the separable designs "
-            f"({', '.join(sorted(SEPARABLE_DESIGNS))}); got design={design!r}.")
+            f"The exact backend solves the designs "
+            f"{', '.join(sorted(EXACT_DESIGNS))}; got design={design!r}.")
     if costs is not None or budget is not None:
         raise MlsynthConfigError(
             "The exact backend does not take a cost budget, which constrains "
@@ -521,7 +627,10 @@ def _designs(
             designs = search_cluster(
                 X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,
                 linear_treated=a, linear_control=b, donor_exclusion=donors,
-                top_k=top_k)
+                top_k=top_k,
+                beta=beta if design == "weakly_targeted" else None)
+        except CoupledFitNotCertified:
+            raise
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
                 f"MAREX design is infeasible under the active restrictions "
