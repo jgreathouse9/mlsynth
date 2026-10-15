@@ -4252,3 +4252,33 @@ timeout = 1200.0
   find = "    if prob.status != cp.OPTIMAL or w.value is None or v.value is None:"
   replace = "    if False:"
   models = "a QP refit the solver did not finish treated as done: a selection the constraints reject surfaces as a TypeError from the missing values, not as the estimation error that names the cause"
+
+[[target]]
+name = "marex-covariate-scaling"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_covariate_scaling.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-weight-is-applied-before-standardising"
+  find = "        X = np.hstack([Y_fit, cov])"
+  replace = "        X = np.hstack([Y_fit, covariate_weight * cov])\n        covariate_weight = 1.0"
+  models = "issue #758: the covariate weight multiplied in before the standardisation, which divides it back out, so under standardize=True every weight gives the same design and Vives-i-Bastida's covariates at 1/10 is unreachable"
+
+  [[target.mutant]]
+  id = "the-weight-is-dropped"
+  find = "        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])"
+  replace = "        X = np.hstack([X[:, :n_out], X[:, n_out:]])"
+  models = "covariates appended at weight one whatever the configuration asks, with or without standardisation"
+
+  [[target.mutant]]
+  id = "the-weight-also-scales-the-outcomes"
+  find = "        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])"
+  replace = "        X = covariate_weight * X"
+  models = "the weight applied to every predictor instead of the covariates, which rescales the whole objective and leaves the design where it was"
+
+  [[target.mutant]]
+  id = "near-constant-columns-are-divided"
+  find = "        flat = sd <= 1e-12 * np.abs(X).max(axis=0, initial=0.0)"
+  replace = "        flat = sd == 0"
+  models = "the exact-zero guard: a column constant up to rounding, standard deviation 1e-14, is divided by its noise into a column of order 1e15"
