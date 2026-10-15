@@ -40,7 +40,7 @@ class MAREXConfig(BaseMAREXConfig):
         "with it (they apply within each cluster). None (default) = one global "
         "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
-    covariates: Optional[List[str]] = Field(default=None, description="Time-invariant covariate columns matched on alongside pre-period outcomes (the paper's X = [Y^E ; Z]).")
+    covariates: Optional[List[str]] = Field(default=None, description="Covariate columns matched on alongside the fitting-window outcomes (the paper's X = [Y^E ; Z]). Each is averaged per unit over the fitting window, the first T0 - blank_periods periods, so a time-varying covariate's blank-window values stay out of the design.")
     covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
     standardize: bool = Field(default=False, description="Scale each design predictor to unit variance across units (the paper's Walmart normalisation).")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")

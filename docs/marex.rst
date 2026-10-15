@@ -189,12 +189,21 @@ Covariates
 ^^^^^^^^^^
 
 By default the design matches on pre-period outcomes. Passing ``covariates``
-(time-invariant column names) appends them to the predictor vector,
+(column names) appends them to the predictor vector,
 :math:`\mathbf{x}_j = [\mathbf{y}^E_j ; \mathbf{z}_j]`, exactly as in the paper — the synthetic treated and
 control are then balanced on both pre-period outcomes *and* covariates (with an
 optional ``covariate_weight`` scale). When the pre-period is long, the outcomes
 already encode the covariates' contribution, so covariates matter most when few
 pre-periods are available.
+
+Each covariate enters as its per-unit mean over the fitting periods, the first
+``T0 - blank_periods`` pre-periods, the same window the outcomes are matched
+on. A covariate that does not change over time is its value. A covariate that
+does change is averaged over the fitting window only: the blank periods are
+kept out of the choice of the design so that their gaps can serve as the
+placebo distribution for inference, and their covariate values are kept out
+with them. Vives-i-Bastida (2022) averages the covariates over the fitting
+years in the same way. The balance diagnostics below use the same means.
 
 Clustering, Costs, and Budgets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1151,3 +1160,6 @@ Association* 105(490):493-505.
 Chernozhukov, V., Wuthrich, K., & Zhu, Y. (2021). "An Exact and Robust
 Conformal Inference Method for Counterfactual and Synthetic Controls."
 *Journal of the American Statistical Association* 116(536):1849-1864.
+
+Vives-i-Bastida, J. (2022). "Synthetic Experimental Design for a UBI Pilot
+Study." Report, MIT.

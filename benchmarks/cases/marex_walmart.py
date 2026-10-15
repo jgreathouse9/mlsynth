@@ -25,11 +25,19 @@ modelling choice identical to the MAREX call below (``T0 = 128`` is the end of t
 pre-experiment period; with ``blank_periods = 28`` the fit window is weeks 1..100).
 
 Both solvers select the **same two treated stores** (15 and 31) with the **same
-treated weights** to ~2e-4 (0.461/0.539), the same pre-period fit (~6e-4), the
-same placebo effect (~8e-5 of mean sales), and confidence intervals that both
-cover zero -- the "no spurious effect" result. The placebo permutation p-value
-agrees to ~0.02 (Monte-Carlo permutation sampling differs slightly across the two
-implementations). Every quantity is pinned directly to the live reference.
+weights**: SCDesign rounds every weight to four decimals, and MAREX's 45 treated
+and control weights rounded the same way equal SCDesign's (largest gap before
+rounding 4.9e-5). The placebo effect computed from MAREX's rounded weights equals
+the reference to every printed digit, so the remaining gap in ``abs_ate_pct``
+(~2.3e-4 of mean sales) is SCDesign's rounding. The pre-period fit agrees to
+~6e-4, and both confidence intervals cover zero -- the "no spurious effect"
+result. The placebo permutation p-value agrees to ~0.02 (Monte-Carlo permutation
+sampling differs slightly across the two implementations). Every quantity is
+pinned directly to the live reference.
+
+Both sides average the time-varying covariates over the fitting weeks 1..100.
+Before issue #759 MAREX averaged them over weeks 1..128, blank window included;
+the weights then differed from SCDesign's by up to 7.9e-4, beyond rounding.
 
 Provenance
 ----------
@@ -133,10 +141,11 @@ def comparison() -> dict:
 
 # Deterministic exact MIQP on the full 45-store panel with four covariates, pinned
 # directly to the live SCDesign run (open quadprog cardinality design, no Gurobi).
-# Both select exactly 2 treated stores (15, 31) with treated weights agreeing to
-# ~2e-4, a pre-period fit to ~6e-4, a placebo effect to ~8e-5 of mean sales, and
-# confidence intervals that both cover zero (the paper's "no spurious effect"
-# result). The placebo p-value agrees to ~0.02 (Monte-Carlo permutation sampling
+# Both select exactly 2 treated stores (15, 31); every weight agrees with
+# SCDesign's four-decimal weights after the same rounding, the pre-period fit to
+# ~6e-4, the placebo effect to ~2.3e-4 of mean sales (SCDesign's weight
+# rounding), and confidence intervals that both cover zero (the paper's "no
+# spurious effect" result). The placebo p-value agrees to ~0.02 (Monte-Carlo permutation sampling
 # differs slightly across implementations). Tolerances are the genuine gaps plus a
 # small margin for solver/version drift.
 _rw = sorted(load_reference("marex_walmart")["weights"].values())

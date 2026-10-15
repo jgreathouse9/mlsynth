@@ -4252,3 +4252,21 @@ timeout = 1200.0
   find = "    if prob.status != cp.OPTIMAL or w.value is None or v.value is None:"
   replace = "    if False:"
   models = "a QP refit the solver did not finish treated as done: a selection the constraints reject surfaces as a TypeError from the missing values, not as the estimation error that names the cause"
+
+[[target]]
+name = "marex-covariate-window"
+module-path = "mlsynth/utils/marex_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_covariate_window.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "covariates-averaged-over-the-blank-window"
+  find = "            pre_periods=T0_eff - blanks,"
+  replace = "            pre_periods=T0_eff,"
+  models = "issue #759: each covariate averaged over every pre-period, blank window included, so a time-varying covariate's blank-period values choose the design whose blank-period gaps are then read as the placebo distribution (seed 4: the treated pair changes from u0, u6 to u2, u4)"
+
+  [[target.mutant]]
+  id = "covariates-averaged-over-one-period-short"
+  find = "            pre_periods=T0_eff - blanks,"
+  replace = "            pre_periods=T0_eff - blanks - 1,"
+  models = "the fitting window misaligned by one period, so the covariates and the outcomes are matched over different windows"
