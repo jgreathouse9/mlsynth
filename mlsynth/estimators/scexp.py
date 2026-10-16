@@ -74,7 +74,7 @@ class MAREX:
         self.costs = config.costs
         self.budget = config.budget
         self.covariates = config.covariates
-        self.covariate_weight: float = config.covariate_weight
+        self.covariate_weight = config.covariate_weight
         self.standardize: bool = config.standardize
 
         self.blank_periods: int = config.blank_periods
@@ -159,6 +159,10 @@ class MAREX:
             pos = {lab: i for i, lab in enumerate(panel.unit_index.labels)}
             warm_idx = [pos[u] for u in self.warm_start if u in pos]
 
+        from ..utils.marex_helpers.optimization import resolve_covariate_weight
+        covariate_weight = resolve_covariate_weight(
+            self.covariate_weight, panel.covariate_names)
+
         try:
             import cvxpy as cp
             results = solve_marex(
@@ -170,7 +174,7 @@ class MAREX:
                 lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                 costs=self.costs, budget=self.budget,
                 covariates=panel.covariates, covariate_names=panel.covariate_names,
-                covariate_weight=self.covariate_weight,
+                covariate_weight=covariate_weight,
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
@@ -214,7 +218,7 @@ class MAREX:
                     lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
                     lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
-                    covariate_weight=self.covariate_weight, standardize=self.standardize,
+                    covariate_weight=covariate_weight, standardize=self.standardize,
                     restrictions=restrictions,
                 )
                 if self.config.backend == "exact":

@@ -41,7 +41,15 @@ class MAREXConfig(BaseMAREXConfig):
         "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Covariate columns matched on alongside the fitting-window outcomes (the paper's X = [Y^E ; Z]). Each is averaged per unit over the fitting window, the first T0 - blank_periods periods, so a time-varying covariate's blank-window values stay out of the design.")
-    covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
+    covariate_weight: Union[float, Dict[str, float]] = Field(
+        default=1.0,
+        description=(
+            "Weight on the covariate predictors relative to one period of the "
+            "outcome, applied after standardisation. A number weights every "
+            "covariate alike; a mapping from covariate name to weight gives "
+            "each its own, the diagonal H of Vives-i-Bastida (2022, program 1), "
+            "and must name exactly the listed covariates. Weights are >= 0, and "
+            "0 drops a covariate from the match."))
     standardize: bool = Field(default=False, description="Scale each design predictor to unit variance across units (the paper's Walmart normalisation).")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
@@ -313,6 +321,28 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "cumulative_n_sim must be >= 2 to take a quantile.")
         return v
+
+    @model_validator(mode="after")
+    def _validate_covariate_weight(self) -> "MAREXConfig":
+        """Weights are non-negative; a mapping names exactly the covariates."""
+        w = self.covariate_weight
+        values = list(w.values()) if isinstance(w, dict) else [w]
+        bad = [v for v in values if not v >= 0]
+        if bad:
+            raise MlsynthConfigError(
+                f"covariate_weight must be >= 0; got {w!r}.")
+        if isinstance(w, dict):
+            if not self.covariates:
+                raise MlsynthConfigError(
+                    "covariate_weight is a mapping by covariate name, but no "
+                    "covariates are listed.")
+            missing = [c for c in self.covariates if c not in w]
+            unknown = [c for c in w if c not in self.covariates]
+            if missing or unknown:
+                raise MlsynthConfigError(
+                    f"covariate_weight must name exactly the covariates "
+                    f"{self.covariates}; missing {missing}, unknown {unknown}.")
+        return self
 
     @model_validator(mode="after")
     def _validate_control_penalty(self) -> "MAREXConfig":

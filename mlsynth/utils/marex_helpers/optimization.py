@@ -19,7 +19,7 @@ from __future__ import annotations
 import cvxpy as cp
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from .formulation import (
     build_constraints,
     build_objective,
@@ -33,6 +33,32 @@ from .formulation import (
     validate_costs_budget,
     validate_scm_inputs,
 )
+
+
+def resolve_covariate_weight(covariate_weight, covariate_names):
+    """The covariate weight as ``_augment_fit`` takes it.
+
+    A scalar weights every covariate alike and is returned as given. A mapping
+    from covariate name to weight, the diagonal H of Vives-i-Bastida (2022,
+    program 1), becomes a vector in the order of ``covariate_names``, so it is
+    matched by name and the order the covariates were listed in does not
+    matter.
+
+    Raises
+    ------
+    MlsynthConfigError
+        When a mapping does not name exactly the covariates.
+    """
+    if not isinstance(covariate_weight, dict):
+        return covariate_weight
+    names = tuple(covariate_names)
+    missing = [c for c in names if c not in covariate_weight]
+    unknown = [c for c in covariate_weight if c not in names]
+    if missing or unknown:
+        raise MlsynthConfigError(
+            f"covariate_weight must name exactly the covariates {list(names)}; "
+            f"missing {missing}, unknown {unknown}.")
+    return np.array([float(covariate_weight[c]) for c in names])
 
 
 def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
@@ -52,6 +78,9 @@ def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
     constant across units, up to rounding, is left unscaled: under simplex
     weights it adds nothing to the objective, and dividing its rounding noise
     would turn it into a column of order 1e15.
+
+    ``covariate_weight`` is a scalar, or a vector with one weight per covariate
+    column (see :func:`resolve_covariate_weight`).
     """
     X = Y_fit
     n_out = Y_fit.shape[1]
@@ -60,12 +89,17 @@ def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
         if cov.ndim == 1:
             cov = cov[:, None]
         X = np.hstack([Y_fit, cov])
+        weight = np.asarray(covariate_weight, dtype=float)
+        if weight.ndim and weight.shape != (cov.shape[1],):
+            raise ValueError(
+                f"covariate_weight has {weight.size} entries for "
+                f"{cov.shape[1]} covariate columns.")
     if standardize:
         sd = X.std(axis=0)
         flat = sd <= 1e-12 * np.abs(X).max(axis=0, initial=0.0)
         X = X / np.where(flat, 1.0, sd)
     if covariates is not None:
-        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])
+        X = np.hstack([X[:, :n_out], weight * X[:, n_out:]])
     return X
 
 

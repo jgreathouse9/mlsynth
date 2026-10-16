@@ -231,7 +231,12 @@ column is first divided by its standard deviation across units, and the
 covariate columns are then multiplied by ``covariate_weight``, so a weight of
 0.1 makes each covariate count one tenth as much as one period of the outcome.
 This is the order of Vives-i-Bastida (2022, Algorithm 1), whose design puts the
-covariates at 1/10 of the outcomes' weight. A column that does not vary across
+covariates at 1/10 of the outcomes' weight. ``covariate_weight`` also takes a
+mapping from covariate name to weight, so each covariate can carry its own
+(Vives-i-Bastida's diagonal :math:`\mathbf{H}`): for example
+``covariate_weight={"age": 0.1, "income": 0.3}``. The mapping must name exactly
+the listed covariates, every weight must be non-negative, and a weight of 0
+leaves that covariate out of the match. A column that does not vary across
 units is left as it is: the weights on each side sum to one, so such a column
 adds nothing to the objective. When the pre-period is long, the outcomes
 already encode the covariates' contribution, so covariates matter most when few
