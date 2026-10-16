@@ -192,7 +192,14 @@ By default the design matches on pre-period outcomes. Passing ``covariates``
 (column names) appends them to the predictor vector,
 :math:`\mathbf{x}_j = [\mathbf{y}^E_j ; \mathbf{z}_j]`, exactly as in the paper — the synthetic treated and
 control are then balanced on both pre-period outcomes *and* covariates (with an
-optional ``covariate_weight`` scale). When the pre-period is long, the outcomes
+optional ``covariate_weight`` scale). With ``standardize=True`` every predictor
+column is first divided by its standard deviation across units, and the
+covariate columns are then multiplied by ``covariate_weight``, so a weight of
+0.1 makes each covariate count one tenth as much as one period of the outcome.
+This is the order of Vives-i-Bastida (2022, Algorithm 1), whose design puts the
+covariates at 1/10 of the outcomes' weight. A column that does not vary across
+units is left as it is: the weights on each side sum to one, so such a column
+adds nothing to the objective. When the pre-period is long, the outcomes
 already encode the covariates' contribution, so covariates matter most when few
 pre-periods are available.
 
