@@ -47,7 +47,7 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 239 registered cases. ``paths`` is what the case
+All 240 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
@@ -55,9 +55,9 @@ calibrated from a real one.
 * ``A`` -- empirical replication (77 cases)
 * ``B`` -- Monte Carlo / simulation (67 cases)
 * ``C`` -- theoretical property or design calibration (14 cases)
-* ``X`` -- cross-validation against a reference implementation (111 cases)
+* ``X`` -- cross-validation against a reference implementation (112 cases)
 
-By data: 84 simulated, 139 empirical, 16 both -- so 100 cases fit at least one generated panel.
+By data: 85 simulated, 139 empirical, 16 both -- so 101 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -382,6 +382,9 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``malo_prop99``
      - A
      - empirical
+   * - ``marex_exact_bruteforce``
+     - X
+     - simulated
    * - ``marex_scdesign_sim``
      - X
      - simulated
@@ -1259,6 +1262,8 @@ Cross-validation against reference implementations
      - fsPDA ``fs()`` / ``lasso_ic()`` / ``oracle()`` on their three sparse DGPs
    * - ``ibex_dap``
      - VanillaSC vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price, weights value-for-value (Haro Ruiz-Schult-Wunder 2024)
+   * - ``marex_exact_bruteforce``
+     - MAREX's exact backend vs brute-force enumeration of every treated set in R (quadprog per set): 12 configurations on 6 panels, every design and objective option
    * - ``marex_scdesign_sim``
      - MAREX vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
    * - ``pda_wheeler_lassosynth``

@@ -71,6 +71,7 @@ CASES = {
     "marex_walmart": "benchmarks.cases.marex_walmart",
     "marex_section5_mc": "benchmarks.cases.marex_section5_mc",  # Path B: Abadie-Zhao Section 5 / Table 2 simulation (MAE, RMSE, ||w||_0 by cardinality) + the weakly-targeted design family          # Path A: MAREX Walmart placebo design (Abadie-Zhao SCDesign, 10-store subset)
     "marex_scdesign_sim": "benchmarks.cases.marex_scdesign_sim",  # cross-val vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
+    "marex_exact_bruteforce": "benchmarks.cases.marex_exact_bruteforce",  # cross-val: MAREX's exact backend vs brute-force enumeration of every treated set in R (quadprog per set), 12 configurations x 6 panels
     "marex_table3": "benchmarks.cases.marex_table3",  # Path B: Abadie-Zhao Table 3 -- MAREX computes the SC column on the authors' panels and beats every published alternative at every cardinality
     "scmo_germany": "benchmarks.cases.scmo_germany",            # Path A: Tian et al. West Germany balance
     "scmo_concatenated_mc": "benchmarks.cases.scmo_concatenated_mc",  # Path B: Tian Table 1 / Sun Sim1
@@ -417,6 +418,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "lto_refined_placebo":            ("X", "empirical"),
     "malo_basque":                    ("X", "empirical"),
     "malo_prop99":                    ("A", "empirical"),
+    "marex_exact_bruteforce":         ("X", "simulated"),
     "marex_scdesign_sim":             ("X", "simulated"),
     "marex_section5_mc":              ("AB", "simulated"),
     "marex_table3":                   ("B", "simulated"),

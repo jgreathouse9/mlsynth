@@ -1086,6 +1086,12 @@ is an independent commit-stamped check (MAREX's own optimizer) complementing the
 LEXSCM Walmart benchmark. See :doc:`replications/marex`; run it with
 ``python benchmarks/run_benchmarks.py marex_walmart``.
 
+The exact backend (``backend="exact"``) is checked separately against a
+brute-force enumeration of every treated set in R, across every design and
+objective option it solves: `benchmarks/cases/marex_exact_bruteforce.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_exact_bruteforce.py>`_,
+described in :doc:`replications/marex`.
+
 .. note::
 
    The benchmark uses the exact MIQP (free SCIP), not the relaxed
