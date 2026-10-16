@@ -61,6 +61,7 @@ def solve_marex(
     cumulative_n_sim=2000,
     cumulative_seed=0,
     backend="mip",
+    control_penalty=0.0,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -86,7 +87,7 @@ def solve_marex(
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit,
         costs=costs, budget=budget, covariates=covariates,
         covariate_weight=covariate_weight, standardize=standardize,
-        solver=solver, verbose=verbose,
+        solver=solver, verbose=verbose, control_penalty=control_penalty,
     )
     if backend == "exact":
         # The search takes the restrictions and none of branch-and-bound's

@@ -53,6 +53,17 @@ class MAREXConfig(BaseMAREXConfig):
         description=(
             "Weakly-targeted design: weight on tying the synthetic control to "
             "the synthetic treated instead of to the population mean."))
+    control_penalty: float = Field(
+        default=0.0,
+        description=(
+            "Weakly-targeted design: Abadie and L'Hour's penalty on the "
+            "controls, beta * control_penalty * sum_j v_j ||B w - X_j||^2, "
+            "which charges each control market its distance from the "
+            "synthetic treated unit and makes the synthetic control sparse "
+            "and local (Vives-i-Bastida 2022, program 1, uses 0.1). The "
+            "objective is convex only while beta * control_penalty * "
+            "(1 + control_penalty) <= 1; larger values are refused. 0 leaves "
+            "the weakly-targeted design as it was."))
     lambda1: float = Field(
         default=0.0,
         description=(
@@ -302,6 +313,29 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "cumulative_n_sim must be >= 2 to take a quantile.")
         return v
+
+    @model_validator(mode="after")
+    def _validate_control_penalty(self) -> "MAREXConfig":
+        """The control penalty is weakly-targeted only, and convex only below a bound."""
+        lam = self.control_penalty
+        if lam == 0:
+            return self
+        if lam < 0:
+            raise MlsynthConfigError(
+                f"control_penalty must be >= 0; got {lam}.")
+        if self.design != "weakly_targeted":
+            raise MlsynthConfigError(
+                f"control_penalty charges each control its distance from the "
+                f"synthetic treated unit inside the weakly_targeted design; "
+                f"design={self.design!r} has no such term.")
+        kappa = self.beta * lam * (1.0 + lam)
+        if kappa > 1.0 + 1e-12:
+            raise MlsynthConfigError(
+                f"beta * control_penalty * (1 + control_penalty) = {kappa:.6g} "
+                f"exceeds 1. Past that bound the weakly-targeted objective with "
+                f"the control penalty is not convex, so neither backend can "
+                f"certify a minimum. Lower beta or control_penalty.")
+        return self
 
     @model_validator(mode="after")
     def _validate_backend(self) -> "MAREXConfig":

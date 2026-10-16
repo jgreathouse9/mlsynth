@@ -65,7 +65,8 @@ def prepare_clusters(Y_full, clusters):
 
 def validate_scm_inputs(Y_full, T0, blank_periods, design,
                         beta=1e-6, lambda1=0.0, lambda2=0.0,
-                        xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0):
+                        xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0,
+                        control_penalty=0.0):
     """Validate shapes and design/parameter compatibility (raises ValueError)."""
     if T0 <= 0 or T0 > Y_full.shape[1]:
         raise ValueError(f"T0 must be 1 <= T0 <= Y_full.shape[1] (got T0={T0}, "
@@ -78,6 +79,16 @@ def validate_scm_inputs(Y_full, T0, blank_periods, design,
         raise ValueError("lambda1/lambda2 are only valid when design == 'penalized'")
     if design != "unit_penalized" and (xi != 0.0 or lambda1_unit != 0.0 or lambda2_unit != 0.0):
         raise ValueError("xi/lambda1_unit/lambda2_unit are only valid when design == 'unit_penalized'")
+    if control_penalty != 0.0:
+        if design != "weakly_targeted":
+            raise ValueError("control_penalty is only valid when design == 'weakly_targeted'")
+        if control_penalty < 0:
+            raise ValueError(f"control_penalty must be >= 0 (got {control_penalty})")
+        if beta * control_penalty * (1.0 + control_penalty) > 1.0 + 1e-12:
+            raise ValueError(
+                "beta * control_penalty * (1 + control_penalty) exceeds 1, where "
+                "the weakly-targeted objective with the control penalty is not "
+                "convex")
 
 
 def validate_costs_budget(costs, budget, N, cluster_labels, K):
@@ -246,7 +257,7 @@ def per_unit_reproducibility(Y_fit, members):
 def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
                     design, beta=1e-6, lambda1=0.0, lambda2=0.0,
                     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0,
-                    D1=None, D2_list=None, zeta=0.0):
+                    D1=None, D2_list=None, zeta=0.0, control_penalty=0.0):
     """Design-specific cvxpy objective (see module docstring).
 
     ``lambda2_unit`` and a non-zero ``zeta`` raise
@@ -263,6 +274,29 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
             Xbar_k = Xbar_clusters[k_idx]
             obj_terms.append(cp.sum_squares(Xbar_k - Y_T @ w[:, k_idx]))
             obj_terms.append(cp.sum_squares(Xbar_k - Y_T @ v[:, k_idx]))
+
+    elif design == "weakly_targeted" and control_penalty > 0:
+        # Vives-i-Bastida (2022), program (1): the weakly-targeted objective
+        # plus beta * lam * sum_j v_j ||B w - X_j||^2, bilinear in w and v as
+        # written. Around the target, u = B w - Xbar and s = B v - Xbar, and on
+        # the control simplex it is a*||u - (b/a) s||^2 + k*||s||^2 +
+        # beta*lam*d'v with a = 1 + beta (1 + lam), b = beta (1 + lam),
+        # k = beta - b^2 / a and d_j = ||X_j - Xbar||^2. k >= 0 is the
+        # convexity bound beta lam (1 + lam) <= 1, checked before this runs.
+        lam = float(control_penalty)
+        a = 1.0 + beta * (1.0 + lam)
+        b = beta * (1.0 + lam)
+        k = max(beta - b * b / a, 0.0)
+        for k_idx in range(K):
+            Xbar_k = Xbar_clusters[k_idx]
+            centred = Y_T - Xbar_k[:, None]
+            d = (centred ** 2).sum(axis=0)
+            u = centred @ w[:, k_idx]
+            s = centred @ v[:, k_idx]
+            obj_terms.append(a * cp.sum_squares(u - (b / a) * s))
+            if k > 0:
+                obj_terms.append(k * cp.sum_squares(s))
+            obj_terms.append(beta * lam * (d @ v[:, k_idx]))
 
     elif design == "weakly_targeted":
         for k_idx in range(K):
