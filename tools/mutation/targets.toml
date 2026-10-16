@@ -4285,14 +4285,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-weight-is-dropped"
-  find = "        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])"
+  find = "        X = np.hstack([X[:, :n_out], weight * X[:, n_out:]])"
   replace = "        X = np.hstack([X[:, :n_out], X[:, n_out:]])"
   models = "covariates appended at weight one whatever the configuration asks, with or without standardisation"
 
   [[target.mutant]]
   id = "the-weight-also-scales-the-outcomes"
-  find = "        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])"
-  replace = "        X = covariate_weight * X"
+  find = "        X = np.hstack([X[:, :n_out], weight * X[:, n_out:]])"
+  replace = "        X = weight * X"
   models = "the weight applied to every predictor instead of the covariates, which rescales the whole objective and leaves the design where it was"
 
   [[target.mutant]]
@@ -4300,3 +4300,69 @@ timeout = 600.0
   find = "        flat = sd <= 1e-12 * np.abs(X).max(axis=0, initial=0.0)"
   replace = "        flat = sd == 0"
   models = "the exact-zero guard: a column constant up to rounding, standard deviation 1e-14, is divided by its noise into a column of order 1e15"
+
+[[target]]
+name = "marex-predictor-weights"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_predictor_weights.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mapping-is-read-by-position"
+  find = "    return np.array([float(covariate_weight[c]) for c in names])"
+  replace = "    return np.array([float(v) for v in covariate_weight.values()])"
+  models = "issue #760: the weights taken in the order the mapping was written instead of matched to the covariates by name, so listing the covariates in another order moves weight from one covariate to another"
+
+  [[target.mutant]]
+  id = "the-resolver-accepts-a-partial-mapping"
+  find = "    if missing or unknown:\n        raise MlsynthConfigError(\n            f\"covariate_weight must name exactly the covariates {list(names)}; \""
+  replace = "    if False:\n        raise MlsynthConfigError(\n            f\"covariate_weight must name exactly the covariates {list(names)}; \""
+  models = "a mapping that leaves a covariate out resolved anyway, which then fails as a KeyError instead of naming the missing covariate"
+
+  [[target.mutant]]
+  id = "a-vector-of-the-wrong-length-is-broadcast"
+  find = "        if weight.ndim and weight.shape != (cov.shape[1],):"
+  replace = "        if False:"
+  models = "a weight vector whose length does not match the covariate columns passed to numpy, which either broadcasts it silently (length 1) or fails with a message that does not name covariate_weight"
+
+[[target]]
+name = "marex-predictor-weights-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_predictor_weights.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-negative-weight-is-accepted"
+  find = "        bad = [v for v in values if not v >= 0]"
+  replace = "        bad = []"
+  models = "a negative covariate weight accepted; it squares away in the objective, so the configuration records a sign the design ignores"
+
+  [[target.mutant]]
+  id = "a-mapping-without-covariates-is-accepted"
+  find = "            if not self.covariates:\n                raise MlsynthConfigError(\n                    \"covariate_weight is a mapping"
+  replace = "            if False:\n                raise MlsynthConfigError(\n                    \"covariate_weight is a mapping"
+  models = "a per-covariate mapping accepted when no covariates are listed, so the weights are silently unused"
+
+  [[target.mutant]]
+  id = "the-config-accepts-a-partial-mapping"
+  find = "            if missing or unknown:\n                raise MlsynthConfigError(\n                    f\"covariate_weight must name exactly the covariates \""
+  replace = "            if False:\n                raise MlsynthConfigError(\n                    f\"covariate_weight must name exactly the covariates \""
+  models = "a mapping that misses a covariate or names an unknown one accepted at construction, failing later inside the fit or not at all"
+
+[[target]]
+name = "marex-predictor-weights-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_predictor_weights.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pool-gets-unit-weights"
+  find = "                    covariate_weight=covariate_weight, standardize=self.standardize,"
+  replace = "                    covariate_weight=1.0, standardize=self.standardize,"
+  models = "the top_K solution pool re-solved with every covariate at weight 1 while the primary design uses the configured weights, so the menu of designs answers a different question from the design it is ranked beside"
+
+  [[target.mutant]]
+  id = "the-design-gets-unit-weights"
+  find = "                covariate_weight=covariate_weight,\n"
+  replace = "                covariate_weight=1.0,\n"
+  models = "the configured weights validated and recorded while the design is solved with every covariate at weight 1"
