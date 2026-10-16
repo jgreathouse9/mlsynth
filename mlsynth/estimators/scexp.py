@@ -65,6 +65,7 @@ class MAREX:
         self.design: str = config.design
 
         self.beta: float = config.beta
+        self.control_penalty: float = config.control_penalty
         self.lambda1: float = config.lambda1
         self.lambda2: float = config.lambda2
         self.xi: float = config.xi
@@ -181,6 +182,7 @@ class MAREX:
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
+                control_penalty=self.control_penalty,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -208,6 +210,7 @@ class MAREX:
                     top_K=self.config.top_K, blank_periods=pool_blank,
                     m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
                     exclusive=self.exclusive, design=self.design, beta=self.beta,
+                    control_penalty=self.control_penalty,
                     lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
                     lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
