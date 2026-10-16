@@ -155,7 +155,7 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
                     budget_dict=None, exclusive=True, restrictions=None,
                     design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
                     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, D1=None,
-                    D2_list=None, solver=cp.SCIP):
+                    D2_list=None, solver=cp.SCIP, control_penalty=0.0):
     """The weights of a fixed selection ``z_sel``, and their objective.
 
     ``z_sel`` is rounded at 0.5 before anything else reads it.
@@ -188,7 +188,7 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
         budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
         design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
-        D2_list=D2_list, solver=solver)
+        D2_list=D2_list, solver=solver, control_penalty=control_penalty)
 
 
 def _refit_by_simplex_fits(X_fit, Xbar_clusters, cluster_members, cluster_labels,
@@ -242,7 +242,7 @@ def _refit_by_simplex_fits(X_fit, Xbar_clusters, cluster_members, cluster_labels
 def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel,
                  *, m_eq, m_min, m_max, costs, budget_dict, exclusive,
                  restrictions, design, beta, lambda1, lambda2, xi, lambda1_unit,
-                 lambda2_unit, D1, D2_list, solver):
+                 lambda2_unit, D1, D2_list, solver, control_penalty=0.0):
     N, K = M.shape
     # Rounded here as well as by the caller: a selection pinned at a binary a
     # solver left near 1e-6 would admit a treated weight of that size, the
@@ -255,7 +255,8 @@ def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel
     constraints = constraints + [z == z_fixed]
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                 design, beta, lambda1, lambda2, xi,
-                                lambda1_unit, lambda2_unit, D1, D2_list)
+                                lambda1_unit, lambda2_unit, D1, D2_list,
+                                control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=solver)
     if prob.status != cp.OPTIMAL or w.value is None or v.value is None:
@@ -280,7 +281,7 @@ def solve_design(
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
-    warm_start=None, time_limit=None,
+    warm_start=None, time_limit=None, control_penalty=0.0,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``).
 
@@ -298,7 +299,8 @@ def solve_design(
     ``None`` leave the original solve path untouched.
     """
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
-                        lambda2, xi, lambda1_unit, lambda2_unit)
+                        lambda2, xi, lambda1_unit, lambda2_unit,
+                        control_penalty=control_penalty)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
@@ -319,7 +321,8 @@ def solve_design(
                 cp.sum([z[int(j), int(k)] for (j, k) in pairs]) <= len(pairs) - 1]
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
-                               lambda1_unit, lambda2_unit, D1, D2_list)
+                               lambda1_unit, lambda2_unit, D1, D2_list,
+                               control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     if warm_start is None and time_limit is None:
         prob.solve(solver=solver, verbose=verbose)          # original solve path
@@ -384,7 +387,8 @@ def solve_design(
         budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
         design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
-        D2_list=D2_list, solver=solver if solver is not None else cp.SCIP)
+        D2_list=D2_list, solver=solver if solver is not None else cp.SCIP,
+        control_penalty=control_penalty)
     return finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
                          cluster_labels, cluster_members, N, K, T0,
                          blank_periods, T_fit, Y_fit, Y_blank, design, clusters,
@@ -475,11 +479,12 @@ def solve_design_relaxed(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False, solver=None,
-    verbose=False, zeta=0.0, trim_threshold=1e-2,
+    verbose=False, zeta=0.0, trim_threshold=1e-2, control_penalty=0.0,
 ):
     """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
-                        lambda2, xi, lambda1_unit, lambda2_unit)
+                        lambda2, xi, lambda1_unit, lambda2_unit,
+                        control_penalty=control_penalty)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
@@ -495,7 +500,8 @@ def solve_design_relaxed(
     solver = solver or cp.CLARABEL
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
-                               lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta)
+                               lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta,
+                               control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=solver, verbose=verbose)
 

@@ -185,6 +185,40 @@ distance matrix, which is bilinear in two decision variables; ``lambda1_unit``
 charges the treated side against the population target, and the ``penalized``
 design charges both sides against it separately.
 
+Control penalty
+^^^^^^^^^^^^^^^
+
+The ``weakly_targeted`` design takes one more term, ``control_penalty``
+(:math:`\lambda`), from Vives-i-Bastida (2022, program 1):
+
+.. math::
+
+   \Bigl\| \bar{\mathbf{x}} - \mathbf{u} \Bigr\|_2^2
+   + \beta \Bigl\| \mathbf{u} - \sum_j v_j \mathbf{x}_j \Bigr\|_2^2
+   + \beta \lambda \sum_j v_j \bigl\| \mathbf{u} - \mathbf{x}_j \bigr\|_2^2,
+   \qquad \mathbf{u} = \sum_j w_j \mathbf{x}_j.
+
+The last term is Abadie and L'Hour's (2021) penalty on the controls: each
+control market is charged its distance from the synthetic treated unit, so the
+synthetic control is built from a few nearby markets instead of many distant
+ones that average out. Vives-i-Bastida's design for the Catalan UBI pilot uses
+:math:`\lambda = 0.1`. At ``control_penalty=0``, the default, the design is
+the weakly-targeted design as before.
+
+As written, the term multiplies a control weight by a function of the treated
+weights. Because the control weights sum to one it equals
+:math:`\|\mathbf{u}\|^2 - 2\,\mathbf{u}^\top \mathbf{s} + \sum_j v_j \|\mathbf{x}_j\|^2`
+with :math:`\mathbf{s} = \sum_j v_j \mathbf{x}_j`, a quadratic in the two
+synthetic units plus a linear term in :math:`\mathbf{v}`. The whole objective is
+then convex in :math:`(\mathbf{w}, \mathbf{v})` exactly when
+:math:`\beta \lambda (1 + \lambda) \le 1`, and MAREX refuses a configuration
+past that bound when it is built, since neither backend could certify a
+minimum there. At :math:`\beta = 1` the bound is :math:`\lambda \le 0.618`; as
+:math:`\beta \to 0`, the lexicographic limit of Vives-i-Bastida's Algorithm 1,
+it places no limit on :math:`\lambda`. The MIQP receives the objective as a
+sum of squares in the centred synthetic units; the exact backend handles it as
+described under :ref:`marex-search-backend`.
+
 Covariates
 ^^^^^^^^^^
 
@@ -494,6 +528,20 @@ candidate, about five days. SCIP, given 30 minutes on each of the same two
 problems through ``backend="mip"``, stopped at designs whose objectives were 2.1
 times the optimum at :math:`\beta = 1` and 2.3 times it at :math:`\beta = 100`,
 without a proof of optimality for either.
+
+With a ``control_penalty`` :math:`\lambda > 0` the same fit runs on the
+penalised objective. For a given synthetic treated :math:`\mathbf{u}` the best
+controls are a synthetic-control fit to :math:`(1 + \lambda)\mathbf{u}` with
+each market charged :math:`\lambda \|\mathbf{x}_j\|^2` (all points measured from
+the target), so they remain one exact simplex fit. On a face the minimum over
+the controls is again a quadratic in :math:`\mathbf{u}`, now with a linear part
+that moves along the face, and the step is a stacked fit with a linear term. The
+Frank-Wolfe gap and the cutoff carry over unchanged, since the objective is
+convex under the bound above. Measured over 40 random problems per setting, at
+:math:`\beta` from 0.01 to 100 and :math:`\lambda` up to 0.99 of the bound, the
+fit certified in at most four steps, none of them a fallback sweep, in about two
+milliseconds. The penalty is non-negative, so the treated-fit bound still
+prunes.
 
 Abadie and Zhao's enumeration solves two separate synthetic-control problems per
 candidate (supplementary appendix, Section OA.6), and they solve this design by
@@ -1175,3 +1223,7 @@ Conformal Inference Method for Counterfactual and Synthetic Controls."
 
 Vives-i-Bastida, J. (2022). "Synthetic Experimental Design for a UBI Pilot
 Study." Report, MIT.
+
+Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control Estimator for
+Disaggregated Data." *Journal of the American Statistical Association*
+116(536):1817-1834.

@@ -74,6 +74,20 @@ objective and prune before any fit; at large ``beta`` they prune little,
 because the coupling dominates the objective and they cannot see it, and the
 cutoff is what keeps each surviving candidate to about one step.
 
+The control penalty. Vives-i-Bastida (2022, program 1) adds Abadie and
+L'Hour's penalty on the controls, ``beta lam sum_j v_j ||B_S w - b_j||^2``.
+Because ``sum v = 1`` it equals ``||t||^2 - 2 t'B_C v + sq'v`` with
+``sq_j = ||b_j||^2``, and the objective stays convex exactly when
+``beta lam (1 + lam) <= 1``. With every point measured from the target, the
+best controls for ``t = B_S w`` are the simplex fit to ``(1 + lam) t`` with
+the linear term ``lam sq``; on a face the controls' part is
+``||(I - P)((1 + lam) t - b_1)||^2 + lam (1 + lam) q't`` up to a constant,
+``q = D (D'D)^+ g`` with ``D`` the face's edges and ``g`` the differences of
+their squared norms, so the step is one fit with rows ``sqrt(1 - kappa) B_S``
+and ``sqrt(beta) (1 + lam) (I - P) B_S`` and the linear term
+``kappa B_S'q``, ``kappa = beta lam (1 + lam)``. It took at most four steps
+over random problems from ``beta = 0.01`` to 100 and up to 0.99 of the bound.
+
 Restrictions. Forced units, forbidden units and stratum quotas decide which
 candidates exist, so :class:`~mlsynth.utils.syndes_helpers.enumeration.SearchSpace`
 builds candidates inside them and counts them exactly; conflict pairs are a
@@ -182,31 +196,73 @@ class CoupledFitNotCertified(MlsynthEstimationError):
 
 
 def _coupled_point(Bs: np.ndarray, Bc: np.ndarray, A: np.ndarray, beta: float,
-                   w: np.ndarray, v_start: Optional[np.ndarray]
+                   w: np.ndarray, v_start: Optional[np.ndarray],
+                   lam: float = 0.0, sq: Optional[np.ndarray] = None
                    ) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """At treated weights ``w``: the best controls, the value and its gap.
 
     The controls are the exact simplex fit to ``B_S w``. The Frank-Wolfe gap,
     ``sum over blocks of grad'x - min_j grad_j``, bounds the value's distance to
     the joint minimum from above.
+
+    With a control penalty ``lam`` the objective gains
+    ``beta lam sum_j v_j ||B_S w - b_j||^2``. On the simplex that term is
+    ``||t||^2 - 2 t'B_C v + sq'v`` with ``sq_j = ||b_j||^2``, so the best
+    controls are the simplex fit to ``(1 + lam) t`` with the linear term
+    ``lam sq``.
     """
     t = Bs @ w
-    v = np.asarray(solve_simplex_qp(Bc, t, warm_start=v_start), dtype=float)
+    if lam:
+        v = np.asarray(solve_simplex_qp(Bc, (1.0 + lam) * t, warm_start=v_start,
+                                        linear=lam * sq), dtype=float)
+    else:
+        v = np.asarray(solve_simplex_qp(Bc, t, warm_start=v_start), dtype=float)
     c = Bc @ v
     r, d = t - A, t - c
     value = float(r @ r + beta * (d @ d))
     grad_w = 2.0 * (Bs.T @ (r + beta * d))
     grad_v = -2.0 * beta * (Bc.T @ d)
+    if lam:
+        dist = ((Bc - t[:, None]) ** 2).sum(axis=0)
+        value += float(beta * lam * (v @ dist))
+        grad_w = 2.0 * (Bs.T @ (r + beta * (1.0 + lam) * d))
+        grad_v = grad_v + beta * lam * dist
     gap = float(grad_w @ w - grad_w.min()) + float(grad_v @ v - grad_v.min())
     return value, gap, v, c
+
+
+def check_control_penalty(beta: float, control_penalty: float) -> None:
+    """Refuse a control penalty that is negative or breaks convexity.
+
+    On the control simplex the weakly-targeted objective with the penalty has
+    quadratic part ``(1 + beta + beta lam) ||u||^2 - 2 beta (1 + lam) u's +
+    beta ||s||^2`` in ``u = B_S w`` and ``s = B_C v``, positive semidefinite
+    exactly when ``beta lam (1 + lam) <= 1``.
+    """
+    lam = float(control_penalty)
+    if lam < 0:
+        raise MlsynthConfigError(
+            f"control_penalty must be >= 0; got {lam}.")
+    kappa = float(beta) * lam * (1.0 + lam)
+    if kappa > 1.0 + 1e-12:
+        raise MlsynthConfigError(
+            f"beta * control_penalty * (1 + control_penalty) = {kappa:.6g} "
+            f"exceeds 1, where the weakly-targeted objective with the control "
+            f"penalty stops being convex and has no minimum to certify. Lower "
+            f"beta or control_penalty.")
 
 
 def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
                 control: Sequence[int], beta: float, *,
                 w0: Optional[np.ndarray] = None, tol: Optional[float] = None,
                 max_iter: Optional[int] = None, cutoff: Optional[float] = None,
-                return_info: bool = False):
+                return_info: bool = False, control_penalty: float = 0.0):
     """``min ||A - B_S w||^2 + beta ||B_S w - B_C v||^2`` over two simplexes.
+
+    With ``control_penalty`` ``lam > 0`` the objective gains Abadie and
+    L'Hour's control penalty, ``beta lam sum_j v_j ||B_S w - b_j||^2``
+    (Vives-i-Bastida 2022, program 1); see the module docstring for the face
+    step it takes. ``beta lam (1 + lam)`` must not exceed 1.
 
     Newton steps over the faces of the control simplex (see the module
     docstring), each accepted only if the value falls, with an alternating
@@ -229,16 +285,28 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
         When ``max_iter`` steps leave the gap open. The value reached is above
         the minimum by an unknown amount, and ranking candidates on it could
         discard the optimal design.
+    MlsynthConfigError
+        When ``control_penalty`` is negative or ``beta lam (1 + lam) > 1``.
     """
     tol = COUPLED_TOL if tol is None else float(tol)
     max_iter = COUPLED_MAX_ITER if max_iter is None else int(max_iter)
     beta = float(beta)
+    lam = float(control_penalty)
+    check_control_penalty(beta, lam)
     root = np.sqrt(beta)
     Bs = B[:, list(treated)]
     Bc = B[:, list(control)]
+    sq = None
+    if lam:
+        # Every term is unchanged by moving all points by the same vector, so
+        # the penalised fit works around the target: A becomes 0 and the
+        # squared norms in the linear term are distances from it.
+        Bs, Bc, A = Bs - A[:, None], Bc - A[:, None], np.zeros_like(A)
+        sq = (Bc ** 2).sum(axis=0)
+        kappa = beta * lam * (1.0 + lam)
     w = (np.asarray(solve_simplex_qp(Bs, A), dtype=float) if w0 is None
          else np.asarray(w0, dtype=float))
-    value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, None)
+    value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, None, lam, sq)
     newton = sweeps = 0
     for it in range(max_iter + 1):
         if cutoff is not None and value - gap > cutoff:
@@ -257,17 +325,35 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
         face = Bc[:, v > 0]
         c0 = face.mean(axis=1)
         edges = face[:, 1:] - face[:, :1]
-        U, sv, _ = np.linalg.svd(edges, full_matrices=False)
-        span = U[:, sv > 1e-12 * max(1.0, sv.max(initial=0.0))]
+        U, sv, Vt = np.linalg.svd(edges, full_matrices=False)
+        keep = sv > 1e-12 * max(1.0, sv.max(initial=0.0))
+        span = U[:, keep]
         off_face = lambda X: X - span @ (span.T @ X)
-        design = np.vstack([Bs, root * off_face(Bs)])
-        target = np.concatenate([A, root * off_face(c0)])
-        w_face = np.asarray(solve_simplex_qp(design, target, warm_start=w),
-                            dtype=float)
+        if lam:
+            # On the face, with v = e_1 + sum_k a_k (e_k - e_1), minimising
+            # ||(1 + lam) t - B_F v||^2 + lam sq'v over a leaves
+            # ||(I - P)((1 + lam) t - b_1)||^2 + lam (1 + lam) q't plus a
+            # constant, q = D (D'D)^+ g with D the edges and g the squared-norm
+            # differences. With the -lam (1 + lam) ||t||^2 the controls' part
+            # carries, the step is a fit with rows sqrt(1 - kappa) B_S and
+            # sqrt(beta) (1 + lam) (I - P) B_S, and the linear term kappa B_S'q.
+            sq_f = sq[v > 0]
+            q = span @ ((Vt[keep] @ (sq_f[1:] - sq_f[0])) / sv[keep])
+            design = np.vstack([np.sqrt(max(1.0 - kappa, 0.0)) * Bs,
+                                root * (1.0 + lam) * off_face(Bs)])
+            target = np.concatenate([A, root * off_face(face[:, 0])])
+            w_face = np.asarray(solve_simplex_qp(
+                design, target, warm_start=w, linear=kappa * (Bs.T @ q)),
+                dtype=float)
+        else:
+            design = np.vstack([Bs, root * off_face(Bs)])
+            target = np.concatenate([A, root * off_face(c0)])
+            w_face = np.asarray(solve_simplex_qp(design, target, warm_start=w),
+                                dtype=float)
         step, moved = 1.0, False
         for _ in range(8):
             w_try = w + step * (w_face - w)
-            trial = _coupled_point(Bs, Bc, A, beta, w_try, v)
+            trial = _coupled_point(Bs, Bc, A, beta, w_try, v, lam, sq)
             if trial[0] < value - 1e-15 * (1.0 + abs(value)):
                 w, (value, gap, v, c) = w_try, trial
                 newton += 1
@@ -275,9 +361,11 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
                 break
             step *= 0.5
         if not moved:
-            w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta),
+            # Given v, the penalty is beta lam ||t - c||^2 plus a constant in t.
+            pull = beta * (1.0 + lam)
+            w = np.asarray(solve_simplex_qp(Bs, (A + pull * c) / (1.0 + pull),
                                             warm_start=w), dtype=float)
-            value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, v)
+            value, gap, v, c = _coupled_point(Bs, Bc, A, beta, w, v, lam, sq)
             sweeps += 1
     raise CoupledFitNotCertified(
         f"The weakly-targeted fit of a candidate treated set was not certified "
@@ -422,6 +510,7 @@ def search_cluster(
     top_k: int = 1,
     candidate_limit: Optional[int] = None,
     beta: Optional[float] = None,
+    control_penalty: float = 0.0,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -447,17 +536,28 @@ def search_cluster(
         The weakly-targeted coupling. When given, each candidate is priced by
         :func:`coupled_fit` instead of two independent fits; it takes no
         penalty vectors.
+    control_penalty : float
+        Abadie and L'Hour's control penalty inside the weakly-targeted design
+        (Vives-i-Bastida 2022, program 1); needs ``beta``. It is non-negative,
+        so the treated-side bound still sits under the objective.
 
     Raises
     ------
     MlsynthConfigError
-        Above the candidate limit, for a negative ``beta``, or for ``beta``
-        with a penalty vector.
+        Above the candidate limit, for a negative ``beta``, for ``beta`` with a
+        penalty vector, or for a ``control_penalty`` without ``beta`` or past
+        the convexity bound.
     MlsynthEstimationError
         When no admissible design exists.
     """
     n = B.shape[1]
+    if control_penalty and beta is None:
+        raise MlsynthConfigError(
+            "control_penalty charges each control its distance from the "
+            "synthetic treated unit inside the weakly-targeted design; it "
+            "needs beta.")
     if beta is not None:
+        check_control_penalty(beta, control_penalty)
         if beta < 0:
             raise MlsynthConfigError(
                 f"beta must be >= 0; a negative beta makes the coupling term "
@@ -506,7 +606,8 @@ def search_cluster(
         else:
             cut = best.cutoff
             fit = coupled_fit(B, A, cols, control, beta, w0=w,
-                              cutoff=cut + margin(cut) if np.isfinite(cut) else None)
+                              cutoff=cut + margin(cut) if np.isfinite(cut) else None,
+                              control_penalty=control_penalty)
             if fit is None:
                 return
             value, w, v = fit
@@ -658,7 +759,7 @@ def _designs(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
-    restrictions=None, top_k=1,
+    restrictions=None, top_k=1, control_penalty=0.0,
 ) -> List[Dict[str, Any]]:
     if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
@@ -673,7 +774,8 @@ def _designs(
             "lambda2_unit pairs the treated weights against the control weights "
             "and leaves no convex program to solve; use lambda1_unit.")
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
-                        lambda2, xi, lambda1_unit, lambda2_unit)
+                        lambda2, xi, lambda1_unit, lambda2_unit,
+                        control_penalty=control_penalty)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(
         Y_full, clusters)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
@@ -702,7 +804,8 @@ def _designs(
                 X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,
                 linear_treated=a, linear_control=b, donor_exclusion=donors,
                 top_k=top_k,
-                beta=beta if design == "weakly_targeted" else None)
+                beta=beta if design == "weakly_targeted" else None,
+                control_penalty=control_penalty)
         except CoupledFitNotCertified:
             raise
         except MlsynthEstimationError as exc:

@@ -3893,7 +3893,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-treated-step-ignores-the-controls"
-  find = "            w = np.asarray(solve_simplex_qp(Bs, (A + beta * c) / (1.0 + beta),"
+  find = "            w = np.asarray(solve_simplex_qp(Bs, (A + pull * c) / (1.0 + pull),"
   replace = "            w = np.asarray(solve_simplex_qp(Bs, A,"
   models = "the fallback sweep's treated fit aimed at the target alone, so it returns the starting point and the fit makes no progress on the candidates that need the sweep"
 
@@ -3905,8 +3905,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-search-withholds-its-incumbent"
-  find = "                              cutoff=cut + margin(cut) if np.isfinite(cut) else None)"
-  replace = "                              cutoff=None)"
+  find = "                              cutoff=cut + margin(cut) if np.isfinite(cut) else None,"
+  replace = "                              cutoff=None,"
   models = "the search never passing the incumbent to the fit. Every design is still right, and every losing candidate is fitted to convergence, which at large beta is nearly all of them"
 
   [[target.mutant]]
@@ -3929,8 +3929,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-coupling-is-dropped"
-  find = "                beta=beta if design == \"weakly_targeted\" else None)"
-  replace = "                beta=None)"
+  find = "                beta=beta if design == \"weakly_targeted\" else None,"
+  replace = "                beta=None,"
   models = "design='weakly_targeted' accepted and recorded while each cluster is searched as the standard design. Both are valid designs with plausible answers, so nothing fails until the result is compared with the MIQP"
 
   [[target.mutant]]
@@ -4270,6 +4270,168 @@ timeout = 900.0
   find = "            pre_periods=T0_eff - blanks,"
   replace = "            pre_periods=T0_eff - blanks - 1,"
   models = "the fitting window misaligned by one period, so the covariates and the outcomes are matched over different windows"
+
+[[target]]
+name = "marex-control-penalty"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_control_penalty.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-controls-aim-at-the-treated-unit"
+  find = "        v = np.asarray(solve_simplex_qp(Bc, (1.0 + lam) * t, warm_start=v_start,"
+  replace = "        v = np.asarray(solve_simplex_qp(Bc, t, warm_start=v_start,"
+  models = "the penalised control fit aimed at B w instead of (1 + lam) B w: the controls minimise a different objective from the one the value reports, so the fit's point is not the joint minimum"
+
+  [[target.mutant]]
+  id = "the-controls-ignore-their-distances"
+  find = "                                        linear=lam * sq), dtype=float)"
+  replace = "                                        linear=None), dtype=float)"
+  models = "the control fit without the linear term lam ||b_j||^2, so each control is priced as if it sat on the synthetic treated unit and the penalty never shapes v"
+
+  [[target.mutant]]
+  id = "the-value-omits-the-penalty"
+  find = "        value += float(beta * lam * (v @ dist))"
+  replace = "        pass"
+  models = "the value reported without beta lam sum v_j ||t - b_j||^2: designs ranked and reported on the weakly-targeted objective while the weights solve the penalised one"
+
+  [[target.mutant]]
+  id = "the-treated-gradient-misses-the-penalty"
+  find = "        grad_w = 2.0 * (Bs.T @ (r + beta * (1.0 + lam) * d))"
+  replace = "        grad_w = 2.0 * (Bs.T @ (r + beta * d))"
+  models = "the Frank-Wolfe gap computed from the unpenalised treated gradient, so the certificate and the cutoff's lower bound no longer bracket the penalised optimum"
+
+  [[target.mutant]]
+  id = "the-control-gradient-misses-the-penalty"
+  find = "        grad_v = grad_v + beta * lam * dist"
+  replace = "        grad_v = grad_v"
+  models = "the control block of the gap without the penalty's derivative; the gap then measures the wrong problem"
+
+  [[target.mutant]]
+  id = "the-face-step-is-not-centred"
+  find = "        Bs, Bc, A = Bs - A[:, None], Bc - A[:, None], np.zeros_like(A)"
+  replace = "        Bs, Bc, A = Bs, Bc, A"
+  models = "the penalised fit run around the origin instead of the target: the face step's first block, sqrt(1 - kappa) B_S aimed at A, is then the wrong quadratic and the squared norms in the control fit are distances from the origin"
+
+  [[target.mutant]]
+  id = "the-face-step-drops-its-linear-term"
+  find = "                design, target, warm_start=w, linear=kappa * (Bs.T @ q)),"
+  replace = "                design, target, warm_start=w, linear=None),"
+  models = "the face model without lam (1 + lam) q't, the part of the penalty that moves along the face; the step stops being Newton and the fit leans on rejected steps and sweeps"
+
+  [[target.mutant]]
+  id = "the-face-step-drops-one-plus-lam"
+  find = "                                root * (1.0 + lam) * off_face(Bs)])"
+  replace = "                                root * off_face(Bs)])"
+  models = "the face rows scaled by sqrt(beta) instead of sqrt(beta) (1 + lam): the step models a smaller coupling than the objective has"
+
+  [[target.mutant]]
+  id = "the-sweep-pulls-by-beta"
+  find = "            pull = beta * (1.0 + lam)"
+  replace = "            pull = beta"
+  models = "the fallback sweep's treated fit pulled toward the controls by beta instead of beta (1 + lam), the weight the penalty adds to ||t - c||^2 for fixed v"
+
+  [[target.mutant]]
+  id = "the-convexity-bound-is-not-checked"
+  find = "    if kappa > 1.0 + 1e-12:"
+  replace = "    if False:"
+  models = "a penalty past beta lam (1 + lam) = 1 handed to the fit: the objective is not convex there, the Frank-Wolfe gap no longer bounds the distance to the optimum, and the face step's first block takes the root of a negative number"
+
+  [[target.mutant]]
+  id = "a-negative-penalty-is-fitted"
+  find = "    if lam < 0:"
+  replace = "    if False:"
+  models = "a negative control penalty accepted, which rewards controls far from the synthetic treated unit"
+
+  [[target.mutant]]
+  id = "the-search-drops-the-penalty"
+  find = "                              control_penalty=control_penalty)"
+  replace = "                              control_penalty=0.0)"
+  models = "every candidate priced without the penalty, so the search returns the weakly-targeted design under a configuration that asked for program (1)"
+
+  [[target.mutant]]
+  id = "the-design-drops-the-penalty"
+  find = "else None,\n                control_penalty=control_penalty)"
+  replace = "else None,\n                control_penalty=0.0)"
+  models = "the exact backend accepting control_penalty and searching each cluster without it, while the MIQP honours it"
+
+  [[target.mutant]]
+  id = "a-penalty-without-beta-is-searched"
+  find = "    if control_penalty and beta is None:"
+  replace = "    if False:"
+  models = "a separable search given a control penalty it cannot apply, which the oracle would ignore"
+
+[[target]]
+name = "marex-control-penalty-miqp"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_control_penalty.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-miqp-ignores-the-penalty"
+  find = "    elif design == \"weakly_targeted\" and control_penalty > 0:"
+  replace = "    elif False:"
+  models = "the MIQP and its refit solving the weakly-targeted objective while the configuration asks for program (1)"
+
+  [[target.mutant]]
+  id = "the-miqp-drops-the-control-square"
+  find = "                obj_terms.append(k * cp.sum_squares(s))"
+  replace = "                pass"
+  models = "the sum-of-squares form without k ||s||^2, which is beta - b^2 / a of the control spread and vanishes only at the bound"
+
+  [[target.mutant]]
+  id = "the-miqp-drops-the-distances"
+  find = "            obj_terms.append(beta * lam * (d @ v[:, k_idx]))"
+  replace = "            pass"
+  models = "the linear term beta lam d'v left out, so the controls are not charged their distance from the target"
+
+  [[target.mutant]]
+  id = "the-miqp-misweights-the-cross-term"
+  find = "            obj_terms.append(a * cp.sum_squares(u - (b / a) * s))"
+  replace = "            obj_terms.append(a * cp.sum_squares(u - s))"
+  models = "the cross term -2 beta (1 + lam) u's written with coefficient 2a: a convex objective that is not program (1)"
+
+  [[target.mutant]]
+  id = "the-helpers-skip-the-bound"
+  find = "        if beta * control_penalty * (1.0 + control_penalty) > 1.0 + 1e-12:"
+  replace = "        if False:"
+  models = "the shared input check passing a penalty past the convexity bound to the MIQP builder, where k is clamped at zero and the program solved is not the one asked for"
+
+  [[target.mutant]]
+  id = "the-helpers-take-a-negative-penalty"
+  find = "        if control_penalty < 0:\n            raise ValueError("
+  replace = "        if False:\n            raise ValueError("
+  models = "a negative control penalty passing the shared input check, where for -1 < lam < 0 the convexity bound reads negative and passes too, so the MIQP rewards controls far from the synthetic treated unit"
+
+  [[target.mutant]]
+  id = "the-helpers-take-the-penalty-for-any-design"
+  find = "        if design != \"weakly_targeted\":\n            raise ValueError(\"control_penalty"
+  replace = "        if False:\n            raise ValueError(\"control_penalty"
+  models = "a control penalty passed with the standard or penalized design, where build_objective has no term for it and it is ignored"
+
+[[target]]
+name = "marex-control-penalty-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_control_penalty.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-config-takes-the-penalty-for-any-design"
+  find = "        if self.design != \"weakly_targeted\":\n            raise MlsynthConfigError(\n                f\"control_penalty"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"control_penalty"
+  models = "control_penalty accepted with a design that has no such term, so it is recorded on the configuration and ignored by the solve"
+
+  [[target.mutant]]
+  id = "the-config-skips-the-bound"
+  find = "        if kappa > 1.0 + 1e-12:\n            raise MlsynthConfigError(\n                f\"beta * control_penalty"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"beta * control_penalty"
+  models = "a penalty past the convexity bound accepted at construction, failing later inside a solver or, for the MIQP, solving a clamped program"
+
+  [[target.mutant]]
+  id = "the-config-takes-a-negative-penalty"
+  find = "        if lam < 0:\n            raise MlsynthConfigError(\n                f\"control_penalty must be >= 0"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"control_penalty must be >= 0"
+  models = "a negative control penalty accepted at construction"
 
 [[target]]
 name = "marex-covariate-scaling"
