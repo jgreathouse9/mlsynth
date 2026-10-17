@@ -1,0 +1,356 @@
+"""MAREX's exact backend: the treated bound priced from a prefix, and made safe.
+
+The search prices every candidate treated set ``S`` by the closed-form bound
+``min { w'G_S w + a'w : 1'w = 1 } = (2 + t)^2 / (4 s) - u / 4``, with
+``s = 1'G_S^-1 1``, ``t = 1'G_S^-1 a`` and ``u = a'G_S^-1 a``. Candidates
+arrive in lexicographic order, so consecutive ones share all but their last
+market. Writing ``S = P + {j}``, the Banachiewicz inversion formula (Zhang
+2005, (0.7.2)) extends ``s``, ``t`` and ``u`` from the prefix ``P`` in
+``O(m^2)``, and the prefix's inverse is formed once for its whole run.
+
+An update is not guaranteed to be as accurate as a fresh solve, so the bound no
+longer rests on the solve. For any vector ``v``,
+
+    g(S) >= -v'G_S v + min over i of (2 (G_S v)_i + a_i),
+
+with equality at the affine minimiser, where it is the closed form
+(Neumaier and Shcherbina 2004, sec. 3). The search evaluates this at the
+minimiser bordering returns and subtracts an a priori bound on the rounding of
+that evaluation (Higham 2002, (3.5) and (3.13)), so the bound holds however
+accurate the update was.
+
+The tests check bordering against direct solves, the safe form against the fit
+at arbitrary points, the bound against the closed form it replaces, and the
+cases where a solve breaks down.
+
+Levels: smoke, unit, edge, failure, property.
+"""
+from __future__ import annotations
+
+import itertools
+
+import numpy as np
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+from mlsynth.utils.marex_helpers import exact as exact_mod
+from mlsynth.utils.marex_helpers.exact import side_fit, treated_fit_bound
+from mlsynth.tests.test_marex_exact_backend import _problem
+
+
+# ------------------------------------------------------------------ helpers
+def _subsets(n, m):
+    return np.array(list(itertools.combinations(range(n), m)), dtype=np.int64)
+
+
+def _fit(B, A, S, a=None):
+    S = list(S)
+    return side_fit(B, A, S, None if a is None else a[S])[0]
+
+
+def _penalty(seed, n, scale=1.0):
+    return scale * np.abs(np.random.default_rng(seed).normal(size=n))
+
+
+def _direct(B, A, S, a=None):
+    """``s, t, u, G_S^-1 1, G_S^-1 a`` by a fresh solve, and ``cond(G_S)``."""
+    Bc = B[:, list(S)] - A[:, None]
+    G = Bc.T @ Bc
+    cond = np.linalg.cond(G)
+    if not cond < 1e12:
+        return np.nan, np.nan, np.nan, None, None, np.inf
+    one = np.ones(len(S))
+    x = np.linalg.solve(G, one)
+    if a is None:
+        return x.sum(), None, None, x, None, cond
+    aS = a[list(S)]
+    y = np.linalg.solve(G, aS)
+    return x.sum(), one @ y, aS @ y, x, y, cond
+
+
+def _closed_form(B, A, S, a=None):
+    s, t, u, _, _, cond = _direct(B, A, S, a)
+    val = 1.0 / s if a is None else (2.0 + t) ** 2 / (4.0 * s) - u / 4.0
+    return max(val, 0.0), cond
+
+
+def _sales(seed, n=8, T=30, level=5e4):
+    """Columns at the scale of weekly sales: a large level, a factor, noise."""
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(size=(T, 2)), axis=0) * 1e3
+    B = level + f @ rng.uniform(0.5, 1.5, size=(2, n)) + rng.normal(size=(T, n)) * 50.0
+    return B, B.mean(axis=1)
+
+
+def _gram(B, A):
+    return exact_mod.centred_gram(B, A)
+
+
+# --------------------------------------------------------------------- smoke
+@pytest.mark.parametrize("linear", [False, True])
+def test_the_bound_is_finite_and_non_negative_for_every_size(linear):
+    B, A = _problem(60, n=9)
+    a = _penalty(61, 9) if linear else None
+    for m in range(1, 9):
+        lb = treated_fit_bound(B, A, _subsets(9, m), linear=a)
+        assert lb.shape == (len(_subsets(9, m)),)
+        assert np.all(np.isfinite(lb)) and np.all(lb >= 0.0)
+
+
+# ---------------------------------------------------------- unit: bordering
+@pytest.mark.parametrize("linear", [False, True])
+def test_bordering_reproduces_the_direct_solve(linear):
+    B, A = _problem(62, n=9, T=12)
+    a = _penalty(63, 9) if linear else None
+    G, _ = _gram(B, A)
+    for m in (2, 3, 4, 5):
+        subs = _subsets(9, m)
+        s, t, x, y = exact_mod.bordered_terms(G, subs, a)
+        for r, S in enumerate(subs):
+            ds, dt, _, dx, dy, cond = _direct(B, A, S, a)
+            assert cond < 1e6
+            assert s[r] == pytest.approx(ds, rel=1e-9)
+            np.testing.assert_allclose(x[r], dx, rtol=1e-8, atol=1e-12)
+            if linear:
+                assert t[r] == pytest.approx(dt, rel=1e-8, abs=1e-12)
+                np.testing.assert_allclose(y[r], dy, rtol=1e-8, atol=1e-12)
+            else:
+                assert t is None and y is None
+
+
+def test_adding_a_market_never_lowers_s():
+    """``s_S - s_P = (1 - g'G_P^-1 1)^2 / sigma`` with ``sigma > 0``."""
+    B, A = _problem(64, n=9, T=12)
+    G, _ = _gram(B, A)
+    for m in (2, 3, 4):
+        subs = _subsets(9, m)
+        s = exact_mod.bordered_terms(G, subs)[0]
+        sP = exact_mod.bordered_terms(G, subs[:, :-1])[0] if m > 2 else \
+            1.0 / G[subs[:, 0], subs[:, 0]]
+        assert np.all(s >= sP * (1.0 - 1e-12))
+
+
+def test_prefix_runs_follow_contiguous_rows():
+    subs = np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [0, 1, 4], [1, 2, 3]])
+    prefixes, run = exact_mod.prefix_runs(subs)
+    np.testing.assert_array_equal(prefixes, [[0, 1], [0, 2], [0, 1], [1, 2]])
+    np.testing.assert_array_equal(run, [0, 0, 1, 2, 3])
+
+
+def test_the_order_of_the_candidates_does_not_change_their_bounds():
+    B, A = _problem(65, n=9)
+    a = _penalty(66, 9)
+    subs = _subsets(9, 4)
+    perm = np.random.default_rng(67).permutation(len(subs))
+    np.testing.assert_allclose(treated_fit_bound(B, A, subs[perm], linear=a),
+                               treated_fit_bound(B, A, subs, linear=a)[perm],
+                               rtol=1e-12, atol=0.0)
+
+
+def test_a_prefix_split_across_chunks(monkeypatch):
+    B, A = _problem(68, n=9)
+    a = _penalty(69, 9)
+    subs = _subsets(9, 4)
+    whole = treated_fit_bound(B, A, subs, linear=a)
+    monkeypatch.setattr(exact_mod, "CHUNK", 7)
+    np.testing.assert_allclose(treated_fit_bound(B, A, subs, linear=a), whole,
+                               rtol=1e-12, atol=0.0)
+
+
+# --------------------------------------------------------- unit: the bound
+@pytest.mark.parametrize("linear", [False, True])
+def test_the_bound_matches_the_closed_form_it_replaces(linear):
+    B, A = _problem(70, n=9, T=12)
+    a = _penalty(71, 9, 0.5) if linear else None
+    for m in (1, 2, 3, 4, 5):
+        subs = _subsets(9, m)
+        lb = treated_fit_bound(B, A, subs, linear=a)
+        for r, S in enumerate(subs):
+            cf, cond = _closed_form(B, A, S, a)
+            assert cond < 1e6
+            assert lb[r] == pytest.approx(cf, rel=1e-8, abs=1e-10)
+
+
+def test_the_safe_form_is_the_closed_form_at_the_affine_minimiser():
+    B, A = _problem(72, n=8, T=12)
+    a = _penalty(73, 8)
+    G, d = _gram(B, A)
+    subs = _subsets(8, 3)
+    s, t, x, y = exact_mod.bordered_terms(G, subs, a)
+    v = exact_mod.affine_minimiser(s, t, x, y)
+    np.testing.assert_allclose(v.sum(axis=1), 1.0, rtol=1e-10)
+    safe = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
+    u = np.einsum("li,li->l", a[subs], y)
+    closed = (2.0 + t) ** 2 / (4.0 * s) - u / 4.0
+    np.testing.assert_allclose(safe, closed, rtol=1e-8, atol=1e-10)
+
+
+def test_the_safe_form_is_a_lower_bound_at_any_point():
+    B, A = _problem(74, n=8, T=10)
+    a = _penalty(75, 8, 2.0)
+    G, d = _gram(B, A)
+    subs = _subsets(8, 3)
+    fit = np.array([_fit(B, A, S, a) for S in subs])
+    rng = np.random.default_rng(76)
+    for scale in (1e-3, 1.0, 1e3):
+        v = rng.normal(size=subs.shape) * scale
+        lb = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
+        assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+def test_the_rounding_term_sits_far_under_the_margin_on_sales_sized_data():
+    """The rounding the bound gives up is small next to what the search keeps.
+
+    The term is subtracted from every bound, so it must not eat the bound's
+    power to discard: on columns at the level of weekly sales it stays under a
+    hundredth of the search's margin.
+    """
+    B, A = _sales(77)
+    G, d = _gram(B, A)
+    subs = _subsets(8, 3)
+    v = exact_mod.affine_minimiser(*exact_mod.bordered_terms(G, subs))
+    term = exact_mod.safe_rounding(d, B.shape[0], subs, v)
+    lb = treated_fit_bound(B, A, subs)
+    assert np.all(term > 0.0)
+    assert np.all(term < 1e-2 * exact_mod.PRUNE_MARGIN * (1.0 + lb))
+
+
+# ----------------------------------------------------------- edge cases
+def test_one_treated_market_is_bounded_exactly():
+    B, A = _problem(78, n=8)
+    a = _penalty(79, 8)
+    subs = _subsets(8, 1)
+    lb = treated_fit_bound(B, A, subs, linear=a)
+    fit = np.array([_fit(B, A, S, a) for S in subs])
+    np.testing.assert_allclose(lb, fit, rtol=1e-9)
+
+
+@pytest.mark.parametrize("seed", [80, 81, 82, 83])
+def test_a_target_the_treated_set_reproduces_gets_no_positive_bound(seed):
+    """Here ``g(S) = 0``, the closed form is 0, and rounding is all that is left.
+
+    The target is an interior convex combination of three markets at the level
+    of weekly sales. Evaluated in floating point the safe form lands within its
+    rounding of zero, on either side; less the rounding term it is at most zero.
+    """
+    B, _ = _sales(seed)
+    w = np.array([0.5, 0.3, 0.2])
+    A = B[:, [1, 4, 6]] @ w
+    subs = np.array([[1, 4, 6]])
+    assert _fit(B, A, [1, 4, 6]) < 1e-12 * float(A @ A)
+    assert treated_fit_bound(B, A, subs)[0] == 0.0
+
+
+def test_duplicate_markets_get_a_valid_finite_bound():
+    B, A = _problem(84, n=8)
+    B[:, 3] = B[:, 2]
+    a = _penalty(85, 8)
+    subs = _subsets(8, 3)
+    lb = treated_fit_bound(B, A, subs, linear=a)
+    fit = np.array([_fit(B, A, S, a) for S in subs])
+    assert np.all(np.isfinite(lb))
+    assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+def test_a_market_at_the_target_bounds_its_sets_by_zero():
+    B, A = _problem(86, n=8)
+    B[:, 5] = A
+    subs = np.array([S for S in _subsets(8, 3) if 5 in S])
+    lb = treated_fit_bound(B, A, subs)
+    assert np.all(np.isfinite(lb))
+    np.testing.assert_array_equal(lb, 0.0)
+
+
+def test_more_treated_markets_than_periods():
+    B, A = _problem(87, n=8, T=3)
+    a = _penalty(88, 8)
+    subs = _subsets(8, 5)
+    lb = treated_fit_bound(B, A, subs, linear=a)
+    fit = np.array([_fit(B, A, S, a) for S in subs])
+    assert np.all(np.isfinite(lb))
+    assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+# ---------------------------------------------------------------- failure
+def test_a_breakdown_in_the_update_is_reported_as_no_bound_not_as_nan():
+    """A prefix whose Gram is singular has no inverse to extend.
+
+    Bordering reports it as non-finite terms; the bound for its candidates is
+    then zero, which discards nothing, and never NaN, which the search would
+    sort and compare without error.
+    """
+    B, A = _problem(89, n=8)
+    B[:, 1] = B[:, 0]
+    G, _ = _gram(B, A)
+    subs = np.array([[0, 1, j] for j in range(2, 8)])
+    s = exact_mod.bordered_terms(G, subs)[0]
+    assert not np.any(np.isfinite(s))
+    lb = treated_fit_bound(B, A, subs)
+    assert np.all(np.isfinite(lb))
+    fit = np.array([_fit(B, A, S) for S in subs])
+    assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+# ------------------------------------------------------------ properties
+@given(seed=st.integers(0, 10_000), n=st.integers(2, 8), m=st.integers(1, 5),
+       scale=st.sampled_from([1e-3, 1.0, 1e3, 1e6]), linear=st.booleans())
+@settings(max_examples=80, deadline=None)
+def test_the_safe_form_is_a_lower_bound_at_any_point_over_the_domain(
+        seed, n, m, scale, linear):
+    m = min(m, n)
+    B, A = _problem(seed, n=n, T=6)
+    a = _penalty(seed + 1, n, 3.0) if linear else None
+    G, d = _gram(B, A)
+    subs = _subsets(n, m)
+    v = np.random.default_rng(seed + 2).normal(size=subs.shape) * scale
+    lb = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
+    fit = np.array([_fit(B, A, S, a) for S in subs])
+    assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(2, 9), m=st.integers(1, 6),
+       linear=st.booleans(), sales=st.booleans())
+@settings(max_examples=80, deadline=None)
+def test_the_bound_is_the_closed_form_and_under_the_fit_over_the_domain(
+        seed, n, m, linear, sales):
+    m = min(m, n)
+    B, A = _sales(seed, n=n, T=7) if sales else _problem(seed, n=n, T=7)
+    a = _penalty(seed + 1, n) * (float(np.abs(B - A[:, None]).mean()) ** 2
+                                 if sales else 1.0) if linear else None
+    subs = _subsets(n, m)
+    lb = treated_fit_bound(B, A, subs, linear=a)
+    assert np.all(np.isfinite(lb)) and np.all(lb >= 0.0)
+    for r, S in enumerate(subs):
+        f = _fit(B, A, S, a)
+        assert lb[r] <= f + 1e-9 * (1.0 + f)
+        cf, cond = _closed_form(B, A, S, a)
+        if cond < 1e6:
+            assert lb[r] == pytest.approx(cf, rel=1e-7, abs=1e-9 * (1.0 + f))
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(3, 9), m=st.integers(2, 5))
+@settings(max_examples=40, deadline=None)
+def test_the_order_of_the_candidates_never_matters(seed, n, m):
+    m = min(m, n)
+    B, A = _problem(seed, n=n, T=8)
+    a = _penalty(seed + 1, n)
+    subs = _subsets(n, m)
+    perm = np.random.default_rng(seed + 2).permutation(len(subs))
+    np.testing.assert_allclose(treated_fit_bound(B, A, subs[perm], linear=a),
+                               treated_fit_bound(B, A, subs, linear=a)[perm],
+                               rtol=1e-12, atol=0.0)
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(3, 9), m=st.integers(2, 6))
+@settings(max_examples=40, deadline=None)
+def test_adding_a_market_never_lowers_s_over_the_domain(seed, n, m):
+    m = min(m, n)
+    B, A = _problem(seed, n=n, T=12)
+    G, _ = _gram(B, A)
+    subs = _subsets(n, m)
+    s = exact_mod.bordered_terms(G, subs)[0]
+    sP = (exact_mod.bordered_terms(G, subs[:, :-1])[0] if m > 2
+          else 1.0 / G[subs[:, 0], subs[:, 0]])
+    ok = np.isfinite(s) & np.isfinite(sP)
+    assert np.all(s[ok] >= sP[ok] * (1.0 - 1e-9))

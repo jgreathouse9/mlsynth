@@ -38,6 +38,25 @@ with ``G = B~'B~`` restricted to ``S``, ``s = 1'G^-1 1``, ``t = 1'G^-1 a`` and
 minimiser is already non-negative. SYNDES's exact backend bounds its own
 objective the same way (:mod:`mlsynth.utils.syndes_helpers.gram`).
 
+Pricing. Candidates arrive in lexicographic order, so consecutive ones share all
+but their last market. For ``S = P + {j}``, with ``H = G_P^-1``, ``g = G[P, j]``,
+``z = H g`` and the Schur complement ``sigma = G_jj - g'z``, the Banachiewicz
+inversion formula (Zhang 2005, (0.7.2)) gives
+``e'G_S^-1 f = e_P'H f_P + (e_j - z'e_P)(f_j - z'f_P) / sigma``, so ``s``,
+``t`` and ``u`` extend from the prefix in ``O(m^2)``, and each prefix's inverse is
+formed once for its run (:func:`bordered_terms`). On GeoLift's 40 markets and an
+80-market panel this priced candidates two to seven times faster than a solve
+per candidate, for ``m`` from 2 to 6.
+
+An update need not be as accurate as a fresh solve, so the bound does not rest
+on it. For any vector ``v``, ``||B~_S (w - v)||^2 >= 0`` gives
+``g(S) >= -v'G_S v + min_i (2 (G_S v)_i + a_i)``, with equality at the affine
+minimiser, where it is the closed form (Neumaier and Shcherbina 2004, sec. 3).
+The search evaluates this at the minimiser bordering returns and subtracts an a
+priori bound on the rounding of the evaluation and of forming ``G`` (Higham
+2002, (3.5) and (3.13)), so an inaccurate update or an ill-conditioned ``G_S``
+weakens a bound and never makes it exceed the fit (:func:`safe_treated_bound`).
+
 The weakly-targeted design. Its objective ties the synthetic control to the
 synthetic treated instead of to the target,
 
@@ -152,8 +171,12 @@ CHUNK = 20_000
 BUFFER = 512
 
 #: A candidate is discarded only when its bound clears the cutoff by this much,
-#: relative; it covers the floating-point error of the closed-form bound.
+#: relative. The bound accounts for its own rounding; the margin covers the
+#: rounding in the fitted values that set the cutoff.
 PRUNE_MARGIN = 1e-6
+
+#: Unit roundoff of IEEE double precision.
+UNIT_ROUNDOFF = 2.0 ** -53
 
 
 @dataclass(frozen=True)
@@ -374,52 +397,163 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
         f"backend='mip'.")
 
 
+def centred_gram(B: np.ndarray, A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """``G = B~'B~`` on the columns measured from the target, and their norms."""
+    Bc = B - A[:, None]
+    return Bc.T @ Bc, np.sqrt(np.einsum("ti,ti->i", Bc, Bc))
+
+
+def prefix_runs(subsets: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """The prefix of each run of consecutive rows that share one, and each row's run.
+
+    A row's prefix is all of it but its last market. Lexicographic candidates
+    share a prefix in long runs, so each prefix's inverse is formed once; rows in
+    any other order are still grouped correctly, into shorter runs.
+    """
+    pre = subsets[:, :-1]
+    new = np.ones(len(subsets), dtype=bool)
+    new[1:] = np.any(pre[1:] != pre[:-1], axis=1)
+    return pre[new], np.cumsum(new) - 1
+
+
+def _inverse(M: np.ndarray) -> np.ndarray:
+    """A batch of inverses; a singular matrix gets NaN instead of stopping the batch."""
+    try:
+        return np.linalg.inv(M)
+    except np.linalg.LinAlgError:
+        out = np.full_like(M, np.nan)
+        for k in range(len(M)):
+            try:
+                out[k] = np.linalg.inv(M[k])
+            except np.linalg.LinAlgError:
+                pass
+        return out
+
+
+def bordered_terms(G: np.ndarray, subsets: np.ndarray,
+                   linear: Optional[np.ndarray] = None):
+    """``s``, ``t``, ``x = G_S^-1 1`` and ``y = G_S^-1 a`` for every row.
+
+    Each row ``S = P + {j}`` is extended from its prefix's inverse ``H``: with
+    ``g = G[P, j]``, ``z = H g`` and the Schur complement
+    ``sigma = G_jj - g'z``, the Banachiewicz inversion formula gives
+    ``e'G_S^-1 f = e_P'H f_P + (e_j - z'e_P)(f_j - z'f_P) / sigma``, which is
+    ``O(m^2)`` per row. ``t`` and ``y`` are ``None`` without ``linear``.
+    A row whose prefix has no inverse, or whose ``sigma`` is not positive, gets
+    non-finite terms.
+    """
+    subsets = np.asarray(subsets, dtype=np.int64)
+    lin = None if linear is None else np.asarray(linear, dtype=float)
+    j = subsets[:, -1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if subsets.shape[1] == 1:
+            gjj = G[j, j]
+            x = (1.0 / np.where(gjj > 0, gjj, np.nan))[:, None]
+            s = x[:, 0]
+            if lin is None:
+                return s, None, x, None
+            y = lin[j][:, None] * x
+            return s, lin[j] * s, x, y
+        P, run = prefix_runs(subsets)
+        H = _inverse(G[P[:, :, None], P[:, None, :]])
+        xP = H.sum(axis=2)
+        g = G[subsets[:, :-1], j[:, None]]
+        z = np.einsum("lij,lj->li", H[run], g)
+        sigma = G[j, j] - np.einsum("li,li->l", g, z)
+        sigma = np.where(sigma > 0, sigma, np.nan)
+        xl = xP[run]
+        c1 = (1.0 - np.einsum("li,li->l", g, xl)) / sigma
+        s = xP.sum(axis=1)[run] + c1 * c1 * sigma
+        x = np.concatenate([xl - z * c1[:, None], c1[:, None]], axis=1)
+        if lin is None:
+            return s, None, x, None
+        aP = lin[P]
+        yP = np.einsum("kij,kj->ki", H, aP)
+        ca = (lin[j] - np.einsum("li,li->l", z, lin[subsets[:, :-1]])) / sigma
+        t = np.einsum("ki,ki->k", xP, aP)[run] + c1 * ca * sigma
+        y = np.concatenate([yP[run] - z * ca[:, None], ca[:, None]], axis=1)
+    return s, t, x, y
+
+
+def affine_minimiser(s, t, x, y) -> np.ndarray:
+    """The minimiser of ``w'G_S w + a'w`` subject to ``1'w = 1`` alone, per row.
+
+    ``x / s`` without a penalty; with one, ``(mu x - y) / 2`` with
+    ``mu = (2 + t) / s``, from the stationarity condition ``2 G_S w + a = mu 1``.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if t is None:
+            return x / s[:, None]
+        mu = (2.0 + t) / s
+        return (mu[:, None] * x - y) / 2.0
+
+
+def safe_rounding(d: np.ndarray, T: int, subsets: np.ndarray, v: np.ndarray,
+                  linear: Optional[np.ndarray] = None) -> np.ndarray:
+    """An a priori bound on the rounding of :func:`safe_treated_bound`'s value.
+
+    Forming ``G`` from the data and evaluating the form are inner products of
+    length at most ``T + 2m + 4``, so Higham's (3.5) and (3.13) bound the error
+    by ``gamma_k`` times the products of absolute values, and Cauchy-Schwarz
+    bounds those by the column norms ``d``: ``|v|'|B~_S|'|B~_S||v| <= (|v|'d_S)^2``
+    and each row of ``|B~_S|'|B~_S||v|`` by ``max d_S |v|'d_S``. The factor 2
+    covers the rounding of ``d`` and of this bound itself.
+    """
+    m = subsets.shape[1]
+    k = T + 2 * m + 4
+    gamma = k * UNIT_ROUNDOFF / (1.0 - k * UNIT_ROUNDOFF)
+    dS = d[subsets]
+    dv = np.einsum("li,li->l", np.abs(v), dS)
+    total = dv * dv + 2.0 * dS.max(axis=1) * dv
+    if linear is not None:
+        total = total + np.abs(np.asarray(linear, dtype=float)[subsets]).max(axis=1)
+    return 2.0 * gamma * total
+
+
+def safe_treated_bound(G: np.ndarray, d: np.ndarray, T: int, subsets: np.ndarray,
+                       v: np.ndarray, linear: Optional[np.ndarray] = None
+                       ) -> np.ndarray:
+    """``-v'G_S v + min_i (2 (G_S v)_i + a_i)``, less its rounding, for any ``v``.
+
+    ``||B~_S (w - v)||^2 >= 0`` gives ``w'G_S w >= 2 v'G_S w - v'G_S v``, and the
+    minimum of a linear function over the simplex is its smallest coefficient,
+    so the form is at most the treated fit at every ``v`` (Neumaier and
+    Shcherbina 2004, sec. 3; it is Fenchel's inequality). Less
+    :func:`safe_rounding`, the value computed in floating point is too.
+    """
+    GS = G[subsets[:, :, None], subsets[:, None, :]]
+    Gv = np.einsum("lij,lj->li", GS, v)
+    lin = 0.0 if linear is None else np.asarray(linear, dtype=float)[subsets]
+    val = -np.einsum("li,li->l", v, Gv) + (2.0 * Gv + lin).min(axis=1)
+    return val - safe_rounding(d, T, subsets, v, linear)
+
+
 def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
                       linear: Optional[np.ndarray] = None) -> np.ndarray:
     """A lower bound on the treated-side fit of every row of ``subsets``.
 
-    ``min { w'G w + a'w : 1'w = 1 }`` on the centred columns, in closed form
-    (see the module docstring). A block whose solve does not reproduce its
-    right-hand side to ``1e-8`` relative, or whose ``1'G^-1 1`` is not positive, gets
-    the bound ``0``, which never discards anything; so does a negative value,
-    since the fit itself is non-negative.
+    ``min { w'G w + a'w : 1'w = 1 }`` on the centred columns (see the module
+    docstring), its terms extended from each row's prefix by
+    :func:`bordered_terms` and evaluated in the safe form at the affine
+    minimiser, less its rounding (:func:`safe_treated_bound`). The safe form is
+    a lower bound at any point, so an inaccurate update weakens a bound and
+    never makes it invalid. A row whose update breaks down, where a prefix has
+    no inverse or a Schur complement is not positive, gets ``0``, which discards
+    nothing; so does a negative value, since the fit itself is non-negative.
     """
     subsets = np.asarray(subsets, dtype=np.int64)
-    n_sub, m = subsets.shape
-    Bc = B - A[:, None]
-    G = Bc.T @ Bc
+    n_sub = len(subsets)
+    G, d = centred_gram(B, A)
+    T = B.shape[0]
     lin = None if linear is None else np.asarray(linear, dtype=float)
     out = np.zeros(n_sub)
     for lo in range(0, n_sub, CHUNK):
         idx = subsets[lo:lo + CHUNK]
-        b = len(idx)
-        Gs = G[idx[:, :, None], idx[:, None, :]]
-        rhs = np.ones((b, m, 1 if lin is None else 2))
-        if lin is not None:
-            rhs[:, :, 1] = lin[idx]
-        try:
-            x = np.linalg.solve(Gs, rhs)
-        except np.linalg.LinAlgError:
-            x = np.full_like(rhs, np.nan)
-            for i in range(b):
-                try:
-                    x[i] = np.linalg.solve(Gs[i], rhs[i])
-                except np.linalg.LinAlgError:
-                    pass
-        resid = np.abs(Gs @ x - rhs).reshape(b, -1).max(axis=1)
-        scale = np.maximum(1.0, np.abs(rhs).reshape(b, -1).max(axis=1))
-        s = x[:, :, 0].sum(axis=1)
-        good = (np.isfinite(s) & np.isfinite(resid) & (s > 0)
-                & (resid <= 1e-8 * scale))
-        val = np.zeros(b)
-        if lin is None:
-            val[good] = 1.0 / s[good]
-        else:
-            t = x[:, :, 1].sum(axis=1)
-            u = np.einsum("bi,bi->b", rhs[:, :, 1], x[:, :, 1])
-            val[good] = (2.0 + t[good]) ** 2 / (4.0 * s[good]) - u[good] / 4.0
+        v = affine_minimiser(*bordered_terms(G, idx, lin))
+        with np.errstate(invalid="ignore", over="ignore"):
+            val = safe_treated_bound(G, d, T, idx, v, lin)
         val[~np.isfinite(val)] = 0.0
-        out[lo:lo + b] = np.maximum(val, 0.0)
+        out[lo:lo + len(idx)] = np.maximum(val, 0.0)
     return out
 
 

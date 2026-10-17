@@ -3862,6 +3862,66 @@ timeout = 900.0
   models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
 
 [[target]]
+name = "marex-exact-bordered-bounds"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_bordered_bounds.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-prefix-runs-merge"
+  find = "    new[1:] = np.any(pre[1:] != pre[:-1], axis=1)"
+  replace = "    new[1:] = False"
+  models = "every row of a batch extended from the first row's prefix. Lexicographic batches change prefix every n - m rows, so all but the first run are priced from a matrix that is not theirs"
+
+  [[target.mutant]]
+  id = "the-schur-complement-gains-its-correction"
+  find = "        sigma = G[j, j] - np.einsum(\"li,li->l\", g, z)"
+  replace = "        sigma = G[j, j] + np.einsum(\"li,li->l\", g, z)"
+  models = "the Schur complement of the prefix's block formed with the wrong sign, so every update divides by a pivot larger than the true one and s, t and the minimiser are off"
+
+  [[target.mutant]]
+  id = "the-update-forgets-the-prefix"
+  find = "        s = xP.sum(axis=1)[run] + c1 * c1 * sigma"
+  replace = "        s = c1 * c1 * sigma"
+  models = "s taken as the new market's increment alone. The minimiser's weights then no longer sum to one, which the safe form tolerates as a weaker bound, and only the comparison with the direct solve sees it"
+
+  [[target.mutant]]
+  id = "the-minimiser-forgets-the-penalty"
+  find = "        return (mu[:, None] * x - y) / 2.0"
+  replace = "        return x / s[:, None]"
+  models = "the safe form evaluated at the minimiser of the unpenalised relaxation. The bound stays valid, since the form is a bound at any point, and falls short of the closed form it replaces wherever the penalty moves the minimiser"
+
+  [[target.mutant]]
+  id = "the-safe-form-forgets-the-penalty"
+  find = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).min(axis=1)"
+  replace = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv).min(axis=1)"
+  models = "the penalty left out of the minimum over the simplex. With a non-negative penalty that is still a bound, a weaker one, so the penalised designs prune less while every design stays correct"
+
+  [[target.mutant]]
+  id = "the-safe-form-takes-the-largest-coefficient"
+  find = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).min(axis=1)"
+  replace = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).max(axis=1)"
+  models = "the maximum of the linear term over the simplex where its minimum belongs. At the affine minimiser all coefficients are equal and the two agree, so the shipped bound is unchanged; at any other point the form exceeds the fit"
+
+  [[target.mutant]]
+  id = "the-rounding-is-not-subtracted"
+  find = "    return val - safe_rounding(d, T, subsets, v, linear)"
+  replace = "    return val"
+  models = "the safe form taken at its floating-point value. Where the target is reproduced exactly the closed form is zero and the computed form lands within its rounding of zero on either side, so a positive value is a bound above the fit; this is the defect the margin used to cover"
+
+  [[target.mutant]]
+  id = "the-rounding-ignores-the-scale-of-the-columns"
+  find = "    dv = np.einsum(\"li,li->l\", np.abs(v), dS)"
+  replace = "    dv = np.abs(v).sum(axis=1)"
+  models = "the rounding term computed as if every column had unit norm. On columns at the level of weekly sales it is then smaller than the rounding it has to cover by the square of the columns' norms"
+
+  [[target.mutant]]
+  id = "a-breakdown-reaches-the-search-as-nan"
+  find = "        val[~np.isfinite(val)] = 0.0"
+  replace = "        pass"
+  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out"
+
+[[target]]
 name = "marex-exact-coupled"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
 test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
