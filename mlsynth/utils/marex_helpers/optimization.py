@@ -61,6 +61,34 @@ def resolve_covariate_weight(covariate_weight, covariate_names):
     return np.array([float(covariate_weight[c]) for c in names])
 
 
+def stack_extra_outcomes(extra_outcomes, covariates, covariate_weight, T_fit):
+    """Predictors and weights for a design fitted to several outcomes.
+
+    Vives-i-Bastida (2022) stacks every outcome's fitting-window series ahead
+    of the covariates, ``x_j = (y^1_{j,E}, ..., y^K_{j,E}, z_j)``. The primary
+    outcome enters as ``Y_fit`` already; the extra outcomes' first ``T_fit``
+    periods are placed before the covariates as columns of weight one, the
+    weight a primary-outcome period carries, so ``_augment_fit`` treats every
+    outcome period alike and keeps the covariates' own weights.
+
+    Returns ``(covariates, covariate_weight)`` unchanged when there are no
+    extra outcomes.
+    """
+    blocks = [np.asarray(Y, dtype=float)[:, :T_fit] for Y in (extra_outcomes or [])]
+    if not blocks:
+        return covariates, covariate_weight
+    n_out = sum(b.shape[1] for b in blocks)
+    weights = [np.ones(n_out)]
+    if covariates is not None:
+        cov = np.asarray(covariates, dtype=float)
+        if cov.ndim == 1:
+            cov = cov[:, None]
+        blocks.append(cov)
+        weights.append(np.broadcast_to(
+            np.asarray(covariate_weight, dtype=float), (cov.shape[1],)))
+    return np.hstack(blocks), np.concatenate(weights)
+
+
 def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
     """Build the design predictor matrix ``X = [Y^E ; Z]`` (units x predictors).
 
