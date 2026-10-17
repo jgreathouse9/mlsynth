@@ -43,8 +43,10 @@ from mlsynth.utils.syndes_helpers.exact import SubsetFilter
 from mlsynth.tests.test_marex_exact_backend import (
     _assert_same_design,
     _both,
+    _fit as _marex_fit,
     _panel,
     _problem,
+    _treated,
 )
 
 
@@ -146,8 +148,36 @@ def test_the_floor_is_a_finite_non_negative_number():
 
 
 # -------------------------------------------- differential: exact == MIQP
+# Comparing treated sets is only valid where the optimum is unique, and two
+# backends may return different members of a tie (#779). lambda1 == lambda2 is
+# avoided: the penalised objective is then the same function on both sides, so
+# a design and its mirror tie exactly, and CI's SCIP returned the mirror of the
+# exact backend's design at 1.0 / 1.0. _assert_unique_optimum checks the
+# premise on each panel before the sets are compared.
+UNIQUE_GAP = 1e-4
+
+
+def _assert_unique_optimum(df, T0, exact, **over):
+    """No other treated support comes within UNIQUE_GAP of the optimum.
+
+    Any other optimal support either omits a market of this one or contains
+    all of them; forbidding each market in turn finds the first kind, the
+    mirror included, since a mirror's treated markets are this design's
+    controls. The second kind, a strict superset at an equal objective, is
+    not checked.
+    """
+    best = exact.globres.objective
+    for unit in sorted(_treated(exact)):
+        other = _marex_fit(df, T0, "exact", not_to_be_treated=[unit], **over)
+        gap = (other.globres.objective - best) / abs(best)
+        assert gap > UNIQUE_GAP, (
+            f"forbidding {unit} costs {gap:.2e}: the optimum is tied with "
+            f"{sorted(_treated(other))}, so the treated sets are not comparable"
+        )
+
+
 @pytest.mark.parametrize("design, extra", [
-    ("penalized", {"lambda1": 1.0, "lambda2": 1.0}),
+    ("penalized", {"lambda1": 1.0, "lambda2": 0.7}),
     ("penalized", {"lambda1": 0.0, "lambda2": 1.0}),
     ("penalized", {"lambda1": 1.0, "lambda2": 0.0}),
     ("unit_penalized", {"xi": 1.0, "lambda1_unit": 0.1}),
@@ -155,14 +185,25 @@ def test_the_floor_is_a_finite_non_negative_number():
 def test_exact_matches_the_mip_under_heavy_penalties(design, extra):
     df, T0 = _panel(seed=40)
     exact, mip = _both(df, T0, m_eq=3, design=design, **extra)
+    _assert_unique_optimum(df, T0, exact, m_eq=3, design=design, **extra)
     _assert_same_design(exact, mip)
 
 
 def test_exact_matches_the_mip_under_heavy_penalties_with_two_clusters():
     df, T0 = _panel(J=12, seed=41, region_sizes=(6, 6))
-    exact, mip = _both(df, T0, m_eq=2, cluster="region", design="penalized",
-                       lambda1=1.0, lambda2=1.0)
+    over = dict(m_eq=2, cluster="region", design="penalized",
+                lambda1=1.0, lambda2=0.7)
+    exact, mip = _both(df, T0, **over)
+    _assert_unique_optimum(df, T0, exact, **over)
     _assert_same_design(exact, mip)
+
+
+def test_the_uniqueness_check_reports_the_mirror_tie():
+    df, T0 = _panel(seed=40)
+    over = dict(m_eq=3, design="penalized", lambda1=1.0, lambda2=1.0)
+    exact = _marex_fit(df, T0, "exact", **over)
+    with pytest.raises(AssertionError, match="tied with"):
+        _assert_unique_optimum(df, T0, exact, **over)
 
 
 # ------------------------------------------------- unit: the treated bound
