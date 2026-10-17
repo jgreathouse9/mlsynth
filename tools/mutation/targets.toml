@@ -3922,6 +3922,48 @@ timeout = 600.0
   models = "the rounding term built on the relative model alone, which assumes no underflow. Below a data scale of about 1e-153 the products that form G are subnormal, their errors are absolute, and the computed form exceeded its exact value in 12 to 83 per cent of rows"
 
   [[target.mutant]]
+  id = "the-guard-is-dropped"
+  find = "            trust = (s > 0) & (kappa <= COND_GUARD)"
+  replace = "            trust = s > 0"
+  models = "the fast path taking every closed form the update returns. Two near-copies in a prefix leave its inverse inaccurate, and bordering alone then put bounds above the fit by up to 47 times, which discards the optimum"
+
+  [[target.mutant]]
+  id = "the-guard-reads-only-the-new-market"
+  find = "        kappa = np.maximum(kappa_P[run], G[j, j] / sigma)"
+  replace = "        kappa = G[j, j] / sigma"
+  models = "the guard blind to the prefix. Near-copies inside the prefix make its inverse the inaccurate part while the new market's Schur complement looks healthy, which is the case that overestimated"
+
+  [[target.mutant]]
+  id = "the-guard-reads-only-the-prefix"
+  find = "        kappa = np.maximum(kappa_P[run], G[j, j] / sigma)"
+  replace = "        kappa = kappa_P[run]"
+  models = "the guard blind to the new market. A near-copy of a prefix market added last leaves the prefix well conditioned and the set's Gram nearly singular, through a Schur complement near zero"
+
+  [[target.mutant]]
+  id = "the-size-switch-inverted"
+  find = "    rigorous = total <= RIGOROUS_PRICING_LIMIT"
+  replace = "    rigorous = total > RIGOROUS_PRICING_LIMIT"
+  models = "small searches priced on the fast path and large ones on the safe form, the opposite of the trade the limit makes: the safe form costs most where there are most candidates"
+
+  [[target.mutant]]
+  id = "the-first-pass-ignores-the-switch"
+  find = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)"
+  replace = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the first pass always on the safe form, so a large search pays for it on every candidate while the second pass does not"
+
+  [[target.mutant]]
+  id = "the-second-pass-ignores-the-switch"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the second pass always on the safe form. It runs only when the buffer cannot certify the result, which a two-candidate buffer forces"
+
+  [[target.mutant]]
+  id = "the-fast-path-forgets-u"
+  find = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st) - u / 4.0"
+  replace = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st)"
+  models = "the penalised closed form without its - u / 4, which is above the true closed form by a quarter of a'G_S^-1 a and above the fit wherever the minimiser is interior"
+
+  [[target.mutant]]
   id = "a-breakdown-reaches-the-search-as-nan"
   find = "        val[~np.isfinite(val)] = 0.0"
   replace = "        pass"

@@ -36,7 +36,12 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from mlsynth.utils.marex_helpers import exact as exact_mod
-from mlsynth.utils.marex_helpers.exact import side_fit, treated_fit_bound
+from mlsynth.utils.marex_helpers.exact import (
+    search_cluster,
+    side_fit,
+    treated_fit_bound,
+)
+from mlsynth.utils.syndes_helpers.exact import SubsetFilter
 from mlsynth.tests.test_marex_exact_backend import _problem
 
 
@@ -86,6 +91,26 @@ def _sales(seed, n=8, T=30, level=5e4):
 
 def _gram(B, A):
     return exact_mod.centred_gram(B, A)
+
+
+def _near_duplicates(seed, eps, pair=(4, 5), n=8, T=12):
+    """Sales-sized columns with one market a near-copy of another.
+
+    The copy differs by a relative ``eps`` per period, so any set holding both
+    has a Gram matrix with a condition number near ``1 / eps^2``.
+    """
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(size=(T, 2)), axis=0)
+    B = 1e3 * (20 + f @ rng.uniform(0.5, 1.5, size=(2, n))
+               + rng.normal(size=(T, n)) * 0.3)
+    B[:, pair[1]] = B[:, pair[0]] * (1 + eps * rng.normal(size=T))
+    return B, B.mean(axis=1)
+
+
+def _unguarded(G, subs):
+    """The closed form ``1/s`` from bordering alone, with no guard."""
+    s = exact_mod.bordered_terms(G, subs)[0]
+    return np.where(np.isfinite(s) & (s > 0), 1.0 / np.where(s > 0, s, 1.0), 0.0)
 
 
 def _exact_form(B, A, S, v, a=None):
@@ -290,6 +315,111 @@ def test_the_rounding_term_sits_far_under_the_margin_on_sales_sized_data():
     assert np.all(term < 1e-2 * exact_mod.PRUNE_MARGIN * (1.0 + lb))
 
 
+# -------------------------------------------------------- the fast path
+@pytest.mark.parametrize("linear", [False, True])
+def test_the_fast_path_matches_the_safe_bound_where_the_guard_trusts_it(linear):
+    B, A = _problem(93, n=9, T=12)
+    a = _penalty(94, 9) if linear else None
+    for m in (1, 2, 3, 4, 5):
+        subs = _subsets(9, m)
+        fast = treated_fit_bound(B, A, subs, linear=a, rigorous=False)
+        safe = treated_fit_bound(B, A, subs, linear=a, rigorous=True)
+        np.testing.assert_allclose(fast, safe, rtol=1e-8, atol=1e-10)
+
+
+def test_the_fast_path_is_the_closed_form_with_a_penalty():
+    B, A = _sales(95, n=8, T=20)
+    a = _penalty(96, 8, 1e6)
+    subs = _subsets(8, 3)
+    fast = treated_fit_bound(B, A, subs, linear=a, rigorous=False)
+    for r, S in enumerate(subs):
+        cf, cond = _closed_form(B, A, S, a)
+        assert cond < 1e6
+        assert fast[r] == pytest.approx(cf, rel=1e-8, abs=1e-10)
+
+
+@pytest.mark.parametrize("seed, eps", [(0, 1e-11), (1, 1e-12), (2, 1e-12),
+                                       (3, 1e-12)])
+def test_the_guard_keeps_the_fast_path_under_the_fit_where_bordering_fails(
+        seed, eps):
+    """Two near-copies in a prefix leave its inverse inaccurate.
+
+    Bordering alone then puts some of these sets' bounds above their fits, by
+    up to 16 times in a wider sweep; the guard sends those sets to the safe
+    form.
+    """
+    B, A = _near_duplicates(seed, eps)
+    G, _ = _gram(B, A)
+    subs = _subsets(8, 3)
+    fit = np.array([_fit(B, A, S) for S in subs])
+    assert np.any(_unguarded(G, subs) > 1.01 * fit)
+    fast = treated_fit_bound(B, A, subs, rigorous=False)
+    assert np.all(fast <= fit + 1e-8 * (1.0 + fit))
+
+
+def test_a_candidate_the_guard_rejects_is_priced_by_the_safe_form():
+    """Near-copies in the prefix, or split between it and the new market.
+
+    Either makes the set's Gram nearly singular: the first through the prefix's
+    condition estimate, the second through ``G_jj / sigma``. At a gap of
+    ``1e-6`` both are near ``1e9``, past the guard, while ``sigma`` stays
+    positive, so the update still returns a closed form to refuse. Both kinds
+    of row get exactly the safe bound.
+    """
+    B, A = _near_duplicates(1, 1e-6)
+    G, _ = _gram(B, A)
+    subs = _subsets(8, 3)
+    in_prefix = np.array([4 in S[:-1] and 5 in S[:-1] for S in subs])
+    split = np.array([S[-1] == 5 and 4 in S[:-1] for S in subs])
+    fast = treated_fit_bound(B, A, subs, rigorous=False)
+    safe = treated_fit_bound(B, A, subs, rigorous=True)
+    unguarded = _unguarded(G, subs)
+    for rows in (in_prefix, split):
+        assert rows.any()
+        assert np.any(unguarded[rows] != safe[rows])
+        np.testing.assert_array_equal(fast[rows], safe[rows])
+
+
+def test_the_search_prices_by_the_number_of_candidates(monkeypatch):
+    """At or under the limit every bound is safe; above it, the fast path.
+
+    A two-candidate buffer forces the second pass, which prices too.
+    """
+    monkeypatch.setattr(exact_mod, "BUFFER", 2)
+    B, A = _problem(97, n=8)
+    seen = []
+    original = exact_mod.treated_fit_bound
+
+    def spy(*args, rigorous=True, **kwargs):
+        seen.append(rigorous)
+        return original(*args, rigorous=rigorous, **kwargs)
+
+    monkeypatch.setattr(exact_mod, "treated_fit_bound", spy)
+    total = len(_subsets(8, 3))
+    for limit, expected in ((total, True), (total - 1, False)):
+        seen.clear()
+        monkeypatch.setattr(exact_mod, "RIGOROUS_PRICING_LIMIT", limit)
+        search_cluster(B, A, sizes=[3], filt=SubsetFilter())
+        assert seen and set(seen) == {expected}
+
+
+@pytest.mark.parametrize("seed, eps, linear", [(98, 1e-12, False),
+                                               (99, 1e-6, False),
+                                               (100, 1.0, True)])
+def test_both_paths_find_the_same_design(monkeypatch, seed, eps, linear):
+    """The near-copies carry no penalty: there the simplex fit itself can fail."""
+    B, A = _near_duplicates(seed, eps)
+    a = _penalty(seed, 8, 1e6) if linear else None
+    designs = []
+    for limit in (10 ** 9, 0):
+        monkeypatch.setattr(exact_mod, "RIGOROUS_PRICING_LIMIT", limit)
+        designs.append(search_cluster(B, A, sizes=[3], filt=SubsetFilter(),
+                                      linear_treated=a, top_k=3))
+    assert [d.treated for d in designs[0]] == [d.treated for d in designs[1]]
+    np.testing.assert_allclose([d.value for d in designs[0]],
+                               [d.value for d in designs[1]], rtol=1e-12)
+
+
 # ----------------------------------------------------------- edge cases
 def test_one_treated_market_is_bounded_exactly():
     B, A = _problem(78, n=8)
@@ -447,3 +577,41 @@ def test_adding_a_market_never_lowers_s_over_the_domain(seed, n, m):
           else 1.0 / G[subs[:, 0], subs[:, 0]])
     ok = np.isfinite(s) & np.isfinite(sP)
     assert np.all(s[ok] >= sP[ok] * (1.0 - 1e-9))
+
+
+@given(seed=st.integers(0, 10_000), m=st.integers(1, 5),
+       eps=st.sampled_from([1e-14, 1e-12, 1e-10, 1e-8, 1e-6, 1e-3]),
+       first=st.integers(0, 6), linear=st.booleans())
+@settings(max_examples=60, deadline=None)
+def test_the_fast_path_stays_under_the_fit_over_the_domain(
+        seed, m, eps, first, linear):
+    B, A = _near_duplicates(seed, eps, pair=(first, first + 1))
+    # Penalised simplex fits on near-copies closer than 1e-8 can fail outright,
+    # so the reference needs a gap of 1e-6 or wider; that still puts kappa
+    # near 1e9, past the guard.
+    a = _penalty(seed + 1, 8, 1e6) if linear and eps >= 1e-6 else None
+    subs = _subsets(8, m)
+    fast = treated_fit_bound(B, A, subs, linear=a, rigorous=False)
+    assert np.all(np.isfinite(fast)) and np.all(fast >= 0.0)
+    for r, S in enumerate(subs):
+        f = _fit(B, A, S, a)
+        assert fast[r] <= f + 1e-8 * (1.0 + f)
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(3, 8), m=st.integers(1, 4),
+       eps=st.sampled_from([1e-12, 1e-6, 1.0]), linear=st.booleans())
+@settings(max_examples=30, deadline=None)
+def test_both_paths_find_the_same_design_over_the_domain(seed, n, m, eps, linear):
+    m = min(m, n - 1)
+    B, A = _near_duplicates(seed, eps, pair=(0, n - 1), n=n, T=8)
+    a = _penalty(seed + 1, n, 1e6) if linear and eps == 1.0 else None
+    values = []
+    for rigorous_limit in (10 ** 9, 0):
+        exact_mod.RIGOROUS_PRICING_LIMIT, saved = (rigorous_limit,
+                                                   exact_mod.RIGOROUS_PRICING_LIMIT)
+        try:
+            values.append(search_cluster(B, A, sizes=[m], filt=SubsetFilter(),
+                                         linear_treated=a)[0].value)
+        finally:
+            exact_mod.RIGOROUS_PRICING_LIMIT = saved
+    assert values[0] == pytest.approx(values[1], rel=1e-12)

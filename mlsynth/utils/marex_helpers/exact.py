@@ -55,6 +55,14 @@ priori bound on the rounding of the evaluation and of forming ``G`` (Higham
 2002, (3.5) and (3.13)), so an inaccurate update or an ill-conditioned ``G_S``
 weakens a bound and never makes it exceed the fit (:func:`safe_treated_bound`).
 
+The safe evaluation gathers ``G_S`` for every candidate, which costs about what
+bordering saves, so the search chooses by size. Up to
+``RIGOROUS_PRICING_LIMIT`` candidates in a cluster every bound is the safe form.
+Above it a candidate takes the closed form straight from the update when its
+conditioning is at most ``COND_GUARD``, and only the rest are evaluated in the
+safe form; the admitted closed forms' error is covered by ``PRUNE_MARGIN``, as a
+fresh solve's was.
+
 The weakly-targeted design. Its objective ties the synthetic control to the
 synthetic treated instead of to the target,
 
@@ -175,6 +183,20 @@ PRUNE_MARGIN = 1e-6
 
 #: Unit roundoff of IEEE double precision.
 UNIT_ROUNDOFF = 2.0 ** -53
+
+#: On the fast path a candidate's closed form is taken from the update only when
+#: its conditioning ``kappa`` (the prefix's condition estimate, and
+#: ``G_jj / sigma``) is at most this. Against exact arithmetic on panels with
+#: planted near-duplicate markets, the rows it admitted overestimated the
+#: closed form by at most 7.9e-10 relative, three orders under PRUNE_MARGIN;
+#: rows past it, by up to 47 times. On GeoLift every candidate is admitted.
+COND_GUARD = 1e6
+
+#: Up to this many candidates in a cluster every bound is the safe form; above
+#: it the search prices on the fast path. On GeoLift the safe form costs 0.3 to
+#: 0.5 microseconds more per candidate than the fast path, a third to half a
+#: second per million, and about what a fresh solve per candidate costs.
+RIGOROUS_PRICING_LIMIT = 1_000_000
 
 #: The smallest positive subnormal double. A product that underflows is rounded
 #: with an absolute error of up to half of it, which no multiple of the unit
@@ -445,6 +467,18 @@ def bordered_terms(G: np.ndarray, subsets: np.ndarray,
     A row whose prefix has no inverse, or whose ``sigma`` is not positive, gets
     non-finite terms.
     """
+    return _bordered(G, subsets, linear)[:4]
+
+
+def _bordered(G: np.ndarray, subsets: np.ndarray,
+              linear: Optional[np.ndarray] = None):
+    """:func:`bordered_terms`, and each row's conditioning ``kappa``.
+
+    ``kappa`` is the larger of the prefix's condition estimate
+    ``||G_P||_1 ||H||_1`` and ``G_jj / sigma``. Together they track the
+    condition of ``G_S``, which sets the update's error; ``kappa`` is NaN
+    where the terms are, so no comparison can admit such a row.
+    """
     subsets = np.asarray(subsets, dtype=np.int64)
     lin = None if linear is None else np.asarray(linear, dtype=float)
     j = subsets[:, -1]
@@ -453,29 +487,33 @@ def bordered_terms(G: np.ndarray, subsets: np.ndarray,
             gjj = G[j, j]
             x = (1.0 / np.where(gjj > 0, gjj, np.nan))[:, None]
             s = x[:, 0]
+            kappa = np.where(gjj > 0, 1.0, np.inf)
             if lin is None:
-                return s, None, x, None
+                return s, None, x, None, kappa
             y = lin[j][:, None] * x
-            return s, lin[j] * s, x, y
+            return s, lin[j] * s, x, y, kappa
         P, run = prefix_runs(subsets)
-        H = _inverse(G[P[:, :, None], P[:, None, :]])
+        GP = G[P[:, :, None], P[:, None, :]]
+        H = _inverse(GP)
+        kappa_P = np.abs(GP).sum(axis=1).max(axis=1) * np.abs(H).sum(axis=1).max(axis=1)
         xP = H.sum(axis=2)
         g = G[subsets[:, :-1], j[:, None]]
         z = np.einsum("lij,lj->li", H[run], g)
         sigma = G[j, j] - np.einsum("li,li->l", g, z)
         sigma = np.where(sigma > 0, sigma, np.nan)
+        kappa = np.maximum(kappa_P[run], G[j, j] / sigma)
         xl = xP[run]
         c1 = (1.0 - np.einsum("li,li->l", g, xl)) / sigma
         s = xP.sum(axis=1)[run] + c1 * c1 * sigma
         x = np.concatenate([xl - z * c1[:, None], c1[:, None]], axis=1)
         if lin is None:
-            return s, None, x, None
+            return s, None, x, None, kappa
         aP = lin[P]
         yP = np.einsum("kij,kj->ki", H, aP)
         ca = (lin[j] - np.einsum("li,li->l", z, lin[subsets[:, :-1]])) / sigma
         t = np.einsum("ki,ki->k", xP, aP)[run] + c1 * ca * sigma
         y = np.concatenate([yP[run] - z * ca[:, None], ca[:, None]], axis=1)
-    return s, t, x, y
+    return s, t, x, y, kappa
 
 
 def affine_minimiser(s, t, x, y) -> np.ndarray:
@@ -539,17 +577,25 @@ def safe_treated_bound(G: np.ndarray, d: np.ndarray, T: int, subsets: np.ndarray
 
 
 def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
-                      linear: Optional[np.ndarray] = None) -> np.ndarray:
+                      linear: Optional[np.ndarray] = None, *,
+                      rigorous: bool = True) -> np.ndarray:
     """A lower bound on the treated-side fit of every row of ``subsets``.
 
     ``min { w'G w + a'w : 1'w = 1 }`` on the centred columns (see the module
     docstring), its terms extended from each row's prefix by
-    :func:`bordered_terms` and evaluated in the safe form at the affine
+    :func:`bordered_terms`.
+
+    With ``rigorous`` every row is evaluated in the safe form at the affine
     minimiser, less its rounding (:func:`safe_treated_bound`). The safe form is
     a lower bound at any point, so an inaccurate update weakens a bound and
-    never makes it invalid. A row whose update breaks down, where a prefix has
-    no inverse or a Schur complement is not positive, gets ``0``, which discards
-    nothing; so does a negative value, since the fit itself is non-negative.
+    never makes it invalid. Without it, a row whose conditioning ``kappa`` is at
+    most ``COND_GUARD`` takes the closed form ``(2 + t)^2 / (4 s) - u / 4``
+    straight from the update, which costs no gather of ``G_S``, and only the
+    other rows are evaluated in the safe form; the closed form's error is then
+    covered by ``PRUNE_MARGIN``, as a fresh solve's was. A row whose update
+    breaks down, where a prefix has no inverse or a Schur complement is not
+    positive, gets ``0``, which discards nothing; so does a negative value,
+    since the fit itself is non-negative.
     """
     subsets = np.asarray(subsets, dtype=np.int64)
     n_sub = len(subsets)
@@ -559,9 +605,24 @@ def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
     out = np.zeros(n_sub)
     for lo in range(0, n_sub, CHUNK):
         idx = subsets[lo:lo + CHUNK]
-        v = affine_minimiser(*bordered_terms(G, idx, lin))
-        with np.errstate(invalid="ignore", over="ignore"):
-            val = safe_treated_bound(G, d, T, idx, v, lin)
+        s, t, x, y, kappa = _bordered(G, idx, lin)
+        trust = np.zeros(len(idx), dtype=bool)
+        if not rigorous:
+            trust = (s > 0) & (kappa <= COND_GUARD)
+        val = np.zeros(len(idx))
+        with np.errstate(invalid="ignore", over="ignore", divide="ignore"):
+            if trust.any():
+                st = s[trust]
+                if lin is None:
+                    val[trust] = 1.0 / st
+                else:
+                    u = np.einsum("li,li->l", lin[idx[trust]], y[trust])
+                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st) - u / 4.0
+            rest = ~trust
+            if rest.any():
+                v = affine_minimiser(s[rest], None if t is None else t[rest],
+                                     x[rest], None if y is None else y[rest])
+                val[rest] = safe_treated_bound(G, d, T, idx[rest], v, lin)
         val[~np.isfinite(val)] = 0.0
         out[lo:lo + len(idx)] = np.maximum(val, 0.0)
     return out
@@ -713,6 +774,7 @@ def search_cluster(
                 "MAREX does not state.")
     limit = CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
     total = count_candidates(n, sizes, filt)
+    rigorous = total <= RIGOROUS_PRICING_LIMIT
     if total > limit:
         raise MlsynthConfigError(
             f"The exact backend would enumerate {total:,} treated sets in one "
@@ -762,7 +824,7 @@ def search_cluster(
     buf_lb = np.empty(0)
     buf_sets: List[Tuple[int, ...]] = []
     for block in _chunks(n, sizes, filt):
-        lb = treated_fit_bound(B, A, block, lin_t)
+        lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)
         held = buf_lb.size
         all_lb = np.concatenate([buf_lb, lb])
         if all_lb.size > BUFFER:
@@ -789,7 +851,7 @@ def search_cluster(
     if len(buf_sets) == BUFFER and (
             not np.isfinite(cut) or buf_lb.max() < cut + margin(cut)):
         for block in _chunks(n, sizes, filt):
-            lb = treated_fit_bound(B, A, block, lin_t)
+            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)
             for i in np.argsort(lb, kind="stable"):
                 cut = best.cutoff
                 if lb[i] >= cut + margin(cut):
