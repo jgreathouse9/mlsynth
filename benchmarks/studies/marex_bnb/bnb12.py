@@ -99,8 +99,8 @@ def objective(B, A, S):
 class Bounds:
     """The node bounds of one panel; ``I``, ``F``, ``O`` are market lists."""
 
-    def __init__(self, B, A, n_dir=200, seed=0):
-        self.B, self.A = B, A
+    def __init__(self, B, A, m=M, n_dir=200, seed=0):
+        self.B, self.A, self.m = B, A, m
         self.Bc = B - A[:, None]
         n = B.shape[1]
         U, _, Vt = np.linalg.svd(self.Bc, full_matrices=False)
@@ -121,14 +121,14 @@ class Bounds:
         U = I + F
         g, w = side_fit(self.B, self.A, U)
         k = len(U)
-        if k <= M:
+        if k <= self.m:
             return g + self.controls(O, F)
         Bu = self.Bc[:, U]
         Z = null_space(np.ones((1, k)))
         lam = max(float(np.linalg.eigvalsh(Z.T @ (Bu.T @ Bu) @ Z).min()), 0.0)
         wF = np.asarray(w[len(I):], float)
         rest = np.sort(wF)[: max(len(F) - r, 0)]
-        delta2 = float(rest @ rest) + float(rest.sum()) ** 2 / M
+        delta2 = float(rest @ rest) + float(rest.sum()) ** 2 / self.m
         return g + lam * delta2 + self.controls(O, F)
 
     def cover(self, I, F, O, r):
