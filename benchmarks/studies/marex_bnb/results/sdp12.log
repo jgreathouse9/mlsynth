@@ -1,0 +1,20 @@
+Every lexicographic node of depth 0-2 (index order), 12 markets, 3 treated.
+ratio = bound / subtree minimum; validity needs ratio <= 1.
+
+factor: 66 nodes
+  trace_cut_dnn  root 0.841  depth-1 median 0.994 min 0.842  all-node max 1.000000 (above 1: 3)  154 ms/node  {'optimal_inaccurate': 33, 'optimal': 33}
+Traceback (most recent call last):
+  File "<stdin>", line 31, in <module>
+  File "<stdin>", line 10, in <lambda>
+  File "/tmp/claude-0/-home-user-mlsynth/c45ce915-f350-55f1-a9bc-3882e46335ec/scratchpad/wtbnb/benchmarks/studies/marex_bnb/sdp_indicator.py", line 66, in indicator_bound
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/cvxpy/problems/problem.py", line 687, in solve
+    return solve_func(self, *args, **kwargs)
+  File "/usr/local/lib/python3.13/dist-packages/cvxpy/problems/problem.py", line 1148, in _solve
+    self.unpack_results(solution, solving_chain, inverse_data)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/cvxpy/problems/problem.py", line 1453, in unpack_results
+    raise error.SolverError(
+    ...<2 lines>...
+            "information.")
+cvxpy.error.SolverError: Solver 'CLARABEL' failed. Try another solver, or solve with verbose=True for more information.
