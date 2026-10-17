@@ -20,7 +20,10 @@ markets with the largest ``z``) and supplies the branching market (the largest
 market in, one out) until none helps, and the result priced; the swaps only
 propose candidates, so they cannot affect validity.
 
-Nodes are explored best-first by their parent's bound, so at every moment
+Nodes are explored best-first by their parent's bound. A node's own bound can
+come out below its parent's (a cheaper level may have sufficed above it), and
+the parent's bound holds for the child's subtree too, so a node keeps the
+larger of the two. At every moment
 
     certified lower bound = min(bounds in the queue, lo of every kept set),
 
@@ -139,6 +142,7 @@ def search(B, A, m, enumerate_below=64, full_margin=0.10, time_limit=None,
             continue
         st["nodes"] += 1
         lb, score = bound(I, O, F)
+        lb = max(lb, prio)              # the parent's bound covers this subtree too
         if lb >= inc["hi"]:
             continue
         j = max(F, key=lambda k: (score[k], -k))

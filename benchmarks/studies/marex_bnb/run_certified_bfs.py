@@ -9,6 +9,11 @@ From the repository root::
 
     python -m benchmarks.studies.marex_bnb.run_certified_bfs n12
     python -m benchmarks.studies.marex_bnb.run_certified_bfs geolift 6
+    python -m benchmarks.studies.marex_bnb.run_certified_bfs geolift 8 14400 0.3
+
+The optional third and fourth arguments are a time limit in seconds and the
+margin within which the full lift is tried (``certified_bfs.search``'s
+``full_margin``, default 0.10).
 """
 import itertools
 import os
@@ -54,8 +59,9 @@ def main():
     else:
         m = int(sys.argv[2])
         limit = float(sys.argv[3]) if len(sys.argv) > 3 else None
+        margin = float(sys.argv[4]) if len(sys.argv) > 4 else 0.10
         B, A = geolift()
-        res = search(B, A, m, time_limit=limit)
+        res = search(B, A, m, time_limit=limit, full_margin=margin)
         report(f"geolift m={m}", res, KNOWN.get(m))
         if m in KNOWN and res["open"] == 0:
             assert abs(float(res["hi"]) - KNOWN[m]) <= 1e-6 * KNOWN[m]
