@@ -70,9 +70,24 @@ The same gap gives a certified lower bound at every step, the value less the
 gap. The search hands each fit the incumbent as a cutoff, and a fit stops and
 discards its candidate as soon as that lower bound clears it. The coupling term
 is non-negative, so the treated-side fit and its bound still sit under the
-objective and prune before any fit; at large ``beta`` they prune little,
-because the coupling dominates the objective and they cannot see it, and the
-cutoff is what keeps each surviving candidate to about one step.
+objective and prune before any fit. At large ``beta`` they prune little,
+because the coupling dominates the objective and they cannot see it.
+
+The coupling bound sees it. The synthetic treated lies in ``conv B_S`` and the
+synthetic control in ``conv B_C``, so
+
+    f(S) >= g(S) + beta (1 + lam) dist(conv B_S, conv B_C)^2,
+
+with ``lam`` the control penalty below (zero without it). Wolfe's (1976)
+nearest-point method, run in lockstep over a batch of candidates
+(:func:`_wolfe_lockstep`), finds a direction ``z``, and his Theorem 2.2 turns
+any direction into a lower bound on the distance, which :func:`hull_separation`
+certifies against the data with the rounding bounded a priori.
+:class:`CouplingBound` adds it to the closed-form treated bound, so pricing a
+candidate takes no fit. The search screens each batch of candidates under the
+incumbent with it before fitting any of them, and the cutoff keeps each fit it
+leaves to about one step. On GeoLift's 40 markets with four treated, at
+``beta = 100``, it left 677 of 91,390 candidates to the coupled fit.
 
 The control penalty. Vives-i-Bastida (2022, program 1) adds Abadie and
 L'Hour's penalty on the controls, ``beta lam sum_j v_j ||B_S w - b_j||^2``.
@@ -87,6 +102,10 @@ their squared norms, so the step is one fit with rows ``sqrt(1 - kappa) B_S``
 and ``sqrt(beta) (1 + lam) (I - P) B_S`` and the linear term
 ``kappa B_S'q``, ``kappa = beta lam (1 + lam)``. It took at most four steps
 over random problems from ``beta = 0.01`` to 100 and up to 0.99 of the bound.
+By convexity of the square the penalty is at least ``beta lam ||t - B_C v||^2``,
+which is the ``1 + lam`` in the coupling bound. The bound does not see the
+spread of the controls around ``B_C v``, which the penalty also charges, so it
+prunes less of this objective.
 
 Restrictions. Forced units, forbidden units and stratum quotas decide which
 candidates exist, so :class:`~mlsynth.utils.syndes_helpers.enumeration.SearchSpace`
@@ -884,12 +903,14 @@ def search_cluster(
         Refuse above this many candidates; defaults to ``CANDIDATE_LIMIT``.
     beta : float, optional
         The weakly-targeted coupling. When given, each candidate is priced by
-        :func:`coupled_fit` instead of two independent fits; it takes no
-        penalty vectors.
+        :func:`coupled_fit` instead of two independent fits, once
+        :class:`CouplingBound` has failed to discard it; it takes no penalty
+        vectors.
     control_penalty : float
         Abadie and L'Hour's control penalty inside the weakly-targeted design
         (Vives-i-Bastida 2022, program 1); needs ``beta``. It is non-negative,
-        so the treated-side bound still sits under the objective.
+        so the treated-side bound still sits under the objective, and it
+        scales the coupling bound by ``1 + control_penalty``.
 
     Raises
     ------
