@@ -23,7 +23,7 @@ below,
     dist(P, Q) >= (min over i in S of x'b_i - max over j in C of x'b_j) / |x|,
 
 the separating-hyperplane dual of the distance (Boyd and Vandenberghe 2004,
-sec. 8.2.3). The right side reads the data only through the products ``x'b_j``,
+sec. 8.2.3; Rockafellar 1970, Theorem 31.1). The right side reads the data only through the products ``x'b_j``,
 so every ``x`` gives a valid bound: an iterate stopped early, or computed
 inaccurately, cannot make it invalid.
 
@@ -44,7 +44,8 @@ of it returns ``w = 0``, which stalls the method at its first step.
 :func:`fenchel_bound` is lead 1 of the issue completed in closed form, the
 construction of Hazimeh, Mazumder and Saab (2022, sec. 3.2) applied to this
 objective. For any ``lam`` and ``mu``, with no feasibility condition, weak
-duality gives
+duality (Fenchel's inequality, Rockafellar 1970, in the proof of Theorem 31.1;
+the two hulls enter through their support functions, Corollary 16.5.1) gives
 
     f(S) >= lam'A - |lam|^2 / 4 - |mu|^2 / (4 beta)
             + min over i in S of (mu - lam)'b_i - max over j in C of mu'b_j,
@@ -62,6 +63,7 @@ computing the distance between complex objects in three-dimensional space. IEEE
 Journal of Robotics and Automation 4(2), 193-203.
 Boyd, S. and Vandenberghe, L. (2004). Convex Optimization. Cambridge University
 Press.
+Rockafellar, R. T. (1970). Convex Analysis. Princeton University Press.
 Hazimeh, H., Mazumder, R. and Saab, A. (2022). Sparse regression at scale:
 branch-and-bound rooted in first-order optimization. Mathematical Programming
 196, 347-388.

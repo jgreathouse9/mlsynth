@@ -54,7 +54,9 @@ Theorem 2.2 gives
 dist(P, Q) >= (min over i in S of x'b_i - max over j in C of x'b_j) / |x|,
 ```
 
-the separating-hyperplane dual of the distance. The right side reads the data
+the separating-hyperplane dual of the distance (Boyd and Vandenberghe 2004,
+sec. 8.2.3; it follows from Fenchel's Duality Theorem, Rockafellar 1970,
+Theorem 31.1). The right side reads the data
 only through the products `x'b_j`, so any `x` certifies: an iterate stopped
 early or computed inaccurately cannot make the bound invalid, which is the
 issue's floating-point requirement. Wolfe's method moves `x` toward the nearest
@@ -187,6 +189,14 @@ pins the scale.
   a Minkowski difference.
 * Boyd, S. and Vandenberghe, L. (2004). *Convex Optimization*, sec. 8.2.3. The
   duality between distance and separation.
+* Rockafellar, R. T. (1970). *Convex Analysis*. Princeton University Press.
+  Fenchel's Duality Theorem (Theorem 31.1), from which the distance equals the
+  best separation and the dual bound is exact at a fitted candidate, and
+  Fenchel's inequality in its proof, the weak duality the bounds rest on; the
+  support function of a finite convex hull and of a sum of sets (Corollaries
+  16.5.1 and 16.4.1); the indicator and support function of a closed convex set
+  as conjugates (Theorem 13.2); strong separation of disjoint polytopes
+  (Corollary 11.4.2).
 * Hazimeh, H., Mazumder, R. and Saab, A. (2022). Sparse regression at scale:
   branch-and-bound rooted in first-order optimization. *Mathematical
   Programming* 196, 347-388. Dual bounds completed from inexact primal points.
