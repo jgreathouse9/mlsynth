@@ -13,7 +13,12 @@ cost and stops at the first level that prunes it:
    and a few percent stronger.
 
 A node whose subtree holds at most ``enumerate_below`` treated sets is not
-bounded; its sets are priced directly, each with a certified interval. Each
+bounded; its sets are priced directly, each with a certified interval. That
+threshold has no units, and it is why this search ran 22 times slower than the
+library's exact backend on GeoLift with 8 treated: a lift costs as much as
+pricing tens of millions of sets, so most lifts were spent on subtrees cheaper
+to enumerate. ``hybrid.py`` replaces it with a cost rule and a vectorised
+certified enumeration (``results/rca_enumeration_vs_bnb.md``). Each
 lift's solution is rounded to a candidate incumbent (``I`` plus the ``r`` free
 markets with the largest ``z``) and supplies the branching market (the largest
 ``z``). At the root the rounded set is also improved by single swaps (one

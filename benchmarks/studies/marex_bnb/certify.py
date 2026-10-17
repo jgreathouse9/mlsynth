@@ -158,6 +158,10 @@ class Panel:
         self.Bc = np.asarray(Bc, dtype=float)
         self.BcD = Dy.of(self.Bc)
         self.G = self.BcD.T @ self.BcD
+        # floating-point Gram and its absolute counterpart, for vectorised
+        # pricing: |Gf - G| <= gamma_T |Bc|'|Bc| entrywise
+        self.Gf = self.Bc.T @ self.Bc
+        self.Gabs = np.abs(self.Bc).T @ np.abs(self.Bc)
 
     def side_lower(self, cols, w):
         """``2 min_j y'b_j - ||y||^2`` at ``y = Bc w``, a bound on ``g(cols)``."""

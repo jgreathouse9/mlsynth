@@ -88,8 +88,16 @@ def _block_map(P, row, col, k, total):
     P[row + k - 1, 0] = total
 
 
+def _require_free(F):
+    """A lift needs a free market: a node without one is a single set, a leaf."""
+    if not F:
+        raise ValueError("a lift needs at least one free market; a node with "
+                         "none is a single treated set and is priced, not bounded")
+
+
 def trace_lift(n, m, I, O, F):
     """``y = (1; w; v)`` with complementarity and the cardinality cuts."""
+    _require_free(F)
     Uw, Uv = sorted(I + F), sorted(O + F)
     kw, kv = len(Uw), len(Uv)
     rows = [("1", None)] + [("w", j) for j in Uw] + [("v", j) for j in Uv]
@@ -107,6 +115,7 @@ def trace_lift(n, m, I, O, F):
 
 def indicator_lift(n, m, I, O, F, cuts=True):
     """``y = (1; w; v; z; u)``: ``trace_lift`` plus the treated indicators."""
+    _require_free(F)
     Uw, Uv = sorted(I + F), sorted(O + F)
     kw, kv, kf = len(Uw), len(Uv), len(F)
     r = m - len(I)
@@ -141,6 +150,7 @@ def treated_lift(n, m, I, O, F):
     is a small share of ``f`` on these panels (under 1% at GeoLift's optimum),
     and dropping its block shrinks the PSD block by a third.
     """
+    _require_free(F)
     Uw = sorted(I + F)
     kw, kf = len(Uw), len(F)
     r = m - len(I)

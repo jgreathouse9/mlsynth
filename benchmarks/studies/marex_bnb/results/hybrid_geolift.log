@@ -1,0 +1,2 @@
+m=4 kappa=1.0: set (5, 10, 24, 27)  hi 554319.7579  gap 1.73e-13  open 0  unresolved []  lifts 0 (0 s)  subtrees enumerated 1 (91,390 sets, 0 s)  fitted 2  price 1.38 us/set  total 0.1 s  |  exact backend 554319.7579 in 0.3 s
+m=6 kappa=1.0: set (0, 10, 22, 24, 27, 31)  hi 297926.2374  gap 1.61e-13  open 0  unresolved []  lifts 0 (0 s)  subtrees enumerated 1 (3,838,380 sets, 7 s)  fitted 9  price 1.67 us/set  total 6.9 s  |  exact backend 297926.2374 in 3.94 s
