@@ -1,0 +1,78 @@
+{
+  "covariates": false,
+  "numpy": "2.4.6",
+  "panels": [
+    {
+      "abadie_baseline": {
+        "att_error_as_share_of_converged": -0.14898729606919778,
+        "att_error_from_premature_stop": 0.13354922505603906,
+        "authors": {
+          "att": -0.7628307253124244,
+          "iterations": 11,
+          "objective": 0.00014987234210846003,
+          "pre_rmse": 0.08056955633336663
+        },
+        "converged": {
+          "att": -0.8963799503684634,
+          "iterations": 79,
+          "objective": 0.00013179235660504436,
+          "pre_rmse": 0.07553712533810687,
+          "top_weights": {
+            "Baleares (Islas)": 0.3111,
+            "Cantabria": 0.0,
+            "Madrid (Comunidad De)": 0.4831,
+            "Navarra (Comunidad Foral De)": 0.0,
+            "Rioja (La)": 0.2058
+          }
+        }
+      },
+      "covariates": 0,
+      "donors": 16,
+      "identification": [
+        {
+          "att": -0.7550485936388697,
+          "att_spread_over_starts": 0.3335358970864899,
+          "condition_number": 1.0,
+          "moments": 1,
+          "null_dim": 14,
+          "poly": 2,
+          "pre_rmse": 0.08094340014583293,
+          "rank": 2
+        },
+        {
+          "att": -0.7303306520025623,
+          "att_spread_over_starts": 3.5555807781362248e-06,
+          "condition_number": 9482.857647374867,
+          "moments": 5,
+          "null_dim": 10,
+          "poly": 6,
+          "pre_rmse": 0.08073065269862095,
+          "rank": 6
+        },
+        {
+          "att": -0.862507831604895,
+          "att_spread_over_starts": 2.3700889006939008e-06,
+          "condition_number": 731119945.4831371,
+          "moments": 10,
+          "null_dim": 5,
+          "poly": 11,
+          "pre_rmse": 0.08538841871860024,
+          "rank": 11
+        }
+      ],
+      "panel": "basque",
+      "port_vs_reference": {
+        "max_abs_counterfactual_diff": 5.203336428394323e-09,
+        "max_abs_weight_diff": 2.237741089650136e-09
+      },
+      "pre_periods": 15,
+      "published_weights": "Catalonia .851, Madrid .149 (Abadie & Gardeazabal 2003)"
+    }
+  ],
+  "python": "3.11.17",
+  "reference": "Kato & Ohda (2026), 10.1515/jci-2025-0008",
+  "reference_code": "https://github.com/MasaKat0/mmscm",
+  "scipy": "1.17.1",
+  "sector_block": false,
+  "starts": 25
+}
