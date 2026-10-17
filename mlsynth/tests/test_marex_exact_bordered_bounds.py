@@ -386,7 +386,7 @@ def test_the_search_prices_by_the_number_of_candidates(monkeypatch):
     A two-candidate buffer forces the second pass, which prices too.
     """
     monkeypatch.setattr(exact_mod, "BUFFER", 2)
-    B, A = _problem(97, n=8)
+    B, A = _problem(20)
     seen = []
     original = exact_mod.treated_fit_bound
 
@@ -400,7 +400,7 @@ def test_the_search_prices_by_the_number_of_candidates(monkeypatch):
         seen.clear()
         monkeypatch.setattr(exact_mod, "RIGOROUS_PRICING_LIMIT", limit)
         search_cluster(B, A, sizes=[3], filt=SubsetFilter())
-        assert seen and set(seen) == {expected}
+        assert len(seen) == 2 and set(seen) == {expected}
 
 
 @pytest.mark.parametrize("seed, eps, linear", [(98, 1e-12, False),
