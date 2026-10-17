@@ -437,8 +437,37 @@ penalty :math:`\mathbf{a}^\top \mathbf{w}` to the treated fit, the bound becomes
 :math:`u = \mathbf{a}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}`. When
 :math:`\mathbf{G}_{\mathcal{S}}` is singular (more treated markets than
 predictors, or a market that matches the target exactly) the bound is set to
-zero, which discards nothing. The bound is one small linear solve, computed for
-thousands of candidates in a single call. Since
+zero, which discards nothing.
+
+Without restrictions the candidates are read in lexicographic order, so
+consecutive ones share all but their last market, and the search prices each
+from the one before. For
+:math:`\mathcal{S} = \mathcal{P} \cup \{j\}`, the inverse of
+:math:`\mathbf{G}_{\mathcal{S}}` follows from the inverse of
+:math:`\mathbf{G}_{\mathcal{P}}` and one new row (the Banachiewicz inversion
+formula; Zhang 2005, eq. 0.7.2), so :math:`s`, :math:`t` and :math:`u` cost
+:math:`O(m^2)` per candidate instead of a fresh :math:`m \times m` solve, and
+each prefix's inverse is formed once for every candidate that extends it.
+
+An update can be less accurate than a fresh solve, so the bound does not rest
+on its accuracy. For any vector :math:`\mathbf{v}`,
+:math:`\lVert \tilde{\mathbf{B}}_{\mathcal{S}} (\mathbf{w} - \mathbf{v}) \rVert^2 \ge 0`
+gives
+
+.. math::
+
+   g(\mathcal{S}) \;\ge\; -\mathbf{v}^\top \mathbf{G}_{\mathcal{S}} \mathbf{v}
+   + \min_{i \in \mathcal{S}} \bigl( 2 (\mathbf{G}_{\mathcal{S}} \mathbf{v})_i + a_i \bigr),
+
+since the smallest value of a linear function on the simplex is its smallest
+coefficient (Neumaier and Shcherbina 2004, sec. 3). At the minimiser of the
+relaxation above the right side is the closed form, and the search evaluates it
+there and subtracts an a priori bound on the rounding of forming
+:math:`\mathbf{G}` and of the evaluation (Higham 2002, eqs. 2.8, 3.5 and 3.13;
+eq. 2.8 is the case of data small enough for products to underflow). An
+inaccurate update, or a nearly singular :math:`\mathbf{G}_{\mathcal{S}}`, then
+gives a weaker bound and never one above the fit. Priced this way the bound
+costs under a microsecond per candidate on GeoLift's 40 markets. Since
 :math:`f(\mathcal{S}) \ge g(\mathcal{S})`, a candidate whose bound already
 exceeds the best design found so far cannot be optimal, and the search discards
 it without fitting it.
