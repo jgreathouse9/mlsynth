@@ -3862,6 +3862,114 @@ timeout = 900.0
   models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
 
 [[target]]
+name = "marex-exact-bordered-bounds"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_bordered_bounds.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-prefix-runs-merge"
+  find = "    new[1:] = np.any(pre[1:] != pre[:-1], axis=1)"
+  replace = "    new[1:] = False"
+  models = "every row of a batch extended from the first row's prefix. Lexicographic batches change prefix every n - m rows, so all but the first run are priced from a matrix that is not theirs"
+
+  [[target.mutant]]
+  id = "the-schur-complement-gains-its-correction"
+  find = "        sigma = G[j, j] - np.einsum(\"li,li->l\", g, z)"
+  replace = "        sigma = G[j, j] + np.einsum(\"li,li->l\", g, z)"
+  models = "the Schur complement of the prefix's block formed with the wrong sign, so every update divides by a pivot larger than the true one and s, t and the minimiser are off"
+
+  [[target.mutant]]
+  id = "the-update-forgets-the-prefix"
+  find = "        s = xP.sum(axis=1)[run] + c1 * c1 * sigma"
+  replace = "        s = c1 * c1 * sigma"
+  models = "s taken as the new market's increment alone. The minimiser's weights then no longer sum to one, which the safe form tolerates as a weaker bound, and only the comparison with the direct solve sees it"
+
+  [[target.mutant]]
+  id = "the-minimiser-forgets-the-penalty"
+  find = "        return (mu[:, None] * x - y) / 2.0"
+  replace = "        return x / s[:, None]"
+  models = "the safe form evaluated at the minimiser of the unpenalised relaxation. The bound stays valid, since the form is a bound at any point, and falls short of the closed form it replaces wherever the penalty moves the minimiser"
+
+  [[target.mutant]]
+  id = "the-safe-form-forgets-the-penalty"
+  find = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).min(axis=1)"
+  replace = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv).min(axis=1)"
+  models = "the penalty left out of the minimum over the simplex. With a non-negative penalty that is still a bound, a weaker one, so the penalised designs prune less while every design stays correct"
+
+  [[target.mutant]]
+  id = "the-safe-form-takes-the-largest-coefficient"
+  find = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).min(axis=1)"
+  replace = "    val = -np.einsum(\"li,li->l\", v, Gv) + (2.0 * Gv + lin).max(axis=1)"
+  models = "the maximum of the linear term over the simplex where its minimum belongs. At the affine minimiser all coefficients are equal and the two agree, so the shipped bound is unchanged; at any other point the form exceeds the fit"
+
+  [[target.mutant]]
+  id = "the-rounding-is-not-subtracted"
+  find = "    return val - safe_rounding(d, T, subsets, v, linear)"
+  replace = "    return val"
+  models = "the safe form taken at its floating-point value. In about half the rows that value lands above the form's exact value at the same point, which exact rational arithmetic on the float data shows; where the form is tight that is a bound above the fit. This is the defect the margin used to cover"
+
+  [[target.mutant]]
+  id = "the-rounding-ignores-the-scale-of-the-columns"
+  find = "    dv = np.einsum(\"li,li->l\", np.abs(v), dS)"
+  replace = "    dv = np.abs(v).sum(axis=1)"
+  models = "the rounding term computed as if every column had unit norm. On columns at the level of weekly sales it is then smaller than the rounding it has to cover by the square of the columns' norms"
+
+  [[target.mutant]]
+  id = "the-underflow-term-is-dropped"
+  find = "    return 2.0 * (gamma * total + k * SMALLEST_SUBNORMAL * spread * spread)"
+  replace = "    return 2.0 * gamma * total"
+  models = "the rounding term built on the relative model alone, which assumes no underflow. Below a data scale of about 1e-153 the products that form G are subnormal, their errors are absolute, and the computed form exceeded its exact value in 12 to 83 per cent of rows"
+
+  [[target.mutant]]
+  id = "the-guard-is-dropped"
+  find = "            trust = (s > 0) & (kappa <= COND_GUARD)"
+  replace = "            trust = s > 0"
+  models = "the fast path taking every closed form the update returns. Two near-copies in a prefix leave its inverse inaccurate, and bordering alone then put bounds above the fit by up to 47 times, which discards the optimum"
+
+  [[target.mutant]]
+  id = "the-guard-reads-only-the-new-market"
+  find = "        kappa = np.maximum(kappa_P[run], G[j, j] / sigma)"
+  replace = "        kappa = G[j, j] / sigma"
+  models = "the guard blind to the prefix. Near-copies inside the prefix make its inverse the inaccurate part while the new market's Schur complement looks healthy, which is the case that overestimated"
+
+  [[target.mutant]]
+  id = "the-guard-reads-only-the-prefix"
+  find = "        kappa = np.maximum(kappa_P[run], G[j, j] / sigma)"
+  replace = "        kappa = kappa_P[run]"
+  models = "the guard blind to the new market. A near-copy of a prefix market added last leaves the prefix well conditioned and the set's Gram nearly singular, through a Schur complement near zero"
+
+  [[target.mutant]]
+  id = "the-size-switch-inverted"
+  find = "    rigorous = total <= RIGOROUS_PRICING_LIMIT"
+  replace = "    rigorous = total > RIGOROUS_PRICING_LIMIT"
+  models = "small searches priced on the fast path and large ones on the safe form, the opposite of the trade the limit makes: the safe form costs most where there are most candidates"
+
+  [[target.mutant]]
+  id = "the-first-pass-ignores-the-switch"
+  find = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)"
+  replace = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the first pass always on the safe form, so a large search pays for it on every candidate while the second pass does not"
+
+  [[target.mutant]]
+  id = "the-second-pass-ignores-the-switch"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the second pass always on the safe form. It runs only when the buffer cannot certify the result, which a two-candidate buffer forces"
+
+  [[target.mutant]]
+  id = "the-fast-path-forgets-u"
+  find = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st) - u / 4.0"
+  replace = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st)"
+  models = "the penalised closed form without its - u / 4, which is above the true closed form by a quarter of a'G_S^-1 a and above the fit wherever the minimiser is interior"
+
+  [[target.mutant]]
+  id = "a-breakdown-reaches-the-search-as-nan"
+  find = "        val[~np.isfinite(val)] = 0.0"
+  replace = "        pass"
+  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out"
+
+[[target]]
 name = "marex-exact-coupled"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
 test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
