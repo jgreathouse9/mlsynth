@@ -15,6 +15,8 @@ python benchmarks/studies/marex_exact_backend/timing.py \
 python benchmarks/studies/marex_exact_backend/walmart_fit.py
 PYTHONHASHSEED=0 python benchmarks/studies/marex_exact_backend/walmart_scip_repeat.py
 python benchmarks/studies/marex_exact_backend/walmart_layout.py
+python benchmarks/studies/marex_exact_backend/designs.py \
+    benchmarks/studies/marex_exact_backend/results/designs.json
 ```
 
 Run them from the repository root; they read `basedata/walmart_weekly_sales.csv`.
@@ -29,6 +31,8 @@ Run them from the repository root; they read `basedata/walmart_weekly_sales.csv`
 | `walmart_layout.py` | the Walmart MIQP on the same values in two memory layouts |
 | `results/timing.csv`, `results/timing.log` | the run behind the tables below |
 | `results/walmart.log` | the output of the three Walmart scripts |
+| `designs.py` | the search by design and cluster count on GeoLift, and the candidates three bounds leave to fit |
+| `results/designs.json` | the run behind the last section |
 
 ## How it was measured
 
@@ -108,3 +112,59 @@ the level of rounding error open up, here by a factor of 1.7. The panel times
 above carry that spread too, and the geometric mean over three panels per size
 is the steadier figure. On the same two arrays the search returns the same two
 stores, with objectives 2e-16 apart.
+
+## By design and cluster count
+
+`designs.py` runs the search for every design it solves without a coupling term
+on GeoLift's 40 markets, with the 90 pre-periods as the fit window, as one
+cluster and as 2 and 4 clusters of equal size (the markets split in order along
+the first principal component of their series, each divided by its mean). It
+counts the candidates priced and the simplex fits by wrapping the search's
+functions from the outside. Single-threaded; the median of three runs where one
+takes under 3 s.
+
+One cluster of 40 markets:
+
+| design | four treated | simplex fits | five treated | simplex fits |
+| --- | ---: | ---: | ---: | ---: |
+| standard | 0.08 s | 2 | 0.48 s | 2 |
+| unit_penalized, `xi` 0.1, `lambda1_unit` 0.01 | 1.2 s | 3,321 | 23.8 s | 55,112 |
+| unit_penalized, `xi` 1, `lambda1_unit` 0.1 | 13.2 s | 35,748 | not run | |
+| penalized, `lambda1` = `lambda2` = 0.1 | 53.8 s | 47,141 | not run | |
+| penalized, `lambda1` = `lambda2` = 1 | 282.6 s | 120,990 | not run | |
+
+Clusters of equal size; the slowest design in each row:
+
+| clusters | treated per cluster | candidates | slowest | standard |
+| ---: | ---: | ---: | --- | ---: |
+| 2 of 20 | 2 | 380 | 0.30 s, unit_penalized heavy | 0.003 s |
+| 2 of 20 | 3 | 2,280 | 2.3 s, penalized 1 | 0.007 s |
+| 4 of 10 | 1 | 40 | 0.35 s, unit_penalized light | 0.001 s |
+| 4 of 10 | 2 | 180 | 0.45 s, unit_penalized heavy | 0.003 s |
+
+Each cluster is searched on its own, so the work follows the sum of the
+clusters' candidate counts, and every clustered design takes at most a few
+seconds. `unit_penalized` carries a fixed cost of about 0.2 to 0.4 s even where
+the search is trivial: the per-unit reproducibility fits it computes first.
+
+The penalised designs on one cluster fit most of their candidates. Two
+weaknesses of the bound explain it. The closed-form treated bound relaxes the
+simplex to the affine hull, which lets the weights go negative to avoid a
+linear penalty, so with a penalty it falls toward 0. Nothing bounds the control
+penalty, which is a large part of the objective once `lambda2` is on. With the
+cutoff at the optimum, four treated, the candidates each bound leaves to fit:
+
+| design | shipped bound | with `1/s + min over S of a` | with that and the control fit over the cluster |
+| --- | ---: | ---: | ---: |
+| penalized 0.1 | 42,165 | 19,773 | 5,476 |
+| penalized 1 | 87,873 | 42,911 | 24,297 |
+| unit_penalized light | 3,282 | 52 | 52 |
+| unit_penalized heavy | 35,692 | 2,949 | 2,949 |
+
+Both bounds hold for every candidate. The treated fit is at least the affine
+relaxation of its quadratic term plus the smallest treated penalty, since a
+minimum of a sum is at least the sum of the minimums. A candidate's control fit
+is at least the penalised control fit over the whole cluster, since a smaller
+donor pool only fits worse. That fit is 0 for `unit_penalized`, which has no
+control penalty and whose target is the cluster's mean. These are counts, not
+times; the bounds are not wired into the search here.
