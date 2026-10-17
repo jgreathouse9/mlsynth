@@ -194,9 +194,10 @@ COND_GUARD = 1e6
 
 #: Up to this many candidates in a cluster every bound is the safe form; above
 #: it the search prices on the fast path. On GeoLift the safe form costs 0.3 to
-#: 0.5 microseconds more per candidate than the fast path, a third to half a
-#: second per million, and about what a fresh solve per candidate costs.
-RIGOROUS_PRICING_LIMIT = 1_000_000
+#: 0.5 microseconds more per candidate than the fast path, about what a fresh
+#: solve per candidate costs, so at this limit it adds at most about 0.05 s.
+#: At a million it added 0.28 s to a 0.45 s search.
+RIGOROUS_PRICING_LIMIT = 100_000
 
 #: The smallest positive subnormal double. A product that underflows is rounded
 #: with an absolute error of up to half of it, which no multiple of the unit

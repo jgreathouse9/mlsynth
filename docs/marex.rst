@@ -469,7 +469,7 @@ inaccurate update, or a nearly singular :math:`\mathbf{G}_{\mathcal{S}}`, then
 gives a weaker bound and never one above the fit.
 
 That evaluation costs about as much as the update saves, so the search chooses
-by size. Up to a million candidates in a cluster every bound is the safe form.
+by size. Up to 100,000 candidates in a cluster every bound is the safe form.
 Above that, a candidate takes the closed form straight from the update when its
 Gram matrix is well conditioned: the prefix's condition estimate, and the ratio
 of the new market's squared norm to its Schur complement, are both at most
