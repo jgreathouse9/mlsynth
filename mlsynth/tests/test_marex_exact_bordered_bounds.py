@@ -28,6 +28,7 @@ Levels: smoke, unit, edge, failure, property.
 from __future__ import annotations
 
 import itertools
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -85,6 +86,26 @@ def _sales(seed, n=8, T=30, level=5e4):
 
 def _gram(B, A):
     return exact_mod.centred_gram(B, A)
+
+
+def _exact_form(B, A, S, v, a=None):
+    """The safe form at ``v`` in exact rational arithmetic on the float data.
+
+    Every float is a rational, so centring, the Gram matrix and the form are
+    computed with no rounding at all: the value the floating-point evaluation
+    approximates.
+    """
+    S, T = list(S), B.shape[0]
+    cols = [[Fraction(float(B[t, j])) - Fraction(float(A[t])) for t in range(T)]
+            for j in S]
+    m = len(S)
+    G = [[sum(p * q for p, q in zip(cols[i], cols[k])) for k in range(m)]
+         for i in range(m)]
+    w = [Fraction(float(x)) for x in v]
+    Gv = [sum(G[i][k] * w[k] for k in range(m)) for i in range(m)]
+    lin = [Fraction(0)] * m if a is None else [Fraction(float(a[j])) for j in S]
+    return -sum(w[i] * Gv[i] for i in range(m)) + min(
+        2 * Gv[i] + lin[i] for i in range(m))
 
 
 # --------------------------------------------------------------------- smoke
@@ -199,6 +220,34 @@ def test_the_safe_form_is_a_lower_bound_at_any_point():
         assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
 
 
+@pytest.mark.parametrize("linear", [False, True])
+def test_the_safe_bound_never_exceeds_the_exact_value_of_the_form(linear):
+    """Less its rounding term, the computed form is at most its exact value.
+
+    The form is evaluated at the affine minimiser and at random points, on
+    columns at the level of weekly sales, where the rounding of forming ``G``
+    is largest next to the fit. In about half the rows the floating-point value
+    lands above the exact one; the rounding term is what keeps the bound under
+    it.
+    """
+    B, A = _sales(90, n=7, T=20)
+    a = _penalty(91, 7, 1e6) if linear else None
+    G, d = _gram(B, A)
+    subs = _subsets(7, 3)
+    rng = np.random.default_rng(92)
+    points = [exact_mod.affine_minimiser(*exact_mod.bordered_terms(G, subs, a))]
+    points += [rng.normal(size=subs.shape) for _ in range(3)]
+    above = 0
+    for v in points:
+        safe = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
+        term = exact_mod.safe_rounding(d, B.shape[0], subs, v, a)
+        for r, S in enumerate(subs):
+            exact = _exact_form(B, A, S, v[r], a)
+            assert Fraction(float(safe[r])) <= exact
+            above += Fraction(float(safe[r] + term[r])) > exact
+    assert above > 0
+
+
 def test_the_rounding_term_sits_far_under_the_margin_on_sales_sized_data():
     """The rounding the bound gives up is small next to what the search keeps.
 
@@ -307,6 +356,23 @@ def test_the_safe_form_is_a_lower_bound_at_any_point_over_the_domain(
     lb = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
     fit = np.array([_fit(B, A, S, a) for S in subs])
     assert np.all(lb <= fit + 1e-9 * (1.0 + fit))
+
+
+@given(seed=st.integers(0, 10_000), n=st.integers(2, 6), m=st.integers(1, 4),
+       scale=st.sampled_from([1e-3, 1.0, 1e3]), sales=st.booleans(),
+       linear=st.booleans())
+@settings(max_examples=40, deadline=None)
+def test_the_safe_bound_never_exceeds_the_exact_form_over_the_domain(
+        seed, n, m, scale, sales, linear):
+    m = min(m, n)
+    B, A = _sales(seed, n=n, T=8) if sales else _problem(seed, n=n, T=8)
+    a = _penalty(seed + 1, n, 1e6 if sales else 1.0) if linear else None
+    G, d = _gram(B, A)
+    subs = _subsets(n, m)
+    v = np.random.default_rng(seed + 2).normal(size=subs.shape) * scale
+    safe = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v, a)
+    for r, S in enumerate(subs):
+        assert Fraction(float(safe[r])) <= _exact_form(B, A, S, v[r], a)
 
 
 @given(seed=st.integers(0, 10_000), n=st.integers(2, 9), m=st.integers(1, 6),
