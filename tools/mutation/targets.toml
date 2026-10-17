@@ -2584,13 +2584,13 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-null-part-read-from-a-residual"
-  find = "                qn = q - Vk.T @ qr"
-  replace = "                qn = q - M.T @ u"
+  find = "    return U, sv, Vt, U @ (qr / sv), q - Vt.T @ qr"
+  replace = "    return U, sv, Vt, U @ (qr / sv), q - M.T @ (U @ (qr / sv))"
   models = "#782's first cause: the term's null part taken as the residual q - M'u of the shift. It equals the projection in exact arithmetic, but with a near-null direction kept |u| grows as 1 / sigma, the residual is rounding noise of size eps |M| |u|, and the loop follows its sign: on near-copies of a market it pinned the cheaper copy, released it, and cycled to the pivot limit"
 
   [[target.mutant]]
   id = "the-solve-under-its-own-rank-rule"
-  find = "                v = Vk.T @ ((Uk.T @ (rhs - u)) / sk)"
+  find = "                v = _solve_on_range(Uk, sk, Vk, rhs - u)"
   replace = "                v = _gelsy_lstsq(M, rhs - u)"
   models = "#782's second cause: the free-set solve deciding rank by its own rule (gelsy's rcond of 1e-12) while the shift used another. Between the two thresholds one solve keeps a direction the other drops, and they describe different subproblems; on its own this removed 11 of the 30 failures over 400 near-collinear designs"
 
@@ -2599,6 +2599,12 @@ timeout = 300.0
   find = "_LINEAR_RANK_RTOL: float = float(np.sqrt(np.finfo(float).eps))"
   replace = "_LINEAR_RANK_RTOL: float = 1e-6"
   models = "a rank rule coarse enough to count directions with resolvable curvature as null, so the loop follows a ray where the subproblem has an interior minimum; at 1e-6, 4 of 400 near-collinear designs came back above the optimum"
+
+  [[target.mutant]]
+  id = "the-rank-rule-keeps-unresolvable-directions"
+  find = "_LINEAR_RANK_RTOL: float = float(np.sqrt(np.finfo(float).eps))"
+  replace = "_LINEAR_RANK_RTOL: float = float(np.finfo(float).eps)"
+  models = "#782's rank rule at the precision lstsq used, which keeps directions whose curvature no double can resolve. With the null part a projection the 400 designs still clear, so only a unit test of the split can see it: a direction at 1e-9 of the largest is then kept, and the term's part along it is folded into a shift of size 1e9 |q| instead of followed as a ray"
 
   [[target.mutant]]
   id = "the-guard-raises-a-bare-valueerror"

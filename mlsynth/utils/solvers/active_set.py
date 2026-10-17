@@ -94,6 +94,42 @@ def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
     return x[:n, 0]
 
 
+def _linear_split(M: np.ndarray, q: np.ndarray):
+    """A free block's numerical range, and a linear term's two parts on it.
+
+    One thin SVD of the difference block ``M`` and one rank rule: a direction
+    whose singular value is at most ``_LINEAR_RANK_RTOL`` of the largest is
+    null. Returns the kept factors ``(U, s, Vt)``, the shift ``u`` with
+    ``M'u = q`` on the kept directions, and the term's null part ``qn``, its
+    projection off the kept right singular vectors.
+
+    ``qn`` is that projection and not the residual ``q - M'u``. The two agree in
+    exact arithmetic, but the residual carries rounding of size
+    ``eps |M| |u|``, and ``|u|`` grows as one over the smallest kept singular
+    value; read as a direction, that noise cycled the loop (#782). The rank
+    rule is a second guard against the same failure, since it keeps ``|u|``
+    within ``|q| / (sqrt(eps) s[0])``; either alone cleared the 400
+    near-collinear designs of #782, and the unit tests pin each separately.
+    """
+    U, sv, Vt = np.linalg.svd(M, full_matrices=False)
+    rank = (int(np.count_nonzero(sv > _LINEAR_RANK_RTOL * sv[0]))
+            if sv[0] > 0 else 0)
+    U, sv, Vt = U[:, :rank], sv[:rank], Vt[:rank]
+    qr = Vt @ q
+    return U, sv, Vt, U @ (qr / sv), q - Vt.T @ qr
+
+
+def _solve_on_range(U: np.ndarray, sv: np.ndarray, Vt: np.ndarray,
+                    b: np.ndarray) -> np.ndarray:
+    """``argmin ||M v - b||`` over the kept directions of :func:`_linear_split`.
+
+    The same factors and so the same rank as the shift: a second rule here
+    keeps directions the shift dropped, or drops ones it kept, and the two then
+    describe different subproblems.
+    """
+    return Vt.T @ ((U.T @ b) / sv)
+
+
 def _assert_optimal_with_linear(B, A, w, linear, tol):
     """Check the returned point against the conditions, when a linear term is set.
 
@@ -293,26 +329,15 @@ def solve_simplex_qp(
                 # difference basis, so Z' l_F is l_F[:-1] - l_F[-1].
                 lF = linear[free]
                 q = 0.5 * (lF[:nF - 1] - lF[nF - 1])
-                # One thin SVD of M decides the rank for the shift, the null
-                # part and the solve alike. R^(nF-1) splits as range(M') +
-                # null(M); the rows of Vt kept by the rank rule span the first,
-                # so q's null part is its projection off them. It is a
-                # projection on orthonormal vectors and not the residual
-                # q - M'u of a solve: with a near-null direction kept, |u|
-                # grows as 1 / sigma, that residual is rounding noise of size
-                # eps |M| |u|, and following its sign cycled the loop (#782).
-                Uk, sk, Vk = np.linalg.svd(M, full_matrices=False)
-                rank = (int(np.count_nonzero(sk > _LINEAR_RANK_RTOL * sk[0]))
-                        if sk[0] > 0 else 0)
-                Uk, sk, Vk = Uk[:, :rank], sk[:rank], Vk[:rank]
-                qr = Vk @ q
-                u = Uk @ (qr / sk)
+                # R^(nF-1) splits as range(M') + null(M): the shift u folds the
+                # first part into the residual, and qn is the second, both
+                # under one rank rule (see _linear_split).
+                Uk, sk, Vk, u, qn = _linear_split(M, q)
                 # A nonzero null part means the subproblem is unbounded. Moving
                 # v along -qn leaves M v fixed, so the quadratic does not
                 # change, while the linear term falls by 2||qn||^2 per unit
                 # step. The minimum is therefore not interior to this free set
                 # and the loop must reach a bound instead of solving for one.
-                qn = q - Vk.T @ qr
                 if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):
                     # Z maps the ray into weight space, where it sums to zero
                     # and so stays on the hyperplane. The simplex is compact,
@@ -336,10 +361,7 @@ def solve_simplex_qp(
                         active[hit] = True
                         pivots += 1
                         continue
-                # The solve under the same rank rule as the shift: a second
-                # rule here keeps directions the shift dropped, or drops ones it
-                # kept, and the two then describe different subproblems.
-                v = Vk.T @ ((Uk.T @ (rhs - u)) / sk)
+                v = _solve_on_range(Uk, sk, Vk, rhs - u)
             else:
                 v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)

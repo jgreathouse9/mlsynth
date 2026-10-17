@@ -476,3 +476,73 @@ def test_it_reaches_the_minimiser_on_near_collinear_designs(
     assert info["converged"]
     assert w.min() >= 0.0 and w.sum() == pytest.approx(1.0, abs=1e-9)
     assert _obj(B, A, lin, w) <= _obj(B, A, lin, ref) + 1e-8 * abs(_obj(B, A, lin, ref))
+
+
+# --------------------------------------------------------------------------
+# Rung 2 for each defence separately. The null part is a projection, and the
+# rank rule drops what no double can resolve; either alone clears every
+# near-collinear design above, so end-to-end tests cannot tell when one of them
+# breaks. These build the free block from chosen singular values and check the
+# split itself.
+# --------------------------------------------------------------------------
+def _block(ratios, T=12, seed=0, top=2.9e3):
+    """A T-by-k block with singular values ``top * ratios``, and its factors."""
+    rng = np.random.default_rng(seed)
+    k = len(ratios)
+    U = np.linalg.qr(rng.normal(size=(T, k)))[0]
+    V = np.linalg.qr(rng.normal(size=(k, k)))[0]
+    s = top * np.asarray(ratios, float)
+    return U @ np.diag(s) @ V.T, U, s, V
+
+
+def test_the_null_part_is_a_projection_and_not_a_noisy_residual():
+    """A kept direction at 3e-8 of the largest, with the term along it.
+
+    The shift there is of size |q| / 3e-8, so the residual q - M'u carries
+    rounding near 1e-8 |q|; the projection carries none of it.
+    """
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 3e-8])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, _, u, qn = _linear_split(M, q)
+    assert sk.size == 2                                  # both directions kept
+    assert np.linalg.norm(qn) <= 1e-12 * np.linalg.norm(q)
+    np.testing.assert_allclose(M.T @ u, q, rtol=0, atol=1e-6 * np.linalg.norm(q))
+
+
+def test_a_direction_below_the_rank_rule_is_null():
+    """At 1e-9 of the largest the curvature is under eps; the term's part along
+    it is the null part, to be followed as a ray, and the shift ignores it."""
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 1e-9])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, Vt, u, qn = _linear_split(M, q)
+    assert sk.size == 1
+    np.testing.assert_allclose(qn, 8.7e4 * V[:, 1], rtol=0, atol=1e-9 * np.linalg.norm(q))
+    assert np.linalg.norm(u) <= 1e3 * np.linalg.norm(q) / s[0]
+
+
+def test_a_direction_above_the_rank_rule_is_kept():
+    """At 1e-7 of the largest the curvature is resolvable, and the subproblem
+    has an interior minimum along it; treating it as null loses that."""
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 1e-7])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, _, _, qn = _linear_split(M, q)
+    assert sk.size == 2
+    assert np.linalg.norm(qn) <= 1e-12 * np.linalg.norm(q)
+
+
+def test_the_solve_stays_on_the_directions_the_shift_kept():
+    """The free-set solve and the shift share one rank: no component of the
+    solution lies along a direction the rule dropped."""
+    from mlsynth.utils.solvers.active_set import _linear_split, _solve_on_range
+    M, U, s, V = _block([1.0, 1e-9, 0.4])
+    rng = np.random.default_rng(1)
+    b = rng.normal(size=M.shape[0]) * 1e3
+    Uk, sk, Vt, _, _ = _linear_split(M, rng.normal(size=3))
+    v = _solve_on_range(Uk, sk, Vt, b)
+    assert abs(V[:, 1] @ v) <= 1e-12 * np.linalg.norm(v)
+    # and on the kept directions it is the least-squares solution
+    kept = Vt.T @ Vt
+    np.testing.assert_allclose(kept @ (M.T @ (M @ v - b)), 0.0, atol=1e-6 * np.linalg.norm(M.T @ b))
