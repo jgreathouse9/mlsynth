@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from ...exceptions import MlsynthDataError
 from ..datautils import build_covariate_matrix, geoex_dataprep
 from ..fast_scm_helpers.structure import IndexSet
 
@@ -32,6 +33,9 @@ class MAREXPanel:
     time_index: IndexSet          # canonical time identity (columns of Y_full)
     covariates: Optional[np.ndarray] = None   # time-invariant predictors, (N, R)
     covariate_names: Tuple[str, ...] = ()     # column names aligned to ``covariates``
+    # further outcomes the design fits together with ``Y_full``, each
+    # ``(N, T)`` in ``unit_index`` / ``time_index`` order, in the order listed
+    extra_outcomes: Dict[str, np.ndarray] = field(default_factory=dict)
 
 
 def prepare_marex_panel(
@@ -45,6 +49,7 @@ def prepare_marex_panel(
     blank_periods: int,
     T_post: Optional[int],
     covariates: Optional[List[str]] = None,
+    extra_outcomes: Optional[List[str]] = None,
 ) -> MAREXPanel:
     """Pivot the long panel to ``units x time`` and forward the resolved
     ``T0`` / ``blank_periods``.
@@ -105,7 +110,19 @@ def prepare_marex_panel(
             normalize=False,
         )
 
+    extra: Dict[str, np.ndarray] = {}
+    for name in extra_outcomes or ():
+        wide = geoex_dataprep(df, unitid, time, name)["Ywide"]
+        wide = wide.reindex(index=Ywide.index, columns=unit_labels)
+        values = wide.to_numpy(dtype=float).T          # units x time
+        if not np.isfinite(values).all():
+            raise MlsynthDataError(
+                f"extra outcome {name!r} has missing or non-finite values; "
+                f"the design needs every unit's full series.")
+        extra[name] = values
+
     return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,
                       blank_periods=blanks, unit_index=unit_index,
                       time_index=time_index, covariates=cov,
-                      covariate_names=tuple(covariates) if covariates else ())
+                      covariate_names=tuple(covariates) if covariates else (),
+                      extra_outcomes=extra)

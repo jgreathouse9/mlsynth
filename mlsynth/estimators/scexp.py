@@ -127,6 +127,7 @@ class MAREX:
                 cluster=self.cluster, T0=self.T0, inference=self.inference,
                 blank_periods=self.blank_periods, T_post=self.T_post,
                 covariates=self.covariates,
+                extra_outcomes=self.config.extra_outcomes,
             )
         except (MlsynthDataError, MlsynthConfigError):
             raise
@@ -187,6 +188,7 @@ class MAREX:
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
                 control_penalty=self.control_penalty,
+                extra_outcomes=panel.extra_outcomes, outcome_name=self.outcome,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -209,6 +211,10 @@ class MAREX:
                 # 30% pre-tail convention shared by the MAREX-family estimators.
                 pool_blank = (panel.blank_periods if panel.blank_periods > 0
                               else max(1, int(0.3 * panel.T0)))
+                from ..utils.marex_helpers.optimization import stack_extra_outcomes
+                pool_cov, pool_cw = stack_extra_outcomes(
+                    list(panel.extra_outcomes.values()), panel.covariates,
+                    covariate_weight, panel.T0 - pool_blank)
                 pool_kw = dict(
                     Y_full=panel.Y_full, T0=panel.T0, clusters=panel.clusters,
                     top_K=self.config.top_K, blank_periods=pool_blank,
@@ -217,8 +223,8 @@ class MAREX:
                     control_penalty=self.control_penalty,
                     lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
                     lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
-                    costs=self.costs, budget=self.budget, covariates=panel.covariates,
-                    covariate_weight=covariate_weight, standardize=self.standardize,
+                    costs=self.costs, budget=self.budget, covariates=pool_cov,
+                    covariate_weight=pool_cw, standardize=self.standardize,
                     restrictions=restrictions,
                 )
                 if self.config.backend == "exact":

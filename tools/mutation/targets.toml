@@ -4519,8 +4519,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-pool-gets-unit-weights"
-  find = "                    covariate_weight=covariate_weight, standardize=self.standardize,"
-  replace = "                    covariate_weight=1.0, standardize=self.standardize,"
+  find = "                    covariate_weight, panel.T0 - pool_blank)"
+  replace = "                    1.0, panel.T0 - pool_blank)"
   models = "the top_K solution pool re-solved with every covariate at weight 1 while the primary design uses the configured weights, so the menu of designs answers a different question from the design it is ranked beside"
 
   [[target.mutant]]
@@ -4528,3 +4528,111 @@ timeout = 600.0
   find = "                covariate_weight=covariate_weight,\n"
   replace = "                covariate_weight=1.0,\n"
   models = "the configured weights validated and recorded while the design is solved with every covariate at weight 1"
+
+[[target]]
+name = "marex-multi-outcome"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_multi_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "extra-outcomes-carry-their-blank-window"
+  find = "    blocks = [np.asarray(Y, dtype=float)[:, :T_fit] for Y in (extra_outcomes or [])]"
+  replace = "    blocks = [np.asarray(Y, dtype=float) for Y in (extra_outcomes or [])]"
+  models = "the extra outcomes stacked over their whole series, blank window and post-period included, so the design is chosen on the very gaps its placebo inference reads (the #759 defect, on the outcome side)"
+
+  [[target.mutant]]
+  id = "extra-outcome-periods-are-weighted-like-covariates"
+  find = "    weights = [np.ones(n_out)]"
+  replace = "    weights = [np.full(n_out, 0.5)]"
+  models = "an extra outcome's periods weighted differently from a primary-outcome period, so the outcomes are not fitted on an equal footing"
+
+  [[target.mutant]]
+  id = "the-covariates-are-dropped"
+  find = "        blocks.append(cov)"
+  replace = "        pass"
+  models = "the covariates left out of the predictors whenever extra outcomes are given, while the balance diagnostics still report them"
+
+[[target]]
+name = "marex-multi-outcome-orchestration"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_multi_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-solve-ignores-the-extra-outcomes"
+  find = "        costs=costs, budget=budget, covariates=design_cov,"
+  replace = "        costs=costs, budget=budget, covariates=covariates,"
+  models = "extra outcomes accepted and reported while the design is fitted to the primary outcome alone, so every report describes a design that was not chosen for that outcome"
+
+  [[target.mutant]]
+  id = "the-report-measures-fit-on-the-wrong-window"
+  find = "    fit, blank = slice(0, n_fit), slice(n_fit, T0)"
+  replace = "    fit, blank = slice(0, T0), slice(n_fit, T0)"
+  models = "the fitting-window NMSE computed over the whole pre-period, blank window included, so the in-sample fit absorbs the out-of-sample one"
+
+  [[target.mutant]]
+  id = "the-report-uses-the-control-as-the-population"
+  find = "        nmse_fit_population=nmse(pop, fit), nmse_fit_control=nmse(syn_c, fit),"
+  replace = "        nmse_fit_population=nmse(syn_c, fit), nmse_fit_control=nmse(syn_c, fit),"
+  models = "representativeness measured against the synthetic control instead of the population, the confusion of Vives-i-Bastida's two goals"
+
+  [[target.mutant]]
+  id = "the-report-is-unnormalised"
+  find = "        r = (target[window] - syn_t[window]) / sd[window]"
+  replace = "        r = target[window] - syn_t[window]"
+  models = "the fit reported in the outcome's own units, so outcomes on different scales cannot be compared, which is what the normalisation is for"
+
+  [[target.mutant]]
+  id = "the-report-skips-inference"
+  find = "        inference=infer(syn_t, syn_c),\n    )"
+  replace = "        inference=None,\n    )"
+  models = "no placebo inference on the extra outcomes, though the blank window that calibrates it was held out for every one of them"
+
+[[target]]
+name = "marex-multi-outcome-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_multi_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-pool-ignores-the-extra-outcomes"
+  find = "                    costs=self.costs, budget=self.budget, covariates=pool_cov,"
+  replace = "                    costs=self.costs, budget=self.budget, covariates=panel.covariates,"
+  models = "the top_K pool re-solved on the primary outcome alone while the design beside it was fitted to every outcome"
+
+[[target]]
+name = "marex-multi-outcome-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_multi_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-primary-outcome-may-be-listed"
+  find = "        if self.outcome in extra:"
+  replace = "        if False:"
+  models = "the primary outcome accepted as an extra outcome, which doubles its weight in the design without saying so"
+
+  [[target.mutant]]
+  id = "a-repeated-extra-outcome-is-accepted"
+  find = "        repeated = sorted({c for c in extra if extra.count(c) > 1})"
+  replace = "        repeated = []"
+  models = "an extra outcome listed twice and silently given double weight"
+
+  [[target.mutant]]
+  id = "a-non-numeric-extra-outcome-is-accepted"
+  find = "        non_numeric = [c for c in extra\n                       if not pd.api.types.is_numeric_dtype(self.df[c])]"
+  replace = "        non_numeric = []"
+  models = "a text column accepted as an outcome, failing later inside the pivot with a message that does not name it"
+
+[[target]]
+name = "marex-multi-outcome-setup"
+module-path = "mlsynth/utils/marex_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_multi_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-missing-extra-value-is-accepted"
+  find = "        if not np.isfinite(values).all():"
+  replace = "        if False:"
+  models = "an extra outcome with a missing value passed to the design as NaN, which poisons every predictor after standardisation"

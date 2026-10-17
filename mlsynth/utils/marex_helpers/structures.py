@@ -90,6 +90,49 @@ class MAREXInference:
 
 
 @dataclass(frozen=True)
+class MAREXOutcomeReport:
+    """One outcome's view of a design fitted to several outcomes.
+
+    The design's aggregate weights applied to this outcome's series, with the
+    pre-period fit measured as in Vives-i-Bastida (2022, Tables 1 and 2): the
+    normalised mean squared error of the synthetic treated unit against a
+    target over a window, ``mean over t of ((target_t - treated_t) / sd_t)^2``,
+    ``sd_t`` the cross-unit standard deviation of the outcome in period ``t``,
+    so outcomes on different scales compare.
+
+    Parameters
+    ----------
+    outcome : str
+        The outcome column.
+    synthetic_treated, synthetic_control, population : np.ndarray
+        Weighted treated, weighted control and unweighted population mean of
+        the outcome, shape ``(T,)``.
+    nmse_fit_population, nmse_fit_control : float
+        Normalised fit of the synthetic treated unit to the population and to
+        the synthetic control over the fitting window.
+    nmse_blank_population, nmse_blank_control : float or None
+        The same over the blank window; ``None`` without one.
+    att : float or None
+        Mean post-period gap, synthetic treated less synthetic control;
+        ``None`` without post periods.
+    inference : MAREXInference or None
+        Placebo inference for this outcome; ``None`` unless ``inference=True``
+        with a blank window.
+    """
+
+    outcome: str
+    synthetic_treated: np.ndarray
+    synthetic_control: np.ndarray
+    population: np.ndarray
+    nmse_fit_population: float
+    nmse_fit_control: float
+    nmse_blank_population: Optional[float] = None
+    nmse_blank_control: Optional[float] = None
+    att: Optional[float] = None
+    inference: Optional[MAREXInference] = None
+
+
+@dataclass(frozen=True)
 class MAREXClusterDesign:
     """Design and synthetics for a single cluster.
 
@@ -227,6 +270,10 @@ class MAREXResults(DesignResult):
         :func:`mlsynth.utils.post_fit.compute_post_fit`. ``None`` only
         when an estimator failure leaves the result partially constructed.
         Also mirrored into ``report`` (the standardized effect view).
+    outcomes : dict of {str: MAREXOutcomeReport}, optional
+        With ``extra_outcomes``, the design's fit, effect and inference on
+        every outcome it was fitted to, the primary outcome first. ``None``
+        for a single-outcome design.
     """
 
     model_config = ConfigDict(
@@ -238,6 +285,8 @@ class MAREXResults(DesignResult):
     post_fit: Optional[Any] = None      # SyntheticControlPostFit; Any to dodge import cycle
     pool: Optional[List[Dict[str, Any]]] = None    # top-K menu when top_K > 1
     recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
+    # one report per outcome, primary first, when the design fits several
+    outcomes: Optional[Dict[str, MAREXOutcomeReport]] = None
 
     @property
     def mode(self) -> str:

@@ -251,6 +251,58 @@ placebo distribution for inference, and their covariate values are kept out
 with them. Vives-i-Bastida (2022) averages the covariates over the fitting
 years in the same way. The balance diagnostics below use the same means.
 
+Several Outcomes
+^^^^^^^^^^^^^^^^
+
+A pilot usually measures more than one outcome, and only one set of units can
+be treated. Passing ``extra_outcomes`` fits the design to all of them at once,
+following Vives-i-Bastida (2022) and Trejo et al. (2021): each extra outcome's
+fitting-window series joins the predictor vector,
+
+.. math::
+
+   \mathbf{x}_j = \bigl[\mathbf{y}^{1,E}_j ; \ldots ; \mathbf{y}^{K,E}_j ;
+   \mathbf{z}_j\bigr],
+
+each period of each outcome at the weight of one period of ``outcome``, and
+the covariates after them at ``covariate_weight``. With ``standardize=True``
+every column is first put on a unit scale, so an outcome measured in larger
+units does not dominate the match; without it the outcomes enter in their own
+units. Only the fitting window of an extra outcome enters the design; its
+blank-window values are held out with the primary outcome's.
+
+The design, the standard report, the power analysis and the balance
+diagnostics stay on ``outcome``. The result's ``outcomes`` adds one
+:class:`~mlsynth.utils.marex_helpers.structures.MAREXOutcomeReport` per
+outcome, the primary one first: the synthetic treated and control paths, the
+population mean, the average post-period effect, the placebo inference when
+``inference=True``, and the pre-period fit in Vives-i-Bastida's normalised
+form,
+
+.. math::
+
+   \mathrm{NMSE}_{\mathcal{T}}(a, b) = \frac{1}{|\mathcal{T}|}
+   \sum_{t \in \mathcal{T}} \Bigl( \frac{a_t - b_t}{\sigma_t} \Bigr)^2,
+
+with :math:`\sigma_t` the cross-unit standard deviation of that outcome in
+period :math:`t`. It is reported for the synthetic treated against the
+population (``nmse_*_population``, how representative the treated group is)
+and against the synthetic control (``nmse_*_control``, how good the control
+group is), over the fitting and the blank window. A blank-window NMSE close to
+the fitting-window one is the sign that the design did not overfit.
+
+.. code-block:: python
+
+   res = MAREX({..., "outcome": "unemployment",
+                "extra_outcomes": ["hospitalisations", "social_services"],
+                "standardize": True, "blank_periods": 4, "inference": True}).fit()
+   for name, rep in res.outcomes.items():
+       print(name, rep.nmse_fit_population, rep.nmse_blank_control,
+             rep.inference.global_p_value)
+
+The p-values are one per outcome, with no correction for testing several;
+Vives-i-Bastida leaves the correction to the analyst as well.
+
 Clustering, Costs, and Budgets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1227,3 +1279,7 @@ Study." Report, MIT.
 Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control Estimator for
 Disaggregated Data." *Journal of the American Statistical Association*
 116(536):1817-1834.
+
+Trejo, S., Yeomans-Maldonado, G., & Jacob, B. (2021). "The Psychosocial
+Effects of the Flint Water Crisis on School-Age Children." NBER Working Paper
+29341.

@@ -12,11 +12,16 @@ from ...config_models import WeightsResults
 from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
 from .exact import solve_design_exact
-from .optimization import solve_design, solve_design_relaxed
+from .optimization import (
+    solve_design,
+    solve_design_relaxed,
+    stack_extra_outcomes,
+)
 from .structures import (
     MAREXClusterDesign,
     MAREXGlobalDesign,
     MAREXInference,
+    MAREXOutcomeReport,
     MAREXResults,
     MAREXStudy,
 )
@@ -62,6 +67,8 @@ def solve_marex(
     cumulative_seed=0,
     backend="mip",
     control_penalty=0.0,
+    extra_outcomes=None,
+    outcome_name=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -80,13 +87,20 @@ def solve_marex(
     accumulated paths, seeded by ``cumulative_seed``. It needs no extra solve.
     """
     solve = solve_design_relaxed if relaxed else solve_design
+    # Extra outcomes enter the design as predictor columns ahead of the
+    # covariates; the covariates handed to the balance diagnostics below stay
+    # the covariates.
+    extra_outcomes = dict(extra_outcomes or {})
+    design_cov, design_cw = stack_extra_outcomes(
+        list(extra_outcomes.values()), covariates, covariate_weight,
+        T0 - blank_periods)
     solve_kw = dict(
         Y_full=Y_full, T0=T0, clusters=clusters, blank_periods=blank_periods,
         m_eq=m_eq, m_min=m_min, m_max=m_max, exclusive=exclusive, design=design,
         beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit,
-        costs=costs, budget=budget, covariates=covariates,
-        covariate_weight=covariate_weight, standardize=standardize,
+        costs=costs, budget=budget, covariates=design_cov,
+        covariate_weight=design_cw, standardize=standardize,
         solver=solver, verbose=verbose, control_penalty=control_penalty,
     )
     if backend == "exact":
@@ -302,7 +316,16 @@ def solve_marex(
         method_name="MAREX", donor_weights=treated_w_map,
     ) if post_fit is not None else None
 
+    outcomes = None
+    if extra_outcomes:
+        series = {outcome_name or "outcome": Y_full_np, **extra_outcomes}
+        outcomes = {name: _outcome_report(name, np.asarray(Y, dtype=float),
+                                          adj_treated, adj_control, T0_eff,
+                                          blank_periods, _maybe_infer)
+                    for name, Y in series.items()}
+
     return MAREXResults(
+        outcomes=outcomes,
         clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
         report=report,
         selected_units=list(treated_labels),
@@ -314,4 +337,29 @@ def solve_marex(
             "design": design, "T0": T0_eff, "blank_periods": blank_periods,
             "n_clusters": len(clusters_out),
         },
+    )
+
+
+def _outcome_report(name, Y, treated_w, control_w, T0, blank_periods, infer):
+    """One outcome's view of the design (see :class:`MAREXOutcomeReport`)."""
+    syn_t, syn_c = treated_w @ Y, control_w @ Y
+    pop = Y.mean(axis=0)
+    sd = Y.std(axis=0)
+    sd = np.where(sd > 0, sd, 1.0)
+    n_fit = T0 - blank_periods
+
+    def nmse(target, window):
+        r = (target[window] - syn_t[window]) / sd[window]
+        return float(np.mean(r ** 2))
+
+    fit, blank = slice(0, n_fit), slice(n_fit, T0)
+    post = syn_t[T0:] - syn_c[T0:]
+    return MAREXOutcomeReport(
+        outcome=name, synthetic_treated=syn_t, synthetic_control=syn_c,
+        population=pop,
+        nmse_fit_population=nmse(pop, fit), nmse_fit_control=nmse(syn_c, fit),
+        nmse_blank_population=nmse(pop, blank) if blank_periods else None,
+        nmse_blank_control=nmse(syn_c, blank) if blank_periods else None,
+        att=float(post.mean()) if post.size else None,
+        inference=infer(syn_t, syn_c),
     )

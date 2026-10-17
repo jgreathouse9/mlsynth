@@ -41,6 +41,17 @@ class MAREXConfig(BaseMAREXConfig):
         "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Covariate columns matched on alongside the fitting-window outcomes (the paper's X = [Y^E ; Z]). Each is averaged per unit over the fitting window, the first T0 - blank_periods periods, so a time-varying covariate's blank-window values stay out of the design.")
+    extra_outcomes: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Further outcome columns the design must fit together with "
+            "``outcome`` (Vives-i-Bastida 2022): each one's fitting-window "
+            "series joins the predictors, every period at the weight of one "
+            "period of ``outcome``, so one set of treated units serves every "
+            "outcome. Use with ``standardize=True`` when the outcomes have "
+            "different scales. The result's ``outcomes`` then reports each "
+            "outcome's fit, effect and inference. Effects, power and the "
+            "standard report stay on ``outcome``."))
     covariate_weight: Union[float, Dict[str, float]] = Field(
         default=1.0,
         description=(
@@ -321,6 +332,32 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "cumulative_n_sim must be >= 2 to take a quantile.")
         return v
+
+    @model_validator(mode="after")
+    def _validate_extra_outcomes(self) -> "MAREXConfig":
+        """Extra outcomes are distinct, numeric columns other than ``outcome``."""
+        extra = self.extra_outcomes
+        if not extra:
+            return self
+        if self.outcome in extra:
+            raise MlsynthConfigError(
+                f"extra_outcomes lists the primary outcome {self.outcome!r}; "
+                f"it is fitted already.")
+        repeated = sorted({c for c in extra if extra.count(c) > 1})
+        if repeated:
+            raise MlsynthConfigError(
+                f"extra_outcomes lists {repeated} more than once.")
+        missing = [c for c in extra if c not in self.df.columns]
+        if missing:
+            raise MlsynthConfigError(
+                f"extra_outcomes {missing} are not columns of df.")
+        import pandas as pd
+        non_numeric = [c for c in extra
+                       if not pd.api.types.is_numeric_dtype(self.df[c])]
+        if non_numeric:
+            raise MlsynthConfigError(
+                f"extra_outcomes {non_numeric} are not numeric.")
+        return self
 
     @model_validator(mode="after")
     def _validate_covariate_weight(self) -> "MAREXConfig":
