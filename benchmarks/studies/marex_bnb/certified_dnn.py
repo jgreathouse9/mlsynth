@@ -105,7 +105,7 @@ def trace_lift(n, m, I, O, F):
     return Lift(P, rows, zero, cuts, 3)
 
 
-def indicator_lift(n, m, I, O, F):
+def indicator_lift(n, m, I, O, F, cuts=True):
     """``y = (1; w; v; z; u)``: ``trace_lift`` plus the treated indicators."""
     Uw, Uv = sorted(I + F), sorted(O + F)
     kw, kv, kf = len(Uw), len(Uv), len(F)
@@ -128,8 +128,37 @@ def indicator_lift(n, m, I, O, F):
         _zero(zero, pos[("w", j)], pos[("u", j)])
         _zero(zero, pos[("v", j)], pos[("z", j)])
         _zero(zero, pos[("z", j)], pos[("u", j)])
-    cuts = _cardinality(n, m, I, O, F, pos, len(rows))
+    cuts = _cardinality(n, m, I, O, F, pos, len(rows)) if cuts else []
     return Lift(P, rows, zero, cuts, 3 + r)
+
+
+def treated_lift(n, m, I, O, F):
+    """``y = (1; w; z; u)``: the indicator lift of the treated side alone.
+
+    The control weights are left out, so the lift bounds only ``g`` over the
+    subtree; a caller adds a bound on the control side, ``h(O | F)`` being one,
+    since every control set of the subtree lies in ``O | F``. The control fit
+    is a small share of ``f`` on these panels (under 1% at GeoLift's optimum),
+    and dropping its block shrinks the PSD block by a third.
+    """
+    Uw = sorted(I + F)
+    kw, kf = len(Uw), len(F)
+    r = m - len(I)
+    rows = ([("1", None)] + [("w", j) for j in Uw]
+            + [("z", j) for j in F] + [("u", j) for j in F])
+    P = np.zeros((len(rows), kw + kf - 1), dtype=np.int64)
+    P[0, 0] = 1
+    _block_map(P, 1, 1, kw, 1)
+    _block_map(P, 1 + kw, kw, kf, r)
+    for a in range(kf):                               # u_j = 1 - z_j
+        P[1 + kw + kf + a] = -P[1 + kw + a]
+        P[1 + kw + kf + a, 0] += 1
+    pos = {key: i for i, key in enumerate(rows)}
+    zero = np.zeros((len(rows), len(rows)), dtype=bool)
+    for j in F:
+        _zero(zero, pos[("w", j)], pos[("u", j)])
+        _zero(zero, pos[("z", j)], pos[("u", j)])
+    return Lift(P, rows, zero, [], 2 + r)
 
 
 def _zero(mask, a, b):
@@ -176,7 +205,7 @@ def objective(G, lift, shift):
     return Dy(A, G.e + shift)
 
 
-def lift_bound(panel, lift, solver="CLARABEL", marginals=False):
+def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
     """``(certified lower bound, solver's value, status)`` for one lift.
 
     With ``marginals=True`` a fourth entry maps each row of ``y`` to its value
@@ -201,7 +230,7 @@ def lift_bound(panel, lift, solver="CLARABEL", marginals=False):
     sign = (~lift.zero).astype(float)
     psd = (S + S.T) / 2 >> 0
     prob = cp.Problem(cp.Maximize(y0), [psd, cp.multiply(sign, H) >= 0])
-    prob.solve(solver=getattr(cp, solver))
+    prob.solve(solver=getattr(cp, solver), **opts)
     if y0.value is None:
         out = (0.0, float("nan"), prob.status)
         return out + ({},) if marginals else out
