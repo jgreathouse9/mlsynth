@@ -43,13 +43,15 @@ from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 _GELSY_CACHE: Dict[Tuple[int, int], Tuple[object, int]] = {}
 
 #: With a linear term, a direction of the free set's difference block whose
-#: singular value is at most this fraction of the largest counts as null. Its
-#: curvature is then below ``eps`` relative to the largest, which no objective
-#: value in double precision can resolve, so the quadratic is flat along it to
-#: working precision and only the term moves the objective there. A coarser
-#: rule treats real curvature as flat: at 1e-6, 4 of 400 near-collinear designs
-#: came back above the optimum.
-_LINEAR_RANK_RTOL: float = float(np.sqrt(np.finfo(float).eps))
+#: singular value is at most this times ``max(M.shape)`` times the largest
+#: counts as null: LAPACK's own rank convention, below which a singular value
+#: is rounding. A coarser rule discards directions that still move the
+#: objective. Moving along a direction with singular value ``sigma`` changes
+#: the fit at first order, by ``2 t sigma |u'r|``, long before its curvature
+#: ``sigma^2`` is resolvable: a rule of ``sqrt(eps)``, chosen on curvature
+#: alone, left near-copies of a market up to 7.2e-9 above the optimum, and one
+#: of 1e-6 left 4 of 400 near-collinear designs above it.
+_LINEAR_RANK_EPS: float = float(np.finfo(float).eps)
 
 
 class SimplexQPNotOptimal(MlsynthEstimationError, ValueError):
@@ -98,22 +100,21 @@ def _linear_split(M: np.ndarray, q: np.ndarray):
     """A free block's numerical range, and a linear term's two parts on it.
 
     One thin SVD of the difference block ``M`` and one rank rule: a direction
-    whose singular value is at most ``_LINEAR_RANK_RTOL`` of the largest is
-    null. Returns the kept factors ``(U, s, Vt)``, the shift ``u`` with
+    whose singular value is at most ``_LINEAR_RANK_EPS * max(M.shape)`` of the
+    largest is null. Returns the kept factors ``(U, s, Vt)``, the shift ``u`` with
     ``M'u = q`` on the kept directions, and the term's null part ``qn``, its
     projection off the kept right singular vectors.
 
     ``qn`` is that projection and not the residual ``q - M'u``. The two agree in
     exact arithmetic, but the residual carries rounding of size
     ``eps |M| |u|``, and ``|u|`` grows as one over the smallest kept singular
-    value; read as a direction, that noise cycled the loop (#782). The rank
-    rule is a second guard against the same failure, since it keeps ``|u|``
-    within ``|q| / (sqrt(eps) s[0])``; either alone cleared the 400
-    near-collinear designs of #782, and the unit tests pin each separately.
+    value; read as a direction, that noise cycled the loop (#782). With the
+    projection, keeping every direction above rounding is safe, and a coarser
+    rule only loses accuracy (see ``_LINEAR_RANK_EPS``).
     """
     U, sv, Vt = np.linalg.svd(M, full_matrices=False)
-    rank = (int(np.count_nonzero(sv > _LINEAR_RANK_RTOL * sv[0]))
-            if sv[0] > 0 else 0)
+    cut = _LINEAR_RANK_EPS * max(M.shape) * sv[0]
+    rank = int(np.count_nonzero(sv > cut)) if sv[0] > 0 else 0
     U, sv, Vt = U[:, :rank], sv[:rank], Vt[:rank]
     qr = Vt @ q
     return U, sv, Vt, U @ (qr / sv), q - Vt.T @ qr
@@ -213,8 +214,8 @@ def solve_simplex_qp(
         19, 40 percent of the centred penalty lies outside the row space. On
         each free set the term splits along one thin SVD of the free block:
         its part in the range of the block folds into the residual, and its
-        part along directions the block cannot resolve (singular values at most
-        ``sqrt(eps)`` of the largest) is a ray the loop follows to a bound. The
+        part along directions the block cannot resolve (singular values at the
+        level of rounding) is a ray the loop follows to a bound. The
         inner solve keeps its residual form and never forms normal equations.
     warm_start : np.ndarray, shape (J,), optional
         A feasible initial weight vector (e.g. the solution of a neighbouring

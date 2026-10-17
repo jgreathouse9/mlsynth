@@ -479,11 +479,10 @@ def test_it_reaches_the_minimiser_on_near_collinear_designs(
 
 
 # --------------------------------------------------------------------------
-# Rung 2 for each defence separately. The null part is a projection, and the
-# rank rule drops what no double can resolve; either alone clears every
-# near-collinear design above, so end-to-end tests cannot tell when one of them
-# breaks. These build the free block from chosen singular values and check the
-# split itself.
+# Rung 2, on the split itself. The null part is a projection, and the rank
+# rule drops only what is rounding. A rule coarse enough to stop the residual's
+# noise also hides the projection from end-to-end tests, and costs accuracy, so
+# these build the free block from chosen singular values and check each part.
 # --------------------------------------------------------------------------
 def _block(ratios, T=12, seed=0, top=2.9e3):
     """A T-by-k block with singular values ``top * ratios``, and its factors."""
@@ -496,25 +495,38 @@ def _block(ratios, T=12, seed=0, top=2.9e3):
 
 
 def test_the_null_part_is_a_projection_and_not_a_noisy_residual():
-    """A kept direction at 3e-8 of the largest, with the term along it.
+    """A kept direction at 1e-11 of the largest, with the term along it.
 
-    The shift there is of size |q| / 3e-8, so the residual q - M'u carries
-    rounding near 1e-8 |q|; the projection carries none of it.
+    The shift there is of size |q| / 1e-11, so the residual q - M'u carries
+    rounding near 1e-5 |q|; the projection carries none of it.
     """
     from mlsynth.utils.solvers.active_set import _linear_split
-    M, U, s, V = _block([1.0, 3e-8])
+    M, U, s, V = _block([1.0, 1e-11])
     q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
     _, sk, _, u, qn = _linear_split(M, q)
     assert sk.size == 2                                  # both directions kept
     assert np.linalg.norm(qn) <= 1e-12 * np.linalg.norm(q)
-    np.testing.assert_allclose(M.T @ u, q, rtol=0, atol=1e-6 * np.linalg.norm(q))
+    np.testing.assert_allclose(M.T @ u, q, rtol=0, atol=1e-3 * np.linalg.norm(q))
 
 
-def test_a_direction_below_the_rank_rule_is_null():
-    """At 1e-9 of the largest the curvature is under eps; the term's part along
-    it is the null part, to be followed as a ray, and the shift ignores it."""
+@pytest.mark.parametrize("seed", [8, 9])
+def test_near_copies_with_nearly_equal_penalties_reach_the_optimum_closely(seed):
+    """The case that exposed a rank rule of sqrt(eps): the pair's difference has
+    a singular value 2.5e-9 of the largest, and dropping it left the point
+    5.4e-9 and 7.2e-9 above the optimum."""
+    B, A, lin = _near_copies(seed=seed, gap=1e-9)
+    lin = lin.copy()
+    lin[2] = lin[1] * (1 + 1e-9)
+    w = solve_simplex_qp(B, A, linear=lin)
+    ref = _reference(B, A, lin)
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, ref) * (1 + 1e-11)
+
+
+def test_a_direction_at_rounding_level_is_null():
+    """At 1e-17 of the largest the singular value is rounding; the term's part
+    along it is the null part, to be followed as a ray, and the shift ignores it."""
     from mlsynth.utils.solvers.active_set import _linear_split
-    M, U, s, V = _block([1.0, 1e-9])
+    M, U, s, V = _block([1.0, 1e-17])
     q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
     _, sk, Vt, u, qn = _linear_split(M, q)
     assert sk.size == 1
@@ -522,11 +534,12 @@ def test_a_direction_below_the_rank_rule_is_null():
     assert np.linalg.norm(u) <= 1e3 * np.linalg.norm(q) / s[0]
 
 
-def test_a_direction_above_the_rank_rule_is_kept():
-    """At 1e-7 of the largest the curvature is resolvable, and the subproblem
-    has an interior minimum along it; treating it as null loses that."""
+def test_a_direction_above_rounding_is_kept():
+    """At 1e-9 of the largest the curvature is not resolvable, but the first
+    order term 2 t sigma u'r is, and dropping it left near-copies 7.2e-9 above
+    the optimum; a direction is null only at the level of rounding."""
     from mlsynth.utils.solvers.active_set import _linear_split
-    M, U, s, V = _block([1.0, 1e-7])
+    M, U, s, V = _block([1.0, 1e-9])
     q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
     _, sk, _, _, qn = _linear_split(M, q)
     assert sk.size == 2
@@ -537,7 +550,7 @@ def test_the_solve_stays_on_the_directions_the_shift_kept():
     """The free-set solve and the shift share one rank: no component of the
     solution lies along a direction the rule dropped."""
     from mlsynth.utils.solvers.active_set import _linear_split, _solve_on_range
-    M, U, s, V = _block([1.0, 1e-9, 0.4])
+    M, U, s, V = _block([1.0, 1e-17, 0.4])
     rng = np.random.default_rng(1)
     b = rng.normal(size=M.shape[0]) * 1e3
     Uk, sk, Vt, _, _ = _linear_split(M, rng.normal(size=3))

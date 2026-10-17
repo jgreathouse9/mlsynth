@@ -2592,19 +2592,19 @@ timeout = 300.0
   id = "the-solve-under-its-own-rank-rule"
   find = "                v = _solve_on_range(Uk, sk, Vk, rhs - u)"
   replace = "                v = _gelsy_lstsq(M, rhs - u)"
-  models = "#782's second cause: the free-set solve deciding rank by its own rule (gelsy's rcond of 1e-12) while the shift used another. Between the two thresholds one solve keeps a direction the other drops, and they describe different subproblems; on its own this removed 11 of the 30 failures over 400 near-collinear designs"
+  models = "#782's second cause: the free-set solve deciding rank by its own rule (gelsy's rcond of 1e-12) while the shift and the null part use another. In the shipped code, with the null part a residual, the mismatch alone accounted for 11 of the 30 failures over 400 near-collinear designs; with the split's rule at rounding level it raises on 40 of 800 near-collinear problems, near-copies of a market at gaps of 1e-14 and 1e-15 among them"
 
   [[target.mutant]]
   id = "the-rank-rule-flattens-real-curvature"
-  find = "_LINEAR_RANK_RTOL: float = float(np.sqrt(np.finfo(float).eps))"
-  replace = "_LINEAR_RANK_RTOL: float = 1e-6"
-  models = "a rank rule coarse enough to count directions with resolvable curvature as null, so the loop follows a ray where the subproblem has an interior minimum; at 1e-6, 4 of 400 near-collinear designs came back above the optimum"
+  find = "_LINEAR_RANK_EPS: float = float(np.finfo(float).eps)"
+  replace = "_LINEAR_RANK_EPS: float = float(np.sqrt(np.finfo(float).eps))"
+  models = "the rank rule this fix first shipped with: sqrt(eps), chosen because the curvature sigma^2 of a direction below it is unresolvable. The first-order term 2 t sigma u'r is resolvable far below it, so near-copies of a market with nearly equal penalties came back up to 7.2e-9 above the optimum; at 1e-6 the same mistake left 4 of 400 near-collinear designs above it"
 
   [[target.mutant]]
   id = "the-rank-rule-keeps-unresolvable-directions"
-  find = "_LINEAR_RANK_RTOL: float = float(np.sqrt(np.finfo(float).eps))"
-  replace = "_LINEAR_RANK_RTOL: float = float(np.finfo(float).eps)"
-  models = "#782's rank rule at the precision lstsq used, which keeps directions whose curvature no double can resolve. With the null part a projection the 400 designs still clear, so only a unit test of the split can see it: a direction at 1e-9 of the largest is then kept, and the term's part along it is folded into a shift of size 1e9 |q| instead of followed as a ray"
+  find = "    cut = _LINEAR_RANK_EPS * max(M.shape) * sv[0]"
+  replace = "    cut = 0.0"
+  models = "no rank rule at all, so a singular value that is pure rounding counts as a direction: the term's part along an exact copy's difference is then folded into a shift of size |q| / 1e-17 instead of followed as a ray"
 
   [[target.mutant]]
   id = "the-guard-raises-a-bare-valueerror"
