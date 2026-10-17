@@ -234,8 +234,15 @@ def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
     if y0.value is None:
         out = (0.0, float("nan"), prob.status)
         return out + ({},) if marginals else out
-    lb = certify(C, lift, float(y0.value), H.value,
-                 None if nu is None else nu.value)
+    Hv = np.asarray(H.value, dtype=float)
+    Hc = np.where(lift.zero, Hv, np.clip(Hv, 0.0, None))
+    nuv = None if nu is None else np.clip(np.asarray(nu.value, dtype=float), 0.0, None)
+    Zf = Cf - Hc - (sum(nuv[k] * lift.cuts[k] for k in range(len(lift.cuts)))
+                    if lift.cuts else 0.0)
+    Sf = lift.P.T.astype(float) @ Zf @ lift.P.astype(float)
+    Sf[0, 0] -= float(y0.value)
+    _, d = best_shift((Sf + Sf.T) / 2, float(y0.value), lift.tau)
+    lb = certify(C, lift, float(y0.value) - d, Hv, nuv)
     out = (down(max(lb, Fraction(0)) * (1 << shift)),
            float(prob.value) * 2.0 ** shift, prob.status)
     if not marginals:
@@ -243,6 +250,50 @@ def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
     T = np.asarray(psd.dual_value, dtype=float)
     y = lift.P @ (T[:, 0] / T[0, 0]) if T[0, 0] > 0 else np.zeros(N)
     return out + (dict(zip(lift.rows, y.tolist())),)
+
+
+def best_shift(S, y0, tau):
+    """``(value, d)`` maximising ``y0 - d + tau min(0, lambda_min(S + d e_0 e_0'))``.
+
+    Lowering ``y0`` by ``d`` adds ``d e_0 e_0'`` to ``S`` (``P' E_00 P =
+    e_0 e_0'``), a rank-one PSD term. When the multipliers leave ``S`` slightly
+    indefinite, giving up a little of ``y0`` can lift ``lambda_min`` by more
+    than it costs. ``lambda_min(S + d e_0 e_0')`` is the smallest root of the
+    secular equation ``1 + d sum_i c_i^2 / (lambda_i - x) = 0``,
+    ``c = V' e_0``, which lies between the two smallest eigenvalues of ``S``;
+    the value is concave in ``d`` and found by golden section. Any ``d`` keeps
+    the certificate valid; this one only makes it tighter.
+    """
+    lam, V = np.linalg.eigh(S)
+    c2 = V[0] ** 2
+
+    def smallest(d):
+        if d <= 0 or c2[0] < 1e-300 or lam[1] - lam[0] <= 0:
+            return lam[0]
+        lo, hi = lam[0], lam[1]
+        for _ in range(80):
+            x = (lo + hi) / 2
+            if 1 + d * np.sum(c2 / (lam - x)) < 0:
+                lo = x
+            else:
+                hi = x
+        return lo
+
+    def value(d):
+        return y0 - d + tau * min(0.0, smallest(d))
+
+    if lam[0] >= 0:
+        return value(0.0), 0.0
+    lo, hi = 0.0, 4 * tau * abs(lam[0]) + 1e-300
+    for _ in range(80):
+        a = hi - 0.618 * (hi - lo)
+        b = lo + 0.618 * (hi - lo)
+        if value(a) < value(b):
+            lo = a
+        else:
+            hi = b
+    d = (lo + hi) / 2
+    return (value(d), d) if value(d) > value(0.0) else (value(0.0), 0.0)
 
 
 def certify(C, lift, y0, H, nu):

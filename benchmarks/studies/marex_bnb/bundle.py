@@ -51,9 +51,8 @@ from fractions import Fraction
 
 import numpy as np
 
-from benchmarks.studies.marex_bnb.certified_dnn import certify, objective
+from benchmarks.studies.marex_bnb.certified_dnn import best_shift, certify, objective
 from benchmarks.studies.marex_bnb.certify import down
-from benchmarks.studies.marex_bnb.lorads_bridge import best_shift
 
 
 def _capped_simplex(x):

@@ -36,42 +36,8 @@ from fractions import Fraction
 
 import numpy as np
 
-from benchmarks.studies.marex_bnb.certified_dnn import certify, objective
+from benchmarks.studies.marex_bnb.certified_dnn import best_shift, certify, objective
 from benchmarks.studies.marex_bnb.certify import down
-
-
-def best_shift(S, y0, tau):
-    """``(value, d)`` maximising ``y0 - d + tau min(0, lambda_min(S + d e_0 e_0'))``."""
-    lam, V = np.linalg.eigh(S)
-    c2 = V[0] ** 2
-
-    def smallest(d):
-        if d <= 0 or c2[0] < 1e-300 or lam[1] - lam[0] <= 0:
-            return lam[0]
-        lo, hi = lam[0], lam[1]
-        for _ in range(80):
-            x = (lo + hi) / 2
-            if 1 + d * np.sum(c2 / (lam - x)) < 0:
-                lo = x
-            else:
-                hi = x
-        return lo
-
-    def value(d):
-        return y0 - d + tau * min(0.0, smallest(d))
-
-    if lam[0] >= 0:
-        return value(0.0), 0.0
-    lo, hi = 0.0, 4 * tau * abs(lam[0]) + 1e-300
-    for _ in range(80):
-        a = hi - 0.618 * (hi - lo)
-        b = lo + 0.618 * (hi - lo)
-        if value(a) < value(b):
-            lo = a
-        else:
-            hi = b
-    d = (lo + hi) / 2
-    return (value(d), d) if value(d) > value(0.0) else (value(0.0), 0.0)
 
 
 def _rows(lift):

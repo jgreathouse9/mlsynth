@@ -16,7 +16,9 @@ A node whose subtree holds at most ``enumerate_below`` treated sets is not
 bounded; its sets are priced directly, each with a certified interval. Each
 lift's solution is rounded to a candidate incumbent (``I`` plus the ``r`` free
 markets with the largest ``z``) and supplies the branching market (the largest
-``z``).
+``z``). At the root the rounded set is also improved by single swaps (one
+market in, one out) until none helps, and the result priced; the swaps only
+propose candidates, so they cannot affect validity.
 
 Nodes are explored best-first by their parent's bound, so at every moment
 
@@ -44,7 +46,7 @@ from benchmarks.studies.marex_bnb.certify import Panel
 
 
 def search(B, A, m, enumerate_below=64, full_margin=0.10, time_limit=None,
-           log=print):
+           polish=True, log=print):
     n = B.shape[1]
     panel = Panel(B - A[:, None])
     INF = Fraction(10) ** 300
@@ -84,7 +86,10 @@ def search(B, A, m, enumerate_below=64, full_margin=0.10, time_limit=None,
         lb = Fraction(lb) + (h_lo if level == 2 else 0)
         score = {j: marg.get(("z", j), 0.0) for j in F} if marg else None
         if score:
-            price(I + sorted(F, key=lambda k: (-score[k], k))[:r])
+            S0 = I + sorted(F, key=lambda k: (-score[k], k))[:r]
+            price(S0)
+            if polish and not I and not O:
+                price(_swaps(B, A, S0))
         return lb, score
 
     def bound(I, O, F):
@@ -154,3 +159,26 @@ def search(B, A, m, enumerate_below=64, full_margin=0.10, time_limit=None,
             "gap": inc["hi"] - lw, "open": len(open_lb),
             "unresolved": sorted(S for _, S in kept), "stats": st,
             "seconds": time.perf_counter() - t_start}
+
+
+def _swaps(B, A, S):
+    """Single-swap descent from ``S`` on the floating-point objective."""
+    from benchmarks.studies.marex_bnb.bnb12 import objective
+    n = B.shape[1]
+    S = sorted(S)
+    best = objective(B, A, S)
+    improved = True
+    while improved:
+        improved = False
+        for i in list(S):
+            for j in range(n):
+                if j in S:
+                    continue
+                T = sorted([k for k in S if k != i] + [j])
+                v = objective(B, A, T)
+                if v < best * (1 - 1e-12):
+                    S, best, improved = T, v, True
+                    break
+            if improved:
+                break
+    return S
