@@ -1,0 +1,133 @@
+{
+ "cores": 4,
+ "1.0": {
+  "bound_pass": {
+   "candidates": 234,
+   "workers_1_seconds": 0.058,
+   "workers_2_seconds": 0.075,
+   "workers_2_speedup": 0.77,
+   "workers_2_same_status": true,
+   "workers_4_seconds": 0.078,
+   "workers_4_speedup": 0.73,
+   "workers_4_same_status": true
+  },
+  "search": {
+   "committed_batched": {
+    "bounded": 226,
+    "discarded_by_bound": 223,
+    "treated_fits": 11,
+    "coupled_fits": 11,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "seconds": 0.21,
+    "same_design": true
+   },
+   "workers_1": {
+    "seconds": 0.09,
+    "coupled_fits": 11,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "same_design": true
+   },
+   "workers_2": {
+    "seconds": 0.13,
+    "coupled_fits": 11,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "same_design": true
+   },
+   "workers_4": {
+    "seconds": 0.13,
+    "coupled_fits": 11,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "same_design": true
+   }
+  }
+ },
+ "100.0": {
+  "bound_pass": {
+   "candidates": 87439,
+   "workers_1_seconds": 15.895,
+   "workers_2_seconds": 7.265,
+   "workers_2_speedup": 2.19,
+   "workers_2_same_status": true,
+   "workers_4_seconds": 3.862,
+   "workers_4_speedup": 4.12,
+   "workers_4_same_status": true
+  },
+  "search": {
+   "committed_batched": {
+    "bounded": 87431,
+    "discarded_by_bound": 86685,
+    "treated_fits": 754,
+    "coupled_fits": 754,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "seconds": 18.25,
+    "same_design": true
+   },
+   "workers_1": {
+    "seconds": 17.85,
+    "coupled_fits": 754,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "same_design": true
+   },
+   "workers_2": {
+    "seconds": 10.72,
+    "coupled_fits": 781,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "same_design": true
+   },
+   "workers_4": {
+    "seconds": 7.68,
+    "coupled_fits": 837,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "same_design": true
+   }
+  }
+ }
+}

@@ -8,7 +8,7 @@ the distance between the treated hull and the control hull, computed by Wolfe's
 nearest-point method. At `beta = 100` it leaves 579 coupled fits where the
 shipped search makes 82,296, and the search returns the same design. Run in
 lockstep over batches of candidates, the same bound takes that search from 332 s
-to 20 s.
+to 20 s, and to 7.7 s with the batches spread over four worker processes.
 
 This is a study, not a benchmark case, and it changes nothing in the library.
 `bound.py` is a prototype; `search.py` puts it in front of `coupled_fit` from
@@ -21,6 +21,8 @@ python benchmarks/studies/marex_coupling_bound/borrowed.py
 python benchmarks/studies/marex_coupling_bound/profile_bound.py
 python benchmarks/studies/marex_coupling_bound/batched_curve.py
 python benchmarks/studies/marex_coupling_bound/batched_search.py
+python benchmarks/studies/marex_coupling_bound/levers.py
+python benchmarks/studies/marex_coupling_bound/pool.py
 ```
 
 Run them from the repository root, `search.py` first: the others read the
@@ -39,6 +41,9 @@ optimum it records.
 | `batched.py` | the bound for a batch of candidates per numpy call: Wolfe's method, and Frank-Wolfe |
 | `batched_curve.py` | the batched bounds per candidate: how many they clear, their cost, their validity |
 | `batched_search.py` | the search driven by the batched bound, beside the per-candidate and shipped searches |
+| `contiguous.py` | the batched bound with the running candidates contiguous, warm starts, and a pool worker |
+| `levers.py` | two levers on the batched bound: fewer copies, and warm starts |
+| `pool.py` | the batched bound across 1, 2 and 4 worker processes: the bound pass, and the whole search |
 | `results/*.json` | the run behind the tables below |
 
 ## The bound
@@ -243,22 +248,93 @@ incumbent comes from 8 fits, it bounds with `lb`, and a batch uses the cutoff
 it started with. At `beta = 100` the bound takes about 15 of the 20 s
 (87,431 candidates at about 174 microseconds) and the fits about 3.
 
-## What would cut it further
+## Three levers, measured
 
-None of these is measured.
+`levers.py` and `pool.py` measure three ways to cut the batched bound's cost:
+fewer copies, warm starts, and a pool of worker processes. Timings of the same
+computation move by about 15% between runs: `levers.py` bounds the same
+candidates, in the same order, with the same function twice (the contiguous
+bound at batches of 512, and the cold start the warm starts are compared with)
+and records 180 and 156 microseconds a candidate. Effects smaller than that are
+reported as such.
 
-* Fewer copies. Each lockstep iteration gathers the active candidates' arrays,
-  which is why batches of 512 beat batches of 8,192. Keeping the active
-  candidates contiguous and compacting only when many have left would remove
-  most of the copying.
-* Warm starts. In lexicographic order neighbours share three of their four
-  treated markets, and Wolfe's method restarts from a solved corral when points
-  are added or deleted (Wolfe 1976, sec. 9); Hazimeh et al. warm-start every
-  node from its parent.
+### Fewer copies
+
+`contiguous.py` keeps the running candidates contiguous at the front of the
+batch, runs the major step's products on a view of that block with masks,
+gathers only the slices an append needs, and compacts the block when a quarter
+of it has finished. The statuses equal the committed batched bound's everywhere,
+at both `beta`. At `beta = 100` and batches of 512 it takes 180 microseconds a
+candidate against 188, and 161 against 175 in an earlier run: 4 to 8%, inside
+the run-to-run spread. The copies were not the cost.
+
+### Warm starts
+
+Candidates sharing their first three markets form a chain in lexicographic
+order, and each starts from its predecessor's final corral with the points that
+stay valid (Wolfe 1976, sec. 9). At `beta = 100`, on the 87,439 candidates:
+
+| start | major steps a candidate | inherited points | microseconds a candidate | cleared |
+| --- | ---: | ---: | ---: | ---: |
+| cold | 13.68 | | 155.6 | 86,855 |
+| the predecessor's whole corral | 6.77 | 8.69 | 188.5 | 86,853 |
+| its 3 heaviest points | 11.19 | 3 | 138.9 | 86,855 |
+| its heaviest point | 13.28 | 1 | 157.4 | 86,853 |
+
+Inheriting the whole corral halves the major steps and still costs more: every
+lockstep step then works on arrays as wide as an 8.7-point corral, and the minor
+cycles that prune it come first. Three points come out 11% below the cold start,
+near the run-to-run spread. Warm starts also need candidates in lexicographic
+chains, while the search visits them in bound order, so they are not combined
+with the search here. At `beta = 1`, with 234 candidates in chains of up to 13,
+every warm start is slower than the cold one: the later rounds are small
+batches.
+
+### A pool of worker processes
+
+Issue #768's pool, on a machine with 4 cores. The workers fork, run
+single-threaded, and get the Gram matrix and pair distances once. The bound
+pass alone at `beta = 100`, all 87,439 candidates in batches of 512:
+
+| workers | seconds | speedup | statuses equal the single process's |
+| ---: | ---: | ---: | --- |
+| 1 | 15.9 | | |
+| 2 | 7.27 | 2.19 | yes |
+| 4 | 3.86 | 4.12 | yes |
+
+The speedups exceed the ideal because this run's single process, 182
+microseconds a candidate, sits at the slow end of the spread; an earlier run
+gave 14.3, 7.28 and 4.02 seconds, speedups of 1.96 and 3.55.
+
+The whole search, with each round bounding as many batches as there are workers
+against the cutoff at the round's start, then fitting what they leave in the
+parent:
+
+| beta | search | seconds | coupled fits | design |
+| ---: | --- | ---: | ---: | --- |
+| 100 | committed batched bound | 18.25 | 754 | identical |
+| 100 | contiguous, 1 worker | 17.85 | 754 | identical |
+| 100 | contiguous, 2 workers | 10.72 | 781 | identical |
+| 100 | contiguous, 4 workers | 7.68 | 837 | identical |
+| 1 | committed batched bound | 0.21 | 11 | identical |
+| 1 | contiguous, 1 worker | 0.09 | 11 | identical |
+| 1 | contiguous, 2 workers | 0.13 | 11 | identical |
+| 1 | contiguous, 4 workers | 0.13 | 11 | identical |
+
+The fits rise with the workers because a round's batches share one cutoff. At
+`beta = 1` the bound pass is 0.06 s and the pool's overhead outweighs it.
+
+## What is left
+
+At four workers the `beta = 100` search is about 4 s of bound and the rest
+fits, which the parent runs one at a time. None of these is measured.
+
+* Parallel fits, issue #768's own proposal: the fits now take about as long as
+  the bound.
+* Narrower lockstep arrays. A batch's arrays are as wide as its largest
+  corral; grouping candidates by corral size would narrow them.
 * Factor updates. The batched affine step solves the corral's normal equations
   afresh each time; Wolfe's sec. 5 updates a triangular factor instead.
-* Issue #768's process pool. A batch needs only the cutoff, so batches divide
-  across processes.
 
 The per-candidate affine step is solved on the corral's edges,
 `min ||z_0 + E alpha||`. The bordered Gram system that states it most directly

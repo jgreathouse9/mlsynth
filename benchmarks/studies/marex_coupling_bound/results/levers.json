@@ -1,0 +1,92 @@
+{
+ "1.0": {
+  "candidates": 234,
+  "fewer_copies": {
+   "committed_batch_512_us": 268.9,
+   "contiguous_batch_512_us": 281.7,
+   "contiguous_batch_512_same_status": true,
+   "contiguous_batch_2048_us": 325.7,
+   "contiguous_batch_2048_same_status": true,
+   "contiguous_batch_8192_us": 238.7,
+   "contiguous_batch_8192_same_status": true,
+   "cleared": 229
+  },
+  "warm_starts": {
+   "chains": 177,
+   "longest_chain": 13,
+   "cold": {
+    "us": 226.7,
+    "cleared": 229,
+    "major_steps_mean": 16.37,
+    "inherited_points_mean": null,
+    "rows_restarted_cold": 0
+   },
+   "all": {
+    "us": 415.5,
+    "cleared": 229,
+    "major_steps_mean": 13.6,
+    "inherited_points_mean": 12.07,
+    "rows_restarted_cold": 0
+   },
+   "top3": {
+    "us": 524.5,
+    "cleared": 229,
+    "major_steps_mean": 15.53,
+    "inherited_points_mean": 3.0,
+    "rows_restarted_cold": 0
+   },
+   "top1": {
+    "us": 535.7,
+    "cleared": 229,
+    "major_steps_mean": 16.06,
+    "inherited_points_mean": 1.0,
+    "rows_restarted_cold": 0
+   }
+  }
+ },
+ "100.0": {
+  "candidates": 87439,
+  "fewer_copies": {
+   "committed_batch_512_us": 187.5,
+   "contiguous_batch_512_us": 179.9,
+   "contiguous_batch_512_same_status": true,
+   "contiguous_batch_2048_us": 185.4,
+   "contiguous_batch_2048_same_status": true,
+   "contiguous_batch_8192_us": 228.0,
+   "contiguous_batch_8192_same_status": true,
+   "cleared": 86855
+  },
+  "warm_starts": {
+   "chains": 9139,
+   "longest_chain": 37,
+   "cold": {
+    "us": 155.6,
+    "cleared": 86855,
+    "major_steps_mean": 13.68,
+    "inherited_points_mean": null,
+    "rows_restarted_cold": 0
+   },
+   "all": {
+    "us": 188.5,
+    "cleared": 86853,
+    "major_steps_mean": 6.77,
+    "inherited_points_mean": 8.69,
+    "rows_restarted_cold": 1
+   },
+   "top3": {
+    "us": 138.9,
+    "cleared": 86855,
+    "major_steps_mean": 11.19,
+    "inherited_points_mean": 3.0,
+    "rows_restarted_cold": 1
+   },
+   "top1": {
+    "us": 157.4,
+    "cleared": 86853,
+    "major_steps_mean": 13.28,
+    "inherited_points_mean": 1.0,
+    "rows_restarted_cold": 1
+   }
+  }
+ }
+}
