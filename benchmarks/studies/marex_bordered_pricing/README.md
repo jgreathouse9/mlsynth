@@ -78,7 +78,10 @@ and the same move applies here with the simplex as the bounds: for any vector
 g(S) >= -v'G_S v + min over i of (2 (G_S v)_i + a_i),
 ```
 
-with equality at the affine minimiser, where it is the closed form. The bound
+with equality at the affine minimiser, where it is the closed form. It is
+Fenchel's inequality for the treated fit (Rockafellar 1970, in the proof of
+Theorem 31.1), with the simplex entering through its support function, the
+largest of its vertices' values (Corollary 16.5.1). The bound
 holds for every `v`, so the update's accuracy cannot make it invalid; only the
 arithmetic of this last evaluation can. Higham's inner-product bounds (2002,
 (3.5) and (3.13)), counting the products that form `G`, bound that arithmetic a
@@ -180,6 +183,10 @@ equal validity, which moves the limit by about that much at equal time, not by
 * Neumaier, A. and Shcherbina, O. (2004). Safe bounds in linear and
   mixed-integer linear programming. *Mathematical Programming* 99, 283-296.
   The safe form.
+* Rockafellar, R. T. (1970). *Convex Analysis*. Princeton University Press.
+  Fenchel's inequality, in the proof of Theorem 31.1, of which the safe form is
+  an instance; the support function of the convex hull of finitely many points,
+  the largest of their values (Corollary 16.5.1).
 * Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms*, 2nd
   ed. SIAM. Inner-product and matrix-product rounding bounds, (3.5) and (3.13).
 * Golub, G. H. and Van Loan, C. F. (2013). *Matrix Computations*, 4th ed. Johns

@@ -35,7 +35,9 @@ and minimising over the simplex,
     g(S) >= -v'G_S v + min over i of (2 (G_S v)_i + a_i),
 
 with equality at the affine minimiser, where the right side is the closed form.
-The bound holds for every ``v``, so how accurately ``v`` was computed, by a
+It is Fenchel's inequality for the treated fit (Rockafellar 1970, in the proof
+of Theorem 31.1), the simplex entering through its support function
+(Corollary 16.5.1). The bound holds for every ``v``, so how accurately ``v`` was computed, by a
 fresh solve or by bordering, does not affect its validity; only the arithmetic
 of this last evaluation does. :func:`safe_error_bound` bounds that arithmetic a
 priori with Higham's inner-product bound (2002, (3.5) and (3.13)),
@@ -45,6 +47,7 @@ form ``G``.
 References
 ----------
 Zhang, F. (ed.) (2005). The Schur Complement and Its Applications. Springer.
+Rockafellar, R. T. (1970). Convex Analysis. Princeton University Press.
 Neumaier, A. and Shcherbina, O. (2004). Safe bounds in linear and mixed-integer
 linear programming. Mathematical Programming 99, 283-296.
 Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
