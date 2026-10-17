@@ -43,6 +43,20 @@ for any multipliers with the right signs. The multipliers are taken from the
 solver, clipped to their signs, and ``S`` and a lower bound on its smallest
 eigenvalue are computed in exact arithmetic (``certify``). No solver tolerance
 and no rounding enters the bound.
+
+``indicator_lift`` adds the treated indicators of Wiegele and Zhao (2024) and
+Burer (2009): ``z_j = 1`` when free market ``j`` is treated, and ``u_j = 1 -
+z_j``, with ``sum_F z = r``. The vector is ``y = (1; w; v; z; u)``, still the
+image of ``t = (1; w; v; z)`` less one entry of each block under an integer
+map, and the products that vanish on every design are fixed at zero:
+``w_j u_j`` (a market off the treated set has no treated weight), ``v_j z_j``,
+``z_j u_j`` (``z_j`` is binary) and ``w_j v_j``. Nonnegativity of ``Y`` now
+covers the products with ``u``, which are the reformulation-linearization
+inequalities of the indicators. A design's ``t`` has ``|t|^2 <= 3 + r``.
+
+Every lift is a ``Lift``: the integer map ``P``, the objective, the entries
+fixed at zero, the cuts and the bound ``tau`` on ``|t|^2``. ``lift_bound``
+solves any of them and certifies the result the same way.
 """
 from __future__ import annotations
 
@@ -54,36 +68,78 @@ import numpy as np
 from benchmarks.studies.marex_bnb.certify import Dy, down, lambda_min_lower
 
 
-def layout(I, O, F):
-    """``(U_w, U_v, P)``: the supports and the integer map ``t -> y``."""
+class Lift:
+    """A lifted relaxation of one node: ``Y = P T P'``, ``T`` PSD, ``T_00 = 1``.
+
+    ``index`` names the rows of ``Y``; ``zero`` marks entries fixed at zero
+    (their multipliers are free); every other entry is nonnegative; each cut
+    ``K`` asserts ``<K, Y> >= 0``; ``tau`` bounds ``|t|^2`` over the designs.
+    """
+
+    def __init__(self, P, rows, zero, cuts, tau):
+        self.P, self.rows, self.zero, self.cuts, self.tau = P, rows, zero, cuts, tau
+
+
+def _block_map(P, row, col, k, total):
+    """Rows ``row..row+k-1`` of ``y``: ``t`` entries ``col..``, the last ``total`` minus them."""
+    for a in range(k - 1):
+        P[row + a, col + a] = 1
+        P[row + k - 1, col + a] = -1
+    P[row + k - 1, 0] = total
+
+
+def trace_lift(n, m, I, O, F):
+    """``y = (1; w; v)`` with complementarity and the cardinality cuts."""
     Uw, Uv = sorted(I + F), sorted(O + F)
     kw, kv = len(Uw), len(Uv)
-    N, K = 1 + kw + kv, kw + kv - 1
-    P = np.zeros((N, K), dtype=np.int64)
+    rows = [("1", None)] + [("w", j) for j in Uw] + [("v", j) for j in Uv]
+    P = np.zeros((len(rows), kw + kv - 1), dtype=np.int64)
     P[0, 0] = 1
-    for off, k, col in ((1, kw, 1), (1 + kw, kv, kw)):
-        P[off + k - 1, 0] = 1
-        for a in range(k - 1):
-            P[off + a, col + a] = 1
-            P[off + k - 1, col + a] = -1
-    return Uw, Uv, P
-
-
-def constraints(n, m, I, O, F):
-    """The integer matrices of the equalities and the cuts, in ``Y`` space."""
-    Uw, Uv, P = layout(I, O, F)
-    kw, kv = len(Uw), len(Uv)
-    N = 1 + kw + kv
-    iw = {j: 1 + a for a, j in enumerate(Uw)}
-    iv = {j: 1 + kw + a for a, j in enumerate(Uv)}
-    r = m - len(I)
-    E00 = np.zeros((N, N), dtype=np.int64)
-    E00[0, 0] = 1
-    comp = []
+    _block_map(P, 1, 1, kw, 1)
+    _block_map(P, 1 + kw, kw, kv, 1)
+    pos = {key: i for i, key in enumerate(rows)}
+    zero = np.zeros((len(rows), len(rows)), dtype=bool)
     for j in F:
-        E = np.zeros((N, N), dtype=np.int64)
-        E[iw[j], iv[j]] = E[iv[j], iw[j]] = 1
-        comp.append(E)
+        _zero(zero, pos[("w", j)], pos[("v", j)])
+    cuts = _cardinality(n, m, I, O, F, pos, len(rows))
+    return Lift(P, rows, zero, cuts, 3)
+
+
+def indicator_lift(n, m, I, O, F):
+    """``y = (1; w; v; z; u)``: ``trace_lift`` plus the treated indicators."""
+    Uw, Uv = sorted(I + F), sorted(O + F)
+    kw, kv, kf = len(Uw), len(Uv), len(F)
+    r = m - len(I)
+    rows = ([("1", None)] + [("w", j) for j in Uw] + [("v", j) for j in Uv]
+            + [("z", j) for j in F] + [("u", j) for j in F])
+    K = kw + kv + kf - 2
+    P = np.zeros((len(rows), K), dtype=np.int64)
+    P[0, 0] = 1
+    _block_map(P, 1, 1, kw, 1)
+    _block_map(P, 1 + kw, kw, kv, 1)
+    _block_map(P, 1 + kw + kv, kw + kv - 1, kf, r)
+    for a in range(kf):                               # u_j = 1 - z_j
+        P[1 + kw + kv + kf + a] = -P[1 + kw + kv + a]
+        P[1 + kw + kv + kf + a, 0] += 1
+    pos = {key: i for i, key in enumerate(rows)}
+    zero = np.zeros((len(rows), len(rows)), dtype=bool)
+    for j in F:
+        _zero(zero, pos[("w", j)], pos[("v", j)])
+        _zero(zero, pos[("w", j)], pos[("u", j)])
+        _zero(zero, pos[("v", j)], pos[("z", j)])
+        _zero(zero, pos[("z", j)], pos[("u", j)])
+    cuts = _cardinality(n, m, I, O, F, pos, len(rows))
+    return Lift(P, rows, zero, cuts, 3 + r)
+
+
+def _zero(mask, a, b):
+    mask[a, b] = mask[b, a] = True
+
+
+def _cardinality(n, m, I, O, F, pos, N):
+    """The Cauchy-Schwarz cuts on the treated and control weights."""
+    Uw, Uv = sorted(I + F), sorted(O + F)
+    r = m - len(I)
     cuts = []
 
     def card(idx, k, total):
@@ -96,70 +152,89 @@ def constraints(n, m, I, O, F):
             Kc[np.ix_(idx, idx)] -= 1
         return Kc
 
-    if kw > m:
-        cuts.append(card([iw[j] for j in Uw], m, True))
+    if len(Uw) > m:
+        cuts.append(card([pos[("w", j)] for j in Uw], m, True))
     if r >= 1 and len(F) > r:
-        cuts.append(card([iw[j] for j in F], r, False))
-    if kv > n - m:
-        cuts.append(card([iv[j] for j in Uv], n - m, True))
+        cuts.append(card([pos[("w", j)] for j in F], r, False))
+    if len(Uv) > n - m:
+        cuts.append(card([pos[("v", j)] for j in Uv], n - m, True))
     s = len(F) - r
     if s >= 1 and len(F) > s:
-        cuts.append(card([iv[j] for j in F], s, False))
-    return Uw, Uv, P, E00, comp, cuts
+        cuts.append(card([pos[("v", j)] for j in F], s, False))
+    return cuts
 
 
-def objective(G, Uw, Uv, shift):
+def objective(G, lift, shift):
     """``C`` in ``Y`` space, exact, divided by ``2**shift``."""
-    kw, kv = len(Uw), len(Uv)
-    N = 1 + kw + kv
+    N = len(lift.rows)
     A = np.zeros((N, N), dtype=object)
     A[:] = 0
-    A[1:1 + kw, 1:1 + kw] = G.A[np.ix_(Uw, Uw)]
-    A[1 + kw:, 1 + kw:] = G.A[np.ix_(Uv, Uv)]
+    for side in ("w", "v"):
+        idx = [i for i, (b, _) in enumerate(lift.rows) if b == side]
+        mk = [j for b, j in lift.rows if b == side]
+        A[np.ix_(idx, idx)] = G.A[np.ix_(mk, mk)]
     return Dy(A, G.e + shift)
 
 
-def dnn_bound(panel, m, I, O, F, solver="CLARABEL"):
-    """``(certified lower bound, solver's value, status)`` for one node."""
+def lift_bound(panel, lift, solver="CLARABEL", marginals=False):
+    """``(certified lower bound, solver's value, status)`` for one lift.
+
+    With ``marginals=True`` a fourth entry maps each row of ``y`` to its value
+    in the relaxation's solution, ``P T e_0``, for branching and rounding.
+    """
     import cvxpy as cp
     n = panel.Bc.shape[1]
-    Uw, Uv, P, E00, comp, cuts = constraints(n, m, I, O, F)
     diag = max(float(panel.G.frac(j, j)) for j in range(n))
     shift = math.frexp(diag)[1]                       # 2**shift >= max diag
-    C = objective(panel.G, Uw, Uv, shift)
+    C = objective(panel.G, lift, shift)
     Cf = C.float()
     N = Cf.shape[0]
+    E00 = np.zeros((N, N))
+    E00[0, 0] = 1
     y0 = cp.Variable()
     H = cp.Variable((N, N), symmetric=True)
-    mu = cp.Variable(len(comp)) if comp else None
-    nu = cp.Variable(len(cuts), nonneg=True) if cuts else None
     Z = Cf - y0 * E00 - H
-    if comp:
-        Z = Z - sum(mu[i] * comp[i] for i in range(len(comp)))
-    if cuts:
-        Z = Z - sum(nu[k] * cuts[k] for k in range(len(cuts)))
-    S = P.T @ Z @ P
-    prob = cp.Problem(cp.Maximize(y0), [(S + S.T) / 2 >> 0, H >= 0])
+    nu = cp.Variable(len(lift.cuts), nonneg=True) if lift.cuts else None
+    if lift.cuts:
+        Z = Z - sum(nu[k] * lift.cuts[k] for k in range(len(lift.cuts)))
+    S = lift.P.T @ Z @ lift.P
+    sign = (~lift.zero).astype(float)
+    psd = (S + S.T) / 2 >> 0
+    prob = cp.Problem(cp.Maximize(y0), [psd, cp.multiply(sign, H) >= 0])
     prob.solve(solver=getattr(cp, solver))
     if y0.value is None:
-        return 0.0, float("nan"), prob.status
-    lb = certify(C, P, E00, comp, cuts, float(y0.value), H.value,
-                 None if mu is None else mu.value,
+        out = (0.0, float("nan"), prob.status)
+        return out + ({},) if marginals else out
+    lb = certify(C, lift, float(y0.value), H.value,
                  None if nu is None else nu.value)
-    return down(max(lb, Fraction(0)) * (1 << shift)), \
-        float(prob.value) * 2.0 ** shift, prob.status
+    out = (down(max(lb, Fraction(0)) * (1 << shift)),
+           float(prob.value) * 2.0 ** shift, prob.status)
+    if not marginals:
+        return out
+    T = np.asarray(psd.dual_value, dtype=float)
+    y = lift.P @ (T[:, 0] / T[0, 0]) if T[0, 0] > 0 else np.zeros(N)
+    return out + (dict(zip(lift.rows, y.tolist())),)
 
 
-def certify(C, P, E00, comp, cuts, y0, H, mu, nu):
-    """``y0 + 3 min(0, lambda_min(S))``, exactly, for multipliers clipped to sign."""
-    H = np.clip(np.asarray(H, dtype=float), 0.0, None)
+def certify(C, lift, y0, H, nu):
+    """``y0 + tau min(0, lambda_min(S))``, exactly, for multipliers clipped to sign."""
+    H = np.asarray(H, dtype=float)
+    H = np.where(lift.zero, H, np.clip(H, 0.0, None))
     H = np.triu(H) + np.triu(H, 1).T                  # exactly symmetric
+    N = H.shape[0]
+    E00 = np.zeros((N, N), dtype=np.int64)
+    E00[0, 0] = 1
     Z = C - Dy.ints(E00).times(y0) - Dy.of(H)
-    for i, E in enumerate(comp):
-        Z = Z - Dy.ints(E).times(float(mu[i]))
-    for k, K in enumerate(cuts):
+    for k, K in enumerate(lift.cuts):
         Z = Z - Dy.ints(K).times(max(float(nu[k]), 0.0))
-    Pd = Dy.ints(P)
-    S = Pd.T @ Z @ Pd
-    lam = lambda_min_lower(S)
-    return Fraction(y0) + 3 * min(Fraction(0), lam)
+    Pd = Dy.ints(lift.P)
+    lam = lambda_min_lower(Pd.T @ Z @ Pd)
+    return Fraction(y0) + lift.tau * min(Fraction(0), lam)
+
+
+def dnn_bound(panel, m, I, O, F, solver="CLARABEL", kind="trace",
+              marginals=False):
+    """The certified bound of one node under the ``trace`` or ``indicator`` lift."""
+    n = panel.Bc.shape[1]
+    build = trace_lift if kind == "trace" else indicator_lift
+    return lift_bound(panel, build(n, m, I, O, F), solver, marginals)

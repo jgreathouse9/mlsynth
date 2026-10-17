@@ -5,8 +5,8 @@ Each number the search compares is a rational bound computed exactly
 
 - a node's lower bound is the larger of two certified bounds on the minimum of
   ``f`` over its subtree: the monotone bound, ``g(I | F) + h(O | F)`` with each
-  side replaced by its Wolfe-dual certificate, and optionally the doubly
-  nonnegative bound of ``certified_dnn``;
+  side replaced by its Wolfe-dual certificate, and optionally a lifted bound of
+  ``certified_dnn`` (``lift="trace"`` or ``"indicator"``);
 - a complete treated set gets a certified interval ``[lo, hi]`` for ``f``: the
   Wolfe-dual certificates of its two fits below, and the exact objective at the
   fitted weights above;
@@ -32,8 +32,13 @@ Feasibility: a node is a subtree only when ``0 <= r <= |F|`` and at least one
 market is left for the controls, ``|O| + |F| - r >= 1``. A node with
 ``r = |F|`` is the single set ``I | F``.
 
-The tree branches on the free market the treated relaxation weights most, into
-a child that excludes it and a child that includes it, as in ``bnb_binary``.
+The tree branches on one free market, into a child that includes it and a
+child that excludes it. Where a lift was solved, the market is the one the
+lift's solution most wants treated (its ``z_j`` under the indicator lift, its
+treated weight under the trace lift), and that solution is rounded to a
+treated set, ``I`` plus the ``r`` free markets it scores highest, which is
+priced as a candidate incumbent. Elsewhere the market is the one the monotone
+treated fit weights most, as in ``bnb_binary``.
 """
 from __future__ import annotations
 
@@ -53,7 +58,7 @@ def certified_fit(panel, B, A, cols):
     return panel.side_lower(sorted(cols), w), panel.side_upper(sorted(cols), w), w
 
 
-def search(B, A, m, use_dnn=True, dnn_min_sets=2, audit=None):
+def search(B, A, m, lift="trace", dnn_min_sets=2, audit=None, rounding=True):
     """Certified depth-first branch and bound; returns the incumbent and a log.
 
     ``audit(I, O, lower)``, when given, is called on every bounded node, so a
@@ -64,8 +69,13 @@ def search(B, A, m, use_dnn=True, dnn_min_sets=2, audit=None):
     inc = {"set": None, "lo": None, "hi": Fraction(10) ** 300}
     kept = []                                     # (lo, set) of unresolved sets
     st = {"nodes": 0, "pruned": 0, "dnn": 0, "dnn_pruned": 0, "sets": 0}
+    seen = set()
 
     def leaf(S):
+        key = tuple(sorted(S))
+        if key in seen:
+            return
+        seen.add(key)
         st["sets"] += 1
         C = [j for j in range(n) if j not in S]
         lo_g, hi_g, _ = certified_fit(panel, B, A, S)
@@ -91,9 +101,18 @@ def search(B, A, m, use_dnn=True, dnn_min_sets=2, audit=None):
         lo_g, _, w = certified_fit(panel, B, A, I + F)
         lo_h, _, _ = certified_fit(panel, B, A, O + F)
         lower = lo_g + lo_h
-        if use_dnn and lower < inc["hi"] and _count(len(F), r) >= dnn_min_sets:
+        U = sorted(I + F)
+        score = {j: w[U.index(j)] for j in F}
+        if lift and lower < inc["hi"] and _count(len(F), r) >= dnn_min_sets:
             st["dnn"] += 1
-            lb = Fraction(dnn_bound(panel, m, I, O, F)[0])
+            lb, _, _, marg = dnn_bound(panel, m, I, O, F, kind=lift,
+                                       marginals=True)
+            lb = Fraction(lb)
+            side = "z" if lift == "indicator" else "w"
+            if marg:
+                score = {j: marg[(side, j)] for j in F}
+                if rounding:
+                    leaf(I + sorted(F, key=lambda k: (-score[k], k))[:r])
             if lb > lower:
                 lower = lb
                 if lower >= inc["hi"]:
@@ -103,9 +122,7 @@ def search(B, A, m, use_dnn=True, dnn_min_sets=2, audit=None):
         if lower >= inc["hi"]:
             st["pruned"] += 1
             return
-        U = sorted(I + F)
-        wF = {j: w[U.index(j)] for j in F}
-        j = max(F, key=lambda k: (wF[k], -k))
+        j = max(F, key=lambda k: (score[k], -k))
         rest = [k for k in F if k != j]
         visit(I + [j], O, rest)
         visit(I, O + [j], rest)
