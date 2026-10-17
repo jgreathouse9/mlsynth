@@ -434,14 +434,41 @@ penalty :math:`\mathbf{a}^\top \mathbf{w}` to the treated fit, the bound becomes
 :math:`(2 + t)^2 / (4s) - u/4`, with
 :math:`s = \mathbf{1}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{1}`,
 :math:`t = \mathbf{1}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}` and
-:math:`u = \mathbf{a}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}`. When
+:math:`u = \mathbf{a}^\top \mathbf{G}_{\mathcal{S}}^{-1} \mathbf{a}`. That
+form also lets the weights go negative, and under a large penalty it buys a
+small :math:`\mathbf{a}^\top \mathbf{w}` with negative weight on the costly
+markets and falls toward zero. A second bound keeps the penalty. The minimum of
+a sum is at least the sum of the two minimums, and on the simplex the smallest
+value of :math:`\mathbf{a}^\top \mathbf{w}` is the smallest penalty in the set,
+so
+
+.. math::
+
+   g(\mathcal{S}) \;\ge\; \frac{1}{s} + \min_{j \in \mathcal{S}} a_j,
+
+and the search uses the larger of the two bounds. When
 :math:`\mathbf{G}_{\mathcal{S}}` is singular (more treated markets than
-predictors, or a market that matches the target exactly) the bound is set to
-zero, which discards nothing. The bound is one small linear solve, computed for
-thousands of candidates in a single call. Since
-:math:`f(\mathcal{S}) \ge g(\mathcal{S})`, a candidate whose bound already
-exceeds the best design found so far cannot be optimal, and the search discards
-it without fitting it.
+predictors, or a market that matches the target exactly) there is no closed
+form, and the bound is the smallest penalty in the set, or zero without a
+penalty, which discards nothing.
+
+The control fit has a bound as well. A candidate's control pool is a subset of
+its cluster, and a fit on the simplex can only improve as markets are added, so
+every candidate's control fit is at least the penalised fit over the whole
+cluster, :math:`h_0`. That is one fit per cluster. The search uses its
+certified lower bound, the fit's value less its Frank-Wolfe gap (the
+improvement the best single market offers along the gradient), which by
+convexity sits under the minimum whatever the accuracy of the solve. Without a
+control penalty :math:`h_0 = 0`, since the target is the cluster's mean and the
+whole cluster reproduces it, so the floor matters for ``penalized`` with
+``lambda2 > 0``.
+
+The bounds are small linear solves, computed for thousands of candidates in a
+single call. Since :math:`f(\mathcal{S}) \ge g(\mathcal{S}) + h_0`, a candidate
+whose bound plus :math:`h_0` already exceeds the best design found so far
+cannot be optimal, and the search discards it without fitting it; so does a
+candidate whose fitted treated side plus :math:`h_0` exceeds it, before its
+control fit.
 
 The search reads the candidates once, keeps the 512 with the smallest bounds,
 and fits those in order of bound; the best of them becomes the incumbent. If
