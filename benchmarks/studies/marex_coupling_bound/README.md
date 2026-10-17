@@ -6,7 +6,9 @@ exact search can discard candidates before fitting them. This study measures
 the issue's three leads on GeoLift and prototypes the one that works: a bound on
 the distance between the treated hull and the control hull, computed by Wolfe's
 nearest-point method. At `beta = 100` it leaves 579 coupled fits where the
-shipped search makes 82,296, and the search returns the same design.
+shipped search makes 82,296, and the search returns the same design. Run in
+lockstep over batches of candidates, the same bound takes that search from 332 s
+to 20 s.
 
 This is a study, not a benchmark case, and it changes nothing in the library.
 `bound.py` is a prototype; `search.py` puts it in front of `coupled_fit` from
@@ -16,9 +18,12 @@ the outside. Timings are machine-dependent and nothing here is pinned.
 python benchmarks/studies/marex_coupling_bound/search.py
 python benchmarks/studies/marex_coupling_bound/leads.py
 python benchmarks/studies/marex_coupling_bound/borrowed.py
+python benchmarks/studies/marex_coupling_bound/profile_bound.py
+python benchmarks/studies/marex_coupling_bound/batched_curve.py
+python benchmarks/studies/marex_coupling_bound/batched_search.py
 ```
 
-Run them from the repository root, `search.py` first: the other two read the
+Run them from the repository root, `search.py` first: the others read the
 optimum it records.
 
 ## What is here
@@ -30,6 +35,10 @@ optimum it records.
 | `search.py` | the exact search as shipped and with the bound in front of each fit, end to end |
 | `leads.py` | each lead per candidate: its share of the objective, its cost, the fits it leaves |
 | `borrowed.py` | lead 2: separating directions and a dual pair borrowed from fitted candidates |
+| `profile_bound.py` | where the per-candidate bound's time goes |
+| `batched.py` | the bound for a batch of candidates per numpy call: Wolfe's method, and Frank-Wolfe |
+| `batched_curve.py` | the batched bounds per candidate: how many they clear, their cost, their validity |
+| `batched_search.py` | the search driven by the batched bound, beside the per-candidate and shipped searches |
 | `results/*.json` | the run behind the tables below |
 
 ## The bound
@@ -156,27 +165,108 @@ closed-form bound. A dual pair from the optimal design is exact at that design
 treated set does not transfer: the bound that discards a candidate is that
 candidate's own.
 
-## What would cut the bound's cost
+## The bound in batches
+
+The per-candidate bound is not slow arithmetic. `profile_bound.py` puts it at
+1.4 ms a candidate, 12.8 major cycles and 15.9 least-squares calls on average,
+with 43% of the time inside those calls and 32% in the method's own Python. One
+least-squares solve on a 90-by-8 corral takes 40.7 microseconds as a numpy call
+for about 12,000 floating-point operations; one product `B'x` takes 1.8. The
+shipped search prices every candidate in about a microsecond because it batches
+20,000 of them per numpy call, and `batched.py` does the same for this bound.
+
+Batched, the bound uses the closed-form treated bound `lb` in place of the
+treated fit `g`, so a candidate needs no simplex fit to be bounded. That costs
+nothing at `beta = 100`: with exact distances, `lb + beta * dist^2` and
+`g + beta * dist^2` leave the same candidates, 1 of 1,000 sampled. A candidate
+needs its bound to reach 61% of the exact distance at the median, 78% at the
+90th percentile and 94% at the 99th (`batched_curve.py`), so a method has to
+come close to the distance, not only start toward it.
+
+Frank-Wolfe does not. Run in lockstep for at most 200 iterations on all 87,439
+candidates the closed-form bound leaves under the optimum at `beta = 100`:
+
+| method | cleared within 10 | 50 | 100 | 200 | left after 200 | microseconds per candidate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Frank-Wolfe | 266 | 9,877 | 26,695 | 53,412 | 34,027 | 373 |
+| pairwise Frank-Wolfe | 48 | 660 | 2,603 | 9,039 | 78,400 | 666 |
+
+The pairwise variant moves both simplexes by one step size, which the block
+with less mass to move limits; separate steps per block might do better, and
+are not measured. Both fall far short of Wolfe's method, whose exact affine
+steps reach the distance in a few cycles.
+
+So `wolfe_bound` batches Wolfe's method. Every quantity goes through the Gram
+matrix of the target-centred markets: a corral point is a pair of indices,
+`b_i - b_j`, its products with every market are `G[i] - G[j]`, and each
+candidate keeps those products and its corral's Gram, updated when a point is
+added. It clears 86,855 of the 87,439 and leaves 584: 422 converge without
+clearing and 162 fill their 24 corral slots. The cost per candidate depends on
+the batch size, because each lockstep iteration copies arrays that grow with
+it:
+
+| batch | microseconds per candidate at `beta = 100` | at `beta = 1` |
+| ---: | ---: | ---: |
+| 512 | 174 | 296 |
+| 2,048 | 178 | 239 |
+| 8,192 | 213 | 237 |
+
+At `beta = 1` it clears 229 of the 234 candidates, the same 5 left as the exact
+distance.
+
+The bound reads the data through `G`, so its rounding is that of forming `G` and
+of the products. Run to convergence on 300 sampled candidates at `beta = 100`,
+it matches the per-candidate exact distance to 2.9e-11 relative at the median,
+and its largest value is 2.7e-12 above it: rounding between two evaluation
+routes, six orders of magnitude inside the search's margin. The margin, not the
+arithmetic, keeps it valid, so a version in the library needs the a priori
+rounding bound pinned, as the bordered-pricing study does for the treated bound.
+
+## The search with the batched bound
+
+`batched_search.py` runs a search driven by the batched bound beside the other
+two, in one process. It fits the first 8 candidates in `lb` order to set an
+incumbent, then bounds each batch of 512 against the cutoff at the batch's
+start and fits the rest in `lb` order, as the shipped search would.
+
+| beta | search | coupled fits | discarded by a bound | seconds | design |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 100 | shipped | 82,296 | | 332 | identical |
+| 100 | per-candidate bound | 579 | 81,717 | 131 | identical |
+| 100 | batched bound | 754 | 86,685 | 20 | identical |
+| 1 | shipped | 234 | | 0.73 | identical |
+| 1 | per-candidate bound | 5 | 229 | 0.51 | identical |
+| 1 | batched bound | 11 | 223 | 0.24 | identical |
+
+The batched search fits more candidates than the per-candidate one: its first
+incumbent comes from 8 fits, it bounds with `lb`, and a batch uses the cutoff
+it started with. At `beta = 100` the bound takes about 15 of the 20 s
+(87,431 candidates at about 174 microseconds) and the fits about 3.
+
+## What would cut it further
 
 None of these is measured.
 
-* Warm starts. The search visits candidates in bound order, but in
-  lexicographic order neighbours share three of their four treated markets, and
-  Wolfe's method restarts from a solved corral when points are added or deleted
-  (Wolfe 1976, sec. 9); Hazimeh et al. warm-start every node from its parent.
-  Bounding in lexicographic order, then fitting in bound order, keeps the
-  search's order for the fits.
-* Factor updates. Each affine step solves a fresh least-squares problem on the
-  corral's edges; Wolfe's sec. 5 updates a triangular factor instead.
-* Issue #768's process pool. The bound needs only the cutoff, so the pass over
-  candidates divides across processes as the fits would.
+* Fewer copies. Each lockstep iteration gathers the active candidates' arrays,
+  which is why batches of 512 beat batches of 8,192. Keeping the active
+  candidates contiguous and compacting only when many have left would remove
+  most of the copying.
+* Warm starts. In lexicographic order neighbours share three of their four
+  treated markets, and Wolfe's method restarts from a solved corral when points
+  are added or deleted (Wolfe 1976, sec. 9); Hazimeh et al. warm-start every
+  node from its parent.
+* Factor updates. The batched affine step solves the corral's normal equations
+  afresh each time; Wolfe's sec. 5 updates a triangular factor instead.
+* Issue #768's process pool. A batch needs only the cutoff, so batches divide
+  across processes.
 
-The affine step is solved on the corral's edges, `min ||z_0 + E alpha||`. The
-bordered Gram system that states it most directly is unusable at GeoLift's
-scale: its Gram entries are of order 1e7 against a border of 1, a
-least-squares solve returns `w = 0`, and the method stalls at its first step. A
-version in the library needs the factored form of Wolfe's sec. 5 and a test that
-pins the scale.
+The per-candidate affine step is solved on the corral's edges,
+`min ||z_0 + E alpha||`. The bordered Gram system that states it most directly
+is unusable at GeoLift's scale: its Gram entries are of order 1e7 against a
+border of 1, a least-squares solve returns `w = 0`, and the method stalls at its
+first step. The batched step solves the edges' normal equations, measured from a
+reference point, with a ridge of 1e-13 of their largest diagonal; a version in
+the library needs a test that pins the scale either way.
 
 ## Sources
 
@@ -202,7 +292,8 @@ pins the scale.
   Programming* 196, 347-388. Dual bounds completed from inexact primal points.
 * Lacoste-Julien, S. and Jaggi, M. (2015). On the global linear convergence of
   Frank-Wolfe optimization variants. *Advances in Neural Information Processing
-  Systems* 28. The rate behind the short cycle counts.
+  Systems* 28. The pairwise variant, and the rate behind Wolfe's short cycle
+  counts.
 * Das Gupta, S., Van Parys, B. P. G. and Ryu, E. K. (2023). Branch-and-bound
   performance estimation programming: a unified methodology for constructing
   optimal optimization methods. arXiv:2203.07305v5. Its pool of lazily added
