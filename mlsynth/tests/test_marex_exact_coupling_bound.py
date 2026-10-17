@@ -502,6 +502,17 @@ def test_a_duplicated_market_across_the_sides_gives_zero_not_nan():
     assert np.array_equal(d, [0.0, 0.0])
 
 
+def test_at_beta_zero_the_bound_is_the_treated_bound(monkeypatch):
+    """No coupling to bound, so no distance is computed at all."""
+    monkeypatch.setattr(exact_mod, "_wolfe_lockstep", None)
+    B, A = _problem(24, n=6)
+    sets = _subsets(6, 2)
+    lb = treated_fit_bound(B, A, sets)
+    out = CouplingBound(B, A, beta=0.0, control_penalty=0.3).bound(sets, lb, 1.0)
+    np.testing.assert_array_equal(out, lb)
+    assert out is not lb
+
+
 def test_a_candidate_with_no_control_market_gets_zero():
     B, A = _problem(17, n=4)
     cb = CouplingBound(B, A, beta=1.0,
