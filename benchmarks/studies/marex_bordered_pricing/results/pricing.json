@@ -1,0 +1,167 @@
+{
+ "python": "3.13.16",
+ "numpy": "2.5.3",
+ "T": 90,
+ "cases": {
+  "geolift_n40_m2": {
+   "candidates": 780,
+   "priced": 780,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.906,
+    "bordered": 0.324,
+    "bordered_safe": 0.336
+   },
+   "speedup_bordered": 2.8,
+   "speedup_bordered_safe": 2.7,
+   "max_relative_difference": 1.0898099628222447e-14,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 3.3049503026342756e-05
+  },
+  "geolift_n40_m3": {
+   "candidates": 9880,
+   "priced": 9880,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 1.324,
+    "bordered": 0.196,
+    "bordered_safe": 0.651
+   },
+   "speedup_bordered": 6.75,
+   "speedup_bordered_safe": 2.03,
+   "max_relative_difference": 6.451529178724361e-13,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 0.00011282950174580757
+  },
+  "geolift_n40_m4": {
+   "candidates": 91390,
+   "priced": 91390,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 1.046,
+    "bordered": 0.314,
+    "bordered_safe": 0.747
+   },
+   "speedup_bordered": 3.33,
+   "speedup_bordered_safe": 1.4,
+   "max_relative_difference": 1.6923853381848415e-12,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 0.00014962865574200484
+  },
+  "geolift_n40_m5": {
+   "candidates": 658008,
+   "priced": 658008,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.921,
+    "bordered": 0.341,
+    "bordered_safe": 0.614
+   },
+   "speedup_bordered": 2.7,
+   "speedup_bordered_safe": 1.5,
+   "max_relative_difference": 4.4746692943207556e-12,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 0.00021114215507274476
+  },
+  "geolift_n40_m6": {
+   "candidates": 3838380,
+   "priced": 3838380,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 1.034,
+    "bordered": 0.499,
+    "bordered_safe": 0.83
+   },
+   "speedup_bordered": 2.07,
+   "speedup_bordered_safe": 1.25,
+   "max_relative_difference": 9.255483074523873e-12,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 0.0003132084824943682
+  },
+  "synthetic_n80_m2": {
+   "candidates": 3160,
+   "priced": 3160,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.678,
+    "bordered": 0.133,
+    "bordered_safe": 0.174
+   },
+   "speedup_bordered": 5.09,
+   "speedup_bordered_safe": 3.89,
+   "max_relative_difference": 3.323163722790661e-14,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 2.2286866601423627e-05
+  },
+  "synthetic_n80_m3": {
+   "candidates": 82160,
+   "priced": 82160,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.518,
+    "bordered": 0.195,
+    "bordered_safe": 0.311
+   },
+   "speedup_bordered": 2.66,
+   "speedup_bordered_safe": 1.67,
+   "max_relative_difference": 2.5188686694301032e-12,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 5.9754319677356056e-05
+  },
+  "synthetic_n80_m4": {
+   "candidates": 1581580,
+   "priced": 1581580,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.672,
+    "bordered": 0.247,
+    "bordered_safe": 0.426
+   },
+   "speedup_bordered": 2.72,
+   "speedup_bordered_safe": 1.58,
+   "max_relative_difference": 2.6270996799907136e-11,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 8.502803923905597e-05
+  },
+  "synthetic_n80_m5": {
+   "candidates": 24040016,
+   "priced": 24040016,
+   "all_priced": true,
+   "us_per_candidate": {
+    "shipped": 0.849,
+    "bordered": 0.296,
+    "bordered_safe": 0.529
+   },
+   "speedup_bordered": 2.86,
+   "speedup_bordered_safe": 1.61,
+   "max_relative_difference": 5.958975322174139e-11,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 9.997160712795633e-05
+  },
+  "synthetic_n80_m6": {
+   "candidates": 300500200,
+   "priced": 4000006,
+   "all_priced": false,
+   "us_per_candidate": {
+    "shipped": 0.964,
+    "bordered": 0.368,
+    "bordered_safe": 0.665
+   },
+   "speedup_bordered": 2.62,
+   "speedup_bordered_safe": 1.45,
+   "max_relative_difference": 4.5343739916857035e-11,
+   "zero_bounds_shipped": 0,
+   "zero_bounds_bordered": 0,
+   "max_rounding_bound_over_margin": 0.00010545703110674608
+  }
+ }
+}
