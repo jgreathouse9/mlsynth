@@ -3907,13 +3907,19 @@ timeout = 600.0
   id = "the-rounding-is-not-subtracted"
   find = "    return val - safe_rounding(d, T, subsets, v, linear)"
   replace = "    return val"
-  models = "the safe form taken at its floating-point value. Where the target is reproduced exactly the closed form is zero and the computed form lands within its rounding of zero on either side, so a positive value is a bound above the fit; this is the defect the margin used to cover"
+  models = "the safe form taken at its floating-point value. In about half the rows that value lands above the form's exact value at the same point, which exact rational arithmetic on the float data shows; where the form is tight that is a bound above the fit. This is the defect the margin used to cover"
 
   [[target.mutant]]
   id = "the-rounding-ignores-the-scale-of-the-columns"
   find = "    dv = np.einsum(\"li,li->l\", np.abs(v), dS)"
   replace = "    dv = np.abs(v).sum(axis=1)"
   models = "the rounding term computed as if every column had unit norm. On columns at the level of weekly sales it is then smaller than the rounding it has to cover by the square of the columns' norms"
+
+  [[target.mutant]]
+  id = "the-underflow-term-is-dropped"
+  find = "    return 2.0 * (gamma * total + k * SMALLEST_SUBNORMAL * spread * spread)"
+  replace = "    return 2.0 * gamma * total"
+  models = "the rounding term built on the relative model alone, which assumes no underflow. Below a data scale of about 1e-153 the products that form G are subnormal, their errors are absolute, and the computed form exceeded its exact value in 12 to 83 per cent of rows"
 
   [[target.mutant]]
   id = "a-breakdown-reaches-the-search-as-nan"

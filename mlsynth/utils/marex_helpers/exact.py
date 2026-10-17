@@ -38,15 +38,13 @@ with ``G = B~'B~`` restricted to ``S``, ``s = 1'G^-1 1``, ``t = 1'G^-1 a`` and
 minimiser is already non-negative. SYNDES's exact backend bounds its own
 objective the same way (:mod:`mlsynth.utils.syndes_helpers.gram`).
 
-Pricing. Candidates arrive in lexicographic order, so consecutive ones share all
-but their last market. For ``S = P + {j}``, with ``H = G_P^-1``, ``g = G[P, j]``,
+Pricing. Without restrictions candidates arrive in lexicographic order, so
+consecutive ones share all but their last market. For ``S = P + {j}``, with ``H = G_P^-1``, ``g = G[P, j]``,
 ``z = H g`` and the Schur complement ``sigma = G_jj - g'z``, the Banachiewicz
 inversion formula (Zhang 2005, (0.7.2)) gives
 ``e'G_S^-1 f = e_P'H f_P + (e_j - z'e_P)(f_j - z'f_P) / sigma``, so ``s``,
 ``t`` and ``u`` extend from the prefix in ``O(m^2)``, and each prefix's inverse is
-formed once for its run (:func:`bordered_terms`). On GeoLift's 40 markets and an
-80-market panel this priced candidates two to seven times faster than a solve
-per candidate, for ``m`` from 2 to 6.
+formed once for its run (:func:`bordered_terms`).
 
 An update need not be as accurate as a fresh solve, so the bound does not rest
 on it. For any vector ``v``, ``||B~_S (w - v)||^2 >= 0`` gives
@@ -177,6 +175,11 @@ PRUNE_MARGIN = 1e-6
 
 #: Unit roundoff of IEEE double precision.
 UNIT_ROUNDOFF = 2.0 ** -53
+
+#: The smallest positive subnormal double. A product that underflows is rounded
+#: with an absolute error of up to half of it, which no multiple of the unit
+#: roundoff covers.
+SMALLEST_SUBNORMAL = 2.0 ** -1074
 
 
 @dataclass(frozen=True)
@@ -493,11 +496,17 @@ def safe_rounding(d: np.ndarray, T: int, subsets: np.ndarray, v: np.ndarray,
     """An a priori bound on the rounding of :func:`safe_treated_bound`'s value.
 
     Forming ``G`` from the data and evaluating the form are inner products of
-    length at most ``T + 2m + 4``, so Higham's (3.5) and (3.13) bound the error
-    by ``gamma_k`` times the products of absolute values, and Cauchy-Schwarz
-    bounds those by the column norms ``d``: ``|v|'|B~_S|'|B~_S||v| <= (|v|'d_S)^2``
-    and each row of ``|B~_S|'|B~_S||v|`` by ``max d_S |v|'d_S``. The factor 2
-    covers the rounding of ``d`` and of this bound itself.
+    length at most ``k = T + 2m + 4``, so Higham's (3.5) and (3.13) bound the
+    error by ``gamma_k`` times the products of absolute values, and
+    Cauchy-Schwarz bounds those by the column norms ``d``:
+    ``|v|'|B~_S|'|B~_S||v| <= (|v|'d_S)^2`` and each row of
+    ``|B~_S|'|B~_S||v|`` by ``max d_S |v|'d_S``. That model holds without
+    underflow. A product in the subnormal range is rounded with an absolute
+    error of up to half the smallest subnormal ``eta`` (Higham 2002, (2.8));
+    carried through the same inner products, those errors total at most
+    ``k eta (1 + sum |v|)^2``. Below a data scale of about ``1e-153`` the
+    products that form ``G`` are subnormal and this term is the one that
+    holds. The factor 2 covers the rounding of ``d`` and of this bound itself.
     """
     m = subsets.shape[1]
     k = T + 2 * m + 4
@@ -507,7 +516,8 @@ def safe_rounding(d: np.ndarray, T: int, subsets: np.ndarray, v: np.ndarray,
     total = dv * dv + 2.0 * dS.max(axis=1) * dv
     if linear is not None:
         total = total + np.abs(np.asarray(linear, dtype=float)[subsets]).max(axis=1)
-    return 2.0 * gamma * total
+    spread = 1.0 + np.abs(v).sum(axis=1)
+    return 2.0 * (gamma * total + k * SMALLEST_SUBNORMAL * spread * spread)
 
 
 def safe_treated_bound(G: np.ndarray, d: np.ndarray, T: int, subsets: np.ndarray,

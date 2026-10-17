@@ -248,6 +248,31 @@ def test_the_safe_bound_never_exceeds_the_exact_value_of_the_form(linear):
     assert above > 0
 
 
+@pytest.mark.parametrize("scale", [1e-155, 1e-160, 1e-165])
+def test_the_safe_bound_holds_where_products_underflow(scale):
+    """Below about 1e-153 the products that form ``G`` are subnormal.
+
+    There a rounding error is absolute, up to half the smallest subnormal
+    ``eta / 2``, and no multiple of the unit roundoff covers it: before the
+    ``eta`` term the computed form exceeded its exact value in 12 to 83 per
+    cent of rows at these scales.
+    """
+    exceeded = 0
+    for seed in range(10):
+        B, A = _problem(seed, n=5, T=8)
+        B, A = B * scale, A * scale
+        G, d = _gram(B, A)
+        subs = _subsets(5, 3)
+        v = np.random.default_rng(seed).normal(size=subs.shape)
+        safe = exact_mod.safe_treated_bound(G, d, B.shape[0], subs, v)
+        term = exact_mod.safe_rounding(d, B.shape[0], subs, v)
+        for r, S in enumerate(subs):
+            exact = _exact_form(B, A, S, v[r])
+            assert Fraction(float(safe[r])) <= exact
+            exceeded += Fraction(float(safe[r] + term[r])) > exact
+    assert exceeded > 0
+
+
 def test_the_rounding_term_sits_far_under_the_margin_on_sales_sized_data():
     """The rounding the bound gives up is small next to what the search keeps.
 
@@ -360,13 +385,15 @@ def test_the_safe_form_is_a_lower_bound_at_any_point_over_the_domain(
 
 @given(seed=st.integers(0, 10_000), n=st.integers(2, 6), m=st.integers(1, 4),
        scale=st.sampled_from([1e-3, 1.0, 1e3]), sales=st.booleans(),
-       linear=st.booleans())
+       linear=st.booleans(), tiny=st.sampled_from([1.0, 1e-150, 1e-160]))
 @settings(max_examples=40, deadline=None)
 def test_the_safe_bound_never_exceeds_the_exact_form_over_the_domain(
-        seed, n, m, scale, sales, linear):
+        seed, n, m, scale, sales, linear, tiny):
     m = min(m, n)
     B, A = _sales(seed, n=n, T=8) if sales else _problem(seed, n=n, T=8)
-    a = _penalty(seed + 1, n, 1e6 if sales else 1.0) if linear else None
+    B, A = B * tiny, A * tiny
+    a = (_penalty(seed + 1, n, 1e6 if sales else 1.0) * tiny ** 2
+         if linear else None)
     G, d = _gram(B, A)
     subs = _subsets(n, m)
     v = np.random.default_rng(seed + 2).normal(size=subs.shape) * scale
