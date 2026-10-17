@@ -18,10 +18,11 @@ two simplex-constrained least-squares fits, each solved exactly by
 cluster less ``S`` and less any donor a treated market excludes. The design is
 a search over treated sets with an exact oracle, not a mixed-integer program.
 
-The search. Both terms are non-negative, so ``f(S) >= g(S) >= lb(S)`` for any
-lower bound ``lb`` on the treated fit. Every admissible candidate is priced by
-``lb`` in batches, and only candidates whose bound is under the best total found
-reach the oracle. A single streaming pass keeps the ``BUFFER`` best-bounded
+The search. Both terms are non-negative, so ``f(S) >= lb(S) + h0`` for any
+lower bound ``lb`` on the treated fit and any floor ``h0`` under every
+candidate's control fit. Every admissible candidate is priced by ``lb + h0`` in
+batches, and only candidates whose bound is under the best total found reach
+the oracle. A single streaming pass keeps the ``BUFFER`` best-bounded
 candidates and evaluates them in bound order, which sets the incumbent; if more
 candidates than the buffer held have a bound under it, a second pass collects
 and evaluates those. Every candidate is therefore either solved exactly or
@@ -37,6 +38,18 @@ with ``G = B~'B~`` restricted to ``S``, ``s = 1'G^-1 1``, ``t = 1'G^-1 a`` and
 ``u = a'G^-1 a`` (``1 / s`` when ``a = 0``). It equals ``g(S)`` whenever its
 minimiser is already non-negative. SYNDES's exact backend bounds its own
 objective the same way (:mod:`mlsynth.utils.syndes_helpers.gram`).
+
+With a penalty the closed form lets the weights go negative, and under a large
+one it buys a low ``a'w`` with negative weight on the costly markets and falls
+toward zero. A second bound keeps the penalty: the minimum of a sum is at least
+the sum of the minimums, so ``g(S) >= 1/s + min over S of a``, and the search
+takes the larger of the two. The control side has a bound of its own. A
+candidate's control pool is a subset of the cluster, and a simplex fit only
+falls as markets are added, so every control fit is at least the penalised fit
+over the whole cluster, one fit per cluster. The floor ``h0`` is that fit's
+certified lower bound, its value less its Frank-Wolfe gap, which holds whatever
+the accuracy of the solve. It is zero without a control penalty, since the
+target is the cluster's mean.
 
 The weakly-targeted design. Its objective ties the synthetic control to the
 synthetic treated instead of to the target,
@@ -379,10 +392,15 @@ def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
     """A lower bound on the treated-side fit of every row of ``subsets``.
 
     ``min { w'G w + a'w : 1'w = 1 }`` on the centred columns, in closed form
-    (see the module docstring). A block whose solve does not reproduce its
-    right-hand side to ``1e-8`` relative, or whose ``1'G^-1 1`` is not positive, gets
-    the bound ``0``, which never discards anything; so does a negative value,
-    since the fit itself is non-negative.
+    (see the module docstring). With a penalty ``a`` the bound is the larger of
+    that and ``1/s + min over S of a``: the minimum of a sum over the simplex
+    is at least the sum of the two minimums, and ``1/s`` is under the first.
+    The closed form lets the weights go negative, so under a large penalty it
+    falls toward zero, while the second form keeps the smallest penalty in the
+    set. A block whose solve does not reproduce its right-hand side to ``1e-8``
+    relative, or whose ``1'G^-1 1`` is not positive, has no closed form and
+    gets ``min over S of a`` alone (``0`` without a penalty); a negative value
+    becomes ``0``, since the fit itself is non-negative.
     """
     subsets = np.asarray(subsets, dtype=np.int64)
     n_sub, m = subsets.shape
@@ -411,16 +429,45 @@ def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
         s = x[:, :, 0].sum(axis=1)
         good = (np.isfinite(s) & np.isfinite(resid) & (s > 0)
                 & (resid <= 1e-8 * scale))
-        val = np.zeros(b)
+        inv = np.zeros(b)
+        inv[good] = 1.0 / s[good]
         if lin is None:
-            val[good] = 1.0 / s[good]
+            val = inv
         else:
             t = x[:, :, 1].sum(axis=1)
             u = np.einsum("bi,bi->b", rhs[:, :, 1], x[:, :, 1])
-            val[good] = (2.0 + t[good]) ** 2 / (4.0 * s[good]) - u[good] / 4.0
+            closed = np.zeros(b)
+            closed[good] = (2.0 + t[good]) ** 2 / (4.0 * s[good]) - u[good] / 4.0
+            closed[~np.isfinite(closed)] = 0.0
+            mins = lin[idx].min(axis=1)
+            val = np.maximum(closed, inv + mins)
         val[~np.isfinite(val)] = 0.0
         out[lo:lo + b] = np.maximum(val, 0.0)
     return out
+
+
+def control_fit_floor(B: np.ndarray, A: np.ndarray,
+                      linear: Optional[np.ndarray] = None) -> float:
+    """A lower bound on the control fit of every candidate of the cluster.
+
+    A candidate's control pool is a subset of the cluster's markets, and a
+    simplex fit over a subset is a fit over the whole cluster with the other
+    weights held at zero, so ``h(C) >= h(all markets)`` for every pool ``C``.
+    The floor is that fit's certified lower bound, its value less its
+    Frank-Wolfe gap ``grad'v - min_j grad_j``: by convexity the minimum is at
+    least the value at any point less the gap there, so the floor holds
+    whatever the accuracy of the solve. It is ``0`` without a penalty when the
+    target is the cluster's mean, which the whole cluster reproduces.
+    """
+    cols = list(range(B.shape[1]))
+    lin = None if linear is None else np.asarray(linear, dtype=float)[cols]
+    value, v = side_fit(B, A, cols, lin)
+    Bs = B[:, cols]
+    grad = 2.0 * (Bs.T @ (Bs @ v - A))
+    if lin is not None:
+        grad = grad + lin
+    gap = max(float(grad @ v - grad.min()), 0.0)
+    return max(value - gap, 0.0)
 
 
 # ----------------------------------------------------------------------
@@ -525,7 +572,9 @@ def search_cluster(
     filt : SubsetFilter
         Forced, forbidden, conflict and stratum rules, in local indices.
     linear_treated, linear_control : np.ndarray, optional
-        Non-negative penalty vectors over the cluster's markets.
+        Non-negative penalty vectors over the cluster's markets. The control
+        one sets a floor under every candidate's control fit
+        (:func:`control_fit_floor`), which the search adds to each bound.
     donor_exclusion : sequence of (i, j)
         ``j`` may not be a control when ``i`` is treated.
     top_k : int
@@ -545,8 +594,9 @@ def search_cluster(
     ------
     MlsynthConfigError
         Above the candidate limit, for a negative ``beta``, for ``beta`` with a
-        penalty vector, or for a ``control_penalty`` without ``beta`` or past
-        the convexity bound.
+        penalty vector, for a penalty vector that is negative or not finite
+        (the bounds take both fits to be non-negative), or for a
+        ``control_penalty`` without ``beta`` or past the convexity bound.
     MlsynthEstimationError
         When no admissible design exists.
     """
@@ -580,6 +630,16 @@ def search_cluster(
         excluded.setdefault(int(i), set()).add(int(j))
     lin_t = None if linear_treated is None else np.asarray(linear_treated, float)
     lin_c = None if linear_control is None else np.asarray(linear_control, float)
+    for name, vec in (("linear_treated", lin_t), ("linear_control", lin_c)):
+        if vec is not None and not (np.all(np.isfinite(vec)) and np.all(vec >= 0)):
+            raise MlsynthConfigError(
+                f"{name} must be finite and non-negative. The search bounds a "
+                f"candidate's objective by its treated fit plus a floor under "
+                f"its control fit, and both bounds take the fits to be "
+                f"non-negative; MAREX's penalties are distances, which are.")
+    # Every candidate's control fit is at least this; zero for the coupled fit,
+    # whose objective has no separate control term.
+    floor = control_fit_floor(B, A, lin_c) if beta is None else 0.0
 
     best = _TopK(top_k)
     seen: set = set()
@@ -591,7 +651,8 @@ def search_cluster(
         seen.add(S)
         cols = list(S)
         g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
-        if g >= best.cutoff:
+        cut = best.cutoff
+        if g >= cut or g + floor >= cut + margin(cut):
             return
         drop = set(S)
         for i in S:
@@ -604,7 +665,6 @@ def search_cluster(
                             None if lin_c is None else lin_c[control])
             value = g + h
         else:
-            cut = best.cutoff
             fit = coupled_fit(B, A, cols, control, beta, w0=w,
                               cutoff=cut + margin(cut) if np.isfinite(cut) else None,
                               control_penalty=control_penalty)
@@ -618,7 +678,7 @@ def search_cluster(
     buf_lb = np.empty(0)
     buf_sets: List[Tuple[int, ...]] = []
     for block in _chunks(n, sizes, filt):
-        lb = treated_fit_bound(B, A, block, lin_t)
+        lb = treated_fit_bound(B, A, block, lin_t) + floor
         held = buf_lb.size
         all_lb = np.concatenate([buf_lb, lb])
         if all_lb.size > BUFFER:
@@ -645,7 +705,7 @@ def search_cluster(
     if len(buf_sets) == BUFFER and (
             not np.isfinite(cut) or buf_lb.max() < cut + margin(cut)):
         for block in _chunks(n, sizes, filt):
-            lb = treated_fit_bound(B, A, block, lin_t)
+            lb = treated_fit_bound(B, A, block, lin_t) + floor
             for i in np.argsort(lb, kind="stable"):
                 cut = best.cutoff
                 if lb[i] >= cut + margin(cut):

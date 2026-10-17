@@ -3862,6 +3862,90 @@ timeout = 900.0
   models = "SCIP made a hard requirement of the search path, for instance a module-level import added for a warm start: every test in a full install still passes, while a base install without the design extra, where the search is MAREX's only exact design, cannot import it"
 
 [[target]]
+name = "marex-exact-penalty-bounds"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_penalty_bounds.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-largest-penalty-for-the-smallest"
+  find = "            mins = lin[idx].min(axis=1)"
+  replace = "            mins = lin[idx].max(axis=1)"
+  models = "the treated bound adding the largest penalty in the set instead of the smallest. The weights can sit on the cheapest market, so the sum of minimums is a bound and the sum with the maximum is not: it exceeds the fit and discards the optimum"
+
+  [[target.mutant]]
+  id = "the-sum-of-minimums-is-dropped"
+  find = "            val = np.maximum(closed, inv + mins)"
+  replace = "            val = closed"
+  models = "the treated bound left as the shipped closed form. Every design stays correct and the search goes back to fitting the candidates on which a large penalty drives the closed form to zero"
+
+  [[target.mutant]]
+  id = "the-sum-of-minimums-only-where-the-solve-held"
+  find = "            val = np.maximum(closed, inv + mins)"
+  replace = "            val = np.where(good, np.maximum(closed, inv + mins), 0.0)"
+  models = "a candidate whose Gram has no closed form, such as two identical markets, bounded by zero. The smallest penalty in the set is a bound whether or not the solve held, so the zero gives away the penalty term exactly where the closed form has nothing to offer"
+
+  [[target.mutant]]
+  id = "the-floor-leaves-out-a-market"
+  find = "    cols = list(range(B.shape[1]))"
+  replace = "    cols = list(range(B.shape[1] - 1))"
+  models = "the control floor fitted over the cluster less one market. A pool that holds that market can fit below the floor, so the floor discards a candidate whose controls lean on it; this is the mutant the issue names"
+
+  [[target.mutant]]
+  id = "the-floor-is-the-uncertified-value"
+  find = "    return max(value - gap, 0.0)"
+  replace = "    return max(value, 0.0)"
+  models = "the floor taken as the fit's value instead of its value less its Frank-Wolfe gap. With an exact solve the two agree, so only a solve that stops short can show it: the value is then above the minimum and the floor stops being a lower bound"
+
+  [[target.mutant]]
+  id = "the-gap-against-the-worst-vertex"
+  find = "    gap = max(float(grad @ v - grad.min()), 0.0)"
+  replace = "    gap = max(float(grad @ v - grad.max()), 0.0)"
+  models = "the Frank-Wolfe gap measured against the worst vertex of the simplex instead of the best. It is then never positive, the clip makes it zero, and the floor is the fit's value with no certificate behind it"
+
+  [[target.mutant]]
+  id = "the-gradient-forgets-the-penalty"
+  find = "        grad = grad + lin"
+  replace = "        grad = grad"
+  models = "the gap computed from the gradient of the fit term alone. At the penalised optimum that gradient is not stationary on the support, so the gap is wrong in size and the floor no longer tracks the fit"
+
+  [[target.mutant]]
+  id = "the-floor-never-reaches-the-search"
+  find = "    floor = control_fit_floor(B, A, lin_c) if beta is None else 0.0"
+  replace = "    floor = 0.0"
+  models = "the floor computed and tested on its own while the search never adds it, the shape of a bound that reads as applied and is not. Every design stays correct; only the number of fits shows it"
+
+  [[target.mutant]]
+  id = "the-first-pass-forgets-the-floor"
+  find = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t) + floor"
+  replace = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the first pass ranking and pruning on the treated bound alone, so candidates the floor already rules out are fitted on the treated side before the floor sees them"
+
+  [[target.mutant]]
+  id = "the-second-pass-forgets-the-floor"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t) + floor"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t)"
+  models = "the second pass pruning on the treated bound alone. It runs only when the buffer cannot certify the result, which no default-sized test panel reaches, so a two-candidate buffer is what exposes it"
+
+  [[target.mutant]]
+  id = "the-fitted-treated-side-ignores-the-floor"
+  find = "        if g >= cut or g + floor >= cut + margin(cut):"
+  replace = "        if g >= cut:"
+  models = "a candidate whose fitted treated side plus the floor clears the incumbent still paying for its control fit. The bound on the treated side let it through; the fit itself is tighter and the floor applies to it as well"
+
+  [[target.mutant]]
+  id = "negative-penalties-accepted"
+  find = "        if vec is not None and not (np.all(np.isfinite(vec)) and np.all(vec >= 0)):"
+  replace = "        if False:"
+  models = "a negative penalty passed to the search. The fits can then be negative, the zero clip on both bounds stops being valid, and the search can discard the optimum with no error"
+
+  [[target.mutant]]
+  id = "an-infinite-penalty-accepted"
+  find = "        if vec is not None and not (np.all(np.isfinite(vec)) and np.all(vec >= 0)):"
+  replace = "        if vec is not None and not np.all(vec >= 0):"
+  models = "the sign checked and finiteness not. NaN fails the sign test by accident and infinity passes it, so an infinite penalty reaches the bound, where inf minus inf is NaN and the closed form sets it to zero"
+
+[[target]]
 name = "marex-exact-coupled"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
 test-command = "python -m pytest mlsynth/tests/test_marex_exact_weakly_targeted.py -q -p no:cacheprovider"
