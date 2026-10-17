@@ -4593,8 +4593,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-corral-keeps-negative-weights"
-  find = "            Lnew[ok] = w[ok]\n"
-  replace = "            Lnew = w.copy()\n"
+  find = "            ok = np.all(np.where(Vm, w > COUPLING_TOL, True), axis=1)"
+  replace = "            ok = np.ones(len(mn), dtype=bool)"
   models = "Wolfe's affine step taken without the minor cycle, so the point leaves the difference of the hulls and the method stops converging to the nearest point"
 
   [[target.mutant]]

@@ -226,18 +226,22 @@ def test_wolfe_reports_why_each_candidate_stopped():
 
 
 def test_the_bound_sees_the_donors_a_treated_market_excludes():
-    """Market 1 is the control nearest market 0, at distance 1; the rest of
-    the pool is 5 away. A bound read against the whole complement would stay
-    at 1 when market 0 excludes market 1."""
-    B = np.array([[0.0, 1.0, 5.0, 5.0, 6.0],
-                  [0.0, 0.0, 1.0, -1.0, 0.0],
+    """Market 1 is the control nearest market 0, 1 away along the second axis;
+    the rest of the pool is 5 away along the first. A bound read against the
+    whole complement stays under 1 when market 0 excludes market 1,
+    and an iteration that chases market 1 settles on a direction along which
+    the pool is not separated at all."""
+    B = np.array([[0.0, 0.0, 5.0, 5.0, 6.0],
+                  [0.0, 1.0, 1.0, -1.0, 0.0],
                   [0.0, 0.0, 0.0, 0.0, 1.0]])
     A = B.mean(axis=1)
     S = np.array([[0]])
     plain = CouplingBound(B, A, beta=1.0).distance(S)[0]
     cb = CouplingBound(B, A, beta=1.0, donor_exclusion=[(0, 1)])
     assert not cb.control_mask(S)[0, 1]
-    assert plain == pytest.approx(1.0, rel=1e-9)
+    assert plain ** 2 == pytest.approx(_distance2(B, [0], [1, 2, 3, 4]),
+                                       rel=1e-6)
+    assert plain <= 1.0
     assert cb.distance(S)[0] == pytest.approx(5.0, rel=1e-9)
 
 
@@ -429,20 +433,41 @@ def test_the_screen_aims_at_the_incumbent(monkeypatch):
     assert all(a >= b for a, b in zip(cuts, cuts[1:]))     # it only improves
 
 
+def _record_builds(monkeypatch):
+    built = []
+    real = CouplingBound.__init__
+
+    def spy(self, *args, **kwargs):
+        built.append(args)
+        real(self, *args, **kwargs)
+
+    monkeypatch.setattr(CouplingBound, "__init__", spy)
+    return built
+
+
 def test_beta_zero_takes_no_screen(monkeypatch):
-    screens = _record_screens(monkeypatch)
+    """At beta = 0 the coupling bound is the treated-side bound; building it
+    would batch the walk and price every batch for nothing."""
+    built = _record_builds(monkeypatch)
     B, A = _problem(11, n=9)
     d = search_cluster(B, A, sizes=[2], filt=SubsetFilter(), beta=0.0)[0]
-    assert not screens
+    assert not built
     assert d.value == pytest.approx(min(side_fit(B, A, list(S))[0]
                                         for S in _subsets(9, 2)), rel=1e-9)
 
 
 def test_the_separable_designs_take_no_screen(monkeypatch):
-    screens = _record_screens(monkeypatch)
+    built = _record_builds(monkeypatch)
     B, A = _problem(12, n=9)
     search_cluster(B, A, sizes=[2], filt=SubsetFilter())
-    assert not screens
+    assert not built
+
+
+def test_a_positive_beta_takes_one_screen(monkeypatch):
+    built = _record_builds(monkeypatch)
+    B, A = _problem(12, n=9)
+    search_cluster(B, A, sizes=[2], filt=SubsetFilter(), beta=1e-6)
+    assert len(built) == 1
 
 
 def test_the_screened_search_keeps_its_top_k(monkeypatch):
