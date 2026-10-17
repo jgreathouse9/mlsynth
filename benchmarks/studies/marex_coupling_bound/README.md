@@ -8,7 +8,8 @@ the distance between the treated hull and the control hull, computed by Wolfe's
 nearest-point method. At `beta = 100` it leaves 579 coupled fits where the
 shipped search makes 82,296, and the search returns the same design. Run in
 lockstep over batches of candidates, the same bound takes that search from 332 s
-to 20 s, and to 7.7 s with the batches spread over four worker processes.
+to 20 s; with four worker processes bounding and fitting batches as they free
+up, it takes 5.3 s.
 
 This is a study, not a benchmark case, and it changes nothing in the library.
 `bound.py` is a prototype; `search.py` puts it in front of `coupled_fit` from
@@ -23,6 +24,7 @@ python benchmarks/studies/marex_coupling_bound/batched_curve.py
 python benchmarks/studies/marex_coupling_bound/batched_search.py
 python benchmarks/studies/marex_coupling_bound/levers.py
 python benchmarks/studies/marex_coupling_bound/pool.py
+python benchmarks/studies/marex_coupling_bound/parallel.py
 ```
 
 Run them from the repository root, `search.py` first: the others read the
@@ -44,6 +46,7 @@ optimum it records.
 | `contiguous.py` | the batched bound with the running candidates contiguous, warm starts, and a pool worker |
 | `levers.py` | two levers on the batched bound: fewer copies, and warm starts |
 | `pool.py` | the batched bound across 1, 2 and 4 worker processes: the bound pass, and the whole search |
+| `parallel.py` | the fits in the workers too, in rounds and streamed, against one process |
 | `results/*.json` | the run behind the tables below |
 
 ## The bound
@@ -324,17 +327,53 @@ parent:
 The fits rise with the workers because a round's batches share one cutoff. At
 `beta = 1` the bound pass is 0.06 s and the pool's overhead outweighs it.
 
+## The fits in the workers too
+
+With the bound in the workers and the fits in the parent, the fits are about
+half of the `beta = 100` search at four workers. `parallel.py` moves them into
+the workers, as issue #768 proposes: each worker bounds a batch of 512 against
+the best value known when the batch was sent, fits what the bound leaves in
+`lb` order, and returns the batch's best design; the parent merges designs with
+the search's tie rule. Two schedules: rounds of one batch per worker, each round
+waiting for all of them, and streaming, with a fixed number of batches in
+flight and the next sent, with the current best, as soon as one returns. The
+baseline is the same logic run in one process.
+
+| beta | run | seconds | speedup | coupled fits | design |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 100 | one process | 19.42 | | 754 | identical |
+| 100 | rounds, 2 workers | 10.89 | 1.78 | 781 | identical |
+| 100 | streaming, 2 workers, 2 in flight | 9.72 | 2.00 | 796 | identical |
+| 100 | streaming, 2 workers, 4 in flight | 9.73 | 2.00 | 858 | identical |
+| 100 | rounds, 4 workers | 6.47 | 3.00 | 837 | identical |
+| 100 | streaming, 4 workers, 4 in flight | 5.26 | 3.69 | 891 | identical |
+| 100 | streaming, 4 workers, 8 in flight | 5.65 | 3.44 | 968 | identical |
+
+Rounds leave workers idle: the candidates that survive the bound cluster in a
+few batches, and a round lasts as long as its slowest one. Streaming keeps every
+worker busy and reaches 3.69 times one process on four. Keeping more batches in
+flight than workers only sends them with staler bests, so they fit more.
+
+The design is the same in every run, here and at `beta = 1`, so it does not
+depend on the workers or the schedule; the fit count does. Under streaming it
+also moves between runs of the same configuration, 891 here and 863 in an
+earlier run, since which batch returns first decides the best the next one is
+sent with. At `beta = 1` every run takes 0.09 to 0.13 s and one process is the
+fastest: the pass is too small for a pool to pay.
+
+Four cores were all this machine had; issue #768's eight workers are not
+measured.
+
 ## What is left
 
-At four workers the `beta = 100` search is about 4 s of bound and the rest
-fits, which the parent runs one at a time. None of these is measured.
+At four workers, streamed, the `beta = 100` search takes about 5 s against the
+shipped 332 s. None of these is measured.
 
-* Parallel fits, issue #768's own proposal: the fits now take about as long as
-  the bound.
 * Narrower lockstep arrays. A batch's arrays are as wide as its largest
   corral; grouping candidates by corral size would narrow them.
 * Factor updates. The batched affine step solves the corral's normal equations
   afresh each time; Wolfe's sec. 5 updates a triangular factor instead.
+* More workers, on a machine with more cores.
 
 The per-candidate affine step is solved on the corral's edges,
 `min ||z_0 + E alpha||`. The bordered Gram system that states it most directly

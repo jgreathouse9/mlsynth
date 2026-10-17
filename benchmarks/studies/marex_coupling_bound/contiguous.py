@@ -16,10 +16,15 @@ differences in how it runs, none in what it computes:
 
 :func:`bound_batch` is the function a process pool maps over batches, with the
 Gram matrix and the pair distances set once per worker by :func:`init_worker`.
+:func:`bound_and_fit` also fits what the bound leaves in its batch, against its
+own copy of the cutoff, with the panel set once per worker by
+:func:`init_fit_worker`.
 """
 from __future__ import annotations
 
 import numpy as np
+
+from mlsynth.utils.marex_helpers import exact
 
 #: A weight at or below this is treated as zero, and a relative gap at or below
 #: it as converged.
@@ -27,6 +32,8 @@ TOL = 1e-12
 
 _G = None
 _D2 = None
+_B = None
+_A = None
 
 
 def init_worker(G, pair_d2):
@@ -35,10 +42,55 @@ def init_worker(G, pair_d2):
     _G, _D2 = G, pair_d2
 
 
+def init_fit_worker(B, A, G, pair_d2):
+    """Set the panel a pool worker bounds and fits against."""
+    global _B, _A
+    init_worker(G, pair_d2)
+    _B, _A = B, A
+
+
 def bound_batch(args):
     """Bound one batch in a pool worker: ``args`` is ``(sets, need)``; returns the status."""
     sets, need = args
     return wolfe_bound(_G, sets, need, _D2)[1]
+
+
+def margin(c):
+    """The search's margin on a cutoff."""
+    return exact.PRUNE_MARGIN * (1.0 + abs(c))
+
+
+def bound_and_fit(args):
+    """Bound one batch and fit what the bound leaves, in a pool worker.
+
+    ``args`` is ``(sets, lb, best, beta)``, the batch in ``lb`` order and the best
+    value known when it was sent. The worker discards a candidate on its bound
+    against ``best`` plus the margin, fits the rest in ``lb`` order as the shipped
+    search does, and lowers its own ``best`` as it finds better designs. Returns
+    the batch's best value and treated set (``None`` if it found nothing below
+    ``best``), the coupled fits it ran and the candidates its bound discarded.
+    """
+    sets, lb, best, beta = args
+    n = _B.shape[1]
+    cut = best + margin(best)
+    status = wolfe_bound(_G, sets, (cut - lb) / beta, _D2)[1]
+    best_S = None
+    fits = 0
+    for k in np.flatnonzero(status != 1):
+        cut = best + margin(best)
+        if lb[k] >= cut:
+            break
+        S = [int(s) for s in sets[k]]
+        g, w = exact.side_fit(_B, _A, S)
+        if g >= best:
+            continue
+        C = [j for j in range(n) if j not in S]
+        fits += 1
+        fit = exact.coupled_fit(_B, _A, S, C, beta, w0=w, cutoff=cut)
+        if fit is not None and (fit[0] < best or (
+                fit[0] == best and best_S is not None and tuple(S) < best_S)):
+            best, best_S = fit[0], tuple(S)
+    return best, best_S, fits, int((status == 1).sum())
 
 
 def closest_pairs(sets, M, pair_d2):
