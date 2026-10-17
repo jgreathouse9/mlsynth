@@ -1,0 +1,71 @@
+{
+ "python": "3.13.16",
+ "numpy": "2.5.3",
+ "T0": 90,
+ "m": 4,
+ "markets": 40,
+ "runs": {
+  "1.0": {
+   "shipped": {
+    "bounded": 0,
+    "discarded_by_bound": 0,
+    "fits": 234,
+    "fits_finished": 1,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "seconds": 0.92
+   },
+   "with_bound": {
+    "bounded": 233,
+    "discarded_by_bound": 229,
+    "fits": 5,
+    "fits_finished": 1,
+    "value": 997952.291777092,
+    "treated": [
+     5,
+     10,
+     24,
+     27
+    ],
+    "seconds": 0.55
+   },
+   "same_design": true
+  },
+  "100.0": {
+   "shipped": {
+    "bounded": 0,
+    "discarded_by_bound": 0,
+    "fits": 82296,
+    "fits_finished": 6,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "seconds": 329.48
+   },
+   "with_bound": {
+    "bounded": 82295,
+    "discarded_by_bound": 81717,
+    "fits": 579,
+    "fits_finished": 6,
+    "value": 34658222.14826186,
+    "treated": [
+     0,
+     9,
+     24,
+     27
+    ],
+    "seconds": 132.13
+   },
+   "same_design": true
+  }
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "candidates": 573,
+ "ms_treated_fit": 0.122,
+ "ms_bound": 1.399,
+ "major_cycles_median_mean": [
+  12,
+  12.8
+ ],
+ "lstsq_calls_per_candidate": 15.9,
+ "share_in_lstsq": 0.434,
+ "share_in_bound_body": 0.319,
+ "us_one_lstsq_90x8": 40.7,
+ "us_one_projection": 1.8
+}
