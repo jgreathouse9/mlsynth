@@ -11,9 +11,12 @@ condition -- their augmented design has rank ``p`` and that is what makes their
 transformation exact. On Proposition 99 the donor block is 19 by 38 with rank
 19, and 40 percent of the centred penalty lies outside that row space.
 
-It folds on the *free set*, which is where the active set actually solves. That
-set is small and of full column rank, so the rank condition holds locally where
-it fails globally, and the inner solve stays in residual form.
+It folds on the *free set*, which is where the active set actually solves,
+for the part of the term in the range of the free block. That set is small,
+but it need not be of full column rank: it can be wider than the design has
+rows, or hold two near-copies of one market. The part of the term along
+directions the block cannot resolve is a ray the loop follows to a bound, and
+the rest folds into the residual, so the inner solve stays in residual form.
 """
 from __future__ import annotations
 
@@ -241,11 +244,11 @@ def test_a_well_formed_linear_term_still_forces_the_lone_donor():
 
 # --------------------------------------------------------------------------
 # The fold is exact only when the free set fits inside the design's row space.
-# On a panel that always holds -- T0 is around 20 and the support is 2 to 5 --
-# which is why every test above passes. It does not hold for a design with
-# fewer rows than the free set needs, and `bilevel/penalized.py` builds exactly
-# one of those: `R` is the rank-K factor of a wide Gram, so it can have far
-# fewer rows than donors.
+# It does not hold for a design with fewer rows than the free set needs, and
+# `bilevel/penalized.py` builds exactly one of those: `R` is the rank-K factor
+# of a wide Gram, so it can have far fewer rows than donors. It need not hold
+# on a panel either: two near-copies of a market leave the free block flat to
+# working precision along their difference (the section on #782 below).
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("m,J", [(8, 12), (12, 12), (6, 6), (20, 12)])
 def test_it_is_optimal_when_the_design_admits_the_free_set(m, J):
@@ -317,10 +320,12 @@ def test_the_ray_step_keeps_the_weights_on_the_hyperplane():
 
 # --------------------------------------------------------------------------
 # The guard itself. The ray branch is what stops a non-stationary point being
-# produced, so the guard never fires in practice and no input distinguishes
-# removing it -- its mutant is recorded equivalent. It is still tested here, so
-# that "never fires" is a measured property of the pair and not an untested
-# assumption about one of them.
+# produced. It was recorded as never firing in practice until #782, where a
+# ray read from rounding noise made the loop cycle on a 12-by-3 panel and the
+# guard turned a point 17.5 percent above the optimum into a raise. With the
+# null part a projection it no longer fires on the near-collinear designs
+# swept below, and its mutant is again equivalent; it is tested here directly,
+# so that its behaviour is measured and not assumed.
 # --------------------------------------------------------------------------
 def test_the_guard_accepts_a_stationary_point(wide):
     from mlsynth.utils.solvers.active_set import _assert_optimal_with_linear
@@ -343,3 +348,214 @@ def test_the_guard_rejects_a_point_that_is_not_stationary(wide):
     moved[other] += shift
     with pytest.raises(ValueError, match="did not reach the minimiser"):
         _assert_optimal_with_linear(B, A, moved, lin, 1e-9)
+
+
+# --------------------------------------------------------------------------
+# Near-collinear columns (#782). Two markets that agree to 1e-12 give a free
+# set whose difference block M has one singular value 2.5e-11 of the largest:
+# full rank on paper, flat to working precision. The shipped ray test read the
+# null part of the term as the residual q - M'u of a solve that kept that
+# direction, so it was rounding noise of size eps |M| |u|, and the ray followed
+# its sign. On the reproduction below the ray pinned the cheaper copy, the dual
+# test released it, and the loop cycled through all 150 pivots, returning a
+# point 17.5 percent above the optimum for the guard to catch. Over 400
+# near-collinear designs 30 raised and 8 more came back silently above the
+# optimum or unconverged.
+#
+# The ladder, rung by rung: the reproduction (0 and 1), the pivot count that
+# shows the cycle (2), the property over near-collinear designs (3), and the
+# error contract when the guard fires (4). The mutants are in
+# tools/mutation/targets.toml, target active-set-linear-ray (5).
+# --------------------------------------------------------------------------
+def _near_copies(seed=0, gap=1e-12):
+    """A 12-by-3 design whose second and third columns are near-copies."""
+    rng = np.random.default_rng(seed)
+    n, T = 8, 12
+    f = np.cumsum(rng.normal(size=(T, 2)), axis=0)
+    B = 1e3 * (20 + f @ rng.uniform(0.5, 1.5, size=(2, n))
+               + rng.normal(size=(T, n)) * 0.3)
+    B[:, 5] = B[:, 4] * (1 + gap * rng.normal(size=T))
+    A = B.mean(axis=1)
+    a = np.abs(np.random.default_rng(seed).normal(size=n)) * 1e6
+    cols = [1, 4, 5]
+    return B[:, cols], A, a[cols]
+
+
+def _reference(B, A, lin):
+    """Clarabel at tight tolerances: the minimiser, renormalised onto the simplex."""
+    import cvxpy as cp
+    w = cp.Variable(B.shape[1])
+    cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w) + lin @ w),
+               [w >= 0, cp.sum(w) == 1]).solve(
+        solver=cp.CLARABEL, tol_gap_abs=1e-10, tol_gap_rel=1e-12, tol_feas=1e-12)
+    w = np.maximum(np.asarray(w.value, float).ravel(), 0.0)
+    return w / w.sum()
+
+
+def test_near_copies_with_different_penalties_reach_the_optimum():
+    """Rungs 0 and 1: the answer, and the convergence flag that moved with it."""
+    B, A, lin = _near_copies()
+    w, info = solve_simplex_qp(B, A, linear=lin, return_info=True)
+    ref = _reference(B, A, lin)
+    np.testing.assert_allclose(w, [0.089881, 0.0, 0.910119], atol=1e-6)
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, ref) * (1 + 1e-12)
+    assert info["converged"]
+
+
+def test_a_near_null_direction_does_not_make_the_loop_cycle():
+    """Rung 2: the shipped loop alternated a ray step and a release 75 times."""
+    B, A, lin = _near_copies()
+    _, info = solve_simplex_qp(B, A, linear=lin, return_info=True)
+    assert info["pivots"] <= B.shape[1]
+
+
+@pytest.mark.parametrize("gap", [0.0, 1e-15, 1e-12, 1e-9, 1e-6])
+def test_the_cheaper_copy_carries_the_weight_at_every_gap(gap):
+    """Exact copies, rounding-level gaps and resolvable ones alike.
+
+    The quadratic barely tells the copies apart, so the penalty decides: the
+    optimum puts the pair's weight on the cheaper one.
+    """
+    B, A, lin = _near_copies(gap=gap)
+    w = solve_simplex_qp(B, A, linear=lin)
+    cheap, dear = (2, 1) if lin[2] < lin[1] else (1, 2)
+    assert w[dear] <= 1e-9
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, _reference(B, A, lin)) * (1 + 1e-10)
+
+
+def test_nearly_equal_penalties_on_near_copies_still_reach_the_optimum():
+    """The term then has almost nothing along the near-null direction."""
+    B, A, lin = _near_copies()
+    lin = lin.copy()
+    lin[2] = lin[1] * (1 + 1e-9)
+    w, info = solve_simplex_qp(B, A, linear=lin, return_info=True)
+    assert info["converged"]
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, _reference(B, A, lin)) * (1 + 1e-10)
+
+
+def test_a_point_the_guard_rejects_is_an_estimation_error():
+    """Rung 4: the guard's failure is an estimation failure, and still a ValueError.
+
+    `bilevel/penalized.py` catches ValueError from the solver and re-raises it
+    as MlsynthEstimationError, so the translated type keeps both.
+    """
+    from mlsynth.exceptions import MlsynthEstimationError
+    from mlsynth.utils.solvers.active_set import _assert_optimal_with_linear
+    B, A, lin = _near_copies()
+    w = np.array([0.100211, 0.899789, 0.0])             # the face the cycle ended on
+    with pytest.raises(MlsynthEstimationError, match="did not reach the minimiser") as exc:
+        _assert_optimal_with_linear(B, A, w, lin, 1e-9)
+    assert isinstance(exc.value, ValueError)
+    assert "A panel does not meet that condition" not in str(exc.value)
+
+
+from hypothesis import example, given, settings  # noqa: E402
+from hypothesis import strategies as st         # noqa: E402
+
+
+@given(seed=st.integers(0, 10_000), J=st.integers(3, 6), T=st.integers(6, 20),
+       gap_exp=st.sampled_from([-16, -15, -14, -13, -12, -11, -10, -8, -6, -3]),
+       scale_exp=st.floats(3, 7), equal=st.booleans())
+@example(seed=3, J=3, T=6, gap_exp=-14, scale_exp=3.0, equal=False)
+@settings(max_examples=80, deadline=None)
+def test_it_reaches_the_minimiser_on_near_collinear_designs(
+        seed, J, T, gap_exp, scale_exp, equal):
+    """Rung 3: over near-copies at every gap, with the term along the pair or not."""
+    rng = np.random.default_rng(seed)
+    f = np.cumsum(rng.normal(size=(T, 2)), axis=0)
+    B = 1e3 * (20 + f @ rng.uniform(0.5, 1.5, size=(2, J))
+               + rng.normal(size=(T, J)) * 0.3)
+    i = int(rng.integers(0, J - 1))
+    B[:, i + 1] = B[:, i] * (1 + 10.0 ** gap_exp * rng.normal(size=T))
+    A = B[:, rng.permutation(J)[:2]].mean(axis=1) + rng.normal(size=T) * 200 * rng.random()
+    lin = np.abs(rng.normal(size=J)) * 10.0 ** scale_exp
+    if equal:
+        lin[i + 1] = lin[i] * (1 + 1e-6 * rng.normal())
+    w, info = solve_simplex_qp(B, A, linear=lin, return_info=True)
+    ref = _reference(B, A, lin)
+    assert info["converged"]
+    assert w.min() >= 0.0 and w.sum() == pytest.approx(1.0, abs=1e-9)
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, ref) + 1e-8 * abs(_obj(B, A, lin, ref))
+
+
+# --------------------------------------------------------------------------
+# Rung 2, on the split itself. The null part is a projection, and the rank
+# rule drops only what is rounding. A rule coarse enough to stop the residual's
+# noise also hides the projection from end-to-end tests, and costs accuracy, so
+# these build the free block from chosen singular values and check each part.
+# --------------------------------------------------------------------------
+def _block(ratios, T=12, seed=0, top=2.9e3):
+    """A T-by-k block with singular values ``top * ratios``, and its factors."""
+    rng = np.random.default_rng(seed)
+    k = len(ratios)
+    U = np.linalg.qr(rng.normal(size=(T, k)))[0]
+    V = np.linalg.qr(rng.normal(size=(k, k)))[0]
+    s = top * np.asarray(ratios, float)
+    return U @ np.diag(s) @ V.T, U, s, V
+
+
+def test_the_null_part_is_a_projection_and_not_a_noisy_residual():
+    """A kept direction at 1e-11 of the largest, with the term along it.
+
+    The shift there is of size |q| / 1e-11, so the residual q - M'u carries
+    rounding near 1e-5 |q|; the projection carries none of it.
+    """
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 1e-11])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, _, u, qn = _linear_split(M, q)
+    assert sk.size == 2                                  # both directions kept
+    assert np.linalg.norm(qn) <= 1e-12 * np.linalg.norm(q)
+    np.testing.assert_allclose(M.T @ u, q, rtol=0, atol=1e-3 * np.linalg.norm(q))
+
+
+@pytest.mark.parametrize("seed", [8, 9])
+def test_near_copies_with_nearly_equal_penalties_reach_the_optimum_closely(seed):
+    """The case that exposed a rank rule of sqrt(eps): the pair's difference has
+    a singular value 2.5e-9 of the largest, and dropping it left the point
+    5.4e-9 and 7.2e-9 above the optimum."""
+    B, A, lin = _near_copies(seed=seed, gap=1e-9)
+    lin = lin.copy()
+    lin[2] = lin[1] * (1 + 1e-9)
+    w = solve_simplex_qp(B, A, linear=lin)
+    ref = _reference(B, A, lin)
+    assert _obj(B, A, lin, w) <= _obj(B, A, lin, ref) * (1 + 1e-11)
+
+
+def test_a_direction_at_rounding_level_is_null():
+    """At 1e-17 of the largest the singular value is rounding; the term's part
+    along it is the null part, to be followed as a ray, and the shift ignores it."""
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 1e-17])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, Vt, u, qn = _linear_split(M, q)
+    assert sk.size == 1
+    np.testing.assert_allclose(qn, 8.7e4 * V[:, 1], rtol=0, atol=1e-9 * np.linalg.norm(q))
+    assert np.linalg.norm(u) <= 1e3 * np.linalg.norm(q) / s[0]
+
+
+def test_a_direction_above_rounding_is_kept():
+    """At 1e-9 of the largest the curvature is not resolvable, but the first
+    order term 2 t sigma u'r is, and dropping it left near-copies 7.2e-9 above
+    the optimum; a direction is null only at the level of rounding."""
+    from mlsynth.utils.solvers.active_set import _linear_split
+    M, U, s, V = _block([1.0, 1e-9])
+    q = 8.7e4 * V[:, 1] + 1.1e5 * V[:, 0]
+    _, sk, _, _, qn = _linear_split(M, q)
+    assert sk.size == 2
+    assert np.linalg.norm(qn) <= 1e-12 * np.linalg.norm(q)
+
+
+def test_the_solve_stays_on_the_directions_the_shift_kept():
+    """The free-set solve and the shift share one rank: no component of the
+    solution lies along a direction the rule dropped."""
+    from mlsynth.utils.solvers.active_set import _linear_split, _solve_on_range
+    M, U, s, V = _block([1.0, 1e-17, 0.4])
+    rng = np.random.default_rng(1)
+    b = rng.normal(size=M.shape[0]) * 1e3
+    Uk, sk, Vt, _, _ = _linear_split(M, rng.normal(size=3))
+    v = _solve_on_range(Uk, sk, Vt, b)
+    assert abs(V[:, 1] @ v) <= 1e-12 * np.linalg.norm(v)
+    # and on the kept directions it is the least-squares solution
+    kept = Vt.T @ Vt
+    np.testing.assert_allclose(kept @ (M.T @ (M @ v - b)), 0.0, atol=1e-6 * np.linalg.norm(M.T @ b))

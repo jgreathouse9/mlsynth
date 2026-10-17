@@ -2583,12 +2583,42 @@ timeout = 300.0
   models = "the ray stepped to the last blocking bound instead of the first, which leaves the simplex through a coordinate that passed zero on the way"
 
   [[target.mutant]]
+  id = "the-null-part-read-from-a-residual"
+  find = "    return U, sv, Vt, U @ (qr / sv), q - Vt.T @ qr"
+  replace = "    return U, sv, Vt, U @ (qr / sv), q - M.T @ (U @ (qr / sv))"
+  models = "#782's first cause: the term's null part taken as the residual q - M'u of the shift. It equals the projection in exact arithmetic, but with a near-null direction kept |u| grows as 1 / sigma, the residual is rounding noise of size eps |M| |u|, and the loop follows its sign: on near-copies of a market it pinned the cheaper copy, released it, and cycled to the pivot limit"
+
+  [[target.mutant]]
+  id = "the-solve-under-its-own-rank-rule"
+  find = "                v = _solve_on_range(Uk, sk, Vk, rhs - u)"
+  replace = "                v = _gelsy_lstsq(M, rhs - u)"
+  models = "#782's second cause: the free-set solve deciding rank by its own rule (gelsy's rcond of 1e-12) while the shift and the null part use another. In the shipped code, with the null part a residual, the mismatch alone accounted for 11 of the 30 failures over 400 near-collinear designs; with the split's rule at rounding level it raises on 40 of 800 near-collinear problems, near-copies of a market at gaps of 1e-14 and 1e-15 among them"
+
+  [[target.mutant]]
+  id = "the-rank-rule-flattens-real-curvature"
+  find = "_LINEAR_RANK_EPS: float = float(np.finfo(float).eps)"
+  replace = "_LINEAR_RANK_EPS: float = float(np.sqrt(np.finfo(float).eps))"
+  models = "the rank rule this fix first shipped with: sqrt(eps), chosen because the curvature sigma^2 of a direction below it is unresolvable. The first-order term 2 t sigma u'r is resolvable far below it, so near-copies of a market with nearly equal penalties came back up to 7.2e-9 above the optimum; at 1e-6 the same mistake left 4 of 400 near-collinear designs above it"
+
+  [[target.mutant]]
+  id = "the-rank-rule-keeps-unresolvable-directions"
+  find = "    cut = _LINEAR_RANK_EPS * max(M.shape) * sv[0]"
+  replace = "    cut = 0.0"
+  models = "no rank rule at all, so a singular value that is pure rounding counts as a direction: the term's part along an exact copy's difference is then folded into a shift of size |q| / 1e-17 instead of followed as a ray"
+
+  [[target.mutant]]
+  id = "the-guard-raises-a-bare-valueerror"
+  find = "        raise SimplexQPNotOptimal("
+  replace = "        raise ValueError("
+  models = "the guard's failure raised outside the library's error contract. A bare ValueError is what #782 reported; callers that translate only Mlsynth errors would let it escape as an internal error"
+
+  [[target.mutant]]
   id = "returned-point-is-not-checked"
   find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
   replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
   models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
   expected = "survived"
-  accepted-because = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. Killing it would mean disabling the ray branch as well, which the mutant above already does. It is kept as the check that would have turned #625's silent 54-percent error into a raise, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
+  accepted-because = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. That premise failed once: before #782 a ray read from rounding noise made the loop cycle on near-copies of a market, and on that input this mutant would have returned a point 17.5 percent above the optimum where the guard raised. With the null part a projection, 400 near-collinear designs no longer reach the guard, so the equivalence holds again on every input the suite has. It is kept as the check that turned #625's 54-percent error and #782's cycle into raises, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
 
 [[target]]
 name = "simplex-qp-audit-classifier"
