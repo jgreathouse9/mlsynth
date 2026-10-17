@@ -517,12 +517,49 @@ candidate as soon as that lower bound is above it.
 
 The coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
 still holds and the bound and both passes prune as they do for the other
-designs. At large :math:`\beta` they prune little, because the coupling term
-then dominates the objective and a bound on the treated fit cannot see it. On
-GeoLift's forty markets with four treated, the search fitted 274 of the 91,390
-candidates at :math:`\beta = 1` and took 1.2 seconds. At :math:`\beta = 100` it
-fitted 82,415 and took 7.9 minutes; all but four of those fits were discarded
-on a certified lower bound before converging, after one or two steps. Before the face steps and the cutoff, the same
+designs. At large :math:`\beta` that bound prunes little, because the coupling
+term then dominates the objective and a bound on the treated fit cannot see it.
+A second bound sees it. The synthetic treated lies in the convex hull of the
+treated markets (the set of their weighted averages with non-negative weights
+summing to one), and the synthetic control in the convex hull of the control
+pool, so the coupling term is at least :math:`\beta` times the squared distance
+between the two hulls:
+
+.. math::
+
+   f(\mathcal{S}) \;\ge\; g(\mathcal{S}) + \beta\,
+   \operatorname{dist}\bigl(\operatorname{conv}\{\mathbf{x}_j\}_{j \in \mathcal{S}},\;
+   \operatorname{conv}\{\mathbf{x}_j\}_{j \in \mathcal{N}_0(\mathcal{S})}\bigr)^2.
+
+Wolfe's (1976) nearest-point method finds the distance by walking toward the
+closest pair of points of the two hulls. Every step offers a direction
+:math:`\mathbf{z}`, and any direction bounds the distance from below (his
+Theorem 2.2):
+
+.. math::
+
+   \operatorname{dist} \;\ge\;
+   \frac{\min_{i \in \mathcal{S}} \mathbf{z}^\top \mathbf{x}_i
+          - \max_{j \in \mathcal{N}_0(\mathcal{S})} \mathbf{z}^\top \mathbf{x}_j}
+         {\|\mathbf{z}\|_2},
+
+the gap between the two hulls' shadows on the line through :math:`\mathbf{z}`.
+The search runs the method on 512 candidates at a time, stops each one as soon
+as its bound clears the best design found so far, and fits only the candidates
+it cannot discard; until a first design exists there is nothing to clear, so
+the first eight are fitted unscreened. The bound reads the data only through
+the products :math:`\mathbf{z}^\top \mathbf{x}_j`, and the search evaluates it
+from the data with the rounding of those products bounded in advance (Higham
+2002, section 3.1), so whatever the iteration did, the bound cannot exceed the
+distance. It takes the closed-form treated bound in place of
+:math:`g(\mathcal{S})`, so pricing a candidate needs no fit.
+
+On GeoLift's forty markets with four treated, the search fitted 11 of the
+91,390 candidates at :math:`\beta = 1` and took 0.13 seconds, against 234 fits
+and 0.92 seconds without the coupling bound. At :math:`\beta = 100` it fitted
+677 and took 16 seconds, against 82,296 fits and four minutes. Both searches
+return the same design with or without it. Each fit the coupling bound leaves
+still stops on the cutoff, usually after one or two steps. Before the face steps and the cutoff, the same
 searches took 25 seconds and, by extrapolation from the measured cost per
 candidate, about five days. SCIP, given 30 minutes on each of the same two
 problems through ``backend="mip"``, stopped at designs whose objectives were 2.1
@@ -541,7 +578,15 @@ convex under the bound above. Measured over 40 random problems per setting, at
 :math:`\beta` from 0.01 to 100 and :math:`\lambda` up to 0.99 of the bound, the
 fit certified in at most four steps, none of them a fallback sweep, in about two
 milliseconds. The penalty is non-negative, so the treated-fit bound still
-prunes.
+prunes, and it is at least :math:`\beta\lambda` times the squared coupling
+term by convexity of the square, so the coupling bound scales by
+:math:`1 + \lambda`. It sees less of this objective: the penalty also charges
+the spread of the controls around the synthetic control, which no distance
+between the hulls measures. At :math:`\beta = 100` and :math:`\lambda = 0.0099`,
+just inside the convexity bound, the coupling bound reached a median 41 percent
+of a candidate's objective on 300 sampled candidates, and the search fitted
+49,899 of the 91,390 and took 9.6 minutes, against 87,499 fits and 15.4 minutes
+without it.
 
 Abadie and Zhao's enumeration solves two separate synthetic-control problems per
 candidate (supplementary appendix, Section OA.6), and they solve this design by
@@ -1233,3 +1278,9 @@ Study." Report, MIT.
 Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control Estimator for
 Disaggregated Data." *Journal of the American Statistical Association*
 116(536):1817-1834.
+
+Wolfe, P. (1976). "Finding the Nearest Point in a Polytope." *Mathematical
+Programming* 11(1):128-149.
+
+Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms*, 2nd
+ed. SIAM.

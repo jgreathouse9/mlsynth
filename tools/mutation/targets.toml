@@ -4528,3 +4528,120 @@ timeout = 600.0
   find = "                covariate_weight=covariate_weight,\n"
   replace = "                covariate_weight=1.0,\n"
   models = "the configured weights validated and recorded while the design is solved with every covariate at weight 1"
+
+[[target]]
+name = "marex-exact-coupling-bound"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_coupling_bound.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-bound-trusts-the-iteration"
+  find = """                _, _, coef = _wolfe_lockstep(
+                    self.gram, self.pair_d2, arr[part], cmask[part],
+                    need[idx[part]], COUPLING_MAX_ITER, COUPLING_CORRAL)
+                out[idx[part]] = hull_separation(
+                    self.B, coef @ self.B.T, self._treated_mask(arr[part]),
+                    cmask[part])"""
+  replace = """                found, _, coef = _wolfe_lockstep(
+                    self.gram, self.pair_d2, arr[part], cmask[part],
+                    need[idx[part]], COUPLING_MAX_ITER, COUPLING_CORRAL)
+                out[idx[part]] = np.maximum(found, 0.0)"""
+  models = "the search pruning on Wolfe's own bound read from the Gram matrix, uncertified, so the validity of every discard rests on the iteration and on rounding nobody bounded (the issue's floating-point requirement)"
+
+  [[target.mutant]]
+  id = "the-certificate-forgets-the-rounding"
+  find = "        err = 8.0 * (gamma * (np.abs(Z) @ np.abs(B)) + floor)"
+  replace = "        err = 0.0 * (gamma * (np.abs(Z) @ np.abs(B)) + floor)"
+  models = "Theorem 2.2 evaluated in floating point as if it were exact, so near touching hulls the rounding of z'b decides the sign of the bound"
+
+  [[target.mutant]]
+  id = "the-certificate-forgets-underflow"
+  find = "    floor = T * _SMALLEST_SUBNORMAL"
+  replace = "    floor = 0.0"
+  models = "a relative rounding bound only, which gradual underflow breaks: at the bottom of the range a product carries an absolute error no relative bound covers (the hole RobustArithmetic's eta closes)"
+
+  [[target.mutant]]
+  id = "the-penalty-share-is-dropped"
+  find = "        self.factor = beta * (1.0 + lam)"
+  replace = "        self.factor = beta"
+  models = "the coupling bound without the control penalty's share, beta lam dist^2, which is valid but leaves the candidates that share would clear to the fit"
+
+  [[target.mutant]]
+  id = "the-penalty-share-is-counted-twice"
+  find = "        self.factor = beta * (1.0 + lam)"
+  replace = "        self.factor = beta * (1.0 + lam) ** 2"
+  models = "the penalty's share overstated, a bound above the objective that discards candidates that could win"
+
+  [[target.mutant]]
+  id = "the-pool-ignores-donor-exclusions"
+  find = "        return ~self._treated_mask(sets) & ~self.excluded[sets].any(axis=1)"
+  replace = "        return ~self._treated_mask(sets)"
+  models = "the distance read against the whole complement, not the candidate's own pool, which never moves when a treated market excludes its nearest donor"
+
+  [[target.mutant]]
+  id = "the-support-point-ignores-the-pool"
+  find = "            pC = np.where(control_mask[mj], proj, -np.inf)"
+  replace = "            pC = np.where(M[mj], -np.inf, proj)"
+  models = "Wolfe's support point drawn from every non-treated market, so the iteration converges on the complement's hull while the certificate reads the pool, and the bound stalls short of the distance"
+
+  [[target.mutant]]
+  id = "the-best-direction-is-not-kept"
+  find = "                coef[g] = c\n"
+  replace = "                pass\n"
+  models = "the iteration's best bound recorded without its direction, so the certificate is drawn from a zero direction and every candidate is fitted"
+
+  [[target.mutant]]
+  id = "the-corral-keeps-negative-weights"
+  find = "            ok = np.all(np.where(Vm, w > COUPLING_TOL, True), axis=1)"
+  replace = "            ok = np.ones(len(mn), dtype=bool)"
+  models = "Wolfe's affine step taken without the minor cycle, so the point leaves the difference of the hulls and the method stops converging to the nearest point"
+
+  [[target.mutant]]
+  id = "the-bound-runs-every-candidate-to-the-end"
+  find = """        need = (None if cutoff is None
+                else np.maximum((cutoff - lb) / self.factor, 0.0))"""
+  replace = """        need = None"""
+  models = "the bound blind to the cutoff, so Wolfe runs every candidate to convergence; the same discards at several times the cost"
+
+  [[target.mutant]]
+  id = "the-screen-never-discards"
+  find = """                keep = screen.survivors(cands[start:stop], lbs[start:stop],
+                                        cut + margin(cut))"""
+  replace = """                keep = None"""
+  models = "the search batching candidates for the coupling bound and then fitting all of them, so at large beta the fits stay at the treated-side bound's count (issue #770's 82,296 of 91,390)"
+
+  [[target.mutant]]
+  id = "the-first-pass-skips-the-screen"
+  find = "    walk([buf_sets[i] for i in order], buf_lb[order])"
+  replace = """    for i in order:
+        cut = best.cutoff
+        if buf_lb[i] >= cut + margin(cut):
+            break
+        consider(buf_sets[i])"""
+  models = "the buffer's candidates fitted against the treated-side bound alone, the search's first 512 fits unscreened"
+
+  [[target.mutant]]
+  id = "the-second-pass-skips-the-screen"
+  find = "            walk(cands, np.asarray(lbs))"
+  replace = """            for S in cands:
+                consider(S)"""
+  models = "the second pass, which runs whenever the buffer cannot certify the result, fitting every candidate under the treated-side bound"
+
+  [[target.mutant]]
+  id = "beta-zero-builds-a-screen"
+  find = "              if beta is not None and beta * (1.0 + control_penalty) > 0"
+  replace = "              if beta is not None and beta * (1.0 + control_penalty) >= 0"
+  models = "a coupling bound priced at beta = 0, where it is the treated-side bound and every batch is bounded for nothing"
+
+  [[target.mutant]]
+  id = "a-negative-beta-is-accepted"
+  find = "        if not np.isfinite(beta) or beta < 0:\n            raise MlsynthConfigError(\n                f\"beta must be finite and >= 0; got {beta}.\")"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"beta must be finite and >= 0; got {beta}.\")"
+  models = "the bound built for a negative or infinite beta, a negative factor that lowers every bound or an infinite one that discards everything"
+
+  [[target.mutant]]
+  id = "a-negative-control-penalty-is-accepted"
+  find = "        if not np.isfinite(lam) or lam < 0:"
+  replace = "        if False:"
+  models = "the bound built for a negative control penalty, where (1 + lam) shrinks the coupling term the convexity argument needs to be non-negative"
