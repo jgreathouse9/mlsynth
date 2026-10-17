@@ -71,11 +71,17 @@ effect is indistinguishable from zero. MAREX and SCDesign agree cell-by-cell:
      - yes
      - yes
 
-The two implementations select the same two treated stores, with treated weights
-agreeing to :math:`2\times10^{-4}` and the placebo effect to :math:`10^{-4}` of
-mean sales -- the paper's "no spurious effect" result, reproduced across languages
-and solvers without Gurobi. (The permutation p differs by ~0.02 because the two
-Monte-Carlo permutation samples differ; both fail to reject. Abadie & Zhao's
+The two implementations select the same two treated stores. SCDesign rounds every
+weight to four decimals, and MAREX's 45 treated and control weights rounded the
+same way equal SCDesign's; the placebo effect computed from MAREX's rounded weights
+equals the reference to every printed digit, so the remaining gap in the effect,
+:math:`2.3\times10^{-4}` of mean sales, is SCDesign's rounding. This is the
+paper's "no spurious effect" result, reproduced across languages and solvers
+without Gurobi. Both sides average the time-varying covariates over the fitting
+weeks only; before issue #759 MAREX also averaged them over the blank weeks, and
+its weights then differed from SCDesign's by up to :math:`7.9\times10^{-4}`.
+(The permutation p differs by about 0.02 because the two Monte-Carlo
+permutation samples differ; both fail to reject. Abadie & Zhao's
 headline :math:`p = 0.933` is the no-covariate special case -- matching on the
 covariates tightens the design and lowers the placebo p, as in the authors' own
 covariate runs.)
@@ -248,6 +254,50 @@ decimals.
    python benchmarks/reference/generate.py marex_scdesign_sim
    # run the cross-validation (no R needed; reads the committed bundle)
    python benchmarks/run_benchmarks.py --case marex_scdesign_sim
+
+The exact backend against brute force
+-------------------------------------
+
+The checks above run MAREX's mixed-integer solve. Its exact backend
+(``backend="exact"``) reaches the design by a different route: it prices every
+treated set with a closed-form lower bound on the treated fit, fits only the
+sets whose bound is under the best design found so far, stops each
+weakly-targeted fit as soon as a certified lower bound clears that design, and
+fits with an active-set solver. Each of those steps could lose the optimum
+without any comparison with a port of the same search noticing, since a port
+would share them.
+
+The reference shares none of them.
+``benchmarks/reference/marex_exact_bruteforce/reference.R`` enumerates every
+treated set of the stated size and solves each fixed-set program with
+``quadprog::solve.QP``: two simplex fits for the separable designs, one joint
+quadratic program over both weight vectors for the weakly-targeted design. Its
+answer is the optimum by enumeration. The panels are drawn in R and printed in
+full, so both sides score the same numbers.
+
+Twelve configurations run on six panels of eight markets: the standard design
+with two and three treated, the penalized and unit-penalized designs, the
+weakly-targeted design at :math:`\beta` = 0.01, 1 and 100, Abadie and L'Hour's
+control penalty at 0.1 and at 0.6 (near its convexity bound at
+:math:`\beta = 1`), and standardised covariates at one weight, at
+per-covariate weights, and with the penalised weakly-targeted design.
+
+In all 72 cells the two select the same treated markets. The objectives agree
+to :math:`2.2\times10^{-14}` relative, the treated weights to
+:math:`1.1\times10^{-9}` and the control weights to :math:`2.1\times10^{-8}`,
+which is the R side's ridge and quadprog's accuracy. The case has power: with
+the search's bound inflated fifty-fold, so that it discards sets it should fit,
+treated-set agreement fell to 0.72.
+
+`benchmarks/cases/marex_exact_bruteforce.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_exact_bruteforce.py>`_
+
+.. code-block:: bash
+
+   # refresh the captured R run (needs R + quadprog)
+   python benchmarks/reference/generate.py marex_exact_bruteforce
+   # run the cross-validation (no R needed; reads the committed bundle)
+   python benchmarks/run_benchmarks.py --case marex_exact_bruteforce
 
 Path B — Table 3, against the randomized alternatives
 --------------------------------------------------------
