@@ -23,9 +23,12 @@ optimum, certified, and wins once a cluster holds tens of millions of sets:
 
 The library's search was run with its limit raised (`exact_reference.py`).
 
-This is a study, not a benchmark case. Nothing here is pinned, the library is
-unchanged by it, and the timings are machine-dependent. Two notes record the
-findings in full:
+This is a study, not a benchmark case. Nothing here is pinned, and the timings
+are machine-dependent. The search it arrived at ships in the library as
+`mlsynth/utils/marex_helpers/branch.py`, which the exact backend uses above
+twenty million treated sets; `library_search.py` runs that version on the
+panels below (`results/library_search.log`). Two notes record the findings in
+full:
 
 - `results/persp_n.md`: what a tight node bound has to contain, with the
   twenty-seven papers read to find it; the bound, its certificate and its
@@ -70,6 +73,7 @@ meant only for `python -m`: `certified_dnn_geolift`, `check_certified_bnb`,
 | Bounds inherited from a parent | `inherit.py`, `inherit_probe.py`, `inherit_fixing.py` | `inherit_probe_geolift_m6.log`, `inherit_fixing_geolift.log` |
 | persp+N | `persp_n.py`, `persp_n_geolift.py`, `test_persp_n.py`, `exact_reference.py` | `persp_n.md`, `persp_n_geolift_*.log`, `hybrid_persp_n_*.log`, `exact_reference_*.log` |
 | The penalized design | `penalized_relaxation.py` | `penalized_relaxation_geolift.log` |
+| The library's version | `library_search.py` | `library_search.log` |
 
 `panels.py` builds every panel: GeoLift, county panels from the BLS subset,
 synthetic factor panels, and Walmart as MAREX's exact backend sees it

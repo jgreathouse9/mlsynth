@@ -152,17 +152,21 @@ def _psd2(L):
     """A 2x2 symmetric matrix made PSD by clipping the diagonal and shrinking
     the off-diagonal; any PSD multiplier keeps the certificate valid.
 
-    ``b^2 <= a c`` is checked in exact arithmetic: ``b`` is clipped to the
-    floating-point ``sqrt(a c)`` and moved toward zero only the few units in
-    the last place that rounding can put it over.
+    ``b^2 <= a c`` is checked in exact arithmetic: ``b`` is clipped to
+    ``sqrt(a) sqrt(c)`` and moved toward zero the few units in the last place
+    that rounding can put it over. The two square roots are taken apart because
+    ``a c`` can be subnormal, where its square root can overshoot by 1e15
+    units; should eight units not suffice, ``b = 0`` is semidefinite.
     """
     a, b, c = max(float(L[0, 0]), 0.0), float(L[0, 1] + L[1, 0]) / 2, max(float(L[1, 1]), 0.0)
     if Fraction(b) ** 2 <= Fraction(a) * Fraction(c):
         return a, b, c
-    b = math.copysign(math.sqrt(a * c), b)
-    while b != 0.0 and Fraction(b) ** 2 > Fraction(a) * Fraction(c):
+    b = math.copysign(math.sqrt(a) * math.sqrt(c), b)
+    for _ in range(8):
+        if Fraction(b) ** 2 <= Fraction(a) * Fraction(c):
+            return a, b, c
         b = math.nextafter(b, 0.0)
-    return a, b, c
+    return a, 0.0, c
 
 
 def _dy(entries):
