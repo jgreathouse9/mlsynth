@@ -119,9 +119,14 @@ and is refused.
 What this backend does not solve. A cost budget constrains the treated
 weights; ``relaxed`` and the branch-and-bound knobs (``solver``, ``warm_start``,
 ``time_limit``) belong to the MIQP; a negative ``beta`` makes the coupling
-concave. The config refuses each with ``backend="exact"``. Above
-``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being affordable
-and the search raises with the MIQP as the way out.
+concave. The config refuses each with ``backend="exact"``.
+
+Above ``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being
+affordable. :func:`_designs` then hands the separable designs to the certified
+branch and bound of :mod:`mlsynth.utils.marex_helpers.branch`, which returns the
+same optimum, and its certificate with it; :func:`search_cluster` itself still
+raises above the limit, with the MIQP as the way out, which is where the
+weakly-targeted design ends up.
 """
 
 from __future__ import annotations
@@ -162,7 +167,8 @@ COUPLED_TOL = 1e-10
 #: Steps the coupled fit may take before it raises uncertified.
 COUPLED_MAX_ITER = 20_000
 
-#: Above this many candidates in one cluster the search refuses and names the MIQP.
+#: Above this many candidates in one cluster, enumeration gives way: the separable
+#: designs go to the branch and bound, and the coupled design is refused.
 CANDIDATE_LIMIT = 20_000_000
 
 #: Candidates priced per batch.
