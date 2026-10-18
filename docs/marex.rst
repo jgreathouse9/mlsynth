@@ -607,9 +607,12 @@ naming ``backend="mip"``:
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
 
-A cluster with more than twenty million admissible treated sets is refused when
-the design is solved, with the same pointer to the MIQP. Five treated among
-forty markets is 658,008 candidates. With no treated count set, every size from
+Above twenty million admissible treated sets in a cluster, pricing every set
+stops being affordable. The ``standard``, ``penalized`` and ``unit_penalized``
+designs are then searched by a certified branch and bound
+(:ref:`marex-branch-and-bound`), which returns the same optimum; the
+``weakly_targeted`` design is refused, with the same pointer to the MIQP. Five
+treated among forty markets is 658,008 candidates. With no treated count set, every size from
 one to :math:`N - 1` is a candidate, :math:`2^N - 2` sets in all, which passes
 the limit at 25 markets. The count is of the sets the restrictions allow, so
 forcing markets in or out raises the cluster size the search can take.
@@ -733,6 +736,152 @@ candidates per count without an exact fit. It cost 1.7 to 1.95 times the search
 from three treated up, and 2.4 times at two, where the whole search takes ten
 milliseconds; at seven treated, 18.6 million candidates, the search took 27
 seconds and the certificate 53.
+
+
+.. _marex-branch-and-bound:
+
+Large clusters: a certified branch and bound
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Eight treated among forty markets is 77 million treated sets, ten is 848
+million, and the number grows as :math:`\binom{N}{m}`. Above twenty million sets
+in a cluster, ``backend="exact"`` stops pricing every set and searches the
+``standard``, ``penalized`` and ``unit_penalized`` designs by branch and bound.
+Nothing changes at or under the limit, and nothing needs to be set: the search
+returns the optimum the enumeration would, and with ``certify=True`` the
+certificate of the previous section, which it produces as it goes.
+
+A branch and bound organises the treated sets as a tree. A node fixes some
+markets into the treated set (:math:`\mathcal{I}`) and some out of it
+(:math:`\mathcal{O}`), and leaves the rest free (:math:`\mathcal{F}`); below it
+lie the admissible treated sets of size :math:`m` that contain
+:math:`\mathcal{I}` and avoid :math:`\mathcal{O}`. At each node the search does
+one of two things. It prices the node's sets one at a time, exactly as the
+enumeration prices a cluster, when there are few enough of them. Otherwise it
+computes a bound, a number no design below the node can go under: if the bound
+is above the best design found so far, the whole node is discarded unseen, and
+if not, the node is split on one free market into a node that treats it and one
+that does not. It bounds a node only when pricing the node's sets would take
+longer than computing the bound, at about a microsecond per set and a few
+seconds per bound at forty markets.
+
+The bound has to see the products of the weights. Relaxing the choice of
+treated markets to fractions between zero and one is not enough: spreading the
+weights evenly over every market is an average of designs, and it scores
+exactly zero, because the centred predictors sum to zero. The bound used here,
+persp+N, works with the matrix of weight products. For each side of the design
+(treated and control) it keeps the weights :math:`\mathbf{x}` on the markets
+that side can use and a matrix :math:`\mathbf{X}` standing for
+:math:`\mathbf{x}\mathbf{x}^\top`, with :math:`z_j` the fraction of market
+:math:`j` that is treated, and requires
+
+.. math::
+
+   \begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} & \mathbf{X} \end{pmatrix}
+   \succeq 0, \qquad \mathbf{X} \ge 0, \qquad
+   \mathbf{X}\mathbf{1} = \mathbf{x}, \qquad \mathbf{1}^\top \mathbf{x} = 1,
+   \qquad
+   \begin{pmatrix} z_j & x_j \\ x_j & X_{jj} \end{pmatrix} \succeq 0,
+   \qquad x_j \le z_j,
+
+for every free market (with :math:`1 - z_j` in place of :math:`z_j` on the
+control side), and :math:`\sum_{j \in \mathcal{F}} z_j = m - |\mathcal{I}|`.
+The objective is :math:`\langle \mathbf{G}, \mathbf{X} \rangle +
+\mathbf{a}^\top \mathbf{x}` per side. Every design meets every constraint with
+:math:`\mathbf{X} = \mathbf{x}\mathbf{x}^\top`, so the minimum is a lower bound
+on every design below the node. The 2x2 blocks are the perspective constraint
+:math:`X_{jj} z_j \ge x_j^2` of Frangioni and Gentile (2006) and Günlük and
+Linderoth (2010): a market carrying weight must be treated, and its weight
+concentrates the second moments on few markets. With the semidefinite block they
+form the relaxation of Dong, Chen and Linderoth as given in Wei, Gómez and
+Küçükyavuz (2022, eq. 24), the primal of the best-diagonal program of Zheng, Sun
+and Li (2014). :math:`\mathbf{X} \ge 0` is the entrywise half of the doubly
+nonnegative relaxation of Burer's (2009) completely positive form, and it
+carries most of the bound: dropping it from the full doubly nonnegative
+relaxation took that bound from 99 percent of the optimum to 29.5 percent at
+the root of GeoLift's tree with four treated.
+
+A solver returns the bound in floating point, and the search does not take it on
+trust. It reads the solver's multipliers, clips each to the sign its constraint
+requires, and assembles the Lagrangian they define in exact arithmetic from the
+exact Gram matrix of the data. Every design satisfies
+:math:`\operatorname{tr}\begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} &
+\mathbf{x}\mathbf{x}^\top \end{pmatrix} \le 2` on each side, so the bound is
+the Lagrangian's constant, plus twice the smallest eigenvalue of its matrix when
+that is negative, plus the :math:`m - |\mathcal{I}|` smallest coefficients of the
+treated fractions. The smallest eigenvalue is bounded below exactly, from a
+floating-point Cholesky factor of the shifted matrix and its exact residual.
+This is the rigorous bound of Jansson, Chaykin and Keil (2007) for semidefinite
+programs, with exact arithmetic in place of their interval arithmetic: any
+multipliers give a valid bound, and accurate ones a tight one. A node whose
+solve fails keeps the bound it had, and is split or priced like any other.
+
+Every set the search discards is discarded on a certified lower bound above a
+certified upper bound on a design already found, so it returns the
+enumeration's optimum, and its certificate lists the sets that might tie it, as
+the certificate above does. The restrictions carry over: forced and forbidden
+units start the tree, a market treated at a node sends its conflict partners out
+of the treated set, stratum quotas and forced units decide how many sets a node
+holds, and every set priced passes the cluster's rules. Donor exclusions can
+only raise a control fit, so every bound holds without them and every fitted
+design honours them.
+
+On one core, with GeoLift's 40 markets as one cluster over 90 days and
+Walmart's 45 stores as the paper's design sees them, the search returns the
+enumeration's design every time, certified with a relative gap of at most
+:math:`1.5 \times 10^{-12}` and no unresolved set:
+
+.. list-table:: The branch and bound against enumeration with its limit raised
+   :header-rows: 1
+
+   * - Panel
+     - Treated
+     - Treated sets
+     - Branch and bound
+     - Bounds computed
+     - Enumeration
+   * - GeoLift
+     - 8
+     - 76,904,685
+     - 41.9 s
+     - 7
+     - 105.1 s
+   * - GeoLift
+     - 10
+     - 847,660,528
+     - 36.9 s
+     - 8
+     - 1,866.7 s
+   * - Walmart
+     - 6
+     - 8,145,060
+     - 14.0 s
+     - 2
+     - 7.5 s
+   * - Walmart
+     - 8
+     - 215,553,195
+     - 211.3 s
+     - 22
+     - 305.2 s
+
+Below about ten million sets, enumeration is the faster of the two, which is why
+it keeps every cluster under the limit. Through MAREX, GeoLift with ten treated,
+which the exact backend refused before, takes 35.5 seconds with
+``certify=True``. The runs are
+`benchmarks/studies/marex_bnb/library_search.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/studies/marex_bnb/library_search.py>`_.
+
+The search raises after a thousand bounds without closing its gap, giving the
+bracket it reached and naming ``backend="mip"``. A bound's cost grows with
+the cube of the markets on a side, so at a few hundred markets in one cluster
+it is out of reach; clusters, restrictions or a smaller treated count bring each
+search back within it. The weakly-targeted design couples the treated and
+control fits, which the bound splits, so it is refused above the limit. The
+tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
+the bound, with the papers behind each piece, is in
+`benchmarks/studies/marex_bnb
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_bnb>`_.
 
 Inference
 ^^^^^^^^^
@@ -1374,6 +1523,28 @@ Disaggregated Data." *Journal of the American Statistical Association*
 
 Wolfe, P. (1976). "Finding the Nearest Point in a Polytope." *Mathematical
 Programming* 11(1):128-149.
+
+Burer, S. (2009). "On the Copositive Representation of Binary and Continuous
+Nonconvex Quadratic Programs." *Mathematical Programming* 120:479-495.
+
+Frangioni, A., & Gentile, C. (2006). "Perspective Cuts for a Class of Convex
+0-1 Mixed Integer Programs." *Mathematical Programming* 106:225-236.
+
+Günlük, O., & Linderoth, J. (2010). "Perspective Reformulations of Mixed Integer
+Nonlinear Programs with Indicator Variables." *Mathematical Programming*
+124:183-205.
+
+Jansson, C., Chaykin, D., & Keil, C. (2007). "Rigorous Error Bounds for the
+Optimal Value in Semidefinite Programming." *SIAM Journal on Numerical
+Analysis* 46(1):180-200.
+
+Wei, L., Gómez, A., & Küçükyavuz, S. (2022). "Ideal Formulations for
+Constrained Convex Optimization Problems with Indicator Variables."
+*Mathematical Programming* 192:57-88.
+
+Zheng, X., Sun, X., & Li, D. (2014). "Improving the Performance of MIQP Solvers
+for Quadratic Programs with Cardinality and Minimum Threshold Constraints: A
+Semidefinite Program Approach." *INFORMS Journal on Computing* 26(4):690-703.
 
 Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms*, 2nd
 ed. SIAM.
