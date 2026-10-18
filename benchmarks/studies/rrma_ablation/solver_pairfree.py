@@ -11,9 +11,11 @@ and constraints read only each period's net flow. By Hoffman's circulation
 theorem (Schrijver 1986, Corollary 21.3a and Application 21.1) a vector of net
 flows ``psi`` on a set of periods ``G`` is feasible when
 ``psi(U) <= h(U) h(G \\ U)`` for every ``U``. The best net flows against fixed
-residuals come from a sort: ``a_i = h_i (h below - h above)``, Edmonds' greedy
-algorithm on the cut function, which is Jaeckel's rank dispersion in
-Hettmansperger and McKean (1998).
+residuals come from a sort: ``a_i = h_i (h below - h above)``. That identity,
+Edmonds' greedy algorithm on the cut function and Jaeckel's rank dispersion in
+Hettmansperger and McKean (1998), is not taken from the LP texts cited here;
+``benchmarks/tests/test_rrma_pairfree_solver.py`` checks it against the
+pairwise objective and subgradient.
 
 The algorithm is the bounded dual simplex (Pan 2023, Algorithm 8.4.1) written
 on periods:
@@ -23,17 +25,19 @@ on periods:
 * pricing: rank scores with pairs inside a group excluded, then the ``p`` tie
   multipliers from one ``p x p`` solve, then each period's net flow ``psi``;
 * certificate: the cut function ``h(U) (h(G) - h(U))`` is a concave function of
-  ``h(U)``, so the most violated ``U`` is a prefix of ``G`` sorted by
-  ``psi_i / h_i``. Checking those prefixes is exact, and the structural
-  degeneracy of pairwise LAD (``p + 1`` tied periods tie all their pairs) needs
-  no perturbation;
+  ``h(U)``. Writing it as the minimum of its tangent lines turns
+  ``min_U [h(U) (h(G) - h(U)) - psi(U)]`` into a minimum over thresholds on
+  ``psi_i / h_i``, so the most violated ``U`` is a prefix of ``G`` in that order.
+  Checking those prefixes is exact, and the structural degeneracy of pairwise
+  LAD (``p + 1`` tied periods tie all their pairs) needs no perturbation;
 * pivot: split a group along its most violated prefix, a descent edge, and take
   the long step to the first breakpoint where the slope turns non-negative.
   ``line_search="kinetic"`` finds it by swapping adjacent periods as their
   residuals cross (memory ``O(n)``); ``"pairs"`` lists the step's breakpoints in
   one transient ``(K, n, n)`` array and sorts them once;
 * warm start: a new period joins as its own group, so the previous window's
-  labelling is a vertex of the next (Pan Section 7.3.2).
+  labelling is a vertex of the next, the counterpart of Pan Section 7.3.2's
+  added variable leaving the old basis in place.
 
 Run::
 

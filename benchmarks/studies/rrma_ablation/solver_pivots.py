@@ -13,16 +13,18 @@ decide how it should be solved:
   ``beta``-space it releases the basic pair whose multiplier most exceeds its
   bound and crosses residual breakpoints until the slope turns non-negative:
   a weighted median, the Barrodale-Roberts long step;
-* the cross-validation windows are nested, and a new period only adds columns,
-  so the previous window's optimal basis stays dual feasible (Pan Section
-  7.3.2, adding variables). That is the warm start measured here.
+* the cross-validation windows are nested, and a new period only adds columns.
+  Pan Section 7.3.2 shows an added variable leaves the old basis primal
+  feasible; here the added pair columns sit at ``w_k sign(e_k)``, so the
+  previous window's optimal basis stays dual feasible by the first point. That
+  is the warm start measured here.
 
 A pairwise LAD optimum is degenerate by construction: when ``p + 1`` rows tie,
 all their pairs have zero residual. The pair responses are perturbed by a
-deterministic ``1e-10`` (Luenberger and Ye 2021, Exercises 3.15-3.17; Pan
-Section 14.3 perturbs reduced costs the same way), and Bland's rule (Cottle and
-Thapa 2017, Section 4.2) takes over if a basis repeats. Every solution is
-scored against HiGHS on the unperturbed programme.
+deterministic ``1e-10``, the perturbation argument of Luenberger and Ye (2021,
+Exercises 4.15-4.17) applied to the costs of this programme, and Bland's rule
+(Cottle and Thapa 2017, Section 4.2) takes over if a basis repeats. Every
+solution is scored against HiGHS on the unperturbed programme.
 
 Run::
 
