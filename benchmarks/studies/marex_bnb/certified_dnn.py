@@ -215,11 +215,15 @@ def objective(G, lift, shift):
     return Dy(A, G.e + shift)
 
 
-def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
+def lift_bound(panel, lift, solver="CLARABEL", marginals=False,
+               multipliers=False, **opts):
     """``(certified lower bound, solver's value, status)`` for one lift.
 
     With ``marginals=True`` a fourth entry maps each row of ``y`` to its value
     in the relaxation's solution, ``P T e_0``, for branching and rounding.
+    With ``multipliers=True`` a last entry holds the certified multipliers,
+    ``{"y0", "H", "shift"}`` in the scaled units of the certificate, for
+    reuse at a child node (``inherit``).
     """
     import cvxpy as cp
     n = panel.Bc.shape[1]
@@ -243,7 +247,7 @@ def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
     prob.solve(solver=getattr(cp, solver), **opts)
     if y0.value is None:
         out = (0.0, float("nan"), prob.status)
-        return out + ({},) if marginals else out
+        return out + ({},) * (bool(marginals) + bool(multipliers))
     Hv = np.asarray(H.value, dtype=float)
     Hc = np.where(lift.zero, Hv, np.clip(Hv, 0.0, None))
     nuv = None if nu is None else np.clip(np.asarray(nu.value, dtype=float), 0.0, None)
@@ -255,11 +259,13 @@ def lift_bound(panel, lift, solver="CLARABEL", marginals=False, **opts):
     lb = certify(C, lift, float(y0.value) - d, Hv, nuv)
     out = (down(max(lb, Fraction(0)) * (1 << shift)),
            float(prob.value) * 2.0 ** shift, prob.status)
-    if not marginals:
-        return out
-    T = np.asarray(psd.dual_value, dtype=float)
-    y = lift.P @ (T[:, 0] / T[0, 0]) if T[0, 0] > 0 else np.zeros(N)
-    return out + (dict(zip(lift.rows, y.tolist())),)
+    if marginals:
+        T = np.asarray(psd.dual_value, dtype=float)
+        y = lift.P @ (T[:, 0] / T[0, 0]) if T[0, 0] > 0 else np.zeros(N)
+        out = out + (dict(zip(lift.rows, y.tolist())),)
+    if multipliers:
+        out = out + ({"y0": float(y0.value) - d, "H": Hc, "shift": shift},)
+    return out
 
 
 def best_shift(S, y0, tau):
