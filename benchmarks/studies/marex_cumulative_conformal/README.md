@@ -106,14 +106,102 @@ test inversion does.
   an AR(1) with coefficient one half. Cyclic shifts (CWZ's `Pi_->`) are the
   candidate repair.
 
+## Candidate 2: the signed-sum inversion
+
+`inversion.py` inverts the constant-effect sharp null with the statistic
+`|sum_{t in post} e_t|`. Each reference block holding a share `r_k` of the
+post periods counts towards the p-value where `|a_k - r_k C| >= |G - C|`,
+which is a sign condition on a product of two linear functions of `C`, so the
+band is computed exactly at the breakpoints. It matched a grid of 40,001
+points on 400 random cases. Far enough out only the observed block counts, so
+the band is bounded once the reference set has more than `1 / alpha` blocks.
+
+Two reference sets: `subsets`, every `H`-subset of the blank and post periods
+(or 999 drawn uniformly), which is Abadie and Zhao's Theorem 2 scheme; and
+`cyclic`, the `N` cyclic shifts of the blank-then-post series, CWZ's `Pi_->`,
+which keeps time order inside a block.
+
+### Error series
+
+`candidate2.py`, 2000 draws a cell, `results/candidate2.log`. Coverage of the
+total at 95%, and the median width of the band in standard deviations of the
+post sum (a Gaussian oracle is 3.92):
+
+| law | scheme | `n=12, H=4` | `n=26, H=13` | `n=47, H=13` | `n=104, H=13` |
+| --- | --- | --- | --- | --- | --- |
+| gauss | subsets | 0.948 (4.34) | 0.950 (4.35) | 0.951 (4.15) | 0.950 (3.96) |
+| gauss | cyclic | unbounded | 0.983 (8.43) | 0.951 (5.11) | 0.958 (4.54) |
+| skew | subsets | 0.950 | 0.944 | 0.939 | 0.953 |
+| t2 | subsets | 0.952 | 0.950 | 0.951 | 0.950 |
+| ar5 | subsets | 0.855 | 0.806 | 0.804 | 0.804 |
+| ar5 | cyclic | unbounded | 0.961 | 0.936 | 0.963 |
+| ar8 | subsets | 0.766 | 0.674 | 0.656 | 0.618 |
+| ar8 | cyclic | unbounded | 0.943 | 0.920 | 0.942 |
+
+- Under exchangeable errors the subsets scheme is exact for a constant path at
+  every size, `n = 12` included, and within 11% of the oracle width. Disjoint
+  windows would need 76 blank periods for a finite band at `H = 4`.
+- Serial dependence defeats the subsets scheme at every size, and more blank
+  periods do not help: an AR(1) at 0.8 holds 0.62 at `n = 104`. Cyclic shifts
+  hold 0.92-0.96, but need `N > 1 / alpha` periods and are wide when `N` is
+  near that limit.
+- The skew cell at `n = 47` (0.939 at 95%, 0.770 at 80%) is Monte Carlo noise
+  across 112 cells: 5000 fresh draws give levels of 0.046-0.052 at 5% and
+  0.185-0.207 at 20%.
+
+Paths with total `H` and deviations of spread 0.5, 2 and 8 about it: under
+every continuous law the worst path's coverage is within Monte Carlo error of
+the constant path's, and large deviations raise it. The exception is the
+exchangeable spike (one error of size 200), where the subsets scheme falls to
+0.914-0.918 at 95% and to 0.688 at 80% (`n = 26`, one-week path, spread 8).
+`path_search.py` scores 150 random zero-mean paths on cases small enough to
+enumerate every block (`results/path_search.log`); under Gaussian, skewed and
+bimodal errors none raised the rejection rate above the null path's. Under the
+spike it found paths that do: 0.087 to 0.125 at level 0.1 (subsets, `n = 5`,
+`H = 3`) and 0.166 to 0.249 at level 0.17 (cyclic, `n = 9`, `H = 3`).
+
+### MAREX designs
+
+`designs.py`, 500 draws a cell, `results/designs.log`. A Section 5 panel
+(`J = 15`, `m_eq = 3`, exact backend), the contrast of the solved design on the
+blank and post periods, an effect added to the treated units. Coverage of the
+total at 95% / 80%:
+
+| periods | arm | constant | worst other path |
+| --- | --- | --- | --- |
+| `T_b = 5, H = 5`, iid | shipped | refused | refused |
+| `T_b = 5, H = 5`, iid | subsets, signed sum | 0.948 / 0.796 | 0.986 / 0.892 |
+| `T_b = 5, H = 5`, iid | subsets, mean absolute | 0.950 / 0.800 | 0.798 / 0.454 |
+| `T_b = 26, H = 13`, iid | shipped | 0.908 / 0.768 | same |
+| `T_b = 26, H = 13`, iid | subsets, signed sum | 0.942 / 0.802 | 0.982 / 0.878 |
+| `T_b = 26, H = 13`, iid | cyclic, signed sum | 0.976 / 0.824 | 0.976 / 0.832 |
+| `T_b = 26, H = 13`, ar | shipped | 0.756 / 0.636 | same |
+| `T_b = 26, H = 13`, ar | subsets, signed sum | 0.680 / 0.564 | 0.750 / 0.604 |
+| `T_b = 26, H = 13`, ar | cyclic, signed sum | 0.928 / 0.748 | 0.952 / 0.744 |
+| `T_b = 26, H = 13`, sorted | shipped | 0.402 / 0.294 | same |
+| `T_b = 26, H = 13`, sorted | cyclic, signed sum | 0.824 / 0.532 | 0.904 / 0.550 |
+
+- At Section 5's own sizes the shipped band raises (a horizon-length block is
+  longer than half the five blank periods); the signed-sum inversion is exact
+  there under Theorem 2's assumption.
+- With serially dependent factors the cyclic scheme is the only arm near
+  nominal at 95%, and it is short at 80%.
+- With trending factors every arm fails. The design's imbalance in the
+  unobserved loadings times a trending `lambda_t` is a bias that grows across
+  the post period, a cumulative total adds it `H` times, and the blank periods
+  carry less of it than the post periods do. That is Theorem 1's bias, which no
+  calibration on the blank periods can see.
+
 ## Next
 
-1. Signed-sum inversion with cyclic-shift permutations, against AR errors.
-2. The rolling-origin arm with the treated set fixed and weights refitted per
-   origin, on a factor-model panel run through MAREX designs.
-3. Which effect paths the signed-sum inversion covers, as a statement with a
-   proof or a counterexample.
-4. A written proof of the bound above.
+1. A reference set between the two: blocks of length `L` permuted as units,
+   finer than cyclic shifts and robust to short-range dependence.
+2. A statement of which paths the signed-sum inversion covers. The spike case
+   shows it is not every path under every exchangeable law; continuous laws
+   gave no counterexample.
+3. The trend case: a band that adds Theorem 1's bias bound, or a pre-test on
+   the blank contrast.
+4. A written proof of the bound for calibration-only bands.
 
 ## References
 
