@@ -45,6 +45,7 @@ import numpy as np
 
 from . import oracle as O
 from . import simulate as S
+from .highs_reference import wlad
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "solver_pivots.json"
@@ -138,7 +139,7 @@ def one_rep(case: str, rep: int):
             _, _, pc, bc = solve(rp, D, w, crash(rp, D, w))
             t["cold"] += time.perf_counter() - t0
             t0 = time.perf_counter()
-            ref = O.wlad(r, D, w)
+            ref = wlad(r, D, w)
             t["highs"] += time.perf_counter() - t0
             f = lambda b: float(np.sum(w * np.abs(r - D @ b)))
             rows.append((D.shape[1], pw, pc, (f(beta) - f(ref)) / f(ref), bw + bc))

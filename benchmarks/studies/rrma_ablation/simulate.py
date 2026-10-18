@@ -82,7 +82,6 @@ def _err(y0, cf, T1) -> float:
 def one_rep(case: str, T1: int, T2: int, N: int, rep: int) -> Dict:
     """Every arm on one panel. Returns errors, timings and Algorithm 1's diagnostics."""
     warnings.filterwarnings("ignore")
-    lp_before = dict(O.LP_FALLBACKS)
     rng = np.random.default_rng(seed_for(case, T1, N, rep))
     y0, X = draw(case, T1, T2, N, rng)
     err, sec = {}, {}
@@ -125,7 +124,5 @@ def one_rep(case: str, T1: int, T2: int, N: int, rep: int) -> Dict:
                 m_level=lv.m, m_ls_avg=ls.m, w_rrma=rr.w.tolist(),
                 b_fallbacks=sum(p.mallows_fallbacks for p in rank_paths.values()),
                 tau_fallbacks=rr.tau_fallbacks, rank_one_mallows=bool(h1_ok),
-                strong_in_screen=int(np.isin(np.arange(9, 20), order).sum()),
-                lp_retry=O.LP_FALLBACKS["retry"] - lp_before["retry"],
-                lp_pairfree=O.LP_FALLBACKS["pairfree"] - lp_before["pairfree"])
+                strong_in_screen=int(np.isin(np.arange(9, 20), order).sum()))
     return dict(case=case, T1=T1, T2=T2, N=N, rep=rep, err=err, sec=sec, diag=diag)

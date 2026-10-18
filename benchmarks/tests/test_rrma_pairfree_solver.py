@@ -15,6 +15,7 @@ import numpy as np
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from benchmarks.studies.rrma_ablation import highs_reference as HR
 from benchmarks.studies.rrma_ablation import oracle as O
 from benchmarks.studies.rrma_ablation import solver_pairfree as PF
 
@@ -34,7 +35,7 @@ def _batch(draw):
 def _highs(y, X, h):
     i, j = O.pairs(len(y))
     w, D, r = h[i] * h[j], X[i] - X[j], y[i] - y[j]
-    return w, D, r, O.wlad(r, D, w)
+    return w, D, r, HR.wlad(r, D, w)
 
 
 def _obj(w, D, r, b):

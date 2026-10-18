@@ -1,20 +1,24 @@
-"""The RRMA study's oracle: its two dual programmes and the Basque R reference.
+"""The RRMA study's oracle: the HiGHS reference and the Basque R reference.
 
 The study is ``benchmarks/studies/rrma_ablation``, a replication spike for Lv &
-Li (2026), arXiv:2610.15553v1. Three pieces carry assertions here.
+Li (2026), arXiv:2610.15553v1. Its estimator path solves every linear programme
+with its own NumPy code (``solver_pairfree``, ``lp``); HiGHS is kept in
+``highs_reference`` as the check the solver tests compare against, so the
+reference itself carries assertions here.
 
-``wlad`` and ``simplex_wlad`` solve the dual of a weighted least-absolute-
-deviation programme and read the coefficients off the dual multipliers. The sign
-of those multipliers is a convention of the solver, and the negated reading
-returns a point whose objective is two to fourteen times the optimum, so the
-tests compare against the primal programme by objective, not by coefficient:
-an L1 programme can have a face of minimisers, and any point of the face is
-correct.
+``highs_reference.wlad`` and ``simplex_wlad`` solve the dual of a weighted
+least-absolute-deviation programme and read the coefficients off the dual
+multipliers. The sign of those multipliers is a convention of the solver, and
+the negated reading returns a point whose objective is two to fourteen times the
+optimum, so the tests compare against the primal programme by objective, not by
+coefficient: an L1 programme can have a face of minimisers, and any point of the
+face is correct.
 
 The Basque m = 2 path is the one place Algorithm 1 is deterministic on the
 paper's panel. It is pinned against ``benchmarks/reference/rrma_basque``, an
 independent R implementation calling ``MASS::cov.rob``, ``quantreg::rq`` and
-``lpSolve``.
+``lpSolve``, so the study's own solvers are checked against R's as well as
+against HiGHS.
 """
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from scipy.optimize import linprog
 
+from benchmarks.studies.rrma_ablation import highs_reference as HR
 from benchmarks.studies.rrma_ablation import oracle as O
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,7 +75,7 @@ class TestTheDualProgrammes:
     @given(_lad_problem())
     def test_wlad_reaches_the_primal_optimum(self, prob):
         y, D, c = prob
-        b = O.wlad(y, D, c)
+        b = HR.wlad(y, D, c)
         best = _primal_lad(y, D, c)
         assert _objective(y, D, c, b) <= best * (1 + 1e-9) + 1e-9
 
@@ -78,7 +83,7 @@ class TestTheDualProgrammes:
     @given(_lad_problem())
     def test_simplex_wlad_is_on_the_simplex_and_optimal(self, prob):
         y, D, c = prob
-        w = O.simplex_wlad(y, D, c)
+        w = HR.simplex_wlad(y, D, c)
         assert np.all(w >= 0) and abs(w.sum() - 1) < 1e-12
         best = _primal_lad(y, D, c, simplex=True)
         assert _objective(y, D, c, w) <= best * (1 + 1e-7) + 1e-7
@@ -89,14 +94,14 @@ class TestTheDualProgrammes:
         D = rng.normal(size=(40, 3))
         y = D @ np.array([1.0, -2.0, 0.5]) + rng.standard_t(3, size=40)
         c = np.ones(40)
-        b = O.wlad(y, D, c)
+        b = HR.wlad(y, D, c)
         assert _objective(y, D, c, -b) > 1.5 * _objective(y, D, c, b)
 
 
 class TestWhenHiGHSFails:
     """HiGHS can return an unrecognised status (15, model status Unknown) on one
     programme among tens of thousands; the first 500-replication run died on it.
-    The fit must still be the optimum, and the detour must be counted."""
+    The reference retries, and the estimator path does not call HiGHS at all."""
 
     def _problem(self):
         rng = np.random.default_rng(9)
@@ -105,12 +110,12 @@ class TestWhenHiGHSFails:
         h = rng.uniform(0.3, 1.0, size=30)
         return y, X, h
 
-    def test_wlad_retries_with_another_highs_method(self, monkeypatch):
+    def test_the_reference_retries_with_another_highs_method(self, monkeypatch):
         y, X, h = self._problem()
         i, j = O.pairs(len(y))
         r, D, c = y[i] - y[j], X[i] - X[j], h[i] * h[j]
-        best = O.wlad(r, D, c)
-        real, calls = O.linprog, []
+        best = HR.wlad(r, D, c)
+        real, calls = HR.linprog, []
 
         def flaky(*args, **kwargs):
             calls.append(kwargs.get("method"))
@@ -119,27 +124,25 @@ class TestWhenHiGHSFails:
                 res.status = 4
             return res
 
-        monkeypatch.setattr(O, "linprog", flaky)
-        before = O.LP_FALLBACKS["retry"]
-        b = O.wlad(r, D, c)
+        monkeypatch.setattr(HR, "linprog", flaky)
+        before = HR.LP_FALLBACKS["retry"]
+        b = HR.wlad(r, D, c)
         assert len(calls) == 2 and calls[1] != calls[0]
-        assert O.LP_FALLBACKS["retry"] == before + 1
+        assert HR.LP_FALLBACKS["retry"] == before + 1
         assert _objective(r, D, c, b) <= _objective(r, D, c, best) * (1 + 1e-9)
 
-    def test_rank_fit_falls_back_to_the_pair_free_solver(self, monkeypatch):
+    def test_rank_fit_does_not_need_highs(self, monkeypatch):
         y, X, h = self._problem()
-        alpha_ref, beta_ref = O.rank_fit(y, X, h)
-
-        def broken(*args, **kwargs):
-            raise RuntimeError("weighted LAD failed")
-
-        monkeypatch.setattr(O, "wlad", broken)
-        before = O.LP_FALLBACKS["pairfree"]
-        alpha, beta = O.rank_fit(y, X, h)
-        assert O.LP_FALLBACKS["pairfree"] == before + 1
         i, j = O.pairs(len(y))
         r, D, c = y[i] - y[j], X[i] - X[j], h[i] * h[j]
-        assert _objective(r, D, c, beta) <= _objective(r, D, c, beta_ref) * (1 + 1e-9) + 1e-12
+        best = HR.wlad(r, D, c)
+
+        def broken(*args, **kwargs):
+            raise AssertionError("the estimator path called HiGHS")
+
+        monkeypatch.setattr(HR, "linprog", broken)
+        alpha, beta = O.rank_fit(y, X, h)
+        assert _objective(r, D, c, beta) <= _objective(r, D, c, best) * (1 + 1e-9) + 1e-12
         assert abs(alpha - float(np.median(y - X @ beta))) < 1e-12
 
 

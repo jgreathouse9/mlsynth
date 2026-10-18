@@ -253,8 +253,6 @@ def monte_carlo(workers: int, reps: int, T1: int = 60, T2: int = 30, N: int = 25
                 b_fallbacks=int(sum(x["b_fallbacks"] for x in d)),
                 tau_fallbacks=int(sum(x["tau_fallbacks"] for x in d)),
                 rank_one_mallows_failed=int(sum(not x["rank_one_mallows"] for x in d)),
-                lp_retry=int(sum(x["lp_retry"] for x in d)),
-                lp_pairfree=int(sum(x["lp_pairfree"] for x in d)),
                 reps_used=len(rs),
                 rrma_seconds_mean=float(np.mean([r["sec"]["RRMA"] for r in rs]))),
             paper={arm: [vals[0], vals[1]] for arm, vals in P.TABLE1_T60[case].items()},
@@ -298,8 +296,7 @@ def _print(res: Dict) -> None:
             print(f"   FAILED case {err['case']} rep {err['rep']}: {err['error'].strip().splitlines()[-1]}")
         for case, c in mc["cases"].items():
             print(f"-- case {case}: {c['diag'].get('reps_used')} reps, d {c['diag']['d_mean']:.1f}, "
-                  f"m_rrma {c['diag']['m_rrma']}, ties in {c['diag']['share_with_ties']:.0%}, "
-                  f"HiGHS retries {c['diag'].get('lp_retry')}, pair-free fallbacks {c['diag'].get('lp_pairfree')}")
+                  f"m_rrma {c['diag']['m_rrma']}, ties in {c['diag']['share_with_ties']:.0%}")
             for arm in S.ARMS:
                 v = c["arms"][arm]
                 r = c["ratio_to_rrma"].get(arm)

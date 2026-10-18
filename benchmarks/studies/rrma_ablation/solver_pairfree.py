@@ -57,9 +57,6 @@ from pathlib import Path
 
 import numpy as np
 
-from . import oracle as O
-from . import simulate as S
-
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "solver_pairfree.json"
 TOL = 1e-9
@@ -155,6 +152,26 @@ def crash(y, X, h):
     es = _take(e, order)
     st = np.argmin(es[:, p:] - es[:, :-p], axis=1)
     rows = _take(order, st[:, None] + np.arange(p + 1)[None, :])
+    D = _take(X, rows[:, 1:, None]) - _take(X, rows[:, :1, None])
+    with np.errstate(all="ignore"):
+        bad = ~(np.linalg.cond(D) < 1e10)
+    for k in np.flatnonzero(bad):
+        # Repeated rows of X make the window's tie system singular: take rows
+        # nearest the window's centre that raise the rank instead.
+        centre = es[k, st[k] + p // 2]
+        pick, Q = [], np.zeros((0, p))
+        for r in np.argsort(np.abs(e[k] - centre), kind="stable"):
+            if not pick:
+                pick.append(r)
+                continue
+            d = X[k, r] - X[k, pick[0]]
+            v = d - Q.T @ (Q @ d)
+            if np.linalg.norm(v) > 1e-8 * max(1.0, np.linalg.norm(d)):
+                pick.append(r)
+                Q = np.vstack([Q, v / np.linalg.norm(v)])
+                if len(pick) == p + 1:
+                    break
+        rows[k] = pick
     labels = np.broadcast_to(np.arange(n), (K, n)).copy()
     np.put_along_axis(labels, rows, np.repeat(rows.min(axis=1)[:, None], p + 1, axis=1), axis=1)
     return labels
@@ -207,13 +224,96 @@ def _long_step_kinetic(e, u, ld, h, Fp):
     return enter, rounds
 
 
-def solve(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
+#: Relative size of the row perturbation the pivots run on.
+EPS_PERTURB = 1e-9
+#: Problems whose final vertex failed the certificate on the unperturbed data.
+UNCERTIFIED = [0]
+
+
+def perturbation(y):
+    """A deterministic, row-specific shift of size ``EPS_PERTURB * max|y|``.
+
+    Ties in the data put zero-residual pairs outside the basis, a degenerate
+    vertex on which the rank scores order tied periods arbitrarily. Pivoting on
+    ``y`` plus this shift removes those ties; the perturbation argument
+    (Luenberger and Ye 2021, Exercises 4.15-4.17) makes a basis optimal for the
+    perturbed problem optimal for the original once the shift is small, and
+    ``certify`` checks that on the original data.
+    """
+    n = y.shape[-1]
+    xi = np.modf(np.sin((np.arange(n) + 1) * 12.9898) * 43758.5453)[0]
+    return EPS_PERTURB * np.maximum(1.0, np.abs(y).max(axis=-1, keepdims=True)) * xi
+
+
+def dual_flows(y, X, h, labels):
+    """The net flows ``phi = a + psi`` at a vertex: a dual solution of the pairwise programme.
+
+    ``a`` realises flows ``h_i h_j sign(e_i - e_j)`` on pairs across groups and
+    ``psi`` the flows inside groups, so ``phi`` is dual feasible whenever the
+    vertex passes the prefix-cut test, and ``X' phi = 0`` by construction.
+    """
+    K, n, p = X.shape
+    beta, T, ti, tj = vertex(y, X, labels)
+    e = _take(y - np.einsum("knp,kp->kn", X, beta), labels)
+    a = rank_scores(h, labels, e)
+    theta = np.linalg.solve(np.transpose(T, (0, 2, 1)),
+                            -np.einsum("knp,kn->kp", X, a)[..., None])[..., 0]
+    psi = np.zeros((K, n))
+    rows = np.broadcast_to(np.arange(K)[:, None], ti.shape)
+    np.add.at(psi, (rows, ti), theta)
+    np.add.at(psi, (rows, tj), -theta)
+    return a + psi
+
+
+def pairwise_objective(y, X, h, beta):
+    """``sum_{i<j} h_i h_j |e_i - e_j|`` from one sort; ties contribute nothing either way."""
+    K, n = y.shape
+    e = y - np.einsum("knp,kp->kn", X, beta)
+    return (rank_scores(h, np.broadcast_to(np.arange(n), (K, n)).copy(), e) * e).sum(axis=1)
+
+
+def certify(y, X, h, beta, phi):
+    """Weak duality on the unperturbed data: ``F(beta) - phi'e(beta)`` and ``X'phi`` both vanish.
+
+    For dual-feasible ``phi`` (net flows of pair flows within ``[-h_i h_j, h_i h_j]``),
+    ``F(b) >= phi'(y - X b)`` for every ``b``; with ``X' phi = 0`` the right side
+    is the same number for every ``b``, so a zero gap proves ``beta`` optimal.
+    The dual constraints do not involve ``y``, so the dual found on the perturbed
+    data is feasible here, and ties in the data cannot fool the test.
+    """
+    F = pairwise_objective(y, X, h, beta)
+    e = y - np.einsum("knp,kp->kn", X, beta)
+    gap = F - (phi * e).sum(axis=1)
+    resid = np.abs(np.einsum("knp,kn->kp", X, phi)).max(axis=1)
+    scale = np.maximum(1.0, np.abs(F))
+    xscale = np.maximum(1.0, np.abs(X).max(axis=(1, 2)) * np.abs(phi).sum(axis=1))
+    return (gap <= 1e-9 * scale) & (resid <= 1e-9 * xscale)
+
+
+def solve(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000,
+          return_certified: bool = False):
     """Exact fits of ``K`` problems from vertex labellings.
 
-    Returns ``(beta, labels, pivots, rounds)``: the slopes, the optimal
-    labellings (a warm start for the next window), pivots per problem, and the
-    number of vectorised line-search passes.
+    The pivots run on ``y + perturbation(y)``; ``beta`` is then the final
+    vertex evaluated on ``y`` itself and checked by ``certify``. Returns
+    ``(beta, labels, pivots, rounds)``, the slopes, the optimal labellings (a
+    warm start for the next window), pivots per problem and the number of
+    vectorised line-search passes, with the certificate as a fifth element when
+    ``return_certified``. ``UNCERTIFIED`` counts problems that fail it.
     """
+    y = np.asarray(y, dtype=float)
+    yp = y + perturbation(y)
+    _, labels, pivots, rounds = _pivot(yp, X, h, labels, line_search, max_pivots)
+    beta = vertex(y, X, labels)[0]
+    cert = certify(y, X, h, beta, dual_flows(yp, X, h, labels))
+    UNCERTIFIED[0] += int((~cert).sum())
+    if return_certified:
+        return beta, labels, pivots, rounds, cert
+    return beta, labels, pivots, rounds
+
+
+def _pivot(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
+    """The pivot loop of ``solve``, on whatever ``y`` it is given."""
     K, n, p = X.shape
     step = {"pairs": _long_step_pairs, "kinetic": _long_step_kinetic}[line_search]
     labels = labels.copy()
@@ -269,6 +369,9 @@ def solve(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
 
 
 def _models(case, reps, T1=60, T2=30, N=25):
+    from . import oracle as O
+    from . import simulate as S
+
     out = defaultdict(list)
     for rep in range(reps):
         rng = np.random.default_rng(S.seed_for(case, T1, N, rep))
@@ -283,6 +386,9 @@ def _models(case, reps, T1=60, T2=30, N=25):
 
 def measure(case, reps, line_search, check, T1=60):
     """Every window of every model of ``reps`` replications, batched by group size."""
+    from . import oracle as O
+    from .highs_reference import wlad
+
     solves, piv, rounds, t_batch, t_highs, worst = 0, [], 0, 0.0, 0.0, -np.inf
     for p, specs in _models(case, reps, T1).items():
         Y, X, H = (np.stack([s[k] for s in specs]) for k in range(3))
@@ -300,7 +406,7 @@ def measure(case, reps, line_search, check, T1=60):
                 i, j = O.pairs(n)
                 for k in range(len(specs)):
                     w, D, rr = h[k, i] * h[k, j], Xn[k, i] - Xn[k, j], y[k, i] - y[k, j]
-                    ref = O.wlad(rr, D, w)
+                    ref = wlad(rr, D, w)
                     f = lambda b: float(np.sum(w * np.abs(rr - D @ b)))
                     worst = max(worst, (f(beta[k]) - f(ref)) / f(ref))
                 t_highs += time.perf_counter() - t0
@@ -316,6 +422,8 @@ def main(argv=None):
     ap.add_argument("--reps", type=int, nargs="+", default=[1, 8])
     args = ap.parse_args(argv)
     warnings.filterwarnings("ignore")
+    from . import simulate as S
+
     rows = []
     for reps in args.reps:
         for ls in ("pairs", "kinetic"):

@@ -13,10 +13,13 @@ Candidate model ``s`` regresses ``y`` on the donor columns ``groups[s]``.
   ``R/lqs.R`` and ``src/lqs.c``), ported line for line. With fewer than 5000
   subsets of size ``p + 1`` it enumerates them in R's order and is
   deterministic; past that it samples, and NumPy's draws are not R's.
-* ``wlad`` is the weighted least-absolute-deviation fit Remark 1 sends to
-  ``quantreg::rq``. It solves the dual linear programme with HiGHS; the primal
-  has one row per pair of periods and is 50 to 180 times slower at the sizes
-  the Monte Carlo uses.
+* ``rank_fit`` is the weighted Wilcoxon fit Remark 1 sends to
+  ``quantreg::rq``, solved by ``solver_pairfree``: NumPy, no array with a pair
+  dimension, each optimum certified exactly. The cross-validation fits are
+  batched over models of one size and warm-started from window to window.
+  Section 2.4's model weights and the weights-on-levels ablation are solved by
+  ``lp``. Nothing here imports ``scipy.optimize``; HiGHS stays in
+  ``highs_reference`` as the check the tests compare against.
 * ``kendall_pvalues`` is ``cor.test(method = "kendall")``: exact below 50
   observations without ties, the normal approximation otherwise.
 
@@ -43,10 +46,13 @@ from math import comb
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from scipy.optimize import linprog, nnls
 from scipy.stats import chi2, kendalltau, norm
 
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
+from mlsynth.utils.solvers.nnls import nnls
+
+from . import lp as LP
+from . import solver_pairfree as PF
 
 #: Section 4.1: donors whose Kendall p-value exceeds this are dropped.
 SCREEN_LEVEL = 0.05
@@ -231,84 +237,41 @@ def pairs(n: int) -> Tuple[np.ndarray, np.ndarray]:
     return i, j
 
 
-#: HiGHS settings tried in turn. The first 500-replication run met one
-#: programme on which the default returned status 15 (model status Unknown,
-#: primal feasible); the dual simplex without presolve, then the interior-point
-#: method, are the retries.
-_HIGHS_ATTEMPTS = (
-    dict(method="highs"),
-    dict(method="highs-ds", options=dict(presolve=False)),
-    dict(method="highs-ipm"),
-)
-#: Detours taken, per process: ``retry`` counts programmes a later HiGHS setting
-#: solved, ``pairfree`` counts fits ``rank_fit`` handed to the pair-free solver.
-LP_FALLBACKS = {"retry": 0, "pairfree": 0}
-
-
-def _linprog_retrying(*args, **kwargs):
-    """``linprog`` over ``_HIGHS_ATTEMPTS``; the first result with status 0, else the last."""
-    for k, attempt in enumerate(_HIGHS_ATTEMPTS):
-        res = linprog(*args, **kwargs, **attempt)
-        if res.status == 0:
-            LP_FALLBACKS["retry"] += k > 0
-            return res
-    return res
-
-
-def wlad(y: np.ndarray, D: np.ndarray, c: np.ndarray) -> np.ndarray:
-    """``argmin_beta sum_k c_k |y_k - D_k beta|`` (Remark 1's ``rq`` call).
-
-    Solved as the dual programme ``max y'd s.t. D'd = 0, -c <= d <= c``; the
-    coefficients are the negated multipliers of the equality rows. Raises
-    ``RuntimeError`` when no HiGHS setting returns an optimum.
-    """
-    res = _linprog_retrying(-y, A_eq=D.T, b_eq=np.zeros(D.shape[1]),
-                            bounds=np.column_stack([-c, c]))
-    if res.status != 0:
-        raise RuntimeError(f"weighted LAD failed: {res.message}")
-    return -np.asarray(res.eqlin.marginals, dtype=float)
-
-
-def simplex_wlad(y: np.ndarray, D: np.ndarray, c: np.ndarray) -> np.ndarray:
-    """``argmin_w sum_k c_k |y_k - D_k w|`` over the simplex (Section 2.4's LP).
-
-    Dual: ``max y'd + mu s.t. D'd + mu 1 <= 0, -c <= d <= c``; the weights are
-    the negated multipliers of the inequality rows.
-    """
-    S = D.shape[1]
-    if S == 1:
-        return np.ones(1)
-    cost = -np.r_[y, 1.0]
-    A_ub = np.column_stack([D.T, np.ones(S)])
-    bounds = np.vstack([np.column_stack([-c, c]), [-np.inf, np.inf]])
-    res = _linprog_retrying(cost, A_ub=A_ub, b_ub=np.zeros(S), bounds=bounds)
-    if res.status != 0:                                  # pragma: no cover - every HiGHS setting failing
-        raise RuntimeError(f"simplex LAD failed: {res.message}")
-    w = np.clip(-np.asarray(res.ineqlin.marginals, dtype=float), 0.0, None)
-    return w / w.sum()
-
-
 def rank_fit(y: np.ndarray, X: np.ndarray, h: Optional[np.ndarray] = None):
     """Section 2.3: weighted Wilcoxon slope (8), median intercept.
 
     ``h`` holds the Mallows weights of the rows; ``b_tt' = h_t h_t'``. ``None``
-    is the unweighted Wilcoxon fit. Returns ``(alpha, beta)``. When HiGHS
-    fails under every setting the fit goes to ``solver_pairfree``, which
-    certifies its own optimum, and ``LP_FALLBACKS["pairfree"]`` counts it.
+    is the unweighted Wilcoxon fit. Returns ``(alpha, beta)``.
     """
-    n = len(y)
-    i, j = pairs(n)
-    c = np.ones(len(i)) if h is None else h[i] * h[j]
-    try:
-        beta = wlad(y[i] - y[j], X[i] - X[j], c)
-    except RuntimeError:
-        from . import solver_pairfree as PF
+    hh = (np.ones(len(y)) if h is None else np.asarray(h, dtype=float))[None]
+    yy, XX = np.asarray(y, dtype=float)[None], np.asarray(X, dtype=float)[None]
+    beta = PF.solve(yy, XX, hh, PF.crash(yy, XX, hh))[0][0]
+    return float(np.median(y - X @ beta)), beta
 
-        LP_FALLBACKS["pairfree"] += 1
-        hh = (np.ones(n) if h is None else h)[None]
-        beta = PF.solve(y[None], X[None], hh, PF.crash(y[None], X[None], hh))[0][0]
-    alpha = float(np.median(y - X @ beta))
-    return alpha, beta
+
+def rank_fits(y: np.ndarray, X: np.ndarray, hs: Sequence[Optional[np.ndarray]], ns: Sequence[int]):
+    """``rank_fit`` of each model ``X[:, :, s]`` on the first ``n`` rows, for every ``n`` in ``ns``.
+
+    ``X`` is ``(K, T, p)``: models of one size, solved together. ``ns`` must
+    increase; each window starts from the previous window's optimal labelling
+    with the new rows as groups of their own, which is a vertex of the larger
+    problem. Returns ``{n: (alpha (K,), beta (K, p))}``.
+    """
+    K, T, p = X.shape
+    H = np.stack([np.ones(T) if h is None else np.asarray(h, dtype=float) for h in hs])
+    Y = np.broadcast_to(np.asarray(y, dtype=float), (K, len(y)))
+    out, labels = {}, None
+    for n in ns:
+        yy, XX, hh = Y[:, :n], X[:, :n], H[:, :n]
+        if labels is None:
+            lab0 = PF.crash(yy, XX, hh)
+        else:
+            new = np.broadcast_to(np.arange(labels.shape[1], n), (K, n - labels.shape[1]))
+            lab0 = np.concatenate([labels, new], axis=1)
+        beta, labels, _, _ = PF.solve(yy, XX, hh, lab0)
+        alpha = np.median(yy - np.einsum("knp,kp->kn", XX, beta), axis=1)
+        out[n] = (alpha, beta)
+    return out
 
 
 def ols_fit(y: np.ndarray, X: np.ndarray, h: Optional[np.ndarray] = None):
@@ -321,7 +284,7 @@ def ols_fit(y: np.ndarray, X: np.ndarray, h: Optional[np.ndarray] = None):
 def mscm_fit(y: np.ndarray, X: np.ndarray):
     """Li (2020): intercept plus non-negative donor weights, no adding-up."""
     Xc, yc = X - X.mean(axis=0), y - y.mean()
-    beta, _ = nnls(Xc, yc)
+    beta, _ = nnls(Xc, yc)                       # mlsynth's Lawson-Hanson, NumPy
     return float(y.mean() - X.mean(axis=0) @ beta), beta
 
 
@@ -383,10 +346,26 @@ def validation_window(T1: int) -> np.ndarray:
     return np.arange(T1 // 2, T1)
 
 
+def _by_size(groups):
+    """Indices of ``groups`` grouped by group size, so each batch shares ``p``."""
+    sizes = {}
+    for s, g in enumerate(groups):
+        sizes.setdefault(len(g), []).append(s)
+    return sizes
+
+
 def gwcv_predictions(y: np.ndarray, X: np.ndarray, T1: int, groups, fit, hs) -> np.ndarray:
     """Equation (11): each model fit on ``1..t-1``, predicting period ``t``."""
     val = validation_window(T1)
     P = np.empty((len(val), len(groups)))
+    if fit is rank_fit:
+        for idx in _by_size(groups).values():
+            Xb = np.stack([X[:, groups[s]] for s in idx])
+            fits = rank_fits(y, Xb, [hs[s] for s in idx], [int(t) for t in val])
+            for k, t in enumerate(val):
+                alpha, beta = fits[int(t)]
+                P[k, idx] = alpha + np.einsum("kp,kp->k", Xb[:, t], beta)
+        return P
     for k, t in enumerate(val):
         for s, g in enumerate(groups):
             Xs = X[:t][:, g]
@@ -399,11 +378,19 @@ def gwcv_predictions(y: np.ndarray, X: np.ndarray, T1: int, groups, fit, hs) -> 
 def full_predictions(y: np.ndarray, X: np.ndarray, T1: int, groups, fit, hs):
     """Equation (9): each model fit on all pre-periods, predicting every period."""
     M = np.empty((X.shape[0], len(groups)))
-    thetas = []
+    thetas = [None] * len(groups)
+    if fit is rank_fit:
+        for idx in _by_size(groups).values():
+            Xb = np.stack([X[:, groups[s]] for s in idx])
+            alpha, beta = rank_fits(y, Xb, [hs[s] for s in idx], [T1])[T1]
+            for k, s in enumerate(idx):
+                thetas[s] = (float(alpha[k]), beta[k])
+                M[:, s] = alpha[k] + X[:, groups[s]] @ beta[k]
+        return M, thetas
     for s, g in enumerate(groups):
         a, b = fit(y[:T1], X[:T1][:, g], hs[s])
         M[:, s] = a + X[:, g] @ b
-        thetas.append((a, b))
+        thetas[s] = (a, b)
     return M, thetas
 
 
@@ -414,15 +401,13 @@ def weigh_pairwise(y_val: np.ndarray, P: np.ndarray, rng=None):
     predictions and the Mallows weights fall back to one.
     """
     hbar, ok = mallows_or_ones(P, rng) if P.shape[1] > 1 else (np.ones(len(y_val)), True)
-    i, j = pairs(len(y_val))
-    w = simplex_wlad(y_val[i] - y_val[j], P[i] - P[j], hbar[i] * hbar[j])
-    return w, ok
+    return LP.simplex_rank_lad(y_val, P, hbar), ok
 
 
 def weigh_level(y_val: np.ndarray, P: np.ndarray, rng=None):
     """Ablation: the same programme on levels, ``sum_t hbar_t |y_t - P_t w|``."""
     hbar, ok = mallows_or_ones(P, rng) if P.shape[1] > 1 else (np.ones(len(y_val)), True)
-    return simplex_wlad(y_val, P, hbar), ok
+    return LP.simplex_lad(y_val, P, hbar), ok
 
 
 def weigh_ls(y_val: np.ndarray, P: np.ndarray, rng=None):
@@ -538,18 +523,25 @@ def rrma_variance(y, X, T1, groups, w, rng, B: int = 1000):
     _, thetas = full_predictions(y, X, T1, groups, rank_fit, hs)
     cf = sum(w[s] * (thetas[s][0] + X[:, g] @ thetas[s][1]) for s, g in enumerate(groups))
     gaps = y[T1:] - cf[T1:]
-    draws, boot_falls = [], 0
+    # The draws and their Mallows weights in the order the generator is read,
+    # then each model's B refits solved as one batch.
+    idx_b, h_b, boot_falls = [], [[] for _ in groups], 0
     for _ in range(B):
         idx = mbb_indices(T1, rng)
-        yb, Xb = y[idx], X[idx]
-        theta_b = []
-        for g in groups:
-            h, ok = mallows_or_ones(Xb[:, g], rng)
+        idx_b.append(idx)
+        for s, g in enumerate(groups):
+            h, ok = mallows_or_ones(X[idx][:, g], rng)
             boot_falls += not ok
-            a, b = rank_fit(yb, Xb[:, g], h)
-            theta_b.extend([a, *b])
-        draws.append(theta_b)
-    draws = np.asarray(draws)
+            h_b[s].append(h)
+    idx_b = np.asarray(idx_b)
+    Yb = y[idx_b]
+    cols = []
+    for s, g in enumerate(groups):
+        Xb, Hb = X[idx_b][:, :, g], np.asarray(h_b[s])
+        beta, _, _, _ = PF.solve(Yb, Xb, Hb, PF.crash(Yb, Xb, Hb))
+        alpha = np.median(Yb - np.einsum("knp,kp->kn", Xb, beta), axis=1)
+        cols.append(np.column_stack([alpha, beta]))
+    draws = np.hstack(cols)
     cov_sqrt = T1 * np.cov(draws, rowvar=False, ddof=1)
     H = np.concatenate([np.r_[w[s], w[s] * X[T1:, g].mean(axis=0)] for s, g in enumerate(groups)])
     v = gaps - gaps.mean()
