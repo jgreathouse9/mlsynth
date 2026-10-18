@@ -28,6 +28,47 @@ def geolift(T0: int = 90):
     return B, B.mean(axis=1)
 
 
+def walmart():
+    """Walmart's 45 stores as MAREX's search sees them in the paper's design.
+
+    The configuration is ``benchmarks/cases/marex_walmart.py``'s: fit weeks
+    1..100, the four store covariates averaged over them, standardised. The
+    columns of ``B`` and the target ``A`` are captured from the exact backend's
+    call to ``search_cluster`` (so they are exactly what the library searches),
+    and cached in ``results/walmart_panel.npz``.
+    """
+    path = RESULTS / "walmart_panel.npz"
+    if path.exists():
+        z = np.load(path)
+        return z["B"], z["A"]
+    import warnings
+
+    import mlsynth.utils.marex_helpers.exact as ex
+    from mlsynth import MAREX
+    from benchmarks.cases.marex_walmart import _BASE, _CFG
+
+    seen = []
+    original = ex.search_cluster
+
+    def capture(B, A, sizes, **kw):
+        seen.append((np.array(B), np.array(A)))
+        return original(B, A, sizes, **kw)
+
+    ex.search_cluster = capture
+    try:
+        df = pd.read_csv(_BASE / "walmart_weekly_sales_covariates.csv")
+        cfg = {k: v for k, v in _CFG.items() if k != "program_type"}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            MAREX({"df": df, **cfg, "backend": "exact"}).fit()
+    finally:
+        ex.search_cluster = original
+    B, A = seen[0]
+    RESULTS.mkdir(exist_ok=True)
+    np.savez_compressed(path, B=B, A=A)
+    return B, A
+
+
 def factor(J: int, T: int, seed: int, n_good: int = 4, hi: float = 3.0):
     """The test suite's factor panel: ``n_good`` markets track the mean loading
     with almost no noise, the rest are noisy (``mlsynth/tests``' ``_panel``)."""

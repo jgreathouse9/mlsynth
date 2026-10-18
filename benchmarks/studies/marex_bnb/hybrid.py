@@ -54,6 +54,7 @@ from benchmarks.studies.marex_bnb.certified_dnn import (indicator_lift,
                                                          lift_bound,
                                                          treated_lift)
 from benchmarks.studies.marex_bnb.certify import Panel, down
+from benchmarks.studies.marex_bnb.persp_n import certified
 
 U = 2.0 ** -53
 CHUNK = 20_000
@@ -151,9 +152,24 @@ def _measure_price_cost(panel, m, reps=200_000):
     return best
 
 
+def persp_n_cost(K):
+    """Seconds for a two-sided persp+N bound with ``K`` markets on a side: about
+    one second of model building plus a cubic term, fitted to GeoLift's twelve
+    nodes (``results/persp_n_geolift_both.log``)."""
+    return 1.0 + 3.0 * (K / 40.0) ** 3
+
+
 def search(B, A, m, price_cost=None, lift_cost=default_lift_cost, kappa=1.0,
-           full_margin=0.10, time_limit=None, log=None):
-    """Best-first certified search; returns the incumbent, the gap and a log."""
+           full_margin=0.10, time_limit=None, log=None, bounder="treated"):
+    """Best-first certified search; returns the incumbent, the gap and a log.
+
+    ``bounder="treated"`` bounds a node by the treated lift (and the full lift
+    within ``full_margin`` of the incumbent); ``bounder="persp_n"`` by the
+    certified two-sided persp+N bound (``persp_n.certified``), with
+    ``persp_n_cost`` as its cost unless ``lift_cost`` is given.
+    """
+    if bounder == "persp_n" and lift_cost is default_lift_cost:
+        lift_cost = persp_n_cost
     if kappa < 1.0:
         raise ValueError(f"kappa must be at least 1: a lift pays only on a "
                          f"subtree that costs more to enumerate. Got {kappa}.")
@@ -219,6 +235,13 @@ def search(B, A, m, price_cost=None, lift_cost=default_lift_cost, kappa=1.0,
 
     def lift(level, I, O, F, h_lo):
         r = m - len(I)
+        if bounder == "persp_n":
+            t0 = time.perf_counter()
+            lb, _, _, _, _, zv = certified(panel, m, I, O, F, side="both", with_z=True)
+            st["lift_s"] += time.perf_counter() - t0
+            st["lifts"] += 1
+            price(I + sorted(F, key=lambda k: (-zv[k], k))[:r])
+            return Fraction(lb), zv
         L = treated_lift(n, m, I, O, F) if level == 2 else \
             indicator_lift(n, m, I, O, F, cuts=False)
         t0 = time.perf_counter()
@@ -247,6 +270,8 @@ def search(B, A, m, price_cost=None, lift_cost=default_lift_cost, kappa=1.0,
         size = comb(len(F), r)
         kw, kv, kf = len(I) + len(F), len(O) + len(F), len(F)
         K2, K3 = kw + kf - 1, kw + kv + kf - 2
+        if bounder == "persp_n":
+            K2 = K3 = max(kw, kv)
         if not should_bound(size, price_cost, lift_cost(K2), kappa):
             enumerate_subtree(I, O, F, r, prio)
             continue
@@ -259,7 +284,8 @@ def search(B, A, m, price_cost=None, lift_cost=default_lift_cost, kappa=1.0,
         if lb < inc["hi"]:
             lb2, sc = lift(2, I, O, F, lo_h)
             lb, score = max(lb, lb2), sc or score
-        if (lb < inc["hi"] and inc["hi"] < INF and lb >= (1 - full_margin) * inc["hi"]
+        if (bounder != "persp_n" and lb < inc["hi"] and inc["hi"] < INF
+                and lb >= (1 - full_margin) * inc["hi"]
                 and should_bound(size, price_cost, lift_cost(K3), kappa)):
             lb3, sc = lift(3, I, O, F, lo_h)
             lb, score = max(lb, lb3), sc or score

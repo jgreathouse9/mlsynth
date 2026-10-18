@@ -17,18 +17,21 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 warnings.filterwarnings("ignore")
 
 from benchmarks.studies.marex_bnb.hybrid import search
-from benchmarks.studies.marex_bnb.panels import geolift
+from benchmarks.studies.marex_bnb.panels import geolift, walmart
 
 EXACT = {4: (554319.7579, 0.30), 6: (297926.2374, 3.94), 8: (181943.3763, 105.1)}
 
 
-def main(ms, kappa=1.0):
-    B, A = geolift()
+def main(ms, kappa=1.0, bounder="treated", panel="geolift"):
+    B, A = walmart() if panel == "walmart" else geolift()
+    if panel == "walmart":
+        global EXACT
+        EXACT = {}
     for m in ms:
-        res = search(B, A, m, kappa=kappa, log=print)
+        res = search(B, A, m, kappa=kappa, log=print, bounder=bounder)
         st = res["stats"]
         value, secs = EXACT.get(m, (None, None))
-        print(f"m={m} kappa={kappa}: set {res['set']}  hi {float(res['hi']):.10g}  gap "
+        print(f"m={m} kappa={kappa} bounder={bounder}: set {res['set']}  hi {float(res['hi']):.10g}  gap "
               f"{float(res['gap'] / res['hi']):.2e}  open {res['open']}  unresolved "
               f"{res['unresolved']}  lifts {st['lifts']} ({st['lift_s']:.0f} s)  "
               f"subtrees enumerated {st['enumerated']} ({st['enumerated_sets']:,} sets, "
@@ -40,6 +43,9 @@ def main(ms, kappa=1.0):
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if not a.startswith("kappa=")]
+    args = [a for a in sys.argv[1:] if "=" not in a]
     kap = [float(a.split("=")[1]) for a in sys.argv[1:] if a.startswith("kappa=")]
-    main([int(a) for a in args] or [4, 6, 8], kappa=kap[0] if kap else 1.0)
+    bnd = [a.split("=")[1] for a in sys.argv[1:] if a.startswith("bounder=")]
+    pan = [a.split("=")[1] for a in sys.argv[1:] if a.startswith("panel=")]
+    main([int(a) for a in args] or [4, 6, 8], kappa=kap[0] if kap else 1.0,
+         bounder=bnd[0] if bnd else "treated", panel=pan[0] if pan else "geolift")
