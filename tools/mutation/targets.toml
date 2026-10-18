@@ -5145,3 +5145,39 @@ timeout = 900.0
   find = "        if not isinstance(v, str) or v not in (\"resample\", \"inversion\"):"
   replace = "        if not isinstance(v, str):"
   models = "an unknown method refused by pydantic's Literal check, whose message does not say what either method does"
+
+[[target]]
+name = "marex-unit-penalty-members"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_penalty_members.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "every-unit-fitted-for-every-cluster"
+  find = "    for j in np.unique(np.asarray(members, dtype=int)):"
+  replace = "    for j in range(N):"
+  models = "the previous loop: every unit in the panel fitted for each cluster that asks, K times the work for K clusters, and 2K on the MIQP path"
+
+  [[target.mutant]]
+  id = "units-nobody-asked-for-read-as-zero"
+  find = "    out = np.full(N, np.nan, dtype=float)"
+  replace = "    out = np.zeros(N, dtype=float)"
+  models = "a unit outside the members charged zero, a value a caller could read as a perfect fit"
+
+  [[target.mutant]]
+  id = "a-repeated-member-fitted-again"
+  find = "    for j in np.unique(np.asarray(members, dtype=int)):"
+  replace = "    for j in np.asarray(members, dtype=int):"
+  models = "a member listed twice fitted twice"
+
+  [[target.mutant]]
+  id = "a-lone-unit-left-uncharged"
+  find = "            out[j] = 0.0\n            continue"
+  replace = "            continue"
+  models = "a one-unit panel's charge left nan, where it has no hull to be fitted to and the charge is zero"
+
+  [[target.mutant]]
+  id = "a-negative-member-wraps-around"
+  find = "        if not 0 <= j < N:"
+  replace = "        if not -N <= j < N:"
+  models = "a negative member read from the end of the panel, charging a unit the caller did not name"
