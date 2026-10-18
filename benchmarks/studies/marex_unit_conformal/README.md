@@ -127,6 +127,66 @@ against 0.25-0.34. The per-unit band for the total by inversion holds best, as
 it did for the aggregate: 0.94-0.95 at 95% at 0.8, 0.92-0.94 trending, and the
 ramp 0.96-0.99.
 
+## A long pre-period
+
+`long_pre.py`, 200 draws a cell. The question here is how to split a long
+pre-period between fitting and blank periods when per-unit inference is
+wanted. 60 units in four clusters of 10, 15, 15 and 20, 140 pre-treatment
+periods and 12 post periods, from a linear factor model on the log scale: unit
+levels `N(6, 1)`, a common cycle of period 52 and amplitude 0.2 plus AR(1)
+shocks at 0.5, three AR(1) factors at 0.5 with cluster and unit loadings, and
+AR(1) noise at 0.2 with sd 0.06. MAREX runs on the levels, clustered, two
+treated per cluster; each treated unit's control is refitted from its own
+cluster's untreated units. The blank window runs from 20 to 70 of the 140
+periods.
+
+### The blank length matters little past the floor
+
+Most quantities move within their noise across the five blank lengths, and the
+ranges below cover all five. Two drift: on a `standard` design the per-unit
+size falls from 0.14-0.15 at 20-39 blank periods to 0.116 at 52-70, and eq.
+(11)'s from 0.25 to 0.125. A longer blank window helps a test that over-rejects
+a little, and costs nothing measurable in width while 70 fitting periods
+remain.
+
+### Per unit, at 5% / 10%
+
+| design | pointwise coverage | Theorem 2 size | total, 5% lift | half-width |
+| --- | --- | --- | --- | --- |
+| standard | 0.939-0.959 / 0.890-0.911 | 0.116-0.152 / 0.173-0.202 | 0.946-0.966 / 0.890-0.916 | 18-20% |
+| unit_penalized | 0.945-0.960 / 0.896-0.920 | 0.086-0.104 / 0.136-0.158 | 0.949-0.983 / 0.902-0.933 | 16-18% |
+
+The half-width is the 95% pointwise band's, as a share of the unit's mean
+level; the aggregate's is 6.4-7.3%. The pointwise band and the band for a
+unit's total hold. The total is under a 5% multiplicative lift, which in levels
+follows the cycle. Theorem 2's per-unit p-value over-rejects, up to three times
+nominal at 5%: the common cycle enters each unit's contrast in levels wherever
+its control's level differs from its own, so the blank and post periods are
+less exchangeable than Assumption 5 asks, and a statistic averaging twelve
+consecutive periods reads it. The inversion holds because its reference is the
+cyclic shifts of the series itself.
+
+Across the eight treated units, any raw rejection at 5% runs at 0.40-0.49.
+Bonferroni brings it to 0.16-0.26 on `standard` designs and 0.12-0.20 on
+`unit_penalized` ones, and the joint test to 0.14-0.20 and 0.14-0.23: both
+inherit the per-unit tests' excess.
+
+### The aggregate
+
+Post-period RMS of the aggregate effect under no effect, as a share of the
+treated level, and Theorem 2's size at 5%:
+
+| design | shared | eq. 11 |
+| --- | --- | --- |
+| standard | 2.7-2.8%, 0.045-0.085 | 11.6-12.8%, 0.125-0.250 |
+| unit_penalized | 2.9-3.1%, 0.060-0.085 | 2.8-3.0%, 0.065-0.085 |
+
+On a `standard` design eq. (11) is four to five times worse than the shared
+contrast: the design picks treated units for how well they match the population
+together, not for how well each is reproduced by its cluster, and eq. (11)
+weights each unit's own error by `w`. On a `unit_penalized` design the two
+agree.
+
 ## Recommendation
 
 Build it, on its own branch after #744's fixes, which it inherits (the
@@ -138,7 +198,12 @@ conformal quantile, the floors, the `(1 + k)/(1 + B)` p-values):
    p-values, the pointwise band, and the band for the total by inversion.
 3. Report the family: raw per-unit p-values, Bonferroni-adjusted ones, and the
    joint test.
-4. Report eq. 11's aggregate beside the shared one, with its own inference.
+4. Report eq. 11's aggregate beside the shared one, with its own inference,
+   and say that on a `standard` design it averages per-unit fits the design
+   never optimised.
+5. For per-unit inference, recommend `unit_penalized` and the band for each
+   unit's total. Theorem 2's per-unit p-value over-rejects wherever the periods
+   are less exchangeable than Assumption 5 asks, more than the aggregate's.
 
 ## References
 
