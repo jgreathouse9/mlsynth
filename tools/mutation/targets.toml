@@ -3839,8 +3839,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "every-cluster-fits-the-first-target"
-  find = "                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,"
-  replace = "                X_fit[members].T, Xbar_clusters[0], sizes, filt=filt,"
+  find = "        B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]"
+  replace = "        B_k, A_k = X_fit[members].T, Xbar_clusters[0]"
   models = "every cluster matched to the first cluster's predictor mean instead of its own, invisible with one cluster, which is the default"
 
   [[target.mutant]]
@@ -3923,8 +3923,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "uncertified-reported-as-infeasible"
-  find = "        except CoupledFitNotCertified:"
-  replace = "        except ():"
+  find = "        except (CoupledFitNotCertified, SearchNotClosed):"
+  replace = "        except (SearchNotClosed,):"
   models = "a fit that could not be certified relabelled as an infeasible design, so the user is told to loosen restrictions and the cardinality when the configuration is feasible and the remedy is backend='mip'"
 
   [[target.mutant]]
@@ -4351,8 +4351,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-design-drops-the-penalty"
-  find = "else None,\n                control_penalty=control_penalty)"
-  replace = "else None,\n                control_penalty=0.0)"
+  find = "else None,\n                    control_penalty=control_penalty)"
+  replace = "else None,\n                    control_penalty=0.0)"
   models = "the exact backend accepting control_penalty and searching each cluster without it, while the MIQP honours it"
 
   [[target.mutant]]
