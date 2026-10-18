@@ -1039,8 +1039,9 @@ to ``"resample"`` alone. The band is a
 :class:`~mlsynth.utils.conformal.CumulativeInversionBand`; its
 ``reference_start`` is the first blank period and its ``n_reference`` is
 :math:`T_b + H`. The study behind these choices, with the floor above and its
-proof, is in ``benchmarks/studies/marex_cumulative_conformal/``, and the tests
-are in ``mlsynth/tests/test_marex_cumulative_inversion.py``.
+proof, is in `benchmarks/studies/marex_cumulative_conformal
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_cumulative_conformal>`_,
+and the tests are in ``mlsynth/tests/test_marex_cumulative_inversion.py``.
 
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
