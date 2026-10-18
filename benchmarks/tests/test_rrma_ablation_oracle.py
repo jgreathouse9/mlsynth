@@ -93,6 +93,56 @@ class TestTheDualProgrammes:
         assert _objective(y, D, c, -b) > 1.5 * _objective(y, D, c, b)
 
 
+class TestWhenHiGHSFails:
+    """HiGHS can return an unrecognised status (15, model status Unknown) on one
+    programme among tens of thousands; the first 500-replication run died on it.
+    The fit must still be the optimum, and the detour must be counted."""
+
+    def _problem(self):
+        rng = np.random.default_rng(9)
+        X = rng.normal(size=(30, 3))
+        y = X @ np.array([1.0, -1.0, 0.5]) + rng.standard_t(3, size=30)
+        h = rng.uniform(0.3, 1.0, size=30)
+        return y, X, h
+
+    def test_wlad_retries_with_another_highs_method(self, monkeypatch):
+        y, X, h = self._problem()
+        i, j = O.pairs(len(y))
+        r, D, c = y[i] - y[j], X[i] - X[j], h[i] * h[j]
+        best = O.wlad(r, D, c)
+        real, calls = O.linprog, []
+
+        def flaky(*args, **kwargs):
+            calls.append(kwargs.get("method"))
+            res = real(*args, **kwargs)
+            if len(calls) == 1:
+                res.status = 4
+            return res
+
+        monkeypatch.setattr(O, "linprog", flaky)
+        before = O.LP_FALLBACKS["retry"]
+        b = O.wlad(r, D, c)
+        assert len(calls) == 2 and calls[1] != calls[0]
+        assert O.LP_FALLBACKS["retry"] == before + 1
+        assert _objective(r, D, c, b) <= _objective(r, D, c, best) * (1 + 1e-9)
+
+    def test_rank_fit_falls_back_to_the_pair_free_solver(self, monkeypatch):
+        y, X, h = self._problem()
+        alpha_ref, beta_ref = O.rank_fit(y, X, h)
+
+        def broken(*args, **kwargs):
+            raise RuntimeError("weighted LAD failed")
+
+        monkeypatch.setattr(O, "wlad", broken)
+        before = O.LP_FALLBACKS["pairfree"]
+        alpha, beta = O.rank_fit(y, X, h)
+        assert O.LP_FALLBACKS["pairfree"] == before + 1
+        i, j = O.pairs(len(y))
+        r, D, c = y[i] - y[j], X[i] - X[j], h[i] * h[j]
+        assert _objective(r, D, c, beta) <= _objective(r, D, c, beta_ref) * (1 + 1e-9) + 1e-12
+        assert abs(alpha - float(np.median(y - X @ beta))) < 1e-12
+
+
 class TestCandidateModels:
     """Equation (14) and the fallback Section 4.1 does not cover."""
 

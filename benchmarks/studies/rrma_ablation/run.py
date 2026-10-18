@@ -29,6 +29,7 @@ import json
 import os
 import platform
 import time
+import traceback
 import warnings
 from collections import Counter
 from multiprocessing import Pool
@@ -199,8 +200,12 @@ def path_a(workers: int, seeds: int, B: int, perms: int) -> Dict:
 
 
 def _mc_job(args):
+    """One replication; a failure comes back as a row naming it, not as a dead pool."""
     case, rep, T1, T2, N = args
-    return S.one_rep(case, T1, T2, N, rep)
+    try:
+        return S.one_rep(case, T1, T2, N, rep)
+    except Exception:                                    # noqa: BLE001 - reported in the results
+        return dict(case=case, rep=rep, error=traceback.format_exc(limit=4))
 
 
 def _summ(e: np.ndarray) -> Dict:
@@ -224,8 +229,10 @@ def monte_carlo(workers: int, reps: int, T1: int = 60, T2: int = 30, N: int = 25
     with Pool(workers) as pool:
         rows = pool.map(_mc_job, jobs, chunksize=1)
     wall = time.perf_counter() - t0
+    errors = [dict(case=r["case"], rep=r["rep"], error=r["error"]) for r in rows if "error" in r]
+    rows = [r for r in rows if "error" not in r]
     rng = np.random.default_rng(20261018)
-    out = dict(T1=T1, T2=T2, N=N, reps=reps, wall_seconds=wall, cases={})
+    out = dict(T1=T1, T2=T2, N=N, reps=reps, wall_seconds=wall, errors=errors, cases={})
     for case in S.CASES:
         rs = [r for r in rows if r["case"] == case]
         E = {a: np.array([r["err"][a] for r in rs]) for a in S.ARMS}
@@ -246,6 +253,9 @@ def monte_carlo(workers: int, reps: int, T1: int = 60, T2: int = 30, N: int = 25
                 b_fallbacks=int(sum(x["b_fallbacks"] for x in d)),
                 tau_fallbacks=int(sum(x["tau_fallbacks"] for x in d)),
                 rank_one_mallows_failed=int(sum(not x["rank_one_mallows"] for x in d)),
+                lp_retry=int(sum(x["lp_retry"] for x in d)),
+                lp_pairfree=int(sum(x["lp_pairfree"] for x in d)),
+                reps_used=len(rs),
                 rrma_seconds_mean=float(np.mean([r["sec"]["RRMA"] for r in rs]))),
             paper={arm: [vals[0], vals[1]] for arm, vals in P.TABLE1_T60[case].items()},
         )
@@ -283,10 +293,13 @@ def _print(res: Dict) -> None:
     if "mc" in res:
         mc = res["mc"]
         print(f"== Monte Carlo: Example 1, T1={mc['T1']} T2={mc['T2']} N={mc['N']}, {mc['reps']} reps "
-              f"({mc['wall_seconds'] / 60:.1f} min)")
+              f"({mc['wall_seconds'] / 60:.1f} min), {len(mc.get('errors', []))} failed replications")
+        for err in mc.get("errors", []):
+            print(f"   FAILED case {err['case']} rep {err['rep']}: {err['error'].strip().splitlines()[-1]}")
         for case, c in mc["cases"].items():
-            print(f"-- case {case}: d {c['diag']['d_mean']:.1f}, m_rrma {c['diag']['m_rrma']}, "
-                  f"ties in {c['diag']['share_with_ties']:.0%}")
+            print(f"-- case {case}: {c['diag'].get('reps_used')} reps, d {c['diag']['d_mean']:.1f}, "
+                  f"m_rrma {c['diag']['m_rrma']}, ties in {c['diag']['share_with_ties']:.0%}, "
+                  f"HiGHS retries {c['diag'].get('lp_retry')}, pair-free fallbacks {c['diag'].get('lp_pairfree')}")
             for arm in S.ARMS:
                 v = c["arms"][arm]
                 r = c["ratio_to_rrma"].get(arm)
@@ -311,11 +324,15 @@ def main(argv=None) -> Dict:
     warnings.filterwarnings("ignore")
     res = json.loads(OUT.read_text()) if OUT.exists() else {}
     res.update(paper="arXiv:2610.15553v1", python=platform.python_version())
+    def checkpoint():
+        OUT.write_text(json.dumps(res, indent=1, default=float) + "\n")
+
     if args.only in (None, "basque"):
         res["path_a"] = path_a(args.workers, args.seeds, args.boot, args.perms)
+        checkpoint()
     if args.only in (None, "mc"):
         res["mc"] = monte_carlo(args.workers, args.reps)
-    OUT.write_text(json.dumps(res, indent=1, default=float) + "\n")
+        checkpoint()
     _print(res)
     return res
 

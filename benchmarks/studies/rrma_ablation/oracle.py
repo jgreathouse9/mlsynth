@@ -231,15 +231,40 @@ def pairs(n: int) -> Tuple[np.ndarray, np.ndarray]:
     return i, j
 
 
+#: HiGHS settings tried in turn. The first 500-replication run met one
+#: programme on which the default returned status 15 (model status Unknown,
+#: primal feasible); the dual simplex without presolve, then the interior-point
+#: method, are the retries.
+_HIGHS_ATTEMPTS = (
+    dict(method="highs"),
+    dict(method="highs-ds", options=dict(presolve=False)),
+    dict(method="highs-ipm"),
+)
+#: Detours taken, per process: ``retry`` counts programmes a later HiGHS setting
+#: solved, ``pairfree`` counts fits ``rank_fit`` handed to the pair-free solver.
+LP_FALLBACKS = {"retry": 0, "pairfree": 0}
+
+
+def _linprog_retrying(*args, **kwargs):
+    """``linprog`` over ``_HIGHS_ATTEMPTS``; the first result with status 0, else the last."""
+    for k, attempt in enumerate(_HIGHS_ATTEMPTS):
+        res = linprog(*args, **kwargs, **attempt)
+        if res.status == 0:
+            LP_FALLBACKS["retry"] += k > 0
+            return res
+    return res
+
+
 def wlad(y: np.ndarray, D: np.ndarray, c: np.ndarray) -> np.ndarray:
     """``argmin_beta sum_k c_k |y_k - D_k beta|`` (Remark 1's ``rq`` call).
 
     Solved as the dual programme ``max y'd s.t. D'd = 0, -c <= d <= c``; the
-    coefficients are the negated multipliers of the equality rows.
+    coefficients are the negated multipliers of the equality rows. Raises
+    ``RuntimeError`` when no HiGHS setting returns an optimum.
     """
-    res = linprog(-y, A_eq=D.T, b_eq=np.zeros(D.shape[1]),
-                  bounds=np.column_stack([-c, c]), method="highs")
-    if res.status != 0:                                  # pragma: no cover - HiGHS on a bounded LP
+    res = _linprog_retrying(-y, A_eq=D.T, b_eq=np.zeros(D.shape[1]),
+                            bounds=np.column_stack([-c, c]))
+    if res.status != 0:
         raise RuntimeError(f"weighted LAD failed: {res.message}")
     return -np.asarray(res.eqlin.marginals, dtype=float)
 
@@ -256,8 +281,8 @@ def simplex_wlad(y: np.ndarray, D: np.ndarray, c: np.ndarray) -> np.ndarray:
     cost = -np.r_[y, 1.0]
     A_ub = np.column_stack([D.T, np.ones(S)])
     bounds = np.vstack([np.column_stack([-c, c]), [-np.inf, np.inf]])
-    res = linprog(cost, A_ub=A_ub, b_ub=np.zeros(S), bounds=bounds, method="highs")
-    if res.status != 0:                                  # pragma: no cover - HiGHS on a bounded LP
+    res = _linprog_retrying(cost, A_ub=A_ub, b_ub=np.zeros(S), bounds=bounds)
+    if res.status != 0:                                  # pragma: no cover - every HiGHS setting failing
         raise RuntimeError(f"simplex LAD failed: {res.message}")
     w = np.clip(-np.asarray(res.ineqlin.marginals, dtype=float), 0.0, None)
     return w / w.sum()
@@ -267,12 +292,21 @@ def rank_fit(y: np.ndarray, X: np.ndarray, h: Optional[np.ndarray] = None):
     """Section 2.3: weighted Wilcoxon slope (8), median intercept.
 
     ``h`` holds the Mallows weights of the rows; ``b_tt' = h_t h_t'``. ``None``
-    is the unweighted Wilcoxon fit. Returns ``(alpha, beta)``.
+    is the unweighted Wilcoxon fit. Returns ``(alpha, beta)``. When HiGHS
+    fails under every setting the fit goes to ``solver_pairfree``, which
+    certifies its own optimum, and ``LP_FALLBACKS["pairfree"]`` counts it.
     """
     n = len(y)
     i, j = pairs(n)
     c = np.ones(len(i)) if h is None else h[i] * h[j]
-    beta = wlad(y[i] - y[j], X[i] - X[j], c)
+    try:
+        beta = wlad(y[i] - y[j], X[i] - X[j], c)
+    except RuntimeError:
+        from . import solver_pairfree as PF
+
+        LP_FALLBACKS["pairfree"] += 1
+        hh = (np.ones(n) if h is None else h)[None]
+        beta = PF.solve(y[None], X[None], hh, PF.crash(y[None], X[None], hh))[0][0]
     alpha = float(np.median(y - X @ beta))
     return alpha, beta
 
