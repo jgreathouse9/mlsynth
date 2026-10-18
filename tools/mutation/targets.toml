@@ -4801,3 +4801,125 @@ timeout = 600.0
   find = "        if self.design == \"weakly_targeted\":\n            raise MlsynthConfigError(\n                \"certify=True"
   replace = "        if False:\n            raise MlsynthConfigError(\n                \"certify=True"
   models = "certify=True accepted for the weakly-targeted design, which fails only once the search has run"
+
+[[target]]
+name = "marex-branch"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "eigenvalue-term-dropped"
+  find = "        const += 2 * min(Fraction(0), lam)"
+  replace = "        const += 0"
+  models = "the node certificate taking the Lagrangian's matrix as semidefinite, so a solver's inexact multipliers give a bound above the subtree it claims to bound"
+
+  [[target.mutant]]
+  id = "trace-of-a-design-taken-as-one"
+  find = "        const += 2 * min(Fraction(0), lam)"
+  replace = "        const += min(Fraction(0), lam)"
+  models = "tr M <= 2 misread as tr M = 1, forgetting the 1 in the corner of [[1, x'], [x, x x']]"
+
+  [[target.mutant]]
+  id = "residual-not-subtracted"
+  find = "        return Fraction(sigma) - Fraction(row, 1 << R.e)"
+  replace = "        return Fraction(sigma)"
+  models = "an eigenvalue bound that trusts the floating-point estimate and the factor, which is a bound only when both are right"
+
+  [[target.mutant]]
+  id = "cardinality-takes-the-largest-coefficients"
+  find = "        const += sum(sorted(cz)[:r])"
+  replace = "        const += sum(sorted(cz)[-r:]) if r else 0"
+  models = "the indicator term minimised over the wrong end, the r largest coefficients instead of the r smallest, which no design need meet"
+
+  [[target.mutant]]
+  id = "control-indicator-taken-as-treated"
+  find = """                const -= mu + a_
+                cz[f] += mu + a_"""
+  replace = """                cz[f] -= mu + a_"""
+  models = "the control side's indicator 1 - z read as z, so its multipliers enter the bound with the wrong sign and constant"
+
+  [[target.mutant]]
+  id = "multiplier-not-repaired"
+  find = """    if Fraction(b) ** 2 <= Fraction(a) * Fraction(c):
+        return a, b, c
+    b = math.copysign"""
+  replace = """    if True:
+        return a, b, c
+    b = math.copysign"""
+  models = "a 2x2 multiplier used as the solver returned it, which need not be semidefinite, so the subtracted term need not be non-negative"
+
+  [[target.mutant]]
+  id = "repair-from-the-subnormal-product"
+  find = "    b = math.copysign(math.sqrt(a) * math.sqrt(c), b)"
+  replace = "    b = math.copysign(math.sqrt(a * c), b)"
+  models = "the square root taken of a c, which is subnormal for tiny a and c and overshoots the bound by up to 1e15 units"
+
+  [[target.mutant]]
+  id = "perspective-blocks-dropped"
+  find = "                             self.crow] + self.clin + self.cper)"
+  replace = "                             self.crow] + self.clin)"
+  models = "the relaxation without the perspective, which scores exactly zero at the averaged point and bounds nothing"
+
+  [[target.mutant]]
+  id = "exact-gram-not-scaled"
+  find = "                S[a + 1][b + 1] = (G.frac(U[a], U[b]) / scale - Fraction(H[a, b])"
+  replace = "                S[a + 1][b + 1] = (G.frac(U[a], U[b]) - Fraction(H[a, b])"
+  models = "the certificate assembled from the data's Gram matrix while the solver saw it scaled, so the multipliers certify a different problem"
+
+  [[target.mutant]]
+  id = "penalty-not-scaled"
+  find = "            xc = [xc[a] + Fraction(float(lin[U[a]])) / scale for a in range(k)]"
+  replace = "            xc = [xc[a] + Fraction(float(lin[U[a]])) for a in range(k)]"
+  models = "a penalized design's linear term certified unscaled beside a scaled quadratic, which overstates the penalty's share of the bound"
+
+  [[target.mutant]]
+  id = "threshold-from-the-best-design-only"
+  find = "        return max(brackets[d.treated][1] for d in best.items)"
+  replace = "        return brackets[best.items[0].treated][1]"
+  models = "a top-k search pruning against the best design instead of the worst one kept, which discards the runners-up"
+
+  [[target.mutant]]
+  id = "threshold-before-k-designs"
+  find = """        if len(best.items) < best.k:
+            return None"""
+  replace = """        if not best.items:
+            return None"""
+  models = "pruning before top_k designs have been found, against designs that may not survive into the top k"
+
+  [[target.mutant]]
+  id = "rounded-guess-not-filtered"
+  find = """        if sub.accepts(guess):
+            fit(guess, h_floor)"""
+  replace = """        fit(guess, h_floor)"""
+  models = "the relaxation's rounded design taken without the restrictions, so a set breaking a conflict or a quota can become the design"
+
+  [[target.mutant]]
+  id = "controls-ignore-exclusions"
+  find = "        control = pool(S)"
+  replace = "        control = [j for j in range(n) if j not in S]"
+  models = "a fitted design's controls taken from the whole cluster, ignoring the markets its treated set excludes from the donor pool"
+
+  [[target.mutant]]
+  id = "cost-rule-inverted"
+  find = "        if count < 2 or not count * price_seconds > lift_seconds("
+  replace = "        if count < 2 or count * price_seconds > lift_seconds("
+  models = "bounding the subtrees that are cheap to price and pricing the ones that are expensive"
+
+[[target]]
+name = "marex-branch-wiring"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k marex"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "coupled-design-sent-to-the-branch-and-bound"
+  find = "            if (design in SEPARABLE_DESIGNS and"
+  replace = "            if (True and"
+  models = "the weakly-targeted design searched by a bound that splits the treated and control fits, which optimises an objective MAREX does not state"
+
+  [[target.mutant]]
+  id = "unclosed-search-reported-as-infeasible"
+  find = "        except (CoupledFitNotCertified, SearchNotClosed):"
+  replace = "        except (CoupledFitNotCertified,):"
+  models = "a search that ran out of bounds reported as an infeasible design, hiding the gap it reached"

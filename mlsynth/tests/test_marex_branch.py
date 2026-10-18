@@ -171,6 +171,21 @@ def test_the_exact_gram_and_transpose():
     assert D.T.N.shape == (3, 2) and D.T.frac(2, 1) == D.frac(1, 2)
 
 
+def test_lambda_min_lower_holds_whatever_factor_it_is_handed(monkeypatch):
+    # An eigenvalue estimate one too high, and a "factor" of the matrix shifted
+    # by 2I: the bound must come from the exact residual, not from the estimate.
+    real_eig, real_chol = np.linalg.eigvalsh, np.linalg.cholesky
+    monkeypatch.setattr(branch_mod.np.linalg, "eigvalsh", lambda S: real_eig(S) + 1.0)
+    monkeypatch.setattr(branch_mod.np.linalg, "cholesky",
+                        lambda M: real_chol(M + 2.0 * np.eye(len(M))))
+    S = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.3], [0.0, 0.3, 3.0]])
+    D = Dyadic.of(S)
+    lam = lambda_min_lower(D)
+    M = _rational(D)
+    assert _exactly_psd([[M[i][j] - (lam if i == j else 0) for j in range(3)]
+                         for i in range(3)])
+
+
 def test_lambda_min_lower_reports_failure_instead_of_guessing(monkeypatch):
     def refuse(*args, **kwargs):
         raise np.linalg.LinAlgError("refused")
