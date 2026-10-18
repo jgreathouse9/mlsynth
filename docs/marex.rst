@@ -1526,6 +1526,14 @@ objective option it solves: `benchmarks/cases/marex_exact_bruteforce.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_exact_bruteforce.py>`_,
 described in :doc:`replications/marex`.
 
+On Abadie and Zhao's own 1000 Section 5 simulations, regenerated in Python from
+their seeds, the base design is unbiased: the mean signed error is within one
+standard error of zero at every cardinality, and the blank-period gap
+``post_fit.power.placebo_bias`` tracks the bias each single design carries with a
+slope near one. `benchmarks/cases/marex_section5_bias.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_section5_bias.py>`_,
+described in :doc:`replications/marex`.
+
 .. note::
 
    The benchmark uses the exact MIQP (free SCIP), not the relaxed

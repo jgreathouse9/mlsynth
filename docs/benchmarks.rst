@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 240 registered cases. ``paths`` is what the case
+All 241 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
 * ``A`` -- empirical replication (77 cases)
-* ``B`` -- Monte Carlo / simulation (67 cases)
+* ``B`` -- Monte Carlo / simulation (68 cases)
 * ``C`` -- theoretical property or design calibration (14 cases)
-* ``X`` -- cross-validation against a reference implementation (112 cases)
+* ``X`` -- cross-validation against a reference implementation (113 cases)
 
-By data: 85 simulated, 139 empirical, 16 both -- so 101 cases fit at least one generated panel.
+By data: 86 simulated, 139 empirical, 16 both -- so 102 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -387,6 +387,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - simulated
    * - ``marex_scdesign_sim``
      - X
+     - simulated
+   * - ``marex_section5_bias``
+     - B X
      - simulated
    * - ``marex_section5_mc``
      - A B
@@ -1110,6 +1113,8 @@ Path B — Monte Carlo / simulation
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest_mc``
      - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
+   * - ``marex_section5_bias``
+     - The base MAREX design on Abadie-Zhao's own 1000 Section 5 panels, regenerated from their seeds by a port of R's generator checked against the R capture: Table 2 at M = 1000, the mean signed error within one standard error of zero, each design's exact bias, and the blank-period gap recovering it with slope near one
    * - ``marex_table3``
      - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``ppscm_bfr_mc``

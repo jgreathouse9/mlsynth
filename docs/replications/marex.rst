@@ -118,8 +118,8 @@ captures a live run of the authors' own ``Generate_Model_Primitives``
 uses: ``R_job.qsub`` submits an SGE array job (``#$ -t 1-1000``) and the script
 reads ``repetition.RANDOM.SEED = Sys.getenv("SGE_TASK_ID")``, so simulation
 :math:`i` is ``set.seed(i)`` --- a thousand independent streams, not one
-advancing stream. Reproducing R's generator in numpy is neither possible nor
-needed once the draws are captured.
+advancing stream. The next section regenerates all 1000 of these panels in
+Python, checked against this capture.
 
 Under that convention their DGP reproduces Table 2's effect path exactly:
 
@@ -220,6 +220,154 @@ Durable case
 
 Fourteen pinned quantities. Runtime is about 180 seconds, almost all of it the
 mixed-integer solves.
+
+Path B — bias of the base design
+--------------------------------
+
+Table 2 reports mean absolute and root mean square errors. Whether the
+estimator is unbiased, whether its error averages to zero, needs the signed
+error over many simulations: its standard error is about 0.4 on 12 panels at
+:math:`m = 3` and 0.024 on 1000.
+
+The authors' 1000 panels
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`~mlsynth.utils.marex_helpers.simulation.generate_section5_sample` ports
+R's ``set.seed``, its Mersenne-Twister generator and its inversion ``rnorm``, and
+replays ``Generate_Model_Primitives`` draw by draw. ``generate_section5_sample(i)``
+is the authors' simulation :math:`i`. Against the R capture above it reproduces
+every outcome and covariate of the 12 captured panels to :math:`5.0 \times
+10^{-11}`, the capture's ten printed decimals, and the 1000-seed effect path to
+:math:`3.2 \times 10^{-7}`, its six. The full simulation therefore runs without
+R.
+
+The bias a design carries
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this DGP the intercepts :math:`\delta_t` and :math:`\upsilon_t` are sorted
+over time, and every coefficient vector, :math:`\theta_t`, :math:`\gamma_t`,
+:math:`\lambda_t` and :math:`\eta_t`, is drawn afresh each period on
+Uniform(0, 10). The weights :math:`\mathbf{w}`, :math:`\mathbf{v}` and
+:math:`\mathbf{f}` each sum to one, so the intercepts cancel from
+:math:`\hat\tau_t - \tau_t`, and the design reads only the fitting periods,
+which are independent of the post-period coefficients and noise. Given the
+design,
+
+.. math::
+
+   \mathbb{E}\left[\hat\tau_t - \tau_t \mid \mathbf{w}, \mathbf{v}\right]
+   = 5\,(\mathbf{w} - \mathbf{v})^\top \mathbf{s},
+   \qquad
+   s_j = \sum_{k=1}^{7} Z_{kj} + \sum_{f=1}^{11} \mu_{fj},
+
+with 5 the coefficients' mean. The bias is the same in every post period, and it
+is zero when the treated and control blends match on every covariate, observed
+or not. The simulator returns the unobserved :math:`\boldsymbol{\mu}`, so the
+bias of every design is computed exactly.
+
+Averaged over the DGP it is zero. Replacing each covariate by one minus itself
+and each noise term by its negative leaves the DGP's distribution unchanged, and
+maps :math:`Y_{N,jt}` to :math:`a_t - Y_{N,jt}` with :math:`a_t` common to all
+units. MAREX's design is unchanged by that map, so the same
+:math:`(\mathbf{w}, \mathbf{v})` is chosen and the bias changes sign, since
+:math:`(\mathbf{w} - \mathbf{v})^\top \mathbf{1} = 0`. On 20 panels at each
+cardinality the case checks this directly: the weights move by at most
+:math:`6.3 \times 10^{-15}` and the two biases cancel to :math:`2.5 \times
+10^{-14}`.
+
+Results
+~~~~~~~
+
+The paper's 1000 simulations, MAREX's ``standard`` design on the exact backend,
+scored as in Table 2. Mean signed error is pooled over the five post periods;
+the design's bias is :math:`5\,(\mathbf{w} - \mathbf{v})^\top \mathbf{s}`;
+standard errors are in parentheses.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 26 26 26
+
+   * -
+     - :math:`m = 1`
+     - :math:`m = 3`
+     - unconstrained
+   * - MAE (paper)
+     - 2.878 (2.93)
+     - 1.219 (1.26)
+     - 0.731 (0.83)
+   * - RMSE (paper)
+     - 3.409 (3.45)
+     - 1.457 (1.49)
+     - 0.868 (0.97)
+   * - treated units (paper)
+     - 1
+     - 3
+     - 6.76 (6.76)
+   * - mean signed error
+     - -0.018 (0.064)
+     - +0.008 (0.024)
+     - +0.014 (0.015)
+   * - largest per-period t
+     - 1.20
+     - 1.73
+     - 1.68
+   * - mean of the design's bias
+     - -0.023 (0.044)
+     - +0.014 (0.013)
+     - +0.010 (0.009)
+   * - RMS of the design's bias
+     - 1.39
+     - 0.41
+     - 0.27
+   * - its share of the MSE
+     - 15%
+     - 7%
+     - 8%
+   * - blank-period gap on the bias: slope
+     - 0.97
+     - 0.98
+     - 1.05
+
+The base design is unbiased on the paper's simulation. The mean signed error is
+within one standard error of zero at every cardinality, as is the mean of each
+design's bias, and no post period's mean error is two standard errors from
+zero.
+
+Unbiased on average is not unbiased in a given experiment. A single design
+carries a bias whose root mean square is 1.39 at :math:`m = 1`, 0.41 at
+:math:`m = 3` and 0.27 unconstrained, 7-15% of the mean square error. It falls
+as the design gets more units to blend, which is Abadie and Zhao's remark that
+the better the pre-experiment match, the smaller the bias.
+
+The blank periods measure that bias. Their coefficients have the same mean as
+the post periods', so the mean blank-period gap
+:math:`\mathbf{w}^\top\mathbf{Y}_{N,t} - \mathbf{v}^\top\mathbf{Y}_{N,t}`, which
+MAREX reports as ``post_fit.power.placebo_bias``, estimates the design's bias:
+regressed on it across the 1000 designs, the slope is 0.97 to 1.05. Five blank
+periods make it a noisy estimate, with correlations of 0.47 to 0.65.
+
+At the paper's own 1000 panels, Table 2 reproduces to within 0.05 for the
+constrained designs and 0.1 unconstrained, where the design selects 6.76 units
+on average, the paper's figure. The panels are the same, so the remaining
+differences are in the design: the authors' routines, the one captured above
+among them, standardize the predictors and include the seven observed
+covariates, and this design matches the pre-period outcomes alone.
+
+Durable case
+~~~~~~~~~~~~
+
+`benchmarks/cases/marex_section5_bias.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_section5_bias.py>`_
+
+.. code-block:: bash
+
+   python benchmarks/run_benchmarks.py --case marex_section5_bias
+   # the unconstrained column, about 15 minutes
+   python -m benchmarks.cases.marex_section5_bias unconstrained
+
+Twenty pinned quantities on :math:`m = 1` and :math:`m = 3`, in about 15
+seconds: the simulator against R, Table 2's cells, the bias t statistics, the
+design bias, the blank-period slope and the reflection.
 
 Cross-validation against SCDesign on the same panels
 ------------------------------------------------------
