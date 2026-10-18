@@ -245,6 +245,32 @@ path, with the median width in standard deviations of the noise sum:
   under-covered when the block length was mis-set.
 - Memmesheimer, Heuveline and Hesser (2025) review conformal methods for
   individual treatment effects; none treats panels or a total over time.
+- Chernozhukov, Wuthrich and Zhu (2021), Remark 1: "when capturing deviations
+  in the average effect", use `S(u) = T*^(-1/2) sum_t u_t`. Candidate 2's
+  statistic is theirs. Their Theorem 1 bounds the size distortion by
+  `C (delta~_T + ...)` with `delta~_T = (T*/T0)^(1/4) log T`, using all
+  permutations under iid shocks (Assumption 2.1) and moving blocks under
+  stationary strong mixing (Assumption 2.2); the subsets and cyclic rows above
+  reproduce that split. Their test refits the counterfactual on every period
+  under the null; MAREX's weights come from the fitting periods alone, so the
+  blank and post errors need no refit. Remark 2 handles unconditional
+  heteroscedasticity by filtering to standardized residuals, the same move as
+  detrending.
+- Barber and Pananjady (2026), Corollary 1: for a pretrained score with memory
+  `L` on a stationary beta-mixing series, split conformal loses at most
+  `min_tau {(tau + L)/(n - L + 1) + 2 beta(tau)}` coverage, tight at `L = 0`
+  (Theorem 2). A sum over `H` consecutive errors is a score with memory
+  `H - 1`, which puts the loss of the rolling, overlapping windows at order
+  `H / n`, the order of the spike bound `H / (n + H)` above, and is why
+  SynthRTCI's rolling origin needs long pre-periods. The post window's errors
+  are unobserved, so the `H - 1` windows straddling the treatment date are
+  missing from the calibration scores; whether their deletion operation covers
+  that gap exactly is not checked here.
+- Sun and Yu (2024), copula conformal prediction: finite-sample joint regions
+  for `k` steps, from many independent trajectories. In MAREX the trajectories
+  would be placebo designs, the cross-sectional route; for a total, split
+  conformal on the placebo sums is the direct version, and a joint region
+  projected onto the sum is wider than it.
 
 ## Next
 
