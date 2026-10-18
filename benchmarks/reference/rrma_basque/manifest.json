@@ -1,0 +1,12 @@
+{
+  "case": "rrma_basque",
+  "title": "Lv & Li (2026) RRMA on the Basque panel, m = 2 path, written in R with the functions the paper names",
+  "paper": "Lv, J. and Li, J. (2026), 'Rank-based Model Average Estimator for Average Treatment Effects', arXiv:2610.15553v1",
+  "reference_impl": "rrma_m2.R in this directory: cor.test, MASS::cov.rob (7.3-60.0.1), quantreg::rq (5.97), lpSolve (5.6.20); the authors released no code",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/rrma_basque/capture.py",
+  "data": [
+    "basedata/basque_data.csv"
+  ],
+  "note": "Consumed by benchmarks/studies/rrma_ablation (a pre-build replication spike); no benchmark case or comparison.csv until an RRMA estimator exists."
+}
