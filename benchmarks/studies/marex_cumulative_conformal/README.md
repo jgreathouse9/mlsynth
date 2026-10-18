@@ -373,13 +373,79 @@ none: the one cell where the worst path read above the null (0.1258 against
 less (0.1255 against 0.1256, three seeds of 400,000). The failure needs a rare
 error that dominates the block sum; heavy tails alone do not produce it.
 
+### Serial dependence: the cause
+
+How dependent real contrasts are, on pre-period data with no effect anywhere
+(MAREX, exact backend; about 40 periods a series, so each estimate carries a
+standard error near 0.16): GeoLift's contrast has lag-1 autocorrelation -0.07
+in the fitting periods and -0.28 in the blank and pseudo-post ones, Walmart's
++0.21 and +0.22, and the CWZ refit residuals -0.12 and +0.07. The earlier
+calibration study measured 0.06-0.07 on its panel. Factors at 0.8 are a stress
+case well beyond these.
+
+Whitening (`whiten.py`, after CWZ Section 4.4.2 and Lemma 7): fit AR(K) to the
+null-imputed series, permute the innovations, rebuild the levels, keep the
+signed post sum on the levels. On pure AR(1) error series it does what the
+lemma says, AR(0.8) at 95% moving from 0.92-0.94 (cyclic) to 0.94-0.96, and the
+exact inversion over the AR coefficient holds everywhere at 0.94-1.00. Through
+MAREX designs it does not help: AR(1) 0.883 / 0.687 under factors at 0.8,
+against 0.910 / 0.730 for plain cyclic shifts; AR(2), AR(p) by AIC, AR(6) and
+ARMA(1, 1) do no better (`whiten_diag.py`).
+
+The descent (`whiten_diag.py`, 300 draws), the CWZ refit residuals at the true
+total:
+
+| factors | mean squared residual: fitting / blank / post | post sum's spread over the reference's |
+| --- | --- | --- |
+| 0.8 | 0.84 / 1.29 / 1.30 | 1.59 |
+| 0.5 | 1.00 / 1.43 / 1.44 | 1.35 |
+| iid | 1.05 / 1.46 / 1.38 | 1.17 |
+
+- The blank and post stretches behave alike. The fitting periods, where MAREX
+  chose the treated set, carry residuals about 30% smaller in mean square: the
+  same leak the calibration study measured as a spread ratio of 0.818 on its
+  panel.
+- Persistence amplifies the leak for a sum, because a 13-period sum is
+  dominated by slow movements and choosing the treated set on a window fits
+  those away there: the reference understates the post sum's spread by a factor
+  of 1.17 under iid factors, 1.35 at 0.5 and 1.59 at 0.8. Against blocks inside
+  the blank periods alone the understatement is 1.07-1.09.
+- Ruled out: the cyclic seam (wrapping and contiguous blocks have the same
+  spread, ratio 1.03-1.04); the order of the dependence model (every whitening
+  model fails alike, since the gap is between stretches, not a stationary
+  dependence); recency weights (at most one point).
+
+Confirming it (`leak_fix.py`, 300 draws): keep the fitting periods out of the
+reference. Coverage at 95% / 80%, constant path, median width at 95%:
+
+| factors | refit, all periods referenced | refit, blank and post referenced | refit on blank and post | no refit, blank and post |
+| --- | --- | --- | --- | --- |
+| 0.8 | 0.910 / 0.730 (42.5) | 0.967 / 0.777 (60.0) | 0.977 / 0.833 (78.8) | 0.917 / 0.757 (52.5) |
+| 0.5 | 0.927 / 0.767 (30.0) | 0.973 / 0.787 (45.0) | 0.977 / 0.813 (56.2) | 0.947 / 0.770 (45.0) |
+| iid | 0.950 / 0.773 (25.0) | 0.967 / 0.827 (37.5) | 0.973 / 0.820 (45.0) | 0.980 / 0.813 (47.5) |
+| sorted | 0.983 / 0.833 (32.5) | 0.983 / 0.807 (38.8) | 0.993 / 0.860 (52.5) | 0.833 / 0.537 (32.5) |
+
+- With the fitting periods out of the reference, coverage holds under every
+  regime, the persistent ones included, and the ramp path is covered at 0.91 or
+  more throughout.
+- The construction that results takes from both papers: CWZ's refit on every
+  period, which tracks a trend the controls share; CWZ's Remark 1 signed
+  statistic, which depends on the effect path only through the total; and
+  Abadie and Zhao's reference set, the blank and post periods the design never
+  saw. Its band is wider than the leaky one by about half, and narrower than
+  the blank-only band without a refit under iid factors (37.5 against 47.5).
+- What is left for pure serial dependence is the finite-sample term Barber and
+  Pananjady describe: 0.777 at 80% under factors at 0.8, a standard error from
+  nominal at 300 draws.
+
 ## Next
 
-1. The library change the spikes point to: CWZ's Remark 1 statistic as an
-   option of :func:`~mlsynth.utils.conformal.cumulative_conformal_by_inversion`
-   and the refit machinery under it, test-first on its own branch, then
-   offered as a cumulative band for MAREX.
-2. Serial dependence in the factors, which no arm here fixes.
+1. The library change: CWZ's Remark 1 statistic as an option of
+   :func:`~mlsynth.utils.conformal.cumulative_conformal_by_inversion` and the
+   refit machinery under it, with the permuted window settable apart from the
+   refit window, test-first on its own branch; then a MAREX cumulative band
+   that refits on every period and permutes over the blank and post periods.
+2. The inference fixes recorded on #744.
 
 ## References
 

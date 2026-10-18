@@ -13,7 +13,8 @@ treatment here:
 * ``iid`` -- every period effect drawn independently: the periods are
   exchangeable, Theorem 2's assumption.
 * ``ar`` -- ``theta_t`` and ``lambda_t`` an AR(1) with coefficient 0.8 about
-  their means, same marginal: stationary and serially dependent.
+  their means, same marginal: stationary and serially dependent. ``ar5`` and
+  ``arneg`` are the same at 0.5 and -0.5.
 * ``sorted`` -- ``delta_t`` and each coordinate of ``lambda_t`` sorted small to
   large, the rearrangement Section 5 uses: trending.
 
@@ -48,14 +49,19 @@ ALPHAS = (0.05, 0.2)
 SCALE = 2.0
 
 
+#: AR(1) coefficient of the factors under each serially dependent regime.
+PHI = {"ar": 0.8, "ar5": 0.5, "arneg": -0.5}
+
+
 def _factor(T, k, hi, dgp, rng):
     x = rng.uniform(0.0, hi, (T, k))
-    if dgp == "ar":
+    if dgp in PHI:
         # an AR(1) with the uniform's mean and spread, built from normals
+        phi = PHI[dgp]
         z = np.empty((T + 200, k))
         z[0] = rng.standard_normal(k)
         for t in range(1, T + 200):
-            z[t] = 0.8 * z[t - 1] + np.sqrt(1 - 0.64) * rng.standard_normal(k)
+            z[t] = phi * z[t - 1] + np.sqrt(1 - phi ** 2) * rng.standard_normal(k)
         x = hi / 2.0 + z[200:] * hi / np.sqrt(12.0)
     if dgp == "sorted":
         x = np.sort(x, axis=0)
@@ -66,7 +72,7 @@ def panel(T, dgp, rng):
     Z = rng.uniform(0, 1, (R_OB, J))
     mu = rng.uniform(0, 1, (F_UNOB, J))
     delta = _factor(T, 1, 20.0, dgp, rng)
-    theta = _factor(T, R_OB, 10.0, "ar" if dgp == "ar" else "iid", rng)
+    theta = _factor(T, R_OB, 10.0, dgp if dgp in PHI else "iid", rng)
     lam = _factor(T, F_UNOB, 10.0, dgp, rng)
     return delta + theta @ Z + lam @ mu + rng.standard_normal((T, J))
 
