@@ -505,15 +505,16 @@ across 400 random problems it was never more than three, at :math:`\beta` from 0
 :math:`\beta / (1 + \beta)` and needed a median of 1,750 steps per candidate at
 :math:`\beta = 100` on GeoLift's forty markets.
 
-The fit stops on a certificate, not on a small step. The Frank-Wolfe gap, the
-improvement the best vertex of each simplex offers along the gradient, bounds
-the distance to the minimum from above, and the fit stops when the gap is under
-:math:`10^{-10}` of the objective. A fit whose gap is still open after 20,000
-steps raises with a message naming ``backend="mip"``, since ranking candidates
-on an uncertified value could discard the optimal design. The same gap gives a
-certified lower bound at every step, the objective less the gap. The search
-hands each fit the objective of the best design found so far, and the fit stops and discards its
-candidate as soon as that lower bound is above it.
+The fit stops on a certificate, not on a small step. The Frank-Wolfe gap (Frank
+and Wolfe 1956), the improvement the best vertex of each simplex offers along
+the gradient, bounds the distance to the minimum from above, and the fit stops
+when the gap is under :math:`10^{-10}` of the objective. A fit whose gap is
+still open after 20,000 steps raises with a message naming ``backend="mip"``,
+since ranking candidates on an uncertified value could discard the optimal
+design. The same gap gives a certified lower bound at every step, the objective
+less the gap. The search hands each fit the objective of the best design found
+so far, and the fit stops and discards its candidate as soon as that lower bound
+is above it.
 
 The coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
 still holds and the bound and both passes prune as they do for the other
@@ -670,7 +671,11 @@ design is within that distance of the optimum, whatever the rounding did.
                            certify=True)).fit()
    res.certificate.lower, res.certificate.upper, res.certificate.gap
 
-The certificate rests on three facts.
+The construction is Neumaier and Shcherbina's (2004) rigorous bound for
+linear programs: any dual point gives a valid bound, so a floating-point
+solution needs only to be evaluated with its rounding under control. They use
+interval arithmetic; the certificate uses exact arithmetic, and bounds in
+advance the rounding of the one step it batches. It rests on three facts.
 
 1. Exact arithmetic. Every finite double is an integer divided by a power of
    two, so the data, and any sum or product of them, can be held exactly as
@@ -682,7 +687,8 @@ The certificate rests on three facts.
    :math:`\mathbf{b}_j = \mathbf{x}_j - \bar{\mathbf{x}}` the centred predictor
    vectors and :math:`\mathbf{a}` the design's penalty (zero for
    ``standard``), any vector :math:`\mathbf{y}` gives a lower bound, the dual
-   of the fit. Expanding
+   of the fit (in squared form, the bound of Wolfe 1976, Theorem 2.2).
+   Expanding
    :math:`\|\sum_j w_j \mathbf{b}_j - \mathbf{y}\|_2^2 \ge 0` gives
    :math:`\|\sum_j w_j \mathbf{b}_j\|_2^2 \ge \sum_j w_j\, 2 \mathbf{y}^\top
    \mathbf{b}_j - \|\mathbf{y}\|_2^2`, and on the simplex a weighted average is
@@ -1523,6 +1529,12 @@ Disaggregated Data." *Journal of the American Statistical Association*
 
 Wolfe, P. (1976). "Finding the Nearest Point in a Polytope." *Mathematical
 Programming* 11(1):128-149.
+
+Frank, M., & Wolfe, P. (1956). "An Algorithm for Quadratic Programming."
+*Naval Research Logistics Quarterly* 3(1-2):95-110.
+
+Neumaier, A., & Shcherbina, O. (2004). "Safe Bounds in Linear and
+Mixed-Integer Linear Programming." *Mathematical Programming* 99:283-296.
 
 Burer, S. (2009). "On the Copositive Representation of Binary and Continuous
 Nonconvex Quadratic Programs." *Mathematical Programming* 120:479-495.

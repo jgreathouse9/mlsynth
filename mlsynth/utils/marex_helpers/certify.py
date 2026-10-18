@@ -12,6 +12,12 @@ they are, and ``g(S)`` is the exact minimum of ``||A - B_S w||^2 + a'w`` over th
 simplex on ``S``. Because the weights sum to one this is ``||Bc w||^2 + a'w``
 with ``Bc = B - A 1'`` computed exactly, not in floating point.
 
+The construction is Neumaier and Shcherbina's (2004) rigorous bound for linear
+programs: any dual point gives a valid bound, so a solver's approximate dual
+needs only to be evaluated with its rounding under control. They use interval
+arithmetic; here the arithmetic is exact, and the one batched step that is not
+has its rounding bounded in advance.
+
 Exact arithmetic. Every finite double is an integer over a power of two, so a
 matrix of doubles is exactly an integer matrix over one power of two, and sums
 and products of such matrices stay in that form. :class:`Dyadic` holds one as
@@ -20,13 +26,15 @@ double, and that rounding is directed (:func:`round_down`, :func:`round_up`).
 
 One fit, exactly (:meth:`ExactData.interval`). Any point of the simplex gives an
 upper bound: the weights a fit returned, clipped at zero and rescaled to sum to
-one exactly. Any vector ``y`` gives a lower bound, the Wolfe dual of the fit:
+one exactly. Any vector ``y`` gives a lower bound, the dual of the fit (in
+squared form, the bound of Wolfe 1976, Theorem 2.2):
 
     ||Bc w||^2 + a'w >= 2 y'Bc w - ||y||^2 + a'w >= min_j (2 y'b_j + a_j) - ||y||^2
 
 on the simplex. At ``y = Bc w`` with ``w`` the rescaled weights the two differ
-by the fit's Frank-Wolfe gap, which is zero at the optimum. Both are computed
-exactly. Each costs ``T`` times the number of columns in integer operations.
+by the fit's Frank-Wolfe gap (Frank and Wolfe 1956), which is zero at the
+optimum. Both are computed exactly. Each costs ``T`` times the number of
+columns in integer operations.
 
 Every candidate, in batches (:meth:`ExactData.treated_bounds`). Exact fits of
 every candidate would cost far more than the search. The lower bound above at

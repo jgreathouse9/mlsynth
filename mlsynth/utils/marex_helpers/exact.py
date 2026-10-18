@@ -62,7 +62,8 @@ Each step solves the current face exactly, so the step count does not grow with
 ``beta``: across random problems it was at most three. The alternation it
 replaced converges at the rate ``beta / (1 + beta)`` and took a median of 1,750
 sweeps per candidate at ``beta = 100`` on GeoLift's 40 markets. The fit stops
-on the Frank-Wolfe gap, ``sum over blocks of grad'x - min_j grad_j``, which
+on the Frank-Wolfe gap (Frank and Wolfe 1956),
+``sum over blocks of grad'x - min_j grad_j``, which
 bounds the distance to the optimum from above, and raises when the gap has not
 closed within ``COUPLED_MAX_ITER`` steps.
 
