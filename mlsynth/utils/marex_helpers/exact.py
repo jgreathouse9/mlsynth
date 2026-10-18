@@ -126,6 +126,7 @@ and the search raises with the MIQP as the way out.
 
 from __future__ import annotations
 
+import dataclasses
 import heapq
 import itertools
 from dataclasses import dataclass
@@ -1164,7 +1165,7 @@ def _designs(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
-    restrictions=None, top_k=1, control_penalty=0.0,
+    restrictions=None, top_k=1, control_penalty=0.0, certify=False,
 ) -> List[Dict[str, Any]]:
     if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
@@ -1193,6 +1194,7 @@ def _designs(
     _refuse_spanning_rules(restrictions, cluster_of)
 
     per_cluster: List[List[ClusterDesign]] = []
+    certificates: Dict[str, Any] = {}
     for k_idx, lab in enumerate(cluster_labels):
         members = np.asarray(cluster_members[k_idx])
         sizes = _sizes(len(members), lab, m_eq, m_min, m_max)
@@ -1220,6 +1222,13 @@ def _designs(
                 f"cluster cardinality (m_min/m_max) in cluster {lab!r}: {exc}"
             ) from exc
         per_cluster.append(designs)
+        if certify:
+            from .certify import certify_cluster
+            cert = certify_cluster(
+                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt, designs[0],
+                linear_treated=a, linear_control=b, donor_exclusion=donors)
+            certificates[str(lab)] = dataclasses.replace(cert, unresolved=tuple(
+                tuple(int(members[j]) for j in S) for S in cert.unresolved))
 
     raws = []
     for total, pick in _k_best_combinations(per_cluster, top_k):
@@ -1238,6 +1247,8 @@ def _designs(
             Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
             cluster_labels, cluster_members, N, K, T0, blank_periods, T_fit,
             Y_fit, Y_blank, design, clusters, float(total)))
+    if certify:
+        raws[0]["certificate"] = certificates
     return raws
 
 
@@ -1246,6 +1257,9 @@ def solve_design_exact(Y_full, T0, clusters, **kwargs) -> Dict[str, Any]:
 
     Takes ``solve_design``'s arguments less the branch-and-bound knobs
     (``solver``, ``verbose``, ``warm_start``, ``time_limit``, ``forbidden``).
+    With ``certify=True`` the dict also holds ``"certificate"``, one
+    :class:`~mlsynth.utils.marex_helpers.certify.ClusterCertificate` per
+    cluster label, its unresolved sets in global unit indices.
     """
     return _designs(Y_full, T0, clusters, top_k=1, **kwargs)[0]
 

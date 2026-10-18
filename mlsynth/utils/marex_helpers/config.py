@@ -142,6 +142,21 @@ class MAREXConfig(BaseMAREXConfig):
             "stratum quota may span two clusters."
         ),
     )
+    certify: bool = Field(
+        default=False,
+        description=(
+            "With backend='exact', also return a certificate "
+            "(``MAREXResults.certificate``): a lower bound on the optimal "
+            "objective and an upper bound on the returned design's, both exact "
+            "for the stored data and rounded outward, so the design is optimal "
+            "to within their difference whatever the floating-point rounding "
+            "in the search. It prices every candidate a second time with a "
+            "certified bound and fits the few that bound does not clear in "
+            "exact arithmetic. The standard, penalized and unit-penalized "
+            "designs only: the weakly-targeted objective does not split into a "
+            "treated fit and a control fit."
+        ),
+    )
     solver: Any = Field(default=None)
     verbose: bool = Field(default=False)
     warm_start: Optional[List] = Field(
@@ -394,6 +409,22 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "backend='exact' cannot honour this configuration: "
                 + "; ".join(problems) + ". Use backend='mip'.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_certify(self) -> "MAREXConfig":
+        """The certificate covers the exact backend's separable designs."""
+        if not self.certify:
+            return self
+        if self.backend != "exact":
+            raise MlsynthConfigError(
+                "certify=True certifies the exact backend's search; set "
+                "backend='exact'.")
+        if self.design == "weakly_targeted":
+            raise MlsynthConfigError(
+                "certify=True splits each candidate into a treated fit and a "
+                "control fit, and the weakly-targeted design couples them; "
+                "certify the standard, penalized or unit_penalized design.")
         return self
 
     @model_validator(mode="after")

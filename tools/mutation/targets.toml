@@ -4645,3 +4645,159 @@ timeout = 900.0
   find = "        if not np.isfinite(lam) or lam < 0:"
   replace = "        if False:"
   models = "the bound built for a negative control penalty, where (1 + lam) shrinks the coupling term the convexity argument needs to be non-negative"
+
+# ----------------------------------------------------------------------
+# MAREX exact backend: the certified optimality gap (certify=True)
+# ----------------------------------------------------------------------
+
+[[target]]
+name = "marex-exact-certificate"
+module-path = "mlsynth/utils/marex_helpers/certify.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_certificate.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "gram-rounding-ignored"
+  find = "                err_G = g_G * (Ga + under) + under"
+  replace = "                err_G = 0.0 * Ga"
+  models = "a batched bound that trusts the floating-point Gram matrix, which on nearly collinear markets of large norm rises above the fit it bounds"
+
+  [[target.mutant]]
+  id = "difference-rounding-ignored"
+  find = "        g_G = _gamma(T + 2) / (1.0 - _gamma(T))"
+  replace = "        g_G = _gamma(T) / (1.0 - _gamma(T))"
+  models = "a Gram error bound that covers the inner products and not the rounding of B - A, so the bound describes the floating-point difference instead of the data"
+  expected = "survived"
+  accepted-because = "the 2u it drops sits beside a gamma_T term the measured error never approaches. Against the exact Gram of B - A as given, the floating-point Gram is off by 4% of gamma_T |Bf|'|Bf| on the far-target fixture (T = 40, target 3e8 from markets near 1), 16% on constant columns at T = 200, where the inner products drift one way, and under 1.5% with a target of norm 1e6. Killing it needs an error within 2/(T+2) of the a priori worst case, which the analysis allows and no fixture reaches. The term stays so the bound remains a proof for every input, not for the inputs measured."
+
+  [[target.mutant]]
+  id = "all-slack-dropped"
+  find = "                lb = np.nextafter((mn - q) - (2.0 * err + floor), -np.inf)"
+  replace = "                lb = mn - q"
+  models = "the closed form taken as certified: the dual value at the computed point, with no allowance for any rounding"
+
+  [[target.mutant]]
+  id = "batched-bound-drops-the-linear-term"
+  find = "                r = 2.0 * v + a"
+  replace = "                r = 2.0 * v"
+  models = "a penalized candidate priced without its penalty: still a valid bound, but far under the closed form, so the certificate fits candidates the search never needed"
+
+  [[target.mutant]]
+  id = "trivial-bound-takes-the-largest-penalty"
+  find = "            trivial = a.min(axis=1) if m else np.zeros(b)"
+  replace = "            trivial = a.max(axis=1) if m else np.zeros(b)"
+  models = "the trivial bound g(S) >= min_j a_j misstated as the largest penalty, which a fit that puts its weight on cheap markets undercuts"
+
+  [[target.mutant]]
+  id = "interval-upper-drops-the-penalty"
+  find = "        hi = yy + sum(Fraction(float(w[i])) * a[i] for i in range(len(cols))) / s"
+  replace = "        hi = yy"
+  models = "a penalized design's upper bound without its penalty, below the objective it claims to bound"
+
+  [[target.mutant]]
+  id = "interval-dual-takes-the-largest-column"
+  find = "        lo = min(2 * P.frac(i) / s + a[i] for i in range(len(cols))) - yy"
+  replace = "        lo = max(2 * P.frac(i) / s + a[i] for i in range(len(cols))) - yy"
+  models = "the Wolfe dual evaluated at the best column instead of the worst, which is no bound at all away from the optimum"
+
+  [[target.mutant]]
+  id = "interval-weights-not-rescaled"
+  find = "        s = W.total()"
+  replace = "        s = Fraction(1)"
+  models = "the clipped weights used as if they summed to one, so the upper bound is the objective at a point off the simplex"
+
+  [[target.mutant]]
+  id = "upper-from-the-reported-value"
+  find = "    upper = hi_g + hi_h"
+  replace = "    upper = Fraction(design.value)"
+  models = "the certificate trusting the design's floating-point value instead of bounding its weights exactly"
+
+  [[target.mutant]]
+  id = "lower-starts-at-the-upper-bound"
+  find = "    lower = lo_g + lo_h"
+  replace = "    lower = upper"
+  models = "a lower bound that takes the design as optimal and only looks for better sets, so weights short of the optimum go unreported"
+
+  [[target.mutant]]
+  id = "control-floor-from-the-design"
+  find = "    h_floor = data.interval(everyone, v_all, lin_c)[0]"
+  replace = "    h_floor = lo_h"
+  models = "the control floor read from the design's own control pool, which a candidate leaving a better pool undercuts, so better sets are discarded unseen"
+
+  [[target.mutant]]
+  id = "unresolved-candidates-not-refit"
+  find = "            lo_S += data.interval(control, v, lin_c)[0]"
+  replace = "            lo_S += h_floor"
+  models = "an unresolved candidate priced by the control floor instead of its own control fit, a valid but loose lower bound that hides the optimum it found"
+
+  [[target.mutant]]
+  id = "an-exact-tie-is-resolved"
+  find = "            if lo_S <= upper:"
+  replace = "            if lo_S < upper:"
+  models = "a candidate whose lower bound equals the design's upper bound counted as beaten, so an exact tie goes unreported"
+
+  [[target.mutant]]
+  id = "a-tie-is-discarded-before-the-control-fit"
+  find = "            if lo_S + h_floor > upper:"
+  replace = "            if lo_S + h_floor >= upper:"
+  models = "the treated-side screen discarding a candidate that can still tie the design"
+
+  [[target.mutant]]
+  id = "the-design-is-refit-as-a-rival"
+  find = "            if S == tuple(design.treated):\n                continue"
+  replace = "            if False:\n                continue"
+  models = "the design's own treated set reported as unresolved against itself"
+
+  [[target.mutant]]
+  id = "the-design-s-pool-is-not-checked"
+  find = "    if list(design.control) != pool(design.treated):"
+  replace = "    if False:"
+  models = "a design whose control pool is not the one its treated set leaves, certified anyway: its control fit can then sit above its true objective and the lower bound with it"
+
+  [[target.mutant]]
+  id = "the-coupled-design-is-certified"
+  find = "    if beta is not None:\n        raise MlsynthConfigError("
+  replace = "    if False:\n        raise MlsynthConfigError("
+  models = "a certificate issued for the weakly-targeted design, whose treated and control fits share a term the split does not see"
+
+  [[target.mutant]]
+  id = "outward-rounding-rounds-to-nearest"
+  find = "    if Fraction(x) > q:\n        x = math.nextafter(x, -math.inf)"
+  replace = "    if False:\n        x = math.nextafter(x, -math.inf)"
+  models = "the final rational rounded to the nearest double, which can land inside the bracket instead of outside it"
+
+[[target]]
+name = "marex-certificate-wiring"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_certificate.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "unresolved-sets-left-in-local-indices"
+  find = "                tuple(int(members[j]) for j in S) for S in cert.unresolved))"
+  replace = "                tuple(int(j) for j in S) for S in cert.unresolved))"
+  models = "a cluster's unresolved sets reported in its local positions, which name the wrong units in every cluster but the first"
+
+  [[target.mutant]]
+  id = "the-certificate-is-dropped"
+  find = "        raws[0][\"certificate\"] = certificates"
+  replace = "        pass"
+  models = "certify=True accepted and the certificate computed, then never returned"
+
+[[target]]
+name = "marex-certify-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_certificate.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "certify-accepted-with-the-mip"
+  find = "        if self.backend != \"exact\":\n            raise MlsynthConfigError(\n                \"certify=True"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                \"certify=True"
+  models = "certify=True accepted with backend='mip', which returns no certificate the caller asked for"
+
+  [[target.mutant]]
+  id = "certify-accepted-for-the-coupled-design"
+  find = "        if self.design == \"weakly_targeted\":\n            raise MlsynthConfigError(\n                \"certify=True"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                \"certify=True"
+  models = "certify=True accepted for the weakly-targeted design, which fails only once the search has run"

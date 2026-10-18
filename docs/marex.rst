@@ -641,6 +641,99 @@ the objective. Where the objective is flat in some direction the optimal weights
 are not unique, and the two can then return different weights at the same
 objective.
 
+.. _marex-certificate:
+
+Certifying the search
+^^^^^^^^^^^^^^^^^^^^^
+
+The search prices and fits candidates in floating-point arithmetic, which rounds
+every operation, so its design is optimal up to rounding that the search does
+not bound. With ``certify=True`` (and ``backend="exact"``) the result also
+carries ``res.certificate``, two numbers with
+
+.. math::
+
+   \texttt{lower} \;\le\; f^\star \;\le\; f(\text{design}) \;\le\; \texttt{upper},
+
+where :math:`f^\star` is the smallest objective any admissible design attains
+and :math:`f(\text{design})` is the returned design's, both evaluated exactly on
+the stored data. ``res.certificate.gap`` is ``upper - lower``: the returned
+design is within that distance of the optimum, whatever the rounding did.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=4, backend="exact",
+                           certify=True)).fit()
+   res.certificate.lower, res.certificate.upper, res.certificate.gap
+
+The certificate rests on three facts.
+
+1. Exact arithmetic. Every finite double is an integer divided by a power of
+   two, so the data, and any sum or product of them, can be held exactly as
+   integers. The certificate computes its bounds as exact fractions and rounds
+   only the final two numbers, ``lower`` down and ``upper`` up.
+
+2. Bounds on one fit. Any weights on the simplex give an upper bound on
+   :math:`g(\mathcal{S})`: the objective at those weights. With
+   :math:`\mathbf{b}_j = \mathbf{x}_j - \bar{\mathbf{x}}` the centred predictor
+   vectors and :math:`\mathbf{a}` the design's penalty (zero for
+   ``standard``), any vector :math:`\mathbf{y}` gives a lower bound, the dual
+   of the fit. Expanding
+   :math:`\|\sum_j w_j \mathbf{b}_j - \mathbf{y}\|_2^2 \ge 0` gives
+   :math:`\|\sum_j w_j \mathbf{b}_j\|_2^2 \ge \sum_j w_j\, 2 \mathbf{y}^\top
+   \mathbf{b}_j - \|\mathbf{y}\|_2^2`, and on the simplex a weighted average is
+   at least its smallest term, so
+
+   .. math::
+
+      g(\mathcal{S}) \;\ge\; \min_{j \in \mathcal{S}}
+        \bigl(2 \mathbf{y}^\top \mathbf{b}_j + a_j\bigr)
+        - \|\mathbf{y}\|_2^2 .
+
+   At :math:`\mathbf{y} = \sum_j w_j \mathbf{b}_j`, with :math:`\mathbf{w}` the
+   fitted weights, the two bounds differ by the fit's own error and meet at the
+   optimum. The certificate computes both exactly for the design's treated fit
+   and control fit.
+
+3. The search's bound, made rigorous. The dual bound holds for every
+   :math:`\mathbf{y}`, so it can be taken at the closed-form point the search
+   already computes, where it equals the closed form above. Evaluated in
+   floating point it reads the data through the inner products
+   :math:`\mathbf{G}_{\mathcal{S}}`, and each rounding on the way has an a
+   priori bound (Higham 2002, sec. 3.1): the inner products, the subtraction of
+   the target, and the products with the point. The certificate subtracts all
+   of them and rounds down, so every candidate gets a bound the arithmetic
+   cannot push above its fit, at about the cost of the search's own.
+
+Per cluster, the certificate prices every admissible candidate again with that
+bound plus a floor on its control fit: the control pool is part of the cluster,
+and a fit over more markets is no worse, so :math:`h(\mathcal{S})` is at least
+the exact lower bound of the fit over the whole cluster. A candidate priced at
+or above ``upper`` cannot beat the design. The rest are fitted and bracketed
+exactly, and a candidate whose exact lower bound still does not clear ``upper``
+is listed in ``res.certificate.clusters[label].unresolved``, by unit label:
+it might be as good as the design. A set that ties the design exactly is always
+listed, and ``lower`` is the smallest exact lower bound among the design and
+the listed sets. An empty list means every other treated set has an objective
+above ``upper``.
+The clusters are searched apart, so the certificate of the whole design sums
+theirs.
+
+``res.globres.objective`` is the floating-point value of the same design, and
+it agrees with the bracket to within its own rounding. The ``weakly_targeted``
+design is refused, since its coupling term ties the treated and control fits
+together and the split the certificate relies on does not exist.
+
+On GeoLift's 40 markets as one cluster (90 pre-period days, the ``standard``
+design), the certificate confirmed the search's design for every treated count
+from two to seven, with a relative gap of at most :math:`4 \times 10^{-13}`
+and no unresolved set. The certified bound cleared all but at most four
+candidates per count without an exact fit. It cost 1.7 to 1.95 times the search
+from three treated up, and 2.4 times at two, where the whole search takes ten
+milliseconds; at seven treated, 18.6 million candidates, the search took 27
+seconds and the certificate 53.
+
 Inference
 ^^^^^^^^^
 
