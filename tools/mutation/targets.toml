@@ -5607,3 +5607,15 @@ timeout = 900.0
   find = "                unit_inference=self.config.unit_inference,"
   replace = "                unit_inference=False,"
   models = "the config accepting unit_inference and the estimator never passing it on"
+
+[[target]]
+name = "marex-unit-inference-eq11-band"
+module-path = "mlsynth/utils/marex_helpers/unit_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py -q -x -p no:cacheprovider -k eq11"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "eq11-refits-on-the-treated-units"
+  find = "                             control_outcomes=Y_full[untreated], **common)"
+  replace = "                             control_outcomes=Y_full[~untreated], **common)"
+  models = "eq. (11)'s band for the total refitted on the treated units, so it stops being the shared contrast's band and tests nothing a reader can name"

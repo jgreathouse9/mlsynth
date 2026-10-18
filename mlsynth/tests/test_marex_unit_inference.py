@@ -131,6 +131,20 @@ def test_eq11_is_the_weighted_sum_of_the_unit_contrasts():
                                atol=1e-12)
 
 
+def test_under_inversion_eq11_shares_the_aggregate_band_for_the_total():
+    """The inversion refits the treated series on the untreated units and never
+    reads a control, so the shared contrast and eq. (11) get one band; only the
+    point, each contrast's own total, differs."""
+    res = _fit(unit_inference=True, cumulative_band=True,
+               cumulative_method="inversion")
+    shared = res.globres.inference.cumulative_band
+    eq11 = res.globres.unit_level.eq11.cumulative_band
+    assert (eq11.lower, eq11.upper) == (shared.lower, shared.upper)
+    assert eq11.point == pytest.approx(
+        float(res.globres.unit_level.eq11.treated_effects.sum()), rel=1e-12)
+    assert eq11.point != shared.point
+
+
 def test_the_shared_inference_is_untouched():
     plain = _fit().globres.inference
     with_units = _fit(unit_inference=True).globres.inference

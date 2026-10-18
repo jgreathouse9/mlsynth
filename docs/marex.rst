@@ -1158,7 +1158,10 @@ unit's scale and the test remains a permutation test.
 
 Eq. (11) writes the aggregate as the design's treated weights applied to the
 per-unit contrasts, :math:`\sum_j w_j u_{jt}`; ``eq11`` carries its inference
-beside the shared contrast's.
+beside the shared contrast's. With ``cumulative_method="inversion"`` the band
+for a total refits the treated series on the untreated units and never reads a
+control, so eq. (11)'s band for the total is the shared contrast's, and only
+its point differs.
 
 On simulated MAREX designs the per-unit inference held where the aggregate's
 does. On Abadie and Zhao's Section 5 panel with exchangeable factors, the

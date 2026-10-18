@@ -159,7 +159,10 @@ class MAREXUnitLevel:
         ``max_combinations``, ``(1 + k) / (1 + B)`` otherwise.
     eq11 : MAREXInference
         Inference on eq. (11)'s aggregate, the synthetic treated minus
-        ``eq11_control``.
+        ``eq11_control``. Under ``cumulative_method="inversion"`` its band for
+        the total is the shared contrast's: the inversion refits the synthetic
+        treated series on the untreated units and never reads a control, so
+        only the point, eq. (11)'s own total, differs.
     eq11_control : np.ndarray
         ``sum_j w_j sum_i v_ij y_i`` with ``w`` the aggregate treated weights,
         shape ``(T,)``: each treated unit's own control, weighted as the
