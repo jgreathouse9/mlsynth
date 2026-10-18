@@ -191,6 +191,33 @@ def test_the_interval_search_runs_on_the_signed_statistic():
                                 statistic="signed", reference_start=8) > 0.1
 
 
+def test_a_rejected_estimate_relocates_to_the_signed_minimum(monkeypatch):
+    """When the estimate is rejected the search restarts at the candidate that
+    minimises the test's own statistic. For the signed sum that candidate zeroes
+    the post sum, so its p-value is one and a signed band is never empty; the
+    ``S_1`` minimiser leaves the signed statistic at 0.14-0.21 on these panels.
+    The first acceptance check is forced to reject so the relocation runs."""
+    import mlsynth.utils.conformal.ridge_inference as ri
+
+    y, Y0, pre, h = _panel(effect=2.0, seed=9)
+    real = ri.conformal_pvalue
+    candidates = []
+
+    def first_rejected(shifted, *args, **kwargs):
+        candidates.append(float(np.mean(y[pre:] - shifted[pre:])))
+        return 0.0 if len(candidates) == 1 else real(shifted, *args, **kwargs)
+
+    monkeypatch.setattr(ri, "conformal_pvalue", first_rejected)
+    lo, hi = conformal_att_interval(y, Y0, pre, alpha=0.1, refit="sc",
+                                    statistic="signed", reference_start=8)
+    relocated = candidates[1]
+    shifted = y.copy()
+    shifted[pre:] -= relocated
+    r = conformal_refit_gaps(shifted, Y0, rule="sc")
+    assert abs(r[pre:].sum()) / np.sqrt(h) < 0.05
+    assert lo <= relocated <= hi
+
+
 def _rejection_rate(reference_start, draws=200, alpha=0.2):
     """No effect; the first 30 periods carry a fifth of the later noise."""
     hits = 0
