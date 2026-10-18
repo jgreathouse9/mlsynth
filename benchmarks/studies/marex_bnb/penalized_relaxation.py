@@ -1,5 +1,8 @@
 """How tight is the plain continuous relaxation of MAREX's penalized design?
 
+The design is that of Abadie and Zhao (2026, online appendix, section OA.1),
+which adapts the penalty of Abadie and L'Hour (2021) to the choice of markets:
+
 f(S) = min ||Bc w||^2 + ||Bc v||^2 + lam * a'w + lam * a'v, a_j = ||x_j - xbar||^2,
 w on the simplex over S, v over the complement. The relaxation keeps w <= z,
 v <= 1 - z, sum z = m with z in [0, 1]: one convex QP, no lift. The exact

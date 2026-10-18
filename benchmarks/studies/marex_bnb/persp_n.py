@@ -16,8 +16,17 @@ completion can give that side's weight to:
 - ``x_j <= z_j`` (treated) and ``x_j <= 1 - z_j`` (control), ``0 <= z <= 1``,
   ``sum_F z = r``.
 
-The indicators never enter a PSD block, so the blocks have ``|U| + 1`` rows
-where the treated lift has about ``2 |U|``. Every constraint holds at
+The pieces come from the literature read for this study (``results/persp_n.md``
+lists it in full). The PSD block with the perspective blocks
+``[[ind_j, x_j], [x_j, X_jj]] >= 0`` is the semidefinite form of Dong, Chen and
+Linderoth, eq. (24) of Wei, Gómez and Küçükyavuz (2022); with ``X 1 = x`` it is
+the primal of the best-diagonal program of Zheng, Sun and Li (2014). The
+perspective is that of Frangioni and Gentile (2006) and Günlük and Linderoth
+(2010). ``X >= 0``, which those forms lack and which carries most of the bound
+here, is the entrywise half of the doubly nonnegative relaxation of Burer's
+(2009) completely positive form. The indicators never enter a
+PSD block, so the blocks have ``|U| + 1`` rows where the treated lift has
+about ``2 |U|``. Every constraint holds at
 ``M = (1; x)(1; x)'`` for a design, so the minimum of ``<G, X>`` (plus the
 other side's) is a lower bound on the subtree's minimum.
 
@@ -27,7 +36,9 @@ exactly as ``treated_lift_geolift`` does, so the two are compared on the same
 footing. ``side="both"`` lifts both sides with a shared ``z``.
 
 ``bound`` reports the solver's value. ``certified`` turns the solver's
-multipliers into a bound that no rounding can break. For one side with block
+multipliers into a bound that no rounding can break: the rigorous bound of
+Jansson, Chaykin and Keil (2007) for semidefinite programs, with exact
+arithmetic in place of their interval arithmetic. For one side with block
 ``M = [[1, x'], [x, X]]``, multipliers ``y0`` on ``M_00 = 1``, ``H >= 0`` on
 ``X >= 0``, ``alpha`` on ``1'x = 1``, ``beta`` on ``X 1 = x``, ``mu >= 0`` on
 ``ind_j - x_j >= 0`` and ``Lambda_j >= 0`` (2x2 PSD) on the perspective block

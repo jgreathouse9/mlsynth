@@ -1,5 +1,11 @@
 """Bounds that floating point cannot break: exact arithmetic on dyadic matrices.
 
+The construction is that of Neumaier and Shcherbina (2004) for linear programs
+and Jansson, Chaykin and Keil (2007) for semidefinite ones: any dual point gives
+a valid bound, so a solver's approximate dual needs only to be evaluated with
+its rounding under control. They control it with interval arithmetic; here the
+arithmetic is exact.
+
 Every finite double is a dyadic rational, an integer over a power of two. A
 matrix of doubles is therefore exactly an integer matrix over one power of two,
 and sums and products of such matrices stay in that form. ``Dy`` holds one, as
@@ -15,7 +21,8 @@ exact number.
 
 - ``side_lower``: for any vector ``y``, ``||Bc w||^2 >= 2 y'Bc w - ||y||^2``,
   and on the simplex ``y'Bc w >= min_j y'b_j``. So ``2 min_j y'b_j - ||y||^2``
-  is a lower bound on ``g(S)`` for every ``y``, the Wolfe dual of the fit. At
+  is a lower bound on ``g(S)`` for every ``y``, the dual of the fit in Wolfe's
+  (1976) nearest-point problem. At
   ``y = Bc w`` with ``w`` optimal it equals ``g(S)``; a computed ``w`` gives a
   bound below ``g(S)`` by about the fit's own error.
 - ``side_upper``: the exact objective at the computed weights after an exact

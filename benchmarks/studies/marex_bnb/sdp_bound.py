@@ -1,8 +1,8 @@
 """A semidefinite node bound for MAREX's design, from the paper's own program.
 
-Abadie and Zhao's supplementary appendix (OA.6, program (OA.7)) writes the
-unconstrained design as a quadratic program in ``x = (w, v)`` with the
-complementarity ``sum_j w_j v_j = 0``: a market carries weight on one side at
+Abadie and Zhao's (2026) online appendix (section OA.6, program (OA.7))
+writes the unconstrained design as a quadratic program in ``x = (w, v)`` with
+the complementarity ``sum_j w_j v_j = 0``: a market carries weight on one side at
 most. Lifting ``x x'`` to a matrix ``X`` with ``[[1, x'], [x, X]]`` positive
 semidefinite gives a convex relaxation. Every constraint below holds for every
 real design, so for every treated set ``S`` in a node's subtree, with its
