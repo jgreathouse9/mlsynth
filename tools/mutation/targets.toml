@@ -4667,6 +4667,8 @@ timeout = 600.0
   find = "        g_G = _gamma(T + 2) / (1.0 - _gamma(T))"
   replace = "        g_G = _gamma(T) / (1.0 - _gamma(T))"
   models = "a Gram error bound that covers the inner products and not the rounding of B - A, so the bound describes the floating-point difference instead of the data"
+  expected = "survived"
+  accepted-because = "the 2u it drops sits beside a gamma_T term the measured error never approaches. Against the exact Gram of B - A as given, the floating-point Gram is off by 4% of gamma_T |Bf|'|Bf| on the far-target fixture (T = 40, target 3e8 from markets near 1), 16% on constant columns at T = 200, where the inner products drift one way, and under 1.5% with a target of norm 1e6. Killing it needs an error within 2/(T+2) of the a priori worst case, which the analysis allows and no fixture reaches. The term stays so the bound remains a proof for every input, not for the inputs measured."
 
   [[target.mutant]]
   id = "all-slack-dropped"
@@ -4745,6 +4747,12 @@ timeout = 600.0
   find = "            if S == tuple(design.treated):\n                continue"
   replace = "            if False:\n                continue"
   models = "the design's own treated set reported as unresolved against itself"
+
+  [[target.mutant]]
+  id = "the-design-s-pool-is-not-checked"
+  find = "    if list(design.control) != pool(design.treated):"
+  replace = "    if False:"
+  models = "a design whose control pool is not the one its treated set leaves, certified anyway: its control fit can then sit above its true objective and the lower bound with it"
 
   [[target.mutant]]
   id = "the-coupled-design-is-certified"

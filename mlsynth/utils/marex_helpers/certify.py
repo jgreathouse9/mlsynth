@@ -72,7 +72,8 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ...exceptions import (MlsynthConfigError, MlsynthDataError,
+                           MlsynthEstimationError)
 from ..syndes_helpers.exact import SubsetFilter
 from .exact import CHUNK, ClusterDesign, _chunks, side_fit
 
@@ -309,6 +310,10 @@ def certify_cluster(
     ------
     MlsynthConfigError
         For the weakly-targeted design (``beta`` given).
+    MlsynthEstimationError
+        When the design's control pool is not the one its treated set leaves
+        under the donor exclusions; the certificate bounds the design's own
+        set through that control fit.
     """
     if beta is not None:
         raise MlsynthConfigError(
@@ -323,6 +328,16 @@ def certify_cluster(
     for i, j in donor_exclusion:
         excluded.setdefault(int(i), set()).add(int(j))
 
+    def pool(S: Sequence[int]) -> List[int]:
+        drop = set(S)
+        for j in S:
+            drop |= excluded.get(j, set())
+        return [j for j in range(n) if j not in drop]
+
+    if list(design.control) != pool(design.treated):
+        raise MlsynthEstimationError(
+            "The design's control pool is not the one its treated set leaves, "
+            "so its control fit does not bound its objective from below.")
     lo_g, hi_g = data.interval(design.treated, design.w, lin_t)
     lo_h, hi_h = data.interval(design.control, design.v, lin_c)
     upper = hi_g + hi_h
@@ -348,10 +363,7 @@ def certify_cluster(
             lo_S = data.interval(cols, w, lin_t)[0]
             if lo_S + h_floor > upper:
                 continue
-            drop = set(S)
-            for j in S:
-                drop |= excluded.get(j, set())
-            control = [j for j in everyone if j not in drop]
+            control = pool(S)
             if not control:
                 continue
             _, v = side_fit(data.B, data.A, control,

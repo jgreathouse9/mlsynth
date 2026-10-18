@@ -31,7 +31,8 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from mlsynth import MAREX
-from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.exceptions import (MlsynthConfigError, MlsynthDataError,
+                                MlsynthEstimationError)
 from mlsynth.tests.test_marex_exact_backend import _cfg, _panel
 from mlsynth.utils.marex_helpers.certify import (ClusterCertificate, Dyadic,
                                                 ExactData, certify_cluster,
@@ -156,6 +157,22 @@ def test_treated_bounds_hold_on_a_hostile_collinear_panel():
     data = ExactData(B, np.zeros(T))
     for m in (2, 3):
         sets = np.array(list(itertools.combinations(range(4), m)))
+        for S, lb in zip(sets, data.treated_bounds(sets)):
+            assert Fraction(lb) <= _exact_g(data, S), S
+
+
+@pytest.mark.parametrize("T, x", [(200, 0.1), (5000, 1 / 3)])
+def test_treated_bounds_hold_where_the_inner_products_drift(T, x):
+    # Constant columns make every product in an inner product the same, so the
+    # rounding of the sum drifts one way instead of averaging out: the
+    # floating-point Gram is off by up to about a hundred units in the last
+    # place. A bound that trusts it rises above the fit, on the pair (0, 1),
+    # whose fit nearly cancels, by seventeen orders of magnitude.
+    B = np.column_stack([np.full(T, x), np.full(T, -x * 1.0000001),
+                         np.full(T, 2 * x + 0.3)])
+    data = ExactData(B, np.zeros(T))
+    for m in (1, 2):
+        sets = np.array(list(itertools.combinations(range(3), m)))
         for S, lb in zip(sets, data.treated_bounds(sets)):
             assert Fraction(lb) <= _exact_g(data, S), S
 
@@ -290,6 +307,77 @@ def test_a_candidate_with_no_control_is_not_a_design():
     cert = certify_cluster(B, A, [2], SubsetFilter(), best, donor_exclusion=donors)
     assert (0, 1) not in cert.unresolved
     assert _within(cert, best.value) and cert.gap <= 1e-9 * best.value
+
+
+@settings(max_examples=40, deadline=None)
+@given(seed=st.integers(0, 10**6), T=st.integers(3, 16), n=st.integers(4, 7),
+       m=st.integers(1, 3), penal=st.booleans(), donors=st.booleans())
+def test_a_certificate_brackets_the_brute_force_optimum(seed, T, n, m, penal, donors):
+    # Every treated set fitted: the optimum lies in the bracket, and every set
+    # that can match the design is listed as unresolved, and no other.
+    rng = np.random.default_rng(seed)
+    B, A = _data(seed, T, n)
+    lin_t = rng.uniform(0, 1, n) if penal else None
+    lin_c = rng.uniform(0, 1, n) if penal else None
+    excl = [(0, n - 1), (1, n - 2)] if donors else []
+    best = _search(B, A, m, linear_treated=lin_t, linear_control=lin_c,
+                   donor_exclusion=excl)
+    cert = certify_cluster(B, A, [m], SubsetFilter(), best, linear_treated=lin_t,
+                           linear_control=lin_c, donor_exclusion=excl)
+    values = {}
+    for S in itertools.combinations(range(n), m):
+        drop = set(S) | {j for i, j in excl if i in S}
+        control = [j for j in range(n) if j not in drop]
+        if not control:
+            continue
+        g, _ = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])
+        h, _ = side_fit(B, A, control, None if lin_c is None else lin_c[control])
+        values[S] = g + h
+    fstar = min(values.values())
+    assert cert.lower <= fstar * (1 + 1e-12) + 1e-300
+    assert _within(cert, best.value)
+    for S, f in values.items():
+        if S == best.treated:
+            continue
+        if f <= cert.upper * (1 - 1e-9):
+            assert S in cert.unresolved, S
+        if S in cert.unresolved:
+            assert f <= cert.upper * (1 + 1e-9), S
+
+
+def test_a_design_with_the_wrong_control_pool_is_refused():
+    # The certificate bounds the design's own set through its control fit, so
+    # that fit has to be over the pool the treated set leaves.
+    B, A = _data(13, 12, 6)
+    best = _search(B, A, 2)
+    short = dataclasses.replace(best, control=best.control[1:], v=best.v[1:])
+    with pytest.raises(MlsynthEstimationError, match="control"):
+        certify_cluster(B, A, [2], SubsetFilter(), short)
+
+
+def test_a_better_control_pool_is_not_discarded_on_the_design_s():
+    # Markets 0 and 1 straddle the target, so treating them fits it exactly,
+    # but their donor exclusions leave only poor controls. Treating 2 and 3
+    # fits worse and leaves 0 and 1 as controls, which fit exactly. Given the
+    # first design, the certificate has to see that the second is better: its
+    # control floor comes from the whole cluster, not from the design's pool.
+    rng = np.random.default_rng(14)
+    T = 10
+    A = rng.normal(size=T)
+    e = rng.normal(size=T)
+    B = np.column_stack([A + e, A - e,
+                         A + 0.3 * rng.normal(size=T), A + 0.3 * rng.normal(size=T),
+                         A + 5 * rng.normal(size=T), A + 5 * rng.normal(size=T),
+                         A + 5 * rng.normal(size=T)])
+    donors = [(0, 2), (0, 3), (1, 2), (1, 3)]
+    designs = search_cluster(B, A, [2], filt=SubsetFilter(), donor_exclusion=donors,
+                             top_k=21)
+    pair = next(d for d in designs if d.treated == (0, 1))
+    best = designs[0]
+    assert best.value < pair.value and best.treated != (0, 1)
+    cert = certify_cluster(B, A, [2], SubsetFilter(), pair, donor_exclusion=donors)
+    assert best.treated in cert.unresolved
+    assert cert.lower <= best.value * (1 + 1e-12)
 
 
 def test_a_degenerate_cluster_is_still_certified():
