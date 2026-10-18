@@ -4925,6 +4925,96 @@ timeout = 600.0
   models = "a search that ran out of bounds reported as an infeasible design, hiding the gap it reached"
 
 [[target]]
+name = "conformal-signed-reference"
+module-path = "mlsynth/utils/conformal/ridge_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_signed_reference.py mlsynth/tests/test_conformal_signed_reference_properties.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "signed-sums-the-magnitudes"
+  find = "        return float(abs(np.sum(x)) / np.sqrt(x.size))"
+  replace = "        return float(np.sum(np.abs(x)) / np.sqrt(x.size))"
+  models = "the signed statistic computed as S_1, so a band on a total loses every non-constant effect path again while every test with one post period, where the two coincide, still passes"
+
+  [[target.mutant]]
+  id = "signed-block-reference-sums-the-magnitudes"
+  find = "                return np.abs(np.sum(shifts, axis=1)) / np.sqrt(post.size)"
+  replace = "                return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)"
+  models = "the cyclic-shift reference built from S_1 while the observed value is the signed sum, so the two sides of the p-value are different statistics and the test rejects far too rarely"
+
+  [[target.mutant]]
+  id = "signed-iid-reference-sums-the-magnitudes"
+  find = "            return np.abs(np.sum(P, axis=1)) / np.sqrt(m)"
+  replace = "            return np.sum(np.abs(P), axis=1) / np.sqrt(m)"
+  models = "the same mismatch under the iid permutations"
+
+  [[target.mutant]]
+  id = "reference-window-ignored"
+  find = "        resids[reference_start:], slice(pre - reference_start, None), q,"
+  replace = "        resids, slice(pre, None), q,"
+  models = "reference_start accepted, validated and recorded while the reference is still drawn from every period, so the residuals of the stretch the design was chosen on understate the post sum's spread exactly as before"
+
+  [[target.mutant]]
+  id = "post-block-not-rebased"
+  find = "        resids[reference_start:], slice(pre - reference_start, None), q,"
+  replace = "        resids[reference_start:], slice(pre, None), q,"
+  models = "the window cut but the post block still read at pre, which inside the window is reference_start periods too late, so the reference statistics are taken on a shorter, misplaced block"
+
+  [[target.mutant]]
+  id = "signed-accepts-any-norm"
+  find = "    if statistic == \"signed\" and q != 1.0:"
+  replace = "    if False:"
+  models = "a norm passed with the signed statistic and silently ignored, so a caller who asked for S_2 and the signed sum together gets one of them without being told which"
+
+  [[target.mutant]]
+  id = "unknown-statistic-accepted"
+  find = "    if not isinstance(statistic, str) or statistic not in CONFORMAL_STATISTICS:"
+  replace = "    if not isinstance(statistic, str):"
+  models = "a misspelled statistic such as 'Signed' accepted and run as S_q, so the caller asked for the signed band and got the other one"
+
+  [[target.mutant]]
+  id = "reference-start-may-reach-pre"
+  find = "    if not 0 <= int(reference_start) < int(pre):"
+  replace = "    if not 0 <= int(reference_start) <= int(pre):"
+  models = "a reference window holding the post block alone accepted; every cyclic shift then sums the same periods, the p-value is one at every candidate and the band is the whole line with no error to say why"
+
+  [[target.mutant]]
+  id = "relocation-on-the-default-statistic"
+  find = "        return _stat(gaps[pre:], kwargs.get(\"q\", 1.0), kwargs.get(\"statistic\", \"sq\"))"
+  replace = "        return _stat(gaps[pre:], kwargs.get(\"q\", 1.0))"
+  models = "the relocation search descending S_q while the test it serves uses the signed sum, so when the estimate is rejected the search walks to the wrong candidate and can call a non-empty set empty"
+
+[[target]]
+name = "conformal-cumulative-signed-reference"
+module-path = "mlsynth/utils/conformal/cumulative_inversion.py"
+test-command = "python -m pytest mlsynth/tests/test_conformal_signed_reference.py mlsynth/tests/test_conformal_cumulative_inversion.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "band-does-not-forward-the-statistic"
+  find = "    kwargs.update(statistic=statistic, reference_start=reference_start)"
+  replace = "    kwargs.update(reference_start=reference_start)"
+  models = "the band records the signed statistic and searches on S_q, so its label and its numbers describe different tests"
+
+  [[target.mutant]]
+  id = "band-does-not-forward-the-window"
+  find = "    kwargs.update(statistic=statistic, reference_start=reference_start)"
+  replace = "    kwargs.update(statistic=statistic)"
+  models = "the band records a reference window it never used"
+
+  [[target.mutant]]
+  id = "band-reference-count-ignores-the-window"
+  find = "    n_reference = n_window - reference_start"
+  replace = "    n_reference = n_window"
+  models = "n_reference reporting the refit's window instead of the reference set, so 1 / n_reference overstates how small a p-value the test can reach"
+
+  [[target.mutant]]
+  id = "band-records-the-default-statistic"
+  find = "        statistic=statistic,\n        reference_start=reference_start,\n    )"
+  replace = "        statistic=\"sq\",\n        reference_start=reference_start,\n    )"
+  models = "the band labelled S_q whatever was run, so a reader cannot tell which test produced it"
+
+[[target]]
 name = "marex-unit-penalty-members"
 module-path = "mlsynth/utils/marex_helpers/formulation.py"
 test-command = "python -m pytest mlsynth/tests/test_marex_unit_penalty_members.py -q -x -p no:cacheprovider"
