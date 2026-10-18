@@ -17,7 +17,10 @@ from hypothesis.extra.numpy import arrays
 from mlsynth.utils.marex_helpers.unit_inference import (joint_p_value,
                                                         unit_level_inference)
 
-_X = st.floats(-50, 50, allow_nan=False, allow_infinity=False)
+#: No subnormals: rescaling one by a factor below 1/2 rounds it to zero, which
+#: erases a unit's variation in floating point while leaving it in the reals.
+_X = st.floats(-50, 50, allow_nan=False, allow_infinity=False,
+               allow_subnormal=False)
 
 
 @st.composite
@@ -90,3 +93,52 @@ def test_controls_eq11_and_bonferroni_hold_on_any_panel(seed, n_treated):
         total += w[int(label[1:])] * (Y[int(label[1:])] - ui.synthetic_control)
     np.testing.assert_allclose(lvl.eq11.fulltreated_effects, total,
                                rtol=1e-10, atol=1e-10)
+
+
+
+from hypothesis import assume
+
+from mlsynth.utils.marex_helpers.unit_inference import blank_check
+
+_B = st.floats(-100, 100, allow_nan=False, allow_infinity=False)
+#: A blank stretch with a spread well above ``_ar1_rho``'s zero-variance cut.
+_BLANK = arrays(np.float64, st.integers(2, 30), elements=_B).filter(
+    lambda b: np.ptp(b) > 1e-3)
+
+
+def _close(x, y, tol):
+    return abs(x - y) <= tol * (1.0 + abs(y))
+
+
+@settings(max_examples=200, deadline=None)
+@given(_BLANK, st.floats(min_value=0.01, max_value=100))
+def test_the_blank_check_scales_with_the_units_and_its_t_does_not(b, c):
+    level = np.abs(b) + 50.0
+    a, s = blank_check(b, level), blank_check(c * b, c * level)
+    assert _close(s.mean, c * a.mean, 1e-9)
+    assert _close(s.se, c * a.se, 1e-7)
+    assert _close(s.t, a.t, 1e-6)
+    assert _close(s.relative, a.relative, 1e-9)
+    assert s.rho == a.rho or _close(s.rho, a.rho, 1e-9)
+
+
+@settings(max_examples=200, deadline=None)
+@given(_BLANK, _B)
+def test_a_shift_moves_the_mean_and_not_the_spread(b, k):
+    level = np.full(b.size, 10.0)
+    a, s = blank_check(b, level), blank_check(b + k, level)
+    assert _close(s.mean, a.mean + k, 1e-9)
+    assert _close(s.se, a.se, 1e-6)
+    assert _close(s.rho, a.rho, 1e-6)
+
+
+@settings(max_examples=200, deadline=None)
+@given(arrays(np.float64, st.integers(1, 30), elements=_B))
+def test_flipping_the_sign_flips_the_mean_and_t_and_keeps_the_p_value(b):
+    level = np.full(b.size, 10.0)
+    a, s = blank_check(b, level), blank_check(-b, level)
+    assert s.mean == -a.mean and s.relative == -a.relative
+    assert s.se == a.se or (np.isnan(s.se) and np.isnan(a.se))
+    assert s.t == -a.t or (np.isnan(s.t) and np.isnan(a.t))
+    assert s.p_value == a.p_value or (np.isnan(s.p_value) and np.isnan(a.p_value))
+    assert np.isnan(s.p_value) or 0.0 <= s.p_value <= 1.0

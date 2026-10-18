@@ -253,3 +253,100 @@ def test_the_joint_test_refuses_a_post_block_longer_than_the_window():
     with pytest.raises(MlsynthDataError, match="T_post"):
         joint_p_value(_windows(), 10, max_combinations=10,
                       rng=np.random.default_rng(0))
+
+
+# --------------------------------------------------------------------------- #
+# the blank-period bias check
+# --------------------------------------------------------------------------- #
+from scipy import stats
+
+from mlsynth.utils.marex_helpers.unit_inference import (blank_check,
+                                                        unit_level_inference)
+from mlsynth.utils.post_fit import _ar1_rho, _effective_n, _variance_inflation
+
+
+def _one_cluster(target, donors, T0=40, Tb=16, H=6):
+    """A unit-level result for one treated unit against the given donors."""
+    Y = np.vstack([target, donors])
+    w = np.zeros(Y.shape[0])
+    w[0] = 1.0
+    return unit_level_inference(
+        Y, [("c0", np.arange(Y.shape[0]), w)], w,
+        [f"u{i}" for i in range(Y.shape[0])], T0=T0, TcE=T0 - Tb, Tb=Tb,
+        alpha=0.1, max_combinations=200, random_state=0, T_post=None
+    ).units["u0"]
+
+
+def test_the_check_is_the_blank_mean_with_an_ar1_standard_error():
+    res = _fit(unit_inference=True)
+    Y = res.globres.Y_full
+    row = _rows(res)
+    Tb = _CFG["blank_periods"]
+    for label, ui in _units(res).items():
+        b = ui.inference.placebo_effects
+        chk = ui.blank_check
+        rho = _ar1_rho(b)
+        se = float(np.std(b, ddof=1) * np.sqrt(_variance_inflation(b.size, rho)))
+        assert chk.n == Tb
+        assert chk.mean == pytest.approx(float(b.mean()), rel=1e-12)
+        assert chk.rho == pytest.approx(rho, rel=1e-12)
+        assert chk.se == pytest.approx(se, rel=1e-12)
+        assert chk.t == pytest.approx(chk.mean / chk.se, rel=1e-12)
+        df = _effective_n(b.size, rho) - 1.0
+        assert chk.p_value == pytest.approx(2 * stats.t.sf(abs(chk.t), df), rel=1e-9)
+        level = np.mean(np.abs(Y[row[label], _TE:_CFG["T0"]]))
+        assert chk.relative == pytest.approx(chk.mean / level, rel=1e-12)
+
+
+def test_a_unit_outside_its_donors_hull_is_flagged():
+    """Donor levels 10 to 20 and a unit at 30: no blend reaches it."""
+    rng = np.random.default_rng(0)
+    T = 46
+    common = rng.normal(0, 1, T).cumsum() * 0.2
+    donors = np.array([lvl + common + 0.3 * rng.standard_normal(T)
+                       for lvl in np.linspace(10, 20, 6)])
+    outside = 30 + common + 0.3 * rng.standard_normal(T)
+    chk = _one_cluster(outside, donors).blank_check
+    assert chk.mean > 5 and chk.t > 10 and chk.p_value < 1e-6
+    assert chk.relative == pytest.approx(chk.mean / np.mean(np.abs(outside[24:40])))
+
+
+def test_a_unit_inside_its_donors_hull_is_not_flagged():
+    rng = np.random.default_rng(1)
+    T = 46
+    common = rng.normal(0, 1, T).cumsum() * 0.2
+    donors = np.array([lvl + common + 0.3 * rng.standard_normal(T)
+                       for lvl in np.linspace(10, 20, 6)])
+    inside = 15 + common + 0.3 * rng.standard_normal(T)
+    chk = _one_cluster(inside, donors).blank_check
+    assert abs(chk.t) < 3 and chk.p_value > 0.01
+
+
+def test_one_blank_period_leaves_the_spread_undefined():
+    chk = blank_check(np.array([0.7]), np.array([10.0]))
+    assert chk.mean == 0.7 and chk.n == 1
+    assert np.isnan(chk.se) and np.isnan(chk.t) and np.isnan(chk.p_value)
+
+
+def test_a_constant_offset_with_no_noise_is_certain():
+    chk = blank_check(np.full(8, 2.0), np.full(8, 10.0))
+    assert chk.se == 0.0 and chk.t == np.inf and chk.p_value == 0.0
+    assert chk.relative == pytest.approx(0.2)
+    below = blank_check(np.full(8, -2.0), np.full(8, 10.0))
+    assert below.t == -np.inf and below.p_value == 0.0
+
+
+def test_the_share_is_of_the_size_of_the_level():
+    """A negative outcome keeps the bias's sign in the share."""
+    chk = blank_check(np.array([1.0, 2.0, 3.0]), np.full(3, -10.0))
+    assert chk.relative == pytest.approx(0.2)
+
+
+def test_an_exact_fit_is_not_flagged():
+    chk = blank_check(np.zeros(8), np.full(8, 10.0))
+    assert chk.t == 0.0 and chk.p_value == 1.0
+
+
+def test_a_zero_level_leaves_the_share_undefined():
+    chk = blank_check(np.array([0.1, -0.2, 0.3]), np.zeros(3))
+    assert np.isnan(chk.relative)

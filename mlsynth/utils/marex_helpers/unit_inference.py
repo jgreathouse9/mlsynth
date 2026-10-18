@@ -34,11 +34,14 @@ import math
 from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
+from scipy import stats
 
 from ...exceptions import MlsynthDataError
+from ..post_fit import _ar1_rho, _effective_n, _variance_inflation
 from ..solvers.active_set import solve_simplex_qp
 from .inference import compute_inference
-from .structures import MAREXInference, MAREXUnitInference, MAREXUnitLevel
+from .structures import (MAREXBlankCheck, MAREXInference, MAREXUnitInference,
+                         MAREXUnitLevel)
 
 
 def joint_p_value(U, T_post: int, *, max_combinations: int,
@@ -71,6 +74,35 @@ def joint_p_value(U, T_post: int, *, max_combinations: int,
                    for _ in range(max_combinations)])
     t = np.max(Z[:, pi].mean(axis=2), axis=0)
     return float((1 + np.sum(t >= t_obs - tol)) / (1 + max_combinations))
+
+
+def blank_check(blank_contrast, blank_level) -> MAREXBlankCheck:
+    """Mean of a unit's contrast over the blank periods, and its standard error.
+
+    ``blank_contrast`` is the unit minus its synthetic control on the blank
+    periods, ``blank_level`` the unit's outcome there. The standard error allows
+    for AR(1) dependence in the contrast; see :class:`MAREXBlankCheck`.
+    """
+    b = np.asarray(blank_contrast, dtype=float)
+    n = int(b.size)
+    mean = float(b.mean())
+    scale = float(np.mean(np.abs(np.asarray(blank_level, dtype=float))))
+    relative = mean / scale if scale > 0 else math.nan
+    if n < 2:
+        return MAREXBlankCheck(mean=mean, se=math.nan, t=math.nan,
+                               p_value=math.nan, rho=0.0, n=n,
+                               relative=relative)
+    rho = _ar1_rho(b)
+    se = float(np.std(b, ddof=1) * math.sqrt(_variance_inflation(n, rho)))
+    if se > 0:
+        t = mean / se
+        p = float(2.0 * stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))
+    elif mean == 0:
+        t, p = 0.0, 1.0
+    else:
+        t, p = math.copysign(math.inf, mean), 0.0
+    return MAREXBlankCheck(mean=mean, se=se, t=t, p_value=p, rho=rho, n=n,
+                           relative=relative)
 
 
 def unit_level_inference(
@@ -139,7 +171,8 @@ def unit_level_inference(
         units[str(unit_labels[j])] = MAREXUnitInference(
             unit=str(unit_labels[j]), cluster=label, control_weights=weights,
             synthetic_control=syn_c, inference=inf,
-            p_bonferroni=float(min(1.0, m * inf.global_p_value)))
+            p_bonferroni=float(min(1.0, m * inf.global_p_value)),
+            blank_check=blank_check(inf.placebo_effects, Y_full[j, TcE:T0]))
 
     window = np.array([np.r_[f[4].placebo_effects, f[4].treated_effects]
                        for f in found])

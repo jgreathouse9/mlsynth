@@ -1125,6 +1125,7 @@ it for each treated unit, on ``res.globres.unit_level``.
    lvl = res.globres.unit_level
    lvl.units["u07"].inference.ci        # the unit's pointwise band
    lvl.units["u07"].p_bonferroni        # its p-value, adjusted for the family
+   lvl.units["u07"].blank_check         # bias of its control on the blank periods
    lvl.joint_p_value                    # no effect on any treated unit
    lvl.eq11                             # eq. (11)'s aggregate
 
@@ -1145,6 +1146,22 @@ and Assumption 5, so it covers :math:`u_j`, with Assumption 3(i) read as an
 exact fit of unit :math:`j`'s own predictors. Abadie and Zhao define the
 Unit-level design without clusters; with clusters, each unit's control comes
 from its own cluster, the pool its cluster's controls are drawn from.
+
+A unit's estimated effect is unbiased when its control reproduces it. That needs
+the unit inside its donors' convex hull, the set of outcome paths a weighted
+average of the donors with nonnegative weights summing to one can reach; weights
+chosen before the post periods; donors the treatment does not reach; and a
+factor model that holds over the whole timeline. The blank periods test the
+first and the last of these. They are untreated and the fit never saw them, so a
+control that reproduces the unit leaves a contrast there that averages zero.
+``blank_check`` reports that average, its standard error allowing for AR(1)
+dependence over periods, their ratio ``t`` with a two-sided p-value against
+Student's t on the effective number of periods, and the average as a share of
+the unit's mean absolute level over the blank periods. A large ``t`` says the
+control misses the unit's level, for instance because no blend of its cluster's
+untreated units reaches it. The same bias then enters the unit's post-period
+effects, and its band is centred on the wrong number. The check cannot see a
+bias that begins with the treatment, such as a spillover onto the donors.
 
 Several treated units are several tests: rejecting whenever any unit's p-value
 is below :math:`\alpha` falsely rejects at :math:`1 - (1 - \alpha)^m` with

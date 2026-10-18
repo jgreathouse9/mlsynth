@@ -108,6 +108,52 @@ class MAREXInference:
 
 
 @dataclass(frozen=True)
+class MAREXBlankCheck:
+    """Whether a treated unit's contrast averages zero over the blank periods.
+
+    The blank periods are untreated and unused by the fit, so a unit whose
+    synthetic control reproduces it has a contrast there that averages zero. A
+    mean far from zero says the control misses the unit's level: the unit lies
+    outside its donors' hull, or its fit on the fitting periods did not carry
+    over. The same bias then enters the unit's post-period effects.
+
+    Parameters
+    ----------
+    mean : float
+        Mean of the contrast over the blank periods.
+    se : float
+        Its standard error, ``sd * sqrt(f(n, rho))`` with ``sd`` the sample
+        standard deviation and ``f`` the AR(1) variance of a mean of ``n``
+        periods relative to one period's variance,
+        ``(1 + 2 sum_{k<n} (1 - k/n) rho^k) / n``. NaN with one blank period.
+    t : float
+        ``mean / se``; zero for a contrast identically zero, and infinite for a
+        nonzero constant one.
+    p_value : float
+        Two-sided, against Student's t on ``n_eff - 1`` degrees of freedom,
+        ``n_eff = n (1 - rho) / (1 + rho)`` capped at ``n`` and floored at 2. An
+        approximation: the contrast is serially dependent and the AR(1) model
+        for it is fitted to the same ``n`` periods.
+    rho : float
+        Lag-1 autocorrelation of the contrast, demeaned, corrected for its
+        small-sample bias, and clipped to ``(-0.99, 0.99)``.
+    n : int
+        Number of blank periods.
+    relative : float
+        ``mean`` over the unit's mean absolute outcome on the blank periods: the
+        bias as a share of the unit's level. NaN at a zero level.
+    """
+
+    mean: float
+    se: float
+    t: float
+    p_value: float
+    rho: float
+    n: int
+    relative: float
+
+
+@dataclass(frozen=True)
 class MAREXUnitInference:
     """Inference for one treated unit against its own synthetic control.
 
@@ -131,6 +177,9 @@ class MAREXUnitInference:
     p_bonferroni : float
         ``min(1, m p)``, with ``p`` the unit's Theorem 2 p-value and ``m`` the
         number of treated units in the design.
+    blank_check : MAREXBlankCheck
+        The mean of the contrast over the blank periods, with its standard
+        error: a check for bias in the unit's synthetic control.
     """
 
     unit: str
@@ -139,6 +188,7 @@ class MAREXUnitInference:
     synthetic_control: np.ndarray
     inference: MAREXInference
     p_bonferroni: float
+    blank_check: MAREXBlankCheck
 
 
 @dataclass(frozen=True)

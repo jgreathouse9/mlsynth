@@ -5496,8 +5496,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "bonferroni-uncapped"
-  find = "            p_bonferroni=float(min(1.0, m * inf.global_p_value)))"
-  replace = "            p_bonferroni=float(m * inf.global_p_value))"
+  find = "            p_bonferroni=float(min(1.0, m * inf.global_p_value)),"
+  replace = "            p_bonferroni=float(m * inf.global_p_value),"
   models = "an adjusted p-value above one"
 
   [[target.mutant]]
@@ -5517,6 +5517,78 @@ timeout = 900.0
   find = "    Z = np.divide(U, scale, out=np.zeros_like(U), where=scale > 0)"
   replace = "    Z = U"
   models = "a joint statistic dominated by the unit with the largest contrast in levels"
+
+  [[target.mutant]]
+  id = "blank-se-ignores-serial-correlation"
+  find = "    se = float(np.std(b, ddof=1) * math.sqrt(_variance_inflation(n, rho)))"
+  replace = "    se = float(np.std(b, ddof=1) / math.sqrt(n))"
+  models = "the blank-period standard error computed as if the contrast were independent over periods, too small under positive dependence"
+
+  [[target.mutant]]
+  id = "blank-rho-not-estimated"
+  find = "    rho = _ar1_rho(b)"
+  replace = "    rho = 0.0"
+  models = "the blank check's AR(1) correlation never estimated, so neither its standard error nor its degrees of freedom allow for dependence"
+
+  [[target.mutant]]
+  id = "blank-p-on-the-raw-period-count"
+  find = "        p = float(2.0 * stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  replace = "        p = float(2.0 * stats.t.sf(abs(t), n - 1.0))"
+  models = "the blank check's t referred to n - 1 degrees of freedom when the dependent periods carry fewer independent ones"
+
+  [[target.mutant]]
+  id = "blank-p-one-sided"
+  find = "        p = float(2.0 * stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  replace = "        p = float(stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  models = "a one-sided p-value for a bias of either sign, half the two-sided one"
+
+  [[target.mutant]]
+  id = "blank-one-period-gets-a-spread"
+  find = "    if n < 2:"
+  replace = "    if n < 1:"
+  models = "a standard error read off a single blank period, which has none"
+
+  [[target.mutant]]
+  id = "blank-exact-fit-flagged"
+  find = "    elif mean == 0:"
+  replace = "    elif False:"
+  models = "a contrast identically zero reported as an infinitely significant bias"
+
+  [[target.mutant]]
+  id = "blank-constant-offset-unflagged"
+  find = "        t, p = math.copysign(math.inf, mean), 0.0"
+  replace = "        t, p = 0.0, 1.0"
+  models = "a constant nonzero contrast, a bias with no noise, reported as no evidence of bias"
+
+  [[target.mutant]]
+  id = "blank-offset-loses-its-sign"
+  find = "        t, p = math.copysign(math.inf, mean), 0.0"
+  replace = "        t, p = math.inf, 0.0"
+  models = "a constant offset below the unit reported as one above it"
+
+  [[target.mutant]]
+  id = "blank-share-of-the-signed-level"
+  find = "    scale = float(np.mean(np.abs(np.asarray(blank_level, dtype=float))))"
+  replace = "    scale = float(np.mean(np.asarray(blank_level, dtype=float)))"
+  models = "the share of a negative outcome divided by a negative level, which flips the bias's sign or drops it as zero"
+
+  [[target.mutant]]
+  id = "blank-share-at-a-zero-level"
+  find = "    relative = mean / scale if scale > 0 else math.nan"
+  replace = "    relative = mean / scale"
+  models = "a share computed at a zero level, which raises"
+
+  [[target.mutant]]
+  id = "blank-check-reads-the-post-periods"
+  find = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, TcE:T0]))"
+  replace = "            blank_check=blank_check(inf.treated_effects, Y_full[j, T0:]))"
+  models = "the bias check run on the post-period effects, where a real effect reads as bias"
+
+  [[target.mutant]]
+  id = "blank-share-of-the-fitting-level"
+  find = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, TcE:T0]))"
+  replace = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, :TcE]))"
+  models = "the bias divided by the unit's level on the fitting periods, not the blank periods it was measured on"
 
   [[target.mutant]]
   id = "joint-divides-by-a-zero-scale"
