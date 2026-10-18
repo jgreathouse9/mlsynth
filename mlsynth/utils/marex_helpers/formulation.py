@@ -240,12 +240,22 @@ def per_unit_reproducibility(Y_fit, members):
     difference is the ``m - 1`` donors a chosen tuple would remove, measured
     elsewhere at a median 0.0 to 0.7 per cent in the penalty with the same
     design selected in 11 of 12 cells.
+
+    Only ``members`` are fitted; every other entry of the returned length-``N``
+    array is ``nan``. A unit's charge depends on the panel, not on the cluster
+    asking for it, and each cluster asks for its own members, so a design with
+    ``K`` clusters fits each unit once on the exact backend and twice on the
+    MIQP path, not ``K`` and ``2K`` times.
     """
     N = Y_fit.shape[0]
-    out = np.zeros(N, dtype=float)
-    for j in range(N):
+    out = np.full(N, np.nan, dtype=float)
+    for j in np.unique(np.asarray(members, dtype=int)):
+        if not 0 <= j < N:
+            raise IndexError(f"member {j} is outside a panel of {N} units.")
+        j = int(j)
         others = [i for i in range(N) if i != j]
         if not others:
+            out[j] = 0.0
             continue
         D = Y_fit[others, :].T
         a = solve_simplex_qp(D, Y_fit[j, :])
