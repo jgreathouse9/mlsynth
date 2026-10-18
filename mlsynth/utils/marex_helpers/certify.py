@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from fractions import Fraction
 from typing import Iterable, List, Optional, Sequence, Tuple
 
@@ -126,6 +127,11 @@ class Dyadic:
     def __getitem__(self, idx) -> "Dyadic":
         return Dyadic(self.N[idx], self.e)
 
+    @property
+    def T(self) -> "Dyadic":
+        """The transpose."""
+        return Dyadic(self.N.T, self.e)
+
     def frac(self, *idx) -> Fraction:
         """One entry as a rational."""
         return Fraction(int(self.N[idx]), 1 << self.e)
@@ -179,6 +185,11 @@ class ExactData:
         self.Bf = self.B - self.A[:, None]
         self.Gf = self.Bf.T @ self.Bf
         self.Gabs = np.abs(self.Bf).T @ np.abs(self.Bf)
+
+    @cached_property
+    def gram(self) -> Dyadic:
+        """The Gram matrix of the centred markets, exactly."""
+        return self.exact.T @ self.exact
 
     def interval(self, cols: Sequence[int], w: np.ndarray,
                  linear: Optional[np.ndarray] = None

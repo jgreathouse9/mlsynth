@@ -243,6 +243,10 @@ class CoupledFitNotCertified(MlsynthEstimationError):
     """The coupled fit ran out of sweeps before its gap closed."""
 
 
+class SearchNotClosed(MlsynthEstimationError):
+    """The branch and bound ran out of bounds before its gap closed."""
+
+
 def _coupled_point(Bs: np.ndarray, Bc: np.ndarray, A: np.ndarray, beta: float,
                    w: np.ndarray, v_start: Optional[np.ndarray],
                    lam: float = 0.0, sq: Optional[np.ndarray] = None
@@ -1206,14 +1210,24 @@ def _designs(
         filt, donors = _local_rules(restrictions, members, cluster_of)
         a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,
                           xi, lambda1_unit)
+        B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
+        cert = None
         try:
-            designs = search_cluster(
-                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,
-                linear_treated=a, linear_control=b, donor_exclusion=donors,
-                top_k=top_k,
-                beta=beta if design == "weakly_targeted" else None,
-                control_penalty=control_penalty)
-        except CoupledFitNotCertified:
+            if (design in SEPARABLE_DESIGNS and
+                    count_candidates(len(members), sizes, filt) > CANDIDATE_LIMIT):
+                from .branch import branch_and_bound
+                found = branch_and_bound(
+                    B_k, A_k, sizes, filt=filt, linear_treated=a,
+                    linear_control=b, donor_exclusion=donors, top_k=top_k)
+                designs, cert = found.designs, found.certificate
+            else:
+                designs = search_cluster(
+                    B_k, A_k, sizes, filt=filt,
+                    linear_treated=a, linear_control=b, donor_exclusion=donors,
+                    top_k=top_k,
+                    beta=beta if design == "weakly_targeted" else None,
+                    control_penalty=control_penalty)
+        except (CoupledFitNotCertified, SearchNotClosed):
             raise
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
@@ -1223,10 +1237,11 @@ def _designs(
             ) from exc
         per_cluster.append(designs)
         if certify:
-            from .certify import certify_cluster
-            cert = certify_cluster(
-                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt, designs[0],
-                linear_treated=a, linear_control=b, donor_exclusion=donors)
+            if cert is None:
+                from .certify import certify_cluster
+                cert = certify_cluster(
+                    B_k, A_k, sizes, filt, designs[0],
+                    linear_treated=a, linear_control=b, donor_exclusion=donors)
             certificates[str(lab)] = dataclasses.replace(cert, unresolved=tuple(
                 tuple(int(members[j]) for j in S) for S in cert.unresolved))
 
