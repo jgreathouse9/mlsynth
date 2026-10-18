@@ -20,16 +20,20 @@ study is in ``benchmarks/studies/marex_cumulative_conformal/``.
 
 from __future__ import annotations
 
+import itertools
+import math
 import warnings
 from dataclasses import replace
 from typing import Optional
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..conformal import (CumulativeConformalBand, block_error_paths,
                          cumulative_conformal_by_inversion)
+from ..conformal.quantile import split_conformal_quantile
 from .structures import MAREXInference
+from .windows import min_blank_periods
 
 #: How the band for the total effect is built; see the module docstring.
 CUMULATIVE_METHODS = ("resample", "inversion")
@@ -50,6 +54,7 @@ def compute_inference(
     cumulative_seed: int = 0,
     cumulative_method: str = "resample",
     control_outcomes: Optional[np.ndarray] = None,
+    T_post: Optional[int] = None,
 ) -> MAREXInference:
     """Compute permutation inference for one synthetic contrast.
 
@@ -115,7 +120,7 @@ def compute_inference(
     rng = np.random.default_rng(random_state)
     Y_treated = np.asarray(Y_treated, dtype=float)
     Y_control = np.asarray(Y_control, dtype=float)
-    T_post = len(Y_treated) - T0
+    T_post = _check_t_post(T_post, len(Y_treated) - T0)
 
     blank_idx = np.arange(TcE, TcE + Tb)
     post_idx = np.arange(T0, T0 + T_post)
@@ -125,27 +130,35 @@ def compute_inference(
     full_effects = Y_treated - Y_control
 
     all_effects = np.concatenate([placebo_effects, treated_effects])
-    n_total = len(all_effects)
     s_obs = float(np.mean(np.abs(treated_effects))) if T_post > 0 else 0.0
-    if T_post > 0 and n_total >= T_post:
-        pi = np.array([rng.choice(n_total, size=T_post, replace=False)
-                       for _ in range(max_combinations)])
-        s_perm = np.mean(np.abs(all_effects[pi]), axis=1)
-        global_p = float(np.mean(s_perm >= s_obs))
+    if T_post > 0:
+        global_p = _global_p_value(all_effects, T_post, s_obs,
+                                   max_combinations, rng)
     else:
         global_p = float("nan")
 
     if placebo_effects.size and treated_effects.size:
-        per_period = np.mean(
+        # Each post period joins the blank periods as one more score, so its
+        # own rank counts: (1 + k) / (Tb + 1), never zero.
+        exceed = np.sum(
             np.abs(placebo_effects)[:, None] >= np.abs(treated_effects)[None, :],
-            axis=0,
-        )
-        q = np.quantile(np.abs(placebo_effects), 1 - alpha)
+            axis=0)
+        per_period = (1.0 + exceed) / (placebo_effects.size + 1.0)
+        q = split_conformal_quantile(placebo_effects, alpha)
+        if np.isinf(q):
+            warnings.warn(
+                f"The pointwise band needs at least "
+                f"{min_blank_periods(alpha)} blank periods at alpha={alpha}: "
+                f"with {placebo_effects.size}, the conformal quantile, order "
+                f"statistic ceil((Tb + 1)(1 - alpha)), does not exist, and the "
+                f"band is reported as (-inf, inf). The permutation p-values do "
+                f"not depend on it.", UserWarning, stacklevel=2)
     else:
         per_period = np.full(T_post, np.nan)
         q = np.nan
     interval = np.column_stack([treated_effects - q, treated_effects + q])
-    ci = np.vstack([np.full((T0, 2), np.nan), interval])
+    ci = np.full((len(Y_treated), 2), np.nan)
+    ci[T0:T0 + T_post] = interval
 
     # The blank periods are held out of the fit, so their effects are an
     # out-of-sample error series. Block-resampling them into whole paths and
@@ -156,7 +169,7 @@ def compute_inference(
     band = None
     if (cumulative_band and cumulative_method == "inversion"
             and placebo_effects.size and treated_effects.size):
-        band = _inversion_band(Y_treated, control_outcomes, T0, TcE,
+        band = _inversion_band(Y_treated, control_outcomes, T0, TcE, T_post,
                                point=float(treated_effects.sum()), alpha=alpha)
     elif cumulative_band and placebo_effects.size and treated_effects.size:
         # The blank window is one contiguous stretch, so it is split into as many
@@ -192,7 +205,43 @@ def compute_inference(
     )
 
 
-def _inversion_band(y, controls, T0, TcE, *, point, alpha):
+def _check_t_post(T_post, available):
+    """Post periods the inference reads; every one after ``T0`` by default."""
+    if T_post is None:
+        return available
+    if isinstance(T_post, bool) or not isinstance(T_post, (int, np.integer)):
+        raise MlsynthConfigError(f"T_post must be an integer; got {T_post!r}.")
+    if not 1 <= T_post <= available:
+        raise MlsynthDataError(
+            f"T_post must be between 1 and the {available} periods after T0; "
+            f"got {T_post}.")
+    return int(T_post)
+
+
+def _global_p_value(all_effects, T_post, s_obs, max_combinations, rng):
+    """Abadie and Zhao's eq. (17), exactly when it is affordable.
+
+    The arrangements are the ``T_post``-subsets of the blank and post periods.
+    When there are at most ``max_combinations`` of them every one is used, the
+    observed one included, and the p-value is the paper's. Otherwise
+    ``max_combinations`` are drawn and the observed arrangement is counted as
+    one more, ``(1 + k) / (1 + B)``, which keeps the test valid at any ``B``
+    (Phipson and Smyth 2010) and never reports zero.
+    """
+    n_total = all_effects.size
+    abs_effects = np.abs(all_effects)
+    tol = 1e-12 * (1.0 + s_obs)
+    if math.comb(n_total, T_post) <= max_combinations:
+        pi = np.array(list(itertools.combinations(range(n_total), T_post)))
+        s_perm = np.mean(abs_effects[pi], axis=1)
+        return float(np.mean(s_perm >= s_obs - tol))
+    pi = np.array([rng.choice(n_total, size=T_post, replace=False)
+                   for _ in range(max_combinations)])
+    s_perm = np.mean(abs_effects[pi], axis=1)
+    return float((1 + np.sum(s_perm >= s_obs - tol)) / (1 + max_combinations))
+
+
+def _inversion_band(y, controls, T0, TcE, T_post, *, point, alpha):
     """The inversion band for ``y``'s total, reported about MAREX's own total.
 
     The refit matches on every period and the reference starts at the blank
@@ -202,6 +251,7 @@ def _inversion_band(y, controls, T0, TcE, *, point, alpha):
     """
     band = cumulative_conformal_by_inversion(
         y, np.asarray(controls, dtype=float).T, int(T0), alpha=float(alpha),
+        horizon=int(T_post),
         refit="sc", conformal_type="block", statistic="signed",
         reference_start=int(TcE))
     if 1.0 / band.n_reference > alpha:

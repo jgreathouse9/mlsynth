@@ -61,12 +61,20 @@ class MAREXInference:
     s_obs : float
         Observed test statistic (mean absolute post-period effect).
     global_p_value : float
-        Permutation p-value for the global null of no effect.
+        Permutation p-value for the global null of no effect, Abadie and Zhao's
+        eq. (17). It uses every ``T1``-subset of the blank and post periods
+        when there are at most ``max_combinations`` of them, and otherwise
+        ``max_combinations`` drawn subsets, as ``(1 + k) / (1 + B)``. Either
+        way it is never zero.
     per_period_pvals : np.ndarray
-        Per-post-period p-values, shape ``(T1,)``.
+        Per-post-period p-values, shape ``(T1,)``: ``(1 + k) / (Tb + 1)``, with
+        ``k`` the blank effects at least as large in magnitude.
     ci : np.ndarray
-        Split-conformal confidence band over the full timeline, shape ``(T, 2)``
-        (pre-period rows are ``NaN``).
+        Split-conformal confidence band over the full timeline, shape
+        ``(T, 2)``. The half-width is the ``ceil((Tb + 1)(1 - alpha))``-th
+        order statistic of the absolute blank effects; with fewer than
+        ``ceil(1 / alpha) - 1`` blank periods it does not exist and the rows
+        are ``(-inf, inf)``. Rows outside the ``T1`` post periods are ``NaN``.
     alpha : float
         Two-sided significance level.
     cumulative_band : CumulativeConformalBand or CumulativeInversionBand, optional

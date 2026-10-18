@@ -238,10 +238,15 @@ def test_a_reference_too_short_to_reject_warns_and_is_unbounded():
 
 
 def test_a_reference_of_exactly_one_over_alpha_can_reject():
-    """At 20 periods the smallest p-value is 0.05, which a 5% test rejects."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
+    """At 20 periods the smallest p-value is 0.05, which a 5% test rejects.
+
+    Twelve blank periods are below the pointwise band's floor, so that band
+    warns; the inversion's own warning is the one that must stay silent.
+    """
+    with warnings.catch_warnings(record=True) as rec:
+        warnings.simplefilter("always")
         band = _direct(Tb=12, T_post=8, alpha=0.05).cumulative_band
+    assert not any("cannot reject" in str(w.message) for w in rec)
     assert np.isfinite(band.lower) and np.isfinite(band.upper)
 
 
@@ -253,7 +258,7 @@ def test_one_short_of_one_over_alpha_warns():
 def test_the_warning_names_the_reference_and_the_level():
     with pytest.warns(UserWarning) as rec:
         _direct(Tb=8, T_post=6, alpha=0.05)
-    msg = str(rec[0].message)
+    msg = next(str(w.message) for w in rec if "cannot reject" in str(w.message))
     assert "14" in msg and "0.05" in msg
 
 

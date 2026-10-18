@@ -59,7 +59,9 @@ def plot_marex(
                 ax.plot(y, label=prefix)
                 if inf is not None and inf.ci is not None:
                     ci = inf.ci
-                    ax.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1], alpha=0.2)
+                    # Rows below the blank floor are (-inf, inf): nothing to draw.
+                    ax.fill_between(np.arange(len(y)), ci[:, 0], ci[:, 1],
+                                    where=np.isfinite(ci).all(axis=1), alpha=0.2)
                 ax.set_ylabel("Treatment effect")
             else:
                 if cloud is not None and cloud.shape[0] > 0:

@@ -50,6 +50,7 @@ def solve_marex(
     relaxed=False,
     inference=False,
     alpha=0.05,
+    T_post=None,
     max_combinations=1000,
     random_state=42,
     unit_index=None,
@@ -70,7 +71,9 @@ def solve_marex(
 
     With ``relaxed=True`` the continuous-``z`` QP with post-hoc discretization is
     used; otherwise the exact MIQP. With ``inference=True``, blank-period
-    placebo inference is computed for every cluster and the aggregate.
+    placebo inference is computed for every cluster and the aggregate, at level
+    ``alpha`` and over the first ``T_post`` periods after ``T0`` (all of them
+    when ``None``).
 
     ``backend="exact"`` solves the design by searching treated sets
     (:func:`mlsynth.utils.marex_helpers.exact.solve_design_exact`) instead of
@@ -141,6 +144,7 @@ def solve_marex(
                                  cumulative_band=cumulative_band,
                                  cumulative_method=cumulative_method,
                                  control_outcomes=Y_full_np[donors],
+                                 T_post=T_post,
                                  cumulative_block=cumulative_block,
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)

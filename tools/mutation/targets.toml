@@ -5301,3 +5301,189 @@ timeout = 600.0
   find = "    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0, Z=Z, mu=mu)\n\n\n#:"
   replace = "    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0, Z=Z)\n\n\n#:"
   models = "the generic sample without the unobserved covariates it drew"
+
+[[target]]
+name = "marex-inference-validity"
+module-path = "mlsynth/utils/marex_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py mlsynth/tests/test_marex_inference_validity_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "band-interpolates-the-quantile"
+  find = "        q = split_conformal_quantile(placebo_effects, alpha)"
+  replace = "        q = float(np.quantile(np.abs(placebo_effects), 1 - alpha))"
+  models = "the np.quantile reading #744 replaced, which interpolates below the conformal order statistic and under-covers"
+
+  [[target.mutant]]
+  id = "per-period-p-drops-its-own-rank"
+  find = "        per_period = (1.0 + exceed) / (placebo_effects.size + 1.0)"
+  replace = "        per_period = exceed / placebo_effects.size"
+  models = "the k / Tb per-period p-value, which reaches zero and disagrees with the band"
+
+  [[target.mutant]]
+  id = "per-period-p-keeps-the-old-denominator"
+  find = "        per_period = (1.0 + exceed) / (placebo_effects.size + 1.0)"
+  replace = "        per_period = (1.0 + exceed) / placebo_effects.size"
+  models = "half the correction: the post period counted in the numerator but not among the scores"
+
+  [[target.mutant]]
+  id = "unbounded-band-unannounced"
+  find = "        if np.isinf(q):"
+  replace = "        if False:"
+  models = "a band infinite by construction reported with no diagnostic"
+
+  [[target.mutant]]
+  id = "global-p-always-drawn"
+  find = "    if math.comb(n_total, T_post) <= max_combinations:"
+  replace = "    if False:"
+  models = "the paper's exact p-value replaced by a draw even when every arrangement is affordable"
+
+  [[target.mutant]]
+  id = "global-p-exact-boundary-excluded"
+  find = "    if math.comb(n_total, T_post) <= max_combinations:"
+  replace = "    if math.comb(n_total, T_post) < max_combinations:"
+  models = "the exact branch losing the case where the arrangements number exactly max_combinations"
+
+  [[target.mutant]]
+  id = "global-p-draws-forget-the-observed"
+  find = "    return float((1 + np.sum(s_perm >= s_obs - tol)) / (1 + max_combinations))"
+  replace = "    return float(np.mean(s_perm >= s_obs - tol))"
+  models = "the Monte Carlo mean that can report a p-value of zero"
+
+  [[target.mutant]]
+  id = "t-post-ignored"
+  find = "    T_post = _check_t_post(T_post, len(Y_treated) - T0)"
+  replace = "    T_post = len(Y_treated) - T0"
+  models = "T_post validated by the config and then ignored, the inference reading every post period"
+
+  [[target.mutant]]
+  id = "t-post-past-the-panel-accepted"
+  find = "    if not 1 <= T_post <= available:"
+  replace = "    if not 1 <= T_post:"
+  models = "a T_post longer than the post period accepted and silently truncated"
+
+  [[target.mutant]]
+  id = "t-post-of-any-type-accepted"
+  find = "    if isinstance(T_post, bool) or not isinstance(T_post, (int, np.integer)):"
+  replace = "    if isinstance(T_post, bool):"
+  models = "a float or string T_post reaching the slicing"
+
+  [[target.mutant]]
+  id = "inversion-horizon-ignores-t-post"
+  find = "        horizon=int(T_post),"
+  replace = "        horizon=None,"
+  models = "the inversion band accumulating every post period while the rest of the inference reads T_post"
+
+[[target]]
+name = "marex-inference-windows"
+module-path = "mlsynth/utils/marex_helpers/windows.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py mlsynth/tests/test_marex_inference_validity_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "blank-floor-one-too-many"
+  find = "    while int(np.ceil((n + 1) * (1.0 - alpha))) > n:"
+  replace = "    while int(np.ceil((n + 1) * (1.0 - alpha))) >= n:"
+  models = "a blank floor one period above where the conformal quantile starts to exist"
+
+  [[target.mutant]]
+  id = "rank-counts-the-common-trend"
+  find = "    X = Y - Y.mean(axis=1, keepdims=True) - Y.mean(axis=0, keepdims=True) + Y.mean()"
+  replace = "    X = Y - Y.mean(axis=1, keepdims=True)"
+  models = "period effects counted as a factor, though weights summing to one fit them"
+
+  [[target.mutant]]
+  id = "rank-ratio-off-by-one"
+  find = "    return int(np.argmax(mu[:k_hi] / mu[1:k_hi + 1])) + 1"
+  replace = "    return int(np.argmax(mu[:k_hi] / mu[1:k_hi + 1]))"
+  models = "the eigenvalue ratio's argmax read as a zero-based count"
+
+  [[target.mutant]]
+  id = "rank-exact-shortcut-dropped"
+  find = "    if rank < m or m == 1:"
+  replace = "    if m == 1:"
+  models = "an exactly low-rank panel sent through the ratio, which reads rounding as factors"
+
+  [[target.mutant]]
+  id = "fit-floor-ignores-the-rank"
+  find = "    te = max(2 * r, MIN_FIT_PERIODS)"
+  replace = "    te = MIN_FIT_PERIODS"
+  models = "a fitting window too short for a panel with many factors, so the design interpolates"
+
+  [[target.mutant]]
+  id = "default-ignores-the-blank-floor"
+  find = "    return min(max(int(BLANK_SHARE * T0), tb), T0 - te)"
+  replace = "    return min(int(BLANK_SHARE * T0), T0 - te)"
+  models = "the 30% default left below the floor, the defect #744 reported"
+
+  [[target.mutant]]
+  id = "default-ignores-the-fitting-cap"
+  find = "    return min(max(int(BLANK_SHARE * T0), tb), T0 - te)"
+  replace = "    return max(int(BLANK_SHARE * T0), tb)"
+  models = "a blank window that starves the fitting window"
+
+  [[target.mutant]]
+  id = "short-pre-period-not-refused"
+  find = "    if T0 < tb + te:"
+  replace = "    if False:"
+  models = "a pre-period too short for both floors given a window that breaks one of them"
+
+[[target]]
+name = "marex-inference-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "default-is-the-old-thirty-percent"
+  find = "                values.blank_periods = default_blank_periods(\n                    Ywide.to_numpy(dtype=float)[:T0_eff].T, values.alpha)"
+  replace = "                values.blank_periods = max(1, int(0.3 * T0_eff))"
+  models = "the 30% default that crossed the blank floor on any panel with T0 < 64"
+
+  [[target.mutant]]
+  id = "default-at-a-fixed-level"
+  find = "                    Ywide.to_numpy(dtype=float)[:T0_eff].T, values.alpha)"
+  replace = "                    Ywide.to_numpy(dtype=float)[:T0_eff].T, 0.05)"
+  models = "the blank floor keyed to 0.05 whatever alpha the caller set"
+
+[[target]]
+name = "marex-inference-wiring"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "solve-marex-drops-t-post"
+  find = "                                 T_post=T_post,"
+  replace = "                                 T_post=None,"
+  models = "solve_marex accepting T_post and the inference reading every post period"
+
+[[target]]
+name = "marex-inference-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "estimator-drops-alpha"
+  find = "                alpha=self.config.alpha, T_post=self.config.T_post,"
+  replace = "                T_post=self.config.T_post,"
+  models = "MAREXConfig.alpha setting the MDE alone while the inference runs at 0.05"
+
+  [[target.mutant]]
+  id = "estimator-drops-t-post"
+  find = "                alpha=self.config.alpha, T_post=self.config.T_post,"
+  replace = "                alpha=self.config.alpha,"
+  models = "the config's T_post never reaching the inference"
+
+[[target]]
+name = "marex-inference-plot"
+module-path = "mlsynth/utils/marex_helpers/plotter.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py -q -x -p no:cacheprovider -k unbounded_band_is_not_drawn"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "plot-fills-to-infinity"
+  find = "                                    where=np.isfinite(ci).all(axis=1), alpha=0.2)"
+  replace = "                                    alpha=0.2)"
+  models = "an unbounded band drawn as a fill to infinity"

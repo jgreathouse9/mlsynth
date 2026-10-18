@@ -108,6 +108,18 @@ treated unit lies in the convex hull of the donors."
 :math:`\widehat{\tau}_t(\mathbf{w}, \mathbf{v})` and develop the permutation test
 below; the better the pre-experiment match, the smaller the bias.
 
+Assumption 5 (exchangeable periods). The factors :math:`\boldsymbol{\lambda}_t`
+are exchangeable across the blank and post periods, and the noise is
+continuously distributed.
+
+*Remark.* This is the condition of Abadie and Zhao's Theorem 2, under which
+the test is exact: :math:`\alpha - 1/|\Pi| \le \Pr(\hat p \le \alpha) \le \alpha`.
+The potential outcomes may still trend through :math:`\delta_t` and
+:math:`\boldsymbol{\theta}_t`. For fixed factors their Theorem OA.1 makes the
+p-value approximately valid as the fitting window grows. Persistent or trending
+factors are where it is least reliable; a unit root in the factors breaks it
+whatever the window lengths (`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__).
+
 Mathematical Formulation
 ------------------------
 
@@ -893,14 +905,67 @@ Inference
 ^^^^^^^^^
 
 When ``inference=True`` with ``blank_periods > 0``, the last few pre-experiment
-periods are held out as blanks: there the synthetic treated minus synthetic
-control is pure noise, so its distribution calibrates inference for the
-post-period effect. MAREX reports a permutation p-value for the global null of
-no effect, per-period p-values, and a confidence band from split-conformal
-prediction (Lei et al. 2018; Vovk, Gammerman, and Shafer 2005) built on the
-held-out blank periods -- rearranging only over the blank and post-intervention
-periods, not over all periods as in Chernozhukov-Wuthrich-Zhu (2021) -- all on
-:class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
+periods are held out as blanks: the design never sees them, so there the
+synthetic treated minus synthetic control is an out-of-sample error, and its
+distribution calibrates inference for the post-period effect. MAREX reports a
+permutation p-value for the global null of no effect, per-period p-values, and
+a pointwise confidence band from split-conformal prediction (Lei et al. 2018;
+Vovk, Gammerman, and Shafer 2005), all on
+:class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`. Every one of
+them rearranges only the blank and post periods, not all periods as in
+Chernozhukov, Wüthrich and Zhu (2021). ``alpha`` sets the level of the bands and
+of the power curve, and ``T_post`` the number of post periods the inference
+reads, all of them by default.
+
+The global p-value is Abadie and Zhao's eq. (17). Its statistic is the mean
+absolute post-period effect, compared with the same statistic on every way of
+choosing :math:`T_1` of the :math:`T_b + T_1` blank and post periods. When those
+arrangements number at most ``max_combinations`` MAREX uses all of them, the
+observed one included, and the p-value is exactly the paper's. Otherwise it
+draws ``max_combinations`` of them, :math:`B`, and counts the observed
+arrangement as one more, reporting :math:`(1 + k)/(1 + B)` with :math:`k` the
+draws at least as large. That keeps the test valid at any :math:`B` (Phipson and
+Smyth 2010), and the p-value never reaches zero.
+
+Under Assumption 5 the test is exact (Abadie and Zhao's Theorem 2).
+
+The pointwise band lays a constant half-width :math:`\hat q` around each post
+period's effect. :math:`\hat q` is the
+:math:`\lceil (T_b + 1)(1 - \alpha) \rceil`-th smallest absolute blank effect,
+the split-conformal quantile. Abadie and Zhao's eq. (18) uses the empirical
+quantile, the :math:`\lceil T_b (1 - \alpha) \rceil`-th, and their Theorem 3
+shows pointwise coverage tending to :math:`1 - \alpha` as the fitting and blank
+windows grow, provided treatment does not change the noise distribution. The
+split-conformal rank is never smaller. It gives coverage of at least
+:math:`1 - \alpha` in finite samples when the blank and post errors are
+exchangeable, and the two ranks agree as :math:`T_b` grows. On untreated panels in
+`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__
+(40 units, three factors autocorrelated at 0.8, a nominal 0.05), the
+empirical rank gave false-positive rates of 0.097, 0.074 and 0.066 at 19, 24 and
+48 blank periods, and the split-conformal rank 0.055, 0.032 and 0.035.
+
+The per-period p-value is mlsynth's own, the one the band inverts:
+:math:`(1 + k)/(T_b + 1)`, with :math:`k` the blank effects at least as large in
+magnitude as that period's. The band excludes zero exactly when it is at most
+:math:`\alpha`.
+
+The split-conformal rank exists only when it is at most :math:`T_b`, which needs
+:math:`T_b \ge \lceil 1/\alpha \rceil - 1` blank periods: 19 at
+:math:`\alpha = 0.05`, 9 at 0.10. With fewer, MAREX reports the band as
+:math:`(-\infty, \infty)` and warns; the p-values do not depend on it. Left to
+its default, ``blank_periods`` aims for 30% of the pre-period and is held
+between two floors: at least :math:`\lceil 1/\alpha \rceil - 1` blank periods,
+and at least :math:`\max(2r, 10)` fitting periods, where :math:`r` is the
+effective rank of the pre-period panel (Ahn and Horenstein's 2013 eigenvalue
+ratio, after removing unit and period means). The second floor is Assumption 2's
+:math:`F \le T_E` with a margin. A design fitted on too few periods
+interpolates, and its blank effects then describe the interpolation: in
+`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__, five fitting periods fitted the
+pre-period exactly and left the cumulative
+false-positive rate at 0.38. A pre-period too short for both floors, under 29
+periods at :math:`\alpha = 0.05` and a low-rank panel, is refused with both
+floors named. A larger ``alpha`` or an explicit ``blank_periods`` gets past the
+refusal; an explicit window is taken as given.
 
 .. _marex-cumulative-band:
 
@@ -1709,3 +1774,17 @@ Semidefinite Program Approach." *INFORMS Journal on Computing* 26(4):690-703.
 
 Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms*, 2nd
 ed. SIAM.
+
+Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
+"Distribution-Free Predictive Inference for Regression." *Journal of the
+American Statistical Association* 113(523):1094-1111.
+
+Vovk, V., Gammerman, A., & Shafer, G. (2005). *Algorithmic Learning in a Random
+World*. Springer.
+
+Phipson, B., & Smyth, G. K. (2010). "Permutation P-values Should Never Be Zero:
+Calculating Exact P-values When Permutations Are Randomly Drawn." *Statistical
+Applications in Genetics and Molecular Biology* 9(1), Article 39.
+
+Ahn, S. C., & Horenstein, A. R. (2013). "Eigenvalue Ratio Test for the Number of
+Factors." *Econometrica* 81(3):1203-1227.

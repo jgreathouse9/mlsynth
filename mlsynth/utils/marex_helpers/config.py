@@ -312,7 +312,10 @@ class MAREXConfig(BaseMAREXConfig):
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided significance level for the MDE power curve.",
+        description="Two-sided level for inference and the MDE power curve: "
+                    "the pointwise and cumulative bands are at 1 - alpha, and "
+                    "the default blank window holds at least ceil(1/alpha) - 1 "
+                    "periods, the fewest at which the pointwise band exists.",
     )
     power_target: float = Field(
         default=0.80, gt=0.0, lt=1.0,
@@ -609,10 +612,18 @@ class MAREXConfig(BaseMAREXConfig):
                     f"T_post must be between 1 and {max_post} "
                     f"(T0={T0_eff}, total periods={n_periods})"
                 )
-            # Default blank window to the same 30% pre-tail convention used by
-            # the other MAREX-family estimators (LEXSCM, SYNDES, PANGEO).
+            # The default blank window aims for 30% of the pre-period, the
+            # convention of the other MAREX-family estimators (LEXSCM, SYNDES,
+            # PANGEO), held between two floors: enough blanks for the conformal
+            # quantile to exist at ``alpha``, and enough fitting periods for the
+            # panel's factors. An explicit ``blank_periods`` is taken as given.
             if values.blank_periods is None:
-                values.blank_periods = max(1, int(0.3 * T0_eff))
+                from ..datautils import geoex_dataprep
+                from .windows import default_blank_periods
+                Ywide = geoex_dataprep(values.df, values.unitid, values.time,
+                                       values.outcome)["Ywide"]
+                values.blank_periods = default_blank_periods(
+                    Ywide.to_numpy(dtype=float)[:T0_eff].T, values.alpha)
         else:
             # No inference requested: do not silently carve out a blank
             # window from the optimization (would change the synthetic
