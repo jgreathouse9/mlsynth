@@ -182,6 +182,7 @@ class MAREX:
                 restrictions=restrictions,
                 warm_start=warm_idx, time_limit=self.time_limit,
                 cumulative_band=self.config.cumulative_band,
+                cumulative_method=self.config.cumulative_method,
                 cumulative_block=self.config.cumulative_block,
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,

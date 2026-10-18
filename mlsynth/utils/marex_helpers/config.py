@@ -192,6 +192,24 @@ class MAREXConfig(BaseMAREXConfig):
                     "answers 'how much did the intervention add in total', which "
                     "is not obtainable by arithmetic on the pointwise endpoints.",
     )
+    cumulative_method: Literal["resample", "inversion"] = Field(
+        default="resample",
+        description="cumulative_band only: how the band for the total is "
+                    "built. 'resample' (default) block-resamples the "
+                    "blank-period effects into paths, so it uses only errors "
+                    "observed before the post period and is limited by how "
+                    "many horizon-length windows the blank stretch holds. "
+                    "'inversion' tests constant effects (Chernozhukov, "
+                    "Wuthrich and Zhu 2021, Remark 1): it refits a synthetic "
+                    "control for the synthetic treated series on every period "
+                    "from the untreated units, and compares the signed post "
+                    "sum of the residuals with its cyclic shifts over the "
+                    "blank and post periods. It reads the post outcomes, so "
+                    "no window count limits it; the smallest p-value it can "
+                    "reach is 1 / (blank_periods + T_post). The "
+                    "cumulative_block, cumulative_n_sim and cumulative_seed "
+                    "settings apply to 'resample' alone.",
+    )
     cumulative_block: int = Field(
         default=0,
         description="cumulative_band only: block length in periods for the "
@@ -323,6 +341,17 @@ class MAREXConfig(BaseMAREXConfig):
         if not isinstance(v, bool):
             raise MlsynthConfigError(
                 f"cumulative_band must be True or False; got {v!r}.")
+        return v
+
+    @field_validator("cumulative_method", mode="before")
+    @classmethod
+    def _known_cumulative_method(cls, v):
+        """Refuse an unknown construction by name, not as a Literal mismatch."""
+        if not isinstance(v, str) or v not in ("resample", "inversion"):
+            raise MlsynthConfigError(
+                f"cumulative_method must be 'resample' or 'inversion'; got "
+                f"{v!r}. 'resample' draws paths from the blank-period effects; "
+                "'inversion' tests constant effects against the post outcomes.")
         return v
 
     @field_validator("cumulative_block", "cumulative_n_sim", "cumulative_seed",

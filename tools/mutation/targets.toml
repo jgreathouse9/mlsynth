@@ -5013,3 +5013,135 @@ timeout = 600.0
   find = "        statistic=statistic,\n        reference_start=reference_start,\n    )"
   replace = "        statistic=\"sq\",\n        reference_start=reference_start,\n    )"
   models = "the band labelled S_q whatever was run, so a reader cannot tell which test produced it"
+
+[[target]]
+name = "marex-cumulative-inversion"
+module-path = "mlsynth/utils/marex_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cumulative_inversion.py mlsynth/tests/test_marex_cumulative_inversion_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "inversion-reference-includes-the-fitting-periods"
+  find = "        reference_start=int(TcE))"
+  replace = "        reference_start=0)"
+  models = "the selection leak: the fitting periods, where the design was chosen and the residuals are smaller, enter the reference and narrow the band under serial dependence"
+
+  [[target.mutant]]
+  id = "inversion-on-the-absolute-statistic"
+  find = "        refit=\"sc\", conformal_type=\"block\", statistic=\"signed\","
+  replace = "        refit=\"sc\", conformal_type=\"block\", statistic=\"sq\","
+  models = "the S_1 statistic, whose band loses the total whenever the effect is not constant"
+
+  [[target.mutant]]
+  id = "inversion-refits-by-ridge"
+  find = "        refit=\"sc\", conformal_type=\"block\", statistic=\"signed\","
+  replace = "        refit=\"ridge\", conformal_type=\"block\", statistic=\"signed\","
+  models = "the null refit by an unconstrained ridge control instead of the simplex synthetic MAREX builds"
+
+  [[target.mutant]]
+  id = "inversion-shuffles-the-periods"
+  find = "        refit=\"sc\", conformal_type=\"block\", statistic=\"signed\","
+  replace = "        refit=\"sc\", conformal_type=\"iid\", statistic=\"signed\","
+  models = "random permutations in place of cyclic shifts, which break the serial dependence the block scheme keeps"
+
+  [[target.mutant]]
+  id = "inversion-tests-the-blank-window-as-post"
+  find = "        y, np.asarray(controls, dtype=float).T, int(T0), alpha=float(alpha),"
+  replace = "        y, np.asarray(controls, dtype=float).T, int(TcE), alpha=float(alpha),"
+  models = "the pre-period cut at the fitting window, so the blank periods are imputed as if treated"
+
+  [[target.mutant]]
+  id = "inversion-reports-the-library-point"
+  find = "    return replace(band, point=point)"
+  replace = "    return band"
+  models = "the band reporting a pre-period SC fit's total in place of MAREX's own, so the two methods report different points for one design"
+
+  [[target.mutant]]
+  id = "inversion-warns-at-the-length-that-can-reject"
+  find = "    if 1.0 / band.n_reference > alpha:"
+  replace = "    if 1.0 / band.n_reference >= alpha:"
+  models = "a warning that the test cannot reject at the one reference length where it can"
+
+  [[target.mutant]]
+  id = "inversion-unbounded-band-unannounced"
+  find = "    if 1.0 / band.n_reference > alpha:"
+  replace = "    if False:"
+  models = "a band that is infinite by construction returned with no diagnostic"
+
+  [[target.mutant]]
+  id = "inversion-branch-never-taken"
+  find = "    if (cumulative_band and cumulative_method == \"inversion\"\n            and placebo_effects.size and treated_effects.size):"
+  replace = "    if (cumulative_band and cumulative_method == \"inverted\"\n            and placebo_effects.size and treated_effects.size):"
+  models = "the inversion accepted by the config and the resampled band returned in its place"
+
+  [[target.mutant]]
+  id = "inversion-unknown-method-accepted"
+  find = "    if cumulative_method not in CUMULATIVE_METHODS:"
+  replace = "    if False:"
+  models = "a misspelt method falling through to the resampled band"
+
+  [[target.mutant]]
+  id = "inversion-donors-not-required"
+  find = "            and control_outcomes is None):"
+  replace = "            and False):"
+  models = "a missing donor matrix reported as a shape error that does not name the argument"
+
+[[target]]
+name = "marex-cumulative-inversion-wiring"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cumulative_inversion.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cluster-refit-draws-on-other-clusters"
+  find = "            inference=_maybe_infer(syn_t, syn_c, idx[sel == 0]),"
+  replace = "            inference=_maybe_infer(syn_t, syn_c, treated_w <= 1e-8),"
+  models = "a cluster's refit drawing on every unit its design left at zero, other clusters' members and treated units included"
+
+  [[target.mutant]]
+  id = "cluster-refit-draws-on-its-treated-units"
+  find = "            inference=_maybe_infer(syn_t, syn_c, idx[sel == 0]),"
+  replace = "            inference=_maybe_infer(syn_t, syn_c, idx),"
+  models = "the treated members in the donor pool, so the refit reproduces the treated synthetic and the post residuals vanish"
+
+  [[target.mutant]]
+  id = "global-refit-draws-on-the-treated-units"
+  find = "        inference=_maybe_infer(g_syn_t, g_syn_c, ~is_treated),"
+  replace = "        inference=_maybe_infer(g_syn_t, g_syn_c, np.ones_like(is_treated)),"
+  models = "the aggregate's donor pool holding the treated units"
+
+  [[target.mutant]]
+  id = "solve-marex-drops-the-method"
+  find = "                                 cumulative_method=cumulative_method,"
+  replace = "                                 cumulative_method=\"resample\","
+  models = "solve_marex accepting the method and computing the resampled band"
+
+[[target]]
+name = "marex-cumulative-inversion-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cumulative_inversion.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "estimator-drops-the-method"
+  find = "                cumulative_method=self.config.cumulative_method,"
+  replace = "                cumulative_method=\"resample\","
+  models = "the config accepting cumulative_method and the estimator never passing it on"
+
+[[target]]
+name = "marex-cumulative-inversion-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cumulative_inversion.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "default-method-is-inversion"
+  find = "    cumulative_method: Literal[\"resample\", \"inversion\"] = Field(\n        default=\"resample\","
+  replace = "    cumulative_method: Literal[\"resample\", \"inversion\"] = Field(\n        default=\"inversion\","
+  models = "every existing cumulative_band caller switched to a different band"
+
+  [[target.mutant]]
+  id = "unknown-method-left-to-the-literal"
+  find = "        if not isinstance(v, str) or v not in (\"resample\", \"inversion\"):"
+  replace = "        if not isinstance(v, str):"
+  models = "an unknown method refused by pydantic's Literal check, whose message does not say what either method does"

@@ -16,12 +16,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from pydantic import ConfigDict
 
 from ...config_models import DesignResult
+from ..conformal.cumulative_inversion import CumulativeInversionBand
 from ..conformal.structure import CumulativeConformalBand
 from .certify import ClusterCertificate, round_down, round_up
 
@@ -68,16 +69,22 @@ class MAREXInference:
         (pre-period rows are ``NaN``).
     alpha : float
         Two-sided significance level.
-    cumulative_band : CumulativeConformalBand, optional
+    cumulative_band : CumulativeConformalBand or CumulativeInversionBand, optional
         Band for the TOTAL post-period effect, present only when
         ``cumulative_band=True`` was requested. ``ci`` above is pointwise: a
         constant half-width laid around each period's effect, which bounds one
         period at a time. Stacking those endpoints would bound the total only if
         the period errors moved in lockstep, and dividing one by the horizon only
-        if they were independent. This band measures how they accumulate, by
-        block-resampling the blank-period effects into whole paths and taking the
-        quantile of their totals. Its ``n_scores`` is the number of blank periods
-        drawn from.
+        if they were independent. Under ``cumulative_method="resample"`` it is a
+        :class:`CumulativeConformalBand`, which block-resamples the blank-period
+        effects into whole paths and takes the quantile of their totals; its
+        ``n_scores`` is the number of blank periods drawn from. Under
+        ``"inversion"`` it is a
+        :class:`~mlsynth.utils.conformal.CumulativeInversionBand`, the constant
+        effects a test against the post outcomes does not reject; its
+        ``n_reference`` is the number of blank and post periods, and its
+        endpoints need not be symmetric about ``point``. Either way ``point`` is
+        the sum of ``treated_effects``.
     """
 
     treated_effects: np.ndarray
@@ -88,7 +95,8 @@ class MAREXInference:
     per_period_pvals: np.ndarray
     ci: np.ndarray
     alpha: float = 0.05
-    cumulative_band: Optional[CumulativeConformalBand] = None
+    cumulative_band: Optional[Union[CumulativeConformalBand,
+                                    CumulativeInversionBand]] = None
 
 
 @dataclass(frozen=True)
