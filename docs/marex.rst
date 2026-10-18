@@ -902,6 +902,147 @@ held-out blank periods -- rearranging only over the blank and post-intervention
 periods, not over all periods as in Chernozhukov-Wuthrich-Zhu (2021) -- all on
 :class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
 
+.. _marex-cumulative-band:
+
+The total effect
+^^^^^^^^^^^^^^^^
+
+The band above bounds one period at a time. How much the intervention added
+over the whole experiment is the total :math:`\sum_{t > T_0} \tau_t` over the
+:math:`H` post periods, and its band is not arithmetic on the pointwise
+endpoints: summing them assumes the period errors move together, and dividing
+one by :math:`H` assumes they are independent. ``cumulative_band=True`` attaches
+a band for the total to ``inference.cumulative_band``, on the aggregate design
+and on every cluster, built in one of two ways chosen by ``cumulative_method``.
+Both are mlsynth's own constructions: Abadie and Zhao's Theorem 3 covers one
+period at a time, and their paper gives no band for the total.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=3, inference=True, blank_periods=26,
+                           cumulative_band=True,
+                           cumulative_method="inversion")).fit()
+   band = res.globres.inference.cumulative_band
+   band.point, band.lower, band.upper
+
+``point`` is MAREX's own estimate of the total, the sum of the post-period
+effects, under both methods.
+
+``cumulative_method="resample"``, the default, splits the blank window into
+horizon-length sub-windows and resamples their effects into whole paths
+(``cumulative_block`` sets the block length, ``cumulative_n_sim`` the number of
+paths); the half-width is a quantile of the accumulated totals. It uses only
+errors observed before the post period, and every band built that way meets a
+floor set by how many of them there are. With :math:`n` blank errors, suppose
+one error, placed at a period chosen at random, is far larger than the rest.
+With probability :math:`H/(n+H)` it lands in the post window, where no blank
+error reveals it. A band that covers the total for every exchangeable error law
+(one whose distribution does not change when the periods are reordered) must
+then be unbounded with probability at least :math:`1 - \alpha(n/H + 1)`. A band
+that stays finite needs :math:`n \ge H(1/\alpha - 1)`, which is 247 blank
+periods for a 95% band over 13 post periods.
+
+``cumulative_method="inversion"`` is not subject to that floor because it reads
+the post outcomes, which an experiment observes: they are the counterfactual
+errors plus the effect. It inverts the test of Chernozhukov, Wüthrich and Zhu
+(2021). For a candidate per-period effect :math:`\theta`, MAREX subtracts
+:math:`\theta` from the synthetic treated series in each post period, refits a
+synthetic control for that series on every period from the units the design
+left untreated, and takes the residuals :math:`\hat u_t`. The statistic is the
+size of their post sum,
+
+.. math::
+
+   S(\hat{\mathbf{u}}) = \frac{\bigl|\sum_{t > T_0} \hat u_t\bigr|}{\sqrt{H}},
+
+and the p-value is the share of cyclic shifts of the residual path, taken over
+the blank and post periods, whose post block gives a statistic at least as
+large. A cyclic shift moves every residual :math:`k` periods along and wraps
+the end around to the start, so it keeps the order in which errors follow one
+another. The band is :math:`H` times the candidates with :math:`p > \alpha`, and
+its endpoints need not be symmetric about ``point``.
+
+Assumptions
+"""""""""""
+
+1. The errors are stationary and weakly dependent over the blank and post
+   periods: their joint law does not drift, and periods far apart are close to
+   independent.
+
+   Remark. This is the condition under which cyclic shifts give an
+   approximately valid test (Chernozhukov, Wüthrich and Zhu 2021, Assumption
+   2.2). Shifts preserve the serial dependence that random reorderings would
+   destroy, at the price of a coarser p-value: there are only
+   :math:`T_b + H` of them, so no p-value falls below :math:`1/(T_b + H)`. With
+   fewer than :math:`1/\alpha` blank and post periods nothing is rejected, the
+   band is :math:`(-\infty, \infty)`, and MAREX warns. A 95% band needs at least
+   20.
+
+2. The null is a constant effect, and the band is read as a band for the total.
+
+   Remark. A one-dimensional band needs a one-dimensional null, so the test
+   imposes :math:`\tau_t = \theta` in every post period. The statistic depends
+   on the residuals only through their sum, so its observed value depends on the
+   effect path only through the total, and the band covers the total when the
+   effect grows or decays as well. With the default statistic of the general
+   routine, the mean absolute residual, that fails: on simulated MAREX designs
+   with independent factors and a ramp-shaped effect the 95% band covered the
+   total 11% of the time, against 99.7% for the signed sum. What breaks the signed sum is a single
+   error so large that it dominates the post sum; heavy tails alone did not, in
+   a search over Cauchy errors.
+
+3. The fitting periods stay out of the reference set.
+
+   Remark. MAREX chooses the treated set on the fitting periods, and the refit
+   residuals there are smaller, by about 30% in mean square on the simulated
+   designs, than on the blank and post periods, which behave alike. A reference
+   that includes them understates the spread of a 13-period post sum, by a
+   factor of 1.17 with independent factors and 1.59 with factors autocorrelated
+   at 0.8, and the band under-covers. The refit still matches on every period,
+   which lets it track a trend the controls share; only the reference starts at
+   the blank window. Coverage of the total at 95% / 80%, with the median width
+   of the 95% band, over 300 MAREX designs with 40 fitting, 26 blank and 13 post
+   periods:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 30 30
+
+      * - factors
+        - every period referenced
+        - blank and post referenced
+      * - independent
+        - 0.950 / 0.773 (25.0)
+        - 0.967 / 0.827 (37.5)
+      * - autocorrelated at 0.5
+        - 0.927 / 0.767 (30.0)
+        - 0.973 / 0.787 (45.0)
+      * - autocorrelated at 0.8
+        - 0.910 / 0.730 (42.5)
+        - 0.967 / 0.777 (60.0)
+      * - trending
+        - 0.983 / 0.833 (32.5)
+        - 0.983 / 0.807 (38.8)
+
+   Whitening the residuals by an autoregressive model before shifting them,
+   which Chernozhukov, Wüthrich and Zhu propose for serially dependent errors,
+   did not close the gap: the difference is between two stretches of the
+   series, not a stationary dependence a filter can remove.
+
+For a cluster, the refit draws on the cluster's own unselected members, the
+units its control was built from; for the aggregate design, on every untreated
+unit. Each candidate costs one simplex fit, and the search brackets and bisects
+each endpoint, so the band costs some tens of fits per design and no extra
+solve. ``cumulative_block``, ``cumulative_n_sim`` and ``cumulative_seed`` apply
+to ``"resample"`` alone. The band is a
+:class:`~mlsynth.utils.conformal.CumulativeInversionBand`; its
+``reference_start`` is the first blank period and its ``n_reference`` is
+:math:`T_b + H`. The study behind these choices, with the floor above and its
+proof, is in `benchmarks/studies/marex_cumulative_conformal
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_cumulative_conformal>`_,
+and the tests are in ``mlsynth/tests/test_marex_cumulative_inversion.py``.
+
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
 

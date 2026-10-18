@@ -58,6 +58,7 @@ def solve_marex(
     warm_start=None,
     time_limit=None,
     cumulative_band=False,
+    cumulative_method="resample",
     cumulative_block=0,
     cumulative_n_sim=2000,
     cumulative_seed=0,
@@ -81,6 +82,10 @@ def solve_marex(
     inference, block-resampling the blank-period effects with block length
     ``cumulative_block`` (``0`` means the whole horizon) into ``cumulative_n_sim``
     accumulated paths, seeded by ``cumulative_seed``. It needs no extra solve.
+    ``cumulative_method="inversion"`` builds that band by test inversion instead,
+    refitting each synthetic treated series on the units its design left
+    untreated: a cluster's own unselected members, or every untreated unit for
+    the aggregate.
     """
     solve = solve_design_relaxed if relaxed else solve_design
     solve_kw = dict(
@@ -127,13 +132,15 @@ def solve_marex(
     T0_eff = raw["T0"]
     TcE = T0_eff - blank_periods
 
-    def _maybe_infer(syn_t, syn_c):
+    def _maybe_infer(syn_t, syn_c, donors):
         if not (inference and blank_periods > 0):
             return None
         return compute_inference(syn_t, syn_c, T0_eff, TcE, blank_periods,
                                  alpha=alpha, max_combinations=max_combinations,
                                  random_state=random_state,
                                  cumulative_band=cumulative_band,
+                                 cumulative_method=cumulative_method,
+                                 control_outcomes=Y_full_np[donors],
                                  cumulative_block=cumulative_block,
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)
@@ -221,7 +228,7 @@ def solve_marex(
             selection_indicators=sel, synthetic_treated=syn_t,
             synthetic_control=syn_c, pre_treatment_means=raw["Xbar_clusters"][k],
             rmse=float(raw["rmse_cluster"][k]), unit_weight_map=uwm,
-            inference=_maybe_infer(syn_t, syn_c),
+            inference=_maybe_infer(syn_t, syn_c, idx[sel == 0]),
         )
 
     # aggregate (global) design
@@ -241,7 +248,7 @@ def solve_marex(
         Y_full=Y_full_np, Y_fit=raw["Y_fit"], Y_blank=raw["Y_blank"],
         treated_weights_agg=adj_treated, control_weights_agg=adj_control,
         synthetic_treated=g_syn_t, synthetic_control=g_syn_c,
-        inference=_maybe_infer(g_syn_t, g_syn_c),
+        inference=_maybe_infer(g_syn_t, g_syn_c, ~is_treated),
         objective=float(raw.get("objective", float("nan"))),
     )
 
