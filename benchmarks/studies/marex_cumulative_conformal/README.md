@@ -192,16 +192,71 @@ total at 95% / 80%:
   carry less of it than the post periods do. That is Theorem 1's bias, which no
   calibration on the blank periods can see.
 
+### Block permutations and recency weights
+
+`blocks_weights.py`, 1000 draws a cell, `H = 12`, `results/blocks_weights.log`.
+The `blocks` scheme cuts the periods into contiguous blocks of length `L` and
+permutes them as units: `L = 1` is all subsets, `L = H` is disjoint windows.
+Recency weights are Barber, Candes, Ramdas and Tibshirani's (2023): reference
+block `k` weighs `0.97` to the distance between its centre and the post
+window's, and their Theorem 2 bounds the loss of coverage by the weighted total
+variation between the data and its swap. Coverage of the total at 95%, constant
+path, with the median width in standard deviations of the noise sum:
+
+| law | `n` | subsets | `L = 3` | `L = 6` | cyclic | cyclic, weighted |
+| --- | --- | --- | --- | --- | --- | --- |
+| gauss | 48 | 0.952 (4.07) | 0.956 (4.22) | 0.958 (4.66) | 0.959 (4.91) | 0.985 (8.31) |
+| ar5 | 48 | 0.794 (2.66) | 0.900 (3.56) | 0.947 (4.44) | 0.936 (4.47) | 0.964 (5.77) |
+| ar8 | 48 | 0.653 (1.84) | 0.820 (2.68) | 0.918 (3.67) | 0.921 (3.73) | 0.950 (4.26) |
+| ar8 | 96 | 0.627 (1.80) | 0.794 (2.64) | 0.890 (3.43) | 0.938 (3.99) | 0.971 (4.51) |
+| drift | 48 | 0.786 | 0.802 | 0.847 | 0.838 | 0.931 |
+| drift | 96 | 0.454 | 0.505 | 0.612 | 0.704 | 0.887 |
+
+- Longer blocks recover coverage under autocorrelation monotonically, and at
+  the same width cyclic shifts reach as much or more: blocks interpolate
+  between subsets and cyclic shifts without beating the latter. Blocks earn a
+  place only where `N` is too short for cyclic shifts at the chosen level.
+- Under an AR(1) at 0.8 cyclic shifts hold 0.92-0.94 at 95% and 0.75-0.78 at
+  80%; weighting lifts that to 0.95-0.97 and 0.79-0.82 for 15-20% more width.
+- A drift defeats every scheme as the blank period lengthens, since every
+  reference block sits earlier on the trend than the post window. Weighting
+  slows the loss (0.887 against 0.704 at `n = 96`) and does not stop it: no
+  reweighting of the past reaches the post window's position on a trend.
+
+### What the reading adds
+
+- Vovk, Gammerman and Shafer (2022), Section 4.5: the transductive conformal
+  predictor for `k` labels at once ranks the observed subset among all
+  `(l + k)! / l!` ordered subsets (eq. 4.27). The `subsets` scheme is that
+  predictor with the signed sum as its transductive nonconformity measure, so
+  its exactness under exchangeability is theirs. Their Table 11.1 puts the first
+  informative step at `1 / epsilon` examples under exchangeability.
+- The same book (Section 13.5.1) credits Chernozhukov, Wuthrich and Zhu (2018)
+  with the theory for block-based conformal prediction on time series, and
+  (Section 13.5.2) describes CWZ (2021) as exactly valid for IID data and
+  approximately valid for time series, which is what the cyclic rows show.
+- For trends, the first edition's detrending transformations (quoted in the
+  second, Section 8.6.8): fix a family `F_theta` such that some `F_theta` makes
+  the sequence exchangeable, reject the `theta` that do not, and predict with
+  the rest. Remark 11.7 does this for a polynomial trend with IID Gaussian noise.
+- Stocker, Malgorzewicz, Fontana and Ben Taieb (2025): split conformal stays
+  approximately valid under beta-mixing with explicit slack terms, and
+  non-stationarity is the failure it cannot absorb. Their block conformal arm
+  under-covered when the block length was mis-set.
+- Memmesheimer, Heuveline and Hesser (2025) review conformal methods for
+  individual treatment effects; none treats panels or a total over time.
+
 ## Next
 
-1. A reference set between the two: blocks of length `L` permuted as units,
-   finer than cyclic shifts and robust to short-range dependence.
+1. The trend case by the detrending route: invert jointly over the total `C`
+   and a linear slope `theta` in the contrast, the slope estimated on the blank
+   periods, and project the accepted set onto `C`. Valid when the contrast's
+   trend is in the family; the projection prices the slope's uncertainty into
+   the band.
 2. A statement of which paths the signed-sum inversion covers. The spike case
    shows it is not every path under every exchangeable law; continuous laws
    gave no counterexample.
-3. The trend case: a band that adds Theorem 1's bias bound, or a pre-test on
-   the blank contrast.
-4. A written proof of the bound for calibration-only bands.
+3. A written proof of the bound for calibration-only bands.
 
 ## References
 

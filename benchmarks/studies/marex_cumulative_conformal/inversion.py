@@ -36,6 +36,19 @@ Schemes:
 * ``subsets`` -- every ``H``-subset of the ``N`` periods when there are at most
   ``max_subsets`` of them, else the observed block plus ``max_subsets`` drawn
   uniformly; Abadie and Zhao's scheme.
+* ``blocks`` -- the periods cut into contiguous blocks of length ``L`` (which
+  must divide ``H``), the earliest ``n mod L`` blank periods dropped so the post
+  window is the last ``H / L`` blocks, and every choice of ``H / L`` blocks as a
+  reference (or ``max_subsets`` drawn). ``L = 1`` is ``subsets``; ``L = H`` is
+  disjoint windows. Exact when the blocks are exchangeable; dependence shorter
+  than ``L`` stays inside a block.
+
+Weights follow Barber, Candes, Ramdas and Tibshirani (2023): a reference block
+``k`` carries a fixed weight ``w_k`` and the observed block weight one, and the
+p-value is ``sum_k w_k 1{S_k >= S_0} / sum_k w_k``. Their Theorem 2 bounds the
+loss of coverage by ``sum_k w~_k d_TV(R(Z), R(Z^k))``, so weights that fall
+with a block's distance from the post window spend less of that budget on the
+blocks least like it. Equal weights give the unweighted test back.
 """
 from __future__ import annotations
 
@@ -46,7 +59,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-SCHEMES = ("cyclic", "subsets")
+SCHEMES = ("cyclic", "subsets", "blocks")
 
 
 @dataclass(frozen=True)
@@ -60,15 +73,33 @@ class Reference:
     r: np.ndarray
     G: float
     H: int
+    w: Optional[np.ndarray] = None
 
 
 def blocks(n: int, H: int, scheme: str, *, max_subsets: int = 999,
-           rng: Optional[np.random.Generator] = None) -> np.ndarray:
+           rng: Optional[np.random.Generator] = None, L: int = 1) -> np.ndarray:
     """Index matrix, one reference block per row; row 0 is the post block."""
     N = n + H
     post = np.arange(n, N)
     if scheme == "cyclic":
         return (n + np.arange(N)[:, None] + np.arange(H)[None, :]) % N
+    if scheme == "blocks":
+        if H % L:
+            raise ValueError(f"block length {L} must divide the horizon {H}")
+        start = n % L
+        M = (N - start) // L
+        k = H // L
+        unit = start + L * np.arange(M)[:, None] + np.arange(L)[None, :]
+        post_units = np.arange(M - k, M)
+        if comb(M, k) <= max_subsets + 1:
+            picks = np.array(list(combinations(range(M), k)))
+            picks = picks[~np.all(picks == post_units[None, :], axis=1)]
+        else:
+            rng = np.random.default_rng() if rng is None else rng
+            picks = np.sort(rng.random((max_subsets, M)).argpartition(k, axis=1)[:, :k],
+                            axis=1)
+        picks = np.vstack([post_units[None, :], picks])
+        return unit[picks].reshape(picks.shape[0], H)
     if scheme != "subsets":
         raise ValueError(f"scheme must be one of {SCHEMES}; got {scheme!r}")
     if comb(N, H) <= max_subsets + 1:
@@ -80,13 +111,24 @@ def blocks(n: int, H: int, scheme: str, *, max_subsets: int = 999,
     return np.vstack([post[None, :], drawn])
 
 
-def reference(blank: np.ndarray, gaps: np.ndarray, idx: np.ndarray) -> Reference:
+def reference(blank: np.ndarray, gaps: np.ndarray, idx: np.ndarray,
+              w: Optional[np.ndarray] = None) -> Reference:
     blank = np.asarray(blank, dtype=float)
     gaps = np.asarray(gaps, dtype=float)
     n, H = blank.size, gaps.size
     v = np.concatenate([blank, gaps])
     return Reference(a=v[idx].sum(axis=1), r=(idx >= n).sum(axis=1) / H,
-                     G=float(gaps.sum()), H=H)
+                     G=float(gaps.sum()), H=H,
+                     w=None if w is None else np.asarray(w, dtype=float))
+
+
+def recency_weights(idx: np.ndarray, n: int, rho: float) -> np.ndarray:
+    """``rho`` to the distance between a block's mean period and the post window's.
+
+    Fixed in advance of the data, as Theorem 2 requires; row 0 gets one.
+    """
+    centre = idx.mean(axis=1)
+    return rho ** np.abs(centre - centre[0])
 
 
 def pvalue(ref: Reference, C) -> np.ndarray:
@@ -97,7 +139,10 @@ def pvalue(ref: Reference, C) -> np.ndarray:
     # the tolerance absorbs rounding in sums of the same numbers taken in a
     # different order, which is what makes a block equal the observed one
     tol = 1e-9 * (1.0 + np.abs(ref.a).max() + np.abs(C)[:, None])
-    return np.mean(S >= obs[:, None] - tol, axis=1)
+    hit = S >= obs[:, None] - tol
+    if ref.w is None:
+        return np.mean(hit, axis=1)
+    return hit @ ref.w / ref.w.sum()
 
 
 def breakpoints(ref: Reference) -> np.ndarray:
