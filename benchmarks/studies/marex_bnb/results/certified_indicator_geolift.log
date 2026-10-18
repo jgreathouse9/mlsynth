@@ -1,0 +1,14 @@
+GeoLift n=40 m=4 f*=554319.7579; pruning needs ratio >= f*/subtree min
+lift: indicator
+root                           sets  91390  need 1.000  certified 0.9915  solver 0.9928  optimal_inaccurate  252.2 s  
+lex d1 q=0                     sets   9139  need 0.743  certified 0.9877  solver 0.9882  optimal_inaccurate  205.7 s  PRUNE
+lex d1 q=5                     sets   5984  need 0.644  certified 0.9999  solver 1.0000  optimal_inaccurate  145.0 s  PRUNE
+lex d1 q=10                    sets   3654  need 1.000  certified 0.9999  solver 1.0001  optimal  69.5 s  
+lex d1 q=15                    sets   2024  need 0.526  certified 0.9967  solver 0.9981  optimal  40.6 s  PRUNE
+lex d1 q=20                    sets    969  need 0.465  certified 0.9980  solver 0.9989  optimal_inaccurate  24.9 s  PRUNE
+lex d1 q=25                    sets    364  need 0.414  certified 0.9985  solver 0.9985  optimal_inaccurate  15.4 s  PRUNE
+lex d1 q=30                    sets     84  need 0.382  certified 1.0000  solver 1.0000  optimal  6.1 s  PRUNE
+lex d1 q=35                    sets      4  need 0.001  certified 1.0000  solver 1.0000  optimal  2.2 s  PRUNE
+out: 6 non-optimal             sets  46376  need 1.000  certified 0.9956  solver 0.9971  optimal_inaccurate  139.8 s  
+out: 1 optimal                 sets  82251  need 0.874  certified 0.9027  solver 0.9097  optimal  170.3 s  PRUNE
+in 1 optimal, out 1 optimal    sets   8436  need 0.816  certified 0.9972  solver 1.0011  optimal  169.0 s  PRUNE
