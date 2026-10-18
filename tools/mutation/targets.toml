@@ -4869,8 +4869,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "penalty-not-scaled"
-  find = "            xc = [xc[a] + Fraction(float(lin[U[a]])) / scale for a in range(k)]"
-  replace = "            xc = [xc[a] + Fraction(float(lin[U[a]])) for a in range(k)]"
+  find = "            xc = [xc[a] + Fraction(float(s.lin[U[a]])) / scale for a in range(k)]"
+  replace = "            xc = [xc[a] + Fraction(float(s.lin[U[a]])) for a in range(k)]"
   models = "a penalized design's linear term certified unscaled beside a scaled quadratic, which overstates the penalty's share of the bound"
 
   [[target.mutant]]

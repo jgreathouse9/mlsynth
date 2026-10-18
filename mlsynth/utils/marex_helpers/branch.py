@@ -265,6 +265,79 @@ def _duals_finite(sides: List[_Side]) -> bool:
     return True
 
 
+@dataclass(frozen=True)
+class _SideDuals:
+    """One side's multipliers, as a solver returned them, and what they price.
+
+    ``U`` are the markets the side can use, ``free`` the pairs ``(i, f)`` of a
+    position in ``U`` and the market's position among the free markets,
+    ``control`` whether the side's indicator is ``1 - z``, and ``lin`` its
+    penalty vector over the cluster. ``y0``, ``alpha``, ``beta``, ``H``, ``mu``
+    and ``Lam`` multiply ``M_00 = 1``, ``1'x = 1``, ``X 1 = x``, ``X >= 0``,
+    ``ind_j - x_j >= 0`` and the 2x2 perspective blocks; any values will do.
+    """
+
+    U: List[int]
+    free: List[Tuple[int, int]]
+    control: bool
+    lin: Optional[np.ndarray]
+    y0: float
+    alpha: float
+    beta: np.ndarray
+    H: np.ndarray
+    mu: List[float]
+    Lam: List[np.ndarray]
+
+
+def _certificate(G: Dyadic, scale: Fraction, r: int, n_free: int,
+                 sides: Sequence[_SideDuals]) -> Optional[Fraction]:
+    """A lower bound on every design of a node, from any multipliers.
+
+    Each multiplier is first made to have its constraint's sign (``H``, ``mu``
+    clipped at zero, each 2x2 block made semidefinite), so every subtracted term
+    is zero or positive at a design; the Lagrangian is then linear in the lifted
+    variables, ``const + <S, M> + c'z`` per side in units of ``scale``, and is
+    bounded below over the designs exactly. ``None`` when a smallest eigenvalue
+    could not be bounded.
+    """
+    const = Fraction(0)
+    cz = [Fraction(0)] * n_free
+    for s in sides:
+        U = s.U
+        k = len(U)
+        H = np.clip((s.H + s.H.T) / 2.0, 0.0, None)
+        H = np.triu(H) + np.triu(H, 1).T
+        const += Fraction(s.y0) + Fraction(s.alpha)
+        S = [[Fraction(0)] * (k + 1) for _ in range(k + 1)]
+        S[0][0] = -Fraction(s.y0)
+        for a in range(k):
+            for b in range(k):
+                S[a + 1][b + 1] = (G.frac(U[a], U[b]) / scale - Fraction(H[a, b])
+                                   - (Fraction(s.beta[a]) + Fraction(s.beta[b])) / 2)
+        xc = [-Fraction(s.alpha) + Fraction(s.beta[a]) for a in range(k)]
+        if s.lin is not None:
+            xc = [xc[a] + Fraction(float(s.lin[U[a]])) / scale for a in range(k)]
+        for (i, f), mu_raw, L in zip(s.free, s.mu, s.Lam):
+            mu = Fraction(max(float(mu_raw), 0.0))
+            a_, b_, c_ = (Fraction(v) for v in _psd2(np.asarray(L, float)))
+            xc[i] += mu - 2 * b_
+            S[i + 1][i + 1] -= c_
+            if s.control:                       # the indicator is 1 - z
+                const -= mu + a_
+                cz[f] += mu + a_
+            else:                               # the indicator is z
+                cz[f] -= mu + a_
+        for a in range(k):
+            S[0][a + 1] = S[a + 1][0] = xc[a] / 2
+        lam = lambda_min_lower(_from_fractions(S))
+        if lam is None:
+            return None
+        const += 2 * min(Fraction(0), lam)
+    if n_free:
+        const += sum(sorted(cz)[:r])
+    return const * scale
+
+
 def node_bound(
     data: ExactData,
     m: int,
@@ -312,47 +385,19 @@ def node_bound(
     if problem.value is None or not np.isfinite(problem.value) \
             or not _duals_finite(sides):
         return _UNBOUNDED
-
-    const = Fraction(0)
-    cz = [Fraction(0)] * len(F)
-    for s, lin in zip(sides, lins):
-        k, U = s.k, s.U
-        y0 = -float(s.c00.dual_value)
-        alpha = -float(s.csum.dual_value)
-        beta = -np.asarray(s.crow.dual_value, dtype=float).reshape(k)
-        H = np.asarray(s.cnn.dual_value, dtype=float).reshape(k, k)
-        H = np.clip((H + H.T) / 2.0, 0.0, None)
-        H = np.triu(H) + np.triu(H, 1).T
-        const += Fraction(y0) + Fraction(alpha)
-        S = [[Fraction(0)] * (k + 1) for _ in range(k + 1)]
-        S[0][0] = -Fraction(y0)
-        for a in range(k):
-            for b in range(k):
-                S[a + 1][b + 1] = (G.frac(U[a], U[b]) / scale - Fraction(H[a, b])
-                                   - (Fraction(beta[a]) + Fraction(beta[b])) / 2)
-        xc = [-Fraction(alpha) + Fraction(beta[a]) for a in range(k)]
-        if lin is not None:
-            xc = [xc[a] + Fraction(float(lin[U[a]])) / scale for a in range(k)]
-        for (i, f), cl, cq in zip(s.free, s.clin, s.cper):
-            mu = Fraction(max(float(cl.dual_value), 0.0))
-            a_, b_, c_ = (Fraction(v) for v in _psd2(np.asarray(cq.dual_value, float)))
-            xc[i] += mu - 2 * b_
-            S[i + 1][i + 1] -= c_
-            if s.control:                       # the indicator is 1 - z
-                const -= mu + a_
-                cz[f] += mu + a_
-            else:                               # the indicator is z
-                cz[f] -= mu + a_
-        for a in range(k):
-            S[0][a + 1] = S[a + 1][0] = xc[a] / 2
-        lam = lambda_min_lower(_from_fractions(S))
-        if lam is None:
-            return _UNBOUNDED
-        const += 2 * min(Fraction(0), lam)
-    if F:
-        const += sum(sorted(cz)[:r])
+    duals = [_SideDuals(
+        U=s.U, free=s.free, control=s.control, lin=lin,
+        y0=-float(s.c00.dual_value), alpha=-float(s.csum.dual_value),
+        beta=-np.asarray(s.crow.dual_value, dtype=float).reshape(s.k),
+        H=np.asarray(s.cnn.dual_value, dtype=float).reshape(s.k, s.k),
+        mu=[float(c.dual_value) for c in s.clin],
+        Lam=[np.asarray(c.dual_value, dtype=float) for c in s.cper])
+        for s, lin in zip(sides, lins)]
+    lower = _certificate(G, scale, r, len(F), duals)
+    if lower is None:
+        return _UNBOUNDED
     zv = np.asarray(z.value, dtype=float) if z is not None else np.zeros(0)
-    return NodeBound(lower=const * scale,
+    return NodeBound(lower=lower,
                      relaxation=float(problem.value) * float(scale),
                      z={j: float(zv[pos[j]]) for j in F})
 

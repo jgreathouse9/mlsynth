@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import math
 from fractions import Fraction
 
 import numpy as np
@@ -254,6 +255,68 @@ def test_the_node_bound_never_exceeds_the_subtree_minimum(seed, n, m, fix, linea
     assert isinstance(nb, NodeBound)
     if nb.lower is not None:
         assert nb.lower <= Fraction(best) * (1 + Fraction(1, 10**12)) + Fraction(1, 10**300)
+
+
+def _exact_objective(G, S, w, C, v, lin_t, lin_c):
+    """``w'G_S w + a'w + v'G_C v + b'v`` in exact arithmetic."""
+    out = Fraction(0)
+    for cols, x, lin in ((S, w, lin_t), (C, v, lin_c)):
+        for a, i in enumerate(cols):
+            for b, j in enumerate(cols):
+                out += G.frac(i, j) * x[a] * x[b]
+            if lin is not None:
+                out += Fraction(float(lin[i])) * x[a]
+    return out
+
+
+def _simplex(rng, k):
+    raw = [Fraction(int(v)) for v in rng.integers(0, 50, k)]
+    raw[int(rng.integers(k))] += 1
+    total = sum(raw)
+    return [q / total for q in raw]
+
+
+@settings(max_examples=60, deadline=None)
+@given(seed=st.integers(0, 10**6), n=st.integers(3, 7), m=st.integers(1, 3),
+       fix=st.integers(0, 2), linear=st.booleans(),
+       size=st.sampled_from([1e-3, 1.0, 1e3]))
+def test_the_certificate_holds_for_any_multipliers(seed, n, m, fix, linear, size):
+    # The certificate's claim: whatever multipliers it is handed, of any size
+    # and sign, the bound it certifies is below every design in the subtree, at
+    # every feasible choice of weights. The solver's multipliers are one choice.
+    m = min(m, n - 1)
+    B, A = _problem(seed, n, T=6)
+    data = ExactData(B, A)
+    rng = np.random.default_rng(seed + 3)
+    order = rng.permutation(n).tolist()
+    I = sorted(order[:min(fix, m - 1)])
+    O = sorted(order[len(I):len(I) + fix])
+    F = sorted(set(range(n)) - set(I) - set(O))
+    r = m - len(I)
+    if r > len(F) or len(O) + len(F) - r < 1:
+        return
+    S = sorted(I + rng.choice(F, r, replace=False).tolist())
+    C = sorted(set(O + F) - set(S))
+    lin_t = rng.uniform(0, 3, n) if linear else None
+    lin_c = rng.uniform(0, 3, n) if linear else None
+    G = data.gram
+    gmax = max(G.frac(i, i) for i in range(n))
+    scale = Fraction(2) ** round(math.log2(gmax))
+    pos = {j: i for i, j in enumerate(F)}
+    sides = []
+    for U, control, lin in ((sorted(I + F), False, lin_t), (sorted(O + F), True, lin_c)):
+        k = len(U)
+        free = [(i, pos[j]) for i, j in enumerate(U) if j in pos]
+        noise = lambda *shape: rng.normal(scale=size, size=shape)  # noqa: E731
+        sides.append(branch_mod._SideDuals(
+            U=U, free=free, control=control, lin=lin, y0=float(noise()),
+            alpha=float(noise()), beta=noise(k), H=noise(k, k),
+            mu=[float(noise()) for _ in free], Lam=[noise(2, 2) for _ in free]))
+    bound = branch_mod._certificate(G, scale, r, len(F), sides)
+    if bound is None:
+        return
+    w, v = _simplex(rng, len(S)), _simplex(rng, len(C))
+    assert bound <= _exact_objective(G, S, w, C, v, lin_t, lin_c)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
