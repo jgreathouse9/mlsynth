@@ -53,21 +53,44 @@ The forecast windows then lie in periods the design never saw, and there are
 
 ## A bound for bands built from calibration errors alone
 
-Take `n` blank errors and `H` post errors, `N = n + H` exchangeable values, and
-a band for the post sum computed from the blank errors only (MAREX's band, the
-rolling-origin band and every split-conformal band are of this kind). Put one
-spike of size `M` at a uniformly drawn period on top of iid continuous noise.
-With probability `H / N` the spike lands in the post window, the blank errors
-carry no trace of it, and as `M` grows the band covers only if it is unbounded.
-So a band valid under exchangeability alone is unbounded with probability at
-least `1 - alpha (n / H + 1)` on ordinary iid data. A finite band needs
-`n >= H (1 / alpha - 1)`, 247 blank periods at `H = 13` and 95%, which is what
-disjoint windows already require.
+Proposition. Let `Z_1, ..., Z_N`, `N = n + H`, be real errors, the first `n`
+observed (blank) and the last `H` not (post), and let `Gamma(Z_1, ..., Z_n)` be
+an interval for `S = Z_(n+1) + ... + Z_N`, possibly randomised independently of
+the post errors. If `P(S in Gamma) >= 1 - alpha` for every exchangeable law of
+`Z`, then for every continuous distribution `F`,
 
-Under iid errors the same construction with an independent spike in each
-period with probability `p` gives a worst-case miss of
-`max_p (1 - (1 - p)^H) (1 - p)^n`: 0.090 at `n = 47`, 0.043 at `n = 104` and
-0.019 at `n = 247` for `H = 13`.
+    P_(F^n) (Gamma is unbounded above) >= 1 - alpha N / H = 1 - alpha (n / H + 1),
+
+and the same below. A band that is bounded with probability one under some
+continuous `F` therefore needs `n >= H (1 / alpha - 1)`: 247 blank periods at
+`H = 13` and 95%, which is what disjoint windows require.
+
+Proof. Fix `F` and `M > 0`, draw `xi_1, ..., xi_N` iid from `F` and `J`
+uniform on `{1, ..., N}` independently, and set `Z = xi + M e_J`, which is
+exchangeable. On `{J > n}`, of probability `H / N`, the observed errors are
+`xi_1, ..., xi_n ~ F^n`, independent of `J`, and `S = M + V` with
+`V = sum_(t > n) xi_t`. Coverage gives
+
+    1 - alpha <= P(J <= n) + (H / N) P(M + V in Gamma(xi_1, ..., xi_n)),
+
+so `P(M + V in Gamma(xi)) >= 1 - alpha N / H` for every `M`. On the event that
+`Gamma(xi)` is bounded above by `u(xi) < infinity`, `M + V in Gamma` needs
+`M + V <= u(xi)`, whose probability goes to zero as `M` grows since `V` is
+finite. Hence `P(Gamma unbounded above) >= 1 - alpha N / H`. QED.
+
+Under iid errors (not only exchangeable) the same argument runs with an
+independent spike in each period with probability `p`: on the event that the
+blank periods carry none and the post window at least one, the observed errors
+are `F^n`, so `P_(F^n)(Gamma bounded above) <= alpha / q` with
+`q = max_p (1 - (1 - p)^H) (1 - p)^n`, which is 0.090 at `n = 47`, 0.043 at
+`n = 104` and 0.019 at `n = 247` for `H = 13`. At `n = 47` an iid-valid band is
+unbounded with probability at least 0.44.
+
+The proposition concerns bands built from the blank errors alone: MAREX's band,
+the rolling-origin band and every split-conformal band are of that kind. It
+does not reach a band that also reads the post outcomes, which in the causal
+problem are observed (the post errors plus the effect). That is what the test
+inversion does.
 
 The bound does not reach a band that reads the post outcomes, which is what a
 test inversion does.
@@ -272,17 +295,91 @@ path, with the median width in standard deviations of the noise sum:
   conformal on the placebo sums is the direct version, and a joint region
   projected onto the sum is wider than it.
 
+## Spikes
+
+### Detrending the contrast
+
+`detrend.py`, 500 draws a cell, `H = 12`, `results/detrend.log`. Coverage of
+the total at 95% with the median width in standard deviations of the noise sum:
+
+| law | `n` | cyclic | subsets | subsets, plug-in slope | subsets, exact slope set |
+| --- | --- | --- | --- | --- | --- |
+| gauss | 48 | 0.946 (4.88) | 0.932 (4.07) | 0.786 (4.40) | 0.992 (15.08) |
+| gauss | 96 | 0.954 (4.52) | 0.954 (3.97) | 0.876 (4.27) | 0.998 (11.68) |
+| drift | 96 | 0.702 (7.85) | 0.474 (6.47) | 0.856 (4.24) | 1.000 (11.84) |
+| steep | 96 | 0.180 (31.3) | 0.000 (21.1) | 0.862 (4.26) | 1.000 (11.88) |
+| curved | 96 | 0.052 (22.0) | 0.000 (12.6) | 0.870 (7.15) | 1.000 (14.01) |
+| drift_ar5 | 96 | 0.814 (5.51) | 0.504 (3.55) | 0.666 (2.80) | 0.966 (7.22) |
+
+- The exact arm (a permutation confidence set for the slope from the blank
+  periods at `alpha / 2`, then the union of the signed-sum bands over it at
+  `alpha / 2`) holds at every law, the quadratic one included, and at 80%
+  covers 0.97-0.99: the Bonferroni split and the union make it conservative.
+  It is three to five times wider than the undetrended band when there is no
+  trend, and its cyclic version is unbounded at `n = 24`, where the slope test's
+  24 shifts cannot reach `alpha / 2`.
+- Treating the estimated slope as known is not valid: 0.65-0.88 at 95%, the
+  trend-free case included, since the slope's error is extrapolated across the
+  post window and the band does not see it.
+- Under an AR(1) at 0.5 the subsets slope test is not exact either, and the
+  exact arm falls to 0.84-0.87 at 80%.
+
+### The library's CWZ inversion, with the signed statistic
+
+`designs_spike.py`, 300 draws a cell, the Section 5 panel through MAREX at 40
+fitting, 26 blank and 13 post periods, `results/designs_spike.log`. Every
+refit arm calls the library's
+:func:`~mlsynth.utils.conformal.refit.conformal_refit_gaps` (the simplex
+control refitted on all periods under each null); `cwz` is
+:func:`~mlsynth.utils.conformal.cumulative_conformal_by_inversion` as it ships,
+with the `S_1` statistic. Coverage at 95% / 80%, and the median width at 95%
+for the constant path in outcome units:
+
+| factors | arm | constant | ramp | width |
+| --- | --- | --- | --- | --- |
+| iid | blank-only cyclic, signed | 0.980 / 0.813 | 0.997 / 0.980 | 49.1 |
+| iid | `cwz` (`S_1`) | 0.947 / 0.740 | 0.113 / 0.013 | 45.6 |
+| iid | refit, signed | 0.950 / 0.773 | 0.997 / 0.907 | 22.0 |
+| iid | refit, signed, weighted | 0.963 / 0.790 | 0.997 / 0.960 | 27.4 |
+| ar | blank-only cyclic, signed | 0.917 / 0.757 | 0.970 / 0.853 | 58.1 |
+| ar | `cwz` (`S_1`) | 0.900 / 0.697 | 0.280 / 0.077 | 80.9 |
+| ar | refit, signed | 0.910 / 0.730 | 0.973 / 0.800 | 40.8 |
+| ar | refit, signed, weighted | 0.927 / 0.747 | 0.977 / 0.850 | 45.6 |
+| sorted | blank-only cyclic, signed | 0.833 / 0.537 | 0.997 / 0.980 | 34.3 |
+| sorted | `cwz` (`S_1`) | 0.947 / 0.737 | 0.003 / 0.000 | 98.4 |
+| sorted | refit, signed | 0.983 / 0.833 | 1.000 / 0.970 | 28.8 |
+| sorted | refit, signed, weighted | 0.983 / 0.850 | 1.000 / 0.997 | 34.7 |
+
+- The refit with the signed statistic is the narrowest band on every regime,
+  half the blank-only band under iid factors and under a third of `S_1`'s under
+  a trend, and it covers the ramp where `S_1` does not.
+- The trend in the factors is shared with the controls, so refitting the
+  control weights on every period tracks it: 0.983 at 95% against 0.833 for the
+  blank-only band. A drift unique to the contrast has nothing for a refit to
+  use, and only the detrending route covers it.
+- Serially dependent factors leave every arm short at 80%. Recency weights
+  (`0.97` to the circular distance of the shift) add 1.5-2 points for 12-24%
+  more width.
+
+### Which paths are covered
+
+`path_search.py` with a symmetric spike (`+-200` at one period) and Cauchy
+errors, `results/path_search_sym.log`. The symmetric spike still breaks the
+inversion for some paths (0.089 to 0.101 at level 0.1 on all subsets; 0.166 to
+0.208 at level 0.17 on cyclic shifts), so the asymmetry of the first spike was
+not the cause. Cauchy errors, symmetric and unimodal with no variance, gave
+none: the one cell where the worst path read above the null (0.1258 against
+0.1220) was the null's smaller sample, and on common draws the path rejects
+less (0.1255 against 0.1256, three seeds of 400,000). The failure needs a rare
+error that dominates the block sum; heavy tails alone do not produce it.
+
 ## Next
 
-1. The trend case by the detrending route: invert jointly over the total `C`
-   and a linear slope `theta` in the contrast, the slope estimated on the blank
-   periods, and project the accepted set onto `C`. Valid when the contrast's
-   trend is in the family; the projection prices the slope's uncertainty into
-   the band.
-2. A statement of which paths the signed-sum inversion covers. The spike case
-   shows it is not every path under every exchangeable law; continuous laws
-   gave no counterexample.
-3. A written proof of the bound for calibration-only bands.
+1. The library change the spikes point to: CWZ's Remark 1 statistic as an
+   option of :func:`~mlsynth.utils.conformal.cumulative_conformal_by_inversion`
+   and the refit machinery under it, test-first on its own branch, then
+   offered as a cumulative band for MAREX.
+2. Serial dependence in the factors, which no arm here fixes.
 
 ## References
 

@@ -37,6 +37,12 @@ def draws(law, reps, N, rng):
         U = rng.standard_normal((reps, N))
         U[np.arange(reps), rng.integers(N, size=reps)] += 200.0
         return U
+    if law == "spike_sym":
+        U = rng.standard_normal((reps, N))
+        U[np.arange(reps), rng.integers(N, size=reps)] += rng.choice([-200.0, 200.0], reps)
+        return U
+    if law == "cauchy":
+        return rng.standard_cauchy((reps, N))
     raise ValueError(law)
 
 
@@ -50,8 +56,8 @@ def reject_rate(law, n, H, d, alpha, scheme, reps, seed):
     return float(np.mean(p <= alpha))
 
 
-def main():
-    for law in ("gauss", "skew", "bimodal", "spike_exch"):
+def main(laws=("gauss", "skew", "negskew", "bimodal", "spike_exch")):
+    for law in [x for x in laws if x != "negskew"]:
         rates = [(dl, reject_rate(law, 1, 2, np.array([dl, -dl]), 0.34, "subsets",
                                   200000, 1))
                  for dl in (0, .25, .5, 1, 1.5, 2, 3, 5)]
@@ -59,7 +65,7 @@ def main():
               "(level 1/3)", flush=True)
     for (n, H, scheme, alpha) in ((5, 3, "subsets", 0.1), (9, 3, "cyclic", 0.17),
                                   (12, 4, "cyclic", 0.13)):
-        for law in ("gauss", "skew", "negskew", "bimodal", "spike_exch"):
+        for law in laws:
             base = reject_rate(law, n, H, np.zeros(H), alpha, scheme, 40000, 2)
             rng = np.random.default_rng(3)
             best = (base, None)
@@ -77,4 +83,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(tuple(sys.argv[1:]) or ("gauss", "skew", "negskew", "bimodal", "spike_exch"))
