@@ -120,9 +120,14 @@ and is refused.
 What this backend does not solve. A cost budget constrains the treated
 weights; ``relaxed`` and the branch-and-bound knobs (``solver``, ``warm_start``,
 ``time_limit``) belong to the MIQP; a negative ``beta`` makes the coupling
-concave. The config refuses each with ``backend="exact"``. Above
-``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being affordable
-and the search raises with the MIQP as the way out.
+concave. The config refuses each with ``backend="exact"``.
+
+Above ``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being
+affordable. :func:`_designs` then hands the separable designs to the certified
+branch and bound of :mod:`mlsynth.utils.marex_helpers.branch`, which returns the
+same optimum, and its certificate with it; :func:`search_cluster` itself still
+raises above the limit, with the MIQP as the way out, which is where the
+weakly-targeted design ends up.
 """
 
 from __future__ import annotations
@@ -163,7 +168,8 @@ COUPLED_TOL = 1e-10
 #: Steps the coupled fit may take before it raises uncertified.
 COUPLED_MAX_ITER = 20_000
 
-#: Above this many candidates in one cluster the search refuses and names the MIQP.
+#: Above this many candidates in one cluster, enumeration gives way: the separable
+#: designs go to the branch and bound, and the coupled design is refused.
 CANDIDATE_LIMIT = 20_000_000
 
 #: Candidates priced per batch.
@@ -242,6 +248,10 @@ def side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
 
 class CoupledFitNotCertified(MlsynthEstimationError):
     """The coupled fit ran out of sweeps before its gap closed."""
+
+
+class SearchNotClosed(MlsynthEstimationError):
+    """The branch and bound ran out of bounds before its gap closed."""
 
 
 def _coupled_point(Bs: np.ndarray, Bc: np.ndarray, A: np.ndarray, beta: float,
@@ -1207,14 +1217,24 @@ def _designs(
         filt, donors = _local_rules(restrictions, members, cluster_of)
         a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,
                           xi, lambda1_unit)
+        B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
+        cert = None
         try:
-            designs = search_cluster(
-                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt=filt,
-                linear_treated=a, linear_control=b, donor_exclusion=donors,
-                top_k=top_k,
-                beta=beta if design == "weakly_targeted" else None,
-                control_penalty=control_penalty)
-        except CoupledFitNotCertified:
+            if (design in SEPARABLE_DESIGNS and
+                    count_candidates(len(members), sizes, filt) > CANDIDATE_LIMIT):
+                from .branch import branch_and_bound
+                found = branch_and_bound(
+                    B_k, A_k, sizes, filt=filt, linear_treated=a,
+                    linear_control=b, donor_exclusion=donors, top_k=top_k)
+                designs, cert = found.designs, found.certificate
+            else:
+                designs = search_cluster(
+                    B_k, A_k, sizes, filt=filt,
+                    linear_treated=a, linear_control=b, donor_exclusion=donors,
+                    top_k=top_k,
+                    beta=beta if design == "weakly_targeted" else None,
+                    control_penalty=control_penalty)
+        except (CoupledFitNotCertified, SearchNotClosed):
             raise
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
@@ -1224,10 +1244,11 @@ def _designs(
             ) from exc
         per_cluster.append(designs)
         if certify:
-            from .certify import certify_cluster
-            cert = certify_cluster(
-                X_fit[members].T, Xbar_clusters[k_idx], sizes, filt, designs[0],
-                linear_treated=a, linear_control=b, donor_exclusion=donors)
+            if cert is None:
+                from .certify import certify_cluster
+                cert = certify_cluster(
+                    B_k, A_k, sizes, filt, designs[0],
+                    linear_treated=a, linear_control=b, donor_exclusion=donors)
             certificates[str(lab)] = dataclasses.replace(cert, unresolved=tuple(
                 tuple(int(members[j]) for j in S) for S in cert.unresolved))
 
