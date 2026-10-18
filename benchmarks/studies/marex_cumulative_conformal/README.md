@@ -438,14 +438,16 @@ reference. Coverage at 95% / 80%, constant path, median width at 95%:
   Pananjady describe: 0.777 at 80% under factors at 0.8, a standard error from
   nominal at 300 draws.
 
-## Next
+## Follow-up
 
-1. The library change: CWZ's Remark 1 statistic as an option of
-   :func:`~mlsynth.utils.conformal.cumulative_conformal_by_inversion` and the
-   refit machinery under it, with the permuted window settable apart from the
-   refit window, test-first on its own branch; then a MAREX cumulative band
-   that refits on every period and permutes over the blank and post periods.
-2. The inference fixes recorded on #744.
+1. The library change: CWZ's Remark 1 statistic, `statistic="signed"`, as an
+   option of `cumulative_conformal_by_inversion` and the refit machinery under
+   it, with the permuted window settable apart from the refit window,
+   `reference_start`. Pull request #792.
+2. A MAREX cumulative band on them, `cumulative_method="inversion"`, that
+   refits on every period and permutes over the blank and post periods. Its
+   own pull request, after #792.
+3. The inference fixes recorded on #744.
 
 ## References
 
