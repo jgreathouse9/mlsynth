@@ -187,6 +187,7 @@ class MAREX:
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
                 control_penalty=self.control_penalty,
+                certify=self.config.certify,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

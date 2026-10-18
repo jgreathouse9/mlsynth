@@ -14,6 +14,7 @@ from .inference import compute_inference
 from .exact import solve_design_exact
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
+    MAREXCertificate,
     MAREXClusterDesign,
     MAREXGlobalDesign,
     MAREXInference,
@@ -62,6 +63,7 @@ def solve_marex(
     cumulative_seed=0,
     backend="mip",
     control_penalty=0.0,
+    certify=False,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -72,7 +74,8 @@ def solve_marex(
     ``backend="exact"`` solves the design by searching treated sets
     (:func:`mlsynth.utils.marex_helpers.exact.solve_design_exact`) instead of
     handing the MIQP to SCIP; it returns the same design dict, so everything
-    after the solve is shared.
+    after the solve is shared. With ``certify=True`` it also certifies the
+    design's optimality gap (:mod:`mlsynth.utils.marex_helpers.certify`).
 
     ``cumulative_band=True`` adds a band for the total post-period effect to that
     inference, block-resampling the blank-period effects with block length
@@ -95,6 +98,7 @@ def solve_marex(
         for knob in ("solver", "verbose"):
             solve_kw.pop(knob)
         solve_kw["restrictions"] = restrictions
+        solve_kw["certify"] = certify
         raw = solve_design_exact(**solve_kw)
     else:
         # Restrictions are not taken by the relaxed path, whose rounding can't
@@ -302,8 +306,16 @@ def solve_marex(
         method_name="MAREX", donor_weights=treated_w_map,
     ) if post_fit is not None else None
 
+    certificate = None
+    if raw.get("certificate") is not None:
+        certificate = MAREXCertificate.of({
+            lab: _dc_replace(c, unresolved=tuple(
+                tuple(unit_labels[i] for i in S) for S in c.unresolved))
+            for lab, c in raw["certificate"].items()})
+
     return MAREXResults(
         clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
+        certificate=certificate,
         report=report,
         selected_units=list(treated_labels),
         assignment={"treated": list(treated_labels),

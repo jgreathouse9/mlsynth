@@ -15,6 +15,7 @@ convention; inference, when requested, is computed up front and embedded.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from fractions import Fraction
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -22,6 +23,7 @@ from pydantic import ConfigDict
 
 from ...config_models import DesignResult
 from ..conformal.structure import CumulativeConformalBand
+from .certify import ClusterCertificate, round_down, round_up
 
 
 @dataclass(frozen=True)
@@ -202,6 +204,41 @@ class MAREXRecommendation:
     status: str
 
 
+@dataclass(frozen=True)
+class MAREXCertificate:
+    """A certified optimality gap for an exact-backend design.
+
+    ``lower <= f* <= f(design) <= upper``, with ``f*`` the optimal objective and
+    ``f(design)`` the returned design's, both exact for the stored data
+    (:mod:`mlsynth.utils.marex_helpers.certify`). Clusters are searched apart,
+    so the bounds are the sums of the clusters' bounds, rounded outward.
+
+    Parameters
+    ----------
+    lower, upper : float
+        The bounds.
+    clusters : dict of {str: ClusterCertificate}
+        Each cluster's certificate, its unresolved treated sets as unit labels.
+    """
+
+    lower: float
+    upper: float
+    clusters: Dict[str, ClusterCertificate]
+
+    @property
+    def gap(self) -> float:
+        """``upper - lower``, rounded up: the design is this close to optimal."""
+        return round_up(Fraction(self.upper) - Fraction(self.lower))
+
+    @classmethod
+    def of(cls, clusters: Dict[str, ClusterCertificate]) -> "MAREXCertificate":
+        """The certificate of the whole design, from its clusters'."""
+        lower = sum((Fraction(c.lower) for c in clusters.values()), Fraction(0))
+        upper = sum((Fraction(c.upper) for c in clusters.values()), Fraction(0))
+        return cls(lower=round_down(lower), upper=round_up(upper),
+                   clusters=dict(clusters))
+
+
 class MAREXResults(DesignResult):
     """User-facing output of the MAREX estimator.
 
@@ -227,6 +264,9 @@ class MAREXResults(DesignResult):
         :func:`mlsynth.utils.post_fit.compute_post_fit`. ``None`` only
         when an estimator failure leaves the result partially constructed.
         Also mirrored into ``report`` (the standardized effect view).
+    certificate : MAREXCertificate, optional
+        With ``certify=True`` and ``backend='exact'``, certified bounds on the
+        optimal objective and the design's; ``None`` otherwise.
     """
 
     model_config = ConfigDict(
@@ -238,6 +278,7 @@ class MAREXResults(DesignResult):
     post_fit: Optional[Any] = None      # SyntheticControlPostFit; Any to dodge import cycle
     pool: Optional[List[Dict[str, Any]]] = None    # top-K menu when top_K > 1
     recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
+    certificate: Optional[MAREXCertificate] = None  # certify=True with backend='exact'
 
     @property
     def mode(self) -> str:
