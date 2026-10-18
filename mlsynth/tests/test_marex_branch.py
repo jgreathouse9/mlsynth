@@ -319,6 +319,59 @@ def test_the_certificate_holds_for_any_multipliers(seed, n, m, fix, linear, size
     assert bound <= _exact_objective(G, S, w, C, v, lin_t, lin_c)
 
 
+def _solved_duals(monkeypatch, data, m, I, O, F, lin_t=None, lin_c=None):
+    """The multipliers a node's solve hands its certificate, and what it scales by."""
+    seen = {}
+    real = branch_mod._certificate
+
+    def grab(G, scale, r, n_free, sides):
+        seen.update(G=G, scale=scale, r=r, n_free=n_free, sides=sides)
+        return real(G, scale, r, n_free, sides)
+    monkeypatch.setattr(branch_mod, "_certificate", grab)
+    node_bound(data, m, I, O, F, lin_t, lin_c)
+    monkeypatch.setattr(branch_mod, "_certificate", real)
+    return seen
+
+
+@pytest.mark.parametrize("seed", [0, 2, 3])
+@pytest.mark.parametrize("shift, ratio", [(0.01, 0.5), (0.01, 2.0), (0.03, 0.5), (1.0, 1.0)])
+def test_the_certificate_holds_when_its_equality_multipliers_shift(monkeypatch, seed,
+                                                                   shift, ratio):
+    # Multipliers on M_00 = 1 and 1'x = 1 multiply terms that vanish at every
+    # design, so shifting them leaves the Lagrangian of every design unchanged
+    # while bending the certificate's matrix along the designs themselves: the
+    # bound must pay that curvature in full, twice its smallest eigenvalue.
+    B, A = _problem(seed, 6, T=8)
+    data = ExactData(B, A)
+    I, O, F = [], [0], [1, 2, 3, 4, 5]
+    seen = _solved_duals(monkeypatch, data, 2, I, O, F)
+    sides = [dataclasses.replace(s, y0=s.y0 + shift * ratio, alpha=s.alpha + shift)
+             for s in seen["sides"]]
+    bound = branch_mod._certificate(seen["G"], seen["scale"], seen["r"],
+                                    seen["n_free"], sides)
+    assert bound <= Fraction(_subtree_min(B, A, 2, I, O)) * (1 + Fraction(1, 10**12))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_the_certificate_holds_with_multipliers_from_a_heavier_penalty(monkeypatch, seed):
+    # Multipliers solved for the penalty times the certificate's own scale are
+    # still multipliers: the certificate must bound the true penalty's subtree
+    # with them. A certificate that left the penalty unscaled would be exact
+    # for that heavier problem, and report its value.
+    B, A = _problem(seed, 6, T=8)
+    data = ExactData(B, A)
+    lin = np.random.default_rng(seed).uniform(0, 3, 6)
+    G = data.gram
+    scale = float(Fraction(2) ** round(math.log2(max(G.frac(i, i) for i in range(6)))))
+    I, O, F = [], [0], [1, 2, 3, 4, 5]
+    seen = _solved_duals(monkeypatch, data, 2, I, O, F, lin * scale, lin * scale)
+    sides = [dataclasses.replace(s, lin=lin) for s in seen["sides"]]
+    bound = branch_mod._certificate(seen["G"], seen["scale"], seen["r"],
+                                    seen["n_free"], sides)
+    truth = _subtree_min(B, A, 2, I, O, lin, lin)
+    assert bound <= Fraction(truth) * (1 + Fraction(1, 10**12))
+
+
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_the_node_bound_is_as_tight_as_its_relaxation(seed):
     B, A = _problem(seed, 9, T=20)
