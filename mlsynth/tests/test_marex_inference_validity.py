@@ -396,6 +396,11 @@ def test_no_inference_carves_no_blank_window():
 # the plot
 # --------------------------------------------------------------------------- #
 def test_an_unbounded_band_is_not_drawn():
+    """Matplotlib's fill_between drops non-finite rows, so no fill reaches inf.
+
+    The plotter passes the band as it is; this pins that the result stays
+    drawable, whatever handles the masking.
+    """
     from mlsynth.utils.marex_helpers.plotter import plot_marex
 
     with pytest.warns(UserWarning):

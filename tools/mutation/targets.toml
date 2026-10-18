@@ -5475,15 +5475,3 @@ timeout = 900.0
   find = "                alpha=self.config.alpha, T_post=self.config.T_post,"
   replace = "                alpha=self.config.alpha,"
   models = "the config's T_post never reaching the inference"
-
-[[target]]
-name = "marex-inference-plot"
-module-path = "mlsynth/utils/marex_helpers/plotter.py"
-test-command = "python -m pytest mlsynth/tests/test_marex_inference_validity.py -q -x -p no:cacheprovider -k unbounded_band_is_not_drawn"
-timeout = 900.0
-
-  [[target.mutant]]
-  id = "plot-fills-to-infinity"
-  find = "                                    where=np.isfinite(ci).all(axis=1), alpha=0.2)"
-  replace = "                                    alpha=0.2)"
-  models = "an unbounded band drawn as a fill to infinity"
