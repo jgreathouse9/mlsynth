@@ -8,23 +8,32 @@ decide how it should be solved:
 
 * any vertex ``beta`` (``p`` pairs with zero residual) is a dual-feasible basis
   once each nonbasic ``d_k`` sits at ``w_k sign(e_k)``: the reduced costs are the
-  negated residuals. Optimality is the remaining test, ``|d_B| <= w_B``;
+  negated residuals, and with every variable boxed any basis is dual feasible
+  once the nonbasic variables sit at the bound their reduced cost picks (Pan
+  Section 8.2, condition (8.19)). Optimality is the remaining test,
+  ``|d_B| <= w_B``;
 * a pivot is the dual simplex with bound flipping (Pan Algorithm 8.4.1). In
   ``beta``-space it releases the basic pair whose multiplier most exceeds its
   bound and crosses residual breakpoints until the slope turns non-negative:
   a weighted median, the Barrodale-Roberts long step;
 * the cross-validation windows are nested, and a new period only adds columns.
-  Pan Section 7.3.2 shows an added variable leaves the old basis primal
-  feasible; here the added pair columns sit at ``w_k sign(e_k)``, so the
-  previous window's optimal basis stays dual feasible by the first point. That
-  is the warm start measured here.
+  Pan Section 7.3.2 and Bazaraa, Jarvis and Sherali (2010, Section 6.7, "Adding
+  a New Activity") restart the simplex from the old basis when a variable is
+  added; here the added pair columns sit at ``w_k sign(e_k)``, so the previous
+  window's optimal basis stays dual feasible by the first point. That is the
+  warm start measured here.
 
 A pairwise LAD optimum is degenerate by construction: when ``p + 1`` rows tie,
 all their pairs have zero residual. The pair responses are perturbed by a
 deterministic ``1e-10``, the perturbation argument of Luenberger and Ye (2021,
 Exercises 4.15-4.17) applied to the costs of this programme, and Bland's rule
-(Cottle and Thapa 2017, Section 4.2) takes over if a basis repeats. Every
-solution is scored against HiGHS on the unperturbed programme.
+(Cottle and Thapa 2017, Section 4.2) takes over if a basis repeats. None of
+the LP texts read for the study gives an anti-cycling rule for the bounded dual
+simplex: Schrijver (1986, Theorem 11.1) proves Bland's smallest-index rule
+terminates for the vertex walk on ``Ax <= b``, and Vanderbei (2020, p. 53)
+reports that rounding small right-hand sides to zero makes about five in 1,000
+random problems cycle, so tolerances classify here and never alter the data.
+Every solution is scored against HiGHS on the unperturbed programme.
 
 Run::
 

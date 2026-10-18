@@ -8,9 +8,11 @@ carrying a pair dimension, and certifies each optimum exactly.
 The reduction. In the dual, the multiplier of pair ``(i, j)`` is a flow on an
 edge of the complete graph on the periods, with capacity ``h_i h_j``; objective
 and constraints read only each period's net flow. By Hoffman's circulation
-theorem (Schrijver 1986, Corollary 21.3a and Application 21.1) a vector of net
-flows ``psi`` on a set of periods ``G`` is feasible when
-``psi(U) <= h(U) h(G \\ U)`` for every ``U``. The best net flows against fixed
+theorem (Schrijver 1986, Corollary 21.3a and Application 21.1, which allow
+negative lower bounds, so each pair is an arc with bounds ``[-h_i h_j, h_i h_j]``;
+Bazaraa, Jarvis and Sherali 2010, Exercise 11.22, states the same condition for
+the out-of-kilter problem) a vector of net flows ``psi`` on a set of periods
+``G`` is feasible when ``psi(U) <= h(U) h(G \\ U)`` for every ``U``. The best net flows against fixed
 residuals come from a sort: ``a_i = h_i (h below - h above)``. That identity,
 Edmonds' greedy algorithm on the cut function and Jaeckel's rank dispersion in
 Hettmansperger and McKean (1998), is not taken from the LP texts cited here;
@@ -36,8 +38,10 @@ on periods:
   residuals cross (memory ``O(n)``); ``"pairs"`` lists the step's breakpoints in
   one transient ``(K, n, n)`` array and sorts them once;
 * warm start: a new period joins as its own group, so the previous window's
-  labelling is a vertex of the next, the counterpart of Pan Section 7.3.2's
-  added variable leaving the old basis in place.
+  labelling is a vertex of the next, and it is dual feasible because every pair
+  variable is boxed (Pan Section 8.2, condition (8.19)). It is the counterpart
+  of restarting from the old basis when a variable is added (Pan Section
+  7.3.2; Bazaraa, Jarvis and Sherali 2010, Section 6.7).
 
 Run::
 

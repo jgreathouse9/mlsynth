@@ -28,6 +28,16 @@ non-negative, or to the first inequality it meets, whichever comes first.
 a set of data rows with zero residual plus active inequalities, and the
 multiplier of a basic data row must lie in ``[-c_t, c_t]``. It is the
 Barrodale-Roberts step for the constrained problem.
+
+Both pivot on ``y`` plus ``solver_pairfree.perturbation(y)`` and certify the
+final vertex on ``y`` itself by the duality gap: the dual found on the
+perturbed data is feasible for the original, since the dual constraints do not
+involve ``y``. The LP texts read for the study (Pan 2023; Vanderbei 2020;
+Bazaraa, Jarvis and Sherali 2010; Cottle and Thapa 2017; Luenberger and Ye
+2021; Schrijver 1986; Dantzig and Thapa 2003) give anti-cycling rules for the
+primal simplex only (lexicographic, Bland, perturbation); none gives one for a
+bounded dual simplex, which is why the certificate, not the pivot rule, carries
+the claim of optimality. ``UNCERTIFIED`` counts any vertex that fails it.
 """
 from __future__ import annotations
 
