@@ -5049,3 +5049,123 @@ timeout = 600.0
   find = "        if not 0 <= j < N:"
   replace = "        if not -N <= j < N:"
   models = "a negative member read from the end of the panel, charging a unit the caller did not name"
+
+[[target]]
+name = "marex-section5-simulation"
+module-path = "mlsynth/utils/marex_helpers/simulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_section5_simulation.py mlsynth/tests/test_marex_section5_simulation_properties.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "scramble-one-step-short"
+  find = "        for _ in range(50):"
+  replace = "        for _ in range(49):"
+  models = "set.seed's initial scrambling cut short, a different stream for every seed"
+
+  [[target.mutant]]
+  id = "scramble-wrong-multiplier"
+  find = "            s = (69069 * s + 1) & 0xFFFFFFFF\n        for _ in range(625):"
+  replace = "            s = (69069 * s + 3) & 0xFFFFFFFF\n        for _ in range(625):"
+  models = "a congruential step that is not R's, so seeds map to the wrong states"
+
+  [[target.mutant]]
+  id = "state-includes-the-position-word"
+  find = "\"state\": {\"key\": np.array(state[1:], dtype=np.uint32),"
+  replace = "\"state\": {\"key\": np.array(state[:624], dtype=np.uint32),"
+  models = "R's position counter read as the first word of the key, shifting the whole state"
+
+  [[target.mutant]]
+  id = "key-not-regenerated-before-the-first-draw"
+  find = "                                      \"pos\": 624}}"
+  replace = "                                      \"pos\": 0}}"
+  models = "the seeded words returned untempered-and-unregenerated, where R regenerates the key first"
+
+  [[target.mutant]]
+  id = "uniform-scale-off-by-one"
+  find = "_I2_32 = 2.3283064365386963e-10"
+  replace = "_I2_32 = 2.328306437080797e-10"
+  models = "outputs scaled by 1/(2^32 - 1), which shifts every draw in its last digits"
+
+  [[target.mutant]]
+  id = "zero-not-fixed-up"
+  find = "    u = np.where(u <= 0.0, 0.5 * _I2_32M1, u)"
+  replace = "    u = np.where(u <= 0.0, 0.0, u)"
+  models = "a raw zero passed through, which R moves inside (0, 1) and which sends qnorm to minus infinity"
+
+  [[target.mutant]]
+  id = "normal-from-one-uniform"
+  find = "        return ndtri((np.floor(_BIG * u[0::2]) + u[1::2]) / _BIG)"
+  replace = "        return ndtri(u[0::2])"
+  models = "rnorm by plain inversion of one uniform, where R's Inversion spends two for precision"
+
+  [[target.mutant]]
+  id = "normal-precision-scale"
+  find = "_BIG = 134217728.0"
+  replace = "_BIG = 67108864.0"
+  models = "the two-uniform inversion at 2^26 instead of R's 2^27"
+
+  [[target.mutant]]
+  id = "negative-seed-accepted"
+  find = "            or not 0 <= int(seed) <= 2 ** 31 - 1):"
+  replace = "            or not int(seed) <= 2 ** 31 - 1):"
+  models = "a negative seed run through a cast this port has not checked against R"
+
+  [[target.mutant]]
+  id = "bool-seed-accepted"
+  find = "    if (isinstance(seed, bool) or not isinstance(seed, numbers.Integral)"
+  replace = "    if (not isinstance(seed, numbers.Integral)"
+  models = "True read as seed 1"
+
+  [[target.mutant]]
+  id = "intercepts-sorted-separately"
+  find = "    delta = np.sort(np.r_[20.0 * r.runif(T0), 20.0 * r.runif(T - T0)])"
+  replace = "    delta = np.r_[np.sort(20.0 * r.runif(T0)), np.sort(20.0 * r.runif(T - T0))]"
+  models = "the pre and post intercepts sorted apart, where the authors sort all 30 together"
+
+  [[target.mutant]]
+  id = "treated-intercepts-unsorted"
+  find = "    upsilon = np.sort(20.0 * r.runif(T - T0))"
+  replace = "    upsilon = 20.0 * r.runif(T - T0)"
+  models = "the treated intercepts left in draw order"
+
+  [[target.mutant]]
+  id = "covariates-drawn-covariate-major"
+  find = "    Z = r.runif(J * R).reshape(J, R)                    # unit by unit"
+  replace = "    Z = r.runif(J * R).reshape(R, J).T                  # unit by unit"
+  models = "Z filled covariate by covariate, where the authors draw a unit's seven at a time"
+
+  [[target.mutant]]
+  id = "unobserved-covariates-drawn-covariate-major"
+  find = "    mu = r.runif(J * F).reshape(J, F)"
+  replace = "    mu = r.runif(J * F).reshape(F, J).T"
+  models = "mu filled covariate by covariate, which leaves Y_N right only by accident and mu wrong"
+
+  [[target.mutant]]
+  id = "treated-coefficients-drawn-first"
+  find = "    theta = 10.0 * r.runif(T * R).reshape(T, R)         # period by period\n    gamma = 10.0 * r.runif((T - T0) * R).reshape(T - T0, R)"
+  replace = "    gamma = 10.0 * r.runif((T - T0) * R).reshape(T - T0, R)\n    theta = 10.0 * r.runif(T * R).reshape(T, R)         # period by period"
+  models = "the coefficient blocks drawn out of the authors' loop order"
+
+  [[target.mutant]]
+  id = "noise-period-major-transposed"
+  find = "    eps = r.rnorm(T * J).reshape(T, J).T"
+  replace = "    eps = r.rnorm(T * J).reshape(J, T)"
+  models = "the noise filled unit by unit, where the authors draw a period's 15 at a time"
+
+  [[target.mutant]]
+  id = "coefficients-on-the-intercept-range"
+  find = "    lam = 10.0 * r.runif(T * F).reshape(T, F)"
+  replace = "    lam = 20.0 * r.runif(T * F).reshape(T, F)"
+  models = "the unobserved loadings on Uniform(0, 20), not the paper's (0, 10)"
+
+  [[target.mutant]]
+  id = "treated-outcomes-defined-before-treatment"
+  find = "    Y_I = np.full((J, T), np.nan)"
+  replace = "    Y_I = np.zeros((J, T))"
+  models = "pre-period treated outcomes reported as zeros, which the authors never define"
+
+  [[target.mutant]]
+  id = "generic-sample-drops-mu"
+  find = "    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0, Z=Z, mu=mu)\n\n\n#:"
+  replace = "    return MAREXSample(Y_N=Y_N, Y_I=Y_I, tau=tau, T0=T0, Z=Z)\n\n\n#:"
+  models = "the generic sample without the unobserved covariates it drew"
