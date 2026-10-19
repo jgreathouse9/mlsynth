@@ -1,0 +1,15 @@
+geolift_n40_k3: candidates=12 rayleigh gap=0.020 t=0.02s
+geolift_n40_k5: candidates=22 rayleigh gap=0.014 t=0.03s
+geolift_n40_k10: candidates=28 rayleigh gap=0.016 t=0.03s
+walmart_n45_k3: candidates=13 rayleigh gap=0.023 t=0.01s
+walmart_n45_k5: candidates=25 rayleigh gap=0.019 t=0.03s
+walmart_n45_k10: candidates=32 rayleigh gap=0.020 t=0.03s
+county_n40_k3: candidates=8 rayleigh gap=0.032 t=0.01s
+county_n40_k5: candidates=16 rayleigh gap=0.027 t=0.01s
+county_n40_k10: candidates=31 rayleigh gap=0.023 t=0.02s
+county_n70_k3: candidates=14 rayleigh gap=0.021 t=0.03s
+county_n70_k5: candidates=22 rayleigh gap=0.015 t=0.03s
+county_n70_k10: candidates=32 rayleigh gap=0.009 t=0.03s
+county_n100_k3: candidates=9 rayleigh gap=0.013 t=0.11s
+county_n100_k5: candidates=27 rayleigh gap=0.007 t=0.60s
+county_n100_k10: candidates=32 rayleigh gap=0.006 t=0.72s
