@@ -21,7 +21,9 @@ Candidate model ``s`` regresses ``y`` on the donor columns ``groups[s]``.
   ``lp``. Nothing here imports ``scipy.optimize``; HiGHS stays in
   ``highs_reference`` as the check the tests compare against.
 * ``kendall_pvalues`` is ``cor.test(method = "kendall")``: exact below 50
-  observations without ties, the normal approximation otherwise.
+  observations without ties, the normal approximation otherwise. It and the
+  chi-square and normal quantiles come from ``special``, so the oracle imports
+  nothing from SciPy.
 
 Choices the paper leaves open, each recorded where it is made:
 
@@ -46,12 +48,12 @@ from math import comb
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from scipy.stats import chi2, kendalltau, norm
 
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.solvers.nnls import nnls
 
 from . import lp as LP
+from . import special as SP
 from . import solver_pairfree as PF
 
 #: Section 4.1: donors whose Kendall p-value exceeds this are dropped.
@@ -186,7 +188,7 @@ def cov_rob_mve(x: np.ndarray, rng: Optional[np.random.Generator] = None):
     rcov = np.cov(xs[best], rowvar=False).reshape(p, p) * (1 + 15 / (n - p)) ** 2
     diff = xs - means
     dist = np.einsum("ij,ij->i", diff @ _inv_like_r(rcov), diff)
-    cut = chi2.ppf(0.975, p) * _quantile7(dist, qn / n) / chi2.ppf(qn / n, p)
+    cut = SP.chi2_ppf(0.975, p) * _quantile7(dist, qn / n) / SP.chi2_ppf(qn / n, p)
     keep = dist < cut
     if keep.sum() < 2:
         raise RobustCovError("fewer than two rows inside the cut")
@@ -209,7 +211,7 @@ def mallows(x: np.ndarray, rng: Optional[np.random.Generator] = None) -> np.ndar
     center, cov, _ = cov_rob_mve(x, rng)
     diff = x - center
     d2 = np.einsum("ij,ij->i", diff @ _inv_like_r(cov), diff)
-    nu = chi2.ppf(MALLOWS_LEVEL, x.shape[1])
+    nu = SP.chi2_ppf(MALLOWS_LEVEL, x.shape[1])
     with np.errstate(divide="ignore"):
         return np.minimum(1.0, np.where(d2 > 0, nu / d2, np.inf))
 
@@ -292,15 +294,8 @@ def mscm_fit(y: np.ndarray, X: np.ndarray):
 
 
 def kendall_pvalues(y: np.ndarray, X: np.ndarray) -> np.ndarray:
-    """``cor.test(y, X[, j], method = "kendall")$p.value`` for each column."""
-    n = len(y)
-    out = np.empty(X.shape[1])
-    y_ties = len(np.unique(y)) < n
-    for j in range(X.shape[1]):
-        ties = y_ties or len(np.unique(X[:, j])) < n
-        method = "exact" if (n < 50 and not ties) else "asymptotic"
-        out[j] = kendalltau(y, X[:, j], method=method).pvalue
-    return out
+    """``cor.test(y, X[, j], method = "kendall")$p.value`` for each column (``special``)."""
+    return np.array([SP.kendall_pvalue(y, X[:, j]) for j in range(X.shape[1])])
 
 
 def screen(y: np.ndarray, X: np.ndarray, level: float = SCREEN_LEVEL):
@@ -554,6 +549,6 @@ def rrma_variance(y, X, T1, groups, w, rng, B: int = 1000):
 
 def normal_ci(att: float, var: float, level: float) -> Tuple[float, float]:
     """Equation (15)."""
-    z = norm.ppf(0.5 + level / 2)
+    z = SP.norm_ppf(0.5 + level / 2)
     se = np.sqrt(var)
     return att - z * se, att + z * se

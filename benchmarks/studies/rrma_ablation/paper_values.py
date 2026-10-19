@@ -65,11 +65,11 @@ def implied_rrma():
     The interval is symmetric, so its midpoint is the estimate at every level
     and its half-width over ``z`` is the standard error.
     """
-    from scipy.stats import norm
+    from .special import norm_ppf
 
     mids, ses = [], []
     for level, (lo, hi) in TABLE4["RRMA"].items():
         mids.append((lo + hi) / 2)
-        ses.append((hi - lo) / 2 / norm.ppf(0.5 + level / 2))
+        ses.append((hi - lo) / 2 / norm_ppf(0.5 + level / 2))
     return dict(att=sum(mids) / len(mids), att_spread=max(mids) - min(mids),
                 se=sum(ses) / len(ses), se_spread=max(ses) - min(ses))

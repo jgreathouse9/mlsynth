@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-10-18T23:32:00Z",
+  "git_sha": "84bf70d69eca66edc144fd2253395ec0b62a29ff",
+  "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+  "r": "R version 4.3.3 (2024-02-29)",
+  "command": "python benchmarks/reference/rrma_special/capture.py",
+  "files": [
+    {
+      "path": "benchmarks/reference/rrma_special/special.R",
+      "sha256": "961ca039fe34383302b0e20421bce657b8f0bbbbf9997137dfcd6c021d559d0e"
+    },
+    {
+      "path": "basedata/basque_data.csv",
+      "sha256": "54dfc49971c96d809072c98d5f951ac3e20b50935756f1190b0f0b4ee79ef39c"
+    }
+  ]
+}

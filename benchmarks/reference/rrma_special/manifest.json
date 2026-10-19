@@ -1,0 +1,12 @@
+{
+  "case": "rrma_special",
+  "title": "R's qnorm, qchisq, pchisq and cor.test(method = 'kendall') for the RRMA study's own distribution functions",
+  "paper": "Lv, J. and Li, J. (2026), 'Rank-based Model Average Estimator for Average Treatment Effects', arXiv:2610.15553v1",
+  "reference_impl": "special.R in this directory, base R stats (R 4.3.3)",
+  "path_type": "cross-validation",
+  "command": "python benchmarks/reference/rrma_special/capture.py",
+  "data": [
+    "basedata/basque_data.csv"
+  ],
+  "note": "Consumed by benchmarks/tests/test_rrma_special.py, which checks benchmarks/studies/rrma_ablation/special.py against these values."
+}
