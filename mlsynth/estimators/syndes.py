@@ -66,6 +66,10 @@ from ..utils.syndes_helpers.exact import (
     solve_synthetic_design_exact,
     solve_synthetic_design_exact_pool,
 )
+from ..utils.syndes_helpers.per_unit_exact import (
+    solve_per_unit_exact,
+    solve_per_unit_exact_pool,
+)
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
     solve_synthetic_design_pool,
@@ -486,8 +490,12 @@ class SYNDES:
                 unit_index=inputs.unit_index, costs=self.costs,
                 budget=self.budget, restrictions=restrictions,
             )
-            solve_one, solve_pool = (solve_synthetic_design_exact,
-                                     solve_synthetic_design_exact_pool)
+            if mode_internal == "per_unit":
+                solve_one, solve_pool = (solve_per_unit_exact,
+                                         solve_per_unit_exact_pool)
+            else:
+                solve_one, solve_pool = (solve_synthetic_design_exact,
+                                         solve_synthetic_design_exact_pool)
         else:
             solve_kw = dict(
                 Y=inputs.Y_pre, K=self.K, mode=mode_internal, lam=self.lam,

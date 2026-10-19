@@ -476,6 +476,108 @@ timeout = 300.0
   models = "an exhausted region raised as an ordinary failure, so the pool raises when it runs out of designs instead of returning the ones it found"
 
 [[target]]
+name = "syndes-per-unit-exact"
+module-path = "mlsynth/utils/syndes_helpers/per_unit_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py mlsynth/tests/test_syndes_per_unit_exact_properties.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-fixed-units-are-priced-on-the-full-panel"
+  find = "        fixed = math.fsum(fits.phi(i, F) for i in F)"
+  replace = "        fixed = math.fsum(fits.phi(i, frozenset(range(N)) - {i}) for i in F)"
+  models = "a node bound that prices its fixed units on pools with every other unit removed, which overstates their cost, prunes nodes that hold the optimum, and returns a worse design as certified"
+
+  [[target.mutant]]
+  id = "the-undecided-units-are-priced-as-if-all-were-treated"
+  find = "        terms = sorted((fits.phi(u, F), u) for u in U)"
+  replace = "        terms = sorted((fits.phi(u, F | set(U)), u) for u in U)"
+  models = "undecided units priced with every undecided unit removed from their pools, which is not a lower bound on any completion that leaves some of them as controls"
+
+  [[target.mutant]]
+  id = "the-bound-takes-the-largest-terms"
+  find = "        cheapest = [v for v, _ in terms[:need]]"
+  replace = "        cheapest = [v for v, _ in terms[-need:]]"
+  models = "a node bound built from the costliest undecided units instead of the cheapest, so it exceeds the best completion and discards the optimum"
+
+  [[target.mutant]]
+  id = "a-leaf-skips-the-restrictions"
+  find = "            if filt.accepts(S):"
+  replace = "            if True:"
+  models = "a leaf accepted without the treated-side predicates, so conflicts, stratum quotas, the budget and the pool's forbidden sets are broken by the design returned"
+
+  [[target.mutant]]
+  id = "donor-exclusions-are-dropped"
+  find = "    fits = UnitFits(Y, lam_value, {i: frozenset(js) for i, js in excluded.items()})"
+  replace = "    fits = UnitFits(Y, lam_value, {})"
+  models = "donor exclusions read and then not applied, so treated units are fitted from donors the restriction forbids them"
+
+  [[target.mutant]]
+  id = "a-reused-fit-is-trusted-without-its-support-check"
+  find = "        if w is None or not (_support(w) & removed):"
+  replace = "        if True:"
+  models = "a fit with only the root's support removed reused for a larger removal whose units it still weights, so the price is a fit on a pool that includes treated units"
+
+  [[target.mutant]]
+  id = "fits-run-in-the-outcomes-units"
+  find = "        scale = float(np.sqrt(np.mean(centred ** 2)))"
+  replace = "        scale = 1.0"
+  models = "fits on the panel as measured: the active-set solver's absolute tolerances then decide them, and at a scale of 1e-5 the design was 1% worse than the optimum"
+
+  [[target.mutant]]
+  id = "convergence-is-not-read"
+  find = "        if not info[\"converged\"]:"
+  replace = "        if False:"
+  models = "a fit that stopped before its optimum accepted as phi_i, so a value above the minimum enters a bound and the search can discard the optimum"
+
+  [[target.mutant]]
+  id = "a-stopped-search-claims-optimality"
+  find = "    status = \"optimal\" if outcome.closed else \"node_limit\""
+  replace = "    status = \"optimal\""
+  models = "a search stopped at its node limit reported as optimal, the defect #805 removed from the MIP path"
+
+  [[target.mutant]]
+  id = "a-stopped-search-bounds-by-its-incumbent"
+  find = "    lower = best if closed else min([best] + [b for _, _, b in stack])"
+  replace = "    lower = best"
+  models = "a stopped search reporting its incumbent as the lower bound, so the gap reads zero and the bound can exceed the optimum it never reached"
+
+  [[target.mutant]]
+  id = "the-pool-swallows-every-failure"
+  find = "        except _NoFeasibleDesign:"
+  replace = "        except MlsynthEstimationError:"
+  models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
+
+  [[target.mutant]]
+  id = "a-root-fit-is-trusted-after-its-support-is-removed"
+  find = "        if not hit:"
+  replace = "        if True:"
+  models = "every unit priced at its root fit whatever the pool, which is the separable bound reported as the price: the objective of the returned design is understated"
+
+[[target]]
+name = "syndes-per-unit-exact-wiring"
+module-path = "mlsynth/estimators/syndes.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py -q -x -p no:cacheprovider -k estimator"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "per-unit-is-handed-the-two-way-search"
+  find = "            if mode_internal == \"per_unit\":"
+  replace = "            if False:"
+  models = "the exact per-unit request routed to the two-way search, which solves a different objective and returns a two-way design under a per-unit label"
+
+[[target]]
+name = "syndes-per-unit-exact-config"
+module-path = "mlsynth/utils/syndes_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py mlsynth/tests/test_syndes_removals.py -q -x -p no:cacheprovider -k \"estimator or one_way or per_unit or DefaultResolves\""
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "per-unit-silently-keeps-the-mip"
+  find = "        if values.mode == \"one_way_global\":"
+  replace = "        if values.mode != \"two_way_global\":"
+  models = "the pre-change resolution: per-unit falls back to SCIP, which at its defaults returned the optimum on 14 of 78 study runs"
+
+[[target]]
 name = "syndes-enumeration"
 module-path = "mlsynth/utils/syndes_helpers/enumeration.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_enumeration.py -q -p no:cacheprovider"

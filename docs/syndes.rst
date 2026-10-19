@@ -773,10 +773,11 @@ lives once the weights are optimized away.
 Solving it that way
 ~~~~~~~~~~~~~~~~~~~~~
 
-``backend`` chooses how ``mode="two_way_global"`` is solved. The default,
-``"exact"``, searches treated sets using the reduction above. ``"mip"`` hands the
-mixed-integer program to ``solver`` instead. The other two modes resolve to
-``"mip"`` on their own, and asking them for ``"exact"`` is an error.
+``backend`` chooses how ``mode="two_way_global"`` and ``mode="per_unit"`` are
+solved. The default, ``"exact"``, searches treated sets: two-way with the
+reduction above, per-unit as described in "The per-unit design by search" below.
+``"mip"`` hands the mixed-integer program to ``solver`` instead. One-way resolves
+to ``"mip"`` on its own, and asking it for ``"exact"`` is an error.
 
 The search scores every candidate design with one matrix product, since
 :math:`\mathrm{lb}` depends on the design only through
@@ -814,12 +815,10 @@ form, the exact backend raises an error that says so and names
 holdout and information-criterion selection raise the same error. Only a
 restriction set that leaves no admissible design ends the pool early.
 
-``backend="exact"`` applies to two-way only. One-way pins the treated weights at
-:math:`1/K` and per-unit carries an :math:`(N, N)` weight matrix, so neither
-reduces to a search over treated sets. Donor-side restrictions
-(``donor_exclusion``, ``donor_region_col``) are refused as well: they tie the
-control weights to which units are treated, so a design stops being scoreable
-from its treated set alone.
+For two-way, donor-side restrictions (``donor_exclusion``, ``donor_region_col``)
+are refused: they tie the control weights to which units are treated, so a
+design stops being scoreable from its treated set alone. One-way pins the
+treated weights at :math:`1/K` and has no exact backend yet.
 
 Every other restriction is a predicate on the treated set, and the two kinds are
 handled differently. ``to_be_treated``, ``not_to_be_treated``, size eligibility
@@ -884,6 +883,58 @@ The arm column must be constant within each unit over time. ``arm`` is not
 compatible with the global ``costs``/``budget`` constraint (the cost vector is
 defined over all units, not per arm). When ``arm`` is ``None`` (default), a
 single :class:`SYNDESResults` is returned, exactly as before.
+
+The per-unit design by search
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Per-unit has the same structure. Doudchenko et al. (2021, Appendix A.3) observe
+that it is :math:`K` one-way problems, one per treated unit, each with every
+control unit as a donor. Once the treated set :math:`S` is named, no binary is
+left:
+
+.. math::
+
+   f(S) = \frac{1}{K} \sum_{i \in S} \phi_i(S^c), \qquad
+   \phi_i(P) = \min_{\mathbf{v} \in \Delta(P)}
+   \frac{1}{T_0} \lVert \mathbf{y}_i - \mathbf{Y}_P \mathbf{v} \rVert^2
+   + \lambda \lVert \mathbf{v} \rVert^2,
+
+where :math:`\Delta(P)` is the simplex over the pool :math:`P`, which also lacks
+the donors a ``donor_exclusion`` or ``donor_region_col`` rule removes for unit
+:math:`i`. A unit's fit can only get worse as its pool shrinks, and that gives a
+bound for a branch and bound on units. A node fixes a set :math:`F` of treated
+units and a set of controls. Every completion of it contains :math:`F`, so every
+pool in it lacks :math:`F`, and
+
+.. math::
+
+   f(S) \ge \frac{1}{K} \Big[ \sum_{i \in F} \phi_i(N \setminus F)
+   + \text{the } K - |F| \text{ smallest } \phi_u\big(N \setminus (F \cup \{u\})\big)
+   \Big]
+
+over the undecided units :math:`u`. The bound tightens as :math:`F` grows and
+equals :math:`f(S)` at a leaf. When the search closes, every node it discarded
+had a bound at or above the returned design, so the design is the optimum;
+``design.solve_outcome`` reports ``status="optimal"``, the lower bound and a gap
+of zero. A search that reaches ``node_limit`` returns its best design with
+``status="node_limit"``, the smallest bound it left open, the gap to it, and a
+``SYNDESSolveWarning``.
+
+Each fit is a simplex least-squares problem, solved by the active-set solver
+with its convergence checked, on the panel centred within each period and
+divided by its root mean square. Both changes leave every fit's optimum where
+it was, since a unit's residual is a simplex combination, and they keep the
+solver's tolerances at a fixed scale: on a panel measured in units of
+:math:`10^{-5}` the uncentred fits gave a design 1 percent worse than the
+optimum.
+
+The study behind this search is
+`benchmarks/studies/syndes_per_unit_exact <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_per_unit_exact>`_.
+On 156 runs it closed every one, in at most 28 seconds, with half of twenty
+units treated on a panel with no structure as the hardest case. SCIP at the
+MIP path's defaults (60 seconds, a 5 percent gap) returned the optimum on 14 of
+78 runs; from 40 units its time limit bound on nearly every run, and its design
+was a median 56 percent worse where it was not optimal.
 
 Across groups: arm vs. quotas vs. restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
