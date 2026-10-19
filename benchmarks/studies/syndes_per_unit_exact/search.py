@@ -22,7 +22,7 @@ next bound reaches the incumbent, which proves the incumbent optimal.
 A second bound sits between the two. Removing every other treated unit raises
 ``phi_i`` at least as much as removing any one of them, so
 
-    lb2(S) = (1/K) sum_{i in S} max_{j in S \ {i}} phi_i(N \ {i, j})
+    lb2(S) = (1/K) sum_{i in S} max_{j in S \\ {i}} phi_i(N \\ {i, j})
 
 bounds ``f(S)`` too, and only ``j`` in the support of ``i``'s root fit can raise
 a term above its root value. Those pair fits are few, and every set that

@@ -74,15 +74,17 @@ class TestDefaultBackend:
         assert (tuple(exact.selected_unit_indices)
                 == tuple(mip.selected_unit_indices))
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_still_use_the_mip(self, mode):
-        design = SYNDES(_cfg(mode=mode)).fit().design
+    def test_per_unit_defaults_to_its_search(self):
+        design = SYNDES(_cfg(mode="per_unit")).fit().design
+        assert design.raw_results["solver"] == "exact"
+
+    def test_one_way_still_uses_the_mip(self):
+        design = SYNDES(_cfg(mode="one_way_global")).fit().design
         assert design.raw_results["solver"] != "exact"
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_reject_the_search(self, mode):
+    def test_one_way_rejects_the_search(self):
         with pytest.raises(MlsynthConfigError):
-            SYNDES(_cfg(mode=mode, backend="exact"))
+            SYNDES(_cfg(mode="one_way_global", backend="exact"))
 
 
 # ----------------------------------------------------------------------
@@ -224,15 +226,17 @@ class TestSurvivingKnobs:
 
 
 class TestDefaultResolvesPerMode:
-    """The default is ``"exact"``, which only two-way can honour.
+    """The default is ``"exact"``, which two-way and per-unit honour.
 
-    Resolving it per mode is what keeps the other two working without the user
-    naming a backend; asking for it explicitly there is still an error.
+    Resolving it per mode is what keeps one-way working without the user naming
+    a backend; asking for it explicitly there is still an error.
     """
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_silently_keep_the_mip(self, mode):
-        assert SYNDES(_cfg(mode=mode)).config.backend == "mip"
+    def test_one_way_silently_keeps_the_mip(self):
+        assert SYNDES(_cfg(mode="one_way_global")).config.backend == "mip"
+
+    def test_per_unit_keeps_its_search(self):
+        assert SYNDES(_cfg(mode="per_unit")).config.backend == "exact"
 
     def test_two_way_keeps_the_search(self):
         assert SYNDES(_cfg()).config.backend == "exact"
