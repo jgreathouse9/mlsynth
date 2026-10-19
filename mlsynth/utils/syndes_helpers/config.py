@@ -112,14 +112,17 @@ class SYNDESConfig(BaseMAREXConfig):
     backend: Literal["mip", "exact"] = Field(
         default="exact",
         description=(
-            "How ``mode='two_way_global'`` is solved. ``'exact'`` (the default) "
-            "searches treated sets directly: naming the set removes "
-            "every binary and leaves a convex program in the Gram matrix, so a "
-            "candidate design costs one row of a matrix product instead of a "
-            "branch-and-bound node, and the panel length drops out after the "
-            "Gram step. Only valid for ``mode='two_way_global'``, and not with "
-            "donor-side restrictions, which tie the control weights to the "
-            "assignment. ``gap_limit``, ``time_limit`` and ``solver`` describe "
+            "How ``mode='two_way_global'`` and ``mode='per_unit'`` are solved. "
+            "``'exact'`` (the default for both) searches treated sets directly: "
+            "naming the set removes every binary. Two-way is then a convex "
+            "program in the Gram matrix, so a candidate design costs one row of "
+            "a matrix product, and two-way refuses donor-side restrictions, which "
+            "tie its control weights to the assignment. Per-unit is then one "
+            "simplex fit per treated unit, searched by a branch and bound on "
+            "units that returns a certified optimum, and donor-side restrictions "
+            "shrink each treated unit's pool. ``'mip'`` hands the "
+            "mixed-integer program to ``solver``. ``mode='one_way_global'`` uses "
+            "the MIP. ``gap_limit``, ``time_limit`` and ``solver`` describe "
             "branch-and-bound and apply to the MIP path only."
         ),
     )
@@ -355,17 +358,15 @@ class SYNDESConfig(BaseMAREXConfig):
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
 
-        # The exact backend is a reformulation of the two-way objective only:
-        # one-way pins the treated weights and per-unit carries an (N, N) weight
-        # matrix, so neither reduces to a search over treated sets. Since the
-        # field defaults to "exact", the default has to resolve per mode -- the
-        # other two modes keep the MIP without the user naming a backend -- while
-        # an explicit request for a mode that cannot use it is still an error.
-        if values.mode != "two_way_global":
+        # Two-way and per-unit have exact backends (a search over treated sets);
+        # one-way does not yet. Since the field defaults to "exact", the default
+        # resolves per mode -- one-way keeps the MIP without the user naming a
+        # backend -- while an explicit request for it is still an error.
+        if values.mode == "one_way_global":
             if "backend" in values.model_fields_set and values.backend == "exact":
                 raise MlsynthConfigError(
-                    f"backend='exact' is only available for "
-                    f"mode='two_way_global'; got mode={values.mode!r}.")
+                    "backend='exact' is available for mode='two_way_global' and "
+                    "mode='per_unit'; got mode='one_way_global'.")
             values.backend = "mip"
 
         # Donor-side rules tie the control weights to which units are treated, so

@@ -121,10 +121,9 @@ class TestPoolAndSelection:
 
 
 class TestRefusals:
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_rejected_for_other_modes(self, mode):
+    def test_rejected_for_one_way(self):
         with pytest.raises(MlsynthConfigError):
-            _fit(backend="exact", mode=mode)
+            _fit(backend="exact", mode="one_way_global")
 
     def test_rejected_with_donor_exclusions(self):
         adjacency = pd.DataFrame(
