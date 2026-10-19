@@ -206,6 +206,84 @@ timeout = 300.0
   models = "a to_be_treated rule read as 'at least one of these' instead of 'all of these', which silently drops units the experimenter committed to treating"
 
 [[target]]
+name = "syndes-two-way-scale-gram"
+module-path = "mlsynth/utils/syndes_helpers/gram.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py mlsynth/tests/test_syndes_two_way_scale_properties.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-gram-matrix-keeps-the-level"
+  find = "        centred = Y - Y.mean(axis=1, keepdims=True)"
+  replace = "        centred = Y"
+  models = "the pre-fix G = Y'Y / T. The objective on contrasts is unchanged, but a level common to the units stays in M as an eigenvalue of order N times its square, and from about 3e4 standard deviations the engine refuses a 12-unit panel it could enumerate"
+
+  [[target.mutant]]
+  id = "the-level-direction-is-left-singular"
+  find = "        level = float(np.trace(G)) / (N - 1)"
+  replace = "        level = 0.0"
+  models = "centring without restoring the direction 1: M then has eigenvalue lam along it, so at lam = 0 a long panel whose problem on contrasts is well posed reads as singular and is refused"
+
+  [[target.mutant]]
+  id = "the-level-direction-sits-above-the-spectrum"
+  find = "        level = float(np.trace(G)) / (N - 1)"
+  replace = "        level = float(np.trace(G)) * N"
+  models = "the direction 1 given an eigenvalue above every eigenvalue on contrasts, which inflates cond(M) by the ratio and refuses instances the closed form can handle"
+
+  [[target.mutant]]
+  id = "the-penalty-is-read-off-the-centred-panel"
+  find = "            float(np.mean(np.var(Y, axis=0, ddof=1))) if lam is None else float(lam)"
+  replace = "            float(np.mean(np.var(Y - Y.mean(axis=1, keepdims=True), axis=0, ddof=1))) if lam is None else float(lam)"
+  models = "the default penalty taken from the centred panel, which differs from the MIP path's estimate_lambda whenever the periods have a common component, so the two backends would minimise different objectives"
+
+  [[target.mutant]]
+  id = "the-swap-stop-is-absolute"
+  find = "    stop = SWAP_RTOL * N * float(diagonal.max())"
+  replace = "    stop = 1e-12"
+  models = "the pre-fix absolute stop. R scales as the inverse fourth power of the units of Y, so from s = 1e4 every improvement falls under 1e-12 and every restart stops before its first swap; the candidates are the random starts"
+
+[[target]]
+name = "syndes-two-way-scale-partition"
+module-path = "mlsynth/utils/syndes_helpers/partition.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-inner-stop-is-absolute"
+  find = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol * value):"
+  replace = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol):"
+  models = "the pre-fix absolute duality-gap stop, in units of Y squared: at s = 1e-6 the solve stops with a relative gap of 1e-3, and at s = 1e6 the tolerance is never reached and every solve runs to its iteration cap"
+
+[[target]]
+name = "syndes-two-way-scale-exact"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-pool-swallows-every-failure"
+  find = "        except _NoFeasibleDesign:"
+  replace = "        except MlsynthEstimationError:"
+  models = "the pre-fix pool, which read any estimation error as an exhausted region. An ill-conditioned instance then returned an empty pool, and the estimator reported the restrictions as jointly unsatisfiable"
+
+  [[target.mutant]]
+  id = "a-free-size-skips-every-failure"
+  find = "        except _NoFeasibleDesign as exc:"
+  replace = "        except MlsynthEstimationError as exc:"
+  models = "K=None skipping a size on any failure. Conditioning fails at every size, so the search re-raised it as exhaustion, which the pool swallows"
+
+  [[target.mutant]]
+  id = "conditioning-read-as-exhaustion"
+  find = "        raise _ill_conditioned(engine)"
+  replace = "        raise _NoFeasibleDesign(str(_ill_conditioned(engine)))"
+  models = "an ill-conditioned instance classed as one with no admissible design, so the pool and the K=None search treat it as the end of the region instead of reporting it"
+
+  [[target.mutant]]
+  id = "exhaustion-raised-as-a-generic-failure"
+  find = "        raise _NoFeasibleDesign(\n            \"SYNDES found no feasible design: the active restrictions"
+  replace = "        raise MlsynthEstimationError(\n            \"SYNDES found no feasible design: the active restrictions"
+  models = "an exhausted region raised as an ordinary failure, so the pool raises when it runs out of designs instead of returning the ones it found"
+
+[[target]]
 name = "syndes-enumeration"
 module-path = "mlsynth/utils/syndes_helpers/enumeration.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_enumeration.py -q -p no:cacheprovider"
@@ -5477,79 +5555,217 @@ timeout = 900.0
   models = "the config's T_post never reaching the inference"
 
 [[target]]
-name = "syndes-two-way-scale-gram"
-module-path = "mlsynth/utils/syndes_helpers/gram.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py mlsynth/tests/test_syndes_two_way_scale_properties.py -q -x -p no:cacheprovider"
-timeout = 300.0
+name = "marex-unit-inference"
+module-path = "mlsynth/utils/marex_helpers/unit_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py mlsynth/tests/test_marex_unit_inference_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
 
   [[target.mutant]]
-  id = "the-gram-matrix-keeps-the-level"
-  find = "        centred = Y - Y.mean(axis=1, keepdims=True)"
-  replace = "        centred = Y"
-  models = "the pre-fix G = Y'Y / T. The objective on contrasts is unchanged, but a level common to the units stays in M as an eigenvalue of order N times its square, and from about 3e4 standard deviations the engine refuses a 12-unit panel it could enumerate"
+  id = "a-treated-unit-joins-its-own-donor-pool"
+  find = "        pool = members[~on]"
+  replace = "        pool = members"
+  models = "the treated units left in the donor pool, so a unit can be its own control and its contrast vanishes"
 
   [[target.mutant]]
-  id = "the-level-direction-is-left-singular"
-  find = "        level = float(np.trace(G)) / (N - 1)"
-  replace = "        level = 0.0"
-  models = "centring without restoring the direction 1: M then has eigenvalue lam along it, so at lam = 0 a long panel whose problem on contrasts is well posed reads as singular and is refused"
+  id = "unit-control-fitted-on-the-blank-periods-too"
+  find = "            v = solve_simplex_qp(Y_full[pool, :TcE].T, Y_full[j, :TcE])"
+  replace = "            v = solve_simplex_qp(Y_full[pool, :T0].T, Y_full[j, :T0])"
+  models = "the per-unit control fitted on the blank periods, which then stop being out of sample"
 
   [[target.mutant]]
-  id = "the-level-direction-sits-above-the-spectrum"
-  find = "        level = float(np.trace(G)) / (N - 1)"
-  replace = "        level = float(np.trace(G)) * N"
-  models = "the direction 1 given an eigenvalue above every eigenvalue on contrasts, which inflates cond(M) by the ratio and refuses instances the closed form can handle"
+  id = "bonferroni-uncapped"
+  find = "            p_bonferroni=float(min(1.0, m * inf.global_p_value)),"
+  replace = "            p_bonferroni=float(m * inf.global_p_value),"
+  models = "an adjusted p-value above one"
 
   [[target.mutant]]
-  id = "the-penalty-is-read-off-the-centred-panel"
-  find = "            float(np.mean(np.var(Y, axis=0, ddof=1))) if lam is None else float(lam)"
-  replace = "            float(np.mean(np.var(Y - Y.mean(axis=1, keepdims=True), axis=0, ddof=1))) if lam is None else float(lam)"
-  models = "the default penalty taken from the centred panel, which differs from the MIP path's estimate_lambda whenever the periods have a common component, so the two backends would minimise different objectives"
+  id = "bonferroni-ignores-the-family"
+  find = "    m = len(found)"
+  replace = "    m = 1"
+  models = "per-unit p-values reported as adjusted when they are not, so m tests read as one"
 
   [[target.mutant]]
-  id = "the-swap-stop-is-absolute"
-  find = "    stop = SWAP_RTOL * N * float(diagonal.max())"
-  replace = "    stop = 1e-12"
-  models = "the pre-fix absolute stop. R scales as the inverse fourth power of the units of Y, so from s = 1e4 every improvement falls under 1e-12 and every restart stops before its first swap; the candidates are the random starts"
+  id = "joint-p-forgets-the-observed-arrangement"
+  find = "    return float((1 + np.sum(t >= t_obs - tol)) / (1 + max_combinations))"
+  replace = "    return float(np.mean(t >= t_obs - tol))"
+  models = "a drawn joint p-value that can reach zero"
+
+  [[target.mutant]]
+  id = "joint-statistic-reads-the-scale"
+  find = "    Z = np.divide(U, scale, out=np.zeros_like(U), where=scale > 0)"
+  replace = "    Z = U"
+  models = "a joint statistic dominated by the unit with the largest contrast in levels"
+
+  [[target.mutant]]
+  id = "blank-se-ignores-serial-correlation"
+  find = "    se = float(np.std(b, ddof=1) * math.sqrt(_variance_inflation(n, rho)))"
+  replace = "    se = float(np.std(b, ddof=1) / math.sqrt(n))"
+  models = "the blank-period standard error computed as if the contrast were independent over periods, too small under positive dependence"
+
+  [[target.mutant]]
+  id = "blank-rho-not-estimated"
+  find = "    rho = _ar1_rho(b)"
+  replace = "    rho = 0.0"
+  models = "the blank check's AR(1) correlation never estimated, so neither its standard error nor its degrees of freedom allow for dependence"
+
+  [[target.mutant]]
+  id = "blank-p-on-the-raw-period-count"
+  find = "        p = float(2.0 * stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  replace = "        p = float(2.0 * stats.t.sf(abs(t), n - 1.0))"
+  models = "the blank check's t referred to n - 1 degrees of freedom when the dependent periods carry fewer independent ones"
+
+  [[target.mutant]]
+  id = "blank-p-one-sided"
+  find = "        p = float(2.0 * stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  replace = "        p = float(stats.t.sf(abs(t), _effective_n(n, rho) - 1.0))"
+  models = "a one-sided p-value for a bias of either sign, half the two-sided one"
+
+  [[target.mutant]]
+  id = "blank-one-period-gets-a-spread"
+  find = "    if n < 2:"
+  replace = "    if n < 1:"
+  models = "a standard error read off a single blank period, which has none"
+
+  [[target.mutant]]
+  id = "blank-exact-fit-flagged"
+  find = "    elif mean == 0:"
+  replace = "    elif False:"
+  models = "a contrast identically zero reported as an infinitely significant bias"
+
+  [[target.mutant]]
+  id = "blank-constant-offset-unflagged"
+  find = "        t, p = math.copysign(math.inf, mean), 0.0"
+  replace = "        t, p = 0.0, 1.0"
+  models = "a constant nonzero contrast, a bias with no noise, reported as no evidence of bias"
+
+  [[target.mutant]]
+  id = "blank-offset-loses-its-sign"
+  find = "        t, p = math.copysign(math.inf, mean), 0.0"
+  replace = "        t, p = math.inf, 0.0"
+  models = "a constant offset below the unit reported as one above it"
+
+  [[target.mutant]]
+  id = "blank-share-of-the-signed-level"
+  find = "    scale = float(np.mean(np.abs(np.asarray(blank_level, dtype=float))))"
+  replace = "    scale = float(np.mean(np.asarray(blank_level, dtype=float)))"
+  models = "the share of a negative outcome divided by a negative level, which flips the bias's sign or drops it as zero"
+
+  [[target.mutant]]
+  id = "blank-share-at-a-zero-level"
+  find = "    relative = mean / scale if scale > 0 else math.nan"
+  replace = "    relative = mean / scale"
+  models = "a share computed at a zero level, which raises"
+
+  [[target.mutant]]
+  id = "blank-check-reads-the-post-periods"
+  find = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, TcE:T0]))"
+  replace = "            blank_check=blank_check(inf.treated_effects, Y_full[j, T0:]))"
+  models = "the bias check run on the post-period effects, where a real effect reads as bias"
+
+  [[target.mutant]]
+  id = "blank-share-of-the-fitting-level"
+  find = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, TcE:T0]))"
+  replace = "            blank_check=blank_check(inf.placebo_effects, Y_full[j, :TcE]))"
+  models = "the bias divided by the unit's level on the fitting periods, not the blank periods it was measured on"
+
+  [[target.mutant]]
+  id = "joint-divides-by-a-zero-scale"
+  find = "    Z = np.divide(U, scale, out=np.zeros_like(U), where=scale > 0)"
+  replace = "    Z = U / scale"
+  models = "a unit with no variation turning the joint statistic into nan"
+
+  [[target.mutant]]
+  id = "joint-exact-boundary-excluded"
+  find = "    if math.comb(n, T_post) <= max_combinations:"
+  replace = "    if math.comb(n, T_post) < max_combinations:"
+  models = "the exact joint test losing the case where the arrangements number exactly max_combinations"
+
+  [[target.mutant]]
+  id = "joint-window-unchecked"
+  find = "    if not 1 <= T_post <= n:"
+  replace = "    if not 1 <= T_post:"
+  models = "a post block longer than the window accepted, which enumerates nothing"
+
+  [[target.mutant]]
+  id = "joint-draws-unseeded"
+  find = "                          rng=np.random.default_rng(random_state))"
+  replace = "                          rng=np.random.default_rng())"
+  models = "a joint p-value that changes between fits of the same design"
+
+  [[target.mutant]]
+  id = "eq11-unweighted"
+  find = "    eq11_control = sum(treated_agg[j] * syn_c for j, _, _, syn_c, _ in found)"
+  replace = "    eq11_control = sum(syn_c for j, _, _, syn_c, _ in found) / len(found)"
+  models = "eq. (11) averaging the unit controls equally instead of by the design's treated weights"
 
 [[target]]
-name = "syndes-two-way-scale-partition"
-module-path = "mlsynth/utils/syndes_helpers/partition.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
-timeout = 300.0
+name = "marex-unit-inference-wiring"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py -q -x -p no:cacheprovider"
+timeout = 900.0
 
   [[target.mutant]]
-  id = "the-inner-stop-is-absolute"
-  find = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol * value):"
-  replace = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol):"
-  models = "the pre-fix absolute duality-gap stop, in units of Y squared: at s = 1e-6 the solve stops with a relative gap of 1e-3, and at s = 1e6 the tolerance is never reached and every solve runs to its iteration cap"
+  id = "unit-pools-span-the-panel"
+  find = "            [(str(lab), np.where(clusters_vec == lab)[0], w_sw[:, label_to_k[lab]])"
+  replace = "            [(str(lab), np.arange(len(clusters_vec)), w_sw[:, label_to_k[lab]])"
+  models = "a unit's control drawn from every unit outside its cluster's treated set, other clusters' treated units included"
+
+  [[target.mutant]]
+  id = "unit-inference-without-a-blank-window"
+  find = "    if unit_inference and inference and blank_periods > 0:"
+  replace = "    if unit_inference and inference:"
+  models = "per-unit inference attempted with no blank periods to calibrate it"
+
+  [[target.mutant]]
+  id = "unit-level-dropped"
+  find = "        unit_level=unit_level,"
+  replace = "        unit_level=None,"
+  models = "the per-unit inference computed and never reported"
 
 [[target]]
-name = "syndes-two-way-scale-exact"
-module-path = "mlsynth/utils/syndes_helpers/exact.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
-timeout = 300.0
+name = "marex-unit-inference-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py -q -x -p no:cacheprovider"
+timeout = 900.0
 
   [[target.mutant]]
-  id = "the-pool-swallows-every-failure"
-  find = "        except _NoFeasibleDesign:"
-  replace = "        except MlsynthEstimationError:"
-  models = "the pre-fix pool, which read any estimation error as an exhausted region. An ill-conditioned instance then returned an empty pool, and the estimator reported the restrictions as jointly unsatisfiable"
+  id = "unit-inference-on-by-default"
+  find = "    unit_inference: bool = Field(\n        default=False,"
+  replace = "    unit_inference: bool = Field(\n        default=True,"
+  models = "every caller switched to per-unit inference"
 
   [[target.mutant]]
-  id = "a-free-size-skips-every-failure"
-  find = "        except _NoFeasibleDesign as exc:"
-  replace = "        except MlsynthEstimationError as exc:"
-  models = "K=None skipping a size on any failure. Conditioning fails at every size, so the search re-raised it as exhaustion, which the pool swallows"
+  id = "unit-inference-without-inference-accepted"
+  find = "        if self.unit_inference and not self.inference:"
+  replace = "        if False:"
+  models = "unit_inference accepted with inference off, where it would silently produce nothing"
 
   [[target.mutant]]
-  id = "conditioning-read-as-exhaustion"
-  find = "        raise _ill_conditioned(engine)"
-  replace = "        raise _NoFeasibleDesign(str(_ill_conditioned(engine)))"
-  models = "an ill-conditioned instance classed as one with no admissible design, so the pool and the K=None search treat it as the end of the region instead of reporting it"
+  id = "unit-inference-coerced"
+  find = "        if not isinstance(v, bool):\n            raise MlsynthConfigError(\n                f\"unit_inference must be True or False; got {v!r}.\")"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"unit_inference must be True or False; got {v!r}.\")"
+  models = "a string or an integer read as a request for per-unit inference"
+
+[[target]]
+name = "marex-unit-inference-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py -q -x -p no:cacheprovider"
+timeout = 900.0
 
   [[target.mutant]]
-  id = "exhaustion-raised-as-a-generic-failure"
-  find = "        raise _NoFeasibleDesign(\n            \"SYNDES found no feasible design: the active restrictions"
-  replace = "        raise MlsynthEstimationError(\n            \"SYNDES found no feasible design: the active restrictions"
-  models = "an exhausted region raised as an ordinary failure, so the pool raises when it runs out of designs instead of returning the ones it found"
+  id = "estimator-drops-unit-inference"
+  find = "                unit_inference=self.config.unit_inference,"
+  replace = "                unit_inference=False,"
+  models = "the config accepting unit_inference and the estimator never passing it on"
+
+[[target]]
+name = "marex-unit-inference-eq11-band"
+module-path = "mlsynth/utils/marex_helpers/unit_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_unit_inference.py -q -x -p no:cacheprovider -k eq11"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "eq11-refits-on-the-treated-units"
+  find = "                             control_outcomes=Y_full[untreated], **common)"
+  replace = "                             control_outcomes=Y_full[~untreated], **common)"
+  models = "eq. (11)'s band for the total refitted on the treated units, so it stops being the shared contrast's band and tests nothing a reader can name"

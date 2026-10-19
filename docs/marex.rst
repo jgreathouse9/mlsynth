@@ -1108,6 +1108,98 @@ proof, is in `benchmarks/studies/marex_cumulative_conformal
 <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_cumulative_conformal>`_,
 and the tests are in ``mlsynth/tests/test_marex_cumulative_inversion.py``.
 
+.. _marex-unit-inference:
+
+Each treated unit
+^^^^^^^^^^^^^^^^^
+
+The inference above is for the aggregate contrast. ``unit_inference=True`` adds
+it for each treated unit, on ``res.globres.unit_level``.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=2, cluster="region", inference=True,
+                           design="unit_penalized", xi=1.0, backend="exact",
+                           unit_inference=True)).fit()
+   lvl = res.globres.unit_level
+   lvl.units["u07"].inference.ci        # the unit's pointwise band
+   lvl.units["u07"].p_bonferroni        # its p-value, adjusted for the family
+   lvl.units["u07"].blank_check         # bias of its control on the blank periods
+   lvl.joint_p_value                    # no effect on any treated unit
+   lvl.eq11                             # eq. (11)'s aggregate
+
+Each treated unit :math:`j` gets its own synthetic control, Abadie and Zhao's
+eq. (10): weights :math:`\mathbf{v}_{\cdot j}` on the simplex over the untreated
+units of :math:`j`'s cluster, fitted on the fitting periods after the design is
+chosen. The unit's contrast,
+
+.. math::
+
+   u_{jt} = y_{jt} - \sum_i v_{ij} y_{it},
+
+has a blank stretch and a post stretch, so every output of the aggregate's
+inference is computed for it: the Theorem 2 p-value, the per-period p-values,
+the pointwise band and, with ``cumulative_band=True``, the band for the unit's
+total. Theorem 2's argument needs only weights chosen on the fitting periods
+and Assumption 5, so it covers :math:`u_j`, with Assumption 3(i) read as an
+exact fit of unit :math:`j`'s own predictors. Abadie and Zhao define the
+Unit-level design without clusters; with clusters, each unit's control comes
+from its own cluster, the pool its cluster's controls are drawn from.
+
+A unit's estimated effect is unbiased when its control reproduces it. That needs
+the unit inside its donors' convex hull, the set of outcome paths a weighted
+average of the donors with nonnegative weights summing to one can reach; weights
+chosen before the post periods; donors the treatment does not reach; and a
+factor model that holds over the whole timeline. The blank periods test the
+first and the last of these. They are untreated and the fit never saw them, so a
+control that reproduces the unit leaves a contrast there that averages zero.
+``blank_check`` reports that average, its standard error allowing for AR(1)
+dependence over periods, their ratio ``t`` with a two-sided p-value against
+Student's t on the effective number of periods, and the average as a share of
+the unit's mean absolute level over the blank periods. A large ``t`` says the
+control misses the unit's level, for instance because no blend of its cluster's
+untreated units reaches it. The same bias then enters the unit's post-period
+effects, and its band is centred on the wrong number. The check cannot see a
+bias that begins with the treatment, such as a spillover onto the donors.
+
+Several treated units are several tests: rejecting whenever any unit's p-value
+is below :math:`\alpha` falsely rejects at :math:`1 - (1 - \alpha)^m` with
+:math:`m` units. ``p_bonferroni`` is :math:`\min(1, m\,p_j)`. The joint test
+asks whether any treated unit has an effect: its statistic is the largest,
+over units, of the mean absolute post-period contrast divided by the unit's
+mean absolute contrast over the blank and post periods, and one arrangement of
+periods is applied to every unit, so the units' common factors stay aligned.
+The divisor is a mean no arrangement changes, so the statistic ignores each
+unit's scale and the test remains a permutation test.
+
+Eq. (11) writes the aggregate as the design's treated weights applied to the
+per-unit contrasts, :math:`\sum_j w_j u_{jt}`; ``eq11`` carries its inference
+beside the shared contrast's. With ``cumulative_method="inversion"`` the band
+for a total refits the treated series on the untreated units and never reads a
+control, so eq. (11)'s band for the total is the shared contrast's, and only
+its point differs.
+
+On simulated MAREX designs the per-unit inference held where the aggregate's
+does. On Abadie and Zhao's Section 5 panel with exchangeable factors, the
+per-unit Theorem 2 test rejected 4.7-6.0% of the time at 5%, the pointwise band
+covered 96-97% at 95%, and the band for a unit's total 97-99%. A unit's band was
+about twice as wide as the aggregate's, because a single unit's contrast does
+not average noise across the treated units. Over a long pre-period with a
+common cycle and persistent factors, the pointwise band and the band for a
+unit's total still held, while the per-unit Theorem 2 test rejected up to three
+times as often as nominal at 5%; there the band for the total
+(``cumulative_band=True, cumulative_method="inversion"``) is the per-unit test
+to read. The blank length mattered little once it cleared the floor.
+
+``unit_penalized`` designs, whose penalty prices each unit's own fit, gave
+tighter per-unit bands. On a ``standard`` design eq. (11) was four to five
+times noisier than the shared contrast, since that design never chose its
+treated units for their own fits; on a ``unit_penalized`` design the two
+agreed. The study is in `benchmarks/studies/marex_unit_conformal
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_unit_conformal>`_,
+and the tests in ``mlsynth/tests/test_marex_unit_inference.py``.
+
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
 

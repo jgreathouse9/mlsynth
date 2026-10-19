@@ -11,6 +11,7 @@ from dataclasses import replace as _dc_replace
 from ...config_models import WeightsResults
 from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
+from .unit_inference import unit_level_inference
 from .exact import solve_design_exact
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
@@ -51,6 +52,7 @@ def solve_marex(
     inference=False,
     alpha=0.05,
     T_post=None,
+    unit_inference=False,
     max_combinations=1000,
     random_state=42,
     unit_index=None,
@@ -73,7 +75,9 @@ def solve_marex(
     used; otherwise the exact MIQP. With ``inference=True``, blank-period
     placebo inference is computed for every cluster and the aggregate, at level
     ``alpha`` and over the first ``T_post`` periods after ``T0`` (all of them
-    when ``None``).
+    when ``None``). ``unit_inference=True`` adds it for each treated unit
+    against its own synthetic control, with eq. (11)'s aggregate
+    (:mod:`mlsynth.utils.marex_helpers.unit_inference`).
 
     ``backend="exact"`` solves the design by searching treated sets
     (:func:`mlsynth.utils.marex_helpers.exact.solve_design_exact`) instead of
@@ -248,12 +252,27 @@ def solve_marex(
     adj_control = np.where(is_treated, 0.0, v_agg)
     g_syn_t = adj_treated @ Y_full_np
     g_syn_c = adj_control @ Y_full_np
+    unit_level = None
+    if unit_inference and inference and blank_periods > 0:
+        unit_level = unit_level_inference(
+            Y_full_np,
+            [(str(lab), np.where(clusters_vec == lab)[0], w_sw[:, label_to_k[lab]])
+             for lab in np.unique(clusters_vec)],
+            adj_treated, unit_labels, T0=T0_eff, TcE=TcE, Tb=blank_periods,
+            alpha=alpha, max_combinations=max_combinations,
+            random_state=random_state, T_post=T_post,
+            cumulative_band=cumulative_band,
+            cumulative_method=cumulative_method,
+            cumulative_block=cumulative_block,
+            cumulative_n_sim=cumulative_n_sim,
+            cumulative_seed=cumulative_seed)
     globres = MAREXGlobalDesign(
         Y_full=Y_full_np, Y_fit=raw["Y_fit"], Y_blank=raw["Y_blank"],
         treated_weights_agg=adj_treated, control_weights_agg=adj_control,
         synthetic_treated=g_syn_t, synthetic_control=g_syn_c,
         inference=_maybe_infer(g_syn_t, g_syn_c, ~is_treated),
         objective=float(raw.get("objective", float("nan"))),
+        unit_level=unit_level,
     )
 
     study = MAREXStudy(
