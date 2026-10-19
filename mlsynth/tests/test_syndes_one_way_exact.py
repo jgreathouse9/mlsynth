@@ -209,12 +209,16 @@ def test_a_panel_in_other_units_gets_the_same_design(s):
     assert got.objective_value / s ** 2 == pytest.approx(ref.objective_value, rel=1e-9)
 
 
-def test_a_common_level_changes_nothing():
+@pytest.mark.parametrize("level", [1e6, 1e8])
+def test_a_common_level_changes_nothing(level):
+    """Uncentred, the fits stopped short of convergence on 222 of 3,328 sets at a
+    level of 1e8. The tolerance is the stored data's rounding: entries of size
+    1e8 carry an error of about 1e-8 of the panel's unit-scale variation."""
     Y = _panel(seed=12)
     ref = solve_one_way_exact(Y, 3)
-    got = solve_one_way_exact(Y + 1e6, 3, lam=ref.lambda_value)
+    got = solve_one_way_exact(Y + level, 3, lam=ref.lambda_value)
     assert _treated(got) == _treated(ref)
-    assert got.objective_value == pytest.approx(ref.objective_value, rel=1e-7)
+    assert got.objective_value == pytest.approx(ref.objective_value, rel=1e-6)
 
 
 # --------------------------------------------------------------------------- #
@@ -261,6 +265,27 @@ def test_the_search_prices_only_sets_whose_bound_is_below_the_optimum():
     below = int(np.sum(ridge_bound(_engine(Y, lam), sets)
                        < d.objective_value * (1 + 1e-9)))
     assert 1 <= d.raw_results["n_priced"] <= 1 + below < len(sets)
+
+
+def test_a_set_the_bound_favours_but_its_exclusions_spoil_is_priced_past():
+    """Unit 0 is ``2 y_1 - y_2``, so units 0, 1 and 2 each sit on the line
+    through the other two and their ridge bounds are near zero. Unit 1 is the
+    midpoint of 0 and 2, but it may not use unit 0, and the bound does not see
+    exclusions: the best-bounded set is unit 1, and its value is not the optimum.
+    The search has to price on past it."""
+    rng = np.random.default_rng(0)
+    b, c, e, f = rng.standard_normal((4, 10))
+    Y = np.column_stack([2 * b - c, b, c, e + 0.3 * rng.standard_normal(10), e, f])
+    lam = 1e-3 * float(np.mean(np.var(Y, axis=0, ddof=1)))
+    pairs = [(1, 0)]
+    sets = np.array([[i] for i in range(6)])
+    assert int(np.argmin(ridge_bound(_engine(Y, lam), sets))) == 1
+    S, value = _brute_force(Y, 1, lam, excluded=_excluded(pairs))
+    assert S != (1,) and _f(Y, (1,), lam, _excluded(pairs)) > 2 * value
+    d = solve_one_way_exact(Y, 1, lam=lam,
+                            restrictions=DesignRestrictions(donor_exclusion=pairs))
+    assert _treated(d) == S and d.objective_value == pytest.approx(value, rel=1e-9)
+    assert d.raw_results["certified"] is True and d.raw_results["n_priced"] > 1
 
 
 def test_streaming_in_small_blocks_keeps_few_sets(monkeypatch):

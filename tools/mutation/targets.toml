@@ -5982,21 +5982,15 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-treated-weights-escape-the-penalty"
-  find = "        self._cache[key] = ((value + self.lam / K) * self.scale ** 2, weights)"
-  replace = "        self._cache[key] = (value * self.scale ** 2, weights)"
+  find = "        self._cache[key] = (value + self.lam / K, weights)"
+  replace = "        self._cache[key] = (value, weights)"
   models = "a price without lam/K, the penalty the fixed treated weights carry, so the objective is not the MIP's and sizes compare unfairly"
 
   [[target.mutant]]
-  id = "the-price-stays-in-unit-scale"
-  find = "        self._cache[key] = ((value + self.lam / K) * self.scale ** 2, weights)"
-  replace = "        self._cache[key] = ((value + self.lam / K), weights)"
-  models = "a price left in the scaled panel's units, so it is compared with bounds in the outcome's units and the stop rule decides on numbers of different size"
-
-  [[target.mutant]]
-  id = "fits-run-in-the-outcomes-units"
-  find = "        scale = float(np.sqrt(np.mean(centred ** 2)))"
-  replace = "        scale = 1.0"
-  models = "fits on the panel as measured: the active-set solver's absolute tolerances then decide them on a panel in small units"
+  id = "the-panel-is-not-centred"
+  find = "        self.Y = Y - Y.mean(axis=1, keepdims=True)"
+  replace = "        self.Y = Y"
+  models = "fits on the panel with its level left in, which cancels from the residual only in exact arithmetic: at a level of 1e8, 222 of 3,328 fits did not converge"
 
   [[target.mutant]]
   id = "donor-exclusions-are-dropped"

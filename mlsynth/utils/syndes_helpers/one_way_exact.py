@@ -35,12 +35,15 @@ incumbent. Every set left unpriced has a bound at or above the incumbent, so the
 incumbent is the optimum, to the rounding of the bound. On the study's runs that
 took one fit.
 
-Pricing runs on the panel centred within each period and divided by its root
-mean square, with the penalty divided by the square: the treated average and the
-control combination both carry weights that sum to one, so a level common to the
-units cancels from the residual, and the change of units is exact. Values are
-reported in the outcome's units. Every fit is ``solve_simplex_qp``, its
-convergence read and its Frank-Wolfe gap recorded.
+Pricing runs on the panel centred within each period: the treated average and
+the control combination both carry weights that sum to one, so a level common to
+the units cancels from the residual. On the uncentred panel at a level of
+``1e8``, 222 of 3,328 fits did not converge; centred, every one did, within the
+rounding of the stored data. The panel is not rescaled. Cold-started, as here,
+the active-set fits agreed with fits on a unit-scale panel to ``7e-16`` relative
+at every scale from ``1e-10`` to ``1e10``, so a change of units would buy
+nothing. Every fit is ``solve_simplex_qp``, its convergence read and its
+Frank-Wolfe gap recorded.
 
 Above ``candidate_limit`` admissible sets, enumeration stops being affordable.
 The search then prices the two-way backend's swap-search candidates
@@ -84,9 +87,7 @@ CHUNK = 200_000
 class OneWayFits:
     """``f(S)`` for any treated set, with its control weights.
 
-    The fits run on ``Y`` centred within each period and divided by its root
-    mean square ``scale``, with ``lam / scale**2``; values come back multiplied
-    by ``scale**2``, in the outcome's units.
+    The fits run on ``Y`` centred within each period, in the outcome's units.
 
     Parameters
     ----------
@@ -101,12 +102,9 @@ class OneWayFits:
     def __init__(self, Y: np.ndarray, lam: float,
                  excluded: Optional[Dict[int, FrozenSet[int]]] = None):
         Y = np.asarray(Y, dtype=float)
-        centred = Y - Y.mean(axis=1, keepdims=True)
-        scale = float(np.sqrt(np.mean(centred ** 2)))
-        self.scale = scale if scale > 0.0 else 1.0
-        self.Y = centred / self.scale
+        self.Y = Y - Y.mean(axis=1, keepdims=True)
         self.T, self.N = self.Y.shape
-        self.lam = float(lam) / self.scale ** 2
+        self.lam = float(lam)
         self.excluded = {int(i): frozenset(int(j) for j in js)
                          for i, js in (excluded or {}).items()}
         self.n_fits = 0
@@ -156,7 +154,7 @@ class OneWayFits:
         self.n_fits += 1
         weights = np.zeros(self.N)
         weights[pool] = c
-        self._cache[key] = ((value + self.lam / K) * self.scale ** 2, weights)
+        self._cache[key] = (value + self.lam / K, weights)
         return self._cache[key]
 
 
