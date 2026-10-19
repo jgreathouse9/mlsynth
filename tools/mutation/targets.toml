@@ -5475,3 +5475,81 @@ timeout = 900.0
   find = "                alpha=self.config.alpha, T_post=self.config.T_post,"
   replace = "                alpha=self.config.alpha,"
   models = "the config's T_post never reaching the inference"
+
+[[target]]
+name = "syndes-two-way-scale-gram"
+module-path = "mlsynth/utils/syndes_helpers/gram.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py mlsynth/tests/test_syndes_two_way_scale_properties.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-gram-matrix-keeps-the-level"
+  find = "        centred = Y - Y.mean(axis=1, keepdims=True)"
+  replace = "        centred = Y"
+  models = "the pre-fix G = Y'Y / T. The objective on contrasts is unchanged, but a level common to the units stays in M as an eigenvalue of order N times its square, and from about 3e4 standard deviations the engine refuses a 12-unit panel it could enumerate"
+
+  [[target.mutant]]
+  id = "the-level-direction-is-left-singular"
+  find = "        level = float(np.trace(G)) / (N - 1)"
+  replace = "        level = 0.0"
+  models = "centring without restoring the direction 1: M then has eigenvalue lam along it, so at lam = 0 a long panel whose problem on contrasts is well posed reads as singular and is refused"
+
+  [[target.mutant]]
+  id = "the-level-direction-sits-above-the-spectrum"
+  find = "        level = float(np.trace(G)) / (N - 1)"
+  replace = "        level = float(np.trace(G)) * N"
+  models = "the direction 1 given an eigenvalue above every eigenvalue on contrasts, which inflates cond(M) by the ratio and refuses instances the closed form can handle"
+
+  [[target.mutant]]
+  id = "the-penalty-is-read-off-the-centred-panel"
+  find = "            float(np.mean(np.var(Y, axis=0, ddof=1))) if lam is None else float(lam)"
+  replace = "            float(np.mean(np.var(Y - Y.mean(axis=1, keepdims=True), axis=0, ddof=1))) if lam is None else float(lam)"
+  models = "the default penalty taken from the centred panel, which differs from the MIP path's estimate_lambda whenever the periods have a common component, so the two backends would minimise different objectives"
+
+  [[target.mutant]]
+  id = "the-swap-stop-is-absolute"
+  find = "    stop = SWAP_RTOL * N * float(diagonal.max())"
+  replace = "    stop = 1e-12"
+  models = "the pre-fix absolute stop. R scales as the inverse fourth power of the units of Y, so from s = 1e4 every improvement falls under 1e-12 and every restart stops before its first swap; the candidates are the random starts"
+
+[[target]]
+name = "syndes-two-way-scale-partition"
+module-path = "mlsynth/utils/syndes_helpers/partition.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-inner-stop-is-absolute"
+  find = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol * value):"
+  replace = "            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol):"
+  models = "the pre-fix absolute duality-gap stop, in units of Y squared: at s = 1e-6 the solve stops with a relative gap of 1e-3, and at s = 1e6 the tolerance is never reached and every solve runs to its iteration cap"
+
+[[target]]
+name = "syndes-two-way-scale-exact"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-pool-swallows-every-failure"
+  find = "        except _NoFeasibleDesign:"
+  replace = "        except MlsynthEstimationError:"
+  models = "the pre-fix pool, which read any estimation error as an exhausted region. An ill-conditioned instance then returned an empty pool, and the estimator reported the restrictions as jointly unsatisfiable"
+
+  [[target.mutant]]
+  id = "a-free-size-skips-every-failure"
+  find = "        except _NoFeasibleDesign as exc:"
+  replace = "        except MlsynthEstimationError as exc:"
+  models = "K=None skipping a size on any failure. Conditioning fails at every size, so the search re-raised it as exhaustion, which the pool swallows"
+
+  [[target.mutant]]
+  id = "conditioning-read-as-exhaustion"
+  find = "        raise _ill_conditioned(engine)"
+  replace = "        raise _NoFeasibleDesign(str(_ill_conditioned(engine)))"
+  models = "an ill-conditioned instance classed as one with no admissible design, so the pool and the K=None search treat it as the end of the region instead of reporting it"
+
+  [[target.mutant]]
+  id = "exhaustion-raised-as-a-generic-failure"
+  find = "        raise _NoFeasibleDesign(\n            \"SYNDES found no feasible design: the active restrictions"
+  replace = "        raise MlsynthEstimationError(\n            \"SYNDES found no feasible design: the active restrictions"
+  models = "an exhausted region raised as an ordinary failure, so the pool raises when it runs out of designs instead of returning the ones it found"

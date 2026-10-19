@@ -68,6 +68,24 @@ CANDIDATE_LIMIT = 20_000_000
 CHUNK = 200_000
 
 
+class _NoFeasibleDesign(MlsynthEstimationError):
+    """No treated set satisfies the restrictions at this size.
+
+    The one failure that means a search is exhausted: ``K=None`` skips the size,
+    and the pool stops. Every other failure reaches the caller.
+    """
+
+
+def _ill_conditioned(engine: BoundEngine) -> MlsynthEstimationError:
+    return MlsynthEstimationError(
+        "the two-way Gram matrix is too ill-conditioned for the exact backend "
+        f"(cond(M) = {engine.condition:.3e}): the problem on contrasts is singular "
+        "to working precision, so neither the closed-form bound nor the swap "
+        "search can be trusted. This happens when lam approaches zero on a panel "
+        "with fewer pre-periods than units. Raise lam, add pre-treatment periods, "
+        "or use the MIP backend.")
+
+
 # ----------------------------------------------------------------------
 # candidate generation
 # ----------------------------------------------------------------------
@@ -266,10 +284,12 @@ def _search(
 ) -> SearchOutcome:
     """Enumerate and prune, or fall back to max-cut candidates when too large."""
     engine = BoundEngine.from_problem(problem)
+    if not engine.reliable:
+        raise _ill_conditioned(engine)
     N = problem.N
     space = _search_space(N, K, filt)
 
-    if space.size > candidate_limit or not engine.reliable:
+    if space.size > candidate_limit:
         return _search_by_candidates(problem, engine, K, filt, seed=seed,
                                      n_designs=space.size)
 
@@ -300,7 +320,7 @@ def _search(
             kept_bounds.append(scored.lower[alive])
 
     if n_designs == 0:
-        raise MlsynthEstimationError(
+        raise _NoFeasibleDesign(
             "SYNDES found no feasible design: the active restrictions "
             "(forced/forbidden units, spillover/adjacency conflict, stratum "
             "quotas, cost budget) are jointly unsatisfiable for the requested K. "
@@ -342,11 +362,6 @@ def _search_by_candidates(
     n_designs: int,
 ) -> SearchOutcome:
     """Max-cut candidates polished on the objective, for instances too large to enumerate."""
-    if not engine.reliable:
-        raise MlsynthEstimationError(
-            "the two-way Gram matrix is too ill-conditioned for the exact backend "
-            f"(cond(M) = {engine.condition:.3e}), and the instance is too large to "
-            "enumerate. Raise lam, add pre-treatment periods, or use the MIP backend.")
     if not filt.is_empty:
         raise MlsynthConfigError(
             f"the exact backend cannot apply design restrictions to an instance "
@@ -425,7 +440,8 @@ def solve_synthetic_design_exact(
     MlsynthConfigError
         For an out-of-range ``K``, malformed cost inputs, or donor exclusions.
     MlsynthEstimationError
-        When no admissible design exists under the restrictions.
+        When no admissible design exists under the restrictions, or when the
+        problem on contrasts is too ill-conditioned for the closed form.
     """
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
@@ -446,14 +462,14 @@ def solve_synthetic_design_exact(
             outcome = _search(problem, size, filt,
                               candidate_limit=candidate_limit,
                               incumbent_sets=incumbent_sets, seed=seed)
-        except MlsynthEstimationError as exc:
+        except _NoFeasibleDesign as exc:
             failures.append(str(exc))
             continue
         if best is None or outcome.value < best.value:
             best = outcome
 
     if best is None:
-        raise MlsynthEstimationError(
+        raise _NoFeasibleDesign(
             failures[0] if failures else
             "SYNDES found no feasible design under the active restrictions.")
 
@@ -470,7 +486,8 @@ def solve_synthetic_design_exact_pool(
 
     Re-searches with each chosen treated set added to ``forbidden_sets``, so the
     next call returns the next-best distinct design. Stops early, returning fewer
-    than ``top_K``, once the admissible region is exhausted.
+    than ``top_K``, once the admissible region is exhausted. Any other failure,
+    an ill-conditioned instance among them, raises.
 
     Raises
     ------
@@ -486,7 +503,7 @@ def solve_synthetic_design_exact_pool(
         try:
             design = solve_synthetic_design_exact(
                 Y, K, forbidden_sets=excluded, **kwargs)
-        except MlsynthEstimationError:
+        except _NoFeasibleDesign:
             break
         designs.append(design)
         excluded.append(np.asarray(design.selected_unit_indices, dtype=np.int64))

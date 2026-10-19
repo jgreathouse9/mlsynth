@@ -688,6 +688,17 @@ units' columns. Two things follow. The panel enters only through
 the pre-period stops mattering after that step. And nothing integral is left:
 all of the combinatorial difficulty is the outer choice of :math:`S`.
 
+Every feasible :math:`\mathbf{u}` has :math:`\mathbf{1}^\top\mathbf{u} = 0`, so
+a level common to every unit cancels from :math:`\mathbf{Y}\mathbf{u}`, and
+``mlsynth`` forms :math:`\mathbf{G}` from :math:`\mathbf{Y}` centred within each
+period. That changes :math:`\mathbf{u}^\top\mathbf{G}\mathbf{u}` for no
+feasible :math:`\mathbf{u}`, and leaves :math:`\mathbf{1}` in the null space of
+:math:`\mathbf{G}`, a direction no design reads; ``mlsynth`` gives that direction
+the mean of the other eigenvalues. Left in, a level would add an eigenvalue of
+order :math:`N` times its square, and an outcome measured far from zero would look
+singular to the conditioning check below. The penalty :math:`\lambda` is still
+the mean within-unit variance of the uncentred panel.
+
 Now let :math:`\boldsymbol{\sigma} \in \{-1, +1\}^N` be the indicator of
 :math:`S`. The two normalizations are exactly
 :math:`\mathbf{1}^\top \mathbf{u} = 0` and
@@ -758,7 +769,10 @@ What changes is the price of a candidate, not the complexity class. Choosing the
 treated set is still a cardinality-constrained max-cut, and above a count of
 admissible designs the search stops enumerating, falls back to a swap search on
 :math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}`, and reports
-the design against the Rayleigh bound instead of claiming a certificate. What it
+the design against the Rayleigh bound instead of claiming a certificate. The swap
+search's stopping rule and the projected-gradient solve's are relative to the
+problem's own scale, so the same design comes back whatever units the outcome is
+measured in. What it
 buys is that a candidate costs one row of a matrix product instead of a
 branch-and-bound node, and that :math:`T` leaves the per-candidate cost entirely
 once :math:`\mathbf{G}` is formed, so a 300-period panel costs what a 20-period
@@ -770,6 +784,12 @@ optimum, and ``time_limit`` can stop it sooner. The exact backend has no such
 early exit below its candidate limit, so the two agree on the treated set only
 once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
 search's design is the one that is at least as good.
+
+When :math:`\mathbf{G} + \lambda\mathbf{I}` is too ill-conditioned for the closed
+form, the exact backend raises an error that says so and names
+:math:`\mathrm{cond}(\mathbf{G} + \lambda\mathbf{I})`. The design pool and the
+holdout and information-criterion selection raise the same error. Only a
+restriction set that leaves no admissible design ends the pool early.
 
 ``backend="exact"`` applies to two-way only. One-way pins the treated weights at
 :math:`1/K` and per-unit carries an :math:`(N, N)` weight matrix, so neither
