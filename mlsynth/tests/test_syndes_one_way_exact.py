@@ -316,6 +316,20 @@ def test_a_priced_set_equals_a_fresh_fit():
         assert c.shape == (7,) and np.all(c[list(S)] == 0.0)
 
 
+def test_a_level_of_1e8_leaves_every_price_where_it_was():
+    """A search prices about one set, so the level test on the design can pass
+    on a converged fit by chance; this prices all 126. Uncentred, 12 of them
+    stopped short of convergence on this panel. Entries of size 1e8 carry a
+    rounding of about 1e-8 against the panel's unit-scale variation; centred, the
+    worst price moved by 1.6e-9."""
+    Y = _panel(N=7, seed=6)
+    lam = estimate_lambda(Y)
+    ref, got = OneWayFits(Y, lam), OneWayFits(Y + 1e8, lam)
+    for K in range(1, 7):
+        for S in combinations(range(7), K):
+            assert got.price(S)[0] == pytest.approx(ref.price(S)[0], rel=1e-7)
+
+
 def test_a_set_whose_pool_is_empty_is_priced_infinite():
     Y = _panel(N=4, seed=19)
     fits = OneWayFits(Y, estimate_lambda(Y), {0: frozenset({2, 3})})
