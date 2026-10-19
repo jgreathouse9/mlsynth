@@ -164,6 +164,96 @@ timeout = 180.0
   models = "an incremental update that adds the entering unit without removing the leaving one, so every later sweep scores its neighbourhood against a gradient for a design that was never visited and the returned set is not a local optimum"
 
 [[target]]
+name = "syndes-certificate-validity"
+module-path = "mlsynth/utils/syndes_helpers/certificate.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py mlsynth/tests/test_syndes_certificate_validity_properties.py mlsynth/tests/test_syndes_bound_failure.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "an-unfinished-relaxation-bounds-the-optimum"
+  find = "    if prob.status != \"optimal\":"
+  replace = "    if False:"
+  models = "the pre-fix relaxation, which read the objective of any solve that returned one. An optimal_inaccurate relaxation can stop above its own minimum, and its value then bounds nothing, yet it was reported as a lower bound and a gap"
+
+  [[target.mutant]]
+  id = "a-relaxation-solver-error-escapes"
+  find = "        return None, f\"the continuous relaxation's solver failed ({exc})\""
+  replace = "        raise"
+  models = "a relaxation whose solver raises takes the whole fit down with it, when the certificate is a diagnostic that can report no bound and say why"
+
+  [[target.mutant]]
+  id = "the-gap-has-a-unit-floor"
+  find = "    scale = max(abs(float(incumbent)), abs(float(lb)))"
+  replace = "    scale = max(abs(float(incumbent)), abs(float(lb)), 1.0)"
+  models = "the pre-fix denominator, floored at one, which makes the gap depend on the outcome's units: on a panel measured in small units every design reads as optimal, whatever its distance from the bound"
+
+  [[target.mutant]]
+  id = "the-gap-is-relative-to-the-incumbent-alone"
+  find = "    scale = max(abs(float(incumbent)), abs(float(lb)))"
+  replace = "    scale = abs(float(incumbent))"
+  models = "a gap scaled by the incumbent only, which is unbounded below when the bound exceeds a small incumbent, so a contradiction reads as a gap of any size and the gap is no longer comparable across designs"
+
+  [[target.mutant]]
+  id = "a-contradiction-is-clamped-to-a-zero-gap"
+  find = "        if gap >= -_BOUND_TOLERANCE:"
+  replace = "        if True:"
+  models = "the pre-fix clamp at zero: a lower bound above the incumbent says the bound or the incumbent is wrong, and the clamp reported it as a design proven optimal"
+
+  [[target.mutant]]
+  id = "rounding-is-read-as-a-contradiction"
+  find = "_BOUND_TOLERANCE = 1e-8"
+  replace = "_BOUND_TOLERANCE = 0.0"
+  models = "a bound that sits on the incumbent to the relaxation's rounding is reported as a contradiction, so a design the bound proves optimal warns and loses its certificate"
+
+  [[target.mutant]]
+  id = "a-contradiction-keeps-its-certificate"
+  find = "            certified = False"
+  replace = "            certified = certified"
+  models = "a negative gap that warns but leaves certified=True, so a caller filtering on the flag keeps a certificate the note says certifies nothing"
+
+  [[target.mutant]]
+  id = "a-free-size-is-bounded-at-the-easiest-size"
+  find = "    return None if any(b is None for b in bounds) else float(min(bounds))"
+  replace = "    return None if any(b is None for b in bounds) else float(max(bounds))"
+  models = "a K=None two-way design bounded by the largest per-size bound, which exceeds the optimum over sizes whenever the best design is at another size: the bound stops being a bound"
+
+  [[target.mutant]]
+  id = "a-free-size-reaches-a-bound-that-needs-k"
+  find = "    if K is None and mode != _TWO_WAY:"
+  replace = "    if False:"
+  models = "K=None reaching the one-way and per-unit relaxations, which build their constraints from K. Before the fix that raised a TypeError; with the relaxation's errors now caught it would read as a missing bound, not as the configuration error it is"
+
+  [[target.mutant]]
+  id = "the-per-unit-penalty-is-not-averaged"
+  find = "    return float((resid ** 2).sum() / (len(S) * T) + lam / len(S) * (Q ** 2).sum())"
+  replace = "    return float((resid ** 2).sum() / (len(S) * T) + lam * (Q ** 2).sum())"
+  models = "a per-unit incumbent scored with the penalty summed over treated units instead of averaged, so the incumbent and the bound are two different objectives and the gap mixes them"
+
+  [[target.mutant]]
+  id = "the-pooled-incumbent-drops-the-penalty"
+  find = "    return float(r @ r / T + lam * (a @ a + b @ b))"
+  replace = "    return float(r @ r / T)"
+  models = "a two-way or one-way incumbent scored without the ridge term the bound includes, which places the incumbent below the bound and turns every certificate into a contradiction"
+
+[[target]]
+name = "syndes-certificate-wiring"
+module-path = "mlsynth/estimators/syndes.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py -q -p no:cacheprovider -x -k holdout"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-incumbent-is-the-fitting-objective"
+  find = "                design_objective(inputs.Y_pre, mode_internal, design, lam_design),"
+  replace = "                float(design.objective_value),"
+  models = "the pre-fix incumbent: under holdout selection the design's objective is measured on the leading slice of the pre-period, and the bound on the whole of it, so the gap compared two panels"
+
+  [[target.mutant]]
+  id = "the-bound-re-estimates-the-penalty"
+  find = "                lam=lam_design,"
+  replace = "                lam=self.lam,"
+  models = "the pre-fix penalty: with lam unset the bound re-estimates it on the whole pre-period while the design used the slice's, so the bound and the incumbent are two different programs"
+
+[[target]]
 name = "syndes-partition"
 module-path = "mlsynth/utils/syndes_helpers/partition.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_exact_properties.py mlsynth/tests/test_syndes_partition.py -q -p no:cacheprovider"

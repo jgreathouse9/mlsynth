@@ -563,10 +563,17 @@ class SYNDES:
         )
         certificate = None
         if self.certify:
-            from ..utils.syndes_helpers.certificate import syndes_certificate
+            from ..utils.syndes_helpers.certificate import (design_objective,
+                                                            syndes_certificate)
+            # Bound and incumbent on one problem: the whole pre-period and the
+            # design's own penalty. Under holdout selection the design was
+            # fitted on the leading slice, so its objective_value refers to
+            # another panel; scoring its weights here keeps the gap a gap.
+            lam_design = float(design.lambda_value)
             certificate = syndes_certificate(
                 inputs.Y_pre, self.K, mode_internal,
-                float(design.objective_value), lam=self.lam,
+                design_objective(inputs.Y_pre, mode_internal, design, lam_design),
+                lam=lam_design,
             )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,

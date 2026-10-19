@@ -503,9 +503,17 @@ and defaults them to the production-friendly setting:
   a convex QP for one-way (already tight), and for two-way a closed-form bound on
   the Gram matrix (see "The Gram reduction" below) -- and reports
   ``result.certificate.optimality_gap`` with the guarantee ``lower_bound``
-  :math:`\le` optimum :math:`\le` incumbent. The per-unit objective has an
-  :math:`(N, N)` weight matrix, so no cheap tight bound exists; it returns
-  ``certified=False``, not a misleading number.
+  :math:`\le` optimum :math:`\le` incumbent. The incumbent is the returned
+  design's weights scored on the whole pre-period with the design's penalty
+  (``certificate.incumbent``), so under holdout selection, where the design was
+  fitted on the leading slice, the bound and the incumbent still refer to one
+  problem. The gap is ``(incumbent - lower_bound) / max(|incumbent|,
+  |lower_bound|)``. A relaxation that does not solve to ``optimal`` gives no
+  bound, and a bound above the incumbent beyond its tolerance is reported as a
+  negative gap with ``certified=False`` and a ``SYNDESCertificateWarning``. With
+  ``K=None`` the two-way bound is the smallest over every size. The per-unit
+  objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
+  it returns ``certified=False``, not a misleading number.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -601,8 +609,9 @@ per coordinate -- yet :math:`p_{\mathrm{LP}}` sits far below :math:`p^\star`
 the squared, coupled contrast depends on. This weak bound is precisely SCIP's
 dual bound, which is why ``gap_limit`` closes so slowly.
 
-SDP / moment relaxation (the ``certify`` bound). Lift :math:`\mathbf{x}` to a
-moment matrix and re-introduce the joint structure as second-moment identities:
+SDP / moment relaxation (the bound ``certify`` used before the Gram reduction
+below replaced it). Lift :math:`\mathbf{x}` to a moment matrix and re-introduce
+the joint structure as second-moment identities:
 
 .. math::
 
@@ -633,8 +642,8 @@ for indicator quadratics gives the same bound as Shor [HanPerspShor]_). Its valu
    p_{\mathrm{LP}} \;\le\; p_{\mathrm{SDP}} \;\le\; p^\star \;\le\; \bar{p},
 
 where :math:`\bar{p}` is any feasible design's objective -- in particular the
-incumbent SYNDES returns. Empirically :math:`p_{\mathrm{SDP}}` recovers ~90% of
-the integrality gap (within ~2--3% of :math:`p^\star`), so the reported
+incumbent SYNDES returns. Empirically :math:`p_{\mathrm{SDP}}` recovered ~90% of
+the integrality gap (within ~2--3% of :math:`p^\star`), so the gap it gave,
 
 .. math::
 
@@ -642,9 +651,9 @@ the integrality gap (within ~2--3% of :math:`p^\star`), so the reported
      \frac{\bar{p} - p_{\mathrm{SDP}}}{\lvert \bar{p} \rvert}
      \;\ge\; \frac{\bar{p} - p^\star}{\lvert \bar{p} \rvert}
 
-is a valid -- and tight -- bound on how far the returned design is from optimal,
-obtained without any branch-and-bound. (The lift is solved with a first-order
-conic method, so the bound holds up to solver tolerance.)
+was a valid and tight bound on how far the returned design was from optimal,
+obtained without any branch-and-bound. (The lift was solved with a first-order
+conic method, so the bound held up to solver tolerance.)
 
 How the modes interact with the lift. In one-way global the treated weights are
 pinned at :math:`1/K`, so :math:`\mathbf{D}` enters the contrast linearly: there
