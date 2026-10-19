@@ -83,3 +83,21 @@ class TestPathA:
         (key, seed, m, att), n = R._seed_job(("regionno", 0))
         assert np.isfinite(att) and m in range(2, 8)
         assert n["uncertified"] == 0 and n["unidentified"] > 0
+
+
+class TestTheTauOffReading:
+    def test_it_weighs_on_the_simplex_with_unit_pair_weights(self):
+        """``run._no_tau`` is the "tau off" reading of Path A: Section 2.4's
+        programme with every pair weighted 1. It called a HiGHS helper the oracle
+        no longer has, which would have stopped Path A partway through."""
+        from benchmarks.studies.rrma_ablation import highs_reference as HR
+
+        rng = np.random.default_rng(3)
+        y = np.cumsum(rng.normal(size=12))
+        Pm = y[:, None] + rng.normal(size=(12, 3))
+        w, ok = R._no_tau(y, Pm)
+        i, j = np.triu_indices(12, 1)
+        ref = HR.simplex_wlad(y[i] - y[j], Pm[i] - Pm[j], np.ones(len(i)))
+        obj = lambda b: np.sum(np.abs((y[i] - y[j]) - (Pm[i] - Pm[j]) @ b))
+        assert ok and np.all(w >= 0) and abs(w.sum() - 1) <= 1e-12
+        assert obj(w) <= obj(ref) * (1 + 1e-9)

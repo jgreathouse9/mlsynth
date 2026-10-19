@@ -39,6 +39,7 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
+from . import lp as LP
 from . import oracle as O
 from . import paper_values as P
 from . import simulate as S
@@ -81,8 +82,8 @@ def _window_mallows_P(y, X, T1, groups):
 
 
 def _no_tau(y_val, Pm, rng=None):
-    i, j = O.pairs(len(y_val))
-    return O.simplex_wlad(y_val[i] - y_val[j], Pm[i] - Pm[j], np.ones(len(i))), True
+    """Section 2.4's weights with every pair weighted 1 (tau off)."""
+    return LP.simplex_rank_lad(y_val, Pm, np.ones(len(y_val))), True
 
 
 def seams(y, X, T1) -> Dict:
