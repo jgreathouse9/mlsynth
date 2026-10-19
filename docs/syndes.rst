@@ -523,10 +523,10 @@ critical path of the experiment. It does not change the design SYNDES returns;
 it only reports how far that design can be from the unattainable optimum, so you
 can stop the solver early on a large panel and still know what you gave up.
 
-With these defaults Walmart-scale designs return in under a minute
-with a known :math:`\le 5\%` gap to the (provable) optimum. Tighten
-either knob -- or set it to ``None`` -- for research-grade
-optimality:
+With these defaults Walmart-scale designs return in under a minute, and
+``design.solve_outcome.gap`` says whether the 5% gap was reached or the time
+limit stopped the solve first. Tighten either knob -- or set it to ``None`` --
+for research-grade optimality:
 
 .. code-block:: python
 
@@ -561,11 +561,25 @@ optimality:
    # prepared for hours-long solves on long panels.
    SYNDES({**base, "gap_limit": None, "time_limit": None}).fit()
 
-The MIP status codes ``user_limit`` and ``user_limit_inaccurate``
-(SCIP's "stopped early with a valid incumbent") are accepted as
-successful returns alongside the standard ``optimal`` /
-``optimal_inaccurate`` codes — again, because the theory only needs
-the incumbent's feasibility, not the proof of optimality.
+A solve stopped by either limit returns its incumbent as the design, because
+the theory needs a feasible design, not a proof of optimality. What the solve
+found is recorded on the design as ``design.solve_outcome``
+(:class:`~mlsynth.utils.syndes_helpers.structures.SYNDESSolveOutcome`):
+
+- SCIP's own status (``"optimal"``, ``"gaplimit"``, ``"timelimit"``);
+- whether a limit ended the solve;
+- the dual bound, in the objective's units;
+- the relative gap.
+
+cvxpy reports a time-limited incumbent and a proven optimum alike as
+``optimal_inaccurate``, so its status cannot tell them apart. A solve stopped
+by a limit warns with ``SYNDESSolveWarning``, naming the gap.
+
+A binding time limit can leave a design far from the optimum. On a one-way
+design with 40 units and a two-second limit, SCIP's first incumbent was the last
+five units. The weights are refitted for the rounded assignment, so
+``objective_value`` is what the returned weights attain. Other solvers receive
+neither limit, and ``solve_outcome.limits_applied`` records it.
 
 .. note::
 
