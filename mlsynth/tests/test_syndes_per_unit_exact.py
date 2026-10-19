@@ -401,7 +401,9 @@ def test_the_pool_stops_when_the_region_is_exhausted():
 
 
 def test_a_search_stopped_at_its_node_limit_warns_and_reports_a_valid_bound():
-    Y = _panel(N=12, seed=21)
+    """Three nodes leave this panel's incumbent above the optimum, so the
+    reported bound has to come from the open nodes, not from the incumbent."""
+    Y = _panel(N=12, seed=22)
     lam = estimate_lambda(Y)
     _, optimum = _brute_force(Y, 5, lam)
     with pytest.warns(SYNDESSolveWarning, match="node limit"):
@@ -409,6 +411,7 @@ def test_a_search_stopped_at_its_node_limit_warns_and_reports_a_valid_bound():
     out = d.solve_outcome
     assert out.status == "node_limit" and out.stopped_at_limit
     assert d.raw_results["certified"] is False
+    assert d.objective_value > optimum * (1 + 1e-6)
     assert out.dual_bound <= optimum * (1 + 1e-12)
     assert out.gap == pytest.approx(
         (d.objective_value - out.dual_bound) / d.objective_value, rel=1e-12)
