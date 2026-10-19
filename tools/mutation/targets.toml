@@ -5961,3 +5961,117 @@ timeout = 900.0
   find = "                             control_outcomes=Y_full[untreated], **common)"
   replace = "                             control_outcomes=Y_full[~untreated], **common)"
   models = "eq. (11)'s band for the total refitted on the treated units, so it stops being the shared contrast's band and tests nothing a reader can name"
+
+[[target]]
+name = "syndes-one-way-exact"
+module-path = "mlsynth/utils/syndes_helpers/one_way_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_one_way_exact.py mlsynth/tests/test_syndes_one_way_exact_properties.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-bound-forgets-the-controls-sum-to-one"
+  find = "    A[:, K, K] = engine.alpha"
+  replace = "    A[:, K, K] = 1e300"
+  models = "a ridge bound without 1'u = 0, so the controls need not carry a unit of weight: still a lower bound, but below the two-way bound and loose even with one control, where the relaxation drops nothing"
+
+  [[target.mutant]]
+  id = "the-bound-weights-the-treated-units-by-one"
+  find = "    d[:, :K] = 1.0 / K"
+  replace = "    d[:, :K] = 1.0"
+  models = "a ridge bound with the treated weights at 1 instead of 1/K, which overstates every set's bound by K^2, prunes the optimum, and returns a worse design as certified"
+
+  [[target.mutant]]
+  id = "the-treated-weights-escape-the-penalty"
+  find = "        self._cache[key] = ((value + self.lam / K) * self.scale ** 2, weights)"
+  replace = "        self._cache[key] = (value * self.scale ** 2, weights)"
+  models = "a price without lam/K, the penalty the fixed treated weights carry, so the objective is not the MIP's and sizes compare unfairly"
+
+  [[target.mutant]]
+  id = "the-price-stays-in-unit-scale"
+  find = "        self._cache[key] = ((value + self.lam / K) * self.scale ** 2, weights)"
+  replace = "        self._cache[key] = ((value + self.lam / K), weights)"
+  models = "a price left in the scaled panel's units, so it is compared with bounds in the outcome's units and the stop rule decides on numbers of different size"
+
+  [[target.mutant]]
+  id = "fits-run-in-the-outcomes-units"
+  find = "        scale = float(np.sqrt(np.mean(centred ** 2)))"
+  replace = "        scale = 1.0"
+  models = "fits on the panel as measured: the active-set solver's absolute tolerances then decide them on a panel in small units"
+
+  [[target.mutant]]
+  id = "donor-exclusions-are-dropped"
+  find = "    fits = OneWayFits(Y, lam_value, {i: frozenset(js) for i, js in excluded.items()})"
+  replace = "    fits = OneWayFits(Y, lam_value, {})"
+  models = "donor exclusions read and then not applied, so the control combination uses donors the restriction forbids"
+
+  [[target.mutant]]
+  id = "an-empty-pool-is-fitted"
+  find = "        if not pool:"
+  replace = "        if False:"
+  models = "a set whose exclusions leave it no control handed to the solver, which fails on an empty design instead of ruling the set out"
+
+  [[target.mutant]]
+  id = "convergence-is-not-read"
+  find = "        if not info[\"converged\"]:"
+  replace = "        if False:"
+  models = "a fit that stopped before its optimum accepted as f(S), so a value above the minimum sets the incumbent the bounds are compared with"
+
+  [[target.mutant]]
+  id = "the-search-stops-at-the-first-survivor"
+  find = "            if bounds[k] >= best:\n                break"
+  replace = "            if True:\n                break"
+  models = "a search that prices only each block's best-bounded set, so a set whose bound is below the incumbent is never priced and the design is certified without being proven"
+
+  [[target.mutant]]
+  id = "the-survivors-are-priced-in-enumeration-order"
+  find = "        for k in np.argsort(bounds, kind=\"stable\"):"
+  replace = "        for k in range(len(bounds)):"
+  models = "survivors priced in the order they were enumerated, so the stop rule fires at the first bound above the incumbent while smaller bounds are still unpriced"
+
+  [[target.mutant]]
+  id = "a-block-keeps-every-set"
+  find = "        alive = bounds < best"
+  replace = "        alive = bounds < math.inf"
+  models = "a stream that keeps every set it bounds, so memory grows with the enumeration instead of with the sets the incumbent cannot rule out"
+
+  [[target.mutant]]
+  id = "a-block-is-not-priced-as-it-streams"
+  find = "        if bounds[j] < best:\n            S = tuple(int(i) for i in block[j])"
+  replace = "        if False:\n            S = tuple(int(i) for i in block[j])"
+  models = "no incumbent until the stream ends, so every block keeps every set and the survivors are the whole enumeration"
+
+  [[target.mutant]]
+  id = "ill-conditioning-is-not-checked"
+  find = "    if not engine.reliable:\n        raise _ill_conditioned(engine)"
+  replace = "    if False:\n        raise _ill_conditioned(engine)"
+  models = "a singular problem on contrasts handed to the bound, which then fails inside a linear solve instead of saying why and what to change"
+
+  [[target.mutant]]
+  id = "a-limit-search-claims-optimality"
+  find = "    status = \"optimal\" if outcome.certified else \"candidate_limit\""
+  replace = "    status = \"optimal\""
+  models = "the swap search's best candidate reported as a proven optimum, the defect #805 removed from the MIP path"
+
+  [[target.mutant]]
+  id = "a-limit-search-is-silent"
+  find = "    if not outcome.certified:\n        warnings.warn("
+  replace = "    if False:\n        warnings.warn("
+  models = "an uncertified design returned without a warning, so a caller reading only the design cannot tell it from the optimum"
+
+  [[target.mutant]]
+  id = "a-limit-search-bounds-by-its-incumbent"
+  find = "                    lower_bound=engine.global_lower_bound(K), certified=False,"
+  replace = "                    lower_bound=float(values[j]), certified=False,"
+  models = "the swap search's best candidate reported as its own lower bound, so the gap reads zero though nothing was proven"
+
+  [[target.mutant]]
+  id = "a-limit-search-ignores-treated-side-restrictions"
+  find = "    if not filt.is_empty:\n        raise MlsynthConfigError("
+  replace = "    if False:\n        raise MlsynthConfigError("
+  models = "swap-search candidates returned past the limit without the forced, forbidden, conflict, stratum and budget rules they were never built to respect"
+
+  [[target.mutant]]
+  id = "the-pool-swallows-every-failure"
+  find = "        except _NoFeasibleDesign:"
+  replace = "        except MlsynthEstimationError:"
+  models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
