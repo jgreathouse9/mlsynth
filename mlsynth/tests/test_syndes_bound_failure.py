@@ -65,15 +65,17 @@ class TestBoundHelpersReturnNone:
     """A bound that does not solve is ``None``, not a raised TypeError."""
 
     def test_continuous_relaxation_bound(self, unsolved):
-        assert _continuous_relaxation_bound(_Y(), 3, TWO_WAY, 1.0) is None
+        lb, why = _continuous_relaxation_bound(_Y(), 3, TWO_WAY, 1.0)
+        assert lb is None and "failed" in why
 
     @pytest.mark.parametrize("mode", ["global_equal_weights", TWO_WAY, "per_unit"])
     def test_no_mode_raises(self, unsolved, mode):
-        assert _continuous_relaxation_bound(_Y(), 3, mode, 1.0) is None
+        lb, why = _continuous_relaxation_bound(_Y(), 3, mode, 1.0)
+        assert lb is None and why
 
     def test_solved_bound_is_still_a_float(self):
-        lb = _continuous_relaxation_bound(_Y(), 3, "global_equal_weights", 1.0)
-        assert isinstance(lb, float) and np.isfinite(lb)
+        lb, why = _continuous_relaxation_bound(_Y(), 3, "global_equal_weights", 1.0)
+        assert isinstance(lb, float) and np.isfinite(lb) and why == ""
 
 
 def _ill_conditioned_Y(N=10, T=4, seed=0):
@@ -105,7 +107,8 @@ class TestCertificateReportsMissingBound:
     def test_two_way_needs_no_solver(self, unsolved):
         """The Rayleigh bound is pure linear algebra, so a dead solver is moot."""
         Y = _Y()
-        c = syndes_certificate(Y, 3, TWO_WAY, 1.0)
+        # An incumbent above the bound: any design's objective is (#804).
+        c = syndes_certificate(Y, 3, TWO_WAY, 1e6)
         assert c.method == "rayleigh"
         assert c.lower_bound is not None and c.certified is True
 
