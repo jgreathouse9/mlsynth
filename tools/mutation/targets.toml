@@ -5475,3 +5475,99 @@ timeout = 900.0
   find = "                alpha=self.config.alpha, T_post=self.config.T_post,"
   replace = "                alpha=self.config.alpha,"
   models = "the config's T_post never reaching the inference"
+
+[[target]]
+name = "syndes-mip-outcome"
+module-path = "mlsynth/utils/syndes_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_mip_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-limited-solve-is-silent"
+  find = "    if outcome.stopped_at_limit or outcome.status != \"optimal\":"
+  replace = "    if False:"
+  models = "the incumbent of a solve stopped at its time or gap limit returned as a design with no warning, the defect of #805"
+
+  [[target.mutant]]
+  id = "limit-read-from-cvxpy"
+  find = "        stopped_at_limit=str(accel_info.status) in _SCIP_LIMIT_STATUSES,"
+  replace = "        stopped_at_limit=False,"
+  models = "the outcome claiming a proof where SCIP stopped at a limit"
+
+  [[target.mutant]]
+  id = "status-read-from-cvxpy"
+  find = "        status=str(accel_info.status), solver_status=str(problem.status),"
+  replace = "        status=str(problem.status), solver_status=str(problem.status),"
+  models = "cvxpy's optimal_inaccurate reported in place of SCIP's timelimit or gaplimit, which cannot be told apart"
+
+  [[target.mutant]]
+  id = "bound-without-the-objectives-constant"
+  find = "        dual_bound = float(accel_info.dual_bound) + ("
+  replace = "        dual_bound = float(accel_info.dual_bound) + 0.0 * ("
+  models = "SCIP's canonical bound reported as a bound on the objective, short by the one-way objective's lam / K"
+
+  [[target.mutant]]
+  id = "assignment-rounded-at-one-half"
+  find = "    assignment = _rounded_assignment(D.value)"
+  replace = "    assignment = (np.asarray(D.value).reshape(-1) >= 0.5).astype(int)"
+  models = "a fractional assignment rounded silently, as before #805"
+
+  [[target.mutant]]
+  id = "integrality-not-checked"
+  find = "    if worst > tol or not np.isin(rounded, (0.0, 1.0)).all():"
+  replace = "    if False:"
+  models = "the integrality check that refuses nothing"
+
+  [[target.mutant]]
+  id = "no-refit"
+  find = "    values, objective = _refit(Y, assignment, mode, lam_value, restrictions)"
+  replace = "    values, objective = {name: var.value for name, var in components.variables.items()}, float(problem.value)"
+  models = "the solver's weights and objective kept for a rounded assignment they were not fitted to"
+
+  [[target.mutant]]
+  id = "refit-status-unchecked"
+  find = "    if problem.status != \"optimal\" or problem.value is None:"
+  replace = "    if False:"
+  models = "a refit that failed read as weights"
+
+  [[target.mutant]]
+  id = "treated-units-keep-control-weight"
+  find = "    c = np.where(excluded, 0.0, np.clip(c, 0.0, None))"
+  replace = "    c = np.clip(c, 0.0, None)"
+  models = "control weight left on treated units, which the one-way constraint c <= 1 - D forbids"
+
+  [[target.mutant]]
+  id = "weights-repaired-beyond-tolerance"
+  find = "    if c.min() < -tol or off > tol or abs(c.sum() - 1.0) > tol:"
+  replace = "    if False:"
+  models = "weights outside the simplex clipped and renormalised silently, the repair rule 8 forbids beyond the solver's tolerance"
+
+  [[target.mutant]]
+  id = "gap-floored-at-one"
+  find = "    scale = max(abs(float(objective)), abs(float(bound)))"
+  replace = "    scale = max(1.0, abs(float(objective)), abs(float(bound)))"
+  models = "a gap whose units decide its value below one, rule 3's floor"
+
+  [[target.mutant]]
+  id = "pool-swallows-failures"
+  find = "            if \"infeasible\" not in str(exc).lower():"
+  replace = "            if \"not installed\" in str(exc):"
+  models = "a failed solve read as an exhausted feasible region, leaving a short pool and no error"
+
+  [[target.mutant]]
+  id = "limits-claimed-for-any-solver"
+  find = "    return (params if is_scip else {}), (is_scip or not requested)"
+  replace = "    return (params if is_scip else {}), True"
+  models = "limits recorded as applied for a solver that never received them"
+
+[[target]]
+name = "syndes-mip-outcome-accel"
+module-path = "mlsynth/utils/miqp_accel.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_mip_outcome.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "primal-bound-read-as-dual"
+  find = "        primal_bound = float(model.getPrimalbound())"
+  replace = "        primal_bound = float(model.getDualbound())"
+  models = "the objective's constant computed against the wrong bound, which makes every reported gap zero"
