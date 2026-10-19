@@ -214,3 +214,24 @@ def test_a_free_size_skips_the_sizes_restrictions_rule_out():
     design = solve_synthetic_design_exact(
         _panel(N=7, T=12), None, restrictions=DesignRestrictions(forced_in=[0, 1, 2]))
     assert {0, 1, 2} <= set(_treated(design))
+
+
+def test_an_exhausted_region_is_raised_as_exhaustion():
+    """The pool and ``K=None`` stop only on this class, so it is pinned by name.
+
+    The failure is caught and its class compared outside the ``except``: a
+    "found no feasible design" error escaping a SYNDES helper is reclassified as
+    a skip by ``conftest.py`` whenever MOSEK or GUROBI is absent, which would
+    hide exactly this regression.
+    """
+    from itertools import combinations as _comb
+
+    from mlsynth.utils.syndes_helpers.exact import _NoFeasibleDesign
+
+    every = [np.array(s) for s in _comb(range(4), 2)]
+    caught = None
+    try:
+        solve_synthetic_design_exact(_panel(N=4, T=10), 2, forbidden_sets=every)
+    except MlsynthEstimationError as exc:
+        caught = exc
+    assert type(caught).__name__ == _NoFeasibleDesign.__name__
