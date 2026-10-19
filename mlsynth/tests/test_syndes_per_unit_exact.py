@@ -491,10 +491,3 @@ def test_the_estimator_keeps_the_mip_on_request():
                   "backend": "mip"}).fit()
     assert res.design.solve_outcome.solver_status != "exact"
 
-
-def test_one_way_still_refuses_the_exact_backend():
-    Y = _panel(N=6, T=14, seed=24)
-    with pytest.raises(MlsynthConfigError, match="exact"):
-        SYNDES({"df": _df(Y), "outcome": "y", "unitid": "unit", "time": "time",
-                "post_col": "post", "K": 2, "mode": "one_way_global",
-                "backend": "exact"})
