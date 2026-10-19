@@ -5138,7 +5138,7 @@ timeout = 600.0
   replace = '''
     bad = int((~ident).sum())
     if False:'''
-  models = "an under-identified fit returned without a word: Algorithm 1 on Basque fits 10 donors on windows of 7 to 10 periods, and the study could not say how many of its predictions rest on a convention"
+  models = "an under-identified fit returned without a word: Algorithm 1 on Basque fits 10 donors on a window of 10 periods, one per run, and the study could not say how many of its predictions rest on a convention"
 
   [[target.mutant]]
   id = "solve-takes-any-weights"

@@ -380,8 +380,8 @@ class TestUnidentifiedFits:
     """The pairwise objective reads ``X`` only through differences of rows, so with
     ``n - 1 < p`` periods (or collinear columns) ``beta`` is identified only on the
     row space of the centred design. Algorithm 1 asks for such fits on Basque:
-    at ``m = 6`` the last group takes 10 donors, and GWCV fits it on windows of
-    7 to 10 pre-periods. ``PF.fit`` solves in the ``r`` identified coordinates
+    at ``m = 6`` the last group takes 10 donors, and GWCV's first window has 10
+    pre-periods, which identify 9 directions. ``PF.fit`` solves in the ``r`` identified coordinates
     and returns ``beta = V_r gamma``, the minimum-norm point of the face."""
 
     @staticmethod

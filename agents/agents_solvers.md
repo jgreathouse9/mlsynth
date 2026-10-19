@@ -219,8 +219,8 @@ have the idea sees it fail.
   report it (rule 1).
 
 What it looked like. RRMA's Algorithm 1 on the Basque data puts 10 donors in one
-group at `m = 6` and fits it on windows of 7 to 10 pre-periods: the pairwise
-objective identifies `beta` only on a 6-to-9-dimensional subspace. HiGHS had
+group at `m = 6` and fits it on GWCV windows of 10 to 19 pre-periods; on the
+first, 10 periods identify 9 directions for 10 coefficients. HiGHS had
 returned an arbitrary vertex; the NumPy solver raised an opaque error. `fit()`
 now solves in the identified coordinates and warns.
 

@@ -77,8 +77,8 @@ class TestPathA:
         assert np.isfinite(att) and n == dict(uncertified=0, unidentified=0)
 
     def test_the_full_selection_on_basque_runs_and_counts_what_it_could_not_identify(self):
-        """Algorithm 1 at ``m = 6`` puts 10 donors in the last group, and GWCV fits
-        it on windows of 7 to 10 pre-periods: ``beta`` is not identified there.
+        """Algorithm 1 at ``m = 6`` puts 10 donors in the last group, and GWCV's
+        first window has 10 pre-periods: ``beta`` is not identified there.
         With the NumPy solvers this raised an opaque error until ``fit`` took over."""
         (key, seed, m, att), n = R._seed_job(("regionno", 0))
         assert np.isfinite(att) and m in range(2, 8)
