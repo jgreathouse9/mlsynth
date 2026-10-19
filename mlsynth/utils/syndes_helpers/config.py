@@ -112,18 +112,21 @@ class SYNDESConfig(BaseMAREXConfig):
     backend: Literal["mip", "exact"] = Field(
         default="exact",
         description=(
-            "How ``mode='two_way_global'`` and ``mode='per_unit'`` are solved. "
-            "``'exact'`` (the default for both) searches treated sets directly: "
-            "naming the set removes every binary. Two-way is then a convex "
-            "program in the Gram matrix, so a candidate design costs one row of "
-            "a matrix product, and two-way refuses donor-side restrictions, which "
-            "tie its control weights to the assignment. Per-unit is then one "
+            "How the design is solved. ``'exact'`` (the default for every "
+            "mode) searches treated sets directly: naming the set removes every "
+            "binary. Two-way is then a convex program in the Gram matrix, so a "
+            "candidate design costs one row of a matrix product, and two-way "
+            "refuses donor-side restrictions, which tie its control weights to "
+            "the assignment. One-way is then one simplex fit per set, and the "
+            "search enumerates the sets under a closed-form ridge bound and "
+            "prices them in its order, which returns a certified optimum; "
+            "donor-side restrictions shrink the control pool. Per-unit is one "
             "simplex fit per treated unit, searched by a branch and bound on "
             "units that returns a certified optimum, and donor-side restrictions "
             "shrink each treated unit's pool. ``'mip'`` hands the "
-            "mixed-integer program to ``solver``. ``mode='one_way_global'`` uses "
-            "the MIP. ``gap_limit``, ``time_limit`` and ``solver`` describe "
-            "branch-and-bound and apply to the MIP path only."
+            "mixed-integer program to ``solver``. ``gap_limit``, ``time_limit`` "
+            "and ``solver`` describe branch-and-bound and apply to the MIP path "
+            "only."
         ),
     )
     solver: Any = Field(default="SCIP",
@@ -357,17 +360,6 @@ class SYNDESConfig(BaseMAREXConfig):
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
-
-        # Two-way and per-unit have exact backends (a search over treated sets);
-        # one-way does not yet. Since the field defaults to "exact", the default
-        # resolves per mode -- one-way keeps the MIP without the user naming a
-        # backend -- while an explicit request for it is still an error.
-        if values.mode == "one_way_global":
-            if "backend" in values.model_fields_set and values.backend == "exact":
-                raise MlsynthConfigError(
-                    "backend='exact' is available for mode='two_way_global' and "
-                    "mode='per_unit'; got mode='one_way_global'.")
-            values.backend = "mip"
 
         # Donor-side rules tie the control weights to which units are treated, so
         # a two-way design stops being scoreable from its treated set alone. The

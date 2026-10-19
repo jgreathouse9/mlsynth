@@ -28,14 +28,15 @@ Chernozhukov, Wuethrich, and Zhu (2021), applied uniformly to all
 three modes via the shared contrast-vector dispatch in
 ``mlsynth.utils.syndes_helpers.inference``.
 
-Two additional MIP features round out the estimator:
+Two additional features round out the estimator:
 
-* **Budget constraint** (paper section 1): supply ``costs`` (length
-  ``N``) and ``budget`` to add ``sum_i c_i D_i <= B`` to the MIP.
-* **Exact two-way backend** (the default for ``two_way_global``):
-  naming the treated set removes every binary, so the design is
-  found by searching treated sets over the Gram matrix instead of
-  by branch-and-bound. See ``utils/syndes_helpers/exact.py``.
+* Budget constraint (paper section 1): supply ``costs`` (length
+  ``N``) and ``budget`` to cap ``sum_i c_i D_i`` at ``B``.
+* Exact backends (the default for every mode): naming the treated
+  set removes every binary, so the design is found by searching
+  treated sets instead of by branch-and-bound. See
+  ``utils/syndes_helpers/exact.py`` (two-way), ``one_way_exact.py``
+  and ``per_unit_exact.py``.
 
 Post-fit, see :func:`mlsynth.power_analysis` for per-horizon
 minimum-detectable-effect tables.
@@ -65,6 +66,10 @@ from ..utils.syndes_helpers.infocriterion import select_by_ic
 from ..utils.syndes_helpers.exact import (
     solve_synthetic_design_exact,
     solve_synthetic_design_exact_pool,
+)
+from ..utils.syndes_helpers.one_way_exact import (
+    solve_one_way_exact,
+    solve_one_way_exact_pool,
 )
 from ..utils.syndes_helpers.per_unit_exact import (
     solve_per_unit_exact,
@@ -493,6 +498,9 @@ class SYNDES:
             if mode_internal == "per_unit":
                 solve_one, solve_pool = (solve_per_unit_exact,
                                          solve_per_unit_exact_pool)
+            elif mode_internal == "global_equal_weights":
+                solve_one, solve_pool = (solve_one_way_exact,
+                                         solve_one_way_exact_pool)
             else:
                 solve_one, solve_pool = (solve_synthetic_design_exact,
                                          solve_synthetic_design_exact_pool)

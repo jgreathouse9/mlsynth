@@ -33,7 +33,10 @@ blocks keep only the sets whose bound is below that incumbent, and then prices
 the survivors in order of their bound until the next bound reaches the
 incumbent. Every set left unpriced has a bound at or above the incumbent, so the
 incumbent is the optimum, to the rounding of the bound. On the study's runs that
-took one fit.
+took one fit. Where ``G + lam I`` is singular to working precision (``lam = 0``
+on a panel with fewer periods than units, or a unit that is an exact combination
+of others), no bound can be formed; ``f(S) >= 0`` is then the bound, and the
+search prices every admissible set, up to :data:`PRICE_ALL_LIMIT`.
 
 Pricing runs on the panel centred within each period: the treated average and
 the control combination both carry weights that sum to one, so a level common to
@@ -70,7 +73,6 @@ from ..solvers.active_set import solve_simplex_qp
 from .exact import (
     CANDIDATE_LIMIT,
     SubsetFilter,
-    _ill_conditioned,
     _NoFeasibleDesign,
     _search_space,
     _stream_from_space,
@@ -82,6 +84,12 @@ from .structures import SYNDESDesign, SYNDESSolveOutcome
 #: Treated sets bounded per block while streaming. Bounds peak memory; the
 #: design does not depend on it.
 CHUNK = 200_000
+
+#: Admissible treated sets the search prices one by one when ``G + lam I`` is
+#: singular to working precision and no bound can be formed. Fits on such a
+#: panel are degenerate and took 1 to 10 ms each at 20 to 100 units, so this is
+#: about 20 s at 40.
+PRICE_ALL_LIMIT = 10_000
 
 
 class OneWayFits:
@@ -196,6 +204,8 @@ def _search(fits: OneWayFits, engine: BoundEngine, K: int, filt: SubsetFilter,
     """Enumerate and price in bound order, or fall back above the limit."""
     N = fits.N
     space = _search_space(N, K, filt)
+    if not engine.reliable and space.size > min(candidate_limit, PRICE_ALL_LIMIT):
+        raise _too_singular(engine, space.size, min(candidate_limit, PRICE_ALL_LIMIT))
     if space.size > candidate_limit:
         return _search_by_candidates(fits, engine, K, filt, seed=seed,
                                      n_designs=space.size)
@@ -207,7 +217,10 @@ def _search(fits: OneWayFits, engine: BoundEngine, K: int, filt: SubsetFilter,
     priced = set()
     for block in _stream_from_space(space, filt, CHUNK):
         n_designs += block.shape[0]
-        bounds = ridge_bound(engine, block)
+        # f(S) >= 0, so a bound of zero is valid where none can be formed, and
+        # the search then prices every set.
+        bounds = (ridge_bound(engine, block) if engine.reliable
+                  else np.zeros(block.shape[0]))
         j = int(np.argmin(bounds))
         if bounds[j] < best:
             S = tuple(int(i) for i in block[j])
@@ -250,6 +263,17 @@ def _search(fits: OneWayFits, engine: BoundEngine, K: int, filt: SubsetFilter,
                     control_weights=fits.price(best_set)[1], lower_bound=best,
                     certified=True, n_designs=n_designs, n_survivors=n_survivors,
                     n_priced=len(priced))
+
+
+def _too_singular(engine: BoundEngine, n_sets: int,
+                  limit: int) -> MlsynthEstimationError:
+    return MlsynthEstimationError(
+        "SYNDES one-way exact backend: G + lam I is singular to working "
+        f"precision (cond = {engine.condition:.3e}), so no bound can be formed, "
+        f"and {n_sets} admissible treated sets are more than the {limit} it "
+        "prices one by one. This happens when lam is zero on a panel with fewer "
+        "pre-periods than units, or with a unit that is an exact combination of "
+        "others. Raise lam, add pre-treatment periods, or use backend='mip'.")
 
 
 def _search_by_candidates(fits: OneWayFits, engine: BoundEngine, K: int,
@@ -333,7 +357,8 @@ def solve_one_way_exact(
         treated-side restrictions on an instance past ``candidate_limit``.
     MlsynthEstimationError
         When no admissible design exists, a fit does not converge, or the
-        problem on contrasts is too ill-conditioned for the bound.
+        problem on contrasts is singular to working precision and has more
+        admissible sets than :data:`PRICE_ALL_LIMIT`.
     """
     Y = np.asarray(Y, dtype=float)
     if Y.ndim != 2:
@@ -357,8 +382,6 @@ def solve_one_way_exact(
 
     t0 = perf_counter()
     engine = BoundEngine.from_problem(TwoWayProblem.from_panel(Y, lam=lam_value))
-    if not engine.reliable:
-        raise _ill_conditioned(engine)
     fits = OneWayFits(Y, lam_value, {i: frozenset(js) for i, js in excluded.items()})
     outcome = _search(fits, engine, K, filt, int(candidate_limit), int(seed))
     seconds = perf_counter() - t0

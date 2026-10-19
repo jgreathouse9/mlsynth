@@ -773,11 +773,11 @@ lives once the weights are optimized away.
 Solving it that way
 ~~~~~~~~~~~~~~~~~~~~~
 
-``backend`` chooses how ``mode="two_way_global"`` and ``mode="per_unit"`` are
-solved. The default, ``"exact"``, searches treated sets: two-way with the
-reduction above, per-unit as described in "The per-unit design by search" below.
-``"mip"`` hands the mixed-integer program to ``solver`` instead. One-way resolves
-to ``"mip"`` on its own, and asking it for ``"exact"`` is an error.
+``backend`` chooses how the design is solved. The default, ``"exact"``, searches
+treated sets in every mode: two-way with the reduction above, one-way and
+per-unit as described in "The one-way design by search" and "The per-unit design
+by search" below. ``"mip"`` hands the mixed-integer program to ``solver``
+instead.
 
 The search scores every candidate design with one matrix product, since
 :math:`\mathrm{lb}` depends on the design only through
@@ -810,15 +810,16 @@ once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
 search's design is the one that is at least as good.
 
 When :math:`\mathbf{G} + \lambda\mathbf{I}` is too ill-conditioned for the closed
-form, the exact backend raises an error that says so and names
+form, the two-way exact backend raises an error that says so and names
 :math:`\mathrm{cond}(\mathbf{G} + \lambda\mathbf{I})`. The design pool and the
 holdout and information-criterion selection raise the same error. Only a
 restriction set that leaves no admissible design ends the pool early.
 
 For two-way, donor-side restrictions (``donor_exclusion``, ``donor_region_col``)
 are refused: they tie the control weights to which units are treated, so a
-design stops being scoreable from its treated set alone. One-way pins the
-treated weights at :math:`1/K` and has no exact backend yet.
+design stops being scoreable from its treated set alone. One-way and per-unit
+keep them: a donor rule shrinks a design's control pool, which their searches
+price.
 
 Every other restriction is a predicate on the treated set, and the two kinds are
 handled differently. ``to_be_treated``, ``not_to_be_treated``, size eligibility
@@ -835,54 +836,75 @@ unrestricted space.
 ``gap_limit``, ``time_limit``, ``solver`` describe branch-and-bound and are
 ignored by this path.
 
-Multiple Treatment Arms
------------------------
+The one-way design by search
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When a single experiment runs several treatment arms (e.g. different
-creatives, offers, or price points, each rolled out to its own set of
-markets), pass an ``arm`` column. ``SYNDES`` then solves the design problem
-independently within each arm's units and returns a
-:class:`~mlsynth.utils.syndes_helpers.structures.SYNDESMultiArmResults` —
-a dict of per-arm results keyed by arm label. Every option (``mode``, ``K``,
-``lam``, inference) applies within each arm, and ``K`` is interpreted
-per arm (so it must be smaller than the smallest arm's unit count).
+One-way fixes the treated weights at :math:`1/K`, so naming the treated set
+:math:`S` leaves one simplex fit:
 
-.. code-block:: python
+.. math::
 
-   import numpy as np
-   import pandas as pd
-   from mlsynth import SYNDES
+   f(S) = \frac{\lambda}{K} + \min_{\mathbf{c} \in \Delta(P)}
+   \frac{1}{T_0} \lVert \bar{\mathbf{y}}_S - \mathbf{Y}_P \mathbf{c} \rVert^2
+   + \lambda \lVert \mathbf{c} \rVert^2,
 
-   # Two arms (A, B), each with 6 markets over 20 periods (last 6 post).
-   rng = np.random.default_rng(0)
-   n_per_arm, n_periods, n_post = 6, 20, 6
-   rows = []
-   for arm in ("A", "B"):
-       factors = rng.normal(size=(n_periods, 2))
-       for j in range(n_per_arm):
-           loading = rng.uniform(0.3, 1.0, size=2)
-           level = rng.uniform(8.0, 12.0)
-           series = level + factors @ loading + rng.normal(scale=0.3, size=n_periods)
-           for t in range(n_periods):
-               rows.append({"DMA": f"{arm}{j}", "week": t, "sales": float(series[t]),
-                            "treat": arm, "post": int(t >= n_periods - n_post)})
-   df = pd.DataFrame(rows)
+where :math:`\bar{\mathbf{y}}_S` is the treated units' average and the pool
+:math:`P` is the complement of :math:`S`, less every donor a ``donor_exclusion``
+or ``donor_region_col`` rule removes for a unit of :math:`S`. The first term is
+the penalty the fixed treated weights carry.
 
-   res = SYNDES({
-       "df": df, "outcome": "sales", "unitid": "DMA", "time": "week",
-       "arm": "treat",                 # categorical arm label per unit
-       "K": 3, "mode": "two_way_global", "post_col": "post",
-       "run_inference": True,
-   }).fit()
+Written on the contrast :math:`\mathbf{u}`, which is :math:`1/K` on :math:`S` and
+minus the control weights elsewhere, the fit is
+:math:`\mathbf{u}^\top (\mathbf{G} + \lambda \mathbf{I}) \mathbf{u}` subject to
+:math:`\mathbf{u}_S = \mathbf{1}/K`, :math:`\mathbf{1}^\top \mathbf{u} = 0` and
+nonpositive entries off :math:`S`. Dropping only those sign conditions, and the
+donor rules, which can only raise the value, leaves two blocks of equalities and
+a closed form. With :math:`\mathbf{H} = (\mathbf{G} + \lambda \mathbf{I})^{-1}`,
+:math:`\mathbf{C} = [\mathbf{E}_S, \mathbf{1}]` the treated units' coordinate
+columns beside the ones vector, and :math:`\mathbf{d} = (\mathbf{1}/K, 0)`,
 
-   print(res.arm_designs["A"])              # full SYNDESResults for arm A
-   print(res.atet_by_arm())                 # {arm: ATET}
-   print(res.selected_unit_labels_by_arm()) # {arm: treated units}
+.. math::
 
-The arm column must be constant within each unit over time. ``arm`` is not
-compatible with the global ``costs``/``budget`` constraint (the cost vector is
-defined over all units, not per arm). When ``arm`` is ``None`` (default), a
-single :class:`SYNDESResults` is returned, exactly as before.
+   f(S) \ge \mathbf{d}^\top (\mathbf{C}^\top \mathbf{H} \mathbf{C})^{-1} \mathbf{d},
+
+one :math:`(K + 1) \times (K + 1)` solve per set. Its constraints imply the
+two-way relaxation's, so it is never below :math:`\mathrm{lb}(S)`.
+
+The search enumerates the admissible treated sets as the two-way search does,
+bounds them in blocks, and prices each block's best-bounded set as it goes, so
+that later blocks keep only the sets whose bound falls below that incumbent. It
+then prices the survivors in order of their bound and stops when the next bound
+reaches the incumbent. Every set left unpriced has a bound at or above the
+returned design, so the design is the optimum, to the rounding of the bound;
+``design.solve_outcome`` reports ``status="optimal"``, the bound and a gap of
+zero. The fits run on the panel centred within each period: at a level of
+:math:`10^8`, fits on the uncentred panel stopped short of convergence on 222 of
+3,328 sets.
+
+When :math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision,
+which happens with ``lam=0`` on a panel with fewer periods than units or with a
+unit that is an exact combination of others, no bound can be formed. Since
+:math:`f(S) \ge 0`, the search then prices every admissible set, up to 10,000 of
+them, and the design is still the optimum. Past that it raises, naming a positive
+``lam``, more pre-treatment periods and ``backend="mip"`` as the ways out.
+
+Above the candidate limit, the search prices the two-way swap search's
+candidates as one-way designs instead, and returns the best with
+``status="candidate_limit"``, the Rayleigh bound, the gap to it, and a
+``SYNDESSolveWarning``. The Rayleigh bound holds for one-way too, since one-way
+is two-way with the treated weights fixed. Treated-side restrictions are refused
+there, since the swap search does not build its candidates inside them; donor
+rules still apply.
+
+The study behind this search is
+`benchmarks/studies/syndes_one_way_exact <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_one_way_exact>`_.
+The ridge bound equalled the optimum to rounding on 126 of 132 enumerable runs
+and was within 0.2 percent on the other 6, so the search priced one set on all
+but one run, and its cost was the enumeration, about 10 microseconds a set. SCIP
+at the MIP path's defaults returned a design on every run, the optimum on 35 of
+54, and one up to 10 percent worse on the rest. Beyond the limit, the swap
+search's design was within 2.7 percent of the Rayleigh bound on every run, in
+under a second.
 
 The per-unit design by search
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -935,6 +957,55 @@ units treated on a panel with no structure as the hardest case. SCIP at the
 MIP path's defaults (60 seconds, a 5 percent gap) returned the optimum on 14 of
 78 runs; from 40 units its time limit bound on nearly every run, and its design
 was a median 56 percent worse where it was not optimal.
+
+Multiple Treatment Arms
+-----------------------
+
+When a single experiment runs several treatment arms (e.g. different
+creatives, offers, or price points, each rolled out to its own set of
+markets), pass an ``arm`` column. ``SYNDES`` then solves the design problem
+independently within each arm's units and returns a
+:class:`~mlsynth.utils.syndes_helpers.structures.SYNDESMultiArmResults` —
+a dict of per-arm results keyed by arm label. Every option (``mode``, ``K``,
+``lam``, inference) applies within each arm, and ``K`` is interpreted
+per arm (so it must be smaller than the smallest arm's unit count).
+
+.. code-block:: python
+
+   import numpy as np
+   import pandas as pd
+   from mlsynth import SYNDES
+
+   # Two arms (A, B), each with 6 markets over 20 periods (last 6 post).
+   rng = np.random.default_rng(0)
+   n_per_arm, n_periods, n_post = 6, 20, 6
+   rows = []
+   for arm in ("A", "B"):
+       factors = rng.normal(size=(n_periods, 2))
+       for j in range(n_per_arm):
+           loading = rng.uniform(0.3, 1.0, size=2)
+           level = rng.uniform(8.0, 12.0)
+           series = level + factors @ loading + rng.normal(scale=0.3, size=n_periods)
+           for t in range(n_periods):
+               rows.append({"DMA": f"{arm}{j}", "week": t, "sales": float(series[t]),
+                            "treat": arm, "post": int(t >= n_periods - n_post)})
+   df = pd.DataFrame(rows)
+
+   res = SYNDES({
+       "df": df, "outcome": "sales", "unitid": "DMA", "time": "week",
+       "arm": "treat",                 # categorical arm label per unit
+       "K": 3, "mode": "two_way_global", "post_col": "post",
+       "run_inference": True,
+   }).fit()
+
+   print(res.arm_designs["A"])              # full SYNDESResults for arm A
+   print(res.atet_by_arm())                 # {arm: ATET}
+   print(res.selected_unit_labels_by_arm()) # {arm: treated units}
+
+The arm column must be constant within each unit over time. ``arm`` is not
+compatible with the global ``costs``/``budget`` constraint (the cost vector is
+defined over all units, not per arm). When ``arm`` is ``None`` (default), a
+single :class:`SYNDESResults` is returned, exactly as before.
 
 Across groups: arm vs. quotas vs. restrictions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1757,6 +1828,12 @@ and extracts the assignment, weights, and pre-period prediction.
 .. automodule:: mlsynth.utils.syndes_helpers.optimization
    :members:
    :undoc-members:
+
+The exact one-way backend: enumeration under the ridge bound, pricing in bound
+order, and the swap-search fallback above the candidate limit.
+
+.. automodule:: mlsynth.utils.syndes_helpers.one_way_exact
+   :members:
 
 The moving-block permutation test (shared contrast dispatch across modes).
 

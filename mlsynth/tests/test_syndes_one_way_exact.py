@@ -372,11 +372,44 @@ def test_no_penalty():
     assert d.objective_value == pytest.approx(value, rel=1e-8, abs=1e-12)
 
 
-def test_no_penalty_on_a_short_panel_is_refused():
-    """With ``lam = 0`` and fewer periods than units the problem on contrasts is
-    singular, so no bound can be trusted."""
-    with pytest.raises(MlsynthEstimationError, match="ill-conditioned"):
-        solve_one_way_exact(_panel(N=8, T=3, seed=24), 2, lam=0.0)
+def _collinear(seed=37):
+    """Unit 2 is the mean of units 0 and 1: with ``lam = 0`` the problem on
+    contrasts is singular, and treating 0 and 1 against 2 fits exactly."""
+    Y = _panel(N=8, T=14, seed=seed)
+    Y[:, 2] = 0.5 * (Y[:, 0] + Y[:, 1])
+    return Y
+
+
+@pytest.mark.parametrize("Y", [_collinear(), _panel(N=8, T=3, seed=24)],
+                         ids=["collinear", "short"])
+def test_a_singular_problem_is_priced_in_full(Y):
+    """No bound can be formed, so every admissible set is priced, and the
+    design is still the optimum."""
+    S, value = _brute_force(Y, 2, 0.0)
+    d = solve_one_way_exact(Y, 2, lam=0.0)
+    assert d.objective_value == pytest.approx(value, rel=1e-8, abs=1e-12)
+    assert d.raw_results["certified"] is True
+    assert d.raw_results["n_priced"] == d.raw_results["n_designs"] == comb(8, 2)
+
+
+def test_the_estimators_one_way_default_handles_a_singular_problem():
+    Y = _collinear()
+    res = _fit(Y, K=2, lam=0.0)
+    assert res.design.solve_outcome.solver_status == "exact"
+    assert res.design.objective_value == pytest.approx(
+        _brute_force(res.inputs.Y_pre, 2, 0.0)[1], abs=1e-12)
+
+
+def test_a_singular_problem_past_the_pricing_limit_is_refused(monkeypatch):
+    import mlsynth.utils.syndes_helpers.one_way_exact as owe
+    monkeypatch.setattr(owe, "PRICE_ALL_LIMIT", 27)
+    with pytest.raises(MlsynthEstimationError, match="singular to working precision"):
+        solve_one_way_exact(_collinear(), 2, lam=0.0)
+
+
+def test_a_singular_problem_past_the_candidate_limit_is_refused():
+    with pytest.raises(MlsynthEstimationError, match="singular to working precision"):
+        solve_one_way_exact(_collinear(), 2, lam=0.0, candidate_limit=5)
 
 
 # --------------------------------------------------------------------------- #
@@ -552,6 +585,11 @@ def test_a_search_within_the_limit_is_silent():
 # --------------------------------------------------------------------------- #
 
 
+def test_costs_of_the_wrong_length_are_refused():
+    with pytest.raises(MlsynthConfigError, match="length"):
+        solve_one_way_exact(_panel(), 2, costs=np.ones(5), budget=3.0)
+
+
 @pytest.mark.parametrize("K", [0, 8, -1, None, 2.0, True])
 def test_k_out_of_range_is_refused(K):
     with pytest.raises(MlsynthConfigError, match="K"):
@@ -571,3 +609,55 @@ def test_a_one_dimensional_panel_is_refused():
 def test_costs_without_a_budget_are_refused():
     with pytest.raises(MlsynthConfigError):
         solve_one_way_exact(_panel(), 2, costs=np.ones(8))
+
+
+# --------------------------------------------------------------------------- #
+# the estimator
+# --------------------------------------------------------------------------- #
+
+
+def _fit(Y, **over):
+    cfg = {"df": _df(Y), "outcome": "y", "unitid": "unit", "time": "time",
+           "post_col": "post", "K": 3, "mode": "one_way_global"}
+    cfg.update(over)
+    return SYNDES(cfg).fit()
+
+
+def test_the_estimator_solves_one_way_exactly_by_default():
+    Y = _panel(N=8, T=16, seed=33)
+    res = _fit(Y)
+    d = res.design
+    assert d.mode == "one_way_global"
+    assert d.solve_outcome.solver_status == "exact" and d.raw_results["certified"]
+    lam = estimate_lambda(res.inputs.Y_pre)
+    S, value = _brute_force(res.inputs.Y_pre, 3, lam)
+    assert _treated(d) == S and d.objective_value == pytest.approx(value, rel=1e-9)
+
+
+def test_the_estimator_passes_donor_rules_to_the_search():
+    Y = _panel(N=8, T=16, seed=34)
+    adjacency = pd.DataFrame(np.zeros((8, 8), dtype=int), index=range(8),
+                             columns=range(8))
+    for i, j in [(0, 1), (2, 3), (4, 5), (6, 7)]:
+        adjacency.loc[i, j] = adjacency.loc[j, i] = 1
+    res = _fit(Y, donor_exclusion=adjacency)
+    d = res.design
+    assert d.solve_outcome.solver_status == "exact"
+    pairs = [(i, j) for i in range(8) for j in range(8) if adjacency.loc[i, j]]
+    lam = estimate_lambda(res.inputs.Y_pre)
+    S, value = _brute_force(res.inputs.Y_pre, 3, lam, excluded=_excluded(pairs))
+    assert _treated(d) == S and d.objective_value == pytest.approx(value, rel=1e-9)
+
+
+def test_the_estimator_keeps_the_mip_on_request():
+    pytest.importorskip("pyscipopt")
+    res = _fit(_panel(N=6, T=14, seed=35), K=2, backend="mip")
+    assert res.design.solve_outcome.solver_status != "exact"
+
+
+def test_the_estimators_pool_is_the_searchs():
+    Y = _panel(N=7, T=16, seed=36)
+    res = _fit(Y, K=2, top_K=3, selection="in_sample")
+    lam = estimate_lambda(res.inputs.Y_pre)
+    ranked = sorted((_f(res.inputs.Y_pre, S, lam), S) for S in combinations(range(7), 2))
+    assert tuple(res.design.selected_unit_indices) == ranked[0][1]
