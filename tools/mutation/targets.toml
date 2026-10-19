@@ -5483,6 +5483,12 @@ test-command = "python -m pytest mlsynth/tests/test_syndes_mip_outcome.py -q -x 
 timeout = 900.0
 
   [[target.mutant]]
+  id = "accelerator-named-on-every-solve"
+  find = "    if use_accel:"
+  replace = "    if True:"
+  models = "raw_results naming the accelerator on every SCIP solve. Every SCIP solve now passes through solve_warm_cut, so the old guard (an accel_info was returned) no longer separates an accelerated solve from a plain one, and a caller reading raw_results would see a warm start that was never given"
+
+  [[target.mutant]]
   id = "a-limited-solve-is-silent"
   find = "    if outcome.stopped_at_limit or outcome.status != \"optimal\":"
   replace = "    if False:"

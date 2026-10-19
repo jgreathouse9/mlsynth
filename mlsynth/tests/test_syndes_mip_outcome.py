@@ -248,3 +248,15 @@ def test_a_fractional_assignment_from_the_solver_is_refused(monkeypatch):
     monkeypatch.setattr(accel, "solve_warm_cut", fractional)
     with pytest.raises(MlsynthEstimationError, match="not integral"):
         solve_synthetic_design(_panel(), 2, mode="global_2way")
+
+
+def test_the_accelerator_entry_is_recorded_only_when_asked_for():
+    """Every SCIP solve now runs through ``solve_warm_cut``; ``raw_results`` names
+    the accelerator only when a warm start or a cut was supplied."""
+    Y = _panel()
+    plain = solve_synthetic_design(Y, 2, mode="global_2way")
+    assert "accel" not in plain.raw_results
+    warm = solve_synthetic_design(Y, 2, mode="global_2way",
+                                  warm_start_D=np.asarray(plain.assignment))
+    assert warm.raw_results["accel"]["status"] == "optimal"
+    assert warm.solve_outcome.status == "optimal"
