@@ -176,6 +176,19 @@ class MAREXConfig(BaseMAREXConfig):
 
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
+    unit_inference: bool = Field(
+        default=False,
+        description="Requires inference=True. Adds inference for each treated "
+                    "unit: its own synthetic control, fitted on the fitting "
+                    "periods from its cluster's untreated units (Abadie and "
+                    "Zhao's eq. 10), and MAREX's inference on its contrast; "
+                    "Bonferroni-adjusted p-values and a joint test across the "
+                    "treated units; and eq. (11)'s aggregate, the weighted "
+                    "sum of the per-unit contrasts, beside the shared one. A "
+                    "unit's band is about twice as wide as the aggregate's, "
+                    "and on a 'standard' design eq. (11) trails the shared "
+                    "contrast; 'unit_penalized' designs choose treated units "
+                    "their clusters reproduce well.")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
 
     # --- cumulative-effect band ---
@@ -337,6 +350,23 @@ class MAREXConfig(BaseMAREXConfig):
                 f"separately. Got {v}."
             )
         return v
+
+    @field_validator("unit_inference", mode="before")
+    @classmethod
+    def _validate_unit_inference(cls, v):
+        if not isinstance(v, bool):
+            raise MlsynthConfigError(
+                f"unit_inference must be True or False; got {v!r}.")
+        return v
+
+    @model_validator(mode="after")
+    def _unit_inference_needs_inference(self) -> "MAREXConfig":
+        if self.unit_inference and not self.inference:
+            raise MlsynthConfigError(
+                "unit_inference=True needs inference=True: each unit's "
+                "inference is calibrated on the blank periods inference "
+                "holds out.")
+        return self
 
     @field_validator("cumulative_band", mode="before")
     @classmethod

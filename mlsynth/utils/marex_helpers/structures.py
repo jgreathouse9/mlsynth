@@ -108,6 +108,124 @@ class MAREXInference:
 
 
 @dataclass(frozen=True)
+class MAREXBlankCheck:
+    """Whether a treated unit's contrast averages zero over the blank periods.
+
+    The blank periods are untreated and unused by the fit, so a unit whose
+    synthetic control reproduces it has a contrast there that averages zero. A
+    mean far from zero says the control misses the unit's level: the unit lies
+    outside its donors' hull, or its fit on the fitting periods did not carry
+    over. The same bias then enters the unit's post-period effects.
+
+    Parameters
+    ----------
+    mean : float
+        Mean of the contrast over the blank periods.
+    se : float
+        Its standard error, ``sd * sqrt(f(n, rho))`` with ``sd`` the sample
+        standard deviation and ``f`` the AR(1) variance of a mean of ``n``
+        periods relative to one period's variance,
+        ``(1 + 2 sum_{k<n} (1 - k/n) rho^k) / n``. NaN with one blank period.
+    t : float
+        ``mean / se``; zero for a contrast identically zero, and infinite for a
+        nonzero constant one.
+    p_value : float
+        Two-sided, against Student's t on ``n_eff - 1`` degrees of freedom,
+        ``n_eff = n (1 - rho) / (1 + rho)`` capped at ``n`` and floored at 2. An
+        approximation: the contrast is serially dependent and the AR(1) model
+        for it is fitted to the same ``n`` periods.
+    rho : float
+        Lag-1 autocorrelation of the contrast, demeaned, corrected for its
+        small-sample bias, and clipped to ``(-0.99, 0.99)``.
+    n : int
+        Number of blank periods.
+    relative : float
+        ``mean`` over the unit's mean absolute outcome on the blank periods: the
+        bias as a share of the unit's level. NaN at a zero level.
+    """
+
+    mean: float
+    se: float
+    t: float
+    p_value: float
+    rho: float
+    n: int
+    relative: float
+
+
+@dataclass(frozen=True)
+class MAREXUnitInference:
+    """Inference for one treated unit against its own synthetic control.
+
+    Parameters
+    ----------
+    unit : str
+        The treated unit's label.
+    cluster : str
+        Its cluster's label.
+    control_weights : dict
+        Its synthetic control, Abadie and Zhao's ``v_.j``: simplex weights on
+        its cluster's untreated units, fitted on the fitting periods, keyed by
+        unit label. Every untreated unit of the cluster appears, at zero where
+        the fit puts nothing.
+    synthetic_control : np.ndarray
+        ``sum_i v_ij y_i`` over the whole timeline, shape ``(T,)``.
+    inference : MAREXInference
+        MAREX's inference on the contrast ``y_j - synthetic_control``: the
+        Theorem 2 p-value, per-period p-values, the pointwise band and, when
+        requested, the band for the total.
+    p_bonferroni : float
+        ``min(1, m p)``, with ``p`` the unit's Theorem 2 p-value and ``m`` the
+        number of treated units in the design.
+    blank_check : MAREXBlankCheck
+        The mean of the contrast over the blank periods, with its standard
+        error: a check for bias in the unit's synthetic control.
+    """
+
+    unit: str
+    cluster: str
+    control_weights: Dict[str, float]
+    synthetic_control: np.ndarray
+    inference: MAREXInference
+    p_bonferroni: float
+    blank_check: MAREXBlankCheck
+
+
+@dataclass(frozen=True)
+class MAREXUnitLevel:
+    """Inference for every treated unit, and Abadie and Zhao's eq. (11).
+
+    Parameters
+    ----------
+    units : dict
+        :class:`MAREXUnitInference` by treated unit label.
+    joint_p_value : float
+        A permutation test of no effect on any treated unit. Its statistic is
+        the largest, over units, of the mean absolute post-period contrast
+        divided by the unit's mean absolute contrast over the blank and post
+        periods; one arrangement of periods is applied to every unit, so the
+        units' common factors stay aligned, and the scale is one no
+        arrangement changes. Exact when the arrangements number at most
+        ``max_combinations``, ``(1 + k) / (1 + B)`` otherwise.
+    eq11 : MAREXInference
+        Inference on eq. (11)'s aggregate, the synthetic treated minus
+        ``eq11_control``. Under ``cumulative_method="inversion"`` its band for
+        the total is the shared contrast's: the inversion refits the synthetic
+        treated series on the untreated units and never reads a control, so
+        only the point, eq. (11)'s own total, differs.
+    eq11_control : np.ndarray
+        ``sum_j w_j sum_i v_ij y_i`` with ``w`` the aggregate treated weights,
+        shape ``(T,)``: each treated unit's own control, weighted as the
+        design weights the unit.
+    """
+
+    units: Dict[str, MAREXUnitInference]
+    joint_p_value: float
+    eq11: MAREXInference
+    eq11_control: np.ndarray
+
+
+@dataclass(frozen=True)
 class MAREXClusterDesign:
     """Design and synthetics for a single cluster.
 
@@ -180,6 +298,9 @@ class MAREXGlobalDesign:
         plus any penalty the design adds. Comparable across backends, so it is
         how a search and the MIQP are checked against each other; SCIP reports
         it to its own tolerance.
+    unit_level : MAREXUnitLevel, optional
+        Inference for each treated unit and eq. (11)'s aggregate, present when
+        ``unit_inference=True`` was requested with a blank window.
     """
 
     Y_full: np.ndarray
@@ -191,6 +312,7 @@ class MAREXGlobalDesign:
     synthetic_control: np.ndarray
     inference: Optional[MAREXInference] = None
     objective: Optional[float] = None
+    unit_level: Optional[MAREXUnitLevel] = None
 
 
 @dataclass(frozen=True)
