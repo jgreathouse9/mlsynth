@@ -232,11 +232,16 @@ Do not build RRMA as specified.
   carry and which then wins under normal errors, and a robust loss whose value
   depends on outliers in the pre-period.
 
-If anything is built, it should be narrower: a robust-loss option for
-an existing averaging estimator, with a deterministic screen (ties broken by
-the statistic, not the input order), a fixed or exhaustive MVE, and group sizes
-capped below the shortest training window. The pair-free solver here is the
-piece that makes the rank loss cheap enough to offer.
+If anything is built, it should be narrower. No estimator in mlsynth averages
+candidate models built from donor groups (MASC averages two estimators, SCMO
+averages outcome stackings, BVS-SS is a Bayesian model average), so it would be
+a new estimator whose loss is a choice, rank or least squares, since the
+ablation shows each wins in its own regime. It would need a screen that does
+not depend on donor order (ties broken by a statistic of the data, not the
+input order), a deterministic robust covariance in place of the sampled MVE,
+and group sizes capped below the shortest training window, with the remainder
+spread across groups. The pair-free solver here is the piece that makes the
+rank loss cheap enough to offer.
 
 ## Files
 
