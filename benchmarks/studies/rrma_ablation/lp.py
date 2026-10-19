@@ -141,18 +141,27 @@ def rank_lad(y, X, h, G=None, g=None, E=None, f=None, labels: Optional[np.ndarra
     labels, active = _rank_lad_pivot(yp, X, h, G, g, E, f,
                                      np.asarray(labels).copy(), list(active or []), max_pivots)
     beta = _rank_vertex(y, X, G, g, E, f, labels, active)
-    phi, nu, lam = _rank_dual(yp, X, h, G, g, E, f, labels, active)
-    H2 = h.sum() ** 2
-    # phi is dual feasible when it passes Hoffman's cut test on all the periods
-    feasible = (certificate(h[None], np.zeros((1, n), int), phi[None])[0][0] <= TOL * H2 / 4
-                and abs(phi.sum()) <= TOL * H2 / 4)
-    mag = float(np.max(np.abs(y) + np.abs(X) @ np.abs(beta)))
-    F = float(pairwise_objective(y[None], X[None], h[None], beta[None])[0])
-    if not (feasible and _gap_ok(F, phi, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
-                                 TOL * H2 * mag)):
+    if not _rank_certified(y, X, h, G, g, E, f, beta, active,
+                           *_rank_dual(yp, X, h, G, g, E, f, labels, active)):
         warnings.warn(CertificateWarning("rank_lad: the final vertex failed the duality-gap certificate"),
                       stacklevel=2)
     return beta
+
+
+def _rank_certified(y, X, h, G, g, E, f, beta, active, phi, nu, lam) -> bool:
+    """``rank_lad``'s certificate for ``beta`` with the dual ``(phi, nu, lambda)``.
+
+    ``phi`` is dual feasible when it passes Hoffman's cut test on all the
+    periods; the gap is tested against ``TOL h(.)^2`` times the largest
+    ``|y_i| + |x_i|'|beta|``, the size of the terms each residual comes from.
+    """
+    H2 = h.sum() ** 2
+    feasible = (certificate(h[None], np.zeros((1, len(y)), int), phi[None])[0][0] <= TOL * H2 / 4
+                and abs(phi.sum()) <= TOL * H2 / 4)
+    mag = float(np.max(np.abs(y) + np.abs(X) @ np.abs(beta)))
+    F = float(pairwise_objective(y[None], X[None], h[None], beta[None])[0])
+    return bool(feasible and _gap_ok(F, phi, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
+                                     TOL * H2 * mag))
 
 
 def _rank_dual(y, X, h, G, g, E, f, labels, active):
@@ -300,23 +309,41 @@ def lad(y, X, c, G=None, g=None, E=None, f=None, basis: Sequence[int] = (),
     B, active = _lad_pivot(yp, X, c, G, g, E, f, list(basis), list(active), max_pivots)
     M = np.vstack([X[B], G[active], E])
     beta = np.linalg.solve(M, np.r_[y[B], g[active], f])
-    # the dual at the final vertex of the perturbed problem
-    bp = np.linalg.solve(M, np.r_[yp[B], g[active], f])
-    ep = yp - X @ bp
-    nb = np.ones(n, bool)
-    nb[B] = False
-    d = c * np.sign(ep) * nb
-    z = np.linalg.solve(M.T, -(X.T @ d))
-    d[B] = z[:len(B)]
-    nu, lam = z[len(B):len(B) + len(active)], z[len(B) + len(active):]
-    dual_feasible = np.all(np.abs(d) <= c + TOL * c.max())
-    F = float(np.sum(c * np.abs(y - X @ beta)))
-    mag = float(np.max(np.abs(y) + np.abs(X) @ np.abs(beta)))
-    if not (dual_feasible and _gap_ok(F, d, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
-                                      TOL * c.sum() * mag)):
+    if not _lad_certified(y, X, c, G, g, E, f, beta, active, *_lad_dual(yp, X, c, G, g, E, f, B, active)):
         warnings.warn(CertificateWarning("lad: the final vertex failed the duality-gap certificate"),
                       stacklevel=2)
     return beta
+
+
+def _lad_dual(y, X, c, G, g, E, f, B, active):
+    """``(d, nu, lambda)`` at the vertex ``(B, active)`` of the programme on ``y``.
+
+    ``d`` is ``c`` times the sign of each nonbasic residual; the basic rows'
+    entries and the constraint multipliers come from one solve with the
+    transposed vertex matrix.
+    """
+    n = len(y)
+    M = np.vstack([X[B], G[active], E])
+    b = np.linalg.solve(M, np.r_[y[B], g[active], f])
+    nb = np.ones(n, bool)
+    nb[B] = False
+    d = c * np.sign(y - X @ b) * nb
+    z = np.linalg.solve(M.T, -(X.T @ d))
+    d[B] = z[:len(B)]
+    return d, z[len(B):len(B) + len(active)], z[len(B) + len(active):]
+
+
+def _lad_certified(y, X, c, G, g, E, f, beta, active, d, nu, lam) -> bool:
+    """``lad``'s certificate for ``beta`` with the dual ``(d, nu, lambda)``.
+
+    ``d`` is dual feasible when ``|d| <= c`` to ``TOL max(c)``; the gap is tested
+    against ``TOL sum(c)`` times the largest ``|y_t| + |x_t|'|beta|``.
+    """
+    feasible = np.all(np.abs(d) <= c + TOL * c.max())
+    F = float(np.sum(c * np.abs(y - X @ beta)))
+    mag = float(np.max(np.abs(y) + np.abs(X) @ np.abs(beta)))
+    return bool(feasible and _gap_ok(F, d, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
+                                     TOL * c.sum() * mag))
 
 
 def _lad_pivot(y, X, c, G, g, E, f, B, active, max_pivots):

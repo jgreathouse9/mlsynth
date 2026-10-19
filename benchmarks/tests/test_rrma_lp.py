@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from benchmarks.studies.rrma_ablation import highs_reference as HR
@@ -212,6 +212,18 @@ class TestTheCertificateIsReported:
         assert not hasattr(LP, "UNCERTIFIED")
 
 
+def _witness_shared_rate_scale():
+    """With one floored tolerance for both kinds of pivot rate, weights scaled by
+    1e-6 stop ``simplex_lad`` 3e-5 from the optimum here, uncertified. Found by
+    searching against the mutant at the 229th seed, which is why 30 random draws
+    caught it in one mutation run and missed it in the next."""
+    rng = np.random.default_rng(228)
+    S, n = int(rng.integers(2, 7)), int(rng.integers(4, 31))
+    y = np.cumsum(rng.normal(size=n))
+    P = y[:, None] + rng.normal(scale=rng.uniform(0.1, 2.0, size=S), size=(n, S)) + rng.normal(size=S)
+    return y, P, rng.uniform(0.05, 1.0, size=n)
+
+
 def _floor(y, P, h, pair, level=0.0):
     """The rounding floor of an objective: 64 eps times the size of its terms.
 
@@ -250,6 +262,7 @@ class TestUnits:
 
     @settings(max_examples=30, deadline=None)
     @given(_weights(), st.integers(-6, 6))
+    @example(_witness_shared_rate_scale(), -6)
     def test_rescaling_the_weights_changes_nothing(self, b, k):
         y, P, h = b
         self._check(y, P, h, y, P, 10.0 ** k * h)
@@ -264,42 +277,109 @@ class TestUnits:
 
 
 class TestTheGapTestAtEveryScale:
-    """``_gap_ok`` read ``max(1, F)`` under its gap tolerance, so once the objective
-    fell below 1 it certified points far from the optimum. At a scale of 1e-7 the
-    objective is about 2e-5: points 1e-6 to 1e-4 worse have gaps between the
-    scaled tolerance (about 1e-13) and the floored one (1e-9), and must fail."""
+    """The certificates read ``max(1, F)`` under their gap tolerance, so once the
+    objective fell below 1 they certified points far from the optimum. At a scale
+    of 1e-7 the objectives are about 1e-5: with the optimal dual held fixed,
+    points 1e-6 to 1e-4 worse than the optimum have gaps between the scaled
+    tolerance (about 1e-13) and a floored one (1e-9), and must fail. A stubbed
+    pivot loop cannot test this: a vertex that is not optimal fails on its
+    multipliers or its cuts before the gap decides."""
 
-    def test_it_rejects_a_suboptimal_simplex_point(self):
-        from benchmarks.studies.rrma_ablation import solver_pairfree as PF
-
+    @staticmethod
+    def _problem():
         rng = np.random.default_rng(31)
         n, S = 25, 4
         y = 1e-7 * np.cumsum(rng.normal(size=n))
         P = y[:, None] + 1e-7 * rng.normal(scale=[0.3, 0.6, 1.0, 1.5], size=(n, S))
-        h = rng.uniform(0.2, 1.0, size=n)
-        yc, Pc = PF._centre(y, P)
-        yp = yc + PF.perturbation(yc)
-        G, g, E, f = np.eye(S), np.zeros(S), np.ones((1, S)), np.ones(1)
-        F = lambda b: float(PF.pairwise_objective(yc[None], Pc[None], h[None], b[None])[0])
-        s0 = int(np.argmin([F(np.eye(S)[s]) for s in range(S)]))
-        labels, active = LP._rank_lad_pivot(yp, Pc, h, G, g, E, f, np.arange(n),
-                                            [k for k in range(S) if k != s0], 5000)
-        w = LP._rank_vertex(yc, Pc, G, g, E, f, labels, active)
-        phi, nu, lam = LP._rank_dual(yp, Pc, h, G, g, E, f, labels, active)
+        return y, P, rng.uniform(0.2, 1.0, size=n)
 
-        def ok(b):
-            tol = 1e-9 * h.sum() ** 2 * float(np.max(np.abs(yc) + np.abs(Pc) @ np.abs(b)))
-            return LP._gap_ok(F(b), phi, yc - Pc @ b, Pc, G, g, E, f, b, active, nu, lam, tol)
-
-        assert ok(w)
-        worse = []
+    @staticmethod
+    def _worse(F, w):
+        S = len(w)
+        out = []
         for j in range(S):
             for t in np.logspace(-8, -1, 50):
                 b = (1 - t) * w + t * np.eye(S)[j]
                 if 1e-6 < (F(b) - F(w)) / F(w) < 1e-4:
-                    worse.append(b)
-        assert len(worse) >= 5
-        assert not any(ok(b) for b in worse)
+                    out.append(b)
+        assert len(out) >= 5
+        return out
+
+    def test_rank_lad(self):
+        from benchmarks.studies.rrma_ablation import solver_pairfree as PF
+
+        y, P, h = self._problem()
+        n, S = P.shape
+        yc, Pc = PF._centre(y, P)
+        yp = yc + PF.perturbation(yc)
+        G, g, E, f = np.eye(S), np.zeros(S), np.ones((1, S)), np.ones(1)
+        F = lambda b: _pair_obj(yc, Pc, h, b)
+        s0 = int(np.argmin([F(np.eye(S)[s]) for s in range(S)]))
+        labels, active = LP._rank_lad_pivot(yp, Pc, h, G, g, E, f, np.arange(n),
+                                            [k for k in range(S) if k != s0], 5000)
+        w = LP._rank_vertex(yc, Pc, G, g, E, f, labels, active)
+        dual = LP._rank_dual(yp, Pc, h, G, g, E, f, labels, active)
+        ok = lambda b: LP._rank_certified(yc, Pc, h, G, g, E, f, b, active, *dual)
+        assert ok(w)
+        assert not any(ok(b) for b in self._worse(F, w))
+
+    def test_lad(self):
+        from benchmarks.studies.rrma_ablation import solver_pairfree as PF
+
+        y, P, c = self._problem()
+        n, S = P.shape
+        yp = y + PF.perturbation(y)
+        G, g, E, f = np.eye(S), np.zeros(S), np.ones((1, S)), np.ones(1)
+        F = lambda b: _level_obj(y, P, c, b)
+        s0 = int(np.argmin([F(np.eye(S)[s]) for s in range(S)]))
+        B, active = LP._lad_pivot(yp, P, c, G, g, E, f, [], [k for k in range(S) if k != s0], 5000)
+        M = np.vstack([P[B], G[active], E])
+        w = np.linalg.solve(M, np.r_[y[B], g[active], f])
+        dual = LP._lad_dual(yp, P, c, G, g, E, f, B, active)
+        ok = lambda b: LP._lad_certified(y, P, c, G, g, E, f, b, active, *dual)
+        assert ok(w)
+        assert not any(ok(b) for b in self._worse(F, w))
+
+
+class TestANonOptimalVertexIsReportedAtEveryScale:
+    """End to end: stub the pivot loop so it returns its starting vertex (the best
+    single model, not the optimum here) and the solver must warn, at any scale.
+    At a scale of 1e-12 the gap is far below 1, so a tolerance floored at 1
+    passes it; that floor sat in the call to ``_gap_ok``, not inside it. The
+    reference optimum comes from the unit-scale problem (both objectives are
+    homogeneous of degree one in the scale): at 1e-12, HiGHS's own absolute
+    tolerances stop it at the starting vertex."""
+
+    @staticmethod
+    def _problem(scale):
+        rng = np.random.default_rng(41)
+        n, S = 30, 4
+        y = np.cumsum(rng.normal(size=n))
+        P = y[:, None] + rng.normal(scale=[0.5, 0.8, 1.0, 1.4], size=(n, S))
+        return scale * y, scale * P, rng.uniform(0.2, 1.0, size=n)
+
+    @pytest.mark.parametrize("scale", [1e-12, 1.0, 1e6])
+    def test_rank_lad(self, monkeypatch, scale):
+        y, P, h = self._problem(scale)
+        y1, P1, _ = self._problem(1.0)
+        i, j = O.pairs(len(y))
+        start = np.eye(P.shape[1])[np.argmin([_pair_obj(y, P, h, e) for e in np.eye(P.shape[1])])]
+        best = scale * _pair_obj(y1, P1, h, HR.simplex_wlad(y1[i] - y1[j], P1[i] - P1[j], h[i] * h[j]))
+        assert _pair_obj(y, P, h, start) > best * (1 + 1e-3)          # the start is not optimal
+        monkeypatch.setattr(LP, "_rank_lad_pivot", lambda *a: (a[7], a[8]))
+        with pytest.warns(CertificateWarning, match="rank_lad"):
+            LP.simplex_rank_lad(y, P, h)
+
+    @pytest.mark.parametrize("scale", [1e-12, 1.0, 1e6])
+    def test_lad(self, monkeypatch, scale):
+        y, P, h = self._problem(scale)
+        y1, P1, _ = self._problem(1.0)
+        start = np.eye(P.shape[1])[np.argmin([_level_obj(y, P, h, e) for e in np.eye(P.shape[1])])]
+        best = scale * _level_obj(y1, P1, h, HR.simplex_wlad(y1, P1, h))
+        assert _level_obj(y, P, h, start) > best * (1 + 1e-3)
+        monkeypatch.setattr(LP, "_lad_pivot", lambda *a: (a[7], a[8]))
+        with pytest.warns(CertificateWarning, match="lad"):
+            LP.simplex_lad(y, P, h)
 
 
 class TestTheRatioTest:

@@ -5049,3 +5049,222 @@ timeout = 600.0
   find = "        if not 0 <= j < N:"
   replace = "        if not -N <= j < N:"
   models = "a negative member read from the end of the panel, charging a unit the caller did not name"
+
+[[target]]
+name = "rrma-study-pairfree-numerics"
+module-path = "benchmarks/studies/rrma_ablation/solver_pairfree.py"
+test-command = "python -m pytest benchmarks/tests/test_rrma_pairfree_solver.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-failed-certificate-passes-silently"
+  find = '''
+    bad = int((~cert).sum())
+    if bad:'''
+  replace = '''
+    bad = int((~cert).sum())
+    if False:'''
+  models = "the reporting this change replaced: a failed duality-gap certificate bumped a module counter nobody read, so a non-optimal fit reached the study's tables as an estimate"
+
+  [[target.mutant]]
+  id = "the-gap-test-floors-at-one"
+  find = "            & (resid <= TOL * rscale) & (gap <= TOL * H2 * mag))"
+  replace = "            & (resid <= TOL * rscale) & (gap <= TOL * np.maximum(1.0, H2 * mag)))"
+  models = "the absolute floor under the gap tolerance: once the objective falls below 1 the test certifies nothing, and at a scale of 1e-6 it accepted a point 3e-6 from the optimum"
+
+  [[target.mutant]]
+  id = "the-certificate-trusts-the-pivot-loop"
+  find = '''
+    return ((cut <= TOL * H2 / 4) & (np.abs(phi.sum(axis=1)) <= TOL * H2 / 4)
+            & (resid <= TOL * rscale) & (gap <= TOL * H2 * mag))'''
+  replace = '''
+    return ((resid <= TOL * rscale) & (gap <= TOL * H2 * mag))'''
+  models = "a certificate that checks stationarity and the gap but not the dual's feasibility: a phi built to meet both at a vertex 0.1 percent from the optimum passes, so the certificate proves only what the pivot loop already believed"
+
+  [[target.mutant]]
+  id = "the-perturbation-follows-the-level"
+  find = "    spread = np.abs(y - y.mean(axis=-1, keepdims=True)).max(axis=-1, keepdims=True)"
+  replace = "    spread = np.abs(y).max(axis=-1, keepdims=True)"
+  models = "the shift sized by max|y|: at a level of 1e8 it was 0.1, as large as the data's own variation, and the simplex-weight solves stopped 18 to 26 percent from the optimum"
+
+  [[target.mutant]]
+  id = "solve-keeps-the-level"
+  expected = "survived"
+  accepted-because = "EQUIVALENT to within the data's own storage error. At level c every entry of y and X is stored to eps c / 2, so the problem is known only to that, and residuals computed without centring err by eps c (1 + |beta|_1), the same order; certify and dual_flows centre on their own and the perturbation is sized by the spread, so nothing the suite can observe depends on solve centring first. Kept because it costs one subtraction and keeps the pivot loop's residuals at the size of their spread, the form the other entry points use"
+  find = '''
+    _check_weights(h)
+    y, X = _centre(np.asarray(y, dtype=float), np.asarray(X, dtype=float))
+    yp = y + perturbation(y)'''
+  replace = '''
+    _check_weights(h)
+    y, X = np.asarray(y, dtype=float), np.asarray(X, dtype=float)
+    yp = y + perturbation(y)'''
+  models = "the pivots run on uncentred data: residuals at a level of 1e8 carry 1e-8 of rounding each, the rank scores order that noise, and the certificate built from them fails"
+
+  [[target.mutant]]
+  id = "the-objective-sums-uncentred-residuals"
+  find = '''
+    e = y - np.einsum("knp,kp->kn", X, beta)
+    e = e - e.mean(axis=1, keepdims=True)
+    return (rank_scores'''
+  replace = '''
+    e = y - np.einsum("knp,kp->kn", X, beta)
+    return (rank_scores'''
+  models = "a'e summed with e near 1e8: the products cancel to 1.5e-9 relative, which is above the certificate's tolerance, so good fits on data with a level fail it"
+
+  [[target.mutant]]
+  id = "the-cut-test-floors-at-one"
+  find = "        done = viol <= TOL * ha.sum(axis=1) ** 2 / 4"
+  replace = "        done = viol <= TOL * np.maximum(1.0, ha.sum(axis=1) ** 2 / 4)"
+  models = "the old floor under the pivot loop's stopping test: with weights scaled by 1e-4 the loop stopped at a vertex 2.7e-9 from the optimum, and the floored certificate passed it"
+
+  [[target.mutant]]
+  id = "the-rank-test-reads-only-the-centred-matrix"
+  find = "    ref = np.maximum(sv[:, 0], np.linalg.norm(np.sqrt(h)[..., None] * X, axis=(1, 2)))"
+  replace = "    ref = sv[:, 0]"
+  models = "a rank threshold relative to the centred design alone: a column of ones centres to rounding noise near 1e-16, which then counts as a direction, and the fit solves for a coefficient the data cannot see"
+
+  [[target.mutant]]
+  id = "the-identified-coordinates-are-the-wrong-singular-vectors"
+  find = "        V = Vt[k, :rank[k]].T"
+  replace = "        V = Vt[k, -rank[k]:].T"
+  models = "the reduced fit taken on the trailing right singular vectors: the coordinates span the wrong subspace, the fit is still finite and still warns, and only the objective against HiGHS shows it"
+
+  [[target.mutant]]
+  id = "unidentified-fits-pass-silently"
+  find = '''
+    bad = int((~ident).sum())
+    if bad:'''
+  replace = '''
+    bad = int((~ident).sum())
+    if False:'''
+  models = "an under-identified fit returned without a word: Algorithm 1 on Basque fits 10 donors on windows of 7 to 10 periods, and the study could not say how many of its predictions rest on a convention"
+
+  [[target.mutant]]
+  id = "solve-takes-any-weights"
+  find = '''
+    h = np.asarray(h, dtype=float)
+    _check_weights(h)
+    y, X = _centre('''
+  replace = '''
+    h = np.asarray(h, dtype=float)
+    y, X = _centre('''
+  models = "a zero, negative or non-finite weight accepted: the prefix test divides psi by h and silently uses 1 where h <= 0, so the cut order is wrong without any number looking odd"
+
+[[target]]
+name = "rrma-study-lp-numerics"
+module-path = "benchmarks/studies/rrma_ablation/lp.py"
+test-command = "python -m pytest benchmarks/tests/test_rrma_lp.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-failed-rank-lad-certificate-passes-silently"
+  find = '''
+        warnings.warn(CertificateWarning("rank_lad: the final vertex failed the duality-gap certificate"),
+                      stacklevel=2)'''
+  replace = '''
+        pass'''
+  models = "the module counter this change removed, for the simplex-weight programme of Section 2.4"
+
+  [[target.mutant]]
+  id = "a-failed-lad-certificate-passes-silently"
+  find = '''
+        warnings.warn(CertificateWarning("lad: the final vertex failed the duality-gap certificate"),
+                      stacklevel=2)'''
+  replace = '''
+        pass'''
+  models = "the same, for the weights-on-levels ablation"
+
+  [[target.mutant]]
+  id = "a-slack-inside-the-rounding-is-a-step"
+  find = "    slack = np.where(slack <= 64 * _EPS * mag, 0.0, slack)"
+  replace = "    slack = np.maximum(slack, 0.0)"
+  models = "a constraint one rounding inside its boundary treated as off it: the ratio test returns a step of 1e-16 instead of 0, and the degenerate-vertex check, which tests for an exact zero, raises on a sound edge"
+
+  [[target.mutant]]
+  id = "a-violated-inequality-is-clipped-to-zero"
+  find = "    if np.any(slack < -TOL * mag):"
+  replace = "    if False:"
+  models = "the old silent repair: an inactive inequality violated by 1e-6 read as zero slack, so an iterate outside the feasible set went on as if it were on its boundary"
+
+  [[target.mutant]]
+  id = "the-pivot-rates-share-one-scale"
+  find = '''
+        rates = np.r_[(c[B] - np.abs(d)) / c.max(),
+                      nu / nu_scale if nu_scale > 0 else np.zeros_like(nu)]
+        if not len(rates) or rates.min() >= -TOL:'''
+  replace = '''
+        tol = TOL * max(1.0, nu_scale, c.max())
+        rates = np.r_[c[B] - np.abs(d), nu]
+        if not len(rates) or rates.min() >= -tol:'''
+  models = "the old pivot test, one tolerance with a floor of 1 for rates in two units: with weights scaled by 1e-6 simplex_lad stopped 19 percent from the optimum"
+
+  [[target.mutant]]
+  id = "rank-lad-keeps-the-level"
+  expected = "survived"
+  accepted-because = "EQUIVALENT to within the data's own storage error, as solve-keeps-the-level in the pair-free target. At level c the inputs are known to eps c / 2; uncentred, the residuals and X'a err by the same order (sum(a) is zero to rounding, so the level enters X'a as c eps h(.)^2), the perturbation is sized by the spread either way, and the certificate's tolerance scales with the terms it sees. The level properties in TestUnits bound the answer by that storage error and pass both ways. Kept because it keeps the pivot loop's residuals at the size of their spread"
+  find = "    y, X = _centre(y, X)            # the objective reads differences; constraints act on beta"
+  replace = "    pass"
+  models = "the simplex-weight programme solved on data at their level: at 1e8 the residuals carry 1e-8 of rounding and the certificate fails, or the perturbation, sized from the centred data, no longer breaks ties"
+
+  [[target.mutant]]
+  id = "feasibility-scaled-by-the-entry-itself"
+  find = "    feasible = (np.all(G @ beta - g >= -TOL * (np.abs(G).sum(axis=1) * bmax + np.abs(g)))"
+  replace = "    feasible = (np.all(G @ beta - g >= -TOL * (np.abs(G) @ np.abs(beta) + np.abs(g)))"
+  models = "the first version of the feasibility test, scaled by each weight's own size: a weight held at zero reads -1e-17 out of the p x p solve, the test rejects it, and 50 of 400 degenerate problems failed certification"
+
+  [[target.mutant]]
+  id = "the-rank-lad-gap-floors-at-one"
+  find = '''
+    return bool(feasible and _gap_ok(F, phi, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
+                                     TOL * H2 * mag))'''
+  replace = '''
+    return bool(feasible and _gap_ok(F, phi, y - X @ beta, X, G, g, E, f, beta, active, nu, lam,
+                                     TOL * max(1.0, H2 * mag)))'''
+  models = "the floored gap tolerance in the constrained solver. The solver still lands on the optimum, and a stubbed pivot loop's vertex fails on its multipliers before the gap decides, so only a test that holds the optimal dual fixed and hands the certificate a worse point sees the floor"
+
+  [[target.mutant]]
+  id = "the-lad-gap-floors-at-one"
+  find = "                                     TOL * c.sum() * mag))"
+  replace = "                                     TOL * max(1.0, c.sum() * mag)))"
+  models = "the same floor in the weights-on-levels certificate: below an objective of 1 it passes a vertex that is not optimal"
+
+[[target]]
+name = "rrma-study-special-numerics"
+module-path = "benchmarks/studies/rrma_ablation/special.py"
+test-command = "python -m pytest benchmarks/tests/test_rrma_special.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "newton-differences-the-logs"
+  find = "            dlog = math.log1p(rel) if abs(rel) <= 0.5 else math.log(f) - log_target"
+  replace = "            dlog = math.log(f) - log_target"
+  models = "the shipped residual: two logs near -18.4 agree to their last bit when the tail and the target differ by 2e-15, so the Newton step is 0, and bisection did the work in 57 evaluations at q = 1e-8, df = 2"
+
+  [[target.mutant]]
+  id = "no-step-halving-safeguard"
+  find = "        if not (lo < x_new < hi) or abs(x_new - x) >= 0.5 * steps[0]:"
+  replace = "        if not (lo < x_new < hi):"
+  models = "a Newton step accepted whenever it lands inside the bracket: with a slope misjudged by 1000 the steps creep and the iteration exhausts its 200 evaluations"
+
+  [[target.mutant]]
+  id = "the-leading-term-bound-is-not-lowered"
+  find = "    x0 = 2.0 * math.exp(expo - 8.0 * _EPS * (2.0 + (abs(math.log(q)) + abs(math.lgamma(a + 1.0))) / a))"
+  replace = "    x0 = 2.0 * math.exp(expo)"
+  models = "the bracket's lower end taken from the rounded bound: its exponent errs by 702 eps at q = 1.7e-305, the computed bound lands above the root, and the iteration converges onto the wrong end"
+
+  [[target.mutant]]
+  id = "the-prefactor-always-goes-through-logs"
+  find = "    if _direct(a, x):"
+  replace = "    if False:"
+  models = "x^a e^-x / Gamma(a) formed as exp of a sum of logs: the exponent's absolute error of eps |a log x| becomes the tail's relative error, 7 eps in the quantile at q = 1.5e-52 and 188 eps at the edge of the normal range"
+
+  [[target.mutant]]
+  id = "the-continued-fraction-below-a-plus-one"
+  find = '''
+        p = _gamma_series(a, x)
+        return p, 1.0 - p'''
+  replace = '''
+        p = _gamma_series(a, x)
+        return (p, 1.0 - p) if p <= 0.5 else (p, _gamma_fraction(a, x))'''
+  models = "the wrong turn of this change: the complement 1 - P amplifies the series' error by P / Q, so the upper tail was taken from the continued fraction whenever P > 1/2. Measured, the fraction far below a + 1 errs by 5e-15 to 1e-13 against erfc, and R's qchisq at q = 0.508, df = 1 then differed by 1.06e-13 where R is right to 3e-16"

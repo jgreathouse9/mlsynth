@@ -15,7 +15,7 @@ import warnings
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings
+from hypothesis import assume, example, given, settings
 from hypothesis import strategies as st
 
 from benchmarks.studies.rrma_ablation import highs_reference as HR
@@ -121,6 +121,19 @@ class TestTheCertificate:
 # of y, X or h, nor on a common level added to y and X.
 
 
+def _witness_cut_floor():
+    """With a floor of 1 under the pivot loop's cut test, weights scaled by 1e-4
+    stop four of these six fits up to 1.2e-4 from the optimum, uncertified. Found
+    by searching against the mutant; random draws from ``_batch`` hit such a
+    problem in one mutation run and missed it in the next."""
+    rng = np.random.default_rng(0)
+    K, p = int(rng.integers(1, 7)), int(rng.integers(1, 6))
+    n = int(rng.integers(p + 3, 31))
+    X = rng.normal(size=(K, n, p))
+    y = np.einsum("knp,p->kn", X, rng.normal(size=p)) + rng.standard_t(2, size=(K, n))
+    return y, X, rng.uniform(0.05, 1.0, size=(K, n))
+
+
 def _pairwise_highs_objective(y, X, h):
     """The HiGHS optimum of each problem of a batch, on the pairwise programme."""
     out = []
@@ -188,6 +201,7 @@ class TestUnits:
 
     @settings(max_examples=30, deadline=None)
     @given(_batch(), st.integers(-4, 4))
+    @example(_witness_cut_floor(), -4)
     def test_rescaling_the_weights_changes_nothing(self, b, k):
         y, X, h = b
         beta, _, _, _, cert = _solve_strict(y, X, h * 10.0 ** k)
@@ -249,10 +263,12 @@ class TestTheCertificateAtEveryScale:
         beta = PF.vertex(y, X, lab0)[0]
         e = y[0] - X[0] @ beta[0]
         a = PF.rank_scores(h, np.arange(n)[None], e[None])[0]
-        # w with X'w = -X'a and e'w = 0, so that phi = a + w meets both equalities
-        A = np.vstack([X[0].T, e[None]])
-        w = np.linalg.lstsq(A, np.r_[-(X[0].T @ a), 0.0], rcond=None)[0]
+        # w with X'w = -X'a, e'w = 0 and sum(w) = 0, so that phi = a + w meets
+        # stationarity, a zero gap and sum(phi) = 0: only the cut test can refuse it
+        A = np.vstack([X[0].T, e[None], np.ones((1, n))])
+        w = np.linalg.lstsq(A, np.r_[-(X[0].T @ a), 0.0, 0.0], rcond=None)[0]
         phi = (a + w)[None]
+        assert abs(phi.sum()) <= 1e-12 * np.abs(phi).sum()
         F = PF.pairwise_objective(y, X, h, beta)
         ref = _pairwise_highs_objective(y, X, h)
         assert F[0] > ref[0] * (1 + 1e-3)                       # not optimal
