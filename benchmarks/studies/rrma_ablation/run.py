@@ -130,15 +130,22 @@ def readings(y, X, T1) -> Dict[str, Dict]:
 
 
 def _seed_job(args):
-    key, seed = args
-    warnings.filterwarnings("ignore")
+    """One seed of the full selection; returns ``((key, seed, m, att), counts)``."""
+    return S.counting(_seed_fit, *args)
+
+
+def _seed_fit(key, seed):
     y, X, T1, _ = basque(key)
     ch, _ = O.rrma(y, X, T1, P.BASQUE_M_RANGE, rng=np.random.default_rng(seed))
     return key, seed, ch.m, _att(y, ch.counterfactual, T1)
 
 
 def _perm_job(seed):
-    warnings.filterwarnings("ignore")
+    """One donor order at m = 2; returns ``(att, counts)``."""
+    return S.counting(_perm_fit, seed)
+
+
+def _perm_fit(seed):
     y, X, T1, _ = basque("regionno")
     perm = np.random.default_rng(seed).permutation(X.shape[1])
     ch = O.choose(O.candidate_paths(y, X[:, perm], T1, [2]), y, T1, O.weigh_pairwise)
@@ -146,7 +153,12 @@ def _perm_job(seed):
 
 
 def _boot_job(seed, B):
-    warnings.filterwarnings("ignore")
+    """One block-bootstrap run; the returned dict carries the solver diagnostics."""
+    out, counts = S.counting(_boot_fit, seed, B)
+    return dict(out, **counts)
+
+
+def _boot_fit(seed, B):
     y, X, T1, _ = basque("regionno")
     path = O.candidate_paths(y, X, T1, [2])[2]
     ch = O.choose({2: path}, y, T1, O.weigh_pairwise)
@@ -166,13 +178,15 @@ def path_a(workers: int, seeds: int, B: int, perms: int) -> Dict:
     groups = [sorted((g + 1).tolist()) for g in O.partition(order, 2)]
     out["screen"] = dict(order=(order + 1).tolist(), ties=ties, groups_m2=groups,
                          groups_match_paper=groups == P.BASQUE_GROUPS)
-    out["seams_vs_r"] = seams(y, X, T1)
-    out["readings_m2"] = readings(y, X, T1)
+    out["seams_vs_r"], n_seams = S.counting(seams, y, X, T1)
+    out["readings_m2"], n_read = S.counting(readings, y, X, T1)
 
     with Pool(workers) as pool:
         sweep = pool.map(_seed_job, [(k, s) for k in ("regionno", "regionname") for s in range(seeds)])
-        perm_att = pool.map(_perm_job, range(perms))
+        perms_out = pool.map(_perm_job, range(perms))
         boots = pool.starmap(_boot_job, [(s, B) for s in range(5)])
+    sweep, n_sweep = [r for r, _ in sweep], _total([n for _, n in sweep])
+    perm_att, n_perm = [a for a, _ in perms_out], _total([n for _, n in perms_out])
     for key in ("regionno", "regionname"):
         rows = [r for r in sweep if r[0] == key]
         att = np.array([r[3] for r in rows])
@@ -186,14 +200,23 @@ def path_a(workers: int, seeds: int, B: int, perms: int) -> Dict:
                       for m in sorted({r[2] for r in rows})},
             within_0005_of_paper=float(np.mean(np.abs(att - paper["att"]) < 0.005)))
     y2, X2, T12, _ = basque("regionname")
-    ch2 = O.choose(O.candidate_paths(y2, X2, T12, [2]), y2, T12, O.weigh_pairwise)
+    ch2, n_name = S.counting(
+        lambda: O.choose(O.candidate_paths(y2, X2, T12, [2]), y2, T12, O.weigh_pairwise))
     out["regionname_m2_att"] = _att(y2, ch2.counterfactual, T12)
     pa = np.array(perm_att)
     out["donor_order_m2"] = dict(perms=perms, att_min=float(pa.min()), att_max=float(pa.max()),
                                  att_q05=float(np.quantile(pa, .05)), att_q95=float(np.quantile(pa, .95)),
                                  distinct=int(len(np.unique(np.round(pa, 6)))))
     out["inference_m2"] = boots
+    # solver diagnostics (``simulate.counting``) by part of Path A
+    out["solver"] = dict(seams=n_seams, readings=n_read, seed_sweeps=n_sweep, regionname=n_name,
+                         donor_orders=n_perm,
+                         bootstrap=_total([{k: b[k] for k in S.COUNTED} for b in boots]))
     return out
+
+
+def _total(counts: List[Dict]) -> Dict:
+    return {k: int(sum(c[k] for c in counts)) for k in S.COUNTED}
 
 
 # ---------------------------------------------------------------- Monte Carlo
@@ -206,6 +229,35 @@ def _mc_job(args):
         return S.one_rep(case, T1, T2, N, rep)
     except Exception:                                    # noqa: BLE001 - reported in the results
         return dict(case=case, rep=rep, error=traceback.format_exc(limit=4))
+
+
+def summarise_case(rs: List[Dict], case: str, rng) -> Dict:
+    """One case's arms, paired ratios, 2x2, diagnostics and the paper's values."""
+    E = {a: np.array([r["err"][a] for r in rs]) for a in S.ARMS}
+    d = [r["diag"] for r in rs]
+    return dict(
+        arms={a: _summ(E[a]) for a in S.ARMS},
+        ratio_to_rrma={a: _ratio(E[a], E["RRMA"], rng) for a in S.ARMS if a != "RRMA"},
+        two_by_two=dict(
+            loss_given_one=_ratio(E["RANK_one"], E["OLS_one"], rng),
+            loss_given_avg=_ratio(E["RRMA"], E["LS_avg"], rng),
+            avg_given_rank=_ratio(E["RRMA"], E["RANK_one"], rng),
+            avg_given_ls=_ratio(E["LS_avg"], E["OLS_one"], rng)),
+        diag=dict(
+            d_mean=float(np.mean([x["d"] for x in d])),
+            share_with_ties=float(np.mean([x["ties"] > 0 for x in d])),
+            m_rrma=dict(sorted(Counter(x["m_rrma"] for x in d).items())),
+            strong_in_screen_mean=float(np.mean([x["strong_in_screen"] for x in d])),
+            b_fallbacks=int(sum(x["b_fallbacks"] for x in d)),
+            tau_fallbacks=int(sum(x["tau_fallbacks"] for x in d)),
+            rank_one_mallows_failed=int(sum(not x["rank_one_mallows"] for x in d)),
+            uncertified=int(sum(x["uncertified"] for x in d)),
+            reps_with_uncertified=int(sum(x["uncertified"] > 0 for x in d)),
+            unidentified=int(sum(x["unidentified"] for x in d)),
+            reps_used=len(rs),
+            rrma_seconds_mean=float(np.mean([r["sec"]["RRMA"] for r in rs]))),
+        paper={arm: [vals[0], vals[1]] for arm, vals in P.TABLE1_T60[case].items()},
+    )
 
 
 def _summ(e: np.ndarray) -> Dict:
@@ -234,29 +286,7 @@ def monte_carlo(workers: int, reps: int, T1: int = 60, T2: int = 30, N: int = 25
     rng = np.random.default_rng(20261018)
     out = dict(T1=T1, T2=T2, N=N, reps=reps, wall_seconds=wall, errors=errors, cases={})
     for case in S.CASES:
-        rs = [r for r in rows if r["case"] == case]
-        E = {a: np.array([r["err"][a] for r in rs]) for a in S.ARMS}
-        d = [r["diag"] for r in rs]
-        out["cases"][case] = dict(
-            arms={a: _summ(E[a]) for a in S.ARMS},
-            ratio_to_rrma={a: _ratio(E[a], E["RRMA"], rng) for a in S.ARMS if a != "RRMA"},
-            two_by_two=dict(
-                loss_given_one=_ratio(E["RANK_one"], E["OLS_one"], rng),
-                loss_given_avg=_ratio(E["RRMA"], E["LS_avg"], rng),
-                avg_given_rank=_ratio(E["RRMA"], E["RANK_one"], rng),
-                avg_given_ls=_ratio(E["LS_avg"], E["OLS_one"], rng)),
-            diag=dict(
-                d_mean=float(np.mean([x["d"] for x in d])),
-                share_with_ties=float(np.mean([x["ties"] > 0 for x in d])),
-                m_rrma=dict(sorted(Counter(x["m_rrma"] for x in d).items())),
-                strong_in_screen_mean=float(np.mean([x["strong_in_screen"] for x in d])),
-                b_fallbacks=int(sum(x["b_fallbacks"] for x in d)),
-                tau_fallbacks=int(sum(x["tau_fallbacks"] for x in d)),
-                rank_one_mallows_failed=int(sum(not x["rank_one_mallows"] for x in d)),
-                reps_used=len(rs),
-                rrma_seconds_mean=float(np.mean([r["sec"]["RRMA"] for r in rs]))),
-            paper={arm: [vals[0], vals[1]] for arm, vals in P.TABLE1_T60[case].items()},
-        )
+        out["cases"][case] = summarise_case([r for r in rows if r["case"] == case], case, rng)
     return out
 
 
@@ -281,6 +311,7 @@ def _print(res: Dict) -> None:
             print(f"   seeds ({key}): m {sw['m_counts']}  att {sw['att_min']:+.3f} .. {sw['att_max']:+.3f} "
                   f"(median {sw['att_median']:+.4f})  within 0.005 of paper {sw['within_0005_of_paper']:.2f}")
         print(f"   m=2 keyed by region name: att {a['regionname_m2_att']:+.4f}")
+        print(f"   solver diagnostics: {a.get('solver')}")
         do = a["donor_order_m2"]
         print(f"   m=2 under {do['perms']} donor orders: att {do['att_min']:+.4f} .. {do['att_max']:+.4f} "
               f"(5-95%: {do['att_q05']:+.4f} .. {do['att_q95']:+.4f}; {do['distinct']} distinct)")
@@ -296,7 +327,10 @@ def _print(res: Dict) -> None:
             print(f"   FAILED case {err['case']} rep {err['rep']}: {err['error'].strip().splitlines()[-1]}")
         for case, c in mc["cases"].items():
             print(f"-- case {case}: {c['diag'].get('reps_used')} reps, d {c['diag']['d_mean']:.1f}, "
-                  f"m_rrma {c['diag']['m_rrma']}, ties in {c['diag']['share_with_ties']:.0%}")
+                  f"m_rrma {c['diag']['m_rrma']}, ties in {c['diag']['share_with_ties']:.0%}, "
+                  f"uncertified solves {c['diag'].get('uncertified')} "
+                  f"(in {c['diag'].get('reps_with_uncertified')} reps), "
+                  f"unidentified fits {c['diag'].get('unidentified')}")
             for arm in S.ARMS:
                 v = c["arms"][arm]
                 r = c["ratio_to_rrma"].get(arm)

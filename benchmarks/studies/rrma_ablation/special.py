@@ -5,21 +5,37 @@ Three calls replace ``scipy.stats``:
 * ``norm_ppf``, the normal quantile, is Wichura's AS241 (``PPND16``, Applied
   Statistics 37, 1988), the algorithm R's ``qnorm`` uses; ``norm_sf`` and
   ``norm_cdf`` come from ``math.erfc``, so a tail probability is never formed
-  as ``1 - (something near 1)``.
+  as ``1 - (something near 1)``: the subtraction would be exact (Sterbenz), but
+  a stored probability in ``[1/2, 1)`` is already off by up to ``2^-54``
+  absolute (Russinoff 2022, Lemma 6.45), which a tail below 1e-16 cannot carry.
 * ``chi2_cdf``, ``chi2_sf`` and ``chi2_ppf`` rest on the regularized incomplete
   gamma function, by its series when ``x < a + 1`` and by Lentz's continued
   fraction otherwise, each returning the tail it computes accurately with the
   prefactor taken in logs. The quantile solves for the smaller tail, ``P = q``
-  when ``q <= 1/2`` and ``Q = 1 - q`` otherwise (``1 - q`` is exact there), by
-  Newton steps on the log of that tail from a Wilson-Hilferty start, inside a
-  bracket that bisection takes over whenever a step leaves it.
+  when ``q <= 1/2`` and ``Q = 1 - q`` otherwise (``1 - q`` is exact for
+  ``1/2 <= q <= 2``, Russinoff 2022, Corollary 4.16), by Newton steps on the
+  log of that tail from a Wilson-Hilferty start. A Newton step is taken only
+  when it lands inside the bracket and is shorter than half the step before
+  last, the halving test of Brent's zeroin, so step lengths contract by a
+  fixed factor every two iterations (the condition Nocedal and Wright 2006
+  put on a safeguarded contraction, p. 37); otherwise bisection, or doubling
+  while no upper end is known. It stops when the step and the log residual
+  are both at the level of rounding, or the bracket closes to ``4 eps``
+  relative (p. 62). The log residual is ``log1p((f - q) / q)`` near the root,
+  since ``log f - log q`` cancels to its last bit there (p. 615), and the step
+  uses ``P / pdf``, which can only underflow, not ``pdf / P``, which overflows
+  when the root is subnormal.
 * ``kendall_pvalue`` is ``cor.test(x, y, method = "kendall")``: the exact null
   distribution below 50 observations without ties, the normal approximation
   with R's tie-corrected variance otherwise. The exact branch counts
   permutations by number of inversions in Python integers and sums the tail it
   needs directly. R forms that tail as ``1 - pkendall(q - 1, n)``, which loses
   every digit near ``1e-16`` (it returns ``-4.4e-16`` for a Basque donor); the
-  sum here is exact to the last bit of the final division.
+  sum here is a rational number until the final division, so the p-value is
+  correctly rounded, within half a unit in the last place. Ties are found by
+  ``x_i - x_j == 0``, which holds exactly when ``x_i == x_j`` under IEEE
+  gradual underflow (a nonzero difference of doubles is at least the smallest
+  subnormal); on hardware that flushes subnormals to zero it does not.
 
 Every function validates its arguments and raises ``ValueError`` outside its
 domain; the iterations raise ``RuntimeError`` if they fail to converge, which
@@ -66,7 +82,7 @@ def norm_ppf(p: float) -> float:
                   + 5394.1960214247511077) * r + 687.1870074920579083) * r
                 + 42.313330701600911252) * r + 1.0)
         return q * num / den
-    r = p if q < 0 else 1.0 - p                     # 1 - p is exact for p >= 1/2
+    r = p if q < 0 else 1.0 - p                     # exact for 1/2 <= p <= 2 (Sterbenz)
     r = math.sqrt(-math.log(r))
     if r <= 5.0:
         r -= 1.6
@@ -95,9 +111,25 @@ def norm_ppf(p: float) -> float:
 # ----------------------------------------------------------- the chi-square
 
 
-def _log_prefactor(a: float, x: float) -> float:
-    """``log(x^a e^-x / Gamma(a))``, the factor both expansions share."""
-    return a * math.log(x) - x - math.lgamma(a)
+def _direct(a: float, x: float) -> bool:
+    """Whether ``x^a e^-x / Gamma(a)`` can be formed without overflow, or ``e^-x`` underflowing.
+
+    ``x^a`` may be subnormal: it is then as precise as the result can be.
+    """
+    return a < 171.0 and x < 708.0 and a * math.log(x) < 709.0
+
+
+def _prefactor(a: float, x: float) -> float:
+    """``x^a e^-x / Gamma(a)``, the factor both expansions share.
+
+    Formed directly unless a piece overflows: through logs, an absolute error
+    of ``eps |a log x|`` in the exponent becomes that relative error in the
+    tail, 120 eps at ``x = 1e-52`` and 700 at the edge of the normal range
+    (Nocedal and Wright 2006, p. 616).
+    """
+    if _direct(a, x):
+        return x ** a * math.exp(-x) / math.gamma(a)
+    return math.exp(a * math.log(x) - x - math.lgamma(a))
 
 
 def _gamma_series(a: float, x: float) -> float:
@@ -109,7 +141,7 @@ def _gamma_series(a: float, x: float) -> float:
         term *= x / ap
         total += term
         if abs(term) <= abs(total) * _EPS:
-            return total * math.exp(_log_prefactor(a, x))
+            return total * _prefactor(a, x)
     raise RuntimeError(f"incomplete gamma series did not converge (a={a}, x={x})")  # pragma: no cover
 
 
@@ -129,9 +161,27 @@ def _gamma_fraction(a: float, x: float) -> float:
         d = 1.0 / d
         delta = d * c
         h *= delta
+        if not math.isfinite(h):  # pragma: no cover - needs d at the _TINY guard, then an overflow
+            raise RuntimeError(f"incomplete gamma fraction overflowed (a={a}, x={x})")
         if abs(delta - 1.0) <= _EPS:
-            return h * math.exp(_log_prefactor(a, x))
+            return h * _prefactor(a, x)
     raise RuntimeError(f"incomplete gamma fraction did not converge (a={a}, x={x})")  # pragma: no cover
+
+
+def _gamma_pq(a: float, x: float) -> tuple:
+    """``(P, Q)``: the series below ``x = a + 1``, the continued fraction above.
+
+    The other tail is the complement. Its relative error is amplified by
+    ``v / (1 - v)``, 6.4 at ``a = 1, x = 2``; taking each expansion outside its
+    region instead was measured and is worse: against ``erfc``, the continued
+    fraction for ``Q(1/2, z)`` errs by 5e-15 to 1e-13 at ``z`` from 0.05 to 0.8,
+    where ``1 - series`` errs by at most 7e-16.
+    """
+    if x < a + 1.0:
+        p = _gamma_series(a, x)
+        return p, 1.0 - p
+    q = _gamma_fraction(a, x)
+    return 1.0 - q, q
 
 
 def gamma_p(a: float, x: float) -> float:
@@ -140,7 +190,7 @@ def gamma_p(a: float, x: float) -> float:
         raise ValueError(f"gamma_p needs a > 0 and x >= 0, got a={a}, x={x}")
     if x == 0:
         return 0.0
-    return _gamma_series(a, x) if x < a + 1.0 else 1.0 - _gamma_fraction(a, x)
+    return _gamma_pq(a, x)[0]
 
 
 def gamma_q(a: float, x: float) -> float:
@@ -149,7 +199,7 @@ def gamma_q(a: float, x: float) -> float:
         raise ValueError(f"gamma_q needs a > 0 and x >= 0, got a={a}, x={x}")
     if x == 0:
         return 1.0
-    return 1.0 - _gamma_series(a, x) if x < a + 1.0 else _gamma_fraction(a, x)
+    return _gamma_pq(a, x)[1]
 
 
 def chi2_cdf(x: float, df: float) -> float:
@@ -171,6 +221,18 @@ def _chi2_logpdf(x: float, df: float) -> float:
     return (a - 1.0) * math.log(x) - x / 2.0 - a * math.log(2.0) - math.lgamma(a)
 
 
+def _tail_rel_err(a: float, x: float) -> float:
+    """A bound on the relative error of the computed tail at ``(a, x)``, in units of the iteration.
+
+    64 eps for the expansions, plus ``eps |a log x - x - lgamma(a)|`` when the
+    prefactor has to go through logs.
+    """
+    err = 64.0 * _EPS
+    if not _direct(a, x):
+        err += 64.0 * _EPS * (abs(a * math.log(x)) + x + abs(math.lgamma(a)))
+    return err
+
+
 def chi2_ppf(q: float, df: float) -> float:
     """The chi-square quantile: ``x`` with ``P(chi2_df <= x) = q``, for ``0 < q < 1``."""
     q, df = float(q), float(df)
@@ -180,36 +242,47 @@ def chi2_ppf(q: float, df: float) -> float:
     target = 1.0 - q if upper else q                # exact when q > 1/2
     tail = chi2_sf if upper else chi2_cdf
     log_target = math.log(target)
-    # Wilson-Hilferty start; near zero use the leading term P ~ (x/2)^a / Gamma(a+1).
+    # Wilson-Hilferty start. P(a, z) <= z^a / Gamma(a + 1) for every z, so the
+    # root of that leading term is a lower bound on the quantile: the bracket's
+    # lower end, and the start when Wilson-Hilferty falls below it. Its exponent
+    # carries an absolute error of a few eps (|log q| + |lgamma(a + 1)|) / a,
+    # which exp makes relative (702 eps at q = 1.7e-305); the bound is lowered
+    # by eight times that so it stays below the root.
     a = df / 2.0
     k = 2.0 / (9.0 * df)
     x = df * (1.0 - k + norm_ppf(q) * math.sqrt(k)) ** 3
-    if not upper and q < 0.05:
-        x0 = 2.0 * math.exp((math.log(q) + math.lgamma(a + 1.0)) / a)
-        x = min(x, x0) if x > 0 else x0
-    elif not x > 0:
-        x = df
-    lo, hi = 0.0, math.inf
+    expo = (math.log(q) + math.lgamma(a + 1.0)) / a
+    x0 = 2.0 * math.exp(expo - 8.0 * _EPS * (2.0 + (abs(math.log(q)) + abs(math.lgamma(a + 1.0))) / a))
+    if not x > x0:
+        x = x0
+    lo, hi = x0, math.inf
+    steps = [math.inf, math.inf]                    # |step| one and two iterations back
     for _ in range(200):
         f = tail(x, df)
         if f == target:
             return x
         # P rises with x and Q falls: keep the root bracketed.
-        below = (f < target) != upper
-        if below:
+        if (f < target) != upper:
             lo = x
         else:
             hi = x
+        if math.isfinite(hi) and hi - lo <= 4.0 * _EPS * hi:
+            return 0.5 * (lo + hi)
+        x_new = math.nan
         if f > 0:
-            dlog = math.exp(_chi2_logpdf(x, df) - math.log(f)) * (-1.0 if upper else 1.0)
-            step = (math.log(f) - log_target) / dlog if dlog != 0 else math.nan
-            x_new = x - step
-        else:
-            x_new = math.nan
-        if not (lo < x_new < hi):
+            rel = (f - target) / target
+            dlog = math.log1p(rel) if abs(rel) <= 0.5 else math.log(f) - log_target
+            # Newton on log(tail): step = dlog * tail / pdf, signed by the tail's direction
+            step = dlog * math.exp(math.log(f) - _chi2_logpdf(x, df)) * (-1.0 if upper else 1.0)
+            if math.isfinite(step):
+                if abs(step) <= 4.0 * _EPS * x and abs(dlog) <= _tail_rel_err(a, x):
+                    return x - step
+                x_new = x - step
+        if not (lo < x_new < hi) or abs(x_new - x) >= 0.5 * steps[0]:
             x_new = 0.5 * (lo + hi) if math.isfinite(hi) else 2.0 * x
-        if abs(x_new - x) <= 4.0 * _EPS * x:
-            return x_new
+        if x_new == x:                              # no representable point between: x is the root
+            return x
+        steps = [steps[1], abs(x_new - x)]
         x = x_new
     raise RuntimeError(f"chi2_ppf did not converge (q={q}, df={df})")  # pragma: no cover
 

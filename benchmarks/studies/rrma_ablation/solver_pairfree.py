@@ -3,7 +3,7 @@
 Each RRMA fit minimises ``F(beta) = sum_{i<j} h_i h_j |e_i - e_j|`` with
 ``e = y - X beta``. ``oracle.wlad`` solves it as a linear programme with one
 column per pair of periods. This module solves ``K`` fits at once with no array
-carrying a pair dimension, and certifies each optimum exactly.
+carrying a pair dimension, and certifies each optimum by its duality gap.
 
 The reduction. In the dual, the multiplier of pair ``(i, j)`` is a flow on an
 edge of the complete graph on the periods, with capacity ``h_i h_j``; objective
@@ -30,7 +30,7 @@ on periods:
   ``h(U)``. Writing it as the minimum of its tangent lines turns
   ``min_U [h(U) (h(G) - h(U)) - psi(U)]`` into a minimum over thresholds on
   ``psi_i / h_i``, so the most violated ``U`` is a prefix of ``G`` in that order.
-  Checking those prefixes is exact, and the structural degeneracy of pairwise
+  The reduction to prefixes is exact, and the structural degeneracy of pairwise
   LAD (``p + 1`` tied periods tie all their pairs) needs no perturbation;
 * pivot: split a group along its most violated prefix, a descent edge, and take
   the long step to the first breakpoint where the slope turns non-negative.
@@ -42,6 +42,22 @@ on periods:
   variable is boxed (Pan Section 8.2, condition (8.19)). It is the counterpart
   of restarting from the old basis when a variable is added (Pan Section
   7.3.2; Bazaraa, Jarvis and Sherali 2010, Section 6.7).
+
+Numerics (``agents/agents_solvers.md``). The objective reads only differences
+of rows, so ``solve`` removes the column means of ``y`` and ``X`` first: a common
+level in the data then costs nothing beyond the rounding of its own storage
+(Nocedal and Wright 2006, p. 615, on differencing similar numbers). Every
+tolerance is ``TOL`` times a scale built from the data, with no absolute floor,
+so the answer and the certificate do not depend on the units of ``y``, ``X`` or
+``h`` (pp. 26-27): cut violations against ``h(G)^2 / 4``, slopes against
+``h(.)^2 max|u|``, the duality gap against ``h(.)^2`` times the size of the
+terms that make up each residual. A problem whose final vertex fails the
+certificate raises ``CertificateWarning``, which names how many did; the
+certificate re-checks the dual's feasibility itself and does not trust the
+pivot loop's last test. The ``p x p`` solves carry no condition check: LU with
+partial pivoting is backward stable (p. 607), its forward error grows with the
+condition number (p. 617), and the certificate, computed from ``beta`` on the
+original data, is what measures the result.
 
 Run::
 
@@ -64,6 +80,45 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "solver_pairfree.json"
 TOL = 1e-9
+_EPS = np.finfo(float).eps
+
+
+class CertificateWarning(RuntimeWarning):
+    """A solve returned a point that failed the duality-gap certificate.
+
+    ``problems`` is how many of the batch failed.
+    """
+
+    def __init__(self, message: str, problems: int = 1):
+        super().__init__(message)
+        self.problems = int(problems)
+
+
+class UnidentifiedFitWarning(RuntimeWarning):
+    """Fits whose ``beta`` the data identify only on the row space of the centred design.
+
+    ``problems`` is how many of the batch; ``fit`` returns the minimum-norm point
+    of the face of minimisers for them.
+    """
+
+    def __init__(self, message: str, problems: int = 1):
+        super().__init__(message)
+        self.problems = int(problems)
+
+
+def _check_weights(h):
+    if not np.all(np.isfinite(h) & (h > 0)):
+        raise ValueError("the period weights h must be positive and finite")
+
+
+def _centre(y, X):
+    """``y`` and ``X`` less their means over periods; the pairwise problem is unchanged."""
+    return (y - y.mean(axis=-1, keepdims=True), X - X.mean(axis=-2, keepdims=True))
+
+
+def _slope_tol(h, u):
+    """The slope a long step may leave negative: ``TOL h(.)^2 max|u|``, in the slope's units."""
+    return TOL * h.sum(axis=-1) ** 2 * np.abs(u).max(axis=-1)
 
 
 def _take(a, idx):
@@ -139,18 +194,48 @@ def certificate(h, labels, psi):
     return V[rk, pos], g, U
 
 
+def _ranks(X, h):
+    """Numerical rank of ``sqrt(h) X_c`` per problem (``X_c``: ``X`` less its h-weighted
+    column means), with that matrix's thin SVD.
+
+    The threshold is ``max(n, p) eps`` times the larger of the top singular value
+    and the Frobenius norm of ``sqrt(h) X`` itself: centring errs by ``eps`` times
+    the entries of ``X``, so a column of ones centres to noise near 1e-16, which
+    a threshold relative to the centred matrix alone counts as a direction.
+    """
+    K, n, p = X.shape
+    w = h / h.sum(axis=1, keepdims=True)
+    Xc = X - np.einsum("kn,knp->kp", w, X)[:, None, :]
+    U, sv, Vt = np.linalg.svd(np.sqrt(h)[..., None] * Xc, full_matrices=False)
+    ref = np.maximum(sv[:, 0], np.linalg.norm(np.sqrt(h)[..., None] * X, axis=(1, 2)))
+    r = (sv > ref[:, None] * max(n, p) * _EPS).sum(axis=1)
+    return r, Xc, U, sv, Vt
+
+
 def crash(y, X, h):
     """A starting vertex: weighted least squares, then the tightest ``p + 1`` residuals as one group.
 
     ``sum_{i<j} h_i h_j (e_i - e_j)^2 = h(.) sum_i h_i (e_i - e_bar)^2`` with
     ``e_bar`` the h-weighted mean, so the least-squares start is pair-free too.
+    It is solved by the SVD of ``sqrt(h) X_c``, not the normal equations, which
+    square the condition number (Nocedal and Wright 2006, pp. 251-253). The
+    pairwise objective reads ``X`` only through differences of rows, so a
+    constant column or collinear columns leave ``beta`` unidentified; a rank
+    below ``p`` by the usual numerical test raises ``ValueError``.
     """
+    _check_weights(h)
     K, n, p = X.shape
     w = h / h.sum(axis=1, keepdims=True)
-    Xc = X - np.einsum("kn,knp->kp", w, X)[:, None, :]
     yc = y - (w * y).sum(axis=1, keepdims=True)
-    A = np.einsum("knp,kn,knq->kpq", Xc, h, Xc) + 1e-12 * np.eye(p)
-    beta = np.linalg.solve(A, np.einsum("knp,kn,kn->kp", Xc, h, yc)[..., None])[..., 0]
+    rank, Xc, U, sv, Vt = _ranks(X, h)
+    if np.any(rank < p):
+        k = int(np.flatnonzero(rank < p)[0])
+        raise ValueError(
+            f"problem {k}: X has rank {rank[k]} below {p} once its column means are removed. "
+            "The pairwise objective reads X only through differences of rows, so too few "
+            "periods, a constant column (an intercept) or collinear columns leave beta "
+            "unidentified; fit() solves such problems on the identified coordinates")
+    beta = np.einsum("kqp,kq->kp", Vt, np.einsum("knq,kn->kq", U, np.sqrt(h) * yc) / sv)
     e = y - np.einsum("knp,kp->kn", X, beta)
     order = np.argsort(e, axis=1)
     es = _take(e, order)
@@ -170,19 +255,27 @@ def crash(y, X, h):
                 continue
             d = X[k, r] - X[k, pick[0]]
             v = d - Q.T @ (Q @ d)
-            if np.linalg.norm(v) > 1e-8 * max(1.0, np.linalg.norm(d)):
+            v = v - Q.T @ (Q @ v)                  # a second pass restores orthogonality
+            if np.linalg.norm(v) > 1e-8 * np.linalg.norm(d):
                 pick.append(r)
                 Q = np.vstack([Q, v / np.linalg.norm(v)])
                 if len(pick) == p + 1:
                     break
+        if len(pick) < p + 1:
+            raise ValueError(
+                f"problem {k}: no {p + 1} periods have row differences independent to "
+                "1e-8 relative; X is too close to rank deficient for this starting vertex")
         rows[k] = pick
     labels = np.broadcast_to(np.arange(n), (K, n)).copy()
     np.put_along_axis(labels, rows, np.repeat(rows.min(axis=1)[:, None], p + 1, axis=1), axis=1)
     return labels
 
 
-def _long_step_pairs(e, u, ld, h, Fp):
-    """Every breakpoint of the step in one transient (k, n, n) array; the entering pair."""
+def _long_step_pairs(e, u, ld, h, Fp, tol):
+    """Every breakpoint of the step in one transient (k, n, n) array; the entering pair.
+
+    The step stops at the first breakpoint where the slope reaches ``-tol``.
+    """
     k, n = e.shape
     app = (e[:, :, None] < e[:, None, :]) & (u[:, :, None] > u[:, None, :]) & (ld[:, :, None] != ld[:, None, :])
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -190,15 +283,21 @@ def _long_step_pairs(e, u, ld, h, Fp):
     inc = np.where(app, 2 * h[:, :, None] * h[:, None, :] * (u[:, :, None] - u[:, None, :]), 0.0)
     o = np.argsort(tt.reshape(k, -1), axis=1, kind="stable")
     slope = Fp[:, None] + np.cumsum(_take(inc.reshape(k, -1), o), axis=1)
-    hit = np.argmax(slope >= -TOL, axis=1)
-    if not np.all(slope[np.arange(k), hit] >= -TOL):          # pragma: no cover - LAD is bounded below
-        raise RuntimeError("unbounded line search")
+    ok = slope >= -tol[:, None]
+    if not np.all(ok.any(axis=1)):
+        raise RuntimeError("unbounded line search: the slope never turns non-negative")
+    hit = np.argmax(ok, axis=1)
     flat = o[np.arange(k), hit]
     return np.stack([flat // n, flat % n], axis=1), 1
 
 
-def _long_step_kinetic(e, u, ld, h, Fp):
-    """The same step with O(n) memory: swap adjacent periods as their residuals cross."""
+def _long_step_kinetic(e, u, ld, h, Fp, tol):
+    """The same step with O(n) memory: swap adjacent periods as their residuals cross.
+
+    Each swap exchanges two adjacent periods with ``u_lo > u_hi`` and so removes
+    one inversion of ``u``; there are at most ``n (n - 1) / 2``, so the loop ends
+    whatever the rounding, either at a stop or at the unbounded error.
+    """
     k, n = e.shape
     order = np.lexsort((ld, u, e), axis=1)
     live = np.ones(k, bool)
@@ -216,11 +315,11 @@ def _long_step_kinetic(e, u, ld, h, Fp):
             tc = np.where(ok, (_take(eL, hi) - _take(eL, lo)) / (ulo - uhi), np.inf)
         q = np.argmin(tc, axis=1)
         rr = np.arange(L.size)
-        if not np.all(np.isfinite(tc[rr, q])):               # pragma: no cover - LAD is bounded below
-            raise RuntimeError("unbounded line search")
+        if not np.all(np.isfinite(tc[rr, q])):
+            raise RuntimeError("unbounded line search: the slope never turns non-negative")
         a, b = lo[rr, q], hi[rr, q]
         Fp[L] += 2 * hL[rr, a] * hL[rr, b] * (ulo[rr, q] - uhi[rr, q])
-        stop = Fp[L] >= -TOL
+        stop = Fp[L] >= -tol[L]
         enter[L[stop]] = np.stack([a[stop], b[stop]], axis=1)
         sw, qs = L[~stop], q[~stop]
         order[sw, qs], order[sw, qs + 1] = order[sw, qs + 1], order[sw, qs].copy()
@@ -228,14 +327,18 @@ def _long_step_kinetic(e, u, ld, h, Fp):
     return enter, rounds
 
 
-#: Relative size of the row perturbation the pivots run on.
+#: Size of the row perturbation the pivots run on, relative to the spread of ``y``.
 EPS_PERTURB = 1e-9
-#: Problems whose final vertex failed the certificate on the unperturbed data.
-UNCERTIFIED = [0]
 
 
 def perturbation(y):
-    """A deterministic, row-specific shift of size ``EPS_PERTURB * max|y|``.
+    """A deterministic, row-specific shift ``EPS_PERTURB * max|y - mean(y)| * xi_i``.
+
+    ``xi_i`` lies in ``(-1, 1)``, from a sine hash of the row index; its smallest
+    magnitude for ``n <= 500`` is 1.06e-3, so every row's shift survives the
+    rounding of ``y + shift`` (Russinoff 2022, Lemma 6.45). The size follows the
+    spread of ``y``, not its level: sized by ``max|y|``, the shift at a level of
+    1e8 was 0.1, as large as the data's own variation.
 
     Ties in the data put zero-residual pairs outside the basis, a degenerate
     vertex on which the rank scores order tied periods arbitrarily. Pivoting on
@@ -246,7 +349,8 @@ def perturbation(y):
     """
     n = y.shape[-1]
     xi = np.modf(np.sin((np.arange(n) + 1) * 12.9898) * 43758.5453)[0]
-    return EPS_PERTURB * np.maximum(1.0, np.abs(y).max(axis=-1, keepdims=True)) * xi
+    spread = np.abs(y - y.mean(axis=-1, keepdims=True)).max(axis=-1, keepdims=True)
+    return EPS_PERTURB * spread * xi
 
 
 def dual_flows(y, X, h, labels):
@@ -257,6 +361,7 @@ def dual_flows(y, X, h, labels):
     vertex passes the prefix-cut test, and ``X' phi = 0`` by construction.
     """
     K, n, p = X.shape
+    y, X = _centre(y, X)
     beta, T, ti, tj = vertex(y, X, labels)
     e = _take(y - np.einsum("knp,kp->kn", X, beta), labels)
     a = rank_scores(h, labels, e)
@@ -270,50 +375,128 @@ def dual_flows(y, X, h, labels):
 
 
 def pairwise_objective(y, X, h, beta):
-    """``sum_{i<j} h_i h_j |e_i - e_j|`` from one sort; ties contribute nothing either way."""
+    """``sum_{i<j} h_i h_j |e_i - e_j|`` from one sort; ties contribute nothing either way.
+
+    The rank scores sum to zero, so ``a'e`` equals ``a'(e - c)`` for any ``c``;
+    centring ``e`` first keeps the products at the size of the residuals'
+    spread. Uncentred, at a level of 1e8 they cancelled to 1.5e-9 relative.
+    """
     K, n = y.shape
     e = y - np.einsum("knp,kp->kn", X, beta)
+    e = e - e.mean(axis=1, keepdims=True)
     return (rank_scores(h, np.broadcast_to(np.arange(n), (K, n)).copy(), e) * e).sum(axis=1)
 
 
 def certify(y, X, h, beta, phi):
-    """Weak duality on the unperturbed data: ``F(beta) - phi'e(beta)`` and ``X'phi`` both vanish.
+    """Weak duality on the unperturbed data: ``phi`` feasible, ``X'phi = 0``, zero gap.
 
     For dual-feasible ``phi`` (net flows of pair flows within ``[-h_i h_j, h_i h_j]``),
     ``F(b) >= phi'(y - X b)`` for every ``b``; with ``X' phi = 0`` the right side
     is the same number for every ``b``, so a zero gap proves ``beta`` optimal.
-    The dual constraints do not involve ``y``, so the dual found on the perturbed
-    data is feasible here, and ties in the data cannot fool the test.
+    Feasibility is Hoffman's cut condition on the whole set of periods, checked
+    by the prefix test of ``certificate``; it is re-checked here, not taken from
+    the pivot loop. The dual constraints do not involve ``y``, so the dual found
+    on the perturbed data is feasible here, and ties in the data cannot fool
+    the test.
+
+    Each test is relative to the size of what it measures, with no floor:
+    ``TOL h(.)^2 / 4`` for the cuts and for ``sum(phi)``, ``TOL`` times the
+    largest ``|X|'|phi|`` for ``X'phi``, and ``TOL h(.)^2`` times the largest
+    ``|y_i| + |x_i|'|beta|`` (the terms each residual is computed from) for the
+    gap. With a floor of 1, the gap test certified nothing once the objective
+    fell below 1.
     """
+    y, X = _centre(np.asarray(y, dtype=float), np.asarray(X, dtype=float))
+    K, n = y.shape
+    H2 = h.sum(axis=1) ** 2
     F = pairwise_objective(y, X, h, beta)
     e = y - np.einsum("knp,kp->kn", X, beta)
+    e = e - e.mean(axis=1, keepdims=True)
     gap = F - (phi * e).sum(axis=1)
+    mag = (np.abs(y) + np.einsum("knp,kp->kn", np.abs(X), np.abs(beta))).max(axis=1)
     resid = np.abs(np.einsum("knp,kn->kp", X, phi)).max(axis=1)
-    scale = np.maximum(1.0, np.abs(F))
-    xscale = np.maximum(1.0, np.abs(X).max(axis=(1, 2)) * np.abs(phi).sum(axis=1))
-    return (gap <= 1e-9 * scale) & (resid <= 1e-9 * xscale)
+    rscale = np.einsum("knp,kn->kp", np.abs(X), np.abs(phi)).max(axis=1)
+    cut = certificate(h, np.zeros((K, n), int), phi)[0]
+    return ((cut <= TOL * H2 / 4) & (np.abs(phi.sum(axis=1)) <= TOL * H2 / 4)
+            & (resid <= TOL * rscale) & (gap <= TOL * H2 * mag))
 
 
 def solve(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000,
           return_certified: bool = False):
-    """Exact fits of ``K`` problems from vertex labellings.
+    """Certified fits of ``K`` problems from vertex labellings.
 
-    The pivots run on ``y + perturbation(y)``; ``beta`` is then the final
-    vertex evaluated on ``y`` itself and checked by ``certify``. Returns
-    ``(beta, labels, pivots, rounds)``, the slopes, the optimal labellings (a
-    warm start for the next window), pivots per problem and the number of
-    vectorised line-search passes, with the certificate as a fifth element when
-    ``return_certified``. ``UNCERTIFIED`` counts problems that fail it.
+    ``y`` and ``X`` lose their column means first (the problem reads only
+    differences). The pivots run on ``y + perturbation(y)``; ``beta`` is then
+    the final vertex evaluated on ``y`` itself and checked by ``certify``.
+    Returns ``(beta, labels, pivots, rounds)``, the slopes, the optimal
+    labellings (a warm start for the next window), pivots per problem and the
+    number of vectorised line-search passes, with the certificate as a fifth
+    element when ``return_certified``. Problems that fail it raise
+    ``CertificateWarning``.
     """
-    y = np.asarray(y, dtype=float)
+    h = np.asarray(h, dtype=float)
+    _check_weights(h)
+    y, X = _centre(np.asarray(y, dtype=float), np.asarray(X, dtype=float))
     yp = y + perturbation(y)
     _, labels, pivots, rounds = _pivot(yp, X, h, labels, line_search, max_pivots)
     beta = vertex(y, X, labels)[0]
     cert = certify(y, X, h, beta, dual_flows(yp, X, h, labels))
-    UNCERTIFIED[0] += int((~cert).sum())
+    bad = int((~cert).sum())
+    if bad:
+        warnings.warn(CertificateWarning(
+            f"{bad} of {len(cert)} weighted Wilcoxon fits failed the duality-gap certificate", bad),
+            stacklevel=2)
     if return_certified:
         return beta, labels, pivots, rounds, cert
     return beta, labels, pivots, rounds
+
+
+def fit(y, X, h, labels=None, warm=None, line_search: str = "pairs"):
+    """Fits of ``K`` problems, whether or not the data identify ``beta``.
+
+    Problems whose centred design has full column rank go to ``solve``: from
+    ``labels`` (a previous window's labelling, extended here by the new periods
+    as groups of their own) where ``warm`` is set, from ``crash`` otherwise. For
+    the others the objective depends on ``beta`` only through its projection on
+    the row space of the centred design, spanned by ``V_r``; they are solved in
+    those ``r`` coordinates, ``Z = X V_r``, and returned as ``beta = V_r gamma``,
+    the minimum-norm point of the face of minimisers (zero when ``r = 0``), with
+    ``UnidentifiedFitWarning``. Returns ``(beta, labels, identified)``; the
+    labelling is a warm start for the next window where ``identified``.
+    """
+    y, X, h = (np.asarray(a, dtype=float) for a in (y, X, h))
+    _check_weights(h)
+    K, n, p = X.shape
+    rank, _, _, _, Vt = _ranks(X, h)
+    ident = rank == p
+    beta = np.zeros((K, p))
+    lab = np.broadcast_to(np.arange(n), (K, n)).copy()
+    idx = np.flatnonzero(ident)
+    if idx.size:
+        lab0 = np.empty((idx.size, n), int)
+        w = np.zeros(idx.size, bool) if labels is None or warm is None else np.asarray(warm, bool)[idx]
+        if w.any():
+            old = np.asarray(labels)[idx[w]]
+            new = np.broadcast_to(np.arange(old.shape[1], n), (old.shape[0], n - old.shape[1]))
+            lab0[w] = np.concatenate([old, new], axis=1)
+        if (~w).any():
+            c = idx[~w]
+            lab0[~w] = crash(y[c], X[c], h[c])
+        beta[idx], lab[idx], _, _ = solve(y[idx], X[idx], h[idx], lab0, line_search)
+    for k in np.flatnonzero(~ident):
+        if rank[k] == 0:
+            continue
+        V = Vt[k, :rank[k]].T
+        Z = (X[k] @ V)[None]
+        g = solve(y[k][None], Z, h[k][None], crash(y[k][None], Z, h[k][None]), line_search)[0][0]
+        beta[k] = V @ g
+    bad = int((~ident).sum())
+    if bad:
+        warnings.warn(UnidentifiedFitWarning(
+            f"{bad} of {K} weighted Wilcoxon fits have fewer identified directions than "
+            f"columns ({p}); beta is the minimum-norm point of the face of minimisers", bad),
+            stacklevel=2)
+    return beta, lab, ident
 
 
 def _pivot(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
@@ -331,7 +514,7 @@ def _pivot(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
         ya, Xa, ha, la = y[active], X[active], h[active], labels[active]
         k = active.size
         beta, T, ti, tj = vertex(ya, Xa, la)
-        e = _take(ya - np.einsum("knp,kp->kn", Xa, beta), la)          # exact ties within groups
+        e = _take(ya - np.einsum("knp,kp->kn", Xa, beta), la)          # ties imposed by the root's residual
         a_out = rank_scores(ha, la, e)
         theta = np.linalg.solve(np.transpose(T, (0, 2, 1)),
                                 -np.einsum("knp,kn->kp", Xa, a_out)[..., None])[..., 0]
@@ -340,7 +523,7 @@ def _pivot(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
         np.add.at(psi, (rows, ti), theta)
         np.add.at(psi, (rows, tj), -theta)
         viol, g, U = certificate(ha, la, psi)
-        done = viol <= TOL * np.maximum(1.0, ha.sum(axis=1) ** 2 / 4)
+        done = viol <= TOL * ha.sum(axis=1) ** 2 / 4
         beta_out[active[done]] = beta[done]
         active, keep = active[~done], ~done
         if not keep.any():
@@ -360,7 +543,7 @@ def _pivot(y, X, h, labels, line_search: str = "pairs", max_pivots: int = 1000):
         rhs[:, -1, 0] = -1.0                                           # U rises against G \ U
         u = _take(-np.einsum("knp,kp->kn", Xa, np.linalg.solve(Td, rhs)[..., 0]), ld)
         Fp = (rank_scores(ha, ld, e, u) * u).sum(axis=1)
-        enter, r = step(e, u, ld, ha, Fp)
+        enter, r = step(e, u, ld, ha, Fp, _slope_tol(ha, u))
         rounds += r
         la_, lb_ = ld[rk, enter[:, 0]], ld[rk, enter[:, 1]]
         merge = (ld == la_[:, None]) | (ld == lb_[:, None])
@@ -426,6 +609,7 @@ def main(argv=None):
     ap.add_argument("--reps", type=int, nargs="+", default=[1, 8])
     args = ap.parse_args(argv)
     warnings.filterwarnings("ignore")
+    warnings.simplefilter("default", CertificateWarning)
     from . import simulate as S
 
     rows = []

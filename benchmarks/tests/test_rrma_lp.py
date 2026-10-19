@@ -12,15 +12,18 @@ it is correct.
 from __future__ import annotations
 
 import ast
+import warnings
 from pathlib import Path
 
 import numpy as np
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from benchmarks.studies.rrma_ablation import highs_reference as HR
 from benchmarks.studies.rrma_ablation import lp as LP
 from benchmarks.studies.rrma_ablation import oracle as O
+from benchmarks.studies.rrma_ablation.solver_pairfree import CertificateWarning
 
 STUDY = Path(__file__).resolve().parents[1] / "studies" / "rrma_ablation"
 
@@ -143,6 +146,7 @@ def _hard(rng):
     return y, P, h, kind
 
 
+@pytest.mark.filterwarnings("error::benchmarks.studies.rrma_ablation.solver_pairfree.CertificateWarning")
 class TestDegenerateData:
     """Ties in the data put zero-residual pairs outside the basis. Before the
     solvers pivoted on perturbed data, 12 of 6,000 such problems hit the pivot
@@ -151,7 +155,6 @@ class TestDegenerateData:
 
     def test_rounded_and_near_duplicate_problems(self):
         rng = np.random.default_rng(123)
-        before = dict(LP.UNCERTIFIED)
         tied = 0
         for _ in range(400):
             y, P, h, kind = _hard(rng)
@@ -166,13 +169,9 @@ class TestDegenerateData:
             f, fr = _level_obj(y, P, h, w), _level_obj(y, P, h, ref)
             assert _on_simplex(w) and f <= fr + 1e-9 * (1 + fr)
         assert tied > 100
-        assert LP.UNCERTIFIED == before
 
     def test_rank_fits_on_rounded_data(self):
-        from benchmarks.studies.rrma_ablation import solver_pairfree as PF
-
         rng = np.random.default_rng(321)
-        before = PF.UNCERTIFIED[0]
         for _ in range(150):
             p, n = int(rng.integers(1, 6)), int(rng.integers(8, 50))
             X = np.round(rng.normal(size=(n, p)), 1)
@@ -183,7 +182,143 @@ class TestDegenerateData:
             ref = HR.wlad(y[i] - y[j], X[i] - X[j], h[i] * h[j])
             f, fr = _pair_obj(y, X, h, beta), _pair_obj(y, X, h, ref)
             assert f <= fr + 1e-9 * (1 + fr)
-        assert PF.UNCERTIFIED[0] == before
+
+
+def _strict(fn, *args):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", CertificateWarning)
+        return fn(*args)
+
+
+class TestTheCertificateIsReported:
+    """A failed certificate used to bump a module counter nobody read."""
+
+    def test_rank_lad_warns(self, monkeypatch):
+        rng = np.random.default_rng(1)
+        X = rng.normal(size=(20, 2))
+        y = X[:, 0] + rng.normal(size=20)
+        monkeypatch.setattr(LP, "_gap_ok", lambda *a, **k: False)
+        with pytest.warns(CertificateWarning, match="rank_lad"):
+            LP.rank_lad(y, X, np.ones(20))
+
+    def test_lad_warns(self, monkeypatch):
+        rng = np.random.default_rng(2)
+        y, P = rng.normal(size=20), rng.normal(size=(20, 3))
+        monkeypatch.setattr(LP, "_gap_ok", lambda *a, **k: False)
+        with pytest.warns(CertificateWarning, match="lad"):
+            LP.simplex_lad(y, P, np.ones(20))
+
+    def test_there_is_no_module_level_counter(self):
+        assert not hasattr(LP, "UNCERTIFIED")
+
+
+def _floor(y, P, h, pair, level=0.0):
+    """The rounding floor of an objective: 64 eps times the size of its terms.
+
+    An exact fit has optimum zero, computed as rounding noise, so a comparison
+    relative to the optimum alone means nothing there; the floor is built from
+    the data the terms are computed from, plus any level ``c`` they carried.
+    """
+    W = h.sum() ** 2 if pair else h.sum()
+    return 64 * np.finfo(float).eps * W * (np.abs(y).max() + np.abs(P).max() + level)
+
+
+class TestUnits:
+    """Nocedal and Wright (2006), pp. 26-27: the answer must not depend on units.
+    With ``max(1, .)`` under every tolerance, data at a scale of 1e-7 stopped
+    0.3 to 0.6 percent from the optimum, weights scaled by 1e-6 stopped
+    ``simplex_lad`` 19 percent from it, and data at a level of 1e8 (where the
+    perturbation, sized by ``max|y|``, was 0.1) 18 to 26 percent from it."""
+
+    @staticmethod
+    def _check(y, P, h, ys, Ps, hs, level=0.0):
+        i, j = O.pairs(len(y))
+        w = _strict(LP.simplex_rank_lad, ys, Ps, hs)
+        fr = _pair_obj(y, P, h, HR.simplex_wlad(y[i] - y[j], P[i] - P[j], h[i] * h[j]))
+        assert _on_simplex(w)
+        assert _pair_obj(y, P, h, w) <= fr * (1 + 1e-9) + _floor(y, P, h, True, level)
+        w = _strict(LP.simplex_lad, ys, Ps, hs)
+        fr = _level_obj(y, P, h, HR.simplex_wlad(y, P, h))
+        assert _on_simplex(w)
+        assert _level_obj(y, P, h, w) <= fr * (1 + 1e-9) + _floor(y, P, h, False, level)
+
+    @settings(max_examples=30, deadline=None)
+    @given(_weights(), st.integers(-8, 8))
+    def test_rescaling_changes_nothing(self, b, k):
+        y, P, h = b
+        self._check(y, P, h, 10.0 ** k * y, 10.0 ** k * P, h)
+
+    @settings(max_examples=30, deadline=None)
+    @given(_weights(), st.integers(-6, 6))
+    def test_rescaling_the_weights_changes_nothing(self, b, k):
+        y, P, h = b
+        self._check(y, P, h, y, P, 10.0 ** k * h)
+
+    @settings(max_examples=30, deadline=None)
+    @given(_weights(), st.sampled_from([1e2, 1e4, 1e6, 1e8]))
+    def test_a_common_level_changes_nothing(self, b, c):
+        """On the simplex ``(y + c) - (P + c) w = y - P w``, so both programmes are
+        unchanged; the data are stored to ``c * eps``, which enters the floor."""
+        y, P, h = b
+        self._check(y, P, h, y + c, P + c, h, level=c)
+
+
+class TestTheGapTestAtEveryScale:
+    """``_gap_ok`` read ``max(1, F)`` under its gap tolerance, so once the objective
+    fell below 1 it certified points far from the optimum. At a scale of 1e-7 the
+    objective is about 2e-5: points 1e-6 to 1e-4 worse have gaps between the
+    scaled tolerance (about 1e-13) and the floored one (1e-9), and must fail."""
+
+    def test_it_rejects_a_suboptimal_simplex_point(self):
+        from benchmarks.studies.rrma_ablation import solver_pairfree as PF
+
+        rng = np.random.default_rng(31)
+        n, S = 25, 4
+        y = 1e-7 * np.cumsum(rng.normal(size=n))
+        P = y[:, None] + 1e-7 * rng.normal(scale=[0.3, 0.6, 1.0, 1.5], size=(n, S))
+        h = rng.uniform(0.2, 1.0, size=n)
+        yc, Pc = PF._centre(y, P)
+        yp = yc + PF.perturbation(yc)
+        G, g, E, f = np.eye(S), np.zeros(S), np.ones((1, S)), np.ones(1)
+        F = lambda b: float(PF.pairwise_objective(yc[None], Pc[None], h[None], b[None])[0])
+        s0 = int(np.argmin([F(np.eye(S)[s]) for s in range(S)]))
+        labels, active = LP._rank_lad_pivot(yp, Pc, h, G, g, E, f, np.arange(n),
+                                            [k for k in range(S) if k != s0], 5000)
+        w = LP._rank_vertex(yc, Pc, G, g, E, f, labels, active)
+        phi, nu, lam = LP._rank_dual(yp, Pc, h, G, g, E, f, labels, active)
+
+        def ok(b):
+            tol = 1e-9 * h.sum() ** 2 * float(np.max(np.abs(yc) + np.abs(Pc) @ np.abs(b)))
+            return LP._gap_ok(F(b), phi, yc - Pc @ b, Pc, G, g, E, f, b, active, nu, lam, tol)
+
+        assert ok(w)
+        worse = []
+        for j in range(S):
+            for t in np.logspace(-8, -1, 50):
+                b = (1 - t) * w + t * np.eye(S)[j]
+                if 1e-6 < (F(b) - F(w)) / F(w) < 1e-4:
+                    worse.append(b)
+        assert len(worse) >= 5
+        assert not any(ok(b) for b in worse)
+
+
+class TestTheRatioTest:
+    """Russinoff (2022), Lemma 6.45: a slack computed from operands of size ``m``
+    is known to about ``m * eps``. A constraint one rounding inside its boundary
+    is on it, and a constraint violated by more than the tolerance is an error,
+    not a slack to clip to zero."""
+
+    def test_a_slack_inside_the_rounding_is_zero(self):
+        G = np.array([[1.0, 0.0], [0.0, 1.0]])
+        g = np.zeros(2)
+        beta = np.array([0.7, 3 * np.finfo(float).eps * 0.7])
+        t, k = LP._first_hit(G, g, beta, np.array([1.0, -1.0]), [0, 1])
+        assert (t, k) == (0.0, 1)
+
+    def test_a_violated_inactive_inequality_is_an_error(self):
+        G, g = np.eye(2), np.zeros(2)
+        with pytest.raises(RuntimeError, match="violated"):
+            LP._first_hit(G, g, np.array([0.5, -1e-6]), np.array([1.0, -1.0]), [0, 1])
 
 
 class TestTheOracleUsesThem:

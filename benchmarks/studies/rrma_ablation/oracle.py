@@ -247,7 +247,7 @@ def rank_fit(y: np.ndarray, X: np.ndarray, h: Optional[np.ndarray] = None):
     """
     hh = (np.ones(len(y)) if h is None else np.asarray(h, dtype=float))[None]
     yy, XX = np.asarray(y, dtype=float)[None], np.asarray(X, dtype=float)[None]
-    beta = PF.solve(yy, XX, hh, PF.crash(yy, XX, hh))[0][0]
+    beta = PF.fit(yy, XX, hh)[0][0]
     return float(np.median(y - X @ beta)), beta
 
 
@@ -257,20 +257,18 @@ def rank_fits(y: np.ndarray, X: np.ndarray, hs: Sequence[Optional[np.ndarray]], 
     ``X`` is ``(K, T, p)``: models of one size, solved together. ``ns`` must
     increase; each window starts from the previous window's optimal labelling
     with the new rows as groups of their own, which is a vertex of the larger
-    problem. Returns ``{n: (alpha (K,), beta (K, p))}``.
+    problem. A window too short to identify ``beta`` (``n - 1 < p``, or
+    collinear donors) is solved by ``solver_pairfree.fit`` on the identified
+    coordinates, and the next identified window starts from ``crash``.
+    Returns ``{n: (alpha (K,), beta (K, p))}``.
     """
     K, T, p = X.shape
     H = np.stack([np.ones(T) if h is None else np.asarray(h, dtype=float) for h in hs])
     Y = np.broadcast_to(np.asarray(y, dtype=float), (K, len(y)))
-    out, labels = {}, None
+    out, labels, warm = {}, None, None
     for n in ns:
         yy, XX, hh = Y[:, :n], X[:, :n], H[:, :n]
-        if labels is None:
-            lab0 = PF.crash(yy, XX, hh)
-        else:
-            new = np.broadcast_to(np.arange(labels.shape[1], n), (K, n - labels.shape[1]))
-            lab0 = np.concatenate([labels, new], axis=1)
-        beta, labels, _, _ = PF.solve(yy, XX, hh, lab0)
+        beta, labels, warm = PF.fit(yy, XX, hh, labels, warm)
         alpha = np.median(yy - np.einsum("knp,kp->kn", XX, beta), axis=1)
         out[n] = (alpha, beta)
     return out
@@ -533,7 +531,7 @@ def rrma_variance(y, X, T1, groups, w, rng, B: int = 1000):
     cols = []
     for s, g in enumerate(groups):
         Xb, Hb = X[idx_b][:, :, g], np.asarray(h_b[s])
-        beta, _, _, _ = PF.solve(Yb, Xb, Hb, PF.crash(Yb, Xb, Hb))
+        beta = PF.fit(Yb, Xb, Hb)[0]
         alpha = np.median(Yb - np.einsum("knp,kp->kn", Xb, beta), axis=1)
         cols.append(np.column_stack([alpha, beta]))
     draws = np.hstack(cols)

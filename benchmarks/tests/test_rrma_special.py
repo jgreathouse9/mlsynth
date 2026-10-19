@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from benchmarks.studies.rrma_ablation import special as SP
@@ -145,6 +145,80 @@ class TestChiSquare:
         for q, df in ((0.0, 2), (1.0, 2), (0.5, 0), (0.5, -1)):
             with pytest.raises(ValueError):
                 SP.chi2_ppf(q, df)
+
+
+class TestTheQuantileIteration:
+    """Nocedal and Wright (2006), p. 615 (differencing similar numbers) and p. 62
+    (a safeguarded step stays clear of the bracket's ends; the iteration stops on
+    a relative change near machine precision)."""
+
+    @pytest.fixture
+    def counted(self, monkeypatch):
+        n = {"calls": 0}
+        cdf, sf = SP.chi2_cdf, SP.chi2_sf
+
+        def c(x, df):
+            n["calls"] += 1
+            return cdf(x, df)
+
+        def s(x, df):
+            n["calls"] += 1
+            return sf(x, df)
+
+        monkeypatch.setattr(SP, "chi2_cdf", c)
+        monkeypatch.setattr(SP, "chi2_sf", s)
+        return n
+
+    def test_newton_does_the_work(self, counted):
+        """Newton on ``log f - log q`` stalled: two logs near -18.4 agree to their
+        last bit when ``f`` and ``q`` differ by 2e-15, the step came out 0, and
+        bisection took 55 more evaluations at ``q = 1e-8``, ``df = 2``. The grid's
+        worst is now 6; the bound is 10."""
+        worst = 0
+        for df in (0.5, 1, 1.5, 2, 3, 5, 8, 20, 80, 300):
+            for q in (1e-300, 1e-100, 1e-20, 1e-8, 1e-3, 0.05, 0.3, 0.5, 0.7, 0.95, 0.975,
+                      1 - 1e-8, 1 - 1e-15):
+                counted["calls"] = 0
+                SP.chi2_ppf(q, df)
+                worst = max(worst, counted["calls"])
+        assert worst <= 10
+
+    def test_a_misjudged_slope_still_converges(self, monkeypatch):
+        """A derivative 1000 times too large makes every Newton step 1000 times too
+        short. Inside the bracket each one is accepted; the safeguard bisects
+        whenever two steps fail to halve the bracket."""
+        logpdf = SP._chi2_logpdf
+        monkeypatch.setattr(SP, "_chi2_logpdf", lambda x, df: logpdf(x, df) + math.log(1000.0))
+        for q, df in ((0.3, 4), (0.95, 2), (1e-6, 3)):
+            x = SP.chi2_ppf(q, df)
+            tail = SP.chi2_cdf(x, df) if q <= 0.5 else SP.chi2_sf(x, df)
+            assert _rel(tail, min(q, 1 - q)) <= 1e-12
+
+    @settings(max_examples=300, deadline=None)
+    @given(st.floats(5e-324, float(np.nextafter(1.0, 0.0))))
+    # the counterexamples the property found, kept so they do not depend on the database
+    @example(3.4209794462655953e-23)
+    @example(1.4718929084089382e-52)
+    @example(1.6961562603034342e-305)
+    @example(3.041717799945633e-308)
+    @example(0.86328125)
+    @example(0.8395644640923099)
+    def test_two_degrees_of_freedom_in_closed_form(self, q):
+        """``chi2_2`` is exponential with mean 2, so ``x = -2 log1p(-q)``, down to
+        subnormal ``q`` where the derivative ratio ``pdf / P`` overflows.
+
+        A quantile is as accurate as its tail divided by ``kappa = P / (x pdf)``
+        (the smaller tail), its condition number. Over 15,000 ``q`` from 1e-323
+        to ``1 - 1e-16`` the worst error was ``6.0 eps (1 + kappa)`` relative, at
+        ``q = 0.84`` where ``Q = 1 - P`` multiplies the series' error by
+        ``P / Q``, and zero in the subnormal range; the bound is 12, plus one
+        subnormal step. Before the fixes it failed by ``1.4e-37`` at
+        ``q = 3.4e-23`` (Newton stalled on ``log f - log q``) and by 188 eps at
+        the edge of the normal range (the prefactor through logs)."""
+        ref = -2.0 * math.log1p(-q)
+        x = SP.chi2_ppf(q, 2)
+        kappa = min(q, 1 - q) / (ref * math.exp(-ref / 2) / 2) if ref > 0 else 1.0
+        assert abs(x - ref) <= 12 * np.finfo(float).eps * (1 + kappa) * ref + 5e-324
 
 
 def _brute_tail(n, q):

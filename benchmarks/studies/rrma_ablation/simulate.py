@@ -33,6 +33,7 @@ from mlsynth.utils.pda_helpers.fs.estimation import forward_select
 from mlsynth.utils.pda_helpers.lasso.estimation import fit_lasso
 
 from . import oracle as O
+from .solver_pairfree import CertificateWarning, UnidentifiedFitWarning
 
 CASES = ("a", "b", "c")
 BURN = 100
@@ -79,9 +80,35 @@ def _err(y0, cf, T1) -> float:
     return float(np.mean(y0[T1:] - cf[T1:]))
 
 
+#: The solver diagnostics the study counts, by the warning that carries each.
+COUNTED = {"uncertified": CertificateWarning, "unidentified": UnidentifiedFitWarning}
+
+
+def counting(fn, *args, **kwargs):
+    """``fn(*args, **kwargs)`` with other warnings silenced, and the solver diagnostics it raised.
+
+    Returns ``(result, counts)``: ``counts["uncertified"]`` solves failed their
+    duality-gap certificate, ``counts["unidentified"]`` fits had a ``beta`` the
+    data identify only in part (each summing the warnings' ``problems``).
+    """
+    with warnings.catch_warnings(record=True) as log:
+        warnings.simplefilter("ignore")
+        for cls in COUNTED.values():
+            warnings.simplefilter("always", cls)
+        out = fn(*args, **kwargs)
+    return out, {k: sum(w.message.problems for w in log if issubclass(w.category, cls))
+                 for k, cls in COUNTED.items()}
+
+
 def one_rep(case: str, T1: int, T2: int, N: int, rep: int) -> Dict:
-    """Every arm on one panel. Returns errors, timings and Algorithm 1's diagnostics."""
-    warnings.filterwarnings("ignore")
+    """Every arm on one panel. Returns errors, timings and Algorithm 1's diagnostics,
+    with the solver diagnostics of ``counting`` in ``diag``."""
+    out, counts = counting(_one_rep, case, T1, T2, N, rep)
+    out["diag"].update(counts)
+    return out
+
+
+def _one_rep(case: str, T1: int, T2: int, N: int, rep: int) -> Dict:
     rng = np.random.default_rng(seed_for(case, T1, N, rep))
     y0, X = draw(case, T1, T2, N, rng)
     err, sec = {}, {}
