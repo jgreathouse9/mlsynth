@@ -88,6 +88,37 @@ grep -rn "^\s*print(" mlsynth/ --include=*.py | grep -v /tests/   # Rule of Sile
 grep -rn "plt.show()" mlsynth/ --include=*.py | grep -v /tests/    # Rule of Separation
 ```
 
+## Numerical solvers
+
+`agents/agents_solvers.md` sets the standards for every optimization solver,
+hand-written or called from a package, from Nocedal and Wright, *Numerical
+Optimization* (2nd ed.), and Russinoff, *Formal Verification of Floating-Point
+Hardware Design* (2nd ed.), with the failure each rule caused in this repository,
+measured, and the test that pins it. Read it before writing or reviewing a
+solver, a tolerance, or a test of either. In brief:
+
+- A solver says what it found -- certified optimum, cap reached, infeasible,
+  unbounded, not identified -- as a typed field or a `warnings.warn` category,
+  never a module counter or a silent return (invariant 7).
+- Optimality is certified from the returned point on the caller's data, and the
+  certificate re-checks every condition itself.
+- Tolerances are relative to the size of what they compare, with no
+  `max(1, .)` or `(1 + |.|)` floor; the answer must not move when the data,
+  the weights or a common level are rescaled.
+- A computed zero is a zero only to the rounding of its terms; do not
+  difference what can be centred, logged as `log1p`, or computed directly;
+  least squares by QR or SVD, not normal equations; rank deficiency is named
+  and reported.
+- Iterations are capped or carry a written termination argument, and Newton
+  steps are safeguarded inside a bracket.
+
+Its testing section adds the numerical refinements to the TDD contract below:
+tolerances from an error model or a measured spread, absolute where the
+reference can be zero, conditioning-aware for inverse problems, every
+`hypothesis` counterexample pinned with `@example`, exact references where they
+exist. The backlog it measured (floors, unchecked `cvxpy` status, normal
+equations, silent clips) is counted there with file:line sites.
+
 ## Testing & TDD (test-first is mandatory)
 
 Write tests **before** the code. Any new feature, helper, function, estimator
