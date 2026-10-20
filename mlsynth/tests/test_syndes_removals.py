@@ -165,7 +165,7 @@ class TestAcceleratorRemoved:
     def test_certify_still_works_on_the_new_default(self):
         res = SYNDES(_cfg(certify=True)).fit()
         assert res.certificate is not None
-        assert res.certificate.method == "rayleigh"
+        assert res.certificate.method == "search"
         assert res.certificate.lower_bound <= float(res.design.objective_value) + 1e-6
 
 
