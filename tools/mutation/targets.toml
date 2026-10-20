@@ -6310,3 +6310,69 @@ timeout = 900.0
   replace = "    if False:\n        warnings.warn("
   models = "an uncertified design returned without a warning, so a caller reading only the design cannot tell it from the optimum"
 
+
+[[target]]
+name = "syndes-enumeration-stream"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_enumeration_stream.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-array-stream-skips-the-filter"
+  find = "                yield block if filt.is_empty else block[filt.accepts_rows(block)]"
+  replace = "                yield block"
+  models = "the array path emitting every set the walk builds, so conflict pairs, the cost budget and the pool's no-good sets stop excluding designs on the one-group path, which is every two-way and one-way search without stratum quotas"
+
+  [[target.mutant]]
+  id = "the-forced-units-are-not-merged"
+  find = "                if forced.size:\n                    lead = np.broadcast_to(forced, (len(block), forced.size))\n                    block = np.sort(np.hstack([lead, block]), axis=1)"
+  replace = "                if False:\n                    lead = np.broadcast_to(forced, (len(block), forced.size))\n                    block = np.sort(np.hstack([lead, block]), axis=1)"
+  models = "the forced units dropped from every streamed set: the rows come out K - |forced| wide and name only the free choice"
+
+  [[target.mutant]]
+  id = "a-split-table-loses-its-prefix"
+  find = "        yield from _combination_blocks(m - a - 1, k - 1, offset + a + 1, prefix + (offset + a,))"
+  replace = "        yield from _combination_blocks(m - a - 1, k - 1, offset + a + 1, prefix)"
+  models = "a table too large to cache split on its first element without carrying that element: every set past the cache limit loses a unit, which only a panel with more sets than the limit, or a lowered limit, can see"
+
+  [[target.mutant]]
+  id = "a-split-table-reorders"
+  find = "    for a in range(m - k + 1):\n        yield from _combination_blocks("
+  replace = "    for a in reversed(range(m - k + 1)):\n        yield from _combination_blocks("
+  models = "the split walked last element first: the same sets, so a test of membership passes, but in an order the walk does not have, which changes which of two tied designs the search returns"
+
+  [[target.mutant]]
+  id = "the-last-partial-chunk-is-dropped"
+  find = "    if count:\n        yield np.concatenate(held)"
+  replace = "    if False:\n        yield np.concatenate(held)"
+  models = "the regrouping discarding what is left after its last full chunk: the sets at the end of the walk are never priced, so the search is no longer exact and nothing raises"
+
+  [[target.mutant]]
+  id = "accepts-rows-ignores-conflict-pairs"
+  find = "        for i, j in self.conflict_pairs:\n            ok &= ~(member[:, i] & member[:, j])"
+  replace = "        for i, j in self.conflict_pairs:\n            pass"
+  models = "the vectorized filter skipping the spillover/adjacency rule that the per-set filter enforces"
+
+  [[target.mutant]]
+  id = "accepts-rows-ignores-the-budget"
+  find = "            ok &= self.costs[rows].sum(axis=1) <= self.budget + 1e-9"
+  replace = "            ok &= self.costs[rows].sum(axis=1) <= np.inf"
+  models = "the cost budget ignored by the vectorized filter, so a design over budget is priced and can be returned"
+
+  [[target.mutant]]
+  id = "accepts-rows-ignores-the-pools-no-good-sets"
+  find = "        for fs in self.forbidden_sets:\n            if len(fs) == rows.shape[1]:\n                ok &= ~member[:, sorted(fs)].all(axis=1)"
+  replace = "        for fs in self.forbidden_sets:\n            pass"
+  models = "the designs the pool already returned streamed again, so the pool returns the same design twice"
+
+  [[target.mutant]]
+  id = "accepts-rows-ignores-the-upper-quota"
+  find = "            if upper is not None:\n                ok &= inside <= upper"
+  replace = "            if False:\n                ok &= inside <= upper"
+  models = "a stratum's upper quota ignored by the vectorized filter: a design holding more of a group than the quota allows is priced and can be returned"
+
+  [[target.mutant]]
+  id = "accepts-rows-ignores-stratum-quotas"
+  find = "            if lower is not None:\n                ok &= inside >= lower"
+  replace = "            if False:\n                ok &= inside >= lower"
+  models = "a stratum's lower quota ignored by the vectorized filter, which the per-set filter enforces"
