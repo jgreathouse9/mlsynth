@@ -513,3 +513,17 @@ def test_the_choice_between_candidates_never_rests_on_projected_gradient(monkeyp
     values = {j: _exact_value(Y, [j]) for j in range(6)}
     assert [int(i) for i in d.selected_unit_indices] == [min(values, key=values.get)]
     assert d.raw_results["certified"]
+
+
+def test_an_exact_fit_that_does_not_converge_is_reported(monkeypatch):
+    """A fit that stops without converging prices nothing: the search raises
+    with the set named, and does not return a design on that fit's value."""
+    import mlsynth.utils.syndes_helpers.exact as ex
+    real = ex.solve_simplex_qp
+
+    def stalls(B, A, return_info=False):
+        w, info = real(B, A, return_info=True)
+        return w, {**info, "converged": False}
+    monkeypatch.setattr(ex, "solve_simplex_qp", stalls)
+    with pytest.raises(MlsynthEstimationError, match="did not converge"):
+        solve_synthetic_design_exact(_stalled(), 2, lam=0.0)
