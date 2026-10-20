@@ -497,23 +497,24 @@ and defaults them to the production-friendly setting:
 * ``time_limit`` (default ``60.0`` seconds) -- wall-clock cap on the
   solve, passed through as ``scip_params={"limits/time": value}``.
 * ``certify`` (default ``False``) -- attach a *validated* optimality gap to the
-  result, computed without branch-and-bound. SCIP's own gap closes slowly because
-  its dual bound is the continuous (McCormick) relaxation, loose for the two-way
-  objective; ``certify`` instead builds a mode-appropriate lower bound directly --
-  a convex QP for one-way (already tight), and for two-way a closed-form bound on
-  the Gram matrix (see "The Gram reduction" below) -- and reports
-  ``result.certificate.optimality_gap`` with the guarantee ``lower_bound``
-  :math:`\le` optimum :math:`\le` incumbent. The incumbent is the returned
+  result. The lower bound is the one the mode's exact search reports on the
+  whole pre-period, with the design's penalty and restrictions: for one-way and
+  per-unit, the optimum itself when the search closes; for two-way, the Rayleigh
+  bound over every size-:math:`K` design (see "The Gram reduction" below). The
+  certificate reports ``result.certificate.optimality_gap`` with the guarantee
+  ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent, and
+  ``certified=True`` when the search closed. The incumbent is the returned
   design's weights scored on the whole pre-period with the design's penalty
-  (``certificate.incumbent``), so under holdout selection, where the design was
-  fitted on the leading slice, the bound and the incumbent still refer to one
-  problem. The gap is ``(incumbent - lower_bound) / max(|incumbent|,
-  |lower_bound|)``. A relaxation that does not solve to ``optimal`` gives no
-  bound, and a bound above the incumbent beyond its tolerance is reported as a
-  negative gap with ``certified=False`` and a ``SYNDESCertificateWarning``. With
-  ``K=None`` the two-way bound is the smallest over every size. The per-unit
-  objective has an :math:`(N, N)` weight matrix, so no cheap tight bound exists;
-  it returns ``certified=False``, not a misleading number.
+  (``certificate.incumbent``). The search the design came from is reused when it
+  ran on the whole pre-period; under holdout selection, where the design was
+  fitted on the leading slice, the certificate searches the whole pre-period
+  again, so the bound and the incumbent still refer to one problem. The gap is
+  ``(incumbent - lower_bound) / max(|incumbent|, |lower_bound|)``. A search that
+  raises gives no bound, and its note says why; a search stopped at its limit
+  gives a valid bound with ``certified=False``; a bound above the incumbent
+  beyond its tolerance is reported as a negative gap with ``certified=False``
+  and a ``SYNDESCertificateWarning``. With ``K=None`` the two-way bound is the
+  smallest over every size searched.
 
 This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
 the paper proves the design NP-hard and gives the mixed-integer program but
@@ -672,14 +673,15 @@ conic method, so the bound held up to solver tolerance.)
 How the modes interact with the lift. In one-way global the treated weights are
 pinned at :math:`1/K`, so :math:`\mathbf{D}` enters the contrast linearly: there
 is no :math:`w_i D_i` product, the McCormick step is vacuous, and
-:math:`p_{\mathrm{LP}} = p^\star` already (to ~1% in practice). The plain QP is
-the certificate and no lift is needed. In per-unit the weights form an
-:math:`N \times N` array :math:`\{w^i_j\}`, so :math:`\mathbf{x}` carries
-:math:`O(N^2)` entries and the moment matrix is :math:`O(N^2) \times O(N^2)`,
-i.e. :math:`O(N^4)` -- intractable -- while the continuous relaxation is ~70%
-loose. Per-unit therefore returns ``certified=False`` with the valid-but-loose
-continuous bound. The two-way lift was :math:`O(N^3)`, and is described here
-because it is what the closed-form bound below replaced.
+:math:`p_{\mathrm{LP}} = p^\star` already (to ~1% in practice). In per-unit the
+weights form an :math:`N \times N` array :math:`\{w^i_j\}`, so
+:math:`\mathbf{x}` carries :math:`O(N^2)` entries and the moment matrix is
+:math:`O(N^2) \times O(N^2)`, i.e. :math:`O(N^4)` -- intractable -- while the
+continuous relaxation is ~70% loose. The two-way lift was :math:`O(N^3)`, and is
+described here because it is what the closed-form bound below replaced. The
+certificate no longer solves any relaxation: each mode's exact search reports
+its own bound, and for one-way and per-unit that bound is the optimum itself
+("The one-way design by search", "The per-unit design by search").
 
 The Gram reduction
 ~~~~~~~~~~~~~~~~~~~~
@@ -759,10 +761,10 @@ One matrix inverse and one eigenvalue. There is no relaxation to solve, so
 there is no iteration cap to exhaust and no size gate. On the panels used to
 develop it the bound reached 88.8, 90.6 and 92.0 percent of the true optimum at
 :math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment lift it replaced,
-and took about 0.1 ms against 0.1--0.23 s. It goes unavailable in one situation:
-:math:`\mathbf{G} + \lambda\mathbf{I}` is near-singular when :math:`\lambda`
-approaches zero on a panel with fewer pre-periods than units, and the certificate
-then reports ``lower_bound=None`` with a note naming the cause.
+and took about 0.1 ms against 0.1--0.23 s. It cannot be formed in one situation:
+:math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision when
+:math:`\lambda` approaches zero on a panel with fewer pre-periods than units;
+"Solving it that way" below says what the search does then.
 
 Since :math:`4\alpha` is a constant, ranking designs by :math:`\mathrm{lb}`
 amounts to maximizing :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
