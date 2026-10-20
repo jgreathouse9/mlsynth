@@ -503,7 +503,8 @@ def test_the_choice_between_candidates_never_rests_on_projected_gradient(monkeyp
     def backwards(problem, t_idx, c_idx, **kw):
         out = real(problem, t_idx, c_idx, **kw)
         order = np.argsort(np.argsort(out.value))          # 0 for the best
-        shift = 1e-3 * float(out.value.max()) * (len(order) - order)
+        spread = float(out.value.max() - out.value.min())
+        shift = spread * (len(order) - order)              # the best now ranks last
         return type(out)(**{**out.__dict__, "value": out.value + shift,
                             "gap": out.gap + shift})
     monkeypatch.setattr(ex, "solve_partition_batch", backwards)
