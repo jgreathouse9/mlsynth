@@ -31,6 +31,9 @@ Where the rules come from:
 - The SYNDES studies, `benchmarks/studies/syndes_per_unit_exact/` and
   `benchmarks/studies/syndes_one_way_exact/`, which measured the searches against
   SCIP on 156 runs each.
+- The SYNDES two-way study, `benchmarks/studies/syndes_global_bnb/` (#834),
+  which built node bounds above the candidate limit, solved the strongest one
+  by a first-order dual, and timed the search against enumeration after #828.
 - The books and papers under References, read against these problems by
   readers who checked each claim on synthetic panels where it needed one.
 
@@ -188,6 +191,18 @@ optimality to bound a node; the solver's multipliers, clipped to their cones,
 define a Lagrangian whose minimum over the designs is a bound. Accurate
 multipliers give a tight bound, inaccurate ones a valid weaker one.
 
+Since the certificate is a function of the multipliers, a node can skip the
+solver and minimise the certificate itself. SYNDES's two-way lift is bounded by
+`const + (n + 1) lambda_max(M)` for any multipliers, because a design's lifted
+matrix is semidefinite with trace `n + 1`. BiqCrunch's bounding procedure
+(Krislock, Malick and Roupin) minimises a regularised form of it by L-BFGS-B,
+and every evaluation reports the exact eigenvalue bound, so the method stops as
+soon as the node prunes. At 32 to 40 free units it was one to seven times faster
+than Clarabel and within 0.4% of its bound (`syndes_global_bnb/README.md`). Its
+bound is computed in floating point; the build certifies the final multipliers
+with `lambda_max` bounded under controlled rounding, as MAREX bounds
+`lambda_min`.
+
 The bound is evaluated on the original data, with its rounding controlled. MAREX
 assembles the Lagrangian in exact arithmetic from the panel's exact Gram matrix
 and bounds the smallest eigenvalue below exactly: a floating-point Cholesky
@@ -256,6 +271,15 @@ which bound family to build.
 The same discipline applies to a whole search: compute what it must beat. The
 MAREX enumeration prices a set in about 1.4 µs with a batched closed-form bound,
 so a node bound costing a second must save about 700,000 sets to break even.
+SYNDES's two-way enumeration after #828 prices a set in 0.8 µs at 40 units and
+1.2 µs at 60, so a lift costing 1 to 2.9 s must save one to three million sets.
+Below the candidate limit the search lost at every size measured: 3.0 and 3.1 s
+enumerating 3.8 million sets, against 7.4 s for the fastest search.
+
+Measure the bar again whenever the enumeration changes. The same study first
+compared against the library before #828, at 3.3 to 5.3 µs a set, and had the
+search 2.2 to 3.3 times faster on three of its four rows; after #828 it was
+slower on all of them.
 
 ## 6. Bound a node only when pricing its subtree costs more
 
@@ -274,13 +298,42 @@ batch, where fixed overheads dominate, overstated the price per set at 21 to 37
 µs against 6.5 µs, and sent the root of a six-treated search to 93 s of lifts
 where enumeration cost 25 s.
 
+The rule also needs the chance that the bound prunes. A bound that costs less
+than its subtree's pricing and never prunes is pure overhead, and a slightly
+weaker bound that costs much less is the better choice inside a branch and
+bound (Liuzzi, Locatelli and Piccialli 2019). SYNDES's two-way search weighs
+each tier, the cheap bound and the lift, by its own prune rate, estimated as the
+search runs per subtree-size bucket from a prior of one half. It bounds a node
+when the subtree's pricing times that rate exceeds the bound's cost. Weighting
+the lift brought the factor panel at six treated from 33.2 s to 22.3 s with the
+interior-point lift and 13.9 s with the first-order one. The prior still pays
+a lift or two per size where no lift prunes; pooling the estimate across sizes
+is open.
+
+A weight needs the bound's real cost. The lift's calibration timed it without a
+prune target, so over its whole schedule, while in the search it stops at the
+target. Weighted by a prune rate, the overstated cost starved the lift: GeoLift
+with ten treated took 1,095.9 s and priced 79% of its sets. The cost is now
+learned from the lifts the search pays for, averaged in logarithms; an
+arithmetic average let two calibration pseudo-lifts, a hundred times too dear,
+outweigh two hundred real ones.
+
+A bound cut short is a bound that did not prune. A give-up rule that abandoned a
+lift whose last round projected more than ten further rounds to reach the
+target fed the prune-rate estimate its own abandonments: on GeoLift with eight
+treated, 0 of 14,367 lifts pruned, and with ten treated the search ran past
+900 s against 77.6 s with the rule off. The lift still stops at the prune
+target, and the rule is off.
+
 The costs decide where the search spends time and never what it proves. A leaf
 is never bounded: a node with no free unit is one set, and lifting it raised an
 `IndexError` that the fixed threshold had hidden.
 
 Test pattern: Hypothesis properties that the rule is monotone in the subtree's
-size and that the search's answer is the same under any cost model; mutants for
-a fixed threshold, a rule computed and ignored, and a bounded leaf.
+size and that the search's answer is the same under any cost model; a bound that
+never prunes is weighted down until it stops running; the learned cost observes
+every bound paid for; mutants for a fixed threshold, a rule computed and
+ignored, and a bounded leaf.
 
 ## 7. A node bound has to see the cardinality
 
@@ -312,6 +365,16 @@ positive entries bounds the whole problem at once, at 88.8 to 92.0% of the
 optimum. Per-unit's node bound carries `K` through the sum of the `K - |F|`
 smallest single-unit fits.
 
+Two-way above the candidate limit needs more (`syndes_global_bnb/README.md`).
+On flat panels a bound must reach about 99.5% of each subtree's minimum to leave
+under 1% of the sets. A trust-region subproblem over a node's free signs, the
+sphere cut by the cardinality plane (Moré and Sorensen 1983), reaches 97.1 to
+98.5% there. Shor's lift adds 0.2 to 0.6 points on factor panels. The four
+products `(1 +- x_i)(1 +- x_j) >= 0`, the sign-vector form of the doubly
+nonnegative relaxation, carry the bound to 99.25% or more on every panel
+measured, as entrywise nonnegativity carried MAREX's; the triangle inequalities
+among the free units close the rest on the steep noise panel.
+
 ## 8. Batch the bound; price set by set only what it leaves
 
 A bound evaluated over thousands of sets in one array operation costs about a
@@ -324,6 +387,11 @@ design spent 1.29 ms per candidate when run one candidate at a time (43% in
 least-squares calls on 90 x 8 matrices whose arithmetic is about 3 µs); run in
 lockstep over a batch, it took the `beta = 100` search from 82,296 fits and 237
 s to 677 fits and 16 s.
+
+A subtree priced by its own call pays the call too. SYNDES two-way's first
+search priced small subtrees at about 12 µs a set, because each subtree paid a
+call's overhead; buffering subtrees into one call fixed it, as it had fixed
+MAREX's (`rca_enumeration_vs_bnb.md`, cause 5).
 
 The tightest batched bounds make a search cost one fit. SYNDES one-way's ridge
 bound `d'(C'HC)^{-1} d`, one `(K + 1) x (K + 1)` solve per set, equalled the
@@ -362,6 +430,11 @@ Exact reuse:
 - A parent's fit is dual feasible for a child after one bound change, so a dual
   step warm-starts the child (Atamtürk and Gómez 2019 report about 15 times per
   node over an interior-point solver).
+- Any multipliers give a bound (rule 3), so a parent's multipliers are a safe
+  starting point for a child's first-order lift; what they buy is time, and
+  here little of it. In SYNDES two-way they saved 4% of the evaluations with
+  the regularisation restarted at `alpha = 0.1` and 12% at `1e-2`, and cost 27%
+  more at `1e-4`.
 
 Reuse as a bound:
 
@@ -369,6 +442,11 @@ Reuse as a bound:
   certified bound with no solve (`marex_bnb/inherit.py`). On GeoLift it
   recovered a median 5.8% of the gain a fresh lift gives and excluded 0 of 34
   excludable markets. Valid and nearly useless: requirement 5 of rule 7 again.
+- Dual fixing (Matter and Pfetsch 2022) reads the parent's multipliers on each
+  child to fix a unit in or out. In SYNDES two-way each child's bound cost one
+  eigendecomposition, 0.03 to 0.06 s for all the free units of a 40-unit node,
+  and it fixed no unit at the nodes that do not prune; at nodes that prune
+  anyway it fixed 5 to 16.
 
 ## 11. Singular panels are a regime of the search, not an error
 
@@ -408,6 +486,17 @@ reached 85% of the bound, a spectral bundle method 5%, LoRADS did not converge,
 SCS certified nothing) and why SCIP's `optimal` on SYNDES's BLS draws depended on
 their units.
 
+The lift's solver sees the same scale. SYNDES two-way's lift, first solved in
+the outcome's units, had `R` scaling as those units to the power -4, near
+`1e-11` on GeoLift, under Clarabel's absolute tolerances; Clarabel reported
+`optimal` at a value 12% under the true maximum. A first-order method's
+schedule has to be set on the scaled problem as well: a log-sum-exp smoothing
+of `lambda_max` with the fixed schedule `mu = 1, 0.1, 0.01, 0.001` moved
+nothing in its first two stages, because the scaled top eigenvalue is near 0.5.
+Scaled, and with BiqCrunch's regularised dual, a first-order lift reached the
+interior-point bound within 0.4% (rule 3). Whether one does for persp+N is
+#833.
+
 Test pattern: a Hypothesis property over scales `10^k`, `k` from -6 to 6, and
 level shifts up to `1e6`: the same design, the objective scaled by `s^2`.
 
@@ -430,7 +519,10 @@ unless the row says otherwise; `persp_n.md` has the readers' details.
 | Benders master over tangent cuts | Ghezzi et al. 2026 (CAMINO) | many cuts | converges, in the worst case after as many sets as enumeration; never rose above the relaxation in the paper's 72-binary run; not measured here |
 | Diagonal perspective and small-piece hulls | Frangioni and Gentile; Günlük and Linderoth; Zheng, Sun and Li 2014; Han, Gómez and Atamtürk 2023; De Rosa and Khajavirad 2026 | a usable diagonal or small pieces | 0 once the units outnumber the periods by two or three |
 | Eigenvalue shift, S-lemma | Bienstock 2010; Li 2025 | positive definite on the free units | off near the root when `N > T + 1` (rule 11) |
-| Semidefinite with the cardinality on the lift | Rendl in Jünger et al. 2010; Burer 2009 | a solve per node | persp+N: 97.5 to 98.5% at the root in seconds, certified (rule 7) |
+| Semidefinite with the cardinality on the lift | Rendl in Jünger et al. 2010; Burer 2009 | a solve per node | persp+N: 97.5 to 98.5% at the root in seconds, certified (rule 7); SYNDES two-way's sign-vector lift with the four products: 99.25% or more of subtree minima at 24 units, 1 to 2.9 s a lift by Clarabel at 30 to 40 free units |
+| Regularised dual of the lift, triangle inequalities as cuts | Krislock, Malick and Roupin (BiqCrunch); Rendl, Rinaldi and Wiegele 2006 (BiqMac); Burer and Vandenbussche 2008; Buchheim, Montenegro and Wiegele 2019 | a lifted matrix whose norm is the same on every design | SYNDES two-way: one to seven times faster than Clarabel at 32 to 40 free units and within 0.4% of its bound, tighter with the triangles on the noise panel; the search 10.8 times faster than enumeration on GeoLift at 848 million sets (rules 3 and 6) |
+| Trust-region subproblem over the free signs | Moré and Sorensen 1983 | the cardinality as a plane through the sign sphere | SYNDES two-way: 97.1 to 98.5% of subtree minima on flat panels, 88.0 to 91.1% on steep ones, 0.26 ms a node by Newton's method |
+| Dual fixing | Matter and Pfetsch 2022 | multipliers that bound a child | SYNDES two-way: no unit fixed at a node that does not prune (rule 10) |
 | Closed form on a fixed assignment | SYNDES `gram.py`; MAREX `exact.py` | the sign or side pattern named | MAREX treated bound; SYNDES two-way `4 alpha / sigma'R sigma` |
 | Ridge relaxation (drop only the sign conditions) | SYNDES one-way study | `G + lam I` invertible | equals the optimum to rounding on 126 of 132 runs |
 | Pool monotonicity | SYNDES per-unit study | a fit that can only rise as its pool shrinks | per-unit branch and bound closed all 156 runs |
@@ -449,7 +541,10 @@ unless the row says otherwise; `persp_n.md` has the readers' details.
 | SYNDES per-unit | depth-first branch and bound on units, node limit 5,000,000 | the same, with its open bound at the limit | the search's bound |
 
 The open row is SYNDES's two-way and one-way searches above their limit, where
-no node bound has been built (#803, #820).
+no node bound has been built (#803, #820). The two-way study (#834) settled what
+to build there: the depth-first search with the regularised-dual lift, each tier
+weighted by its prune rate, the lift's cost learned, and its multipliers
+certified under controlled rounding. Below the limit enumeration stays.
 
 ---
 
@@ -478,7 +573,10 @@ standing tests are:
   prices every set of a panel at level `1e8`, and the stop rule by a panel built
   so that a donor exclusion moves the optimum.
 - Timings live in studies, never in tests. A test pins what a search proves,
-  not how long it takes.
+  not how long it takes. A search whose cost model reads the clock makes its
+  tests read it too: SYNDES two-way's search could not be scored by a mutation
+  run while its baseline test timed a lift, and pinning the lift's calibration
+  to a constant in the test made the baseline deterministic.
 
 ---
 
@@ -486,12 +584,18 @@ standing tests are:
 
 - A node bound for SYNDES two-way and one-way above the candidate limit (#803,
   #820). Every two-way bound is also a one-way bound, since one-way's constraints
-  imply two-way's and its optimum is no lower. The candidate under study bounds `sigma'R sigma` over the free
-  signs of a node by a trust-region subproblem; its validity is not yet
-  established.
+  imply two-way's and its optimum is no lower. The two-way study settled the
+  bound (rules 3, 6 and 7). Left to build: the controlled-rounding certificate
+  of the first-order lift, the prune-rate estimate pooled across subtree sizes,
+  and a node limit that reports the smallest open bound. On flat panels no
+  bound of this family separates the sets near the optimum, and the search
+  costs about what enumeration does: 1,122.3 to 1,274.8 s against 710.6 s on
+  the factor panel with ten treated of forty.
 - Hundreds to thousands of units. persp+N has about `n^2` variables per node and
   took 4 s at 40 markets and 150 to 186 s at 100; at 2,000 no interior-point
-  method solves it per node. The route at that scale is structure: small `K` by
+  method solves it per node. A first-order lift (rule 3) drops the
+  interior-point solve but keeps a dense eigendecomposition of an
+  `(n + 1)`-row matrix per evaluation. The route at that scale is structure: small `K` by
   certified enumeration, and clusters or screening to bring each search to tens
   or low hundreds of units.
 - MAREX's weakly-targeted design above the limit: its objective couples the two
@@ -547,6 +651,15 @@ Papers.
 - Buchheim, C., De Santis, M., Rinaldi, F., and Trieu, L. (2018). "A Frank-Wolfe
   based branch-and-bound algorithm for mean-risk optimization." Journal of
   Global Optimization 70:625-644.
+- Buchheim, C., Montenegro, M., and Wiegele, A. (2019). "SDP-based
+  branch-and-bound for non-convex quadratic integer optimization." Journal of
+  Global Optimization 73:485-514. Coordinate ascent on a dual whose constraint
+  matrices have rank at most two.
+- Burer, S., and Vandenbussche, D. (2008). "A finite branch-and-bound algorithm
+  for nonconvex quadratic programming via semidefinite relaxations."
+  Mathematical Programming 113:259-282. An augmented Lagrangian whose bound is
+  valid at every iterate, solved loosely near the root, children warm-started
+  from the parent.
 - Büsing, C., Gersing, T., and Koster, A. M. C. A. (2023). "A branch and bound
   algorithm for robust binary optimization with budget uncertainty."
   Mathematical Programming Computation 15:269-326. Stop a node's solve when its
@@ -566,15 +679,25 @@ Papers.
 - Jansson, C., Chaykin, D., and Keil, C. (2007). "Rigorous error bounds for the
   optimal value in semidefinite programming." SIAM Journal on Numerical Analysis
   46(1):180-200.
+- Krislock, N., Malick, J., and Roupin, F. BiqCrunch 2.0, source
+  (`bounding_procedure.c`, `bound.c`, `inequalities.c`, `biq_crunch.param`).
+  The regularised dual, its schedule and its cuts, read for the procedure and
+  its default parameters; it is GPL, so nothing in `mlsynth` is copied from it.
 - Lacoste-Julien, S., and Jaggi, M. (2015). "On the global linear convergence of
   Frank-Wolfe optimization variants." Advances in Neural Information Processing
   Systems 28.
 - Li, Y. (2025). "The augmented factorization bound for maximum-entropy
   sampling." IPCO 2025, Lecture Notes in Computer Science 15620, 412-426.
+- Liuzzi, G., Locatelli, M., and Piccialli, V. (2019). "A new branch-and-bound
+  algorithm for standard quadratic programming problems." Optimization Methods
+  and Software 34:79-97. A slightly weaker, much cheaper bound is the better
+  choice inside the search.
 - Locatelli, M., Piccialli, V., and Sudoso, A. M. (2024). "Fix and Bound: an
   efficient approach for solving large-scale quadratic programming problems
   with box constraints." arXiv 2211.08911v2. Fixing variables once a bound on
   departures reaches the incumbent.
+- Matter, F., and Pfetsch, M. E. (2022). "Presolving for mixed-integer
+  semidefinite optimization." Dual fixing from a relaxation's multipliers.
 - Mexi, G., Hendrych, D., Designolle, S., Besançon, M., and Pokutta, S. (2026).
   "A Frank-Wolfe-based primal heuristic for quadratic mixed-integer
   optimization." Mathematical Programming Computation.
@@ -583,10 +706,16 @@ Papers.
   objects." ACM Transactions on Graphics 36(3):30. Its robustness warning
   applied: a Gram-based nearest-point step stalled at GeoLift's scale, and the
   centred least-squares form fixed it.
+- Moré, J. J., and Sorensen, D. C. (1983). "Computing a trust region step."
+  SIAM Journal on Scientific and Statistical Computing 4:553-572. Newton's
+  method on the secular equation, started left of the root, stays left of it.
 - Neumaier, A., and Shcherbina, O. (2004). "Safe bounds in linear and
   mixed-integer linear programming." Mathematical Programming 99:283-296.
 - Petris, M., Archetti, C., Cattaruzza, D., Ogier, M., and Semet, F. (2025). "A
   tutorial on branch-price-and-cut algorithms." 4OR 23(1):1-52.
+- Rendl, F., Rinaldi, G., and Wiegele, A. (2006). "A branch and bound algorithm
+  for Max-Cut based on combining semidefinite and polyhedral relaxations."
+  BiqMac: triangle inequalities handled by a bundle method on their Lagrangian.
 - Uchoa, E., Pessoa, A., and Moreno, L. (2024). *Optimizing with Column
   Generation: Advanced Branch-Cut-and-Price Algorithms*, Part I. Cadernos do
   LOGIS 2024(3).
