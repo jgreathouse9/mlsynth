@@ -15,7 +15,8 @@ the second because a design's ``X`` has Frobenius norm ``n + 1``, so
 ``<C, X> <= (n + 1) |C_+|_F``, and by Young's inequality for any ``alpha > 0``.
 The regularised bound is differentiable, with gradient the constraints'
 residuals at ``X_alpha = C_+ / alpha``. This is the bounding procedure of
-Krislock, Malick and Roupin (BiqCrunch), written from the papers: L-BFGS-B on
+Krislock, Malick and Roupin (BiqCrunch), read from its source for the procedure
+and its defaults, nothing copied (it is GPL): L-BFGS-B on
 the regularised bound, ``alpha`` halved from 0.1 to 5e-5, triangle
 inequalities violated at ``X_alpha`` by more than 0.05 added up to 500 a round
 and dropped once their multiplier is zero and they are slack. Every evaluation
@@ -26,8 +27,8 @@ rule, off by default (``PATIENCE = inf``), abandons a node whose bound would tak
 more than ``PATIENCE`` rounds at its last round's rate to reach the target. With
 ``PATIENCE = 10`` it abandoned nodes that would have pruned: the bound falls
 fastest late, as ``alpha`` shrinks, so an early round's rate is pessimistic. On
-GeoLift with ten treated, 14,367 lifts at eight treated pruned no node, and the
-search ran past 900 s against 70 s without it. A child can start from
+GeoLift with eight treated 0 of 14,367 lifts pruned, and with ten treated the
+search ran past 900 s against 77.6 s without it. A child can start from
 its parent's multipliers (``restrict``), at ``alpha = 1e-2``: they fit a small
 ``alpha``, and restarted at 0.1 they saved 4% of the evaluations over eight
 children, against 12% at 1e-2 (and a loss at 1e-4). Read on a child, the

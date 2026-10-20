@@ -53,9 +53,10 @@ One-way's optimum is at least two-way's, so every bound here bounds one-way too.
   multiplier. The products are the triangle inequalities through the
   homogenising index; `cuts="triangles"` also separates those among the free
   units, every one valid at a design. Every evaluation reports the exact
-  eigenvalue bound, so the method stops as soon as the node prunes, and gives
-  up on a node whose bound would take more than ten rounds at its last round's
-  rate to reach the target.
+  eigenvalue bound, so the method stops as soon as the node prunes. An optional
+  give-up rule, off by default (`PATIENCE = inf`), abandons a node whose bound
+  would take more than ten rounds at its last round's rate to reach the target;
+  "Weighting the lift, and its cost" below has why it is off.
 
 `test_bounds.py` and `test_dual.py` check every bound against brute force over
 every completion: on random nodes of factor panels, on any symmetric matrix
@@ -100,9 +101,10 @@ Each bound's node bound over the subtree's minimum, at eight random nodes of
 | noise | 0.880-0.911 | 0.915-0.961 | 0.9969-1.0000 | 0.9958-1.0000 | 1.0000 |
 | GeoLift | 0.971-0.982 | 0.985-0.994 | 0.9954-1.0000 | 0.9943-0.9998 | 0.9955-1.0000 |
 
-The trust-region bound sits at 98 to 99% on flat panels, where 98% is not
+The trust-region bound sits at 97 to 98.5% on flat panels, where 98% is not
 enough, and at 88 to 91% on steep ones, where 98% would be. The lift is at
-99.5% or more on every panel; Shor's relaxation alone adds 0.2 to 0.6 points on
+99.25% or more on every panel, and 99.5% or more on GeoLift and the noise
+panel; Shor's relaxation alone adds 0.2 to 0.6 points on
 factor panels, so the products carry the bound, as entrywise nonnegativity
 carried MAREX's (`agents_combinatorial.md`, rule 7). The triangles among the
 free units add the rest on the noise panel.
