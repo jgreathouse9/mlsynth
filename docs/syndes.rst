@@ -809,11 +809,24 @@ early exit below its candidate limit, so the two agree on the treated set only
 once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
 search's design is the one that is at least as good.
 
-When :math:`\mathbf{G} + \lambda\mathbf{I}` is too ill-conditioned for the closed
-form, the two-way exact backend raises an error that says so and names
-:math:`\mathrm{cond}(\mathbf{G} + \lambda\mathbf{I})`. The design pool and the
-holdout and information-criterion selection raise the same error. Only a
-restriction set that leaves no admissible design ends the pool early.
+When :math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision,
+which happens with ``lam=0`` on a panel with fewer periods than units or with a
+unit that is an exact combination of others, neither the closed form nor the swap
+search can be formed. Projected gradient needs only a positive semidefinite
+matrix, so the search prices the admissible designs one by one. Since
+:math:`f(S) \ge 0`, a design priced at zero, to the rounding of its terms, is
+optimal and ends the search; with fewer periods than units that is the common
+case. Otherwise every design is priced, the ones whose lower bound (value less
+its Frank-Wolfe gap) is still under the best are priced again with more
+iterations, and the design is certified when it is within :math:`10^{-8}` of the
+smallest bound left; when it is not, ``raw_results["certified"]`` is ``False``
+and a ``SYNDESSolveWarning`` names the gap. Fits there are slow, so the search
+stops after 2,000 designs with none at zero, and refuses an instance past the
+candidate limit outright, with an error that names
+:math:`\mathrm{cond}(\mathbf{G} + \lambda\mathbf{I})` and asks for a positive
+``lam`` or more pre-treatment periods. The design pool and the holdout and
+information-criterion selection raise the same error. Only a restriction set
+that leaves no admissible design ends the pool early.
 
 For two-way, donor-side restrictions (``donor_exclusion``, ``donor_region_col``)
 are refused: they tie the control weights to which units are treated, so a

@@ -465,14 +465,14 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "conditioning-read-as-exhaustion"
-  find = "        raise _ill_conditioned(engine)"
-  replace = "        raise _NoFeasibleDesign(str(_ill_conditioned(engine)))"
+  find = "    return MlsynthEstimationError(\n        \"the two-way Gram matrix is too ill-conditioned for a bound \""
+  replace = "    return _NoFeasibleDesign(\n        \"the two-way Gram matrix is too ill-conditioned for a bound \""
   models = "an ill-conditioned instance classed as one with no admissible design, so the pool and the K=None search treat it as the end of the region instead of reporting it"
 
   [[target.mutant]]
   id = "exhaustion-raised-as-a-generic-failure"
-  find = "        raise _NoFeasibleDesign(\n            \"SYNDES found no feasible design: the active restrictions"
-  replace = "        raise MlsynthEstimationError(\n            \"SYNDES found no feasible design: the active restrictions"
+  find = "    return _NoFeasibleDesign(\n        \"SYNDES found no feasible design: the active restrictions"
+  replace = "    return MlsynthEstimationError(\n        \"SYNDES found no feasible design: the active restrictions"
   models = "an exhausted region raised as an ordinary failure, so the pool raises when it runs out of designs instead of returning the ones it found"
 
 [[target]]
@@ -6189,3 +6189,70 @@ timeout = 600.0
   find = "        except _NoFeasibleDesign:"
   replace = "        except MlsynthEstimationError:"
   models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
+
+[[target]]
+name = "syndes-two-way-singular"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_singular.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-singular-path-is-refused"
+  find = "        return _search_singular(problem, engine, K, filt, space)"
+  replace = "        raise _ill_conditioned(engine, \"no bound can be formed\")"
+  models = "the pre-#821 refusal: a singular G + lam I raised and named the MIP, which on a panel with fewer periods than units is the common case at lam = 0"
+
+  [[target.mutant]]
+  id = "a-singular-search-past-the-candidate-limit-runs"
+  find = "        if space.size > candidate_limit:\n            raise _ill_conditioned("
+  replace = "        if False:\n            raise _ill_conditioned("
+  models = "a singular instance past the candidate limit priced set by set, where the enumeration was declared unaffordable and the swap search needs a bound it cannot have"
+
+  [[target.mutant]]
+  id = "a-zero-does-not-end-the-search"
+  find = "        if float(solved.value.min()) <= floor:\n            stopped = True"
+  replace = "        if False:\n            stopped = True"
+  models = "a set priced at zero not taken as optimal, so the search prices every set though f(S) >= 0 already proves the zero optimal, at 5 to 10 ms a set"
+
+  [[target.mutant]]
+  id = "the-zero-floor-is-absolute"
+  find = "    return 256.0 * float(np.finfo(float).eps) * float(np.abs(problem.M).max())"
+  replace = "    return 1e-12"
+  models = "zero read on an absolute scale: a panel in small units, whose optimum is positive and below the floor, stops at the first block with a design that is not the optimum, certified"
+
+  [[target.mutant]]
+  id = "the-all-zero-panel-steps"
+  find = "    if floor == 0.0:"
+  replace = "    if False:"
+  models = "M = 0 handed to projected gradient, whose step 1 / (2 lam_max(M)) divides by zero, when every design scores zero"
+
+  [[target.mutant]]
+  id = "the-pricing-limit-is-not-checked"
+  find = "        if n_designs >= PRICE_ALL_LIMIT:"
+  replace = "        if False:"
+  models = "a singular search with no limit on the sets it prices, at 5 to 10 ms a set, up to the 2e7 candidate limit"
+
+  [[target.mutant]]
+  id = "the-open-sets-are-not-priced-again"
+  find = "        if open_.size:"
+  replace = "        if False:"
+  models = "first-pass gaps left as they are, so a positive optimum on a singular panel is returned uncertified, its lower bound 4e-4 short at 20 units"
+
+  [[target.mutant]]
+  id = "the-bound-forgets-the-gaps"
+  find = "    lower = 0.0 if stopped else max(0.0, float(np.min(value - gap)))"
+  replace = "    lower = 0.0 if stopped else max(0.0, float(np.min(value)))"
+  models = "the smallest priced value taken as the lower bound, which every set's unclosed gap can undercut, so an open gap is certified"
+
+  [[target.mutant]]
+  id = "an-open-gap-is-certified"
+  find = "    certified = design_value - lower <= allowance(design_value)"
+  replace = "    certified = True"
+  models = "a singular search certified whatever gap it leaves, the defect #805 removed from the MIP path"
+
+  [[target.mutant]]
+  id = "an-open-gap-is-silent"
+  find = "    if not certified:\n        warnings.warn("
+  replace = "    if False:\n        warnings.warn("
+  models = "an uncertified design returned without a warning, so a caller reading only the design cannot tell it from the optimum"
+

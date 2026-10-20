@@ -38,12 +38,26 @@ tests on a finished candidate and cannot lower the count.
 ``donor_exclusion`` is refused outright: it ties the control weights to which
 units are treated, so the closed form's matrix would differ per candidate and the
 batch product would not hold.
+
+Where ``G + lam I`` is singular to working precision (``lam = 0`` on a panel with
+fewer periods than units, or a unit that is an exact combination of others), the
+closed form needs an inverse that does not exist, and so does the swap search.
+Projected gradient needs only a positive semidefinite matrix, so the search then
+prices every admissible set, up to :data:`PRICE_ALL_LIMIT`. Two facts keep that
+affordable and certified. ``f(S) >= 0``, so a set priced at zero, to the rounding
+of its terms, is optimal and ends the search; with fewer periods than units such
+a set is the common case. Otherwise every set carries a Frank-Wolfe gap, so
+``value - gap`` bounds it below; the sets whose bound is still under the
+incumbent are priced again with more iterations, and the design is certified
+when the incumbent is within ``1e-8`` of the smallest bound left.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import warnings
 
 import numpy as np
 
@@ -56,6 +70,7 @@ from .gram import (
     maxcut_candidates,
     signs_from_subsets,
 )
+from .optimization import SYNDESSolveWarning
 from .partition import solve_partition_batch, split_indices
 from .structures import SYNDESDesign
 
@@ -67,6 +82,26 @@ CANDIDATE_LIMIT = 20_000_000
 #: changing any result.
 CHUNK = 200_000
 
+#: A design is certified when its value is within this fraction of the lower
+#: bound, or within the rounding of zero.
+CERTIFY_RTOL = 1e-8
+
+#: Admissible sets the search prices without finding one at zero before it stops,
+#: where ``G + lam I`` is singular and no bound can be formed. A first-pass fit
+#: there ran to its iteration cap at 5 to 10 ms a set at 20 to 40 units, so this
+#: is about 20 s at 40.
+PRICE_ALL_LIMIT = 2_000
+
+#: Sets priced per batch on that path. A zero in a batch ends the search.
+SINGULAR_CHUNK = 256
+
+#: Projected-gradient iterations for the first pass over every set, and for the
+#: second pass over the sets whose lower bound is still under the incumbent. On a
+#: singular panel with a positive optimum, one set of 9,880 needed the second
+#: pass, and 40,000 iterations closed it to 4e-13.
+FIRST_PASS_ITERATIONS = 4_000
+REFINE_ITERATIONS = 40_000
+
 
 class _NoFeasibleDesign(MlsynthEstimationError):
     """No treated set satisfies the restrictions at this size.
@@ -76,14 +111,33 @@ class _NoFeasibleDesign(MlsynthEstimationError):
     """
 
 
-def _ill_conditioned(engine: BoundEngine) -> MlsynthEstimationError:
+def _ill_conditioned(engine: BoundEngine, why: str) -> MlsynthEstimationError:
     return MlsynthEstimationError(
-        "the two-way Gram matrix is too ill-conditioned for the exact backend "
+        "the two-way Gram matrix is too ill-conditioned for a bound "
         f"(cond(M) = {engine.condition:.3e}): the problem on contrasts is singular "
-        "to working precision, so neither the closed-form bound nor the swap "
-        "search can be trusted. This happens when lam approaches zero on a panel "
-        "with fewer pre-periods than units. Raise lam, add pre-treatment periods, "
-        "or use the MIP backend.")
+        f"to working precision, so the search prices sets one by one, and {why}. "
+        "This happens when lam approaches zero on a panel with fewer pre-periods "
+        "than units, or with a unit that is an exact combination of others. "
+        "Raise lam or add pre-treatment periods.")
+
+
+def _no_feasible_design() -> "_NoFeasibleDesign":
+    return _NoFeasibleDesign(
+        "SYNDES found no feasible design: the active restrictions "
+        "(forced/forbidden units, spillover/adjacency conflict, stratum "
+        "quotas, cost budget) are jointly unsatisfiable for the requested K. "
+        "Relax the restrictions or reduce K.")
+
+
+def _zero_floor(problem: TwoWayProblem) -> float:
+    """The rounding of a computed ``u'Mu`` for a design.
+
+    ``|u|'|M||u| <= |u|_1^2 max|M| = 4 max|M|`` for a contrast of two simplex
+    weight vectors, so a computed value is known to about ``eps`` times that; a
+    value below 64 times it is zero to the rounding of its terms. It scales with
+    ``M``, so the same design stops the search whatever the units of ``Y``.
+    """
+    return 256.0 * float(np.finfo(float).eps) * float(np.abs(problem.M).max())
 
 
 # ----------------------------------------------------------------------
@@ -284,10 +338,15 @@ def _search(
 ) -> SearchOutcome:
     """Enumerate and prune, or fall back to max-cut candidates when too large."""
     engine = BoundEngine.from_problem(problem)
-    if not engine.reliable:
-        raise _ill_conditioned(engine)
     N = problem.N
     space = _search_space(N, K, filt)
+
+    if not engine.reliable:
+        if space.size > candidate_limit:
+            raise _ill_conditioned(
+                engine, f"{space.size} admissible designs are past the candidate "
+                f"limit of {candidate_limit}, where the swap search needs the bound")
+        return _search_singular(problem, engine, K, filt, space)
 
     if space.size > candidate_limit:
         return _search_by_candidates(problem, engine, K, filt, seed=seed,
@@ -320,11 +379,7 @@ def _search(
             kept_bounds.append(scored.lower[alive])
 
     if n_designs == 0:
-        raise _NoFeasibleDesign(
-            "SYNDES found no feasible design: the active restrictions "
-            "(forced/forbidden units, spillover/adjacency conflict, stratum "
-            "quotas, cost budget) are jointly unsatisfiable for the requested K. "
-            "Relax the restrictions or reduce K.")
+        raise _no_feasible_design()
 
     n_solved = 0
     if kept:
@@ -349,6 +404,96 @@ def _search(
         duality_gap=gap, lower_bound=engine.global_lower_bound(K),
         certified=bool(gap / scale <= 1e-8),
         n_designs=n_designs, n_closed_form=n_closed_form, n_solved=n_solved,
+    )
+
+
+def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
+                     filt: SubsetFilter, space: SearchSpace) -> SearchOutcome:
+    """Price every admissible set where no bound can be formed.
+
+    A set priced at zero, to the rounding of its terms, ends the search: no
+    design does better. Otherwise, after the first pass, the sets whose lower
+    bound ``value - gap`` is still under the incumbent are priced again with
+    more iterations. A search that leaves a gap open returns the best design it
+    found, with ``certified=False``, the smallest bound left, and a
+    :class:`~.optimization.SYNDESSolveWarning`.
+    """
+    N = problem.N
+    floor = _zero_floor(problem)
+    if floor == 0.0:
+        # M = 0: lam is zero and every unit equals its period's mean, so every
+        # contrast scores zero and the first admissible design is optimal. There
+        # is no gradient step to take (the step is 1 / (2 lam_max(M))).
+        first = next(_stream_from_space(space, filt, 1), None)
+        if first is None:
+            raise _no_feasible_design()
+        treated = np.sort(first[0])
+        a = np.zeros(N); a[treated] = 1.0 / treated.size
+        b = np.full(N, 1.0 / (N - treated.size)); b[treated] = 0.0
+        return SearchOutcome(treated=treated, value=0.0, treated_weights=a,
+                             control_weights=b, duality_gap=0.0, lower_bound=0.0,
+                             certified=True, n_designs=1, n_closed_form=0,
+                             n_solved=0)
+    blocks: List[np.ndarray] = []
+    values: List[np.ndarray] = []
+    gaps: List[np.ndarray] = []
+    n_designs = 0
+    stopped = False
+    for block in _stream_from_space(space, filt, SINGULAR_CHUNK):
+        if n_designs >= PRICE_ALL_LIMIT:
+            raise _ill_conditioned(
+                engine, f"it priced {n_designs} of {space.size} admissible designs, "
+                f"its limit of {PRICE_ALL_LIMIT}, without finding one at zero")
+        n_designs += block.shape[0]
+        t_idx, c_idx = split_indices(N, block)
+        solved = solve_partition_batch(problem, t_idx, c_idx,
+                                       max_iter=FIRST_PASS_ITERATIONS, tol=1e-14)
+        blocks.append(block)
+        values.append(solved.value)
+        gaps.append(solved.gap)
+        if float(solved.value.min()) <= floor:
+            stopped = True
+            break
+
+    if n_designs == 0:
+        raise _no_feasible_design()
+
+    sets = np.concatenate(blocks)
+    value = np.concatenate(values)
+    gap = np.concatenate(gaps)
+    n_solved = n_designs
+
+    def allowance(v: float) -> float:
+        return max(CERTIFY_RTOL * v, floor)
+
+    best = int(np.argmin(value))
+    if not stopped:
+        open_ = np.flatnonzero(value - gap < value[best] - allowance(value[best]))
+        if open_.size:
+            t_idx, c_idx = split_indices(N, sets[open_])
+            again = solve_partition_batch(problem, t_idx, c_idx,
+                                          max_iter=REFINE_ITERATIONS, tol=1e-14)
+            value[open_], gap[open_] = again.value, again.gap
+            n_solved += int(open_.size)
+            best = int(np.argmin(value))
+
+    # f(S) >= 0 for every design, so where a zero stopped the search the sets
+    # left unpriced are bounded by zero, and the bound is zero.
+    lower = 0.0 if stopped else max(0.0, float(np.min(value - gap)))
+    design_value, a, b, design_gap = _settle(problem, engine, sets[best])
+    certified = design_value - lower <= allowance(design_value)
+    if not certified:
+        warnings.warn(
+            f"SYNDES two-way exact backend: G + lam I is singular, and after "
+            f"pricing {n_designs} designs a gap of "
+            f"{(design_value - lower) / design_value:.3g} to the lower bound is "
+            "still open; the design is the best priced, not a proven optimum.",
+            SYNDESSolveWarning, stacklevel=4)
+    return SearchOutcome(
+        treated=np.sort(np.asarray(sets[best], dtype=np.int64)),
+        value=design_value, treated_weights=a, control_weights=b,
+        duality_gap=design_gap, lower_bound=lower, certified=bool(certified),
+        n_designs=n_designs, n_closed_form=0, n_solved=n_solved,
     )
 
 
@@ -441,7 +586,9 @@ def solve_synthetic_design_exact(
         For an out-of-range ``K``, malformed cost inputs, or donor exclusions.
     MlsynthEstimationError
         When no admissible design exists under the restrictions, or when the
-        problem on contrasts is too ill-conditioned for the closed form.
+        problem on contrasts is singular to working precision and either past
+        ``candidate_limit`` or past :data:`PRICE_ALL_LIMIT` sets priced without
+        one at zero.
     """
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
