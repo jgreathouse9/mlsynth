@@ -915,7 +915,10 @@ The study behind this search is
 `benchmarks/studies/syndes_one_way_exact <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_one_way_exact>`_.
 The ridge bound equalled the optimum to rounding on 126 of 132 enumerable runs
 and was within 0.2 percent on the other 6, so the search priced one set on all
-but one run, and its cost was the enumeration, about 10 microseconds a set. SCIP
+but one run, and its cost was the enumeration, about 10 microseconds a set in
+that study. Both searches now build their candidates as arrays and score them
+in blocks of 20,000, which brought the enumeration to about 1 microsecond a set
+at 40 units (two-way 0.8, one-way 1.1). SCIP
 at the MIP path's defaults returned a design on every run, the optimum on 35 of
 54, and one up to 10 percent worse on the rest. Beyond the limit, the swap
 search's design was within 2.7 percent of the Rayleigh bound on every run, in
