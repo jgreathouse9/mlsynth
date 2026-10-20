@@ -50,7 +50,8 @@ def _filters(draw):
     strata = []
     if draw(st.booleans()) and N >= 4:
         members = sorted(rng.choice(N, N // 2, replace=False).tolist())
-        strata = [(members, int(draw(st.integers(0, 1))), None)]
+        upper = draw(st.sampled_from([None, 1, 2]))
+        strata = [(members, int(draw(st.integers(0, 1))), upper)]
     rules = DesignRestrictions(forced_in=forced, forbidden=forbidden,
                                conflict_pairs=pairs, strata=strata)
     return N, K, SubsetFilter.build(rules, costs, budget, nogood, N=N)

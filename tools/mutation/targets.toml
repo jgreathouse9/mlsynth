@@ -6366,6 +6366,12 @@ timeout = 600.0
   models = "the designs the pool already returned streamed again, so the pool returns the same design twice"
 
   [[target.mutant]]
+  id = "accepts-rows-ignores-the-upper-quota"
+  find = "            if upper is not None:\n                ok &= inside <= upper"
+  replace = "            if False:\n                ok &= inside <= upper"
+  models = "a stratum's upper quota ignored by the vectorized filter: a design holding more of a group than the quota allows is priced and can be returned"
+
+  [[target.mutant]]
   id = "accepts-rows-ignores-stratum-quotas"
   find = "            if lower is not None:\n                ok &= inside >= lower"
   replace = "            if False:\n                ok &= inside >= lower"
