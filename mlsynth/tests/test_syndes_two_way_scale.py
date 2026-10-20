@@ -49,8 +49,9 @@ def _treated(design):
 
 def _ill_conditioned():
     """Eight units of rank two over four periods: with ``lam`` near zero the
-    problem on contrasts is singular to working precision, and the instance is
-    small enough to enumerate (56 designs of three)."""
+    problem on contrasts is singular to working precision. Its 56 designs of
+    three are priced one by one (#821), so the tests below set a candidate limit
+    under that count to reach the refusal that remains."""
     rng = np.random.default_rng(9)
     return rng.standard_normal((4, 2)) @ rng.standard_normal((2, 8))
 
@@ -176,29 +177,35 @@ def test_the_inner_solver_stops_on_a_relative_gap(s):
 # --------------------------------------------------------------------------- #
 
 
-def test_an_ill_conditioned_enumerable_instance_says_so():
+def test_an_ill_conditioned_instance_past_the_limit_says_so():
     with pytest.raises(MlsynthEstimationError, match="ill-conditioned") as exc:
-        solve_synthetic_design_exact(_ill_conditioned(), 3, lam=1e-14)
-    assert "too large" not in str(exc.value)
+        solve_synthetic_design_exact(_ill_conditioned(), 3, lam=1e-14,
+                                     candidate_limit=10)
+    assert "candidate limit" in str(exc.value)
 
 
 def test_the_pool_reports_an_ill_conditioned_instance():
     with pytest.raises(MlsynthEstimationError, match="ill-conditioned"):
-        solve_synthetic_design_exact_pool(_ill_conditioned(), 3, top_K=3, lam=1e-14)
+        solve_synthetic_design_exact_pool(_ill_conditioned(), 3, top_K=3, lam=1e-14,
+                                          candidate_limit=10)
 
 
 def test_a_free_size_reports_an_ill_conditioned_instance():
+    """Size 1 holds 8 designs, size 2 holds 28, past a limit of 20."""
     with pytest.raises(MlsynthEstimationError, match="ill-conditioned"):
-        solve_synthetic_design_exact_pool(_ill_conditioned(), None, top_K=2, lam=1e-14)
+        solve_synthetic_design_exact_pool(_ill_conditioned(), None, top_K=2, lam=1e-14,
+                                          candidate_limit=20)
 
 
 def test_the_estimator_reports_an_ill_conditioned_instance_under_holdout():
+    """Forty units at K = 10 hold 8.5e8 designs, past the default candidate
+    limit, so the refusal comes before any set is priced."""
     rng = np.random.default_rng(9)
-    Y = rng.standard_normal((10, 2)) @ rng.standard_normal((2, 12))
+    Y = rng.standard_normal((10, 2)) @ rng.standard_normal((2, 40))
     rows = [{"unit": j, "time": t, "y": float(Y[t, j]), "post": int(t >= 7)}
-            for j in range(12) for t in range(10)]
+            for j in range(40) for t in range(10)]
     est = SYNDES({"df": pd.DataFrame(rows), "outcome": "y", "unitid": "unit",
-                  "time": "time", "post_col": "post", "K": 3,
+                  "time": "time", "post_col": "post", "K": 10,
                   "mode": "two_way_global", "top_K": 3, "lam": 1e-14})
     with pytest.raises(MlsynthEstimationError, match="ill-conditioned") as exc:
         est.fit()
