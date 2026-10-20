@@ -6474,6 +6474,12 @@ timeout = 600.0
   models = "the pruning comparison read against zero, not the incumbent: every bounded node is discarded, and the answer is whatever the seeds and the enumerated leaves held"
 
   [[target.mutant]]
+  id = "a-chunk-drops-the-set-past-its-end"
+  find = "    return islice(it, k)"
+  replace = "    def gen():\n        for i, x in enumerate(it):\n            if i >= k:\n                return\n            yield x\n    return gen()"
+  models = "the defect the study shipped with: a chunking loop that pulls one item past its count and returns without yielding it, so a subtree generated in chunks loses one set per chunk. The 10-treated GeoLift enumeration priced 847,618,148 of 847,660,528 sets and still matched the search's optimum, so only a count of the sets priced sees it"
+
+  [[target.mutant]]
   id = "the-cost-rule-never-bounds"
   find = "        if r == 0 or r == n or sets_here * price * p_prune <= bound(n):"
   replace = "        if True:"

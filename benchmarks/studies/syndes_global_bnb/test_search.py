@@ -97,3 +97,18 @@ def test_lifting_every_node_gives_the_same_optimum():
     plain = search(Y, 4, price_cost=1.0, bound_cost=0.0, lift_cost=np.inf)
     assert plain.nodes_lifted == 0
     assert res.nodes_bounded <= plain.nodes_bounded
+
+
+def test_a_subtree_past_the_table_limit_is_priced_in_full(monkeypatch):
+    """Subtrees too large for a cached table are generated in chunks; every set
+    is priced. ``_first`` once pulled one set past each chunk and dropped it:
+    the 10-treated GeoLift enumeration priced 847,618,148 of 847,660,528."""
+    from math import comb
+    from . import search as mod
+    monkeypatch.setattr(mod, "TABLE_LIMIT", 10)
+    monkeypatch.setattr(mod, "CHUNK", 7)
+    mod._TABLES.clear()
+    Y = _factor(12, seed=7)
+    res = search(Y, 4, price_cost=0.0, bound_cost=1.0, lift_cost=np.inf)
+    assert res.sets_priced == comb(12, 4)
+    _agree(res, solve_synthetic_design_exact(Y, 4))

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from itertools import combinations
+from itertools import combinations, islice
 from math import comb as sets_count
 from typing import Optional, Sequence
 
@@ -76,10 +76,10 @@ def _price_seconds(engine: BoundEngine, N: int, K: int) -> float:
 
 
 def _first(it, k):
-    for i, x in enumerate(it):
-        if i >= k:
-            return
-        yield x
+    """The next ``k`` items of ``it``. ``islice`` stops at ``k`` without pulling
+    a ``k + 1``-th item; a loop that tests its index after pulling drops one item
+    per call."""
+    return islice(it, k)
 
 
 def _bound_seconds(R: np.ndarray, K: int):
