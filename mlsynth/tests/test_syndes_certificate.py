@@ -202,3 +202,22 @@ def test_the_estimators_restrictions_reach_the_certificate():
     res = _fit("one_way_global", certify=True, not_to_be_treated=["u0", "u1", "u2"])
     c = res.certificate
     assert c.lower_bound == pytest.approx(c.incumbent, rel=1e-9)
+
+
+def test_under_holdout_the_estimators_restrictions_reach_the_certificate():
+    """Under holdout the certificate searches the whole pre-period itself, so it
+    needs the design's restrictions: banning the unrestricted optimum's units
+    raises the bound to the restricted optimum."""
+    holdout = dict(certify=True, top_K=3, selection="holdout", holdout_frac=0.3)
+    free = _fit("per_unit", **holdout)
+    Y_pre, lam = free.inputs.Y_pre, free.design.lambda_value
+    best = solve_per_unit_exact(Y_pre, 3, lam=lam)
+    idx = [int(i) for i in best.selected_unit_indices]
+    banned = [free.inputs.unit_index.labels[i] for i in idx]
+    res = _fit("per_unit", not_to_be_treated=banned, **holdout)
+    restricted = solve_per_unit_exact(
+        Y_pre, 3, lam=res.design.lambda_value,
+        restrictions=DesignRestrictions(forbidden=idx))
+    assert res.certificate.lower_bound == pytest.approx(
+        restricted.objective_value, rel=1e-9)
+    assert res.certificate.lower_bound > best.objective_value * (1 + 1e-6)
