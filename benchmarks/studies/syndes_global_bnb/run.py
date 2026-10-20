@@ -9,10 +9,14 @@ From the repository root::
     python -m benchmarks.studies.syndes_global_bnb.run geolift 40 10 dual
 
 ``nolift`` turns the lift off; ``dual`` lifts by the regularised dual of
-``dual.py`` in place of the interior-point solve; ``enumerate`` prices every
-set through the study's own path (no bound); ``library`` runs
-``solve_synthetic_design_exact`` with its candidate limit raised. Panels: ``factor`` and ``noise`` (seed 0) from
-``quality.py``, and ``geolift`` (its first ``N`` markets, 90 days).
+``dual.py`` in place of the interior-point solve; ``giveup`` turns the dual's
+give-up rule on (``PATIENCE = 10``; ``results/search_isolate.log`` was written
+while it was on by default, and its rows marked ``patient`` ran with it off, as
+everything does now); ``unweighted`` drops the lift tier's prune-rate weight;
+``enumerate`` prices every set through the study's own path (no bound);
+``library`` runs ``solve_synthetic_design_exact`` with its candidate limit
+raised. Panels: ``factor`` and ``noise`` (seed 0) from ``quality.py``, and
+``geolift`` (its first ``N`` markets, 90 days).
 """
 from __future__ import annotations
 
@@ -28,6 +32,7 @@ import numpy as np
 
 from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
 
+from . import dual
 from .quality import common_shock, factor, geolift
 from .search import search
 
@@ -51,10 +56,15 @@ def main(argv):
         label = "every set"
     else:
         lift = "dual" if "dual" in argv else "ipm"
-        r = search(Y, K, lift_cost=np.inf if "nolift" in argv else None, lift=lift)
-        label = "search" + (" (no lift)" if "nolift" in argv else "") + (" (dual)" if lift == "dual" else "")
+        if "giveup" in argv:
+            dual.PATIENCE = 10.0
+        r = search(Y, K, lift_cost=np.inf if "nolift" in argv else None, lift=lift,
+                   weigh_lift="unweighted" not in argv)
+        flags = ("no lift", "dual", "giveup", "unweighted")
+        label = "search" + "".join(f" ({f})" for f in flags if f.replace(" ", "") in argv)
     print(f"{name} N={N} K={K} {label} {r.seconds:.1f}s bounded={r.nodes_bounded} "
-          f"lifted={r.nodes_lifted} pruned={r.nodes_pruned} priced={r.sets_priced:,} "
+          f"lifted={r.nodes_lifted} pruned={r.nodes_pruned} (by lifts {r.lifts_pruned}) "
+          f"priced={r.sets_priced:,} "
           f"value={r.value:.10g} treated={sorted(int(i) for i in r.treated)}")
 
 

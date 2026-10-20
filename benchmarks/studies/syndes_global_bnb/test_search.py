@@ -129,3 +129,111 @@ def test_the_regularised_dual_lift_gives_the_same_optimum(lift, seed):
 def test_an_unknown_lift_is_refused():
     with pytest.raises(ValueError, match="lift"):
         search(_factor(8), 2, lift="simplex")
+
+
+def test_lifts_that_never_prune_are_weighted_down(monkeypatch):
+    """The lift tier weighs its cost by its own prune rate, as the bound tier
+    does: a lift that never prunes is tried a few times per subtree size and
+    then left alone. Unweighted, every node above the cost threshold is lifted."""
+    from . import search as mod
+    calls = []
+
+    def useless(R, I, O, F, K, target=None):
+        calls.append(len(F))
+        return mod.node_upper(R, I, O, F, K)        # what the cheap tier already had
+
+    monkeypatch.setitem(mod.LIFTS, "ipm", useless)
+    Y = _factor(14, seed=5)
+    ref = solve_synthetic_design_exact(Y, 5)
+    counts = {}
+    for adaptive in (True, False):
+        calls.clear()
+        res = search(Y, 5, price_cost=1e-3, bound_cost=0.0, lift_cost=1e-3, adaptive=adaptive)
+        _agree(res, ref)
+        counts[adaptive] = len(calls)
+    assert 0 < counts[True] < counts[False]
+
+
+# ----------------------------------------------------------------------
+# the lift's cost, learned from the lifts the search pays for
+# ----------------------------------------------------------------------
+
+from hypothesis import given, settings, strategies as st
+
+from .search import LiftCost
+
+
+def test_with_no_lift_observed_the_cost_is_the_calibrations():
+    cost = LiftCost(lambda n: 2e-4 * n ** 3)
+    assert cost(30) == pytest.approx(2e-4 * 30 ** 3, rel=1e-12)
+
+
+def test_the_cost_moves_to_what_the_lifts_cost():
+    """A lift that stops at its prune target costs less in the search than the
+    calibration, which times it without one: the observed cost wins."""
+    cost = LiftCost(lambda n: 1e-4 * n ** 3)
+    for n in (30, 32, 35, 38, 40) * 40:
+        cost.observe(n, 1e-6 * n ** 3)
+    assert cost(36) == pytest.approx(1e-6 * 36 ** 3, rel=0.05)
+
+
+@settings(max_examples=200, deadline=None)
+@given(st.floats(1e-8, 1e-2), st.floats(1e-8, 1e-2), st.integers(1, 50), st.integers(5, 60))
+def test_the_cost_lies_between_the_calibration_and_the_lifts(prior, seen, count, n):
+    cost = LiftCost(lambda k: prior * k ** 3)
+    for _ in range(count):
+        cost.observe(n, seen * n ** 3)
+    lo, hi = sorted((prior * n ** 3, seen * n ** 3))
+    assert lo * (1 - 1e-12) <= cost(n) <= hi * (1 + 1e-12)
+
+
+def test_every_lift_paid_for_is_observed(monkeypatch):
+    from . import search as mod
+    seen = []
+
+    class Recording(mod.LiftCost):
+        def observe(self, n, seconds):
+            seen.append(n)
+            super().observe(n, seconds)
+
+    monkeypatch.setattr(mod, "LiftCost", Recording)
+    # a calibration that makes the first lift pay, whatever the machine's load
+    monkeypatch.setattr(mod, "_lift_seconds", lambda R, K, lift=None: (lambda n: 1e-9))
+    Y = _factor(14, seed=5)
+    res = search(Y, 5, price_cost=1e-3, bound_cost=0.0, lift="dual")
+    _agree(res, solve_synthetic_design_exact(Y, 5))
+    assert res.nodes_lifted > 0
+    assert len(seen) == res.nodes_lifted
+
+
+def test_the_lift_weight_can_be_turned_off_alone(monkeypatch):
+    """``weigh_lift=False`` keeps the cheap tier's weight and lifts every node
+    whose pricing costs more than a lift, as before the lift was weighted; the
+    result counts the prunes the lift made."""
+    from . import search as mod
+    calls = []
+
+    def useless(R, I, O, F, K, target=None):
+        calls.append(len(F))
+        return mod.node_upper(R, I, O, F, K)
+
+    monkeypatch.setitem(mod.LIFTS, "ipm", useless)
+    Y = _factor(14, seed=5)
+    ref = solve_synthetic_design_exact(Y, 5)
+    counts = {}
+    for weigh in (True, False):
+        calls.clear()
+        res = search(Y, 5, price_cost=1e-3, bound_cost=0.0, lift_cost=1e-3, weigh_lift=weigh)
+        _agree(res, ref)
+        assert res.lifts_pruned == 0
+        counts[weigh] = len(calls)
+    assert 0 < counts[True] < counts[False]
+
+
+def test_a_lift_that_always_prunes_is_counted(monkeypatch):
+    from . import search as mod
+    monkeypatch.setitem(mod.LIFTS, "ipm", lambda R, I, O, F, K, target=None: 0.0)
+    Y = _factor(12, seed=6)
+    res = search(Y, 4, price_cost=1.0, bound_cost=0.0, lift_cost=0.0)
+    assert res.nodes_lifted > 0
+    assert res.lifts_pruned == res.nodes_lifted

@@ -20,6 +20,7 @@ closed forms and of the trust-region bound, which this study does not certify.
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 from itertools import combinations, islice
@@ -76,6 +77,7 @@ class Result:
     sets_priced: int
     sets_solved: int
     seconds: float
+    lifts_pruned: int = 0
 
 
 def _price_seconds(engine: BoundEngine, N: int, K: int) -> float:
@@ -130,6 +132,35 @@ def _lift_seconds(R: np.ndarray, K: int, lift=lift_upper):
     return lambda n: t0 * (max(n, n0) / n0) ** p
 
 
+class LiftCost:
+    """Seconds per lift at ``n`` free units. The calibration times a lift
+    without a prune target, so it runs to the end; in the search a lift that
+    prunes stops early (``dual.py``). So the calibration is a prior, worth
+    ``weight`` lifts, and each lift the search pays for is observed. Costs are
+    compared per ``n**3``, the order of the eigendecomposition, and of the
+    interior point's Newton system at these sizes, and averaged in logarithms:
+    the calibration is off by a factor (a hundred, for a lift that prunes
+    early), and an arithmetic mean lets two such pseudo-lifts outweigh two
+    hundred real ones."""
+
+    def __init__(self, prior, weight: float = 2.0):
+        self.prior = prior
+        self.weight = weight
+        self.total = 0.0
+        self.count = 0
+
+    def observe(self, n: int, seconds: float) -> None:
+        self.total += math.log(max(seconds, 1e-12) / n ** 3)
+        self.count += 1
+
+    def __call__(self, n: int) -> float:
+        prior = self.prior(n)
+        if not self.count:
+            return prior
+        rate = (self.weight * math.log(prior / n ** 3) + self.total) / (self.weight + self.count)
+        return math.exp(rate) * n ** 3
+
+
 def search(
     Y: np.ndarray,
     K: int,
@@ -145,6 +176,7 @@ def search(
     adaptive: bool = True,
     seed: int = 0,
     lift: str = "ipm",
+    weigh_lift: bool = True,
 ) -> Result:
     """The two-way design's optimum by branch and bound. ``price_cost`` (seconds
     per set), ``bound_cost`` (per trust-region bound) and ``lift_cost`` (per
@@ -167,7 +199,8 @@ def search(
 
     price = _price_seconds(engine, N, K) if price_cost is None else price_cost
     bound = _bound_seconds(R, K) if bound_cost is None else (lambda n: bound_cost)
-    lift_time = _lift_seconds(R, K, lifted) if lift_cost is None else (lambda n: lift_cost)
+    lift_time = (LiftCost(_lift_seconds(R, K, lifted)) if lift_cost is None
+                 else (lambda n: lift_cost))
 
     def admissible(sets: np.ndarray) -> np.ndarray:
         ok = np.ones(len(sets), dtype=bool)
@@ -179,7 +212,7 @@ def search(
 
     best = [np.inf, None]
     pending = []
-    counts = {"bounded": 0, "lifted": 0, "pruned": 0, "priced": 0}
+    counts = {"bounded": 0, "lifted": 0, "pruned": 0, "priced": 0, "lift_pruned": 0}
     buffer = []
     buffered = [0]
     # Prune rate by subtree size (log2 bucket), with a Laplace prior: a bound
@@ -187,6 +220,8 @@ def search(
     # whose pricing costs more than the bound over its chance of pruning.
     tried = np.zeros(80)
     hits = np.zeros(80)
+    lift_tried = np.zeros(80)      # the same, for the lift tier
+    lift_hits = np.zeros(80)
 
     def price_block(sets: np.ndarray):
         out = engine.bound(signs_from_subsets(N, sets))
@@ -262,12 +297,20 @@ def search(
             counts["pruned"] += 1
             hits[bucket] += 1
             continue
-        if sets_here * price > lift_time(n):
+        p_lift = ((lift_hits[bucket] + 1.0) / (lift_tried[bucket] + 2.0)
+                  if adaptive and weigh_lift else 1.0)
+        if sets_here * price * p_lift > lift_time(n):
             counts["lifted"] += 1
+            lift_tried[bucket] += 1
             goal = 4.0 * engine.alpha / (best[0] * (1 - PRUNE_RTOL))
+            t_lift = time.perf_counter()
             lb = node_lower(engine.alpha, lifted(R, I, O, F, K, target=goal))
+            if isinstance(lift_time, LiftCost):
+                lift_time.observe(n, time.perf_counter() - t_lift)
             if lb >= best[0] * (1 - PRUNE_RTOL):
                 counts["pruned"] += 1
+                lift_hits[bucket] += 1
+                counts["lift_pruned"] += 1
                 continue
         u = F[0]
         stack.append((I, O + [u], pos + 1))
@@ -294,4 +337,5 @@ def search(
                   nodes_bounded=counts["bounded"], nodes_lifted=counts["lifted"],
                   nodes_pruned=counts["pruned"],
                   sets_priced=counts["priced"],
-                  sets_solved=solved, seconds=time.perf_counter() - start)
+                  sets_solved=solved, seconds=time.perf_counter() - start,
+                  lifts_pruned=counts["lift_pruned"])

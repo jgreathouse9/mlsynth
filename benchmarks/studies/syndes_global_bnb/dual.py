@@ -20,7 +20,14 @@ the regularised bound, ``alpha`` halved from 0.1 to 5e-5, triangle
 inequalities violated at ``X_alpha`` by more than 0.05 added up to 500 a round
 and dropped once their multiplier is zero and they are slack. Every evaluation
 reports the exact bound, never above the regularised one, and the smallest is
-kept; so the method stops as soon as the node prunes, and a child can start from
+kept; so the method stops as soon as the node prunes, and gives up, as
+BiqCrunch does, on a node whose bound has stalled at a small ``alpha``. A second
+rule, off by default (``PATIENCE = inf``), abandons a node whose bound would take
+more than ``PATIENCE`` rounds at its last round's rate to reach the target. With
+``PATIENCE = 10`` it abandoned nodes that would have pruned: the bound falls
+fastest late, as ``alpha`` shrinks, so an early round's rate is pessimistic. On
+GeoLift with ten treated, 14,367 lifts at eight treated pruned no node, and the
+search ran past 900 s against 70 s without it. A child can start from
 its parent's multipliers (``restrict``), at ``alpha = 1e-2``: they fit a small
 ``alpha``, and restarted at 0.1 they saved 4% of the evaluations over eight
 children, against 12% at 1e-2 (and a loss at 1e-4). Read on a child, the
@@ -59,6 +66,8 @@ ROUNDS_AT_ALPHA = 50        # or this many rounds at one alpha
 MIN_ROUNDS, MAX_ROUNDS = 12, 100
 EVALUATIONS = 2000          # per round
 MAXCOR = 10
+PATIENCE = math.inf         # off; at 10 it abandoned nodes that would have pruned
+TARGET_ROUNDS = 3           # rounds before a target can be abandoned
 KAPPA = 1.0 / (1.0 + math.sqrt(3.0))   # scale of the triangles' multipliers
 
 # signs of (X_ij, X_ik, X_jk) in each type; type 1 has no negative edge, the
@@ -246,6 +255,7 @@ def dual_upper(R, I, O, F, K, *, target: Optional[float] = None, warm=None,
     evaluations = [0]
     rounds = at_alpha = 0
     previous = None
+    reached = np.inf
     ny = 2 * n + 2
 
     while True:
@@ -286,6 +296,13 @@ def dual_upper(R, I, O, F, K, *, target: Optional[float] = None, warm=None,
         y, v = x[:ny], x[ny:]
         if pruned:
             break
+        # with PATIENCE finite, a node that will not prune at this rate is
+        # abandoned: its bound is still a bound, and the search splits it
+        now = min(best[0], fallback)
+        if (target is not None and math.isfinite(PATIENCE) and rounds >= TARGET_ROUNDS
+                and now - goal > PATIENCE * max(reached - now, 0.0)):
+            break
+        reached = now
         _, smooth, gy, gv, X = theta(c, b, A, s, y, cut, v, alpha)
         stalled = (previous is not None and abs(previous - smooth) <= 1e-6 * abs(smooth)
                    and alpha < 1e-4)

@@ -197,12 +197,29 @@ def test_a_target_stops_the_search_once_reached():
 
 
 def test_a_target_out_of_reach_changes_nothing():
+    """By default a node that cannot prune runs the whole schedule: the same
+    bound and the same evaluations as without a target."""
     eng = _engine(12, 12, 1)
     I, O, F, K = [], [0], list(range(1, 12)), 4
     full, info = dual_upper(eng.R, I, O, F, K, info=True)
     same, info_t = dual_upper(eng.R, I, O, F, K, target=0.5 * _best(eng.R, I, O, F, K), info=True)
     assert same == full
     assert info_t.evaluations == info.evaluations
+
+
+def test_with_patience_set_a_target_out_of_reach_gives_up_early(monkeypatch):
+    """The give-up rule, when turned on: fewer evaluations, a bound from the same
+    path, so never tighter than the full run's and still a bound."""
+    from . import dual as mod
+    monkeypatch.setattr(mod, "PATIENCE", 10.0)
+    eng = _engine(12, 12, 1)
+    I, O, F, K = [], [0], list(range(1, 12)), 4
+    best = _best(eng.R, I, O, F, K)
+    full, info = dual_upper(eng.R, I, O, F, K, info=True)
+    early, info_t = dual_upper(eng.R, I, O, F, K, target=0.5 * best, info=True)
+    assert info_t.evaluations < info.evaluations
+    assert early >= full
+    assert early >= best - 1e-9 * abs(best)
 
 
 def test_a_child_starts_from_its_parents_multipliers():
@@ -250,26 +267,53 @@ def test_a_parents_multipliers_bound_each_child(seed, treated):
 
 def test_restricting_keeps_each_cuts_orientation():
     """A child whose free units come in another order reads each cut on the
-    same three units, with the same positive edge; cuts through a unit the
-    child fixed are dropped."""
+    same three units, with the same positive edge, which can change the cut's
+    type; cuts through a unit the child fixed are dropped."""
     parent = [10, 11, 12, 13]
     y = np.arange(2 * 4 + 2, dtype=float)
-    # (0, 11, 13) with its positive edge (11, 13); (11, 12, 13) all positive;
-    # (0, 10, 12) runs through the fixed unit 10.
-    cuts = Cuts(np.array([0, 2, 0]), np.array([2, 3, 1]), np.array([4, 4, 3]),
-                np.array([4, 1, 2]))
-    state = (y, cuts, np.array([5.0, 6.0, 7.0]))
+    # (0, 11, 13) with its positive edge (0, 11); (11, 12, 13) with its
+    # positive edge (11, 12); (11, 12, 13) all positive; (0, 10, 12) runs
+    # through the fixed unit 10.
+    cuts = Cuts(np.array([0, 2, 2, 0]), np.array([2, 3, 3, 1]), np.array([4, 4, 4, 3]),
+                np.array([2, 2, 1, 2]))
+    state = (y, cuts, np.array([5.0, 6.0, 7.0, 8.0]))
     cy, cc, cv = restrict(state, parent, [13, 12, 11])
     # child index: 13 -> 1, 12 -> 2, 11 -> 3
     got = sorted(zip(cc.i.tolist(), cc.j.tolist(), cc.k.tolist(), cc.t.tolist(), cv.tolist()))
-    # (0, 11, 13) -> (0, 1, 3), positive edge (1, 3), the last pair -> type 4
-    # (11, 12, 13) -> (1, 2, 3), all positive -> type 1
-    assert got == [(0, 1, 3, 4, 5.0), (1, 2, 3, 1, 6.0)]
+    # (0, 11, 13) -> (0, 1, 3), positive edge (0, 3), the first and last -> type 3
+    # (11, 12, 13) -> (1, 2, 3), positive edge (2, 3), the last pair -> type 4
+    # (11, 12, 13) all positive -> type 1
+    assert got == [(0, 1, 3, 3, 5.0), (1, 2, 3, 1, 7.0), (1, 2, 3, 4, 6.0)]
     # diag multipliers: index 0 kept, then units 13, 12, 11; the sum's kept;
     # the row multipliers follow the units.
     assert cy[:4].tolist() == [y[0], y[4], y[3], y[2]]
     assert cy[4] == y[5]
     assert cy[5:].tolist() == [y[6 + 3], y[6 + 2], y[6 + 1]]
+
+
+@settings(max_examples=200, deadline=None)
+@given(st.integers(3, 8), st.integers(0, 2**31 - 1))
+def test_a_restricted_cut_is_the_same_inequality(n, seed):
+    """Every cut a child inherits takes, on the child's lifted matrix, the
+    value the parent's cut takes on the parent's: the same inequality."""
+    rng = np.random.default_rng(seed)
+    parent = list(range(100, 100 + n))
+    keep = int(rng.integers(2, n + 1))
+    child = [int(u) for u in rng.choice(parent, keep, replace=False)]
+    G = rng.standard_normal((n + 1, n + 1))
+    X = G @ G.T
+    cuts = _random_cuts(rng, n, 40)
+    v = np.arange(len(cuts), dtype=float) + 1.0
+    _, cc, cv = restrict((np.zeros(2 * n + 2), cuts, v), parent, child)
+    where = {u: p + 1 for p, u in enumerate(parent)}
+    idx = np.array([0] + [where[u] for u in child])
+    Xc = X[np.ix_(idx, idx)]
+    by_v = dict(zip(v.tolist(), cuts.values(X).tolist()))
+    for value, w in zip(cc.values(Xc).tolist(), cv.tolist()):
+        assert value == pytest.approx(by_v[w], rel=1e-12, abs=1e-12)
+    survivors = sum(all(int(i) in idx for i in (a, b, c))
+                    for a, b, c in zip(cuts.i, cuts.j, cuts.k))
+    assert len(cc) == survivors
 
 
 @pytest.mark.parametrize("scale", [1e-3, 1e3])

@@ -6480,6 +6480,30 @@ timeout = 600.0
   models = "the defect the study shipped with: a chunking loop that pulls one item past its count and returns without yielding it, so a subtree generated in chunks loses one set per chunk. The 10-treated GeoLift enumeration priced 847,618,148 of 847,660,528 sets and still matched the search's optimum, so only a count of the sets priced sees it"
 
   [[target.mutant]]
+  id = "the-lift-ignores-its-prune-rate"
+  find = "        p_lift = ((lift_hits[bucket] + 1.0) / (lift_tried[bucket] + 2.0)\n                  if adaptive and weigh_lift else 1.0)"
+  replace = "        p_lift = 1.0"
+  models = "every node whose pricing costs more than a lift is lifted, however rarely lifts prune at that size: the factor panel's 245 lifts for 5 prunes"
+
+  [[target.mutant]]
+  id = "the-lift-cost-never-learns"
+  find = "            if isinstance(lift_time, LiftCost):\n                lift_time.observe(n, time.perf_counter() - t_lift)"
+  replace = "            pass"
+  models = "the calibration kept for every lift: it times a lift without a prune target, so a lift that stops early looks a hundred times dearer, and with the prune-rate weight the search stops lifting (GeoLift K = 10: 72.7 s to over 1,000 s)"
+
+  [[target.mutant]]
+  id = "the-lift-cost-ignores-what-it-observed"
+  find = "        if not self.count:\n            return prior"
+  replace = "        if True:\n            return prior"
+  models = "lifts observed and their cost thrown away at prediction"
+
+  [[target.mutant]]
+  id = "the-lifts-prunes-are-not-counted"
+  find = "                counts[\"lift_pruned\"] += 1"
+  replace = "                pass"
+  models = "the result's count of prunes made by the lift left at zero, so a table cannot tell a lift that prunes from one that only costs"
+
+  [[target.mutant]]
   id = "the-cost-rule-never-bounds"
   find = "        if r == 0 or r == n or sets_here * price * p_prune <= bound(n):"
   replace = "        if True:"
@@ -6538,3 +6562,15 @@ timeout = 900.0
   find = "    return out(unit * min(best[0], fallback), (y, cut, v), evaluations[0], rounds)"
   replace = "    return out(unit * best[0], (y, cut, v), evaluations[0], rounds)"
   models = "the dual returned even where it stopped above the trust-region bound, a looser bound than the cheap tier's"
+
+  [[target.mutant]]
+  id = "a-hopeless-target-is-never-abandoned"
+  find = "        if (target is not None and math.isfinite(PATIENCE) and rounds >= TARGET_ROUNDS\n                and now - goal > PATIENCE * max(reached - now, 0.0)):"
+  replace = "        if False:"
+  models = "the give-up rule unreachable even when turned on"
+
+  [[target.mutant]]
+  id = "the-give-up-rule-is-on-by-default"
+  find = "PATIENCE = math.inf"
+  replace = "PATIENCE = 10.0"
+  models = "the rule that abandoned GeoLift's prunable nodes back on: 14,367 lifts at eight treated pruned no node"
