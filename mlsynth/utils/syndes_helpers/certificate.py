@@ -1,47 +1,31 @@
-"""Mode-aware optimality certificate for the SYNDES design.
+"""Optimality certificate for a SYNDES design, from the exact searches' bounds.
 
-The SYNDES design MIP is NP-hard; SCIP's cost is almost entirely in *proving*
-optimality, because its dual bound is the continuous (McCormick) relaxation,
-which is very loose for the two-way objective. This module supplies a valid
-lower bound on the optimal objective *without* branch-and-bound, so a fitted
-design can be reported with a validated optimality gap (``LB <= optimum <=
-incumbent``) -- the rigorous form of "close enough, stop".
+Every SYNDES mode has an exact backend that searches treated sets and reports a
+lower bound on the optimum with its design (``design.solve_outcome``):
 
-The right lower bound depends on the mode's geometry:
+* ``global_2way`` (:mod:`~.exact`): the enumeration under the closed-form bound
+  of :mod:`~.gram`, which reports the Rayleigh bound over every size-``K``
+  design, or the smallest priced bound where ``G + lam I`` is singular;
+* ``global_equal_weights`` (:mod:`~.one_way_exact`): the enumeration under the
+  ridge bound, which reports the optimum itself when it closes and the Rayleigh
+  bound past its candidate limit;
+* ``per_unit`` (:mod:`~.per_unit_exact`): the branch and bound on units, which
+  reports the optimum when it closes and its smallest open node bound at its node
+  limit.
 
-* ``global_equal_weights`` (one-way): the treated weights are pinned to ``1/K``,
-  so ``D`` enters the residual linearly -- no bilinear term -- and the plain
-  continuous relaxation is already tight (a single convex QP).
-* ``global_2way`` (two-way): the ``q = w*D`` bilinear makes the continuous
-  relaxation useless (~80% gap). Naming the treated set removes the bilinear
-  entirely (see :mod:`mlsynth.utils.syndes_helpers.gram`), and the closed form
-  that follows admits a Rayleigh bound over every size-``K`` design at once:
-  ``f* >= alpha N / (K (N - K) lam_max(R))``. One matrix inverse and one
-  eigenvalue, no relaxation solve, and no size gate.
-* ``per_unit``: the weights are an ``(N, N)`` matrix, so no lift is tractable
-  and the continuous relaxation is very loose (~70%). There is no cheap tight
-  bound; the certificate is returned ``certified=False``.
+The certificate is ``lower_bound <= optimum <= incumbent``. The bound comes from
+the mode's search on the panel, penalty and restrictions the incumbent is scored
+on: the design's own search when the caller passes it (``search``), and a fresh
+search otherwise, which is what a design fitted on part of the pre-period
+(holdout selection) needs. The incumbent is the returned design scored on that
+panel and penalty (:func:`design_objective`), so the two refer to one problem.
+``certified`` says the search closed and its bound does not contradict the
+incumbent beyond :data:`_BOUND_TOLERANCE`.
 
-The returned lower bound is *valid* (a relaxation optimum, or a closed form),
-modulo the solver's numerical tolerance, and only a relaxation that solved to
-``optimal`` gives one. The incumbent is the returned design scored on the data
-and penalty the bound uses (:func:`design_objective`), so the two refer to one
-problem. ``certified`` says the gap can be read as a certificate: the bound
-exists, is tight enough for the mode to matter, and does not exceed the
-incumbent beyond the bound's own tolerance.
-
-The two-way bound replaced an SDP / moment (Shor--Lasserre level-1) lift, which
-added ``D_i^2 = D_i`` and ``w_i D_i = q_i`` as exact second moments. Measured on
-the same instances, the Rayleigh bound reached 88.8 / 90.6 / 92.0 percent of the
-optimum at ``K = 3 / 5 / 7`` against the lift's 83.2 / 84.9 / 86.2, taking about
-0.1 ms against 0.1--0.23 s, with no size gate and no iteration cap to exhaust.
-The lift went with the MIP accelerator that was its last consumer.
-
-This certificate is an mlsynth addition, not part of Doudchenko et al. (2021):
-the paper proves the design NP-hard and gives the mixed-integer program but
-derives no relaxation-based lower bound. It is a design-time diagnostic computed
-on the pre-treatment panel and does not change the design SYNDES returns.
-
+The certificate is an mlsynth addition, not part of Doudchenko et al. (2021): the
+paper proves the design NP-hard and gives the mixed-integer program but derives
+no lower bound. It is a design-time diagnostic computed on the pre-treatment
+panel and does not change the design SYNDES returns.
 """
 from __future__ import annotations
 
@@ -49,12 +33,9 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
-import cvxpy as cp
 import numpy as np
 
-from ...exceptions import MlsynthConfigError
-from .formulation import build_syndes_problem_components
-from .gram import BoundEngine, TwoWayProblem
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from .optimization import estimate_lambda
 
 _ONE_WAY = "global_equal_weights"
@@ -63,8 +44,8 @@ _PER_UNIT = "per_unit"
 _MODES = (_ONE_WAY, _TWO_WAY, _PER_UNIT)
 
 #: A bound may sit above the incumbent by this much, relative to the larger of
-#: the two, before the excess counts as a contradiction: the tolerance of the
-#: relaxation's solve. Within it the gap is zero.
+#: the two, before the excess counts as a contradiction: the tolerance the
+#: searches certify their designs to. Within it the gap is zero.
 _BOUND_TOLERANCE = 1e-8
 
 
@@ -79,9 +60,9 @@ class SYNDESCertificate:
     Attributes
     ----------
     lower_bound : float or None
-        A valid lower bound on the optimal objective. ``None`` when there is
-        none: the relaxation did not solve to ``optimal``, or the two-way Gram
-        matrix is too ill-conditioned for the closed form.
+        A valid lower bound on the optimal objective: the bound the mode's exact
+        search reported. ``None`` when the search raised, which the note
+        explains.
     optimality_gap : float or None
         ``(incumbent - lower_bound) / max(|incumbent|, |lower_bound|)``, the
         fraction by which the incumbent may exceed the true optimum. Zero when
@@ -89,11 +70,10 @@ class SYNDESCertificate:
         with ``certified=False`` and a :class:`SYNDESCertificateWarning`, when
         it exceeds it by more. ``None`` when there is no bound.
     certified : bool
-        Whether the gap can be read as a certificate: the bound exists, does not
-        contradict the incumbent, and is tight enough to matter for the mode
-        (one-way and two-way; per-unit's bound is valid but loose).
+        Whether the gap can be read as a certificate: the search closed, and
+        its bound does not contradict the incumbent.
     method : str
-        ``"continuous_relaxation"`` or ``"rayleigh"``.
+        ``"search"``: the bound is the mode's exact search's.
     note : str
         Human-readable caveat (empty when fully certified).
     incumbent : float or None
@@ -107,65 +87,6 @@ class SYNDESCertificate:
     method: str
     note: str = ""
     incumbent: Optional[float] = None
-
-
-def _bound_value(objective: cp.Expression) -> Optional[float]:
-    """The solved objective, or ``None`` when the solve produced no value.
-
-    The continuous relaxation is a convex solve that can end without an optimum.
-    CVXPY leaves ``.value`` at ``None`` in that case, so every caller reads the
-    bound through this helper and gets an absent bound instead of a
-    ``TypeError``.
-    """
-    value = objective.value
-    return None if value is None else float(value)
-
-
-def _continuous_relaxation_bound(
-    Y: np.ndarray, K: int, mode: str, lam: float
-) -> Tuple[Optional[float], str]:
-    """Continuous relaxation optimum (``D`` in ``[0, 1]``): a valid lower bound.
-
-    Valid only at an optimum: an inexact relaxation's objective can sit above the
-    relaxation's minimum, and then it bounds nothing. So any status but
-    ``optimal``, and any solver error, gives no bound and says why.
-    """
-    _, N = Y.shape
-    D = cp.Variable(N, nonneg=True)
-    comp = build_syndes_problem_components(Y=Y, D=D, K=K, lam=lam, mode=mode)
-    prob = cp.Problem(cp.Minimize(comp.objective), list(comp.constraints) + [D <= 1])
-    try:
-        prob.solve(solver=cp.CLARABEL)
-    except Exception as exc:
-        return None, f"the continuous relaxation's solver failed ({exc})"
-    if prob.status != "optimal":
-        return None, (f"the continuous relaxation failed to solve to optimality "
-                      f"(status {prob.status!r})")
-    value = _bound_value(comp.objective)
-    if value is None:                       # pragma: no cover - optimal carries a value
-        return None, "the continuous relaxation failed to return a value"
-    return value, ""
-
-def _rayleigh_bound_two_way(
-    Y: np.ndarray, K: Optional[int], lam: float
-) -> Optional[float]:
-    """Closed-form lower bound on the two-way optimum over every size-``K`` design.
-
-    Reduces the instance to its Gram matrix and applies Rayleigh's inequality to
-    the cut form ``sigma' R sigma`` (see
-    :mod:`mlsynth.utils.syndes_helpers.gram`). Costs one matrix inverse and one
-    eigenvalue, needs no relaxation solve, and cannot fail to converge -- so the
-    only way it returns ``None`` is an ill-conditioned Gram matrix, which happens
-    when ``lam`` approaches zero on a panel with fewer pre-periods than units.
-
-    With ``K=None`` the design searches every size, so the bound is the smallest
-    over sizes ``1 .. N - 1``.
-    """
-    engine = BoundEngine.from_problem(TwoWayProblem.from_panel(Y, lam=lam))
-    if K is not None:
-        return engine.global_lower_bound(K)
-    bounds = [engine.global_lower_bound(k) for k in range(1, engine.N)]
-    return None if any(b is None for b in bounds) else float(min(bounds))
 
 
 def _gap(incumbent: float, lb: float) -> float:
@@ -243,73 +164,102 @@ def _certificate(
                              incumbent=float(incumbent_obj))
 
 
+def _search(Y: np.ndarray, K: Optional[int], mode: str, lam: float,
+            restrictions: Any, costs: Any, budget: Any) -> Any:
+    """The mode's exact search on ``Y``. A search stopped at its limit warns,
+    as it does for the design, and the certificate says so in its note."""
+    from .exact import solve_synthetic_design_exact
+    from .one_way_exact import solve_one_way_exact
+    from .per_unit_exact import solve_per_unit_exact
+    solve = {_TWO_WAY: solve_synthetic_design_exact,
+             _ONE_WAY: solve_one_way_exact,
+             _PER_UNIT: solve_per_unit_exact}[mode]
+    return solve(Y, K, lam=lam, restrictions=restrictions, costs=costs,
+                 budget=budget)
+
+
+def _bound(search: Any) -> Tuple[Optional[float], bool, str]:
+    """A search's lower bound, whether it closed, and why not if it did not."""
+    outcome = getattr(search, "solve_outcome", None)
+    if outcome is not None and outcome.solver_status == "exact":
+        closed = outcome.status == "optimal"
+        why = "" if closed else (
+            f"the search stopped at its limit (status {outcome.status!r}), so "
+            "its bound is valid but the design is not proven optimal.")
+        return outcome.dual_bound, closed, why
+    raw = getattr(search, "raw_results", None) or {}
+    if raw.get("solver") != "exact" or raw.get("lower_bound") is None:
+        raise MlsynthConfigError(
+            "syndes_certificate: search must be a design from one of SYNDES's "
+            "exact backends, which report a lower bound.")
+    closed = bool(raw.get("certified"))
+    why = "" if closed else (
+        "the search did not certify its design, so its bound is valid but the "
+        "design is not proven optimal.")
+    return float(raw["lower_bound"]), closed, why
+
+
 def syndes_certificate(
     Y: np.ndarray,
-    K: int,
+    K: Optional[int],
     mode: str,
     incumbent_obj: float,
     *,
     lam: Optional[float] = None,
+    restrictions: Optional[Any] = None,
+    costs: Optional[np.ndarray] = None,
+    budget: Optional[float] = None,
+    search: Optional[Any] = None,
 ) -> SYNDESCertificate:
-    """Certify a SYNDES design's optimality gap with a mode-appropriate bound.
+    """Certify a SYNDES design's optimality gap with its mode's search bound.
 
     Parameters
     ----------
     Y : np.ndarray
-        Pre-treatment outcome matrix ``(T, N)`` -- the same matrix the design
-        was optimized on.
-    K : int
-        Number of treated units.
+        Pre-treatment outcome matrix ``(T, N)``: the panel the incumbent is
+        scored on.
+    K : int or None
+        Number of treated units. ``None`` searches every size, which only the
+        two-way mode does.
     mode : {"global_equal_weights", "global_2way", "per_unit"}
         SYNDES formulation the design used.
     incumbent_obj : float
         The design's objective on ``Y`` with penalty ``lam``
-        (:func:`design_objective`). The bound and the incumbent must refer to
-        the same panel and penalty: a design fitted on part of the pre-period
-        (holdout selection) is scored on the whole of it here.
+        (:func:`design_objective`).
     lam : float, optional
-        Regularization; estimated from ``Y`` when ``None``. Pass the penalty the
+        Penalty; estimated from ``Y`` when ``None``. Pass the penalty the
         incumbent was scored with.
+    restrictions, costs, budget : optional
+        The design's restrictions, so the bound is the restricted problem's.
+        Without them it is the unrestricted problem's, which bounds the
+        restricted one too, more loosely.
+    search : SYNDESDesign, optional
+        A design the mode's exact backend returned on ``Y``, ``K``, ``lam`` and
+        the same restrictions; its bound is read instead of searching again.
 
     Returns
     -------
     SYNDESCertificate
+
+    Raises
+    ------
+    MlsynthConfigError
+        For an unknown mode, a ``search`` that carries no exact-search bound,
+        or a ``K`` the mode's search refuses (``K=None`` outside the two-way
+        mode among them).
     """
     if mode not in _MODES:
         raise MlsynthConfigError(
             f"syndes_certificate: unknown mode {mode!r}; expected one of {_MODES}.")
-    if K is None and mode != _TWO_WAY:
-        raise MlsynthConfigError(
-            f"syndes_certificate: K=None is bounded for the two-way mode only; "
-            f"mode {mode!r} needs K.")
-    _, N = Y.shape
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
-
-    if mode == _ONE_WAY:
-        lb, why = _continuous_relaxation_bound(Y, K, mode, lam_value)
-        return _certificate(lb, incumbent_obj, True, "continuous_relaxation",
-                            absent_note=_absent(why))
-
-    if mode == _TWO_WAY:
-        return _certificate(
-            _rayleigh_bound_two_way(Y, K, lam_value),
-            incumbent_obj, True, "rayleigh",
-            absent_note=(
-                "the two-way Gram matrix is too ill-conditioned for the "
-                "closed-form bound, so no lower bound is available and this "
-                "design carries no certified gap. Raise lam, or add "
-                "pre-treatment periods."))
-
-    # per_unit: no cheap tight bound (SDP is O(N^4); continuous relaxation ~70% loose)
-    lb, why = _continuous_relaxation_bound(Y, K, mode, lam_value)
-    return _certificate(
-        lb, incumbent_obj, False, "continuous_relaxation",
-        note=("per-unit has an (N,N) weight matrix, so the SDP lift is intractable "
-              "and the continuous relaxation is loose; the gap is not a tight "
-              "certificate."),
-        absent_note=_absent(why))
-
-
-def _absent(why: str) -> str:
-    return (f"{why}, so no lower bound is available and this design carries no "
-            "certified gap.")
+    if search is None:
+        try:
+            search = _search(Y, K, mode, lam_value, restrictions, costs, budget)
+        except MlsynthEstimationError as exc:
+            return _certificate(
+                None, incumbent_obj, False, "search",
+                absent_note=(f"the {mode} search raised ({exc}), so no lower "
+                             "bound is available and this design carries no "
+                             "certified gap."))
+    lb, closed, why = _bound(search)
+    return _certificate(lb, incumbent_obj, closed, "search", note=why)

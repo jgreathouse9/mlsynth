@@ -166,20 +166,50 @@ timeout = 180.0
 [[target]]
 name = "syndes-certificate-validity"
 module-path = "mlsynth/utils/syndes_helpers/certificate.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py mlsynth/tests/test_syndes_certificate_validity_properties.py mlsynth/tests/test_syndes_bound_failure.py -q -p no:cacheprovider -x"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate.py mlsynth/tests/test_syndes_certificate_validity.py mlsynth/tests/test_syndes_certificate_validity_properties.py mlsynth/tests/test_syndes_bound_failure.py -q -p no:cacheprovider -x"
 timeout = 600.0
 
   [[target.mutant]]
-  id = "an-unfinished-relaxation-bounds-the-optimum"
-  find = "    if prob.status != \"optimal\":"
-  replace = "    if False:"
-  models = "the pre-fix relaxation, which read the objective of any solve that returned one. An optimal_inaccurate relaxation can stop above its own minimum, and its value then bounds nothing, yet it was reported as a lower bound and a gap"
+  id = "a-raising-search-ends-the-fit"
+  find = "        except MlsynthEstimationError as exc:"
+  replace = "        except ZeroDivisionError as exc:"
+  models = "a search that raises takes the whole fit down with it, when the certificate is a diagnostic that can report no bound and say why"
 
   [[target.mutant]]
-  id = "a-relaxation-solver-error-escapes"
-  find = "        return None, f\"the continuous relaxation's solver failed ({exc})\""
-  replace = "        raise"
-  models = "a relaxation whose solver raises takes the whole fit down with it, when the certificate is a diagnostic that can report no bound and say why"
+  id = "a-stopped-search-is-certified"
+  find = "        closed = outcome.status == \"optimal\""
+  replace = "        closed = True"
+  models = "a search stopped at its node or candidate limit read as closed, so its incumbent is certified optimal on a bound that does not reach it"
+
+  [[target.mutant]]
+  id = "the-bound-is-the-searchs-incumbent"
+  find = "        return outcome.dual_bound, closed, why"
+  replace = "        return outcome.objective, closed, why"
+  models = "the search's incumbent reported as the bound, which a stopped search's incumbent exceeds the optimum by, so the bound stops being one"
+
+  [[target.mutant]]
+  id = "an-uncertified-two-way-search-is-certified"
+  find = "    closed = bool(raw.get(\"certified\"))"
+  replace = "    closed = True"
+  models = "a two-way search past its candidate limit, which returns the swap search's design against the Rayleigh bound, read as closed"
+
+  [[target.mutant]]
+  id = "a-passed-search-is-repeated"
+  find = "    if search is None:"
+  replace = "    if True:"
+  models = "the certificate searching again when the design's own search ran on the same panel, penalty and restrictions: the same bound at the cost of a second search"
+
+  [[target.mutant]]
+  id = "the-restrictions-are-dropped"
+  find = "            search = _search(Y, K, mode, lam_value, restrictions, costs, budget)"
+  replace = "            search = _search(Y, K, mode, lam_value, None, costs, budget)"
+  models = "the certificate bounding the unrestricted problem, a valid but looser bound, so a restricted design proven optimal reads as a gap"
+
+  [[target.mutant]]
+  id = "the-budget-is-dropped"
+  find = "            search = _search(Y, K, mode, lam_value, restrictions, costs, budget)"
+  replace = "            search = _search(Y, K, mode, lam_value, restrictions, None, None)"
+  models = "the certificate bounding the problem without the cost budget, a valid but looser bound, so a budgeted design proven optimal reads as a gap"
 
   [[target.mutant]]
   id = "the-gap-has-a-unit-floor"
@@ -212,18 +242,6 @@ timeout = 600.0
   models = "a negative gap that warns but leaves certified=True, so a caller filtering on the flag keeps a certificate the note says certifies nothing"
 
   [[target.mutant]]
-  id = "a-free-size-is-bounded-at-the-easiest-size"
-  find = "    return None if any(b is None for b in bounds) else float(min(bounds))"
-  replace = "    return None if any(b is None for b in bounds) else float(max(bounds))"
-  models = "a K=None two-way design bounded by the largest per-size bound, which exceeds the optimum over sizes whenever the best design is at another size: the bound stops being a bound"
-
-  [[target.mutant]]
-  id = "a-free-size-reaches-a-bound-that-needs-k"
-  find = "    if K is None and mode != _TWO_WAY:"
-  replace = "    if False:"
-  models = "K=None reaching the one-way and per-unit relaxations, which build their constraints from K. Before the fix that raised a TypeError; with the relaxation's errors now caught it would read as a missing bound, not as the configuration error it is"
-
-  [[target.mutant]]
   id = "the-per-unit-penalty-is-not-averaged"
   find = "    return float((resid ** 2).sum() / (len(S) * T) + lam / len(S) * (Q ** 2).sum())"
   replace = "    return float((resid ** 2).sum() / (len(S) * T) + lam * (Q ** 2).sum())"
@@ -238,8 +256,26 @@ timeout = 600.0
 [[target]]
 name = "syndes-certificate-wiring"
 module-path = "mlsynth/estimators/syndes.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py -q -p no:cacheprovider -x -k holdout"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py mlsynth/tests/test_syndes_certificate.py -q -p no:cacheprovider -x -k \"holdout or estimator\""
 timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-certificate-searches-again-in-sample"
+  find = "                budget=self.budget, search=in_sample if use_exact else None,"
+  replace = "                budget=self.budget, search=None,"
+  models = "the estimator discarding the search it ran on the whole pre-period, so the certificate searches the same problem a second time"
+
+  [[target.mutant]]
+  id = "holdout-reuses-the-slice-search"
+  find = "            design = ranked[0]\n            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,\n                                     oos_errors=oos_errors)"
+  replace = "            design = in_sample = ranked[0]\n            pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,\n                                     oos_errors=oos_errors)"
+  models = "under holdout the leading slice's search handed to the certificate, whose bound refers to another panel than the incumbent, so the gap compares two problems"
+
+  [[target.mutant]]
+  id = "restrictions-do-not-reach-the-certificate"
+  find = "                lam=lam_design, restrictions=restrictions, costs=self.costs,"
+  replace = "                lam=lam_design, restrictions=None, costs=self.costs,"
+  models = "the estimator certifying a restricted design against the unrestricted problem, so a restricted optimum reads as a gap"
 
   [[target.mutant]]
   id = "the-incumbent-is-the-fitting-objective"
@@ -6189,3 +6225,22 @@ timeout = 600.0
   find = "        except _NoFeasibleDesign:"
   replace = "        except MlsynthEstimationError:"
   models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
+
+[[target]]
+name = "syndes-two-way-free-size-bound"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py -q -p no:cacheprovider -x -k free_size"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "a-free-size-is-bounded-at-the-best-size"
+  find = "                       else float(min(lowers)))"
+  replace = "                       else best.lower_bound)"
+  models = "a K=None two-way design bounded by the best size's bound alone, which exceeds the optimum over sizes whenever another size's bound is lower: the bound stops being a bound"
+
+  [[target.mutant]]
+  id = "a-free-size-is-certified-by-its-best-size"
+  find = "        certified = certified and outcome.certified"
+  replace = "        certified = certified"
+  models = "a K=None two-way design certified when one size's search stopped at its limit, so a size it never proved could hold a better design"
+

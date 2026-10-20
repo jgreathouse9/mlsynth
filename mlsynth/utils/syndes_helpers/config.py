@@ -162,15 +162,18 @@ class SYNDESConfig(BaseMAREXConfig):
     certify: bool = Field(
         default=False,
         description=(
-            "Attach a validated optimality gap to the result. Computes a "
-            "mode-appropriate lower bound on the optimal objective without "
-            "branch-and-bound (a convex QP for one-way; the closed-form "
-            "Rayleigh bound on the Gram matrix for two-way; per-unit is not "
-            "cheaply certifiable and returns certified=False). The result gains a ``certificate`` "
-            "(``SYNDESCertificate``) with ``lower_bound`` and ``optimality_gap``. "
-            "A design-time diagnostic and an mlsynth addition -- not part of "
-            "Doudchenko et al. (2021), which gives the MIP but no relaxation "
-            "bound; it does not change the returned design."
+            "Attach a validated optimality gap to the result. The lower bound "
+            "is the one the mode's exact search reports on the whole "
+            "pre-period, with the design's penalty and restrictions: the "
+            "optimum itself for one-way and per-unit when the search closes, "
+            "and the Rayleigh bound over every size-K design for two-way. The "
+            "search the design came from is reused when it ran on the whole "
+            "pre-period; under holdout selection it is run again there. The "
+            "result gains a ``certificate`` (``SYNDESCertificate``) with "
+            "``lower_bound``, ``optimality_gap`` and ``certified``, which says "
+            "the search closed. A design-time diagnostic and an mlsynth "
+            "addition -- not part of Doudchenko et al. (2021), which gives the "
+            "MIP but no lower bound; it does not change the returned design."
         ),
     )
     display_graph: bool = Field(default=False,

@@ -42,7 +42,7 @@ batch product would not hold.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -457,6 +457,8 @@ def solve_synthetic_design_exact(
 
     best: Optional[SearchOutcome] = None
     failures: List[str] = []
+    lowers: List[Optional[float]] = []
+    certified = True
     for size in sizes:
         try:
             outcome = _search(problem, size, filt,
@@ -465,6 +467,8 @@ def solve_synthetic_design_exact(
         except _NoFeasibleDesign as exc:
             failures.append(str(exc))
             continue
+        lowers.append(outcome.lower_bound)
+        certified = certified and outcome.certified
         if best is None or outcome.value < best.value:
             best = outcome
 
@@ -473,6 +477,13 @@ def solve_synthetic_design_exact(
             failures[0] if failures else
             "SYNDES found no feasible design under the active restrictions.")
 
+    # With K free the optimum may sit at any size, so the bound is the
+    # smallest over the sizes searched, not the best size's, and the design is
+    # certified only when every size's search was.
+    if len(lowers) > 1:
+        best = replace(best, certified=certified,
+                       lower_bound=None if any(b is None for b in lowers)
+                       else float(min(lowers)))
     return _to_design(problem, Y, best, unit_index)
 
 

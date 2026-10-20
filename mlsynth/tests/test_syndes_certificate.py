@@ -1,10 +1,12 @@
-"""Tests for the SYNDES optimality certificate (mode-aware lower bound).
+"""The SYNDES optimality certificate reads the exact searches' bounds (#822).
 
-Contract: the returned lower bound is always valid (LB <= the design's
-objective), it is a *tight* certificate for one-way (continuous QP) and two-way
-(the closed-form Rayleigh bound), and it is flagged ``certified=False`` for
-per-unit, where the only cheap bound is loose. ``certify=True`` on the estimator
-attaches it; the default leaves the result untouched.
+Contract: the lower bound is the bound the mode's exact search reports, so it is
+always valid (``lower_bound <= optimum <= incumbent``). Where the search closes,
+one-way's and per-unit's bound is the optimum itself and the gap is zero to the
+searches' tolerance; two-way's is the Rayleigh bound over every size-``K`` design.
+``certified`` says the search closed. ``certify=True`` on the estimator attaches
+it, reusing the estimator's own search where it ran one on the whole pre-period;
+the default leaves the result untouched.
 """
 from __future__ import annotations
 
@@ -14,97 +16,134 @@ import pytest
 
 from mlsynth import SYNDES
 from mlsynth.exceptions import MlsynthConfigError
-from mlsynth.utils.syndes_helpers.optimization import solve_synthetic_design
 from mlsynth.utils.syndes_helpers.certificate import (
-    SYNDESCertificate, syndes_certificate,
+    SYNDESCertificate,
+    design_objective,
+    syndes_certificate,
 )
+from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
+from mlsynth.utils.syndes_helpers.one_way_exact import solve_one_way_exact
+from mlsynth.utils.syndes_helpers.per_unit_exact import solve_per_unit_exact
+from mlsynth.utils.syndes_helpers.restrictions import DesignRestrictions
 
-INTERNAL = {"one_way": "global_equal_weights", "two_way": "global_2way",
-            "per_unit": "per_unit"}
+MODES = ("global_equal_weights", "global_2way", "per_unit")
+SOLVE = {"global_equal_weights": solve_one_way_exact,
+         "global_2way": solve_synthetic_design_exact,
+         "per_unit": solve_per_unit_exact}
 
 
-def _Y(N=12, T=8, K=3, seed=0):
+def _Y(N=10, T=8, seed=0):
     rng = np.random.default_rng(seed)
     F = rng.standard_normal((T, 3)); Lam = rng.standard_normal((N, 3))
     return (Lam @ F.T).T + 0.3 * rng.standard_normal((T, N))
 
 
-def _incumbent(Y, K, mode):
-    return float(solve_synthetic_design(Y, K=K, mode=mode).objective_value)
+def _incumbent(Y, K, mode, **kw):
+    d = SOLVE[mode](Y, K, **kw)
+    return d, design_objective(Y, mode, d, d.lambda_value)
 
 
 # ----------------------------------------------------------------------
-# Validity: the bound never exceeds the incumbent (it is a lower bound)
+# smoke
 # ----------------------------------------------------------------------
-class TestValidity:
-    @pytest.mark.parametrize("mode", list(INTERNAL.values()))
-    def test_lower_bound_below_incumbent(self, mode):
-        Y = _Y(); K = 3
-        inc = _incumbent(Y, K, mode)
-        c = syndes_certificate(Y, K, mode, inc)
-        assert c.lower_bound <= inc + 1e-6
-        assert 0.0 <= c.optimality_gap
-        assert isinstance(c, SYNDESCertificate)
 
-    def test_gap_formula(self):
-        Y = _Y(); K = 3; mode = "global_2way"
-        inc = _incumbent(Y, K, mode)
-        c = syndes_certificate(Y, K, mode, inc)
-        assert c.optimality_gap == pytest.approx(
-            max(0.0, (inc - c.lower_bound) / abs(inc)), rel=1e-9)
+
+@pytest.mark.parametrize("mode", MODES)
+def test_every_mode_is_certified_by_its_search(mode):
+    Y = _Y()
+    d, inc = _incumbent(Y, 3, mode)
+    c = syndes_certificate(Y, 3, mode, inc, lam=d.lambda_value)
+    assert isinstance(c, SYNDESCertificate)
+    assert c.method == "search" and c.certified is True and c.note == ""
+    assert c.lower_bound <= inc * (1 + 1e-8)
+    assert 0.0 <= c.optimality_gap < 1.0
 
 
 # ----------------------------------------------------------------------
-# Mode-aware certified flag and method
+# the bound is the search's
 # ----------------------------------------------------------------------
-class TestModes:
-    def test_one_way_certified_continuous(self):
-        Y = _Y(); c = syndes_certificate(Y, 3, "global_equal_weights",
-                                         _incumbent(Y, 3, "global_equal_weights"))
-        assert c.certified is True and c.method == "continuous_relaxation"
 
-    def test_two_way_certified_rayleigh(self):
-        Y = _Y(); c = syndes_certificate(Y, 3, "global_2way",
-                                         _incumbent(Y, 3, "global_2way"))
-        assert c.certified is True and c.method == "rayleigh"
-        # the closed-form bound is tight on the two-way objective
-        assert c.optimality_gap < 0.15
 
-    def test_per_unit_uncertified(self):
-        Y = _Y(); c = syndes_certificate(Y, 3, "per_unit",
-                                         _incumbent(Y, 3, "per_unit"))
-        assert c.certified is False
-        assert "per-unit" in c.note
+@pytest.mark.parametrize("mode", ["global_equal_weights", "per_unit"])
+def test_where_the_search_closes_the_gap_is_zero(mode):
+    """One-way's and per-unit's searches report the optimum as their bound."""
+    Y = _Y(seed=1)
+    d, inc = _incumbent(Y, 3, mode)
+    c = syndes_certificate(Y, 3, mode, inc, lam=d.lambda_value)
+    assert c.lower_bound == pytest.approx(d.solve_outcome.dual_bound, rel=1e-12)
+    assert c.optimality_gap <= 1e-8
 
-    @pytest.mark.parametrize("N", [8, 12, 40])
-    def test_two_way_has_no_size_gate(self, N):
-        """The Rayleigh bound is one eigenvalue, so no N forces a fallback."""
-        Y = _Y(N=N)
-        c = syndes_certificate(Y, 3, "global_2way", _incumbent(Y, 3, "global_2way"))
-        assert c.method == "rayleigh"
-        assert c.certified is True
-        assert c.note == ""
 
-    def test_two_way_bound_is_tight_and_valid(self):
-        """What the moment lift it replaced was for: a bound close to the optimum."""
-        from mlsynth.utils.syndes_helpers.certificate import _rayleigh_bound_two_way
-        from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
+def test_the_two_way_bound_is_the_searchs_rayleigh_bound():
+    Y = _Y(seed=2)
+    d, inc = _incumbent(Y, 3, "global_2way")
+    c = syndes_certificate(Y, 3, "global_2way", inc, lam=d.lambda_value)
+    assert c.lower_bound == pytest.approx(d.raw_results["lower_bound"], rel=1e-12)
+    assert 0.8 * inc <= c.lower_bound <= inc
 
-        Y = _Y(); K = 3
-        bound = _rayleigh_bound_two_way(Y, K, float(estimate_lambda(Y)))
-        inc = _incumbent(Y, K, "global_2way")
-        assert bound is not None
-        assert bound <= inc + 1e-9                    # a valid lower bound
-        assert bound >= 0.8 * inc                     # and a tight one
 
-    def test_unknown_mode_raises(self):
-        with pytest.raises(MlsynthConfigError):
-            syndes_certificate(_Y(), 3, "not_a_mode", 1.0)
+@pytest.mark.parametrize("mode", MODES)
+def test_a_passed_search_is_read_not_repeated(mode, monkeypatch):
+    import mlsynth.utils.syndes_helpers.certificate as cert
+    Y = _Y(seed=3)
+    d, inc = _incumbent(Y, 3, mode)
+    fresh = syndes_certificate(Y, 3, mode, inc, lam=d.lambda_value)
+
+    def refuse(*a, **k):
+        raise AssertionError("the certificate searched again")
+    monkeypatch.setattr(cert, "_search", refuse)
+    reused = syndes_certificate(Y, 3, mode, inc, lam=d.lambda_value, search=d)
+    assert reused.lower_bound == pytest.approx(fresh.lower_bound, rel=1e-12)
+    assert reused.certified == fresh.certified
+
+
+def test_restrictions_give_the_restricted_problems_bound():
+    """Forbidding the unrestricted optimum's units raises the optimum; the
+    restricted bound sees it, and the unrestricted one bounds it too."""
+    Y = _Y(seed=4)
+    free, _ = _incumbent(Y, 3, "per_unit")
+    rules = DesignRestrictions(forbidden=list(free.selected_unit_indices))
+    d, inc = _incumbent(Y, 3, "per_unit", restrictions=rules)
+    tight = syndes_certificate(Y, 3, "per_unit", inc, lam=d.lambda_value,
+                               restrictions=rules)
+    loose = syndes_certificate(Y, 3, "per_unit", inc, lam=d.lambda_value)
+    assert tight.lower_bound == pytest.approx(inc, rel=1e-9)
+    assert loose.lower_bound < tight.lower_bound
+    assert loose.lower_bound == pytest.approx(free.objective_value, rel=1e-9)
+
+
+def test_costs_give_the_budgeted_problems_bound():
+    Y = _Y(seed=5)
+    costs = np.arange(1.0, 11.0)
+    d, inc = _incumbent(Y, 3, "global_equal_weights", costs=costs, budget=8.0)
+    c = syndes_certificate(Y, 3, "global_equal_weights", inc, lam=d.lambda_value,
+                           costs=costs, budget=8.0)
+    assert c.lower_bound == pytest.approx(inc, rel=1e-9)
 
 
 # ----------------------------------------------------------------------
-# Estimator integration
+# failures
 # ----------------------------------------------------------------------
+
+
+def test_unknown_mode_raises():
+    with pytest.raises(MlsynthConfigError):
+        syndes_certificate(_Y(), 3, "not_a_mode", 1.0)
+
+
+def test_a_design_without_a_search_bound_is_refused():
+    class Bare:
+        raw_results = {"solver": "SCIP"}
+        solve_outcome = None
+    with pytest.raises(MlsynthConfigError, match="exact backends"):
+        syndes_certificate(_Y(), 3, "global_2way", 1.0, search=Bare())
+
+
+# ----------------------------------------------------------------------
+# the estimator
+# ----------------------------------------------------------------------
+
+
 def _panel(N=10, T=14, n_post=4, seed=0):
     rng = np.random.default_rng(seed)
     Y = rng.standard_normal((T, N)) * 0.4 + rng.standard_normal(N)
@@ -113,23 +152,53 @@ def _panel(N=10, T=14, n_post=4, seed=0):
         for i in range(N) for t in range(T)])
 
 
-class TestEstimator:
-    def _fit(self, mode, **over):
-        cfg = {"df": _panel(), "outcome": "y", "unitid": "unit", "time": "time",
-               "K": 3, "mode": mode, "post_col": "post", "run_inference": False}
-        cfg.update(over)
-        return SYNDES(cfg).fit()
+def _fit(mode, **over):
+    cfg = {"df": _panel(), "outcome": "y", "unitid": "unit", "time": "time",
+           "K": 3, "mode": mode, "post_col": "post", "run_inference": False}
+    cfg.update(over)
+    return SYNDES(cfg).fit()
 
-    def test_certify_attaches_valid_certificate(self):
-        res = self._fit("two_way_global", certify=True)
-        c = res.certificate
-        assert c is not None
-        assert c.lower_bound <= float(res.design.objective_value) + 1e-6
-        assert c.method == "rayleigh" and c.certified is True
 
-    def test_default_off_no_certificate(self):
-        assert self._fit("two_way_global").certificate is None
+@pytest.mark.parametrize("mode", ["two_way_global", "one_way_global", "per_unit"])
+def test_certify_attaches_a_certificate_from_the_search(mode):
+    res = _fit(mode, certify=True)
+    c = res.certificate
+    assert c is not None and c.method == "search" and c.certified is True
+    assert c.lower_bound <= float(res.design.objective_value) * (1 + 1e-8)
 
-    def test_per_unit_estimator_uncertified(self):
-        c = self._fit("per_unit", certify=True).certificate
-        assert c is not None and c.certified is False
+
+def test_default_off_no_certificate():
+    assert _fit("two_way_global").certificate is None
+
+
+@pytest.mark.parametrize("over", [{}, {"top_K": 3, "selection": "in_sample"},
+                                  {"top_K": 3, "selection": "ic"}])
+def test_the_estimator_reuses_its_whole_pre_period_search(over, monkeypatch):
+    import mlsynth.utils.syndes_helpers.certificate as cert
+
+    def refuse(*a, **k):
+        raise AssertionError("the certificate searched again")
+    monkeypatch.setattr(cert, "_search", refuse)
+    c = _fit("per_unit", certify=True, **over).certificate
+    assert c.certified is True
+
+
+def test_under_holdout_the_certificate_searches_the_whole_pre_period(monkeypatch):
+    import mlsynth.utils.syndes_helpers.certificate as cert
+    calls = []
+    original = cert._search
+
+    def spy(Y, *a, **k):
+        calls.append(Y.shape)
+        return original(Y, *a, **k)
+    monkeypatch.setattr(cert, "_search", spy)
+    res = _fit("per_unit", certify=True, top_K=3, selection="holdout",
+               holdout_frac=0.3)
+    assert calls == [res.inputs.Y_pre.shape]
+    assert res.certificate.lower_bound <= res.certificate.incumbent * (1 + 1e-8)
+
+
+def test_the_estimators_restrictions_reach_the_certificate():
+    res = _fit("one_way_global", certify=True, not_to_be_treated=["u0", "u1", "u2"])
+    c = res.certificate
+    assert c.lower_bound == pytest.approx(c.incumbent, rel=1e-9)
