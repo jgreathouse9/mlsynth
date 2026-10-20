@@ -290,6 +290,24 @@ timeout = 300.0
   models = "the pre-fix penalty: with lam unset the bound re-estimates it on the whole pre-period while the design used the slice's, so the bound and the incumbent are two different programs"
 
 [[target]]
+name = "syndes-two-way-free-size-bound"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py -q -p no:cacheprovider -x -k free_size"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "a-free-size-is-bounded-at-the-best-size"
+  find = "                       else float(min(lowers)))"
+  replace = "                       else best.lower_bound)"
+  models = "a K=None two-way design bounded by the best size's bound alone, which exceeds the optimum over sizes whenever another size's bound is lower: the bound stops being a bound"
+
+  [[target.mutant]]
+  id = "a-free-size-is-certified-by-its-best-size"
+  find = "        certified = certified and outcome.certified"
+  replace = "        certified = certified"
+  models = "a K=None two-way design certified when one size's search stopped at its limit, so a size it never proved could hold a better design"
+
+[[target]]
 name = "syndes-partition"
 module-path = "mlsynth/utils/syndes_helpers/partition.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_exact_properties.py mlsynth/tests/test_syndes_partition.py -q -p no:cacheprovider"
@@ -6225,22 +6243,3 @@ timeout = 600.0
   find = "        except _NoFeasibleDesign:"
   replace = "        except MlsynthEstimationError:"
   models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
-
-[[target]]
-name = "syndes-two-way-free-size-bound"
-module-path = "mlsynth/utils/syndes_helpers/exact.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_certificate_validity.py -q -p no:cacheprovider -x -k free_size"
-timeout = 300.0
-
-  [[target.mutant]]
-  id = "a-free-size-is-bounded-at-the-best-size"
-  find = "                       else float(min(lowers)))"
-  replace = "                       else best.lower_bound)"
-  models = "a K=None two-way design bounded by the best size's bound alone, which exceeds the optimum over sizes whenever another size's bound is lower: the bound stops being a bound"
-
-  [[target.mutant]]
-  id = "a-free-size-is-certified-by-its-best-size"
-  find = "        certified = certified and outcome.certified"
-  replace = "        certified = certified"
-  models = "a K=None two-way design certified when one size's search stopped at its limit, so a size it never proved could hold a better design"
-
