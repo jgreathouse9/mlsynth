@@ -516,6 +516,10 @@ class SYNDES:
                                      solve_synthetic_design_pool)
 
         pool = None
+        # The design the search returned on the whole pre-period, when there is
+        # one: its bound is the certificate's. Holdout fits on the leading slice,
+        # so there the certificate searches the whole pre-period itself.
+        in_sample = None
         if self.selection == "holdout":
             # Holdout selection: learn the candidate pool on the leading
             # 1 - holdout_frac of the pre-period, then pick the design with the
@@ -540,6 +544,7 @@ class SYNDES:
                 pool_designs, inputs.Y_pre,
             )
             design = ranked[0]
+            in_sample = pool_designs[0]
             pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
                                      ic_values=ic_values, df_values=df_values)
         elif self.top_K and self.top_K > 1:
@@ -547,10 +552,10 @@ class SYNDES:
             # design IS the single-solve optimum, so reuse it (no double solve).
             pool_designs = solve_pool(top_K=self.top_K, **solve_kw)
             self._require_feasible_pool(pool_designs)
-            design = pool_designs[0]
+            design = in_sample = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
         else:
-            design = solve_one(**solve_kw)
+            design = in_sample = solve_one(**solve_kw)
 
         # Re-tag with the paper-aligned mode label so the design surface
         # the user sees uses SYNDES vocabulary.
@@ -589,7 +594,8 @@ class SYNDES:
             certificate = syndes_certificate(
                 inputs.Y_pre, self.K, mode_internal,
                 design_objective(inputs.Y_pre, mode_internal, design, lam_design),
-                lam=lam_design,
+                lam=lam_design, restrictions=restrictions, costs=self.costs,
+                budget=self.budget, search=in_sample if use_exact else None,
             )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,
