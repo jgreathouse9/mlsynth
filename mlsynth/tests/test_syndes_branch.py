@@ -18,8 +18,8 @@ The levels:
 - the search returns the enumeration's optimum, under any cost model, with any
   restriction, from a poor incumbent, when a certificate or a lift fails, and
   at any scale and level of the outcome (smoke, property, edge);
-- a node limit returns the best design with a valid bound and a warning, and an
-  invalid limit is refused (failure).
+- a work limit returns the best design with a valid bound and a warning, every
+  kind of work counts toward it, and an invalid limit is refused (failure).
 """
 from __future__ import annotations
 
@@ -192,15 +192,25 @@ class TestCertificate:
         assert U >= _exact_max(xr, N, K, I, O, F)
 
     def test_negative_cut_weights_are_not_used_as_given(self):
-        """A cut's multiplier must be nonnegative; a negative one would let the
-        bound fall under the maximum, so it is read as zero."""
+        """A cut's multiplier must be nonnegative. At a node whose bound is tight
+        at a design, with the plane's normal pushed out of the spectrum, a
+        negative weight on a cut the design satisfies strictly would lower the
+        bound by four times the weight, under the maximum; it is read as zero."""
         _, engine = _engine(_panel())
         xr = ExactR(engine)
-        I, O, F = [0], [1], list(range(2, 10))
-        _, _, m = trust_region(*node_parts(engine.R, I, O, F), 2 * 2 - len(F))
-        tri = Cuts(np.array([0]), np.array([1]), np.array([2]), np.array([1]))
-        bad = Multipliers(m.diag, m.rows, tri, np.array([-1e6]))
-        assert xr.certify(I, O, F, 3, bad) >= _exact_max(xr, 10, 3, I, O, F)
+        I, F = [2], [6, 8]
+        O = [u for u in range(10) if u not in (2, 6, 8)]
+        parts = node_parts(engine.R, I, O, F)
+        U, x, m = trust_region(*parts, 0)
+        assert U == pytest.approx(_float_max(engine.R, 10, 2, I, O, F), rel=1e-12)
+        # the cut whose value at the maximising design is 4, not 0
+        t = 2 if x[0] > 0 else 3
+        scale = float(np.abs(engine.R).max())
+        rows = m.rows + 10.0 * scale * np.array([0.0, 1.0, 1.0])
+        bad = Multipliers(m.diag, rows, Cuts(np.array([0]), np.array([1]),
+                                             np.array([2]), np.array([t])),
+                          np.array([-1e-3 * scale]))
+        assert xr.certify(I, O, F, 2, bad) >= _exact_max(xr, 10, 2, I, O, F)
 
     def test_the_trust_region_multipliers_certify_its_bound(self):
         _, engine = _engine(_panel(N=12, seed=4))
@@ -525,6 +535,20 @@ class TestSearch:
                                incumbent_sets=worst, restarts=0, **EAGER)
         assert tuple(out.treated) == tuple(enumerated.selected_unit_indices)
 
+    def test_the_sets_whose_closed_form_breaks_are_solved(self):
+        """At a small penalty on a panel with no structure the sign conditions
+        bind for nearly every set, so the optimum is one the search must solve,
+        not read off the closed form."""
+        rng = np.random.default_rng(0)
+        Y = rng.standard_normal((12, 10))
+        problem = TwoWayProblem.from_panel(Y, lam=0.05)
+        engine = BoundEngine.from_problem(problem)
+        out = branch_and_bound(problem, engine, 3, SubsetFilter(), restarts=0, **EAGER)
+        want = _enumerated(Y, 3, lam=0.05)
+        assert out.solved > 0
+        assert tuple(out.treated) == tuple(want.selected_unit_indices)
+        assert out.value == pytest.approx(want.objective_value, rel=1e-9)
+
     def test_a_failed_certificate_keeps_the_search_exact(self, monkeypatch):
         """A node whose bound cannot be certified is split, never discarded."""
         Y = _noise(N=11, seed=4)
@@ -592,6 +616,99 @@ class TestSearch:
             _branched(_panel(N=12, seed=9), 4)
 
 
+class TestCutoff:
+    """Searching every size, the best design of one size bounds the others."""
+
+    def test_a_size_the_cutoff_dominates_returns_no_design(self):
+        Y = _noise(N=11, seed=6)
+        problem, engine = _engine(Y)
+        at_4 = _enumerated(Y, 4).objective_value
+        cutoff = 0.999 * at_4
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), cutoff=cutoff, **EAGER)
+        assert out.treated is None and out.value == np.inf
+        assert out.closed and out.certified
+        assert out.lower <= at_4 * (1 + 1e-9)
+        assert out.lower >= engine.global_lower_bound(4) * (1 - 1e-12)
+
+    def test_a_cutoff_the_size_beats_changes_nothing(self):
+        Y = _noise(N=11, seed=6)
+        problem, engine = _engine(Y)
+        want = _enumerated(Y, 4)
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(),
+                               cutoff=1.5 * want.objective_value, **EAGER)
+        assert tuple(out.treated) == tuple(want.selected_unit_indices)
+
+    def test_every_size_reports_the_smallest_bound(self):
+        """With K free the bound is the smallest over the sizes, the dominated
+        ones included, and never above the optimum."""
+        Y = _noise(N=9, seed=3)
+        got = _branched(Y, None)
+        want = _enumerated(Y, None)
+        assert got.raw_results["lower_bound"] <= want.objective_value * (1 + 1e-9)
+        assert got.raw_results["certified"] is True
+
+    def test_every_size_starts_from_the_swap_searchs_best(self):
+        """With K free the swap search's best design over the sizes past the
+        limit is every size's incumbent; when no size beats it, it is the design,
+        with the work of its own size's search."""
+        Y = _panel(N=9, seed=4)
+        got = _branched(Y, None)
+        want = _enumerated(Y, None)
+        assert tuple(got.selected_unit_indices) == tuple(want.selected_unit_indices)
+        assert got.raw_results["search"] == "branch_and_bound"
+        assert got.raw_results["n_designs"] == comb(9, len(got.selected_unit_indices))
+        assert got.raw_results["certified"] is True
+
+    def test_every_size_with_restrictions(self):
+        Y = _noise(N=9, seed=5)
+        r = DesignRestrictions(forbidden=[0, 4], conflict_pairs=[(1, 2)])
+        got = _branched(Y, None, restrictions=r)
+        want = _enumerated(Y, None, restrictions=r)
+        assert tuple(got.selected_unit_indices) == tuple(want.selected_unit_indices)
+        assert got.raw_results["certified"] is True
+
+    def test_a_search_stopped_at_its_limit_is_certified_when_its_bound_reaches(self):
+        """Certification reads the bound, not whether the tree closed: with the
+        cutoff between the root's bound and both children's, the root is split,
+        the limit leaves the children open, and their certified bounds clear
+        the cutoff."""
+        Y = _noise(N=12, seed=3)
+        problem, engine = _engine(Y)
+        K, N, alpha = 4, 12, engine.alpha
+        everyone = list(range(N))
+        U, x, _ = trust_region(*node_parts(engine.R, [], [], everyone), 2 * K - N)
+        u = int(np.argsort(-x, kind="stable")[0])
+        rest = [v for v in everyone if v != u]
+        root = 4 * alpha / U
+        treat = 4 * alpha / trust_region(*node_parts(engine.R, [u], [], rest),
+                                         2 * (K - 1) - (N - 1))[0]
+        skip = 4 * alpha / trust_region(*node_parts(engine.R, [], [u], rest),
+                                        2 * K - (N - 1))[0]
+        assert root < min(treat, skip)
+        cutoff = 0.5 * (root + min(treat, skip))
+        out = branch_and_bound(problem, engine, K, SubsetFilter(), work_limit=1e-12,
+                               cutoff=cutoff, restarts=0, price_seconds=1.0,
+                               bound_seconds=lambda n: 0.0,
+                               lift_seconds=lambda n: np.inf)
+        assert out.treated is None and not out.closed
+        assert out.certified
+        assert out.lower >= cutoff * (1 - 1e-8)
+
+    def test_a_dominated_size_at_its_work_limit_warns(self):
+        Y = _noise(N=20, seed=13)
+        best = _enumerated(Y, 8).objective_value
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=1e-12,
+                               cutoff=0.999 * best, restarts=0)
+        assert out.treated is None and not out.closed
+        with pytest.warns(SYNDESSolveWarning, match="work limit"):
+            from mlsynth.utils.syndes_helpers.exact import _search_by_branching
+            got = _search_by_branching(problem, engine, 8, SubsetFilter(), seed=0,
+                                       n_designs=1, incumbent_sets=None,
+                                       work_limit=1e-12, cutoff=0.999 * best)
+        assert got.value == np.inf and not got.certified
+
+
 class TestRestrictions:
     N, K = 11, 4
 
@@ -637,11 +754,11 @@ class TestRestrictions:
             branch_and_bound(problem, engine, self.K, filt)
 
 
-class TestNodeLimit:
+class TestWorkLimit:
     def test_a_limit_returns_the_best_design_with_a_valid_bound(self):
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
-        out = branch_and_bound(problem, engine, 4, SubsetFilter(), node_limit=1,
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1e-12,
                                **EAGER)
         want = _enumerated(Y, 4)
         assert not out.closed
@@ -654,7 +771,7 @@ class TestNodeLimit:
         nodes', under the optimum, not the incumbent's."""
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
-        out = branch_and_bound(problem, engine, 4, SubsetFilter(), node_limit=1,
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1e-12,
                                incumbent_sets=np.array([[0, 1, 2, 3]]), restarts=0,
                                **EAGER)
         best = _enumerated(Y, 4).objective_value
@@ -665,30 +782,45 @@ class TestNodeLimit:
     def test_a_loose_prune_tolerance_is_charged_to_the_bound(self, monkeypatch):
         """Nodes discarded within a tolerance of the incumbent may hold a better
         design; the bound reports theirs, so it never passes the optimum."""
-        monkeypatch.setattr(branch, "PRUNE_RTOL", 0.5)
+        monkeypatch.setattr(branch, "PRUNE_RTOL", 0.9)
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
-        out = branch_and_bound(problem, engine, 4, SubsetFilter(), **EAGER)
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(),
+                               incumbent_sets=np.array([[0, 1, 2, 3]]), restarts=0,
+                               **EAGER)
         best = _enumerated(Y, 4).objective_value
+        assert out.value > best * (1 + 1e-6)
         assert out.lower <= best * (1 + 1e-9)
-        assert out.certified == (out.value - out.lower <= 1e-8 * out.value)
+        assert not out.certified
 
     def test_the_design_says_so_and_warns(self):
         """Twenty units and eight treated are enough sets that the default
         costs bound the root."""
         Y = _noise(N=20, seed=13)
-        with pytest.warns(SYNDESSolveWarning, match="node limit"):
+        with pytest.warns(SYNDESSolveWarning, match="work limit"):
             got = solve_synthetic_design_exact(Y=Y, K=8, candidate_limit=1,
-                                               node_limit=1)
+                                               work_limit=1e-12)
         assert got.raw_results["certified"] is False
         assert got.raw_results["lower_bound"] <= got.objective_value
+
+    def test_pricing_counts_toward_the_limit(self):
+        """Where no bound is paid for, the search prices; the sets it would price
+        cost the model's seconds, so the limit stops a search whose bounds do
+        not prune."""
+        Y = _noise(N=20, seed=13)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=0.01,
+                               price_seconds=0.0)
+        assert comb(20, 8) * branch.PRICE_SECONDS_PER_UNIT * 20 > 0.01
+        assert not out.closed and out.nodes == 0 and out.priced == 0
+        assert out.lower <= _enumerated(Y, 8).objective_value * (1 + 1e-9)
 
     def test_an_open_node_with_one_set_left_is_priced(self):
         """With one treated unit, the child that includes the first unit is
         decided; the limit leaves it open, and it is priced."""
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
-        out = branch_and_bound(problem, engine, 1, SubsetFilter(), node_limit=1,
+        out = branch_and_bound(problem, engine, 1, SubsetFilter(), work_limit=1e-12,
                                restarts=0, **EAGER)
         assert not out.closed
         assert out.priced >= 1
@@ -697,8 +829,8 @@ class TestNodeLimit:
     def test_a_limit_before_any_design_is_reported(self):
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
-        with pytest.raises(MlsynthEstimationError, match="node limit"):
-            branch_and_bound(problem, engine, 4, SubsetFilter(), node_limit=1,
+        with pytest.raises(MlsynthEstimationError, match="work limit"):
+            branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1e-12,
                              restarts=0, **EAGER)
 
     def test_an_open_node_whose_bound_cannot_be_certified_falls_back(
@@ -706,14 +838,44 @@ class TestNodeLimit:
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
         monkeypatch.setattr(ExactR, "certify", lambda self, *a, **k: None)
-        out = branch_and_bound(problem, engine, 4, SubsetFilter(), node_limit=1,
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1e-12,
                                **EAGER)
         assert out.lower == pytest.approx(engine.global_lower_bound(4))
 
-    @pytest.mark.parametrize("limit", [0, -3, 2.5, True])
+    @pytest.mark.parametrize("cost", ["trust_region_seconds", "evaluation_seconds",
+                                      "certificate_seconds"])
+    def test_every_kind_of_work_counts_toward_the_limit(self, monkeypatch, cost):
+        """Priced at two seconds against a one-second limit, one bound, one lift
+        evaluation or one certificate stops a search that closes when it costs
+        what the model says."""
+        Y = _noise(N=12, seed=13)
+        problem, engine = _engine(Y)
+        free = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1.0,
+                                **EAGER)
+        assert free.closed and free.lifts > 0
+        monkeypatch.setattr(branch, cost, lambda n: 2.0)
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1.0,
+                               **EAGER)
+        assert not out.closed and out.nodes < free.nodes
+        assert out.lower <= _enumerated(Y, 4).objective_value * (1 + 1e-9)
+
+    @given(st.floats(1e-6, 1e-1), st.integers(0, 10 ** 6))
+    @settings(max_examples=12, deadline=None)
+    def test_at_any_limit_the_design_and_bound_bracket_the_optimum(self, limit, seed):
+        Y = _noise(N=11, seed=seed % 1000)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=limit,
+                               **EAGER)
+        best = _enumerated(Y, 4).objective_value
+        assert out.lower <= best * (1 + 1e-9)
+        assert out.value >= best * (1 - 1e-9)
+        if out.closed:
+            assert out.value == pytest.approx(best, rel=1e-9)
+
+    @pytest.mark.parametrize("limit", [0, -3.0, np.inf, np.nan, True, "1"])
     def test_an_invalid_limit_is_refused(self, limit):
-        with pytest.raises(MlsynthConfigError, match="node_limit"):
-            solve_synthetic_design_exact(Y=_panel(), K=3, node_limit=limit)
+        with pytest.raises(MlsynthConfigError, match="work_limit"):
+            solve_synthetic_design_exact(Y=_panel(), K=3, work_limit=limit)
 
 
 class TestStillRefused:

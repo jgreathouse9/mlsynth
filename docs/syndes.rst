@@ -505,7 +505,8 @@ and defaults them to the production-friendly setting:
   own bound, the optimum itself when it closes. The
   certificate reports ``result.certificate.optimality_gap`` with the guarantee
   ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent, and
-  ``certified=True`` when the search closed. The incumbent is the returned
+  ``certified=True`` when the search's bound reaches its design, which a search
+  that closed always shows and one stopped at its limit can. The incumbent is the returned
   design's weights scored on the whole pre-period with the design's penalty
   (``certificate.incumbent``). The search the design came from is reused when it
   ran on the whole pre-period; under holdout selection, where the design was
@@ -808,7 +809,7 @@ one does.
 One consequence matters when comparing the two backends. ``gap_limit``
 defaults to ``0.05``, so the MIP path may stop at a design 5 percent above the
 optimum, and ``time_limit`` can stop it sooner. The exact backend has no such
-early exit short of the branch and bound's node limit, so the two agree on the
+early exit short of the branch and bound's work limit, so the two agree on the
 treated set only
 once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
 search's design is the one that is at least as good.
@@ -922,17 +923,42 @@ still a bound.
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
 bounded (``n_nodes``) and the lifts computed (``n_lifts``), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
-when it closes. A search that bounds ``node_limit`` nodes (200,000 by default)
-stops and returns its best design, uncertified, with the smallest certified bound
-over the nodes it left open and a ``SYNDESSolveWarning``. The costs that decide
-where the time goes are constants and counts, never a clock, so a search makes
-the same decisions on every machine.
+when it closes. ``work_limit`` (60 by default) caps each size's search in the
+cost model's seconds: every design priced, bound, lift evaluation and certificate
+is charged its modelled cost, so the limit stops a search whose bounds do not
+prune as well as one whose every node lifts. At forty units a modelled second
+took two to three seconds of the clock where most nodes lift and under one where
+the search mostly prices, so the default stops a hard size in two to three
+minutes. A search that reaches the limit returns its best
+design and the smallest certified bound over the nodes it left open. The design
+is certified when that bound reaches it; otherwise a ``SYNDESSolveWarning`` says
+it is not a proven optimum. The costs and the limit are constants and counts,
+never a clock, so a search makes the same decisions, and stops at the same node,
+on every machine.
+
+With ``K=None`` every size is searched, the cheapest first. A design of one size
+bounds the others, so before any size is searched the swap search on
+:math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}` runs at every
+size past the limit, and each branch and bound starts from the best design found
+so far, discards every node whose bound clears it, and returns no design when
+nothing at its size is better. On GeoLift's forty markets that swap search took
+0.4 seconds, and every size's search but the one at the optimum's size stopped at
+its root. The bound reported is the smallest over the sizes. On the four-factor
+panel the sizes from 19 to 21 do not prune: each stops at the work limit, and
+after six and a half minutes the search returns the swap search's design with
+the Rayleigh bound, 0.47 percent under it, the result the swap search alone
+reaches in 44 seconds. Left to run, the same search certified a design
+0.23 percent better than the swap search's in 81 minutes.
 
 The study behind this search is
 `benchmarks/studies/syndes_global_bnb <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_global_bnb>`_.
 On forty units with ten treated, 848 million designs, the search returned the
 enumeration's optimum, certified, in 40.6 seconds on GeoLift and 55.0 seconds on a
-panel with no structure, where enumerating took 698 and 725. FACTOR_ROW Below
+panel with no structure, where enumerating took 698 and 725. On a panel drawn
+from a four-factor model the bounds prune almost nothing at that size: certifying
+its optimum took 881 seconds, pricing every design, and with the default
+``work_limit`` the search stops after 48 seconds with the same design,
+uncertified, its bound 0.4 percent under it. Below
 the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
 where the search took 7 to 9.
 

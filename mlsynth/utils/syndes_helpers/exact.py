@@ -72,6 +72,7 @@ from .enumeration import SearchSpace
 from .gram import (
     BoundEngine,
     TwoWayProblem,
+    maxcut_candidates,
     signs_from_subsets,
 )
 from ..solvers.active_set import solve_simplex_qp
@@ -83,9 +84,12 @@ from .structures import SYNDESDesign
 #: sets are searched by the branch and bound of :mod:`~.branch`.
 CANDIDATE_LIMIT = 20_000_000
 
-#: Nodes the branch and bound above the candidate limit may bound before it
-#: stops and reports its gap.
-NODE_LIMIT = 200_000
+#: Seconds of work, in the branch and bound's cost model, that it may do at one
+#: size above the candidate limit before it stops and reports its gap. The model
+#: counts sets priced, bounds, lift evaluations and certificates, never a clock;
+#: at forty units a modelled second took two to three of the clock where most
+#: nodes lift, and under one where the search mostly prices.
+WORK_LIMIT = 60.0
 
 #: Designs generated and scored per chunk while streaming. It changes no result.
 #: Scoring builds an ``(N, CHUNK)`` sign matrix; at 200,000 sets and 40 units that
@@ -536,9 +540,11 @@ def _search(
     candidate_limit: int,
     incumbent_sets: Optional[np.ndarray],
     seed: int,
-    node_limit: int = NODE_LIMIT,
+    work_limit: float = WORK_LIMIT,
+    cutoff: Optional[float] = None,
 ) -> SearchOutcome:
-    """Enumerate and prune, or branch and bound when there are too many sets."""
+    """Enumerate and prune, or branch and bound when there are too many sets.
+    ``cutoff`` reaches the branch and bound only (:func:`_search_by_branching`)."""
     engine = BoundEngine.from_problem(problem)
     N = problem.N
     space = _search_space(N, K, filt)
@@ -554,7 +560,7 @@ def _search(
         return _search_by_branching(problem, engine, K, filt, seed=seed,
                                     n_designs=space.size,
                                     incumbent_sets=incumbent_sets,
-                                    node_limit=node_limit)
+                                    work_limit=work_limit, cutoff=cutoff)
 
     best_value, best_set = np.inf, None
     if incumbent_sets is not None and len(np.atleast_2d(incumbent_sets)):
@@ -698,21 +704,33 @@ def _search_by_branching(
     seed: int,
     n_designs: int,
     incumbent_sets: Optional[np.ndarray],
-    node_limit: int,
+    work_limit: float,
+    cutoff: Optional[float] = None,
 ) -> SearchOutcome:
     """The certified branch and bound of :mod:`~.branch`, for instances too
-    large to enumerate. A search stopped at its node limit warns."""
+    large to enumerate. A search stopped at its work limit warns. Given a
+    ``cutoff`` no design of this size beats, the outcome has no design and an
+    infinite value."""
     from .branch import branch_and_bound
 
     out = branch_and_bound(problem, engine, K, filt, incumbent_sets=incumbent_sets,
-                           seed=seed, node_limit=node_limit)
-    if not out.closed:
+                           seed=seed, work_limit=work_limit, cutoff=cutoff)
+    if not out.certified:
+        reached = out.value if out.treated is not None else float(cutoff)
         warnings.warn(
-            f"SYNDES two-way exact backend: the branch and bound reached its node "
-            f"limit ({node_limit}) with nodes still open; the design is the best "
-            f"found, within {(out.value - out.lower) / max(out.value, 1e-300):.3g} "
-            "of the optimum, not a proven optimum. Raise node_limit.",
+            f"SYNDES two-way exact backend: the branch and bound at K={K} reached "
+            f"its work limit ({work_limit:g} s) with nodes still open; the design is "
+            f"the best found, within "
+            f"{(reached - out.lower) / max(reached, 1e-300):.3g} of the optimum, "
+            "not a proven optimum. Raise work_limit.",
             SYNDESSolveWarning, stacklevel=5)
+    if out.treated is None:
+        return SearchOutcome(
+            treated=np.zeros(0, dtype=np.int64), value=np.inf,
+            treated_weights=np.zeros(problem.N), control_weights=np.zeros(problem.N),
+            duality_gap=0.0, lower_bound=out.lower, certified=out.certified,
+            n_designs=n_designs, n_closed_form=out.priced, n_solved=out.solved,
+            search="branch_and_bound", n_nodes=out.nodes, n_lifts=out.lifts)
     return SearchOutcome(
         treated=out.treated, value=out.value, treated_weights=out.treated_weights,
         control_weights=out.control_weights, duality_gap=out.duality_gap,
@@ -740,7 +758,7 @@ def solve_synthetic_design_exact(
     incumbent_sets: Optional[np.ndarray] = None,
     candidate_limit: int = CANDIDATE_LIMIT,
     seed: int = 0,
-    node_limit: int = NODE_LIMIT,
+    work_limit: float = WORK_LIMIT,
 ) -> SYNDESDesign:
     """Solve the two-way global design by searching treated sets.
 
@@ -776,32 +794,35 @@ def solve_synthetic_design_exact(
     seed : int, optional
         Seed for the swap-search restarts that seed the branch and bound's
         incumbent.
-    node_limit : int, optional
-        Nodes the branch and bound may bound before it stops and returns its
-        best design with its bound, uncertified, and a
-        :class:`~.optimization.SYNDESSolveWarning`.
+    work_limit : float, optional
+        Seconds of work at one size, in the branch and bound's cost model (sets
+        priced, bounds, lift evaluations, certificates; never a clock), before
+        it stops and returns its best design with its bound and, unless the
+        bound reaches the design, a :class:`~.optimization.SYNDESSolveWarning`.
 
     Raises
     ------
     MlsynthConfigError
         For an out-of-range ``K``, malformed cost inputs, donor exclusions, or a
-        ``node_limit`` that is not a positive integer.
+        ``work_limit`` that is not a positive finite number.
     MlsynthEstimationError
         When no admissible design exists under the restrictions, or when the
         problem on contrasts is singular to working precision and either past
         ``candidate_limit`` or past :data:`PRICE_ALL_LIMIT` sets priced without
         one at zero.
     """
-    if (isinstance(node_limit, bool) or not isinstance(node_limit, (int, np.integer))
-            or node_limit < 1):
+    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
+            or not np.isfinite(work_limit) or work_limit <= 0):
         raise MlsynthConfigError(
-            f"node_limit must be a positive integer; got {node_limit!r}.")
+            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
     filt = SubsetFilter.build(restrictions, costs, budget, forbidden_sets, N=N)
 
     if K is None:
-        sizes = range(1, N)
+        # the cheapest sizes first, so the sizes searched by branch and bound
+        # start from the best design found at the others
+        sizes = sorted(range(1, N), key=lambda k: (_search_space(N, k, filt).size, k))
     else:
         if not 1 <= int(K) <= N - 1:
             raise MlsynthConfigError(
@@ -809,20 +830,26 @@ def solve_synthetic_design_exact(
         sizes = [int(K)]
 
     best: Optional[SearchOutcome] = None
+    if K is None:
+        best = _swap_incumbent(problem, filt, sizes, candidate_limit, seed)
+    seeded = best
     failures: List[str] = []
     lowers: List[Optional[float]] = []
     certified = True
+    by_size: Dict[int, SearchOutcome] = {}
     for size in sizes:
         try:
             outcome = _search(problem, size, filt,
                               candidate_limit=candidate_limit,
                               incumbent_sets=incumbent_sets, seed=seed,
-                              node_limit=int(node_limit))
+                              work_limit=float(work_limit),
+                              cutoff=None if best is None else best.value)
         except _NoFeasibleDesign as exc:
             failures.append(str(exc))
             continue
         lowers.append(outcome.lower_bound)
         certified = certified and outcome.certified
+        by_size[size] = outcome
         if best is None or outcome.value < best.value:
             best = outcome
 
@@ -831,14 +858,53 @@ def solve_synthetic_design_exact(
             failures[0] if failures else
             "SYNDES found no feasible design under the active restrictions.")
 
+    if best is seeded:
+        # no size's search beat the swap search's design; its own size's search
+        # proved nothing there is better, and reports the work it took
+        own = by_size[len(best.treated)]
+        best = replace(best, n_designs=own.n_designs, n_closed_form=own.n_closed_form,
+                       n_solved=own.n_solved, n_nodes=own.n_nodes, n_lifts=own.n_lifts)
+
     # With K free the optimum may sit at any size, so the bound is the
     # smallest over the sizes searched, not the best size's, and the design is
     # certified only when every size's search was.
-    if len(lowers) > 1:
+    if K is None:
         best = replace(best, certified=certified,
                        lower_bound=None if any(b is None for b in lowers)
                        else float(min(lowers)))
     return _to_design(problem, Y, best, unit_index)
+
+
+def _swap_incumbent(problem: TwoWayProblem, filt: SubsetFilter, sizes: Sequence[int],
+                    candidate_limit: int, seed: int) -> Optional[SearchOutcome]:
+    """The best admissible local optimum of the swap search over the sizes past
+    the candidate limit, as the incumbent every size starts from.
+
+    With ``K=None`` a design of one size bounds every other, so a size whose
+    node bounds clear it is done at its root. On GeoLift's forty markets the
+    swap search over every size took 0.4 s, and every branch and bound but the
+    one at the optimum's size stopped at its root.
+    """
+    engine = BoundEngine.from_problem(problem)
+    if not engine.reliable:
+        return None
+    from .branch import RESTARTS
+
+    best: Optional[SearchOutcome] = None
+    for size in sizes:
+        if _search_space(problem.N, size, filt).size <= candidate_limit:
+            continue
+        for S in np.sort(maxcut_candidates(engine, size, n_restarts=RESTARTS,
+                                           seed=seed), axis=1):
+            if not filt.accepts(tuple(int(i) for i in S)):
+                continue
+            value, a, b, gap = _settle(problem, engine, S)
+            if best is None or value < best.value:
+                best = SearchOutcome(
+                    treated=S.astype(np.int64), value=value, treated_weights=a,
+                    control_weights=b, duality_gap=gap, lower_bound=None,
+                    certified=False, search="branch_and_bound")
+    return best
 
 
 def solve_synthetic_design_exact_pool(

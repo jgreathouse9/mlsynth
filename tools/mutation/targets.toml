@@ -6630,10 +6630,10 @@ timeout = 1200.0
   models = "only the nodes whose bound cannot clear the incumbent are sent to the certificate, so nothing is ever discarded and the search prices every set"
 
   [[target.mutant]]
-  id = "the-node-limit-is-not-enforced"
-  find = "        if counts[\"nodes\"] >= node_limit:"
+  id = "the-work-limit-is-not-enforced"
+  find = "        if counts[\"work\"] >= work_limit:"
   replace = "        if False:"
-  models = "node_limit accepted, validated and documented, and never read"
+  models = "work_limit accepted, validated and documented, and never read"
 
   [[target.mutant]]
   id = "the-limits-bound-ignores-the-open-nodes"
@@ -6712,3 +6712,63 @@ timeout = 1200.0
   find = "    p, t = np.nonzero(vals < -gap)"
   replace = "    p, t = np.nonzero(vals < 0.0)"
   models = "triangles violated by a hair added every round, BiqCrunch's 0.05 threshold dropped"
+
+  [[target.mutant]]
+  id = "pricing-is-not-charged-to-the-limit"
+  find = "            if counts[\"work\"] + pricing > work_limit and not (r == 0 or r == n):"
+  replace = "            if False:"
+  models = "a subtree priced whatever its size, so a search whose bounds do not prune runs past work_limit pricing every set"
+
+  [[target.mutant]]
+  id = "lifts-are-not-charged-to-the-limit"
+  find = "            counts[\"work\"] += evaluations * evaluation_seconds(n)"
+  replace = "            pass"
+  models = "the lifts' evaluations left out of the work, so a flat panel whose every node lifts runs past work_limit"
+
+  [[target.mutant]]
+  id = "certificates-are-not-charged-to-the-limit"
+  find = "        counts[\"work\"] += certificate_seconds(len(F))"
+  replace = "        pass"
+  models = "the exact certificates left out of the work, so a search that certifies at every node runs past work_limit"
+
+  [[target.mutant]]
+  id = "bounds-are-not-charged-to-the-limit"
+  find = "        counts[\"work\"] += trust_region_seconds(n)"
+  replace = "        pass"
+  models = "the trust-region bounds left out of the work, so a search that bounds nodes without lifting or certifying never reaches work_limit"
+
+  [[target.mutant]]
+  id = "the-cutoff-is-ignored"
+  find = "    best: List = [np.inf if cutoff is None else float(cutoff), None]"
+  replace = "    best: List = [np.inf, None]"
+  models = "the best design of another size passed and never read, so a size it dominates is searched to its own optimum"
+
+[[target]]
+name = "syndes-two-way-branching"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-seeded-design-reports-no-work"
+  find = "        best = replace(best, n_designs=own.n_designs, n_closed_form=own.n_closed_form,"
+  replace = "        best = replace(best, n_closed_form=own.n_closed_form,"
+  models = "the swap search's design returned with K free, without the count of its size's sets its search reports"
+
+  [[target.mutant]]
+  id = "a-free-size-design-keeps-its-own-bound"
+  find = "    if K is None:\n        best = replace(best, certified=certified,"
+  replace = "    if False:\n        best = replace(best, certified=certified,"
+  models = "with K free, the design's own search's bound and flag reported, not the smallest bound over every size and whether every size closed"
+
+  [[target.mutant]]
+  id = "the-swap-incumbent-ignores-the-restrictions"
+  find = "            if not filt.accepts(tuple(int(i) for i in S)):\n                continue\n            value, a, b, gap = _settle(problem, engine, S)"
+  replace = "            value, a, b, gap = _settle(problem, engine, S)"
+  models = "the swap search's local optima taken as the incumbent whatever the restrictions, so an inadmissible design can be returned"
+
+  [[target.mutant]]
+  id = "the-work-limit-is-not-validated"
+  find = "    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))\n            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "    if False:"
+  models = "a zero, negative, infinite, NaN or boolean work_limit accepted and handed to the search"

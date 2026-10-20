@@ -3,8 +3,8 @@
 The certificate's bound is the mode's exact search's, and there are two ways it
 falls short. The search can raise: no admissible design, a fit that did not
 converge, or a two-way problem singular past its limits. Then there is no bound,
-and the certificate says why. Or the search can stop at its limit: a node limit,
-or the candidate limit past which the global modes report the Rayleigh bound.
+and the certificate says why. Or the search can stop at its limit: a node or work
+limit, or the candidate limit past which the global modes report the Rayleigh bound.
 Then the bound is valid and the design is not proven optimal.
 
 The bound is a diagnostic, never a correctness requirement: a failed bound
@@ -82,14 +82,14 @@ class TestASearchStoppedAtItsLimit:
         assert c.lower_bound <= exact.objective_value * (1 + 1e-12)
         assert c.optimality_gap > 0.0
 
-    def test_a_two_way_search_stopped_at_its_node_limit_is_valid_uncertified(self):
+    def test_a_two_way_search_stopped_at_its_work_limit_is_valid_uncertified(self):
         """Past the candidate limit the two-way search branches and bounds; at
-        its node limit its bound stays valid and the design uncertified."""
+        its work limit its bound stays valid and the design uncertified."""
         from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
         Y = _Y(N=20, T=30, seed=3)
-        with pytest.warns(Warning, match="node limit"):
+        with pytest.warns(Warning, match="work limit"):
             past = solve_synthetic_design_exact(Y, 8, candidate_limit=1,
-                                                node_limit=1)
+                                                work_limit=1e-12)
         exact = solve_synthetic_design_exact(Y, 8)
         inc = design_objective(Y, TWO_WAY, past, past.lambda_value)
         c = syndes_certificate(Y, 8, TWO_WAY, inc, lam=past.lambda_value,

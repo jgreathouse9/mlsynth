@@ -64,8 +64,17 @@ forced units and stratum quotas decide how many sets a node holds
 included at a node sends its conflict partners out; and every set priced passes
 the filter. A bound over more sets than the admissible ones is still a bound.
 
-Limits. A search that bounds ``node_limit`` nodes stops and returns its best
-design, with the smallest certified bound over the nodes still open.
+Limits. ``work_limit`` caps the search's work in the cost model's seconds: the
+sets priced, the bounds, the lifts' evaluations and the certificates, each at its
+modelled cost, so it caps a search whose bounds do not prune as well as one whose
+lifts do. It reads counts, never a clock, so a search stops at the same node on
+every machine. A search that reaches it stops and returns its best design, with
+the smallest certified bound over the nodes still open.
+
+A cutoff. Searching every size (``K=None``), a design of one size bounds the
+others: a node whose bound clears the best design of any size holds nothing
+better. Given that design's value as ``cutoff``, the search discards on it, and
+returns no design when nothing at its size is better.
 """
 from __future__ import annotations
 
@@ -79,7 +88,7 @@ import numpy as np
 from scipy.optimize import minimize
 
 from .enumeration import SearchSpace
-from .exact import (CHUNK, CERTIFY_RTOL, NODE_LIMIT, SubsetFilter,
+from .exact import (CHUNK, CERTIFY_RTOL, WORK_LIMIT, SubsetFilter,
                     _no_feasible_design, _resolve_open, _settle, _stream_from_space)
 from .gram import BoundEngine, TwoWayProblem, maxcut_candidates, signs_from_subsets
 from ..marex_helpers.branch import lambda_min_lower
@@ -586,17 +595,21 @@ class BranchOutcome:
 
     ``lower`` is a certified bound on the optimum: the smallest bound over
     the nodes discarded or still open and the design's own, and never below the
-    Rayleigh bound. ``closed`` says no node was left open. ``nodes`` counts the
+    Rayleigh bound. ``closed`` says no node was left open; ``certified`` says
+    the bound reaches the design (or, with a cutoff and no design, the cutoff),
+    which a search stopped at its limit can show too. ``nodes`` counts the
     nodes bounded, ``lifts`` the lifts computed, ``pruned`` the nodes
     discarded on a certified bound, ``priced`` the sets priced in closed form
     and ``solved`` those solved because their closed form broke a sign
-    condition.
+    condition. ``work`` is the work done in the cost model's seconds, the
+    quantity ``work_limit`` caps. With a cutoff that no design at this size
+    beats, ``treated`` and the weights are ``None`` and ``value`` is infinite.
     """
 
-    treated: np.ndarray
+    treated: Optional[np.ndarray]
     value: float
-    treated_weights: np.ndarray
-    control_weights: np.ndarray
+    treated_weights: Optional[np.ndarray]
+    control_weights: Optional[np.ndarray]
     duality_gap: float
     lower: float
     closed: bool
@@ -606,6 +619,7 @@ class BranchOutcome:
     pruned: int
     priced: int
     solved: int
+    work: float
 
 
 def branch_and_bound(
@@ -617,28 +631,32 @@ def branch_and_bound(
     incumbent_sets: Optional[np.ndarray] = None,
     restarts: int = RESTARTS,
     seed: int = 0,
-    node_limit: int = NODE_LIMIT,
+    work_limit: float = WORK_LIMIT,
+    cutoff: Optional[float] = None,
     price_seconds: Optional[float] = None,
     bound_seconds: Optional[Callable[[int], float]] = None,
     lift_seconds: Optional[Callable[[int], float]] = None,
 ) -> BranchOutcome:
     """The two-way design's optimum at size ``K`` by a certified branch and bound.
 
-    ``price_seconds`` (per set), ``bound_seconds`` and ``lift_seconds`` (per
-    trust-region bound and per lift, as functions of the free units) replace the
-    cost model; they change where the search spends time, never its answer.
+    ``cutoff``: the value of a design found elsewhere (another size); only a
+    better one is sought. ``price_seconds`` (per set), ``bound_seconds`` and
+    ``lift_seconds`` (per trust-region bound and per lift, as functions of the
+    free units) replace the cost model; they change where the search spends
+    time, never its answer.
 
     Raises
     ------
     MlsynthEstimationError
-        When no admissible design exists, or the node limit is reached before
+        When no admissible design exists, or the work limit is reached before
         one is found.
     """
     N, R, alpha = problem.N, engine.R, engine.alpha
     xr = ExactR(engine)
     four_alpha = Fraction(4.0 * alpha)
     keep = Fraction(1) - Fraction(PRUNE_RTOL)
-    price = PRICE_SECONDS_PER_UNIT * N if price_seconds is None else float(price_seconds)
+    modelled = PRICE_SECONDS_PER_UNIT * N
+    price = modelled if price_seconds is None else float(price_seconds)
     learned = LiftCost()
     # a bound's expected cost: the bound, and its certificate when it prunes
     if bound_seconds is None:
@@ -665,11 +683,12 @@ def branch_and_bound(
         partners.setdefault(int(i), set()).add(int(j))
         partners.setdefault(int(j), set()).add(int(i))
 
-    best: List = [np.inf, None]
+    best: List = [np.inf if cutoff is None else float(cutoff), None]
     floor = [np.inf]
     pending: List[Tuple[np.ndarray, np.ndarray]] = []
     buffer: List[np.ndarray] = []
-    counts = {"priced": 0, "buffered": 0, "nodes": 0, "lifts": 0, "pruned": 0}
+    counts = {"priced": 0, "buffered": 0, "nodes": 0, "lifts": 0, "pruned": 0,
+              "work": 0.0}
 
     def price_block(sets: np.ndarray) -> None:
         out = engine.bound(signs_from_subsets(N, sets))
@@ -707,6 +726,7 @@ def branch_and_bound(
         if not (np.isfinite(best[0]) and m is not None and np.isfinite(U) and U > 0.0
                 and 4.0 * alpha / U >= best[0] * (1.0 - PRUNE_RTOL)):
             return False
+        counts["work"] += certificate_seconds(len(F))
         exact = xr.certify(I, O, F, K, m)
         if exact is None or exact <= 0 or not four_alpha >= Fraction(best[0]) * keep * exact:
             return False
@@ -746,7 +766,7 @@ def branch_and_bound(
         stack.append((I0, O0, order, root))
     closed = True
     while stack:
-        if counts["nodes"] >= node_limit:
+        if counts["work"] >= work_limit:
             closed = False
             break
         I, O, F, space = stack.pop()
@@ -754,9 +774,16 @@ def branch_and_bound(
         bucket = space.size.bit_length()
         p_bound = bound_rates.rate(bucket)
         if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):
+            pricing = space.size * modelled
+            if counts["work"] + pricing > work_limit and not (r == 0 or r == n):
+                stack.append((I, O, F, space))
+                closed = False
+                break
+            counts["work"] += pricing
             enumerate_subtree(space)
             continue
         counts["nodes"] += 1
+        counts["work"] += trust_region_seconds(n)
         parts = node_parts(R, I, O, F)
         s = 2 * r - n
         U, _, m = trust_region(*parts, s)
@@ -769,6 +796,7 @@ def branch_and_bound(
                     if np.isfinite(best[0]) else None)
             U, m, evaluations = lift(*parts, s, target=goal)
             learned.observe(evaluations)
+            counts["work"] += evaluations * evaluation_seconds(n)
             hit = discards(I, O, F, U, m)
             lift_rates.record(bucket, hit)
         if hit:
@@ -803,12 +831,23 @@ def branch_and_bound(
         bounds = np.concatenate([q for _, q in pending])
         best[0], best[1], solved = _resolve_open(problem, candidates, bounds,
                                                  best[0], best[1])
+    if best[1] is None and cutoff is not None and root.size:
+        # nothing at this size beats the cutoff: every discarded node had a
+        # bound, and every priced set a value, at or above it
+        lower = min(floor[0], open_lower, float(cutoff))
+        lower = max(lower, rayleigh) if rayleigh is not None else lower
+        return BranchOutcome(
+            treated=None, value=np.inf, treated_weights=None, control_weights=None,
+            duality_gap=0.0, lower=float(lower), closed=closed,
+            certified=bool(lower >= float(cutoff) * (1.0 - CERTIFY_RTOL)),
+            nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
+            priced=counts["priced"], solved=solved, work=counts["work"])
     if best[1] is None:
         if not closed:
             raise MlsynthEstimationError(
                 f"SYNDES two-way exact backend: the branch and bound reached its "
-                f"node limit ({node_limit}) before any admissible design was "
-                "found. Raise node_limit.")
+                f"work limit ({work_limit:g} s) before any admissible design was "
+                "found. Raise work_limit.")
         raise _no_feasible_design()
 
     value, a, b, gap = _settle(problem, engine, best[1])
@@ -820,7 +859,9 @@ def branch_and_bound(
         treated=np.sort(np.asarray(best[1], dtype=np.int64)), value=value,
         treated_weights=a, control_weights=b, duality_gap=gap, lower=float(lower),
         closed=closed,
-        certified=bool(closed and gap / scale <= CERTIFY_RTOL
+        # a search stopped at its limit whose bound reaches its design has
+        # proved it: certification reads the bound, not whether the tree closed
+        certified=bool(gap / scale <= CERTIFY_RTOL
                        and value - lower <= CERTIFY_RTOL * scale),
         nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
-        priced=counts["priced"], solved=solved)
+        priced=counts["priced"], solved=solved, work=counts["work"])
