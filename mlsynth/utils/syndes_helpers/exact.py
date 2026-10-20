@@ -22,8 +22,8 @@ designs by the bound is a cardinality-constrained max-cut. But a candidate costs
 one row of a matrix product instead of a node with an LP relaxation, and the
 panel length drops out entirely after the Gram step, so a long panel costs no
 more per design than a short one. Above ``candidate_limit`` admissible designs,
-enumeration stops being affordable and the search falls back to max-cut candidates
-polished on the objective, reported against the Rayleigh bound.
+enumeration stops being affordable and the sets are searched by the certified
+branch and bound of :mod:`~.branch`, which returns the same optimum.
 
 Restrictions on the assignment are predicates on the treated set, and they split
 in two. Forced units, forbidden units and stratum quotas are structural: they
@@ -41,7 +41,8 @@ batch product would not hold.
 
 Where ``G + lam I`` is singular to working precision (``lam = 0`` on a panel with
 fewer periods than units, or a unit that is an exact combination of others), the
-closed form needs an inverse that does not exist, and so does the swap search.
+closed form needs an inverse that does not exist, and so do the branch and
+bound's node bounds.
 Projected gradient needs only a positive semidefinite matrix, so the search then
 prices every admissible set, up to :data:`PRICE_ALL_LIMIT`. Two facts keep that
 affordable and certified. ``f(S) >= 0``, so a set priced at zero, to the rounding
@@ -71,7 +72,6 @@ from .enumeration import SearchSpace
 from .gram import (
     BoundEngine,
     TwoWayProblem,
-    maxcut_candidates,
     signs_from_subsets,
 )
 from ..solvers.active_set import solve_simplex_qp
@@ -80,8 +80,12 @@ from .partition import solve_partition_batch, split_indices
 from .structures import SYNDESDesign
 
 #: Above this many candidate designs, enumeration stops being affordable and the
-#: search falls back to max-cut candidates reported against the Rayleigh bound.
+#: sets are searched by the branch and bound of :mod:`~.branch`.
 CANDIDATE_LIMIT = 20_000_000
+
+#: Nodes the branch and bound above the candidate limit may bound before it
+#: stops and reports its gap.
+NODE_LIMIT = 200_000
 
 #: Designs generated and scored per chunk while streaming. It changes no result.
 #: Scoring builds an ``(N, CHUNK)`` sign matrix; at 200,000 sets and 40 units that
@@ -411,6 +415,9 @@ class SearchOutcome:
     n_designs: int = 0
     n_closed_form: int = 0
     n_solved: int = 0
+    search: str = "enumeration"
+    n_nodes: int = 0
+    n_lifts: int = 0
 
 
 def _price_exactly(problem: TwoWayProblem, sets: np.ndarray):
@@ -493,6 +500,34 @@ def _settle(problem: TwoWayProblem, engine: BoundEngine, treated: np.ndarray):
     return float(value[0]), a[0], b[0], float(gap[0])
 
 
+def _resolve_open(problem: TwoWayProblem, candidates: np.ndarray,
+                  bounds: np.ndarray, best_value: float, best_set):
+    """The best of the incumbent and the sets whose closed form broke a sign
+    condition and is under it, and how many of those were solved.
+
+    Projected gradient screens the candidates; the ones it leaves open (bound
+    under the best it found) are priced exactly, so the choice between close
+    candidates never rests on an iteration count.
+    """
+    alive = bounds < best_value
+    candidates = candidates[alive]
+    n_solved = int(candidates.shape[0])
+    if n_solved:
+        t_idx, c_idx = split_indices(problem.N, candidates)
+        solved = solve_partition_batch(problem, t_idx, c_idx,
+                                       max_iter=4000, tol=1e-14)
+        value = solved.value.copy()
+        lower = value - solved.gap
+        top = float(min(value.min(), best_value))
+        open_ = np.flatnonzero(lower < top)
+        if open_.size:
+            value[open_] = _price_exactly(problem, candidates[open_])[0]
+        j = int(np.argmin(value))
+        if float(value[j]) < best_value:
+            best_value, best_set = float(value[j]), candidates[j]
+    return best_value, best_set, n_solved
+
+
 def _search(
     problem: TwoWayProblem,
     K: int,
@@ -501,8 +536,9 @@ def _search(
     candidate_limit: int,
     incumbent_sets: Optional[np.ndarray],
     seed: int,
+    node_limit: int = NODE_LIMIT,
 ) -> SearchOutcome:
-    """Enumerate and prune, or fall back to max-cut candidates when too large."""
+    """Enumerate and prune, or branch and bound when there are too many sets."""
     engine = BoundEngine.from_problem(problem)
     N = problem.N
     space = _search_space(N, K, filt)
@@ -511,12 +547,14 @@ def _search(
         if space.size > candidate_limit:
             raise _ill_conditioned(
                 engine, f"{space.size} admissible designs are past the candidate "
-                f"limit of {candidate_limit}, where the swap search needs the bound")
+                f"limit of {candidate_limit}, where the branch and bound needs the bound")
         return _search_singular(problem, engine, K, filt, space)
 
     if space.size > candidate_limit:
-        return _search_by_candidates(problem, engine, K, filt, seed=seed,
-                                     n_designs=space.size)
+        return _search_by_branching(problem, engine, K, filt, seed=seed,
+                                    n_designs=space.size,
+                                    incumbent_sets=incumbent_sets,
+                                    node_limit=node_limit)
 
     best_value, best_set = np.inf, None
     if incumbent_sets is not None and len(np.atleast_2d(incumbent_sets)):
@@ -549,27 +587,9 @@ def _search(
 
     n_solved = 0
     if kept:
-        candidates = np.concatenate(kept)
-        bounds = np.concatenate(kept_bounds)
-        alive = bounds < best_value
-        candidates = candidates[alive]
-        n_solved = int(candidates.shape[0])
-        if n_solved:
-            # Projected gradient screens the candidates; the ones it leaves
-            # open (bound under the best it found) are priced exactly, so the
-            # choice between close candidates never rests on an iteration count.
-            t_idx, c_idx = split_indices(N, candidates)
-            solved = solve_partition_batch(problem, t_idx, c_idx,
-                                           max_iter=4000, tol=1e-14)
-            value = solved.value.copy()
-            lower = value - solved.gap
-            top = float(min(value.min(), best_value))
-            open_ = np.flatnonzero(lower < top)
-            if open_.size:
-                value[open_] = _price_exactly(problem, candidates[open_])[0]
-            j = int(np.argmin(value))
-            if float(value[j]) < best_value:
-                best_value, best_set = float(value[j]), candidates[j]
+        best_value, best_set, n_solved = _resolve_open(
+            problem, np.concatenate(kept), np.concatenate(kept_bounds),
+            best_value, best_set)
 
     value, a, b, gap = _settle(problem, engine, best_set)
     scale = max(abs(value), 1e-300)
@@ -608,7 +628,7 @@ def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
         return SearchOutcome(treated=treated, value=0.0, treated_weights=a,
                              control_weights=b, duality_gap=0.0, lower_bound=0.0,
                              certified=True, n_designs=1, n_closed_form=0,
-                             n_solved=0)
+                             n_solved=0, search="price_all")
     blocks: List[np.ndarray] = []
     values: List[np.ndarray] = []
     gaps: List[np.ndarray] = []
@@ -665,11 +685,11 @@ def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
         treated=np.sort(np.asarray(sets[best], dtype=np.int64)),
         value=design_value, treated_weights=a, control_weights=b,
         duality_gap=design_gap, lower_bound=lower, certified=bool(certified),
-        n_designs=n_designs, n_closed_form=0, n_solved=n_solved,
+        n_designs=n_designs, n_closed_form=0, n_solved=n_solved, search="price_all",
     )
 
 
-def _search_by_candidates(
+def _search_by_branching(
     problem: TwoWayProblem,
     engine: BoundEngine,
     K: int,
@@ -677,25 +697,28 @@ def _search_by_candidates(
     *,
     seed: int,
     n_designs: int,
+    incumbent_sets: Optional[np.ndarray],
+    node_limit: int,
 ) -> SearchOutcome:
-    """Max-cut candidates polished on the objective, for instances too large to enumerate."""
-    if not filt.is_empty:
-        raise MlsynthConfigError(
-            f"the exact backend cannot apply design restrictions to an instance "
-            f"with {n_designs} candidate designs, which is past the enumeration "
-            "limit. Reduce K, drop the restrictions, or raise candidate_limit.")
+    """The certified branch and bound of :mod:`~.branch`, for instances too
+    large to enumerate. A search stopped at its node limit warns."""
+    from .branch import branch_and_bound
 
-    candidates = maxcut_candidates(engine, K, seed=seed)
-    t_idx, c_idx = split_indices(problem.N, candidates)
-    ranked = solve_partition_batch(problem, t_idx, c_idx, max_iter=2000, tol=1e-13)
-    j = int(np.argmin(ranked.value))
-
-    value, a, b, gap = _settle(problem, engine, candidates[j])
+    out = branch_and_bound(problem, engine, K, filt, incumbent_sets=incumbent_sets,
+                           seed=seed, node_limit=node_limit)
+    if not out.closed:
+        warnings.warn(
+            f"SYNDES two-way exact backend: the branch and bound reached its node "
+            f"limit ({node_limit}) with nodes still open; the design is the best "
+            f"found, within {(out.value - out.lower) / max(out.value, 1e-300):.3g} "
+            "of the optimum, not a proven optimum. Raise node_limit.",
+            SYNDESSolveWarning, stacklevel=5)
     return SearchOutcome(
-        treated=np.sort(candidates[j]), value=value,
-        treated_weights=a, control_weights=b, duality_gap=gap,
-        lower_bound=engine.global_lower_bound(K), certified=False,
-        n_designs=n_designs, n_closed_form=0, n_solved=int(candidates.shape[0]),
+        treated=out.treated, value=out.value, treated_weights=out.treated_weights,
+        control_weights=out.control_weights, duality_gap=out.duality_gap,
+        lower_bound=out.lower, certified=out.certified, n_designs=n_designs,
+        n_closed_form=out.priced, n_solved=out.solved, search="branch_and_bound",
+        n_nodes=out.nodes, n_lifts=out.lifts,
     )
 
 
@@ -717,6 +740,7 @@ def solve_synthetic_design_exact(
     incumbent_sets: Optional[np.ndarray] = None,
     candidate_limit: int = CANDIDATE_LIMIT,
     seed: int = 0,
+    node_limit: int = NODE_LIMIT,
 ) -> SYNDESDesign:
     """Solve the two-way global design by searching treated sets.
 
@@ -747,21 +771,31 @@ def solve_synthetic_design_exact(
         Treated sets to seed the incumbent with, so more designs prune on their
         bound alone. A poor seed costs time and nothing else.
     candidate_limit : int, optional
-        Above this many candidate designs the search stops enumerating and falls
-        back to max-cut candidates reported against the Rayleigh bound.
+        Above this many candidate designs the search stops enumerating and
+        branches and bounds (:mod:`~.branch`).
     seed : int, optional
-        Seed for the fallback's restarts.
+        Seed for the swap-search restarts that seed the branch and bound's
+        incumbent.
+    node_limit : int, optional
+        Nodes the branch and bound may bound before it stops and returns its
+        best design with its bound, uncertified, and a
+        :class:`~.optimization.SYNDESSolveWarning`.
 
     Raises
     ------
     MlsynthConfigError
-        For an out-of-range ``K``, malformed cost inputs, or donor exclusions.
+        For an out-of-range ``K``, malformed cost inputs, donor exclusions, or a
+        ``node_limit`` that is not a positive integer.
     MlsynthEstimationError
         When no admissible design exists under the restrictions, or when the
         problem on contrasts is singular to working precision and either past
         ``candidate_limit`` or past :data:`PRICE_ALL_LIMIT` sets priced without
         one at zero.
     """
+    if (isinstance(node_limit, bool) or not isinstance(node_limit, (int, np.integer))
+            or node_limit < 1):
+        raise MlsynthConfigError(
+            f"node_limit must be a positive integer; got {node_limit!r}.")
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
     filt = SubsetFilter.build(restrictions, costs, budget, forbidden_sets, N=N)
@@ -782,7 +816,8 @@ def solve_synthetic_design_exact(
         try:
             outcome = _search(problem, size, filt,
                               candidate_limit=candidate_limit,
-                              incumbent_sets=incumbent_sets, seed=seed)
+                              incumbent_sets=incumbent_sets, seed=seed,
+                              node_limit=int(node_limit))
         except _NoFeasibleDesign as exc:
             failures.append(str(exc))
             continue
@@ -887,6 +922,9 @@ def _to_design(
         raw_results={
             "status": "optimal" if outcome.certified else "feasible",
             "solver": "exact",
+            "search": outcome.search,
+            "n_nodes": outcome.n_nodes,
+            "n_lifts": outcome.n_lifts,
             "n_designs": outcome.n_designs,
             "n_closed_form": outcome.n_closed_form,
             "n_solved": outcome.n_solved,

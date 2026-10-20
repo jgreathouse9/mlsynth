@@ -6574,3 +6574,141 @@ timeout = 900.0
   find = "PATIENCE = math.inf"
   replace = "PATIENCE = 10.0"
   models = "the rule that abandoned GeoLift's prunable nodes back on: 14,367 lifts at eight treated pruned no node"
+
+[[target]]
+name = "syndes-branch"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-certificate-drops-the-cut-weights"
+  find = "                 + Fraction(int(sum(w.N.tolist())), 1 << w.e))"
+  replace = "                 + 0)"
+  models = "the triangle inequalities' multipliers left out of the constant, so a bound with cuts falls under the subtree's maximum"
+
+  [[target.mutant]]
+  id = "the-certificate-takes-the-trace-as-n"
+  find = "        return const - size * low"
+  replace = "        return const - n * low"
+  models = "the lifted matrix's trace taken as the free units' count, forgetting the homogenising entry: a bound under the maximum wherever lambda_max is positive"
+
+  [[target.mutant]]
+  id = "the-certificate-uses-a-negative-cut-weight"
+  find = "        w = Dyadic.of(np.maximum(np.asarray(m.weights, dtype=float), 0.0))"
+  replace = "        w = Dyadic.of(np.asarray(m.weights, dtype=float))"
+  models = "a triangle inequality's multiplier read with its sign, so a negative one lowers the bound under the maximum"
+
+  [[target.mutant]]
+  id = "the-certificate-adds-the-cuts-with-the-wrong-sign"
+  find = "            sg = _SIGNS[cuts.t - 1].astype(object) * (w.N * (1 << (E - w.e - 1)))[:, None]"
+  replace = "            sg = -_SIGNS[cuts.t - 1].astype(object) * (w.N * (1 << (E - w.e - 1)))[:, None]"
+  models = "the inequality term subtracted from the Lagrangian's matrix instead of added: the result bounds nothing"
+
+  [[target.mutant]]
+  id = "the-certificate-drops-the-plane"
+  find = "        C -= (np.multiply.outer(u.N, r) + np.multiply.outer(r, u.N)) * (1 << (E - u.e - 1))"
+  replace = "        pass"
+  models = "the multipliers on X r = 0 ignored, so the trust region's and the lift's certificates lose the cardinality and sit far above their bounds"
+
+  [[target.mutant]]
+  id = "a-node-is-discarded-on-its-floating-point-bound"
+  find = "        exact = xr.certify(I, O, F, K, m)\n        if exact is None"
+  replace = "        exact = Fraction(U)\n        if exact is None"
+  models = "the certificate skipped, so a node is discarded on the relaxation's floating-point value, whatever its exact bound"
+
+  [[target.mutant]]
+  id = "the-prune-comparison-is-reversed"
+  find = "not four_alpha >= Fraction(best[0]) * keep * exact"
+  replace = "not four_alpha <= Fraction(best[0]) * keep * exact"
+  models = "a node discarded when its bound is under the incumbent: the subtrees that hold better designs go"
+
+  [[target.mutant]]
+  id = "the-float-screen-is-reversed"
+  find = "                and 4.0 * alpha / U >= best[0] * (1.0 - PRUNE_RTOL)):"
+  replace = "                and 4.0 * alpha / U <= best[0] * (1.0 - PRUNE_RTOL)):"
+  models = "only the nodes whose bound cannot clear the incumbent are sent to the certificate, so nothing is ever discarded and the search prices every set"
+
+  [[target.mutant]]
+  id = "the-node-limit-is-not-enforced"
+  find = "        if counts[\"nodes\"] >= node_limit:"
+  replace = "        if False:"
+  models = "node_limit accepted, validated and documented, and never read"
+
+  [[target.mutant]]
+  id = "the-limits-bound-ignores-the-open-nodes"
+  find = "    lower = min(floor[0], open_lower, value - gap)"
+  replace = "    lower = min(floor[0], value - gap)"
+  models = "at the node limit the bound read off the incumbent alone, above the optimum whenever a better design sits under an open node"
+
+  [[target.mutant]]
+  id = "the-bound-forgets-the-discarded-nodes"
+  find = "    lower = min(floor[0], open_lower, value - gap)"
+  replace = "    lower = min(open_lower, value - gap)"
+  models = "a node discarded within the prune tolerance can hold a design under the incumbent; the bound left without its certified bound can pass the optimum"
+
+  [[target.mutant]]
+  id = "the-prune-rate-is-not-pooled"
+  find = "        pooled = (self.all_hits + 1.0) / (self.all_tries + 2.0)"
+  replace = "        pooled = 0.5"
+  models = "each subtree size starts at one half whatever the other sizes showed, so a search pays a bound or two at every size where none prunes"
+
+  [[target.mutant]]
+  id = "the-lift-cost-ignores-what-it-observed"
+  find = "        mean = (self.weight * self.prior + self.total) / (self.weight + self.count)"
+  replace = "        mean = self.prior"
+  models = "the lifts paid for counted and never read, so the cost stays at its prior"
+
+  [[target.mutant]]
+  id = "the-buffered-subtrees-are-never-priced"
+  find = "        open_lower = min(open_lower, rayleigh if exact is None or exact <= 0\n                         else round_down(four_alpha / exact))\n    flush()"
+  replace = "        open_lower = min(open_lower, rayleigh if exact is None or exact <= 0\n                         else round_down(four_alpha / exact))"
+  models = "the last buffer of small subtrees left unpriced when the search ends, so a design in it is never seen"
+
+  [[target.mutant]]
+  id = "the-broken-closed-forms-are-never-solved"
+  find = "    if pending:"
+  replace = "    if False:"
+  models = "the sets whose closed form breaks a sign condition, and is under the incumbent, never solved: the optimum is missed wherever it is one of them"
+
+  [[target.mutant]]
+  id = "a-decided-node-is-bounded"
+  find = "        if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):"
+  replace = "        if space.size * price * p_bound <= bound_cost(n, p_bound):"
+  models = "a node with nothing left to choose sent to the bound and split, where its free units are already decided"
+
+  [[target.mutant]]
+  id = "the-plane-multipliers-are-halved"
+  find = "    return (2.0 / rr) * Hr - (float(r @ Hr) / rr ** 2) * r"
+  replace = "    return (1.0 / rr) * Hr - (float(r @ Hr) / rr ** 2) * r"
+  models = "the trust region's multipliers on X r = 0 that no longer cancel the plane's normal, so its certificate sits above its bound and fails to prune"
+
+  [[target.mutant]]
+  id = "newton-steps-the-wrong-way"
+  find = "        mu += step"
+  replace = "        mu -= step"
+  models = "the secular equation's Newton step taken backwards, past the top eigenvalue, where the dual bounds nothing"
+
+  [[target.mutant]]
+  id = "the-lifts-multipliers-lose-the-constant"
+  find = "    diag[0] += c + unit * s * y[n + 1]"
+  replace = "    diag[0] += unit * s * y[n + 1]"
+  models = "the node's constant left off the diagonal's index 0 when the lift's multipliers are read back, so the certificate counts it inside the eigenvalue and sits above the lift's bound"
+
+  [[target.mutant]]
+  id = "the-lift-always-returns-the-trust-region"
+  find = "    if best[\"value\"] < floor:"
+  replace = "    if False:"
+  models = "the dual's bound computed and discarded, the lift reduced to the trust region"
+
+  [[target.mutant]]
+  id = "the-lift-ignores-its-target"
+  find = "            if min(best[\"value\"], floor) <= goal:"
+  replace = "            if False:"
+  models = "the prune target passed and never read, so every lift runs its whole schedule"
+
+  [[target.mutant]]
+  id = "separation-ignores-the-gap"
+  find = "    p, t = np.nonzero(vals < -gap)"
+  replace = "    p, t = np.nonzero(vals < 0.0)"
+  models = "triangles violated by a hair added every round, BiqCrunch's 0.05 threshold dropped"

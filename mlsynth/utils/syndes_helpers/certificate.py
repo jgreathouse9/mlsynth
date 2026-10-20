@@ -5,7 +5,10 @@ lower bound on the optimum with its design (``design.solve_outcome``):
 
 * ``global_2way`` (:mod:`~.exact`): the enumeration under the closed-form bound
   of :mod:`~.gram`, which reports the Rayleigh bound over every size-``K``
-  design, or the smallest priced bound where ``G + lam I`` is singular;
+  design, or the smallest priced bound where ``G + lam I`` is singular; above
+  its candidate limit the branch and bound of :mod:`~.branch`, which reports
+  the optimum when it closes and its smallest open node bound at its node
+  limit;
 * ``global_equal_weights`` (:mod:`~.one_way_exact`): the enumeration under the
   ridge bound, which reports the optimum itself when it closes and the Rayleigh
   bound past its candidate limit;
