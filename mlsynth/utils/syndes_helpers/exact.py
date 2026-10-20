@@ -56,6 +56,9 @@ smallest bound left.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
+from itertools import combinations
+from math import comb
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import warnings
@@ -80,9 +83,10 @@ from .structures import SYNDESDesign
 #: search falls back to max-cut candidates reported against the Rayleigh bound.
 CANDIDATE_LIMIT = 20_000_000
 
-#: Designs generated per chunk while streaming. Bounds peak memory without
-#: changing any result.
-CHUNK = 200_000
+#: Designs generated and scored per chunk while streaming. It changes no result.
+#: Scoring builds an ``(N, CHUNK)`` sign matrix; at 200,000 sets and 40 units that
+#: is 64 MB, past the cache, and a set cost 2.0 µs against 0.8 µs at 20,000.
+CHUNK = 20_000
 
 #: A design is certified when its value is within this fraction of the lower
 #: bound, or within the rounding of zero.
@@ -247,6 +251,37 @@ class SubsetFilter:
             return False
         return True
 
+    def accepts_rows(self, rows: np.ndarray) -> np.ndarray:
+        """:meth:`accepts` on every row of a ``(B, K)`` block, as a mask."""
+        rows = np.asarray(rows, dtype=np.int64)
+        B = rows.shape[0]
+        named = [rows.max(initial=-1)]
+        named += [max(self.forced_in, default=-1), max(self.forbidden, default=-1)]
+        named += [max(p) for p in self.conflict_pairs]
+        named += [max(m, default=-1) for m, _, _ in self.strata]
+        named += [max(fs, default=-1) for fs in self.forbidden_sets]
+        member = np.zeros((B, int(max(named)) + 1), dtype=bool)
+        np.put_along_axis(member, rows, True, axis=1)
+        ok = np.ones(B, dtype=bool)
+        for u in self.forced_in:
+            ok &= member[:, u]
+        for u in self.forbidden:
+            ok &= ~member[:, u]
+        for i, j in self.conflict_pairs:
+            ok &= ~(member[:, i] & member[:, j])
+        for members, lower, upper in self.strata:
+            inside = member[:, list(members)].sum(axis=1)
+            if lower is not None:
+                ok &= inside >= lower
+            if upper is not None:
+                ok &= inside <= upper
+        if self.costs is not None:
+            ok &= self.costs[rows].sum(axis=1) <= self.budget + 1e-9
+        for fs in self.forbidden_sets:
+            if len(fs) == rows.shape[1]:
+                ok &= ~member[:, sorted(fs)].all(axis=1)
+        return ok
+
 
 def _search_space(N: int, K: int, filt: SubsetFilter) -> SearchSpace:
     """The structural half of ``filt``, resolved into a space to walk.
@@ -259,6 +294,56 @@ def _search_space(N: int, K: int, filt: SubsetFilter) -> SearchSpace:
                              forbidden=filt.forbidden, strata=filt.strata)
 
 
+#: Rows of the largest cached combination table: ``C(m, k)`` index sets of
+#: ``range(m)``, stored as int16.
+TABLE_ROWS = 20_000
+
+
+@lru_cache(maxsize=256)
+def _combination_table(m: int, k: int) -> np.ndarray:
+    if k == 0:
+        return np.zeros((1, 0), dtype=np.int16)
+    return np.array(list(combinations(range(m), k)), dtype=np.int16)
+
+
+def _combination_blocks(m: int, k: int, offset: int = 0, prefix: Tuple[int, ...] = ()):
+    """``combinations(range(m), k)``, shifted by ``offset`` and led by ``prefix``,
+    as ``(B, len(prefix) + k)`` arrays in lexicographic order.
+
+    A table of at most ``TABLE_ROWS`` rows is read from the cache; a larger one is
+    split on its first element, which keeps the order: every set starting with
+    ``a`` precedes every set starting with ``a + 1``.
+    """
+    if comb(m, k) <= TABLE_ROWS:
+        table = _combination_table(m, k).astype(np.int64) + offset
+        if prefix:
+            lead = np.broadcast_to(np.array(prefix, dtype=np.int64), (len(table), len(prefix)))
+            table = np.hstack([lead, table])
+        yield table
+        return
+    for a in range(m - k + 1):
+        yield from _combination_blocks(m - a - 1, k - 1, offset + a + 1, prefix + (offset + a,))
+
+
+def _rechunk(blocks, chunk: int):
+    """Regroup a stream of row blocks into blocks of exactly ``chunk`` rows, the
+    last one shorter."""
+    held: List[np.ndarray] = []
+    count = 0
+    for block in blocks:
+        if not len(block):
+            continue
+        held.append(block)
+        count += len(block)
+        while count >= chunk:
+            joined = np.concatenate(held)
+            yield joined[:chunk]
+            held = [joined[chunk:]] if len(joined) > chunk else []
+            count = len(joined) - chunk
+    if count:
+        yield np.concatenate(held)
+
+
 def _stream_from_space(space: SearchSpace, filt: SubsetFilter, chunk: int):
     """Yield ``(B, K)`` arrays of admissible treated sets, ``B <= chunk``.
 
@@ -266,7 +351,30 @@ def _stream_from_space(space: SearchSpace, filt: SubsetFilter, chunk: int):
     here for the ones that do not decompose over a group: conflict pairs, the cost
     budget, and the pool's no-good sets. Blocks fill to ``chunk`` from whatever
     survives, so a long rejected run delays a yield instead of shrinking one.
+
+    With one group, the walk is ``combinations(members, k_free)`` with the forced
+    units merged in, and it is built here as arrays (:func:`_combination_blocks`)
+    and filtered a block at a time (:meth:`SubsetFilter.accepts_rows`), in the
+    walk's order, which is what breaks ties. A tuple and a filter call per set had
+    cost two to four microseconds a set, more than scoring it. Several groups
+    (stratum quotas) take the walk itself.
     """
+    if not space.size:
+        return
+    if len(space.groups) == 1:
+        members = np.asarray(space.groups[0].members, dtype=np.int64)
+        forced = np.asarray(space.forced, dtype=np.int64)
+
+        def rows():
+            for idx in _combination_blocks(len(members), space.k_free):
+                block = members[idx]
+                if forced.size:
+                    lead = np.broadcast_to(forced, (len(block), forced.size))
+                    block = np.sort(np.hstack([lead, block]), axis=1)
+                yield block if filt.is_empty else block[filt.accepts_rows(block)]
+
+        yield from _rechunk(rows(), chunk)
+        return
     block: List[Tuple[int, ...]] = []
     for subset in space.iter_subsets():
         if not filt.accepts(subset):
