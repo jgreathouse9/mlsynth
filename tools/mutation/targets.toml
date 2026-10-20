@@ -6400,3 +6400,177 @@ timeout = 600.0
   find = "            if lower is not None:\n                ok &= inside >= lower"
   replace = "            if False:\n                ok &= inside >= lower"
   models = "a stratum's lower quota ignored by the vectorized filter, which the per-set filter enforces"
+
+[[target]]
+name = "syndes-global-bnb-bounds"
+module-path = "benchmarks/studies/syndes_global_bnb/bounds.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_bounds.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-constant-direction-stays-in-the-spectrum"
+  find = "    P = np.linalg.svd(np.ones((1, n)))[2][1:].T"
+  replace = "    P = np.eye(n) - np.full((n, n), 1.0 / n)"
+  models = "the first draft's projector onto 1-perp in place of a basis of it: the constant direction keeps its zero eigenvalue in the spectrum and forces mu > 0, so a node whose quadratic is negative on the plane gets a valid but loose bound (-12.18 against an exact -14.77 with two free units)"
+
+  [[target.mutant]]
+  id = "the-dual-is-not-minimised"
+  find = "    for _ in range(60):"
+  replace = "    for _ in range(0):"
+  models = "the trust-region dual evaluated at the first mu above the top eigenvalue, never moved to its minimiser: still a bound, since any such mu is one, but far from the subproblem's maximum"
+
+  [[target.mutant]]
+  id = "the-lift-is-solved-in-the-outcomes-units"
+  find = "    c, b, A = c / unit, b / unit, A / unit\n"
+  replace = "    unit = 1.0\n"
+  models = "the lift solved on R as the panel gives it: R scales as the outcome's units to the power -4, so at GeoLift's scale its entries sit under the solver's absolute tolerances and the solve is meaningless (unscaled, it reported optimal at a value 12% under the true maximum)"
+
+  [[target.mutant]]
+  id = "the-certificate-trusts-negative-product-multipliers"
+  find = "    N = [np.maximum(np.asarray(r.dual_value, dtype=float).reshape(n, n), 0.0) for r in rlt]"
+  replace = "    N = [np.asarray(r.dual_value, dtype=float).reshape(n, n) for r in rlt]"
+  models = "the product multipliers taken with whatever sign the solver returned: weak duality needs them nonnegative, and a negative one turns the Lagrangian into something that can sit under a design's objective"
+
+  [[target.mutant]]
+  id = "the-objective-constant-moves-into-the-lift"
+  find = "                    M[0, 0] = -a0\n"
+  replace = "                    M[0, 0] = c - a0\n                    c = 0.0 * c\n"
+  models = "the defect the certificate was first written with: the objective's constant as c X_00 in the lifted matrix. It is the same number on a design, so the bound stays valid, but the solver's multipliers are stationary only for the constant form, and the certificate came out at 4.40 where the relaxation's value is 1.88, looser than the trust-region bound it is meant to improve"
+
+[[target]]
+name = "syndes-global-bnb-search"
+module-path = "benchmarks/studies/syndes_global_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_search.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "forced-units-are-not-the-root"
+  find = "    stack = [(I0, O0, 0)]"
+  replace = "    stack = [([], O0, 0)]"
+  models = "the forced units left out of the root's treated side, so the tree searches sets that drop them and the restriction holds only where the incumbent's seeds happened to respect it"
+
+  [[target.mutant]]
+  id = "closed-form-prices-never-set-the-incumbent"
+  find = "            if out.exact[j] and out.lower[j] < best[0]:"
+  replace = "            if False:"
+  models = "the batch's exact closed forms priced and discarded, so the incumbent comes only from the seeds and the iterative solves, and a search with a poor seed returns it"
+
+  [[target.mutant]]
+  id = "the-last-buffer-is-never-priced"
+  find = "    flush()\n    solved = 0"
+  replace = "    solved = 0"
+  models = "the subtrees still buffered when the tree empties never priced: every set in them is dropped without a bound, so the search is no longer exact"
+
+  [[target.mutant]]
+  id = "open-sets-are-never-solved"
+  find = "        sets = sets[lows < best[0]]"
+  replace = "        sets = sets[:0]"
+  models = "the sets whose closed form breaks its sign conditions, and whose closed form is under the incumbent, never solved: on a panel where no set has a closed form the search returns its seed"
+
+  [[target.mutant]]
+  id = "a-node-prunes-on-any-bound"
+  find = "        if lb >= best[0] * (1 - PRUNE_RTOL):\n            counts[\"pruned\"] += 1\n            hits[bucket] += 1"
+  replace = "        if lb >= 0.0:\n            counts[\"pruned\"] += 1\n            hits[bucket] += 1"
+  models = "the pruning comparison read against zero, not the incumbent: every bounded node is discarded, and the answer is whatever the seeds and the enumerated leaves held"
+
+  [[target.mutant]]
+  id = "a-chunk-drops-the-set-past-its-end"
+  find = "    return islice(it, k)"
+  replace = "    def gen():\n        for i, x in enumerate(it):\n            if i >= k:\n                return\n            yield x\n    return gen()"
+  models = "the defect the study shipped with: a chunking loop that pulls one item past its count and returns without yielding it, so a subtree generated in chunks loses one set per chunk. The 10-treated GeoLift enumeration priced 847,618,148 of 847,660,528 sets and still matched the search's optimum, so only a count of the sets priced sees it"
+
+  [[target.mutant]]
+  id = "the-lift-ignores-its-prune-rate"
+  find = "        p_lift = ((lift_hits[bucket] + 1.0) / (lift_tried[bucket] + 2.0)\n                  if adaptive and weigh_lift else 1.0)"
+  replace = "        p_lift = 1.0"
+  models = "every node whose pricing costs more than a lift is lifted, however rarely lifts prune at that size: the factor panel's 245 lifts for 5 prunes"
+
+  [[target.mutant]]
+  id = "the-lift-cost-never-learns"
+  find = "            if isinstance(lift_time, LiftCost):\n                lift_time.observe(n, time.perf_counter() - t_lift)"
+  replace = "            pass"
+  models = "the calibration kept for every lift: it times a lift without a prune target, so a lift that stops early looks a hundred times dearer, and with the prune-rate weight the search stops lifting (GeoLift K = 10: 72.7 s to over 1,000 s)"
+
+  [[target.mutant]]
+  id = "the-lift-cost-ignores-what-it-observed"
+  find = "        if not self.count:\n            return prior"
+  replace = "        if True:\n            return prior"
+  models = "lifts observed and their cost thrown away at prediction"
+
+  [[target.mutant]]
+  id = "the-lifts-prunes-are-not-counted"
+  find = "                counts[\"lift_pruned\"] += 1"
+  replace = "                pass"
+  models = "the result's count of prunes made by the lift left at zero, so a table cannot tell a lift that prunes from one that only costs"
+
+  [[target.mutant]]
+  id = "the-cost-rule-never-bounds"
+  find = "        if r == 0 or r == n or sets_here * price * p_prune <= bound(n):"
+  replace = "        if True:"
+  models = "the rule computed and ignored, every node enumerated: the answer is unchanged by construction, so only the test that counts bounded nodes under a free bound sees it"
+
+[[target]]
+name = "syndes-global-bnb-dual"
+module-path = "benchmarks/studies/syndes_global_bnb/dual.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_dual.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-regularised-bound-drops-youngs-constant"
+  find = "float(pos @ pos) / (2.0 * alpha) + 0.5 * alpha * size * size"
+  replace = "float(pos @ pos) / (2.0 * alpha)"
+  models = "Young's inequality applied without its second term, so the smooth value the method minimises can sit under the exact bound and under the subtree's maximum"
+
+  [[target.mutant]]
+  id = "the-trace-is-n-not-n-plus-one"
+  find = "    exact = const + size * lam[-1]"
+  replace = "    exact = const + n * lam[-1]"
+  models = "the lifted matrix's trace taken as the free units' count, forgetting the homogenising entry: a bound under the subtree's maximum wherever lambda_max is positive"
+
+  [[target.mutant]]
+  id = "a-triangle-enters-the-matrix-with-the-wrong-sign"
+  find = "    sg = _SIGNS[cuts.t - 1] * (0.5 * w)[:, None]"
+  replace = "    sg = _SIGNS[cuts.t - 1] * (-0.5 * w)[:, None]"
+  models = "the Lagrangian's inequality term subtracted instead of added: the result bounds nothing"
+
+  [[target.mutant]]
+  id = "the-products-gradient-is-dropped"
+  find = "    gy[size + 1:] = -(X[1:, :] @ u)"
+  replace = "    gy[size + 1:] = 0.0"
+  models = "the products X 1 = s x left out of the gradient, so their multipliers never move and the bound loses the cardinality's lift"
+
+  [[target.mutant]]
+  id = "separation-ignores-the-gap"
+  find = "    p, t = np.nonzero(vals < -gap)"
+  replace = "    p, t = np.nonzero(vals < 0.0)"
+  models = "triangles violated by a hair added every round, BiqCrunch's 0.05 threshold dropped"
+
+  [[target.mutant]]
+  id = "restrict-keeps-the-parents-type"
+  find = "    return cy, Cuts(tri[:, 0], tri[:, 1], tri[:, 2], nt.astype(np.int64)), np.asarray(v)[keep].copy()"
+  replace = "    return cy, Cuts(tri[:, 0], tri[:, 1], tri[:, 2], t.astype(np.int64)), np.asarray(v)[keep].copy()"
+  models = "a cut re-indexed for the child without moving its positive edge, so the warm start carries a different inequality under the parent's multiplier"
+
+  [[target.mutant]]
+  id = "a-target-never-stops-the-method"
+  find = "            if min(best[0], fallback) <= goal:\n                raise _Pruned"
+  replace = "            if False:\n                raise _Pruned"
+  models = "the node's prune target ignored, so every lift runs its whole schedule; the answer holds, only the evaluation count shows it"
+
+  [[target.mutant]]
+  id = "the-trust-region-fallback-is-not-taken"
+  find = "    return out(unit * min(best[0], fallback), (y, cut, v), evaluations[0], rounds)"
+  replace = "    return out(unit * best[0], (y, cut, v), evaluations[0], rounds)"
+  models = "the dual returned even where it stopped above the trust-region bound, a looser bound than the cheap tier's"
+
+  [[target.mutant]]
+  id = "a-hopeless-target-is-never-abandoned"
+  find = "        if (target is not None and math.isfinite(PATIENCE) and rounds >= TARGET_ROUNDS\n                and now - goal > PATIENCE * max(reached - now, 0.0)):"
+  replace = "        if False:"
+  models = "the give-up rule unreachable even when turned on"
+
+  [[target.mutant]]
+  id = "the-give-up-rule-is-on-by-default"
+  find = "PATIENCE = math.inf"
+  replace = "PATIENCE = 10.0"
+  models = "the rule that abandoned GeoLift's prunable nodes back on: 14,367 lifts at eight treated pruned no node"
