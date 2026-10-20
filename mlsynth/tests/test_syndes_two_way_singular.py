@@ -379,8 +379,7 @@ def _stalled():
     """Found by ``test_a_certified_design_is_the_same_in_other_units``. Rank 2
     plus noise, 5 periods, 7 units, ``lam = 0``: ``M`` on contrasts runs from
     4.5e-3 to 21. Projected gradient priced the optimum to 1e-10 but left its
-    Frank-Wolfe gap at 1e-4 of the value after 40,000 iterations, and the 20,000
-    of the final settle left the value 5e-8 high."""
+    Frank-Wolfe gap at 1e-4 of the value after 40,000 iterations."""
     return np.array([
         [-4.97887028, -1.91398385, 0.59268323, -0.30467149, 0.20389731, 3.50584152, -0.87090452],
         [-3.02892078, -0.80094993, -0.31019208, 0.10286074, 0.36712547, 1.41390185, -0.6972746],
@@ -490,3 +489,26 @@ def test_a_regular_optimum_without_a_closed_form_is_certified():
     assert d.raw_results["certified"]
     assert d.objective_value == pytest.approx(best, rel=1e-6)
     assert d.objective_value == pytest.approx(_exact_value(Y, S), rel=1e-6)
+
+
+def test_the_choice_between_candidates_never_rests_on_projected_gradient(monkeypatch):
+    """The regular search certifies the design it returns by that design's own
+    gap, so a wrong choice between two close candidates would come back
+    certified. Here projected gradient ranks the candidates backwards, with
+    gaps that keep every lower bound valid; the candidates it leaves open are
+    priced exactly, and the optimum still comes back."""
+    import mlsynth.utils.syndes_helpers.exact as ex
+    real = ex.solve_partition_batch
+
+    def backwards(problem, t_idx, c_idx, **kw):
+        out = real(problem, t_idx, c_idx, **kw)
+        order = np.argsort(np.argsort(out.value))          # 0 for the best
+        shift = 1e-3 * float(out.value.max()) * (len(order) - order)
+        return type(out)(**{**out.__dict__, "value": out.value + shift,
+                            "gap": out.gap + shift})
+    monkeypatch.setattr(ex, "solve_partition_batch", backwards)
+    Y = _broken_signs()
+    d = solve_synthetic_design_exact(Y, 1, lam=0.0)
+    values = {j: _exact_value(Y, [j]) for j in range(6)}
+    assert [int(i) for i in d.selected_unit_indices] == [min(values, key=values.get)]
+    assert d.raw_results["certified"]

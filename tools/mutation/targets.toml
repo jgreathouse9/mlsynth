@@ -6288,8 +6288,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-open-sets-are-not-priced-again"
-  find = "        if open_.size:"
-  replace = "        if False:"
+  find = "        if open_.size:\n            value[open_], gap[open_], _, _ = _price_exactly"
+  replace = "        if False:\n            value[open_], gap[open_], _, _ = _price_exactly"
   models = "first-pass gaps left as they are, so a positive optimum on a singular panel is returned uncertified, its lower bound 4e-4 short at 20 units"
 
   [[target.mutant]]
@@ -6316,12 +6316,6 @@ timeout = 900.0
   find = "            value[open_], gap[open_], _, _ = _price_exactly(problem, sets[open_])"
   replace = "            again = solve_partition_batch(problem, *split_indices(N, sets[open_]), max_iter=40_000, tol=1e-14)\n            value[open_], gap[open_] = again.value, again.gap"
   models = "#825's second pass: 40,000 projected-gradient iterations, whose Frank-Wolfe gap closes at a rate set by the conditioning of M and stayed at 1e-4 of the value on a rank-2 panel whose optimum it had priced to 1e-10"
-
-  [[target.mutant]]
-  id = "the-singular-design-is-settled-iteratively"
-  find = "    v, g, a, b = _price_exactly(problem, sets[best][None, :])\n    design_value, design_gap, a, b = float(v[0]), float(g[0]), a[0], b[0]"
-  replace = "    _s = solve_partition_batch(problem, *split_indices(N, sets[best][None, :]), max_iter=20_000, tol=1e-15)\n    t_i, c_i = split_indices(N, sets[best][None, :])\n    a = np.zeros(N); a[t_i[0]] = _s.treated_weights[0]\n    b = np.zeros(N); b[c_i[0]] = _s.control_weights[0]\n    design_value, design_gap = float(_s.value[0]), float(_s.gap[0])"
-  models = "the design settled by 20,000 projected-gradient iterations, which left its value 5e-8 above the optimum on the same panel, past the 1e-8 the certificate allows"
 
   [[target.mutant]]
   id = "the-exact-fit-runs-in-the-panels-units"

@@ -544,11 +544,7 @@ def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
     # f(S) >= 0 for every design, so where a zero stopped the search the sets
     # left unpriced are bounded by zero, and the bound is zero.
     lower = 0.0 if stopped else max(0.0, float(np.min(value - gap)))
-    # The design is settled by the exact fit too: projected gradient's 20,000
-    # iterations left the value 5e-8 high on an ill-conditioned panel, past the
-    # 1e-8 the certificate allows.
-    v, g, a, b = _price_exactly(problem, sets[best][None, :])
-    design_value, design_gap, a, b = float(v[0]), float(g[0]), a[0], b[0]
+    design_value, a, b, design_gap = _settle(problem, engine, sets[best])
     certified = design_value - lower <= allowance(design_value)
     if not certified:
         warnings.warn(
