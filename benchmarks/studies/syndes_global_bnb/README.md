@@ -290,8 +290,8 @@ not prune there. Pooling the estimate across sizes is the next lever.
   multipliers are stationary only for the constant form, and the certificate
   came out at 4.40 where the relaxation's value is 1.88.
 - The search was first compared with the library's enumeration as it stood
-  before #828, at 3.3 to 5.3 µs a set. The table then had the search two to
-  four times faster than enumeration at six and eight treated. After #828 the
+  before #828, at 3.3 to 5.3 µs a set. The table then had the search 2.2 to 3.3
+  times faster on three of its four rows at six and eight treated. After #828 the
   library prices at 0.8 to 1.3 µs a set and enumerates 3.8 million sets in
   3.0 s: the search loses at every size enumeration can reach.
 - The first first-order dual smoothed `lambda_max` by log-sum-exp with a fixed
