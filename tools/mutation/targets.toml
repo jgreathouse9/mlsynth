@@ -6310,3 +6310,33 @@ timeout = 900.0
   replace = "    if False:\n        warnings.warn("
   models = "an uncertified design returned without a warning, so a caller reading only the design cannot tell it from the optimum"
 
+
+  [[target.mutant]]
+  id = "the-second-pass-is-iterative-again"
+  find = "            value[open_], gap[open_], _, _ = _price_exactly(problem, sets[open_])"
+  replace = "            again = solve_partition_batch(problem, *split_indices(N, sets[open_]), max_iter=40_000, tol=1e-14)\n            value[open_], gap[open_] = again.value, again.gap"
+  models = "#825's second pass: 40,000 projected-gradient iterations, whose Frank-Wolfe gap closes at a rate set by the conditioning of M and stayed at 1e-4 of the value on a rank-2 panel whose optimum it had priced to 1e-10"
+
+  [[target.mutant]]
+  id = "the-singular-design-is-settled-iteratively"
+  find = "    v, g, a, b = _price_exactly(problem, sets[best][None, :])\n    design_value, design_gap, a, b = float(v[0]), float(g[0]), a[0], b[0]"
+  replace = "    _s = solve_partition_batch(problem, *split_indices(N, sets[best][None, :]), max_iter=20_000, tol=1e-15)\n    t_i, c_i = split_indices(N, sets[best][None, :])\n    a = np.zeros(N); a[t_i[0]] = _s.treated_weights[0]\n    b = np.zeros(N); b[c_i[0]] = _s.control_weights[0]\n    design_value, design_gap = float(_s.value[0]), float(_s.gap[0])"
+  models = "the design settled by 20,000 projected-gradient iterations, which left its value 5e-8 above the optimum on the same panel, past the 1e-8 the certificate allows"
+
+  [[target.mutant]]
+  id = "the-exact-fit-runs-in-the-panels-units"
+  find = "            w, info = solve_simplex_qp(B / unit, np.zeros(N), return_info=True)"
+  replace = "            w, info = solve_simplex_qp(B, np.zeros(N), return_info=True)"
+  models = "the active-set fit handed the columns in the outcome's units: its tolerances are partly absolute, and on a 2-period panel at 1e4 times its units it did not converge"
+
+  [[target.mutant]]
+  id = "a-design-without-a-closed-form-is-settled-iteratively"
+  find = "    value, gap, a, b = _price_exactly(problem, treated[None, :])\n    return float(value[0]), a[0], b[0], float(gap[0])"
+  replace = "    t_idx, c_idx = split_indices(problem.N, treated[None, :])\n    solved = solve_partition_batch(problem, t_idx, c_idx, max_iter=20_000, tol=1e-15)\n    a = np.zeros(problem.N); a[t_idx[0]] = solved.treated_weights[0]\n    b = np.zeros(problem.N); b[c_idx[0]] = solved.control_weights[0]\n    return float(solved.value[0]), a, b, float(solved.gap[0])"
+  models = "the regular search's settle by projected gradient for a design whose closed form breaks its sign conditions: on an invertible but ill-conditioned panel its gap stayed over 1e-8 of the value, and the optimum was reported uncertified"
+
+  [[target.mutant]]
+  id = "open-candidates-are-ranked-by-projected-gradient"
+  find = "                value[open_] = _price_exactly(problem, candidates[open_])[0]"
+  replace = "                pass"
+  models = "the candidates left open after the screen chosen between on projected gradient's values: a choice between two designs closer than the solver's accuracy rests on an iteration count"

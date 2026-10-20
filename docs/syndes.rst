@@ -819,10 +819,14 @@ matrix, so the search prices the admissible designs one by one. Since
 :math:`f(S) \ge 0`, a design priced at zero, to the rounding of its terms, is
 optimal and ends the search; with fewer periods than units that is the common
 case. Otherwise every design is priced, the ones whose lower bound (value less
-its Frank-Wolfe gap) is still under the best are priced again with more
-iterations, and the design is certified when it is within :math:`10^{-8}` of the
-smallest bound left; when it is not, ``raw_results["certified"]`` is ``False``
-and a ``SYNDESSolveWarning`` names the gap. Fits there are slow, so the search
+its Frank-Wolfe gap) is still under the best are priced again exactly, by an
+active-set fit over the contrasts of treated and control units, as is the
+design. Projected gradient's gap closes at a rate set by the conditioning of
+:math:`\mathbf{G} + \lambda\mathbf{I}`, and on one panel 40,000 more iterations
+left it at :math:`10^{-4}` of the value; the active-set fit stops at its optimum.
+The design is certified when it is within :math:`10^{-8}` of the smallest bound
+left; when it is not, ``raw_results["certified"]`` is ``False`` and a
+``SYNDESSolveWarning`` names the gap. Fits there are slow, so the search
 stops after 2,000 designs with none at zero, and refuses an instance past the
 candidate limit outright, with an error that names
 :math:`\mathrm{cond}(\mathbf{G} + \lambda\mathbf{I})` and asks for a positive
