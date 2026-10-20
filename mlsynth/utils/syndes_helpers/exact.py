@@ -48,8 +48,9 @@ affordable and certified. ``f(S) >= 0``, so a set priced at zero, to the roundin
 of its terms, is optimal and ends the search; with fewer periods than units such
 a set is the common case. Otherwise every set carries a Frank-Wolfe gap, so
 ``value - gap`` bounds it below; the sets whose bound is still under the
-incumbent are priced again with more iterations, and the design is certified
-when the incumbent is within ``1e-8`` of the smallest bound left.
+incumbent are priced again exactly, by an active-set fit (:func:`_price_exactly`),
+and so is the design, which is certified when it is within ``1e-8`` of the
+smallest bound left.
 """
 
 from __future__ import annotations
@@ -73,6 +74,7 @@ from .gram import (
     maxcut_candidates,
     signs_from_subsets,
 )
+from ..solvers.active_set import solve_simplex_qp
 from .optimization import SYNDESSolveWarning
 from .partition import solve_partition_batch, split_indices
 from .structures import SYNDESDesign
@@ -99,12 +101,12 @@ PRICE_ALL_LIMIT = 2_000
 #: Sets priced per batch on that path. A zero in a batch ends the search.
 SINGULAR_CHUNK = 256
 
-#: Projected-gradient iterations for the first pass over every set, and for the
-#: second pass over the sets whose lower bound is still under the incumbent. On a
-#: singular panel with a positive optimum, one set of 9,880 needed the second
-#: pass, and 40,000 iterations closed it to 4e-13.
+#: Projected-gradient iterations for the first pass over every set. The sets
+#: whose lower bound is still under the incumbent after it are priced exactly
+#: (:func:`_price_exactly`): 40,000 more iterations had closed one panel's gap to
+#: 4e-13 and left another's at 1e-4 of the value, since the gap closes at a rate
+#: set by the conditioning of ``M``.
 FIRST_PASS_ITERATIONS = 4_000
-REFINE_ITERATIONS = 40_000
 
 
 class _NoFeasibleDesign(MlsynthEstimationError):
@@ -411,15 +413,71 @@ class SearchOutcome:
     n_solved: int = 0
 
 
+def _price_exactly(problem: TwoWayProblem, sets: np.ndarray):
+    """Each set's value by an active-set solve, with its Frank-Wolfe gap and
+    weights.
+
+    ``a - b`` for ``a`` on the simplex over ``S`` and ``b`` over the controls is
+    the convex hull of the contrasts ``e_i - e_j``, ``i`` in ``S``, ``j`` not:
+    the product ``a_i b_j`` is a point of the larger simplex with those
+    marginals. So ``f(S)`` is one simplex least-squares fit over those columns
+    of ``F``, with ``F'F = M``, and ``solve_simplex_qp`` solves it exactly: its
+    active set, not an iteration count, decides when it stops. Projected
+    gradient prices the same set to the same value but certifies it at the rate
+    its gap closes, which on an ill-conditioned singular panel left a gap of
+    1e-4 of the value after 40,000 iterations.
+
+    Raises
+    ------
+    MlsynthEstimationError
+        If a fit does not converge.
+    """
+    sets = np.atleast_2d(np.asarray(sets, dtype=np.int64))
+    N = problem.N
+    lam, Q = np.linalg.eigh(problem.M)
+    F = (Q * np.sqrt(np.clip(lam, 0.0, None))).T
+    value = np.empty(len(sets))
+    gap = np.empty(len(sets))
+    a_all = np.zeros((len(sets), N))
+    b_all = np.zeros((len(sets), N))
+    for k, S in enumerate(sets):
+        C = np.setdiff1d(np.arange(N), S)
+        D = F[:, S][:, :, None] - F[:, C][:, None, :]
+        B = D.reshape(N, -1)
+        # solve_simplex_qp's tolerances are partly absolute, so it is handed
+        # unit-scale columns: raw, it did not converge on a 2-period panel at
+        # 1e4 times its units. The value and gap are read on the original
+        # columns.
+        unit = float(np.abs(B).max())
+        if unit == 0.0:
+            # M = 0 on contrasts: every weighting scores zero.
+            w, info = np.full(B.shape[1], 1.0 / B.shape[1]), {"converged": True}
+        else:
+            w, info = solve_simplex_qp(B / unit, np.zeros(N), return_info=True)
+        if not info["converged"]:
+            raise MlsynthEstimationError(
+                f"SYNDES two-way exact backend: the active-set fit of treated set "
+                f"{tuple(int(i) for i in S)} did not converge, so its value "
+                "certifies nothing.")
+        r = B @ w
+        grad = 2.0 * (B.T @ r)
+        value[k] = float(r @ r)
+        gap[k] = max(0.0, float(grad @ w - grad.min()))
+        W = w.reshape(len(S), len(C))
+        a_all[k, S] = W.sum(axis=1)
+        b_all[k, C] = W.sum(axis=0)
+    return value, gap, a_all, b_all
+
+
 def _settle(problem: TwoWayProblem, engine: BoundEngine, treated: np.ndarray):
     """Best available value and weights for one treated set.
 
     Prefers the closed form when its minimiser respects the sign conditions --
-    there it is the optimum at machine precision. The iterative solver loses
-    relative accuracy as ``lam`` approaches zero, and the closed form does not.
+    there it is the optimum at machine precision -- and otherwise prices the set
+    by the active-set fit (:func:`_price_exactly`).
     """
     treated = np.sort(np.asarray(treated, dtype=np.int64))
-    t_idx, c_idx = split_indices(problem.N, treated[None, :])
+    split_indices(problem.N, treated[None, :])       # a repeated or unknown unit raises
 
     if engine.reliable:
         closed = engine.bound(signs_from_subsets(problem.N, treated[None, :]))
@@ -428,11 +486,11 @@ def _settle(problem: TwoWayProblem, engine: BoundEngine, treated: np.ndarray):
             return (float(closed.lower[0]), np.maximum(u, 0.0),
                     np.maximum(-u, 0.0), 0.0)
 
-    solved = solve_partition_batch(problem, t_idx, c_idx,
-                                   max_iter=20_000, tol=1e-15)
-    a = np.zeros(problem.N); a[t_idx[0]] = solved.treated_weights[0]
-    b = np.zeros(problem.N); b[c_idx[0]] = solved.control_weights[0]
-    return float(solved.value[0]), a, b, float(solved.gap[0])
+    # Without a closed form the set is priced by the active-set fit: projected
+    # gradient's 20,000 iterations left a design's gap over the 1e-8 the
+    # certificate allows on an ill-conditioned panel.
+    value, gap, a, b = _price_exactly(problem, treated[None, :])
+    return float(value[0]), a[0], b[0], float(gap[0])
 
 
 def _search(
@@ -497,12 +555,21 @@ def _search(
         candidates = candidates[alive]
         n_solved = int(candidates.shape[0])
         if n_solved:
+            # Projected gradient screens the candidates; the ones it leaves
+            # open (bound under the best it found) are priced exactly, so the
+            # choice between close candidates never rests on an iteration count.
             t_idx, c_idx = split_indices(N, candidates)
             solved = solve_partition_batch(problem, t_idx, c_idx,
                                            max_iter=4000, tol=1e-14)
-            j = int(np.argmin(solved.value))
-            if float(solved.value[j]) < best_value:
-                best_value, best_set = float(solved.value[j]), candidates[j]
+            value = solved.value.copy()
+            lower = value - solved.gap
+            top = float(min(value.min(), best_value))
+            open_ = np.flatnonzero(lower < top)
+            if open_.size:
+                value[open_] = _price_exactly(problem, candidates[open_])[0]
+            j = int(np.argmin(value))
+            if float(value[j]) < best_value:
+                best_value, best_set = float(value[j]), candidates[j]
 
     value, a, b, gap = _settle(problem, engine, best_set)
     scale = max(abs(value), 1e-300)
@@ -521,8 +588,8 @@ def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
 
     A set priced at zero, to the rounding of its terms, ends the search: no
     design does better. Otherwise, after the first pass, the sets whose lower
-    bound ``value - gap`` is still under the incumbent are priced again with
-    more iterations. A search that leaves a gap open returns the best design it
+    bound ``value - gap`` is still under the incumbent are priced again
+    exactly, as is the design. A search that leaves a gap open returns the best design it
     found, with ``certified=False``, the smallest bound left, and a
     :class:`~.optimization.SYNDESSolveWarning`.
     """
@@ -578,10 +645,7 @@ def _search_singular(problem: TwoWayProblem, engine: BoundEngine, K: int,
     if not stopped:
         open_ = np.flatnonzero(value - gap < value[best] - allowance(value[best]))
         if open_.size:
-            t_idx, c_idx = split_indices(N, sets[open_])
-            again = solve_partition_batch(problem, t_idx, c_idx,
-                                          max_iter=REFINE_ITERATIONS, tol=1e-14)
-            value[open_], gap[open_] = again.value, again.gap
+            value[open_], gap[open_], _, _ = _price_exactly(problem, sets[open_])
             n_solved += int(open_.size)
             best = int(np.argmin(value))
 

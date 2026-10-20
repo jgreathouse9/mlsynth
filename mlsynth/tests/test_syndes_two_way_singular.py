@@ -179,9 +179,17 @@ def test_the_open_sets_are_priced_again(monkeypatch):
 
 
 def test_gaps_left_open_are_reported(monkeypatch):
+    """The second pass prices exactly, so an open gap now needs a fit that
+    certifies less than its value: a stub that reports every gap as a tenth of
+    the value. The search must say so, not claim the optimum."""
     import mlsynth.utils.syndes_helpers.exact as ex
     monkeypatch.setattr(ex, "FIRST_PASS_ITERATIONS", 50)
-    monkeypatch.setattr(ex, "REFINE_ITERATIONS", 50)
+    exact = ex._price_exactly
+
+    def loose(problem, sets):
+        value, gap, a, b = exact(problem, sets)
+        return value, np.maximum(gap, 0.1 * value), a, b
+    monkeypatch.setattr(ex, "_price_exactly", loose)
     Y = _tied()
     best = min(_reference(Y, 3).values())
     with pytest.warns(SYNDESSolveWarning, match="not a proven optimum"):
@@ -360,3 +368,162 @@ def test_a_common_level_changes_nothing(case, c):
         np.abs(TwoWayProblem.from_panel(Y, lam=0.0).M).max())
     assert abs(got.objective_value - ref.objective_value) <= max(
         1e-6 * abs(ref.objective_value), 1e3 * floor)
+
+
+# ----------------------------------------------------------------------
+# an ill-conditioned singular panel: the iterative certificate stalls
+# ----------------------------------------------------------------------
+
+
+def _stalled():
+    """Found by ``test_a_certified_design_is_the_same_in_other_units``. Rank 2
+    plus noise, 5 periods, 7 units, ``lam = 0``: ``M`` on contrasts runs from
+    4.5e-3 to 21. Projected gradient priced the optimum to 1e-10 but left its
+    Frank-Wolfe gap at 1e-4 of the value after 40,000 iterations."""
+    return np.array([
+        [-4.97887028, -1.91398385, 0.59268323, -0.30467149, 0.20389731, 3.50584152, -0.87090452],
+        [-3.02892078, -0.80094993, -0.31019208, 0.10286074, 0.36712547, 1.41390185, -0.6972746],
+        [-2.30760976, 2.57354233, -2.16017151, 3.55071588, 1.30395459, 2.44611929, -0.36243795],
+        [3.92851879, -0.57614834, 1.51128724, -1.86143708, -0.97498843, -2.82098497, 0.78607029],
+        [2.81122302, 0.56981929, 0.63563567, -0.28312435, -0.19068996, -1.70462778, 0.99304142]])
+
+
+def _exact_value(Y, S, lam=0.0):
+    """``f(S)`` by an independent route: CLARABEL on the two simplices."""
+    import cvxpy as cp
+    T, N = Y.shape
+    Yc = Y - Y.mean(axis=1, keepdims=True)
+    C = [j for j in range(N) if j not in S]
+    a, b = cp.Variable(len(S), nonneg=True), cp.Variable(len(C), nonneg=True)
+    u = Yc[:, list(S)] @ a - Yc[:, C] @ b
+    prob = cp.Problem(cp.Minimize(cp.sum_squares(u) / T + lam * (cp.sum_squares(a) + cp.sum_squares(b))),
+                      [cp.sum(a) == 1, cp.sum(b) == 1])
+    # The objective sits near 1e-4 to 1e-6 here; CLARABEL's default tolerances
+    # are about 1e-6 of that, so the reference is solved tighter.
+    prob.solve(solver="CLARABEL", tol_gap_abs=1e-14, tol_gap_rel=1e-12,
+               tol_feas=1e-12, max_iter=500)
+    return float(prob.value)
+
+
+def test_an_ill_conditioned_singular_optimum_is_certified():
+    Y = _stalled()
+    d = solve_synthetic_design_exact(Y, 2, lam=0.0)
+    assert d.raw_results["certified"]
+    assert sorted(int(i) for i in d.selected_unit_indices) == [1, 2]
+    assert d.objective_value == pytest.approx(_exact_value(Y, [1, 2]), rel=1e-6)
+    assert d.raw_results["lower_bound"] <= d.objective_value
+
+
+def test_an_ill_conditioned_optimum_is_certified_in_other_units():
+    Y = _stalled()
+    ref = solve_synthetic_design_exact(Y, 2, lam=0.0)
+    for s in (1e-6, 1e6):
+        got = solve_synthetic_design_exact(Y * s, 2, lam=0.0)
+        assert got.raw_results["certified"]
+        assert got.objective_value / s ** 2 == pytest.approx(ref.objective_value, rel=1e-8)
+
+
+def test_exact_pricing_is_every_sets_value():
+    """The exact price of a set on a singular panel is its value, to the
+    reference's accuracy, and certifies itself."""
+    from mlsynth.utils.syndes_helpers.exact import CERTIFY_RTOL, _price_exactly, _zero_floor
+    Y = _stalled()
+    problem = TwoWayProblem.from_panel(Y, lam=0.0)
+    sets = np.array(list(combinations(range(7), 2)))
+    value, gap, a, b = _price_exactly(problem, sets)
+    floor = _zero_floor(problem)
+    for k, S in enumerate(sets):
+        assert value[k] == pytest.approx(_exact_value(Y, list(S)), rel=1e-6, abs=1e-12)
+        assert 0.0 <= gap[k] <= max(CERTIFY_RTOL * value[k], floor)
+        assert a[k].sum() == pytest.approx(1.0) and b[k].sum() == pytest.approx(1.0)
+        assert problem.evaluate(a[k], b[k]) == pytest.approx(value[k], rel=1e-9, abs=1e-15)
+
+
+def test_the_exact_fit_converges_in_any_units():
+    """Found by the units property: the active-set solver, handed this
+    2-period panel's columns at 1e4 times its units, did not converge. It is
+    handed unit-scale columns."""
+    Y = np.array([[-0.14828994, -0.05488598, 0.59458925, 0.46073415, 0.03754971, 0.3475734],
+                  [-0.60799477, 0.34136178, 0.86225622, 0.61178452, -0.80443396, -1.16373712]])
+    ref = solve_synthetic_design_exact(Y, 1, lam=0.0)
+    for s in (1e-4, 1e4):
+        got = solve_synthetic_design_exact(Y * s, 1, lam=0.0)
+        assert got.raw_results["certified"]
+        assert abs(got.objective_value / s ** 2 - ref.objective_value) <= 1e-12
+
+
+def test_exact_pricing_where_m_is_zero():
+    """Every unit at its period's mean, lam = 0: every contrast scores zero."""
+    from mlsynth.utils.syndes_helpers.exact import _price_exactly
+    Y = np.repeat(np.array([[1.0], [3.0], [-2.0]]), 5, axis=1)
+    problem = TwoWayProblem.from_panel(Y, lam=0.0)
+    value, gap, a, b = _price_exactly(problem, np.array([[0, 2], [1, 4]]))
+    np.testing.assert_array_equal(value, 0.0)
+    np.testing.assert_array_equal(gap, 0.0)
+    np.testing.assert_allclose(a.sum(axis=1), 1.0)
+    np.testing.assert_allclose(b.sum(axis=1), 1.0)
+    assert (a[0, [1, 3, 4]] == 0).all() and (b[0, [0, 2]] == 0).all()
+    assert (a[1, [0, 2, 3]] == 0).all() and (b[1, [1, 4]] == 0).all()
+
+
+def _broken_signs():
+    """Found by ``test_a_common_level_changes_nothing`` (level 0). ``G`` is
+    invertible here, so this is the regular search, but the optimum's closed
+    form breaks its sign conditions: its price came from projected gradient,
+    whose gap after 20,000 iterations was over 1e-8 of the value."""
+    return np.array([
+        [-1.36637323, 3.29598988, -1.00662801, 0.34865814, 0.04774756, -2.51650324],
+        [2.63773541, -5.34539614, 1.26912283, 0.65672756, -1.99756156, 1.17847226],
+        [0.91028892, -1.2669743, 0.49849159, 0.26402531, 0.58655055, 0.88665621],
+        [-2.07736123, 5.97774305, -1.12745787, -0.48721523, 3.06991971, 1.45402474],
+        [-1.2783723, 3.51687852, -0.92781608, 0.04271162, 0.8258802, -2.33847393],
+        [0.32587246, -0.75983249, 0.7413686, -0.46111185, 0.73909469, 2.8818209]])
+
+
+def test_a_regular_optimum_without_a_closed_form_is_certified():
+    Y = _broken_signs()
+    assert BoundEngine.from_problem(TwoWayProblem.from_panel(Y, lam=0.0)).reliable
+    d = solve_synthetic_design_exact(Y, 1, lam=0.0)
+    S = [int(i) for i in d.selected_unit_indices]
+    best = min(_exact_value(Y, [j]) for j in range(6))
+    assert d.raw_results["certified"]
+    assert d.objective_value == pytest.approx(best, rel=1e-6)
+    assert d.objective_value == pytest.approx(_exact_value(Y, S), rel=1e-6)
+
+
+def test_the_choice_between_candidates_never_rests_on_projected_gradient(monkeypatch):
+    """The regular search certifies the design it returns by that design's own
+    gap, so a wrong choice between two close candidates would come back
+    certified. Here projected gradient ranks the candidates backwards, with
+    gaps that keep every lower bound valid; the candidates it leaves open are
+    priced exactly, and the optimum still comes back."""
+    import mlsynth.utils.syndes_helpers.exact as ex
+    real = ex.solve_partition_batch
+
+    def backwards(problem, t_idx, c_idx, **kw):
+        out = real(problem, t_idx, c_idx, **kw)
+        order = np.argsort(np.argsort(out.value))          # 0 for the best
+        spread = float(out.value.max() - out.value.min())
+        shift = spread * (len(order) - order)              # the best now ranks last
+        return type(out)(**{**out.__dict__, "value": out.value + shift,
+                            "gap": out.gap + shift})
+    monkeypatch.setattr(ex, "solve_partition_batch", backwards)
+    Y = _broken_signs()
+    d = solve_synthetic_design_exact(Y, 1, lam=0.0)
+    values = {j: _exact_value(Y, [j]) for j in range(6)}
+    assert [int(i) for i in d.selected_unit_indices] == [min(values, key=values.get)]
+    assert d.raw_results["certified"]
+
+
+def test_an_exact_fit_that_does_not_converge_is_reported(monkeypatch):
+    """A fit that stops without converging prices nothing: the search raises
+    with the set named, and does not return a design on that fit's value."""
+    import mlsynth.utils.syndes_helpers.exact as ex
+    real = ex.solve_simplex_qp
+
+    def stalls(B, A, return_info=False):
+        w, info = real(B, A, return_info=True)
+        return w, {**info, "converged": False}
+    monkeypatch.setattr(ex, "solve_simplex_qp", stalls)
+    with pytest.raises(MlsynthEstimationError, match="did not converge"):
+        solve_synthetic_design_exact(_stalled(), 2, lam=0.0)
