@@ -35,6 +35,17 @@ from mlsynth.utils.syndes_helpers.gram import (BoundEngine, TwoWayProblem,
 from mlsynth.utils.syndes_helpers.partition import solve_partition_batch, split_indices
 
 from .bounds import lift_upper, node_lower, node_upper, trs_upper
+from .dual import dual_upper
+
+# The lifted bound: the interior-point solve of ``bounds.lift_upper``, or its
+# regularised dual (``dual.py``) with the triangle inequalities, or with the
+# lift's products alone; the dual stops as soon as the node prunes.
+LIFTS = {
+    "ipm": lambda R, I, O, F, K, target=None: lift_upper(R, I, O, F, K),
+    "dual": lambda R, I, O, F, K, target=None: dual_upper(R, I, O, F, K, target=target),
+    "products": lambda R, I, O, F, K, target=None: dual_upper(R, I, O, F, K, target=target,
+                                                            cuts="products"),
+}
 
 PRUNE_RTOL = 1e-12
 CHUNK = 20_000
@@ -101,7 +112,7 @@ def _bound_seconds(R: np.ndarray, K: int):
     return lambda n: max(t0, t0 + slope * (n ** 3 - n0 ** 3))
 
 
-def _lift_seconds(R: np.ndarray, K: int):
+def _lift_seconds(R: np.ndarray, K: int, lift=lift_upper):
     """Seconds per lift as a power law in the free units, fitted at two sizes no
     larger than 20 (a lift at the full size can take longer than the search)."""
     N = R.shape[0]
@@ -110,7 +121,7 @@ def _lift_seconds(R: np.ndarray, K: int):
     for n in sizes:
         F = list(range(n)); O = list(range(n, N))
         t = time.perf_counter()
-        lift_upper(R, [], O, F, min(K, n - 1))
+        lift(R, [], O, F, min(K, n - 1))
         times.append(time.perf_counter() - t)
     if len(sizes) == 1:
         return lambda n: times[0]
@@ -133,10 +144,15 @@ def search(
     lift_cost: Optional[float] = None,
     adaptive: bool = True,
     seed: int = 0,
+    lift: str = "ipm",
 ) -> Result:
     """The two-way design's optimum by branch and bound. ``price_cost`` (seconds
     per set), ``bound_cost`` (per trust-region bound) and ``lift_cost`` (per
-    lift; ``inf`` never lifts) override the calibration."""
+    lift; ``inf`` never lifts) override the calibration. ``lift``: ``"ipm"``,
+    ``"dual"`` or ``"products"`` (``LIFTS``)."""
+    if lift not in LIFTS:
+        raise ValueError(f"lift must be one of {sorted(LIFTS)}, not {lift!r}.")
+    lifted = LIFTS[lift]
     start = time.perf_counter()
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     engine = BoundEngine.from_problem(problem)
@@ -151,7 +167,7 @@ def search(
 
     price = _price_seconds(engine, N, K) if price_cost is None else price_cost
     bound = _bound_seconds(R, K) if bound_cost is None else (lambda n: bound_cost)
-    lift = _lift_seconds(R, K) if lift_cost is None else (lambda n: lift_cost)
+    lift_time = _lift_seconds(R, K, lifted) if lift_cost is None else (lambda n: lift_cost)
 
     def admissible(sets: np.ndarray) -> np.ndarray:
         ok = np.ones(len(sets), dtype=bool)
@@ -246,9 +262,10 @@ def search(
             counts["pruned"] += 1
             hits[bucket] += 1
             continue
-        if sets_here * price > lift(n):
+        if sets_here * price > lift_time(n):
             counts["lifted"] += 1
-            lb = node_lower(engine.alpha, lift_upper(R, I, O, F, K))
+            goal = 4.0 * engine.alpha / (best[0] * (1 - PRUNE_RTOL))
+            lb = node_lower(engine.alpha, lifted(R, I, O, F, K, target=goal))
             if lb >= best[0] * (1 - PRUNE_RTOL):
                 counts["pruned"] += 1
                 continue

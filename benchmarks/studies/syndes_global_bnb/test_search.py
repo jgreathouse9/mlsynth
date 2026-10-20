@@ -112,3 +112,20 @@ def test_a_subtree_past_the_table_limit_is_priced_in_full(monkeypatch):
     res = search(Y, 4, price_cost=0.0, bound_cost=1.0, lift_cost=np.inf)
     assert res.sets_priced == comb(12, 4)
     _agree(res, solve_synthetic_design_exact(Y, 4))
+
+
+@pytest.mark.parametrize("lift", ["dual", "products"])
+@pytest.mark.parametrize("seed", [6, 8])
+def test_the_regularised_dual_lift_gives_the_same_optimum(lift, seed):
+    """The lift's bound by its regularised dual (``dual.py``), stopped as soon
+    as it prunes, in place of the interior-point lift: the same optimum."""
+    Y = _factor(12, seed=seed)
+    ref = solve_synthetic_design_exact(Y, 4)
+    res = search(Y, 4, price_cost=1.0, bound_cost=0.0, lift_cost=0.0, lift=lift)
+    _agree(res, ref)
+    assert res.nodes_lifted > 0
+
+
+def test_an_unknown_lift_is_refused():
+    with pytest.raises(ValueError, match="lift"):
+        search(_factor(8), 2, lift="simplex")

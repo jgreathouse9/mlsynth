@@ -6484,3 +6484,57 @@ timeout = 600.0
   find = "        if r == 0 or r == n or sets_here * price * p_prune <= bound(n):"
   replace = "        if True:"
   models = "the rule computed and ignored, every node enumerated: the answer is unchanged by construction, so only the test that counts bounded nodes under a free bound sees it"
+
+[[target]]
+name = "syndes-global-bnb-dual"
+module-path = "benchmarks/studies/syndes_global_bnb/dual.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_dual.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-regularised-bound-drops-youngs-constant"
+  find = "float(pos @ pos) / (2.0 * alpha) + 0.5 * alpha * size * size"
+  replace = "float(pos @ pos) / (2.0 * alpha)"
+  models = "Young's inequality applied without its second term, so the smooth value the method minimises can sit under the exact bound and under the subtree's maximum"
+
+  [[target.mutant]]
+  id = "the-trace-is-n-not-n-plus-one"
+  find = "    exact = const + size * lam[-1]"
+  replace = "    exact = const + n * lam[-1]"
+  models = "the lifted matrix's trace taken as the free units' count, forgetting the homogenising entry: a bound under the subtree's maximum wherever lambda_max is positive"
+
+  [[target.mutant]]
+  id = "a-triangle-enters-the-matrix-with-the-wrong-sign"
+  find = "    sg = _SIGNS[cuts.t - 1] * (0.5 * w)[:, None]"
+  replace = "    sg = _SIGNS[cuts.t - 1] * (-0.5 * w)[:, None]"
+  models = "the Lagrangian's inequality term subtracted instead of added: the result bounds nothing"
+
+  [[target.mutant]]
+  id = "the-products-gradient-is-dropped"
+  find = "    gy[size + 1:] = -(X[1:, :] @ u)"
+  replace = "    gy[size + 1:] = 0.0"
+  models = "the products X 1 = s x left out of the gradient, so their multipliers never move and the bound loses the cardinality's lift"
+
+  [[target.mutant]]
+  id = "separation-ignores-the-gap"
+  find = "    p, t = np.nonzero(vals < -gap)"
+  replace = "    p, t = np.nonzero(vals < 0.0)"
+  models = "triangles violated by a hair added every round, BiqCrunch's 0.05 threshold dropped"
+
+  [[target.mutant]]
+  id = "restrict-keeps-the-parents-type"
+  find = "    return cy, Cuts(tri[:, 0], tri[:, 1], tri[:, 2], nt.astype(np.int64)), np.asarray(v)[keep].copy()"
+  replace = "    return cy, Cuts(tri[:, 0], tri[:, 1], tri[:, 2], t.astype(np.int64)), np.asarray(v)[keep].copy()"
+  models = "a cut re-indexed for the child without moving its positive edge, so the warm start carries a different inequality under the parent's multiplier"
+
+  [[target.mutant]]
+  id = "a-target-never-stops-the-method"
+  find = "            if min(best[0], fallback) <= goal:\n                raise _Pruned"
+  replace = "            if False:\n                raise _Pruned"
+  models = "the node's prune target ignored, so every lift runs its whole schedule; the answer holds, only the evaluation count shows it"
+
+  [[target.mutant]]
+  id = "the-trust-region-fallback-is-not-taken"
+  find = "    return out(unit * min(best[0], fallback), (y, cut, v), evaluations[0], rounds)"
+  replace = "    return out(unit * best[0], (y, cut, v), evaluations[0], rounds)"
+  models = "the dual returned even where it stopped above the trust-region bound, a looser bound than the cheap tier's"
