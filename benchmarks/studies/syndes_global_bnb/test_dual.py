@@ -336,3 +336,31 @@ def test_edge_nodes():
     one = dual_upper(eng.R, [0], [2, 3, 4, 5], [1], 2)
     assert one == pytest.approx(trs_upper(eng.R, [0], [2, 3, 4, 5], [1], 2)[0], rel=1e-12)
     assert dual_upper(np.zeros((6, 6)), [], [0], [1, 2, 3, 4, 5], 2) == 0.0
+
+
+def test_separation_needs_three_indices():
+    assert len(separate(np.eye(2))) == 0
+    assert len(separate(np.eye(2), products=True)) == 0
+
+
+def test_edge_nodes_report_an_empty_state():
+    eng = _engine(6, 12, 0)
+    for I, O, F in (([0, 1], [2, 3, 4, 5], []), ([0], [2, 3, 4, 5], [1])):
+        _, info = dual_upper(eng.R, I, O, F, 2, info=True)
+        y, cuts, v = info.state
+        assert y.shape == (2 * len(F) + 2,) and len(cuts) == 0 and v.shape == (0,)
+        assert info.evaluations == 0
+    _, info = dual_upper(np.zeros((6, 6)), [], [0], [1, 2, 3, 4, 5], 2, info=True)
+    assert info.state[0].shape == (12,)
+
+
+def test_a_round_that_runs_out_of_evaluations_keeps_its_point(monkeypatch):
+    """A round cut off by its evaluation budget ends where L-BFGS-B stopped;
+    what it returns is still a bound."""
+    from . import dual as mod
+    monkeypatch.setattr(mod, "EVALUATIONS", 3)
+    eng = _engine(10, 12, 2)
+    I, O, F, K = [], [0], list(range(1, 10)), 4
+    ud = dual_upper(eng.R, I, O, F, K)
+    assert ud >= _best(eng.R, I, O, F, K) - 1e-9 * abs(ud)
+    assert ud <= trs_upper(eng.R, I, O, F, K)[0] * (1 + 1e-12)

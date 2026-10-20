@@ -275,3 +275,7 @@ def test_the_lift_certificate_holds_for_any_multipliers(seed):
         np.where(np.isin(np.arange(N), list(I) + list(comb)), 1.0, -1.0)
         for comb in combinations(F, K - len(I))))
     assert _certify_lift(c, b, A, s, eq, rlt) >= best - 1e-9 * max(1.0, abs(best))
+
+
+def test_the_lift_of_a_zero_matrix_is_its_constant():
+    assert lift_upper(np.zeros((6, 6)), [], [0], [1, 2, 3, 4, 5], 2) == 0.0

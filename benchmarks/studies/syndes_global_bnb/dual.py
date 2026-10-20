@@ -274,7 +274,7 @@ def dual_upper(R, I, O, F, K, *, target: Optional[float] = None, warm=None,
 
         def stop(xk, tol=tol):
             if "x" not in last or not np.array_equal(last["x"], xk):
-                return
+                return  # pragma: no cover - L-BFGS-B calls back at the point it evaluated last; this keeps a stale gradient from deciding convergence
             gy, gv = last["g"]
             if (np.abs(gy).max() < tol
                     and (not len(gv) or -min(gv.min(), 0.0) / KAPPA < tol)):

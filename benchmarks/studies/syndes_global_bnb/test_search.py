@@ -237,3 +237,30 @@ def test_a_lift_that_always_prunes_is_counted(monkeypatch):
     res = search(Y, 4, price_cost=1.0, bound_cost=0.0, lift_cost=0.0)
     assert res.nodes_lifted > 0
     assert res.lifts_pruned == res.nodes_lifted
+
+
+def test_a_four_unit_panel_calibrates_on_one_size():
+    """``max(4, N // 4) == N`` leaves one size to time the bound at."""
+    Y = _factor(4, seed=1)
+    _agree(search(Y, 2), solve_synthetic_design_exact(Y, 2))
+
+
+def test_the_buffer_is_priced_when_it_fills(monkeypatch):
+    from . import search as mod
+    monkeypatch.setattr(mod, "CHUNK", 50)
+    Y = _factor(12, seed=3)
+    res = search(Y, 4, price_cost=0.0, bound_cost=1.0, lift_cost=np.inf)
+    assert res.sets_priced == 495
+    _agree(res, solve_synthetic_design_exact(Y, 4))
+
+
+def test_the_final_solve_can_beat_the_incumbent():
+    """Where no set has a closed form every set waits for the final solve; from
+    a poor incumbent and no seeds, that solve is what finds the optimum."""
+    Y, K, lam = _no_closed_form()
+    N = Y.shape[1]
+    ref = solve_synthetic_design_exact(Y, K, lam=lam)
+    worst = np.array([int(i) for i in range(N) if i not in set(ref.selected_unit_indices)][:K])
+    res = search(Y, K, lam=lam, incumbent=worst, restarts=0, price_cost=1.0, bound_cost=0.0)
+    _agree(res, ref)
+    assert res.sets_solved > 0

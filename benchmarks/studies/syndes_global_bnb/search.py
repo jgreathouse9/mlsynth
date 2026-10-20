@@ -283,7 +283,7 @@ def search(
         F = order[pos:]
         r, n = K - len(I), len(F)
         if r < 0 or r > n:
-            continue
+            continue  # pragma: no cover - a node with r = 0 or r = n is enumerated, never split, so no child leaves 0 <= r <= n
         sets_here = sets_count(n, r)
         bucket = min(int(np.log2(max(sets_here, 1))), 79)
         p_prune = (hits[bucket] + 1.0) / (tried[bucket] + 2.0) if adaptive else 1.0
