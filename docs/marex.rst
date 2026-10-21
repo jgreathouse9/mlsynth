@@ -1691,6 +1691,13 @@ slope near one. `benchmarks/cases/marex_section5_bias.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_section5_bias.py>`_,
 described in :doc:`replications/marex`.
 
+The branch and bound above twenty million sets in a cluster has a regression
+gate: `benchmarks/cases/marex_bnb_work.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_bnb_work.py>`_
+pins the bounds it computes and the sets it prices on Walmart and two GeoLift
+subsets, beside the design and its certificate. See
+:doc:`replications/bnb_work`.
+
 .. note::
 
    The benchmark uses the exact MIQP (free SCIP), not the relaxed
