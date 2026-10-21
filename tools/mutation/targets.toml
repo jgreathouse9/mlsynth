@@ -6808,3 +6808,36 @@ timeout = 1200.0
   find = "    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))\n            or not np.isfinite(work_limit) or work_limit <= 0):"
   replace = "    if False:"
   models = "a zero, negative, infinite, NaN or boolean work_limit accepted and handed to the search"
+
+# A seed costs time and nothing else (#850): below the candidate limit a seed of
+# another size became the design, so a caller asking for two treated units got
+# four.
+[[target]]
+name = "syndes-seeds"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_exact.py -q -p no:cacheprovider -x -k TestSeeds"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-seed-of-another-size-is-accepted"
+  find = "    if K is not None and k != K:"
+  replace = "    if False:"
+  models = "a seed of another size than K accepted at entry, where it can become the design"
+
+  [[target.mutant]]
+  id = "a-seed-that-is-no-design-is-accepted"
+  find = "    if not 1 <= k <= N - 1:"
+  replace = "    if False:"
+  models = "with K free, a seed of no units or of every unit accepted and dropped without a word"
+
+  [[target.mutant]]
+  id = "a-malformed-seed-is-not-checked"
+  find = "    split_indices(N, sets)                    # a repeated or unknown unit raises"
+  replace = "    pass"
+  models = "a seed that repeats a unit reported only when the restrictions happen to admit it, and skipped without a word when they do not"
+
+  [[target.mutant]]
+  id = "the-search-takes-a-seed-of-another-size"
+  find = "    if incumbent_sets is not None and incumbent_sets.shape[1] == K:"
+  replace = "    if incumbent_sets is not None:"
+  models = "a size's search takes a seed of another size as its design, the defect of #850 at the search's own level"
