@@ -1,0 +1,84 @@
+
+=== factor: optimum (2, 6, 7), f* = 13.4971; existing search fits 110 sets
+  bound        order        bounded pruned sets cut priced   depth-1 bound / subtree min
+  monotone     index             55     12       40    180   first half median 0.000, all median 0.178
+  monotone     best_first        55     16       44    176   first half median 0.000, all median 0.146
+  monotone     worst_first       55     32      103    117   first half median 0.382, all median 0.646
+  sparse       index             44      6       56    164   first half median 0.001, all median 0.613
+  sparse       best_first        44     10       60    160   first half median 0.002, all median 0.640
+  sparse       worst_first       55     32      103    117   first half median 0.382, all median 0.646
+  cover        index             65      3        5    215   first half median 0.000, all median 0.032
+  cover        best_first        65      4        5    215   first half median 0.000, all median 0.026
+  cover        worst_first       62      2        4    216   first half median 0.135, all median 0.133
+  relaxation   index             55     15       43    177   first half median 0.000, all median 0.178
+  relaxation   best_first        55     16       44    176   first half median 0.000, all median 0.146
+  relaxation   worst_first       55     32      103    117   first half median 0.382, all median 0.646
+  best         index             44      9       59    161   first half median 0.001, all median 0.613
+  best         best_first        44     10       60    160   first half median 0.002, all median 0.640
+  best         worst_first       55     32      103    117   first half median 0.382, all median 0.646
+  closed_form  index             44     18       92    128   first half median 0.743, all median 0.956
+  closed_form  best_first        44     13       66    154   first half median 0.743, all median 0.946
+  closed_form  worst_first       34     26      185     35   first half median 0.888, all median 0.920
+
+=== noise: optimum (2, 7, 8), f* = 6.14208; existing search fits 7 sets
+  bound        order        bounded pruned sets cut priced   depth-1 bound / subtree min
+  monotone     index             64     14       18    202   first half median 0.135, all median 0.227
+  monotone     best_first        62     10       14    206   first half median 0.086, all median 0.223
+  monotone     worst_first       64     11       12    208   first half median 0.102, all median 0.296
+  sparse       index             62     37      105    115   first half median 0.610, all median 0.732
+  sparse       best_first        59     25       65    155   first half median 0.587, all median 0.722
+  sparse       worst_first       62     31       77    143   first half median 0.612, all median 0.713
+  cover        index             65      0        0    220   first half median 0.027, all median 0.028
+  cover        best_first        65      0        0    220   first half median 0.028, all median 0.029
+  cover        worst_first       65      0        0    220   first half median 0.041, all median 0.035
+  relaxation   index             64     14       18    202   first half median 0.135, all median 0.227
+  relaxation   best_first        62     11       15    205   first half median 0.086, all median 0.223
+  relaxation   worst_first       64     11       12    208   first half median 0.102, all median 0.296
+  best         index             62     37      105    115   first half median 0.610, all median 0.732
+  best         best_first        59     26       66    154   first half median 0.587, all median 0.722
+  best         worst_first       62     31       77    143   first half median 0.612, all median 0.713
+  closed_form  index             37     28      174     46   first half median 0.943, all median 0.943
+  closed_form  best_first        37     28      184     36   first half median 0.941, all median 0.942
+  closed_form  worst_first       27     23      207     13   first half median 0.949, all median 0.947
+
+=== geolift12: optimum (5, 8, 11), f* = 1.16979e+06; existing search fits 2 sets
+  bound        order        bounded pruned sets cut priced   depth-1 bound / subtree min
+  monotone     index             62     24       47    173   first half median 0.085, all median 0.180
+  monotone     best_first        59     23       52    168   first half median 0.074, all median 0.147
+  monotone     worst_first       64     19       29    191   first half median 0.076, all median 0.392
+  sparse       index             59     24       53    167   first half median 0.278, all median 0.358
+  sparse       best_first        59     26       62    158   first half median 0.259, all median 0.270
+  sparse       worst_first       59     29       77    143   first half median 0.315, all median 0.560
+  cover        index             65      5        7    213   first half median 0.020, all median 0.019
+  cover        best_first        65      0        0    220   first half median 0.019, all median 0.021
+  cover        worst_first       65      4        4    216   first half median 0.013, all median 0.015
+  relaxation   index             62     24       47    173   first half median 0.085, all median 0.180
+  relaxation   best_first        59     23       52    168   first half median 0.074, all median 0.147
+  relaxation   worst_first       64     19       29    191   first half median 0.076, all median 0.392
+  best         index             59     24       53    167   first half median 0.278, all median 0.358
+  best         best_first        59     26       62    158   first half median 0.259, all median 0.270
+  best         worst_first       59     29       77    143   first half median 0.315, all median 0.560
+  closed_form  index             32     25      196     24   first half median 0.955, all median 0.947
+  closed_form  best_first        44     35      188     32   first half median 0.937, all median 0.940
+  closed_form  worst_first       27     21      194     26   first half median 0.954, all median 0.957
+
+=== county12: optimum (5, 6, 8), f* = 0.443473; existing search fits 1 sets
+  bound        order        bounded pruned sets cut priced   depth-1 bound / subtree min
+  monotone     index             55     31       95    125   first half median 0.155, all median 0.496
+  monotone     best_first        64     19       28    192   first half median 0.108, all median 0.292
+  monotone     worst_first       29     17      145     75   first half median 0.373, all median 0.395
+  sparse       index             55     32      100    120   first half median 0.256, all median 0.544
+  sparse       best_first        62     24       53    167   first half median 0.194, all median 0.380
+  sparse       worst_first       29     20      162     58   first half median 0.399, all median 0.532
+  cover        index             64     17       37    183   first half median 0.035, all median 0.034
+  cover        best_first        65      6       10    210   first half median 0.035, all median 0.034
+  cover        worst_first       65     30       98    122   first half median 0.007, all median 0.023
+  relaxation   index             55     31       95    125   first half median 0.155, all median 0.496
+  relaxation   best_first        64     19       28    192   first half median 0.108, all median 0.292
+  relaxation   worst_first       29     17      145     75   first half median 0.373, all median 0.395
+  best         index             55     32      100    120   first half median 0.256, all median 0.544
+  best         best_first        62     24       53    167   first half median 0.194, all median 0.380
+  best         worst_first       29     20      162     58   first half median 0.399, all median 0.532
+  closed_form  index             34     26      188     32   first half median 0.812, all median 0.884
+  closed_form  best_first        23     15      187     33   first half median 0.813, all median 0.812
+  closed_form  worst_first       20     16      193     27   first half median 0.865, all median 0.955

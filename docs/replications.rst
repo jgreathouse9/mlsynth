@@ -129,6 +129,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/esc
    replications/cmbsts
    replications/marex
+   replications/bnb_work
    replications/dsc
    replications/dsc_mc
    replications/dsc_disco_xval
@@ -877,7 +878,14 @@ Experimental design
   unconstrained design selecting 6.83 units against 6.76, on panels
   captured from the authors' own DGP under their driver's seeding
   --- which reproduces Table 2's effect path to 0.004 (durable:
-  ``marex_section5_mc``). Cross-validation: on twelve of those
+  ``marex_section5_mc``). On all 1000 of the authors' panels,
+  regenerated from their seeds by a port of R's generator that
+  matches the capture to 5e-11, the base design is unbiased: mean
+  signed error -0.018 / +0.008 / +0.014 with standard errors 0.064 /
+  0.024 / 0.015, and each design's exact bias
+  :math:`5(\mathbf{w} - \mathbf{v})^\top \mathbf{s}` recovered by
+  the blank-period gap with slope 0.97-1.05 (durable:
+  ``marex_section5_bias``). Cross-validation: on twelve of those
   panels the authors' cardinality-constrained R routine and MAREX
   select the same treated units every time and agree on the weights
   to 7.0e-05 (durable: ``marex_scdesign_sim``). Table 3: MAREX

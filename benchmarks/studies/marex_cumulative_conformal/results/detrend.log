@@ -1,0 +1,36 @@
+n=24 H=12 curved alpha=0.05: cyclic=0.934 w7.89  cyclic+plugin=0.822 w8.29  cyclic+exact=1.000 w- inf1.00  subsets=0.856 w4.40  subsets+plugin=0.650 w4.76  subsets+exact=0.996 w20.32
+n=24 H=12 curved alpha=0.2: cyclic=0.602  cyclic+plugin=0.424  cyclic+exact=0.986  subsets=0.594  subsets+plugin=0.420  subsets+exact=0.982
+n=24 H=12 drift alpha=0.05: cyclic=0.958 w8.08  cyclic+plugin=0.832 w8.17  cyclic+exact=1.000 w- inf1.00  subsets=0.898 w4.42  subsets+plugin=0.646 w4.73  subsets+exact=0.998 w20.19
+n=24 H=12 drift alpha=0.2: cyclic=0.708  cyclic+plugin=0.396  cyclic+exact=0.986  subsets=0.710  subsets+plugin=0.406  subsets+exact=0.988
+n=24 H=12 drift_ar5 alpha=0.05: cyclic=0.940 w5.60  cyclic+plugin=0.750 w5.71  cyclic+exact=1.000 w- inf1.00  subsets=0.754 w2.77  subsets+plugin=0.480 w3.12  subsets+exact=0.956 w11.92
+n=24 H=12 drift_ar5 alpha=0.2: cyclic=0.752  cyclic+plugin=0.420  cyclic+exact=0.976  subsets=0.568  subsets+plugin=0.346  subsets+exact=0.844
+n=24 H=12 gauss alpha=0.05: cyclic=0.980 w8.06  cyclic+plugin=0.782 w8.17  cyclic+exact=1.000 w- inf1.00  subsets=0.960 w4.39  subsets+plugin=0.646 w4.71  subsets+exact=0.998 w20.49
+n=24 H=12 gauss alpha=0.2: cyclic=0.822  cyclic+plugin=0.386  cyclic+exact=0.984  subsets=0.832  subsets+plugin=0.412  subsets+exact=0.962
+n=24 H=12 sorted alpha=0.05: cyclic=0.390 w13.46  cyclic+plugin=0.816 w8.44  cyclic+exact=1.000 w- inf1.00  subsets=0.026 w9.00  subsets+plugin=0.638 w4.81  subsets+exact=0.994 w20.57
+n=24 H=12 sorted alpha=0.2: cyclic=0.030  cyclic+plugin=0.430  cyclic+exact=0.976  subsets=0.002  subsets+plugin=0.432  subsets+exact=0.962
+n=24 H=12 steep alpha=0.05: cyclic=0.676 w10.21  cyclic+plugin=0.824 w8.60  cyclic+exact=1.000 w- inf1.00  subsets=0.220 w6.34  subsets+plugin=0.678 w4.83  subsets+exact=0.996 w20.12
+n=24 H=12 steep alpha=0.2: cyclic=0.114  cyclic+plugin=0.412  cyclic+exact=0.994  subsets=0.056  subsets+plugin=0.434  subsets+exact=0.970
+n=48 H=12 curved alpha=0.05: cyclic=0.486 w6.61  cyclic+plugin=0.816 w5.34  cyclic+exact=1.000 w27.04 inf0.09  subsets=0.194 w5.05  subsets+plugin=0.746 w4.55  subsets+exact=0.998 w15.26
+n=48 H=12 curved alpha=0.2: cyclic=0.112  cyclic+plugin=0.576  cyclic+exact=0.982  subsets=0.040  subsets+plugin=0.562  subsets+exact=0.972
+n=48 H=12 drift alpha=0.05: cyclic=0.830 w5.80  cyclic+plugin=0.774 w5.26  cyclic+exact=1.000 w25.99 inf0.06  subsets=0.782 w4.64  subsets+plugin=0.784 w4.48  subsets+exact=0.998 w15.23
+n=48 H=12 drift alpha=0.2: cyclic=0.554  cyclic+plugin=0.544  cyclic+exact=0.982  subsets=0.516  subsets+plugin=0.580  subsets+exact=0.972
+n=48 H=12 drift_ar5 alpha=0.05: cyclic=0.888 w4.68  cyclic+plugin=0.790 w4.54  cyclic+exact=1.000 w19.16 inf0.12  subsets=0.682 w2.83  subsets+plugin=0.602 w2.99  subsets+exact=0.950 w9.11
+n=48 H=12 drift_ar5 alpha=0.2: cyclic=0.676  cyclic+plugin=0.526  cyclic+exact=0.986  subsets=0.492  subsets+plugin=0.426  subsets+exact=0.846
+n=48 H=12 gauss alpha=0.05: cyclic=0.946 w4.88  cyclic+plugin=0.784 w5.14  cyclic+exact=1.000 w25.23 inf0.09  subsets=0.932 w4.07  subsets+plugin=0.786 w4.40  subsets+exact=0.992 w15.08
+n=48 H=12 gauss alpha=0.2: cyclic=0.780  cyclic+plugin=0.532  cyclic+exact=0.982  subsets=0.774  subsets+plugin=0.550  subsets+exact=0.968
+n=48 H=12 sorted alpha=0.05: cyclic=0.338 w15.60  cyclic+plugin=0.794 w5.45  cyclic+exact=0.998 w25.94 inf0.07  subsets=0.004 w11.03  subsets+plugin=0.754 w4.50  subsets+exact=1.000 w15.02
+n=48 H=12 sorted alpha=0.2: cyclic=0.042  cyclic+plugin=0.502  cyclic+exact=0.990  subsets=0.004  subsets+plugin=0.536  subsets+exact=0.980
+n=48 H=12 steep alpha=0.05: cyclic=0.262 w15.51  cyclic+plugin=0.774 w5.25  cyclic+exact=1.000 w25.82 inf0.08  subsets=0.006 w10.95  subsets+plugin=0.772 w4.40  subsets+exact=1.000 w14.80
+n=48 H=12 steep alpha=0.2: cyclic=0.022  cyclic+plugin=0.498  cyclic+exact=0.980  subsets=0.002  subsets+plugin=0.512  subsets+exact=0.980
+n=96 H=12 curved alpha=0.05: cyclic=0.052 w22.02  cyclic+plugin=0.940 w8.35  cyclic+exact=1.000 w25.97 inf0.18  subsets=0.000 w12.62  subsets+plugin=0.870 w7.15  subsets+exact=1.000 w14.01
+n=96 H=12 curved alpha=0.2: cyclic=0.000  cyclic+plugin=0.874  cyclic+exact=1.000  subsets=0.000  subsets+plugin=0.774  subsets+exact=0.990
+n=96 H=12 drift alpha=0.05: cyclic=0.702 w7.85  cyclic+plugin=0.878 w4.66  cyclic+exact=1.000 w18.95 inf0.07  subsets=0.474 w6.47  subsets+plugin=0.856 w4.24  subsets+exact=1.000 w11.84
+n=96 H=12 drift alpha=0.2: cyclic=0.306  cyclic+plugin=0.632  cyclic+exact=0.988  subsets=0.206  subsets+plugin=0.660  subsets+exact=0.988
+n=96 H=12 drift_ar5 alpha=0.05: cyclic=0.814 w5.51  cyclic+plugin=0.870 w4.43  cyclic+exact=1.000 w15.34 inf0.21  subsets=0.504 w3.55  subsets+plugin=0.666 w2.80  subsets+exact=0.966 w7.22
+n=96 H=12 drift_ar5 alpha=0.2: cyclic=0.476  cyclic+plugin=0.624  cyclic+exact=0.990  subsets=0.326  subsets+plugin=0.474  subsets+exact=0.866
+n=96 H=12 gauss alpha=0.05: cyclic=0.954 w4.52  cyclic+plugin=0.882 w4.67  cyclic+exact=0.998 w18.73 inf0.06  subsets=0.954 w3.97  subsets+plugin=0.876 w4.27  subsets+exact=0.998 w11.68
+n=96 H=12 gauss alpha=0.2: cyclic=0.822  cyclic+plugin=0.642  cyclic+exact=0.986  subsets=0.812  subsets+plugin=0.670  subsets+exact=0.982
+n=96 H=12 sorted alpha=0.05: cyclic=0.378 w17.79  cyclic+plugin=0.852 w4.74  cyclic+exact=0.996 w19.15 inf0.09  subsets=0.004 w12.54  subsets+plugin=0.856 w4.28  subsets+exact=0.996 w11.72
+n=96 H=12 sorted alpha=0.2: cyclic=0.034  cyclic+plugin=0.648  cyclic+exact=0.982  subsets=0.000  subsets+plugin=0.668  subsets+exact=0.982
+n=96 H=12 steep alpha=0.05: cyclic=0.180 w31.33  cyclic+plugin=0.870 w4.72  cyclic+exact=1.000 w19.18 inf0.07  subsets=0.000 w21.11  subsets+plugin=0.862 w4.26  subsets+exact=1.000 w11.88
+n=96 H=12 steep alpha=0.2: cyclic=0.002  cyclic+plugin=0.634  cyclic+exact=0.980  subsets=0.000  subsets+plugin=0.656  subsets+exact=0.974
