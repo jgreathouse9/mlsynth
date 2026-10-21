@@ -1,0 +1,36 @@
+factor_n20_k3_s0: sets=1140 gap two-way=0.0015 ridge=-0.0000 pruned=1.0000 priced=1 t=0.02s | scip gaplimit 4.3s excess=0.00e+00
+factor_n20_k3_s1: sets=1140 gap two-way=0.0004 ridge=0.0000 pruned=0.9991 priced=1 t=0.00s | scip gaplimit 5.6s excess=0.00e+00
+factor_n20_k3_s2: sets=1140 gap two-way=0.0007 ridge=0.0000 pruned=0.9991 priced=1 t=0.00s | scip gaplimit 4.3s excess=0.00e+00
+factor_n20_k5_s0: sets=15504 gap two-way=0.0009 ridge=0.0000 pruned=1.0000 priced=1 t=0.05s | scip gaplimit 7.0s excess=0.00e+00
+factor_n20_k5_s1: sets=15504 gap two-way=0.0024 ridge=0.0000 pruned=0.9999 priced=1 t=0.04s | scip gaplimit 4.6s excess=1.15e-03
+factor_n20_k5_s2: sets=15504 gap two-way=0.0014 ridge=0.0000 pruned=0.9999 priced=1 t=0.06s | scip gaplimit 7.2s excess=0.00e+00
+factor_n20_k10_s0: sets=184756 gap two-way=0.0025 ridge=0.0000 pruned=1.0000 priced=1 t=3.47s | scip gaplimit 22.9s excess=0.00e+00
+factor_n20_k10_s1: sets=184756 gap two-way=0.0025 ridge=0.0000 pruned=1.0000 priced=1 t=3.32s | scip gaplimit 17.8s excess=0.00e+00
+factor_n20_k10_s2: sets=184756 gap two-way=0.0003 ridge=-0.0000 pruned=1.0000 priced=1 t=3.48s | scip gaplimit 23.4s excess=5.99e-04
+factor_n40_k3_s0: sets=9880 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=0.03s | scip gaplimit 17.0s excess=0.00e+00
+factor_n40_k3_s1: sets=9880 gap two-way=0.0001 ridge=0.0000 pruned=0.9999 priced=1 t=0.04s | scip gaplimit 43.2s excess=0.00e+00
+factor_n40_k3_s2: sets=9880 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=0.02s | scip gaplimit 23.8s excess=0.00e+00
+factor_n40_k5_s0: sets=658008 gap two-way=0.0002 ridge=-0.0000 pruned=1.0000 priced=1 t=7.50s | scip gaplimit 55.3s excess=0.00e+00
+factor_n40_k5_s1: sets=658008 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=4.36s | scip timelimit 60.1s excess=0.00e+00
+factor_n40_k5_s2: sets=658008 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=4.72s | scip timelimit 60.1s excess=0.00e+00
+factor_n40_k10_s0: beyond enumeration (847,660,528 sets) | scip gaplimit 8.3s
+factor_n40_k10_s1: beyond enumeration (847,660,528 sets) | scip gaplimit 18.9s
+factor_n40_k10_s2: beyond enumeration (847,660,528 sets) | scip gaplimit 20.2s
+factor_n60_k3_s0: sets=34220 gap two-way=0.0000 ridge=-0.0000 pruned=1.0000 priced=1 t=0.61s | scip gaplimit 24.0s excess=5.06e-03
+factor_n60_k3_s1: sets=34220 gap two-way=0.0002 ridge=-0.0000 pruned=1.0000 priced=1 t=0.56s | scip gaplimit 53.4s excess=0.00e+00
+factor_n60_k3_s2: sets=34220 gap two-way=0.0000 ridge=-0.0000 pruned=1.0000 priced=1 t=0.66s | scip gaplimit 43.9s excess=0.00e+00
+factor_n60_k5_s0: sets=5461512 gap two-way=0.0000 ridge=-0.0000 pruned=1.0000 priced=1 t=43.80s | scip timelimit 60.0s excess=2.70e-03
+factor_n60_k5_s1: sets=5461512 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=46.49s | scip timelimit 60.0s excess=0.00e+00
+factor_n60_k5_s2: sets=5461512 gap two-way=0.0001 ridge=-0.0000 pruned=1.0000 priced=1 t=45.88s | scip timelimit 60.1s excess=2.70e-03
+factor_n60_k10_s0: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.0s
+factor_n60_k10_s1: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.1s
+factor_n60_k10_s2: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.1s
+factor_n100_k3_s0: sets=161700 gap two-way=0.0000 ridge=-0.0000 pruned=1.0000 priced=1 t=4.99s | scip timelimit 60.1s excess=2.49e-03
+factor_n100_k3_s1: sets=161700 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=7.60s | scip timelimit 60.1s excess=5.58e-03
+factor_n100_k3_s2: sets=161700 gap two-way=0.0000 ridge=0.0000 pruned=1.0000 priced=1 t=6.15s | scip timelimit 60.1s excess=2.37e-03
+factor_n100_k5_s0: beyond enumeration (75,287,520 sets) | scip timelimit 60.1s
+factor_n100_k5_s1: beyond enumeration (75,287,520 sets) | scip timelimit 60.1s
+factor_n100_k5_s2: beyond enumeration (75,287,520 sets) | scip timelimit 60.1s
+factor_n100_k10_s0: beyond enumeration (17,310,309,456,440 sets) | scip timelimit 60.1s
+factor_n100_k10_s1: beyond enumeration (17,310,309,456,440 sets) | scip timelimit 60.1s
+factor_n100_k10_s2: beyond enumeration (17,310,309,456,440 sets) | scip timelimit 60.1s

@@ -360,10 +360,12 @@ def test_a_conflict_across_clusters_is_refused():
 
 
 def test_too_many_candidates_is_refused_with_the_way_out(monkeypatch):
+    # Above the limit the separable designs go to the branch and bound
+    # (test_marex_branch.py); the coupled design has no bound there.
     monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
     df, T0 = _panel()
     with pytest.raises(MlsynthConfigError, match="backend='mip'"):
-        _fit(df, T0, "exact", m_eq=3)
+        _fit(df, T0, "exact", m_eq=3, design="weakly_targeted", beta=1.0)
 
 
 def test_unsatisfiable_restrictions_raise_like_the_mip():

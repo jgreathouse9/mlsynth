@@ -1,0 +1,17 @@
+geolift_n40_k3: gap=0.0197 agree=True root True 0.07s | pair True 0.09s | bnb True 11 nodes 0.26s | scip timelimit 67.8s excess=4.78e-01 same=False
+geolift_n40_k5: gap=0.0480 agree=True root True 0.35s | pair True 0.37s | bnb True 37 nodes 0.86s | scip timelimit 69.6s excess=5.80e-01 same=False
+geolift_n40_k10: gap=0.1206 agree=True root False 120.00s | pair True 64.37s | bnb True 1925 nodes 28.09s | scip timelimit 67.8s excess=5.56e-01 same=False
+walmart_n45_k3: gap=0.0264 agree=True root True 0.12s | pair True 0.19s | bnb True 7 nodes 0.26s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 70.9s excess=nan same=False
+walmart_n45_k5: gap=0.0354 agree=True root True 0.17s | pair True 0.17s | bnb True 11 nodes 0.43s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 95.8s excess=nan same=False
+walmart_n45_k10: gap=0.0880 agree=True root True 14.57s | pair True 5.54s | bnb True 173 nodes 4.94s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 70.9s excess=nan same=False
+county_n40_k3: gap=0.0382 agree=True root True 0.08s | pair True 0.09s | bnb True 15 nodes 0.19s | scip gaplimit 38.0s excess=2.99e-03 same=False
+county_n40_k5: gap=0.0577 agree=True root True 0.09s | pair True 0.10s | bnb True 11 nodes 0.17s | scip timelimit 67.7s excess=6.88e-02 same=False
+county_n40_k10: gap=0.1458 agree=True root True 1.31s | pair True 0.81s | bnb True 91 nodes 0.96s | scip timelimit 66.5s excess=5.00e-01 same=False
+munmap_chunk(): invalid pointer
+munmap_chunk(): invalid pointer
+county_n70_k3: gap=0.0223 agree=True root True 0.54s | pair True 0.49s | bnb True 11 nodes 1.23s | scip crashed 73.8s excess=nan same=False
+county_n70_k5: gap=0.0430 agree=True root True 0.82s | pair True 0.77s | bnb True 29 nodes 2.21s | scip timelimit 88.0s excess=6.91e+00 same=False
+county_n70_k10: gap=0.0749 agree=True root True 10.38s | pair True 4.89s | bnb True 107 nodes 6.28s | scip timelimit 87.1s excess=1.17e+01 same=False
+county_n100_k3: gap=0.0132 agree=True root True 1.31s | pair True 1.11s | bnb True 9 nodes 2.71s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 368.8s excess=nan same=False
+county_n100_k5: gap=0.0329 agree=True root True 1.50s | pair True 1.79s | bnb True 13 nodes 3.94s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 379.9s excess=nan same=False
+county_n100_k10: gap=0.0429 agree=True root True 9.31s | pair True 8.47s | bnb True 29 nodes 9.58s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 375.1s excess=nan same=False

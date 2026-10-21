@@ -1,0 +1,33 @@
+panel      bound     children   start  bounded pruned  sets cut  priced fitted depth seconds
+factor     monotone  in_first   cold        42      3        40     176    133    10     0.0
+factor     monotone  in_first   at f*       42      3        40     176    112    10     0.0
+factor     monotone  out_first  cold        54      0         0     210    135    10     0.0
+factor     monotone  out_first  at f*       42      3        40     176    112    10     0.0
+factor     sparse    in_first   cold        35      1        56     160    133    10     0.1
+factor     sparse    in_first   at f*       35      1        56     160    112    10     0.0
+factor     sparse    out_first  cold        54      2         6     206    133    10     0.0
+factor     sparse    out_first  at f*       35      1        56     160    112    10     0.1
+noise      monotone  in_first   cold        45      8        46     174     18     9     0.0
+noise      monotone  in_first   at f*       45      8        46     174      7     9     0.0
+noise      monotone  out_first  cold        51      4        21     193     33    10     0.0
+noise      monotone  out_first  at f*       45      8        46     174      7     9     0.0
+noise      sparse    in_first   cold        31      6        86     134     18     8     0.0
+noise      sparse    in_first   at f*       29      6        96     124      7     8     0.0
+noise      sparse    out_first  cold        45      5        49     166     32    10     0.0
+noise      sparse    out_first  at f*       29      6        96     124      7     8     0.0
+geolift12  monotone  in_first   cold        31      7        97     123      4     8     0.0
+geolift12  monotone  in_first   at f*       31      7        97     123      2     8     0.0
+geolift12  monotone  out_first  cold        42      6        62     154     18    10     0.0
+geolift12  monotone  out_first  at f*       31      7        97     123      2     8     0.0
+geolift12  sparse    in_first   cold        28      7       112     108      4     7     0.0
+geolift12  sparse    in_first   at f*       28      7       112     108      2     7     0.0
+geolift12  sparse    out_first  cold        39      6        77     139     18    10     0.0
+geolift12  sparse    out_first  at f*       28      7       112     108      2     7     0.0
+county12   monotone  in_first   cold        29      6        97     123      5     8     0.0
+county12   monotone  in_first   at f*       26      6       112     108      1     7     0.0
+county12   monotone  out_first  cold        40      7        74     143     20    10     0.0
+county12   monotone  out_first  at f*       26      6       112     108      1     7     0.0
+county12   sparse    in_first   cold        25      5       107     113      5     7     0.0
+county12   sparse    in_first   at f*       22      5       123      97      1     7     0.0
+county12   sparse    out_first  cold        39      7        79     138     20    10     0.0
+county12   sparse    out_first  at f*       22      5       123      97      1     7     0.0

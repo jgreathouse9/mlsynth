@@ -1,0 +1,19 @@
+factor_n20_k3_s0: gap=0.0370 agree=True root True 0.02s | pair True 0.01s | bnb True 7 nodes 0.03s | scip optimal 171.9s excess=1.17e-16 same=True
+factor_n20_k3_s1: gap=0.0182 agree=True root True 0.02s | pair True 0.02s | bnb True 5 nodes 0.02s | scip optimal 46.4s excess=0.00e+00 same=True
+factor_n20_k3_s2: gap=0.0656 agree=True root True 0.02s | pair True 0.02s | bnb True 11 nodes 0.04s | scip optimal 162.1s excess=1.94e-16 same=True
+factor_n20_k5_s0: gap=0.0796 agree=True root True 0.03s | pair True 0.05s | bnb True 11 nodes 0.10s | scip optimal 13.8s excess=1.86e-16 same=True
+factor_n20_k5_s1: gap=0.0771 agree=True root True 0.03s | pair True 0.03s | bnb True 31 nodes 0.08s | scip optimal 17.7s excess=0.00e+00 same=True
+factor_n20_k5_s2: gap=0.0876 agree=True root True 0.02s | pair True 0.03s | bnb True 15 nodes 0.05s | scip optimal 10.1s excess=1.69e-16 same=True
+factor_n20_k10_s0: gap=0.2321 agree=True root True 1.80s | pair True 0.54s | bnb True 267 nodes 0.56s | scip optimal 53.7s excess=0.00e+00 same=True
+factor_n20_k10_s1: gap=0.2249 agree=True root True 0.22s | pair True 0.22s | bnb True 115 nodes 0.40s | scip optimal 38.4s excess=0.00e+00 same=True
+factor_n20_k10_s2: gap=0.2522 agree=True root True 5.19s | pair True 1.02s | bnb True 603 nodes 1.83s | scip optimal 89.8s excess=0.00e+00 same=True
+noise_n20_k3_s0: gap=0.0509 agree=True root True 0.01s | pair True 0.01s | bnb True 9 nodes 0.02s | scip optimal 166.2s excess=1.12e-16 same=True
+noise_n20_k3_s1: gap=0.0259 agree=True root True 0.00s | pair True 0.00s | bnb True 7 nodes 0.01s | scip optimal 73.7s excess=0.00e+00 same=True
+noise_n20_k3_s2: gap=0.0485 agree=True root True 0.00s | pair True 0.00s | bnb True 7 nodes 0.01s | scip optimal 39.6s excess=0.00e+00 same=True
+noise_n20_k5_s0: gap=0.0886 agree=True root True 0.15s | pair True 0.07s | bnb True 87 nodes 0.08s | scip optimal 81.6s excess=0.00e+00 same=True
+noise_n20_k5_s1: gap=0.0971 agree=True root True 0.08s | pair True 0.08s | bnb True 65 nodes 0.12s | scip optimal 68.9s excess=0.00e+00 same=True
+Cannot set feasibility tolerance to small value 4.96286e-12 without GMP - using 1e-10.
+noise_n20_k5_s2: gap=0.1009 agree=True root True 0.10s | pair True 0.11s | bnb True 47 nodes 0.09s | scip optimal 77.8s excess=1.98e-16 same=True
+noise_n20_k10_s0: gap=0.2338 agree=True root False 120.00s | pair True 99.77s | bnb True 31083 nodes 26.33s | scip timelimit 302.4s excess=1.66e-02 same=False
+noise_n20_k10_s1: gap=0.2536 agree=True root True 112.57s | pair True 75.30s | bnb True 13761 nodes 11.00s | scip timelimit 301.4s excess=1.72e-16 same=True
+noise_n20_k10_s2: gap=0.2221 agree=True root False 120.00s | pair True 118.90s | bnb True 24663 nodes 22.28s | scip timelimit 301.5s excess=5.00e-03 same=False

@@ -1,0 +1,8 @@
+     4.1s node 1 |I|=0 |O|=0 |F|=40 subtree 76,904,685 bound 159930.83 incumbent 202997.27
+     7.8s node 2 |I|=1 |O|=0 |F|=39 subtree 15,380,937 bound 166547.59 incumbent 202997.27
+    11.0s node 3 |I|=0 |O|=1 |F|=39 subtree 61,523,748 bound 170580.76 incumbent 202997.27
+    14.8s node 4 |I|=2 |O|=0 |F|=38 subtree 2,760,681 bound 173309.55 incumbent 202997.27
+    18.3s node 5 |I|=1 |O|=1 |F|=38 subtree 12,620,256 bound 199103.19 incumbent 202997.27
+    21.9s node 6 |I|=1 |O|=1 |F|=38 subtree 12,620,256 bound 177488.81 incumbent 181943.38
+    33.1s node 9 |I|=2 |O|=1 |F|=37 subtree 2,324,784 bound 180944.79 incumbent 181943.38
+m=8 kappa=1.0 bounder=persp_n: set (0, 2, 10, 12, 18, 20, 24, 27)  hi 181943.3763  gap 2.82e-13  open 0  unresolved []  lifts 11 (38 s)  subtrees enumerated 2 (812,889 sets, 2 s)  fitted 11  price 3.10 us/set  total 39.9 s  |  exact backend 181943.3763 in 105.1 s
