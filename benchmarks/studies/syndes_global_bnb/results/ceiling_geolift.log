@@ -1,0 +1,3 @@
+geolift N=40 K=4: N=40 K=4 sets=91,390 price 0.17s (1.91 us/set); best 497591 exact=True; root Rayleigh/best 0.9813
+  order=index   ceiling: sets left at rho 0.98:14,173 (15.5%) 0.99:1,926 (2.1%) 0.995:242 (0.3%) 0.999:16 (0.0%) 1.0:6 (0.0%)
+  order=relaxed ceiling: sets left at rho 0.98:13,343 (14.6%) 0.99:1,811 (2.0%) 0.995:227 (0.2%) 0.999:53 (0.1%) 1.0:19 (0.0%)

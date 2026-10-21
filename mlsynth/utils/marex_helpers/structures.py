@@ -15,13 +15,16 @@ convention; inference, when requested, is computed up front and embedded.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from fractions import Fraction
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from pydantic import ConfigDict
 
 from ...config_models import DesignResult
+from ..conformal.cumulative_inversion import CumulativeInversionBand
 from ..conformal.structure import CumulativeConformalBand
+from .certify import ClusterCertificate, round_down, round_up
 
 
 @dataclass(frozen=True)
@@ -58,24 +61,38 @@ class MAREXInference:
     s_obs : float
         Observed test statistic (mean absolute post-period effect).
     global_p_value : float
-        Permutation p-value for the global null of no effect.
+        Permutation p-value for the global null of no effect, Abadie and Zhao's
+        eq. (17). It uses every ``T1``-subset of the blank and post periods
+        when there are at most ``max_combinations`` of them, and otherwise
+        ``max_combinations`` drawn subsets, as ``(1 + k) / (1 + B)``. Either
+        way it is never zero.
     per_period_pvals : np.ndarray
-        Per-post-period p-values, shape ``(T1,)``.
+        Per-post-period p-values, shape ``(T1,)``: ``(1 + k) / (Tb + 1)``, with
+        ``k`` the blank effects at least as large in magnitude.
     ci : np.ndarray
-        Split-conformal confidence band over the full timeline, shape ``(T, 2)``
-        (pre-period rows are ``NaN``).
+        Split-conformal confidence band over the full timeline, shape
+        ``(T, 2)``. The half-width is the ``ceil((Tb + 1)(1 - alpha))``-th
+        order statistic of the absolute blank effects; with fewer than
+        ``ceil(1 / alpha) - 1`` blank periods it does not exist and the rows
+        are ``(-inf, inf)``. Rows outside the ``T1`` post periods are ``NaN``.
     alpha : float
         Two-sided significance level.
-    cumulative_band : CumulativeConformalBand, optional
+    cumulative_band : CumulativeConformalBand or CumulativeInversionBand, optional
         Band for the TOTAL post-period effect, present only when
         ``cumulative_band=True`` was requested. ``ci`` above is pointwise: a
         constant half-width laid around each period's effect, which bounds one
         period at a time. Stacking those endpoints would bound the total only if
         the period errors moved in lockstep, and dividing one by the horizon only
-        if they were independent. This band measures how they accumulate, by
-        block-resampling the blank-period effects into whole paths and taking the
-        quantile of their totals. Its ``n_scores`` is the number of blank periods
-        drawn from.
+        if they were independent. Under ``cumulative_method="resample"`` it is a
+        :class:`CumulativeConformalBand`, which block-resamples the blank-period
+        effects into whole paths and takes the quantile of their totals; its
+        ``n_scores`` is the number of blank periods drawn from. Under
+        ``"inversion"`` it is a
+        :class:`~mlsynth.utils.conformal.CumulativeInversionBand`, the constant
+        effects a test against the post outcomes does not reject; its
+        ``n_reference`` is the number of blank and post periods, and its
+        endpoints need not be symmetric about ``point``. Either way ``point`` is
+        the sum of ``treated_effects``.
     """
 
     treated_effects: np.ndarray
@@ -86,7 +103,126 @@ class MAREXInference:
     per_period_pvals: np.ndarray
     ci: np.ndarray
     alpha: float = 0.05
-    cumulative_band: Optional[CumulativeConformalBand] = None
+    cumulative_band: Optional[Union[CumulativeConformalBand,
+                                    CumulativeInversionBand]] = None
+
+
+@dataclass(frozen=True)
+class MAREXBlankCheck:
+    """Whether a treated unit's contrast averages zero over the blank periods.
+
+    The blank periods are untreated and unused by the fit, so a unit whose
+    synthetic control reproduces it has a contrast there that averages zero. A
+    mean far from zero says the control misses the unit's level: the unit lies
+    outside its donors' hull, or its fit on the fitting periods did not carry
+    over. The same bias then enters the unit's post-period effects.
+
+    Parameters
+    ----------
+    mean : float
+        Mean of the contrast over the blank periods.
+    se : float
+        Its standard error, ``sd * sqrt(f(n, rho))`` with ``sd`` the sample
+        standard deviation and ``f`` the AR(1) variance of a mean of ``n``
+        periods relative to one period's variance,
+        ``(1 + 2 sum_{k<n} (1 - k/n) rho^k) / n``. NaN with one blank period.
+    t : float
+        ``mean / se``; zero for a contrast identically zero, and infinite for a
+        nonzero constant one.
+    p_value : float
+        Two-sided, against Student's t on ``n_eff - 1`` degrees of freedom,
+        ``n_eff = n (1 - rho) / (1 + rho)`` capped at ``n`` and floored at 2. An
+        approximation: the contrast is serially dependent and the AR(1) model
+        for it is fitted to the same ``n`` periods.
+    rho : float
+        Lag-1 autocorrelation of the contrast, demeaned, corrected for its
+        small-sample bias, and clipped to ``(-0.99, 0.99)``.
+    n : int
+        Number of blank periods.
+    relative : float
+        ``mean`` over the unit's mean absolute outcome on the blank periods: the
+        bias as a share of the unit's level. NaN at a zero level.
+    """
+
+    mean: float
+    se: float
+    t: float
+    p_value: float
+    rho: float
+    n: int
+    relative: float
+
+
+@dataclass(frozen=True)
+class MAREXUnitInference:
+    """Inference for one treated unit against its own synthetic control.
+
+    Parameters
+    ----------
+    unit : str
+        The treated unit's label.
+    cluster : str
+        Its cluster's label.
+    control_weights : dict
+        Its synthetic control, Abadie and Zhao's ``v_.j``: simplex weights on
+        its cluster's untreated units, fitted on the fitting periods, keyed by
+        unit label. Every untreated unit of the cluster appears, at zero where
+        the fit puts nothing.
+    synthetic_control : np.ndarray
+        ``sum_i v_ij y_i`` over the whole timeline, shape ``(T,)``.
+    inference : MAREXInference
+        MAREX's inference on the contrast ``y_j - synthetic_control``: the
+        Theorem 2 p-value, per-period p-values, the pointwise band and, when
+        requested, the band for the total.
+    p_bonferroni : float
+        ``min(1, m p)``, with ``p`` the unit's Theorem 2 p-value and ``m`` the
+        number of treated units in the design.
+    blank_check : MAREXBlankCheck
+        The mean of the contrast over the blank periods, with its standard
+        error: a check for bias in the unit's synthetic control.
+    """
+
+    unit: str
+    cluster: str
+    control_weights: Dict[str, float]
+    synthetic_control: np.ndarray
+    inference: MAREXInference
+    p_bonferroni: float
+    blank_check: MAREXBlankCheck
+
+
+@dataclass(frozen=True)
+class MAREXUnitLevel:
+    """Inference for every treated unit, and Abadie and Zhao's eq. (11).
+
+    Parameters
+    ----------
+    units : dict
+        :class:`MAREXUnitInference` by treated unit label.
+    joint_p_value : float
+        A permutation test of no effect on any treated unit. Its statistic is
+        the largest, over units, of the mean absolute post-period contrast
+        divided by the unit's mean absolute contrast over the blank and post
+        periods; one arrangement of periods is applied to every unit, so the
+        units' common factors stay aligned, and the scale is one no
+        arrangement changes. Exact when the arrangements number at most
+        ``max_combinations``, ``(1 + k) / (1 + B)`` otherwise.
+    eq11 : MAREXInference
+        Inference on eq. (11)'s aggregate, the synthetic treated minus
+        ``eq11_control``. Under ``cumulative_method="inversion"`` its band for
+        the total is the shared contrast's: the inversion refits the synthetic
+        treated series on the untreated units and never reads a control, so
+        only the point, eq. (11)'s own total, differs.
+    eq11_control : np.ndarray
+        ``sum_j w_j sum_i v_ij y_i`` with ``w`` the aggregate treated weights,
+        shape ``(T,)``: each treated unit's own control, weighted as the
+        design weights the unit.
+    """
+
+    units: Dict[str, MAREXUnitInference]
+    joint_p_value: float
+    eq11: MAREXInference
+    eq11_control: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -162,6 +298,9 @@ class MAREXGlobalDesign:
         plus any penalty the design adds. Comparable across backends, so it is
         how a search and the MIQP are checked against each other; SCIP reports
         it to its own tolerance.
+    unit_level : MAREXUnitLevel, optional
+        Inference for each treated unit and eq. (11)'s aggregate, present when
+        ``unit_inference=True`` was requested with a blank window.
     """
 
     Y_full: np.ndarray
@@ -173,6 +312,7 @@ class MAREXGlobalDesign:
     synthetic_control: np.ndarray
     inference: Optional[MAREXInference] = None
     objective: Optional[float] = None
+    unit_level: Optional[MAREXUnitLevel] = None
 
 
 @dataclass(frozen=True)
@@ -202,6 +342,41 @@ class MAREXRecommendation:
     status: str
 
 
+@dataclass(frozen=True)
+class MAREXCertificate:
+    """A certified optimality gap for an exact-backend design.
+
+    ``lower <= f* <= f(design) <= upper``, with ``f*`` the optimal objective and
+    ``f(design)`` the returned design's, both exact for the stored data
+    (:mod:`mlsynth.utils.marex_helpers.certify`). Clusters are searched apart,
+    so the bounds are the sums of the clusters' bounds, rounded outward.
+
+    Parameters
+    ----------
+    lower, upper : float
+        The bounds.
+    clusters : dict of {str: ClusterCertificate}
+        Each cluster's certificate, its unresolved treated sets as unit labels.
+    """
+
+    lower: float
+    upper: float
+    clusters: Dict[str, ClusterCertificate]
+
+    @property
+    def gap(self) -> float:
+        """``upper - lower``, rounded up: the design is this close to optimal."""
+        return round_up(Fraction(self.upper) - Fraction(self.lower))
+
+    @classmethod
+    def of(cls, clusters: Dict[str, ClusterCertificate]) -> "MAREXCertificate":
+        """The certificate of the whole design, from its clusters'."""
+        lower = sum((Fraction(c.lower) for c in clusters.values()), Fraction(0))
+        upper = sum((Fraction(c.upper) for c in clusters.values()), Fraction(0))
+        return cls(lower=round_down(lower), upper=round_up(upper),
+                   clusters=dict(clusters))
+
+
 class MAREXResults(DesignResult):
     """User-facing output of the MAREX estimator.
 
@@ -227,6 +402,9 @@ class MAREXResults(DesignResult):
         :func:`mlsynth.utils.post_fit.compute_post_fit`. ``None`` only
         when an estimator failure leaves the result partially constructed.
         Also mirrored into ``report`` (the standardized effect view).
+    certificate : MAREXCertificate, optional
+        With ``certify=True`` and ``backend='exact'``, certified bounds on the
+        optimal objective and the design's; ``None`` otherwise.
     """
 
     model_config = ConfigDict(
@@ -238,6 +416,7 @@ class MAREXResults(DesignResult):
     post_fit: Optional[Any] = None      # SyntheticControlPostFit; Any to dodge import cycle
     pool: Optional[List[Dict[str, Any]]] = None    # top-K menu when top_K > 1
     recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
+    certificate: Optional[MAREXCertificate] = None  # certify=True with backend='exact'
 
     @property
     def mode(self) -> str:

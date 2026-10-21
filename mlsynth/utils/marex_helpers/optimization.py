@@ -19,7 +19,7 @@ from __future__ import annotations
 import cvxpy as cp
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from .formulation import (
     build_constraints,
     build_objective,
@@ -33,6 +33,32 @@ from .formulation import (
     validate_costs_budget,
     validate_scm_inputs,
 )
+
+
+def resolve_covariate_weight(covariate_weight, covariate_names):
+    """The covariate weight as ``_augment_fit`` takes it.
+
+    A scalar weights every covariate alike and is returned as given. A mapping
+    from covariate name to weight, the diagonal H of Vives-i-Bastida (2022,
+    program 1), becomes a vector in the order of ``covariate_names``, so it is
+    matched by name and the order the covariates were listed in does not
+    matter.
+
+    Raises
+    ------
+    MlsynthConfigError
+        When a mapping does not name exactly the covariates.
+    """
+    if not isinstance(covariate_weight, dict):
+        return covariate_weight
+    names = tuple(covariate_names)
+    missing = [c for c in names if c not in covariate_weight]
+    unknown = [c for c in covariate_weight if c not in names]
+    if missing or unknown:
+        raise MlsynthConfigError(
+            f"covariate_weight must name exactly the covariates {list(names)}; "
+            f"missing {missing}, unknown {unknown}.")
+    return np.array([float(covariate_weight[c]) for c in names])
 
 
 def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
@@ -52,6 +78,9 @@ def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
     constant across units, up to rounding, is left unscaled: under simplex
     weights it adds nothing to the objective, and dividing its rounding noise
     would turn it into a column of order 1e15.
+
+    ``covariate_weight`` is a scalar, or a vector with one weight per covariate
+    column (see :func:`resolve_covariate_weight`).
     """
     X = Y_fit
     n_out = Y_fit.shape[1]
@@ -60,12 +89,17 @@ def _augment_fit(Y_fit, covariates, covariate_weight, standardize=False):
         if cov.ndim == 1:
             cov = cov[:, None]
         X = np.hstack([Y_fit, cov])
+        weight = np.asarray(covariate_weight, dtype=float)
+        if weight.ndim and weight.shape != (cov.shape[1],):
+            raise ValueError(
+                f"covariate_weight has {weight.size} entries for "
+                f"{cov.shape[1]} covariate columns.")
     if standardize:
         sd = X.std(axis=0)
         flat = sd <= 1e-12 * np.abs(X).max(axis=0, initial=0.0)
         X = X / np.where(flat, 1.0, sd)
     if covariates is not None:
-        X = np.hstack([X[:, :n_out], covariate_weight * X[:, n_out:]])
+        X = np.hstack([X[:, :n_out], weight * X[:, n_out:]])
     return X
 
 
@@ -121,7 +155,7 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
                     budget_dict=None, exclusive=True, restrictions=None,
                     design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
                     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, D1=None,
-                    D2_list=None, solver=cp.SCIP):
+                    D2_list=None, solver=cp.SCIP, control_penalty=0.0):
     """The weights of a fixed selection ``z_sel``, and their objective.
 
     ``z_sel`` is rounded at 0.5 before anything else reads it.
@@ -154,7 +188,7 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
         budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
         design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
-        D2_list=D2_list, solver=solver)
+        D2_list=D2_list, solver=solver, control_penalty=control_penalty)
 
 
 def _refit_by_simplex_fits(X_fit, Xbar_clusters, cluster_members, cluster_labels,
@@ -208,7 +242,7 @@ def _refit_by_simplex_fits(X_fit, Xbar_clusters, cluster_members, cluster_labels
 def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel,
                  *, m_eq, m_min, m_max, costs, budget_dict, exclusive,
                  restrictions, design, beta, lambda1, lambda2, xi, lambda1_unit,
-                 lambda2_unit, D1, D2_list, solver):
+                 lambda2_unit, D1, D2_list, solver, control_penalty=0.0):
     N, K = M.shape
     # Rounded here as well as by the caller: a selection pinned at a binary a
     # solver left near 1e-6 would admit a treated weight of that size, the
@@ -221,7 +255,8 @@ def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel
     constraints = constraints + [z == z_fixed]
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                 design, beta, lambda1, lambda2, xi,
-                                lambda1_unit, lambda2_unit, D1, D2_list)
+                                lambda1_unit, lambda2_unit, D1, D2_list,
+                                control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=solver)
     if prob.status != cp.OPTIMAL or w.value is None or v.value is None:
@@ -246,7 +281,7 @@ def solve_design(
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
-    warm_start=None, time_limit=None,
+    warm_start=None, time_limit=None, control_penalty=0.0,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``).
 
@@ -264,7 +299,8 @@ def solve_design(
     ``None`` leave the original solve path untouched.
     """
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
-                        lambda2, xi, lambda1_unit, lambda2_unit)
+                        lambda2, xi, lambda1_unit, lambda2_unit,
+                        control_penalty=control_penalty)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
@@ -285,7 +321,8 @@ def solve_design(
                 cp.sum([z[int(j), int(k)] for (j, k) in pairs]) <= len(pairs) - 1]
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
-                               lambda1_unit, lambda2_unit, D1, D2_list)
+                               lambda1_unit, lambda2_unit, D1, D2_list,
+                               control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     if warm_start is None and time_limit is None:
         prob.solve(solver=solver, verbose=verbose)          # original solve path
@@ -350,7 +387,8 @@ def solve_design(
         budget_dict=budget_dict, exclusive=exclusive, restrictions=restrictions,
         design=design, beta=beta, lambda1=lambda1, lambda2=lambda2, xi=xi,
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit, D1=D1,
-        D2_list=D2_list, solver=solver if solver is not None else cp.SCIP)
+        D2_list=D2_list, solver=solver if solver is not None else cp.SCIP,
+        control_penalty=control_penalty)
     return finish_design(Y_full, Y_full_np, w_opt, v_opt, z_opt, Xbar_clusters,
                          cluster_labels, cluster_members, N, K, T0,
                          blank_periods, T_fit, Y_fit, Y_blank, design, clusters,
@@ -441,11 +479,12 @@ def solve_design_relaxed(
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False, solver=None,
-    verbose=False, zeta=0.0, trim_threshold=1e-2,
+    verbose=False, zeta=0.0, trim_threshold=1e-2, control_penalty=0.0,
 ):
     """Relaxed (continuous-``z``) design with post-hoc discretization (was ``SCMEXP_REL``)."""
     validate_scm_inputs(Y_full, T0, blank_periods, design, beta, lambda1,
-                        lambda2, xi, lambda1_unit, lambda2_unit)
+                        lambda2, xi, lambda1_unit, lambda2_unit,
+                        control_penalty=control_penalty)
     Y_full_np, clusters, N, cluster_labels, K, label_to_k = prepare_clusters(Y_full, clusters)
     costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     Y_fit, Y_blank, T_fit = prepare_fit_slices(Y_full_np, T0, blank_periods)
@@ -461,7 +500,8 @@ def solve_design_relaxed(
     solver = solver or cp.CLARABEL
     objective = build_objective(X_fit, Xbar_clusters, cluster_members, w, v, z,
                                design, beta, lambda1, lambda2, xi,
-                               lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta)
+                               lambda1_unit, lambda2_unit, D1, D2_list, zeta=zeta,
+                               control_penalty=control_penalty)
     prob = cp.Problem(objective, constraints)
     prob.solve(solver=solver, verbose=verbose)
 

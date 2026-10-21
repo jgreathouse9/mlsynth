@@ -1,0 +1,8 @@
+geolift N=40 K=10 search (dual) 1095.9s bounded=396035 lifted=571 pruned=69310 priced=668,898,541 value=237545.0339 treated=[0, 2, 5, 7, 10, 21, 24, 25, 27, 31]
+geolift N=40 K=10 search 71.0s bounded=854 lifted=31 pruned=12 priced=8,734,692 value=237545.0339 treated=[0, 2, 5, 7, 10, 21, 24, 25, 27, 31]
+noise N=40 K=10 search (dual) 96.0s bounded=109134 lifted=316 pruned=41453 priced=40,650,953 value=0.2169759776 treated=[7, 9, 11, 14, 25, 27, 28, 30, 32, 35]
+factor N=40 K=6 search (dual) 5.2s bounded=305 lifted=18 pruned=1 priced=3,834,504 value=0.8339723078 treated=[2, 5, 9, 11, 12, 21]
+factor N=40 K=6 search 4.3s bounded=506 lifted=0 pruned=0 priced=3,838,380 value=0.8339723078 treated=[2, 5, 9, 11, 12, 21]
+noise N=40 K=6 search (dual) 4.4s bounded=960 lifted=6 pruned=41 priced=3,624,809 value=0.3244950046 treated=[4, 12, 20, 34, 35, 39]
+geolift N=40 K=8 search (dual) 104.0s bounded=2841 lifted=111 pruned=16 priced=76,670,493 value=278495.4422 treated=[0, 15, 19, 23, 24, 25, 27, 31]
+geolift N=40 K=8 search 84.2s bounded=1621 lifted=26 pruned=17 priced=23,082,615 value=278495.4422 treated=[0, 15, 19, 23, 24, 25, 27, 31]

@@ -1013,17 +1013,14 @@ class TestOptimizationEdges:
             solve_synthetic_design,
         )
         import cvxpy as cp
+        import mlsynth.utils.miqp_accel as accel
         Y = np.random.default_rng(0).standard_normal((10, 4))
-        # Force cvxpy.Problem.solve to throw.
-        orig = cp.Problem.solve
-        def _boom(self, *a, **kw):
+        # SCIP solves run through miqp_accel.solve_warm_cut (#805); make it throw.
+        def _boom(*a, **kw):
             raise RuntimeError("solver gone")
-        monkeypatch.setattr(cp.Problem, "solve", _boom)
-        try:
-            with pytest.raises(MlsynthEstimationError, match="failed to solve"):
-                solve_synthetic_design(Y, K=2, mode="global_2way")
-        finally:
-            monkeypatch.setattr(cp.Problem, "solve", orig)
+        monkeypatch.setattr(accel, "solve_warm_cut", _boom)
+        with pytest.raises(MlsynthEstimationError, match="failed to solve"):
+            solve_synthetic_design(Y, K=2, mode="global_2way")
 
     def test_one_way_global_constraint_requires_K(self):
         # build_global_equal_weights_constraints / objective both validate K.
@@ -1145,20 +1142,17 @@ class TestOptimizationEdges:
             solve_synthetic_design,
         )
         import cvxpy as cp
+        import mlsynth.utils.miqp_accel as accel
         Y = np.random.default_rng(0).standard_normal((6, 4))
-        orig = cp.Problem.solve
 
-        def _fake_solve(self, *a, **kw):
-            self._status = "optimal"
+        def _fake_solve(problem, *a, **kw):
+            problem._status = "optimal"
             # Don't actually solve → variables stay .value=None
-            return None
-        monkeypatch.setattr(cp.Problem, "solve", _fake_solve)
-        try:
-            with pytest.raises(MlsynthEstimationError,
-                                match="did not return an assignment"):
-                solve_synthetic_design(Y, K=2, mode="global_2way")
-        finally:
-            monkeypatch.setattr(cp.Problem, "solve", orig)
+            return problem, None
+        monkeypatch.setattr(accel, "solve_warm_cut", _fake_solve)
+        with pytest.raises(MlsynthEstimationError,
+                           match="did not return an assignment"):
+            solve_synthetic_design(Y, K=2, mode="global_2way")
 
 
 # ----------------------------------------------------------------------

@@ -41,7 +41,15 @@ class MAREXConfig(BaseMAREXConfig):
         "cluster (a single design against the whole-population mean).")
     design: str = Field(default="standard", description="Design type: 'standard', 'weakly_targeted', 'penalized', 'unit_penalized'.")
     covariates: Optional[List[str]] = Field(default=None, description="Covariate columns matched on alongside the fitting-window outcomes (the paper's X = [Y^E ; Z]). Each is averaged per unit over the fitting window, the first T0 - blank_periods periods, so a time-varying covariate's blank-window values stay out of the design.")
-    covariate_weight: float = Field(default=1.0, description="Scale applied to covariate predictors relative to outcomes.")
+    covariate_weight: Union[float, Dict[str, float]] = Field(
+        default=1.0,
+        description=(
+            "Weight on the covariate predictors relative to one period of the "
+            "outcome, applied after standardisation. A number weights every "
+            "covariate alike; a mapping from covariate name to weight gives "
+            "each its own, the diagonal H of Vives-i-Bastida (2022, program 1), "
+            "and must name exactly the listed covariates. Weights are >= 0, and "
+            "0 drops a covariate from the match."))
     standardize: bool = Field(default=False, description="Scale each design predictor to unit variance across units (the paper's Walmart normalisation).")
     program_type: str = Field(default="MIQP", description="Optimization type: 'QP' or 'MIQP'.")
 
@@ -53,6 +61,17 @@ class MAREXConfig(BaseMAREXConfig):
         description=(
             "Weakly-targeted design: weight on tying the synthetic control to "
             "the synthetic treated instead of to the population mean."))
+    control_penalty: float = Field(
+        default=0.0,
+        description=(
+            "Weakly-targeted design: Abadie and L'Hour's penalty on the "
+            "controls, beta * control_penalty * sum_j v_j ||B w - X_j||^2, "
+            "which charges each control market its distance from the "
+            "synthetic treated unit and makes the synthetic control sparse "
+            "and local (Vives-i-Bastida 2022, program 1, uses 0.1). The "
+            "objective is convex only while beta * control_penalty * "
+            "(1 + control_penalty) <= 1; larger values are refused. 0 leaves "
+            "the weakly-targeted design as it was."))
     lambda1: float = Field(
         default=0.0,
         description=(
@@ -115,12 +134,31 @@ class MAREXConfig(BaseMAREXConfig):
             "objective couples the two fits; each candidate is then solved by "
             "Newton steps over the faces of the control simplex until a "
             "Frank-Wolfe certificate closes, and discarded early once its "
-            "certified lower bound clears the best design found. It "
-            "returns the same optimum and the same result. It does not take "
+            "certified lower bound clears the best design found. Above twenty "
+            "million treated sets in a cluster, the standard, penalized and "
+            "unit-penalized designs are searched by a certified branch and "
+            "bound instead of set by set, and the weakly-targeted design is "
+            "refused. It returns the same optimum and the same result. It "
+            "does not take "
             "a cost budget, relaxed=True, a negative beta, or the "
             "branch-and-bound settings (solver, warm_start, time_limit), and "
             "each cluster is searched on its own, so no border conflict or "
             "stratum quota may span two clusters."
+        ),
+    )
+    certify: bool = Field(
+        default=False,
+        description=(
+            "With backend='exact', also return a certificate "
+            "(``MAREXResults.certificate``): a lower bound on the optimal "
+            "objective and an upper bound on the returned design's, both exact "
+            "for the stored data and rounded outward, so the design is optimal "
+            "to within their difference whatever the floating-point rounding "
+            "in the search. It prices every candidate a second time with a "
+            "certified bound and fits the few that bound does not clear in "
+            "exact arithmetic. The standard, penalized and unit-penalized "
+            "designs only: the weakly-targeted objective does not split into a "
+            "treated fit and a control fit."
         ),
     )
     solver: Any = Field(default=None)
@@ -138,6 +176,19 @@ class MAREXConfig(BaseMAREXConfig):
 
     # --- NEW inference options ---
     inference: bool = Field(default=False, description="Whether to run post-fit inference (placebo CI/p-values).")
+    unit_inference: bool = Field(
+        default=False,
+        description="Requires inference=True. Adds inference for each treated "
+                    "unit: its own synthetic control, fitted on the fitting "
+                    "periods from its cluster's untreated units (Abadie and "
+                    "Zhao's eq. 10), and MAREX's inference on its contrast; "
+                    "Bonferroni-adjusted p-values and a joint test across the "
+                    "treated units; and eq. (11)'s aggregate, the weighted "
+                    "sum of the per-unit contrasts, beside the shared one. A "
+                    "unit's band is about twice as wide as the aggregate's, "
+                    "and on a 'standard' design eq. (11) trails the shared "
+                    "contrast; 'unit_penalized' designs choose treated units "
+                    "their clusters reproduce well.")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
 
     # --- cumulative-effect band ---
@@ -153,6 +204,24 @@ class MAREXConfig(BaseMAREXConfig):
                     "band answers 'how big was the effect in week 7'; this "
                     "answers 'how much did the intervention add in total', which "
                     "is not obtainable by arithmetic on the pointwise endpoints.",
+    )
+    cumulative_method: Literal["resample", "inversion"] = Field(
+        default="resample",
+        description="cumulative_band only: how the band for the total is "
+                    "built. 'resample' (default) block-resamples the "
+                    "blank-period effects into paths, so it uses only errors "
+                    "observed before the post period and is limited by how "
+                    "many horizon-length windows the blank stretch holds. "
+                    "'inversion' tests constant effects (Chernozhukov, "
+                    "Wuthrich and Zhu 2021, Remark 1): it refits a synthetic "
+                    "control for the synthetic treated series on every period "
+                    "from the untreated units, and compares the signed post "
+                    "sum of the residuals with its cyclic shifts over the "
+                    "blank and post periods. It reads the post outcomes, so "
+                    "no window count limits it; the smallest p-value it can "
+                    "reach is 1 / (blank_periods + T_post). The "
+                    "cumulative_block, cumulative_n_sim and cumulative_seed "
+                    "settings apply to 'resample' alone.",
     )
     cumulative_block: int = Field(
         default=0,
@@ -256,7 +325,10 @@ class MAREXConfig(BaseMAREXConfig):
     )
     alpha: float = Field(
         default=0.05, gt=0.0, lt=1.0,
-        description="Two-sided significance level for the MDE power curve.",
+        description="Two-sided level for inference and the MDE power curve: "
+                    "the pointwise and cumulative bands are at 1 - alpha, and "
+                    "the default blank window holds at least ceil(1/alpha) - 1 "
+                    "periods, the fewest at which the pointwise band exists.",
     )
     power_target: float = Field(
         default=0.80, gt=0.0, lt=1.0,
@@ -279,12 +351,40 @@ class MAREXConfig(BaseMAREXConfig):
             )
         return v
 
+    @field_validator("unit_inference", mode="before")
+    @classmethod
+    def _validate_unit_inference(cls, v):
+        if not isinstance(v, bool):
+            raise MlsynthConfigError(
+                f"unit_inference must be True or False; got {v!r}.")
+        return v
+
+    @model_validator(mode="after")
+    def _unit_inference_needs_inference(self) -> "MAREXConfig":
+        if self.unit_inference and not self.inference:
+            raise MlsynthConfigError(
+                "unit_inference=True needs inference=True: each unit's "
+                "inference is calibrated on the blank periods inference "
+                "holds out.")
+        return self
+
     @field_validator("cumulative_band", mode="before")
     @classmethod
     def _validate_cumulative_request(cls, v):
         if not isinstance(v, bool):
             raise MlsynthConfigError(
                 f"cumulative_band must be True or False; got {v!r}.")
+        return v
+
+    @field_validator("cumulative_method", mode="before")
+    @classmethod
+    def _known_cumulative_method(cls, v):
+        """Refuse an unknown construction by name, not as a Literal mismatch."""
+        if not isinstance(v, str) or v not in ("resample", "inversion"):
+            raise MlsynthConfigError(
+                f"cumulative_method must be 'resample' or 'inversion'; got "
+                f"{v!r}. 'resample' draws paths from the blank-period effects; "
+                "'inversion' tests constant effects against the post outcomes.")
         return v
 
     @field_validator("cumulative_block", "cumulative_n_sim", "cumulative_seed",
@@ -302,6 +402,51 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "cumulative_n_sim must be >= 2 to take a quantile.")
         return v
+
+    @model_validator(mode="after")
+    def _validate_covariate_weight(self) -> "MAREXConfig":
+        """Weights are non-negative; a mapping names exactly the covariates."""
+        w = self.covariate_weight
+        values = list(w.values()) if isinstance(w, dict) else [w]
+        bad = [v for v in values if not v >= 0]
+        if bad:
+            raise MlsynthConfigError(
+                f"covariate_weight must be >= 0; got {w!r}.")
+        if isinstance(w, dict):
+            if not self.covariates:
+                raise MlsynthConfigError(
+                    "covariate_weight is a mapping by covariate name, but no "
+                    "covariates are listed.")
+            missing = [c for c in self.covariates if c not in w]
+            unknown = [c for c in w if c not in self.covariates]
+            if missing or unknown:
+                raise MlsynthConfigError(
+                    f"covariate_weight must name exactly the covariates "
+                    f"{self.covariates}; missing {missing}, unknown {unknown}.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_control_penalty(self) -> "MAREXConfig":
+        """The control penalty is weakly-targeted only, and convex only below a bound."""
+        lam = self.control_penalty
+        if lam == 0:
+            return self
+        if lam < 0:
+            raise MlsynthConfigError(
+                f"control_penalty must be >= 0; got {lam}.")
+        if self.design != "weakly_targeted":
+            raise MlsynthConfigError(
+                f"control_penalty charges each control its distance from the "
+                f"synthetic treated unit inside the weakly_targeted design; "
+                f"design={self.design!r} has no such term.")
+        kappa = self.beta * lam * (1.0 + lam)
+        if kappa > 1.0 + 1e-12:
+            raise MlsynthConfigError(
+                f"beta * control_penalty * (1 + control_penalty) = {kappa:.6g} "
+                f"exceeds 1. Past that bound the weakly-targeted objective with "
+                f"the control penalty is not convex, so neither backend can "
+                f"certify a minimum. Lower beta or control_penalty.")
+        return self
 
     @model_validator(mode="after")
     def _validate_backend(self) -> "MAREXConfig":
@@ -330,6 +475,22 @@ class MAREXConfig(BaseMAREXConfig):
             raise MlsynthConfigError(
                 "backend='exact' cannot honour this configuration: "
                 + "; ".join(problems) + ". Use backend='mip'.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_certify(self) -> "MAREXConfig":
+        """The certificate covers the exact backend's separable designs."""
+        if not self.certify:
+            return self
+        if self.backend != "exact":
+            raise MlsynthConfigError(
+                "certify=True certifies the exact backend's search; set "
+                "backend='exact'.")
+        if self.design == "weakly_targeted":
+            raise MlsynthConfigError(
+                "certify=True splits each candidate into a treated fit and a "
+                "control fit, and the weakly-targeted design couples them; "
+                "certify the standard, penalized or unit_penalized design.")
         return self
 
     @model_validator(mode="after")
@@ -481,10 +642,18 @@ class MAREXConfig(BaseMAREXConfig):
                     f"T_post must be between 1 and {max_post} "
                     f"(T0={T0_eff}, total periods={n_periods})"
                 )
-            # Default blank window to the same 30% pre-tail convention used by
-            # the other MAREX-family estimators (LEXSCM, SYNDES, PANGEO).
+            # The default blank window aims for 30% of the pre-period, the
+            # convention of the other MAREX-family estimators (LEXSCM, SYNDES,
+            # PANGEO), held between two floors: enough blanks for the conformal
+            # quantile to exist at ``alpha``, and enough fitting periods for the
+            # panel's factors. An explicit ``blank_periods`` is taken as given.
             if values.blank_periods is None:
-                values.blank_periods = max(1, int(0.3 * T0_eff))
+                from ..datautils import geoex_dataprep
+                from .windows import default_blank_periods
+                Ywide = geoex_dataprep(values.df, values.unitid, values.time,
+                                       values.outcome)["Ywide"]
+                values.blank_periods = default_blank_periods(
+                    Ywide.to_numpy(dtype=float)[:T0_eff].T, values.alpha)
         else:
             # No inference requested: do not silently carve out a blank
             # window from the optimization (would change the synthetic
