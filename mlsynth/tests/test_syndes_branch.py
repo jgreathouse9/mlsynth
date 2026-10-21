@@ -895,20 +895,23 @@ class TestWorkLimit:
                                **EAGER)
         assert out.lower == pytest.approx(engine.global_lower_bound(4))
 
-    @pytest.mark.parametrize("cost", ["trust_region_seconds", "evaluation_seconds",
-                                      "certificate_seconds"])
-    def test_every_kind_of_work_counts_toward_the_limit(self, monkeypatch, cost):
+    @pytest.mark.parametrize("cost, lifts", [("trust_region_seconds", True),
+                                             ("evaluation_seconds", True),
+                                             ("certificate_seconds", False)])
+    def test_every_kind_of_work_counts_toward_the_limit(self, monkeypatch, cost, lifts):
         """Priced at two seconds against a one-second limit, one bound, one lift
         evaluation or one certificate stops a search that closes when it costs
-        what the model says."""
+        what the model says. Without lifts the only certificates in the search
+        are the ones that discard a node."""
+        costs = EAGER if lifts else dict(EAGER, lift_seconds=lambda n: np.inf)
         Y = _noise(N=12, seed=13)
         problem, engine = _engine(Y)
         free = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1.0,
-                                **EAGER)
-        assert free.closed and free.lifts > 0
+                                **costs)
+        assert free.closed and (free.lifts > 0) == lifts and free.pruned > 0
         monkeypatch.setattr(branch, cost, lambda n: 2.0)
         out = branch_and_bound(problem, engine, 4, SubsetFilter(), work_limit=1.0,
-                               **EAGER)
+                               **costs)
         assert not out.closed and out.nodes < free.nodes
         assert out.lower <= _enumerated(Y, 4).objective_value * (1 + 1e-9)
 

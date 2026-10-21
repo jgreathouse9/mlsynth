@@ -6331,7 +6331,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "open-candidates-are-ranked-by-projected-gradient"
-  find = "                value[open_] = _price_exactly(problem, candidates[open_])[0]"
+  find = "            value[open_] = _price_exactly(problem, candidates[open_])[0]"
   replace = "                pass"
   models = "the candidates left open after the screen chosen between on projected gradient's values: a choice between two designs closer than the solver's accuracy rests on an iteration count"
 
@@ -6661,8 +6661,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-buffered-subtrees-are-never-priced"
-  find = "        open_lower = min(open_lower, rayleigh if exact is None or exact <= 0\n                         else round_down(four_alpha / exact))\n    flush()"
-  replace = "        open_lower = min(open_lower, rayleigh if exact is None or exact <= 0\n                         else round_down(four_alpha / exact))"
+  find = "        open_lower = min(open_lower, inherited)\n    flush()"
+  replace = "        open_lower = min(open_lower, inherited)"
   models = "the last buffer of small subtrees left unpriced when the search ends, so a design in it is never seen"
 
   [[target.mutant]]
@@ -6769,8 +6769,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "bounds-are-not-charged-to-the-limit"
-  find = "        counts[\"work\"] += trust_region_seconds(n)"
-  replace = "        pass"
+  find = "        counts[\"nodes\"] += 1\n        counts[\"work\"] += trust_region_seconds(n)"
+  replace = "        counts[\"nodes\"] += 1"
   models = "the trust-region bounds left out of the work, so a search that bounds nodes without lifting or certifying never reaches work_limit"
 
   [[target.mutant]]
