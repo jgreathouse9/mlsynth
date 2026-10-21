@@ -101,7 +101,11 @@ class TestSmoke:
         assert problem.G.shape == (problem.N, problem.N)
         assert problem.M.shape == (problem.N, problem.N)
         np.testing.assert_allclose(problem.G, problem.G.T, atol=1e-12)
-        np.testing.assert_allclose(problem.G, Y.T @ Y / Y.shape[0], atol=1e-10)
+        # G is Y'Y / T on contrasts, the only vectors the objective reads (#802).
+        u = np.random.default_rng(0).standard_normal(problem.N)
+        u -= u.mean()
+        assert u @ problem.G @ u == pytest.approx(
+            u @ (Y.T @ Y / Y.shape[0]) @ u, rel=1e-10)
 
     def test_lambda_default_matches_the_mip_default(self):
         """The two paths must minimize the same objective."""

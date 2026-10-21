@@ -388,13 +388,15 @@ class TestCostValidation:
             solve_synthetic_design_exact(Y=_panel(), K=3, costs=np.ones(9), budget=0.0)
 
 
-class TestLargeInstanceFallback:
-    def test_falls_back_to_search_when_enumeration_is_too_large(self):
-        """Above the candidate limit the answer is a design plus a bound."""
+class TestLargeInstances:
+    def test_branches_and_bounds_when_enumeration_is_too_large(self):
+        """Above the candidate limit the answer is the enumeration's, certified."""
         Y = _panel(N=24, T=30, seed=5)
         got = solve_synthetic_design_exact(Y=Y, K=8, candidate_limit=1000)
-        assert int(got.assignment.sum()) == 8
-        assert got.raw_results["certified"] is False
+        want = solve_synthetic_design_exact(Y=Y, K=8)
+        assert got.raw_results["search"] == "branch_and_bound"
+        assert tuple(got.selected_unit_indices) == tuple(want.selected_unit_indices)
+        assert got.raw_results["certified"] is True
         assert got.raw_results["lower_bound"] <= got.objective_value + 1e-9
 
     def test_enumerates_below_the_limit(self):
@@ -402,13 +404,15 @@ class TestLargeInstanceFallback:
         got = solve_synthetic_design_exact(Y=Y, K=3, candidate_limit=10_000)
         assert got.raw_results["certified"] is True
 
-    def test_restrictions_past_the_limit_are_refused(self):
-        """The fallback searches the unrestricted space, so it must not pretend."""
-        Y = _panel(N=24, T=30, seed=5)
-        with pytest.raises(MlsynthConfigError):
-            solve_synthetic_design_exact(
-                Y=Y, K=8, candidate_limit=1000,
-                restrictions=DesignRestrictions(forced_in=[0]))
+    def test_restrictions_past_the_limit_are_searched(self):
+        """The branch and bound searches the restricted space."""
+        Y = _panel(N=14, T=30, seed=5)
+        r = DesignRestrictions(forced_in=[0], conflict_pairs=[(1, 2)])
+        got = solve_synthetic_design_exact(Y=Y, K=5, candidate_limit=10,
+                                           restrictions=r)
+        want = solve_synthetic_design_exact(Y=Y, K=5, restrictions=r)
+        assert got.raw_results["search"] == "branch_and_bound"
+        assert tuple(got.selected_unit_indices) == tuple(want.selected_unit_indices)
 
     def test_ill_conditioned_and_too_large_is_reported(self):
         rng = np.random.default_rng(9)
@@ -439,12 +443,12 @@ class TestRestrictedEnumeration:
     Forced units, forbidden units and stratum quotas are honoured while
     candidates are built, so the count that decides whether the search may
     enumerate is the count of admissible designs, not ``C(N, K)``. An instance
-    whose unrestricted count is past the limit is now solved exactly whenever the
-    restrictions leave few enough designs, where before it was refused.
+    whose unrestricted count is past the limit is enumerated whenever the
+    restrictions leave few enough designs, and branched and bounded otherwise.
 
     Conflict pairs, a cost budget and the pool's no-good sets do not decompose
-    over a group, so they stay candidate tests and cannot move the gate. The last
-    test here pins that, so the improvement is not overstated.
+    over a group, so they stay candidate tests and cannot move the gate. The
+    first test here pins that, so the improvement is not overstated.
     """
 
     N, K, LIMIT = 14, 5, 500
@@ -460,8 +464,8 @@ class TestRestrictedEnumeration:
     def test_the_unrestricted_instance_is_past_the_limit(self):
         """Without this the rest of the class would prove nothing."""
         assert comb(self.N, self.K) > self.LIMIT
-        with pytest.raises(MlsynthConfigError):
-            self._solve(DesignRestrictions(conflict_pairs=[(0, 1)]))
+        got = self._solve(DesignRestrictions(conflict_pairs=[(0, 1)]))
+        assert got.raw_results["search"] == "branch_and_bound"
 
     @pytest.mark.parametrize("restrictions", [
         DesignRestrictions(forbidden=[10, 11, 12, 13]),
@@ -473,6 +477,7 @@ class TestRestrictedEnumeration:
         got = self._solve(restrictions)
         assert int(got.assignment.sum()) == self.K
         assert got.raw_results["certified"] is True
+        assert got.raw_results["search"] == "enumeration"
 
     @pytest.mark.parametrize("restrictions", [
         DesignRestrictions(forbidden=[10, 11, 12, 13]),
