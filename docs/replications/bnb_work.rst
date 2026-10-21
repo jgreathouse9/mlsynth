@@ -29,8 +29,9 @@ with the same library versions, so a case can pin it without timing noise:
   designs priced and the work in the cost model's seconds. Beside them sit the
   design, whether the search certified it, and whether it is the design the
   enumeration returns.
-* MAREX: the bounds computed and the sets priced. Beside them sit the design,
-  its agreement with the enumeration, and its certificate's relative gap.
+* MAREX: the bounds computed, the sets priced and the designs fitted. Beside
+  them sit the design, its agreement with the enumeration, and its
+  certificate's relative gap.
 
 The instances
 -------------
@@ -104,5 +105,7 @@ the search does and not its answer:
 * SYNDES: every node priced, no node lifted, the branching order reversed.
 * MAREX: the branching unit chosen last, the rounded guess left unpriced.
 
-The unit tests pass with each mutant in place. The cases fail with every one
-of them.
+The cases fail with every one of them. The unit tests, which check the answer,
+pass with three in place: the reversed branching order, MAREX's branching unit
+chosen last and the rounded guess left unpriced. They catch the other two
+through the tests that pin how the SYNDES search bounds, lifts and prunes.

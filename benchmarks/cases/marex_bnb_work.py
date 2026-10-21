@@ -4,12 +4,17 @@ Above twenty million treated sets in a cluster, MAREX's exact backend searches
 the separable designs by a certified branch and bound
 (:mod:`mlsynth.utils.marex_helpers.branch`), whose node bound is the persp+N
 semidefinite relaxation. This case runs the search on fixed panels and pins how
-much work it does: the bounds it computes and the sets it prices, beside the
-design it returns and its certificate.
+much work it does: the bounds it computes, the sets it prices and the designs it
+fits, beside the design it returns and its certificate.
 
 It is a regression gate, not a replication. It fails when a change makes the
-search compute more bounds or price more sets for the same answer, which the
-tests, which check the answer, would not notice.
+search compute more bounds, price more sets or fit more designs for the same
+answer, which the tests, which check the answer, would not notice.
+
+A design is fitted when its bound from pricing does not clear the incumbent.
+The rounded guess at each bounded node supplies the incumbent early: on Walmart
+it is the optimum, so pricing 1,086,008 sets fits one design, and four without
+it.
 
 The instances
 -------------
@@ -53,6 +58,7 @@ def run() -> dict:
             d, c = res.designs[0], res.certificate
             out[f"{name}_bounds"] = float(res.lifts)
             out[f"{name}_priced"] = float(res.priced)
+            out[f"{name}_fitted"] = float(c.fitted)
             out[f"{name}_matches_enumeration"] = float(d.treated == best.treated)
             out[f"{name}_relative_gap"] = float(c.gap) / float(c.upper)
             out[f"{name}_unresolved"] = float(len(c.unresolved))
@@ -61,6 +67,7 @@ def run() -> dict:
         d, c = res.designs[0], res.certificate
         out["walmart_m6_bounds"] = float(res.lifts)
         out["walmart_m6_priced"] = float(res.priced)
+        out["walmart_m6_fitted"] = float(c.fitted)
         out["walmart_m6_value"] = float(d.value)
         out["walmart_m6_is_the_known_optimum"] = float(d.treated == (1, 2, 11, 26, 31, 39))
         out["walmart_m6_relative_gap"] = float(c.gap) / float(c.upper)
@@ -83,16 +90,19 @@ def run() -> dict:
 EXPECTED = {
     "geolift20_m5_bounds": (16.0, 0.0),
     "geolift20_m5_priced": (1.0, 0.0),
+    "geolift20_m5_fitted": (5.0, 0.0),
     "geolift20_m5_matches_enumeration": (1.0, 0.0),
     "geolift20_m5_relative_gap": (0.0, 1e-9),
     "geolift20_m5_unresolved": (0.0, 0.0),
     "geolift24_m6_bounds": (14.0, 0.0),
     "geolift24_m6_priced": (1.0, 0.0),
+    "geolift24_m6_fitted": (5.0, 0.0),
     "geolift24_m6_matches_enumeration": (1.0, 0.0),
     "geolift24_m6_relative_gap": (0.0, 1e-9),
     "geolift24_m6_unresolved": (0.0, 0.0),
     "walmart_m6_bounds": (2.0, 0.0),
     "walmart_m6_priced": (1_086_008.0, 0.0),
+    "walmart_m6_fitted": (1.0, 0.0),
     "walmart_m6_value": (0.03101918869178227, 0.03101918869178227 * 1e-9),
     "walmart_m6_is_the_known_optimum": (1.0, 0.0),
     "walmart_m6_relative_gap": (0.0, 1e-9),

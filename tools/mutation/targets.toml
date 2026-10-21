@@ -6810,9 +6810,10 @@ timeout = 1200.0
   models = "a zero, negative, infinite, NaN or boolean work_limit accepted and handed to the search"
 
 # The branch and bounds' regression gates (#841). Each mutant changes how much
-# work a search does and not the design it returns, so every unit test, which
-# checks the answer, passes with it in place; the benchmark case, which pins the
-# work, is what has to fail.
+# work a search does and not the design it returns; the benchmark case, which
+# pins the work, is what has to fail. The unit tests also catch
+# every-node-is-priced and no-node-is-lifted, through the tests that pin how the
+# search bounds, lifts and prunes; they pass with the other three in place.
 [[target]]
 name = "syndes-bnb-work"
 module-path = "mlsynth/utils/syndes_helpers/branch.py"
@@ -6853,4 +6854,4 @@ timeout = 900.0
   id = "the-rounded-guess-is-not-priced"
   find = "        if sub.accepts(guess):\n            fit(guess, h_floor)"
   replace = "        if False:\n            fit(guess, h_floor)"
-  models = "the relaxation's rounded design never priced, so the incumbent improves only by enumeration and fewer nodes clear it"
+  models = "the relaxation's rounded design never fitted, so the incumbent comes only from the sets priced and pricing fits more designs before it has a cut: four on Walmart against one"
