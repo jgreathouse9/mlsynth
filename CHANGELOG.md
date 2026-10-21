@@ -51,6 +51,15 @@ now returns and the back-compat guarantee.
   reached is a property of the run a caller may need to act on.
 
 ### Changed
+- SYNDES two-way exact backend: the mirror rule (#838). A design and its
+  complement fit the pre-period equally well, so when no restriction names a
+  side, `K=None` searches the sizes up to `N / 2` and returns the design with
+  fewer treated units, and `K = N / 2` searches only the designs that treat
+  unit 0 (`MIRROR_UNIT`). A search that returned the complement before now
+  returns its mirror, with fewer treated units or, at `N / 2`, the one that
+  treats unit 0; the objective value does not change.
+  `raw_results["mirrored"]` records whether the rule applied. Above the
+  candidate limit this halves the search at `N / 2`.
 - The general convex solvers moved out of `mlsynth.utils.bilevel` into a new
   `mlsynth.utils.solvers` package: `active_set`, `minnorm`, `simplex`, `nnls`,
   `accelerate` and `ridge_augment`. `bilevel.ridge_inference` moved to

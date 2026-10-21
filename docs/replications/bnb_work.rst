@@ -59,8 +59,9 @@ SYNDES, in about 50 seconds:
      - pricing made expensive, so every node is bounded and lifted
    * - four factors and GeoLift, 26 units
      - ``K=None``
-     - every size under ``work_limit=5``: the swap-search cutoff, best first,
-       and the bound reported at the limit
+     - every size up to 13 under ``work_limit=5``: the swap-search cutoff,
+       best first and the mirror rule of :doc:`../syndes`, under which both
+       searches close within the limit
 
 MAREX, in about 25 seconds:
 
