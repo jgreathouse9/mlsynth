@@ -4349,8 +4349,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-design-reports-the-treated-fit-alone"
-  find = "            value, w, v = fit"
-  replace = "            value, _, v = fit"
+  find = "            value, w, v, info = fit"
+  replace = "            value, _, v, info = fit"
   models = "the coupled value reported with the treated weights from the uncoupled start. The value and the treated set are right, so every comparison of objectives passes, while the weights on the result do not attain the value stated beside them"
 
   [[target.mutant]]
@@ -4783,14 +4783,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-search-drops-the-penalty"
-  find = "                              control_penalty=control_penalty)"
-  replace = "                              control_penalty=0.0)"
+  find = "                              control_penalty=control_penalty, return_info=True)"
+  replace = "                              control_penalty=0.0, return_info=True)"
   models = "every candidate priced without the penalty, so the search returns the weakly-targeted design under a configuration that asked for program (1)"
 
   [[target.mutant]]
   id = "the-design-drops-the-penalty"
-  find = "else None,\n                    control_penalty=control_penalty)"
-  replace = "else None,\n                    control_penalty=0.0)"
+  find = "else None,\n                    control_penalty=control_penalty, report=report)"
+  replace = "else None,\n                    control_penalty=0.0, report=report)"
   models = "the exact backend accepting control_penalty and searching each cluster without it, while the MIQP honours it"
 
   [[target.mutant]]
@@ -5352,8 +5352,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "coupled-design-sent-to-the-branch-and-bound"
-  find = "            if (design in SEPARABLE_DESIGNS and"
-  replace = "            if (True and"
+  find = "            if design in SEPARABLE_DESIGNS and n_cand > CANDIDATE_LIMIT:"
+  replace = "            if True and n_cand > CANDIDATE_LIMIT:"
   models = "the weakly-targeted design searched by a bound that splits the treated and control fits, which optimises an objective MAREX does not state"
 
   [[target.mutant]]
@@ -6995,31 +6995,31 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-treated-fit-discard-goes-uncounted"
   find = "            rep.counts[\"cleared_by_treated_fit\"] += 1\n"
-  replace = ""
+  replace = "            pass\n"
   models = "a candidate whose treated fit alone cleared the incumbent left without a fate"
 
   [[target.mutant]]
   id = "the-missing-control-goes-uncounted"
   find = "            rep.counts[\"without_control\"] += 1\n"
-  replace = ""
+  replace = "            pass\n"
   models = "a candidate whose donor exclusions left no control market left without a fate"
 
   [[target.mutant]]
   id = "the-fit-cutoff-discard-goes-uncounted"
   find = "                rep.counts[\"cleared_by_fit_cutoff\"] += 1\n"
-  replace = ""
+  replace = "                pass\n"
   models = "a coupled fit stopped at its certified cutoff left without a fate"
 
   [[target.mutant]]
   id = "the-coupling-discard-goes-uncounted"
   find = "                    rep.counts[\"cleared_by_coupling\"] += 1\n"
-  replace = ""
+  replace = "                    pass\n"
   models = "a candidate the hull-distance bound discarded left without a fate"
 
   [[target.mutant]]
   id = "a-fit-goes-uncounted"
   find = "        rep.counts[\"fitted\"] += 1\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a candidate fitted to completion left without a fate"
 
   [[target.mutant]]
