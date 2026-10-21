@@ -53,7 +53,8 @@ def prepare_marex_panel(
     ``T0`` (from either an explicit scalar or a ``post_col`` 0/1 column) and
     the default 30%-of-pre-tail blank window — by the time this helper runs
     both are concrete integers. ``covariates`` columns are aggregated to a
-    per-unit pre-period mean via
+    per-unit mean over the fitting window, the first ``T0 - blank_periods``
+    periods, via
     :func:`mlsynth.utils.datautils.build_covariate_matrix` and returned as an
     ``(N, R)`` matrix aligned to the unit order. The matrix is left
     un-normalised here so MAREX's existing ``standardize=True`` flag (applied
@@ -80,9 +81,17 @@ def prepare_marex_panel(
     T_total = int(prep["n_periods"])
     T0_eff = T0 if T0 is not None else T_total - 1
 
+    blanks = int(blank_periods or 0)
+    if blanks < 0 or blanks >= T0_eff:
+        raise ValueError(
+            f"blank_periods must be 0 <= blank_periods < T0 (T0={T0_eff}, got {blanks})"
+        )
+
     cov: Optional[np.ndarray] = None
     if covariates:
-        # Pre-period mean aggregation via the shared dataprep helper; passing
+        # Mean over the fitting window, the periods the outcomes are matched
+        # on. The blank window is held out of the design for the placebo
+        # distribution, so its covariate values must stay out too. Passing
         # ``normalize=False`` preserves the raw scale so the downstream
         # ``covariate_weight`` * ``standardize`` pipeline keeps its semantics.
         cov, _names, _means, _scales = build_covariate_matrix(
@@ -90,16 +99,10 @@ def prepare_marex_panel(
             unit_id_column_name=unitid,
             time_period_column_name=time,
             covariates=covariates,
-            pre_periods=T0_eff,
+            pre_periods=T0_eff - blanks,
             unit_order=list(unit_labels),
             aggregation="pre_mean",
             normalize=False,
-        )
-
-    blanks = int(blank_periods or 0)
-    if blanks < 0 or blanks >= T0_eff:
-        raise ValueError(
-            f"blank_periods must be 0 <= blank_periods < T0 (T0={T0_eff}, got {blanks})"
         )
 
     return MAREXPanel(Y_full=Y_full, clusters=clusters, T0=T0_eff,

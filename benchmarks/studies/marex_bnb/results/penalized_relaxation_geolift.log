@@ -1,0 +1,11 @@
+# Produced by the scratch copy of penalized_relaxation.py (identical computation),
+# run against main at 3aa27e4 (the library with #787). Stopped after GeoLift m=4
+# and m=6 lam=0: the penalised exact search at m=6 takes tens of minutes per lambda (#777).
+GeoLift (n=40, T=90)
+  m=4 lam=0.0    exact 554320 (0.08 s, 4 treated with weight)  relaxation 5.12221e-24 =   0.0% (0.02 s; support w 40, v 40)
+  m=4 lam=0.01   exact 2.52786e+06 (9.98 s, 4 treated with weight)  relaxation 1.48937e+06 =  58.9% (0.02 s; support w 14, v 14)
+  m=4 lam=0.1    exact 6.38708e+06 (49.44 s, 4 treated with weight)  relaxation 5.08962e+06 =  79.7% (0.02 s; support w 9, v 9)
+  m=4 lam=1.0    exact 3.39643e+07 (285.70 s, 3 treated with weight)  relaxation 2.8659e+07 =  84.4% (0.02 s; support w 4, v 4)
+  m=4 lam=10.0   exact 2.55434e+08 (306.13 s, 2 treated with weight)  relaxation 2.43105e+08 =  95.2% (0.02 s; support w 3, v 3)
+  m=4 lam=100.0  exact 2.38902e+09 (295.43 s, 1 treated with weight)  relaxation 2.37377e+09 =  99.4% (0.02 s; support w 2, v 2)
+  m=6 lam=0.0    exact 297926 (4.92 s, 6 treated with weight)  relaxation 5.16151e-24 =   0.0% (0.02 s; support w 40, v 40)
