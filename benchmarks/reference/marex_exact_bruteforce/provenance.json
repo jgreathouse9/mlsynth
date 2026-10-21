@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-10-16T22:52:08Z",
+  "git_sha": "f90c3239183082ed08a41d370cf8dda28b351f86",
+  "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+  "command": "Rscript benchmarks/reference/marex_exact_bruteforce/reference.R",
+  "data": [],
+  "r_version": "R version 4.3.3 (2024-02-29)",
+  "packages": {
+    "quadprog": "1.5-8",
+    "compiler": "4.3.3"
+  }
+}

@@ -1,0 +1,5 @@
+# Produced by the inline form of inherit_fixing.py (same lifts, bounds and truth; it also printed each root lift value).
+m=6 treated root lift 259501 (37 s); 40 inherited include-j bounds in 6.2 s: markets excluded 0 of 34 excludable (truth); sets left C(40,6) = 3,838,380 of 3,838,380; inherited/true min median 0.827
+m=6 full    root lift 272511 (197 s); 40 inherited include-j bounds in 13.0 s: markets excluded 0 of 34 excludable (truth); sets left C(40,6) = 3,838,380 of 3,838,380; inherited/true min median 0.863
+m=8 treated root lift 141870 (39 s); 40 inherited include-j bounds in 6.0 s: markets excluded 0 of 32 excludable (truth); sets left C(40,8) = 76,904,685 of 76,904,685; inherited/true min median 0.716
+m=8 full    root lift 165661 (201 s); 40 inherited include-j bounds in 12.8 s: markets excluded 0 of 32 excludable (truth); sets left C(40,8) = 76,904,685 of 76,904,685; inherited/true min median 0.831
