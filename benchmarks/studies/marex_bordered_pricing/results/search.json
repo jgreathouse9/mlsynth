@@ -1,0 +1,100 @@
+{
+ "standard_m4": {
+  "shipped": {
+   "seconds": 0.11,
+   "value": 554319.7579228953,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ]
+  },
+  "bordered": {
+   "seconds": 0.052,
+   "value": 554319.7579228953,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ]
+  },
+  "same_design": true
+ },
+ "standard_m5": {
+  "shipped": {
+   "seconds": 0.705,
+   "value": 338466.4176664057,
+   "treated": [
+    0,
+    10,
+    24,
+    27,
+    31
+   ]
+  },
+  "bordered": {
+   "seconds": 0.33,
+   "value": 338466.4176664057,
+   "treated": [
+    0,
+    10,
+    24,
+    27,
+    31
+   ]
+  },
+  "same_design": true
+ },
+ "standard_m6": {
+  "shipped": {
+   "seconds": 4.604,
+   "value": 297926.23743394995,
+   "treated": [
+    0,
+    10,
+    22,
+    24,
+    27,
+    31
+   ]
+  },
+  "bordered": {
+   "seconds": 2.665,
+   "value": 297926.23743394995,
+   "treated": [
+    0,
+    10,
+    22,
+    24,
+    27,
+    31
+   ]
+  },
+  "same_design": true
+ },
+ "weakly_targeted_m4_beta1": {
+  "shipped": {
+   "seconds": 0.725,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ]
+  },
+  "bordered": {
+   "seconds": 0.672,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ]
+  },
+  "same_design": true
+ }
+}
