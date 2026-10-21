@@ -1,0 +1,6 @@
+case,ncones,nterms,J,m_eq,varbound,tie_t,soc_detects,nodes
+bare,1,6,4,2,False,False,1,1
+t_tied,1,6,4,2,False,True,1,1
+wide,1,19,12,3,False,True,1,1
+varbound,1,19,12,3,True,True,1,191
+two_cones,2,19,12,3,True,True,2,173

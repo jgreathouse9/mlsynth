@@ -1359,6 +1359,33 @@
   "mlsynth/utils/vanillasc_helpers/config.py",
   "mlsynth/utils/vanillasc_helpers/pipeline.py"
  ],
+ "marex_bnb_work": [
+  "basedata/geolift_market_data.csv",
+  "mlsynth/utils/marex_helpers/branch.py",
+  "mlsynth/utils/marex_helpers/certify.py",
+  "mlsynth/utils/marex_helpers/exact.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/enumeration.py",
+  "mlsynth/utils/syndes_helpers/exact.py"
+ ],
+ "marex_exact_bruteforce": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scexp.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/conflict.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
+  "mlsynth/utils/marex_helpers/formulation.py",
+  "mlsynth/utils/marex_helpers/optimization.py",
+  "mlsynth/utils/marex_helpers/orchestration.py",
+  "mlsynth/utils/marex_helpers/restrictions.py",
+  "mlsynth/utils/marex_helpers/setup.py",
+  "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/enumeration.py",
+  "mlsynth/utils/syndes_helpers/restrictions.py"
+ ],
  "marex_scdesign_sim": [
   "mlsynth/config_models.py",
   "mlsynth/estimators/scexp.py",
@@ -1375,6 +1402,24 @@
   "mlsynth/utils/post_fit.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/syndes_helpers/exact.py",
+  "mlsynth/utils/syndes_helpers/restrictions.py"
+ ],
+ "marex_section5_bias": [
+  "mlsynth/config_models.py",
+  "mlsynth/estimators/scexp.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/fast_scm_helpers/conflict.py",
+  "mlsynth/utils/fast_scm_helpers/structure.py",
+  "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
+  "mlsynth/utils/marex_helpers/formulation.py",
+  "mlsynth/utils/marex_helpers/optimization.py",
+  "mlsynth/utils/marex_helpers/orchestration.py",
+  "mlsynth/utils/marex_helpers/setup.py",
+  "mlsynth/utils/marex_helpers/simulation.py",
+  "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/enumeration.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
  "marex_section5_mc": [
@@ -1416,6 +1461,7 @@
   "basedata/walmart_weekly_sales_covariates.csv",
   "mlsynth/config_models.py",
   "mlsynth/estimators/scexp.py",
+  "mlsynth/utils/conformal/quantile.py",
   "mlsynth/utils/datautils.py",
   "mlsynth/utils/fast_scm_helpers/conflict.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
@@ -2736,11 +2782,24 @@
  ],
  "syndes_bls": [
   "basedata/urate_cps.csv",
+  "mlsynth/utils/miqp_accel.py",
   "mlsynth/utils/syndes_helpers/formulation.py",
   "mlsynth/utils/syndes_helpers/optimization.py"
  ],
+ "syndes_bnb_work": [
+  "basedata/geolift_market_data.csv",
+  "mlsynth/utils/marex_helpers/branch.py",
+  "mlsynth/utils/marex_helpers/certify.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/branch.py",
+  "mlsynth/utils/syndes_helpers/enumeration.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
+  "mlsynth/utils/syndes_helpers/gram.py",
+  "mlsynth/utils/syndes_helpers/partition.py"
+ ],
  "syndes_exact_vs_mip": [
   "basedata/urate_cps.csv",
+  "mlsynth/utils/miqp_accel.py",
   "mlsynth/utils/syndes_helpers/enumeration.py",
   "mlsynth/utils/syndes_helpers/exact.py",
   "mlsynth/utils/syndes_helpers/formulation.py",

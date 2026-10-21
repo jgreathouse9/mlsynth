@@ -1,0 +1,24 @@
+N=1000 T0=20 reps=240 design=additive_fe scale=std kappa=0.2
+variant  trim    bias      SD    cov   paper:  bias    SD   cov
+DR2*     0.01   +0.49    3.53   92.1           0.54  2.07  94.0
+DR2*     0.03   +0.52    3.38   92.1           0.54  2.07  94.0
+DR2*     0.05   +0.54    3.32   92.1           0.54  2.07  94.0
+DR2*     0.10   +0.60    3.21   92.1           0.54  2.07  94.0
+        -> max pi-hat over reps 1.0000; reps with any pi-hat>0.9: 6.2%; empty m-hat: treated 2.89% control 2.16%
+DR2      0.01   +1.14    3.75   90.4           0.84  2.15  92.1
+DR2      0.03   +1.06    3.25   90.4           0.84  2.15  92.1
+DR2      0.05   +1.05    3.20   90.4           0.84  2.15  92.1
+DR2      0.10   +1.05    3.17   90.4           0.84  2.15  92.1
+        -> max pi-hat over reps 1.0000; reps with any pi-hat>0.9: 9.2%; empty m-hat: treated 2.03% control 1.44%
+DR3*     0.01   +0.89    3.87   91.7           0.21  2.41  93.7
+DR3*     0.03   +1.02    3.08   91.7           0.21  2.41  93.7
+DR3*     0.05   +1.08    2.87   91.7           0.21  2.41  93.7
+DR3*     0.10   +1.13    2.78   91.7           0.21  2.41  93.7
+        -> max pi-hat over reps 1.0000; reps with any pi-hat>0.9: 6.2%; empty m-hat: treated 2.97% control 2.26%
+DR3      0.01   +1.14    5.47   92.1           0.54  2.44  93.7
+DR3      0.03   +1.35    3.19   92.1           0.54  2.44  93.7
+DR3      0.05   +1.39    2.97   92.1           0.54  2.44  93.7
+DR3      0.10   +1.45    2.88   92.1           0.54  2.44  93.7
+        -> max pi-hat over reps 1.0000; reps with any pi-hat>0.9: 11.2%; empty m-hat: treated 3.31% control 2.37%
+
+MC se on bias (units of 0.01): DR2* 0.21, DR2 0.21, DR3* 0.19, DR3 0.19
