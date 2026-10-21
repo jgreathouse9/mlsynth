@@ -4230,7 +4230,7 @@ timeout = 900.0
 [[target]]
 name = "marex-exact-search"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
-test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_backend.py mlsynth/tests/test_marex_exact_oracle.py -q -p no:cacheprovider"
 timeout = 900.0
 
   [[target.mutant]]
@@ -4285,7 +4285,19 @@ timeout = 900.0
   id = "the-unit-penalty-is-dropped"
   find = "            a += xi * per_unit_reproducibility(X_fit, members)[members]"
   replace = "            a += 0.0"
-  models = "the xi term of the unit-penalized design left out of the treated fit, so the search optimises a different objective from the one MAREX states while every other design still agrees with the MIQP"
+  models = "the xi term of the unit-penalized design left out of the treated fit, so the search optimises a different objective from the one MAREX states while every other design still agrees with the MIQP. It survived from #756 until #783: the MIQP's reported design is refitted through this helper, so both backends dropped the term together and the differential agreed with itself; the oracle in test_marex_exact_oracle.py builds the penalty from its definition"
+
+  [[target.mutant]]
+  id = "the-control-penalty-priced-at-lambda1"
+  find = "        b = lambda2 * D1[members, k_idx] if lambda2 > 0 else None"
+  replace = "        b = lambda1 * D1[members, k_idx] if lambda2 > 0 else None"
+  models = "the penalized design's control penalty priced at the treated side's lambda. The MIQP reports its design through this same helper (#756), so the two backends move together and an exact-versus-MIQP comparison cannot see it; only an oracle that builds the penalty from its definition can (#783)"
+
+  [[target.mutant]]
+  id = "the-treated-penalty-reads-the-first-cluster"
+  find = "        a = lambda1 * D1[members, k_idx] if lambda1 > 0 else None"
+  replace = "        a = lambda1 * D1[members, 0] if lambda1 > 0 else None"
+  models = "every cluster's treated penalty measured to the first cluster's mean, invisible with one cluster and, through the shared refit, invisible to the MIQP comparison with several (#783)"
 
   [[target.mutant]]
   id = "a-spanning-conflict-passes"
