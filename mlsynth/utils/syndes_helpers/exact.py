@@ -39,6 +39,15 @@ tests on a finished candidate and cannot lower the count.
 units are treated, so the closed form's matrix would differ per candidate and the
 batch product would not hold.
 
+Treatment and control trade places without changing the objective: ``u -> -u``
+maps the designs that treat ``S`` onto those that treat its complement, so
+``f(S) = f(S^c)`` (#838). When every restriction admits a set exactly when it
+admits the complement (:meth:`SubsetFilter.is_mirrored`), the search keeps one of
+each pair. With ``K=None`` it searches the sizes ``1 .. N // 2`` and returns the
+design with fewer treated units; at ``K = N / 2`` it searches the designs that
+treat :data:`MIRROR_UNIT`, half of them; and the pool there excludes a design's
+complement with the design. A restriction that names a side turns this off.
+
 Where ``G + lam I`` is singular to working precision (``lam = 0`` on a panel with
 fewer periods than units, or a unit that is an exact combination of others), the
 closed form needs an inverse that does not exist, and so do the branch and
@@ -108,6 +117,12 @@ PRICE_ALL_LIMIT = 2_000
 
 #: Sets priced per batch on that path. A zero in a batch ends the search.
 SINGULAR_CHUNK = 256
+
+#: The unit every design at ``K = N / 2`` treats when the restrictions are
+#: mirrored: of a design and its complement, which have that size and the same
+#: value, exactly one treats it. The enumeration lists the sets that treat unit 0
+#: first, so below the candidate limit it returned these designs already.
+MIRROR_UNIT = 0
 
 #: Projected-gradient iterations for the first pass over every set. The sets
 #: whose lower bound is still under the incumbent after it are priced exactly
@@ -236,6 +251,37 @@ class SubsetFilter:
         return not (self.forced_in or self.forbidden or self.conflict_pairs
                     or self.strata or self.costs is not None or self.forbidden_sets)
 
+    def is_mirrored(self, N: int) -> bool:
+        """Whether the filter admits a treated set exactly when it admits the
+        complement in ``range(N)``, so a design and its mirror stand or fall
+        together (#838).
+
+        Forced and forbidden units, conflict pairs and a budget each name a side.
+        A quota ``(lo, hi)`` on a stratum ``M`` holds for the complement as
+        ``(|M| - hi, |M| - lo)``, so it is mirrored when the two agree, and the
+        excluded sets are mirrored when each one's complement is excluded too.
+        The test is sufficient, not necessary: a budget every set meets reads as
+        a side named.
+        """
+        if self.forced_in or self.forbidden or self.conflict_pairs or self.costs is not None:
+            return False
+        for members, lower, upper in self.strata:
+            size = len(set(members))
+            lo = 0 if lower is None else min(max(int(lower), 0), size)
+            hi = size if upper is None else min(max(int(upper), 0), size)
+            if lo + hi != size:
+                return False
+        everyone = frozenset(range(N))
+        return all(everyone - fs in self.forbidden_sets for fs in self.forbidden_sets)
+
+    def mirrored_at(self, N: int, K: int, mirrored: bool) -> "SubsetFilter":
+        """The filter a size-``K`` search applies: at ``K = N / 2``, when the
+        filter is mirrored, the designs that treat :data:`MIRROR_UNIT`, one of
+        each design and its complement; otherwise the filter itself."""
+        if mirrored and 2 * K == N:
+            return replace(self, forced_in=frozenset({MIRROR_UNIT}))
+        return self
+
     def accepts(self, subset: Tuple[int, ...]) -> bool:
         """Whether a candidate treated set satisfies every predicate."""
         chosen = frozenset(subset)
@@ -289,6 +335,25 @@ class SubsetFilter:
             if len(fs) == rows.shape[1]:
                 ok &= ~member[:, sorted(fs)].all(axis=1)
         return ok
+
+
+def with_complements(sets: np.ndarray, N: int) -> np.ndarray:
+    """The rows of ``sets``, sorted, followed by their complements in
+    ``range(N)``. At ``K = N / 2`` a seed's complement is a design of the same
+    size and value, and the one a mirrored search admits when the seed does not
+    treat :data:`MIRROR_UNIT`. A row that repeats a unit or names one outside
+    ``range(N)`` has no complement of its size and is left to the caller's
+    checks."""
+    sets = np.sort(np.atleast_2d(np.asarray(sets, dtype=np.int64)), axis=1)
+    k = sets.shape[1]
+    if 2 * k != N:
+        return sets
+    whole = ((sets >= 0) & (sets < N)).all(axis=1)
+    whole[whole] = (np.diff(sets[whole], axis=1) > 0).all(axis=1)
+    member = np.ones((int(whole.sum()), N), dtype=bool)
+    np.put_along_axis(member, sets[whole], False, axis=1)
+    rest = np.nonzero(member)[1].reshape(-1, k)
+    return np.concatenate([sets, rest])
 
 
 def _search_space(N: int, K: int, filt: SubsetFilter) -> SearchSpace:
@@ -793,8 +858,12 @@ def solve_synthetic_design_exact(
     Y : np.ndarray
         Pre-treatment outcome matrix of shape ``(T, N)``.
     K : int or None
-        Number of treated units. ``None`` searches every size from ``1`` to
-        ``N - 1``, which the paper allows for the global modes.
+        Number of treated units. ``None`` searches every size, which the paper
+        allows for the global modes: ``1`` to ``N - 1``, or ``1`` to ``N // 2``
+        when the restrictions are mirrored (:meth:`SubsetFilter.is_mirrored`),
+        since a design and its complement score the same; the design returned
+        is then the one with fewer treated units. At ``K = N / 2`` under
+        mirrored restrictions the design treats :data:`MIRROR_UNIT`.
     lam : float, optional
         Penalty on the weights; estimated from ``Y`` when ``None``, matching the
         MIP path so both minimise the same objective.
@@ -844,21 +913,28 @@ def solve_synthetic_design_exact(
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
     filt = SubsetFilter.build(restrictions, costs, budget, forbidden_sets, N=N)
+    # a design and its complement score the same, so under mirrored
+    # restrictions one of each pair is searched (#838)
+    mirrored = filt.is_mirrored(N)
 
     if K is None:
+        top = N // 2 if mirrored else N - 1
+        filters = {k: filt.mirrored_at(N, k, mirrored) for k in range(1, top + 1)}
         # the cheapest sizes first, so the sizes searched by branch and bound
         # start from the best design found at the others
-        sizes = sorted(range(1, N), key=lambda k: (_search_space(N, k, filt).size, k))
+        sizes = sorted(filters, key=lambda k: (_search_space(N, k, filters[k]).size, k))
     else:
         if not 1 <= int(K) <= N - 1:
             raise MlsynthConfigError(
                 f"K must lie in 1..{N - 1} for a two-way design; got {K}.")
         sizes = [int(K)]
+        filters = {int(K): filt.mirrored_at(N, int(K), mirrored)}
     incumbent_sets = _checked_seeds(incumbent_sets, N, K)
 
     best: Optional[SearchOutcome] = None
     if K is None:
-        best = _swap_incumbent(problem, filt, sizes, candidate_limit, seed)
+        best = _swap_incumbent(problem, {k: filters[k] for k in sizes},
+                               candidate_limit, seed)
     seeded = best
     failures: List[str] = []
     lowers: List[Optional[float]] = []
@@ -866,7 +942,7 @@ def solve_synthetic_design_exact(
     by_size: Dict[int, SearchOutcome] = {}
     for size in sizes:
         try:
-            outcome = _search(problem, size, filt,
+            outcome = _search(problem, size, filters[size],
                               candidate_limit=candidate_limit,
                               incumbent_sets=incumbent_sets, seed=seed,
                               work_limit=float(work_limit),
@@ -899,10 +975,10 @@ def solve_synthetic_design_exact(
         best = replace(best, certified=certified,
                        lower_bound=None if any(b is None for b in lowers)
                        else float(min(lowers)))
-    return _to_design(problem, Y, best, unit_index)
+    return _to_design(problem, Y, best, unit_index, mirrored=mirrored)
 
 
-def _swap_incumbent(problem: TwoWayProblem, filt: SubsetFilter, sizes: Sequence[int],
+def _swap_incumbent(problem: TwoWayProblem, filters: Dict[int, SubsetFilter],
                     candidate_limit: int, seed: int) -> Optional[SearchOutcome]:
     """The best admissible local optimum of the swap search over the sizes past
     the candidate limit, as the incumbent every size starts from.
@@ -918,11 +994,11 @@ def _swap_incumbent(problem: TwoWayProblem, filt: SubsetFilter, sizes: Sequence[
     from .branch import RESTARTS
 
     best: Optional[SearchOutcome] = None
-    for size in sizes:
+    for size, filt in filters.items():
         if _search_space(problem.N, size, filt).size <= candidate_limit:
             continue
-        for S in np.sort(maxcut_candidates(engine, size, n_restarts=RESTARTS,
-                                           seed=seed), axis=1):
+        for S in with_complements(maxcut_candidates(engine, size, n_restarts=RESTARTS,
+                                                    seed=seed), problem.N):
             if not filt.accepts(tuple(int(i) for i in S)):
                 continue
             value, a, b, gap = _settle(problem, engine, S)
@@ -943,9 +1019,11 @@ def solve_synthetic_design_exact_pool(
     """The ``top_K`` best distinct designs, ranked by objective.
 
     Re-searches with each chosen treated set added to ``forbidden_sets``, so the
-    next call returns the next-best distinct design. Stops early, returning fewer
-    than ``top_K``, once the admissible region is exhausted. Any other failure,
-    an ill-conditioned instance among them, raises.
+    next call returns the next-best distinct design. Under mirrored restrictions
+    the set's complement, which scores the same, is added with it, which keeps
+    the excluded sets mirrored. Stops early, returning fewer than ``top_K``, once
+    the admissible region is exhausted. Any other failure, an ill-conditioned
+    instance among them, raises.
 
     Raises
     ------
@@ -964,7 +1042,10 @@ def solve_synthetic_design_exact_pool(
         except _NoFeasibleDesign:
             break
         designs.append(design)
-        excluded.append(np.asarray(design.selected_unit_indices, dtype=np.int64))
+        chosen = np.asarray(design.selected_unit_indices, dtype=np.int64)
+        excluded.append(chosen)
+        if design.raw_results["mirrored"]:
+            excluded.append(np.setdiff1d(np.arange(len(design.assignment)), chosen))
     return designs
 
 
@@ -973,6 +1054,7 @@ def _to_design(
     Y: np.ndarray,
     outcome: SearchOutcome,
     unit_index: Optional[IndexSet],
+    mirrored: bool = False,
 ) -> SYNDESDesign:
     """Package a search outcome in the shared design container.
 
@@ -1024,5 +1106,6 @@ def _to_design(
             "duality_gap": outcome.duality_gap,
             "lower_bound": outcome.lower_bound,
             "certified": outcome.certified,
+            "mirrored": mirrored,
         },
     )
