@@ -129,6 +129,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/esc
    replications/cmbsts
    replications/marex
+   replications/bnb_work
    replications/dsc
    replications/dsc_mc
    replications/dsc_disco_xval

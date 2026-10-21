@@ -1891,6 +1891,13 @@ difference-in-means baseline — the paper's headline. See
 :doc:`replications/syndes`; run it with
 ``python benchmarks/run_benchmarks.py syndes_bls``.
 
+The two-way branch and bound above the candidate limit has a regression gate
+of its own. `benchmarks/cases/syndes_bnb_work.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/syndes_bnb_work.py>`_
+pins the nodes it bounds, the lifts it computes, the designs it prices and its
+work in the cost model's seconds on fixed panels, beside the design and
+whether it matches the enumeration's. See :doc:`replications/bnb_work`.
+
 Core API
 --------
 
