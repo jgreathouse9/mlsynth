@@ -11,8 +11,10 @@ It is a regression gate, not a replication. Its job is to fail when a change
 makes the search do more work for the same answer, or turns it back into
 pricing every design, which nothing else in the suite would notice: the tests
 check the answer, and the answer is the same at any cost. The cost model reads
-counts and never a clock, so these numbers are the same on every machine with
-the same library versions, and a case can pin them without timing noise.
+counts and never a clock, so the case has no timing noise. The counts still rest
+on floating point: the lift is an iterative dual solve, and where it stops
+depends on the BLAS kernel the processor selects, so one instance's counts
+differ between processors (see the tolerances).
 
 The instances
 -------------
@@ -26,8 +28,10 @@ Three kinds, each small enough to run in seconds:
   units, which exercises the lift, its certificates and the pruning on a
   search small enough to run in about ten seconds in all;
 * ``K=None`` at 26 units under a small ``work_limit``, which exercises the
-  per-size search, the swap-search cutoff, best first and the bound reported
-  at the limit.
+  per-size search, the swap-search cutoff, best first and the mirror rule
+  (#838): the sizes up to 13 are searched, and at 13 only the designs that
+  treat unit 0. Before the rule both searches stopped at the limit with their
+  bounds under the design; with it both close within the limit.
 
 The panels are the generators of ``benchmarks/studies/syndes_global_bnb``, the
 study the search came from, so a reader can trace every instance to the panels
@@ -100,6 +104,12 @@ def _band(value: float, rel: float) -> tuple:
     return (value, abs(value) * rel)
 
 
+def _span(lo: float, hi: float, rel: float) -> tuple:
+    """A band holding every value from ``lo`` to ``hi``, widened by ``rel`` of
+    ``hi``: for a count measured at two values on two kinds of processor."""
+    return ((lo + hi) / 2.0, (hi - lo) / 2.0 + abs(hi) * rel)
+
+
 # Tolerances.
 #
 # Measured under benchmarks/constraints.txt (Python 3.11, numpy 2.4.6, scipy
@@ -107,18 +117,45 @@ def _band(value: float, rel: float) -> tuple:
 # Python 3.13 with numpy 2.5.3 and scipy 1.18.1:
 #
 # * the designs, the certified flags, the sets priced and the sizes chosen
-#   agreed exactly across the two, so they are pinned exactly;
+#   agreed exactly across the two, so they are pinned exactly (one instance's
+#   sets priced aside, below);
 # * the nodes bounded differed by one on two instances (76 against 75; 81
 #   against 80), and the lifts by none, so node counts carry a 5% band;
 # * the modelled work differed by up to 6%, from L-BFGS-B taking different
 #   numbers of evaluations in the lift under the two scipy versions, so work
 #   carries a 15% band;
-# * the bound at the limit differed by 7e-6 relative, so it carries 1e-4.
+# * the bound at the limit differed by 7e-6 relative, so it carried 1e-4.
+#
+# The mirror rule (#838) moved the K=None instances: both searches now close
+# within the limit, so their bound is the design's value and carries the
+# value's 1e-9. Under the two versions the nodes were 67 and 67 (factor) and
+# 69 and 67 (GeoLift), and the lifts 9 and 9, and 7 and 8, inside the bands.
 #
 # The bands are loose against version noise and tight against what the case
 # exists to catch: a change that multiplies the work, or sends a search that
 # bounds back to pricing every design, moves these by far more than 15%.
 # Pinned values are the constraints run's.
+#
+# The same versions give two sets of counts, by processor. OpenBLAS picks its
+# kernels by CPU, and measured under each kernel a GitHub runner can select
+# (OPENBLAS_CORETYPE = Haswell, Zen, SkylakeX, Cooperlake, SapphireRapids) the
+# counts fall into two families: the AVX2 kernels (Haswell, Zen; AMD runners
+# select Zen) and the AVX-512 ones, whose counts are the pins. Every design and
+# certified flag agrees. geolift20_k8_eager is the one instance that leaves its
+# bands: its root lift, an L-BFGS-B solve of the regularised dual, stops after
+# 553 evaluations under AVX2 and 647 under AVX-512, at bounds 1.3e-5 apart
+# relative. Both bounds are valid, the children start from different
+# multipliers, and the AVX2 search bounds 48 nodes, lifts 41, discards 23 and
+# prices 3 where the AVX-512 one bounds 44, lifts 35, discards 22 and prices 1.
+# That instance's bands span both families. Elsewhere the families differ by
+# at most 1.4% in work and one node, inside the bands.
+#
+# The bands are drawn for the runner pool. Under Sandybridge, an AVX kernel
+# with no FMA that no GitHub runner selects, the case fails: at default costs
+# geolift30_k8 lifts 6 nodes against 17 and prices 1.86 times as many designs,
+# and noise30_k8 lifts 18 against 5 and prices 1.72 times as many.
+# Every design and certified flag still agrees. Bands that wide would let a
+# doubling of the work through on the processors the gate runs on.
 EXPECTED = {
     # default costs
     "geolift30_k8_nodes": _band(51, 0.05),
@@ -151,11 +188,12 @@ EXPECTED = {
     "factor30_k8_certified": (1.0, 0.0),
     "factor30_k8_matches_enumeration": (1.0, 0.0),
     # every node bounded and lifted
-    "geolift20_k8_eager_nodes": _band(44, 0.05),
-    "geolift20_k8_eager_lifts": _band(35, 0.05),
-    "geolift20_k8_eager_pruned": _band(22, 0.05),
-    "geolift20_k8_eager_priced": (1, 0.0),
-    "geolift20_k8_eager_work": _band(1.0318913750000003, 0.15),
+    # AVX-512 against AVX2 kernels (see above)
+    "geolift20_k8_eager_nodes": _span(44, 48, 0.05),
+    "geolift20_k8_eager_lifts": _span(35, 41, 0.05),
+    "geolift20_k8_eager_pruned": _span(22, 23, 0.05),
+    "geolift20_k8_eager_priced": _span(1, 3, 0.0),
+    "geolift20_k8_eager_work": _span(1.0318913750000003, 1.1905513770000005, 0.15),
     "geolift20_k8_eager_certified": (1.0, 0.0),
     "geolift20_k8_eager_matches_enumeration": (1.0, 0.0),
     "noise20_k8_eager_nodes": _band(30, 0.05),
@@ -172,15 +210,16 @@ EXPECTED = {
     "factor20_k8_eager_work": _band(3.397196551999998, 0.15),
     "factor20_k8_eager_certified": (1.0, 0.0),
     "factor20_k8_eager_matches_enumeration": (1.0, 0.0),
-    # K=None under work_limit=5: uncertified, and the bound at the limit pinned
+    # K=None under work_limit=5, sizes up to 13 under the mirror rule (#838):
+    # both close within the limit, so the bound is the value
     "factor26_free_value": _band(0.6019339302995382, 1e-9),
-    "factor26_free_lower": _band(0.6006047207364451, 1e-4),
+    "factor26_free_lower": _band(0.6019339302995382, 1e-9),
     "factor26_free_size": (13.0, 0.0),
-    "factor26_free_nodes": _band(82, 0.05),
-    "factor26_free_lifts": _band(11, 0.15),
+    "factor26_free_nodes": _band(67, 0.05),
+    "factor26_free_lifts": _band(9, 0.15),
     "geolift26_free_value": _band(143431.35581503826, 1e-9),
-    "geolift26_free_lower": _band(143171.5590682762, 1e-4),
+    "geolift26_free_lower": _band(143431.35581503826, 1e-9),
     "geolift26_free_size": (13.0, 0.0),
-    "geolift26_free_nodes": _band(80, 0.05),
-    "geolift26_free_lifts": _band(9, 0.15),
+    "geolift26_free_nodes": _band(69, 0.05),
+    "geolift26_free_lifts": _band(7, 0.15),
 }
