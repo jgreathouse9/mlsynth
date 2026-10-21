@@ -11,8 +11,10 @@ It is a regression gate, not a replication. Its job is to fail when a change
 makes the search do more work for the same answer, or turns it back into
 pricing every design, which nothing else in the suite would notice: the tests
 check the answer, and the answer is the same at any cost. The cost model reads
-counts and never a clock, so these numbers are the same on every machine with
-the same library versions, and a case can pin them without timing noise.
+counts and never a clock, so the case has no timing noise. The counts still rest
+on floating point: the lift is an iterative dual solve, and where it stops
+depends on the BLAS kernel the processor selects, so one instance's counts
+differ between processors (see the tolerances).
 
 The instances
 -------------
@@ -102,6 +104,12 @@ def _band(value: float, rel: float) -> tuple:
     return (value, abs(value) * rel)
 
 
+def _span(lo: float, hi: float, rel: float) -> tuple:
+    """A band holding every value from ``lo`` to ``hi``, widened by ``rel`` of
+    ``hi``: for a count measured at two values on two kinds of processor."""
+    return ((lo + hi) / 2.0, (hi - lo) / 2.0 + abs(hi) * rel)
+
+
 # Tolerances.
 #
 # Measured under benchmarks/constraints.txt (Python 3.11, numpy 2.4.6, scipy
@@ -109,7 +117,8 @@ def _band(value: float, rel: float) -> tuple:
 # Python 3.13 with numpy 2.5.3 and scipy 1.18.1:
 #
 # * the designs, the certified flags, the sets priced and the sizes chosen
-#   agreed exactly across the two, so they are pinned exactly;
+#   agreed exactly across the two, so they are pinned exactly (one instance's
+#   sets priced aside, below);
 # * the nodes bounded differed by one on two instances (76 against 75; 81
 #   against 80), and the lifts by none, so node counts carry a 5% band;
 # * the modelled work differed by up to 6%, from L-BFGS-B taking different
@@ -126,6 +135,27 @@ def _band(value: float, rel: float) -> tuple:
 # exists to catch: a change that multiplies the work, or sends a search that
 # bounds back to pricing every design, moves these by far more than 15%.
 # Pinned values are the constraints run's.
+#
+# The same versions give two sets of counts, by processor. OpenBLAS picks its
+# kernels by CPU, and measured under each kernel a GitHub runner can select
+# (OPENBLAS_CORETYPE = Haswell, Zen, SkylakeX, Cooperlake, SapphireRapids) the
+# counts fall into two families: the AVX2 kernels (Haswell, Zen; AMD runners
+# select Zen) and the AVX-512 ones, whose counts are the pins. Every design and
+# certified flag agrees. geolift20_k8_eager is the one instance that leaves its
+# bands: its root lift, an L-BFGS-B solve of the regularised dual, stops after
+# 553 evaluations under AVX2 and 647 under AVX-512, at bounds 1.3e-5 apart
+# relative. Both bounds are valid, the children start from different
+# multipliers, and the AVX2 search bounds 48 nodes, lifts 41, discards 23 and
+# prices 3 where the AVX-512 one bounds 44, lifts 35, discards 22 and prices 1.
+# That instance's bands span both families. Elsewhere the families differ by
+# at most 1.4% in work and one node, inside the bands.
+#
+# The bands are drawn for the runner pool. Under Sandybridge, an AVX kernel
+# with no FMA that no GitHub runner selects, the case fails: at default costs
+# geolift30_k8 lifts 6 nodes against 17 and prices 1.86 times as many designs,
+# and noise30_k8 lifts 18 against 5 and prices 1.72 times as many.
+# Every design and certified flag still agrees. Bands that wide would let a
+# doubling of the work through on the processors the gate runs on.
 EXPECTED = {
     # default costs
     "geolift30_k8_nodes": _band(51, 0.05),
@@ -158,11 +188,12 @@ EXPECTED = {
     "factor30_k8_certified": (1.0, 0.0),
     "factor30_k8_matches_enumeration": (1.0, 0.0),
     # every node bounded and lifted
-    "geolift20_k8_eager_nodes": _band(44, 0.05),
-    "geolift20_k8_eager_lifts": _band(35, 0.05),
-    "geolift20_k8_eager_pruned": _band(22, 0.05),
-    "geolift20_k8_eager_priced": (1, 0.0),
-    "geolift20_k8_eager_work": _band(1.0318913750000003, 0.15),
+    # AVX-512 against AVX2 kernels (see above)
+    "geolift20_k8_eager_nodes": _span(44, 48, 0.05),
+    "geolift20_k8_eager_lifts": _span(35, 41, 0.05),
+    "geolift20_k8_eager_pruned": _span(22, 23, 0.05),
+    "geolift20_k8_eager_priced": _span(1, 3, 0.0),
+    "geolift20_k8_eager_work": _span(1.0318913750000003, 1.1905513770000005, 0.15),
     "geolift20_k8_eager_certified": (1.0, 0.0),
     "geolift20_k8_eager_matches_enumeration": (1.0, 0.0),
     "noise20_k8_eager_nodes": _band(30, 0.05),
