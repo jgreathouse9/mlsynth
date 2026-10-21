@@ -5,7 +5,10 @@ lower bound on the optimum with its design (``design.solve_outcome``):
 
 * ``global_2way`` (:mod:`~.exact`): the enumeration under the closed-form bound
   of :mod:`~.gram`, which reports the Rayleigh bound over every size-``K``
-  design, or the smallest priced bound where ``G + lam I`` is singular;
+  design, or the smallest priced bound where ``G + lam I`` is singular; above
+  its candidate limit the branch and bound of :mod:`~.branch`, which reports
+  the optimum when it closes and its smallest open node bound at its work
+  limit;
 * ``global_equal_weights`` (:mod:`~.one_way_exact`): the enumeration under the
   ridge bound, which reports the optimum itself when it closes and the Rayleigh
   bound past its candidate limit;
@@ -19,8 +22,9 @@ on: the design's own search when the caller passes it (``search``), and a fresh
 search otherwise, which is what a design fitted on part of the pre-period
 (holdout selection) needs. The incumbent is the returned design scored on that
 panel and penalty (:func:`design_objective`), so the two refer to one problem.
-``certified`` says the search closed and its bound does not contradict the
-incumbent beyond :data:`_BOUND_TOLERANCE`.
+``certified`` says the search certified its design, its bound reaching the
+design, and that bound does not contradict the incumbent beyond
+:data:`_BOUND_TOLERANCE`.
 
 The certificate is an mlsynth addition, not part of Doudchenko et al. (2021): the
 paper proves the design NP-hard and gives the mixed-integer program but derives

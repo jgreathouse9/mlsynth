@@ -500,10 +500,13 @@ and defaults them to the production-friendly setting:
   result. The lower bound is the one the mode's exact search reports on the
   whole pre-period, with the design's penalty and restrictions: for one-way and
   per-unit, the optimum itself when the search closes; for two-way, the Rayleigh
-  bound over every size-:math:`K` design (see "The Gram reduction" below). The
+  bound over every size-:math:`K` design when the search enumerates (see "The
+  Gram reduction" below), and above the candidate limit the branch and bound's
+  own bound, the optimum itself when it closes. The
   certificate reports ``result.certificate.optimality_gap`` with the guarantee
   ``lower_bound`` :math:`\le` optimum :math:`\le` incumbent, and
-  ``certified=True`` when the search closed. The incumbent is the returned
+  ``certified=True`` when the search's bound reaches its design, which a search
+  that closed always shows and one stopped at its limit can. The incumbent is the returned
   design's weights scored on the whole pre-period with the design's penalty
   (``certificate.incumbent``). The search the design came from is reused when it
   ran on the whole pre-period; under holdout selection, where the design was
@@ -793,12 +796,11 @@ design out of thousands reached that last step.
 
 What changes is the price of a candidate, not the complexity class. Choosing the
 treated set is still a cardinality-constrained max-cut, and above a count of
-admissible designs the search stops enumerating, falls back to a swap search on
-:math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}`, and reports
-the design against the Rayleigh bound instead of claiming a certificate. The swap
-search's stopping rule and the projected-gradient solve's are relative to the
-problem's own scale, so the same design comes back whatever units the outcome is
-measured in. What it
+admissible designs (``candidate_limit``, twenty million) the search stops
+enumerating and branches and bounds, as "The two-way design above the candidate
+limit" below describes. The projected-gradient solve's stopping rule is relative
+to the problem's own scale, so the same design comes back whatever units the
+outcome is measured in. What it
 buys is that a candidate costs one row of a matrix product instead of a
 branch-and-bound node, and that :math:`T` leaves the per-candidate cost entirely
 once :math:`\mathbf{G}` is formed, so a 300-period panel costs what a 20-period
@@ -807,14 +809,15 @@ one does.
 One consequence matters when comparing the two backends. ``gap_limit``
 defaults to ``0.05``, so the MIP path may stop at a design 5 percent above the
 optimum, and ``time_limit`` can stop it sooner. The exact backend has no such
-early exit below its candidate limit, so the two agree on the treated set only
+early exit short of the branch and bound's work limit, so the two agree on the
+treated set only
 once the MIP is asked to prove optimality (``gap_limit=0.0``); otherwise the
 search's design is the one that is at least as good.
 
 When :math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision,
 which happens with ``lam=0`` on a panel with fewer periods than units or with a
-unit that is an exact combination of others, neither the closed form nor the swap
-search can be formed. Projected gradient needs only a positive semidefinite
+unit that is an exact combination of others, neither the closed form nor the
+branch and bound's bounds can be formed. Projected gradient needs only a positive semidefinite
 matrix, so the search prices the admissible designs one by one. Since
 :math:`f(S) \ge 0`, a design priced at zero, to the rounding of its terms, is
 optimal and ends the search; with fewer periods than units that is the common
@@ -848,12 +851,127 @@ That count is what the candidate limit reads, so an instance with most of its
 units ineligible is enumerated on the designs it has, not on the
 :math:`\binom{N}{K}` it would have had without the rules. Cluster and adjacency
 conflicts and ``costs`` with a ``budget`` do not decompose over a stratum, so
-they are tested on finished candidates and leave the count alone; an instance
-carrying only those is refused past the limit, since the fallback searches the
-unrestricted space.
+they are tested on finished candidates and leave the count alone. Past the limit
+the branch and bound tests them on every design it prices, and sends a unit's
+conflict partners out of the treated set whenever it treats the unit.
 
-``gap_limit``, ``time_limit``, ``solver`` describe branch-and-bound and are
-ignored by this path.
+``gap_limit``, ``time_limit``, ``solver`` describe the MIP's branch-and-bound and
+are ignored by this path.
+
+The two-way design above the candidate limit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Past ``candidate_limit`` admissible designs (twenty million by default; forty
+units with eight treated already hold 77 million), the search stops pricing every
+design and runs a branch and bound. It returns the design the enumeration would
+have returned, certified.
+
+A node of the search fixes some units into the treated set, some out of it, and
+leaves the rest free; the designs below it are the admissible ways to choose the
+remaining treated units among the free ones. A node is either priced design by
+design, as the enumeration prices, or bounded and split on its first free unit
+into a child that treats the unit and one that does not. A bound pays off only
+when it rules out the node's designs at once, so the search bounds a node only
+when pricing its designs would cost more than the bound, weighted by how often
+bounds have ruled out nodes of that size so far.
+
+The next node is the open one whose parent had the smallest bound (best first),
+so a search stopped at its limit has raised its smallest open bound as far as
+its work allowed. Between equal bounds the node created last goes first, so a
+split continues into the child that treats the unit; and until the search has
+a design to return it goes depth first, since best first can spend its limit
+near the root without reaching one. A node whose bound came from the lift
+passes that bound, certified, to its children, and a search stopped at its
+limit reports for each node it left open the better of that inherited bound and
+the node's own trust-region bound.
+
+The bound. Every design below a node has :math:`f(S) \ge 4\alpha / U` for any
+:math:`U` at least the largest :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
+\boldsymbol{\sigma}` below it. With the decided units fixed, the free part
+:math:`\mathbf{x} \in \{-1, +1\}^n` of :math:`\boldsymbol{\sigma}` enters as
+:math:`c + 2\mathbf{b}^\top\mathbf{x} + \mathbf{x}^\top\mathbf{A}\mathbf{x}`,
+with :math:`\mathbf{1}^\top\mathbf{x}` fixed by the number of units still to
+treat. Two relaxations bound its maximum. The first replaces the sign vectors by
+the sphere they lie on, cut by that plane: a trust-region problem solved in under
+a millisecond (Moré and Sorensen 1983). The second lifts :math:`\mathbf{x}` to
+the matrix :math:`\mathbf{X} = [1; \mathbf{x}][1; \mathbf{x}]^\top`, which at
+every design is semidefinite with a unit diagonal and satisfies the triangle
+inequalities :math:`1 \pm X_{ij} \pm X_{ik} \pm X_{jk} \ge 0`. Its bound is
+computed through its dual by the procedure of the BiqCrunch solver (Krislock,
+Malick and Roupin), with no interior-point solve. The search tries the
+trust-region bound first, and the lift only on a node the first bound did not
+rule out and whose designs cost more to price than the lift.
+
+The certificate. Each bound comes with multipliers on the lifted constraints
+(:math:`d_i` on the unit diagonal, :math:`w_k \ge 0` on the triangle
+inequalities, and multipliers on :math:`\mathbf{X}` times the plane's normal),
+and any multipliers give a bound: for every design below the node,
+
+.. math::
+
+   \boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}
+   \;\le\; \textstyle\sum_i d_i + \sum_k w_k + (n + 1)\,
+   \lambda_{\max}(\mathbf{C}),
+
+with :math:`\mathbf{C}` the node's matrix less the multiplied constraints, since
+:math:`\mathbf{X}` is semidefinite with trace :math:`n + 1`. A node is discarded
+only when this bound clears the best design found so far, computed in exact
+rational arithmetic from the closed form's :math:`\alpha`, :math:`\mathbf{H}` and
+:math:`\mathbf{p}`, with :math:`\lambda_{\max}` bounded above through a Cholesky
+factor whose residual is computed exactly: the rigorous bound of Jansson,
+Chaykin and Keil (2007), as MAREX's branch and bound certifies its own. A bound
+that cannot be certified leaves its node to be split, so the floating-point
+arithmetic of the relaxations decides where the search spends time, never what
+it discards.
+
+Restrictions. Forced and forbidden units start the search; stratum quotas decide
+how many designs a node holds, and a node with none is dropped; a treated unit
+sends its conflict partners out; and every design priced passes the cost budget
+and the pool's exclusions. A bound over more designs than the admissible ones is
+still a bound.
+
+The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
+bounded (``n_nodes``) and the lifts computed (``n_lifts``), and
+``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
+when it closes. ``work_limit`` (60 by default) caps each size's search in the
+cost model's seconds: every design priced, bound, lift evaluation and certificate
+is charged its modelled cost, so the limit stops a search whose bounds do not
+prune as well as one whose every node lifts. At forty units a modelled second
+took two to three seconds of the clock where most nodes lift and under one where
+the search mostly prices, so the default stops a hard size in two to three
+minutes. A search that reaches the limit returns its best
+design and the smallest certified bound over the nodes it left open. The design
+is certified when that bound reaches it; otherwise a ``SYNDESSolveWarning`` says
+it is not a proven optimum. The costs and the limit are constants and counts,
+never a clock, so a search makes the same decisions, and stops at the same node,
+on every machine.
+
+With ``K=None`` every size is searched, the cheapest first. A design of one size
+bounds the others, so before any size is searched the swap search on
+:math:`\boldsymbol{\sigma}^\top \mathbf{R}\, \boldsymbol{\sigma}` runs at every
+size past the limit, and each branch and bound starts from the best design found
+so far, discards every node whose bound clears it, and returns no design when
+nothing at its size is better. On GeoLift's forty markets that swap search took
+0.4 seconds, and every size's search but the one at the optimum's size stopped at
+its root. The bound reported is the smallest over the sizes. On the four-factor
+panel the sizes from 19 to 21 do not prune: each stops at the work limit, and
+after six minutes the search returns a design 0.23 percent better than the swap
+search's, with a bound 0.14 percent under it. Left to run for 81 minutes, the
+search certifies that design as the optimum. Searching depth first, the same
+limit returned the swap search's design and its Rayleigh bound, 0.47 percent
+under it.
+
+The study behind this search is
+`benchmarks/studies/syndes_global_bnb <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_global_bnb>`_.
+On forty units with ten treated, 848 million designs, the search returned the
+enumeration's optimum, certified, in 40.6 seconds on GeoLift and 55.0 seconds on a
+panel with no structure, where enumerating took 698 and 725. On a panel drawn
+from a four-factor model the bounds prune almost nothing at that size: certifying
+its optimum took 881 seconds, pricing every design, and with the default
+``work_limit`` the search stops after 51 seconds with the same design,
+uncertified, its bound 0.28 percent under it. Below
+the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
+where the search took 7 to 9.
 
 The one-way design by search
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1855,6 +1973,12 @@ The exact one-way backend: enumeration under the ridge bound, pricing in bound
 order, and the swap-search fallback above the candidate limit.
 
 .. automodule:: mlsynth.utils.syndes_helpers.one_way_exact
+   :members:
+
+The exact two-way backend above the candidate limit: the node bounds, their
+certificate in exact arithmetic, and the branch and bound.
+
+.. automodule:: mlsynth.utils.syndes_helpers.branch
    :members:
 
 The moving-block permutation test (shared contrast dispatch across modes).
