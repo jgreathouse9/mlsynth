@@ -6889,6 +6889,100 @@ timeout = 600.0
   replace = "    if incumbent_sets is not None:"
   models = "a size's search takes a seed of another size as its design, the defect of #850 at the search's own level"
 
+# The two-way design's mirror rule (#838). A design and its complement score
+# the same, so under restrictions that name no side the search keeps one of
+# each pair. Each mutant applies the rule where it does not hold, or drops it
+# where it does.
+[[target]]
+name = "syndes-mirror"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_mirror.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-rule-under-a-forced-unit"
+  find = "        if self.forced_in or self.forbidden or self.conflict_pairs or self.costs is not None:"
+  replace = "        if self.forbidden or self.conflict_pairs or self.costs is not None:"
+  models = "the rule applied with a forced unit, which names the treated side, so the complement that treats it is never searched"
+
+  [[target.mutant]]
+  id = "the-rule-under-a-forbidden-unit"
+  find = "        if self.forced_in or self.forbidden or self.conflict_pairs or self.costs is not None:"
+  replace = "        if self.forced_in or self.conflict_pairs or self.costs is not None:"
+  models = "the rule applied with a forbidden unit, so the design that leaves it in control is never searched"
+
+  [[target.mutant]]
+  id = "the-rule-under-a-conflict"
+  find = "        if self.forced_in or self.forbidden or self.conflict_pairs or self.costs is not None:"
+  replace = "        if self.forced_in or self.forbidden or self.costs is not None:"
+  models = "the rule applied with a conflict pair, which constrains the treated set only"
+
+  [[target.mutant]]
+  id = "the-rule-under-a-budget"
+  find = "        if self.forced_in or self.forbidden or self.conflict_pairs or self.costs is not None:"
+  replace = "        if self.forced_in or self.forbidden or self.conflict_pairs:"
+  models = "the rule applied with a budget, which charges the treated set only"
+
+  [[target.mutant]]
+  id = "an-asymmetric-quota-reads-as-mirrored"
+  find = "            if lo + hi != size:"
+  replace = "            if False:"
+  models = "a stratum quota that does not map to itself under the swap read as mirrored"
+
+  [[target.mutant]]
+  id = "an-exclusion-without-its-complement-reads-as-mirrored"
+  find = "        return all(everyone - fs in self.forbidden_sets for fs in self.forbidden_sets)"
+  replace = "        return True"
+  models = "an excluded design whose complement is admitted read as mirrored, so the complement, the restricted optimum, is never searched"
+
+  [[target.mutant]]
+  id = "the-unit-is-fixed-at-every-size"
+  find = "        if mirrored and 2 * K == N:"
+  replace = "        if mirrored:"
+  models = "the canonical unit forced in at sizes other than N / 2, where a design and its complement have different sizes"
+
+  [[target.mutant]]
+  id = "the-unit-is-never-fixed"
+  find = "        if mirrored and 2 * K == N:"
+  replace = "        if False:"
+  models = "at K = N / 2 both a design and its complement searched, the whole tree instead of half"
+
+  [[target.mutant]]
+  id = "every-size-is-searched"
+  find = "        top = N // 2 if mirrored else N - 1"
+  replace = "        top = N - 1"
+  models = "with K free the sizes past N / 2 searched, repeating the mirrored sizes' work"
+
+  [[target.mutant]]
+  id = "the-pool-keeps-the-complement"
+  find = "        if design.raw_results[\"mirrored\"]:"
+  replace = "        if False:"
+  models = "the pool excludes a design without its complement, so the excluded sets stop being mirrored and the next design is the first one's complement"
+
+  [[target.mutant]]
+  id = "the-swap-search-drops-complements"
+  find = "        for S in with_complements(maxcut_candidates(engine, size, n_restarts=RESTARTS,\n                                                    seed=seed), problem.N):"
+  replace = "        for S in np.sort(maxcut_candidates(engine, size, n_restarts=RESTARTS,\n                                           seed=seed), axis=1):"
+  models = "with K free the swap search's best design at N / 2, found only on the side without the canonical unit, dropped from the incumbent every size starts from"
+
+  [[target.mutant]]
+  id = "seeds-gain-no-complements"
+  find = "    if 2 * k != N:"
+  replace = "    if True:"
+  models = "at K = N / 2 a seed that does not treat the canonical unit is dropped instead of entering as its complement"
+
+[[target]]
+name = "syndes-mirror-branch"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_mirror.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-branch-and-bound-drops-seed-complements"
+  find = "        for S in with_complements(block, N):"
+  replace = "        for S in np.sort(block, axis=1):"
+  models = "the branch and bound's seeds at K = N / 2 taken without their complements, so a seed that does not treat the canonical unit is lost"
+
 [[target]]
 name = "conftest-solver-guard"
 module-path = "mlsynth/tests/conftest.py"

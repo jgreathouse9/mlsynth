@@ -213,8 +213,13 @@ def test_the_estimator_reports_an_ill_conditioned_instance_under_holdout():
 
 
 def test_the_pool_still_stops_when_the_region_is_exhausted():
+    """Four units at K = 2 hold six treated sets in three mirror pairs, and the
+    pool returns one design of each pair (#838)."""
     pool = solve_synthetic_design_exact_pool(_panel(N=4, T=10), 2, top_K=10)
-    assert len(pool) == 6
+    sets = [frozenset(_treated(d)) for d in pool]
+    assert len(pool) == 3
+    assert all(0 in s for s in sets)
+    assert len(set(sets)) == 3
 
 
 def test_a_free_size_skips_the_sizes_restrictions_rule_out():
