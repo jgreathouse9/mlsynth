@@ -44,6 +44,11 @@ class TestDefault:
     def test_backend_defaults_to_the_search(self):
         assert _fit().design.raw_results["solver"] == "exact"
 
+    def test_one_way_runs_on_its_search(self):
+        assert _fit(mode="one_way_global").design.raw_results["solver"] == "exact"
+        assert (_fit(mode="one_way_global", backend="exact").design.raw_results["solver"]
+                == "exact")
+
     def test_explicit_and_implicit_defaults_agree(self):
         explicit = _fit(backend="exact")
         implicit = _fit()
@@ -121,11 +126,6 @@ class TestPoolAndSelection:
 
 
 class TestRefusals:
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_rejected_for_other_modes(self, mode):
-        with pytest.raises(MlsynthConfigError):
-            _fit(backend="exact", mode=mode)
-
     def test_rejected_with_donor_exclusions(self):
         adjacency = pd.DataFrame(
             np.eye(9), index=[f"u{i}" for i in range(9)],

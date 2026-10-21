@@ -1,0 +1,44 @@
+Solvers tried for the indicator lift's node bound, and what each delivered.
+
+Every number below is a certified bound (certified_dnn.certify on the
+solver's multipliers) over the subtree minimum, unless marked otherwise.
+
+Clarabel (interior point, through cvxpy), GeoLift, 4 treated:
+  cvxpy builds each model in 0.0-0.1 s; the rest is Clarabel's solve.
+  K = 56: 28 iterations, 6.2 s (0.22 s each), certified 1.0000
+  K = 76: 54 iterations, 35.7 s (0.66 s each), certified 0.9980
+  K = 116: 47 iterations, 210 s (4.5 s each), certified 0.9877
+  The cost per iteration grows roughly as K^5 to K^6, from the dense PSD
+  block in the Newton system.
+  Dropping every nonnegativity constraint (constraint generation, round 0)
+  still took 96.5 s at the root and certified 0.2950: the PSD block, not the
+  13,000 sign constraints, sets the cost.
+
+FaceADMM (admm.py), 12-market factor root, interior point certifies 1.0000:
+  no restarts: stopped by its stall rule at 200 iterations, certified 0.
+  restarts every 200, rho0 = 0.1: certified 0.854 after 3,650 iterations (3.6 s).
+  restarts every 200, rho0 = 1: certified 0.849 after 3,650 iterations.
+
+Spectral bundle (bundle.py), same root:
+  rank-one atoms (first version): the face matrix at H = 0 has dozens of
+  eigenvalues at zero; every candidate was a null step, certified 0.
+  PSD block, Huber-clipped master by accelerated projected gradient:
+  certified 0.053 after 37 steps (4.2 s).
+
+LoRADS (lorads_bridge.py, Burer-Monteiro ALM + ADMM), same root:
+  60 s time limit reached without convergence; dual objective swung between
+  0.01 and 0.10 around the true 0.0485. Clarabel: 0.14 s. The problem has
+  more constraints (1,177) than matrix entries (595), almost all entrywise
+  nonnegativity, carried as LP columns.
+
+SCS (ADMM on the homogeneous embedding), GeoLift, 4 treated, certified
+over the subtree minimum (Clarabel in brackets):
+  K = 56: eps 1e-3 0.0000, 1e-4 0.0000, 1e-5 0.7199 in 6.5 s (1.0000, 6.2 s)
+  K = 76: eps 1e-3, 1e-4, 1e-5 all 0.0000 (0.9980)
+  K = 116: eps 1e-3, 1e-4, 1e-5 all 0.0000 (0.9877)
+  The solver's own objective was 1.2 to 12.6 times the subtree minimum: its
+  multipliers are far from dual feasible at these tolerances.
+
+The common cause for the first-order methods: the optimum is about 2,000
+times smaller than the objective's scale (the best combination of markets
+nearly cancels), so a 1% certificate needs relative accuracy near 1e-6.

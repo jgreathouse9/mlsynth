@@ -1,0 +1,9 @@
+geolift N=40 K=10 search (dual) (patient) 70.3s bounded=2461 lifted=176 pruned=255 (by lifts 64) priced=2,479,632 value=237545.0339 treated=[0, 2, 5, 7, 10, 21, 24, 25, 27, 31]
+geolift 40 10 dual unweighted: timed out at 900 s
+geolift N=40 K=10 search (dual) (patient) (unweighted) 77.6s bounded=1371 lifted=247 pruned=199 (by lifts 98) priced=758,358 value=237545.0339 treated=[0, 2, 5, 7, 10, 21, 24, 25, 27, 31]
+geolift N=40 K=8 search (dual) (patient) 95.3s bounded=1851 lifted=239 pruned=124 (by lifts 93) priced=6,338,910 value=278495.4422 treated=[0, 15, 19, 23, 24, 25, 27, 31]
+geolift N=40 K=8 search (dual) (unweighted) 344.5s bounded=40283 lifted=14367 pruned=4441 (by lifts 0) priced=70,305,316 value=278495.4422 treated=[0, 15, 19, 23, 24, 25, 27, 31]
+noise N=40 K=10 search (dual) (patient) 61.9s bounded=700 lifted=151 pruned=279 (by lifts 72) priced=48,268 value=0.2169759776 treated=[7, 9, 11, 14, 25, 27, 28, 30, 32, 35]
+noise 40 10 dual unweighted: timed out at 900 s
+factor N=40 K=6 search (dual) (patient) 11.5s bounded=757 lifted=26 pruned=0 (by lifts 0) priced=3,838,380 value=0.8339723078 treated=[2, 5, 9, 11, 12, 21]
+factor N=40 K=6 search (dual) (unweighted) 18.9s bounded=753 lifted=644 pruned=0 (by lifts 0) priced=3,838,380 value=0.8339723078 treated=[2, 5, 9, 11, 12, 21]

@@ -1,0 +1,4 @@
+   251.5s node    1 |I|=0 |O|=0 |F|=40 bound 548781.16 queue    2 lower 548781.16 incumbent 554319.76 gap 0.9992% lifts 1/1
+   471.9s node    2 |I|=1 |O|=0 |F|=39 bound 553453.8 queue    3 lower 548781.16 incumbent 554319.76 gap 0.9992% lifts 2/2
+   705.0s node    4 |I|=2 |O|=0 |F|=38 bound 553091.54 queue    3 lower 553091.54 incumbent 554319.76 gap 0.2216% lifts 4/3
+geolift m=4: set (5, 10, 24, 27)  hi 554319.7579  lower 554319.7579  gap 1.73e-13  open 0  unresolved []  nodes 6  enumerated 1  sets 40  lifts {2: 6, 3: 3}  lift s {2: 186, 3: 572}  pruned {1: 0, 2: 3, 3: 0}  758 s  known 554319.7579

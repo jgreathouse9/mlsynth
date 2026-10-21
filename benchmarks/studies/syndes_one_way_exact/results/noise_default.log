@@ -1,0 +1,27 @@
+noise_n20_k3_s0: sets=1140 gap two-way=0.0002 ridge=0.0000 pruned=1.0000 priced=1 t=0.02s | scip gaplimit 4.4s excess=0.00e+00
+noise_n20_k3_s1: sets=1140 gap two-way=0.0011 ridge=0.0000 pruned=0.9991 priced=1 t=0.00s | scip gaplimit 7.3s excess=0.00e+00
+noise_n20_k3_s2: sets=1140 gap two-way=0.0005 ridge=0.0000 pruned=1.0000 priced=1 t=0.00s | scip gaplimit 8.4s excess=0.00e+00
+noise_n20_k5_s0: sets=15504 gap two-way=0.0021 ridge=-0.0000 pruned=1.0000 priced=1 t=0.06s | scip gaplimit 6.3s excess=0.00e+00
+noise_n20_k5_s1: sets=15504 gap two-way=0.0017 ridge=-0.0000 pruned=1.0000 priced=1 t=0.05s | scip gaplimit 6.5s excess=0.00e+00
+noise_n20_k5_s2: sets=15504 gap two-way=0.0011 ridge=0.0000 pruned=0.9999 priced=1 t=0.04s | scip gaplimit 17.7s excess=0.00e+00
+noise_n20_k10_s0: sets=184756 gap two-way=0.0005 ridge=0.0000 pruned=1.0000 priced=1 t=3.76s | scip gaplimit 12.3s excess=0.00e+00
+noise_n20_k10_s1: sets=184756 gap two-way=0.0010 ridge=0.0000 pruned=1.0000 priced=1 t=3.21s | scip gaplimit 20.0s excess=0.00e+00
+noise_n20_k10_s2: sets=184756 gap two-way=0.0010 ridge=-0.0000 pruned=1.0000 priced=1 t=3.56s | scip gaplimit 31.9s excess=0.00e+00
+noise_n40_k3_s0: sets=9880 gap two-way=0.0017 ridge=0.0000 pruned=0.9999 priced=1 t=0.04s | scip gaplimit 46.8s excess=0.00e+00
+noise_n40_k3_s1: sets=9880 gap two-way=0.0007 ridge=0.0000 pruned=0.9999 priced=1 t=0.03s | scip gaplimit 42.8s excess=0.00e+00
+noise_n40_k3_s2: sets=9880 gap two-way=0.0005 ridge=0.0000 pruned=0.9999 priced=1 t=0.03s | scip gaplimit 38.8s excess=0.00e+00
+noise_n40_k5_s0: sets=658008 gap two-way=0.0002 ridge=0.0000 pruned=1.0000 priced=1 t=5.57s | scip gaplimit 49.7s excess=0.00e+00
+noise_n40_k5_s1: sets=658008 gap two-way=0.0008 ridge=-0.0000 pruned=1.0000 priced=1 t=5.33s | scip timelimit 60.1s excess=0.00e+00
+noise_n40_k5_s2: sets=658008 gap two-way=0.0006 ridge=0.0000 pruned=1.0000 priced=1 t=5.55s | scip timelimit 60.0s excess=3.10e-03
+noise_n40_k10_s0: beyond enumeration (847,660,528 sets) | scip timelimit 60.0s
+noise_n40_k10_s1: beyond enumeration (847,660,528 sets) | scip timelimit 60.1s
+noise_n40_k10_s2: beyond enumeration (847,660,528 sets) | scip timelimit 60.1s
+noise_n60_k3_s0: sets=34220 gap two-way=0.0006 ridge=0.0000 pruned=1.0000 priced=1 t=0.60s | scip timelimit 60.0s excess=0.00e+00
+noise_n60_k3_s1: sets=34220 gap two-way=0.0003 ridge=0.0000 pruned=1.0000 priced=1 t=0.66s | scip timelimit 60.1s excess=1.84e-03
+noise_n60_k3_s2: sets=34220 gap two-way=0.0001 ridge=0.0001 pruned=1.0000 priced=1 t=0.53s | scip timelimit 60.0s excess=0.00e+00
+noise_n60_k5_s0: sets=5461512 gap two-way=0.0009 ridge=0.0000 pruned=1.0000 priced=1 t=42.74s | scip timelimit 60.1s excess=2.66e-05
+noise_n60_k5_s1: sets=5461512 gap two-way=0.0003 ridge=0.0000 pruned=1.0000 priced=1 t=44.77s | scip timelimit 60.1s excess=5.12e-03
+noise_n60_k5_s2: sets=5461512 gap two-way=0.0004 ridge=0.0000 pruned=1.0000 priced=1 t=50.56s | scip timelimit 60.1s excess=3.03e-03
+noise_n60_k10_s0: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.1s
+noise_n60_k10_s1: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.1s
+noise_n60_k10_s2: beyond enumeration (75,394,027,566 sets) | scip timelimit 60.1s

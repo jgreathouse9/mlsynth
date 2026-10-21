@@ -1,0 +1,39 @@
+factor I=0 O=0  trs 0.9834  lift 0.9925 (0.41s)  products 0.9919 (0.38s)  triangles 0.9925 (0.45s)
+factor I=0 O=2  trs 0.9835  lift 0.9928 (0.38s)  products 0.9919 (0.14s)  triangles 0.9929 (0.18s)
+factor I=1 O=3  trs 0.9848  lift 0.9999 (0.29s)  products 0.9982 (0.27s)  triangles 0.9990 (0.17s)
+factor I=0 O=6  trs 0.9845  lift 0.9945 (0.26s)  products 0.9935 (0.09s)  triangles 0.9950 (0.14s)
+factor I=1 O=2  trs 0.9838  lift 0.9983 (0.35s)  products 0.9963 (0.28s)  triangles 0.9975 (0.29s)
+factor I=1 O=4  trs 0.9845  lift 0.9982 (0.26s)  products 0.9965 (0.22s)  triangles 0.9980 (0.28s)
+factor I=0 O=7  trs 0.9850  lift 0.9947 (0.19s)  products 0.9938 (0.09s)  triangles 0.9943 (0.11s)
+factor I=0 O=1  trs 0.9830  lift 0.9931 (0.39s)  products 0.9926 (0.15s)  triangles 0.9931 (0.15s)
+noise I=0 O=0  trs 0.8965  lift 1.0000 (0.31s)  products 1.0000 (0.36s)  triangles 1.0000 (0.38s)
+noise I=0 O=2  trs 0.8944  lift 0.9969 (0.41s)  products 0.9958 (0.27s)  triangles 1.0000 (0.16s)
+noise I=1 O=3  trs 0.9003  lift 1.0000 (0.15s)  products 1.0000 (0.12s)  triangles 1.0000 (0.13s)
+noise I=0 O=6  trs 0.9046  lift 0.9983 (0.24s)  products 0.9969 (0.19s)  triangles 1.0000 (0.15s)
+noise I=1 O=2  trs 0.8802  lift 1.0000 (0.22s)  products 1.0000 (0.17s)  triangles 1.0000 (0.17s)
+noise I=1 O=4  trs 0.8862  lift 1.0000 (0.16s)  products 1.0000 (0.20s)  triangles 1.0000 (0.19s)
+noise I=0 O=7  trs 0.9106  lift 1.0000 (0.14s)  products 1.0000 (0.09s)  triangles 1.0000 (0.13s)
+noise I=0 O=1  trs 0.8965  lift 1.0000 (0.38s)  products 1.0000 (0.26s)  triangles 1.0000 (0.20s)
+geolift I=0 O=0  trs 0.9806  lift 0.9997 (0.58s)  products 0.9992 (0.50s)  triangles 0.9998 (0.55s)
+geolift I=0 O=2  trs 0.9818  lift 0.9998 (0.45s)  products 0.9993 (0.22s)  triangles 0.9999 (0.22s)
+geolift I=1 O=3  trs 0.9755  lift 0.9994 (0.31s)  products 0.9981 (0.33s)  triangles 0.9991 (0.37s)
+geolift I=0 O=6  trs 0.9769  lift 0.9970 (0.21s)  products 0.9959 (0.09s)  triangles 0.9974 (0.10s)
+geolift I=1 O=2  trs 0.9706  lift 0.9956 (0.31s)  products 0.9947 (0.29s)  triangles 0.9955 (0.28s)
+geolift I=1 O=4  trs 0.9808  lift 1.0000 (0.27s)  products 0.9998 (0.12s)  triangles 1.0000 (0.12s)
+geolift I=0 O=7  trs 0.9765  lift 0.9954 (0.15s)  products 0.9943 (0.10s)  triangles 0.9961 (0.13s)
+geolift I=0 O=1  trs 0.9775  lift 0.9999 (0.47s)  products 0.9995 (0.29s)  triangles 0.9999 (0.28s)
+geolift n=40 I=0  lift 2.40s  trs/lift 1.0125  products 1.00063 (0.74s, 1386 ev, 226 cuts)  triangles 0.99988 (0.78s, 1516 ev, 431 cuts)  pruned False  fixing: 0 of 40 units fix a side (0 both) in 0.042s
+geolift n=38 I=1  lift 2.55s  trs/lift 1.0136  products 1.00077 (0.42s, 939 ev, 262 cuts)  triangles 1.00036 (0.54s, 953 ev, 506 cuts)  pruned True  fixing: 0 of 38 units fix a side (0 both) in 0.059s
+geolift n=36 I=1  lift 2.07s  trs/lift 1.0144  products 1.00132 (0.32s, 703 ev, 247 cuts)  triangles 1.00071 (0.44s, 786 ev, 516 cuts)  pruned True  fixing: 9 of 36 units fix a side (0 both) in 0.034s
+geolift n=34 I=2  lift 1.53s  trs/lift 1.0160  products 1.00198 (0.35s, 827 ev, 230 cuts)  triangles 1.00144 (0.41s, 775 ev, 465 cuts)  pruned True  fixing: 10 of 34 units fix a side (0 both) in 0.032s
+geolift n=32 I=2  lift 1.16s  trs/lift 1.0179  products 1.00187 (0.23s, 672 ev, 155 cuts)  triangles 1.00130 (0.27s, 637 ev, 312 cuts)  pruned True  fixing: 5 of 32 units fix a side (0 both) in 0.025s
+factor n=40 I=0  lift 2.33s  trs/lift 1.0030  products 1.00097 (1.26s, 2400 ev, 310 cuts)  triangles 1.00081 (1.11s, 2066 ev, 357 cuts)  pruned False  fixing: 0 of 40 units fix a side (0 both) in 0.037s
+factor n=38 I=0  lift 1.92s  trs/lift 1.0032  products 1.00152 (0.30s, 585 ev, 273 cuts)  triangles 1.00124 (0.29s, 526 ev, 320 cuts)  pruned False  fixing: 0 of 38 units fix a side (0 both) in 0.037s
+factor n=36 I=1  lift 1.62s  trs/lift 1.0045  products 1.00287 (0.51s, 763 ev, 299 cuts)  triangles 1.00264 (0.36s, 708 ev, 360 cuts)  pruned False  fixing: 0 of 36 units fix a side (0 both) in 0.030s
+factor n=34 I=2  lift 2.02s  trs/lift 1.0066  products 1.00293 (0.37s, 721 ev, 284 cuts)  triangles 1.00260 (0.47s, 693 ev, 502 cuts)  pruned False  fixing: 0 of 34 units fix a side (0 both) in 0.043s
+factor n=32 I=2  lift 1.33s  trs/lift 1.0068  products 1.00362 (0.31s, 603 ev, 274 cuts)  triangles 1.00318 (0.27s, 599 ev, 364 cuts)  pruned False  fixing: 0 of 32 units fix a side (0 both) in 0.026s
+noise n=40 I=0  lift 2.12s  trs/lift 1.0509  products 1.00165 (1.83s, 3494 ev, 338 cuts)  triangles 0.99725 (2.09s, 3725 ev, 422 cuts)  pruned False  fixing: 0 of 40 units fix a side (0 both) in 0.043s
+noise n=38 I=0  lift 1.67s  trs/lift 1.0531  products 1.00194 (1.43s, 2111 ev, 306 cuts)  triangles 0.99710 (1.05s, 2019 ev, 417 cuts)  pruned False  fixing: 0 of 38 units fix a side (0 both) in 0.057s
+noise n=36 I=1  lift 2.05s  trs/lift 1.0907  products 1.00236 (1.26s, 2570 ev, 313 cuts)  triangles 0.99843 (1.68s, 2795 ev, 517 cuts)  pruned True  fixing: 16 of 36 units fix a side (0 both) in 0.038s
+noise n=34 I=2  lift 1.50s  trs/lift 1.0922  products 1.00320 (0.77s, 1634 ev, 313 cuts)  triangles 0.99723 (1.12s, 1853 ev, 574 cuts)  pruned True  fixing: 14 of 34 units fix a side (0 both) in 0.034s
+noise n=32 I=2  lift 1.07s  trs/lift 1.0916  products 1.00424 (0.77s, 1513 ev, 257 cuts)  triangles 0.99959 (0.77s, 1497 ev, 514 cuts)  pruned True  fixing: 15 of 32 units fix a side (0 both) in 0.041s

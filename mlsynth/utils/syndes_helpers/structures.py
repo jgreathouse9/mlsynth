@@ -115,6 +115,56 @@ class SYNDESInputs:
 
 
 @dataclass(frozen=True)
+class SYNDESSolveOutcome:
+    """What the mixed-integer solve found, as the solver reports it.
+
+    cvxpy maps SCIP's ``timelimit`` and ``gaplimit`` to ``optimal_inaccurate``,
+    the status it gives a solve that converged, so the design records SCIP's own
+    status and bounds instead.
+
+    Parameters
+    ----------
+    status : str
+        The solver's own terminal status. For SCIP: ``"optimal"``,
+        ``"gaplimit"``, ``"timelimit"`` and the other SCIP limits. For any other
+        solver, cvxpy's status.
+    solver_status : str
+        cvxpy's status for the same solve.
+    stopped_at_limit : bool
+        Whether a limit, not a proof, ended the solve: the design is then the
+        best incumbent found, not a certified optimum.
+    objective : float
+        The objective the returned weights attain, after the refit for the
+        rounded assignment. It equals the design's ``objective_value``.
+    solver_objective : float
+        The objective at the solver's own point, before the refit.
+    dual_bound : float or None
+        The solver's lower bound on the optimum, in the objective's units
+        (SCIP's canonical bound plus the objective's constant). None when the
+        solver does not report one.
+    gap : float or None
+        ``(objective - dual_bound) / max(|objective|, |dual_bound|)``, zero when
+        both are zero. Negative only if the bound exceeds the refitted objective,
+        which the solver's tolerances can produce at the scale of their rounding.
+    solve_time : float or None
+        Seconds the solver reports.
+    limits_applied : bool
+        Whether the requested ``gap_limit`` and ``time_limit`` reached the
+        solver. They are passed to SCIP only.
+    """
+
+    status: str
+    solver_status: str
+    stopped_at_limit: bool
+    objective: float
+    solver_objective: float
+    dual_bound: Optional[float]
+    gap: Optional[float]
+    solve_time: Optional[float]
+    limits_applied: bool
+
+
+@dataclass(frozen=True)
 class SYNDESDesign:
     """
     Optimized SYNDES design solution.
@@ -160,6 +210,10 @@ class SYNDESDesign:
     pre_fit_rmse : float or None, optional
         Root mean squared pre-period contrast, ``sqrt(mean(contrast_series^2))``
         -- how tightly the design balances treated and control before launch.
+    solve_outcome : SYNDESSolveOutcome or None, optional
+        What the mixed-integer solve found: the solver's own status, whether a
+        limit stopped it, its dual bound and gap. None on the exact backend,
+        which reports through its own certificate.
 
     Notes
     -----
@@ -183,6 +237,7 @@ class SYNDESDesign:
     contrast_weights: Optional[np.ndarray] = None
     contrast_series: Optional[np.ndarray] = None
     pre_fit_rmse: Optional[float] = None
+    solve_outcome: Optional[SYNDESSolveOutcome] = None
 
 
 @dataclass(frozen=True)

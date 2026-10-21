@@ -1,0 +1,16 @@
+
+factor: 96 nodes
+  trace      root 0.8406  d1 med 0.9944 min 0.8419  d2 med 1.0000 min 0.9996  random med 0.9994 min 0.8383  above 0  {'optimal': 96}  53 ms/node
+  indicator  root 1.0000  d1 med 1.0000 min 1.0000  d2 med 1.0000 min 1.0000  random med 1.0000 min 1.0000  above 0  {'optimal': 95, 'optimal_inaccurate': 1}  151 ms/node
+
+noise: 96 nodes
+  trace      root 0.9564  d1 med 0.9805 min 0.9104  d2 med 1.0000 min 1.0000  random med 0.9878 min 0.9102  above 0  {'optimal': 96}  50 ms/node
+  indicator  root 1.0000  d1 med 1.0000 min 1.0000  d2 med 1.0000 min 1.0000  random med 1.0000 min 0.9841  above 0  {'optimal': 96}  125 ms/node
+
+geolift12: 96 nodes
+  trace      root 0.6566  d1 med 0.9058 min 0.6786  d2 med 1.0000 min 0.9978  random med 0.9858 min 0.6358  above 0  {'optimal': 96}  54 ms/node
+  indicator  root 0.9566  d1 med 1.0000 min 1.0000  d2 med 1.0000 min 1.0000  random med 1.0000 min 0.9359  above 0  {'optimal': 96}  160 ms/node
+
+county12: 96 nodes
+  trace      root 0.9146  d1 med 0.9102 min 0.6423  d2 med 1.0000 min 0.9563  random med 0.9938 min 0.6818  above 0  {'optimal': 96}  56 ms/node
+  indicator  root 0.9999  d1 med 1.0000 min 0.9999  d2 med 1.0000 min 1.0000  random med 1.0000 min 0.9999  above 0  {'optimal': 96}  171 ms/node

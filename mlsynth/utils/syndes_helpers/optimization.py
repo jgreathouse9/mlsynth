@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import warnings
+from typing import Any, Dict, Optional, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -10,17 +11,105 @@ import numpy as np
 from ..fast_scm_helpers.structure import IndexSet
 from ...exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from .formulation import build_syndes_problem_components, unpack_problem_components
-from .structures import SYNDESDesign
+from .structures import SYNDESDesign, SYNDESSolveOutcome
 
+#: cvxpy statuses that come with an incumbent. SCIP's ``timelimit`` and
+#: ``gaplimit`` both arrive as ``optimal_inaccurate``: the incumbent is accepted
+#: as a design -- a feasible design is a design -- and the solve's own outcome is
+#: recorded on it and warned about (:class:`SYNDESSolveOutcome`).
 _OPTIMAL_STATUSES = {
     "optimal",
     "optimal_inaccurate",
-    # SCIP returns these when it hits gap_limit / time_limit with a valid
-    # incumbent. Per Abadie & Zhao (2026, p. 13) a feasible non-optimal
-    # solution is sufficient for the bias bounds, so we accept them.
     "user_limit",
     "user_limit_inaccurate",
 }
+
+#: SCIP's terminal statuses that mean a limit, not a proof, ended the solve.
+_SCIP_LIMIT_STATUSES = {
+    "timelimit", "gaplimit", "nodelimit", "totalnodelimit", "stallnodelimit",
+    "bestsollimit", "sollimit", "memlimit", "restartlimit", "userinterrupt",
+}
+
+#: How far a binary may sit from 0 or 1 and still be read as one: SCIP's
+#: default feasibility tolerance (``numerics/feastol``).
+_INTEGRALITY_TOL = 1e-6
+
+
+class SYNDESSolveWarning(UserWarning):
+    """A SYNDES mixed-integer solve ended without proving its design optimal."""
+
+
+def _rounded_assignment(D_value: np.ndarray, tol: float = _INTEGRALITY_TOL) -> np.ndarray:
+    """The 0/1 assignment the solver returned, refused if it is not one.
+
+    ``D`` is dimensionless, so the tolerance is absolute: SCIP's feasibility
+    tolerance on a binary.
+    """
+    D = np.asarray(D_value, dtype=float).reshape(-1)
+    rounded = np.rint(D)
+    worst = float(np.max(np.abs(D - rounded))) if D.size else 0.0
+    if worst > tol or not np.isin(rounded, (0.0, 1.0)).all():
+        raise MlsynthEstimationError(
+            f"SYNDES optimization returned an assignment that is not integral: an "
+            f"entry lies {worst:.3g} from the nearest of 0 and 1, beyond the "
+            f"solver's feasibility tolerance {tol:g}.")
+    return rounded.astype(int)
+
+
+def _gap(objective: float, bound: float) -> float:
+    """Relative optimality gap, ``(objective - bound) / max(|objective|, |bound|)``.
+
+    Relative to the larger of the two, with no floor, so it does not depend on
+    the units of the outcome. Zero when both are zero.
+    """
+    scale = max(abs(float(objective)), abs(float(bound)))
+    if scale == 0.0:
+        return 0.0
+    return (float(objective) - float(bound)) / scale
+
+
+def _refit(Y: np.ndarray, assignment: np.ndarray, mode: str, lam: float,
+           restrictions: Optional[Any]) -> Tuple[Dict[str, Any], float]:
+    """Weights and objective for a fixed treated set.
+
+    The same program with ``D`` fixed to ``assignment``: its McCormick rows are
+    then exact, so this is the convex QP of the design's weights, and its
+    optimum is what the rounded assignment attains. The donor-side restrictions
+    apply unchanged.
+    """
+    N = assignment.shape[0]
+    D = cp.Variable(N)
+    components = build_syndes_problem_components(
+        Y=Y, D=D, K=int(assignment.sum()), lam=lam, mode=mode)
+    constraints = list(components.constraints) + [D == assignment.astype(float)]
+    if restrictions is not None and not restrictions.is_empty:
+        from .restrictions import donor_constraints
+        constraints += donor_constraints(
+            mode, components.variables, D, restrictions.donor_exclusion)
+    problem = cp.Problem(cp.Minimize(components.objective), constraints)
+    try:
+        problem.solve(solver=cp.CLARABEL)
+    except Exception as exc:
+        raise MlsynthEstimationError(
+            f"SYNDES refit for the rounded assignment failed: {exc}") from exc
+    if problem.status != "optimal" or problem.value is None:
+        raise MlsynthEstimationError(
+            f"SYNDES refit for the rounded assignment failed: {problem.status}.")
+    values = {name: var.value for name, var in components.variables.items()}
+    return values, float(problem.value)
+
+
+def _scip_limits(solver: Any, gap_limit: Optional[float],
+                 time_limit: Optional[float]) -> Tuple[Dict[str, float], bool]:
+    """SCIP parameters for the limits, and whether the limits reach the solver."""
+    params: Dict[str, float] = {}
+    if gap_limit is not None:
+        params["limits/gap"] = float(gap_limit)
+    if time_limit is not None:
+        params["limits/time"] = float(time_limit)
+    is_scip = str(solver).upper() == "SCIP"
+    requested = gap_limit is not None or time_limit is not None
+    return (params if is_scip else {}), (is_scip or not requested)
 
 
 def estimate_lambda(Y: np.ndarray) -> float:
@@ -129,6 +218,28 @@ def _build_per_unit(Y: np.ndarray, D: cp.Variable, K: int, lam: float):
     return unpack_problem_components(components)
 
 
+def _simplex_within_tolerance(c: Any, excluded: np.ndarray,
+                              tol: float = 1e-7) -> np.ndarray:
+    """A solver's simplex weights, repaired only within its tolerance.
+
+    ``excluded`` marks the units the weights must not use (the treated units,
+    ``c <= 1 - D``). Entries there, and entries below zero, are set to zero when
+    they are within ``tol`` of it -- the weights are dimensionless and sum to
+    one -- and the vector is rescaled to sum to one. Anything further outside is
+    a failed solve and raises.
+    """
+    c = np.asarray(c, dtype=float).reshape(-1)
+    excluded = np.asarray(excluded, dtype=bool).reshape(-1)
+    off = float(np.max(np.abs(c[excluded]))) if excluded.any() else 0.0
+    if c.min() < -tol or off > tol or abs(c.sum() - 1.0) > tol:
+        raise MlsynthEstimationError(
+            f"SYNDES control weights left the simplex beyond the solver's "
+            f"tolerance: min {c.min():.3g}, weight on treated units {off:.3g}, "
+            f"sum {c.sum():.12g}.")
+    c = np.where(excluded, 0.0, np.clip(c, 0.0, None))
+    return c / c.sum()
+
+
 def _extract_weights(mode, assignment, values):
     """
     Extract implied weights from solved SYNDES optimization.
@@ -163,7 +274,7 @@ def _extract_weights(mode, assignment, values):
         if c is None:
             control_weights = (1 - assignment) / (N - K)
         else:
-            control_weights = np.clip(np.asarray(c, dtype=float).reshape(-1), 0.0, None)
+            control_weights = _simplex_within_tolerance(c, assignment == 1)
         contrast_weights = treated_weights - control_weights
         return treated_weights, control_weights, contrast_weights
 
@@ -297,30 +408,19 @@ def solve_synthetic_design(
 
     problem = cp.Problem(cp.Minimize(components.objective), prob_constraints)
 
-    # Plumb the user-supplied SCIP limits (Abadie & Zhao 2026 p. 13:
-    # "we do not strictly require optimality of {w*, v*}, provided
-    # {w*, v*} is feasible"). Only added when the solver is SCIP, since
-    # ``scip_params`` is a SCIP-specific cvxpy kwarg.
-    solve_kwargs: dict = {"solver": solver, "verbose": verbose}
-    if str(solver).upper() == "SCIP":
-        scip_params: dict = {}
-        if gap_limit is not None:
-            scip_params["limits/gap"] = float(gap_limit)
-        if time_limit is not None:
-            scip_params["limits/time"] = float(time_limit)
-        if scip_params:
-            solve_kwargs["scip_params"] = scip_params
-
-    # Accelerated path: when a warm start and/or a valid objective lower-bound
-    # cut are supplied (SCIP only), route through ``miqp_accel.solve_warm_cut``,
-    # which injects the binary MIP start and the cut ``objective >= L`` so SCIP's
-    # dual bound is lifted to ``L`` and ``gap_limit`` certifies against it. When
-    # both are None the original ``problem.solve`` path is byte-identical.
+    # SCIP runs through ``miqp_accel.solve_warm_cut``, which builds the same
+    # model cvxpy builds and keeps it, so SCIP's own status, dual bound and gap
+    # can be read: cvxpy reports a time-limited incumbent and a proven optimum
+    # alike as ``optimal_inaccurate``. With no warm start and no cut it adds
+    # nothing to the model. The limits reach SCIP only; ``limits_applied``
+    # records whether they reached the solver.
+    scip_params, limits_applied = _scip_limits(solver, gap_limit, time_limit)
+    is_scip = str(solver).upper() == "SCIP"
     accel_info = None
-    use_accel = (str(solver).upper() == "SCIP"
-                 and (warm_start_D is not None or objective_lower_bound is not None))
+    use_accel = is_scip and (warm_start_D is not None
+                             or objective_lower_bound is not None)
     try:
-        if use_accel:
+        if is_scip:
             from ..miqp_accel import solve_warm_cut
             warm_bits = (None if warm_start_D is None
                          else np.asarray(warm_start_D, dtype=float).reshape(-1))
@@ -330,7 +430,7 @@ def solve_synthetic_design(
                 gap_limit=gap_limit, time_limit=time_limit, verbose=verbose,
             )
         else:
-            problem.solve(**solve_kwargs)
+            problem.solve(solver=solver, verbose=verbose)
     except Exception as exc:
         raise MlsynthEstimationError(
             f"SYNDES optimization failed to solve: {exc}"
@@ -356,8 +456,14 @@ def solve_synthetic_design(
     # ----------------------------
     # core outputs
     # ----------------------------
-    assignment = (np.asarray(D.value).reshape(-1) >= 0.5).astype(int)
+    assignment = _rounded_assignment(D.value)
     selected_indices = np.where(assignment == 1)[0]
+    solver_objective = float(problem.value)
+    values, objective = _refit(Y, assignment, mode, lam_value, restrictions)
+    outcome = _solve_outcome(problem, accel_info, solver_objective, objective,
+                             limits_applied)
+    if outcome.stopped_at_limit or outcome.status != "optimal":
+        warnings.warn(_outcome_message(outcome), SYNDESSolveWarning, stacklevel=2)
 
     # labels
     if unit_index is not None:
@@ -366,9 +472,6 @@ def solve_synthetic_design(
     else:
         selected_labels = selected_indices
         all_labels = np.arange(N)
-
-    # raw solver outputs
-    values = {name: var.value for name, var in components.variables.items()}
 
     # ----------------------------
     # NEW: unified weight extraction
@@ -390,7 +493,7 @@ def solve_synthetic_design(
         "status": problem.status,
         "solver": solver,
     }
-    if accel_info is not None:
+    if use_accel:
         raw_results["accel"] = {
             "status": accel_info.status,
             "dual_bound": accel_info.dual_bound,
@@ -404,7 +507,7 @@ def solve_synthetic_design(
 
     return SYNDESDesign(
         mode=mode,
-        objective_value=float(problem.value),
+        objective_value=objective,
         lambda_value=lam_value,
 
         assignment=assignment,
@@ -428,7 +531,50 @@ def solve_synthetic_design(
         pre_fit_rmse=pre_fit_rmse,
 
         raw_results=raw_results,
+        solve_outcome=outcome,
     )
+
+
+def _solve_outcome(problem: cp.Problem, accel_info: Any, solver_objective: float,
+                   objective: float, limits_applied: bool) -> SYNDESSolveOutcome:
+    """The solve's outcome, with SCIP's bound moved into the objective's units.
+
+    SCIP bounds the canonical objective ``c'x``; cvxpy adds the objective's
+    constant afterwards (the one-way objective carries ``lam / K``). The
+    constant is the difference between the objective at SCIP's point and SCIP's
+    primal bound there, and it is added to the dual bound.
+    """
+    if accel_info is None:
+        status = str(problem.status)
+        return SYNDESSolveOutcome(
+            status=status, solver_status=status,
+            stopped_at_limit=status.startswith("user_limit"),
+            objective=objective, solver_objective=solver_objective,
+            dual_bound=None, gap=None, solve_time=None,
+            limits_applied=limits_applied)
+    dual_bound = None
+    gap = None
+    if np.isfinite(accel_info.dual_bound) and np.isfinite(accel_info.primal_bound):
+        dual_bound = float(accel_info.dual_bound) + (
+            solver_objective - float(accel_info.primal_bound))
+        gap = _gap(objective, dual_bound)
+    return SYNDESSolveOutcome(
+        status=str(accel_info.status), solver_status=str(problem.status),
+        stopped_at_limit=str(accel_info.status) in _SCIP_LIMIT_STATUSES,
+        objective=objective, solver_objective=solver_objective,
+        dual_bound=dual_bound, gap=gap, solve_time=float(accel_info.solve_time),
+        limits_applied=limits_applied)
+
+
+def _outcome_message(outcome: SYNDESSolveOutcome) -> str:
+    limit = {"timelimit": "the time limit", "gaplimit": "the gap limit"}.get(
+        outcome.status, f"status {outcome.status!r}")
+    gap = "unknown" if outcome.gap is None else f"{outcome.gap:.3g}"
+    return (
+        f"SYNDES's mixed-integer solve stopped at {limit} without proving its "
+        f"design optimal; the design is the best one found, with a relative gap "
+        f"of {gap} to the solver's lower bound. Raise time_limit, lower "
+        f"gap_limit, or read design.solve_outcome.")
 
 
 def solve_synthetic_design_pool(
@@ -481,10 +627,10 @@ def solve_synthetic_design_pool(
                 forbidden_sets=forbidden, restrictions=restrictions,
             )
         except MlsynthEstimationError as exc:
-            # A missing optional solver (e.g. SCIP not installed) is an
-            # environment error, not an exhausted feasible region -- propagate
-            # it so callers see the real cause instead of an empty pool.
-            if "not installed" in str(exc):
+            # Only an infeasible solve means the region is exhausted. Anything
+            # else -- a missing solver, a failed refit, a solver error -- is a
+            # failure, and an empty or short pool would hide it.
+            if "infeasible" not in str(exc).lower():
                 raise
             break  # feasible region exhausted (no further distinct design)
         designs.append(d)
