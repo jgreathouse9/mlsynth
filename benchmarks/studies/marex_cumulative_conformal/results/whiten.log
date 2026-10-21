@@ -1,0 +1,36 @@
+series n=26 H=13 gauss alpha=0.05: cyclic=0.977  subsets=0.953  white=0.952  white2=0.952  white_exact=1.000  white_innov=0.956
+series n=26 H=13 gauss alpha=0.2: cyclic=0.823  subsets=0.800  white=0.800  white2=0.773  white_exact=0.970  white_innov=0.799
+series n=26 H=13 ar5 alpha=0.05: cyclic=0.972  subsets=0.815  white=0.960  white2=0.956  white_exact=1.000  white_innov=0.947
+series n=26 H=13 ar5 alpha=0.2: cyclic=0.824  subsets=0.626  white=0.772  white2=0.763  white_exact=0.986  white_innov=0.767
+series n=26 H=13 ar8 alpha=0.05: cyclic=0.937  subsets=0.669  white=0.948  white2=0.938  white_exact=0.996  white_innov=0.955
+series n=26 H=13 ar8 alpha=0.2: cyclic=0.790  subsets=0.522  white=0.722  white2=0.726  white_exact=0.968  white_innov=0.706
+series n=26 H=13 arneg5 alpha=0.05: cyclic=0.976  subsets=0.997  white=0.949  white2=0.944  white_exact=0.998  white_innov=0.949
+series n=26 H=13 arneg5 alpha=0.2: cyclic=0.821  subsets=0.939  white=0.780  white2=0.768  white_exact=0.973  white_innov=0.787
+series n=48 H=13 gauss alpha=0.05: cyclic=0.952  subsets=0.951  white=0.949  white2=0.947  white_exact=0.999  white_innov=0.941
+series n=48 H=13 gauss alpha=0.2: cyclic=0.786  subsets=0.785  white=0.774  white2=0.771  white_exact=0.952  white_innov=0.772
+series n=48 H=13 ar5 alpha=0.05: cyclic=0.947  subsets=0.804  white=0.948  white2=0.946  white_exact=1.000  white_innov=0.949
+series n=48 H=13 ar5 alpha=0.2: cyclic=0.793  subsets=0.599  white=0.799  white2=0.787  white_exact=0.981  white_innov=0.784
+series n=48 H=13 ar8 alpha=0.05: cyclic=0.922  subsets=0.643  white=0.937  white2=0.938  white_exact=0.999  white_innov=0.949
+series n=48 H=13 ar8 alpha=0.2: cyclic=0.784  subsets=0.496  white=0.749  white2=0.728  white_exact=0.973  white_innov=0.746
+series n=48 H=13 arneg5 alpha=0.05: cyclic=0.966  subsets=0.996  white=0.955  white2=0.943  white_exact=0.996  white_innov=0.952
+series n=48 H=13 arneg5 alpha=0.2: cyclic=0.811  subsets=0.944  white=0.803  white2=0.792  white_exact=0.959  white_innov=0.793
+series n=96 H=13 gauss alpha=0.05: cyclic=0.956  subsets=0.958  white=0.955  white2=0.957  white_exact=1.000  white_innov=0.961
+series n=96 H=13 gauss alpha=0.2: cyclic=0.811  subsets=0.809  white=0.795  white2=0.804  white_exact=0.946  white_innov=0.808
+series n=96 H=13 ar5 alpha=0.05: cyclic=0.954  subsets=0.806  white=0.959  white2=0.954  white_exact=0.999  white_innov=0.960
+series n=96 H=13 ar5 alpha=0.2: cyclic=0.820  subsets=0.633  white=0.807  white2=0.808  white_exact=0.979  white_innov=0.802
+series n=96 H=13 ar8 alpha=0.05: cyclic=0.942  subsets=0.666  white=0.955  white2=0.952  white_exact=1.000  white_innov=0.950
+series n=96 H=13 ar8 alpha=0.2: cyclic=0.815  subsets=0.497  white=0.784  white2=0.787  white_exact=0.983  white_innov=0.796
+series n=96 H=13 arneg5 alpha=0.05: cyclic=0.963  subsets=0.997  white=0.963  white2=0.960  white_exact=0.996  white_innov=0.961
+series n=96 H=13 arneg5 alpha=0.2: cyclic=0.810  subsets=0.970  white=0.796  white2=0.792  white_exact=0.943  white_innov=0.805
+designs TE=40 Tb=26 H=13 ar alpha=0.05 draws=300: cyclic:constant=0.910 cyclic:ramp=0.973 subsets:constant=0.763 subsets:ramp=0.800 white:constant=0.883 white:ramp=0.953 white2:constant=0.900 white2:ramp=0.970 white_exact:constant=0.983 white_exact:ramp=0.993 white_innov:constant=0.883 white_innov:ramp=0.953
+designs TE=40 Tb=26 H=13 ar alpha=0.2 draws=300: cyclic:constant=0.730 cyclic:ramp=0.800 subsets:constant=0.567 subsets:ramp=0.627 white:constant=0.687 white:ramp=0.800 white2:constant=0.720 white2:ramp=0.833 white_exact:constant=0.897 white_exact:ramp=0.953 white_innov:constant=0.687 white_innov:ramp=0.800
+designs ar: lag-1 acf of the blank+post contrast median +0.54, of the refit residuals +0.27; median width at 0.05, first 100 draws: cyclic=43.50 (inf 0.14) white=36.00 (inf 0.07)
+designs TE=40 Tb=26 H=13 ar5 alpha=0.05 draws=300: cyclic:constant=0.927 cyclic:ramp=0.987 subsets:constant=0.840 subsets:ramp=0.873 white:constant=0.903 white:ramp=0.970 white2:constant=0.913 white2:ramp=0.980 white_exact:constant=0.993 white_exact:ramp=0.997 white_innov:constant=0.923 white_innov:ramp=0.960
+designs TE=40 Tb=26 H=13 ar5 alpha=0.2 draws=300: cyclic:constant=0.767 cyclic:ramp=0.837 subsets:constant=0.630 subsets:ramp=0.697 white:constant=0.743 white:ramp=0.853 white2:constant=0.723 white2:ramp=0.880 white_exact:constant=0.930 white_exact:ramp=0.980 white_innov:constant=0.737 white_innov:ramp=0.850
+designs ar5: lag-1 acf of the blank+post contrast median +0.33, of the refit residuals +0.19; median width at 0.05, first 100 draws: cyclic=31.50 (inf 0.00) white=24.00 (inf 0.00)
+designs TE=40 Tb=26 H=13 arneg alpha=0.05 draws=300: cyclic:constant=0.957 cyclic:ramp=1.000 subsets:constant=0.963 subsets:ramp=0.997 white:constant=0.943 white:ramp=1.000 white2:constant=0.953 white2:ramp=1.000 white_exact:constant=0.997 white_exact:ramp=1.000 white_innov:constant=0.940 white_innov:ramp=1.000
+designs TE=40 Tb=26 H=13 arneg alpha=0.2 draws=300: cyclic:constant=0.813 cyclic:ramp=0.960 subsets:constant=0.873 subsets:ramp=0.937 white:constant=0.783 white:ramp=0.960 white2:constant=0.790 white2:ramp=0.990 white_exact:constant=0.937 white_exact:ramp=1.000 white_innov:constant=0.803 white_innov:ramp=0.973
+designs arneg: lag-1 acf of the blank+post contrast median -0.38, of the refit residuals -0.21; median width at 0.05, first 100 draws: cyclic=19.50 (inf 0.00) white=13.50 (inf 0.00)
+designs TE=40 Tb=26 H=13 iid alpha=0.05 draws=300: cyclic:constant=0.950 cyclic:ramp=0.997 subsets:constant=0.913 subsets:ramp=0.973 white:constant=0.927 white:ramp=0.993 white2:constant=0.923 white2:ramp=0.997 white_exact:constant=1.000 white_exact:ramp=1.000 white_innov:constant=0.933 white_innov:ramp=0.997
+designs TE=40 Tb=26 H=13 iid alpha=0.2 draws=300: cyclic:constant=0.773 cyclic:ramp=0.907 subsets:constant=0.730 subsets:ramp=0.817 white:constant=0.740 white:ramp=0.913 white2:constant=0.737 white2:ramp=0.937 white_exact:constant=0.930 white_exact:ramp=0.997 white_innov:constant=0.750 white_innov:ramp=0.907
+designs iid: lag-1 acf of the blank+post contrast median -0.01, of the refit residuals +0.00; median width at 0.05, first 100 draws: cyclic=25.50 (inf 0.00) white=18.00 (inf 0.00)

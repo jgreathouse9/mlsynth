@@ -137,10 +137,11 @@ def solve_partition_batch(
     the projection sorts ``K`` and ``N - K`` columns instead of masking ``N``,
     which is where the time goes.
 
-    Iterates until every row's Frank-Wolfe gap falls under ``tol``, or for
-    ``max_iter`` steps. Pass ``tol=0.0`` to run a fixed number of steps, which is
-    what a cheap screening pass wants: the gaps are then loose but still valid,
-    so pruning on ``value - gap`` stays sound.
+    Iterates until every row's Frank-Wolfe gap is at most ``tol`` times its
+    value, or for ``max_iter`` steps. The stop is relative, so it asks for the
+    same precision whatever the units of ``Y``. Pass ``tol=0.0`` to run a fixed
+    number of steps, which is what a cheap screening pass wants: the gaps are
+    then loose but still valid, so pruning on ``value - gap`` stays sound.
 
     Raises
     ------
@@ -205,8 +206,9 @@ def solve_partition_batch(
         A_prev, B_prev, momentum = A_new, B_new, next_momentum
 
         if tol > 0.0 and (iteration + 1) % check_every == 0:
-            if _duality_gap(*_gradients(A_prev, B_prev)[1:],
-                            A_prev, B_prev).max() < tol:
+            product, grad_a, grad_b = _gradients(A_prev, B_prev)
+            value = np.einsum("bi,bi->b", contrast, product)
+            if np.all(_duality_gap(grad_a, grad_b, A_prev, B_prev) <= tol * value):
                 break
 
     product, grad_a, grad_b = _gradients(A_prev, B_prev)

@@ -1,0 +1,38 @@
+factor_n20_k3_s0: gap=0.0370 agree=True root True 0.01s | pair True 0.01s | bnb True 7 nodes 0.03s | scip timelimit 62.1s excess=1.17e-16 same=True
+factor_n20_k3_s1: gap=0.0182 agree=True root True 0.02s | pair True 0.02s | bnb True 5 nodes 0.03s | scip gaplimit 49.7s excess=0.00e+00 same=True
+factor_n20_k3_s2: gap=0.0656 agree=True root True 0.03s | pair True 0.02s | bnb True 11 nodes 0.05s | scip timelimit 61.6s excess=1.94e-16 same=True
+factor_n20_k5_s0: gap=0.0796 agree=True root True 0.02s | pair True 0.02s | bnb True 11 nodes 0.05s | scip gaplimit 12.5s excess=1.86e-16 same=True
+factor_n20_k5_s1: gap=0.0771 agree=True root True 0.06s | pair True 0.08s | bnb True 31 nodes 0.19s | scip gaplimit 17.0s excess=0.00e+00 same=True
+factor_n20_k5_s2: gap=0.0876 agree=True root True 0.04s | pair True 0.05s | bnb True 15 nodes 0.08s | scip gaplimit 10.3s excess=1.69e-16 same=True
+factor_n20_k10_s0: gap=0.2321 agree=True root True 1.70s | pair True 0.45s | bnb True 267 nodes 0.54s | scip gaplimit 58.4s excess=0.00e+00 same=True
+factor_n20_k10_s1: gap=0.2249 agree=True root True 0.24s | pair True 0.13s | bnb True 115 nodes 0.23s | scip gaplimit 25.7s excess=0.00e+00 same=True
+factor_n20_k10_s2: gap=0.2522 agree=True root True 4.67s | pair True 1.01s | bnb True 603 nodes 1.29s | scip timelimit 61.5s excess=0.00e+00 same=True
+factor_n40_k3_s0: gap=0.0138 agree=True root True 0.10s | pair True 0.09s | bnb True 7 nodes 0.16s | scip timelimit 67.1s excess=9.66e-01 same=False
+factor_n40_k3_s1: gap=0.0129 agree=True root True 0.11s | pair True 0.12s | bnb True 7 nodes 0.22s | scip timelimit 66.5s excess=1.13e+01 same=False
+factor_n40_k3_s2: gap=0.0182 agree=True root True 0.13s | pair True 0.14s | bnb True 7 nodes 0.21s | scip gaplimit 39.5s excess=0.00e+00 same=True
+factor_n40_k5_s0: gap=0.0293 agree=True root True 0.10s | pair True 0.13s | bnb True 15 nodes 0.23s | scip timelimit 66.6s excess=5.15e-03 same=False
+malloc(): invalid size (unsorted)
+factor_n40_k5_s1: gap=0.0407 agree=True root True 0.14s | pair True 0.19s | bnb True 25 nodes 0.42s | scip hung 720.9s excess=nan same=False
+malloc(): invalid size (unsorted)
+factor_n40_k5_s2: gap=0.0285 agree=True root True 0.15s | pair True 0.15s | bnb True 13 nodes 0.33s | scip hung 720.9s excess=nan same=False
+factor_n40_k10_s0: gap=0.0920 agree=True root True 1.46s | pair True 0.72s | bnb True 91 nodes 0.88s | scip timelimit 66.7s excess=1.72e+00 same=False
+factor_n40_k10_s1: gap=0.0843 agree=True root True 7.28s | pair True 3.09s | bnb True 617 nodes 5.24s | scip timelimit 66.5s excess=6.55e+00 same=False
+factor_n40_k10_s2: gap=0.0698 agree=True root True 1.18s | pair True 0.65s | bnb True 81 nodes 1.28s | scip timelimit 67.9s excess=5.63e-02 same=False
+factor_n60_k3_s0: gap=0.0075 agree=True root True 0.28s | pair True 0.30s | bnb True 9 nodes 0.47s | scip timelimit 76.4s excess=1.33e+00 same=False
+factor_n60_k3_s1: gap=0.0104 agree=True root True 0.32s | pair True 0.29s | bnb True 7 nodes 0.49s | scip timelimit 77.9s excess=4.50e+00 same=False
+factor_n60_k3_s2: gap=0.0226 agree=True root True 0.28s | pair True 0.26s | bnb True 7 nodes 0.39s | scip timelimit 76.0s excess=2.03e+00 same=False
+factor_n60_k5_s0: gap=0.0197 agree=True root True 0.34s | pair True 0.41s | bnb True 27 nodes 0.87s | scip timelimit 77.2s excess=7.19e+00 same=False
+factor_n60_k5_s1: gap=0.0231 agree=True root True 0.30s | pair True 0.35s | bnb True 11 nodes 0.67s | scip timelimit 78.8s excess=2.76e-02 same=False
+factor_n60_k5_s2: gap=0.0357 agree=True root True 0.39s | pair True 0.34s | bnb True 11 nodes 0.51s | scip timelimit 77.4s excess=1.81e+00 same=False
+factor_n60_k10_s0: gap=0.0491 agree=True root True 1.99s | pair True 1.40s | bnb True 59 nodes 1.77s | scip timelimit 76.8s excess=3.72e+00 same=False
+factor_n60_k10_s1: gap=0.0529 agree=True root True 27.97s | pair True 10.11s | bnb True 191 nodes 5.58s | scip timelimit 76.9s excess=4.95e+00 same=False
+factor_n60_k10_s2: gap=0.0548 agree=True root True 1.82s | pair True 1.42s | bnb True 39 nodes 1.39s | scip timelimit 76.6s excess=1.91e+00 same=False
+factor_n100_k3_s0: gap=0.0075 agree=True root True 0.47s | pair True 0.50s | bnb True 7 nodes 0.84s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 353.0s excess=nan same=False
+factor_n100_k3_s1: gap=0.0036 agree=True root True 0.58s | pair True 0.50s | bnb True 7 nodes 0.84s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 359.9s excess=nan same=False
+factor_n100_k3_s2: gap=0.0136 agree=True root True 0.57s | pair True 0.74s | bnb True 7 nodes 0.86s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 351.8s excess=nan same=False
+factor_n100_k5_s0: gap=0.0144 agree=True root True 0.54s | pair True 0.59s | bnb True 11 nodes 1.34s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 358.4s excess=nan same=False
+factor_n100_k5_s1: gap=0.0062 agree=True root True 0.51s | pair True 0.65s | bnb True 11 nodes 1.22s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 353.2s excess=nan same=False
+factor_n100_k5_s2: gap=0.0154 agree=True root True 0.87s | pair True 0.90s | bnb True 15 nodes 1.38s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 327.5s excess=nan same=False
+factor_n100_k10_s0: gap=0.0289 agree=True root True 2.20s | pair True 2.51s | bnb True 39 nodes 2.99s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 340.3s excess=nan same=False
+factor_n100_k10_s1: gap=0.0163 agree=True root True 1.64s | pair True 1.95s | bnb True 33 nodes 2.55s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 342.1s excess=nan same=False
+factor_n100_k10_s2: gap=0.0313 agree=True root True 3.52s | pair True 3.53s | bnb True 43 nodes 3.65s | scip error: Cannot unpack invalid solution: Solution(status=solver_error 340.5s excess=nan same=False

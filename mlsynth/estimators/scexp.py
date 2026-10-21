@@ -65,6 +65,7 @@ class MAREX:
         self.design: str = config.design
 
         self.beta: float = config.beta
+        self.control_penalty: float = config.control_penalty
         self.lambda1: float = config.lambda1
         self.lambda2: float = config.lambda2
         self.xi: float = config.xi
@@ -73,7 +74,7 @@ class MAREX:
         self.costs = config.costs
         self.budget = config.budget
         self.covariates = config.covariates
-        self.covariate_weight: float = config.covariate_weight
+        self.covariate_weight = config.covariate_weight
         self.standardize: bool = config.standardize
 
         self.blank_periods: int = config.blank_periods
@@ -158,6 +159,10 @@ class MAREX:
             pos = {lab: i for i, lab in enumerate(panel.unit_index.labels)}
             warm_idx = [pos[u] for u in self.warm_start if u in pos]
 
+        from ..utils.marex_helpers.optimization import resolve_covariate_weight
+        covariate_weight = resolve_covariate_weight(
+            self.covariate_weight, panel.covariate_names)
+
         try:
             import cvxpy as cp
             results = solve_marex(
@@ -169,18 +174,23 @@ class MAREX:
                 lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                 costs=self.costs, budget=self.budget,
                 covariates=panel.covariates, covariate_names=panel.covariate_names,
-                covariate_weight=self.covariate_weight,
+                covariate_weight=covariate_weight,
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
+                alpha=self.config.alpha, T_post=self.config.T_post,
+                unit_inference=self.config.unit_inference,
                 unit_index=panel.unit_index, time_index=panel.time_index,
                 restrictions=restrictions,
                 warm_start=warm_idx, time_limit=self.time_limit,
                 cumulative_band=self.config.cumulative_band,
+                cumulative_method=self.config.cumulative_method,
                 cumulative_block=self.config.cumulative_block,
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
+                control_penalty=self.control_penalty,
+                certify=self.config.certify,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -208,10 +218,11 @@ class MAREX:
                     top_K=self.config.top_K, blank_periods=pool_blank,
                     m_eq=self.m_eq, m_min=self.m_min, m_max=self.m_max,
                     exclusive=self.exclusive, design=self.design, beta=self.beta,
+                    control_penalty=self.control_penalty,
                     lambda1=self.lambda1, lambda2=self.lambda2, xi=self.xi,
                     lambda1_unit=self.lambda1_unit, lambda2_unit=self.lambda2_unit,
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
-                    covariate_weight=self.covariate_weight, standardize=self.standardize,
+                    covariate_weight=covariate_weight, standardize=self.standardize,
                     restrictions=restrictions,
                 )
                 if self.config.backend == "exact":

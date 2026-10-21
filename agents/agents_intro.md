@@ -145,3 +145,6 @@ Study these implementations before introducing new architecture.
 - `agents_tests.md` — testing philosophy, instruments, and the four levels.
 - `agents_docs.md` — documentation conventions and the notation canon.
 - `agents_benchmarking.md` — definitions of done for benchmark cases.
+- `agents_combinatorial.md` — how the exact design backends search over sets:
+  the oracle, valid bounds, the cost rule, and the bound families measured
+  against MAREX and SYNDES.

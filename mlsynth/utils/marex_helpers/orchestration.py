@@ -11,9 +11,11 @@ from dataclasses import replace as _dc_replace
 from ...config_models import WeightsResults
 from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
+from .unit_inference import unit_level_inference
 from .exact import solve_design_exact
 from .optimization import solve_design, solve_design_relaxed
 from .structures import (
+    MAREXCertificate,
     MAREXClusterDesign,
     MAREXGlobalDesign,
     MAREXInference,
@@ -49,6 +51,8 @@ def solve_marex(
     relaxed=False,
     inference=False,
     alpha=0.05,
+    T_post=None,
+    unit_inference=False,
     max_combinations=1000,
     random_state=42,
     unit_index=None,
@@ -57,26 +61,38 @@ def solve_marex(
     warm_start=None,
     time_limit=None,
     cumulative_band=False,
+    cumulative_method="resample",
     cumulative_block=0,
     cumulative_n_sim=2000,
     cumulative_seed=0,
     backend="mip",
+    control_penalty=0.0,
+    certify=False,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
     With ``relaxed=True`` the continuous-``z`` QP with post-hoc discretization is
     used; otherwise the exact MIQP. With ``inference=True``, blank-period
-    placebo inference is computed for every cluster and the aggregate.
+    placebo inference is computed for every cluster and the aggregate, at level
+    ``alpha`` and over the first ``T_post`` periods after ``T0`` (all of them
+    when ``None``). ``unit_inference=True`` adds it for each treated unit
+    against its own synthetic control, with eq. (11)'s aggregate
+    (:mod:`mlsynth.utils.marex_helpers.unit_inference`).
 
     ``backend="exact"`` solves the design by searching treated sets
     (:func:`mlsynth.utils.marex_helpers.exact.solve_design_exact`) instead of
     handing the MIQP to SCIP; it returns the same design dict, so everything
-    after the solve is shared.
+    after the solve is shared. With ``certify=True`` it also certifies the
+    design's optimality gap (:mod:`mlsynth.utils.marex_helpers.certify`).
 
     ``cumulative_band=True`` adds a band for the total post-period effect to that
     inference, block-resampling the blank-period effects with block length
     ``cumulative_block`` (``0`` means the whole horizon) into ``cumulative_n_sim``
     accumulated paths, seeded by ``cumulative_seed``. It needs no extra solve.
+    ``cumulative_method="inversion"`` builds that band by test inversion instead,
+    refitting each synthetic treated series on the units its design left
+    untreated: a cluster's own unselected members, or every untreated unit for
+    the aggregate.
     """
     solve = solve_design_relaxed if relaxed else solve_design
     solve_kw = dict(
@@ -86,7 +102,7 @@ def solve_marex(
         lambda1_unit=lambda1_unit, lambda2_unit=lambda2_unit,
         costs=costs, budget=budget, covariates=covariates,
         covariate_weight=covariate_weight, standardize=standardize,
-        solver=solver, verbose=verbose,
+        solver=solver, verbose=verbose, control_penalty=control_penalty,
     )
     if backend == "exact":
         # The search takes the restrictions and none of branch-and-bound's
@@ -94,6 +110,7 @@ def solve_marex(
         for knob in ("solver", "verbose"):
             solve_kw.pop(knob)
         solve_kw["restrictions"] = restrictions
+        solve_kw["certify"] = certify
         raw = solve_design_exact(**solve_kw)
     else:
         # Restrictions are not taken by the relaxed path, whose rounding can't
@@ -122,13 +139,16 @@ def solve_marex(
     T0_eff = raw["T0"]
     TcE = T0_eff - blank_periods
 
-    def _maybe_infer(syn_t, syn_c):
+    def _maybe_infer(syn_t, syn_c, donors):
         if not (inference and blank_periods > 0):
             return None
         return compute_inference(syn_t, syn_c, T0_eff, TcE, blank_periods,
                                  alpha=alpha, max_combinations=max_combinations,
                                  random_state=random_state,
                                  cumulative_band=cumulative_band,
+                                 cumulative_method=cumulative_method,
+                                 control_outcomes=Y_full_np[donors],
+                                 T_post=T_post,
                                  cumulative_block=cumulative_block,
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)
@@ -216,7 +236,7 @@ def solve_marex(
             selection_indicators=sel, synthetic_treated=syn_t,
             synthetic_control=syn_c, pre_treatment_means=raw["Xbar_clusters"][k],
             rmse=float(raw["rmse_cluster"][k]), unit_weight_map=uwm,
-            inference=_maybe_infer(syn_t, syn_c),
+            inference=_maybe_infer(syn_t, syn_c, idx[sel == 0]),
         )
 
     # aggregate (global) design
@@ -232,12 +252,27 @@ def solve_marex(
     adj_control = np.where(is_treated, 0.0, v_agg)
     g_syn_t = adj_treated @ Y_full_np
     g_syn_c = adj_control @ Y_full_np
+    unit_level = None
+    if unit_inference and inference and blank_periods > 0:
+        unit_level = unit_level_inference(
+            Y_full_np,
+            [(str(lab), np.where(clusters_vec == lab)[0], w_sw[:, label_to_k[lab]])
+             for lab in np.unique(clusters_vec)],
+            adj_treated, unit_labels, T0=T0_eff, TcE=TcE, Tb=blank_periods,
+            alpha=alpha, max_combinations=max_combinations,
+            random_state=random_state, T_post=T_post,
+            cumulative_band=cumulative_band,
+            cumulative_method=cumulative_method,
+            cumulative_block=cumulative_block,
+            cumulative_n_sim=cumulative_n_sim,
+            cumulative_seed=cumulative_seed)
     globres = MAREXGlobalDesign(
         Y_full=Y_full_np, Y_fit=raw["Y_fit"], Y_blank=raw["Y_blank"],
         treated_weights_agg=adj_treated, control_weights_agg=adj_control,
         synthetic_treated=g_syn_t, synthetic_control=g_syn_c,
-        inference=_maybe_infer(g_syn_t, g_syn_c),
+        inference=_maybe_infer(g_syn_t, g_syn_c, ~is_treated),
         objective=float(raw.get("objective", float("nan"))),
+        unit_level=unit_level,
     )
 
     study = MAREXStudy(
@@ -301,8 +336,16 @@ def solve_marex(
         method_name="MAREX", donor_weights=treated_w_map,
     ) if post_fit is not None else None
 
+    certificate = None
+    if raw.get("certificate") is not None:
+        certificate = MAREXCertificate.of({
+            lab: _dc_replace(c, unresolved=tuple(
+                tuple(unit_labels[i] for i in S) for S in c.unresolved))
+            for lab, c in raw["certificate"].items()})
+
     return MAREXResults(
         clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
+        certificate=certificate,
         report=report,
         selected_units=list(treated_labels),
         assignment={"treated": list(treated_labels),

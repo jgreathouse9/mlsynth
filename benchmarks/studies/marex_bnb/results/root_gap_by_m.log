@@ -1,0 +1,5 @@
+GeoLift, 40 markets
+m= 4  sets       91,390  bound 549618  rounded 554320  after swaps 554320  gap 0.0085  optimal_inaccurate  248 s  z in [0.01, 0.99]: 14  set [5, 10, 24, 27]
+m= 6  sets    3,838,380  bound 272312  rounded 312594  after swaps 297926  gap 0.0860  optimal  198 s  z in [0.01, 0.99]: 34  set [0, 10, 22, 24, 27, 31]
+m= 8  sets   76,904,685  bound 165254  rounded 202997  after swaps 191758  gap 0.1382  optimal_inaccurate  210 s  z in [0.01, 0.99]: 37  set [1, 9, 21, 22, 29, 30, 35, 37]
+m=10  sets  847,660,528  bound 116228  rounded 187253  after swaps 127405  gap 0.0877  optimal_inaccurate  206 s  z in [0.01, 0.99]: 40  set [1, 21, 22, 23, 28, 29, 30, 35, 37, 39]
