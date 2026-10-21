@@ -7078,3 +7078,21 @@ timeout = 600.0
   find = '    if s and s[0] in "+-":'
   replace = '    if s[:1] in "+-":'
   models = "the original test, which reads an empty expression as starting with a sign because the empty string is a substring of every string, and then indexes past its end"
+
+[[target]]
+name = "conftest-solver-guard"
+module-path = "mlsynth/tests/conftest.py"
+test-command = "python -m pytest mlsynth/tests/test_conftest_solver_guard.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "guard-fires-without-a-commercial-solver"
+  find = "    return \"SCIP\" not in installed"
+  replace = "    return bool({\"SCIP\", \"MOSEK\", \"GUROBI\"} - installed)"
+  models = "the pre-fix gate: the indirect skip fires whenever any of SCIP, MOSEK or GUROBI is missing, so on a machine with SCIP but no commercial solver a real 'found no feasible design' regression in SYNDES, MAREX, PANGEO or SCEXP is reported as a skip. It hid the mutant exhaustion-raised-as-a-generic-failure in #812"
+
+  [[target.mutant]]
+  id = "guard-never-fires-indirectly"
+  find = "    return \"SCIP\" not in installed"
+  replace = "    return False"
+  models = "an indirect case that never fires, so on a machine without SCIP the swallowed missing solver fails the MIP tests instead of skipping them"

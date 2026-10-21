@@ -34,8 +34,10 @@ code under test is correct. Two symptoms occur:
 
 This hook reclassifies both as *skips*, but only when the responsible optional
 solver is genuinely absent (the direct message always; the indirect message
-only when the failure passed through a MILP/MIP estimator helper and no optional
-MILP/conic solver is installed). Where the optional solvers ARE installed, real
+only when the failure passed through a MILP/MIP estimator helper and SCIP, the
+solver those helpers use, is not installed). MOSEK and GUROBI play no part in
+the indirect case: no library code calls them, and gating on them made the
+guard fire on every machine without a commercial licence, SCIP or not (#813). Where the optional solvers ARE installed, real
 defects -- a wrong answer, a genuinely infeasible design -- still fail loudly.
 Install the solvers (``pip install pyscipopt``, or MOSEK) to exercise the
 skipped tests.
@@ -99,13 +101,18 @@ _MIP_MODULES = (
 
 
 def _optional_solvers_absent() -> bool:
-    """True if any commonly-pinned optional cvxpy solver is missing."""
+    """True if SCIP, the MILP solver the MIP helpers use, is missing.
+
+    SYNDES, MAREX and SCEXP solve with SCIP, and PANGEO takes HiGHS or SCIP. A
+    swallowed "found no feasible design" can be a missing solver only when SCIP
+    is absent; with SCIP installed it is a real failure.
+    """
     try:
         import cvxpy as cp
         installed = set(cp.installed_solvers())
     except Exception:  # pragma: no cover - cvxpy is a hard dependency
         return True
-    return bool({"SCIP", "MOSEK", "GUROBI"} - installed)
+    return "SCIP" not in installed
 
 
 def _chain(exc: BaseException | None):
@@ -122,7 +129,7 @@ def _is_missing_solver(excinfo) -> str | None:
         m = _MISSING_SOLVER.search(str(exc))
         if m:
             return m.group(0)
-    # Indirect: swallowed-solver symptom, gated on the solver being absent and
+    # Indirect: swallowed-solver symptom, gated on SCIP being absent and
     # the failure originating in a MIP/conic estimator helper.
     if _optional_solvers_absent():
         for exc in _chain(excinfo.value):
