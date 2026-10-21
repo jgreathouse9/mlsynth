@@ -10,8 +10,16 @@ Nodes. A node fixes some units into the treated set (``I``), some out of it
 size ``K`` that contains ``I`` and avoids ``O``. A node is either priced set by
 set, exactly as the enumeration prices, or bounded and split on its first free
 unit, in the order of the root relaxation's maximiser, into a child that
-includes the unit and one that excludes it. Depth first, the child that
-includes first.
+includes the unit and one that excludes it. Best first: the open node whose
+parent's bound is smallest is bounded next, so a search stopped at its limit
+has raised the smallest open bound as far as its work allowed; between equal
+bounds the node pushed last goes first, so a split dives into the child that
+includes. Until it has a design to return, from a seed, a cutoff or a set
+priced or waiting to be, the search dives depth first, since best first can spend its limit near
+the root and price none. Each open node carries the certified bound of its nearest lifted
+ancestor, valid for every set below it; a stopped search reports, for each node
+it left open, that bound or the node's own trust-region bound, whichever is
+higher.
 
 The node bound. Every set below the node has ``f(S) >= 4 alpha / U`` for any
 ``U >= max sigma'R sigma`` over the subtree. With ``sigma``'s decided part fixed
@@ -78,6 +86,7 @@ returns no design when nothing at its size is better.
 """
 from __future__ import annotations
 
+import heapq
 import math
 from dataclasses import dataclass
 from fractions import Fraction
@@ -759,24 +768,51 @@ def branch_and_bound(
     # A node is pushed only when it holds an admissible set. The root is the one
     # node that can hold none, or have r out of range, or force two units that
     # conflict: a child includes a unit only with its partners sent out.
-    Node = Tuple[Tuple[int, ...], Tuple[int, ...], Tuple[int, ...], SearchSpace]
-    stack: List[Node] = []
+    # An open node: its parent's bound (the key), a tie-break that sends the
+    # node pushed last first, the node, and its nearest lifted ancestor's
+    # certified bound.
+    Node = Tuple[float, int, Tuple[int, ...], Tuple[int, ...], Tuple[int, ...],
+                 SearchSpace, float]
+    heap: List[Node] = []
+    dive: List[Node] = []
+    pushed = [0]
+
+    def found() -> bool:
+        # a design to return: a value, or a set priced or waiting to be
+        return bool(np.isfinite(best[0]) or pending or buffer)
+
+    def push(key, I, O, F, space, inherited) -> None:
+        pushed[0] += 1
+        entry = (key, -pushed[0], I, O, F, space, inherited)
+        if found():
+            heapq.heappush(heap, entry)
+        else:
+            dive.append(entry)
+
+    def pop() -> Node:
+        if dive and found():
+            for waiting in dive:
+                heapq.heappush(heap, waiting)
+            dive.clear()
+        return dive.pop() if dive else heapq.heappop(heap)
+
     root = space_of(I0, O0)
     if root.size and not any(partners.get(u, set()) & set(I0) for u in I0):
-        stack.append((I0, O0, order, root))
+        push(-np.inf, I0, O0, order, root, -np.inf)
     closed = True
-    while stack:
+    while heap or dive:
         if counts["work"] >= work_limit:
             closed = False
             break
-        I, O, F, space = stack.pop()
+        entry = pop()
+        key, _, I, O, F, space, inherited = entry
         r, n = K - len(I), len(F)
         bucket = space.size.bit_length()
         p_bound = bound_rates.rate(bucket)
         if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):
             pricing = space.size * modelled
             if counts["work"] + pricing > work_limit and not (r == 0 or r == n):
-                stack.append((I, O, F, space))
+                dive.append(entry)
                 closed = False
                 break
             counts["work"] += pricing
@@ -790,7 +826,8 @@ def branch_and_bound(
         hit = discards(I, O, F, U, m)
         bound_rates.record(bucket, hit)
         p_lift = lift_rates.rate(bucket)
-        if not hit and space.size * price * p_lift > lift_cost(n, p_lift):
+        lifted = not hit and space.size * price * p_lift > lift_cost(n, p_lift)
+        if lifted:
             counts["lifts"] += 1
             goal = (4.0 * alpha / (best[0] * (1.0 - PRUNE_RTOL))
                     if np.isfinite(best[0]) else None)
@@ -802,6 +839,14 @@ def branch_and_bound(
         if hit:
             counts["pruned"] += 1
             continue
+        # a lift costs far more than its certificate, which the children keep
+        if lifted and m is not None:
+            counts["work"] += certificate_seconds(n)
+            exact = xr.certify(I, O, F, K, m)
+            if exact is not None and exact > 0:
+                inherited = max(inherited, round_down(four_alpha / exact))
+        if np.isfinite(U) and U > 0.0:
+            key = max(key, 4.0 * alpha / U)
         u, rest = F[0], F[1:]
         out = partners.get(u, set())
         for child in ((I, O + (u,), rest),
@@ -809,20 +854,26 @@ def branch_and_bound(
                        tuple(k for k in rest if k not in out))):
             sub = space_of(child[0], child[1])
             if sub.size:
-                stack.append(child + (sub,))
+                push(key, *child, sub, inherited)
 
-    # what the limit left open: a decided node is priced, any other bounded
+    # what the limit left open: a decided node is priced; any other keeps its
+    # inherited bound, or its own trust-region bound, certified, where that is
+    # higher; and none goes below the Rayleigh bound
     open_lower = np.inf
     rayleigh = engine.global_lower_bound(K)
-    for I, O, F, space in stack:
+    for _, _, I, O, F, space, inherited in heap + dive:
         r, n = K - len(I), len(F)
         if r == 0 or r == n:
             enumerate_subtree(space)
             continue
-        _, _, m = trust_region(*node_parts(R, I, O, F), 2 * r - n)
-        exact = xr.certify(I, O, F, K, m)
-        open_lower = min(open_lower, rayleigh if exact is None or exact <= 0
-                         else round_down(four_alpha / exact))
+        counts["work"] += trust_region_seconds(n)
+        U, _, m = trust_region(*node_parts(R, I, O, F), 2 * r - n)
+        if np.isfinite(U) and U > 0.0 and 4.0 * alpha / U > inherited:
+            counts["work"] += certificate_seconds(n)
+            exact = xr.certify(I, O, F, K, m)
+            if exact is not None and exact > 0:
+                inherited = max(inherited, round_down(four_alpha / exact))
+        open_lower = min(open_lower, inherited)
     flush()
 
     solved = 0

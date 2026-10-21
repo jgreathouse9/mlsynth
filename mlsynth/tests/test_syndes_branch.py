@@ -754,6 +754,59 @@ class TestRestrictions:
             branch_and_bound(problem, engine, self.K, filt)
 
 
+class TestNodeOrder:
+    """Best-first: the open node whose bound is smallest is bounded next, and
+    each open node carries the certified bound of its nearest lifted
+    ancestor."""
+
+    def test_nodes_leave_the_queue_in_order_of_their_bound(self, monkeypatch):
+        import heapq
+        keys = []
+        real = heapq.heappop
+
+        def recording(heap):
+            entry = real(heap)
+            keys.append(entry[0])
+            return entry
+
+        monkeypatch.setattr(heapq, "heappop", recording)
+        Y = _noise(N=12, seed=13)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 4, SubsetFilter(), restarts=0, **EAGER)
+        assert out.closed and len(keys) > 3
+        assert all(a <= b for a, b in zip(keys, keys[1:]))
+
+    def test_a_stopped_search_keeps_its_lifted_nodes_bounds(self):
+        """Stopped after a few lifts, every open node descends from the lifted
+        root, so the bound is at least the root lift's certified bound: above
+        the Rayleigh bound, and under the optimum."""
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        N, K, alpha = 16, 8, engine.alpha
+        everyone = list(range(N))
+        _, m, _ = lift(*node_parts(engine.R, [], [], everyone), 2 * K - N, target=None)
+        root = 4 * alpha / float(ExactR(engine).certify([], [], everyone, K, m))
+        out = branch_and_bound(problem, engine, K, SubsetFilter(), work_limit=0.3,
+                               restarts=0, **EAGER)
+        assert not out.closed and out.lifts > 1
+        assert out.lower >= root * (1 - 1e-9)
+        assert root > engine.global_lower_bound(K) * (1 + 1e-9)
+        assert out.lower <= _enumerated(Y, K).objective_value * (1 + 1e-9)
+
+
+    def test_with_no_incumbent_it_dives_to_a_design_first(self):
+        """No seed and no cutoff: best first would spread its limit over the
+        top of the tree; the search dives until it has a design."""
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=0.05,
+                               restarts=0, price_seconds=1.0,
+                               bound_seconds=lambda n: 0.0,
+                               lift_seconds=lambda n: np.inf)
+        assert not out.closed and out.treated is not None
+        assert out.value >= _enumerated(Y, 8).objective_value * (1 - 1e-9)
+
+
 class TestWorkLimit:
     def test_a_limit_returns_the_best_design_with_a_valid_bound(self):
         Y = _noise(N=12, seed=13)

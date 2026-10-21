@@ -875,6 +875,16 @@ when it rules out the node's designs at once, so the search bounds a node only
 when pricing its designs would cost more than the bound, weighted by how often
 bounds have ruled out nodes of that size so far.
 
+The next node is the open one whose parent had the smallest bound (best first),
+so a search stopped at its limit has raised its smallest open bound as far as
+its work allowed. Between equal bounds the node created last goes first, so a
+split continues into the child that treats the unit; and until the search has
+a design to return it goes depth first, since best first can spend its limit
+near the root without reaching one. A node whose bound came from the lift
+passes that bound, certified, to its children, and a search stopped at its
+limit reports for each node it left open the better of that inherited bound and
+the node's own trust-region bound.
+
 The bound. Every design below a node has :math:`f(S) \ge 4\alpha / U` for any
 :math:`U` at least the largest :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
 \boldsymbol{\sigma}` below it. With the decided units fixed, the free part
@@ -945,10 +955,11 @@ nothing at its size is better. On GeoLift's forty markets that swap search took
 0.4 seconds, and every size's search but the one at the optimum's size stopped at
 its root. The bound reported is the smallest over the sizes. On the four-factor
 panel the sizes from 19 to 21 do not prune: each stops at the work limit, and
-after six and a half minutes the search returns the swap search's design with
-the Rayleigh bound, 0.47 percent under it, the result the swap search alone
-reaches in 44 seconds. Left to run, the same search certified a design
-0.23 percent better than the swap search's in 81 minutes.
+after six minutes the search returns a design 0.23 percent better than the swap
+search's, with a bound 0.14 percent under it. Left to run for 81 minutes, the
+search certifies that design as the optimum. Searching depth first, the same
+limit returned the swap search's design and its Rayleigh bound, 0.47 percent
+under it.
 
 The study behind this search is
 `benchmarks/studies/syndes_global_bnb <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_global_bnb>`_.
@@ -957,8 +968,8 @@ enumeration's optimum, certified, in 40.6 seconds on GeoLift and 55.0 seconds on
 panel with no structure, where enumerating took 698 and 725. On a panel drawn
 from a four-factor model the bounds prune almost nothing at that size: certifying
 its optimum took 881 seconds, pricing every design, and with the default
-``work_limit`` the search stops after 48 seconds with the same design,
-uncertified, its bound 0.4 percent under it. Below
+``work_limit`` the search stops after 51 seconds with the same design,
+uncertified, its bound 0.28 percent under it. Below
 the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
 where the search took 7 to 9.
 
