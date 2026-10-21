@@ -82,6 +82,9 @@ def run() -> dict:
 # scipy 1.18.1: every count, design and value agreed exactly, so the counts are
 # pinned exactly. A change in the bounds computed or the sets priced is what
 # this case exists to report, and no version noise was measured to excuse one.
+# Under each OpenBLAS kernel a GitHub runner can select (OPENBLAS_CORETYPE =
+# Haswell, Zen, SkylakeX, Cooperlake, SapphireRapids) every count and design
+# agreed exactly too; only the gaps moved, by under 1e-13.
 #
 # The certificates' relative gaps were 1e-13 to 1e-12 on these panels; 1e-9
 # leaves room for a differently built solver while staying far below the

@@ -961,6 +961,30 @@ search certifies that design as the optimum. Searching depth first, the same
 limit returned the swap search's design and its Rayleigh bound, 0.47 percent
 under it.
 
+Treatment and control can trade places. The design that treats a set of units
+and the design that treats every other unit fit the pre-period equally well:
+the treated and control weights change places, the contrast changes sign, and
+the objective is the same. So when no restriction names a side, the exact
+backend keeps one design of each pair. No forced or forbidden unit, conflict
+pair or budget may be set; every stratum quota must be symmetric (a quota of
+``lo`` to ``hi`` treated units out of ``m`` holds for the complement as
+``m - hi`` to ``m - lo``); and every excluded design must be excluded with its
+complement. Then:
+
+* with ``K=None`` the search covers the sizes from 1 to :math:`N/2` and returns
+  the design with fewer treated units, the cheaper experiment to run;
+* with half the units treated (:math:`K = N/2`) it searches the designs that
+  treat the first unit, half of them, and the pool there excludes each design's
+  complement with it.
+
+``raw_results["mirrored"]`` records whether the rule applied. On sixteen panels
+of eight units, below the candidate limit, the enumeration returned the same
+designs before the rule, since it lists the designs that treat the first unit
+first. Above the limit the rule halves the work:
+on the four-factor panel at forty units, the search at 21 treated units, which
+had not finished after 40 minutes, is the search at 19, which took 626 seconds.
+A restriction that names a side turns the rule off, and every size is searched.
+
 The study behind this search is
 `benchmarks/studies/syndes_global_bnb <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_global_bnb>`_.
 On forty units with ten treated, 848 million designs, the search returned the
