@@ -6808,3 +6808,49 @@ timeout = 1200.0
   find = "    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))\n            or not np.isfinite(work_limit) or work_limit <= 0):"
   replace = "    if False:"
   models = "a zero, negative, infinite, NaN or boolean work_limit accepted and handed to the search"
+
+# The branch and bounds' regression gates (#841). Each mutant changes how much
+# work a search does and not the design it returns, so every unit test, which
+# checks the answer, passes with it in place; the benchmark case, which pins the
+# work, is what has to fail.
+[[target]]
+name = "syndes-bnb-work"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python benchmarks/run_benchmarks.py --case syndes_bnb_work"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-node-is-priced"
+  find = "        if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):"
+  replace = "        if True:"
+  models = "the search turned back into enumeration: every node priced set by set, the same design returned at the cost of pricing every one"
+
+  [[target.mutant]]
+  id = "no-node-is-lifted"
+  find = "        lifted = not hit and space.size * price * p_lift > lift_cost(n, p_lift)"
+  replace = "        lifted = False"
+  models = "the lift never paid for, so the search splits and prices what a lift would have discarded"
+
+  [[target.mutant]]
+  id = "the-branching-order-is-reversed"
+  find = "        order = tuple(free0[i] for i in np.argsort(-x, kind=\"stable\"))"
+  replace = "        order = tuple(free0[i] for i in np.argsort(x, kind=\"stable\"))"
+  models = "the units branched on in the reverse of the root relaxation's order, the least decided first, a worse tree for the same optimum"
+
+[[target]]
+name = "marex-bnb-work"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python benchmarks/run_benchmarks.py --case marex_bnb_work"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-branching-unit-is-chosen-last"
+  find = "        j = max(F, key=lambda k: (score[k], -k))"
+  replace = "        j = min(F, key=lambda k: (score[k], -k))"
+  models = "the node split on the market its relaxation scores lowest, not highest, so the children are no easier and the search computes more bounds"
+
+  [[target.mutant]]
+  id = "the-rounded-guess-is-not-priced"
+  find = "        if sub.accepts(guess):\n            fit(guess, h_floor)"
+  replace = "        if False:\n            fit(guess, h_floor)"
+  models = "the relaxation's rounded design never priced, so the incumbent improves only by enumeration and fewer nodes clear it"
