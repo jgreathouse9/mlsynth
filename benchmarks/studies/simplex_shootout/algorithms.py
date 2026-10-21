@@ -259,7 +259,7 @@ def sunny_alphas(B, A):
 def becker_kloessner(B, A, tol=1e-7) -> Candidate:
     """The cascade. Proposition 1: no sunny donors iff ``0`` is in the hull iff an
     exact fit exists, and then the answer is the minimum-norm point of that face
-    rather than whatever the pivot order lands on. A single sunny donor is the
+    instead of whatever point the pivot order lands on. A single sunny donor is the
     answer outright. Otherwise Proposition 2 lets the shady columns be dropped.
     """
     m, J = B.shape
