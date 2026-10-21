@@ -22,8 +22,9 @@ What is pinned
 --------------
 
 Both searches decide where to spend time from a cost model of constants and
-counts, never a clock. The work they do is therefore the same on every machine
-with the same library versions, so a case can pin it without timing noise:
+counts, never a clock, so a case can pin their work without timing noise. The
+counts still rest on floating point, and one SYNDES instance's differ between
+processors (see Tolerances):
 
 * SYNDES: the nodes bounded, the lifts computed, the nodes discarded, the
   designs priced and the work in the cost model's seconds. Beside them sit the
@@ -59,8 +60,9 @@ SYNDES, in about 50 seconds:
      - pricing made expensive, so every node is bounded and lifted
    * - four factors and GeoLift, 26 units
      - ``K=None``
-     - every size under ``work_limit=5``: the swap-search cutoff, best first,
-       and the bound reported at the limit
+     - every size up to 13 under ``work_limit=5``: the swap-search cutoff,
+       best first and the mirror rule of :doc:`../syndes`, under which both
+       searches close within the limit
 
 MAREX, in about 25 seconds:
 
@@ -94,7 +96,30 @@ They were checked against Python 3.13 with numpy 2.5.3 and scipy 1.18.1.
   numbers of evaluations in the lift under the two scipy versions. Nodes carry
   a 5 percent band and work a 15 percent band.
 
-The bands absorb that version noise and nothing larger. A search that started
+The same versions give two sets of SYNDES counts, by processor. OpenBLAS picks
+its kernels by CPU. Under each kernel a GitHub runner can select, the counts
+fall into two families: the AVX2 kernels (Haswell, and Zen, which AMD runners
+select) and the AVX-512 ones, whose counts are the pins. Every design and
+certified flag agrees, and MAREX agrees on every count.
+
+* ``geolift20_k8_eager`` is the one instance that leaves its bands. Its root
+  lift, an L-BFGS-B solve of the regularised dual, stops after 553 evaluations
+  under AVX2 and 647 under AVX-512, at bounds 1.3e-5 apart relative. Both bounds
+  are valid, but the children start from different multipliers. The AVX2 search
+  bounds 48 nodes, lifts 41 and prices 3 designs where the AVX-512 one bounds
+  44, lifts 35 and prices 1, for the same certified design. That instance's
+  bands span both families.
+* Elsewhere the families differ by at most 1.4 percent in work and one node,
+  inside the bands.
+
+The bands are drawn for the processors the pull-request suite runs on. On an
+older processor whose OpenBLAS selects the Sandybridge kernel (AVX without FMA),
+the SYNDES case fails. At default costs ``geolift30_k8`` prices 1.86 times as
+many designs and ``noise30_k8`` 1.72 times as many, with every design and
+certified flag unchanged. Bands that wide would let a doubling of the work
+through on the processors the gate runs on.
+
+The bands absorb that noise and nothing larger. A search that started
 pricing every design, stopped lifting, or bounded nodes in a worse order would
 move these numbers by far more than 15 percent.
 
