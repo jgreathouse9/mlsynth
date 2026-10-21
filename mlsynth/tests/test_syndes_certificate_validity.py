@@ -172,10 +172,11 @@ def _fake_sizes(monkeypatch, outcomes):
 
 
 def test_a_free_size_bound_is_the_smallest_over_sizes_not_the_best_sizes(monkeypatch):
-    """Size 2 holds the best design; size 3's bound is lower, so it is the bound."""
+    """Size 2 holds the best design; size 3's bound is lower, so it is the bound.
+    Six units, so the mirror rule (#838) searches sizes 1 to 3."""
     _fake_sizes(monkeypatch, {1: (5.0, 4.0, True), 2: (1.0, 0.9, True),
                               3: (2.0, 0.5, True)})
-    d = solve_synthetic_design_exact(_panel(N=4), None)
+    d = solve_synthetic_design_exact(_panel(N=6), None)
     assert int(d.assignment.sum()) == 2
     assert d.raw_results["lower_bound"] == 0.5
 
@@ -183,6 +184,6 @@ def test_a_free_size_bound_is_the_smallest_over_sizes_not_the_best_sizes(monkeyp
 def test_a_free_size_is_certified_only_when_every_size_is(monkeypatch):
     _fake_sizes(monkeypatch, {1: (5.0, 4.0, True), 2: (1.0, 1.0, True),
                               3: (2.0, 1.5, False)})
-    d = solve_synthetic_design_exact(_panel(N=4), None)
+    d = solve_synthetic_design_exact(_panel(N=6), None)
     assert d.raw_results["certified"] is False
     assert d.raw_results["status"] == "feasible"

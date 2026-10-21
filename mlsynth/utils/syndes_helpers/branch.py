@@ -98,7 +98,8 @@ from scipy.optimize import minimize
 
 from .enumeration import SearchSpace
 from .exact import (CHUNK, CERTIFY_RTOL, WORK_LIMIT, SubsetFilter,
-                    _no_feasible_design, _resolve_open, _settle, _stream_from_space)
+                    _no_feasible_design, _resolve_open, _settle, _stream_from_space,
+                    with_complements)
 from .gram import BoundEngine, TwoWayProblem, maxcut_candidates, signs_from_subsets
 from ..marex_helpers.branch import lambda_min_lower
 from ..marex_helpers.certify import Dyadic, round_down
@@ -752,7 +753,8 @@ def branch_and_bound(
     if restarts:
         seeds.append(maxcut_candidates(engine, K, n_restarts=restarts, seed=seed))
     for block in seeds:
-        for S in np.sort(block, axis=1):
+        # at K = N / 2 a seed's complement is a design of the same value
+        for S in with_complements(block, N):
             if len(S) == K and filt.accepts(tuple(int(i) for i in S)):
                 value = _settle(problem, engine, S)[0]
                 if value < best[0]:
