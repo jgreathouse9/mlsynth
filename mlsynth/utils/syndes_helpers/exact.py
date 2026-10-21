@@ -532,6 +532,27 @@ def _resolve_open(problem: TwoWayProblem, candidates: np.ndarray,
     return best_value, best_set, n_solved
 
 
+def _checked_seeds(incumbent_sets: Optional[np.ndarray], N: int,
+                   K: Optional[int]) -> Optional[np.ndarray]:
+    """The caller's seeds as a ``(B, k)`` array, refused unless every row is a
+    design: distinct units in ``range(N)``, ``k`` of them with ``1 <= k <= N - 1``,
+    and ``k = K`` when ``K`` is fixed (#850). An empty array is no seeds."""
+    if incumbent_sets is None:
+        return None
+    sets = np.atleast_2d(np.asarray(incumbent_sets, dtype=np.int64))
+    if sets.shape[0] == 0:
+        return None
+    k = sets.shape[1]
+    if K is not None and k != K:
+        raise MlsynthConfigError(
+            f"incumbent_sets must hold designs of K={K} treated units; got rows of {k}.")
+    if not 1 <= k <= N - 1:
+        raise MlsynthConfigError(
+            f"incumbent_sets rows must hold 1..{N - 1} treated units; got {k}.")
+    split_indices(N, sets)                    # a repeated or unknown unit raises
+    return sets
+
+
 def _search(
     problem: TwoWayProblem,
     K: int,
@@ -563,8 +584,9 @@ def _search(
                                     work_limit=work_limit, cutoff=cutoff)
 
     best_value, best_set = np.inf, None
-    if incumbent_sets is not None and len(np.atleast_2d(incumbent_sets)):
-        for seed_set in np.atleast_2d(np.asarray(incumbent_sets, dtype=np.int64)):
+    # a seed of another size bounds this one but is not one of its designs
+    if incumbent_sets is not None and incumbent_sets.shape[1] == K:
+        for seed_set in incumbent_sets:
             if filt.accepts(tuple(int(i) for i in np.sort(seed_set))):
                 value, _, _, _ = _settle(problem, engine, seed_set)
                 if value < best_value:
@@ -787,7 +809,9 @@ def solve_synthetic_design_exact(
         distinct design.
     incumbent_sets : np.ndarray, optional
         Treated sets to seed the incumbent with, so more designs prune on their
-        bound alone. A poor seed costs time and nothing else.
+        bound alone, one per row: ``K`` distinct units, or with ``K=None`` any
+        size from 1 to ``N - 1``, each a seed at its own size. A poor seed costs
+        time and nothing else.
     candidate_limit : int, optional
         Above this many candidate designs the search stops enumerating and
         branches and bounds (:mod:`~.branch`).
@@ -803,8 +827,10 @@ def solve_synthetic_design_exact(
     Raises
     ------
     MlsynthConfigError
-        For an out-of-range ``K``, malformed cost inputs, donor exclusions, or a
-        ``work_limit`` that is not a positive finite number.
+        For an out-of-range ``K``, malformed cost inputs, donor exclusions, a
+        ``work_limit`` that is not a positive finite number, or a seed that is not
+        a design of the size searched (a repeated unit, a unit outside the panel,
+        or a row of another size than ``K``).
     MlsynthEstimationError
         When no admissible design exists under the restrictions, or when the
         problem on contrasts is singular to working precision and either past
@@ -828,6 +854,7 @@ def solve_synthetic_design_exact(
             raise MlsynthConfigError(
                 f"K must lie in 1..{N - 1} for a two-way design; got {K}.")
         sizes = [int(K)]
+    incumbent_sets = _checked_seeds(incumbent_sets, N, K)
 
     best: Optional[SearchOutcome] = None
     if K is None:

@@ -23,9 +23,12 @@ from math import comb
 
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.fast_scm_helpers.structure import IndexSet
+from mlsynth.utils.syndes_helpers import exact
 from mlsynth.utils.syndes_helpers.exact import (
     SubsetFilter,
     _stream_subsets,
@@ -106,6 +109,70 @@ class TestAgreesWithBruteForce:
         expected_set, _ = _brute_force(Y, 3)
         got = solve_synthetic_design_exact(Y=Y, K=3, incumbent_sets=np.array([[0, 1, 2]]))
         assert tuple(got.selected_unit_indices) == expected_set
+
+
+class TestSeeds:
+    """A seed costs time and nothing else (#850): it is a design of the size
+    searched, refused at entry when it cannot be one, and never returned in
+    place of a design of that size."""
+
+    @pytest.mark.parametrize("seed", range(6))
+    def test_a_seed_of_another_size_is_refused(self, seed):
+        Y = _panel(seed=seed)
+        with pytest.raises(MlsynthConfigError, match="K=2"):
+            solve_synthetic_design_exact(Y=Y, K=2, incumbent_sets=np.array([[0, 1, 2, 3]]))
+
+    @pytest.mark.parametrize("rules", [None, DesignRestrictions(forbidden=[1])],
+                             ids=["free", "a-restriction-the-seed-breaks"])
+    def test_a_seed_that_repeats_a_unit_is_refused_whatever_the_restrictions(self, rules):
+        with pytest.raises(MlsynthConfigError, match="repeats a unit"):
+            solve_synthetic_design_exact(Y=_panel(), K=3, restrictions=rules,
+                                         incumbent_sets=np.array([[1, 1, 2]]))
+
+    @pytest.mark.parametrize("row", [[0, 9], [-1, 2]], ids=["past-the-panel", "negative"])
+    def test_a_seed_outside_the_panel_is_refused(self, row):
+        with pytest.raises(MlsynthConfigError, match="0..8"):
+            solve_synthetic_design_exact(Y=_panel(), K=2, incumbent_sets=np.array([row]))
+
+    @pytest.mark.parametrize("width", [0, 9])
+    def test_a_seed_that_is_no_design_is_refused_with_k_free(self, width):
+        with pytest.raises(MlsynthConfigError, match="1..8"):
+            solve_synthetic_design_exact(Y=_panel(), K=None,
+                                         incumbent_sets=np.arange(width)[None, :])
+
+    def test_no_seeds_is_no_seeds(self):
+        Y = _panel()
+        got = solve_synthetic_design_exact(Y=Y, K=3, incumbent_sets=np.zeros((0, 3)))
+        assert tuple(got.selected_unit_indices) == _brute_force(Y, 3)[0]
+
+    def test_with_k_free_a_seed_of_any_size_is_an_incumbent(self):
+        Y = _panel(N=7, T=12)
+        best = min(_brute_force(Y, k)[1] for k in range(1, 7))
+        got = solve_synthetic_design_exact(Y=Y, K=None, incumbent_sets=np.array([[0, 1, 2]]))
+        assert got.objective_value == pytest.approx(best, rel=1e-7)
+
+    def test_the_search_at_one_size_ignores_seeds_of_another(self):
+        """``_search`` serves every size when ``K`` is free; a seed of another
+        size bounds it but is never its design."""
+        Y = _panel(seed=0)
+        problem = TwoWayProblem.from_panel(Y)
+        out = exact._search(problem, 2, SubsetFilter(), candidate_limit=10 ** 9,
+                            incumbent_sets=np.array([[0, 1, 2, 3]]), seed=0)
+        assert len(out.treated) == 2
+        assert tuple(out.treated) == _brute_force(Y, 2)[0]
+
+    @given(seed=st.integers(0, 10 ** 6), K=st.integers(1, 7),
+           limit=st.sampled_from([1, 10 ** 9]), data=st.data())
+    @settings(max_examples=15, deadline=None,
+              suppress_health_check=[HealthCheck.too_slow])
+    def test_any_seed_of_the_size_leaves_the_optimum(self, seed, K, limit, data):
+        Y = _panel(N=8, seed=seed)
+        rows = data.draw(st.lists(st.permutations(range(8)).map(lambda p: sorted(p[:K])),
+                                  min_size=1, max_size=3))
+        got = solve_synthetic_design_exact(Y=Y, K=K, incumbent_sets=np.array(rows),
+                                           candidate_limit=limit)
+        assert len(got.selected_unit_indices) == K
+        assert got.objective_value == pytest.approx(_brute_force(Y, K)[1], rel=1e-7)
 
 
 # ----------------------------------------------------------------------
