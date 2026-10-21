@@ -7067,6 +7067,7 @@ timeout = 600.0
   replace = '    if s[:1] in "+-":'
   models = "the original test, which reads an empty expression as starting with a sign because the empty string is a substring of every string, and then indexes past its end"
 
+[[target]]
 name = "conftest-solver-guard"
 module-path = "mlsynth/tests/conftest.py"
 test-command = "python -m pytest mlsynth/tests/test_conftest_solver_guard.py -q -x -p no:cacheprovider"
