@@ -24,6 +24,7 @@ from pydantic import ConfigDict
 from ...config_models import DesignResult
 from ..conformal.cumulative_inversion import CumulativeInversionBand
 from ..conformal.structure import CumulativeConformalBand
+from .diagnostics import ExactSearchDiagnostics
 from .certify import ClusterCertificate, round_down, round_up
 
 
@@ -255,6 +256,10 @@ class MAREXClusterDesign:
         ``{"Treated": {unit: w}, "Control": {unit: v}}`` for non-zero weights.
     inference : MAREXInference, optional
         Inference for this cluster (``None`` unless requested).
+    search : ExactSearchDiagnostics, optional
+        With ``backend='exact'``, what this cluster's search did: each
+        candidate's fate, the clearances of the discarded ones, the bound
+        fallbacks and the time by phase. ``None`` with ``backend='mip'``.
     """
 
     label: str
@@ -269,6 +274,7 @@ class MAREXClusterDesign:
     rmse: float
     unit_weight_map: Dict[str, Dict[Any, float]]
     inference: Optional[MAREXInference] = None
+    search: Optional[ExactSearchDiagnostics] = None
 
 
 @dataclass(frozen=True)
@@ -405,6 +411,11 @@ class MAREXResults(DesignResult):
     certificate : MAREXCertificate, optional
         With ``certify=True`` and ``backend='exact'``, certified bounds on the
         optimal objective and the design's; ``None`` otherwise.
+    search : ExactSearchDiagnostics, optional
+        With ``backend='exact'``, the clusters' search summaries merged: the
+        candidates each stage decided, the clearances, the bound fallbacks and
+        the time by phase (:mod:`~mlsynth.utils.marex_helpers.diagnostics`).
+        ``None`` with ``backend='mip'``.
     """
 
     model_config = ConfigDict(
@@ -417,6 +428,7 @@ class MAREXResults(DesignResult):
     pool: Optional[List[Dict[str, Any]]] = None    # top-K menu when top_K > 1
     recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
     certificate: Optional[MAREXCertificate] = None  # certify=True with backend='exact'
+    search: Optional[ExactSearchDiagnostics] = None  # backend='exact'
 
     @property
     def mode(self) -> str:

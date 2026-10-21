@@ -135,6 +135,8 @@ from __future__ import annotations
 import dataclasses
 import heapq
 import itertools
+import time
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
@@ -144,6 +146,7 @@ from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..solvers.active_set import solve_simplex_qp
 from ..syndes_helpers.enumeration import SearchSpace
 from ..syndes_helpers.exact import SubsetFilter
+from .diagnostics import MAREXSearchWarning, SearchReport
 from .formulation import (
     build_membership_mask,
     compute_cluster_means_members,
@@ -336,7 +339,7 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
 
     Returns the value and the weights, in the order of ``treated`` and
     ``control``, and with ``return_info`` a dict counting ``iterations``,
-    ``newton_steps`` and ``sweeps``.
+    ``newton_steps`` and ``sweeps``, with the Frank-Wolfe ``gap`` it stopped at.
 
     Raises
     ------
@@ -373,7 +376,8 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
         if gap <= tol * (1.0 + abs(value)):
             if return_info:
                 return value, w, v, {"iterations": newton + sweeps,
-                                     "newton_steps": newton, "sweeps": sweeps}
+                                     "newton_steps": newton, "sweeps": sweeps,
+                                     "gap": gap}
             return value, w, v
         if it == max_iter:
             break
@@ -434,14 +438,16 @@ def coupled_fit(B: np.ndarray, A: np.ndarray, treated: Sequence[int],
 
 
 def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
-                      linear: Optional[np.ndarray] = None) -> np.ndarray:
+                      linear: Optional[np.ndarray] = None,
+                      report: Optional[SearchReport] = None) -> np.ndarray:
     """A lower bound on the treated-side fit of every row of ``subsets``.
 
     ``min { w'G w + a'w : 1'w = 1 }`` on the centred columns, in closed form
     (see the module docstring). A block whose solve does not reproduce its
     right-hand side to ``1e-8`` relative, or whose ``1'G^-1 1`` is not positive, gets
     the bound ``0``, which never discards anything; so does a negative value,
-    since the fit itself is non-negative.
+    since the fit itself is non-negative. ``report`` counts the rows that fell
+    back for a failed solve (a negative value is a weak bound, not a failure).
     """
     subsets = np.asarray(subsets, dtype=np.int64)
     n_sub, m = subsets.shape
@@ -477,6 +483,8 @@ def treated_fit_bound(B: np.ndarray, A: np.ndarray, subsets: np.ndarray,
             t = x[:, :, 1].sum(axis=1)
             u = np.einsum("bi,bi->b", rhs[:, :, 1], x[:, :, 1])
             val[good] = (2.0 + t[good]) ** 2 / (4.0 * s[good]) - u[good] / 4.0
+        if report is not None:
+            report.numerics["bound_fallbacks"] += int((~good | ~np.isfinite(val)).sum())
         val[~np.isfinite(val)] = 0.0
         out[lo:lo + b] = np.maximum(val, 0.0)
     return out
@@ -892,6 +900,7 @@ def search_cluster(
     candidate_limit: Optional[int] = None,
     beta: Optional[float] = None,
     control_penalty: float = 0.0,
+    report: Optional[SearchReport] = None,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -923,6 +932,12 @@ def search_cluster(
         (Vives-i-Bastida 2022, program 1); needs ``beta``. It is non-negative,
         so the treated-side bound still sits under the objective, and it
         scales the coupling bound by ``1 + control_penalty``.
+    report : SearchReport, optional
+        Filled as the search runs: each candidate's fate, the clearances of
+        the candidates discarded on their bound, the bound fallbacks, the
+        coupled fits' numerics and the time by phase
+        (:mod:`~mlsynth.utils.marex_helpers.diagnostics`). It keeps what it
+        counted when the search raises.
 
     Raises
     ------
@@ -951,6 +966,7 @@ def search_cluster(
                 "penalty; a search given both would optimise an objective "
                 "MAREX does not state.")
     limit = CANDIDATE_LIMIT if candidate_limit is None else int(candidate_limit)
+    rep = report if report is not None else SearchReport()
     total = count_candidates(n, sizes, filt)
     if total > limit:
         raise MlsynthConfigError(
@@ -963,6 +979,7 @@ def search_cluster(
         excluded.setdefault(int(i), set()).add(int(j))
     lin_t = None if linear_treated is None else np.asarray(linear_treated, float)
     lin_c = None if linear_control is None else np.asarray(linear_control, float)
+    rep.counts["candidates"] += total
 
     best = _TopK(top_k)
     seen: set = set()
@@ -978,12 +995,14 @@ def search_cluster(
         cols = list(S)
         g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
         if g >= best.cutoff:
+            rep.counts["cleared_by_treated_fit"] += 1
             return
         drop = set(S)
         for i in S:
             drop |= excluded.get(i, set())
         control = [j for j in range(n) if j not in drop]
         if not control:
+            rep.counts["without_control"] += 1
             return
         if beta is None:
             h, v = side_fit(B, A, control,
@@ -993,10 +1012,13 @@ def search_cluster(
             cut = best.cutoff
             fit = coupled_fit(B, A, cols, control, beta, w0=w,
                               cutoff=cut + margin(cut) if np.isfinite(cut) else None,
-                              control_penalty=control_penalty)
+                              control_penalty=control_penalty, return_info=True)
             if fit is None:
+                rep.counts["cleared_by_fit_cutoff"] += 1
                 return
-            value, w, v = fit
+            value, w, v, info = fit
+            rep.coupled(info, value)
+        rep.counts["fitted"] += 1
         best.offer(ClusterDesign(value=value, treated=tuple(S),
                                  control=tuple(control), w=w, v=v))
 
@@ -1009,6 +1031,7 @@ def search_cluster(
         while start < total:
             cut = best.cutoff
             if lbs[start] >= cut + margin(cut):
+                rep.cleared(lbs[start:], cut)
                 return
             keep = None
             if screen is None:
@@ -1023,9 +1046,14 @@ def search_cluster(
                                         cut + margin(cut))
             for k in range(start, stop):
                 if keep is not None and not keep[k - start]:
+                    # The cutoff only falls, so the second pass need not
+                    # screen this set again.
+                    seen.add(cands[k])
+                    rep.counts["cleared_by_coupling"] += 1
                     continue
                 cut = best.cutoff
                 if lbs[k] >= cut + margin(cut):
+                    rep.cleared(lbs[k:], cut)
                     return
                 consider(cands[k])
             start = stop
@@ -1033,8 +1061,10 @@ def search_cluster(
     # Pass 1: price every candidate, keep the BUFFER best-bounded.
     buf_lb = np.empty(0)
     buf_sets: List[Tuple[int, ...]] = []
+    clock = time.perf_counter()
     for block in _chunks(n, sizes, filt):
-        lb = treated_fit_bound(B, A, block, lin_t)
+        lb = treated_fit_bound(B, A, block, lin_t, report=rep)
+        rep.counts["priced"] += len(block)
         held = buf_lb.size
         all_lb = np.concatenate([buf_lb, lb])
         if all_lb.size > BUFFER:
@@ -1048,28 +1078,47 @@ def search_cluster(
         raise MlsynthEstimationError(
             "No admissible treated set exists in this cluster under the "
             "cardinality and the active restrictions.")
+    rep.timing["pricing"] += time.perf_counter() - clock
     order = np.argsort(buf_lb, kind="stable")
+    clock = time.perf_counter()
     walk([buf_sets[i] for i in order], buf_lb[order])
+    rep.timing["fitting"] += time.perf_counter() - clock
 
     # Pass 2, only when the buffer cannot certify the result: it was full, and
     # either fewer than top_k designs were found or its largest bound is still
     # under the cutoff, so a candidate outside it could still enter.
+    # Candidates outside the buffer are decided here or in pass 2. Every one has
+    # a bound at least the buffer's largest; pass 2 walks those still under the
+    # incumbent and discards the rest of each block on its bound.
+    outside = total - len(buf_sets)
     cut = best.cutoff
     if len(buf_sets) == BUFFER and (
             not np.isfinite(cut) or buf_lb.max() < cut + margin(cut)):
+        rep.counts["second_pass"] = True
+        walked, least = 0, np.inf
         for block in _chunks(n, sizes, filt):
+            clock = time.perf_counter()
             lb = treated_fit_bound(B, A, block, lin_t)
+            rep.counts["priced"] += len(block)
+            rep.timing["pricing"] += time.perf_counter() - clock
             cut = best.cutoff
             cands: List[Tuple[int, ...]] = []
             lbs: List[float] = []
             for i in np.argsort(lb, kind="stable"):
                 if lb[i] >= cut + margin(cut):
+                    least = min(least, float(lb[i]))
                     break
                 S = tuple(int(j) for j in block[i])
                 if S not in seen:
                     cands.append(S)
                     lbs.append(float(lb[i]))
+            walked += len(cands)
+            clock = time.perf_counter()
             walk(cands, np.asarray(lbs))
+            rep.timing["fitting"] += time.perf_counter() - clock
+        rep.cleared_outside(outside - walked, least, best.cutoff)
+    else:
+        rep.cleared_outside(outside, float(buf_lb.max()), best.cutoff)
 
     if not best.items:
         raise MlsynthEstimationError(
@@ -1206,6 +1255,7 @@ def _designs(
 
     per_cluster: List[List[ClusterDesign]] = []
     certificates: Dict[str, Any] = {}
+    searches: Dict[str, Any] = {}
     for k_idx, lab in enumerate(cluster_labels):
         members = np.asarray(cluster_members[k_idx])
         sizes = _sizes(len(members), lab, m_eq, m_min, m_max)
@@ -1219,21 +1269,28 @@ def _designs(
                           xi, lambda1_unit)
         B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
         cert = None
+        report = SearchReport()
         try:
-            if (design in SEPARABLE_DESIGNS and
-                    count_candidates(len(members), sizes, filt) > CANDIDATE_LIMIT):
+            n_cand = count_candidates(len(members), sizes, filt)
+            if design in SEPARABLE_DESIGNS and n_cand > CANDIDATE_LIMIT:
                 from .branch import branch_and_bound
+                clock = time.perf_counter()
                 found = branch_and_bound(
                     B_k, A_k, sizes, filt=filt, linear_treated=a,
                     linear_control=b, donor_exclusion=donors, top_k=top_k)
                 designs, cert = found.designs, found.certificate
+                report.timing["branch_and_bound"] = time.perf_counter() - clock
+                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,
+                                     bnb_priced=found.priced, fitted=cert.fitted)
+                kind = "branch_and_bound"
             else:
                 designs = search_cluster(
                     B_k, A_k, sizes, filt=filt,
                     linear_treated=a, linear_control=b, donor_exclusion=donors,
                     top_k=top_k,
                     beta=beta if design == "weakly_targeted" else None,
-                    control_penalty=control_penalty)
+                    control_penalty=control_penalty, report=report)
+                kind = "enumeration"
         except (CoupledFitNotCertified, SearchNotClosed):
             raise
         except MlsynthEstimationError as exc:
@@ -1243,12 +1300,27 @@ def _designs(
                 f"cluster cardinality (m_min/m_max) in cluster {lab!r}: {exc}"
             ) from exc
         per_cluster.append(designs)
+        searches[str(lab)] = summary = report.freeze(kind)
+        if summary.numerics.bound_fallbacks:
+            warnings.warn(
+                f"MAREX exact search, cluster {str(lab)!r}: "
+                f"{summary.numerics.bound_fallbacks} closed-form bound(s) fell back "
+                "to 0 because their solve failed, so those treated sets were "
+                "searched on no bound. The design is still exact; markets that "
+                "duplicate one another, or a near-singular panel, cause this.",
+                MAREXSearchWarning, stacklevel=3)
         if certify:
             if cert is None:
                 from .certify import certify_cluster
                 cert = certify_cluster(
                     B_k, A_k, sizes, filt, designs[0],
                     linear_treated=a, linear_control=b, donor_exclusion=donors)
+            if cert.unresolved:
+                warnings.warn(
+                    f"MAREX exact search, cluster {str(lab)!r}: the certificate left "
+                    f"{len(cert.unresolved)} treated set(s) unresolved, each "
+                    "possibly as good as the design. The design may be one of "
+                    "several tied optima.", MAREXSearchWarning, stacklevel=3)
             certificates[str(lab)] = dataclasses.replace(cert, unresolved=tuple(
                 tuple(int(members[j]) for j in S) for S in cert.unresolved))
 
@@ -1271,6 +1343,8 @@ def _designs(
             Y_fit, Y_blank, design, clusters, float(total)))
     if certify:
         raws[0]["certificate"] = certificates
+    for raw in raws:
+        raw["search"] = searches
     return raws
 
 

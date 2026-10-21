@@ -237,6 +237,7 @@ def solve_marex(
             synthetic_control=syn_c, pre_treatment_means=raw["Xbar_clusters"][k],
             rmse=float(raw["rmse_cluster"][k]), unit_weight_map=uwm,
             inference=_maybe_infer(syn_t, syn_c, idx[sel == 0]),
+            search=(raw.get("search") or {}).get(str(lab)),
         )
 
     # aggregate (global) design
@@ -343,9 +344,14 @@ def solve_marex(
                 tuple(unit_labels[i] for i in S) for S in c.unresolved))
             for lab, c in raw["certificate"].items()})
 
+    searches = list((raw.get("search") or {}).values())
+    search = None
+    for summary in searches:
+        search = summary if search is None else search.merge(summary)
+
     return MAREXResults(
         clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
-        certificate=certificate,
+        certificate=certificate, search=search,
         report=report,
         selected_units=list(treated_labels),
         assignment={"treated": list(treated_labels),

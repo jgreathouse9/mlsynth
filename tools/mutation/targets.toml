@@ -6982,3 +6982,138 @@ timeout = 900.0
   find = "        for S in with_complements(block, N):"
   replace = "        for S in np.sort(block, axis=1):"
   models = "the branch and bound's seeds at K = N / 2 taken without their complements, so a seed that does not treat the canonical unit is lost"
+
+# MAREX's exact-search diagnostics (#774). Every admissible candidate gets one
+# fate and each fate is counted where it is decided, so each mutant drops or
+# miscounts one, or merges, warns or flags wrongly.
+[[target]]
+name = "marex-search-diagnostics"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_search_diagnostics.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-treated-fit-discard-goes-uncounted"
+  find = "            rep.counts[\"cleared_by_treated_fit\"] += 1\n"
+  replace = ""
+  models = "a candidate whose treated fit alone cleared the incumbent left without a fate"
+
+  [[target.mutant]]
+  id = "the-missing-control-goes-uncounted"
+  find = "            rep.counts[\"without_control\"] += 1\n"
+  replace = ""
+  models = "a candidate whose donor exclusions left no control market left without a fate"
+
+  [[target.mutant]]
+  id = "the-fit-cutoff-discard-goes-uncounted"
+  find = "                rep.counts[\"cleared_by_fit_cutoff\"] += 1\n"
+  replace = ""
+  models = "a coupled fit stopped at its certified cutoff left without a fate"
+
+  [[target.mutant]]
+  id = "the-coupling-discard-goes-uncounted"
+  find = "                    rep.counts[\"cleared_by_coupling\"] += 1\n"
+  replace = ""
+  models = "a candidate the hull-distance bound discarded left without a fate"
+
+  [[target.mutant]]
+  id = "a-fit-goes-uncounted"
+  find = "        rep.counts[\"fitted\"] += 1\n"
+  replace = ""
+  models = "a candidate fitted to completion left without a fate"
+
+  [[target.mutant]]
+  id = "the-outside-buffer-discards-go-uncounted"
+  find = "        rep.cleared_outside(outside, float(buf_lb.max()), best.cutoff)"
+  replace = "        pass"
+  models = "the candidates outside the buffer, discarded on their bound without a second pass, never counted"
+
+  [[target.mutant]]
+  id = "the-second-pass-walks-are-counted-as-discards"
+  find = "        rep.cleared_outside(outside - walked, least, best.cutoff)"
+  replace = "        rep.cleared_outside(outside, least, best.cutoff)"
+  models = "the candidates the second pass walked counted again as discarded outside the buffer"
+
+  [[target.mutant]]
+  id = "the-second-pass-is-never-flagged"
+  find = "        rep.counts[\"second_pass\"] = True"
+  replace = "        pass"
+  models = "a search that reread every candidate reported as one that did not"
+
+  [[target.mutant]]
+  id = "the-fallbacks-go-uncounted"
+  find = "            report.numerics[\"bound_fallbacks\"] += int((~good | ~np.isfinite(val)).sum())"
+  replace = "            pass"
+  models = "closed-form bounds that fell back to 0 never counted, so no warning says a candidate was searched on no bound"
+
+  [[target.mutant]]
+  id = "the-second-pass-counts-its-fallbacks-again"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t)\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t, report=rep)\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
+  models = "the fallback count made to depend on whether the second pass ran, so a field reported as a fact about the problem moves with the buffer"
+
+  [[target.mutant]]
+  id = "the-branch-and-bound-counts-are-dropped"
+  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted)"
+  replace = "                report.counts.update(candidates=n_cand)"
+  models = "the branch and bound's bounds, sets priced and fits discarded, as before #774"
+
+  [[target.mutant]]
+  id = "the-fallback-warning-is-dropped"
+  find = "        if summary.numerics.bound_fallbacks:"
+  replace = "        if False:"
+  models = "a search on no bound reported in the counts but never warned of"
+
+  [[target.mutant]]
+  id = "the-tie-warning-is-dropped"
+  find = "            if cert.unresolved:"
+  replace = "            if False:"
+  models = "a certificate that could not resolve the design against a possible tie, never warned of"
+
+  [[target.mutant]]
+  id = "a-coupling-discard-is-screened-again"
+  find = "                    seen.add(cands[k])\n                    rep.counts[\"cleared_by_coupling\"] += 1"
+  replace = "                    rep.counts[\"cleared_by_coupling\"] += 1"
+  models = "a set the hull-distance bound discarded in the first pass is screened again in the second, so its fate is counted twice and the outside-buffer count falls short by as many, with the identity still holding"
+
+[[target]]
+name = "marex-search-diagnostics-summary"
+module-path = "mlsynth/utils/marex_helpers/diagnostics.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_search_diagnostics.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "histograms-merge-by-overwriting"
+  find = "        return LogHistogram(counts=tuple(a + b for a, b in zip(self.counts, other.counts)))"
+  replace = "        return LogHistogram(counts=tuple(other.counts))"
+  models = "two clusters' clearance histograms merged by keeping the second, the merge the issue names"
+
+  [[target.mutant]]
+  id = "the-largest-gap-is-added"
+  find = "        elif f.name.endswith(\"_max_gap\"):"
+  replace = "        elif False:"
+  models = "the largest coupled-fit gap summed over clusters, so the merged figure is no fit's gap"
+
+  [[target.mutant]]
+  id = "the-second-pass-flag-adds"
+  find = "        if isinstance(x, bool):\n            out[f.name] = x or y"
+  replace = "        if False:\n            out[f.name] = x or y"
+  models = "booleans merged by addition, so a merged flag is a count"
+
+  [[target.mutant]]
+  id = "clearance-measured-from-zero"
+  find = "                LogHistogram.of((bounds - cutoff) / scale))"
+  replace = "                LogHistogram.of(bounds / scale))"
+  models = "a discard's clearance read as its bound over the cutoff, not how far the bound cleared it"
+
+  [[target.mutant]]
+  id = "the-gap-is-not-relative"
+  find = "            self.numerics[\"coupled_max_gap\"], float(info[\"gap\"]) / (1.0 + abs(value)))"
+  replace = "            self.numerics[\"coupled_max_gap\"], float(info[\"gap\"]))"
+  models = "the coupled fit's gap reported in the objective's units, not relative to it as its stopping rule is"
+
+  [[target.mutant]]
+  id = "two-kinds-of-search-merge-as-the-first"
+  find = "            search=self.search if self.search == other.search else \"mixed\","
+  replace = "            search=self.search,"
+  models = "a design searched partly by enumeration and partly by the branch and bound reported as one kind"
