@@ -28,14 +28,15 @@ Chernozhukov, Wuethrich, and Zhu (2021), applied uniformly to all
 three modes via the shared contrast-vector dispatch in
 ``mlsynth.utils.syndes_helpers.inference``.
 
-Two additional MIP features round out the estimator:
+Two additional features round out the estimator:
 
-* **Budget constraint** (paper section 1): supply ``costs`` (length
-  ``N``) and ``budget`` to add ``sum_i c_i D_i <= B`` to the MIP.
-* **Exact two-way backend** (the default for ``two_way_global``):
-  naming the treated set removes every binary, so the design is
-  found by searching treated sets over the Gram matrix instead of
-  by branch-and-bound. See ``utils/syndes_helpers/exact.py``.
+* Budget constraint (paper section 1): supply ``costs`` (length
+  ``N``) and ``budget`` to cap ``sum_i c_i D_i`` at ``B``.
+* Exact backends (the default for every mode): naming the treated
+  set removes every binary, so the design is found by searching
+  treated sets instead of by branch-and-bound. See
+  ``utils/syndes_helpers/exact.py`` (two-way), ``one_way_exact.py``
+  and ``per_unit_exact.py``.
 
 Post-fit, see :func:`mlsynth.power_analysis` for per-horizon
 minimum-detectable-effect tables.
@@ -65,6 +66,14 @@ from ..utils.syndes_helpers.infocriterion import select_by_ic
 from ..utils.syndes_helpers.exact import (
     solve_synthetic_design_exact,
     solve_synthetic_design_exact_pool,
+)
+from ..utils.syndes_helpers.one_way_exact import (
+    solve_one_way_exact,
+    solve_one_way_exact_pool,
+)
+from ..utils.syndes_helpers.per_unit_exact import (
+    solve_per_unit_exact,
+    solve_per_unit_exact_pool,
 )
 from ..utils.syndes_helpers.optimization import (
     solve_synthetic_design,
@@ -486,8 +495,15 @@ class SYNDES:
                 unit_index=inputs.unit_index, costs=self.costs,
                 budget=self.budget, restrictions=restrictions,
             )
-            solve_one, solve_pool = (solve_synthetic_design_exact,
-                                     solve_synthetic_design_exact_pool)
+            if mode_internal == "per_unit":
+                solve_one, solve_pool = (solve_per_unit_exact,
+                                         solve_per_unit_exact_pool)
+            elif mode_internal == "global_equal_weights":
+                solve_one, solve_pool = (solve_one_way_exact,
+                                         solve_one_way_exact_pool)
+            else:
+                solve_one, solve_pool = (solve_synthetic_design_exact,
+                                         solve_synthetic_design_exact_pool)
         else:
             solve_kw = dict(
                 Y=inputs.Y_pre, K=self.K, mode=mode_internal, lam=self.lam,
@@ -500,6 +516,10 @@ class SYNDES:
                                      solve_synthetic_design_pool)
 
         pool = None
+        # The design the search returned on the whole pre-period, when there is
+        # one: its bound is the certificate's. Holdout fits on the leading slice,
+        # so there the certificate searches the whole pre-period itself.
+        in_sample = None
         if self.selection == "holdout":
             # Holdout selection: learn the candidate pool on the leading
             # 1 - holdout_frac of the pre-period, then pick the design with the
@@ -524,6 +544,7 @@ class SYNDES:
                 pool_designs, inputs.Y_pre,
             )
             design = ranked[0]
+            in_sample = pool_designs[0]
             pool = _syndes_pool_menu(ranked, inputs, self.costs, self.alpha,
                                      ic_values=ic_values, df_values=df_values)
         elif self.top_K and self.top_K > 1:
@@ -531,10 +552,10 @@ class SYNDES:
             # design IS the single-solve optimum, so reuse it (no double solve).
             pool_designs = solve_pool(top_K=self.top_K, **solve_kw)
             self._require_feasible_pool(pool_designs)
-            design = pool_designs[0]
+            design = in_sample = pool_designs[0]
             pool = _syndes_pool_menu(pool_designs, inputs, self.costs, self.alpha)
         else:
-            design = solve_one(**solve_kw)
+            design = in_sample = solve_one(**solve_kw)
 
         # Re-tag with the paper-aligned mode label so the design surface
         # the user sees uses SYNDES vocabulary.
@@ -563,10 +584,18 @@ class SYNDES:
         )
         certificate = None
         if self.certify:
-            from ..utils.syndes_helpers.certificate import syndes_certificate
+            from ..utils.syndes_helpers.certificate import (design_objective,
+                                                            syndes_certificate)
+            # Bound and incumbent on one problem: the whole pre-period and the
+            # design's own penalty. Under holdout selection the design was
+            # fitted on the leading slice, so its objective_value refers to
+            # another panel; scoring its weights here keeps the gap a gap.
+            lam_design = float(design.lambda_value)
             certificate = syndes_certificate(
                 inputs.Y_pre, self.K, mode_internal,
-                float(design.objective_value), lam=self.lam,
+                design_objective(inputs.Y_pre, mode_internal, design, lam_design),
+                lam=lam_design, restrictions=restrictions, costs=self.costs,
+                budget=self.budget, search=in_sample if use_exact else None,
             )
         results = SYNDESResults(
             design=design, inputs=inputs, inference=inference,

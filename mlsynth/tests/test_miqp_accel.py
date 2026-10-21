@@ -23,7 +23,13 @@ import pytest
 from mlsynth.utils.miqp_accel import solve_warm_cut, AccelInfo, _bool_positions
 from mlsynth.utils.syndes_helpers.formulation import build_syndes_problem_components
 from mlsynth.utils.syndes_helpers.optimization import estimate_lambda
-from mlsynth.utils.syndes_helpers.certificate import _rayleigh_bound_two_way
+from mlsynth.utils.syndes_helpers.gram import BoundEngine, TwoWayProblem
+
+
+def _rayleigh_bound_two_way(Y, K, lam):
+    """The closed-form Rayleigh bound over every size-K two-way design."""
+    return BoundEngine.from_problem(
+        TwoWayProblem.from_panel(Y, lam=lam)).global_lower_bound(K)
 
 
 def _make(N=7, K=2, T=10, seed=1):

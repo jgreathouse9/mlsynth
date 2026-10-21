@@ -112,15 +112,21 @@ class SYNDESConfig(BaseMAREXConfig):
     backend: Literal["mip", "exact"] = Field(
         default="exact",
         description=(
-            "How ``mode='two_way_global'`` is solved. ``'exact'`` (the default) "
-            "searches treated sets directly: naming the set removes "
-            "every binary and leaves a convex program in the Gram matrix, so a "
-            "candidate design costs one row of a matrix product instead of a "
-            "branch-and-bound node, and the panel length drops out after the "
-            "Gram step. Only valid for ``mode='two_way_global'``, and not with "
-            "donor-side restrictions, which tie the control weights to the "
-            "assignment. ``gap_limit``, ``time_limit`` and ``solver`` describe "
-            "branch-and-bound and apply to the MIP path only."
+            "How the design is solved. ``'exact'`` (the default for every "
+            "mode) searches treated sets directly: naming the set removes every "
+            "binary. Two-way is then a convex program in the Gram matrix, so a "
+            "candidate design costs one row of a matrix product, and two-way "
+            "refuses donor-side restrictions, which tie its control weights to "
+            "the assignment. One-way is then one simplex fit per set, and the "
+            "search enumerates the sets under a closed-form ridge bound and "
+            "prices them in its order, which returns a certified optimum; "
+            "donor-side restrictions shrink the control pool. Per-unit is one "
+            "simplex fit per treated unit, searched by a branch and bound on "
+            "units that returns a certified optimum, and donor-side restrictions "
+            "shrink each treated unit's pool. ``'mip'`` hands the "
+            "mixed-integer program to ``solver``. ``gap_limit``, ``time_limit`` "
+            "and ``solver`` describe branch-and-bound and apply to the MIP path "
+            "only."
         ),
     )
     solver: Any = Field(default="SCIP",
@@ -156,15 +162,20 @@ class SYNDESConfig(BaseMAREXConfig):
     certify: bool = Field(
         default=False,
         description=(
-            "Attach a validated optimality gap to the result. Computes a "
-            "mode-appropriate lower bound on the optimal objective without "
-            "branch-and-bound (a convex QP for one-way; the closed-form "
-            "Rayleigh bound on the Gram matrix for two-way; per-unit is not "
-            "cheaply certifiable and returns certified=False). The result gains a ``certificate`` "
-            "(``SYNDESCertificate``) with ``lower_bound`` and ``optimality_gap``. "
-            "A design-time diagnostic and an mlsynth addition -- not part of "
-            "Doudchenko et al. (2021), which gives the MIP but no relaxation "
-            "bound; it does not change the returned design."
+            "Attach a validated optimality gap to the result. The lower bound "
+            "is the one the mode's exact search reports on the whole "
+            "pre-period, with the design's penalty and restrictions: the "
+            "optimum itself for one-way and per-unit when the search closes, "
+            "and for two-way the Rayleigh bound over every size-K design when "
+            "the search enumerates, or the branch and bound's own bound above "
+            "the candidate limit. The "
+            "search the design came from is reused when it ran on the whole "
+            "pre-period; under holdout selection it is run again there. The "
+            "result gains a ``certificate`` (``SYNDESCertificate``) with "
+            "``lower_bound``, ``optimality_gap`` and ``certified``, which says "
+            "the search closed. A design-time diagnostic and an mlsynth "
+            "addition -- not part of Doudchenko et al. (2021), which gives the "
+            "MIP but no lower bound; it does not change the returned design."
         ),
     )
     display_graph: bool = Field(default=False,
@@ -354,19 +365,6 @@ class SYNDESConfig(BaseMAREXConfig):
         df = values.df
         n_units = df[values.unitid].nunique()
         n_periods = df[values.time].nunique()
-
-        # The exact backend is a reformulation of the two-way objective only:
-        # one-way pins the treated weights and per-unit carries an (N, N) weight
-        # matrix, so neither reduces to a search over treated sets. Since the
-        # field defaults to "exact", the default has to resolve per mode -- the
-        # other two modes keep the MIP without the user naming a backend -- while
-        # an explicit request for a mode that cannot use it is still an error.
-        if values.mode != "two_way_global":
-            if "backend" in values.model_fields_set and values.backend == "exact":
-                raise MlsynthConfigError(
-                    f"backend='exact' is only available for "
-                    f"mode='two_way_global'; got mode={values.mode!r}.")
-            values.backend = "mip"
 
         # Donor-side rules tie the control weights to which units are treated, so
         # a two-way design stops being scoreable from its treated set alone. The
