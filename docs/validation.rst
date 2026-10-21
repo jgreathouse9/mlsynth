@@ -11,7 +11,7 @@ checksum), and the mlsynth case that runs the check.
 
 Coverage: **88 cross-validation checks** against original
 implementations across **45 estimators** -- 35 reproduce the reference to display precision, 29 to
-within two percent. A further 5 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
+within two percent. A further 6 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
 relative deviation :math:`\le 2\%`), **close** (:math:`\le 10\%`), and
@@ -1481,6 +1481,8 @@ action records them once its toolchain provisions.
      - —
    * - `lto_refined_placebo <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/lto_refined_placebo.py>`__
      - independent reproduction of tsudijon/LeaveTwoOutSCI LTO pair loop (outcome-only SC via LowRankQP), all three empirical applications
+   * - `marex_exact_bruteforce <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_exact_bruteforce.py>`__
+     - benchmarks/reference/marex_exact_bruteforce/reference.R: independent enumeration of every treated set, each fixed-set program solved by quadprog::solve.QP
    * - `marex_scdesign_sim <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_scdesign_sim.py>`__
      - jinglongzhao2/SCDesign (live run: Section 5 generation block + Synthetic_Experiment_Cardinality_Constraint on the open quadprog backend)
    * - `ppscm_cs_real_panels <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/ppscm_cs_real_panels.py>`__

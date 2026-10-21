@@ -1012,7 +1012,6 @@
  "geox_mvbbsc_equivalence": [
   "basedata/german_reunification.csv",
   "mlsynth/utils/datautils.py",
-  "mlsynth/utils/geox_helpers/engine.py",
   "mlsynth/utils/geox_helpers/engines/__init__.py",
   "mlsynth/utils/geox_helpers/engines/mvbbsc/__init__.py",
   "mlsynth/utils/mvbbsc_helpers/model.py"
@@ -1367,12 +1366,15 @@
   "mlsynth/utils/fast_scm_helpers/conflict.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
   "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/marex_helpers/optimization.py",
   "mlsynth/utils/marex_helpers/orchestration.py",
   "mlsynth/utils/marex_helpers/restrictions.py",
   "mlsynth/utils/marex_helpers/setup.py",
   "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
  "marex_section5_mc": [
@@ -1382,12 +1384,15 @@
   "mlsynth/utils/fast_scm_helpers/conflict.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
   "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/marex_helpers/optimization.py",
   "mlsynth/utils/marex_helpers/orchestration.py",
   "mlsynth/utils/marex_helpers/restrictions.py",
   "mlsynth/utils/marex_helpers/setup.py",
   "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
  "marex_table3": [
@@ -1397,12 +1402,14 @@
   "mlsynth/utils/fast_scm_helpers/conflict.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
   "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/marex_helpers/optimization.py",
   "mlsynth/utils/marex_helpers/orchestration.py",
-  "mlsynth/utils/marex_helpers/restrictions.py",
   "mlsynth/utils/marex_helpers/setup.py",
   "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
  "marex_walmart": [
@@ -1413,6 +1420,7 @@
   "mlsynth/utils/fast_scm_helpers/conflict.py",
   "mlsynth/utils/fast_scm_helpers/structure.py",
   "mlsynth/utils/marex_helpers/config.py",
+  "mlsynth/utils/marex_helpers/exact.py",
   "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/marex_helpers/inference.py",
   "mlsynth/utils/marex_helpers/optimization.py",
@@ -1420,6 +1428,8 @@
   "mlsynth/utils/marex_helpers/restrictions.py",
   "mlsynth/utils/marex_helpers/setup.py",
   "mlsynth/utils/post_fit.py",
+  "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/syndes_helpers/exact.py",
   "mlsynth/utils/syndes_helpers/restrictions.py"
  ],
  "masc_basque": [

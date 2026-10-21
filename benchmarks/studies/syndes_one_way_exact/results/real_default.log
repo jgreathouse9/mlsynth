@@ -1,0 +1,15 @@
+geolift_n40_k3: sets=9880 gap two-way=0.0001 ridge=0.0000 pruned=0.9998 priced=2 t=0.23s | scip timelimit 60.1s excess=2.73e-02
+geolift_n40_k5: sets=658008 gap two-way=0.0003 ridge=-0.0000 pruned=1.0000 priced=1 t=4.50s | scip timelimit 60.1s excess=4.18e-02
+geolift_n40_k10: beyond enumeration (847,660,528 sets) | scip timelimit 60.1s
+walmart_n45_k3: sets=14190 gap two-way=0.0002 ridge=-0.0000 pruned=1.0000 priced=1 t=0.05s | scip timelimit 60.1s excess=7.29e-02
+walmart_n45_k5: sets=1221759 gap two-way=0.0001 ridge=0.0000 pruned=1.0000 priced=1 t=9.72s | scip timelimit 60.1s excess=1.01e-01
+walmart_n45_k10: beyond enumeration (3,190,187,286 sets) | scip timelimit 60.1s
+county_n40_k3: sets=9880 gap two-way=0.0002 ridge=0.0000 pruned=0.9999 priced=1 t=0.03s | scip gaplimit 37.1s excess=0.00e+00
+county_n40_k5: sets=658008 gap two-way=0.0012 ridge=-0.0000 pruned=1.0000 priced=1 t=6.72s | scip gaplimit 49.9s excess=0.00e+00
+county_n40_k10: beyond enumeration (847,660,528 sets) | scip timelimit 60.1s
+county_n70_k3: sets=54740 gap two-way=0.0001 ridge=0.0001 pruned=1.0000 priced=1 t=1.20s | scip timelimit 60.1s excess=1.90e-03
+county_n70_k5: sets=12103014 gap two-way=0.0002 ridge=0.0000 pruned=1.0000 priced=1 t=124.37s | scip timelimit 60.1s excess=0.00e+00
+county_n70_k10: beyond enumeration (396,704,524,216 sets) | scip timelimit 60.1s
+county_n100_k3: sets=161700 gap two-way=0.0003 ridge=0.0002 pruned=1.0000 priced=1 t=3.43s | scip timelimit 60.1s excess=7.29e-03
+county_n100_k5: beyond enumeration (75,287,520 sets) | scip timelimit 60.1s
+county_n100_k10: beyond enumeration (17,310,309,456,440 sets) | scip timelimit 60.1s

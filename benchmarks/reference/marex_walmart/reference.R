@@ -134,8 +134,9 @@ f.vector <- rep(1 / N.Regions, N.Regions)   # uniform population weights
 T.naught <- 128                              # experimental period = weeks 129..143 (15)
 T.prime  <- 100                              # fit 1..100; blank 101..128 (MAREX blank=28)
 
-# Covariates: per-store mean over the fitting window (weeks 1..T.prime), exactly
-# as MAREX aggregates them (pre_mean over pre_periods = T0). Z is r.cov x N.
+# Covariates: per-store mean over the fitting window (weeks 1..T.prime), as
+# MAREX aggregates them (pre_mean over the first T0 - blank_periods periods).
+# Z is r.cov x N.
 r.cov <- length(covcols)
 Z <- matrix(NA, nrow = r.cov, ncol = N.Regions)
 for (j in seq_along(stores)) {

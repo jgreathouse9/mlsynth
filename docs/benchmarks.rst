@@ -47,17 +47,17 @@ Validation paths
 Every case, by path and data
 ----------------------------
 
-All 239 registered cases. ``paths`` is what the case
+All 243 registered cases. ``paths`` is what the case
 establishes and ``data`` is what it runs on; the two are independent, so
 a cross-validation can sit on a generated panel and a simulation can be
 calibrated from a real one.
 
 * ``A`` -- empirical replication (77 cases)
-* ``B`` -- Monte Carlo / simulation (67 cases)
-* ``C`` -- theoretical property or design calibration (14 cases)
-* ``X`` -- cross-validation against a reference implementation (111 cases)
+* ``B`` -- Monte Carlo / simulation (68 cases)
+* ``C`` -- theoretical property or design calibration (16 cases)
+* ``X`` -- cross-validation against a reference implementation (113 cases)
 
-By data: 84 simulated, 139 empirical, 16 both -- so 100 cases fit at least one generated panel.
+By data: 86 simulated, 140 empirical, 17 both -- so 103 cases fit at least one generated panel.
 
 This table is generated. To change a label, edit ``LABELS`` in
 ``benchmarks/registry.py`` and run ``python tools/gen_benchmark_index.py``;
@@ -382,8 +382,17 @@ This table is generated. To change a label, edit ``LABELS`` in
    * - ``malo_prop99``
      - A
      - empirical
+   * - ``marex_bnb_work``
+     - C
+     - empirical
+   * - ``marex_exact_bruteforce``
+     - X
+     - simulated
    * - ``marex_scdesign_sim``
      - X
+     - simulated
+   * - ``marex_section5_bias``
+     - B X
      - simulated
    * - ``marex_section5_mc``
      - A B
@@ -708,6 +717,9 @@ This table is generated. To change a label, edit ``LABELS`` in
      - empirical
    * - ``syndes_bls``
      - B
+     - both
+   * - ``syndes_bnb_work``
+     - C
      - both
    * - ``syndes_exact_vs_mip``
      - X
@@ -1107,6 +1119,8 @@ Path B — Monte Carlo / simulation
      - CWZ Table 1 relative asymptotic efficiency from the authors' RAE.R -- the formula behind ttest_K="auto" -- matched to 1e-9 across K = 2..10
    * - ``cwz_ttest_mc``
      - CWZ Table 3 run live from the authors' calibration_dgps.R and common_functions.R: seed-matched panels reproduced exactly, plus coverage, length and bias across all nine DGPs
+   * - ``marex_section5_bias``
+     - The base MAREX design on Abadie-Zhao's own 1000 Section 5 panels, regenerated from their seeds by a port of R's generator checked against the R capture: Table 2 at M = 1000, the mean signed error within one standard error of zero, each design's exact bias, and the blank-period gap recovering it with slope near one
    * - ``marex_table3``
      - MAREX computes Abadie-Zhao Table 3's SC column on the authors' panels and beats every published randomized alternative at every cardinality
    * - ``ppscm_bfr_mc``
@@ -1259,6 +1273,8 @@ Cross-validation against reference implementations
      - fsPDA ``fs()`` / ``lasso_ic()`` / ``oracle()`` on their three sparse DGPs
    * - ``ibex_dap``
      - VanillaSC vs mharoruiz/ibex scinference/lsei SC: Iberian exception day-ahead price, weights value-for-value (Haro Ruiz-Schult-Wunder 2024)
+   * - ``marex_exact_bruteforce``
+     - MAREX's exact backend vs brute-force enumeration of every treated set in R (quadprog per set): 12 configurations on 6 panels, every design and objective option
    * - ``marex_scdesign_sim``
      - MAREX vs SCDesign's own cardinality-constrained design on the Section 5 simulation panels (captured R run, open quadprog, no Gurobi)
    * - ``pda_wheeler_lassosynth``

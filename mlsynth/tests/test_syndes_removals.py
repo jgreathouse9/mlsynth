@@ -74,15 +74,17 @@ class TestDefaultBackend:
         assert (tuple(exact.selected_unit_indices)
                 == tuple(mip.selected_unit_indices))
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_still_use_the_mip(self, mode):
-        design = SYNDES(_cfg(mode=mode)).fit().design
-        assert design.raw_results["solver"] != "exact"
+    def test_per_unit_defaults_to_its_search(self):
+        design = SYNDES(_cfg(mode="per_unit")).fit().design
+        assert design.raw_results["solver"] == "exact"
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_reject_the_search(self, mode):
-        with pytest.raises(MlsynthConfigError):
-            SYNDES(_cfg(mode=mode, backend="exact"))
+    def test_one_way_defaults_to_its_search(self):
+        design = SYNDES(_cfg(mode="one_way_global")).fit().design
+        assert design.raw_results["solver"] == "exact"
+
+    def test_one_way_keeps_the_mip_on_request(self):
+        design = SYNDES(_cfg(mode="one_way_global", backend="mip")).fit().design
+        assert design.raw_results["solver"] != "exact"
 
 
 # ----------------------------------------------------------------------
@@ -163,7 +165,7 @@ class TestAcceleratorRemoved:
     def test_certify_still_works_on_the_new_default(self):
         res = SYNDES(_cfg(certify=True)).fit()
         assert res.certificate is not None
-        assert res.certificate.method == "rayleigh"
+        assert res.certificate.method == "search"
         assert res.certificate.lower_bound <= float(res.design.objective_value) + 1e-6
 
 
@@ -224,15 +226,17 @@ class TestSurvivingKnobs:
 
 
 class TestDefaultResolvesPerMode:
-    """The default is ``"exact"``, which only two-way can honour.
+    """The default is ``"exact"``, and every mode honours it: each has a search
+    over treated sets. ``"mip"`` is honoured wherever it is asked for."""
 
-    Resolving it per mode is what keeps the other two working without the user
-    naming a backend; asking for it explicitly there is still an error.
-    """
+    def test_one_way_keeps_its_search(self):
+        assert SYNDES(_cfg(mode="one_way_global")).config.backend == "exact"
 
-    @pytest.mark.parametrize("mode", ["one_way_global", "per_unit"])
-    def test_other_modes_silently_keep_the_mip(self, mode):
-        assert SYNDES(_cfg(mode=mode)).config.backend == "mip"
+    def test_an_explicit_mip_is_honoured_on_one_way(self):
+        assert SYNDES(_cfg(mode="one_way_global", backend="mip")).config.backend == "mip"
+
+    def test_per_unit_keeps_its_search(self):
+        assert SYNDES(_cfg(mode="per_unit")).config.backend == "exact"
 
     def test_two_way_keeps_the_search(self):
         assert SYNDES(_cfg()).config.backend == "exact"
