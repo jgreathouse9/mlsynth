@@ -26,8 +26,10 @@ Three kinds, each small enough to run in seconds:
   units, which exercises the lift, its certificates and the pruning on a
   search small enough to run in about ten seconds in all;
 * ``K=None`` at 26 units under a small ``work_limit``, which exercises the
-  per-size search, the swap-search cutoff, best first and the bound reported
-  at the limit.
+  per-size search, the swap-search cutoff, best first and the mirror rule
+  (#838): the sizes up to 13 are searched, and at 13 only the designs that
+  treat unit 0. Before the rule both searches stopped at the limit with their
+  bounds under the design; with it both close within the limit.
 
 The panels are the generators of ``benchmarks/studies/syndes_global_bnb``, the
 study the search came from, so a reader can trace every instance to the panels
@@ -113,7 +115,12 @@ def _band(value: float, rel: float) -> tuple:
 # * the modelled work differed by up to 6%, from L-BFGS-B taking different
 #   numbers of evaluations in the lift under the two scipy versions, so work
 #   carries a 15% band;
-# * the bound at the limit differed by 7e-6 relative, so it carries 1e-4.
+# * the bound at the limit differed by 7e-6 relative, so it carried 1e-4.
+#
+# The mirror rule (#838) moved the K=None instances: both searches now close
+# within the limit, so their bound is the design's value and carries the
+# value's 1e-9. Under the two versions the nodes were 67 and 67 (factor) and
+# 69 and 67 (GeoLift), and the lifts 9 and 9, and 7 and 8, inside the bands.
 #
 # The bands are loose against version noise and tight against what the case
 # exists to catch: a change that multiplies the work, or sends a search that
@@ -172,15 +179,16 @@ EXPECTED = {
     "factor20_k8_eager_work": _band(3.397196551999998, 0.15),
     "factor20_k8_eager_certified": (1.0, 0.0),
     "factor20_k8_eager_matches_enumeration": (1.0, 0.0),
-    # K=None under work_limit=5: uncertified, and the bound at the limit pinned
+    # K=None under work_limit=5, sizes up to 13 under the mirror rule (#838):
+    # both close within the limit, so the bound is the value
     "factor26_free_value": _band(0.6019339302995382, 1e-9),
-    "factor26_free_lower": _band(0.6006047207364451, 1e-4),
+    "factor26_free_lower": _band(0.6019339302995382, 1e-9),
     "factor26_free_size": (13.0, 0.0),
-    "factor26_free_nodes": _band(82, 0.05),
-    "factor26_free_lifts": _band(11, 0.15),
+    "factor26_free_nodes": _band(67, 0.05),
+    "factor26_free_lifts": _band(9, 0.15),
     "geolift26_free_value": _band(143431.35581503826, 1e-9),
-    "geolift26_free_lower": _band(143171.5590682762, 1e-4),
+    "geolift26_free_lower": _band(143431.35581503826, 1e-9),
     "geolift26_free_size": (13.0, 0.0),
-    "geolift26_free_nodes": _band(80, 0.05),
-    "geolift26_free_lifts": _band(9, 0.15),
+    "geolift26_free_nodes": _band(69, 0.05),
+    "geolift26_free_lifts": _band(7, 0.15),
 }
