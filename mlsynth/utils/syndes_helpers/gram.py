@@ -25,6 +25,13 @@ disappears and what is left is a convex quadratic program:
 
 with ``G = Y'Y / T``. Three things follow, and this module supplies all three.
 
+Every feasible ``u`` has ``1'u = 0``, so ``Y`` enters only through contrasts
+``Y u`` in which a level common to every unit cancels. The module forms ``G`` from
+``Y`` centred within each period, and puts the direction ``1``, which no design
+reads, at the mean eigenvalue of the rest. ``u'Gu`` is unchanged on every
+contrast, and ``cond(M)`` becomes the conditioning of the problem the designs
+pose, not one that grows with the square of the outcome's level.
+
 ``Y`` enters only through ``G``. After one ``O(N^2 T)`` step the panel length is
 gone, so a long panel costs no more per candidate design than a short one.
 
@@ -82,6 +89,13 @@ from ...exceptions import (
 #: leaves the inverse meaningful.
 CONDITION_MAX = 1e10
 
+#: The swap search stops when its best improvement is at most this fraction of
+#: ``N max_i R_ii``, the bound on ``|R sigma|`` for a positive semidefinite ``R``.
+#: Below it the improvement is rounding in the incremental update of
+#: ``R sigma``; and being relative, the stop makes the same swaps whatever the
+#: units of ``Y``, whose fourth power ``R`` scales with inversely.
+SWAP_RTOL = 1e-12
+
 
 @dataclass(frozen=True)
 class TwoWayProblem:
@@ -90,7 +104,10 @@ class TwoWayProblem:
     Attributes
     ----------
     G : np.ndarray
-        ``Y'Y / T``, shape ``(N, N)``.
+        The Gram matrix on contrasts, shape ``(N, N)``: ``Yc'Yc / T`` for ``Y``
+        centred within each period, plus ``mu 1 1' / N`` with ``mu`` the mean
+        eigenvalue of ``Yc'Yc / T`` on contrasts. ``u'Gu = u'(Y'Y / T)u``
+        whenever ``1'u = 0``, which every feasible design satisfies.
     M : np.ndarray
         ``G + lam I`` -- the matrix the objective is a quadratic form in.
     lam : float
@@ -110,7 +127,8 @@ class TwoWayProblem:
     ) -> "TwoWayProblem":
         """Reduce a ``(T, N)`` pre-period matrix to its Gram form.
 
-        ``lam`` defaults to the mean within-unit variance, matching
+        ``lam`` defaults to the mean within-unit variance of the uncentred
+        panel, matching
         :func:`mlsynth.utils.syndes_helpers.optimization.estimate_lambda`, so
         this path and the MIP minimise the same objective.
 
@@ -140,8 +158,18 @@ class TwoWayProblem:
         if lam_value < 0:
             raise MlsynthConfigError("lam must be nonnegative.")
 
-        G = (Y.T @ Y) / T
+        # Centre within each period: the objective reads only contrasts, in
+        # which the period means cancel, and a level left in G would put an
+        # eigenvalue of order N times its square into M.
+        centred = Y - Y.mean(axis=1, keepdims=True)
+        G = (centred.T @ centred) / T
         G = 0.5 * (G + G.T)
+        # Centring leaves 1 in G's null space. No design reads that direction,
+        # so give it the mean eigenvalue on contrasts (the trace over the N - 1
+        # others): M is then definite whenever the problem on contrasts is, at
+        # lam = 0 included, and cond(M) is that problem's own.
+        level = float(np.trace(G)) / (N - 1)
+        G = G + np.full((N, N), level / N)
         return cls(G=G, M=G + lam_value * np.eye(N), lam=lam_value, N=N)
 
     @property
@@ -356,6 +384,7 @@ def maxcut_candidates(
     rng = np.random.default_rng(seed)
     N, R = engine.N, engine.R
     diagonal = np.diag(R)
+    stop = SWAP_RTOL * N * float(diagonal.max())
     found = []
 
     for restart in range(max(1, int(n_restarts))):
@@ -378,7 +407,7 @@ def maxcut_candidates(
             )
             flat = int(np.argmax(delta))
             row, col = divmod(flat, outside.size)
-            if delta[row, col] <= 1e-12:
+            if delta[row, col] <= stop:
                 break
             i, j = int(inside[row]), int(outside[col])
             sigma[i], sigma[j] = -1.0, 1.0

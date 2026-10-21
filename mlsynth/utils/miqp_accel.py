@@ -84,6 +84,10 @@ class AccelInfo:
     fell_back : bool
         Whether the cut was dropped and the solve retried un-cut because the cut
         made the model infeasible (a too-high ``L``).
+    primal_bound : float
+        SCIP's primal bound at termination, the canonical objective ``c'x`` of
+        its incumbent. Its difference from the problem's objective at the same
+        point is the objective's constant, which neither bound carries.
     """
 
     status: str
@@ -93,6 +97,7 @@ class AccelInfo:
     cut_applied: bool
     warm_applied: bool
     fell_back: bool
+    primal_bound: float = float("nan")
 
 
 class _WarmCutSCIP(_CvxSCIP):
@@ -233,11 +238,12 @@ def solve_warm_cut(
     model = solver.model
     if model is not None:
         dual_bound = float(model.getDualbound())
+        primal_bound = float(model.getPrimalbound())
         gap = float(model.getGap())
         status = str(model.getStatus())
         solve_time = float(model.getSolvingTime())
     else:                                   # pragma: no cover - model always built
-        dual_bound = gap = solve_time = float("nan")
+        dual_bound = primal_bound = gap = solve_time = float("nan")
         status = "unknown"
     info = AccelInfo(
         status=status,
@@ -247,5 +253,6 @@ def solve_warm_cut(
         cut_applied=solver.cut_applied,
         warm_applied=solver.warm_applied,
         fell_back=fell_back,
+        primal_bound=primal_bound,
     )
     return prob, info

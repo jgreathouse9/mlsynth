@@ -1,0 +1,32 @@
+noise_n20_k3_s0: gap=0.0509 agree=True root True 0.01s | pair True 0.01s | bnb True 9 nodes 0.01s | scip timelimit 62.3s excess=1.12e-16 same=True
+noise_n20_k3_s1: gap=0.0259 agree=True root True 0.00s | pair True 0.01s | bnb True 7 nodes 0.01s | scip timelimit 62.8s excess=3.68e-02 same=False
+noise_n20_k3_s2: gap=0.0485 agree=True root True 0.00s | pair True 0.00s | bnb True 7 nodes 0.01s | scip gaplimit 38.6s excess=0.00e+00 same=True
+noise_n20_k5_s0: gap=0.0886 agree=True root True 0.19s | pair True 0.08s | bnb True 87 nodes 0.10s | scip timelimit 61.7s excess=7.67e-03 same=False
+noise_n20_k5_s1: gap=0.0971 agree=True root True 0.06s | pair True 0.05s | bnb True 65 nodes 0.07s | scip gaplimit 61.1s excess=0.00e+00 same=True
+Cannot set feasibility tolerance to small value 4.96286e-12 without GMP - using 1e-10.
+noise_n20_k5_s2: gap=0.1009 agree=True root True 0.05s | pair True 0.09s | bnb True 47 nodes 0.05s | scip timelimit 61.2s excess=1.12e-02 same=False
+noise_n20_k10_s0: gap=0.2338 agree=True root True 113.45s | pair True 83.52s | bnb True 31083 nodes 26.29s | scip timelimit 61.2s excess=3.97e-02 same=False
+noise_n20_k10_s1: gap=0.2536 agree=True root True 101.75s | pair True 73.65s | bnb True 13761 nodes 11.90s | scip timelimit 61.2s excess=1.72e-16 same=True
+noise_n20_k10_s2: gap=0.2221 agree=True root False 120.00s | pair True 113.61s | bnb True 24663 nodes 19.19s | scip timelimit 61.7s excess=5.01e-02 same=False
+noise_n40_k3_s0: gap=0.0147 agree=True root True 0.04s | pair True 0.05s | bnb True 7 nodes 0.13s | scip timelimit 66.9s excess=8.35e-01 same=False
+malloc(): invalid size (unsorted)
+free(): invalid pointer
+noise_n40_k3_s1: gap=0.0156 agree=True root True 0.06s | pair True 0.08s | bnb True 7 nodes 0.22s | scip crashed (exit -6) 69.1s excess=nan same=False
+malloc(): invalid size (unsorted)
+noise_n40_k3_s2: gap=0.0139 agree=True root True 0.06s | pair True 0.11s | bnb True 7 nodes 0.21s | scip hung 721.0s excess=nan same=False
+noise_n40_k5_s0: gap=0.0422 agree=True root True 0.10s | pair True 0.12s | bnb True 17 nodes 0.35s | scip timelimit 66.5s excess=3.47e-01 same=False
+noise_n40_k5_s1: gap=0.0232 agree=True root True 0.06s | pair True 0.10s | bnb True 13 nodes 0.29s | scip timelimit 67.3s excess=5.15e-02 same=False
+noise_n40_k5_s2: gap=0.0433 agree=True root True 0.48s | pair True 0.34s | bnb True 43 nodes 0.60s | scip timelimit 66.8s excess=8.92e-02 same=False
+noise_n40_k10_s0: gap=0.0663 agree=True root True 15.12s | pair True 4.06s | bnb True 99 nodes 1.48s | scip timelimit 66.9s excess=3.51e-01 same=False
+noise_n40_k10_s1: gap=0.0638 agree=True root True 29.80s | pair True 5.76s | bnb True 163 nodes 1.89s | scip timelimit 66.2s excess=4.76e-01 same=False
+malloc(): invalid size (unsorted)
+noise_n40_k10_s2: gap=0.0783 agree=True root False 120.00s | pair True 60.29s | bnb True 1025 nodes 11.31s | scip hung 720.9s excess=nan same=False
+noise_n60_k3_s0: gap=0.0053 agree=True root True 0.19s | pair True 0.18s | bnb True 7 nodes 0.57s | scip timelimit 80.5s excess=8.20e-01 same=False
+noise_n60_k3_s1: gap=0.0035 agree=True root True 0.24s | pair True 0.28s | bnb True 7 nodes 0.53s | scip timelimit 81.6s excess=3.12e-01 same=False
+noise_n60_k3_s2: gap=0.0062 agree=True root True 0.21s | pair True 0.28s | bnb True 7 nodes 0.53s | scip timelimit 79.1s excess=4.43e-01 same=False
+noise_n60_k5_s0: gap=0.0194 agree=True root True 0.23s | pair True 0.27s | bnb True 13 nodes 0.86s | scip timelimit 78.6s excess=7.09e-01 same=False
+noise_n60_k5_s1: gap=0.0117 agree=True root True 0.28s | pair True 0.27s | bnb True 11 nodes 0.83s | scip timelimit 77.2s excess=7.36e-01 same=False
+noise_n60_k5_s2: gap=0.0180 agree=True root True 0.34s | pair True 0.41s | bnb True 13 nodes 1.45s | scip timelimit 79.3s excess=6.82e-01 same=False
+noise_n60_k10_s0: gap=0.0452 agree=True root True 14.64s | pair True 4.00s | bnb True 123 nodes 7.03s | scip timelimit 81.4s excess=4.69e-01 same=False
+noise_n60_k10_s1: gap=0.0450 agree=True root True 17.64s | pair True 4.68s | bnb True 159 nodes 8.14s | scip timelimit 81.2s excess=4.39e-01 same=False
+noise_n60_k10_s2: gap=0.0474 agree=True root True 34.90s | pair True 6.68s | bnb True 129 nodes 7.48s | scip timelimit 79.9s excess=5.82e-01 same=False

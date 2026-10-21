@@ -86,12 +86,11 @@ def _treated(res):
 def _assert_same_design(exact, mip):
     """Same treated markets, and an optimum no worse than SCIP's.
 
-    The weights are compared loosely on purpose. Where the objective is flat in
-    some direction SCIP stops within its tolerance and its weights can sit 1e-3
-    from the optimum while the objective agrees to 1e-8 -- on the
-    unit-penalized fixture the search's design is the better of the two. What
-    the two backends must agree on is the optimum value, and the search may
-    only ever be lower.
+    The weights are compared loosely on purpose. Both backends fit the weights
+    of the selected set, but where the objective is flat in some direction the
+    optimal weights are not unique and two correct fits can differ. What the
+    two backends must agree on is the optimum value, and the search may only
+    ever be lower.
     """
     oe, om = exact.globres.objective, mip.globres.objective
     assert oe <= om + 1e-6 * (1.0 + abs(om))
@@ -326,7 +325,6 @@ def test_duplicate_markets_reach_the_same_objective_as_the_mip():
 # -------------------------------------------------------------- failures
 @pytest.mark.parametrize("over, fragment", [
     ({"relaxed": True}, "relaxed"),
-    ({"design": "weakly_targeted", "beta": 1.0}, "weakly_targeted"),
     ({"costs": [1.0] * 9, "budget": 3}, "budget"),
     ({"warm_start": ["u0"]}, "warm_start"),
     ({"time_limit": 5.0}, "time_limit"),
@@ -357,10 +355,12 @@ def test_a_conflict_across_clusters_is_refused():
 
 
 def test_too_many_candidates_is_refused_with_the_way_out(monkeypatch):
+    # Above the limit the separable designs go to the branch and bound
+    # (test_marex_branch.py); the coupled design has no bound there.
     monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
     df, T0 = _panel()
     with pytest.raises(MlsynthConfigError, match="backend='mip'"):
-        _fit(df, T0, "exact", m_eq=3)
+        _fit(df, T0, "exact", m_eq=3, design="weakly_targeted", beta=1.0)
 
 
 def test_unsatisfiable_restrictions_raise_like_the_mip():
@@ -482,7 +482,7 @@ def test_lambda2_unit_is_refused():
 
 
 @pytest.mark.parametrize("over, fragment", [
-    ({"design": "weakly_targeted"}, "separable"),
+    ({"design": "no_such_design"}, "no_such_design"),
     ({"costs": np.ones(9), "budget": 3}, "budget"),
     ({"design": "unit_penalized", "lambda2_unit": 0.1}, "lambda2_unit"),
 ])

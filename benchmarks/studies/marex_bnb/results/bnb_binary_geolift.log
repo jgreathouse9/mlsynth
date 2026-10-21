@@ -1,0 +1,9 @@
+panel      bound     children   start  bounded pruned  sets cut  priced fitted depth seconds
+geolift    monotone  in_first   cold      3049    286     42520   48870     11    32    11.5
+geolift    monotone  in_first   at f*     2962    283     43623   47767      1    32    11.6
+geolift    monotone  out_first  cold      3876    388     35395   55979    128    38    15.2
+geolift    monotone  out_first  at f*     2962    283     43623   47767      1    32    10.5
+geolift    sparse    in_first   cold      2808    269     45475   45915     11    31    11.5
+geolift    sparse    in_first   at f*     2697    265     46929   44461      1    31    10.4
+geolift    sparse    out_first  cold      3675    379     37816   53558    128    38    16.0
+geolift    sparse    out_first  at f*     2697    265     46929   44461      1    31    10.1
