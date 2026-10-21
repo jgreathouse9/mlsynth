@@ -108,6 +108,18 @@ treated unit lies in the convex hull of the donors."
 :math:`\widehat{\tau}_t(\mathbf{w}, \mathbf{v})` and develop the permutation test
 below; the better the pre-experiment match, the smaller the bias.
 
+Assumption 5 (exchangeable periods). The factors :math:`\boldsymbol{\lambda}_t`
+are exchangeable across the blank and post periods, and the noise is
+continuously distributed.
+
+*Remark.* This is the condition of Abadie and Zhao's Theorem 2, under which
+the test is exact: :math:`\alpha - 1/|\Pi| \le \Pr(\hat p \le \alpha) \le \alpha`.
+The potential outcomes may still trend through :math:`\delta_t` and
+:math:`\boldsymbol{\theta}_t`. For fixed factors their Theorem OA.1 makes the
+p-value approximately valid as the fitting window grows. Persistent or trending
+factors are where it is least reliable; a unit root in the factors breaks it
+whatever the window lengths (`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__).
+
 Mathematical Formulation
 ------------------------
 
@@ -505,24 +517,62 @@ across 400 random problems it was never more than three, at :math:`\beta` from 0
 :math:`\beta / (1 + \beta)` and needed a median of 1,750 steps per candidate at
 :math:`\beta = 100` on GeoLift's forty markets.
 
-The fit stops on a certificate, not on a small step. The Frank-Wolfe gap, the
-improvement the best vertex of each simplex offers along the gradient, bounds
-the distance to the minimum from above, and the fit stops when the gap is under
-:math:`10^{-10}` of the objective. A fit whose gap is still open after 20,000
-steps raises with a message naming ``backend="mip"``, since ranking candidates
-on an uncertified value could discard the optimal design. The same gap gives a
-certified lower bound at every step, the objective less the gap. The search
-hands each fit the objective of the best design found so far, and the fit stops and discards its
-candidate as soon as that lower bound is above it.
+The fit stops on a certificate, not on a small step. The Frank-Wolfe gap (Frank
+and Wolfe 1956), the improvement the best vertex of each simplex offers along
+the gradient, bounds the distance to the minimum from above, and the fit stops
+when the gap is under :math:`10^{-10}` of the objective. A fit whose gap is
+still open after 20,000 steps raises with a message naming ``backend="mip"``,
+since ranking candidates on an uncertified value could discard the optimal
+design. The same gap gives a certified lower bound at every step, the objective
+less the gap. The search hands each fit the objective of the best design found
+so far, and the fit stops and discards its candidate as soon as that lower bound
+is above it.
 
 The coupling term is non-negative, so :math:`f(\mathcal{S}) \ge g(\mathcal{S})`
 still holds and the bound and both passes prune as they do for the other
-designs. At large :math:`\beta` they prune little, because the coupling term
-then dominates the objective and a bound on the treated fit cannot see it. On
-GeoLift's forty markets with four treated, the search fitted 274 of the 91,390
-candidates at :math:`\beta = 1` and took 1.2 seconds. At :math:`\beta = 100` it
-fitted 82,415 and took 7.9 minutes; all but four of those fits were discarded
-on a certified lower bound before converging, after one or two steps. Before the face steps and the cutoff, the same
+designs. At large :math:`\beta` that bound prunes little, because the coupling
+term then dominates the objective and a bound on the treated fit cannot see it.
+A second bound sees it. The synthetic treated lies in the convex hull of the
+treated markets (the set of their weighted averages with non-negative weights
+summing to one), and the synthetic control in the convex hull of the control
+pool, so the coupling term is at least :math:`\beta` times the squared distance
+between the two hulls:
+
+.. math::
+
+   f(\mathcal{S}) \;\ge\; g(\mathcal{S}) + \beta\,
+   \operatorname{dist}\bigl(\operatorname{conv}\{\mathbf{x}_j\}_{j \in \mathcal{S}},\;
+   \operatorname{conv}\{\mathbf{x}_j\}_{j \in \mathcal{N}_0(\mathcal{S})}\bigr)^2.
+
+Wolfe's (1976) nearest-point method finds the distance by walking toward the
+closest pair of points of the two hulls. Every step offers a direction
+:math:`\mathbf{z}`, and any direction bounds the distance from below (his
+Theorem 2.2):
+
+.. math::
+
+   \operatorname{dist} \;\ge\;
+   \frac{\min_{i \in \mathcal{S}} \mathbf{z}^\top \mathbf{x}_i
+          - \max_{j \in \mathcal{N}_0(\mathcal{S})} \mathbf{z}^\top \mathbf{x}_j}
+         {\|\mathbf{z}\|_2},
+
+the gap between the two hulls' shadows on the line through :math:`\mathbf{z}`.
+The search runs the method on 512 candidates at a time, stops each one as soon
+as its bound clears the best design found so far, and fits only the candidates
+it cannot discard; until a first design exists there is nothing to clear, so
+the first eight are fitted unscreened. The bound reads the data only through
+the products :math:`\mathbf{z}^\top \mathbf{x}_j`, and the search evaluates it
+from the data with the rounding of those products bounded in advance (Higham
+2002, section 3.1), so whatever the iteration did, the bound cannot exceed the
+distance. It takes the closed-form treated bound in place of
+:math:`g(\mathcal{S})`, so pricing a candidate needs no fit.
+
+On GeoLift's forty markets with four treated, the search fitted 11 of the
+91,390 candidates at :math:`\beta = 1` and took 0.13 seconds, against 234 fits
+and 0.92 seconds without the coupling bound. At :math:`\beta = 100` it fitted
+677 and took 16 seconds, against 82,296 fits and four minutes. Both searches
+return the same design with or without it. Each fit the coupling bound leaves
+still stops on the cutoff, usually after one or two steps. Before the face steps and the cutoff, the same
 searches took 25 seconds and, by extrapolation from the measured cost per
 candidate, about five days. SCIP, given 30 minutes on each of the same two
 problems through ``backend="mip"``, stopped at designs whose objectives were 2.1
@@ -541,7 +591,15 @@ convex under the bound above. Measured over 40 random problems per setting, at
 :math:`\beta` from 0.01 to 100 and :math:`\lambda` up to 0.99 of the bound, the
 fit certified in at most four steps, none of them a fallback sweep, in about two
 milliseconds. The penalty is non-negative, so the treated-fit bound still
-prunes.
+prunes, and it is at least :math:`\beta\lambda` times the squared coupling
+term by convexity of the square, so the coupling bound scales by
+:math:`1 + \lambda`. It sees less of this objective: the penalty also charges
+the spread of the controls around the synthetic control, which no distance
+between the hulls measures. At :math:`\beta = 100` and :math:`\lambda = 0.0099`,
+just inside the convexity bound, the coupling bound reached a median 41 percent
+of a candidate's objective on 300 sampled candidates, and the search fitted
+49,899 of the 91,390 and took 9.6 minutes, against 87,499 fits and 15.4 minutes
+without it.
 
 Abadie and Zhao's enumeration solves two separate synthetic-control problems per
 candidate (supplementary appendix, Section OA.6), and they solve this design by
@@ -562,9 +620,12 @@ naming ``backend="mip"``:
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
 
-A cluster with more than twenty million admissible treated sets is refused when
-the design is solved, with the same pointer to the MIQP. Five treated among
-forty markets is 658,008 candidates. With no treated count set, every size from
+Above twenty million admissible treated sets in a cluster, pricing every set
+stops being affordable. The ``standard``, ``penalized`` and ``unit_penalized``
+designs are then searched by a certified branch and bound
+(:ref:`marex-branch-and-bound`), which returns the same optimum; the
+``weakly_targeted`` design is refused, with the same pointer to the MIQP. Five
+treated among forty markets is 658,008 candidates. With no treated count set, every size from
 one to :math:`N - 1` is a candidate, :math:`2^N - 2` sets in all, which passes
 the limit at 25 markets. The count is of the sets the restrictions allow, so
 forcing markets in or out raises the cluster size the search can take.
@@ -596,18 +657,548 @@ the objective. Where the objective is flat in some direction the optimal weights
 are not unique, and the two can then return different weights at the same
 objective.
 
+.. _marex-certificate:
+
+Certifying the search
+^^^^^^^^^^^^^^^^^^^^^
+
+The search prices and fits candidates in floating-point arithmetic, which rounds
+every operation, so its design is optimal up to rounding that the search does
+not bound. With ``certify=True`` (and ``backend="exact"``) the result also
+carries ``res.certificate``, two numbers with
+
+.. math::
+
+   \texttt{lower} \;\le\; f^\star \;\le\; f(\text{design}) \;\le\; \texttt{upper},
+
+where :math:`f^\star` is the smallest objective any admissible design attains
+and :math:`f(\text{design})` is the returned design's, both evaluated exactly on
+the stored data. ``res.certificate.gap`` is ``upper - lower``: the returned
+design is within that distance of the optimum, whatever the rounding did.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=4, backend="exact",
+                           certify=True)).fit()
+   res.certificate.lower, res.certificate.upper, res.certificate.gap
+
+The construction is Neumaier and Shcherbina's (2004) rigorous bound for
+linear programs: any dual point gives a valid bound, so a floating-point
+solution needs only to be evaluated with its rounding under control. They use
+interval arithmetic; the certificate uses exact arithmetic, and bounds in
+advance the rounding of the one step it batches. It rests on three facts.
+
+1. Exact arithmetic. Every finite double is an integer divided by a power of
+   two, so the data, and any sum or product of them, can be held exactly as
+   integers. The certificate computes its bounds as exact fractions and rounds
+   only the final two numbers, ``lower`` down and ``upper`` up.
+
+2. Bounds on one fit. Any weights on the simplex give an upper bound on
+   :math:`g(\mathcal{S})`: the objective at those weights. With
+   :math:`\mathbf{b}_j = \mathbf{x}_j - \bar{\mathbf{x}}` the centred predictor
+   vectors and :math:`\mathbf{a}` the design's penalty (zero for
+   ``standard``), any vector :math:`\mathbf{y}` gives a lower bound, the dual
+   of the fit (in squared form, the bound of Wolfe 1976, Theorem 2.2).
+   Expanding
+   :math:`\|\sum_j w_j \mathbf{b}_j - \mathbf{y}\|_2^2 \ge 0` gives
+   :math:`\|\sum_j w_j \mathbf{b}_j\|_2^2 \ge \sum_j w_j\, 2 \mathbf{y}^\top
+   \mathbf{b}_j - \|\mathbf{y}\|_2^2`, and on the simplex a weighted average is
+   at least its smallest term, so
+
+   .. math::
+
+      g(\mathcal{S}) \;\ge\; \min_{j \in \mathcal{S}}
+        \bigl(2 \mathbf{y}^\top \mathbf{b}_j + a_j\bigr)
+        - \|\mathbf{y}\|_2^2 .
+
+   At :math:`\mathbf{y} = \sum_j w_j \mathbf{b}_j`, with :math:`\mathbf{w}` the
+   fitted weights, the two bounds differ by the fit's own error and meet at the
+   optimum. The certificate computes both exactly for the design's treated fit
+   and control fit.
+
+3. The search's bound, made rigorous. The dual bound holds for every
+   :math:`\mathbf{y}`, so it can be taken at the closed-form point the search
+   already computes, where it equals the closed form above. Evaluated in
+   floating point it reads the data through the inner products
+   :math:`\mathbf{G}_{\mathcal{S}}`, and each rounding on the way has an a
+   priori bound (Higham 2002, sec. 3.1): the inner products, the subtraction of
+   the target, and the products with the point. The certificate subtracts all
+   of them and rounds down, so every candidate gets a bound the arithmetic
+   cannot push above its fit, at about the cost of the search's own.
+
+Per cluster, the certificate prices every admissible candidate again with that
+bound plus a floor on its control fit: the control pool is part of the cluster,
+and a fit over more markets is no worse, so :math:`h(\mathcal{S})` is at least
+the exact lower bound of the fit over the whole cluster. A candidate priced at
+or above ``upper`` cannot beat the design. The rest are fitted and bracketed
+exactly, and a candidate whose exact lower bound still does not clear ``upper``
+is listed in ``res.certificate.clusters[label].unresolved``, by unit label:
+it might be as good as the design. A set that ties the design exactly is always
+listed, and ``lower`` is the smallest exact lower bound among the design and
+the listed sets. An empty list means every other treated set has an objective
+above ``upper``.
+The clusters are searched apart, so the certificate of the whole design sums
+theirs.
+
+``res.globres.objective`` is the floating-point value of the same design, and
+it agrees with the bracket to within its own rounding. The ``weakly_targeted``
+design is refused, since its coupling term ties the treated and control fits
+together and the split the certificate relies on does not exist.
+
+On GeoLift's 40 markets as one cluster (90 pre-period days, the ``standard``
+design), the certificate confirmed the search's design for every treated count
+from two to seven, with a relative gap of at most :math:`4 \times 10^{-13}`
+and no unresolved set. The certified bound cleared all but at most four
+candidates per count without an exact fit. It cost 1.7 to 1.95 times the search
+from three treated up, and 2.4 times at two, where the whole search takes ten
+milliseconds; at seven treated, 18.6 million candidates, the search took 27
+seconds and the certificate 53.
+
+
+.. _marex-branch-and-bound:
+
+Large clusters: a certified branch and bound
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Eight treated among forty markets is 77 million treated sets, ten is 848
+million, and the number grows as :math:`\binom{N}{m}`. Above twenty million sets
+in a cluster, ``backend="exact"`` stops pricing every set and searches the
+``standard``, ``penalized`` and ``unit_penalized`` designs by branch and bound.
+Nothing changes at or under the limit, and nothing needs to be set: the search
+returns the optimum the enumeration would, and with ``certify=True`` the
+certificate of the previous section, which it produces as it goes.
+
+A branch and bound organises the treated sets as a tree. A node fixes some
+markets into the treated set (:math:`\mathcal{I}`) and some out of it
+(:math:`\mathcal{O}`), and leaves the rest free (:math:`\mathcal{F}`); below it
+lie the admissible treated sets of size :math:`m` that contain
+:math:`\mathcal{I}` and avoid :math:`\mathcal{O}`. At each node the search does
+one of two things. It prices the node's sets one at a time, exactly as the
+enumeration prices a cluster, when there are few enough of them. Otherwise it
+computes a bound, a number no design below the node can go under: if the bound
+is above the best design found so far, the whole node is discarded unseen, and
+if not, the node is split on one free market into a node that treats it and one
+that does not. It bounds a node only when pricing the node's sets would take
+longer than computing the bound, at about a microsecond per set and a few
+seconds per bound at forty markets.
+
+The bound has to see the products of the weights. Relaxing the choice of
+treated markets to fractions between zero and one is not enough: spreading the
+weights evenly over every market is an average of designs, and it scores
+exactly zero, because the centred predictors sum to zero. The bound used here,
+persp+N, works with the matrix of weight products. For each side of the design
+(treated and control) it keeps the weights :math:`\mathbf{x}` on the markets
+that side can use and a matrix :math:`\mathbf{X}` standing for
+:math:`\mathbf{x}\mathbf{x}^\top`, with :math:`z_j` the fraction of market
+:math:`j` that is treated, and requires
+
+.. math::
+
+   \begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} & \mathbf{X} \end{pmatrix}
+   \succeq 0, \qquad \mathbf{X} \ge 0, \qquad
+   \mathbf{X}\mathbf{1} = \mathbf{x}, \qquad \mathbf{1}^\top \mathbf{x} = 1,
+   \qquad
+   \begin{pmatrix} z_j & x_j \\ x_j & X_{jj} \end{pmatrix} \succeq 0,
+   \qquad x_j \le z_j,
+
+for every free market (with :math:`1 - z_j` in place of :math:`z_j` on the
+control side), and :math:`\sum_{j \in \mathcal{F}} z_j = m - |\mathcal{I}|`.
+The objective is :math:`\langle \mathbf{G}, \mathbf{X} \rangle +
+\mathbf{a}^\top \mathbf{x}` per side. Every design meets every constraint with
+:math:`\mathbf{X} = \mathbf{x}\mathbf{x}^\top`, so the minimum is a lower bound
+on every design below the node. The 2x2 blocks are the perspective constraint
+:math:`X_{jj} z_j \ge x_j^2` of Frangioni and Gentile (2006) and Günlük and
+Linderoth (2010): a market carrying weight must be treated, and its weight
+concentrates the second moments on few markets. With the semidefinite block they
+form the relaxation of Dong, Chen and Linderoth as given in Wei, Gómez and
+Küçükyavuz (2022, eq. 24), the primal of the best-diagonal program of Zheng, Sun
+and Li (2014). :math:`\mathbf{X} \ge 0` is the entrywise half of the doubly
+nonnegative relaxation of Burer's (2009) completely positive form, and it
+carries most of the bound: dropping it from the full doubly nonnegative
+relaxation took that bound from 99 percent of the optimum to 29.5 percent at
+the root of GeoLift's tree with four treated.
+
+A solver returns the bound in floating point, and the search does not take it on
+trust. It reads the solver's multipliers, clips each to the sign its constraint
+requires, and assembles the Lagrangian they define in exact arithmetic from the
+exact Gram matrix of the data. Every design satisfies
+:math:`\operatorname{tr}\begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} &
+\mathbf{x}\mathbf{x}^\top \end{pmatrix} \le 2` on each side, so the bound is
+the Lagrangian's constant, plus twice the smallest eigenvalue of its matrix when
+that is negative, plus the :math:`m - |\mathcal{I}|` smallest coefficients of the
+treated fractions. The smallest eigenvalue is bounded below exactly, from a
+floating-point Cholesky factor of the shifted matrix and its exact residual.
+This is the rigorous bound of Jansson, Chaykin and Keil (2007) for semidefinite
+programs, with exact arithmetic in place of their interval arithmetic: any
+multipliers give a valid bound, and accurate ones a tight one. A node whose
+solve fails keeps the bound it had, and is split or priced like any other.
+
+Every set the search discards is discarded on a certified lower bound above a
+certified upper bound on a design already found, so it returns the
+enumeration's optimum, and its certificate lists the sets that might tie it, as
+the certificate above does. The restrictions carry over: forced and forbidden
+units start the tree, a market treated at a node sends its conflict partners out
+of the treated set, stratum quotas and forced units decide how many sets a node
+holds, and every set priced passes the cluster's rules. Donor exclusions can
+only raise a control fit, so every bound holds without them and every fitted
+design honours them.
+
+On one core, with GeoLift's 40 markets as one cluster over 90 days and
+Walmart's 45 stores as the paper's design sees them, the search returns the
+enumeration's design every time, certified with a relative gap of at most
+:math:`1.5 \times 10^{-12}` and no unresolved set:
+
+.. list-table:: The branch and bound against enumeration with its limit raised
+   :header-rows: 1
+
+   * - Panel
+     - Treated
+     - Treated sets
+     - Branch and bound
+     - Bounds computed
+     - Enumeration
+   * - GeoLift
+     - 8
+     - 76,904,685
+     - 41.9 s
+     - 7
+     - 105.1 s
+   * - GeoLift
+     - 10
+     - 847,660,528
+     - 36.9 s
+     - 8
+     - 1,866.7 s
+   * - Walmart
+     - 6
+     - 8,145,060
+     - 14.0 s
+     - 2
+     - 7.5 s
+   * - Walmart
+     - 8
+     - 215,553,195
+     - 211.3 s
+     - 22
+     - 305.2 s
+
+Below about ten million sets, enumeration is the faster of the two, which is why
+it keeps every cluster under the limit. Through MAREX, GeoLift with ten treated,
+which the exact backend refused before, takes 35.5 seconds with
+``certify=True``. The runs are
+`benchmarks/studies/marex_bnb/library_search.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/studies/marex_bnb/library_search.py>`_.
+
+The search raises after a thousand bounds without closing its gap, giving the
+bracket it reached and naming ``backend="mip"``. A bound's cost grows with
+the cube of the markets on a side, so at a few hundred markets in one cluster
+it is out of reach; clusters, restrictions or a smaller treated count bring each
+search back within it. The weakly-targeted design couples the treated and
+control fits, which the bound splits, so it is refused above the limit. The
+tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
+the bound, with the papers behind each piece, is in
+`benchmarks/studies/marex_bnb
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_bnb>`_.
+
 Inference
 ^^^^^^^^^
 
 When ``inference=True`` with ``blank_periods > 0``, the last few pre-experiment
-periods are held out as blanks: there the synthetic treated minus synthetic
-control is pure noise, so its distribution calibrates inference for the
-post-period effect. MAREX reports a permutation p-value for the global null of
-no effect, per-period p-values, and a confidence band from split-conformal
-prediction (Lei et al. 2018; Vovk, Gammerman, and Shafer 2005) built on the
-held-out blank periods -- rearranging only over the blank and post-intervention
-periods, not over all periods as in Chernozhukov-Wuthrich-Zhu (2021) -- all on
-:class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`.
+periods are held out as blanks: the design never sees them, so there the
+synthetic treated minus synthetic control is an out-of-sample error, and its
+distribution calibrates inference for the post-period effect. MAREX reports a
+permutation p-value for the global null of no effect, per-period p-values, and
+a pointwise confidence band from split-conformal prediction (Lei et al. 2018;
+Vovk, Gammerman, and Shafer 2005), all on
+:class:`~mlsynth.utils.marex_helpers.structures.MAREXInference`. Every one of
+them rearranges only the blank and post periods, not all periods as in
+Chernozhukov, Wüthrich and Zhu (2021). ``alpha`` sets the level of the bands and
+of the power curve, and ``T_post`` the number of post periods the inference
+reads, all of them by default.
+
+The global p-value is Abadie and Zhao's eq. (17). Its statistic is the mean
+absolute post-period effect, compared with the same statistic on every way of
+choosing :math:`T_1` of the :math:`T_b + T_1` blank and post periods. When those
+arrangements number at most ``max_combinations`` MAREX uses all of them, the
+observed one included, and the p-value is exactly the paper's. Otherwise it
+draws ``max_combinations`` of them, :math:`B`, and counts the observed
+arrangement as one more, reporting :math:`(1 + k)/(1 + B)` with :math:`k` the
+draws at least as large. That keeps the test valid at any :math:`B` (Phipson and
+Smyth 2010), and the p-value never reaches zero.
+
+Under Assumption 5 the test is exact (Abadie and Zhao's Theorem 2).
+
+The pointwise band lays a constant half-width :math:`\hat q` around each post
+period's effect. :math:`\hat q` is the
+:math:`\lceil (T_b + 1)(1 - \alpha) \rceil`-th smallest absolute blank effect,
+the split-conformal quantile. Abadie and Zhao's eq. (18) uses the empirical
+quantile, the :math:`\lceil T_b (1 - \alpha) \rceil`-th, and their Theorem 3
+shows pointwise coverage tending to :math:`1 - \alpha` as the fitting and blank
+windows grow, provided treatment does not change the noise distribution. The
+split-conformal rank is never smaller. It gives coverage of at least
+:math:`1 - \alpha` in finite samples when the blank and post errors are
+exchangeable, and the two ranks agree as :math:`T_b` grows. On untreated panels in
+`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__
+(40 units, three factors autocorrelated at 0.8, a nominal 0.05), the
+empirical rank gave false-positive rates of 0.097, 0.074 and 0.066 at 19, 24 and
+48 blank periods, and the split-conformal rank 0.055, 0.032 and 0.035.
+
+The per-period p-value is mlsynth's own, the one the band inverts:
+:math:`(1 + k)/(T_b + 1)`, with :math:`k` the blank effects at least as large in
+magnitude as that period's. The band excludes zero exactly when it is at most
+:math:`\alpha`.
+
+The split-conformal rank exists only when it is at most :math:`T_b`, which needs
+:math:`T_b \ge \lceil 1/\alpha \rceil - 1` blank periods: 19 at
+:math:`\alpha = 0.05`, 9 at 0.10. With fewer, MAREX reports the band as
+:math:`(-\infty, \infty)` and warns; the p-values do not depend on it. Left to
+its default, ``blank_periods`` aims for 30% of the pre-period and is held
+between two floors: at least :math:`\lceil 1/\alpha \rceil - 1` blank periods,
+and at least :math:`\max(2r, 10)` fitting periods, where :math:`r` is the
+effective rank of the pre-period panel (Ahn and Horenstein's 2013 eigenvalue
+ratio, after removing unit and period means). The second floor is Assumption 2's
+:math:`F \le T_E` with a margin. A design fitted on too few periods
+interpolates, and its blank effects then describe the interpolation: in
+`#744 <https://github.com/jgreathouse9/mlsynth/issues/744>`__, five fitting periods fitted the
+pre-period exactly and left the cumulative
+false-positive rate at 0.38. A pre-period too short for both floors, under 29
+periods at :math:`\alpha = 0.05` and a low-rank panel, is refused with both
+floors named. A larger ``alpha`` or an explicit ``blank_periods`` gets past the
+refusal; an explicit window is taken as given.
+
+.. _marex-cumulative-band:
+
+The total effect
+^^^^^^^^^^^^^^^^
+
+The band above bounds one period at a time. How much the intervention added
+over the whole experiment is the total :math:`\sum_{t > T_0} \tau_t` over the
+:math:`H` post periods, and its band is not arithmetic on the pointwise
+endpoints: summing them assumes the period errors move together, and dividing
+one by :math:`H` assumes they are independent. ``cumulative_band=True`` attaches
+a band for the total to ``inference.cumulative_band``, on the aggregate design
+and on every cluster, built in one of two ways chosen by ``cumulative_method``.
+Both are mlsynth's own constructions: Abadie and Zhao's Theorem 3 covers one
+period at a time, and their paper gives no band for the total.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=3, inference=True, blank_periods=26,
+                           cumulative_band=True,
+                           cumulative_method="inversion")).fit()
+   band = res.globres.inference.cumulative_band
+   band.point, band.lower, band.upper
+
+``point`` is MAREX's own estimate of the total, the sum of the post-period
+effects, under both methods.
+
+``cumulative_method="resample"``, the default, splits the blank window into
+horizon-length sub-windows and resamples their effects into whole paths
+(``cumulative_block`` sets the block length, ``cumulative_n_sim`` the number of
+paths); the half-width is a quantile of the accumulated totals. It uses only
+errors observed before the post period, and every band built that way meets a
+floor set by how many of them there are. With :math:`n` blank errors, suppose
+one error, placed at a period chosen at random, is far larger than the rest.
+With probability :math:`H/(n+H)` it lands in the post window, where no blank
+error reveals it. A band that covers the total for every exchangeable error law
+(one whose distribution does not change when the periods are reordered) must
+then be unbounded with probability at least :math:`1 - \alpha(n/H + 1)`. A band
+that stays finite needs :math:`n \ge H(1/\alpha - 1)`, which is 247 blank
+periods for a 95% band over 13 post periods.
+
+``cumulative_method="inversion"`` is not subject to that floor because it reads
+the post outcomes, which an experiment observes: they are the counterfactual
+errors plus the effect. It inverts the test of Chernozhukov, Wüthrich and Zhu
+(2021). For a candidate per-period effect :math:`\theta`, MAREX subtracts
+:math:`\theta` from the synthetic treated series in each post period, refits a
+synthetic control for that series on every period from the units the design
+left untreated, and takes the residuals :math:`\hat u_t`. The statistic is the
+size of their post sum,
+
+.. math::
+
+   S(\hat{\mathbf{u}}) = \frac{\bigl|\sum_{t > T_0} \hat u_t\bigr|}{\sqrt{H}},
+
+and the p-value is the share of cyclic shifts of the residual path, taken over
+the blank and post periods, whose post block gives a statistic at least as
+large. A cyclic shift moves every residual :math:`k` periods along and wraps
+the end around to the start, so it keeps the order in which errors follow one
+another. The band is :math:`H` times the candidates with :math:`p > \alpha`, and
+its endpoints need not be symmetric about ``point``.
+
+Assumptions
+"""""""""""
+
+1. The errors are stationary and weakly dependent over the blank and post
+   periods: their joint law does not drift, and periods far apart are close to
+   independent.
+
+   Remark. This is the condition under which cyclic shifts give an
+   approximately valid test (Chernozhukov, Wüthrich and Zhu 2021, Assumption
+   2.2). Shifts preserve the serial dependence that random reorderings would
+   destroy, at the price of a coarser p-value: there are only
+   :math:`T_b + H` of them, so no p-value falls below :math:`1/(T_b + H)`. With
+   fewer than :math:`1/\alpha` blank and post periods nothing is rejected, the
+   band is :math:`(-\infty, \infty)`, and MAREX warns. A 95% band needs at least
+   20.
+
+2. The null is a constant effect, and the band is read as a band for the total.
+
+   Remark. A one-dimensional band needs a one-dimensional null, so the test
+   imposes :math:`\tau_t = \theta` in every post period. The statistic depends
+   on the residuals only through their sum, so its observed value depends on the
+   effect path only through the total, and the band covers the total when the
+   effect grows or decays as well. With the default statistic of the general
+   routine, the mean absolute residual, that fails: on simulated MAREX designs
+   with independent factors and a ramp-shaped effect the 95% band covered the
+   total 11% of the time, against 99.7% for the signed sum. What breaks the signed sum is a single
+   error so large that it dominates the post sum; heavy tails alone did not, in
+   a search over Cauchy errors.
+
+3. The fitting periods stay out of the reference set.
+
+   Remark. MAREX chooses the treated set on the fitting periods, and the refit
+   residuals there are smaller, by about 30% in mean square on the simulated
+   designs, than on the blank and post periods, which behave alike. A reference
+   that includes them understates the spread of a 13-period post sum, by a
+   factor of 1.17 with independent factors and 1.59 with factors autocorrelated
+   at 0.8, and the band under-covers. The refit still matches on every period,
+   which lets it track a trend the controls share; only the reference starts at
+   the blank window. Coverage of the total at 95% / 80%, with the median width
+   of the 95% band, over 300 MAREX designs with 40 fitting, 26 blank and 13 post
+   periods:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 30 30
+
+      * - factors
+        - every period referenced
+        - blank and post referenced
+      * - independent
+        - 0.950 / 0.773 (25.0)
+        - 0.967 / 0.827 (37.5)
+      * - autocorrelated at 0.5
+        - 0.927 / 0.767 (30.0)
+        - 0.973 / 0.787 (45.0)
+      * - autocorrelated at 0.8
+        - 0.910 / 0.730 (42.5)
+        - 0.967 / 0.777 (60.0)
+      * - trending
+        - 0.983 / 0.833 (32.5)
+        - 0.983 / 0.807 (38.8)
+
+   Whitening the residuals by an autoregressive model before shifting them,
+   which Chernozhukov, Wüthrich and Zhu propose for serially dependent errors,
+   did not close the gap: the difference is between two stretches of the
+   series, not a stationary dependence a filter can remove.
+
+For a cluster, the refit draws on the cluster's own unselected members, the
+units its control was built from; for the aggregate design, on every untreated
+unit. Each candidate costs one simplex fit, and the search brackets and bisects
+each endpoint, so the band costs some tens of fits per design and no extra
+solve. ``cumulative_block``, ``cumulative_n_sim`` and ``cumulative_seed`` apply
+to ``"resample"`` alone. The band is a
+:class:`~mlsynth.utils.conformal.CumulativeInversionBand`; its
+``reference_start`` is the first blank period and its ``n_reference`` is
+:math:`T_b + H`. The study behind these choices, with the floor above and its
+proof, is in `benchmarks/studies/marex_cumulative_conformal
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_cumulative_conformal>`_,
+and the tests are in ``mlsynth/tests/test_marex_cumulative_inversion.py``.
+
+.. _marex-unit-inference:
+
+Each treated unit
+^^^^^^^^^^^^^^^^^
+
+The inference above is for the aggregate contrast. ``unit_inference=True`` adds
+it for each treated unit, on ``res.globres.unit_level``.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                           T0=T0, m_eq=2, cluster="region", inference=True,
+                           design="unit_penalized", xi=1.0, backend="exact",
+                           unit_inference=True)).fit()
+   lvl = res.globres.unit_level
+   lvl.units["u07"].inference.ci        # the unit's pointwise band
+   lvl.units["u07"].p_bonferroni        # its p-value, adjusted for the family
+   lvl.units["u07"].blank_check         # bias of its control on the blank periods
+   lvl.joint_p_value                    # no effect on any treated unit
+   lvl.eq11                             # eq. (11)'s aggregate
+
+Each treated unit :math:`j` gets its own synthetic control, Abadie and Zhao's
+eq. (10): weights :math:`\mathbf{v}_{\cdot j}` on the simplex over the untreated
+units of :math:`j`'s cluster, fitted on the fitting periods after the design is
+chosen. The unit's contrast,
+
+.. math::
+
+   u_{jt} = y_{jt} - \sum_i v_{ij} y_{it},
+
+has a blank stretch and a post stretch, so every output of the aggregate's
+inference is computed for it: the Theorem 2 p-value, the per-period p-values,
+the pointwise band and, with ``cumulative_band=True``, the band for the unit's
+total. Theorem 2's argument needs only weights chosen on the fitting periods
+and Assumption 5, so it covers :math:`u_j`, with Assumption 3(i) read as an
+exact fit of unit :math:`j`'s own predictors. Abadie and Zhao define the
+Unit-level design without clusters; with clusters, each unit's control comes
+from its own cluster, the pool its cluster's controls are drawn from.
+
+A unit's estimated effect is unbiased when its control reproduces it. That needs
+the unit inside its donors' convex hull, the set of outcome paths a weighted
+average of the donors with nonnegative weights summing to one can reach; weights
+chosen before the post periods; donors the treatment does not reach; and a
+factor model that holds over the whole timeline. The blank periods test the
+first and the last of these. They are untreated and the fit never saw them, so a
+control that reproduces the unit leaves a contrast there that averages zero.
+``blank_check`` reports that average, its standard error allowing for AR(1)
+dependence over periods, their ratio ``t`` with a two-sided p-value against
+Student's t on the effective number of periods, and the average as a share of
+the unit's mean absolute level over the blank periods. A large ``t`` says the
+control misses the unit's level, for instance because no blend of its cluster's
+untreated units reaches it. The same bias then enters the unit's post-period
+effects, and its band is centred on the wrong number. The check cannot see a
+bias that begins with the treatment, such as a spillover onto the donors.
+
+Several treated units are several tests: rejecting whenever any unit's p-value
+is below :math:`\alpha` falsely rejects at :math:`1 - (1 - \alpha)^m` with
+:math:`m` units. ``p_bonferroni`` is :math:`\min(1, m\,p_j)`. The joint test
+asks whether any treated unit has an effect: its statistic is the largest,
+over units, of the mean absolute post-period contrast divided by the unit's
+mean absolute contrast over the blank and post periods, and one arrangement of
+periods is applied to every unit, so the units' common factors stay aligned.
+The divisor is a mean no arrangement changes, so the statistic ignores each
+unit's scale and the test remains a permutation test.
+
+Eq. (11) writes the aggregate as the design's treated weights applied to the
+per-unit contrasts, :math:`\sum_j w_j u_{jt}`; ``eq11`` carries its inference
+beside the shared contrast's. With ``cumulative_method="inversion"`` the band
+for a total refits the treated series on the untreated units and never reads a
+control, so eq. (11)'s band for the total is the shared contrast's, and only
+its point differs.
+
+On simulated MAREX designs the per-unit inference held where the aggregate's
+does. On Abadie and Zhao's Section 5 panel with exchangeable factors, the
+per-unit Theorem 2 test rejected 4.7-6.0% of the time at 5%, the pointwise band
+covered 96-97% at 95%, and the band for a unit's total 97-99%. A unit's band was
+about twice as wide as the aggregate's, because a single unit's contrast does
+not average noise across the treated units. Over a long pre-period with a
+common cycle and persistent factors, the pointwise band and the band for a
+unit's total still held, while the per-unit Theorem 2 test rejected up to three
+times as often as nominal at 5%; there the band for the total
+(``cumulative_band=True, cumulative_method="inversion"``) is the per-unit test
+to read. The blank length mattered little once it cleared the floor.
+
+``unit_penalized`` designs, whose penalty prices each unit's own fit, gave
+tighter per-unit bands. On a ``standard`` design eq. (11) was four to five
+times noisier than the shared contrast, since that design never chose its
+treated units for their own fits; on a ``unit_penalized`` design the two
+agreed. The study is in `benchmarks/studies/marex_unit_conformal
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_unit_conformal>`_,
+and the tests in ``mlsynth/tests/test_marex_unit_inference.py``.
 
 Standardized Post-Fit and Power Analysis
 ----------------------------------------
@@ -1092,6 +1683,21 @@ objective option it solves: `benchmarks/cases/marex_exact_bruteforce.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_exact_bruteforce.py>`_,
 described in :doc:`replications/marex`.
 
+On Abadie and Zhao's own 1000 Section 5 simulations, regenerated in Python from
+their seeds, the base design is unbiased: the mean signed error is within one
+standard error of zero at every cardinality, and the blank-period gap
+``post_fit.power.placebo_bias`` tracks the bias each single design carries with a
+slope near one. `benchmarks/cases/marex_section5_bias.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_section5_bias.py>`_,
+described in :doc:`replications/marex`.
+
+The branch and bound above twenty million sets in a cluster has a regression
+gate: `benchmarks/cases/marex_bnb_work.py
+<https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/marex_bnb_work.py>`_
+pins the bounds it computes and the sets it prices on Walmart and two GeoLift
+subsets, beside the design and its certificate. See
+:doc:`replications/bnb_work`.
+
 .. note::
 
    The benchmark uses the exact MIQP (free SCIP), not the relaxed
@@ -1233,3 +1839,51 @@ Study." Report, MIT.
 Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control Estimator for
 Disaggregated Data." *Journal of the American Statistical Association*
 116(536):1817-1834.
+
+Wolfe, P. (1976). "Finding the Nearest Point in a Polytope." *Mathematical
+Programming* 11(1):128-149.
+
+Frank, M., & Wolfe, P. (1956). "An Algorithm for Quadratic Programming."
+*Naval Research Logistics Quarterly* 3(1-2):95-110.
+
+Neumaier, A., & Shcherbina, O. (2004). "Safe Bounds in Linear and
+Mixed-Integer Linear Programming." *Mathematical Programming* 99:283-296.
+
+Burer, S. (2009). "On the Copositive Representation of Binary and Continuous
+Nonconvex Quadratic Programs." *Mathematical Programming* 120:479-495.
+
+Frangioni, A., & Gentile, C. (2006). "Perspective Cuts for a Class of Convex
+0-1 Mixed Integer Programs." *Mathematical Programming* 106:225-236.
+
+Günlük, O., & Linderoth, J. (2010). "Perspective Reformulations of Mixed Integer
+Nonlinear Programs with Indicator Variables." *Mathematical Programming*
+124:183-205.
+
+Jansson, C., Chaykin, D., & Keil, C. (2007). "Rigorous Error Bounds for the
+Optimal Value in Semidefinite Programming." *SIAM Journal on Numerical
+Analysis* 46(1):180-200.
+
+Wei, L., Gómez, A., & Küçükyavuz, S. (2022). "Ideal Formulations for
+Constrained Convex Optimization Problems with Indicator Variables."
+*Mathematical Programming* 192:57-88.
+
+Zheng, X., Sun, X., & Li, D. (2014). "Improving the Performance of MIQP Solvers
+for Quadratic Programs with Cardinality and Minimum Threshold Constraints: A
+Semidefinite Program Approach." *INFORMS Journal on Computing* 26(4):690-703.
+
+Higham, N. J. (2002). *Accuracy and Stability of Numerical Algorithms*, 2nd
+ed. SIAM.
+
+Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018).
+"Distribution-Free Predictive Inference for Regression." *Journal of the
+American Statistical Association* 113(523):1094-1111.
+
+Vovk, V., Gammerman, A., & Shafer, G. (2005). *Algorithmic Learning in a Random
+World*. Springer.
+
+Phipson, B., & Smyth, G. K. (2010). "Permutation P-values Should Never Be Zero:
+Calculating Exact P-values When Permutations Are Randomly Drawn." *Statistical
+Applications in Genetics and Molecular Biology* 9(1), Article 39.
+
+Ahn, S. C., & Horenstein, A. R. (2013). "Eigenvalue Ratio Test for the Number of
+Factors." *Econometrica* 81(3):1203-1227.

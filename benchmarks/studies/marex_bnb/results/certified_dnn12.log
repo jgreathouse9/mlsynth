@@ -1,0 +1,32 @@
+
+factor: f* 13.4971, 96 nodes, statuses {'optimal_inaccurate': 1, 'optimal': 95}, certified above the subtree's certified minimum: 0
+  ms/node: certified 58, old 140
+  root: certified 0.8406  solver 0.8406  old 0.8406
+  |I|=1: certified median 0.9944 min 0.8419  solver median 0.9944  old median 0.9944 min 0.8419
+  |I|=2: certified median 1.0000 min 0.9996  solver median 1.0000  old median 1.0000 min 0.9971
+  binary nodes: certified median 0.9994 min 0.8383 max 1.000000; old median 0.9994 max 1.000000
+  max certified/subtree min over all nodes 0.999999998; max (solver - certified)/f_sub 1.46e-06
+
+noise: f* 6.14208, 96 nodes, statuses {'optimal': 96}, certified above the subtree's certified minimum: 0
+  ms/node: certified 53, old 122
+  root: certified 0.9564  solver 0.9564  old 0.9564
+  |I|=1: certified median 0.9805 min 0.9104  solver median 0.9805  old median 0.9805 min 0.9104
+  |I|=2: certified median 1.0000 min 1.0000  solver median 1.0000  old median 1.0000 min 1.0000
+  binary nodes: certified median 0.9878 min 0.9102 max 1.000000; old median 0.9878 max 1.000000
+  max certified/subtree min over all nodes 0.999999999; max (solver - certified)/f_sub 4.42e-08
+
+geolift12: f* 1.16979e+06, 96 nodes, statuses {'optimal': 96}, certified above the subtree's certified minimum: 0
+  ms/node: certified 57, old 138
+  root: certified 0.6566  solver 0.6566  old 0.6566
+  |I|=1: certified median 0.9058 min 0.6786  solver median 0.9058  old median 0.9058 min 0.6786
+  |I|=2: certified median 1.0000 min 0.9978  solver median 1.0000  old median 1.0000 min 0.9908
+  binary nodes: certified median 0.9858 min 0.6358 max 1.000000; old median 0.9858 max 1.000003
+  max certified/subtree min over all nodes 0.999999977; max (solver - certified)/f_sub 2.66e-06
+
+county12: f* 0.443473, 96 nodes, statuses {'optimal': 96}, certified above the subtree's certified minimum: 0
+  ms/node: certified 61, old 145
+  root: certified 0.9146  solver 0.9146  old 0.9146
+  |I|=1: certified median 0.9102 min 0.6423  solver median 0.9102  old median 0.9102 min 0.6423
+  |I|=2: certified median 1.0000 min 0.9563  solver median 1.0000  old median 1.0000 min 0.8919
+  binary nodes: certified median 0.9938 min 0.6818 max 1.000000; old median 0.9938 max 1.000008
+  max certified/subtree min over all nodes 0.999999991; max (solver - certified)/f_sub 8.88e-06

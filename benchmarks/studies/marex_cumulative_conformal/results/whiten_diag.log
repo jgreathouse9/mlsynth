@@ -1,0 +1,12 @@
+diag ar alpha=0.05 draws=300: cyclic=0.910  no_wrap=0.877  white_aic=0.903  white_ar6=0.920  white_arma=0.917
+diag ar alpha=0.2 draws=300: cyclic=0.730  no_wrap=0.713  white_aic=0.697  white_ar6=0.677  white_arma=0.713
+diag ar: post sum^2 over blocks inside the fitting periods 2.34, inside the blank periods 1.09; mean squared residual by stretch: fit 0.84, blank 1.29, post 1.30
+diag ar: variance ratio post / contiguous 1.59, post / wrapping 1.65, contiguous / wrapping 1.04; AIC order median 1; ARMA(1,1) median phi +0.47 theta -0.15
+diag ar5 alpha=0.05 draws=300: cyclic=0.927  no_wrap=0.913  white_aic=0.917  white_ar6=0.877  white_arma=0.913
+diag ar5 alpha=0.2 draws=300: cyclic=0.767  no_wrap=0.747  white_aic=0.723  white_ar6=0.723  white_arma=0.730
+diag ar5: post sum^2 over blocks inside the fitting periods 1.75, inside the blank periods 1.07; mean squared residual by stretch: fit 1.00, blank 1.43, post 1.44
+diag ar5: variance ratio post / contiguous 1.35, post / wrapping 1.41, contiguous / wrapping 1.04; AIC order median 1; ARMA(1,1) median phi +0.28 theta -0.03
+diag iid alpha=0.05 draws=300: cyclic=0.950  no_wrap=0.920  white_aic=0.923  white_ar6=0.933  white_arma=0.913
+diag iid alpha=0.2 draws=300: cyclic=0.773  no_wrap=0.753  white_aic=0.737  white_ar6=0.707  white_arma=0.723
+diag iid: post sum^2 over blocks inside the fitting periods 1.33, inside the blank periods 1.09; mean squared residual by stretch: fit 1.05, blank 1.46, post 1.38
+diag iid: variance ratio post / contiguous 1.17, post / wrapping 1.20, contiguous / wrapping 1.03; AIC order median 1; ARMA(1,1) median phi -0.01 theta +0.03

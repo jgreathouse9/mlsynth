@@ -178,15 +178,19 @@ class MAREX:
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
+                alpha=self.config.alpha, T_post=self.config.T_post,
+                unit_inference=self.config.unit_inference,
                 unit_index=panel.unit_index, time_index=panel.time_index,
                 restrictions=restrictions,
                 warm_start=warm_idx, time_limit=self.time_limit,
                 cumulative_band=self.config.cumulative_band,
+                cumulative_method=self.config.cumulative_method,
                 cumulative_block=self.config.cumulative_block,
                 cumulative_n_sim=self.config.cumulative_n_sim,
                 cumulative_seed=self.config.cumulative_seed,
                 backend=self.config.backend,
                 control_penalty=self.control_penalty,
+                certify=self.config.certify,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise

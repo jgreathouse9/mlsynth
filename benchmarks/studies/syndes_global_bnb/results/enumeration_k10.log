@@ -1,0 +1,2 @@
+noise N=40 K=10 library 724.6s value=0.2169759776 treated=[7, 9, 11, 14, 25, 27, 28, 30, 32, 35]
+factor N=40 K=10 library 710.6s value=0.565764223 treated=[1, 6, 7, 11, 12, 14, 25, 33, 34, 38]

@@ -20,12 +20,21 @@ enters it.
 
 What that costs is the shape of the null. A one-dimensional interval requires a
 one-dimensional null, so the effect is taken to be constant across the post
-block and the total is ``H`` times it. The band therefore covers the total under
-a constant effect and says nothing about an arbitrary path -- CWZ's Remark 1
-statistic (the signed sum) targets the same average deviation, and neither
-recovers a path from one number. Where the effect plainly grows or decays,
-``.cumulative`` or ``.resample`` make no such restriction and pay for it in
-``m`` instead.
+block and the total is ``H`` times it. With the default ``S_q`` statistic the
+band covers the total under a constant effect and loses it under any other
+path, since ``S_q`` grows with every departure from a constant one. CWZ's
+Remark 1 statistic, ``statistic="signed"``, sums the post residuals before
+taking the magnitude, so its observed value depends on the path only through
+the total; the band it gives covers the total under the paths the constant null
+does not describe as well (at 95%, 99.7% for a ramp on a MAREX design with
+independent factors, against 11% for ``S_1``). ``.cumulative`` and ``.resample`` make no restriction on the path and
+pay for it in ``m`` instead.
+
+``reference_start`` keeps an early stretch out of the permutation reference
+while the refit still matches on it. When a design was chosen on that stretch
+its residuals are smaller there, and a reference that includes them understates
+the post block's spread; see
+:mod:`~mlsynth.utils.conformal.ridge_inference`.
 
 Two answers here are not numbers, and both are real answers, not failures to
 compute. An empty set means no constant effect conforms, which a multiplicative
@@ -98,9 +107,10 @@ class CumulativeInversionBand:
     conformal_type : str
         Permutation set, from :data:`CONFORMAL_PERMUTATIONS`.
     n_reference : int
-        Periods entering the test, ``pre + horizon``. Under the block scheme this
-        is also the size of the reference set, so ``1 / n_reference`` is the
-        smallest attainable p-value.
+        Periods whose residuals enter the permutation reference,
+        ``pre + horizon - reference_start``. Under the block scheme this is the
+        size of the reference set, so ``1 / n_reference`` is the smallest
+        attainable p-value.
     search : str
         How the set was located, from :data:`CONFORMAL_SEARCHES`.
     has_interior_gaps : bool or None
@@ -112,6 +122,12 @@ class CumulativeInversionBand:
         No constant effect conformed.
     is_unbounded : bool
         At least one endpoint is infinite.
+    statistic : str
+        The test statistic, from
+        :data:`~mlsynth.utils.conformal.ridge_inference.CONFORMAL_STATISTICS`.
+    reference_start : int
+        First period whose residual entered the reference; the refit matched on
+        every period from the first.
     """
 
     point: float
@@ -128,6 +144,8 @@ class CumulativeInversionBand:
     is_unbounded: bool
     search: str
     has_interior_gaps: Optional[bool]
+    statistic: str = "sq"
+    reference_start: int = 0
 
 
 def _check_alpha(alpha) -> float:
@@ -222,6 +240,8 @@ def cumulative_conformal_by_inversion(
     conformal_type: str = "block",
     search: str = "bisect",
     grid=None,
+    statistic: str = "sq",
+    reference_start: int = 0,
     **kwargs: Any,
 ) -> CumulativeInversionBand:
     """Band for the total effect over ``horizon`` periods, by test inversion.
@@ -261,6 +281,14 @@ def cumulative_conformal_by_inversion(
         Candidate per-period effects, required by ``search="grid"``. There is no
         default: a grid has to be scaled to the panel's own dispersion, and one
         guessed here would step over a narrow set and report it empty.
+    statistic : {"sq", "signed"}, default "sq"
+        The test statistic. ``"signed"`` (CWZ's Remark 1) is the one whose band
+        covers the total when the effect is not constant; ``"sq"`` keeps the
+        published default.
+    reference_start : int, default 0
+        First period whose residual enters the permutation reference, at most
+        ``pre - 1``. Set it past the periods a design was chosen on; the refit
+        still matches on every period.
     **kwargs
         Forwarded to
         :func:`~mlsynth.utils.conformal.ridge_inference.conformal_att_interval`
@@ -274,8 +302,8 @@ def cumulative_conformal_by_inversion(
     Raises
     ------
     MlsynthConfigError
-        On a bad ``alpha``, ``pre``, ``horizon``, ``refit`` or
-        ``conformal_type``.
+        On a bad ``alpha``, ``pre``, ``horizon``, ``refit``,
+        ``conformal_type``, ``statistic`` or ``reference_start``.
     MlsynthDataError
         On mismatched, misshapen or non-finite series.
     """
@@ -298,11 +326,18 @@ def cumulative_conformal_by_inversion(
                 'search="grid" needs a grid of candidate per-period effects.')
         grid = _check_grid(grid)
 
-    from ..conformal.ridge_inference import conformal_att_interval
+    from ..conformal.ridge_inference import (_check_reference_start,
+                                             _check_statistic,
+                                             conformal_att_interval)
     from ..solvers.simplex import simplex_lstsq
 
-    n_reference = pre + horizon
-    y_w, Y0_w = y[:n_reference], Y0[:n_reference]
+    statistic = _check_statistic(statistic, kwargs.get("q", 1.0))
+    reference_start = _check_reference_start(reference_start, pre)
+    kwargs.update(statistic=statistic, reference_start=reference_start)
+
+    n_window = pre + horizon
+    n_reference = n_window - reference_start
+    y_w, Y0_w = y[:n_window], Y0[:n_window]
 
     if search == "bisect":
         lo, hi = conformal_att_interval(y_w, Y0_w, pre, alpha=alpha, refit=refit,
@@ -323,8 +358,8 @@ def cumulative_conformal_by_inversion(
     # The point is the estimator's own effect: weights fitted on the pre-period
     # alone, so the post gaps are the ones the band is meant to describe.
     w = simplex_lstsq(Y0[:pre], y[:pre])
-    point = horizon * float(np.mean(y[pre:n_reference]
-                                    - Y0[pre:n_reference] @ w))
+    point = horizon * float(np.mean(y[pre:n_window]
+                                    - Y0[pre:n_window] @ w))
 
     is_empty = bool(np.isnan(lo) or np.isnan(hi))
     is_unbounded = bool(np.isinf(lo) or np.isinf(hi))
@@ -343,4 +378,6 @@ def cumulative_conformal_by_inversion(
         is_unbounded=is_unbounded,
         search=search,
         has_interior_gaps=gaps,
+        statistic=statistic,
+        reference_start=reference_start,
     )
