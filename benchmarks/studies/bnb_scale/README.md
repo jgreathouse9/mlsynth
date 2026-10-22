@@ -288,7 +288,8 @@ One root bound, the persp+N relaxation solved by Clarabel:
 | 80 | 224.7 | 25.0 | 9.0 | 1.1 to 6.6 |
 | 100 | 787.6 | 47.9 | 16.5 | 3.5 to 6.6 |
 
-The search, capped by the number of bounds:
+The search, capped at 30 to 40 bounds (#843 has since moved the cap to the
+cost model's seconds; every run here closed, so the rows stand):
 
 | markets | closed | bounds | sets priced | CPU s | in bounds | slowest bound | load |
 |---:|---|---:|---:|---:|---:|---:|---|
@@ -418,7 +419,7 @@ In the order of the roadmap (#848) as the author revised it after this study:
     python -m benchmarks.studies.bnb_scale.run trace --kinds bls --sizes 40 60 100
     python -m benchmarks.studies.bnb_scale.run profile --kinds bls --sizes 40 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-bound --sizes 45 60 80 100
-    python -m benchmarks.studies.bnb_scale.run marex-search --sizes 45 60 --m 6 --max-lifts 30
+    python -m benchmarks.studies.bnb_scale.run marex-search --sizes 45 60 --m 6
     python -m benchmarks.studies.bnb_scale.run depth --kinds bls noise flat --sizes 60 80 100 --closure-at 20 40 --projection
     python -m pytest benchmarks/studies/bnb_scale/test_scale.py benchmarks/studies/bnb_scale/test_depth.py -q
 

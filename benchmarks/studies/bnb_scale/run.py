@@ -3,7 +3,7 @@
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \\
     python -m benchmarks.studies.bnb_scale.run syndes --kinds bls noise flat --sizes 40 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-bound --sizes 45 60 80 100
-    python -m benchmarks.studies.bnb_scale.run marex-search --sizes 60 --m 6 --max-lifts 40
+    python -m benchmarks.studies.bnb_scale.run marex-search --sizes 60 --m 6
     python -m benchmarks.studies.bnb_scale.run root --kinds bls noise flat --sizes 40 60 100
     python -m benchmarks.studies.bnb_scale.run trace --kinds bls --sizes 40 60
     python -m benchmarks.studies.bnb_scale.run profile --kinds bls --sizes 40 60 80 100
@@ -49,7 +49,6 @@ def main(argv=None) -> int:
     ap.add_argument("--sizes", nargs="+", type=int, required=True)
     ap.add_argument("--K", type=int, default=None, help="SYNDES size; default N/2")
     ap.add_argument("--m", type=int, default=6, help="MAREX treated count")
-    ap.add_argument("--max-lifts", type=int, default=40)
     ap.add_argument("--work-limit", type=float, default=None)
     ap.add_argument("--closure", action="store_true",
                     help="root: also solve the triangle relaxation by interior point")
@@ -112,7 +111,8 @@ def main(argv=None) -> int:
             elif args.what == "marex-bound":
                 row = marex_scale.root_bound(Y, args.m)
             else:
-                row = marex_scale.search(Y, args.m, max_lifts=args.max_lifts)
+                row = marex_scale.search(Y, args.m, **(
+                    {} if args.work_limit is None else {"work_limit": args.work_limit}))
             row.update(kind=kind, load_before=load0, load_after=os.getloadavg()[0])
             _append("lift_profile" if args.what == "profile" else args.what, row)
     return 0
