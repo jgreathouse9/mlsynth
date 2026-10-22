@@ -7957,3 +7957,53 @@ timeout = 120.0
   find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
+
+# The two-way search's cost model, recalibrated on one thread (#845): each cost
+# against what it measured, so a modelled second stays a second of the clock.
+[[target]]
+name = "syndes-cost-model"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k 'TestTheCostModel or TestLiftCost or work'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-evaluation-costs-its-eigendecomposition-alone"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 1e-4 + 2e-9 * (n + 1) ** 3"
+  models = "the model before #845, which charged a lift's evaluation for its eigendecomposition and not for the rest of the evaluation, the cut matrix or L-BFGS-B, a quarter of what it costs"
+
+  [[target.mutant]]
+  id = "the-evaluation-cost-loses-its-slope"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 3.4e-4"
+  models = "an evaluation charged the same at every node, so a lift at sixty free units costs what one at ten does"
+
+  [[target.mutant]]
+  id = "pricing-at-the-old-rate"
+  find = "PRICE_SECONDS_PER_UNIT = 6.0e-8"
+  replace = "PRICE_SECONDS_PER_UNIT = 2.5e-8"
+  models = "a design priced at the pre-#845 rate, under half of what it costs, so the limit lets a search that prices run twice as long"
+
+  [[target.mutant]]
+  id = "the-certificate-at-the-old-rate"
+  find = "    return 9e-4 + 8.4e-6 * n ** 2"
+  replace = "    return 6e-4 + 6.6e-6 * n ** 2"
+  models = "a certificate charged at the pre-#845 rate"
+
+  [[target.mutant]]
+  id = "the-trust-region-grows-as-a-cube"
+  find = "    return 1.8e-4 + 8.5e-6 * n"
+  replace = "    return 2e-4 + 5e-9 * n ** 3"
+  models = "the trust region's pre-#845 cubic, which over-charges it twice over at sixty free units"
+
+[[target]]
+name = "syndes-work-limit-default"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k leaves_the_documented"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-limit-at-the-old-default"
+  find = "WORK_LIMIT = 120.0"
+  replace = "WORK_LIMIT = 60.0"
+  models = "the default left at 60 after the costs rose, where the searches the docs report at forty units with ten treated need 60"

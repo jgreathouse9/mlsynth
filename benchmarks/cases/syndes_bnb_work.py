@@ -90,7 +90,7 @@ def run() -> dict:
         for name, Y in (("factor26_free", factor(26, seed=0)),
                         ("geolift26_free", geolift(26))):
             d = solve_synthetic_design_exact(Y=Y, K=None, candidate_limit=100_000,
-                                             work_limit=5.0)
+                                             work_limit=25.0)
             r = d.raw_results
             out[f"{name}_value"] = float(d.objective_value)
             out[f"{name}_lower"] = float(r["lower_bound"])
@@ -142,6 +142,20 @@ def _span(lo: float, hi: float, rel: float) -> tuple:
 # factor26_free 68 against 67. Both kernel families below gave the same counts
 # on all four.
 #
+# The cost model's recalibration (#845) moved every instance's work and the
+# default-cost instances' decisions, and no design or certified flag. A lift
+# evaluation now costs 2.3 to 5.9 times what the model charged and a design
+# priced 2.4 times, measured on one thread, so the work is 2.5 to 6.0 times
+# what it was (2.5 where pricing dominates), and a modelled second is about a
+# second of the clock. Charged its cost, a lift pays only on a larger subtree, so
+# the default-cost searches lift less and price more: geolift30_k8 lifts 9 nodes
+# against 15 and prices 3,108,105 designs against 407,330, geolift32_k10 lifts
+# 19 against 22 and prices 7,350 against 8,008, noise30_k8 lifts 4 against 5,
+# factor30_k8 lifts 5 against 8. The eager instances set their own costs, so
+# only their work moved. The K=None instances' limit went from 5 to 25 with the
+# costs, and both still close within it. Both kernel families gave every count
+# below; only geolift20_k8_eager's still differ, as before.
+#
 # The bands are loose against version noise and tight against what the case
 # exists to catch: a change that multiplies the work, or sends a search that
 # bounds back to pricing every design, moves these by far more than 15%.
@@ -169,33 +183,33 @@ def _span(lo: float, hi: float, rel: float) -> tuple:
 # doubling of the work through on the processors the gate runs on.
 EXPECTED = {
     # default costs
-    "geolift30_k8_nodes": _band(35, 0.05),
-    "geolift30_k8_lifts": _band(15, 0.15),
-    "geolift30_k8_pruned": _band(7, 0.05),
-    "geolift30_k8_priced": (407_330, 0.0),
-    "geolift30_k8_work": _band(2.0127647309999985, 0.15),
+    "geolift30_k8_nodes": _band(78, 0.05),
+    "geolift30_k8_lifts": _band(9, 0.15),
+    "geolift30_k8_pruned": _band(2, 0.05),
+    "geolift30_k8_priced": (3_108_105, 0.0),
+    "geolift30_k8_work": _band(11.94885860000001, 0.15),
     "geolift30_k8_certified": (1.0, 0.0),
     "geolift30_k8_matches_enumeration": (1.0, 0.0),
-    "geolift32_k10_nodes": _band(56, 0.05),
-    "geolift32_k10_lifts": _band(22, 0.15),
-    "geolift32_k10_pruned": _band(27, 0.05),
-    "geolift32_k10_priced": (8_008, 0.0),
-    "geolift32_k10_work": _band(1.8161887709999993, 0.15),
+    "geolift32_k10_nodes": _band(102, 0.05),
+    "geolift32_k10_lifts": _band(19, 0.15),
+    "geolift32_k10_pruned": _band(49, 0.05),
+    "geolift32_k10_priced": (7_350, 0.0),
+    "geolift32_k10_work": _band(8.682166099999979, 0.15),
     "geolift32_k10_certified": (1.0, 0.0),
     "geolift32_k10_matches_enumeration": (1.0, 0.0),
-    "noise30_k8_nodes": _band(40, 0.05),
-    "noise30_k8_lifts": _band(5, 0.15),
+    "noise30_k8_nodes": _band(46, 0.05),
+    "noise30_k8_lifts": _band(4, 0.15),
     "noise30_k8_pruned": _band(8, 0.05),
     "noise30_k8_priced": (185_942, 0.0),
-    "noise30_k8_work": _band(0.8724044260000008, 0.15),
+    "noise30_k8_work": _band(3.174782599999995, 0.15),
     "noise30_k8_certified": (1.0, 0.0),
     "noise30_k8_matches_enumeration": (1.0, 0.0),
     # the bounds prune nothing here: every one of C(30, 8) designs is priced
-    "factor30_k8_nodes": _band(75, 0.05),
-    "factor30_k8_lifts": _band(8, 0.15),
+    "factor30_k8_nodes": _band(94, 0.05),
+    "factor30_k8_lifts": _band(5, 0.15),
     "factor30_k8_pruned": (0.0, 0.0),
     "factor30_k8_priced": (5_852_925, 0.0),
-    "factor30_k8_work": _band(5.045938000000001, 0.15),
+    "factor30_k8_work": _band(12.664619000000002, 0.15),
     "factor30_k8_certified": (1.0, 0.0),
     "factor30_k8_matches_enumeration": (1.0, 0.0),
     # every node bounded and lifted
@@ -204,33 +218,33 @@ EXPECTED = {
     "geolift20_k8_eager_lifts": _span(33, 39, 0.05),
     "geolift20_k8_eager_pruned": _span(21, 22, 0.05),
     "geolift20_k8_eager_priced": _span(1, 3, 0.0),
-    "geolift20_k8_eager_work": _span(0.986765189, 1.2337806850000004, 0.15),
+    "geolift20_k8_eager_work": _span(5.040971999999998, 6.349497999999998, 0.15),
     "geolift20_k8_eager_certified": (1.0, 0.0),
     "geolift20_k8_eager_matches_enumeration": (1.0, 0.0),
     "noise20_k8_eager_nodes": _band(30, 0.05),
     "noise20_k8_eager_lifts": _band(29, 0.05),
     "noise20_k8_eager_pruned": _band(12, 0.05),
     "noise20_k8_eager_priced": (7, 0.0),
-    "noise20_k8_eager_work": _band(0.5640328329999994, 0.15),
+    "noise20_k8_eager_work": _band(2.773886899999998, 0.15),
     "noise20_k8_eager_certified": (1.0, 0.0),
     "noise20_k8_eager_matches_enumeration": (1.0, 0.0),
     "factor20_k8_eager_nodes": _band(119, 0.05),
     "factor20_k8_eager_lifts": _band(111, 0.05),
     "factor20_k8_eager_pruned": _band(56, 0.05),
     "factor20_k8_eager_priced": (8, 0.0),
-    "factor20_k8_eager_work": _band(3.647998439999999, 0.15),
+    "factor20_k8_eager_work": _band(18.726892599999953, 0.15),
     "factor20_k8_eager_certified": (1.0, 0.0),
     "factor20_k8_eager_matches_enumeration": (1.0, 0.0),
-    # K=None under work_limit=5, sizes up to 13 under the mirror rule (#838):
+    # K=None under work_limit=25, sizes up to 13 under the mirror rule (#838):
     # both close within the limit, so the bound is the value
     "factor26_free_value": _band(0.6019339302995382, 1e-9),
     "factor26_free_lower": _band(0.6019339302995382, 1e-9),
     "factor26_free_size": (13.0, 0.0),
-    "factor26_free_nodes": _band(68, 0.05),
-    "factor26_free_lifts": _band(8, 0.15),
+    "factor26_free_nodes": _band(83, 0.05),
+    "factor26_free_lifts": _band(5, 0.15),
     "geolift26_free_value": _band(143431.35581503826, 1e-9),
     "geolift26_free_lower": _band(143431.35581503826, 1e-9),
     "geolift26_free_size": (13.0, 0.0),
-    "geolift26_free_nodes": _band(69, 0.05),
-    "geolift26_free_lifts": _band(7, 0.15),
+    "geolift26_free_nodes": _band(86, 0.05),
+    "geolift26_free_lifts": _band(4, 0.15),
 }
