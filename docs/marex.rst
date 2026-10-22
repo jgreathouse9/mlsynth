@@ -755,6 +755,59 @@ from three treated up, and 2.4 times at two, where the whole search takes ten
 milliseconds; at seven treated, 18.6 million candidates, the search took 27
 seconds and the certificate 53.
 
+.. _marex-search-diagnostics:
+
+What the search reports
+^^^^^^^^^^^^^^^^^^^^^^^
+
+With ``backend="exact"`` every result also says how its search reached the
+design. ``res.clusters[label].search`` summarises one cluster's search and
+``res.search`` merges them; both are ``None`` with ``backend="mip"``. The
+summary has the same size whatever the number of candidates, about 850 bytes.
+Filling it adds about 0.3 percent to the function calls a search makes on 40
+GeoLift markets at four treated, and no measurable time.
+
+Each admissible treated set gets exactly one fate, and ``res.search.counts``
+counts them:
+
+* ``cleared_by_bound``: its closed-form bound already cleared the best design
+  found so far, so it was never fitted;
+* ``cleared_by_coupling``: the ``weakly_targeted`` design's hull-distance bound
+  cleared it;
+* ``cleared_by_treated_fit``: its treated-side fit alone cleared the incumbent;
+* ``without_control``: donor exclusions left it no control market;
+* ``cleared_by_fit_cutoff``: the coupled fit stopped once its certified bound
+  cleared the incumbent;
+* ``fitted``: fitted to completion.
+
+The six add up to ``candidates``. Above the candidate limit the branch and
+bound reports the bounds it computed (``bnb_bounds``), the sets it priced one at
+a time (``bnb_priced``) and the designs it fitted.
+
+``res.search.clearance`` is a histogram of how far each discarded set's bound
+sat above the incumbent, relative to it, in log-spaced bins; ``quantile(q)``
+reads it. Sets that cleared by a wide margin say the bound did its work; a mass
+of small clearances says other designs came close to the one chosen.
+``res.search.numerics`` counts the bounds that fell back to zero and the coupled
+fits' steps and largest stopping gap; ``res.search.timing`` splits the seconds
+between pricing, fitting and the branch and bound.
+
+The candidate count, the kind of search and the fallbacks are facts about the
+problem. The other counts depend on the order the search visits candidates in,
+and the times on the machine, so they are reported, not pinned.
+``res.search.order_independent()`` returns the first group. Two conditions warn
+with a ``MAREXSearchWarning``: a bound that fell back to zero, which leaves those
+sets searched on no bound (markets that duplicate one another cause it), and,
+with ``certify=True``, a certificate that left sets unresolved, which marks a
+possible tie.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(..., backend="exact")).fit()
+   c = res.search.counts
+   c.candidates, c.cleared_by_bound, c.fitted
+   res.search.clearance.quantile(0.5)
+
 
 .. _marex-branch-and-bound:
 

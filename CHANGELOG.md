@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- MAREX's exact backend reports how its search reached the design (#774):
+  `res.search`, and `res.clusters[label].search` per cluster, an
+  `ExactSearchDiagnostics` that is `None` with `backend="mip"`. It counts each
+  candidate's fate (cleared by its closed-form bound, by the weakly-targeted
+  coupling bound, by its treated-side fit, left without a control, stopped by
+  the fit cutoff, or fitted), and the six add to the candidate count. It also
+  holds a log-binned histogram of how far the discarded bounds cleared the
+  incumbent, the bounds that fell back to zero, the coupled fits' steps and
+  largest stopping gap, and the seconds by phase. A bound that falls back to
+  zero, or a certificate that leaves treated sets unresolved, warns with
+  `MAREXSearchWarning`. The summary has a fixed size, about 850 bytes, and
+  merges across clusters; filling it adds about 0.3 percent to a search's
+  function calls.
 - `outer_restarts` and `outer_restart_seed` on `SparseSCConfig`: extra starting
   points for the outer V-solve at each lambda, drawn log-normally around the
   MATLAB initialiser, with `outer_restarts` defaulting to 4.
