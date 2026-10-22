@@ -332,6 +332,39 @@ class TestLiftTrace:
             assert getattr(syndes_branch, name) == value
 
 
+class TestTraceAtFortyUnits:
+    """The 40-county root the write-up reports. Its shipped run reaches the
+    floor while still adding triangles, then meets the floor and the stall rule
+    in the same last round; a lower floor alone stalls above it. At 12 units
+    neither happens, so this is where the replica's floor and naming rules are
+    held to the lift."""
+
+    @pytest.fixture(scope="class")
+    def runs(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        Y = panels.panel("bls", 40)
+        return root_gap.trace_lift(Y, 20), root_gap.trace_lift(Y, 20, **root_gap.LONG)
+
+    def test_rounds_at_the_floor_that_add_triangles_do_not_stop(self, runs):
+        shipped, _ = runs
+        floor = [r for r in shipped["rounds"] if r["alpha"] == 5e-5]
+        assert any(r["added"] for r in floor[:-1])
+        assert [r["stops"] for r in shipped["rounds"]] == (
+            [False] * (len(shipped["rounds"]) - 1) + [True])
+
+    def test_a_run_meeting_both_rules_ended_at_its_floor(self, runs):
+        shipped, _ = runs
+        last = shipped["rounds"][-1]
+        assert last["at_floor"] and last["giveup"]
+        assert shipped["stopped"] == "floor"
+
+    def test_a_lower_floor_alone_stalls_above_it(self, runs):
+        shipped, finer = runs
+        assert finer["stopped"] == "stall"
+        assert finer["final_alpha"] > 1e-8
+        assert finer["evaluations"] < shipped["evaluations"]
+
+
 class TestTriangleClosure:
     """The relaxation the lift's dual converges to, solved by interior point:
     Shor with the cardinality and its products, the RLT products, and every
