@@ -40,7 +40,11 @@ and its defaults, nothing copied. Every evaluation reports the eigenvalue bound,
 so the lift stops as soon as the node prunes. No interior-point solve is made:
 on 32 to 40 free units the lift is one to seven times faster than Clarabel on
 the same relaxation and within 0.4% of its bound
-(``benchmarks/studies/syndes_global_bnb``).
+(``benchmarks/studies/syndes_global_bnb``). The lift runs BLAS on one thread:
+its matrices have at most ``n + 1`` rows, where a thread pool costs more to
+coordinate than it saves. On four threads a root lift took 16 s at 60 units
+against 0.8 s on one, on a quiet machine (#857). Pricing keeps the caller's
+threads, since its blocks of sets are large products that threads speed up.
 
 The certificate. Both bounds are read as multipliers (:class:`Multipliers`):
 ``d`` on the unit diagonal, ``u`` on ``X r = 0`` and ``w >= 0`` on the triangle
@@ -95,6 +99,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy.optimize import minimize
+from threadpoolctl import ThreadpoolController
 
 from .enumeration import SearchSpace
 from .exact import (CHUNK, CERTIFY_RTOL, WORK_LIMIT, SubsetFilter,
@@ -450,11 +455,28 @@ class _Converged(Exception):
     pass
 
 
+@lru_cache(maxsize=None)
+def _blas() -> ThreadpoolController:
+    """The process's BLAS pools, found once: a fresh scan costs about 7 ms,
+    and limiting a found pool about 15 us. By the first lift numpy and SciPy
+    have loaded every BLAS the lift calls."""
+    return ThreadpoolController()
+
+
 def lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
          target: Optional[float] = None) -> Tuple[float, Multipliers, int]:
     """The lift's bound by its regularised dual, never above the trust-region
     bound, with its multipliers and the dual evaluations it took. ``target``:
-    stop once the bound is at or under it."""
+    stop once the bound is at or under it.
+
+    BLAS runs on one thread for the call, and the caller's thread counts come
+    back on the way out, whether the lift returns or raises (#857)."""
+    with _blas().limit(limits=1, user_api="blas"):
+        return _lift(c, b, A, s, target=target)
+
+
+def _lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
+          target: Optional[float] = None) -> Tuple[float, Multipliers, int]:
     n = len(b)
     fallback, _, trm = trust_region(c, b, A, s)
     if n <= 1 or (target is not None and fallback <= target):
