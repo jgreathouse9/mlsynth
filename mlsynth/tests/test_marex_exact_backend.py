@@ -10,7 +10,12 @@ the optimum.
 
 The MIQP is the reference. Every configuration the backend accepts is solved
 both ways here and the designs compared; every configuration it refuses is
-checked to raise before anything is solved. Below those sit unit tests of the
+checked to raise before anything is solved. The comparison is independent only
+where the two paths are: since #756 the MIQP reports the design its selection
+defines by refitting it with this backend's own ``_penalties`` and ``side_fit``,
+so a defect in those moves both backends together and survives here (#783).
+``test_marex_exact_oracle.py`` checks them against an oracle that shares no
+code with the library. Below those sit unit tests of the
 search core against plain enumeration and of the bound against the exact fit,
 with ``hypothesis`` properties for both.
 
