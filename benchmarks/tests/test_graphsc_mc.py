@@ -366,6 +366,22 @@ class TestTheWeights:
         assert int(Ar.sum() // 2) == m and not np.array_equal(Ar, A > 0)
         assert np.array_equal(M.penalty("Ridge signed", X, seed=8)[0], np.eye(12))
         assert np.allclose(M.penalty("Graph-SC signed", X, seed=8)[0], L)
+        # The w >= 0 controls carry the same penalties as their signed twins.
+        assert np.array_equal(M.penalty("Random graph w>=0", X, seed=8)[0], Lr)
+        assert np.array_equal(M.penalty("Ridge w>=0", X, seed=8)[0], np.eye(12))
+
+    @pytest.mark.parametrize("method", [m for m in M.METHODS if m.endswith("w>=0")])
+    def test_every_nonnegative_arm_is_the_nonnegative_solve(self, method):
+        y, Y0 = _panel(6)
+        w = M.weight_fn(method, y, Y0, 30, seed=3)(np.arange(30))
+        X = Y0[:30] / M.unit_scale(Y0[:30])
+        P, _ = M.penalty(method, X, seed=3)
+        assert np.all(w >= 0)
+        assert np.allclose(w, G.solve_exact(y[:30] / M.unit_scale(Y0[:30]), X, P, *M.LAM), atol=1e-12)
+
+    def test_the_gate_has_both_controls_in_both_readings(self):
+        for reading in ("signed", "w>=0"):
+            assert {f"Random graph {reading}", f"Ridge {reading}", f"Graph-SC {reading}"} <= set(M.METHODS)
 
     def test_the_oracles_certificate_failures_are_reissued(self):
         import warnings

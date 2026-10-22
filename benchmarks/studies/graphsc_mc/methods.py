@@ -28,9 +28,11 @@ _ORACLE_FAILURES = ("failed its KKT test", "did not converge", "CLARABEL returne
 LAM = (0.05, 10.0, 50.0)
 KNN = 5
 
-METHODS = ("SC", "Graph-SC signed", "Graph-SC w>=0", "Random graph signed", "Ridge signed",
-           "Graph-SC signed, raw units")
-SCALED = ("Graph-SC signed", "Graph-SC w>=0", "Random graph signed", "Ridge signed")
+#: Each reading of eq. (2) with its two controls: the same penalty strength on a
+#: random graph with as many edges, and on no graph (``L`` replaced by ``I``).
+METHODS = ("SC", "Graph-SC signed", "Random graph signed", "Ridge signed",
+           "Graph-SC w>=0", "Random graph w>=0", "Ridge w>=0", "Graph-SC signed, raw units")
+SCALED = METHODS[1:-1]
 
 
 def unit_scale(X) -> float:
@@ -58,9 +60,9 @@ def penalty(method: str, X, seed: int):
     """``(P, n_edges)``: the arm's quadratic penalty on rows ``X`` and the learned graph's edge count."""
     L, A = G.knn_laplacian(X.T, KNN)
     m = int(A.sum() // 2)
-    if method == "Random graph signed":
+    if method.startswith("Random graph"):
         return G.random_graph_laplacian(m, X.shape[1], np.random.default_rng(seed))[0], m
-    if method == "Ridge signed":
+    if method.startswith("Ridge"):
         return np.eye(X.shape[1]), m
     return L, m
 
@@ -89,7 +91,7 @@ def weight_fn(method: str, y, Y0, T0: int, seed: int):
             s = unit_scale(X0)
             x1, X0 = x1 / s, X0 / s
         P, _ = penalty(method, X0, seed)
-        if method == "Graph-SC w>=0":
+        if method.endswith("w>=0"):
             return reported(G.solve_exact, x1, X0, P, *LAM)
         w, info = S.solve_signed(x1, X0, P, *LAM, w0=state["w"])
         state["w"] = w

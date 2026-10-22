@@ -8009,6 +8009,12 @@ timeout = 300.0
   models = "a random-graph control that is the learned graph, which makes the gate compare Graph-SC with itself"
 
   [[target.mutant]]
+  id = "nonnegative-controls-solved-signed"
+  find = '        if method.endswith("w>=0"):'
+  replace = '        if method == "Graph-SC w>=0":'
+  models = "the random-graph and ridge controls of the w >= 0 reading solved over R^J, so the gate for the one reading that can beat SC compares it with estimators of the other reading"
+
+  [[target.mutant]]
   id = "oracle-failures-pass-through-unreported"
   find = "        if any(s in str(c.message) for s in _ORACLE_FAILURES):"
   replace = "        if False:"
