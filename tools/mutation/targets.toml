@@ -7195,6 +7195,36 @@ timeout = 300.0
   models = "the limit set and never lifted, so after the first lift every BLAS call in the process, pricing's large products included, runs on one thread"
 
 [[target]]
+name = "syndes-lift-constant"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k 'TestLift and not Threads'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-scale-reads-the-constant"
+  find = "    unit = max(float(np.abs(b).max()), float(np.abs(A).max()))"
+  replace = "    unit = max(abs(c), float(np.abs(b).max()), float(np.abs(A).max()))"
+  models = "the lift's scale taken from the fixed units' constant as well as the free part, the defect this target was written for: the constant grows with the fixed units, the free part shrinks against the alpha schedule, and a node with forty units fixed stopped at the trust region where the relaxation was 0.5% tighter"
+
+  [[target.mutant]]
+  id = "the-constant-is-not-added-back"
+  find = '        return c + unit * best["value"], m, evaluations[0]'
+  replace = '        return unit * best["value"], m, evaluations[0]'
+  models = "the dual run on the free part and its bound returned without the constant, a bound under the subtree's maximum wherever the fixed units add value"
+
+  [[target.mutant]]
+  id = "the-target-keeps-the-constant"
+  find = "    goal = -np.inf if target is None else (target - c) / unit"
+  replace = "    goal = -np.inf if target is None else target / unit"
+  models = "the target compared with the free part's bound without the constant taken out, so a lift with a target stops before its bound reaches it"
+
+  [[target.mutant]]
+  id = "the-floor-keeps-the-constant"
+  find = "    floor = (fallback - c) / unit"
+  replace = "    floor = fallback / unit"
+  models = "the trust region's bound compared with the free part's without the constant taken out, so a lift that ends looser than the trust region returns its own bound"
+
+[[target]]
 name = "syndes-mirror-branch"
 module-path = "mlsynth/utils/syndes_helpers/branch.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_mirror.py -q -p no:cacheprovider -x"

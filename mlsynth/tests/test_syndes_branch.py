@@ -400,6 +400,64 @@ class TestLift:
         assert U >= _float_max(engine.R, 10, 3, I, O, F) * (1 - 1e-12)
 
 
+def _scale(b, A):
+    return max(float(np.abs(b).max(initial=0.0)), float(np.abs(A).max(initial=0.0)))
+
+
+class TestLiftConstant:
+    """``c`` is the fixed units' value against each other. Every relaxation the
+    lift bounds has ``X_00 = 1``, so ``c`` adds to the bound and shapes nothing:
+    the lift is translation equivariant in it. Its scale was once taken from
+    ``c`` too, and the fixed units' count grew it, so a node deep in the tree
+    ran its dual on a free block shrunk toward zero against the fixed ``alpha``
+    schedule, and stopped at the trust region where the relaxation was tighter
+    (/rca)."""
+
+    def test_a_deep_node_passes_the_trust_region(self):
+        """Forty units with twelve fixed, where the constant is ten times the
+        free block's largest entry: the relaxation is tighter than the trust
+        region, and the lift that took its scale from the constant stopped at
+        the trust region."""
+        _, engine = _engine(_noise(N=40, T=10, seed=0))
+        I, O, F = list(range(6)), list(range(6, 12)), list(range(12, 40))
+        c, b, A = node_parts(engine.R, I, O, F)
+        s = 2 * (20 - len(I)) - len(F)
+        assert abs(c) > 8 * _scale(b, A)
+        U, _, _ = lift(c, b, A, s)
+        assert U < trust_region(c, b, A, s)[0] * (1 - 1e-4)
+
+    @given(panels, st.data())
+    @settings(**SETTINGS)
+    def test_the_constant_adds_to_the_bound_and_shapes_nothing(self, Y, data):
+        _, engine = _engine(Y)
+        N = engine.N
+        K = data.draw(st.integers(1, N - 1))
+        I, O, F = _node(N, K, data.draw(st.integers(0, 10 ** 6)))
+        c, b, A = node_parts(engine.R, I, O, F)
+        s = 2 * (K - len(I)) - len(F)
+        t = data.draw(st.floats(-100.0, 100.0)) * _scale(b, A)
+        U, _, evaluations = lift(c, b, A, s)
+        shifted, _, shifted_evaluations = lift(c + t, b, A, s)
+        assert shifted_evaluations == evaluations
+        assert shifted - t == pytest.approx(U, rel=1e-12, abs=1e-12 * (abs(t) + abs(U)))
+
+    def test_a_node_with_no_free_part_left_costs_no_evaluation(self):
+        """A constant over zero parts is the node's value: nothing to lift."""
+        U, _, evals = lift(3.5, np.zeros(5), np.zeros((5, 5)), 1)
+        assert U == 3.5 and evals == 0
+
+    def test_its_multipliers_certify_a_deep_node(self):
+        """The certificate reads the constant from the multipliers, unscaled,
+        whatever the scale the dual ran at."""
+        _, engine = _engine(_noise(N=10, seed=5))
+        xr = ExactR(engine)
+        I, O, F = [0, 1], [2, 3], list(range(4, 10))
+        U, m, evals = lift(*node_parts(engine.R, I, O, F), 2 * (5 - 2) - len(F))
+        assert evals > 0
+        assert xr.certify(I, O, F, 5, m) >= _exact_max(xr, 10, 5, I, O, F)
+        assert U >= _float_max(engine.R, 10, 5, I, O, F) * (1 - 1e-12)
+
+
 def _blas_threads():
     """The thread count of every BLAS pool the process has loaded."""
     from threadpoolctl import threadpool_info

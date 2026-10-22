@@ -481,12 +481,16 @@ def _lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
     fallback, _, trm = trust_region(c, b, A, s)
     if n <= 1 or (target is not None and fallback <= target):
         return fallback, trm, 0
-    unit = max(abs(c), float(np.abs(b).max()), float(np.abs(A).max()))
+    # The dual runs on the free part alone, at the free part's scale, and c is
+    # added at the end: c adds to every bound (X_00 = 1) and shapes none. A
+    # scale taken from c grew with the fixed units, shrank the free part
+    # against the alpha schedule, and stopped deep nodes at the trust region.
+    unit = max(float(np.abs(b).max()), float(np.abs(A).max()))
     if unit == 0.0:
         return fallback, trm, 0
-    cs, bs, As = c / unit, b / unit, A / unit
-    goal = -np.inf if target is None else target / unit
-    floor = fallback / unit
+    bs, As = b / unit, A / unit
+    goal = -np.inf if target is None else (target - c) / unit
+    floor = (fallback - c) / unit
     size = n + 1
     ny = 2 * n + 2
     y, cut, v = np.zeros(ny), Cuts.empty(), np.zeros(0)
@@ -502,7 +506,7 @@ def _lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
         last: Dict[str, object] = {}
 
         def fun(xv, cut=cut, alpha=alpha):
-            exact, smooth, gy, gv, _ = _theta(cs, bs, As, s, xv[:ny], cut, xv[ny:], alpha)
+            exact, smooth, gy, gv, _ = _theta(0.0, bs, As, s, xv[:ny], cut, xv[ny:], alpha)
             evaluations[0] += 1
             if exact < best["value"]:
                 best.update(value=exact, y=xv[:ny].copy(), cuts=cut, v=xv[ny:].copy())
@@ -532,7 +536,7 @@ def _lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
         except _Converged:
             xv = last["x"]
         y, v = xv[:ny], xv[ny:]
-        _, smooth, gy, gv, X = _theta(cs, bs, As, s, y, cut, v, alpha)
+        _, smooth, gy, gv, X = _theta(0.0, bs, As, s, y, cut, v, alpha)
         stalled = (previous is not None and abs(previous - smooth) <= 1e-6 * abs(smooth)
                    and alpha < 1e-4)
         previous = smooth
@@ -556,7 +560,7 @@ def _lift(c: float, b: np.ndarray, A: np.ndarray, s: int, *,
             tol = max(tol * TOL_SCALE, TOL_MIN)
     if best["value"] < floor:
         m = _as_multipliers(c, s, best["y"], best["cuts"], best["v"], unit)
-        return unit * best["value"], m, evaluations[0]
+        return c + unit * best["value"], m, evaluations[0]
     return fallback, trm, evaluations[0]
 
 
