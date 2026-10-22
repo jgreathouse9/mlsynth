@@ -221,3 +221,53 @@ class TestTable1OnProp99:
     def test_with_nonnegative_weights_no_ablation_row_matches(self, rows):
         assert rows["nonneg"]["Sparse-only"]["active"] != 20
         assert rows["nonneg"]["Graph-only"]["active"] != 38
+
+
+class TestTheSimulationDesign:
+    """Section 4.1, Appendix B.2 and Appendix C: what the paper states, pinned."""
+
+    def test_the_panel_has_the_stated_shape_and_clusters(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        d = S.draw(np.random.default_rng(0))
+        assert d["y"].shape == (70,) and d["X"].shape == (70, 200)
+        assert np.bincount(d["cluster"]).tolist() == [20] * 10
+
+    def test_the_treated_unit_is_a_convex_combination_of_one_cluster(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        d = S.draw(np.random.default_rng(1))
+        w = d["w_true"]
+        assert np.all(w >= 0) and np.isclose(w.sum(), 1.0)
+        assert len(set(d["cluster"][w > 0])) == 1
+        effect = d["y"] - d["y0"]
+        assert np.allclose(effect[:50], 0.0) and np.allclose(effect[50:], 2.0)
+        assert np.allclose(d["noiseless_cf"], d["X"] @ w)
+
+    def test_draws_are_reproducible_from_the_seed(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        a, b = S.draw(np.random.default_rng(7)), S.draw(np.random.default_rng(7))
+        assert all(np.array_equal(a[k], b[k]) for k in ("y", "X", "w_true"))
+
+    def test_the_oracle_and_random_graphs(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        d = S.draw(np.random.default_rng(2))
+        L, A = S.oracle_graph(d["cluster"])
+        assert A.sum() == 10 * 20 * 19 and np.allclose(L @ np.sqrt(A.sum(axis=1)), 0.0)
+        Lr, Ar = G.random_graph_laplacian(300, 200, np.random.default_rng(3))
+        assert Ar.sum() == 600 and np.array_equal(Ar, Ar.T) and not Ar.diagonal().any()
+
+    def test_one_replication_returns_every_arm_finite(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        out = S.one_rep(0)
+        assert set(out["att"]) == set(S.ARM_NAMES)
+        assert all(np.isfinite(v) for v in out["att"].values())
+
+    def test_the_gate_sweep_covers_every_penalty_and_lambda(self):
+        from benchmarks.studies.graphsc_replicate import simulate as S
+
+        out = S.gate_sweep(0)
+        assert len(out) == 3 * len(S.GATE_LAMG) and all(np.isfinite(v) for v in out.values())
