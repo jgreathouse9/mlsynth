@@ -7957,3 +7957,154 @@ timeout = 120.0
   find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
+
+# The Graph-SC Monte Carlo shootout (benchmarks/studies/graphsc_mc). Each defect
+# below would change a published comparison without failing any run.
+[[target]]
+name = "graphsc-mc-designs"
+module-path = "benchmarks/studies/graphsc_mc/designs.py"
+test-command = "python -m pytest benchmarks/tests/test_graphsc_mc.py -q -x -p no:cacheprovider -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "hz-covariance-keeps-only-adjacent-units"
+  find = "    return A @ np.diag(sigma2) @ A.T"
+  replace = "    return np.triu(np.tril(A @ np.diag(sigma2) @ A.T, 1), -1)"
+  models = "a covariance that drops the shock two units shares between its neighbours, so the exact risk misprices every weight vector that loads on units two apart"
+
+  [[target.mutant]]
+  id = "hz-risk-forgets-the-shock-variance"
+  find = "    return float(np.mean((mu_post @ a) ** 2) + a @ S @ a)"
+  replace = "    return float(np.mean((mu_post @ a) ** 2))"
+  models = "a risk with only its factor part, which rewards weights that track the factors whatever noise they average in"
+
+  [[target.mutant]]
+  id = "hz-minimum-risk-off-the-simplex"
+  find = "    w = G.simplex_sc(np.linalg.solve(C, q), C.T)"
+  replace = "    w = np.linalg.solve(Q, q)"
+  models = "the unconstrained minimum in the denominator of the risk ratio, which sits below every simplex risk and inflates every arm's ratio"
+
+  [[target.mutant]]
+  id = "cwz-target-drops-the-intercept"
+  find = "CWZ_CONST.get(dgp, 0.0) + Y0 @ w, w)"
+  replace = "Y0 @ w, w)"
+  models = "the systematic part of DGPs 3 to 5 without their constant 2, so the counterfactual error charges every arm for a level no weight vector can produce"
+
+[[target]]
+name = "graphsc-mc-methods"
+module-path = "benchmarks/studies/graphsc_mc/methods.py"
+test-command = "python -m pytest benchmarks/tests/test_graphsc_mc.py -q -x -p no:cacheprovider -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "scaled-arm-rescales-only-the-donors"
+  find = "            x1, X0 = x1 / s, X0 / s"
+  replace = "            X0 = X0 / s"
+  models = "a scaled arm whose treated series keeps its units, so the weights absorb the scale and the arm is no longer unit-free"
+
+  [[target.mutant]]
+  id = "random-arm-keeps-the-learned-graph"
+  find = "        return G.random_graph_laplacian(m, X.shape[1], np.random.default_rng(seed))[0], m"
+  replace = "        return L, m"
+  models = "a random-graph control that is the learned graph, which makes the gate compare Graph-SC with itself"
+
+  [[target.mutant]]
+  id = "oracle-failures-pass-through-unreported"
+  find = "        if any(s in str(c.message) for s in _ORACLE_FAILURES):"
+  replace = "        if False:"
+  models = "an SC or w >= 0 solve whose own certificate failed, passed on as a generic RuntimeWarning that the run does not count"
+
+  [[target.mutant]]
+  id = "weights-fit-on-every-pre-period"
+  find = "        x1, X0 = y[idx], Y0[idx]"
+  replace = "        x1, X0 = y[:T0], Y0[:T0]"
+  models = "a weight function that ignores the fold, so cross-fitting refits on the held-out block it then uses to estimate the bias and the debiasing term is fit to itself"
+
+[[target]]
+name = "graphsc-mc-solver"
+module-path = "benchmarks/studies/graphsc_mc/solver.py"
+test-command = "python -m pytest benchmarks/tests/test_graphsc_mc.py -q -x -p no:cacheprovider -W ignore -k ActiveSet"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "certificate-never-consulted"
+  find = '    if status != "optimal" or not kkt <= KKT_TOL:'
+  replace = "    if False:"
+  models = "a solve that returns what the search produced whether or not it is optimal, so a capped search hands back its last iterate as the weights"
+
+  [[target.mutant]]
+  id = "warm-start-taken-as-the-answer"
+  find = "        if settled:\n            if viol.max() <= 0.0:"
+  replace = "        if settled or w0 is not None:\n            if viol.max() <= 0.0 or w0 is not None:"
+  models = "a search that trusts its starting point, which the interior-point fallback then rescues on every fold, so the fast path does nothing and the run is as slow as before while reading as correct"
+
+  [[target.mutant]]
+  id = "polish-drops-the-penalty"
+  find = "        z = np.linalg.solve(Rq.T, lam * s)                           # R' z = lam s"
+  replace = "        z = np.zeros_like(s)"
+  models = "a QR re-solve of plain least squares on the support, which keeps the signs and fails the certificate, so every solve falls back and the speedup vanishes"
+
+  [[target.mutant]]
+  id = "optimality-test-ignores-the-weights"
+  find = "        tol = ZERO * (np.abs(c) + absH @ np.abs(w) + lam)"
+  replace = "        tol = ZERO * (np.abs(c) + lam)"
+  models = "rule 4 broken: an optimality test sized by |c| alone, which the optimum's own rounding exceeds when large signed weights cancel in Hw (1834 eps at the pinned seed 67), so the search never stops and every such solve falls back"
+
+  [[target.mutant]]
+  id = "optimality-test-with-a-floor"
+  find = "        tol = ZERO * (np.abs(c) + absH @ np.abs(w) + lam)"
+  replace = "        tol = ZERO * np.maximum(1.0, np.abs(c) + absH @ np.abs(w) + lam)"
+  models = "rule 3 broken: a floor of 1 under the optimality test, which makes it absolute on small data and stops the search at a point that depends on the data's units"
+
+  [[target.mutant]]
+  id = "singular-factor-raises"
+  find = """    try:
+        z = np.linalg.solve(Rq.T, lam * s)                           # R' z = lam s
+        wA = np.linalg.solve(Rq, Q.T @ b - z)                       # R w_A = Q'b - z
+    except np.linalg.LinAlgError:
+        return None"""
+  replace = """    z = np.linalg.solve(Rq.T, lam * s)
+    wA = np.linalg.solve(Rq, Q.T @ b - z)"""
+  models = "rule 6 broken: a rank-deficient support that raises out of the polish, which in a process pool ends the whole run instead of falling back"
+
+  [[target.mutant]]
+  id = "uncertified-point-returned-silently"
+  find = "    if not kkt <= FALLBACK_TOL:"
+  replace = "    if False:"
+  models = "rule 1 broken: weights that no solve certified, returned with nothing said, so the run's uncertified count reads zero whatever happened"
+
+[[target]]
+name = "graphsc-mc-run"
+module-path = "benchmarks/studies/graphsc_mc/run.py"
+test-command = "python -m pytest benchmarks/tests/test_graphsc_mc.py -q -x -p no:cacheprovider -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "every-runtime-warning-counts-as-uncertified"
+  find = "    return sum(issubclass(c.category, CertificateWarning) for c in caught)"
+  replace = "    return sum(issubclass(c.category, RuntimeWarning) for c in caught)"
+  models = "rule 1 broken: an uncertified count that includes numpy's arithmetic warnings, so the column means nothing"
+
+  [[target.mutant]]
+  id = "coverage-judged-at-zero"
+  find = '                                  "covered": bool(r["ci_lower"] <= d.tau <= r["ci_upper"])}'
+  replace = '                                  "covered": bool(r["ci_lower"] <= 0.0 <= r["ci_upper"])}'
+  models = "coverage of the null instead of the true effect, which is the same thing in every family but the Graph-SC paper's, whose effect is 2"
+
+  [[target.mutant]]
+  id = "oracle-interval-uses-the-normal-quantile"
+  find = "            crit = float(student_t.ppf(1 - alpha / 2, K - 1))"
+  replace = "            crit = 1.6448536269514722"
+  models = "a normal critical value with K - 1 = 2 degrees of freedom, which shortens the oracle's interval by more than half and understates its coverage"
+
+  [[target.mutant]]
+  id = "rmse-reports-the-standard-deviation"
+  find = '                 "rmse": float(np.sqrt(np.mean(e ** 2)))}'
+  replace = '                 "rmse": float(e.std())}'
+  models = "an RMSE that leaves out the bias, which flatters exactly the arms whose failure is bias"
+
+  [[target.mutant]]
+  id = "debiased-row-reports-the-plain-estimate"
+  find = '            out["debiased"][m] = {"err": r["att"] - d.tau,'
+  replace = '            out["debiased"][m] = {"err": row["err"],'
+  models = "a debiased row that carries the plain ATT beside the debiased interval, so its bias and RMSE describe a different estimator from its coverage"
