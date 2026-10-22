@@ -89,6 +89,12 @@ REACHABLE = ("mlsynth/", "basedata/", "benchmarks/")
 #: test module; the references to test files in case docstrings are prose.
 NEVER_REACHABLE = ("mlsynth/tests/", "benchmarks/tests/")
 
+#: Prefixes under :data:`REACHABLE` that git does not track. The reference
+#: cache holds what the references download: a case reads it and the
+#: measurement sees the reads, but no diff can name it, and it exists only
+#: where the references were fetched.
+UNTRACKED = ("benchmarks/reference/.cache/",)
+
 #: Suffixes that are prose. A change outside :data:`REACHABLE` already reaches no
 #: case -- that is how ``docs/ppscm.rst`` is neither a selection nor a hole. A
 #: README one directory over is the same prose, so it gets the same answer.
@@ -198,7 +204,7 @@ def reachable_inventory(root: Path | None = None) -> List[str]:
             rel = f.relative_to(base).as_posix()
             if "__pycache__" in rel:
                 continue
-            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:
+            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:
                 continue
             if rel.endswith(PROSE_SUFFIXES):
                 continue

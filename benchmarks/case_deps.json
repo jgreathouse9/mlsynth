@@ -394,9 +394,6 @@
  ],
  "cast_aca": [
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/CAST_panel/sample_data/expansion.csv",
-  "benchmarks/reference/.cache/CAST_panel/sample_data/population.csv",
-  "benchmarks/reference/.cache/CAST_panel/sample_data/uninsurance_rates.csv",
   "benchmarks/registry.py",
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
@@ -808,11 +805,6 @@
  "dpsc_prop99": [
   "basedata/smoking_data.csv",
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/dpsc/src/__init__.py",
-  "benchmarks/reference/.cache/dpsc/src/matrix.py",
-  "benchmarks/reference/.cache/dpsc/src/my_utils.py",
-  "benchmarks/reference/.cache/dpsc/src/private_synthetic_control.py",
-  "benchmarks/reference/.cache/dpsc/src/synthetic_control.py",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_dpsc.py",
   "benchmarks/registry.py",
@@ -2146,7 +2138,6 @@
  ],
  "mlsc_bottmer": [
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/multi-level-sc-estimator/multi_level_sc_estimator/mlSC.py",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_mlsc.py",
   "benchmarks/registry.py",
@@ -2721,7 +2712,6 @@
  "proximal_panic1907": [
   "basedata/trust.dta",
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/freshtaste-proximal/empirical_results.csv",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_proximal.py",
   "benchmarks/registry.py",
@@ -3543,7 +3533,6 @@
  "spillsynth_iscm_xval": [
   "basedata/repgermany.dta",
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/Melnychuk-Andrii-Spillover-SCM/repgermany.dta",
   "benchmarks/reference/__init__.py",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_iscm.py",
@@ -3590,7 +3579,6 @@
  "spillsynth_prop99": [
   "basedata/prop99_with_dc.csv",
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/jcao0-synthetic-control-spillover/replication files/proposition99_matlab/output/spillover.csv",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_spillover.py",
   "benchmarks/registry.py",
@@ -3741,8 +3729,6 @@
   "basedata/guanajuato_cartel_ssc.csv",
   "basedata/guanajuato_crime_ssc.csv",
   "benchmarks/compare.py",
-  "benchmarks/reference/.cache/jcao0-staggered_synthetic_control/replication package/Intergovernmental coordination and criminality/treatment_effect/output/results_ssc.csv",
-  "benchmarks/reference/.cache/jcao0-staggered_synthetic_control/stagsynth/inst/replication/output/Table1_eigenvalue.csv",
   "benchmarks/reference/_fetch.py",
   "benchmarks/reference/clone_ssc.py",
   "benchmarks/registry.py",
