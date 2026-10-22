@@ -147,7 +147,7 @@ def claimable(paths, name: str) -> list:
     """The measured paths a diff can name, which is what the map keeps.
 
     That is every path under :data:`benchmarks.case_deps.REACHABLE` outside the
-    test trees, compiled files excepted. The case's own module is implied by
+    test trees and the untracked reference cache, compiled files excepted. The case's own module is implied by
     its name and is not stored. ``benchmarks/`` belongs here as much as
     ``mlsynth/``: a case executes ``compare.py`` and reads its reference's
     committed outputs, and a path the map can never claim is either a hole or,
@@ -158,7 +158,7 @@ def claimable(paths, name: str) -> list:
     own = f"benchmarks/cases/{name}.py"
     return sorted({p for p in paths
                    if p.startswith(case_deps.REACHABLE)
-                   and not p.startswith(case_deps.NEVER_REACHABLE)
+                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)
                    and "__pycache__" not in p
                    and not p.endswith((".pyc", ".pyo"))
                    and p != own})

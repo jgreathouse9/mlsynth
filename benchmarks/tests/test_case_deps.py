@@ -281,6 +281,17 @@ def test_the_shipped_manifest_names_nothing_unclaimable():
     assert not stray, stray
 
 
+def test_every_untracked_prefix_is_gitignored():
+    """``UNTRACKED`` is a claim about git, so check git's own list: a prefix
+    that stopped being ignored could be named by a diff again."""
+    root = Path(__file__).resolve().parents[2]
+    ignored = {line.strip() for line in (root / ".gitignore").read_text().splitlines()}
+    assert case_deps.UNTRACKED
+    for prefix in case_deps.UNTRACKED:
+        assert prefix.startswith(case_deps.REACHABLE)
+        assert prefix in ignored, prefix
+
+
 def test_the_package_init_really_is_re_export_only():
     """`RE_EXPORT_ONLY` is a claim about the file, so check the file.
 
@@ -404,6 +415,8 @@ class TestTheMapClaimsWhatADiffCanName:
         "mlsynth/tests/conftest.py", "benchmarks/tests/test_x.py",
         "mlsynth/__pycache__/x.cpython-311.pyc", "docs/x.rst", "setup.py",
         "mlsynth/utils/x.pyc",
+        "benchmarks/reference/.cache/dpsc/src/matrix.py",
+        "benchmarks/reference/.cache/CAST_panel/sample_data/expansion.csv",
     ])
     def test_what_no_diff_can_reach_is_dropped(self, path):
         assert self._keep([path]) == []
@@ -769,6 +782,7 @@ class TestInventoryWalk:
                     "benchmarks/cases/x.py",
                     "benchmarks/tests/test_x.py",
                     "basedata/panel.csv",
+                    "benchmarks/reference/.cache/pkg/src/a.py",
                     "docs/thing.rst"):
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
