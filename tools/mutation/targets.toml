@@ -7399,3 +7399,147 @@ timeout = 300.0
   find = "    return \"SCIP\" not in installed"
   replace = "    return False"
   models = "an indirect case that never fires, so on a machine without SCIP the swallowed missing solver fails the MIP tests instead of skipping them"
+
+# The #842 scale study's instruments. They wrap the library's searches from
+# outside, so each mutant makes one of them miscount or leave the library
+# patched.
+[[target]]
+name = "bnb-scale-syndes-instruments"
+module-path = "benchmarks/studies/bnb_scale/syndes_scale.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "evaluations-counted-per-lift"
+  find = '        tally["evaluations"] += int(evaluations)'
+  replace = '        tally["evaluations"] += 1'
+  models = "the lift's dual evaluations counted as one per lift, which hides the column the per-node cost is read from: about 300 evaluations a lift at 60 units and 770 at 100"
+
+  [[target.mutant]]
+  id = "the-lift-is-left-wrapped"
+  find = '        branch.lift, branch.ExactR.certify = _ORIGINAL["lift"], _ORIGINAL["certify"]'
+  replace = '        branch.ExactR.certify = _ORIGINAL["certify"]'
+  models = "an instrument left in the library after the measurement, so every later search in the process counts into a dead tally and pays the wrapper"
+
+  [[target.mutant]]
+  id = "complements-are-not-seeds"
+  find = '            out.add(tuple(sorted(set(range(N)) - set(t))))'
+  replace = '            pass'
+  models = "the swap search's seeds read without their complements, which the search itself tries at K = N/2, so a design the seeds held reads as found by the search"
+
+  [[target.mutant]]
+  id = "the-solver-counts-its-callbacks"
+  find = '    solver = own(lambda path, name: "optimize" in path or "_lbfgsb" in name)'
+  replace = '    solver = cumulative(lambda path, name: "optimize" in path or "_lbfgsb" in name)'
+  models = "SciPy's share read cumulatively, so it contains the dual evaluations L-BFGS-B calls back and the lift's split counts them twice, which is what would make a faster solver look like the lever"
+
+  [[target.mutant]]
+  id = "separation-is-not-found"
+  find = """    separate = cumulative(lambda path, name: name == "separate"
+                          and path.endswith("branch.py"))"""
+  replace = """    separate = cumulative(lambda path, name: name == "_separate"
+                          and path.endswith("branch.py"))"""
+  models = "the triangle separation matched under a name it does not have, so its share reads zero: the 28.5% of a 100-unit lift that #844 is pointed at"
+
+  [[target.mutant]]
+  id = "the-search-runs-on-the-callers-threads"
+  find = "    with instrumented() as (tally, watch), threadpool_limits(1):"
+  replace = "    with instrumented() as (tally, watch), threadpool_limits(None):"
+  models = "the measured search left on the caller's BLAS threads, so its CPU seconds depend on the environment the study was run in"
+
+  [[target.mutant]]
+  id = "the-profile-runs-on-the-callers-threads"
+  find = "    with threadpool_limits(1):"
+  replace = "    with threadpool_limits(None):"
+  models = "the profiled lift left on the caller's BLAS threads: in CI under four test workers SciPy's L-BFGS-B core then took 10.7 s of an 11.8 s lift, and the profile measured the thread pool"
+
+[[target]]
+name = "bnb-scale-marex-instruments"
+module-path = "benchmarks/studies/bnb_scale/marex_scale.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k Marex"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-bound-is-left-wrapped"
+  find = """    finally:
+        branch.node_bound = _ORIGINAL_NODE_BOUND"""
+  replace = """    finally:
+        pass"""
+  models = "the timing wrapper left on node_bound after a search, so the next search in the process times through two wrappers"
+
+  [[target.mutant]]
+  id = "the-bracket-is-not-read"
+  find = "        found = _BRACKET.search(str(exc))"
+  replace = "        found = None"
+  models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
+
+# The root's bounds and the lift's stopping (#842, for #837 and #858). The
+# trace replicates the lift's stopping rules, so each mutant makes the replica
+# mark a round the lift did not stop at, misname the rule, or leave the library
+# patched.
+[[target]]
+name = "bnb-scale-root-gap"
+module-path = "benchmarks/studies/bnb_scale/root_gap.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k 'Schedule or Trace or traced or RootBounds or StoppingRules or PinBlas'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-schedule-is-not-restored"
+  find = """        for name, value in before.items():
+            setattr(branch, name, value)"""
+  replace = """        for name, value in _DEFAULTS.items():
+            if name != "MIN_ROUNDS":
+                setattr(branch, name, value)"""
+  models = "a constant the schedule set left changed after the call, the first version's defect: turning the stall rule off left MIN_ROUNDS at 1000 for every later lift in the process"
+
+  [[target.mutant]]
+  id = "an-unknown-name-is-set"
+  find = "    if unknown:"
+  replace = "    if False:"
+  models = "a misspelt stopping constant set beside the real one, so the run measures the shipped schedule under another schedule's name"
+
+  [[target.mutant]]
+  id = "the-floor-ignores-new-cuts"
+  find = "        at_floor = alpha == alpha_min and not added"
+  replace = "        at_floor = alpha == alpha_min"
+  models = "the floor rule read without its no-new-triangle condition, so a round at the floor that still added cuts reads as the end of the run"
+
+  [[target.mutant]]
+  id = "the-stall-test-is-loose"
+  find = "        stalled = (previous is not None and abs(previous - smooth) <= 1e-6 * abs(smooth)"
+  replace = "        stalled = (previous is not None and abs(previous - smooth) <= 1e-3 * abs(smooth)"
+  models = "the replica's stall tolerance out of step with the lift's 1e-6, so rounds the lift ran through read as stalls and the trace credits the stall rule with ends it did not cause"
+
+  [[target.mutant]]
+  id = "giving-up-ignores-min-rounds"
+  find = "        giveup = n >= min_rounds and (n >= max_rounds or stalled)"
+  replace = "        giveup = n >= max_rounds or stalled"
+  models = "the give-up rule read without MIN_ROUNDS, so an early stalled round reads as the end and the stall-off schedule appears to stall"
+
+  [[target.mutant]]
+  id = "the-rule-is-misnamed"
+  find = """    stopped = ("floor" if last["at_floor"]
+               else "rounds" if len(rounds) >= max_rounds else "stall")"""
+  replace = """    stopped = ("stall" if last["giveup"]
+               else "rounds" if len(rounds) >= max_rounds else "floor")"""
+  models = "a run that met both rules at its last round credited to the stall rule, which is how the 40-unit shipped run was first misread: it ends at its floor"
+
+  [[target.mutant]]
+  id = "the-trace-is-left-wrapped"
+  find = """            branch._theta, branch.separate = _ORIGINAL["theta"], _ORIGINAL["separate"]"""
+  replace = """            branch.separate = _ORIGINAL["separate"]"""
+  models = "the evaluation wrapper left on the lift after a trace, so every later lift in the process appends to a dead event list and pays the wrapper"
+
+  [[target.mutant]]
+  id = "the-trace-runs-on-the-callers-threads"
+  find = "    with schedule(**values), threadpool_limits(1):"
+  replace = "    with schedule(**values), threadpool_limits(None):"
+  models = "the traced lift left on the caller's BLAS threads, where its rounds and seconds measure the thread pool (#857)"
+
+  [[target.mutant]]
+  id = "the-root-bounds-run-on-the-callers-threads"
+  find = """    with threadpool_limits(1):
+        return _root_bounds(Y, K, incumbent=incumbent, interior=interior)"""
+  replace = """    with threadpool_limits(None):
+        return _root_bounds(Y, K, incumbent=incumbent, interior=interior)"""
+  models = "the root's bounds computed on the caller's BLAS threads, so a 60-unit lift can take 20 times longer than the study reports"
