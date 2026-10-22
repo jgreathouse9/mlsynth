@@ -271,7 +271,8 @@ on factor nodes was partly that defect.
 `stopping.lift` is a copy of the library's round loop with three knobs, and a
 test holds it to the library's lift, bound and evaluations, with the knobs off:
 
-- `on_stall="halve"`: a stall halves `alpha` where the shipped rule gives up;
+- `on_stall="halve"`: a stall above the floor halves `alpha` where the shipped
+  rule gives up;
 - `margin`: within that relative distance of the prune target, the floor drops
   from 5e-5 to 1e-8;
 - `forecast`: BiqBin's rule (Gusmeroli et al. 2022, p. 10), the run ends once

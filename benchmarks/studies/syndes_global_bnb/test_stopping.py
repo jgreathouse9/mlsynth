@@ -3,9 +3,9 @@
 ``stopping.lift`` is a study copy of the library's lift with three knobs. The
 checks are that the copy is the library's lift when the knobs are off, that
 every variant's bound is valid, and that each knob does what it says: a stall
-halves ``alpha`` instead of ending the run, a node within a margin of its
-target runs to a lower floor, and a forecast that cannot reach the target ends
-the run early.
+above the floor halves ``alpha`` instead of ending the run, a node within a
+margin of its target runs to a lower floor, and a forecast that cannot reach
+the target ends the run early.
 """
 import numpy as np
 import pytest
@@ -97,10 +97,12 @@ def test_property_every_variant_bounds_every_completion(node, on_stall, floor, m
 
 class TestHalveOnStall:
 
-    def test_a_stall_never_ends_the_run(self):
+    def test_a_stall_never_ends_the_run_above_the_floor(self):
+        """At the floor nothing is left to halve, so a stall may end the run
+        there; whether one comes depends on the BLAS kernel's rounding."""
         _, _, parts = _node(**STEEP)
         _, _, _, info = stopping.lift(*parts, on_stall="halve", alpha_min=1e-8)
-        assert info["ended"] != "stall"
+        assert info["ended"] != "stall" or info["final_alpha"] == 1e-8
         assert info["final_alpha"] == 1e-8 or info["ended"] == "rounds"
 
     def test_the_shipped_rule_stalls_above_the_floor_and_halving_reaches_it(self, monkeypatch):

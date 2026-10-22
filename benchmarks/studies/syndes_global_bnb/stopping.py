@@ -18,8 +18,9 @@ their relaxation and still cannot prune spend 299 evaluations each.
 can be measured on the library's own dual (``_theta``), separation and
 certificate:
 
-- ``on_stall="halve"``: a stall halves ``alpha`` and continues, where the
-  shipped rule gives up;
+- ``on_stall="halve"``: a stall above the floor halves ``alpha`` and
+  continues, where the shipped rule gives up; at the floor, with nothing
+  left to halve, a stall ends the run;
 - ``margin``: once the best bound is within ``margin`` (relative) of the
   target, the floor drops to ``deep_alpha_min`` and the tolerance to
   ``deep_tol_min``, so only nodes that nearly prune pay for the lower floor;
