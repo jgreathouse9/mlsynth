@@ -124,9 +124,9 @@ equals `w*/(N alpha/lam)`, the residual's share of the constant.
   BLS at 60 units (`N - T - 1 = 23`) still gains, so on these panels the
   threshold lies between 23 and 29.
 - At 600 modelled seconds the noise panel at 60 units moved from 1.46% to
-  1.41%. Deeper nodes, whose fixed units add a linear term, can break the
-  degeneracy. How deep that takes is open, and it is the first measurement of
-  #858.
+  1.41%. Fixed units do not break the degeneracy: their linear term misses
+  the top eigenspace, and only the free count ends it (see "How deep a node
+  must be" below, #858).
 
 ## Where the lift stops (`root_gap.trace_lift`)
 
@@ -179,6 +179,79 @@ not 761, and the `LONG` schedule ran 6,982 where this machine stopped it at
   whether the dual has converged at the current `alpha`, can end the run before
   a lower floor is reached, and whether it does depends on the last digits.
   This is #837's first candidate.
+
+## How deep a node must be (`depth.py`, #858)
+
+The collapse above is at the root. #858 asks whether fixing units breaks it,
+and how deep a node must be before its bound passes the trust region.
+`depth.depth_table` bounds nodes on the path to each panel's design: `fixed`
+units decided, half of them drawn from the design into the treated set and the
+rest from its complement out of it, three nodes per count (seed 0). Every lift
+here has its dual scaled by the node's free part (#864). The shipped lift took
+its scale from the fixed units' constant too, and stopped at the trust region
+at every deep node; that is how #864 was found, and the wrong turns below say
+how it first read as a collapse.
+
+The structure. At a node with free set `F` and `n_F` free units, the free
+block of `R = (alpha/lam) I - W` keeps the top eigenvalue `alpha/lam` on the
+plane `1'x = s`, on the null space of `W_FF` there, of dimension
+`n_F - T - 1`, the node's excess. The fixed units add the linear term
+`b = R_FD sigma_D = -W_FD sigma_D`, which lies in `W`'s row space, and that
+eigenspace avoids it. Measured at the 144 nodes with positive excess: the
+multiplicity equals the excess exactly at every one, and the linear term's
+share in the eigenspace (`reach`) is at most 9e-14. Fixing a unit lowers the
+excess by one and leaves the degeneracy otherwise as it was. Only the free
+count can end it.
+
+Where the lift gains nothing. Each panel's last excess at which all three
+nodes gained nothing, and the first at which all three gained. The closure is
+the triangle closure by interior point at the first node of a count:
+
+| panel | units | T | root | zero at every node down to excess | gain at every node from excess | closure there |
+|---|---:|---:|---|---:|---:|---|
+| BLS | 60 | 36 | gains (2.6e-3) | none | 23 (the root) | |
+| BLS | 80 | 36 | zero | 43 (the root) | 38 (5 fixed) | 2.8e-3 at 23 |
+| BLS | 100 | 36 | zero | 53 (10 fixed) | 33 (30 fixed) | 1.3e-4 at 43 |
+| noise | 60 | 30 | zero | 24 (5 fixed) | 9 (20 fixed) | 8.9e-3 at 9 |
+| noise | 80 | 30 | zero | 29 (20 fixed) | 19 (30 fixed) | 6.8e-8 at 29 |
+| noise | 100 | 30 | zero | 29 (40 fixed) | 19 (50 fixed) | 2.0e-5 at 29 |
+| flat | 60 | 30 | zero | 19 (10 fixed) | 9 (20 fixed) | 8.5e-4 at 9 |
+| flat | 80 | 30 | zero | 29 (20 fixed) | 9 (40 fixed) | 2.1e-9 at 29 |
+| flat | 100 | 30 | zero | 29 (40 fixed) | 9 (60 fixed) | 3.0e-9 at 29 |
+
+Between the two columns some nodes gain and some do not (noise and flat at an
+excess of 19, BLS at 100 units at 43). Every row is in `results/depth.jsonl`.
+
+- On the structureless panels, at an excess of 29 and above, the lift gains
+  nothing and the closure at most 2e-5. At 9 both have room. The threshold
+  lies between 19 and 29, where the nodes differ.
+- On BLS the threshold sits higher and moves with the panel's size: at 80
+  units the root collapses and nodes with five units fixed (excess 38) gain,
+  while at 100 units nodes gain nothing down to an excess of 53.
+- A collapsed lift is not free: 0.39 s on average at the 77 nodes where it
+  gained nothing, against 0.50 s at the 130 where it gained.
+
+The certificate. Where the trust region is in its hard case, `depth.certificate`
+writes a point of the lift's relaxation at the trust region's value, by
+fitting an ellipsoid through the rows that span the top eigenspace
+(Saunderson, Chandrasekaran, Parrilo and Willsky 2012). It certified 25 of the
+77 zero-gain nodes and no node that gained: the roots and the nodes with up to
+10 or 20 units fixed of noise and flat at 80 and 100 units, the nodes best
+first visits there. It certified no BLS node and nothing at 60 units. It costs
+3 ms on average and 25 ms at most, against 0.39 s for a lift that gains
+nothing.
+
+Where the least-norm fit is not semidefinite, a semidefinite fit may still
+exist. The projected fit (Dykstra's alternating projections) found one at 25
+of the 29 such nodes that gained nothing, all 10 BLS nodes among them, and at
+6 of the 46 that gained. Every fit it found violated a triangle, so it
+certified nothing:
+
+- the semidefinite relaxation collapses at those nodes, BLS included, and the
+  triangles are what a fitted point cannot match;
+- the six gaining nodes with a fit gain through their triangles;
+- the projections cost a median 0.52 s (0.02 to 2.4 s), against 0.56 s for
+  the lifts at those nodes, so a better fit is no shortcut past the lift.
 
 ## Inside one lift (`syndes_scale.profile_lift`)
 
@@ -246,6 +319,23 @@ The search, capped by the number of bounds:
   default limit and 6,264 at ten times it, on BLS at 60 units.
 - MAREX: a single bound passes a minute between 60 and 80 markets.
 
+## Answers to #858
+
+- How deep a node must be: until its excess `n_F - T - 1` falls below a
+  threshold that depends on the panel, between 19 and 29 on the
+  structureless panels and between 38 and 53 on BLS. Fixing units moves the
+  bound only through the free count.
+- Where the threshold sits: no free count serves all three panels. To skip
+  no node that gains here, a rule on the excess must stop above 38, where BLS
+  at 80 units gains with five units fixed. That rule skips the shallow nodes
+  of noise and flat at 80 and 100 units and nothing at 60, and it rests on
+  three panels.
+- The certificate skips exactly the nodes it proves: 25 of the 77 that
+  gained nothing, at 3 ms each, with no gain lost, and none on BLS.
+- On #864's lift the default limit narrows BLS at 80 units from 0.5225% to
+  0.4712%; at 100 units it stays at the root's 0.3722%, every node it reaches
+  inside the collapse.
+
 ## Recommendation
 
 In the order of the roadmap (#848) as the author revised it after this study:
@@ -254,9 +344,13 @@ In the order of the roadmap (#848) as the author revised it after this study:
    16 s at 60 units against 0.8 s on one thread on a quiet machine. Under
    parallel load SciPy's L-BFGS-B core alone took 10.7 s of an 11.8 s lift at
    20 units.
-2. #858: stop lifting where the relaxation has collapsed onto the eigenvalue
-   bound, and report that certificate, after measuring how deep a node must be
-   before its bound moves.
+2. #858, measured (above): build the certificate's skip together with #839,
+   not before. Skipping a lift the certificate proves futile is exact and
+   costs 3 ms, but at a work limit the search spends what it saves on more
+   collapsed nodes and returns the same gap and design. The saving pays once
+   it goes to the incumbent (#839), as #858 proposed. A rule on the free
+   count is not recommended: its threshold moved from 19 to 53 across three
+   panels.
 3. #837: run the lift's dual past the stall rule with a lower floor, at nodes
    within a margin of their prune target. It is the one change measured here
    that moves a root bound: 0.711% to 0.6465% on BLS at 60 units, for 11 times
@@ -302,6 +396,20 @@ In the order of the roadmap (#848) as the author revised it after this study:
   sets. At K = N/2 a set and its complement are one design, and a CI runner
   returned the complement. The test accepts either.
 
+- The first depth measurement found the lift gaining nothing on BLS at nodes
+  with up to 40 units fixed at 80 units and up to 60 at 100, and read it as
+  the collapse reaching deep into the tree. The closure by interior point at the same
+  nodes gained 0.2% to 0.5%. The lift scaled its dual by the fixed units'
+  constant, which grows with the units fixed; #864 fixed it, and every depth
+  number here is on the fix.
+- The certificate's first form held the relaxation's mean at the trust
+  region's range part. At many nodes that mean left the box (`|x_i| > 1`).
+  The top eigenspace lets the mean move without changing the value, and the
+  homogeneous fit (`G_00 = 1`) uses that.
+- The ellipsoid-fitting threshold for random points, about `m^2 / 4` points
+  in dimension `m`, puts collapse near an excess of 13 to 15 at these sizes.
+  The panels need 19 to 53: their rows are not random points.
+
 ## Running it
 
     export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
@@ -311,7 +419,8 @@ In the order of the roadmap (#848) as the author revised it after this study:
     python -m benchmarks.studies.bnb_scale.run profile --kinds bls --sizes 40 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-bound --sizes 45 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-search --sizes 45 60 --m 6 --max-lifts 30
-    python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q
+    python -m benchmarks.studies.bnb_scale.run depth --kinds bls noise flat --sizes 60 80 100 --closure-at 20 40 --projection
+    python -m pytest benchmarks/studies/bnb_scale/test_scale.py benchmarks/studies/bnb_scale/test_depth.py -q
 
 Each run appends to `results/<what>.jsonl`. The `.log` files are the console
 output of the runs reported above.
