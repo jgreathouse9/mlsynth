@@ -96,7 +96,7 @@ CANDIDATE_LIMIT = 20_000_000
 #: Seconds of work, in the branch and bound's cost model, that it may do at one
 #: size above the candidate limit before it stops and reports its gap. The model
 #: counts sets priced, bounds, lift evaluations and certificates, never a clock;
-#: calibrated on one thread (#845), a modelled second took 0.89 to 1.09 seconds
+#: calibrated on one thread (#845), a modelled second took 0.89 to 1.07 seconds
 #: of the clock on six searches at 30 to 40 units. The searches the docs report
 #: at forty units with ten treated do about 60 modelled seconds; the default is
 #: twice that.

@@ -933,13 +933,15 @@ still a bound.
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
 bounded (``n_nodes``) and the lifts computed (``n_lifts``), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
-when it closes. ``work_limit`` (60 by default) caps each size's search in the
+when it closes. ``work_limit`` (120 by default) caps each size's search in the
 cost model's seconds: every design priced, bound, lift evaluation and certificate
 is charged its modelled cost, so the limit stops a search whose bounds do not
-prune as well as one whose every node lifts. At forty units a modelled second
-took two to three seconds of the clock where most nodes lift and under one where
-the search mostly prices, so the default stops a hard size in two to three
-minutes. A search that reaches the limit returns its best
+prune as well as one whose every node lifts. The costs were measured on one
+thread at nodes of 10 to 60 free units: an evaluation of the lift's dual takes
+0.5 ms at 10 free units and 1.0 ms at 40, a certificate 13 ms at 40, and a design
+priced 2.5 microseconds at 40 units. On six searches at 30 to 40 units a modelled
+second then took 0.89 to 1.07 seconds of the clock, so the default stops a hard
+size in about two minutes. A search that reaches the limit returns its best
 design and the smallest certified bound over the nodes it left open. The design
 is certified when that bound reaches it; otherwise a ``SYNDESSolveWarning`` says
 it is not a proven optimum. The costs and the limit are constants and counts,
@@ -954,12 +956,10 @@ so far, discards every node whose bound clears it, and returns no design when
 nothing at its size is better. On GeoLift's forty markets that swap search took
 0.4 seconds, and every size's search but the one at the optimum's size stopped at
 its root. The bound reported is the smallest over the sizes. On the four-factor
-panel the sizes from 19 to 21 do not prune: each stops at the work limit, and
-after six minutes the search returns a design 0.23 percent better than the swap
-search's, with a bound 0.14 percent under it. Left to run for 81 minutes, the
-search certifies that design as the optimum. Searching depth first, the same
-limit returned the swap search's design and its Rayleigh bound, 0.47 percent
-under it.
+panel the search at twenty treated units, half the panel, reaches the work
+limit, and after two and a half minutes the search returns a design with a bound
+0.05 percent under it. Left to run without a limit, the search certifies that
+design as the optimum in four minutes.
 
 Treatment and control can trade places. The design that treats a set of units
 and the design that treats every other unit fit the pre-period equally well:
@@ -988,12 +988,12 @@ A restriction that names a side turns the rule off, and every size is searched.
 The study behind this search is
 `benchmarks/studies/syndes_global_bnb <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_global_bnb>`_.
 On forty units with ten treated, 848 million designs, the search returned the
-enumeration's optimum, certified, in 40.6 seconds on GeoLift and 55.0 seconds on a
-panel with no structure, where enumerating took 698 and 725. On a panel drawn
-from a four-factor model the bounds prune almost nothing at that size: certifying
-its optimum took 881 seconds, pricing every design, and with the default
-``work_limit`` the search stops after 51 seconds with the same design,
-uncertified, its bound 0.28 percent under it. Below
+enumeration's optimum, certified, in 55 seconds on GeoLift and 65 seconds on a
+panel with no structure, where enumerating took 698 and 725 in the study. On a
+panel drawn from a four-factor model the bounds prune almost nothing at that
+size: certifying its optimum took about as long as enumerating every design,
+and with the default ``work_limit`` the search stops after 98 seconds with the
+same design, uncertified, its bound 0.17 percent under it. Below
 the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
 where the search took 7 to 9.
 
