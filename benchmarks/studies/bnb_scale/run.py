@@ -4,6 +4,10 @@
     python -m benchmarks.studies.bnb_scale.run syndes --kinds bls noise flat --sizes 40 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-bound --sizes 45 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-search --sizes 60 --m 6 --max-lifts 40
+    python -m benchmarks.studies.bnb_scale.run root --kinds bls noise flat --sizes 40 60 100
+
+``root`` reads each panel's best design from ``results/syndes.jsonl``, so it
+runs after ``syndes`` has.
 
 Each line carries the load average before and after, since the CPU seconds are
 only comparable on an unloaded machine (#840 reported its load the same way).
@@ -29,16 +33,18 @@ def _append(name: str, row: dict) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("what", choices=["syndes", "marex-bound", "marex-search"])
+    ap.add_argument("what", choices=["syndes", "marex-bound", "marex-search", "root"])
     ap.add_argument("--kinds", nargs="+", default=["bls"])
     ap.add_argument("--sizes", nargs="+", type=int, required=True)
     ap.add_argument("--K", type=int, default=None, help="SYNDES size; default N/2")
     ap.add_argument("--m", type=int, default=6, help="MAREX treated count")
     ap.add_argument("--max-lifts", type=int, default=40)
     ap.add_argument("--work-limit", type=float, default=None)
+    ap.add_argument("--closure", action="store_true",
+                    help="root: also solve the triangle relaxation by interior point")
     args = ap.parse_args(argv)
 
-    from benchmarks.studies.bnb_scale import marex_scale, panels, syndes_scale
+    from benchmarks.studies.bnb_scale import marex_scale, panels, root_gap, syndes_scale
     from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT
 
     warnings.simplefilter("ignore")
@@ -49,6 +55,17 @@ def main(argv=None) -> int:
             if args.what == "syndes":
                 K = args.K or N // 2
                 row = syndes_scale.measure(Y, K, work_limit=args.work_limit or WORK_LIMIT)
+            elif args.what == "root":
+                K = args.K or N // 2
+                known = [json.loads(l) for l in open(RESULTS / "syndes.jsonl")]
+                values = [r["value"] for r in known
+                          if r["kind"] == kind and r["N"] == N and r["K"] == K]
+                row = root_gap.root_bounds(Y, K, incumbent=min(values))
+                if args.closure:
+                    tri = root_gap.triangle_closure(Y, K)
+                    row.update({f"closure_{k}": v for k, v in tri.items()
+                                if k not in ("N", "K")})
+                    row["closure_gap"] = (row["incumbent"] - tri["lower"]) / row["incumbent"]
             elif args.what == "marex-bound":
                 row = marex_scale.root_bound(Y, args.m)
             else:

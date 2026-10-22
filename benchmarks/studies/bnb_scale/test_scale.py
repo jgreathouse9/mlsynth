@@ -194,3 +194,67 @@ class TestLiftProfile:
         the timed one did."""
         assert prof["evaluations"] == prof["profiled_evaluations"] > 0
         assert prof["seconds"] > 0
+
+
+# ------------------------------------------------------------ the root's slack
+class TestRootBounds:
+    """Where the root's gap comes from: the bound the search uses, the same
+    dual run to a finer stop, and the relaxation solved by interior point."""
+
+    @pytest.fixture(scope="class")
+    def small(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
+        Y = panels.panel("bls", 12)
+        best = solve_synthetic_design_exact(Y=Y, K=6)
+        return root_gap.root_bounds(Y, 6, incumbent=float(best.objective_value))
+
+    def test_every_bound_is_valid(self, small):
+        """Each is a lower bound on the enumerated optimum."""
+        for k in ("trust_region", "lift", "lift_long", "interior"):
+            assert small[k] <= small["incumbent"] * (1 + 1e-9), k
+
+    def test_the_lift_is_at_least_the_trust_region(self, small):
+        assert small["lift"] >= small["trust_region"] * (1 - 1e-12)
+
+    def test_running_the_dual_longer_never_loses_bound(self, small):
+        assert small["lift_long"] >= small["lift"] * (1 - 1e-9)
+        assert small["evaluations_long"] >= small["evaluations"]
+
+    def test_the_gaps_read_the_bounds(self, small):
+        for k in ("trust_region", "lift", "lift_long", "interior"):
+            assert small[f"{k}_gap"] == pytest.approx(
+                (small["incumbent"] - small[k]) / small["incumbent"])
+
+    def test_the_library_schedule_is_restored(self, small):
+        from benchmarks.studies.bnb_scale import root_gap
+        for name, value in root_gap._DEFAULTS.items():
+            assert getattr(syndes_branch, name) == value
+
+
+class TestTriangleClosure:
+    """The relaxation the lift's dual converges to, solved by interior point:
+    Shor with the cardinality and its products, the RLT products, and every
+    triangle cut a separation round finds, until none is violated."""
+
+    @pytest.fixture(scope="class")
+    def small(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
+        Y = panels.panel("bls", 12)
+        best = float(solve_synthetic_design_exact(Y=Y, K=6).objective_value)
+        bounds = root_gap.root_bounds(Y, 6, incumbent=best)
+        closure = root_gap.triangle_closure(Y, 6)
+        return best, bounds, closure
+
+    def test_it_is_a_lower_bound_on_the_optimum(self, small):
+        best, _, closure = small
+        assert closure["lower"] <= best * (1 + 1e-7)
+
+    def test_triangles_only_tighten_the_interior_bound(self, small):
+        _, bounds, closure = small
+        assert closure["lower"] >= bounds["interior"] * (1 - 1e-7)
+
+    def test_the_loop_ends_with_no_violated_triangle(self, small):
+        _, _, closure = small
+        assert closure["violated"] == 0 and closure["rounds"] >= 1
