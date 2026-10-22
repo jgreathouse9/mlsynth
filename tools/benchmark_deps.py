@@ -98,9 +98,15 @@ def _trace(name: str) -> tuple[list[str], float]:
     return claimable(executed | read, name), secs
 
 
-def measurement():
-    """The coverage session a case runs under: both Python trees a diff can
-    name, measured and not saved.
+def _python() -> tuple:
+    """The interpreter's version, read through one name so a test can take the
+    path an interpreter without ``sys.monitoring`` takes."""
+    return tuple(sys.version_info[:2])
+
+
+def _tracer(python: tuple, outer) -> tuple:
+    """``(timid, core)`` for the map's coverage session, given the interpreter
+    and the coverage session already running in the process, if any.
 
     On Python 3.12 and later the core is ``sysmon``, which records a code
     object's lines once and then stops paying for them. The pure-Python tracer
@@ -108,17 +114,32 @@ def measurement():
     minutes under it against 240 untraced, up to 17 times longer for a case
     whose time is spent in Python, and the shards were cancelled at their
     350-minute cap. On ``wan_pda_vs_scm`` the ``sysmon`` core recorded the same
-    23 files in 100.0 s against 99.2 s untraced. Before 3.12 there is no
-    ``sys.monitoring``, and the pure-Python tracer stays.
+    23 files in 100.0 s against 99.2 s untraced.
+
+    Before 3.12 there is no ``sys.monitoring``, and the pure-Python tracer
+    stays, except inside a C tracer. A pure-Python tracer nested in a C tracer
+    records no line at all, so under pytest-cov (the daily coverage job) the
+    map claimed only the files the audit hook saw opened, and main's coverage
+    run failed on 2026-10-22. A C tracer nested in either records normally.
     """
+    if python >= (3, 12):
+        return False, "sysmon"
+    if outer is not None and not outer.config.timid:
+        return False, None
+    return True, None
+
+
+def measurement():
+    """The coverage session a case runs under: both Python trees a diff can
+    name, measured and not saved, with the tracer :func:`_tracer` picks."""
     import coverage
 
-    fast = sys.version_info >= (3, 12)
+    timid, core = _tracer(_python(), coverage.Coverage.current())
     cov = coverage.Coverage(
         source=[str(ROOT / "mlsynth"), str(ROOT / "benchmarks")],
-        timid=not fast, data_file=None)
-    if fast:
-        cov.set_option("run:core", "sysmon")
+        timid=timid, data_file=None)
+    if core:
+        cov.set_option("run:core", core)
     return cov
 
 

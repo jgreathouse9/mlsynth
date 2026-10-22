@@ -427,11 +427,46 @@ class TestTheMapClaimsWhatADiffCanName:
         pytest.importorskip("coverage")
         from tools.benchmark_deps import measurement
 
+        import coverage
+
         config = measurement().config
+        outer = coverage.Coverage.current()
         if sys.version_info >= (3, 12):
             assert config.core == "sysmon" and not config.timid
         else:                                  # the build job's 3.11
-            assert config.timid
+            # a C tracer when one is already running: see TestTheTracerNests
+            assert config.timid == (outer is None or outer.config.timid)
+
+
+class TestTheTracerNests:
+    """The map's coverage session may start inside another one: the daily
+    coverage job runs this suite under pytest-cov, a C tracer. A pure-Python
+    tracer nested inside a C tracer records no line at all, so on Python 3.11
+    the map claimed only the files the audit hook saw opened, and main's
+    coverage run failed on 2026-10-22. A C tracer or ``sysmon`` nested
+    inside one records normally."""
+
+    @staticmethod
+    def _outer(timid):
+        from types import SimpleNamespace
+        return SimpleNamespace(config=SimpleNamespace(timid=timid))
+
+    def test_sys_monitoring_is_used_where_it_exists(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 12), None) == (False, "sysmon")
+        assert _tracer((3, 13), self._outer(False)) == (False, "sysmon")
+
+    def test_alone_before_3_12_the_python_tracer_stays(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), None) == (True, None)
+
+    def test_inside_a_c_tracer_it_nests_a_c_tracer(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), self._outer(False)) == (False, None)
+
+    def test_inside_a_python_tracer_it_nests_a_python_tracer(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), self._outer(True)) == (True, None)
 
 
 class TestTheMapMeasuresWhatTheRunnerRuns:
@@ -481,6 +516,29 @@ class TestTheMapMeasuresWhatTheRunnerRuns:
                 panel,                                    # read in run()
                 "benchmarks/compare.py",                  # compared after it
                 "benchmarks/registry.py",                 # loaded through it
+                "benchmarks/run_benchmarks.py"} <= set(deps), deps
+
+    def test_a_run_under_another_coverage_is_still_measured(self, case, monkeypatch):
+        """The 3.11 path inside a C tracer, as the daily coverage job runs it:
+        the case's executed files are claimed, not only the files it read."""
+        import coverage
+        from tools import benchmark_deps
+
+        monkeypatch.setattr(benchmark_deps, "_python", lambda: (3, 11))
+        name, panel = case('''
+            EXPECTED = {{"x": (1.0, 0.1)}}
+
+            def run():
+                return {{"x": 1.0}}
+            ''')
+        outer = coverage.Coverage(data_file=None, timid=False)
+        outer.set_option("run:core", "ctrace")
+        outer.start()
+        try:
+            deps, _ = benchmark_deps._trace(name)
+        finally:
+            outer.stop()
+        assert {"benchmarks/compare.py", "benchmarks/registry.py",
                 "benchmarks/run_benchmarks.py"} <= set(deps), deps
 
     @pytest.mark.parametrize("body", [
