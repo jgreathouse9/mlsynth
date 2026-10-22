@@ -207,21 +207,35 @@ def triangle_closure(Y: np.ndarray, K: int, *, gap: float = 1e-6,
     and proves nothing: on these scaled problems the solver's relative
     accuracy is far finer than the gaps compared.
     """
+    problem = TwoWayProblem.from_panel(Y)
+    engine = BoundEngine.from_problem(problem)
+    N = Y.shape[1]
+    parts = branch.node_parts(engine.R, (), (), tuple(range(N)))
+    t0 = time.process_time()
+    out = closure(*parts, 2 * K - N, gap=gap, per_round=per_round, rounds=rounds,
+                  solver=solver)
+    return {"N": N, "K": K, "lower": 4.0 * engine.alpha / out.pop("U"), **out,
+            "seconds": time.process_time() - t0}
+
+
+def closure(c: float, b: np.ndarray, A: np.ndarray, s: int, *, gap: float = 1e-6,
+            per_round: int = 3_000, rounds: int = 8, solver: str = "CLARABEL") -> dict:
+    """The triangle closure of :func:`triangle_closure` at any node's parts:
+    its value ``U`` on ``c + 2 b'x + x'A x``, the rounds solved, the triangles
+    the last solve violated, and the cuts added.
+
+    The free part sets the scale and ``c`` is added back, as in the library's
+    lift: ``c`` adds to every value (``X_00 = 1``), and a scale taken from it
+    loosens the solver's tolerances against the free part at deep nodes."""
     import cvxpy as cp
 
     from benchmarks.studies.syndes_global_bnb.bounds import _lift_problem
 
-    problem = TwoWayProblem.from_panel(Y)
-    engine = BoundEngine.from_problem(problem)
-    N = Y.shape[1]
-    c, b, A = branch.node_parts(engine.R, (), (), tuple(range(N)))
-    s = 2 * K - N
-    unit = max(abs(c), float(np.abs(b).max(initial=0.0)), float(np.abs(A).max()))
-    prob, eq, rlt = _lift_problem(c / unit, b / unit, A / unit, s)
+    unit = max(float(np.abs(b).max(initial=0.0)), float(np.abs(A).max()))
+    prob, _, _ = _lift_problem(0.0, b / unit, A / unit, s)
     X = prob.variables()[0]
     signs = branch._SIGNS
     cuts = []
-    t0 = time.process_time()
     done = 0
     violated = 0
     value = np.nan
@@ -235,7 +249,6 @@ def triangle_closure(Y: np.ndarray, K: int, *, gap: float = 1e-6,
         cuts.append(1 + cp.multiply(sg[:, 0], X[found.i, found.j])
                     + cp.multiply(sg[:, 1], X[found.i, found.k])
                     + cp.multiply(sg[:, 2], X[found.j, found.k]) >= 0)
-    U = unit * float(value)       # the last solve's: with violated > 0, before its cuts
-    return {"N": N, "K": K, "lower": 4.0 * engine.alpha / U, "rounds": done,
-            "violated": violated, "cuts": int(sum(c_.size for c_ in cuts)),
-            "seconds": time.process_time() - t0}
+    # the last solve's value: with violated > 0, the value before its cuts
+    return {"U": c + unit * float(value), "rounds": done, "violated": violated,
+            "cuts": int(sum(c_.size for c_ in cuts))}

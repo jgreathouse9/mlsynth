@@ -7629,6 +7629,8 @@ timeout = 300.0
   find = "    with schedule(**values), threadpool_limits(1):"
   replace = "    with schedule(**values), threadpool_limits(None):"
   models = "the traced lift left on the caller's BLAS threads, where its rounds and seconds measure the thread pool (#857)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT since #861: the library's lift holds BLAS to one thread itself, so the trace's own limit no longer changes what the lift sees, and the spy that killed this mutant on #859 now reads one thread either way. The trace keeps its limit for the trust region and the separation it wraps, which the library does not pin. The mutant stays recorded, so a change that drops the library's pin shows here as a kill."
 
   [[target.mutant]]
   id = "the-root-bounds-run-on-the-callers-threads"
@@ -7637,3 +7639,115 @@ timeout = 300.0
   replace = """    with threadpool_limits(None):
         return _root_bounds(Y, K, incumbent=incumbent, interior=interior)"""
   models = "the root's bounds computed on the caller's BLAS threads, so a 60-unit lift can take 20 times longer than the study reports"
+
+# How deep a node must be before its lift passes the trust region (#858). The
+# instruments build the nodes on the path to a design, read the top
+# eigenspace's structure, and certify the collapse by an ellipsoid fit; each
+# mutant breaks one of those or a row's bookkeeping.
+[[target]]
+name = "bnb-scale-depth"
+module-path = "benchmarks/studies/bnb_scale/depth.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_depth.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-complement-is-the-design"
+  find = "    others = [u for u in range(N) if u not in set(design)]"
+  replace = "    others = [u for u in range(N)]"
+  models = "units fixed out of the treated set drawn from the design as well, so a node no longer lies on the path to the design the search found"
+
+  [[target.mutant]]
+  id = "the-root-is-repeated"
+  find = "    for _ in range(1 if fixed == 0 else reps):"
+  replace = "    for _ in range(reps):"
+  models = "the root measured once per repetition, so the table weighs the one node with nothing fixed several times"
+
+  [[target.mutant]]
+  id = "the-reach-is-read-on-every-direction"
+  find = "    reach = float(np.linalg.norm(V[:, inE].T @ g)) / norm if norm > 0 else 0.0"
+  replace = "    reach = float(np.linalg.norm(V.T @ g)) / norm if norm > 0 else 0.0"
+  models = "the linear term's share measured on the whole plane, not the top eigenspace, which reads one at every node and hides that the fixed units never reach the degenerate directions"
+
+  [[target.mutant]]
+  id = "the-hard-case-is-not-checked"
+  find = "    if w @ w >= n - s * s / n:"
+  replace = "    if False:"
+  models = "the fit attempted where the trust region is in its easy case, where no point of the top eigenspace attains its value"
+
+  [[target.mutant]]
+  id = "the-linear-term-is-not-checked"
+  find = "    if np.linalg.norm(E.T @ g) > rel * max(float(np.linalg.norm(g)), 1.0):"
+  replace = "    if False:"
+  models = "the fit attempted where the linear term reaches the top eigenspace, so the maximiser is not the family the fit spans"
+
+  [[target.mutant]]
+  id = "the-homogenising-coordinate-is-free"
+  find = """    Pa = np.vstack([Pp, e0])                      # and G_00 = 1
+    K = (Pa @ Pa.T) ** 2
+    a = np.linalg.lstsq(K, np.ones(n + 1), rcond=None)[0]"""
+  replace = """    Pa = Pp
+    K = (Pa @ Pa.T) ** 2
+    a = np.linalg.lstsq(K, np.ones(n), rcond=None)[0]"""
+  models = "the fit without G_00 = 1, so the lifted point's corner is not one and the point is not in the relaxation"
+
+  [[target.mutant]]
+  id = "the-triangles-are-not-checked"
+  find = "    if len(branch.separate(Y, gap=1e-9, limit=1)):"
+  replace = "    if False:"
+  models = "a fitted point taken as certified without the triangle check, though the lift's relaxation carries the triangles and can pass the trust region through them"
+
+  [[target.mutant]]
+  id = "the-excess-drops-the-common-direction"
+  find = '    row = {"fixed": len(I) + len(O), "free": n, "excess": n - T - 1,'
+  replace = '    row = {"fixed": len(I) + len(O), "free": n, "excess": n - T,'
+  models = "the excess counted against T, not T + 1, the rank W has with the common direction, so every row's distance to the degenerate regime is off by one"
+
+  [[target.mutant]]
+  id = "every-repetition-gets-the-closure"
+  find = "                row = depth_row(R, T, K, I, O, F, closure=rep == 0 and d in closure_at,"
+  replace = "                row = depth_row(R, T, K, I, O, F, closure=d in closure_at,"
+  models = "the interior-point closure solved at every node of a count, which multiplies the study's slowest step by the repetitions"
+
+  [[target.mutant]]
+  id = "nodes-with-three-free-units-are-kept"
+  find = "            if N - d < 4:"
+  replace = "            if N - d < 3:"
+  models = "a count that leaves three free units measured, where the certificate cannot apply and the lift has nothing to lift"
+
+  [[target.mutant]]
+  id = "the-projection-skips-the-cone"
+  find = "        return (U * np.maximum(lam, 0.0)) @ U.T"
+  replace = "        return 0.5 * (M + M.T)"
+  models = "the projected fit that never projects onto the semidefinite cone, so it reports no fit where one exists and the study reads a collapsed node as one with room"
+
+  [[target.mutant]]
+  id = "the-projection-ends-on-the-cone"
+  find = "        G = onto_equations(Z)"
+  replace = "        G = Z"
+  models = "the projected fit's last iterate taken from the cone, which misses the fit's equations, so the point is off the unit diagonal"
+
+  [[target.mutant]]
+  id = "the-projection-is-asked-everywhere"
+  find = '    if projection and cert.reason == "not_psd":'
+  replace = "    if projection:"
+  models = "the projected fit run at every node, where the least-norm fit already settled it, which multiplies its cost and reports it on rows it says nothing about"
+
+[[target]]
+name = "bnb-scale-node-closure"
+module-path = "benchmarks/studies/bnb_scale/root_gap.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_depth.py benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k 'closure or Closure'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-closure-drops-the-constant"
+  find = '    return {"U": c + unit * float(value), "rounds": done, "violated": violated,'
+  replace = '    return {"U": unit * float(value), "rounds": done, "violated": violated,'
+  models = "the closure solved on the free part and returned without the fixed units' constant, a value under the node's maximum wherever units are fixed"
+
+  [[target.mutant]]
+  id = "the-closure-scales-by-the-constant"
+  find = "    unit = max(float(np.abs(b).max(initial=0.0)), float(np.abs(A).max()))\n    prob, _, _ = _lift_problem(0.0, b / unit, A / unit, s)"
+  replace = "    unit = max(abs(c), float(np.abs(b).max(initial=0.0)), float(np.abs(A).max()))\n    prob, _, _ = _lift_problem(0.0, b / unit, A / unit, s)"
+  models = "the closure scaled by the fixed units' constant, the defect #864 fixed in the lift: the free part shrinks against the solver's tolerances at deep nodes"
+  expected = "survived"
+  accepted-because = "EQUIVALENT at the precision the study reports. Interior point does not run on an alpha schedule, so a smaller free part only meets its tolerances: at BLS 80 with 40 fixed (|c| 39 times the free part's largest entry) the two scales gave gains 5.072499e-3 and 5.072507e-3, and at flat 100 with 60 fixed (59 times) 7.7834e-4 and 7.7870e-4. The closure takes the free part's scale to match the lift, not because a test can see the difference."
