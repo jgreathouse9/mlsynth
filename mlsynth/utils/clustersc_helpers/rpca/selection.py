@@ -59,6 +59,7 @@ with the separation removed, where it is known that there is nothing to find.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Dict, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
@@ -122,6 +123,16 @@ def _within_dispersion(F: np.ndarray, k: int, seed: int) -> float:
     return float(km.inertia_)
 
 
+@lru_cache(maxsize=None)
+def _thread_pools():
+    """The process's thread pools, found once, after scikit-learn has loaded
+    the OpenMP runtime k-means runs on: a fresh scan costs milliseconds, and
+    limiting a pool already found microseconds."""
+    import sklearn.cluster  # noqa: F401 - load the OpenMP runtime first
+    from threadpoolctl import ThreadpoolController
+    return ThreadpoolController()
+
+
 def gap_statistic(F: np.ndarray, k_values: Iterable[int], n_ref: int = 20,
                   seed: int = 0) -> Tuple[np.ndarray, np.ndarray]:
     """Gap statistic of Tibshirani, Walther & Hastie (2001) over ``k_values``.
@@ -133,7 +144,19 @@ def gap_statistic(F: np.ndarray, k_values: Iterable[int], n_ref: int = 20,
 
     Returns ``(gap, s)`` where ``s`` is the reference standard error inflated
     by ``sqrt(1 + 1/n_ref)``.
+
+    k-means runs on one OpenMP thread for the call, so a seed reproduces the
+    statistic bit for bit. On four threads its inertia reduction summed in a
+    different order from one call to the next, and repeated sweeps differed in
+    the last bit every time (#860). The caller's thread counts come back on
+    the way out.
     """
+    with _thread_pools().limit(limits=1, user_api="openmp"):
+        return _gap_statistic(F, k_values, n_ref, seed)
+
+
+def _gap_statistic(F: np.ndarray, k_values: Iterable[int], n_ref: int,
+                   seed: int) -> Tuple[np.ndarray, np.ndarray]:
     F = np.asarray(F, dtype=float)
     if F.ndim != 2 or F.shape[0] < 2:
         raise MlsynthConfigError(
