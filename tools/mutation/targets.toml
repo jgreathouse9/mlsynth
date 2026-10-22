@@ -7752,6 +7752,174 @@ timeout = 300.0
   expected = "survived"
   accepted-because = "EQUIVALENT at the precision the study reports. Interior point does not run on an alpha schedule, so a smaller free part only meets its tolerances: at BLS 80 with 40 fixed (|c| 39 times the free part's largest entry) the two scales gave gains 5.072499e-3 and 5.072507e-3, and at flat 100 with 60 fixed (59 times) 7.7834e-4 and 7.7870e-4. The closure takes the free part's scale to match the lift, not because a test can see the difference."
 
+# The node-cost study's ledger (#844).
+[[target]]
+name = "bnb-node-cost-ledger"
+module-path = "benchmarks/studies/bnb_node_cost/stages.py"
+test-command = "python -m pytest benchmarks/studies/bnb_node_cost/test_stages.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "a-call-is-charged-its-callees-too"
+  find = "                self.own[name] += spent - frame[1]"
+  replace = "                self.own[name] += spent"
+  models = "a wrapped call charged its whole time, its wrapped callees included, so nested stages are counted twice and the shares add past the run"
+
+  [[target.mutant]]
+  id = "a-generator-is-charged-for-its-call"
+  find = "        return stream if inspect.isgeneratorfunction(fn) else inner"
+  replace = "        return inner"
+  models = "the enumeration charged for building its generator, so the sets it walks are charged to whatever consumes them"
+
+  [[target.mutant]]
+  id = "the-caller-is-not-named"
+  find = '            name = f"{caller} > {label}" if (under_caller and caller) else label'
+  replace = "            name = label"
+  models = "a stage that runs inside another charged under its own name, so the lift's fallback trust regions read as the tree's"
+
+  [[target.mutant]]
+  id = "nested-calls-are-modelled"
+  find = "            if model is not None and caller is None:"
+  replace = "            if model is not None:"
+  models = "the cost model's charge counted for calls inside other stages, which the library never charges, so the modelled column overstates the work"
+
+  [[target.mutant]]
+  id = "the-wrappers-stay-on"
+  find = "            setattr(owner, attr, fn)"
+  replace = "            pass"
+  models = "the ledger's wrappers left on the library after a run, so every later call in the process pays for the clock"
+
+# The node-cost study's candidates (#844).
+[[target]]
+name = "bnb-node-cost-candidates"
+module-path = "benchmarks/studies/bnb_node_cost/parts.py"
+test-command = "python -m pytest benchmarks/studies/bnb_node_cost/test_parts.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-cut-matrix-is-upper-only"
+  find = "    return upper + upper.T"
+  replace = "    return upper"
+  models = "the bincount's cells left in the upper triangle, a matrix the eigendecomposition reads as nonsymmetric"
+
+  [[target.mutant]]
+  id = "the-cut-values-read-the-wrong-edge"
+  find = "    return (1.0 + s[:, 0] * flat[cuts.i * size + cuts.j] + s[:, 1] * flat[cuts.i * size + cuts.k]"
+  replace = "    return (1.0 + s[:, 0] * flat[cuts.i * size + cuts.j] + s[:, 1] * flat[cuts.i * size + cuts.j]"
+  models = "a cut's second edge read from its first, so the lean evaluation's cut gradients differ from the library's"
+
+  [[target.mutant]]
+  id = "the-rounding-truncates"
+  find = "            return x / scale"
+  replace = "            return float(x // scale)"
+  models = "the dyadic entries rounded toward minus infinity to integers, where the library rounds to the nearest double"
+
+  [[target.mutant]]
+  id = "the-shift-starts-above-the-eigenvalue"
+  find = "        sigma = lam - step"
+  replace = "        sigma = lam + step"
+  models = "Rump's test asked to prove definiteness above the smallest eigenvalue, where it never can, so no bound is returned"
+
+  [[target.mutant]]
+  id = "the-comparison-ignores-the-multipliers"
+  find = "    return (Ua == Ub and ea == eb and np.array_equal(ma.diag, mb.diag)"
+  replace = "    return (Ua == Ub and ea == eb and True"
+  models = "two lifts called identical on their bounds and counts alone, so a lean evaluation that changed the certificate's multipliers would pass"
+
+# The lift's stopping near the prune target (#837, candidate 1): a study copy
+# of the library's round loop with three knobs, and the search it plugs into.
+# Each mutant breaks the copy's equivalence to the library, one knob, or the
+# instrument's restoring of the library's lift.
+[[target]]
+name = "syndes-global-bnb-stopping"
+module-path = "benchmarks/studies/syndes_global_bnb/stopping.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_stopping.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-copy-scales-by-the-constant"
+  find = "    unit = max(float(np.abs(b).max()), float(np.abs(A).max()))"
+  replace = "    unit = max(abs(c), float(np.abs(b).max()), float(np.abs(A).max()))"
+  models = "the copy drifting from the library it measures, here back to the scale #864 fixed, so every variant is compared against a lift the library no longer runs"
+
+  [[target.mutant]]
+  id = "a-stall-is-never-halved"
+  find = '        if stalled and on_stall == "halve" and alpha > alpha_floor:'
+  replace = "        if False:"
+  models = "the halving knob accepted and ignored, so the variant reads as the shipped rule under another name"
+
+  [[target.mutant]]
+  id = "the-margin-never-goes-deep"
+  find = "                and c + unit * best[\"value\"] - target <= margin * abs(target)):"
+  replace = "                and False):"
+  models = "the margin knob accepted and ignored, so no node runs to the lower floor"
+
+  [[target.mutant]]
+  id = "the-margin-ignores-its-distance"
+  find = "                and c + unit * best[\"value\"] - target <= margin * abs(target)):"
+  replace = "                and c + unit * best[\"value\"] - target <= abs(target)):"
+  models = "every node treated as within the margin, so the lower floor is paid everywhere and the variant measures the plain lower floor"
+
+  [[target.mutant]]
+  id = "the-forecast-ignores-its-horizon"
+  find = "    return history[-1] - horizon * max(rate, 0.0) > goal"
+  replace = "    return history[-1] > goal"
+  models = "a forecast that reads only the current bound, so every run not yet at its target gives up, prunes included"
+
+  [[target.mutant]]
+  id = "the-forecast-starts-at-once"
+  find = "        if (forecast and target is not None and alpha <= forecast_from"
+  replace = "        if (forecast and target is not None"
+  models = "the forecast's starting alpha ignored, the aggressive form that lost 17 of 29 prunes at 24 units"
+
+  [[target.mutant]]
+  id = "the-search-keeps-the-variant"
+  find = "    finally:\n        branch.lift = shipped"
+  replace = "    finally:\n        pass"
+  models = "the instrument leaving its variant in the library, so every later search in the process runs the study's lift"
+
+  [[target.mutant]]
+  id = "the-search-ignores-its-costs"
+  find = "                                        work_limit=work_limit, **(costs or {}))"
+  replace = "                                        work_limit=work_limit)"
+  models = "the cost model passed and dropped, so the instrument's search and the library's run under different costs and cannot be compared count for count"
+
+  [[target.mutant]]
+  id = "the-limit-mode-drops-the-limit"
+  find = "        rows = [dict(search(panels.panel(panel, N), N // 2, work_limit=WORK_LIMIT,"
+  replace = "        rows = [dict(search(panels.panel(panel, N), N // 2,"
+  models = "the limit mode run without the library's work limit, so a search that would stop reads as one that closed and its gap as certified"
+
+# Pentagonal inequalities past the triangles (#837, candidate 2).
+[[target]]
+name = "syndes-global-bnb-pentagons"
+module-path = "benchmarks/studies/syndes_global_bnb/cuts.py"
+test-command = "python -m pytest benchmarks/studies/syndes_global_bnb/test_cuts.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-right-hand-side-is-one"
+  find = "    vals = entries @ coeff.T + 2.0                                           # (S, 16)"
+  replace = "    vals = entries @ coeff.T + 1.0                                           # (S, 16)"
+  models = "a pentagonal row with the wrong right-hand side, invalid at sign vectors, so the closure it tightens is no relaxation"
+
+  [[target.mutant]]
+  id = "the-patterns-are-all-plus"
+  find = "                      __import__(\"itertools\").product((1, -1), repeat=4)], dtype=float)"
+  replace = "                      __import__(\"itertools\").product((1, 1), repeat=4)], dtype=float)"
+  models = "one sign pattern repeated sixteen times, so separation sees only the all-plus rows"
+
+  [[target.mutant]]
+  id = "the-closure-skips-the-pentagons"
+  find = "        pent = _separate(Xv, gap, per_round) if pentagons else []"
+  replace = "        pent = []"
+  models = "the pentagonal flag accepted and ignored, so the closure the study reports as pentagonal is the triangle closure"
+
+  [[target.mutant]]
+  id = "the-closure-drops-the-constant"
+  find = '    return {"U": c + unit * float(value_), "rounds": done, "violated": violated, **counts}'
+  replace = '    return {"U": unit * float(value_), "rounds": done, "violated": violated, **counts}'
+  models = "the closure returned without the fixed units' constant, a value under the node's maximum wherever units are fixed"
 # The staggered SCPI engine's row selection under pandas 3.1.
 [[target]]
 name = "staggered-engine-rows"
