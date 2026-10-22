@@ -1,0 +1,2 @@
+{"markets": 80, "m": 6, "seconds": 224.70291983, "modelled": 25.0, "lower": 0.027834394530225733, "relaxation": 0.027839187782718714, "kind": "bls", "load_before": 1.0849609375, "load_after": 6.61962890625}
+{"markets": 100, "m": 6, "seconds": 787.624523956, "modelled": 47.875, "lower": 0.01736213725219931, "relaxation": 0.017366591378132613, "kind": "bls", "load_before": 6.61962890625, "load_after": 3.4765625}
