@@ -13,8 +13,16 @@ So this runs the case and records which files execute. The package is imported
 before measurement starts, which is what separates executing a module from
 loading it -- without that every case measures all 834 library files.
 
-File reads are captured too, through an audit hook, so a case is selected when
-the panel it reads from ``basedata`` changes.
+What is measured is the runner's own call for the case, ``run_one``: the case's
+import (its ``EXPECTED`` and the reference bundle it reads), ``run()``, and
+``compare()``. Both Python trees a diff can name are measured, ``mlsynth`` and
+``benchmarks``. File reads are captured too, through an audit hook, so a case is
+selected when the panel it reads from ``basedata`` or the reference it compares
+against changes. A case that skips or raises is left unmapped, and always runs.
+
+On Python 3.12 and later coverage runs on its ``sysmon`` core. Under the
+pure-Python tracer the four shards ran 4.8 times the untraced time and one or
+two of them reached the 350-minute cap every night.
 
 ``--merge`` keeps entries for cases this invocation did not run, so a sharded
 CI job can contribute its slice without dropping everyone else's.
@@ -39,12 +47,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-def _trace(name: str) -> tuple[list[str], float]:
-    """The repository-relative files ``name``'s ``run()`` executes or reads."""
-    import coverage
+class Unmeasured(Exception):
+    """A case the runner skipped or that raised, so what it reaches is unknown.
 
-    from benchmarks import registry
-    from benchmarks.compare import BenchmarkSkipped
+    Its entry is dropped, which leaves it unmapped and always run. A partial
+    measurement would claim less than the case reaches.
+    """
+
+
+def _trace(name: str) -> tuple[list[str], float]:
+    """The repository-relative files the runner executes or reads for ``name``.
+
+    What is measured is ``run_benchmarks.run_one(name)``, the call the PR suite
+    makes: importing the case, which builds ``EXPECTED`` and reads the case's
+    reference bundle; ``run()``; and ``compare()``. Measuring ``run()`` alone
+    left a reference read at import, ``compare.py`` and the runner itself
+    unclaimed, and an unclaimed file is a hole without an inventory and covered
+    by nothing with one.
+    """
+    from benchmarks import run_benchmarks
 
     read: set[str] = set()
 
@@ -55,37 +76,71 @@ def _trace(name: str) -> tuple[list[str], float]:
                 rel = Path(p).resolve().relative_to(ROOT)
             except (ValueError, OSError):
                 return
-            read.add(str(rel))
+            read.add(rel.as_posix())
 
     import mlsynth  # noqa: F401 -- warm the package, so module bodies are not measured
-    mod = registry.load(name)
 
-    cov = coverage.Coverage(source=["mlsynth"], timid=True, data_file=None)
+    cov = measurement()
     sys.addaudithook(audit)
     t0 = time.time()
     cov.start()
     try:
-        mod.run()
-    except BenchmarkSkipped:
-        cov.stop()
-        raise
+        result = run_benchmarks.run_one(name)
     finally:
-        try:
-            cov.stop()
-        except Exception:                      # pragma: no cover - stop after stop
-            pass
+        cov.stop()
     secs = time.time() - t0
+    if result["status"] not in ("pass", "fail"):
+        raise Unmeasured(f"{result['status']}: {result.get('reason', '')}".rstrip(": "))
 
     data = cov.get_data()
-    executed = {str(Path(f).resolve().relative_to(ROOT))
+    executed = {Path(f).resolve().relative_to(ROOT).as_posix()
                 for f in data.measured_files() if data.lines(f)}
-    # Keep only what a diff can name: library sources and shipped panels. The
-    # case's own module is implied by its name and is not stored.
-    keep = {p for p in executed | read
-            if (p.startswith("mlsynth/") or p.startswith("basedata/"))
-            and "__pycache__" not in p and not p.endswith((".pyc", ".pyo"))}
-    keep.discard(f"benchmarks/cases/{name}.py")
-    return sorted(keep), secs
+    return claimable(executed | read, name), secs
+
+
+def measurement():
+    """The coverage session a case runs under: both Python trees a diff can
+    name, measured and not saved.
+
+    On Python 3.12 and later the core is ``sysmon``, which records a code
+    object's lines once and then stops paying for them. The pure-Python tracer
+    pays on every line: the 209 cases measured on 2026-10-21 took 1,149
+    minutes under it against 240 untraced, up to 17 times longer for a case
+    whose time is spent in Python, and the shards were cancelled at their
+    350-minute cap. On ``wan_pda_vs_scm`` the ``sysmon`` core recorded the same
+    23 files in 100.0 s against 99.2 s untraced. Before 3.12 there is no
+    ``sys.monitoring``, and the pure-Python tracer stays.
+    """
+    import coverage
+
+    fast = sys.version_info >= (3, 12)
+    cov = coverage.Coverage(
+        source=[str(ROOT / "mlsynth"), str(ROOT / "benchmarks")],
+        timid=not fast, data_file=None)
+    if fast:
+        cov.set_option("run:core", "sysmon")
+    return cov
+
+
+def claimable(paths, name: str) -> list:
+    """The measured paths a diff can name, which is what the map keeps.
+
+    That is every path under :data:`benchmarks.case_deps.REACHABLE` outside the
+    test trees, compiled files excepted. The case's own module is implied by
+    its name and is not stored. ``benchmarks/`` belongs here as much as
+    ``mlsynth/``: a case executes ``compare.py`` and reads its reference's
+    committed outputs, and a path the map can never claim is either a hole or,
+    once an inventory exists, a file covered by nothing.
+    """
+    from benchmarks import case_deps
+
+    own = f"benchmarks/cases/{name}.py"
+    return sorted({p for p in paths
+                   if p.startswith(case_deps.REACHABLE)
+                   and not p.startswith(case_deps.NEVER_REACHABLE)
+                   and "__pycache__" not in p
+                   and not p.endswith((".pyc", ".pyo"))
+                   and p != own})
 
 
 def shard_of(names, shard: int, num_shards: int) -> list:
@@ -193,14 +248,13 @@ def main() -> int:
         ap.error(str(exc))
 
     out = dict(case_deps.load()) if args.merge else {}
-    from benchmarks.compare import BenchmarkSkipped
     skipped = []
     for name in names:
         try:
             deps, secs = _trace(name)
-        except BenchmarkSkipped as exc:
-            # A case that cannot run here was not measured. Dropping its entry
-            # leaves it unmapped, which makes it always run -- the safe side.
+        except Unmeasured as exc:
+            # A case that skipped or raised here was not measured. Dropping its
+            # entry leaves it unmapped, which makes it always run -- the safe side.
             out.pop(name, None)
             skipped.append(name)
             print(f"  skip {name}: {exc}", flush=True)

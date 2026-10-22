@@ -318,7 +318,9 @@ jobs:
 
       # The filter above decides whether the shards run at all; this decides
       # which cases they run. case_deps widens on any doubt -- an unmapped case
-      # runs, and a changed file no entry claims runs everything -- so it can
+      # runs, a changed module no entry claims runs the cases claiming its
+      # importers, and any other changed file no entry claims runs everything
+      # unless a complete sweep recorded it as covered by nothing -- so it can
       # cost time and cannot silence a case. The map is refreshed nightly by the
       # case-deps job below.
       - name: Collect the changed files
@@ -469,6 +471,15 @@ jobs:
     # shipped map and committing is the combine job's, once: four shards each
     # rebasing and pushing the same file race, and the loser's slice disappears
     # with no failure anywhere.
+    #
+    # Sharding was not enough while the tracer was coverage's pure-Python one.
+    # On 2026-10-21 the 209 cases measured took 1,149 traced minutes against
+    # 240 in the untraced PR suite, up to 17 times longer for cases whose time
+    # is spent in Python, and one or two of the four shards reached the cap
+    # every night. A cancelled shard costs its slice and, because the sweep
+    # inventory needs every entry measured in one run, the inventory as well.
+    # Python 3.12 gives coverage its sys.monitoring core, which recorded the
+    # same files on wan_pda_vs_scm in 100.0 s against 99.2 s untraced.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 350
@@ -492,7 +503,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
 
       - name: Install mlsynth
@@ -558,11 +569,19 @@ jobs:
           echo "Merging ${#SLICES[@]} slice(s)."
           python -u tools/benchmark_deps.py --combine "${SLICES[@]}"
 
+      # The inventory is written only by a combine over a complete sweep, so it
+      # may not exist; an older one stays, since entries newer than the
+      # inventory are sound and only the reverse is not. Staging the map alone
+      # meant no inventory ever reached main, and every unclaimed file stayed a
+      # hole that ran the whole registry.
       - name: Commit the map if it changed
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add benchmarks/case_deps.json
+          if [ -f benchmarks/case_deps_swept.json ]; then
+            git add benchmarks/case_deps_swept.json
+          fi
           if git diff --cached --quiet; then
             echo "Dependency map unchanged; nothing to commit."
             exit 0

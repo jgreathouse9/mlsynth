@@ -3848,6 +3848,174 @@ timeout = 180.0
   replace = '    for prefix in [p for p in REACHABLE if not p.startswith("mlsynth")]:'
   models = "an inventory that records basedata and benchmarks but not mlsynth, so every library file stays ambiguous and the widening it was built to stop continues while the file beside the manifest claims the sweep was recorded"
 
+# The import graph (#855's /rca). A module whose code runs only at import is
+# never claimed by the map, so its importers decide which cases it reaches.
+# Each mutant reintroduces one way the graph or the rule can lose an importer,
+# or one way it can widen back to the registry.
+[[target]]
+name = "case-deps-import-claims"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps_imports.py benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "importers-are-ignored"
+  find = "            claimed = importers_of(c, graph) & known"
+  replace = "            claimed = frozenset()"
+  models = "the state #855 ran in: a module of class definitions no case executes is a hole, so a change to marex_helpers/structures.py ran 243 of 243 cases, and once an inventory exists the same module runs none of the cases that build its classes"
+
+  [[target.mutant]]
+  id = "the-inventory-decides-before-the-importers"
+  find = """        if c.endswith(".py"):
+            if graph is None:                  # nothing can vouch for its reach"""
+  replace = """        if c in seen:
+            continue
+        if c.endswith(".py"):
+            if graph is None:                  # nothing can vouch for its reach"""
+  models = "the order the two fixes interact through: swept and unclaimed is true of structures.py, so consulting the inventory first runs only the unmapped cases on a change every MAREX case depends on. Silencing, not widening"
+
+  [[target.mutant]]
+  id = "the-closure-stops-at-one-hop"
+  find = """            seen.add(src)
+            todo.append(src)"""
+  replace = "            seen.add(src)"
+  models = "importers read one level deep, so a structure re-exported through its package __init__ reaches the __init__ and none of the modules that import the name from it"
+
+  [[target.mutant]]
+  id = "the-closure-runs-through-the-package-root"
+  find = "            if src in seen or src in NOT_FOLLOWED:"
+  replace = "            if src in seen:"
+  models = "the walk follows mlsynth/__init__.py, which imports every estimator and is imported by every case, so every unclaimed module selects the whole registry again"
+
+  [[target.mutant]]
+  id = "the-closure-runs-through-the-case-loader"
+  find = """NOT_FOLLOWED = RE_EXPORT_ONLY + ("benchmarks/registry.py",)"""
+  replace = """NOT_FOLLOWED = RE_EXPORT_ONLY"""
+  models = "the walk follows the registry, which names every case module and is claimed by every case once the map measures the runner, so any module a single case imports selects all 243"
+
+  [[target.mutant]]
+  id = "relative-imports-read-as-absolute"
+  find = """    if not node.level:
+        return node.module or \"\""""
+  replace = """    if True:
+        return node.module or \"\""""
+  models = "the dots of a relative import dropped, so `from .structures import X` names a top-level `structures` that does not exist and the helpers that import their own package's definitions lose the edge"
+
+  [[target.mutant]]
+  id = "re-exported-names-are-not-resolved"
+  find = "                out |= names.get(alias.name, set())"
+  replace = "                pass"
+  models = "`from mlsynth import EST` stops at the package root, which the walk never follows, so the 201 case imports written that way import nothing the graph can see"
+
+  [[target.mutant]]
+  id = "a-re-exported-attribute-is-not-resolved"
+  find = "            out |= exports[bound[node.value.id]].get(node.attr, set())"
+  replace = "            pass"
+  models = "`import mlsynth` followed by `mlsynth.EST(...)` reads no estimator module"
+
+  [[target.mutant]]
+  id = "a-string-naming-a-module-is-not-an-edge"
+  find = """        elif isinstance(node, ast.Constant) and isinstance(node.value, str) \\
+                and node.value in by_name:
+            out.add(by_name[node.value])"""
+  replace = """        elif False:
+            pass"""
+  models = "config_models' relocated-config table and drsc's __import__ name their modules in strings, so the configs they resolve have no importer"
+
+  [[target.mutant]]
+  id = "only-the-top-level-is-read"
+  find = """    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):"""
+  replace = """    for node in tree.body:
+        if isinstance(node, ast.Import):"""
+  models = "imports inside functions missed, which is every case: they import inside run()"
+
+  [[target.mutant]]
+  id = "a-script-sibling-is-not-found"
+  find = "    return sibling if dotted and sibling in by_name else None"
+  replace = "    return None"
+  models = "a study script's bare-name import of its neighbour unresolved, so the neighbour has no importer"
+
+  [[target.mutant]]
+  id = "an-unparseable-tree-reads-as-having-no-imports"
+  find = """        except (SyntaxError, UnicodeDecodeError, ValueError):
+            return None"""
+  replace = """        except (SyntaxError, UnicodeDecodeError, ValueError):
+            continue"""
+  models = "a module that does not parse left out of the graph, so its imports read as none and the inventory gets the last word on everything it uses"
+
+  [[target.mutant]]
+  id = "an-unknown-graph-trusts-the-inventory"
+  find = """            if graph is None:                  # nothing can vouch for its reach
+                return list(cases)"""
+  replace = """            if graph is None:                  # nothing can vouch for its reach
+                graph = {}"""
+  models = "with no graph, an unclaimed module the inventory has swept selects nothing, which is the silencing direction"
+
+  [[target.mutant]]
+  id = "a-parent-package-counts-as-read"
+  find = """                if found:
+                    out.add(by_name[found])"""
+  replace = """                if found:
+                    parts = found.split(".")
+                    out.update(by_name[".".join(parts[:i])]
+                               for i in range(1, len(parts) + 1)
+                               if ".".join(parts[:i]) in by_name)"""
+  models = "edges for what an import executes, not for what it reads: one config import becomes an importer of every structure its package re-exports, and a change to marex_helpers/structures.py selects 230 of 243 cases"
+
+[[target]]
+name = "case-deps-measured-domain"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-benchmarks-tree-is-not-claimed"
+  find = "                   if p.startswith(case_deps.REACHABLE)"
+  replace = "                   if p.startswith((\"mlsynth/\", \"basedata/\"))"
+  models = "the map keeping mlsynth and basedata only, so compare.py, a reference's committed outputs and a study module a case imports are never claimed: holes without an inventory, covered by nothing with one"
+
+  [[target.mutant]]
+  id = "only-the-library-is-measured"
+  find = """        source=[str(ROOT / "mlsynth"), str(ROOT / "benchmarks")],"""
+  replace = """        source=[str(ROOT / "mlsynth")],"""
+  models = "coverage pointed at mlsynth alone, so no benchmarks module a case executes is ever measured, whatever the filter keeps"
+
+  [[target.mutant]]
+  id = "only-run-is-measured"
+  find = """    cov = measurement()
+    sys.addaudithook(audit)
+    t0 = time.time()
+    cov.start()
+    try:
+        result = run_benchmarks.run_one(name)
+    finally:
+        cov.stop()"""
+  replace = """    from benchmarks import registry as _registry
+    mod = _registry.load(name)
+    cov = measurement()
+    sys.addaudithook(audit)
+    t0 = time.time()
+    cov.start()
+    try:
+        mod.run()
+        result = {"status": "pass"}
+    finally:
+        cov.stop()"""
+  models = "the window the map was measured in before: run() alone, so the reference bundle a case reads while building EXPECTED, compare.py and the runner are never claimed, and with an inventory a changed reference value runs no case"
+
+  [[target.mutant]]
+  id = "a-raising-case-is-mapped"
+  find = """    if result["status"] not in ("pass", "fail"):"""
+  replace = """    if result["status"] == "skip":"""
+  models = "a case that raised partway kept as measured, so its entry claims only what ran before the error and a change past that point does not select it"
+
+  [[target.mutant]]
+  id = "the-fast-core-is-not-asked-for"
+  find = """        cov.set_option("run:core", "sysmon")"""
+  replace = """        pass"""
+  models = "coverage left on its default tracer, the cost that put one or two of the four nightly shards past their 350-minute cap every night, so no sweep was ever complete and no inventory was ever written"
+
 [[target]]
 name = "lexscm-unit-effects"
 module-path = "mlsynth/utils/fast_scm_helpers/unit_effects.py"
