@@ -258,3 +258,12 @@ class TestTriangleClosure:
     def test_the_loop_ends_with_no_violated_triangle(self, small):
         _, _, closure = small
         assert closure["violated"] == 0 and closure["rounds"] >= 1
+
+
+def test_a_seed_brings_its_complement():
+    """At K = N/2 a set and its complement are the same design, and the search
+    tries both, so ``swap_found`` must count a design the seeds held only as a
+    complement. The 16-unit fixture's design is a seed itself, which is why
+    this is checked directly."""
+    held = syndes_scale._with_complements([np.array([[0, 1], [1, 3]])], 4)
+    assert held == {(0, 1), (2, 3), (1, 3), (0, 2)}
