@@ -10,6 +10,7 @@ solver.
 """
 from __future__ import annotations
 
+import json
 import warnings
 
 import numpy as np
@@ -221,6 +222,57 @@ class TestTable1OnProp99:
     def test_with_nonnegative_weights_no_ablation_row_matches(self, rows):
         assert rows["nonneg"]["Sparse-only"]["active"] != 20
         assert rows["nonneg"]["Graph-only"]["active"] != 38
+
+
+class TestThePapersPlottedCurve:
+    """Figure 2(a)'s Graph-SC line, digitized from the arXiv source, against Table 1 and our solves."""
+
+    @pytest.fixture(scope="class")
+    def plotted(self):
+        from benchmarks.studies.graphsc_replicate import figure as F
+
+        return F.curves()
+
+    def test_the_digitization_recovers_the_known_sc_curve(self, plotted):
+        from benchmarks.studies.graphsc_replicate import figure as F
+        from benchmarks.studies.graphsc_replicate.run import TABLE1
+
+        years, T0, y, cf = plotted
+        d = json.loads(F.DIGITIZED.read_text())
+        sc = np.array([np.nan if v is None else v for v in d["SC"]])
+        assert abs(F.scores(y, sc, T0)[0] - TABLE1["SC"][0]) < 0.1
+        assert d["calibration"]["resid_rms"] < 1.0
+
+    def test_the_plotted_graph_sc_is_not_table_1s_row(self, plotted):
+        """Table 1 prints pre-RMSPE 0.0893; the plotted line misses 1970 alone by more than 5 packs."""
+        from benchmarks.studies.graphsc_replicate import figure as F
+
+        years, T0, y, cf = plotted
+        line = cf["Paper's Figure 2(a)"]
+        assert F.scores(y, line, T0)[0] > 1.0
+        assert y[0] - line[0] > 5.0
+
+    def test_no_solve_of_ours_is_the_plotted_curve(self, plotted):
+        """Every reading sits farther from the plotted line than three times the digitization error."""
+        from benchmarks.studies.graphsc_replicate import figure as F
+
+        years, T0, y, cf = plotted
+        line = cf["Paper's Figure 2(a)"]
+        err = json.loads(F.DIGITIZED.read_text())["calibration"]["resid_rms"]
+        for name, c in cf.items():
+            if name.startswith("Graph-SC"):
+                assert np.sqrt(np.nanmean((line - c) ** 2)) > 3 * err, name
+
+    def test_the_figure_is_returned_not_shown(self, plotted):
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from benchmarks.studies.graphsc_replicate import figure as F
+
+        fig = F.overlay_figure()
+        assert len(fig.axes) == 6
+        plt.close(fig)
 
 
 class TestTheSimulationDesign:

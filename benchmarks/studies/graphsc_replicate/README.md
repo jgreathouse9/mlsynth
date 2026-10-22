@@ -77,6 +77,21 @@ unreproduced row. FISTA truncated at checkpoints from 100 to 200,000 iterations
 starting points), and a grid over `k`, `lambda_1`, `lambda_g` and `lambda_sum`
 around the stated values, come no closer than 11 percent on some column.
 
+### The paper's figure is not its table
+
+`python -m benchmarks.studies.graphsc_replicate.figure` draws
+`results/prop99_overlay.png`: each arm's exact solve overlaid on classic SC and
+California, and the Graph-SC line of the paper's Figure 2(a), digitized from the
+image in the arXiv source (`results/paper_figure2a_digitized.json` records the
+method; on the SC line it recovers the known pre-RMSPE as 1.69 against 1.656).
+
+The plotted Graph-SC line has a pre-RMSPE of 1.80 and misses California by 6.3
+packs in 1970 alone. Table 1 prints 0.0893 for the same method, which no curve
+with that 1970 miss can reach. The plotted line is closest to SC itself (RMS
+distance 1.27); every reading solved here, both sign conventions and three
+standardizations, sits 1.77 or more from it, about four times the digitization error.
+Its mean post-period gap, 17.75, also falls below the 95 percent criterion.
+
 ## Path B: the simulation, and the gate
 
 Section 4.1 and Appendix C describe 200 donors in 10 clusters over 70 periods

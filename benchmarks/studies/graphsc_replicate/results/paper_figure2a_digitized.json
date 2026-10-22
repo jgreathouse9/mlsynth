@@ -1,0 +1,9 @@
+{
+ "source": "arXiv:2610.24113v1 source, figures/benchmark_trajectories.png (Figure 2a)",
+ "method": "pixel colour masks per curve (tab:blue SC, tab:red Graph-SC, black California), median row within 2.5 px of each year, x from the axes frame with matplotlib default 5% margin, rows mapped to values by least squares on the California and SC curves against their known values; null where the curve is hidden by another",
+ "calibration": {"slope": -0.1977, "intercept": 135.6863, "n": 59, "resid_rms": 0.4529, "resid_max": 1.6214},
+ "year": [1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000],
+ "California": [123.03, 121.25, 123.43, 124.12, 126.99, 127.58, 127.78, 126.39, 126.39, 121.84, null, 118.68, 115.32, 110.38, 105.04, 103.26, 100.39, 97.33, 89.71, 81.8, 77.55, 68.85, 67.27, 63.22, 58.57, 56.4, 54.42, 53.63, 52.05, 47.1, 41.76],
+ "SC": [117.3, 119.67, 124.61, 124.22, 126.39, 126.99, 128.37, 127.38, 126.2, 122.83, 120.66, 119.87, 116.51, 109.78, null, null, 99.3, 99.4, 91.79, 89.22, 86.25, 81.8, 81.31, 81.21, 81.11, 79.93, 79.13, 80.72, 76.37, 74.98, 68.85],
+ "Graph-SC": [116.7, 118.88, 125.01, 124.81, 125.9, 126.29, 128.96, 126.59, 125.8, 123.23, 120.07, 120.07, 115.72, 111.27, 103.85, 102.66, 99.8, 100.0, 91.2, 88.82, 83.68, 80.32, 79.93, 80.52, 79.53, 76.96, 76.76, 78.74, 72.81, 72.21, 66.88]
+}
