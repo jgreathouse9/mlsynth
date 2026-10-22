@@ -106,18 +106,26 @@ certified flag agrees, and MAREX agrees on every count.
   lift, an L-BFGS-B solve of the regularised dual, stops after 553 evaluations
   under AVX2 and 647 under AVX-512, at bounds 1.3e-5 apart relative. Both bounds
   are valid, but the children start from different multipliers. The AVX2 search
-  bounds 48 nodes, lifts 41 and prices 3 designs where the AVX-512 one bounds
-  44, lifts 35 and prices 1, for the same certified design. That instance's
+  bounds 46 nodes, lifts 39 and prices 3 designs where the AVX-512 one bounds
+  42, lifts 33 and prices 1, for the same certified design. That instance's
   bands span both families.
-* Elsewhere the families differ by at most 1.4 percent in work and one node,
-  inside the bands.
+* Elsewhere the families agree on every count and differ by at most 1.9
+  percent in work, inside the bands.
 
 The bands are drawn for the processors the pull-request suite runs on. On an
 older processor whose OpenBLAS selects the Sandybridge kernel (AVX without FMA),
-the SYNDES case fails. At default costs ``geolift30_k8`` prices 1.86 times as
+the SYNDES case fails. At default costs ``geolift30_k8`` prices 6.7 times as
 many designs and ``noise30_k8`` 1.72 times as many, with every design and
 certified flag unchanged. Bands that wide would let a doubling of the work
 through on the processors the gate runs on.
+
+The SYNDES pins moved once for a defect in the lift. It divided a node's parts
+by the largest of them, the fixed units' constant included. The constant grows
+with the units fixed, so the free part shrank against the lift's regularisation
+schedule, and deep nodes stopped at the trust-region bound where the relaxation
+was tighter. Scaled by the free part alone, more nodes prune. ``geolift30_k8``
+prices 407,330 designs where it priced 1,479,291, and ``geolift32_k10`` 8,008
+where it priced 221,442. Every design and certified flag is unchanged.
 
 The bands absorb that noise and nothing larger. A search that started
 pricing every design, stopped lifting, or bounded nodes in a worse order would
