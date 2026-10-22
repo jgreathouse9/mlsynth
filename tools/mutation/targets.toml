@@ -7751,3 +7751,41 @@ timeout = 300.0
   models = "the closure scaled by the fixed units' constant, the defect #864 fixed in the lift: the free part shrinks against the solver's tolerances at deep nodes"
   expected = "survived"
   accepted-because = "EQUIVALENT at the precision the study reports. Interior point does not run on an alpha schedule, so a smaller free part only meets its tolerances: at BLS 80 with 40 fixed (|c| 39 times the free part's largest entry) the two scales gave gains 5.072499e-3 and 5.072507e-3, and at flat 100 with 60 fixed (59 times) 7.7834e-4 and 7.7870e-4. The closure takes the free part's scale to match the lift, not because a test can see the difference."
+
+# The staggered SCPI engine's row selection under pandas 3.1.
+[[target]]
+name = "staggered-engine-rows"
+module-path = "mlsynth/utils/vanillasc_helpers/staggered_engine.py"
+test-command = "python -m pytest mlsynth/tests/test_staggered_engine.py -q -x -p no:cacheprovider -k rows_keep"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "a-scalar-key-drops-its-level"
+  find = "    key = ([unit_tr], list(ids), periods)"
+  replace = "    key = (unit_tr, list(ids), periods)"
+  models = "the treated unit selected by a scalar, which pandas 3.1 drops from the index, so every block's two- and three-level names fail to set"
+
+# The case dependency map never claims the untracked reference cache.
+[[target]]
+name = "case-deps-untracked"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider -k 'no_diff_can_reach'"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-map-claims-the-reference-cache"
+  find = "                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)"
+  replace = "                   and not p.startswith(case_deps.NEVER_REACHABLE)"
+  models = "the recorder keeping what a case reads from the gitignored reference cache, so the daily refresh commits paths that exist only where the references were fetched and the shipped-manifest test fails everywhere else"
+
+[[target]]
+name = "case-deps-inventory-untracked"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider -k 'mirrors_the_structural_filters'"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-inventory-walks-the-reference-cache"
+  find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
+  replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
+  models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
