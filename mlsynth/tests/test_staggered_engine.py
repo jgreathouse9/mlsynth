@@ -24,6 +24,23 @@ _GERMANY = os.path.join(os.path.dirname(__file__), "..", "..",
                         "basedata", "scpi_germany.csv")
 
 
+def test_rows_keep_every_index_level_whatever_the_key():
+    """pandas 3.1 drops an index level a scalar selects even when another key
+    is a list, where 3.0 kept every level once any key was a list. The
+    engine's blocks name their levels, so a selection keeps all three."""
+    idx = pd.MultiIndex.from_product([["A"], ["A", "x", "y"], [1, 2, 3]],
+                                     names=["treated_unit", "__ID", "__time"])
+    d = pd.DataFrame({"v": np.arange(9.0), "c": 1.0}, index=idx)
+    for ids in (["A"], ["x", "y"]):
+        r = E._rows(d, "A", ids, np.array([1, 2]))
+        assert list(r.index.names) == ["treated_unit", "__ID", "__time"]
+        assert len(r) == 2 * len(ids)
+    r = E._rows(d, "A", ["x"], np.array([2, 3]), ["c"])
+    assert list(r.columns) == ["c"]
+    assert list(r.index.get_level_values("__time")) == [2, 3]
+    assert list(r.index.names) == ["treated_unit", "__ID", "__time"]
+
+
 def _panel(seed: int = 0, n_donor: int = 5, T: int = 14, r: int = 2):
     """Two staggered treated units + never-treated donors, factor structure."""
     rng = np.random.default_rng(seed)

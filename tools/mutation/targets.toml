@@ -7825,3 +7825,16 @@ timeout = 300.0
   find = "    return (Ua == Ub and ea == eb and np.array_equal(ma.diag, mb.diag)"
   replace = "    return (Ua == Ub and ea == eb and True"
   models = "two lifts called identical on their bounds and counts alone, so a lean evaluation that changed the certificate's multipliers would pass"
+
+# The staggered SCPI engine's row selection under pandas 3.1.
+[[target]]
+name = "staggered-engine-rows"
+module-path = "mlsynth/utils/vanillasc_helpers/staggered_engine.py"
+test-command = "python -m pytest mlsynth/tests/test_staggered_engine.py -q -x -p no:cacheprovider -k rows_keep"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "a-scalar-key-drops-its-level"
+  find = "    key = ([unit_tr], list(ids), periods)"
+  replace = "    key = (unit_tr, list(ids), periods)"
+  models = "the treated unit selected by a scalar, which pandas 3.1 drops from the index, so every block's two- and three-level names fail to set"
