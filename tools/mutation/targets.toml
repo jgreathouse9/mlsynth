@@ -4012,9 +4012,23 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-fast-core-is-not-asked-for"
-  find = """        cov.set_option("run:core", "sysmon")"""
-  replace = """        pass"""
+  find = """        return False, "sysmon""""
+  replace = """        return False, None"""
   models = "coverage left on its default tracer, the cost that put one or two of the four nightly shards past their 350-minute cap every night, so no sweep was ever complete and no inventory was ever written"
+
+  [[target.mutant]]
+  id = "a-python-tracer-nests-in-a-c-tracer"
+  find = """    if outer is not None and not outer.config.timid:
+        return False, None"""
+  replace = """    if False:
+        return False, None"""
+  models = "the pure-Python tracer started inside a C tracer, where it records no line: on 3.11 under pytest-cov the map claimed only the files a case opened, the failure of main's coverage run on 2026-10-22"
+
+  [[target.mutant]]
+  id = "the-outer-session-is-not-read"
+  find = """    timid, core = _tracer(_python(), coverage.Coverage.current())"""
+  replace = """    timid, core = _tracer(_python(), None)"""
+  models = "the tracer chosen without looking for a session already running, so the nesting rule never fires"
 
 [[target]]
 name = "lexscm-unit-effects"
