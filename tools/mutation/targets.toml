@@ -7883,3 +7883,78 @@ timeout = 120.0
   find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
+
+# One limit rule (#843): MAREX's search stops at a work limit in the cost
+# model's seconds and returns its best design with a bracket that still holds,
+# where it raised after a thousand bounds.
+[[target]]
+name = "marex-work-limit"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work or limit or charged or bracket or closed_search or no_design'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pricing-is-not-charged"
+  find = "            state[\"work\"] += charge\n            price(m, sub, O, F)"
+  replace = "            price(m, sub, O, F)"
+  models = "the sets a search prices left off its work, so a search that prices most of its sets never reaches its limit"
+
+  [[target.mutant]]
+  id = "a-bound-is-not-charged"
+  find = "        state[\"work\"] += charge\n        nb = node_bound("
+  replace = "        nb = node_bound("
+  models = "the persp+N bounds left off the work, the charge that dominates MAREX's searches, so the limit binds only on pricing"
+
+  [[target.mutant]]
+  id = "a-bound-may-pass-the-limit"
+  find = "        charge = lift_seconds(k)\n        if state[\"work\"] + charge > work_limit:"
+  replace = "        charge = lift_seconds(k)\n        if state[\"work\"] > work_limit:"
+  models = "the limit checked after the fact, so the search starts a bound that takes its work past the limit, by minutes at eighty markets"
+
+  [[target.mutant]]
+  id = "pricing-may-pass-the-limit"
+  find = "            charge = count * price_seconds\n            if state[\"work\"] + charge > work_limit:"
+  replace = "            charge = count * price_seconds\n            if state[\"work\"] > work_limit:"
+  models = "a subtree priced whole although its pricing takes the work past the limit"
+
+  [[target.mutant]]
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = min([lower] + still_open)"
+  replace = "    lower = min([lower])"
+  models = "a stopped search certifying the incumbent's own bracket, as if the nodes it never searched held nothing better"
+
+  [[target.mutant]]
+  id = "the-stopped-node-is-dropped"
+  find = "        if state[\"work\"] + charge > work_limit:\n            left.append(bound)\n            break"
+  replace = "        if state[\"work\"] + charge > work_limit:\n            break"
+  models = "the node the search was about to bound forgotten when it stops, though best first it holds the least bound of all and may hold the optimum"
+
+  [[target.mutant]]
+  id = "no-design-reads-as-infeasible"
+  find = "    if left and not best.items:"
+  replace = "    if False:"
+  models = "a search stopped before it found a design reported as a cluster with no admissible design"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search raises for want of a design instead of refusing the configuration"
+
+[[target]]
+name = "marex-work-limit-report"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work_limit'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-stopped-search-is-silent"
+  find = "                if not found.closed:"
+  replace = "                if False:"
+  models = "a design from a search stopped at its limit returned without the warning that it is not a proven optimum"
+
+  [[target.mutant]]
+  id = "the-work-is-not-reported"
+  find = "                                     bnb_work=found.work, bnb_open=found.open)"
+  replace = "                                     bnb_open=found.open)"
+  models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
