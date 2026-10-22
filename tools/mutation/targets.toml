@@ -585,9 +585,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-stopped-search-claims-optimality"
-  find = "    status = \"optimal\" if outcome.closed else \"node_limit\""
+  find = "    status = \"optimal\" if outcome.closed else \"work_limit\""
   replace = "    status = \"optimal\""
-  models = "a search stopped at its node limit reported as optimal, the defect #805 removed from the MIP path"
+  models = "a search stopped at its work limit reported as optimal, the defect #805 removed from the MIP path"
 
   [[target.mutant]]
   id = "a-stopped-search-bounds-by-its-incumbent"
@@ -7895,8 +7895,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-fit-is-not-charged"
-  find = "        self.work += fit_seconds(*B.shape)\n"
-  replace = ""
+  find = "        self.work += fit_seconds(*B.shape)"
+  replace = "        self.work += 0.0"
   models = "the fits left off the work, though they are most of a node's time, so a search that refits on every node never reaches its limit"
 
   [[target.mutant]]
@@ -7916,12 +7916,6 @@ timeout = 900.0
   find = "        if fits.work + nodes * node_seconds >= work_limit:"
   replace = "        if False:"
   models = "a search that runs until it closes whatever its limit, as the five-million-node cap did in practice"
-
-  [[target.mutant]]
-  id = "a-stopped-search-reads-as-optimal"
-  find = "    status = \"optimal\" if outcome.closed else \"work_limit\""
-  replace = "    status = \"optimal\""
-  models = "a design from a search stopped at its limit reported as a proven optimum"
 
   [[target.mutant]]
   id = "the-open-nodes-are-left-out-of-the-bound"
