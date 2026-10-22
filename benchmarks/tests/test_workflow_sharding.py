@@ -354,6 +354,32 @@ class TestTheMapIsMeasuredInSlicesAndCommittedOnce:
         assert jobs["case-deps"].get("permissions", {}).get("contents") != "write"
         assert jobs["case-deps-commit"]["permissions"]["contents"] == "write"
 
+    def test_the_shards_run_where_the_fast_tracer_exists(self, jobs):
+        """Coverage's ``sysmon`` core needs ``sys.monitoring``, which is Python
+        3.12. Under the pure-Python tracer on 3.11 the cases measured on 10-21
+        took 1,149 minutes against 240 untraced, and one or two of the four
+        shards hit the 350-minute cap every night, so the inventory -- which
+        needs every entry measured in one run -- was never written."""
+        step = next(s for s in jobs["case-deps"]["steps"]
+                    if s.get("uses", "").startswith("actions/setup-python"))
+        major, minor = (int(x) for x in str(step["with"]["python-version"]).split(".")[:2])
+        assert (major, minor) >= (3, 12)
+
+    def test_the_combine_job_commits_the_inventory_beside_the_map(self, jobs):
+        """``--combine`` writes ``case_deps_swept.json`` when the sweep was
+        complete, and the step that commits used to stage the map alone. An
+        inventory that never reaches ``main`` leaves every unclaimed file a
+        hole, which is how 18 of main's last 54 pull requests ran all 243
+        cases."""
+        staged = set()
+        for step in jobs["case-deps-commit"]["steps"]:
+            for line in step.get("run", "").splitlines():
+                words = line.split()
+                if words[:2] == ["git", "add"]:
+                    staged.update(words[2:])
+        assert {"benchmarks/case_deps.json",
+                "benchmarks/case_deps_swept.json"} <= staged, staged
+
 
 class TestTheAddedSubsetReachesTheSelection:
     """A file the diff creates cannot have been executed by a pre-existing case,
