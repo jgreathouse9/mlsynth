@@ -219,8 +219,8 @@ class OneWayLeaves:
     the result stay open; at the end they are fitted in order of their bound
     until the next bound reaches the incumbent, as the enumeration prices. A set
     whose donor rules leave it no control is not a design: its bound is
-    infinite, so it is never fitted or open. The interface is
-    :class:`~.branch.TwoWayLeaves`'.
+    infinite, so it is never fitted or open. The interface is that of
+    :class:`~.branch.TwoWayLeaves`.
 
     ``kept`` counts the sets left open, the enumeration's survivors.
     """

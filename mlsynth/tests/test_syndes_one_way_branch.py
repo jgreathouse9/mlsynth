@@ -322,6 +322,27 @@ def test_a_node_whose_two_way_bound_clears_the_incumbent_is_discarded():
     assert out.value == pytest.approx(_brute_force(Y, 4, lam)[1], rel=1e-9)
 
 
+#: Bound the larger nodes and price the smaller: on the panel below the
+#: subtrees priced hold 21 to 70 sets, and a block of fifty fills from two.
+SMALL_SUBTREES = dict(price_seconds=1e-4, bound_seconds=lambda n: 1e-3,
+                      lift_seconds=lambda n: np.inf)
+
+
+@pytest.mark.parametrize("costs,chunk", [({}, 7), (SMALL_SUBTREES, 50)],
+                         ids=["the-root-streams", "small-subtrees-buffer"])
+def test_the_block_size_changes_nothing(monkeypatch, costs, chunk):
+    """A subtree larger than a block streams in blocks, and small subtrees are
+    buffered until a block fills; neither changes the design or its bound."""
+    from mlsynth.utils.syndes_helpers import branch
+    Y = _panel(N=10, seed=35)
+    ref, lam = _search(Y, 4, **costs)
+    monkeypatch.setattr(branch, "CHUNK", chunk)
+    got, _ = _search(Y, 4, **costs)
+    assert got.certified and got.priced == ref.priced
+    assert got.value == pytest.approx(ref.value, rel=1e-12)
+    assert got.value == pytest.approx(_brute_force(Y, 4, lam)[1], rel=1e-9)
+
+
 @pytest.mark.parametrize("K", [1, 9])
 def test_the_extreme_sizes(K):
     Y = _panel(N=10, seed=34)
