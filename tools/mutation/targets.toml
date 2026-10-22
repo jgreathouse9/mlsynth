@@ -7151,6 +7151,35 @@ timeout = 900.0
   replace = "    if True:"
   models = "at K = N / 2 a seed that does not treat the canonical unit is dropped instead of entering as its complement"
 
+# #857: the lift runs BLAS on one thread. Each mutant leaves the dual on the
+# caller's threads, or leaves the caller pinned after the lift.
+[[target]]
+name = "syndes-lift-threads"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k LiftThreads"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-lift-runs-on-the-callers-threads"
+  find = '    with _blas().limit(limits=1, user_api="blas"):'
+  replace = '    with _blas().limit(limits=None, user_api="blas"):'
+  models = "the lift left on the caller's BLAS threads, the defect #857 fixes: on four threads a root lift took 16 s at 60 units against 0.8 s on one"
+
+  [[target.mutant]]
+  id = "the-limit-is-put-on-openmp"
+  find = '    with _blas().limit(limits=1, user_api="blas"):'
+  replace = '    with _blas().limit(limits=1, user_api="openmp"):'
+  models = "the limit put on the OpenMP pools, which the lift's eigendecompositions do not use, so BLAS keeps every thread"
+
+  [[target.mutant]]
+  id = "the-caller-stays-pinned"
+  find = """    with _blas().limit(limits=1, user_api="blas"):
+        return _lift(c, b, A, s, target=target)"""
+  replace = """    _blas().limit(limits=1, user_api="blas")
+    if True:
+        return _lift(c, b, A, s, target=target)"""
+  models = "the limit set and never lifted, so after the first lift every BLAS call in the process, pricing's large products included, runs on one thread"
+
 [[target]]
 name = "syndes-mirror-branch"
 module-path = "mlsynth/utils/syndes_helpers/branch.py"

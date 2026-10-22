@@ -400,6 +400,89 @@ class TestLift:
         assert U >= _float_max(engine.R, 10, 3, I, O, F) * (1 - 1e-12)
 
 
+def _blas_threads():
+    """The thread count of every BLAS pool the process has loaded."""
+    from threadpoolctl import threadpool_info
+    return [p["num_threads"] for p in threadpool_info() if p["user_api"] == "blas"]
+
+
+@pytest.fixture
+def two_threads():
+    """The caller runs BLAS on two threads, so a lift that forgot to pin
+    itself would show it even where the environment pins BLAS to one."""
+    from threadpoolctl import threadpool_limits
+    with threadpool_limits(2, user_api="blas"):
+        threads = _blas_threads()
+        if max(threads) < 2:  # pragma: no cover - CI and development machines run several threads; this guards a single-core runner
+            pytest.skip("BLAS cannot run two threads here")
+        yield threads
+
+
+def _steep_node():
+    _, engine = _engine(_noise(N=12, seed=2))
+    I, O, F = [], [5], [u for u in range(12) if u != 5]
+    return node_parts(engine.R, I, O, F), 2 * 4 - len(F)
+
+
+class TestLiftThreads:
+    """#857: the lift's matrices have at most ``N + 1`` rows, where a BLAS
+    thread pool costs more to coordinate than it saves. On four threads a
+    root lift took 16 s at 60 units against 0.8 s on one, on a quiet machine.
+    The lift runs on one thread and gives the caller back its own setting."""
+
+    def test_the_dual_is_evaluated_on_one_thread(self, two_threads, monkeypatch):
+        seen = []
+        theta = branch._theta
+
+        def spy(*args, **kwargs):
+            if len(seen) < 2:
+                seen.append(_blas_threads())
+            return theta(*args, **kwargs)
+
+        monkeypatch.setattr(branch, "_theta", spy)
+        parts, s = _steep_node()
+        _, _, evaluations = lift(*parts, s)
+        assert evaluations > 0 and seen
+        assert all(set(threads) == {1} for threads in seen)
+
+    def test_the_callers_setting_is_restored(self, two_threads):
+        parts, s = _steep_node()
+        lift(*parts, s)
+        assert _blas_threads() == two_threads
+
+    def test_a_lift_that_raises_still_restores_it(self, two_threads, monkeypatch):
+        def broken(*args, **kwargs):
+            raise FloatingPointError("the dual failed")
+
+        monkeypatch.setattr(branch, "_theta", broken)
+        parts, s = _steep_node()
+        with pytest.raises(FloatingPointError, match="the dual failed"):
+            lift(*parts, s)
+        assert _blas_threads() == two_threads
+
+    def test_pinning_changes_neither_the_bound_nor_the_work(self):
+        """The lift is deterministic on one thread; run under the caller's own
+        one-thread limit, it takes the same evaluations to the same bound."""
+        from threadpoolctl import threadpool_limits
+        parts, s = _steep_node()
+        U, m, evaluations = lift(*parts, s)
+        with threadpool_limits(1):
+            U1, m1, evaluations1 = lift(*parts, s)
+        assert (U, evaluations) == (U1, evaluations1)
+        np.testing.assert_array_equal(m.diag, m1.diag)
+
+    @given(panels, st.data())
+    @settings(max_examples=8, deadline=None,
+              suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
+    def test_any_node_leaves_the_callers_threads_as_it_found_them(self, two_threads, Y, data):
+        _, engine = _engine(Y)
+        N = engine.N
+        K = data.draw(st.integers(1, N - 1))
+        I, O, F = _node(N, K, data.draw(st.integers(0, 10 ** 6)))
+        lift(*node_parts(engine.R, I, O, F), 2 * (K - len(I)) - len(F))
+        assert _blas_threads() == two_threads
+
+
 # ----------------------------------------------------------------------
 # the cost model
 # ----------------------------------------------------------------------
