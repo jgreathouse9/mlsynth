@@ -373,6 +373,9 @@ class TestTheWeights:
     @pytest.mark.parametrize("method", [m for m in M.METHODS if m.endswith("w>=0")])
     def test_every_nonnegative_arm_is_the_nonnegative_solve(self, method):
         y, Y0 = _panel(6)
+        y = Y0[:, :3] @ np.array([-2.0, 2.0, 1.0])               # outside the hull: the readings differ
+        signed = M.weight_fn(method.replace("w>=0", "signed"), y, Y0, 30, seed=3)(np.arange(30))
+        assert signed.min() < -1e-3
         w = M.weight_fn(method, y, Y0, 30, seed=3)(np.arange(30))
         X = Y0[:30] / M.unit_scale(Y0[:30])
         P, _ = M.penalty(method, X, seed=3)
