@@ -7764,3 +7764,28 @@ timeout = 120.0
   find = "    key = ([unit_tr], list(ids), periods)"
   replace = "    key = (unit_tr, list(ids), periods)"
   models = "the treated unit selected by a scalar, which pandas 3.1 drops from the index, so every block's two- and three-level names fail to set"
+
+# The case dependency map never claims the untracked reference cache.
+[[target]]
+name = "case-deps-untracked"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider -k 'no_diff_can_reach'"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-map-claims-the-reference-cache"
+  find = "                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)"
+  replace = "                   and not p.startswith(case_deps.NEVER_REACHABLE)"
+  models = "the recorder keeping what a case reads from the gitignored reference cache, so the daily refresh commits paths that exist only where the references were fetched and the shipped-manifest test fails everywhere else"
+
+[[target]]
+name = "case-deps-inventory-untracked"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider -k 'mirrors_the_structural_filters'"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-inventory-walks-the-reference-cache"
+  find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
+  replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
+  models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
