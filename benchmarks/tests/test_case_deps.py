@@ -409,6 +409,7 @@ class TestTheMapClaimsWhatADiffCanName:
         assert self._keep([path]) == []
 
     def test_the_tracer_measures_both_python_trees(self):
+        pytest.importorskip("coverage")           # the build job installs it
         from tools.benchmark_deps import ROOT, measurement
 
         cov = measurement()
@@ -423,6 +424,7 @@ class TestTheMapClaimsWhatADiffCanName:
         there is no ``sys.monitoring``, and the pure-Python tracer stays."""
         import sys
 
+        pytest.importorskip("coverage")
         from tools.benchmark_deps import measurement
 
         config = measurement().config
@@ -446,6 +448,7 @@ class TestTheMapMeasuresWhatTheRunnerRuns:
         import sys
         import textwrap
 
+        pytest.importorskip("coverage")           # the build job installs it
         from tools.benchmark_deps import ROOT
 
         panel = sorted((ROOT / "basedata").glob("*.csv"))[0]
