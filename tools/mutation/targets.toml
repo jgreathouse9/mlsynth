@@ -7789,3 +7789,53 @@ timeout = 120.0
   find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
+
+# MAREX's node bound by a regularised dual (#833): the study's dual and the
+# smooth bound it maximises, certified by the library's certificate.
+[[target]]
+name = "marex-dual"
+module-path = "benchmarks/studies/marex_dual/dual.py"
+test-command = "python -m pytest benchmarks/studies/marex_dual/test_dual.py -q -p no:cacheprovider -x"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-eigenvalue-term-taken-once"
+  find = "        exact += const + 2.0 * neg[0]"
+  replace = "        exact += const + neg[0]"
+  models = "the certificate's 2 min(0, lambda_min) per side read as one, forgetting tr M <= 2, so the float bound sits above the library's exact one"
+
+  [[target.mutant]]
+  id = "the-smoothing-costs-nothing"
+  find = "        smooth += const - (neg @ neg) / (2.0 * a) - 2.0 * a"
+  replace = "        smooth += const - (neg @ neg) / (2.0 * a)"
+  models = "the smooth bound without its 2a, which is then above the exact bound and no bound at all"
+
+  [[target.mutant]]
+  id = "the-simplex-bisects-the-wrong-way"
+  find = "            lo = nu\n        else:\n            hi = nu"
+  replace = "            hi = nu\n        else:\n            lo = nu"
+  models = "the capped simplex's multiplier moved away from its root, the defect the property test caught while the dual was written"
+
+  [[target.mutant]]
+  id = "the-coupling-gradient-flipped"
+  find = "        grad[b[\"beta\"][0]:b[\"beta\"][1]] = x - X.sum(axis=1)"
+  replace = "        grad[b[\"beta\"][0]:b[\"beta\"][1]] = X.sum(axis=1) - x"
+  models = "the gradient of X 1 = x's multipliers with the wrong sign, so L-BFGS-B climbs away from the bound on them"
+
+  [[target.mutant]]
+  id = "the-start-is-the-stuck-point"
+  find = "            lam[:, 0] = lam[:, 2] = lam0"
+  replace = "            lam[:, 0] = lam[:, 2] = 0.0"
+  models = "the perspective factors started at zero, where their gradient vanishes and they never move"
+
+  [[target.mutant]]
+  id = "the-best-multipliers-are-not-kept"
+  find = "            if ex > best[\"exact\"]:"
+  replace = "            if False:"
+  models = "the certificate read at the start point, not at the best iterate"
+
+  [[target.mutant]]
+  id = "the-target-is-ignored"
+  find = "            if goal is not None and best[\"exact\"] >= goal:\n                raise _Reached"
+  replace = "            if False:\n                raise _Reached"
+  models = "a node that already prunes solved to the end, the early stop the issue's procedure relies on"
