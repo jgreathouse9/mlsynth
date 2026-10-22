@@ -542,50 +542,8 @@ def test_the_pool_stops_when_the_region_is_exhausted():
 
 
 # --------------------------------------------------------------------------- #
-# above the candidate limit
+# above the candidate limit: test_syndes_one_way_branch.py
 # --------------------------------------------------------------------------- #
-
-
-def test_above_the_limit_the_swap_search_warns_and_reports_the_rayleigh_bound():
-    Y = _panel(N=10, seed=30)
-    lam = estimate_lambda(Y)
-    _, optimum = _brute_force(Y, 4, lam)
-    with pytest.warns(SYNDESSolveWarning, match="candidate limit"):
-        d = solve_one_way_exact(Y, 4, candidate_limit=10)
-    out = d.solve_outcome
-    assert out.status == "candidate_limit" and out.stopped_at_limit
-    assert d.raw_results["certified"] is False
-    assert d.raw_results["n_designs"] == comb(10, 4)
-    rayleigh = _engine(Y, lam).global_lower_bound(4)
-    assert out.dual_bound == pytest.approx(rayleigh, rel=1e-12)
-    assert out.dual_bound <= optimum <= d.objective_value * (1 + 1e-12)
-    assert d.objective_value == pytest.approx(_f(Y, _treated(d), lam), rel=1e-9)
-    assert out.gap == pytest.approx(
-        (d.objective_value - out.dual_bound) / d.objective_value, rel=1e-12)
-
-
-def test_above_the_limit_donor_exclusions_still_apply():
-    Y = _panel(N=10, seed=31)
-    lam = estimate_lambda(Y)
-    pairs = [(i, j) for i in range(10) for j in range(10) if i != j and (i + j) % 4 == 0]
-    with pytest.warns(SYNDESSolveWarning):
-        d = solve_one_way_exact(Y, 4, candidate_limit=10,
-                                restrictions=DesignRestrictions(donor_exclusion=pairs))
-    S = _treated(d)
-    assert d.objective_value == pytest.approx(_f(Y, S, lam, _excluded(pairs)), rel=1e-9)
-
-
-def test_above_the_limit_treated_side_restrictions_are_refused():
-    with pytest.raises(MlsynthConfigError, match="enumeration limit"):
-        solve_one_way_exact(_panel(N=10), 4, candidate_limit=10,
-                            restrictions=DesignRestrictions(forbidden=[0]))
-
-
-def test_above_the_limit_no_admissible_candidate_is_reported():
-    pairs = [(i, j) for i in range(6) for j in range(6) if i != j]
-    with pytest.raises(MlsynthEstimationError, match="swap search"):
-        solve_one_way_exact(_panel(N=6), 2, candidate_limit=1,
-                            restrictions=DesignRestrictions(donor_exclusion=pairs))
 
 
 def test_a_search_within_the_limit_is_silent():

@@ -87,6 +87,12 @@ A cutoff. Searching every size (``K=None``), a design of one size bounds the
 others: a node whose bound clears the best design of any size holds nothing
 better. Given that design's value as ``cutoff``, the search discards on it, and
 returns no design when nothing at its size is better.
+
+Leaves. How the sets a node holds are priced is the search's one part that
+depends on the design (:class:`TwoWayLeaves`). One-way's optimum at any set is at
+least two-way's, so the same tree, with its bounds and certificates, searches
+one-way's designs when its leaves are priced as one-way's
+(:class:`~.one_way_exact.OneWayLeaves`, #820).
 """
 from __future__ import annotations
 
@@ -625,6 +631,53 @@ class LiftCost:
 # ----------------------------------------------------------------------
 
 
+class TwoWayLeaves:
+    """The two-way design's pricing of the sets the search reaches.
+
+    A block of sets is priced by the closed form of :mod:`~.gram`, exact where
+    its minimiser keeps the sign conditions; a set whose closed form breaks one
+    stays open with its closed form as its bound, and the open sets under the
+    incumbent are solved at the end (:func:`~.exact._resolve_open`), uncharged.
+
+    The search asks its leaves for six things: ``seconds_per_set``, the
+    modelled cost of pricing one set; ``seeds(block)``, the designs a block of
+    the swap search's sets stands for; ``value(S)``, a seed's value; ``price(sets,
+    best)``, a block's best exact value and set, the sets left open under the
+    incumbent with their bounds, and the seconds spent past ``seconds_per_set``;
+    ``resolve(sets, bounds, value, S, budget)``, the incumbent after the open
+    sets are priced, how many were, the seconds spent, and the least bound left
+    open; and ``settle(S)``, the design's value, weights and duality gap.
+    """
+
+    def __init__(self, problem: TwoWayProblem, engine: BoundEngine):
+        self.problem, self.engine = problem, engine
+        self.seconds_per_set = PRICE_SECONDS_PER_UNIT * problem.N
+
+    def seeds(self, block: np.ndarray) -> np.ndarray:
+        # at K = N / 2 a seed's complement is a design of the same value
+        return with_complements(block, self.problem.N)
+
+    def value(self, S: np.ndarray) -> float:
+        return _settle(self.problem, self.engine, S)[0]
+
+    def price(self, sets: np.ndarray, best: float):
+        out = self.engine.bound(signs_from_subsets(self.problem.N, sets))
+        value, S = np.inf, None
+        if out.exact.any():
+            j = int(np.argmin(np.where(out.exact, out.lower, np.inf)))
+            value, S = float(out.lower[j]), sets[j]
+        open_ = (~out.exact) & (out.lower < min(best, value))
+        return value, S, sets[open_], out.lower[open_], 0.0
+
+    def resolve(self, sets: np.ndarray, bounds: np.ndarray, value: float, S,
+                budget: float):
+        value, S, solved = _resolve_open(self.problem, sets, bounds, value, S)
+        return value, S, solved, 0.0, np.inf
+
+    def settle(self, S: np.ndarray):
+        return _settle(self.problem, self.engine, S)
+
+
 @dataclass(frozen=True)
 class BranchOutcome:
     """What the branch and bound returns for one size.
@@ -672,6 +725,7 @@ def branch_and_bound(
     price_seconds: Optional[float] = None,
     bound_seconds: Optional[Callable[[int], float]] = None,
     lift_seconds: Optional[Callable[[int], float]] = None,
+    leaves=None,
 ) -> BranchOutcome:
     """The two-way design's optimum at size ``K`` by a certified branch and bound.
 
@@ -679,7 +733,9 @@ def branch_and_bound(
     better one is sought. ``price_seconds`` (per set), ``bound_seconds`` and
     ``lift_seconds`` (per trust-region bound and per lift, as functions of the
     free units) replace the cost model; they change where the search spends
-    time, never its answer.
+    time, never its answer. ``leaves`` prices the sets the search reaches,
+    :class:`TwoWayLeaves` by default; a design whose value at every set is at
+    least two-way's is searched by passing its own.
 
     Raises
     ------
@@ -688,10 +744,11 @@ def branch_and_bound(
         one is found.
     """
     N, R, alpha = problem.N, engine.R, engine.alpha
+    leaves = TwoWayLeaves(problem, engine) if leaves is None else leaves
     xr = ExactR(engine)
     four_alpha = Fraction(4.0 * alpha)
     keep = Fraction(1) - Fraction(PRUNE_RTOL)
-    modelled = PRICE_SECONDS_PER_UNIT * N
+    modelled = leaves.seconds_per_set
     price = modelled if price_seconds is None else float(price_seconds)
     learned = LiftCost()
     # a bound's expected cost: the bound, and its certificate when it prunes
@@ -727,15 +784,13 @@ def branch_and_bound(
               "work": 0.0}
 
     def price_block(sets: np.ndarray) -> None:
-        out = engine.bound(signs_from_subsets(N, sets))
+        value, S, open_sets, open_bounds, seconds = leaves.price(sets, best[0])
         counts["priced"] += len(sets)
-        if out.exact.any():
-            j = int(np.argmin(np.where(out.exact, out.lower, np.inf)))
-            if out.lower[j] < best[0]:
-                best[0], best[1] = float(out.lower[j]), sets[j].copy()
-        open_ = (~out.exact) & (out.lower < best[0])
-        if open_.any():
-            pending.append((sets[open_], out.lower[open_]))
+        counts["work"] += seconds
+        if value < best[0]:
+            best[0], best[1] = float(value), S.copy()
+        if len(open_sets):
+            pending.append((open_sets, open_bounds))
 
     def flush() -> None:
         """Price the buffered subtrees in one call: a subtree a bound did not
@@ -779,10 +834,9 @@ def branch_and_bound(
     if restarts:
         seeds.append(maxcut_candidates(engine, K, n_restarts=restarts, seed=seed))
     for block in seeds:
-        # at K = N / 2 a seed's complement is a design of the same value
-        for S in with_complements(block, N):
+        for S in leaves.seeds(block):
             if len(S) == K and filt.accepts(tuple(int(i) for i in S)):
-                value = _settle(problem, engine, S)[0]
+                value = leaves.value(S)
                 if value < best[0]:
                     best[0], best[1] = value, S.copy()
 
@@ -908,8 +962,13 @@ def branch_and_bound(
     if pending:
         candidates = np.concatenate([p for p, _ in pending])
         bounds = np.concatenate([q for _, q in pending])
-        best[0], best[1], solved = _resolve_open(problem, candidates, bounds,
-                                                 best[0], best[1])
+        best[0], best[1], solved, seconds, unresolved = leaves.resolve(
+            candidates, bounds, best[0], best[1], work_limit - counts["work"])
+        counts["work"] += seconds
+        if unresolved < np.inf:
+            # the limit left sets open, each with its bound
+            closed = False
+            open_lower = min(open_lower, unresolved)
     if best[1] is None and cutoff is not None and root.size:
         # nothing at this size beats the cutoff: every discarded node had a
         # bound, and every priced set a value, at or above it
@@ -929,7 +988,7 @@ def branch_and_bound(
                 "found. Raise work_limit.")
         raise _no_feasible_design()
 
-    value, a, b, gap = _settle(problem, engine, best[1])
+    value, a, b, gap = leaves.settle(best[1])
     lower = min(floor[0], open_lower, value - gap)
     if rayleigh is not None:
         lower = max(lower, rayleigh)

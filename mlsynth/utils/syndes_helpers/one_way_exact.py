@@ -48,13 +48,18 @@ at every scale from ``1e-10`` to ``1e10``, so a change of units would buy
 nothing. Every fit is ``solve_simplex_qp``, its convergence read and its
 Frank-Wolfe gap recorded.
 
-Above ``candidate_limit`` admissible sets, enumeration stops being affordable.
-The search then prices the two-way backend's swap-search candidates
-(:func:`~.gram.maxcut_candidates`) as one-way designs and reports the best
-against the Rayleigh bound over every size-``K`` set, which bounds one-way as
-well (``one-way >= two-way >= Rayleigh``), with ``certified=False`` and a
-:class:`~.optimization.SYNDESSolveWarning`. Treated-side restrictions are refused
-there, since the candidates do not respect them; donor exclusions apply.
+Above ``candidate_limit`` admissible sets, enumeration stops being affordable,
+and the sets are searched by the two-way backend's certified branch and bound
+(:mod:`~.branch`, #820). One-way's value at any set is at least two-way's, so
+a node whose two-way bound clears the incumbent holds no better one-way design.
+The tree is the two-way search's; only its leaves differ
+(:class:`OneWayLeaves`): the sets a node holds are bounded by the ridge form and
+fitted as the enumeration fits them. Restrictions apply as they do in the
+two-way search, and the swap search's local optima only seed the incumbent. The
+search charges each set bounded, each fit, and the tree's own bounds and lifts
+to ``work_limit``, in modelled seconds; one that reaches it returns its best
+design with the least bound over what it left open, ``certified=False`` and a
+:class:`~.optimization.SYNDESSolveWarning`.
 """
 
 from __future__ import annotations
@@ -72,12 +77,13 @@ from ..fast_scm_helpers.structure import IndexSet
 from ..solvers.active_set import solve_simplex_qp
 from .exact import (
     CANDIDATE_LIMIT,
+    WORK_LIMIT,
     SubsetFilter,
     _NoFeasibleDesign,
     _search_space,
     _stream_from_space,
 )
-from .gram import BoundEngine, TwoWayProblem, maxcut_candidates
+from .gram import BoundEngine, TwoWayProblem
 from .optimization import SYNDESSolveWarning, estimate_lambda
 from .structures import SYNDESDesign, SYNDESSolveOutcome
 
@@ -91,6 +97,23 @@ CHUNK = 20_000
 #: panel are degenerate and took 1 to 10 ms each at 20 to 100 units, so this is
 #: about 20 s at 40.
 PRICE_ALL_LIMIT = 10_000
+
+
+def ridge_seconds(K: int) -> float:
+    """Seconds to bound one set of ``K`` treated by :func:`ridge_bound` in a
+    batch, a ``(K + 1)``-row solve: 0.4 µs at ``K = 2``, 3.0 µs at 10, 11 µs at
+    20 and 40 µs at 40, the same from 20 to 100 units and 12 to 120 periods, on
+    one thread (#820)."""
+    return 3e-7 + 2.55e-8 * K ** 2
+
+
+def fit_seconds(P: int) -> float:
+    """Seconds for one fit on a pool of ``P`` controls: 0.8 ms at 18, 2.2 to 3.0
+    ms at 38, 4.6 to 8.2 ms at 58 and 7.8 to 8.8 ms at 98, from 12 to 120
+    periods, on one thread (#820). The active set's iterations vary with the
+    panel, a pool of 60 took 0.8 ms at forty treated, so this is a scale, not a
+    prediction."""
+    return 2e-4 + 1.2e-6 * P ** 2
 
 
 class OneWayFits:
@@ -188,6 +211,81 @@ def ridge_bound(engine: BoundEngine, sets: np.ndarray) -> np.ndarray:
     return np.einsum("bi,bi->b", d, x)
 
 
+class OneWayLeaves:
+    """One-way's pricing of the sets the branch and bound reaches.
+
+    A block is bounded by :func:`ridge_bound`, its best-bounded set is fitted
+    when that bound is under the incumbent, and the sets whose bound is under
+    the result stay open; at the end they are fitted in order of their bound
+    until the next bound reaches the incumbent, as the enumeration prices. A set
+    whose donor rules leave it no control is not a design: its bound is
+    infinite, so it is never fitted or open. The interface is
+    :class:`~.branch.TwoWayLeaves`'.
+
+    ``kept`` counts the sets left open, the enumeration's survivors.
+    """
+
+    def __init__(self, fits: OneWayFits, engine: BoundEngine, K: int):
+        self.fits, self.engine, self.K = fits, engine, int(K)
+        self.seconds_per_set = ridge_seconds(self.K)
+        self.seconds_per_fit = fit_seconds(fits.N - self.K)
+        self.kept = 0
+        self._banned = None
+        if fits.excluded:
+            # row i: the units a design treating i cannot use as controls
+            self._banned = np.eye(fits.N, dtype=bool)
+            for i, js in fits.excluded.items():
+                self._banned[i, sorted(js)] = True
+
+    def bounds(self, sets: np.ndarray) -> np.ndarray:
+        """The ridge bound of each set, infinite where no control is left."""
+        bounds = ridge_bound(self.engine, sets)
+        if self._banned is not None:
+            bounds[self._banned[sets].any(axis=1).all(axis=1)] = np.inf
+        return bounds
+
+    def seeds(self, block: np.ndarray) -> np.ndarray:
+        return block
+
+    def value(self, S: np.ndarray) -> float:
+        return self.fits.price(S)[0]
+
+    def price(self, sets: np.ndarray, best: float):
+        bounds = self.bounds(sets)
+        j = int(np.argmin(bounds))
+        value, S, seconds = np.inf, None, 0.0
+        alive = np.ones(len(sets), dtype=bool)
+        if bounds[j] < best:
+            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit
+            alive[j] = False
+        alive &= bounds < min(best, value)
+        self.kept += int(alive.sum())
+        return value, S, sets[alive], bounds[alive], seconds
+
+    def resolve(self, sets: np.ndarray, bounds: np.ndarray, value: float, S,
+                budget: float):
+        """Fit the open sets in bound order up to the incumbent. Past ``budget``
+        seconds, once there is a design, stop and report the least bound left."""
+        n_fit, seconds = 0, 0.0
+        for k in np.argsort(bounds, kind="stable"):
+            if bounds[k] >= value:
+                break
+            if S is not None and seconds + self.seconds_per_fit > budget:
+                return value, S, n_fit, seconds, float(bounds[k])
+            fitted = self.value(sets[k])
+            n_fit += 1
+            seconds += self.seconds_per_fit
+            if fitted < value:
+                value, S = fitted, sets[k]
+        return value, S, n_fit, seconds, np.inf
+
+    def settle(self, S: np.ndarray):
+        value, weights = self.fits.price(S)
+        treated = np.zeros(self.fits.N)
+        treated[np.asarray(S, dtype=np.int64)] = 1.0 / self.K
+        return value, treated, weights, 0.0
+
+
 @dataclasses.dataclass
 class _Outcome:
     treated: Tuple[int, ...]
@@ -198,18 +296,23 @@ class _Outcome:
     n_designs: int
     n_survivors: int
     n_priced: int
+    search: str = "enumeration"
+    n_nodes: int = 0
+    n_lifts: int = 0
+    work: float = 0.0
 
 
-def _search(fits: OneWayFits, engine: BoundEngine, K: int, filt: SubsetFilter,
-            candidate_limit: int, seed: int) -> _Outcome:
-    """Enumerate and price in bound order, or fall back above the limit."""
+def _search(fits: OneWayFits, problem: TwoWayProblem, engine: BoundEngine, K: int,
+            filt: SubsetFilter, candidate_limit: int, seed: int,
+            work_limit: float = WORK_LIMIT) -> _Outcome:
+    """Enumerate and price in bound order, or branch and bound above the limit."""
     N = fits.N
     space = _search_space(N, K, filt)
     if not engine.reliable and space.size > min(candidate_limit, PRICE_ALL_LIMIT):
         raise _too_singular(engine, space.size, min(candidate_limit, PRICE_ALL_LIMIT))
     if space.size > candidate_limit:
-        return _search_by_candidates(fits, engine, K, filt, seed=seed,
-                                     n_designs=space.size)
+        return _search_by_branching(fits, problem, engine, K, filt, seed=seed,
+                                    n_designs=space.size, work_limit=work_limit)
 
     best, best_set = math.inf, None
     kept: List[np.ndarray] = []
@@ -277,31 +380,22 @@ def _too_singular(engine: BoundEngine, n_sets: int,
         "others. Raise lam, add pre-treatment periods, or use backend='mip'.")
 
 
-def _search_by_candidates(fits: OneWayFits, engine: BoundEngine, K: int,
-                          filt: SubsetFilter, *, seed: int,
-                          n_designs: int) -> _Outcome:
-    """Swap-search candidates priced as one-way designs, for instances too large
-    to enumerate."""
-    if not filt.is_empty:
-        raise MlsynthConfigError(
-            f"the exact one-way backend cannot apply treated-side restrictions to "
-            f"an instance with {n_designs} candidate designs, which is past the "
-            "enumeration limit. Reduce K, drop the restrictions, raise "
-            "candidate_limit, or use backend='mip'.")
-    candidates = maxcut_candidates(engine, K, seed=seed)
-    values = [fits.price(S)[0] for S in candidates]
-    j = int(np.argmin(values))
-    if math.isinf(values[j]):
-        raise MlsynthEstimationError(
-            "SYNDES one-way exact backend: the donor exclusions leave every "
-            "candidate of the swap search without a control. Raise "
-            "candidate_limit or use backend='mip'.")
-    S = tuple(int(i) for i in candidates[j])
-    return _Outcome(treated=S, value=float(values[j]),
-                    control_weights=fits.price(S)[1],
-                    lower_bound=engine.global_lower_bound(K), certified=False,
-                    n_designs=n_designs, n_survivors=0,
-                    n_priced=int(candidates.shape[0]))
+def _search_by_branching(fits: OneWayFits, problem: TwoWayProblem,
+                         engine: BoundEngine, K: int, filt: SubsetFilter, *,
+                         seed: int, n_designs: int, work_limit: float) -> _Outcome:
+    """The two-way branch and bound with one-way's leaves, for instances too
+    large to enumerate."""
+    from .branch import branch_and_bound
+
+    leaves = OneWayLeaves(fits, engine, K)
+    out = branch_and_bound(problem, engine, K, filt, seed=seed,
+                           work_limit=work_limit, leaves=leaves)
+    return _Outcome(treated=tuple(int(i) for i in out.treated), value=out.value,
+                    control_weights=out.control_weights, lower_bound=out.lower,
+                    certified=out.certified, n_designs=n_designs,
+                    n_survivors=leaves.kept, n_priced=fits.n_fits,
+                    search="branch_and_bound", n_nodes=out.nodes, n_lifts=out.lifts,
+                    work=out.work)
 
 
 def solve_one_way_exact(
@@ -316,6 +410,7 @@ def solve_one_way_exact(
     forbidden_sets: Optional[Sequence[np.ndarray]] = None,
     candidate_limit: int = CANDIDATE_LIMIT,
     seed: int = 0,
+    work_limit: float = WORK_LIMIT,
 ) -> SYNDESDesign:
     """Solve the one-way design by enumerating treated sets under a ridge bound.
 
@@ -344,20 +439,25 @@ def solve_one_way_exact(
     forbidden_sets : sequence of arrays, optional
         Treated sets to exclude, which is how the pool asks for the next design.
     candidate_limit : int, optional
-        Above this many admissible treated sets the search prices the swap
-        search's candidates instead, uncertified.
+        Above this many admissible treated sets the search branches and bounds
+        instead of enumerating.
     seed : int, optional
-        Seed for the swap search's restarts.
+        Seed for the swap search's restarts, which seed the branch and bound's
+        incumbent.
+    work_limit : float, optional
+        Work the branch and bound may do, in modelled seconds, before it stops
+        and returns its best design uncertified.
 
     Raises
     ------
     MlsynthDataError
         If ``Y`` is not a two-dimensional array.
     MlsynthConfigError
-        For an out-of-range ``K``, a negative ``lam``, malformed costs, or
-        treated-side restrictions on an instance past ``candidate_limit``.
+        For an out-of-range ``K``, a negative ``lam``, malformed costs, or a
+        ``work_limit`` that is not a positive finite number.
     MlsynthEstimationError
-        When no admissible design exists, a fit does not converge, or the
+        When no admissible design exists, a fit does not converge, the branch
+        and bound reaches its work limit before it finds a design, or the
         problem on contrasts is singular to working precision and has more
         admissible sets than :data:`PRICE_ALL_LIMIT`.
     """
@@ -372,6 +472,10 @@ def solve_one_way_exact(
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
     if not lam_value >= 0.0:
         raise MlsynthConfigError(f"lam must be nonnegative; got {lam!r}.")
+    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
+            or not np.isfinite(work_limit) or work_limit <= 0):
+        raise MlsynthConfigError(
+            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
 
     excluded: Dict[int, set] = {}
     treated_rules = restrictions
@@ -382,22 +486,23 @@ def solve_one_way_exact(
     filt = SubsetFilter.build(treated_rules, costs, budget, forbidden_sets, N=N)
 
     t0 = perf_counter()
-    engine = BoundEngine.from_problem(TwoWayProblem.from_panel(Y, lam=lam_value))
+    problem = TwoWayProblem.from_panel(Y, lam=lam_value)
+    engine = BoundEngine.from_problem(problem)
     fits = OneWayFits(Y, lam_value, {i: frozenset(js) for i, js in excluded.items()})
-    outcome = _search(fits, engine, K, filt, int(candidate_limit), int(seed))
+    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed),
+                      float(work_limit))
     seconds = perf_counter() - t0
 
     lower = outcome.lower_bound
     gap = ((outcome.value - lower) / outcome.value
            if lower is not None and outcome.value > 0.0 else 0.0)
-    status = "optimal" if outcome.certified else "candidate_limit"
+    status = "optimal" if outcome.certified else "work_limit"
     if not outcome.certified:
         warnings.warn(
-            f"SYNDES one-way exact backend: {outcome.n_designs} admissible "
-            f"treated sets exceed the candidate limit ({candidate_limit}), so the "
-            "design is the best of the swap search's candidates, with a gap of "
-            f"{gap:.3g} to the Rayleigh bound; it is not a proven optimum. Raise "
-            "candidate_limit to search every set.",
+            f"SYNDES one-way exact backend: the branch and bound at K={K} reached "
+            f"its work limit ({work_limit:g} s) with sets still open; the design is "
+            f"the best found, within {gap:.3g} of the optimum, not a proven "
+            "optimum. Raise work_limit.",
             SYNDESSolveWarning, stacklevel=2)
     solve_outcome = SYNDESSolveOutcome(
         status=status, solver_status="exact",
@@ -484,6 +589,10 @@ def _to_design(Y: np.ndarray, outcome: _Outcome, lam: float, K: int,
         raw_results={
             "status": solve_outcome.status,
             "solver": "exact",
+            "search": outcome.search,
+            "n_nodes": outcome.n_nodes,
+            "n_lifts": outcome.n_lifts,
+            "work": outcome.work,
             "certified": outcome.certified,
             "lower_bound": outcome.lower_bound,
             "n_designs": outcome.n_designs,
