@@ -20,6 +20,7 @@ a real one.
 Levels: smoke, unit invariants, edge, failure.
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -369,6 +370,142 @@ class TestTheMapBuilderShards:
             benchmark_deps.shard_of(["a", "b"], shard, num)
 
 
+class TestTheMapClaimsWhatADiffCanName:
+    """The map keeps every reachable path a case executed or read.
+
+    It used to keep ``mlsynth/`` and ``basedata/`` only, and measure only
+    ``mlsynth``, so nothing under ``benchmarks/`` -- ``compare.py``, a
+    reference's committed CSV, a study module a case imports -- could ever be
+    claimed. Without an inventory each was a hole and ran the whole registry;
+    with one each would read as covered by nothing and run none of the cases
+    that use it.
+    """
+
+    @staticmethod
+    def _keep(paths, name="c"):
+        from tools.benchmark_deps import claimable
+        return claimable(paths, name)
+
+    def test_the_benchmarks_tree_is_claimed(self):
+        paths = ["benchmarks/compare.py",
+                 "benchmarks/reference/c/expected.csv",
+                 "benchmarks/studies/s/search.py"]
+        assert self._keep(paths) == sorted(paths)
+
+    def test_the_library_and_the_panels_still_are(self):
+        paths = ["mlsynth/utils/x.py", "basedata/p.csv"]
+        assert self._keep(paths) == sorted(paths)
+
+    def test_the_cases_own_module_is_implied_not_stored(self):
+        assert self._keep(["benchmarks/cases/c.py", "benchmarks/cases/d.py"],
+                          name="c") == ["benchmarks/cases/d.py"]
+
+    @pytest.mark.parametrize("path", [
+        "mlsynth/tests/conftest.py", "benchmarks/tests/test_x.py",
+        "mlsynth/__pycache__/x.cpython-311.pyc", "docs/x.rst", "setup.py",
+        "mlsynth/utils/x.pyc",
+    ])
+    def test_what_no_diff_can_reach_is_dropped(self, path):
+        assert self._keep([path]) == []
+
+    def test_the_tracer_measures_both_python_trees(self):
+        pytest.importorskip("coverage")           # the build job installs it
+        from tools.benchmark_deps import ROOT, measurement
+
+        cov = measurement()
+        roots = {Path(s).resolve() for s in cov.config.source}
+        assert {ROOT / "mlsynth", ROOT / "benchmarks"} <= roots
+
+    def test_the_tracer_is_the_fast_one_where_it_exists(self):
+        """Under the pure-Python tracer the 209 cases measured on 10-21 took
+        1,149 minutes against 240 untraced, and the shards were cancelled at
+        their cap. Coverage's ``sysmon`` core recorded the same 23 files on
+        ``wan_pda_vs_scm`` in 100.0 s against 99.2 s untraced. Before 3.12
+        there is no ``sys.monitoring``, and the pure-Python tracer stays."""
+        import sys
+
+        pytest.importorskip("coverage")
+        from tools.benchmark_deps import measurement
+
+        config = measurement().config
+        if sys.version_info >= (3, 12):
+            assert config.core == "sysmon" and not config.timid
+        else:                                  # the build job's 3.11
+            assert config.timid
+
+
+class TestTheMapMeasuresWhatTheRunnerRuns:
+    """The runner does three things for a case: it imports the module, which
+    builds ``EXPECTED`` and reads the case's reference bundle; it calls
+    ``run()``; and it ``compare()``s the two. The map measured ``run()`` alone,
+    so a reference read at import, ``compare.py`` and the runner itself were
+    never claimed. Without an inventory each was a hole; with one, each would
+    read as covered by nothing, and a changed reference value would run no case.
+    """
+
+    @pytest.fixture
+    def case(self, tmp_path, monkeypatch):
+        import sys
+        import textwrap
+
+        pytest.importorskip("coverage")           # the build job installs it
+        from tools.benchmark_deps import ROOT
+
+        panel = sorted((ROOT / "basedata").glob("*.csv"))[0]
+
+        def make(body):
+            name = f"fake_case_{len(list(tmp_path.iterdir()))}"
+            (tmp_path / f"{name}.py").write_text(textwrap.dedent(body).format(
+                root=str(ROOT), panel=str(panel)))
+            monkeypatch.syspath_prepend(str(tmp_path))
+            monkeypatch.setitem(registry.CASES, name, name)
+            sys.modules.pop(name, None)
+            return name, panel.relative_to(ROOT).as_posix()
+        return make
+
+    def test_import_run_and_compare_are_all_claimed(self, case):
+        from tools.benchmark_deps import _trace
+
+        name, panel = case('''
+            from pathlib import Path
+            _ROOT = Path({root!r})
+            (_ROOT / "benchmarks" / "reference" / "__init__.py").read_text()
+            EXPECTED = {{"x": (1.0, 0.1)}}
+
+            def run():
+                Path({panel!r}).read_text()
+                return {{"x": 1.0}}
+            ''')
+        deps, _ = _trace(name)
+        assert {"benchmarks/reference/__init__.py",       # read at import
+                panel,                                    # read in run()
+                "benchmarks/compare.py",                  # compared after it
+                "benchmarks/registry.py",                 # loaded through it
+                "benchmarks/run_benchmarks.py"} <= set(deps), deps
+
+    @pytest.mark.parametrize("body", [
+        '''
+        from benchmarks.compare import BenchmarkSkipped
+        EXPECTED = {{}}
+        def run():
+            raise BenchmarkSkipped("needs R")
+        ''',
+        '''
+        EXPECTED = {{}}
+        def run():
+            raise RuntimeError("broke")
+        ''',
+    ], ids=["skipped", "raised"])
+    def test_a_case_that_does_not_finish_is_left_unmeasured(self, case, body):
+        """A partial measurement would under-claim, so the case stays unmapped
+        and always runs; a raising case used to take the whole shard down."""
+        from tools.benchmark_deps import Unmeasured, _trace
+
+        name, _ = case(body)
+        with pytest.raises(Unmeasured):
+            _trace(name)
+
+
 class TestTheMapBuilderCombinesSlices:
     """Each shard writes only what it measured; one job merges and commits."""
 
@@ -433,6 +570,24 @@ class TestTheMapBuilderCommandLine:
                                          str(slice_), "--out", str(out)])
         assert benchmark_deps.main() == 0
         assert json.loads(out.read_text())["only"] == ["mlsynth/x.py"]
+
+    def test_a_case_that_does_not_finish_is_dropped_and_the_rest_written(
+            self, tmp_path, monkeypatch):
+        """A case that skipped or raised leaves no entry, so it always runs;
+        before, a raising case took the shard and its whole slice with it."""
+        from tools import benchmark_deps
+
+        def fake(name):
+            if name == "stops":
+                raise benchmark_deps.Unmeasured("error: RuntimeError: broke")
+            return ["mlsynth/x.py"], 0.0
+
+        out = tmp_path / "slice.json"
+        monkeypatch.setattr(benchmark_deps, "_trace", fake)
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--case", "runs",
+                                         "--case", "stops", "--out", str(out)])
+        assert benchmark_deps.main() == 0
+        assert json.loads(out.read_text()) == {"runs": ["mlsynth/x.py"]}
 
     def test_a_shard_outside_the_split_is_refused(self, monkeypatch):
         from tools import benchmark_deps
