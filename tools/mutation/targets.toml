@@ -2735,6 +2735,27 @@ test-command = "python -m pytest mlsynth/tests/test_fgrc_selection.py -q -p no:c
 timeout = 300.0
 
   [[target.mutant]]
+  id = "kmeans-runs-on-the-callers-threads"
+  find = """    with _thread_pools().limit(limits=1, user_api="openmp"):"""
+  replace = """    with _thread_pools().limit(limits=None, user_api="openmp"):"""
+  models = "k-means left on the caller's OpenMP threads, where its inertia reduction sums in a different order from one call to the next and a seed no longer reproduces the statistic bit for bit (#860)"
+
+  [[target.mutant]]
+  id = "the-limit-is-put-on-blas"
+  find = """    with _thread_pools().limit(limits=1, user_api="openmp"):"""
+  replace = """    with _thread_pools().limit(limits=1, user_api="blas"):"""
+  models = "the limit put on BLAS, which k-means' inertia reduction does not use, so OpenMP keeps every thread"
+
+  [[target.mutant]]
+  id = "the-caller-stays-on-one-thread"
+  find = """    with _thread_pools().limit(limits=1, user_api="openmp"):
+        return _gap_statistic(F, k_values, n_ref, seed)"""
+  replace = """    _thread_pools().limit(limits=1, user_api="openmp")
+    if True:
+        return _gap_statistic(F, k_values, n_ref, seed)"""
+  models = "the limit set and never lifted, so after the first Gap statistic every OpenMP loop in the process, scikit-learn's included, runs on one thread"
+
+  [[target.mutant]]
   id = "boundary-candidates-are-ranked-like-any-other"
   find = "    eligible = [K for K in gaps if K not in boundary]"
   replace = "    eligible = [K for K in gaps]"
