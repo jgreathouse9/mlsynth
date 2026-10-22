@@ -7810,6 +7810,12 @@ timeout = 600.0
   replace = "                                        work_limit=work_limit)"
   models = "the cost model passed and dropped, so the instrument's search and the library's run under different costs and cannot be compared count for count"
 
+  [[target.mutant]]
+  id = "the-limit-mode-drops-the-limit"
+  find = "        rows = [dict(search(panels.panel(panel, N), N // 2, work_limit=WORK_LIMIT,"
+  replace = "        rows = [dict(search(panels.panel(panel, N), N // 2,"
+  models = "the limit mode run without the library's work limit, so a search that would stop reads as one that closed and its gap as certified"
+
 # Pentagonal inequalities past the triangles (#837, candidate 2).
 [[target]]
 name = "syndes-global-bnb-pentagons"

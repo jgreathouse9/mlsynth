@@ -263,6 +263,10 @@ def test_the_runner_appends_a_row_per_measurement(tmp_path, monkeypatch):
     monkeypatch.setattr(stopping, "RESULTS", tmp_path)
     monkeypatch.setitem(run.PANELS, "tiny", lambda N: _factor(N, 8, 2))
     assert stopping.main(["ratios", "tiny", "10", "3"]) == 0
+    from . import cuts
+    monkeypatch.setattr(cuts, "closures", lambda Y, K: [{"closed": K}])
+    assert stopping.main(["closures", "tiny", "10", "3"]) == 0
+    assert json.loads(open(tmp_path / "stopping_closures.jsonl").readline())["closed"] == 3
     assert stopping.main(["search", "tiny", "10", "3", "margin"]) == 0
     optimum = json.loads(open(tmp_path / "stopping_search.jsonl").readline())["value"]
     monkeypatch.setattr(stopping, "nodes40", lambda Y, K, opt: [{"optimum": opt}])
@@ -274,8 +278,35 @@ def test_the_runner_appends_a_row_per_measurement(tmp_path, monkeypatch):
     assert json.loads(open(tmp_path / "stopping_nodes.jsonl").readline())["optimum"] == optimum
     with pytest.raises(ValueError, match="no mode"):
         stopping.main(["walk", "tiny", "10", "3"])
+    assert stopping.main(["limit", "bls", "12", "forecast_late"]) == 0
+    limited = json.loads(open(tmp_path / "stopping_limit.jsonl").readline())
+    assert limited["panel"] == "bls" and limited["K"] == 6 and limited["variant"] == "forecast_late"
 
 
 def test_a_node_with_nothing_free_to_vary_costs_no_evaluation():
     U, _, ev, info = stopping.lift(3.5, np.zeros(5), np.zeros((5, 5)), 1)
     assert U == 3.5 and ev == 0 and info["ended"] == "trust_region"
+
+
+def test_the_closure_bounds_every_variant_from_below():
+    """The closure is the value the lift's dual converges to, so no variant's
+    bound passes under it."""
+    Y = _factor(12, 8, 2)
+    optimum = stopping.search(Y, 4)["value"]
+    rows = stopping.nodes40(Y, 4, optimum, depths=(2,))
+    r = rows[0]
+    assert all(r[k]["U"] >= r["closure"] * (1 - 1e-6) for k in stopping.VARIANTS)
+    assert r["closure"] <= r["trust_region"] * (1 + 1e-9)
+
+
+def test_the_limit_mode_searches_half_treated_under_the_librarys_limit(tmp_path, monkeypatch):
+    """The ``limit`` rows stand for the library's search at its default work
+    limit; a run without the limit would close and read as a certified gap."""
+    from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT
+    calls = []
+    monkeypatch.setattr(stopping, "RESULTS", tmp_path)
+    monkeypatch.setattr(stopping, "search", lambda Y, K, **kw: calls.append((Y.shape, K, kw)) or {})
+    assert stopping.main(["limit", "noise", "14", "margin"]) == 0
+    (shape, K, kw), = calls
+    assert shape[1] == 14 and K == 7
+    assert kw == {"work_limit": WORK_LIMIT, "margin": 0.005}

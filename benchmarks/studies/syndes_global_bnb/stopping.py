@@ -363,29 +363,49 @@ SEARCHES = {"shipped": dict(), "margin": dict(margin=0.005),
 
 
 def main(argv=None) -> int:
-    """``ratios PANEL N K``, ``nodes PANEL N K OPTIMUM`` or ``search PANEL N K
-    VARIANT``: one JSON line per row, appended to ``results/stopping_<mode>.jsonl``.
+    """``ratios PANEL N K``, ``closures PANEL N K``, ``nodes PANEL N K OPTIMUM``
+    ``search PANEL N K VARIANT`` or ``limit KIND N VARIANT``: one JSON line
+    per row, appended to ``results/stopping_<mode>.jsonl``. ``closures`` is
+    ``cuts.closures``; ``limit`` searches a #842 panel (``bnb_scale``'s BLS,
+    noise or flat) at ``K = N/2`` under the default work limit.
 
         python -m benchmarks.studies.syndes_global_bnb.stopping ratios factor 24 4
+        python -m benchmarks.studies.syndes_global_bnb.stopping closures factor 24 4
         python -m benchmarks.studies.syndes_global_bnb.stopping nodes factor 40 10 0.3
         python -m benchmarks.studies.syndes_global_bnb.stopping search factor 40 10 margin
+        python -m benchmarks.studies.syndes_global_bnb.stopping limit bls 60 forecast_late
     """
-    import json
     import sys
 
     from .run import PANELS
 
     args = list(sys.argv[1:] if argv is None else argv)
-    mode, panel, N, K = args[0], args[1], int(args[2]), int(args[3])
+    mode, panel, N = args[0], args[1], int(args[2])
+    if mode == "limit":
+        from benchmarks.studies.bnb_scale import panels
+        from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT
+        rows = [dict(search(panels.panel(panel, N), N // 2, work_limit=WORK_LIMIT,
+                            **SEARCHES[args[3]]), variant=args[3])]
+        return _write(mode, panel, rows)
+    K = int(args[3])
     Y = PANELS[panel](N)
     if mode == "ratios":
         rows = ratios(Y, K)
+    elif mode == "closures":
+        from .cuts import closures
+        rows = closures(Y, K)
     elif mode == "nodes":
         rows = nodes40(Y, K, float(args[4]))
     elif mode == "search":
         rows = [dict(search(Y, K, **SEARCHES[args[4]]), variant=args[4])]
     else:
         raise ValueError(f"no mode named {mode!r}")
+    return _write(mode, panel, rows)
+
+
+def _write(mode: str, panel: str, rows: list) -> int:
+    import json
+
     RESULTS.mkdir(exist_ok=True)
     with open(RESULTS / f"stopping_{mode}.jsonl", "a") as fh:
         for row in rows:

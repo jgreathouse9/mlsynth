@@ -258,6 +258,140 @@ enumeration's 3.0 s: the prune rate is estimated per subtree size, with a prior 
 one half, so each size pays a lift or two before the weight learns that lifts do
 not prune there. Pooling the estimate across sizes is the next lever.
 
+## The lift's stopping and pentagonal rows (`stopping.py`, `cuts.py`, #837)
+
+#837 asked for the flat panels' last 0.1 to 0.75%: finish the dual where it
+nearly prunes (candidate 1), or add the next family of valid rows (candidate
+2). Both are measured here on the library's lift as it stands after #864,
+which scales the dual by the free part. Before #864, nodes with units fixed
+ran their dual on a free part shrunk by the fixed units' constant, so the
+"0.1 to 0.36% above the interior-point lift" this study's `duals.py` reported
+on factor nodes was partly that defect.
+
+`stopping.lift` is a copy of the library's round loop with three knobs, and a
+test holds it to the library's lift, bound and evaluations, with the knobs off:
+
+- `on_stall="halve"`: a stall halves `alpha` where the shipped rule gives up;
+- `margin`: within that relative distance of the prune target, the floor drops
+  from 5e-5 to 1e-8;
+- `forecast`: BiqBin's rule (Gusmeroli et al. 2022, p. 10), the run ends once
+  its last round's progress, carried ten rounds ahead, cannot reach the target;
+  `forecast_from` holds it back until `alpha` is that small.
+
+`stopping.search` runs the library's branch and bound with a variant in place
+of the lift; with the knobs off it reproduces the library's search count for
+count. `cuts.py` separates the pentagonal rows `sum_{i<j} b_i b_j X_ij >= -2`
+over every five lifted indices and solves the closure with them.
+
+### At 24-unit nodes, where every set is priced
+
+`stopping.ratios`: the bound over the subtree's minimum price at `duals.ratios`'s
+eight nodes, on the factor, GeoLift and noise panels with 4 and 8 treated (48
+nodes); and, with the optimum as the incumbent, whether each targeted variant
+prunes and the evaluations it spends deciding.
+
+- A floor of 1e-8 tightens by at most 1.3e-3 of the ratio (factor, 3 fixed:
+  0.99848 to 0.99975), for up to 19 times the evaluations. Halving on a stall
+  reaches the same bounds, to within 5e-5, for more evaluations.
+- With the prune target:
+
+  | variant | prunes | evaluations |
+  |---|---:|---:|
+  | shipped | 29 | 21,747 |
+  | lower floor within 0.5% of the target | 32 | 77,399 |
+  | forecast from the first round | 12 | 8,443 |
+  | forecast once `alpha` <= 1e-3 | 28 | 17,870 |
+  | forecast once `alpha` <= 1e-4 | 29 | 20,450 |
+
+  The three prunes the margin adds are all on the factor panel.
+
+`cuts.closures`: the triangle closure and the closure with pentagonal rows by
+interior point, at the same nodes with 4 treated, against `need`, the ratio a
+bound must pass to prune:
+
+- factor: the triangles reach 0.9931 to 0.9961 at the five nodes they do not
+  prune, and the pentagonal rows add 0.12 to 0.24 points (0.9943 to 0.9980),
+  20 to 50% of the remaining gap; every such node needs 0.99935 or more;
+- GeoLift: the triangles already meet every node's need; the pentagonal rows
+  lift three nodes further (0.9966 to 0.9984, 0.9973 to 0.9998, 0.9987 to 1);
+- noise: the triangles reach the subtree's minimum at every node.
+
+### At 40-unit nodes, against the closure
+
+`stopping.nodes40`: at five nodes (0 to 8 units fixed) of the factor, GeoLift
+and noise panels with 40 units and 10 treated, each variant's bound against
+the triangle closure solved by interior point, and, with each panel's optimum
+as the incumbent, which targeted variants prune (15 nodes):
+
+- The shipped lift ends 2.5e-4 to 8.4e-4 above the closure, relative; the
+  trust region sits 1.2e-3 to 5.4e-2 above it. A floor of 1e-8 ends 4e-6 to
+  2.1e-4 above, for 1.7 to 31 times the evaluations.
+- With the prune target:
+
+  | variant | prunes | evaluations |
+  |---|---:|---:|
+  | shipped | 7 | 11,282 |
+  | lower floor within 0.5% of the target | 7 | 106,259 |
+  | forecast from the first round | 0 | 1,519 |
+  | forecast once `alpha` <= 1e-3 | 6 | 8,557 |
+  | forecast once `alpha` <= 1e-4 | 7 | 10,930 |
+
+  The seven are GeoLift and noise nodes with units fixed. No variant prunes a
+  factor node: the closure itself stays 0.01 to 0.30% above the prune target
+  there (0.01% at 8 units fixed, where the shipped lift ends 0.05% above).
+
+### In the search
+
+`stopping.search` on the factor panel with 40 units and 10 treated, the #803
+instance, without a work limit:
+
+| variant | nodes | lifts | pruned | sets priced | modelled work | evaluations |
+|---|---:|---:|---:|---:|---:|---:|
+| shipped | 458 | 56 | 0 | 847,660,528 | 854.7 | 32,603 |
+| lower floor within 0.5% | 472 | 25 | 0 | 847,660,528 | 879.3 | 151,218 |
+| forecast once `alpha` <= 1e-3 | 449 | 73 | 0 | 847,660,528 | 853.1 | 23,781 |
+| both | 449 | 73 | 0 | 847,660,528 | 853.4 | 25,576 |
+
+Every variant prices every set. The work is pricing, and no stopping rule moves
+it.
+
+Under the default work limit, on the #842 panels (`bnb_scale.panels`, `K = N/2`):
+
+| panel | units | variant | certified gap | nodes | evaluations |
+|---|---:|---|---:|---:|---:|
+| BLS | 40 | shipped | 0 | 103 | 36,349 |
+| BLS | 40 | forecast | 0 | 205 | 37,637 |
+| noise | 40 | shipped | 0 | 376 | 100,624 |
+| noise | 40 | forecast | 0 | 374 | 84,606 |
+| flat | 40 | shipped | 0.287% | 456 | 95,975 |
+| flat | 40 | forecast | 0.316% | 1,224 | 47,078 |
+| BLS | 60 | shipped | 0.495% | 228 | 137,551 |
+| BLS | 60 | forecast | 0.827% | 770 | 131,473 |
+
+A search that closes spends fewer evaluations with the forecast (noise at 40
+units: 16% fewer). A search stopped at its limit reports its weakest open
+bound, and the forecast leaves those bounds weaker: BLS at 60 units ends at
+0.827% against 0.495%. On flat at 40 units it prunes 14 nodes and returns a
+better design (0.424209 against 0.424547) under a weaker bound (0.422867
+against 0.423328). Finding 4 below saw the same trade with the give-up rule.
+
+### Answers to #837
+
+- Candidate 1: on the flat panel the dual already reaches what its relaxation
+  allows near the prune target, and the relaxation stops short. A lower floor
+  near the target buys three prunes at 24 units and costs work at 40. The
+  forecast saves evaluations where the search closes and weakens the bound
+  where it stops. None is recommended as the lift's default.
+- Candidate 2: pentagonal rows close 20 to 50% of the factor panel's remaining
+  gap at 24 units and prune none of its nodes. Heptagonal rows and Lasserre's
+  second level are untested; the second costs about 8,000 times the
+  eigendecomposition at 40 units (#837, second batch).
+- The flat panel's cost is pricing: the #803 instance still prices all 848
+  million sets after #864, as #803 did. Its levers are the cost of a price and
+  how the cost model spends a limit (#845), not the bound.
+- At 40 units the shipped lift ends 0.02 to 0.08% above its relaxation's
+  closure, and no stopping rule prunes a node the shipped rule does not.
+
 ## Wrong turns
 
 - The first validity test asserted the spectral bound sits above the
@@ -348,6 +482,12 @@ not prune there. Pooling the estimate across sizes is the next lever.
    GeoLift, factor and noise panels, where the two optima differ by 0.01 to
    0.3%. Leaves are priced by one-way's ridge bound and fits, as its backend
    prices them now.
+7. On the flat panel the lift's stopping and the next family of rows do not
+   move the search (#837). The shipped lift ends within 0.08% of its
+   relaxation's closure at 40 units, the closure stays short of the prune
+   target at every factor node measured, and the pentagonal rows close 20 to
+   50% of what remains at 24 units without a prune. Every stopping variant
+   prices all 848 million sets of the #803 instance.
 
 ## What to build
 
@@ -363,6 +503,10 @@ not prune there. Pooling the estimate across sizes is the next lever.
 - #820 on the same tree, with one-way's leaf pricing.
 - MAREX: weighting its lift by the prune rate (#832), and a study of the
   regularised dual for its persp+N bound (#833).
+- #837: no change to the lift's stopping, and no pentagonal rows. A forecast
+  stop once `alpha` <= 1e-4 keeps every prune measured and saves 3 to 6% of
+  the evaluations; the flat panel's lever is the cost of a price and the cost
+  model (#845).
 
 ## Sources
 
@@ -404,6 +548,11 @@ python -m benchmarks.studies.syndes_global_bnb.duals nodes geolift 40 10 237545.
 python -m benchmarks.studies.syndes_global_bnb.stages geolift 40 10
 python -m benchmarks.studies.syndes_global_bnb.run geolift 40 10 dual
 python -m benchmarks.studies.syndes_global_bnb.run geolift 40 10 library
+python -m benchmarks.studies.syndes_global_bnb.stopping ratios factor 24 4
+python -m benchmarks.studies.syndes_global_bnb.stopping closures factor 24 4
+python -m benchmarks.studies.syndes_global_bnb.stopping nodes geolift 40 10 237545.033927214
+python -m benchmarks.studies.syndes_global_bnb.stopping search factor 40 10 shipped
+python -m benchmarks.studies.syndes_global_bnb.stopping limit bls 60 forecast_late
 ```
 
 `results/` holds the logs, each from the code that wrote it:
@@ -418,6 +567,13 @@ python -m benchmarks.studies.syndes_global_bnb.run geolift 40 10 library
   on by default;
 - `final_ipm.log`, `final_dual.log`, `enumeration_k10.log`: the search as it
   stands.
+- `stopping_*.jsonl`: `stopping.py` and `cuts.py` (#837), one JSON line per
+  row with its panel. The `nodes` rows ran against the optima 0.5657642230346002
+  (factor), 237545.033927214 (GeoLift) and 0.21697597755930378 (noise), each
+  from `stopping.search` with the shipped lift. The `search` rows and all but
+  one `limit` row came from scripts calling `stopping.search` with the same
+  arguments before the runner had those modes; BLS at 60 units, shipped, ran
+  through the runner.
 
 GeoLift is `basedata/geolift_market_data.csv`, read from the repository root.
 Two or three of these runs sometimes shared the machine; the logs of the final
