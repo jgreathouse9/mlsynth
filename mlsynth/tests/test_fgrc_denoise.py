@@ -298,9 +298,14 @@ def test_the_cluster_subspace_discriminates_groups_and_carries_no_variance():
     swamping the grouping.
 
     It also means the two blocks are near-opposites in content. On Basque,
-    ``A1``'s columns are about 70% between-cluster while carrying under 4% of
-    the variance; ``A2`` carries over 90% of the variance and almost all of it
-    is within cluster.
+    ``A1`` is about 70% between-cluster while carrying under 4% of the
+    variance; ``A2`` carries over 90% of the variance and almost all of it is
+    within cluster.
+
+    The loss sees ``A1`` only through its span, so the basis inside it is not
+    identified: every seed reaches the same loss with a different rotation,
+    and a single column can be 14% between-cluster where the block is 65%.
+    The checks are on the block, which every rotation shares.
     """
     from mlsynth.utils.clustersc_helpers.rpca.fgrc import fgrc_subspace
 
@@ -315,22 +320,20 @@ def test_the_cluster_subspace_discriminates_groups_and_carries_no_variance():
     scores = sub.G @ sub.A
     labels = sub.labels
 
-    def between_share(v):
-        grand = v.mean()
-        between = sum(((v[labels == g].mean() - grand) ** 2) * (labels == g).sum()
+    def between_share(V):
+        grand = V.mean(axis=0)
+        between = sum(((V[labels == g].mean(axis=0) - grand) ** 2).sum() * (labels == g).sum()
                       for g in np.unique(labels))
-        within = sum(((v[labels == g] - v[labels == g].mean()) ** 2).sum()
+        within = sum(((V[labels == g] - V[labels == g].mean(axis=0)) ** 2).sum()
                      for g in np.unique(labels))
         return between / (between + within)
 
-    energy = (scores ** 2).sum(axis=0) / (sub.G ** 2).sum()
+    def energy(V):
+        return (V ** 2).sum() / (sub.G ** 2).sum()
 
-    for j in range(sub.c1):                      # A1: discriminates, tiny variance
-        assert between_share(scores[:, j]) > 0.5
-        assert energy[j] < 0.10
-    for j in range(sub.c1, sub.A.shape[1]):      # A2: variance, no discrimination
-        assert between_share(scores[:, j]) < 0.2
-        assert energy[j] > 0.80
+    A1, A2 = scores[:, :sub.c1], scores[:, sub.c1:]
+    assert between_share(A1) > 0.5 and energy(A1) < 0.10   # discriminates, tiny variance
+    assert between_share(A2) < 0.2 and energy(A2) > 0.80   # variance, no discrimination
 
 
 @_NEEDS_BASQUE
