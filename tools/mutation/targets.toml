@@ -7412,7 +7412,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-branch-and-bound-counts-are-dropped"
-  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted)"
+  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted,\n                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                report.counts.update(candidates=n_cand)"
   models = "the branch and bound's bounds, sets priced and fits discarded, as before #774"
 
@@ -7562,10 +7562,10 @@ timeout = 300.0
   models = "the timing wrapper left on node_bound after a search, so the next search in the process times through two wrappers"
 
   [[target.mutant]]
-  id = "the-bracket-is-not-read"
-  find = "        found = _BRACKET.search(str(exc))"
-  replace = "        found = None"
-  models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
+  id = "a-stopped-search-reads-as-closed"
+  find = "        row.update(closed=res.closed,"
+  replace = "        row.update(closed=True,"
+  models = "a search stopped at its work limit recorded as closed, so its row reads as a certified design (#843 moved the cap from bounds to work, and the bracket from the message to the certificate)"
 
 # The root's bounds and the lift's stopping (#842, for #837 and #858). The
 # trace replicates the lift's stopping rules, so each mutant makes the replica
