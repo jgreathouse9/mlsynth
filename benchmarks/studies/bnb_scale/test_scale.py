@@ -8,6 +8,8 @@ from itertools import combinations
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from benchmarks.studies.bnb_scale import marex_scale, panels, syndes_scale
 from mlsynth.exceptions import MlsynthConfigError
@@ -189,6 +191,18 @@ class TestLiftProfile:
         seconds summed over BLAS threads, which the first version did."""
         assert prof["theta_share"] > 0.25
 
+    def test_the_rest_of_the_lift_is_split_without_overlap(self, prof):
+        """Cut separation and SciPy's L-BFGS-B (its Fortran core and Python
+        driver, own time only) lie outside the dual's evaluation, so the three
+        shares are disjoint parts of one lift."""
+        assert prof["separate_share"] > 0 and prof["solver_share"] > 0
+        assert (prof["theta_share"] + prof["separate_share"]
+                + prof["solver_share"]) <= 1 + 1e-9
+        assert prof["separate_share"] == pytest.approx(
+            prof["separate_seconds"] / prof["profiled_seconds"])
+        assert prof["solver_share"] == pytest.approx(
+            prof["solver_seconds"] / prof["profiled_seconds"])
+
     def test_profiling_does_not_change_the_lift(self, prof):
         """The lift is deterministic, so the profiled run takes the evaluations
         the timed one did."""
@@ -217,9 +231,15 @@ class TestRootBounds:
     def test_the_lift_is_at_least_the_trust_region(self, small):
         assert small["lift"] >= small["trust_region"] * (1 - 1e-12)
 
-    def test_running_the_dual_longer_never_loses_bound(self, small):
-        assert small["lift_long"] >= small["lift"] * (1 - 1e-9)
-        assert small["evaluations_long"] >= small["evaluations"]
+    def test_a_finer_stop_never_falls_below_the_trust_region(self, small):
+        """The finer stop is neither a better bound nor a longer run in
+        general: on 40 BLS counties it ended after 702 evaluations to the
+        shipped 761, on a certificate 8e-6 weaker, because the stall rule ended
+        it first (``TestLiftTrace``). Malick and Roupin's Table 3 has the same
+        reversal across alpha (ex108a, k = 63). What holds is the floor every
+        lift keeps."""
+        assert small["lift_long"] >= small["trust_region"] * (1 - 1e-12)
+        assert small["evaluations_long"] > 0
 
     def test_the_gaps_read_the_bounds(self, small):
         for k in ("trust_region", "lift", "lift_long", "interior"):
@@ -228,6 +248,86 @@ class TestRootBounds:
 
     def test_the_library_schedule_is_restored(self, small):
         from benchmarks.studies.bnb_scale import root_gap
+        for name, value in root_gap._DEFAULTS.items():
+            assert getattr(syndes_branch, name) == value
+
+
+class TestSchedule:
+    """The lift's stopping constants, replaced for one call and put back."""
+
+    def test_every_name_it_sets_is_restored(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        before = {name: getattr(syndes_branch, name) for name in root_gap.NO_STALL}
+        with root_gap.schedule(**root_gap.NO_STALL):
+            assert syndes_branch.MIN_ROUNDS == root_gap.NO_STALL["MIN_ROUNDS"]
+        assert {name: getattr(syndes_branch, name) for name in root_gap.NO_STALL} == before
+
+    def test_a_raise_inside_still_restores(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        before = syndes_branch.MIN_ROUNDS
+        with pytest.raises(ZeroDivisionError):
+            with root_gap.schedule(MIN_ROUNDS=7):
+                1 / 0
+        assert syndes_branch.MIN_ROUNDS == before
+
+    def test_an_unknown_name_is_refused(self):
+        """A misspelt constant would otherwise be set beside the real one and
+        change nothing, so the run would measure the shipped schedule."""
+        from benchmarks.studies.bnb_scale import root_gap
+        with pytest.raises(ValueError, match="ALPHA_MN"):
+            with root_gap.schedule(ALPHA_MN=1e-8):
+                pass  # pragma: no cover - the context refuses before the body runs
+        assert not hasattr(syndes_branch, "ALPHA_MN")
+
+
+class TestLiftTrace:
+    """Which rule ends a root lift: its rounds, read from the lift as it runs,
+    and the lift's own stopping tests applied to them."""
+
+    @pytest.fixture(scope="class")
+    def traces(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        Y = panels.panel("bls", 12)
+        return Y, {"shipped": root_gap.trace_lift(Y, 6),
+                   "long": root_gap.trace_lift(Y, 6, **root_gap.LONG),
+                   "no_stall": root_gap.trace_lift(Y, 6, **root_gap.NO_STALL)}
+
+    def test_it_reports_the_lift_it_traced(self, traces):
+        Y, t = traces
+        from mlsynth.utils.syndes_helpers.gram import BoundEngine, TwoWayProblem
+        engine = BoundEngine.from_problem(TwoWayProblem.from_panel(Y))
+        parts = syndes_branch.node_parts(engine.R, (), (), tuple(range(12)))
+        U, _, evaluations = syndes_branch.lift(*parts, 0)
+        assert t["shipped"]["U"] == U and t["shipped"]["evaluations"] == evaluations
+        assert t["shipped"]["lower"] == pytest.approx(4 * engine.alpha / U)
+
+    @pytest.mark.parametrize("run", ["shipped", "long", "no_stall"])
+    def test_exactly_the_last_round_meets_a_stopping_rule(self, traces, run):
+        """The lift breaks out at the first round that meets one, so a replica
+        of its rules that is wrong anywhere marks a round too early or none."""
+        rounds = traces[1][run]["rounds"]
+        assert rounds and [r["stops"] for r in rounds] == [False] * (len(rounds) - 1) + [True]
+
+    def test_the_reason_names_the_rule_that_held(self, traces):
+        for run in traces[1].values():
+            last = run["rounds"][-1]
+            assert run["stopped"] in ("floor", "stall", "rounds")
+            if run["stopped"] == "floor":
+                assert last["at_floor"]
+            else:
+                assert last["giveup"] and not last["at_floor"]
+
+    def test_with_the_stall_rule_off_the_run_ends_at_its_floor(self, traces):
+        from benchmarks.studies.bnb_scale import root_gap
+        run = traces[1]["no_stall"]
+        assert run["stopped"] == "floor"
+        assert run["final_alpha"] == root_gap.NO_STALL["ALPHA_MIN"]
+
+    def test_the_library_is_left_as_it_was(self, traces):
+        from benchmarks.studies.bnb_scale import root_gap
+        assert syndes_branch._theta is root_gap._ORIGINAL["theta"]
+        assert syndes_branch.separate is root_gap._ORIGINAL["separate"]
+        assert syndes_branch.Cuts.concat is root_gap._ORIGINAL["concat"]
         for name, value in root_gap._DEFAULTS.items():
             assert getattr(syndes_branch, name) == value
 
@@ -267,3 +367,41 @@ def test_a_seed_brings_its_complement():
     this is checked directly."""
     held = syndes_scale._with_complements([np.array([[0, 1], [1, 3]])], 4)
     assert held == {(0, 1), (2, 3), (1, 3), (0, 2)}
+
+
+@settings(max_examples=12, deadline=None)
+@given(kind=st.sampled_from(panels.KINDS), N=st.integers(6, 14),
+       run=st.sampled_from(["shipped", "long", "no_stall"]))
+def test_property_only_the_last_traced_round_stops(kind, N, run):
+    """Over panels, sizes and schedules: the replica of the lift's stopping
+    rules marks the round the lift actually stopped at, and no other."""
+    from benchmarks.studies.bnb_scale import root_gap
+    values = {"shipped": {}, "long": root_gap.LONG, "no_stall": root_gap.NO_STALL}[run]
+    rounds = root_gap.trace_lift(panels.panel(kind, N), N // 2, **values)["rounds"]
+    assert [r["stops"] for r in rounds] == [False] * (len(rounds) - 1) + [True]
+
+
+def test_the_runner_records_every_measurement(tmp_path, monkeypatch):
+    """Every subcommand at 12 units, into a scratch results folder: each
+    appends its rows with the panel and the load, ``root`` and ``trace`` read
+    the design ``syndes`` found, and ``trace`` runs its three schedules."""
+    import json
+    from benchmarks.studies.bnb_scale import run
+    monkeypatch.setattr(run, "RESULTS", tmp_path)
+    args = ["--kinds", "bls", "--sizes", "12"]
+    assert run.main(["syndes", *args]) == 0
+    assert run.main(["root", *args, "--closure"]) == 0
+    assert run.main(["trace", *args]) == 0
+    assert run.main(["profile", *args]) == 0
+    assert run.main(["marex-bound", *args, "--m", "3"]) == 0
+    assert run.main(["marex-search", *args, "--m", "3", "--max-lifts", "5"]) == 0
+    rows = {f.stem: [json.loads(line) for line in open(f)] for f in tmp_path.glob("*.jsonl")}
+    assert set(rows) == {"syndes", "root", "trace", "lift_profile",
+                         "marex-bound", "marex-search"}
+    for name, written in rows.items():
+        assert all(r["kind"] == "bls" and "load_before" in r for r in written), name
+    assert [r["run"] for r in rows["trace"]] == ["shipped", "long", "no_stall"]
+    best = rows["syndes"][0]["value"]
+    assert rows["root"][0]["incumbent"] == best
+    assert all(r["incumbent"] == best for r in rows["trace"])
+    assert "closure_gap" in rows["root"][0]

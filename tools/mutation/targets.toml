@@ -7259,6 +7259,20 @@ timeout = 300.0
   replace = '            pass'
   models = "the swap search's seeds read without their complements, which the search itself tries at K = N/2, so a design the seeds held reads as found by the search"
 
+  [[target.mutant]]
+  id = "the-solver-counts-its-callbacks"
+  find = '    solver = own(lambda path, name: "optimize" in path or "_lbfgsb" in name)'
+  replace = '    solver = cumulative(lambda path, name: "optimize" in path or "_lbfgsb" in name)'
+  models = "SciPy's share read cumulatively, so it contains the dual evaluations L-BFGS-B calls back and the lift's split counts them twice, which is what would make a faster solver look like the lever"
+
+  [[target.mutant]]
+  id = "separation-is-not-found"
+  find = """    separate = cumulative(lambda path, name: name == "separate"
+                          and path.endswith("branch.py"))"""
+  replace = """    separate = cumulative(lambda path, name: name == "_separate"
+                          and path.endswith("branch.py"))"""
+  models = "the triangle separation matched under a name it does not have, so its share reads zero: the 28.5% of a 100-unit lift that #844 is pointed at"
+
 [[target]]
 name = "bnb-scale-marex-instruments"
 module-path = "benchmarks/studies/bnb_scale/marex_scale.py"
@@ -7278,3 +7292,60 @@ timeout = 300.0
   find = "        found = _BRACKET.search(str(exc))"
   replace = "        found = None"
   models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
+
+# The root's bounds and the lift's stopping (#842, for #837 and #858). The
+# trace replicates the lift's stopping rules, so each mutant makes the replica
+# mark a round the lift did not stop at, misname the rule, or leave the library
+# patched.
+[[target]]
+name = "bnb-scale-root-gap"
+module-path = "benchmarks/studies/bnb_scale/root_gap.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k 'Schedule or Trace or traced or RootBounds'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-schedule-is-not-restored"
+  find = """        for name, value in before.items():
+            setattr(branch, name, value)"""
+  replace = """        for name, value in _DEFAULTS.items():
+            if name != "MIN_ROUNDS":
+                setattr(branch, name, value)"""
+  models = "a constant the schedule set left changed after the call, the first version's defect: turning the stall rule off left MIN_ROUNDS at 1000 for every later lift in the process"
+
+  [[target.mutant]]
+  id = "an-unknown-name-is-set"
+  find = "    if unknown:"
+  replace = "    if False:"
+  models = "a misspelt stopping constant set beside the real one, so the run measures the shipped schedule under another schedule's name"
+
+  [[target.mutant]]
+  id = "the-floor-ignores-new-cuts"
+  find = "        at_floor = alpha == alpha_min and not added"
+  replace = "        at_floor = alpha == alpha_min"
+  models = "the floor rule read without its no-new-triangle condition, so a round at the floor that still added cuts reads as the end of the run"
+
+  [[target.mutant]]
+  id = "the-stall-test-is-loose"
+  find = "        stalled = (previous is not None and abs(previous - smooth) <= 1e-6 * abs(smooth)"
+  replace = "        stalled = (previous is not None and abs(previous - smooth) <= 1e-3 * abs(smooth)"
+  models = "the replica's stall tolerance out of step with the lift's 1e-6, so rounds the lift ran through read as stalls and the trace credits the stall rule with ends it did not cause"
+
+  [[target.mutant]]
+  id = "giving-up-ignores-min-rounds"
+  find = "        giveup = n >= min_rounds and (n >= max_rounds or stalled)"
+  replace = "        giveup = n >= max_rounds or stalled"
+  models = "the give-up rule read without MIN_ROUNDS, so an early stalled round reads as the end and the stall-off schedule appears to stall"
+
+  [[target.mutant]]
+  id = "the-rule-is-misnamed"
+  find = """    stopped = ("floor" if last["at_floor"]
+               else "rounds" if len(rounds) >= max_rounds else "stall")"""
+  replace = """    stopped = ("stall" if last["giveup"]
+               else "rounds" if len(rounds) >= max_rounds else "floor")"""
+  models = "a run that met both rules at its last round credited to the stall rule, which is how the 40-unit shipped run was first misread: it ends at its floor"
+
+  [[target.mutant]]
+  id = "the-trace-is-left-wrapped"
+  find = """            branch._theta, branch.separate = _ORIGINAL["theta"], _ORIGINAL["separate"]"""
+  replace = """            branch.separate = _ORIGINAL["separate"]"""
+  models = "the evaluation wrapper left on the lift after a trace, so every later lift in the process appends to a dead event list and pays the wrapper"

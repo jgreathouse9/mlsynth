@@ -122,8 +122,11 @@ def profile_lift(Y: np.ndarray, K: int) -> dict:
     seconds are inflated by the profiler; the shares are read from it, on its
     own clock, and the seconds from the timed run, which is CPU time and so
     meaningful only with single-threaded BLAS. ``eigh`` is ``numpy.linalg.eigh``, one call per
-    evaluation of the dual; ``_theta`` is the whole evaluation around it; the
-    rest is L-BFGS-B and the triangle cuts.
+    evaluation of the dual; ``_theta`` is the whole evaluation around it;
+    ``separate`` is the triangle separation; ``solver`` is SciPy's L-BFGS-B, its
+    Fortran core and Python driver, counted by own time so the dual it calls
+    back is not counted twice. The three are disjoint; what is left is the
+    lift's own bookkeeping and the profiler's.
     """
     import cProfile
     import pstats
@@ -147,6 +150,10 @@ def profile_lift(Y: np.ndarray, K: int) -> dict:
         return sum(ct for (path, _, name), (_, _, _, ct, _) in stats.items()
                    if match(path, name))
 
+    def own(match) -> float:
+        return sum(tt for (path, _, name), (_, _, tt, _, _) in stats.items()
+                   if match(path, name))
+
     # every share on the profiler's own clock: process_time sums the CPU of
     # every BLAS thread, so dividing the profiler's seconds by it understates
     # each share by the thread count
@@ -154,10 +161,15 @@ def profile_lift(Y: np.ndarray, K: int) -> dict:
                           and path.endswith("branch.py"))
     eigh = cumulative(lambda path, name: name == "eigh" and "linalg" in path)
     theta = cumulative(lambda path, name: name == "_theta")
+    separate = cumulative(lambda path, name: name == "separate"
+                          and path.endswith("branch.py"))
+    solver = own(lambda path, name: "optimize" in path or "_lbfgsb" in name)
     return {
         "N": N, "K": K, "evaluations": evaluations, "seconds": seconds,
         "profiled_evaluations": profiled_evaluations, "profiled_seconds": profiled,
         "eigh_seconds": eigh, "theta_seconds": theta,
+        "separate_seconds": separate, "solver_seconds": solver,
         "eigh_share": eigh / profiled, "theta_share": theta / profiled,
+        "separate_share": separate / profiled, "solver_share": solver / profiled,
         "seconds_per_evaluation": seconds / max(evaluations, 1),
     }

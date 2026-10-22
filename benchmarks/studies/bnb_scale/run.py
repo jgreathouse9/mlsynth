@@ -5,9 +5,13 @@
     python -m benchmarks.studies.bnb_scale.run marex-bound --sizes 45 60 80 100
     python -m benchmarks.studies.bnb_scale.run marex-search --sizes 60 --m 6 --max-lifts 40
     python -m benchmarks.studies.bnb_scale.run root --kinds bls noise flat --sizes 40 60 100
+    python -m benchmarks.studies.bnb_scale.run trace --kinds bls --sizes 40 60
+    python -m benchmarks.studies.bnb_scale.run profile --kinds bls --sizes 40 60 80 100
 
-``root`` reads each panel's best design from ``results/syndes.jsonl``, so it
-runs after ``syndes`` has.
+``root`` and ``trace`` read each panel's best design from
+``results/syndes.jsonl``, so they run after ``syndes`` has. ``trace`` runs the
+root lift three ways (shipped, ``root_gap.LONG`` and ``root_gap.NO_STALL``) and
+records the rule that ended each; ``profile`` splits one root lift's time.
 
 Each line carries the load average before and after, since the CPU seconds are
 only comparable on an unloaded machine (#840 reported its load the same way).
@@ -17,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 import warnings
 from pathlib import Path
 
@@ -33,7 +38,8 @@ def _append(name: str, row: dict) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("what", choices=["syndes", "marex-bound", "marex-search", "root"])
+    ap.add_argument("what", choices=["syndes", "marex-bound", "marex-search", "root",
+                                     "trace", "profile"])
     ap.add_argument("--kinds", nargs="+", default=["bls"])
     ap.add_argument("--sizes", nargs="+", type=int, required=True)
     ap.add_argument("--K", type=int, default=None, help="SYNDES size; default N/2")
@@ -52,15 +58,30 @@ def main(argv=None) -> int:
         for N in args.sizes:
             Y = panels.panel(kind, N)
             load0 = os.getloadavg()[0]
-            if args.what == "syndes":
+            if args.what in ("root", "trace"):
+                K = args.K or N // 2
+                known = [json.loads(l) for l in open(RESULTS / "syndes.jsonl")]
+                incumbent = min(r["value"] for r in known
+                                if r["kind"] == kind and r["N"] == N and r["K"] == K)
+            if args.what == "trace":
+                for name, values in (("shipped", {}), ("long", root_gap.LONG),
+                                     ("no_stall", root_gap.NO_STALL)):
+                    t0 = time.process_time()
+                    row = root_gap.trace_lift(Y, K, **values)
+                    row.update(run=name, seconds=time.process_time() - t0,
+                               incumbent=incumbent,
+                               gap=(incumbent - row["lower"]) / incumbent,
+                               rounds=len(row["rounds"]), kind=kind,
+                               load_before=load0, load_after=os.getloadavg()[0])
+                    _append("trace", row)
+                continue
+            if args.what == "profile":
+                row = syndes_scale.profile_lift(Y, args.K or N // 2)
+            elif args.what == "syndes":
                 K = args.K or N // 2
                 row = syndes_scale.measure(Y, K, work_limit=args.work_limit or WORK_LIMIT)
             elif args.what == "root":
-                K = args.K or N // 2
-                known = [json.loads(l) for l in open(RESULTS / "syndes.jsonl")]
-                values = [r["value"] for r in known
-                          if r["kind"] == kind and r["N"] == N and r["K"] == K]
-                row = root_gap.root_bounds(Y, K, incumbent=min(values))
+                row = root_gap.root_bounds(Y, K, incumbent=incumbent)
                 if args.closure:
                     tri = root_gap.triangle_closure(Y, K)
                     row.update({f"closure_{k}": v for k, v in tri.items()
@@ -71,9 +92,9 @@ def main(argv=None) -> int:
             else:
                 row = marex_scale.search(Y, args.m, max_lifts=args.max_lifts)
             row.update(kind=kind, load_before=load0, load_after=os.getloadavg()[0])
-            _append(args.what, row)
+            _append("lift_profile" if args.what == "profile" else args.what, row)
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - the command line's entry; main is tested directly
     raise SystemExit(main())

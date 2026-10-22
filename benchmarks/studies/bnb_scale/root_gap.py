@@ -30,19 +30,109 @@ from mlsynth.utils.syndes_helpers.gram import BoundEngine, TwoWayProblem
 #: The finer stop: ``alpha`` down to 1e-8 and gradients to 1e-5, with rounds
 #: enough to get there.
 LONG = {"ALPHA_MIN": 1e-8, "TOL_MIN": 1e-5, "MAX_ROUNDS": 1_000}
-_DEFAULTS = {name: getattr(branch, name) for name in LONG}
+#: The finer stop with the stall rule off: the lift gives up only once it has
+#: run ``MIN_ROUNDS`` rounds, so it ends at its floor with no new cut.
+NO_STALL = {**LONG, "MIN_ROUNDS": 1_000}
+_DEFAULTS = {name: getattr(branch, name) for name in NO_STALL}
 
 
 @contextmanager
 def schedule(**values):
-    """The lift's stopping constants replaced for the length of a call."""
+    """The lift's stopping constants replaced for the length of a call, and
+    every one of them put back on the way out, whether the call returns or
+    raises. A name the module does not have is refused: setting it would
+    change nothing, and the run would measure the shipped schedule."""
+    unknown = [name for name in values if not hasattr(branch, name)]
+    if unknown:
+        raise ValueError(f"the lift has no stopping constant named {unknown}")
+    before = {name: getattr(branch, name) for name in values}
     for name, value in values.items():
         setattr(branch, name, value)
     try:
         yield
     finally:
-        for name, value in _DEFAULTS.items():
+        for name, value in before.items():
             setattr(branch, name, value)
+
+
+_ORIGINAL = {"theta": branch._theta, "separate": branch.separate,
+             "concat": branch.Cuts.concat}
+
+
+def trace_lift(Y: np.ndarray, K: int, **values) -> dict:
+    """One root lift, every unit free, under ``schedule(**values)``, with the
+    rule that ended it.
+
+    Each round of :func:`~mlsynth.utils.syndes_helpers.branch.lift` solves the
+    regularised dual at one ``alpha``, evaluates it once more at the solution,
+    separates triangles and adds the new ones. The trace reads those steps by
+    wrapping ``_theta``, ``separate`` and ``Cuts.concat`` for the call, and
+    applies the lift's own stopping tests to each round:
+
+    - ``at_floor``: ``alpha`` at ``ALPHA_MIN`` and no new triangle;
+    - ``stalled``: the smoothed value moved by at most 1e-6 relative to the
+      round before, with ``alpha`` under 1e-4;
+    - ``giveup``: at least ``MIN_ROUNDS`` rounds, and ``MAX_ROUNDS`` reached
+      or ``stalled``.
+
+    The lift breaks at the first round with ``giveup`` or ``at_floor``, so a
+    correct replica marks the last round and no other; the tests hold it to
+    that. ``stopped`` names the rule: ``floor`` when the floor held (the run
+    would have ended there whatever else held), else ``rounds`` or ``stall``.
+    """
+    problem = TwoWayProblem.from_panel(Y)
+    engine = BoundEngine.from_problem(problem)
+    N = Y.shape[1]
+    parts = branch.node_parts(engine.R, (), (), tuple(range(N)))
+    events: list = []
+
+    def theta(*args, **kwargs):
+        out = _ORIGINAL["theta"](*args, **kwargs)
+        events.append(("theta", args[-1], out[1]))
+        return out
+
+    def separate(X, **kwargs):
+        out = _ORIGINAL["separate"](X, **kwargs)
+        events.append(("separate",))
+        return out
+
+    def concat(a, b):
+        events.append(("concat",))
+        return _ORIGINAL["concat"](a, b)
+
+    with schedule(**values):
+        alpha_min, min_rounds, max_rounds = (branch.ALPHA_MIN, branch.MIN_ROUNDS,
+                                             branch.MAX_ROUNDS)
+        branch._theta, branch.separate = theta, separate
+        branch.Cuts.concat = staticmethod(concat)
+        try:
+            U, _, evaluations = branch.lift(*parts, 2 * K - N)
+        finally:
+            branch._theta, branch.separate = _ORIGINAL["theta"], _ORIGINAL["separate"]
+            branch.Cuts.concat = staticmethod(_ORIGINAL["concat"])
+
+    rounds, previous = [], None
+    for i, event in enumerate(events):
+        if event[0] != "separate":
+            continue
+        _, alpha, smooth = events[i - 1]              # the evaluation at the solution
+        added = i + 1 < len(events) and events[i + 1][0] == "concat"
+        stalled = (previous is not None and abs(previous - smooth) <= 1e-6 * abs(smooth)
+                   and alpha < 1e-4)
+        previous = smooth
+        n = len(rounds) + 1
+        giveup = n >= min_rounds and (n >= max_rounds or stalled)
+        at_floor = alpha == alpha_min and not added
+        rounds.append({"alpha": alpha, "smooth": smooth, "added": added,
+                       "stalled": stalled, "giveup": giveup, "at_floor": at_floor,
+                       "stops": giveup or at_floor})
+    last = rounds[-1]
+    stopped = ("floor" if last["at_floor"]
+               else "rounds" if len(rounds) >= max_rounds else "stall")
+    return {"N": N, "K": K, "U": U, "lower": 4.0 * engine.alpha / U,
+            "evaluations": evaluations, "rounds": rounds,
+            "final_alpha": last["alpha"], "stopped": stopped,
+            "schedule": dict(values)}
 
 
 def root_bounds(Y: np.ndarray, K: int, *, incumbent: float,
