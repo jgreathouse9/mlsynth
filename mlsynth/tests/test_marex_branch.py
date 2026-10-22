@@ -554,6 +554,118 @@ def test_the_default_costs_bound_a_large_root():
     assert branch_mod.PRICE_SECONDS * 10_000 < branch_mod.lift_seconds(10)
 
 
+# ------------------------------------------------- the lift's prune rate
+#: Pricing at a thousandth of a second a set and a lift at five thousandths:
+#: unweighted, every node of more than five sets is lifted.
+CHEAP_LIFT = dict(price_seconds=1e-3, lift_seconds=lambda k: 5e-3)
+
+
+class _Fixed:
+    """A prune rate that never moves: ``1`` is the unweighted search."""
+
+    def __init__(self, p: float = 1.0):
+        self.p = p
+        self.records = []
+
+    def rate(self, size: int) -> float:
+        return self.p
+
+    def record(self, size: int, pruned: bool) -> None:
+        self.records.append((size, pruned))
+
+
+def _useless_lifts(monkeypatch):
+    """A lift that never moves the bound, as on a panel where the relaxation
+    is no tighter than the fits the node already has; the subtree size of
+    each node lifted is recorded."""
+    sizes = []
+
+    def useless(data, m, I, O, F, lin_t=None, lin_c=None):
+        sizes.append(math.comb(len(F), m - len(I)))
+        return branch_mod._UNBOUNDED
+
+    monkeypatch.setattr(branch_mod, "node_bound", useless)
+    return sizes
+
+
+def test_lifts_that_never_prune_are_weighted_down(monkeypatch):
+    """The lift is weighed by how often it has pruned at the node's subtree
+    size: a lift that never prunes is tried a few times per size and then left
+    alone. Unweighted, every node above the cost threshold is lifted."""
+    B, A = _problem(3, 12)
+    truth = _brute(B, A, [4])[0][0]
+    sizes = _useless_lifts(monkeypatch)
+    weighted = _search(B, A, [4], **CHEAP_LIFT)
+    per_size = {}
+    for s in sizes:
+        per_size[s.bit_length()] = per_size.get(s.bit_length(), 0) + 1
+    sizes.clear()
+    monkeypatch.setattr(branch_mod, "PruneRates", _Fixed)
+    unweighted = _search(B, A, [4], **CHEAP_LIFT)
+    for res in (weighted, unweighted):
+        assert _close(res.designs[0].value, truth)
+    assert 0 < weighted.lifts < unweighted.lifts
+    assert max(per_size.values()) <= 3
+
+
+def test_every_lift_is_recorded_at_its_subtree_size(monkeypatch):
+    rates = _Fixed()
+    monkeypatch.setattr(branch_mod, "PruneRates", lambda: rates)
+    sizes = []
+    real = branch_mod.node_bound
+
+    def counted(data, m, I, O, F, lin_t=None, lin_c=None):
+        sizes.append(math.comb(len(F), m - len(I)))
+        return real(data, m, I, O, F, lin_t, lin_c)
+
+    monkeypatch.setattr(branch_mod, "node_bound", counted)
+    B, A = _problem(4, 10)
+    res = _search(B, A, [3], **CHEAP_LIFT)
+    assert res.lifts == len(rates.records) > 0
+    assert [size for size, _ in rates.records] == [s.bit_length() for s in sizes]
+    assert any(pruned for _, pruned in rates.records)
+
+
+def test_a_node_not_lifted_is_split_not_priced(monkeypatch):
+    """Where the lift is not worth its cost the node keeps its cheap bound and
+    is split, so its subtree is priced in parts, each under the incumbent."""
+    monkeypatch.setattr(branch_mod, "PruneRates", lambda: _Fixed(0.0))
+    B, A = _problem(5, 12)
+    res = _search(B, A, [4], **CHEAP_LIFT)
+    assert res.lifts == 0 and res.nodes > 0
+    assert _close(res.designs[0].value, _brute(B, A, [4])[0][0])
+    priced_whole = _search(B, A, [4], **NEVER_LIFT)
+    assert priced_whole.nodes == 0 and priced_whole.priced == math.comb(12, 4)
+
+
+def test_the_search_counts_the_nodes_it_bounds():
+    B, A = _problem(0, 8)
+    res = _search(B, A, [3], **ALWAYS_LIFT)
+    assert res.nodes >= res.lifts > 0
+    assert _search(B, A, [3], **NEVER_LIFT).nodes == 0
+
+
+@settings(max_examples=20, deadline=None)
+@given(seed=st.integers(0, 10**6), n=st.integers(6, 10), m=st.integers(2, 4),
+       p=st.floats(0.0, 1.0), linear=st.booleans())
+def test_property_the_prune_rate_decides_the_work_never_the_answer(seed, n, m, p,
+                                                                  linear):
+    """Whatever the rate, the search returns the enumeration's optimum inside
+    its certificate: the weight moves time between lifting and pricing."""
+    import unittest.mock as mock
+    m = min(m, n - 2)
+    B, A = _problem(seed, n)
+    rng = np.random.default_rng(seed + 1)
+    lin = rng.uniform(0, 3, n) if linear else None
+    truth = _brute(B, A, [m], lin_t=lin, lin_c=lin)[0][0]
+    with mock.patch.object(branch_mod, "PruneRates", lambda: _Fixed(p)):
+        res = _search(B, A, [m], linear_treated=lin, linear_control=lin, **CHEAP_LIFT)
+    assert _close(res.designs[0].value, truth)
+    assert res.certificate.lower <= truth * (1 + 1e-12) + 1e-300
+    assert truth <= res.certificate.upper * (1 + 1e-12)
+    assert res.nodes >= res.lifts
+
+
 # ------------------------------------------------------------- edge cases
 def test_an_exact_tie_is_reported_unresolved():
     B, A = _problem(6, 7)

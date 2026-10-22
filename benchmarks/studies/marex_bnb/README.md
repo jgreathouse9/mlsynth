@@ -37,6 +37,59 @@ full:
 - `results/rca_enumeration_vs_bnb.md`: why the earlier certified search lost
   to enumeration at every treated count, as a root-cause ladder.
 
+## The bound weighted by its prune rate (#832): slower everywhere, not built
+
+#832 proposed weighting the bound's cost by how often it has pruned at the
+node's subtree size, as SYNDES's two-way search does: bound a node when
+`count * price_seconds * rate > lift_seconds(k)`, with `rate = (hits + w p) /
+(tries + w)` per bit length of the count and `p = (all hits + 1) / (all tries
++ 2)`, and split a node whose bound would not pay on the fits' bound.
+`lift_weight.py` runs the library's search three ways: weighted, unweighted
+(the library's rule, rate one), and with an optimistic pooled rate that starts
+at one, `(all hits + 1) / (all tries + 1)`. Every run returned the same design and the same
+certificate. Four runs shared four cores, so the seconds are loaded; the counts
+are deterministic.
+
+| panel | treated | sets | unweighted | weighted | optimistic |
+| --- | ---: | ---: | --- | --- | --- |
+| Walmart | 6 | 8,145,060 | 2 bounds, 1,086,008 priced, 25.7 s | 0 bounds, 8,145,060 priced, 34.6 s | 1 bound, 8,145,060 priced, 41.3 s |
+| Walmart | 8 | 215,553,195 | 22 bounds, 33,257,562 priced, 453.4 s | 7 bounds, 215,553,195 priced, 1,085.5 s | 7 bounds, 215,553,195 priced, 1,082.9 s |
+| GeoLift | 8 | 76,904,685 | 7 bounds, 5,085,465 priced, 76.9 s | 4 bounds, 28,001,193 priced, 163.1 s | 4 bounds, 28,001,193 priced, 164.1 s |
+| GeoLift | 10 | 847,660,528 | 8 bounds, 1,947,792 priced, 50.7 s | 6 bounds, 18,643,152 priced, 157.8 s | 6 bounds, 10,295,472 priced, 109.1 s |
+| factor (40, 40) | 8 | 76,904,685 | 16 bounds, 14,273,897 priced, 132.4 s | 5 bounds, 46,644,345 priced, 289.7 s | 5 bounds, 46,644,345 priced, 294.5 s |
+| noise (40, 40) | 8 | 76,904,685 | 8 bounds, 2,760,681 priced, 57.4 s | 5 bounds, 46,644,345 priced, 275.1 s | 5 bounds, 46,644,345 priced, 272.0 s |
+
+The weight costs 1.35 to 4.8 times the unweighted search's seconds on every
+panel, the flat noise panel included. `lift_weight_prunes.py` records which
+bounds discard their own node in the unweighted search
+(`results/lift_weight_prunes.jsonl`):
+
+| panel | treated | bounds | discard their node | first that does |
+| --- | ---: | ---: | ---: | ---: |
+| Walmart | 6 | 2 | 1 | 2nd |
+| GeoLift | 8 | 7 | 3 | 4th |
+| GeoLift | 10 | 8 | 1 | 8th |
+| noise | 8 | 8 | 4 | 4th |
+| factor | 8 | 16 | 5 | 9th |
+
+The search is best first, so its first bounds lie on the path to the optimum,
+and those cannot discard their node. Their bounds pay off through the children.
+Every bound passes to the two children it creates, and a child is discarded
+when it leaves the queue after the incumbent has passed that bound. On GeoLift
+with ten treated, one bound in eight discarded its own node, yet the search
+priced 1,947,792 of 847,660,528 sets, and no node was discarded by the fits'
+bound (nodes bounded equal bounds computed). The rest went at the queue, on a
+parent's bound. A rate that counts only the node's own discard reads these
+bounds as failures. The prior of one half then refuses the bounds that would
+have pruned: MAREX's rule is near break-even (8.1 s of pricing against a 5.3 s
+bound at Walmart's root), so a factor of one half is enough to tip it.
+
+SYNDES's weight helps on its flat four-factor panel, where no bound separates
+the sets (#803) and the unweighted lifts pruned at most one node in twenty. No
+MAREX panel measured here behaves that way. The library's
+rule stays unweighted. The code of this experiment, including the weighted
+search, is on the branch `claude/marex-lift-weight`.
+
 ## Running it
 
 From the repository root. The scripts read `basedata/geolift_market_data.csv`,

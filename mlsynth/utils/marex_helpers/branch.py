@@ -407,19 +407,53 @@ def node_bound(
 # ----------------------------------------------------------------------
 
 
+class PruneRates:
+    """The chance a persp+N bound prunes its node, by subtree size.
+
+    A size is the bit length of the node's set count. Each size's estimate is
+    shrunk toward the rate over every size, which starts at one half: ``(hits
+    + w p) / (tries + w)`` with ``p = (all hits + 1) / (all tries + 2)``, the
+    estimate of SYNDES's two-way search (``syndes_helpers.branch``). Where no
+    bound has pruned at any size, a size not yet seen starts low, and the
+    search does not pay a bound or two at every size to learn what the others
+    already showed.
+    """
+
+    def __init__(self, weight: float = 2.0):
+        self.weight = weight
+        self.hits: Dict[int, int] = {}
+        self.tries: Dict[int, int] = {}
+        self.all_hits = 0
+        self.all_tries = 0
+
+    def rate(self, size: int) -> float:
+        pooled = (self.all_hits + 1.0) / (self.all_tries + 2.0)
+        return ((self.hits.get(size, 0) + self.weight * pooled)
+                / (self.tries.get(size, 0) + self.weight))
+
+    def record(self, size: int, pruned: bool) -> None:
+        self.tries[size] = self.tries.get(size, 0) + 1
+        self.all_tries += 1
+        if pruned:
+            self.hits[size] = self.hits.get(size, 0) + 1
+            self.all_hits += 1
+
+
 @dataclass(frozen=True)
 class BranchResult:
     """What the branch and bound returns for one cluster.
 
     ``designs`` are the ``top_k`` best, best first; ``certificate`` brackets the
-    best one; ``lifts`` counts the persp+N bounds computed and ``priced`` the
-    sets priced one at a time.
+    best one; ``nodes`` counts the nodes bounded instead of priced, ``lifts``
+    the persp+N bounds computed at them and ``priced`` the sets priced one at
+    a time.
     """
 
     designs: List[ClusterDesign]
     certificate: ClusterCertificate
     lifts: int
     priced: int
+    nodes: int
 
 
 def branch_and_bound(
@@ -467,7 +501,8 @@ def branch_and_bound(
     best = _TopK(top_k)
     brackets: Dict[Tuple[int, ...], Tuple[Fraction, Fraction]] = {}
     floors: Dict[Tuple[int, ...], Fraction] = {}
-    state = {"lifts": 0, "priced": 0, "admissible": False}
+    state = {"lifts": 0, "priced": 0, "nodes": 0, "admissible": False}
+    rates = PruneRates()
 
     def pool(S: Sequence[int]) -> List[int]:
         drop = set(S)
@@ -562,16 +597,22 @@ def branch_and_bound(
         state["admissible"] = True
         if len(O) + len(F) - r < 1:              # every set treats every market
             continue
-        if count < 2 or not count * price_seconds > lift_seconds(
-                max(len(I) + len(F), len(O) + len(F))):
+        k = max(len(I) + len(F), len(O) + len(F))
+        if count < 2 or not count * price_seconds > lift_seconds(k):
             price(m, sub, O, F)
             continue
+        state["nodes"] += 1
         h_floor = control_floor(tuple(sorted(O + F)))
         g_floor, w = fit_lower(sorted(I + F), lin_t)
         bound = max(bound, g_floor + h_floor)
         if clears(bound):
             continue
-        if state["lifts"] >= max_lifts:
+        # a bound is worth what it saves when it prunes, at the rate it has
+        # pruned at this size; a node not worth one keeps the fits' bound
+        size = count.bit_length()
+        lifted = count * price_seconds * rates.rate(size) > lift_seconds(k)
+        nb = _UNBOUNDED
+        if lifted and state["lifts"] >= max_lifts:
             lows = [item[0] for item in queue] + [bound]
             lows += [lo for lo, _ in brackets.values()]
             lower = min(lows)
@@ -584,8 +625,9 @@ def branch_and_bound(
                 f"{'inf' if cut is None else f'{float(cut):.6g}'}). Use "
                 f"backend='mip', or narrow the design with restrictions or a "
                 f"smaller treated count.")
-        nb = node_bound(data, m, I, O, F, lin_t, lin_c)
-        state["lifts"] += 1
+        if lifted:
+            nb = node_bound(data, m, I, O, F, lin_t, lin_c)
+            state["lifts"] += 1
         if nb.lower is not None:
             bound = max(bound, nb.lower)
         U = sorted(I + F)
@@ -593,7 +635,10 @@ def branch_and_bound(
         guess = tuple(sorted(I + tuple(sorted(F, key=lambda k: (-score[k], k))[:r])))
         if sub.accepts(guess):
             fit(guess, h_floor)
-        if clears(bound):
+        pruned = clears(bound)
+        if lifted:
+            rates.record(size, pruned)
+        if pruned:
             continue
         j = max(F, key=lambda k: (score[k], -k))
         out = partners.get(j, set())
@@ -622,4 +667,5 @@ def branch_and_bound(
                                      unresolved=tuple(sorted(unresolved)),
                                      fitted=len(brackets))
     return BranchResult(designs=list(best.items), certificate=certificate,
-                        lifts=state["lifts"], priced=state["priced"])
+                        lifts=state["lifts"], priced=state["priced"],
+                        nodes=state["nodes"])

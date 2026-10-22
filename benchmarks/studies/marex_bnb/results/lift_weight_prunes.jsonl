@@ -1,0 +1,5 @@
+{"panel": "walmart", "m": 6, "lifts": 2, "seq": [[23, false], [23, true]]}
+{"panel": "geolift", "m": 8, "lifts": 7, "seq": [[27, false], [24, false], [26, false], [24, true], [24, false], [26, true], [24, true]]}
+{"panel": "geolift", "m": 10, "lifts": 8, "seq": [[30, false], [28, false], [30, false], [26, false], [28, false], [24, false], [26, false], [23, true]]}
+{"panel": "noise", "m": 8, "lifts": 8, "seq": [[27, false], [24, false], [26, false], [24, true], [24, true], [26, false], [24, true], [26, true]]}
+{"panel": "factor", "m": 8, "lifts": 16, "seq": [[27, false], [24, false], [26, false], [24, false], [24, false], [24, false], [26, false], [23, false], [24, true], [23, false], [24, false], [26, false], [23, true], [23, true], [23, true], [25, true]]}
