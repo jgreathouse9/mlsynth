@@ -41,7 +41,11 @@ read and its Frank-Wolfe gap recorded; each is warm-started from the unit's root
 weights.
 
 When the search closes, every pruned node's bound was at or above the incumbent,
-so the incumbent is the optimum. A search stopped at ``node_limit`` returns its
+so the incumbent is the optimum. The search counts its work in modelled seconds,
+as the two-way search does: each fit at :func:`fit_seconds` of its matrix and each
+node at :data:`NODE_SECONDS_PER_UNIT` per unit, the cost of reading and sorting
+the undecided units' fits. It reads ``work_limit`` between nodes, so the work
+passes the limit by at most the last node's. A search stopped there returns its
 incumbent with ``certified=False``, the smallest bound left open as the lower
 bound, and a :class:`~.optimization.SYNDESSolveWarning`.
 """
@@ -63,10 +67,25 @@ from .exact import SubsetFilter, _NoFeasibleDesign
 from .optimization import SYNDESSolveWarning, estimate_lambda
 from .structures import SYNDESDesign, SYNDESSolveOutcome
 
-#: Nodes the search may visit before it stops and reports an uncertified
-#: incumbent. The study's hardest run, half of twenty units treated on a panel
-#: with no structure, took 31,083.
-NODE_LIMIT = 5_000_000
+#: Modelled seconds for one simplex fit: a fixed cost and a cost per entry of
+#: its matrix (rows, the periods and one per donor for the penalty, by the
+#: donors), fitted to the library's 540,262 fits on the per-unit study's panels.
+FIT_SECONDS = 8.1e-5
+FIT_SECONDS_PER_ENTRY = 2.44e-7
+
+#: Modelled seconds a node spends beyond its fits, per unit of the panel.
+NODE_SECONDS_PER_UNIT = 5.1e-5
+
+#: The modelled seconds a search may spend before it stops and reports an
+#: uncertified incumbent. Every run of the per-unit study closes inside it: the
+#: hardest, half of twenty units treated on a panel with no structure, does 74
+#: modelled seconds (31,083 nodes and 203,903 fits), 72 to 75 on the clock.
+WORK_LIMIT = 120.0
+
+
+def fit_seconds(rows: int, cols: int) -> float:
+    """Modelled seconds for one fit with a ``rows`` by ``cols`` matrix."""
+    return FIT_SECONDS + FIT_SECONDS_PER_ENTRY * rows * cols
 
 
 class UnitFits:
@@ -98,6 +117,7 @@ class UnitFits:
         self.excluded = {int(i): frozenset(int(j) for j in js)
                          for i, js in (excluded or {}).items()}
         self.n_fits = 0
+        self.work = 0.0
         self.max_rel_gap = 0.0
         self._cache: Dict[Tuple[int, FrozenSet[int]],
                           Tuple[float, Optional[np.ndarray]]] = {}
@@ -134,6 +154,7 @@ class UnitFits:
             if start.sum() > 0.0:
                 warm = start / start.sum()
         v, info = solve_simplex_qp(B, A, warm_start=warm, return_info=True)
+        self.work += fit_seconds(*B.shape)
         if not info["converged"]:
             raise MlsynthEstimationError(
                 f"SYNDES per-unit exact backend: the fit of unit {i} on a pool of "
@@ -183,14 +204,16 @@ class _Outcome:
     fits: int
     max_rel_gap: float
     seconds: float
+    work: float
 
 
-def _search(fits: UnitFits, K: int, filt: SubsetFilter, node_limit: int
+def _search(fits: UnitFits, K: int, filt: SubsetFilter, work_limit: float
             ) -> _Outcome:
     """Depth-first branch and bound over which units are treated."""
     t0 = perf_counter()
     N = fits.N
     cost = filt.costs
+    node_seconds = NODE_SECONDS_PER_UNIT * N
 
     def can_add(F: FrozenSet[int], u: int) -> bool:
         if any((u == a and b in F) or (u == b and a in F)
@@ -209,7 +232,7 @@ def _search(fits: UnitFits, K: int, filt: SubsetFilter, node_limit: int
     start_F, start_E = frozenset(filt.forced_in), frozenset(filt.forbidden) | never
     # Seed the incumbent with the forced units and the best root fits, when that
     # set is admissible: it prunes from the first node, and a search stopped at
-    # its node limit then has a design to return.
+    # its work limit then has a design to return.
     free = [u for u in np.argsort(fits.root_value, kind="stable")
             if u not in start_F and u not in start_E]
     if K - len(start_F) >= 0 and len(free) >= K - len(start_F):
@@ -226,7 +249,7 @@ def _search(fits: UnitFits, K: int, filt: SubsetFilter, node_limit: int
     nodes = 0
     closed = True
     while stack:
-        if nodes >= node_limit:
+        if fits.work + nodes * node_seconds >= work_limit:
             closed = False
             break
         F, E, _ = stack.pop()
@@ -258,8 +281,8 @@ def _search(fits: UnitFits, K: int, filt: SubsetFilter, node_limit: int
     if best_set is None:
         if not closed:
             raise MlsynthEstimationError(
-                "SYNDES per-unit exact backend: the node limit was reached before "
-                "any admissible design was found. Raise node_limit.")
+                "SYNDES per-unit exact backend: the work limit was reached before "
+                "any admissible design was found. Raise work_limit.")
         raise _NoFeasibleDesign(
             "SYNDES found no feasible design: the active restrictions "
             "(forced/forbidden units, donor exclusions, conflicts, stratum "
@@ -272,7 +295,8 @@ def _search(fits: UnitFits, K: int, filt: SubsetFilter, node_limit: int
         Q[i] = fits.fit(i, removed)[1]
     return _Outcome(treated=best_set, value=best, weights=Q, lower_bound=lower,
                     closed=closed, nodes=nodes, fits=fits.n_fits,
-                    max_rel_gap=fits.max_rel_gap, seconds=perf_counter() - t0)
+                    max_rel_gap=fits.max_rel_gap, seconds=perf_counter() - t0,
+                    work=fits.work + nodes * node_seconds)
 
 
 def _price(fits: UnitFits, S: Sequence[int]) -> float:
@@ -290,7 +314,7 @@ def solve_per_unit_exact(
     budget: Optional[float] = None,
     restrictions: Optional[Any] = None,
     forbidden_sets: Optional[Sequence[np.ndarray]] = None,
-    node_limit: int = NODE_LIMIT,
+    work_limit: float = WORK_LIMIT,
 ) -> SYNDESDesign:
     """Solve the per-unit design by a branch and bound on units.
 
@@ -317,15 +341,16 @@ def solve_per_unit_exact(
         pools; the rest restrict which units are treated.
     forbidden_sets : sequence of arrays, optional
         Treated sets to exclude, which is how the pool asks for the next design.
-    node_limit : int, optional
-        Nodes the search may visit before it stops uncertified.
+    work_limit : float, optional
+        Modelled seconds the search may spend before it stops uncertified.
 
     Raises
     ------
     MlsynthDataError
         If ``Y`` is not a two-dimensional array.
     MlsynthConfigError
-        For an out-of-range ``K``, a negative ``lam`` or malformed costs.
+        For an out-of-range ``K``, a negative ``lam``, malformed costs, or a
+        ``work_limit`` that is not a positive finite number.
     MlsynthEstimationError
         When no admissible design exists, or a fit does not converge.
     """
@@ -337,6 +362,10 @@ def solve_per_unit_exact(
         raise MlsynthConfigError(
             f"K must be an integer in 1..{N - 1} for a per-unit design; got {K!r}.")
     K = int(K)
+    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
+            or not np.isfinite(work_limit) or work_limit <= 0):
+        raise MlsynthConfigError(
+            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
     if not lam_value >= 0.0:
         raise MlsynthConfigError(f"lam must be nonnegative; got {lam!r}.")
@@ -351,17 +380,18 @@ def solve_per_unit_exact(
 
     t0 = perf_counter()
     fits = UnitFits(Y, lam_value, {i: frozenset(js) for i, js in excluded.items()})
-    outcome = _search(fits, K, filt, int(node_limit))
+    outcome = _search(fits, K, filt, float(work_limit))
     seconds = perf_counter() - t0
 
     gap = ((outcome.value - outcome.lower_bound) / outcome.value
            if outcome.value > 0.0 else 0.0)
-    status = "optimal" if outcome.closed else "node_limit"
+    status = "optimal" if outcome.closed else "work_limit"
     if not outcome.closed:
         warnings.warn(
-            f"SYNDES per-unit exact backend stopped at its node limit "
-            f"({outcome.nodes} nodes) with a gap of {gap:.3g} to its lower bound; "
-            "the design is the best found, not a proven optimum. Raise node_limit.",
+            f"SYNDES per-unit exact backend stopped at its work limit "
+            f"({work_limit:g} modelled seconds, {outcome.nodes} nodes) with a gap "
+            f"of {gap:.3g} to its lower bound; the design is the best found, not a "
+            "proven optimum. Raise work_limit.",
             SYNDESSolveWarning, stacklevel=2)
     solve_outcome = SYNDESSolveOutcome(
         status=status, solver_status="exact", stopped_at_limit=not outcome.closed,
@@ -448,6 +478,7 @@ def _to_design(Y: np.ndarray, outcome: _Outcome, lam: float, K: int,
             "lower_bound": outcome.lower_bound,
             "n_nodes": outcome.nodes,
             "n_fits": outcome.fits,
+            "work": outcome.work,
             "max_fit_gap": outcome.max_rel_gap,
         },
         solve_outcome=solve_outcome,

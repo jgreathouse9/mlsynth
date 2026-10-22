@@ -72,9 +72,9 @@ class TestASearchStoppedAtItsLimit:
 
     def test_a_stopped_search_gives_a_valid_bound_uncertified(self):
         Y = _Y(N=12, seed=22)
-        with pytest.warns(Warning):
-            stopped = solve_per_unit_exact(Y, 5, node_limit=3)
         exact = solve_per_unit_exact(Y, 5)
+        with pytest.warns(Warning):
+            stopped = solve_per_unit_exact(Y, 5, work_limit=exact.raw_results["work"] / 5)
         inc = design_objective(Y, "per_unit", stopped, stopped.lambda_value)
         c = syndes_certificate(Y, 5, "per_unit", inc, lam=stopped.lambda_value,
                                search=stopped)

@@ -1102,9 +1102,13 @@ over the undecided units :math:`u`. The bound tightens as :math:`F` grows and
 equals :math:`f(S)` at a leaf. When the search closes, every node it discarded
 had a bound at or above the returned design, so the design is the optimum;
 ``design.solve_outcome`` reports ``status="optimal"``, the lower bound and a gap
-of zero. A search that reaches ``node_limit`` returns its best design with
-``status="node_limit"``, the smallest bound it left open, the gap to it, and a
-``SYNDESSolveWarning``.
+of zero. The search counts its work in modelled seconds, as the two-way search
+does: each fit is charged by the size of its matrix and each node by the
+panel's units, constants fitted to the 540,262 fits of the per-unit study's
+panels. It stops at ``work_limit`` (120 by default), read between nodes. A
+search that reaches it returns its best design with
+``status="work_limit"``, the smallest bound it left open, the gap to it, and a
+``SYNDESSolveWarning``; ``raw_results["work"]`` is the work done.
 
 Each fit is a simplex least-squares problem, solved by the active-set solver
 with its convergence checked, on the panel centred within each period and
@@ -1117,7 +1121,9 @@ optimum.
 The study behind this search is
 `benchmarks/studies/syndes_per_unit_exact <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_per_unit_exact>`_.
 On 156 runs it closed every one, in at most 28 seconds, with half of twenty
-units treated on a panel with no structure as the hardest case. SCIP at the
+units treated on a panel with no structure as the hardest case. The library's
+search, with its convergence checks and recorded gaps, takes 72 to 75 seconds on
+that case, 74 modelled, inside its default limit. SCIP at the
 MIP path's defaults (60 seconds, a 5 percent gap) returned the optimum on 14 of
 78 runs; from 40 units its time limit bound on nearly every run, and its design
 was a median 56 percent worse where it was not optimal.
