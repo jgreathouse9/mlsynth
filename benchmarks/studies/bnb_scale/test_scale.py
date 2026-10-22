@@ -157,6 +157,9 @@ class TestMarexInstrument:
                                  price_seconds=1.0)
         assert not row["closed"] and row["lifts"] == 1
         assert "computed 1 bounds" in row["stopped"]
+        # the bracket the message carries is read back, and brackets the design
+        assert np.isfinite(row["lower"]) and row["lower"] <= row["upper"]
+        assert row["gap"] == pytest.approx((row["upper"] - row["lower"]) / row["upper"])
 
     def test_the_library_is_left_as_it_was(self):
         marex_scale.search(panels.panel("bls", 12), 3, max_lifts=1, price_seconds=1.0)

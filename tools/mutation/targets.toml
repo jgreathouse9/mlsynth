@@ -7231,3 +7231,50 @@ timeout = 300.0
   find = "    return \"SCIP\" not in installed"
   replace = "    return False"
   models = "an indirect case that never fires, so on a machine without SCIP the swallowed missing solver fails the MIP tests instead of skipping them"
+
+# The #842 scale study's instruments. They wrap the library's searches from
+# outside, so each mutant makes one of them miscount or leave the library
+# patched.
+[[target]]
+name = "bnb-scale-syndes-instruments"
+module-path = "benchmarks/studies/bnb_scale/syndes_scale.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "evaluations-counted-per-lift"
+  find = '        tally["evaluations"] += int(evaluations)'
+  replace = '        tally["evaluations"] += 1'
+  models = "the lift's dual evaluations counted as one per lift, which hides the column the per-node cost is read from: about 300 evaluations a lift at 60 units and 770 at 100"
+
+  [[target.mutant]]
+  id = "the-lift-is-left-wrapped"
+  find = '        branch.lift, branch.ExactR.certify = _ORIGINAL["lift"], _ORIGINAL["certify"]'
+  replace = '        branch.ExactR.certify = _ORIGINAL["certify"]'
+  models = "an instrument left in the library after the measurement, so every later search in the process counts into a dead tally and pays the wrapper"
+
+  [[target.mutant]]
+  id = "complements-are-not-seeds"
+  find = '            out.add(tuple(sorted(set(range(N)) - set(t))))'
+  replace = '            pass'
+  models = "the swap search's seeds read without their complements, which the search itself tries at K = N/2, so a design the seeds held reads as found by the search"
+
+[[target]]
+name = "bnb-scale-marex-instruments"
+module-path = "benchmarks/studies/bnb_scale/marex_scale.py"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k Marex"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-bound-is-left-wrapped"
+  find = """    finally:
+        branch.node_bound = _ORIGINAL_NODE_BOUND"""
+  replace = """    finally:
+        pass"""
+  models = "the timing wrapper left on node_bound after a search, so the next search in the process times through two wrappers"
+
+  [[target.mutant]]
+  id = "the-bracket-is-not-read"
+  find = "        found = _BRACKET.search(str(exc))"
+  replace = "        found = None"
+  models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
