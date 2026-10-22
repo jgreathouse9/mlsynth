@@ -87,11 +87,16 @@ class TestSyndesInstrument:
             assert row["gap"] <= 1e-6
 
     def test_the_answer_is_the_enumerated_optimum(self, small):
-        """At 16 units the enumeration is 12,870 sets: the search's design is it."""
+        """At 16 units the enumeration is 12,870 sets: the search's design is it.
+        At K = N/2 a set and its complement are the same design, and which of
+        the two comes back depends on the last digits, so either is the
+        answer (on a CI runner the search returned the complement)."""
         Y, row = small
         from mlsynth.utils.syndes_helpers.exact import solve_synthetic_design_exact
         best = solve_synthetic_design_exact(Y=Y, K=8)
-        assert row["treated"] == sorted(int(i) for i in best.selected_unit_indices)
+        chosen = sorted(int(i) for i in best.selected_unit_indices)
+        mirror = sorted(set(range(16)) - set(chosen))
+        assert row["treated"] in (chosen, mirror)
 
     def test_the_swap_flag_reads_the_seeds(self, small):
         """``swap_found`` says whether the swap search's seeds held the design,
@@ -332,37 +337,100 @@ class TestLiftTrace:
             assert getattr(syndes_branch, name) == value
 
 
-class TestTraceAtFortyUnits:
-    """The 40-county root the write-up reports. Its shipped run reaches the
-    floor while still adding triangles, then meets the floor and the stall rule
-    in the same last round; a lower floor alone stalls above it. At 12 units
-    neither happens, so this is where the replica's floor and naming rules are
-    held to the lift."""
+def _round(alpha, smooth, added):
+    """One traced round: the evaluation at the round's solution, the
+    separation, and the concatenation when triangles were added."""
+    return [("theta", alpha, smooth), ("separate",)] + ([("concat",)] if added else [])
 
-    @pytest.fixture(scope="class")
-    def runs(self):
+
+class TestStoppingRules:
+    """The replica of the lift's stopping rules, on rounds written by hand.
+    The rounds a real lift takes depend on the BLAS kernel's last digits (on a
+    CI runner the 40-county root took 824 evaluations to this machine's 761,
+    and a finer floor ran on where it stalled here), so the rules are held on
+    rounds whose answer is fixed."""
+
+    def test_a_round_at_the_floor_that_adds_triangles_does_not_stop(self):
         from benchmarks.studies.bnb_scale import root_gap
-        Y = panels.panel("bls", 40)
-        return root_gap.trace_lift(Y, 20), root_gap.trace_lift(Y, 20, **root_gap.LONG)
+        events = (_round(0.1, 10.0, True) + _round(5e-5, 9.0, True)
+                  + _round(5e-5, 8.9, False))
+        rounds = root_gap._rounds(events, alpha_min=5e-5, min_rounds=12, max_rounds=100)
+        assert [r["stops"] for r in rounds] == [False, False, True]
+        assert root_gap._stopped(rounds, max_rounds=100) == "floor"
 
-    def test_rounds_at_the_floor_that_add_triangles_do_not_stop(self, runs):
-        shipped, _ = runs
-        floor = [r for r in shipped["rounds"] if r["alpha"] == 5e-5]
-        assert any(r["added"] for r in floor[:-1])
-        assert [r["stops"] for r in shipped["rounds"]] == (
-            [False] * (len(shipped["rounds"]) - 1) + [True])
+    def test_a_round_meeting_both_rules_ended_at_its_floor(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        events = (_round(0.1, 10.0, True) + _round(5e-5, 9.0, True)
+                  + _round(5e-5, 9.0, False))
+        rounds = root_gap._rounds(events, alpha_min=5e-5, min_rounds=2, max_rounds=100)
+        assert rounds[-1]["at_floor"] and rounds[-1]["giveup"]
+        assert root_gap._stopped(rounds, max_rounds=100) == "floor"
 
-    def test_a_run_meeting_both_rules_ended_at_its_floor(self, runs):
-        shipped, _ = runs
-        last = shipped["rounds"][-1]
-        assert last["at_floor"] and last["giveup"]
-        assert shipped["stopped"] == "floor"
+    def test_a_stall_above_the_floor_is_named(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        events = _round(1e-5, 9.0, True) + _round(1e-5, 9.0, True)
+        rounds = root_gap._rounds(events, alpha_min=1e-8, min_rounds=2, max_rounds=100)
+        assert [r["stops"] for r in rounds] == [False, True]
+        assert root_gap._stopped(rounds, max_rounds=100) == "stall"
 
-    def test_a_lower_floor_alone_stalls_above_it(self, runs):
-        shipped, finer = runs
-        assert finer["stopped"] == "stall"
-        assert finer["final_alpha"] > 1e-8
-        assert finer["evaluations"] < shipped["evaluations"]
+    def test_the_round_limit_is_named(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        events = _round(0.1, 10.0, True) + _round(0.1, 9.0, True)
+        rounds = root_gap._rounds(events, alpha_min=1e-8, min_rounds=1, max_rounds=2)
+        assert [r["stops"] for r in rounds] == [False, True]
+        assert root_gap._stopped(rounds, max_rounds=2) == "rounds"
+
+    def test_a_change_over_the_stall_tolerance_is_not_a_stall(self):
+        """1.1e-5 relative is over the lift's 1e-6, so the run goes on."""
+        from benchmarks.studies.bnb_scale import root_gap
+        events = _round(5e-5, 9.0, True) + _round(5e-5, 9.0001, True)
+        rounds = root_gap._rounds(events, alpha_min=1e-8, min_rounds=1, max_rounds=100)
+        assert not rounds[-1]["stalled"] and not rounds[-1]["stops"]
+
+    def test_a_stall_before_min_rounds_does_not_stop(self):
+        from benchmarks.studies.bnb_scale import root_gap
+        events = _round(5e-5, 9.0, True) + _round(5e-5, 9.0, True)
+        rounds = root_gap._rounds(events, alpha_min=1e-8, min_rounds=12, max_rounds=100)
+        assert rounds[-1]["stalled"] and not rounds[-1]["stops"]
+
+
+class TestInstrumentsPinBlas:
+    """Every instrument runs the library on one BLAS thread, whatever the
+    caller's setting. Unpinned under four test workers, SciPy's L-BFGS-B core
+    took 10.7 s of an 11.8 s lift at 20 units (#857), and the profile read
+    the thread pool, not the lift."""
+
+    @pytest.fixture
+    def caller_threads(self):
+        from threadpoolctl import threadpool_info, threadpool_limits
+        with threadpool_limits(2, user_api="blas"):
+            threads = [p["num_threads"] for p in threadpool_info() if p["user_api"] == "blas"]
+            if max(threads) < 2:  # pragma: no cover - CI and development machines run several threads; this guards a single-core runner
+                pytest.skip("BLAS cannot run two threads here")
+            yield threads
+
+    @pytest.mark.parametrize("run", ["measure", "profile", "trace", "root"])
+    def test_the_library_runs_on_one_thread(self, caller_threads, run, monkeypatch):
+        from threadpoolctl import threadpool_info
+        from benchmarks.studies.bnb_scale import root_gap
+        seen = []
+        eigh = np.linalg.eigh
+
+        def spy(*args, **kwargs):
+            if not seen:
+                seen.append([p["num_threads"] for p in threadpool_info()
+                             if p["user_api"] == "blas"])
+            return eigh(*args, **kwargs)
+
+        monkeypatch.setattr(np.linalg, "eigh", spy)
+        Y = panels.panel("bls", 10)
+        {"measure": lambda: syndes_scale.measure(Y, 5, work_limit=5.0, **syndes_scale.EAGER),
+         "profile": lambda: syndes_scale.profile_lift(Y, 5),
+         "trace": lambda: root_gap.trace_lift(Y, 5),
+         "root": lambda: root_gap.root_bounds(Y, 5, incumbent=1.0, interior=False)}[run]()
+        assert seen and set(seen[0]) == {1}
+        assert [p["num_threads"] for p in threadpool_info()
+                if p["user_api"] == "blas"] == caller_threads
 
 
 class TestTriangleClosure:

@@ -23,6 +23,7 @@ import time
 from contextlib import contextmanager
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 from mlsynth.utils.syndes_helpers import branch
 from mlsynth.utils.syndes_helpers.gram import BoundEngine, TwoWayProblem
@@ -100,7 +101,7 @@ def trace_lift(Y: np.ndarray, K: int, **values) -> dict:
         events.append(("concat",))
         return _ORIGINAL["concat"](a, b)
 
-    with schedule(**values):
+    with schedule(**values), threadpool_limits(1):
         alpha_min, min_rounds, max_rounds = (branch.ALPHA_MIN, branch.MIN_ROUNDS,
                                              branch.MAX_ROUNDS)
         branch._theta, branch.separate = theta, separate
@@ -111,6 +112,17 @@ def trace_lift(Y: np.ndarray, K: int, **values) -> dict:
             branch._theta, branch.separate = _ORIGINAL["theta"], _ORIGINAL["separate"]
             branch.Cuts.concat = staticmethod(_ORIGINAL["concat"])
 
+    rounds = _rounds(events, alpha_min, min_rounds, max_rounds)
+    last = rounds[-1]
+    return {"N": N, "K": K, "U": U, "lower": 4.0 * engine.alpha / U,
+            "evaluations": evaluations, "rounds": rounds,
+            "final_alpha": last["alpha"], "stopped": _stopped(rounds, max_rounds),
+            "schedule": dict(values)}
+
+
+def _rounds(events: list, alpha_min: float, min_rounds: int, max_rounds: int) -> list:
+    """The rounds of a traced lift, each with the lift's stopping tests
+    applied to it (see :func:`trace_lift`)."""
     rounds, previous = [], None
     for i, event in enumerate(events):
         if event[0] != "separate":
@@ -126,18 +138,28 @@ def trace_lift(Y: np.ndarray, K: int, **values) -> dict:
         rounds.append({"alpha": alpha, "smooth": smooth, "added": added,
                        "stalled": stalled, "giveup": giveup, "at_floor": at_floor,
                        "stops": giveup or at_floor})
+    return rounds
+
+
+def _stopped(rounds: list, max_rounds: int) -> str:
+    """The rule that ended the run: ``floor`` when the floor held at the last
+    round (the run would have ended there whatever else held), else
+    ``rounds`` or ``stall``."""
     last = rounds[-1]
     stopped = ("floor" if last["at_floor"]
                else "rounds" if len(rounds) >= max_rounds else "stall")
-    return {"N": N, "K": K, "U": U, "lower": 4.0 * engine.alpha / U,
-            "evaluations": evaluations, "rounds": rounds,
-            "final_alpha": last["alpha"], "stopped": stopped,
-            "schedule": dict(values)}
+    return stopped
 
 
 def root_bounds(Y: np.ndarray, K: int, *, incumbent: float,
                 interior: bool = True) -> dict:
-    """The root's node bounds and their gaps to ``incumbent``."""
+    """The root's node bounds and their gaps to ``incumbent``, on one BLAS
+    thread."""
+    with threadpool_limits(1):
+        return _root_bounds(Y, K, incumbent=incumbent, interior=interior)
+
+
+def _root_bounds(Y: np.ndarray, K: int, *, incumbent: float, interior: bool) -> dict:
     problem = TwoWayProblem.from_panel(Y)
     engine = BoundEngine.from_problem(problem)
     N = Y.shape[1]

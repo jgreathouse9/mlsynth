@@ -20,6 +20,7 @@ import time
 from contextlib import contextmanager
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 from mlsynth.utils.syndes_helpers import branch
 from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT, SubsetFilter
@@ -94,7 +95,7 @@ def measure(Y: np.ndarray, K: int, *, work_limit: float = WORK_LIMIT, **costs) -
     problem = TwoWayProblem.from_panel(Y)
     engine = BoundEngine.from_problem(problem)
     setup = time.process_time() - t0
-    with instrumented() as (tally, watch):
+    with instrumented() as (tally, watch), threadpool_limits(1):
         c0, w0 = time.process_time(), time.perf_counter()
         o = branch.branch_and_bound(problem, engine, K, SubsetFilter(),
                                     work_limit=work_limit, **costs)
@@ -120,8 +121,10 @@ def profile_lift(Y: np.ndarray, K: int) -> dict:
 
     The lift is deterministic, so the profiled run repeats the timed one. Its
     seconds are inflated by the profiler; the shares are read from it, on its
-    own clock, and the seconds from the timed run, which is CPU time and so
-    meaningful only with single-threaded BLAS. ``eigh`` is ``numpy.linalg.eigh``, one call per
+    own clock, and the seconds from the timed run, which is CPU time. Both runs
+    hold BLAS to one thread whatever the caller's setting: unpinned under four
+    test workers, SciPy's L-BFGS-B core took 10.7 s of an 11.8 s lift at 20
+    units (#857). ``eigh`` is ``numpy.linalg.eigh``, one call per
     evaluation of the dual; ``_theta`` is the whole evaluation around it;
     ``separate`` is the triangle separation; ``solver`` is SciPy's L-BFGS-B, its
     Fortran core and Python driver, counted by own time so the dual it calls
@@ -136,14 +139,15 @@ def profile_lift(Y: np.ndarray, K: int) -> dict:
     N = Y.shape[1]
     parts = branch.node_parts(engine.R, (), (), tuple(range(N)))
     s = 2 * K - N
-    t0 = time.process_time()
-    _, _, evaluations = branch.lift(*parts, s)
-    seconds = time.process_time() - t0
+    with threadpool_limits(1):
+        t0 = time.process_time()
+        _, _, evaluations = branch.lift(*parts, s)
+        seconds = time.process_time() - t0
 
-    prof = cProfile.Profile()
-    prof.enable()
-    _, _, profiled_evaluations = branch.lift(*parts, s)
-    prof.disable()
+        prof = cProfile.Profile()
+        prof.enable()
+        _, _, profiled_evaluations = branch.lift(*parts, s)
+        prof.disable()
     stats = pstats.Stats(prof).stats
 
     def cumulative(match) -> float:

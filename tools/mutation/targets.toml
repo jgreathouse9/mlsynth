@@ -7441,6 +7441,18 @@ timeout = 300.0
                           and path.endswith("branch.py"))"""
   models = "the triangle separation matched under a name it does not have, so its share reads zero: the 28.5% of a 100-unit lift that #844 is pointed at"
 
+  [[target.mutant]]
+  id = "the-search-runs-on-the-callers-threads"
+  find = "    with instrumented() as (tally, watch), threadpool_limits(1):"
+  replace = "    with instrumented() as (tally, watch), threadpool_limits(None):"
+  models = "the measured search left on the caller's BLAS threads, so its CPU seconds depend on the environment the study was run in"
+
+  [[target.mutant]]
+  id = "the-profile-runs-on-the-callers-threads"
+  find = "    with threadpool_limits(1):"
+  replace = "    with threadpool_limits(None):"
+  models = "the profiled lift left on the caller's BLAS threads: in CI under four test workers SciPy's L-BFGS-B core then took 10.7 s of an 11.8 s lift, and the profile measured the thread pool"
+
 [[target]]
 name = "bnb-scale-marex-instruments"
 module-path = "benchmarks/studies/bnb_scale/marex_scale.py"
@@ -7468,7 +7480,7 @@ timeout = 300.0
 [[target]]
 name = "bnb-scale-root-gap"
 module-path = "benchmarks/studies/bnb_scale/root_gap.py"
-test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k 'Schedule or Trace or traced or RootBounds'"
+test-command = "python -m pytest benchmarks/studies/bnb_scale/test_scale.py -q -x -p no:cacheprovider -k 'Schedule or Trace or traced or RootBounds or StoppingRules or PinBlas'"
 timeout = 300.0
 
   [[target.mutant]]
@@ -7517,3 +7529,17 @@ timeout = 300.0
   find = """            branch._theta, branch.separate = _ORIGINAL["theta"], _ORIGINAL["separate"]"""
   replace = """            branch.separate = _ORIGINAL["separate"]"""
   models = "the evaluation wrapper left on the lift after a trace, so every later lift in the process appends to a dead event list and pays the wrapper"
+
+  [[target.mutant]]
+  id = "the-trace-runs-on-the-callers-threads"
+  find = "    with schedule(**values), threadpool_limits(1):"
+  replace = "    with schedule(**values), threadpool_limits(None):"
+  models = "the traced lift left on the caller's BLAS threads, where its rounds and seconds measure the thread pool (#857)"
+
+  [[target.mutant]]
+  id = "the-root-bounds-run-on-the-callers-threads"
+  find = """    with threadpool_limits(1):
+        return _root_bounds(Y, K, incumbent=incumbent, interior=interior)"""
+  replace = """    with threadpool_limits(None):
+        return _root_bounds(Y, K, incumbent=incumbent, interior=interior)"""
+  models = "the root's bounds computed on the caller's BLAS threads, so a 60-unit lift can take 20 times longer than the study reports"

@@ -7,9 +7,11 @@ runs both searches as they stand on `main`, wrapped from outside so they make
 the same decisions, and adds the counts they do not report.
 
 This is a study, not a benchmark case. Nothing here is pinned, and the seconds
-are machine-dependent. Every run is single-threaded (`OMP_NUM_THREADS=1`,
-`OPENBLAS_NUM_THREADS=1`, `MKL_NUM_THREADS=1`) and records the load average
-before and after, as #840 did. The modelled work, the node counts and the bounds
+are machine-dependent. Every run is single-threaded. The runs reported here set
+`OMP_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1` and `MKL_NUM_THREADS=1`, and the
+instruments also hold BLAS to one thread themselves, so a caller's setting
+cannot change what they measure. Every run records the load average before and
+after, as #840 did. The modelled work, the node counts and the bounds
 are deterministic. Reruns of the same panel reproduced them exactly, while CPU
 seconds moved by a factor of 1.2 to 1.3 with the load.
 
@@ -139,8 +141,14 @@ applies the lift's own stopping tests to each round:
 
 The tests hold the replica to the lift. Exactly the last round meets a rule,
 on fixed panels and as a `hypothesis` property across panels, sizes and
-schedules. Three schedules ran: the shipped one, `LONG`, and `NO_STALL` (`LONG`
-with the stall rule off).
+schedules. The rules themselves are also checked on rounds written by hand,
+whose answer does not depend on the machine. Three schedules ran: the shipped
+one, `LONG`, and `NO_STALL` (`LONG` with the stall rule off).
+
+The rounds a lift takes depend on the BLAS kernel's last digits, so the table
+is this machine's. On a CI runner the shipped 40-unit run took 824 evaluations,
+not 761, and the `LONG` schedule ran 6,982 where this machine stopped it at
+702.
 
 | panel | N | schedule | evaluations | final alpha | ended by | root gap | closure |
 |---|---:|---|---:|---:|---|---:|---:|
@@ -159,15 +167,18 @@ with the stall rule off).
 - Where the relaxation has room, a lower `alpha` floor recovers it. The finer
   stop reaches the closure to within 0.002 points on BLS at 60 units, noise at
   40 and flat at 40, for 5 to 12 times the evaluations.
-- On BLS at 40 units the lower floor alone does not help. The stall rule ends
-  the run at `alpha = 4.9e-5`, 59 evaluations sooner than the shipped run and on
-  a certificate 8e-6 weaker. With the stall rule off the lift reaches 0.1520%,
-  92% of the way to the closure, for ten times the evaluations (3.2 CPU
-  seconds).
+- On this machine, on BLS at 40 units, the lower floor alone did not help. The
+  stall rule ended the run at `alpha = 4.9e-5`, 59 evaluations sooner than the
+  shipped run and on a certificate 8e-6 weaker. The stall test sat on a
+  knife-edge there, a relative change of 9e-7 against its 1e-6, and on the CI
+  runner above the same schedule ran on. With the stall rule off the lift
+  reaches 0.1520%, 92% of the way to the closure, for ten times the
+  evaluations (3.2 CPU seconds).
 - So the slack at these roots is the `alpha` floor, the share Malick and
   Roupin's price `alpha (n+1)^2 / 2` predicts. The stall rule, which tests
   whether the dual has converged at the current `alpha`, can end the run before
-  a lower floor is reached. This is #837's first candidate.
+  a lower floor is reached, and whether it does depends on the last digits.
+  This is #837's first candidate.
 
 ## Inside one lift (`syndes_scale.profile_lift`)
 
@@ -237,18 +248,24 @@ The search, capped by the number of bounds:
 
 ## Recommendation
 
-1. #837 next, before #844: run the lift's dual past the stall rule with a
-   lower floor, at nodes within a margin of their prune target. It is the one
-   change measured here that moves a root bound: 0.711% to 0.6465% on BLS at 60
-   units, for 11 times the evaluations.
+In the order of the roadmap (#848) as the author revised it after this study:
+
+1. #857: hold BLAS to one thread inside the lift. Unpinned, a root lift took
+   16 s at 60 units against 0.8 s on one thread on a quiet machine. Under
+   parallel load SciPy's L-BFGS-B core alone took 10.7 s of an 11.8 s lift at
+   20 units.
 2. #858: stop lifting where the relaxation has collapsed onto the eigenvalue
    bound, and report that certificate, after measuring how deep a node must be
    before its bound moves.
-3. #844: incremental or restricted triangle separation (28.5% of a lift at 100
+3. #837: run the lift's dual past the stall rule with a lower floor, at nodes
+   within a margin of their prune target. It is the one change measured here
+   that moves a root bound: 0.711% to 0.6465% on BLS at 60 units, for 11 times
+   the evaluations.
+4. #844: incremental or restricted triangle separation (28.5% of a lift at 100
    units), and the eigendecomposition (44%). Not the L-BFGS-B solver.
-4. #845: the cost model under-costs SYNDES's search by 1.1 to 3.2 times in CPU
+5. #845: the cost model under-costs SYNDES's search by 1.1 to 3.2 times in CPU
    per modelled second, and MAREX's bound by 1.35 to 16.5 times.
-5. #833 for MAREX, whose cost is its bound.
+6. #833 for MAREX, whose cost is its bound.
 
 ## Wrong turns
 
@@ -266,6 +283,24 @@ The search, capped by the number of bounds:
   off would have left `MIN_ROUNDS` changed for the rest of the process, and a
   misspelt name would have been set beside the real one. It now restores every
   name it sets and refuses unknown ones.
+- Two tests pinned the 40-unit trace as this machine ran it: a finer floor
+  stalling above itself, and fewer evaluations than the shipped run. A CI
+  runner's BLAS kernel took another path and both failed. The rules they
+  guarded are now checked on rounds written by hand.
+- In CI the profile read the dual's evaluation as 8 to 10% of a lift. The cause
+  was SciPy's L-BFGS-B core under unpinned BLAS while other test workers ran
+  threaded BLAS: 10.7 s of an 11.8 s lift at 20 units, about 7 ms a call
+  against 0.03 ms. Two first explanations measured out wrong:
+  - CPU load alone: three or four busy processes left the share at 0.63 to
+    0.65;
+  - garbage collection over a large heap: three million live objects left it
+    at 0.61.
+
+  Four xdist workers beside the SYNDES and MAREX tests reproduced it. The
+  instruments now hold BLAS to one thread themselves.
+- The 16-unit test compared the search's design with the enumerated one as
+  sets. At K = N/2 a set and its complement are one design, and a CI runner
+  returned the complement. The test accepts either.
 
 ## Running it
 
