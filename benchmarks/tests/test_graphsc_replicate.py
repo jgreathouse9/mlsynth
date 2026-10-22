@@ -150,3 +150,74 @@ class TestTheMetrics:
         assert abs(m["post_gap"] - 19.5136) <= 5e-3
         assert m["active"] == 6
         assert abs(m["entropy"] - 1.4752) <= 5e-4
+
+
+class TestTheSignedReading:
+    """Definition 3.4 writes ``w`` in ``R^J``; Algorithm 2's prox keeps ``w >= 0``.
+    Table 1's ablation rows are reproduced only by the first reading."""
+
+    @pytest.mark.parametrize("seed", range(4))
+    def test_signed_fista_and_cvxpy_agree(self, seed):
+        import cvxpy as cp
+
+        x1, X0, L, _ = _problem(seed)
+        args = (x1, X0, L, 0.05, 10.0, 50.0)
+        w_f, info = G.fista(*args, signed=True)
+        w_s = G.solve_signed(*args)
+        w = cp.Variable(X0.shape[1])
+        obj = (0.5 * cp.sum_squares(x1 - X0 @ w) + 0.05 * cp.norm1(w)
+               + 5.0 * cp.quad_form(w, cp.psd_wrap(L)) + 25.0 * cp.square(cp.sum(w) - 1))
+        cp.Problem(cp.Minimize(obj)).solve(solver=cp.CLARABEL)
+        F = lambda v: G.objective(v, *args)
+        best = min(F(w_f), F(w_s), F(w.value))
+        assert info["converged"] and F(w_s) <= best * (1 + 1e-9) and F(w_f) <= best * (1 + 1e-8)
+        assert G.kkt_residual(w_s, *args, signed=True) <= 1e-7
+
+    def test_without_l1_the_signed_problem_is_a_linear_solve(self):
+        x1, X0, L, _ = _problem(7)
+        w = G.solve_signed(x1, X0, L, 0.0, 10.0, 50.0)
+        J = X0.shape[1]
+        H = X0.T @ X0 + 10.0 * L + 50.0 * np.ones((J, J))
+        assert np.allclose(H @ w, X0.T @ x1 + 50.0 * np.ones(J), rtol=1e-9, atol=1e-9)
+
+    def test_the_signed_kkt_test_refuses_a_worse_point(self):
+        x1, X0, L, _ = _problem(8)
+        w = G.solve_signed(x1, X0, L, 0.05, 10.0, 50.0)
+        w2 = w + 0.01 * np.random.default_rng(0).normal(size=w.size)
+        assert G.kkt_residual(w2, x1, X0, L, 0.05, 10.0, 50.0, signed=True) > 1e-4
+
+    def test_the_entropy_of_signed_weights_reads_their_normalized_magnitudes(self):
+        w = np.array([0.6, -0.2, 0.6, 0.0])
+        a = np.abs(w) / np.abs(w).sum()
+        assert np.isclose(G.weight_entropy_abs(w), -np.sum(a[a > 0] * np.log(a[a > 0])), atol=1e-9)
+
+
+class TestTable1OnProp99:
+    """Pinned against the paper's printed digits: every row the stated settings reproduce."""
+
+    @pytest.fixture(scope="class")
+    def rows(self):
+        from benchmarks.studies.graphsc_replicate import run as R
+
+        return R.table1_rows()
+
+    @pytest.mark.parametrize("arm, paper", [
+        ("Sparse-only", (0.0058, 13.0945, 12.3503, 20, 2.5791)),
+        ("Graph-only", (0.0663, 18.4235, 17.3714, 38, 3.3940)),
+    ])
+    def test_the_ablation_rows_match_to_the_printed_digit(self, rows, arm, paper):
+        m = rows["signed"][arm]
+        got = (m["pre_rmspe"], m["post_rmspe"], m["post_gap"], m["active"], m["entropy_abs"])
+        for g, p in zip(got, paper):
+            assert abs(g - p) <= 5e-5 * max(1.0, abs(p)) if isinstance(p, float) else g == p
+
+    def test_the_graph_sc_row_is_not_the_stated_optimum(self, rows):
+        """At lambda_1 = 0.05, lambda_g = 10, lambda_sum = 50 the optimum keeps
+        87.9 percent of SC's gap, not the printed 95.4 (18.6245 / 19.5136)."""
+        m = rows["signed"]["Graph-SC"]
+        assert abs(m["post_gap"] - 17.1577) <= 5e-4 and abs(m["pre_rmspe"] - 0.0696) <= 5e-4
+        assert m["negative"] == 17
+
+    def test_with_nonnegative_weights_no_ablation_row_matches(self, rows):
+        assert rows["nonneg"]["Sparse-only"]["active"] != 20
+        assert rows["nonneg"]["Graph-only"]["active"] != 38

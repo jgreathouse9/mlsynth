@@ -23,6 +23,11 @@ arXiv:2610.24113v1.
   no more than lower the target sum from 1 to ``s``: 0.999 at the paper's
   ``lambda_1 = 0.05``, ``lambda_sum = 50``.
 
+* ``solve_signed`` solves eq. (2) as Definition 3.4 writes it, ``w`` in ``R^J``:
+  a linear solve when ``lambda_1 = 0``, CLARABEL otherwise, and ``fista(...,
+  signed=True)`` is Algorithm 2 with the soft-threshold prox that reading needs.
+  Only this reading reproduces Table 1's ablation rows on Prop 99 (``run.py``).
+
 Both solvers are certified by ``kkt_residual`` on the returned point: the
 prox-gradient mapping ``w - (w - eta (grad f + lambda_1))_+``, zero exactly at
 the minimiser, relative to ``max|w|`` with no absolute floor (Nocedal and
@@ -107,21 +112,34 @@ def _lipschitz(X0, L, lamg, lamsum) -> float:
     return float(np.linalg.eigvalsh(H)[-1])
 
 
-def kkt_residual(w, x1, X0, L, lam1, lamg, lamsum) -> float:
-    """``max|w - (w - eta (grad f + lambda_1))_+| / max|w|`` with ``eta = 1 / L_f``.
+def _prox(v, t, signed):
+    """Lemma A.3's prox of ``t ||.||_1``: on ``w >= 0`` a shift and clip, on ``R^J`` a soft threshold."""
+    if signed:
+        return np.sign(v) * np.maximum(np.abs(v) - t, 0.0)
+    return np.maximum(v - t, 0.0)
 
-    Zero exactly at the minimiser over ``w >= 0`` (the fixed point of Algorithm
-    2's step). Relative to the size of ``w``, with no floor.
+
+def kkt_residual(w, x1, X0, L, lam1, lamg, lamsum, signed: bool = False) -> float:
+    """``max|w - prox(w - eta grad f)| / max|w|`` with ``eta = 1 / L_f``.
+
+    Zero exactly at the minimiser (the fixed point of Algorithm 2's step), over
+    ``w >= 0`` or, with ``signed``, over ``R^J``. Relative to the size of ``w``,
+    with no floor; at ``w = 0`` the residual is 0 if the step is, else infinite.
     """
     eta = 1.0 / _lipschitz(X0, L, lamg, lamsum)
-    g = _grad_f(w, x1, X0, L, lamg, lamsum) + lam1
-    step = w - np.maximum(w - eta * g, 0.0)
-    return float(np.abs(step).max() / np.abs(w).max())
+    step = w - _prox(w - eta * _grad_f(w, x1, X0, L, lamg, lamsum), eta * lam1, signed)
+    scale = np.abs(w).max()
+    if scale > 0:
+        return float(np.abs(step).max() / scale)
+    return 0.0 if not np.any(step) else float("inf")
 
 
 def fista(x1, X0, L, lam1, lamg, lamsum, w0=None, max_iter: int = 200_000,
-          tol: float = 1e-10) -> Tuple[np.ndarray, Dict]:
-    """Algorithm 2, stopped when ``kkt_residual <= tol`` (checked every 50 steps)."""
+          tol: float = 1e-10, signed: bool = False) -> Tuple[np.ndarray, Dict]:
+    """Algorithm 2, stopped when ``kkt_residual <= tol`` (checked every 50 steps).
+
+    ``signed`` swaps Lemma A.3's prox for the soft threshold, for ``w`` in ``R^J``.
+    """
     x1, X0, L = (np.asarray(a, dtype=float) for a in (x1, X0, L))
     J = X0.shape[1]
     eta = 1.0 / _lipschitz(X0, L, lamg, lamsum)
@@ -130,12 +148,12 @@ def fista(x1, X0, L, lam1, lamg, lamsum, w0=None, max_iter: int = 200_000,
     res = np.inf
     for k in range(1, max_iter + 1):
         u = z - eta * _grad_f(z, x1, X0, L, lamg, lamsum)
-        w_new = np.maximum(u - eta * lam1, 0.0)
+        w_new = _prox(u, eta * lam1, signed)
         t_new = (1.0 + np.sqrt(1.0 + 4.0 * t * t)) / 2.0
         z = w_new + (t - 1.0) / t_new * (w_new - w)
         w, t = w_new, t_new
         if k % 50 == 0 or k == max_iter:
-            res = kkt_residual(w, x1, X0, L, lam1, lamg, lamsum)
+            res = kkt_residual(w, x1, X0, L, lam1, lamg, lamsum, signed)
             if res <= tol:
                 return w, dict(iterations=k, converged=True, kkt=res)
     warnings.warn(RuntimeWarning(
@@ -166,6 +184,34 @@ def solve_exact(x1, X0, L, lam1, lamg, lamsum, kkt_tol: float = 1e-9) -> np.ndar
     return w
 
 
+def solve_signed(x1, X0, L, lam1, lamg, lamsum, kkt_tol: float = 1e-7) -> np.ndarray:
+    """Eq. (2) over ``w`` in ``R^J``, as Definition 3.4 writes it, certified by its KKT residual.
+
+    Without the l1 term it is the least-squares problem ``min ||M w - b||``
+    (``nnls_form`` with ``lambda_1 = 0``), solved by an SVD; with it, by CLARABEL.
+    """
+    x1, X0, L = (np.asarray(a, dtype=float) for a in (x1, X0, L))
+    if lam1 == 0:
+        M, b, _ = nnls_form(x1, X0, L, 0.0, lamg, lamsum)
+        w = np.linalg.lstsq(M, b, rcond=None)[0]
+    else:
+        import cvxpy as cp
+
+        v = cp.Variable(X0.shape[1])
+        obj = (0.5 * cp.sum_squares(x1 - X0 @ v) + lam1 * cp.norm1(v)
+               + 0.5 * lamg * cp.quad_form(v, cp.psd_wrap(L)) + 0.5 * lamsum * cp.square(cp.sum(v) - 1.0))
+        prob = cp.Problem(cp.Minimize(obj))
+        prob.solve(solver=cp.CLARABEL, tol_gap_abs=1e-12, tol_gap_rel=1e-12, tol_feas=1e-12)
+        if prob.status != cp.OPTIMAL:
+            warnings.warn(RuntimeWarning(f"CLARABEL returned {prob.status} for eq. (2)"), stacklevel=2)
+        w = np.asarray(v.value, float)
+    res = kkt_residual(w, x1, X0, L, lam1, lamg, lamsum, signed=True)
+    if not res <= kkt_tol:
+        warnings.warn(RuntimeWarning(
+            f"the signed solve of eq. (2) failed its KKT test: residual {res:.2e}"), stacklevel=2)
+    return w
+
+
 def simplex_sc(x1, X0) -> np.ndarray:
     """Classic SC, eq. (1): ``min ||x1 - X0 w||^2`` on the simplex, via ``mlsynth``'s active-set QP."""
     from mlsynth.utils.solvers.active_set import solve_simplex_qp
@@ -185,8 +231,20 @@ def weight_entropy(w, eps: float = 1e-12) -> float:
     return float(-np.sum(w * np.log(w + eps)))
 
 
+def weight_entropy_abs(w, eps: float = 1e-12) -> float:
+    """Table 1's entropy as its numbers read: on ``|w|`` normalized to sum to one.
+
+    The printed formula takes ``log(w_j + eps)``, undefined for negative weights;
+    for signed weights this reading reproduces the printed Sparse-only and
+    Graph-only entropies to four decimals.
+    """
+    a = np.abs(np.asarray(w, float))
+    a = a / a.sum()
+    return float(-np.sum(a * np.log(a + eps)))
+
+
 def active_donors(w, tol: float = 1e-6) -> int:
-    return int(np.sum(np.asarray(w) > tol))
+    return int(np.sum(np.abs(np.asarray(w)) > tol))
 
 
 def metrics(y, cf, T0, w) -> Dict:
@@ -195,4 +253,6 @@ def metrics(y, cf, T0, w) -> Dict:
     return dict(pre_rmspe=float(np.sqrt(np.mean(gap[:T0] ** 2))),
                 post_rmspe=float(np.sqrt(np.mean(gap[T0:] ** 2))),
                 post_gap=float(abs(gap[T0:].mean())),
-                active=active_donors(w), entropy=weight_entropy(w), weight_sum=float(np.sum(w)))
+                active=active_donors(w), negative=int(np.sum(np.asarray(w) < -1e-6)),
+                entropy=weight_entropy(np.clip(w, 0.0, None)), entropy_abs=weight_entropy_abs(w),
+                weight_sum=float(np.sum(w)))
