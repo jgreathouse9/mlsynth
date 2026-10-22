@@ -179,6 +179,18 @@ class TestTheActiveSetSolver:
         v, info = S.solve_signed(c * x1, c * X0, L, *(c * c * lam for lam in M.LAM))
         assert not info["fallback"] and np.array_equal(v, w)
 
+    def test_a_singular_reduced_system_says_so(self):
+        from benchmarks.studies.graphsc_mc import solver as S
+
+        _, steps, status = S.active_set(np.diag([1.0, 0.0]), np.array([0.0, 5.0]), 1.0)
+        assert status == "singular" and steps == 1
+
+    def test_the_polish_keeps_an_empty_support_and_refuses_a_moved_sign(self):
+        from benchmarks.studies.graphsc_mc import solver as S
+
+        assert np.array_equal(S._polish(np.zeros(3), np.eye(3), np.ones(3), 0.05), np.zeros(3))
+        assert S._polish(np.array([1.0, 1.0]), np.eye(2), np.array([1.0, -1.0]), 0.0) is None
+
     def test_a_singular_factor_is_refused_not_raised(self):
         from benchmarks.studies.graphsc_mc import solver as S
 
@@ -389,6 +401,8 @@ class TestTheWeights:
             M.weight_fn("Lasso", y, Y0, 30, seed=0)
         with pytest.raises(ValueError, match="scale"):
             M.weight_fn("Graph-SC signed", y, np.zeros_like(Y0), 30, seed=0)(np.arange(30))
+        with pytest.raises(ValueError, match="pre-period"):
+            M.weight_fn("SC", y, Y0, 30, seed=0)(np.arange(31))
 
 
 class TestOneReplication:
@@ -440,6 +454,38 @@ class TestOneReplication:
         lo = row["err"] + d.tau - row["length"] / 2
         assert row["covered"] == (lo <= d.tau <= lo + row["length"])
         assert out["oracle"]["covered"] and row["covered"]
+
+
+class TestTheRunner:
+    def test_sc_never_beats_the_simplex_minimum_risk(self):
+        d = D.draw("hz", {"J": 30, "T0": 50}, np.random.default_rng(3))
+        out = R.evaluate(d, K=5, alpha=0.1, seed=3, methods=("SC",))
+        assert out["plain"]["SC"]["risk_ratio"] >= 1 - 1e-9
+
+    def test_main_writes_every_cell(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.setattr(R, "OUT", tmp_path / "graphsc_mc.json")
+        R.main(["hz"], workers=1, reps=2, dump=str(tmp_path / "reps.pkl"))
+        res = json.loads((tmp_path / "graphsc_mc.json").read_text())
+        cells = res["hz"]["cells"]
+        assert len(cells) == len(D.FAMILIES["hz"]["cells"]) and all(c["n"] == 2 for c in cells)
+        assert all(c["plain"]["SC"]["risk_ratio_mean"] >= 1 - 1e-9 and "coverage" in c["oracle"] for c in cells)
+        assert res["_meta"]["methods"] == list(M.METHODS) and (tmp_path / "reps.pkl").exists()
+
+    def test_one_replication_is_seeded_by_its_cell_and_index(self):
+        f, ci, a = R.one_rep(("hz", 1, 4))
+        _, _, b = R.one_rep(("hz", 1, 4))
+        _, _, c = R.one_rep(("hz", 1, 5))
+        assert (f, ci) == ("hz", 1) and a["plain"]["SC"]["err"] == b["plain"]["SC"]["err"]
+        assert a["plain"]["SC"]["err"] != c["plain"]["SC"]["err"]
+
+    def test_a_worker_runs_on_one_blas_thread(self):
+        from threadpoolctl import threadpool_info, threadpool_limits
+
+        with threadpool_limits(limits=None):
+            R._init_worker()
+            assert all(p["num_threads"] == 1 for p in threadpool_info())
 
 
 class TestSummaries:

@@ -148,7 +148,7 @@ def main(families=None, workers=4, reps=None, dump=None) -> dict:
     with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker) as pool:
         for i, (f, ci, out) in enumerate(pool.map(one_rep, tasks, chunksize=4)):
             collected[(f, ci)].append(out)
-            if (i + 1) % 500 == 0:
+            if (i + 1) % max(1, len(tasks) // 20) == 0:
                 print(f"{i + 1}/{len(tasks)} replications, {time.perf_counter() - t0:.0f} s", flush=True)
     if dump:
         import pickle
@@ -164,7 +164,7 @@ def main(families=None, workers=4, reps=None, dump=None) -> dict:
     return res
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - command-line entry; main() is tested directly
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", action="append", choices=sorted(D.FAMILIES))
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 1)
