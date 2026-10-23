@@ -8883,7 +8883,7 @@ timeout = 600.0
 [[target]]
 name = "as-exact-interior"
 module-path = "benchmarks/studies/as_exact/interior.py"
-test-command = "python -m pytest benchmarks/studies/as_exact/test_interior.py -q -p no:cacheprovider -x"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_interior.py benchmarks/studies/as_exact/test_interior_pd.py -q -p no:cacheprovider -x"
 timeout = 600.0
 
   [[target.mutant]]
@@ -8894,8 +8894,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "rows-without-the-cell-s-lift"
-  find = "        self.R = (X0[:, self.out] ** 2).T - self.beta.T @ (X0[:, self.A] ** 2).T"
-  replace = "        self.R = (X0[:, self.out] ** 2).T"
+  find = "        return (self.X0[:, self.out] ** 2).T - self.beta.T @ (self.X0[:, self.A] ** 2).T"
+  replace = "        return (self.X0[:, self.out] ** 2).T"
   models = "selection rows that compare an outside donor's lift with zero instead of with the hyperplane through the lifted cell, so attainability no longer means the cell is Delaunay under some diagonal V"
 
   [[target.mutant]]
@@ -8912,10 +8912,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "unattainable-cells-enter-the-minimum"
-  find = """        ok, d = diag_attainable(cell.R, stats)
-        if not ok:
-            continue"""
-  replace = """        ok, d = diag_attainable(cell.R, stats)"""
+  find = "        return (cell.w, d) if ok else None"
+  replace = "        return (cell.w, d)"
   models = "every admissible cell the walk meets taken as a candidate, attainable or not, so an exact match no positive diagonal V selects can be returned"
 
   [[target.mutant]]
@@ -8929,6 +8927,42 @@ timeout = 600.0
   find = "        res = linprog(lift * (1.0 + 1e-6 * attempt * golden), A_eq=np.vstack([X0, np.ones(J)]),"
   replace = "        res = linprog(np.zeros(J), A_eq=np.vstack([X0, np.ones(J)]),"
   models = "a walk started from any vertex of the exact matches, which need not be attainable, so the walk can end before it meets an attainable cell"
+
+  [[target.mutant]]
+  id = "least-loss-cell-taken-on-trust"
+  find = "        ok, _ = pd_attainable(q_matrices(cell, C0), st, V0=_steiner(C0[:, list(A)]))"
+  replace = "        ok, _ = True, None"
+  models = "the admissible cell of least loss returned without asking whether a positive definite V selects it, which on small designs it often does not"
+
+  [[target.mutant]]
+  id = "cells-tested-in-walk-order"
+  find = "    for tested, A in enumerate(sorted(losses, key=losses.get), start=1):"
+  replace = "    for tested, A in enumerate(losses, start=1):"
+  models = "cells tested in the order the walk met them, so the first attainable one need not be the best"
+
+  [[target.mutant]]
+  id = "start-metric-accepted-unchecked"
+  find = "    if np.einsum(\"jkl,kl->j\", Q, V0).min() > THETA_TOL:      # the start already selects the cell"
+  replace = "    if True:"
+  models = "the barrier's starting metric taken as evidence without checking its slacks, so every cell counts as attainable"
+
+  [[target.mutant]]
+  id = "dual-point-unchecked"
+  find = "        if K * np.linalg.eigvalsh(np.einsum(\"j,jkl->kl\", y, Q)).max() <= THETA_TOL:"
+  replace = "        if True:"
+  models = "the central path's dual point read as a proof of unattainability without its eigenvalue bound, so a cell the barrier has not yet certified is ruled out"
+
+  [[target.mutant]]
+  id = "cvxpy-verdict-reversed"
+  find = "    return (True, None) if prob.value is not None and prob.value > THETA_TOL else (False, None)"
+  replace = "    return (False, None) if prob.value is not None and prob.value > THETA_TOL else (True, None)"
+  models = "the fallback program's value read on the wrong side of the threshold"
+
+  [[target.mutant]]
+  id = "cell-matrices-without-the-cell-s-lift"
+  find = "    return np.einsum(\"kj,lj->jkl\", XO, XO) - np.einsum(\"ki,ij,li->jkl\", XA, cell.beta, XA)"
+  replace = "    return np.einsum(\"kj,lj->jkl\", XO, XO)"
+  models = "Q_j^A without the lifted cell's hyperplane, so the semidefinite test asks whether the outside donor's lift is positive"
 
 [[target]]
 name = "as-exact-rationalize"
