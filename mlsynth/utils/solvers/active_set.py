@@ -34,12 +34,32 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 from scipy.linalg import get_lapack_funcs
 
+from ...exceptions import MlsynthEstimationError
 from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 
 # Workspace size and LAPACK handle per free-set shape. The active set solves a
 # sequence of small systems whose shapes repeat across pivots, units and
 # placebo draws, so the query is done once per shape and reused.
 _GELSY_CACHE: Dict[Tuple[int, int], Tuple[object, int]] = {}
+
+#: With a linear term, a direction of the free set's difference block whose
+#: singular value is at most this times ``max(M.shape)`` times the largest
+#: counts as null: LAPACK's own rank convention, below which a singular value
+#: is rounding. A coarser rule discards directions that still move the
+#: objective. Moving along a direction with singular value ``sigma`` changes
+#: the fit at first order, by ``2 t sigma |u'r|``, long before its curvature
+#: ``sigma^2`` is resolvable: a rule of ``sqrt(eps)``, chosen on curvature
+#: alone, left near-copies of a market up to 7.2e-9 above the optimum, and one
+#: of 1e-6 left 4 of 400 near-collinear designs above it.
+_LINEAR_RANK_EPS: float = float(np.finfo(float).eps)
+
+
+class SimplexQPNotOptimal(MlsynthEstimationError, ValueError):
+    """The active set returned a point that fails the program's optimality conditions.
+
+    An estimation failure, and a ``ValueError`` as well, which is what callers
+    such as :mod:`mlsynth.utils.bilevel.penalized` catch and translate.
+    """
 
 
 def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -76,23 +96,61 @@ def _gelsy_lstsq(M: np.ndarray, b: np.ndarray) -> np.ndarray:
     return x[:n, 0]
 
 
+def _linear_split(M: np.ndarray, q: np.ndarray):
+    """A free block's numerical range, and a linear term's two parts on it.
+
+    One thin SVD of the difference block ``M`` and one rank rule: a direction
+    whose singular value is at most ``_LINEAR_RANK_EPS * max(M.shape)`` of the
+    largest is null. Returns the kept factors ``(U, s, Vt)``, the shift ``u`` with
+    ``M'u = q`` on the kept directions, and the term's null part ``qn``, its
+    projection off the kept right singular vectors.
+
+    ``qn`` is that projection and not the residual ``q - M'u``. The two agree in
+    exact arithmetic, but the residual carries rounding of size
+    ``eps |M| |u|``, and ``|u|`` grows as one over the smallest kept singular
+    value; read as a direction, that noise cycled the loop (#782). With the
+    projection, keeping every direction above rounding is safe, and a coarser
+    rule only loses accuracy (see ``_LINEAR_RANK_EPS``).
+    """
+    U, sv, Vt = np.linalg.svd(M, full_matrices=False)
+    cut = _LINEAR_RANK_EPS * max(M.shape) * sv[0]
+    rank = int(np.count_nonzero(sv > cut)) if sv[0] > 0 else 0
+    U, sv, Vt = U[:, :rank], sv[:rank], Vt[:rank]
+    qr = Vt @ q
+    return U, sv, Vt, U @ (qr / sv), q - Vt.T @ qr
+
+
+def _solve_on_range(U: np.ndarray, sv: np.ndarray, Vt: np.ndarray,
+                    b: np.ndarray) -> np.ndarray:
+    """``argmin ||M v - b||`` over the kept directions of :func:`_linear_split`.
+
+    The same factors and so the same rank as the shift: a second rule here
+    keeps directions the shift dropped, or drops ones it kept, and the two then
+    describe different subproblems.
+    """
+    return Vt.T @ ((U.T @ b) / sv)
+
+
 def _assert_optimal_with_linear(B, A, w, linear, tol):
     """Check the returned point against the conditions, when a linear term is set.
 
     The pivot loop tests primal feasibility of the free set and dual
     feasibility of the pinned variables. It never tests stationarity on the
-    free variables, because it assumes the free-set subproblem solved them
-    exactly -- which is true for a plain least squares and is not guaranteed
-    with a linear term. Folding the term into the residual needs it to lie in
-    the row space of the free block, and an intermediate free set can be wider
-    than the design has rows, in which case the subproblem is unbounded along a
-    null direction and the point the loop accepts is not the minimiser.
+    free variables, because it takes the free-set subproblem to have solved
+    them exactly. With a linear term that rests on the subproblem's null
+    direction being handled right: the term's part along a null direction of
+    the free block is not reachable by the residual shift, and the loop must
+    follow it as a ray to a bound.
 
-    On a panel this never bites: the loop sheds donors until the free set fits,
-    and the accepted point is stationary to machine precision. On the rank-K
-    factor of a wide Gram it bites at a stationarity residual of 0.35, reported
-    as converged. Until the unbounded-ray branch exists, the guarantee is that
-    a wrong answer is not returned silently.
+    Twice that has failed and this guard is what turned the failure into a
+    raise. A free set wider than the design has rows made the subproblem
+    unbounded before the ray branch existed (#625). A free set holding two
+    markets that agree to 1e-12 made it nearly so, and the ray was then read
+    from rounding noise and pointed the wrong way, so the loop cycled to its
+    pivot limit on a 12-by-3 panel (#782). The null part is now a projection on
+    the singular vectors of the free block, under one rank rule, and on 400
+    near-collinear designs the guard no longer fires; it stays, so that a point
+    the loop wrongly accepts raises and is never returned.
     """
     g = 2.0 * (B.T @ (B @ w - A)) + linear
     on = w > tol
@@ -112,14 +170,12 @@ def _assert_optimal_with_linear(B, A, w, linear, tol):
     stat = float(np.abs(g[on] - nu).max()) / scale
     dual = 0.0 if on.all() else -min(0.0, float((g[~on] - nu).min()) / scale)
     if max(stat, dual) > 1e-6:
-        raise ValueError(
+        raise SimplexQPNotOptimal(
             f"linear term: the active set did not reach the minimiser on this "
             f"design (stationarity {stat:.2e}, dual feasibility {dual:.2e}). "
-            f"The free-set subproblem is unbounded along a null direction of "
-            f"the design, which happens when the free set is wider than the "
-            f"design has rows and the term does not lie in its row space. A "
-            f"panel does not meet that condition; the rank-K factor of a wide "
-            f"Gram does."
+            f"The program has a minimum on the simplex for any design and "
+            f"term, so this is a failure of the solver and not of the data; "
+            f"the point is withheld instead of returned as weights."
         )
 
 
@@ -155,10 +211,12 @@ def solve_simplex_qp(
         identify that as a rank condition -- their augmented design has full
         column rank and that is what makes their transformation exact -- and a
         wide donor block does not meet it: on Proposition 99, 19 by 38 with rank
-        19, 40 percent of the centred penalty lies outside the row space. The
-        condition does hold on each free set, which is small and of full column
-        rank, so the inner solve keeps its residual form and never forms normal
-        equations.
+        19, 40 percent of the centred penalty lies outside the row space. On
+        each free set the term splits along one thin SVD of the free block:
+        its part in the range of the block folds into the residual, and its
+        part along directions the block cannot resolve (singular values at the
+        level of rounding) is a ray the loop follows to a bound. The
+        inner solve keeps its residual form and never forms normal equations.
     warm_start : np.ndarray, shape (J,), optional
         A feasible initial weight vector (e.g. the solution of a neighbouring
         problem in a conformal / market-selection sweep) used to seed the
@@ -272,18 +330,15 @@ def solve_simplex_qp(
                 # difference basis, so Z' l_F is l_F[:-1] - l_F[-1].
                 lF = linear[free]
                 q = 0.5 * (lF[:nF - 1] - lF[nF - 1])
-                u = np.linalg.lstsq(M.T, q, rcond=None)[0]
-                # What the shift cannot reproduce is exactly q's component in
-                # null(M): R^(nF-1) splits as range(M') + null(M), and u solves
-                # in range(M'), so the least-squares residual q - M'u is the
-                # null part and no further work is needed to find it.
-                #
+                # R^(nF-1) splits as range(M') + null(M): the shift u folds the
+                # first part into the residual, and qn is the second, both
+                # under one rank rule (see _linear_split).
+                Uk, sk, Vk, u, qn = _linear_split(M, q)
                 # A nonzero null part means the subproblem is unbounded. Moving
                 # v along -qn leaves M v fixed, so the quadratic does not
                 # change, while the linear term falls by 2||qn||^2 per unit
                 # step. The minimum is therefore not interior to this free set
                 # and the loop must reach a bound instead of solving for one.
-                qn = q - M.T @ u
                 if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):
                     # Z maps the ray into weight space, where it sums to zero
                     # and so stays on the hyperplane. The simplex is compact,
@@ -307,8 +362,9 @@ def solve_simplex_qp(
                         active[hit] = True
                         pivots += 1
                         continue
-                rhs = rhs - u
-            v = _gelsy_lstsq(M, rhs)
+                v = _solve_on_range(Uk, sk, Vk, rhs - u)
+            else:
+                v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)
             wF[:nF - 1] = 1.0 / nF + v
             wF[nF - 1] = 1.0 / nF - v.sum()
