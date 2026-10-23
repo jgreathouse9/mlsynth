@@ -28,6 +28,19 @@ form), so a walk from one attainable cell that expands the attainable cells it m
 reaches them all. test_interior.py checks this against every set of K + 1 donors on
 small designs.
 
+Under positive definite V the attainability test is the paper's semidefinite program,
+<Q_j^A, V> > 0 for every outside j with V >= 0, and most admissible cells pass it (83
+to 97 per cent of a sample on Proposition 99's interior placebos, where under diagonal
+V at most 2 per cent do). Walking only the attainable cells would save little, so every
+admissible cell is listed, as the authors' code lists them, and the cells are tested in
+increasing order of loss: the first attainable one is the answer, and on those placebos
+it is the first one tested. The test runs the barrier method (Boyd and Vandenberghe,
+ch. 11) from the metric under which the cell is a regular simplex, and stops at the
+first evidence that checks: a positive definite V with every slack above the threshold,
+or a point y of the simplex with K lambda_max(sum_j y_j Q_j) at or below it, which
+bounds the program's value by duality. cvxpy, the authors' solver, decides the rare
+test where neither checks.
+
 Predictors are centred on the donors' mean and scaled to unit standard deviation first:
 Q_j^A does not depend on the origin (X_j = sum_i beta_ij X_i and sum_i beta_ij = 1), a
 diagonal V absorbs the units, and the squares in R stay of one size. The threshold on
@@ -36,15 +49,17 @@ the selection slack, 1e-9 on the scaled predictors, is the authors'.
 from __future__ import annotations
 
 from collections import deque
+from functools import cached_property
 
 import numpy as np
 from scipy.optimize import linprog
 
-from . import lsq
+from . import lsq, rationalize
 
 THETA_TOL = 1e-9          # the authors' threshold on the selection slack theta*_+, scaled predictors
 ADMIT_TOL = 1e-9          # a cell holds X1 when every barycentric weight exceeds this (the authors')
 MAX_CELLS = 200_000       # the authors' limit on the cells a walk visits
+BARRIER_T = (1.0, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12)   # barrier parameters, each point centred by Newton
 
 
 def _standardised(X1, X0):
@@ -82,7 +97,11 @@ class Cell:
             raise ValueError(f"the donors {self.A} are affinely dependent; the interior case needs "
                              "every K + 1 donors affinely independent (Assumption 2(iii))")
         self.w, self.beta = sol[:, 0], sol[:, 1:]
-        self.R = (X0[:, self.out] ** 2).T - self.beta.T @ (X0[:, self.A] ** 2).T
+        self.X0 = X0
+
+    @cached_property
+    def R(self):
+        return (self.X0[:, self.out] ** 2).T - self.beta.T @ (self.X0[:, self.A] ** 2).T
 
     def neighbours(self):
         """The cells that trade one donor of A for an outside donor j and still hold X1.
@@ -149,26 +168,26 @@ def seed_cell(X1, X0):
                      "unit or the donors violate the interior general position (Assumption 2)")
 
 
-def walk_diag(X1, X0, stats, max_cells=MAX_CELLS):
-    """The attainable cells, by a walk from the seed that expands only attainable cells.
+def _walk(X1, X0, stats, max_cells, select):
+    """A breadth-first walk over the flips from the seed cell: {A: select(cell)}.
 
-    Returns {A: (w_A, d)}, d a diagonal metric (summing to 1) under which A is the selection.
+    A cell for which ``select`` returns None is neither kept nor expanded.
     """
     seed = seed_cell(X1, X0)
     found, seen, queue, n = {}, {seed}, deque([seed]), 0
     while queue:
         if n >= max_cells:
             raise RuntimeError(f"the interior walk reached its cell limit of {max_cells} cells before "
-                               "visiting every attainable cell, so its best cell need not be the optimum")
+                               "visiting every cell it must, so its best cell need not be the optimum")
         A = queue.popleft()
         n += 1
         cell = Cell(A, X1, X0)
         if cell.w.min() <= ADMIT_TOL:         # pragma: no cover - the ratio test keeps X1 in every neighbour,
             continue                          # strictly under Assumption 2(ii); this guards degenerate data
-        ok, d = diag_attainable(cell.R, stats)
-        if not ok:
+        kept = select(cell)
+        if kept is None:
             continue
-        found[cell.A] = (cell.w, d)
+        found[cell.A] = kept
         for B in cell.neighbours():
             if B not in seen:
                 seen.add(B)
@@ -177,8 +196,25 @@ def walk_diag(X1, X0, stats, max_cells=MAX_CELLS):
     return found
 
 
-def solve_interior_diag(X1, X0, Z1, Z0, stats=None, max_cells=MAX_CELLS):
-    """The best attainable exact match under diagonal V: (loss, w) with w on the simplex over the J donors."""
+def walk_diag(X1, X0, stats, max_cells=MAX_CELLS):
+    """The attainable cells, by a walk from the seed that expands only attainable cells.
+
+    Returns {A: (w_A, d)}, d a diagonal metric (summing to 1) under which A is the selection.
+    """
+    def select(cell):
+        ok, d = diag_attainable(cell.R, stats)
+        return (cell.w, d) if ok else None
+    return _walk(X1, X0, stats, max_cells, select)
+
+
+def walk_admissible(X1, X0, stats, max_cells=MAX_CELLS):
+    """Every admissible cell, {A: w_A}. The flips are the edges of the polytope of exact matches
+    and its vertices are the cells, so the walk meets them all: a polytope's graph is connected."""
+    return _walk(X1, X0, stats, max_cells, lambda cell: cell.w)
+
+
+def _prepared(X1, X0, Z1, Z0):
+    """Checked inputs and the standardised predictors, refused outside the interior case."""
     X1, X0, Z1, Z0 = (np.asarray(a, float) for a in (X1, X0, Z1, Z0))
     if X0.ndim != 2 or Z0.ndim != 2 or X1.shape != (X0.shape[0],) or Z1.shape != (Z0.shape[0],) \
             or X0.shape[1] != Z0.shape[1]:
@@ -189,6 +225,12 @@ def solve_interior_diag(X1, X0, Z1, Z0, stats=None, max_cells=MAX_CELLS):
     if not interior_margin(C1, C0) > ADMIT_TOL:
         raise ValueError("the interior case needs the treated unit strictly inside the donor hull, "
                          "matched by no fewer than K + 1 donors; use exact.solve_diag outside it")
+    return X1, X0, Z1, Z0, C1, C0
+
+
+def solve_interior_diag(X1, X0, Z1, Z0, stats=None, max_cells=MAX_CELLS):
+    """The best attainable exact match under diagonal V: (loss, w) with w on the simplex over the J donors."""
+    X1, X0, Z1, Z0, C1, C0 = _prepared(X1, X0, Z1, Z0)
     st = {}
     cells = walk_diag(C1, C0, st, max_cells)
     if not cells:
@@ -201,3 +243,115 @@ def solve_interior_diag(X1, X0, Z1, Z0, stats=None, max_cells=MAX_CELLS):
     if stats is not None:
         stats.update(st, attainable_cells=len(cells), cell=best)
     return losses[best], w
+
+
+def q_matrices(cell, X0):
+    """The paper's Q_j^A = X_j X_j' - sum_i beta_ij X_i X_i' for the donors outside the cell, (n, K, K)."""
+    XO, XA = X0[:, cell.out], X0[:, list(cell.A)]
+    return np.einsum("kj,lj->jkl", XO, XO) - np.einsum("ki,ij,li->jkl", XA, cell.beta, XA)
+
+
+def _steiner(XA):
+    """The metric under which the simplex with vertices XA is regular: the inverse of their scatter."""
+    D = XA - XA.mean(axis=1, keepdims=True)
+    return np.linalg.inv(D @ D.T)
+
+
+def _pd_barrier(Q, V0, stats):
+    """max theta with <Q_j, V> >= theta, tr V = K and V >= 0, by the barrier method from V0, stopping at
+    the first evidence that checks: (True, V), (False, y) or, when neither does, (None, None)."""
+    n, K = Q.shape[0], Q.shape[1]
+    V0 = V0 * (K / np.trace(V0))
+    if np.einsum("jkl,kl->j", Q, V0).min() > THETA_TOL:      # the start already selects the cell
+        return True, V0
+    B = rationalize._basis(K)
+    p = len(B)
+    Bm = B.reshape(p, K * K)
+    G = Q.reshape(n, K * K) @ Bm.T                            # <Q_j, B_a>
+    iu = np.triu_indices(K)
+    A = np.r_[np.einsum("akk->a", B), 0.0][None, :]           # tr V = K
+    N = rationalize._null(A)
+
+    def mat(v):
+        return (v @ Bm).reshape(K, K)
+
+    def in_domain(x):
+        if (G @ x[:p] - x[p]).min() <= 0.0:
+            return False
+        try:
+            np.linalg.cholesky(mat(x[:p]))
+        except np.linalg.LinAlgError:
+            return False
+        return True
+
+    s0 = G @ V0[iu]
+    x = np.r_[V0[iu], s0.min() - max(1.0, abs(s0.min()))]    # theta strictly below every slack
+    for t in BARRIER_T:
+        def fun(x, t=t):
+            if not in_domain(x):
+                return np.inf
+            return -t * x[p] - np.log(G @ x[:p] - x[p]).sum() - np.linalg.slogdet(mat(x[:p]))[1]
+
+        def vgh(x, t=t):
+            v, th = x[:p], x[p]
+            s = G @ v - th
+            V = mat(v)
+            Vi = np.linalg.inv(V)
+            WB = Vi @ B
+            g = np.r_[-G.T @ (1.0 / s) - np.einsum("akl,lk->a", B, Vi), -t + (1.0 / s).sum()]
+            H = np.zeros((p + 1, p + 1))
+            H[:p, :p] = (G.T / s ** 2) @ G + np.einsum("akl,blk->ab", WB, WB)
+            H[:p, p] = H[p, :p] = -G.T @ (1.0 / s ** 2)
+            H[p, p] = (1.0 / s ** 2).sum()
+            return -t * th - np.log(s).sum() - np.linalg.slogdet(V)[1], g, H
+
+        x = rationalize._newton_eq(x, vgh, A, np.array([float(K)]), in_domain, fun=fun, N=N)
+        V, slack = mat(x[:p]), G @ x[:p]
+        if slack.min() > THETA_TOL and np.linalg.eigvalsh(V).min() > 0.0:
+            return True, V
+        y = 1.0 / (slack - x[p])
+        y /= y.sum()
+        if K * np.linalg.eigvalsh(np.einsum("j,jkl->kl", y, Q)).max() <= THETA_TOL:
+            return False, y
+    return None, None
+
+
+def pd_attainable(Q, stats, V0=None):
+    """Whether some positive definite V makes every <Q_j, V> positive.
+
+    Returns (True, V) with tr V = K and every slack above THETA_TOL, (False, y) with y on the
+    simplex and K lambda_max(sum_j y_j Q_j) <= THETA_TOL, which bounds the program's value,
+    or (False, None) and (True, None) when cvxpy, the authors' solver, decided.
+    """
+    stats["pd_tests"] = stats.get("pd_tests", 0) + 1
+    n, K = Q.shape[0], Q.shape[1]
+    if n == 0:                                         # no outside donor rules the cell out
+        return True, np.eye(K)
+    ok, evidence = _pd_barrier(Q, np.eye(K) if V0 is None else V0, stats)
+    if ok is not None:
+        return ok, evidence
+    stats["pd_sdp_checks"] = stats.get("pd_sdp_checks", 0) + 1
+    import cvxpy as cp
+    V, slack = cp.Variable((K, K), PSD=True), cp.Variable()
+    prob = cp.Problem(cp.Maximize(slack), [cp.trace(V) == K] + [cp.trace(Qj @ V) >= slack for Qj in Q])
+    prob.solve(solver=cp.CLARABEL)
+    return (True, None) if prob.value is not None and prob.value > THETA_TOL else (False, None)
+
+
+def solve_interior_pd(X1, X0, Z1, Z0, stats=None, max_cells=MAX_CELLS):
+    """The best attainable exact match under positive definite V: (loss, w) with w on the simplex over the J donors."""
+    X1, X0, Z1, Z0, C1, C0 = _prepared(X1, X0, Z1, Z0)
+    st = {}
+    cells = walk_admissible(C1, C0, st, max_cells)
+    losses = {A: float(np.sum((Z1 - Z0[:, list(A)] @ w) ** 2)) for A, w in cells.items()}
+    for tested, A in enumerate(sorted(losses, key=losses.get), start=1):
+        cell = Cell(A, C1, C0)
+        ok, _ = pd_attainable(q_matrices(cell, C0), st, V0=_steiner(C0[:, list(A)]))
+        if ok:
+            w = np.zeros(X0.shape[1])
+            w[list(A)] = cells[A]
+            if stats is not None:
+                stats.update(st, admissible_cells=len(cells), tested_cells=tested, cell=A)
+            return losses[A], w
+    raise ValueError("no admissible cell is attainable under a positive definite V; the donors violate "
+                     "the interior general position (Assumption 2(iv))")
