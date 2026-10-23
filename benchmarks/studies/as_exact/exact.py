@@ -28,7 +28,7 @@ import numpy as np
 
 from .hull import Hull, outside_hull
 from .lsq import sign_piece_ls, simplex_ls
-from .patterns import branch_patterns, cone_compatible, edge_min, facet_patterns, ridge_patterns
+from .patterns import cone_compatible, edge_min, face_min, facet_patterns, ridge_patterns
 
 
 def _check(X1, X0, Z1, Z0):
@@ -95,6 +95,8 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
                 w_best = np.zeros(J)
                 w_best[cols[0]], w_best[cols[1]] = 1.0 - t, t
         else:                                            # the normal-cone arrangement
+            r_u = X1 - X0[:, cols] @ beta_u
+            patterns = []
             if m == K:
                 patterns = facet_patterns(hull.normal[sigma][0])
             else:
@@ -102,24 +104,23 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
                 gens = np.array([hull.normal[G][0] for G in star])
                 gs = gens / np.abs(gens).max(axis=1, keepdims=True)
                 common = np.where((gs > 1e-12).all(axis=0), 1, np.where((gs < -1e-12).all(axis=0), -1, 0))
-                ruled_out = False
-                if np.any(common != 0):
-                    r_u = X1 - X0[:, cols] @ beta_u
-                    if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
-                        val_c, _ = sign_piece_ls(X0, X1, Z1, Z0, cols, common)
-                        ctr["solves"] += 1
-                        ruled_out = val_c is None or val_c >= U
-                if ruled_out:
+                root = (u, beta_u)                       # the relaxation's fit, and its minimiser
+                if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
+                    root = sign_piece_ls(X0, X1, Z1, Z0, cols, common)
+                    ctr["solves"] += 1
+                if root[0] is None or root[0] >= U:
                     ctr["relaxation_prunes"] += 1
-                    patterns = []
                 elif m == K - 1:
                     if len(gens) != 2:
                         raise ValueError("a ridge lies in other than two facets; general position fails")
                     patterns = ridge_patterns(gens[0], gens[1])
-                else:
+                else:                                    # below the ridges: branch and bound
                     link = set().union(*star) - sigma
-                    patterns = branch_patterns(X0, sigma, link, stats=ctr)
-            r_u = X1 - X0[:, cols] @ beta_u
+                    val, beta = face_min(X0, X1, Z1, Z0, sigma, link, U, root=(common, *root), stats=ctr)
+                    if val < U:
+                        U = val
+                        w_best = np.zeros(J)
+                        w_best[cols] = beta
             if patterns and any(np.all((s == 0) | (s * r_u >= -1e-9 * scale)) for s in patterns):
                 if u < U:                                 # the face's own minimiser is attainable
                     U = u

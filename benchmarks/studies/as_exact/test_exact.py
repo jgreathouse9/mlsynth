@@ -87,7 +87,7 @@ def test_proposition_99_diagonal_weights_are_uniform_on_the_retained_predictors(
 
 
 def test_the_search_reports_its_work():
-    """Proposition 99 reaches one face below a ridge, whose sign patterns come from branching."""
+    """Proposition 99 reaches one face below a ridge, searched by branch and bound over sign sub-cubes."""
     st, st_pd = {}, {}
     exact.solve_diag(*_inputs(CASES["prop99"]), stats=st)
     exact.solve_pd(*_inputs(CASES["prop99"]), stats=st_pd)

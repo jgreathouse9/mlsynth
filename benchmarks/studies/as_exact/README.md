@@ -48,8 +48,8 @@ repository's `data/smoking_data.csv`.
 | --- | --- | --- |
 | least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to a least-distance problem through one thin SVD, solved by one compiled NNLS call (`lsq.py`), 0.12 to 0.2 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
-| allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: one sign fixed at a time, a sub-cube dropped on a Farkas certificate or closed by a point with zeros on its free signs, each test one NNLS with the link vertices as walls; edges: at most K + 1 residual intervals (`patterns.py`) |
-| pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
+| allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: none listed, the face searched by branch and bound over sign sub-cubes, each test one NNLS with the link vertices as walls whose Farkas certificate picks the split; edges: at most K + 1 residual intervals (`patterns.py`) |
+| pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before the face is searched (`exact.py`) |
 | predictor weights V | one LP per predictor and per inequality for the diagonal class's support and implicit equalities; cvxpy `log_det`, analytic centre and semidefinite range programs | one LP for the support and implicit equalities together (Schrijver, Theory of Linear and Integer Programming, sec. 8.1); Newton's method with the equalities eliminated and the barrier method (Boyd and Vandenberghe, sec. 10.2 and ch. 11), started at the paper's own Lemma B.1 construction, with a line search that asks for the objective alone (`rationalize.py`) |
 
 The faces containing a given face are reached by walking ridges that contain it; in
@@ -58,16 +58,40 @@ polar is simple; Achatz and Kleinschmidt in Kalai and Ziegler, eds., Polytopes:
 Combinatorics and Computation, 2000, p. 155). The link vertices they expose are the
 only walls of the face's normal cone, which keeps each pattern test small.
 
-Below the ridges, a face's patterns are listed by branching on one sign at a time. A
-sub-cube of sign vectors is dropped when the cone misses all of it, and closed when a
-nonzero c in the cone has zeros on its unfixed signs, since that c lies in every
-orthant of the sub-cube. Each test is a least-distance problem solved by one NNLS,
-whose verdict carries its evidence: a point that satisfies the rows, or a Farkas
-certificate read off the same NNLS (Dantzig and Thapa, Linear Programming 2, 2003,
-sec. 6.7, a Phase I by least squares; Schrijver, Theory of Linear and Integer
-Programming, 1986, sec. 7.3). HiGHS decides a test only when neither checks.
-`test_patterns.py` checks the listing against one HiGHS LP per sign vector on faces of
-every size.
+Below the ridges, a face's patterns are not listed. `patterns.face_min` searches the
+face by branch and bound over sign sub-cubes. A node fixes some signs and stands for
+every sign vector that completes them. Its relaxation keeps only the fixed rows
+s_k r_k(w) >= 0, so one least-squares solve bounds every piece below it, and a node
+whose bound cannot beat the incumbent is dropped without a cone test. Otherwise the
+relaxation's minimiser w is tested: when some c in the cone has the node's signs and
+c_k r_k(w) >= 0 on the free coordinates, w is attainable and settles the node. When
+none has, the test's Farkas certificate names the free coordinates whose signs at w
+the cone cannot meet together, so every attainable piece below the node flips one of
+them. The node splits into one child per named coordinate, the j-th keeping the
+first j - 1 at w's signs and flipping the j-th. Every child excludes w, so its bound
+rises, and a node whose certificate uses fixed signs alone ends. Each test is a
+least-distance problem solved by one NNLS, whose verdict carries its evidence: a
+point that satisfies the rows, or a Farkas certificate read off the same NNLS
+(Dantzig and Thapa, Linear Programming 2, 2003, sec. 6.7, a Phase I by least squares;
+Schrijver, Theory of Linear and Integer Programming, 1986, sec. 7.3). HiGHS decides a
+test only when neither checks, and a sub-cube it calls empty is split on every signed
+coordinate.
+
+The search takes from the SYNDES and MAREX branch and bounds
+(`mlsynth/utils/syndes_helpers/branch.py`, `mlsynth/utils/marex_helpers/branch.py`)
+what applies: best first, a child queued under its parent's bound and solved when it
+comes off the heap, and a node dropped only on a least-squares fit that cannot beat
+the incumbent, a region found empty, or a certificate that checks, with HiGHS
+deciding where none does. SYNDES's reliability branching (Achterberg, Koch and
+Martin, 2005) has nothing to score here. Split on one coordinate, the side that keeps
+w's sign still holds w and so keeps its parent's bound, and the smaller of the two
+rises is always zero. The certificate closes that side instead: with every coordinate
+it names fixed at w's signs the cone is empty, so the children above are the whole
+split. On the 16 seeded designs of `scaling.py` the search ran on 1,549 faces below
+the ridges and ended after one test on 1,074 of them, before any test on 13 (dropped
+on their bound), and after at most eight on the rest.
+`test_patterns.py` checks the search against one least-squares solve per sign vector
+that one HiGHS LP admits, on faces of every size.
 
 ## Correctness
 

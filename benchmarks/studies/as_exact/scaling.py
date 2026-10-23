@@ -7,9 +7,9 @@ donor count, and K predictors. At K = 7 and 8 each design is timed in both codes
 replication once, since one call runs from seconds to minutes, and at K = 7 the
 study's median of 3 calls after the counted run. At K = 9 only the study runs. Every
 row carries the study's search counters, among them ``pattern_tests``, the
-least-distance tests that list the sign patterns of faces below the ridges, and
-``pattern_lp_checks``, the tests HiGHS decided because neither a point nor a Farkas
-certificate checked.
+least-distance tests of the branch and bound over sign sub-cubes on faces below the
+ridges, and ``pattern_lp_checks``, the tests HiGHS decided because neither a point
+nor a Farkas certificate checked.
 """
 from __future__ import annotations
 
