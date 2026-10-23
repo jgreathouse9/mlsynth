@@ -5,43 +5,43 @@
  },
  "tasks": {
   "weights, diagonal: replication": {
-   "seconds": 1.78682651666666,
+   "seconds": 1.6693170486666702,
    "reps": 3,
    "parts": {
     "SciPy LPs": {
-     "seconds": 0.23777851700000005,
-     "share": 0.13307308503770018,
+     "seconds": 0.2483365300000552,
+     "share": 0.14876534700128324,
      "calls": 170
     },
     "visible facets": {
-     "seconds": 0.4424723623333193,
-     "share": 0.24763028654777033,
+     "seconds": 0.3838297236666695,
+     "share": 0.22993218931852696,
      "calls": 1
     },
     "cvxpy quadratic programs": {
-     "seconds": 0.9574292119998328,
-     "share": 0.535826619467191,
+     "seconds": 0.893765115333205,
+     "share": 0.5354076483236543,
      "calls": 186
     }
    }
   },
   "weights, diagonal: study": {
-   "seconds": 0.13454304149999813,
+   "seconds": 0.11404780225000052,
    "reps": 20,
    "parts": {
     "visible facets (gift wrapping)": {
-     "seconds": 0.04228999999999701,
-     "share": 0.3143232048905153,
+     "seconds": 0.0524670037000007,
+     "share": 0.46004396985212803,
      "calls": 1
     },
     "least squares, face fits": {
-     "seconds": 0.05393229890004534,
-     "share": 0.4008553567599116,
+     "seconds": 0.02933763174999342,
+     "share": 0.2572397816635111,
      "calls": 249
     },
     "least squares, piece fits": {
-     "seconds": 0.02592000364999194,
-     "share": 0.19265213095388733,
+     "seconds": 0.019018127150008012,
+     "share": 0.16675575306851584,
      "calls": 94
     }
    },
@@ -59,60 +59,60 @@
    }
   },
   "V, diagonal: replication": {
-   "seconds": 0.10031748700000094,
+   "seconds": 0.10729722640000147,
    "reps": 10,
    "parts": {
     "SciPy LPs": {
-     "seconds": 0.06051717299998245,
-     "share": 0.6032564691336605,
+     "seconds": 0.06523462349998681,
+     "share": 0.6079805199884077,
      "calls": 40
     },
     "cvxpy programs": {
-     "seconds": 0.0336142920000043,
-     "share": 0.3350790874576432,
+     "seconds": 0.035372919300004926,
+     "share": 0.329672261686761,
      "calls": 2
     }
    }
   },
   "V, diagonal: study": {
-   "seconds": 0.06970546349999722,
+   "seconds": 0.0046641976000017845,
    "reps": 10,
    "parts": {
     "SciPy LPs": {
-     "seconds": 0.06561627489999182,
-     "share": 0.941336182349529,
-     "calls": 40
+     "seconds": 0.0016951952999988862,
+     "share": 0.36344843108667557,
+     "calls": 1
     },
     "Newton runs": {
-     "seconds": 0.0013110324999786372,
-     "share": 0.01880817419682877,
+     "seconds": 0.002486852299998077,
+     "share": 0.5331790188299753,
      "calls": 9
     }
    }
   },
   "V, PD + ranges: replication": {
-   "seconds": 0.4091796976000069,
+   "seconds": 0.3808706510000036,
    "reps": 5,
    "parts": {
     "cvxpy programs": {
-     "seconds": 0.392763420999961,
-     "share": 0.9598800314474702,
+     "seconds": 0.365979747200015,
+     "share": 0.9609029896084368,
      "calls": 17
     }
    }
   },
   "V, PD + ranges: study": {
-   "seconds": 0.2465322418000028,
+   "seconds": 0.08996010339999998,
    "reps": 5,
    "parts": {
     "SciPy LPs": {
-     "seconds": 0.0022360578000075295,
-     "share": 0.00907004205081424,
+     "seconds": 0.0019551653999997144,
+     "share": 0.021733694450152385,
      "calls": 1
     },
     "Newton runs": {
-     "seconds": 0.24250824519999697,
-     "share": 0.9836776051252953,
+     "seconds": 0.08661087500001372,
+     "share": 0.9627698471499727,
      "calls": 164
     }
    }

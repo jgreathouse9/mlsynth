@@ -46,11 +46,11 @@ repository's `data/smoking_data.csv`.
 
 | step | authors' code | this study |
 | --- | --- | --- |
-| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.28 ms |
+| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to a least-distance problem through one thin SVD, solved by one compiled NNLS call (`lsq.py`), 0.12 to 0.2 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: one sign fixed at a time, a sub-cube dropped on a Farkas certificate or closed by a point with zeros on its free signs, each test one NNLS with the link vertices as walls; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
-| predictor weights V | cvxpy `log_det`, analytic centre and semidefinite range programs | Newton's method with the equalities eliminated and the barrier method (Boyd and Vandenberghe, sec. 10.2 and ch. 11), started at the paper's own Lemma B.1 construction (`rationalize.py`) |
+| predictor weights V | one LP per predictor and per inequality for the diagonal class's support and implicit equalities; cvxpy `log_det`, analytic centre and semidefinite range programs | one LP for the support and implicit equalities together (Schrijver, Theory of Linear and Integer Programming, sec. 8.1); Newton's method with the equalities eliminated and the barrier method (Boyd and Vandenberghe, sec. 10.2 and ch. 11), started at the paper's own Lemma B.1 construction, with a line search that asks for the objective alone (`rationalize.py`) |
 
 The faces containing a given face are reached by walking ridges that contain it; in
 a simplicial polytope they form a connected subgraph of the facet-ridge graph (the
@@ -144,32 +144,33 @@ every call and the interquartile ranges.
 
 | panel | task | replication | synthx.estimate | this study | speed-up |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Proposition 99 | donor weights, diagonal (Table 1) | 1.710 | 1.762 | 0.147 | 12x |
-| Proposition 99 | donor weights, positive definite (Table D.1) | 0.753 | 0.679 | 0.082 | 9.2x |
-| Proposition 99 | V, diagonal (Table 2) | 0.115 | | 0.083 | 1.4x |
-| Proposition 99 | V, positive definite with ranges (Table 4) | 0.429 | | 0.256 | 1.7x |
-| leakage-free | donor weights, diagonal | 2.166 | 2.101 | 0.138 | 16x |
-| leakage-free | donor weights, positive definite | 0.661 | 0.642 | 0.078 | 8.5x |
+| Proposition 99 | donor weights, diagonal (Table 1) | 1.664 | 1.715 | 0.075 | 22x |
+| Proposition 99 | donor weights, positive definite (Table D.1) | 0.690 | 0.720 | 0.058 | 12x |
+| Proposition 99 | V, diagonal (Table 2) | 0.088 | | 0.004 | 23x |
+| Proposition 99 | V, positive definite with ranges (Table 4) | 0.399 | | 0.155 | 2.6x |
+| leakage-free | donor weights, diagonal | 2.117 | 1.990 | 0.107 | 20x |
+| leakage-free | donor weights, positive definite | 0.717 | 0.666 | 0.062 | 12x |
 
-Repeated runs move these ratios by 10 to 20 per cent; the V rows have ranged from 1.4x
-to 2.1x.
+Repeated runs move these ratios by 10 to 20 per cent. Taken together, Tables 1 and 2
+come back 22x faster, Tables D.1 and 4 5.1x, and all four 9.7x.
 
 The speed-up is against the replication. `synthx.estimate` runs within 10 per cent of
 it, either way, since it calls the same solvers. Where the time goes, from
 `breakdown.py` (`results/breakdown.json`):
 
 - Donor weights, diagonal class. The replication spends 54 per cent of its time in
-  186 cvxpy quadratic programs at about 5 ms each, 25 per cent enumerating the
-  visible facets, and 13 per cent in 170 SciPy LPs that test sign patterns face by
-  face. This study spends 31 per cent gift-wrapping the 132 visible facets and 59 per
-  cent in 343 least-squares solves at 0.2 to 0.28 ms each. Proposition 99 reaches one
+  186 cvxpy quadratic programs at about 5 ms each, 23 per cent enumerating the
+  visible facets, and 15 per cent in 170 SciPy LPs that test sign patterns face by
+  face. This study spends 46 per cent gift-wrapping the 132 visible facets and 43 per
+  cent in 343 least-squares solves at 0.12 to 0.2 ms each. Proposition 99 reaches one
   face below the ridges, whose patterns take 28 least-distance tests, and 17 faces are
   ruled out by the common-sign relaxation before any are listed.
-- V, diagonal class. Both codes spend most of their time in the same 40 LPs that find
-  the support of V and its implicit equalities; only the two convex programs after
-  them change, from 34 ms in cvxpy to about 1 ms of Newton steps.
+- V, diagonal class. The replication finds the support of V and its implicit
+  equalities with 40 LPs, about 1.6 ms each, mostly in SciPy's HiGHS wrapper; here one
+  LP finds both, and 9 Newton runs follow, about 5 ms in all.
 - V, positive definite class. The replication's 17 semidefinite programs, at about
-  23 ms each, become 164 Newton runs of the barrier method at about 1.5 ms each.
+  22 ms each, become 164 Newton runs of the barrier method at about 0.5 ms each; a
+  trial step of the line search costs one Cholesky factor.
 
 ## Limits
 
