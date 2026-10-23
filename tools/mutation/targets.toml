@@ -8753,3 +8753,53 @@ timeout = 900.0
   find = "                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                                     bnb_open=found.open)"
   models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
+
+[[target]]
+name = "as-exact-lsq"
+module-path = "benchmarks/studies/as_exact/lsq.py"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_lsq.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "ldp-zero-test-is-an-absolute-floor"
+  find = "    if not (r[-1] < 0.0 and abs(r[-1] + rr) <= 1e-2 * rr):"
+  replace = "    if abs(r[-1]) < 1e-12 or np.linalg.norm(r) < 1e-12:"
+  models = "the incident's decision rule: an infeasible system leaves a rounding residual of about eps / delta, which clears an absolute 1e-12 floor once the margin delta is below about 1e-4, and the quotient of two rounding numbers comes back as the solution"
+
+  [[target.mutant]]
+  id = "ldp-returns-an-unverified-point"
+  find = "    return x if x is not None and _satisfies(G, h, x) else None"
+  replace = "    return x"
+  models = "a least-distance solve that trusts its own residual test and hands back whatever point it computed"
+
+  [[target.mutant]]
+  id = "piece-sign-rows-unchecked"
+  find = "        if b.min() < -VERIFY or (Gin is not None and len(Gin) and not _satisfies(Gin, hin, b)):"
+  replace = "        if b.min() < -VERIFY:"
+  models = "a piece answered with a point that keeps the simplex but breaks its sign rows, which lets the face search accept an unattainable piece and report a loss below the attainable optimum"
+
+  [[target.mutant]]
+  id = "failed-reduction-reads-as-infeasible"
+  find = "            if _ldp(G, h) is not None:                    # the constraints alone, without R^{-1}"
+  replace = "            if False:"
+  models = "a reduction that found nothing reported as an empty piece, so a numerical failure removes feasible weights from the search without a word"
+
+  [[target.mutant]]
+  id = "ill-conditioned-face-admitted"
+  find = "    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:"
+  replace = "    if E.shape[0] < E.shape[1] or not sv[-1] > 0.0:"
+  models = "the reduction run on a face whose validation paths are nearly collinear, where the back-transform through R^{-1} leaves fewer digits than the answer's check needs"
+
+  [[target.mutant]]
+  id = "rank-deficient-face-ridged"
+  find = '''
+    sv = np.linalg.svd(E, compute_uv=False)
+    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:'''
+  replace = '''
+    if E.shape[0] < E.shape[1] or np.linalg.matrix_rank(E) < E.shape[1]:
+        eps = 1e-12 * max(1.0, float(np.abs(E).max()))
+        E = np.vstack([E, eps * np.eye(E.shape[1])])
+        f = np.concatenate([f, np.zeros(E.shape[1])])
+    sv = np.linalg.svd(E, compute_uv=False)
+    if not sv[-1] > 0.0:'''
+  models = "the original patch for a rank-deficient face: a 1e-12 ridge that leaves cond(R) near 1e12 and turns the reduction's answer into noise"

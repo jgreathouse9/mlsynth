@@ -46,7 +46,7 @@ repository's `data/smoking_data.csv`.
 
 | step | authors' code | this study |
 | --- | --- | --- |
-| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.25 ms |
+| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.26 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: only the link vertices as walls, in one batched SVD; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
@@ -99,6 +99,22 @@ are wrong. SparseSC is not such a fit: it fixes the first listed predictor's wei
 at one, and its documented example lists `p_cig` first, so on this file it anchors
 on log income.
 
+A third defect was in the least-squares layer, and the authors' code was not the one
+that exposed it: a prototype that tests sign patterns with `lsq._ldp` disagreed with
+HiGHS on one pattern. Lawson and Hanson's least-distance step decided feasibility by
+an absolute floor of 1e-12 on the NNLS residual, and an infeasible system with
+margin delta leaves a rounding residual of about eps / delta, so below a margin of
+about 1e-4 it returned the quotient of two rounding numbers as a solution. The step
+now decides by the identity r_{n+1} = -||r||^2 that a genuine residual satisfies,
+every returned point is checked against its constraints, and a face whose validation
+block is rank-deficient or has condition number above 1e4 is refused instead of
+solved through a 1e-12 ridge. The defect fired once on the committed designs, on the
+K = 9 design seed 9000, on a piece that was in fact empty, so no answer moved; old
+and new code give identical answers on every other design. `test_lsq.py` holds the
+diagnosis as tests, and six mutants in `tools/mutation/targets.toml` (target
+`as-exact-lsq`) reintroduce its causes; all six are killed. The checks cost about
+14 per cent on the Proposition 99 diagonal search.
+
 ## Speed on Proposition 99
 
 Median wall clock of 10 calls after one warm-up, in seconds; `results/raw.json` holds
@@ -106,29 +122,29 @@ every call and the interquartile ranges.
 
 | panel | task | replication | synthx.estimate | this study | speed-up |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Proposition 99 | donor weights, diagonal (Table 1) | 1.771 | 1.807 | 0.129 | 14x |
-| Proposition 99 | donor weights, positive definite (Table D.1) | 0.660 | 0.692 | 0.094 | 7.0x |
-| Proposition 99 | V, diagonal (Table 2) | 0.108 | | 0.075 | 1.4x |
-| Proposition 99 | V, positive definite with ranges (Table 4) | 0.423 | | 0.268 | 1.6x |
-| leakage-free | donor weights, diagonal | 2.182 | 2.120 | 0.135 | 16x |
-| leakage-free | donor weights, positive definite | 0.698 | 0.732 | 0.082 | 8.6x |
+| Proposition 99 | donor weights, diagonal (Table 1) | 1.740 | 1.873 | 0.127 | 14x |
+| Proposition 99 | donor weights, positive definite (Table D.1) | 0.674 | 0.656 | 0.082 | 8.3x |
+| Proposition 99 | V, diagonal (Table 2) | 0.121 | | 0.057 | 2.1x |
+| Proposition 99 | V, positive definite with ranges (Table 4) | 0.403 | | 0.253 | 1.6x |
+| leakage-free | donor weights, diagonal | 2.091 | 2.198 | 0.163 | 13x |
+| leakage-free | donor weights, positive definite | 0.693 | 0.630 | 0.091 | 7.6x |
 
-The speed-up is against the replication. `synthx.estimate` runs within 5 per cent of
-it, since it calls the same solvers. Where the time goes, from `breakdown.py`
-(`results/breakdown.json`):
+The speed-up is against the replication. `synthx.estimate` runs within 10 per cent of
+it, either way, since it calls the same solvers. Where the time goes, from
+`breakdown.py` (`results/breakdown.json`):
 
-- Donor weights, diagonal class. The replication spends 54 per cent of its time in
-  186 cvxpy quadratic programs at about 4.9 ms each, 24 per cent enumerating the
-  visible facets, and 13 per cent in 170 SciPy LPs that test sign patterns face by
+- Donor weights, diagonal class. The replication spends 50 per cent of its time in
+  186 cvxpy quadratic programs at about 4.6 ms each, 25 per cent enumerating the
+  visible facets, and 16 per cent in 170 SciPy LPs that test sign patterns face by
   face. This study spends 35 per cent gift-wrapping the 132 visible facets and 56 per
-  cent in 343 least-squares solves at 0.2 to 0.25 ms each. On Proposition 99 no face
+  cent in 343 least-squares solves at 0.2 to 0.26 ms each. On Proposition 99 no face
   it reaches needs an LP to list its sign patterns, and 17 faces are ruled out by the
   common-sign relaxation before any are listed.
 - V, diagonal class. Both codes spend most of their time in the same 40 LPs that find
   the support of V and its implicit equalities; only the two convex programs after
-  them change, from 37 ms in cvxpy to about 1 ms of Newton steps.
+  them change, from 34 ms in cvxpy to about 1 ms of Newton steps.
 - V, positive definite class. The replication's 17 semidefinite programs, at about
-  20 ms each, become 164 Newton runs of the barrier method at about 1.3 ms each.
+  23 ms each, become 164 Newton runs of the barrier method at about 1.8 ms each.
 
 ## Limits
 
@@ -138,6 +154,11 @@ it, since it calls the same solvers. Where the time goes, from `breakdown.py`
   hull of lower dimension, as when predictors are shares of a whole, is refused in both
   classes; `synthx` refuses it in the diagonal class and reduces to the donors' span in
   the positive definite class.
+- Each face's least-squares fit needs a validation block of full column rank with
+  condition number below 1e4. A face with more free weights than validation periods,
+  or with donors whose validation paths are nearly collinear, raises ValueError; cvxpy
+  in the authors' code solves such a face. Proposition 99, West Germany and the seeded
+  designs stay below 600.
 - Proposition 99 has K = 7 predictors and 38 donors. On eight seeded random designs
   of that size (`scaling.py`, `results/scaling.json`) the diagonal search here took
   0.45 to 4.0 s against the replication's 9.3 to 125 s, 16x to 46x faster (median
