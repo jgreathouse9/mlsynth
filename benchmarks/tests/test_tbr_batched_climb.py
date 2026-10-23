@@ -325,3 +325,19 @@ class TestTheSeattlePanel:
         assert [d["k"] for d in res["designs"]] == [1, 2] and res["fit"]["same_designs"]
         dmi = res["dmi_split"]
         assert dmi["treatment"] == list(R.DMI_BLOCK_GROUPS) and len(dmi["key"]) == 6
+
+    def test_the_holdout_check_scores_designs_on_quarters_the_search_never_saw(self, tmp_path, monkeypatch):
+        import json
+
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        full = R.seattle()
+        keep = sorted(full["geo"].unique())[:24]
+        monkeypatch.setattr(R, "seattle", lambda: full[full["geo"].isin(keep)])
+        monkeypatch.setattr(R, "OUT_HOLDOUT", tmp_path / "holdout.json")
+        rows = R.seattle_holdout(k=2)
+        assert json.loads((tmp_path / "holdout.json").read_text()) == rows
+        assert {r["controls"] for r in rows} == {"searched", "every other block group"}
+        for r in rows:
+            assert r["fit_quarters"] == 8 and r["held_out_quarters"] == 4
+            assert r["ratio"] == pytest.approx(r["held_out_rmse"] / r["in_sample_sigma"])

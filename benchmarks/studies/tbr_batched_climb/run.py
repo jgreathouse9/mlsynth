@@ -5,7 +5,8 @@ Run::
     python -m benchmarks.studies.tbr_batched_climb.run              # synthetic and GeoLift panels
     python -m benchmarks.studies.tbr_batched_climb.run --seattle    # Seattle DMI block groups
 
-writes ``results/tbr_batched_climb.json`` and ``results/seattle.json``. Inputs come from TBR's own design
+writes ``results/tbr_batched_climb.json``, or ``results/seattle.json`` and
+``results/seattle_holdout.json``. Inputs come from TBR's own design
 pipeline (``build_inputs`` on a ``TBRConfig``), so the scoring window, the geo
 order and the eligibility are the estimator's.
 """
@@ -117,6 +118,42 @@ def seattle_study(k: int = 3, starts=("carried", "pool", "best")) -> dict:
     return res
 
 
+OUT_HOLDOUT = HERE / "results" / "seattle_holdout.json"
+
+
+def seattle_holdout(k: int = 3, fit_q: int = 8) -> list:
+    """Search on the first ``fit_q`` quarters, then predict the rest with each design's fit.
+
+    The search picks the control group with every period it is given, the A/A
+    window included, so its in-sample fit cannot say whether the control group
+    tracks the treated geos or the noise. Quarters it never saw can: each
+    design's eqn-1 fit on the search window predicts them, against the same
+    treated geos with every other block group as the control.
+    """
+    from mlsynth.utils.tbr_helpers.posterior import fit_pretest
+
+    full = seattle()
+    cfg = dict(df=full[full["date"] <= fit_q], unitid="geo", time="date", outcome="Y",
+               max_treatment_size=k, n_test=2, display_graphs=False)
+    with batched():
+        res = TBR(TBRConfig(**cfg)).fit()
+    Y, units, _ = build_inputs(TBRConfig(**{**cfg, "df": full, "n_test": SEATTLE_N_TEST}))
+    rows = []
+    for d in res.designs:
+        t = [units.index(g) for g in d.treatment_units]
+        for label, c in (("searched", [units.index(g) for g in d.control_units]),
+                         ("every other block group", [j for j in range(len(units)) if j not in t])):
+            y, x = Y[:, t].sum(axis=1), Y[:, c].sum(axis=1)
+            f = fit_pretest(y[:fit_q], x[:fit_q])
+            sigma = float(np.sqrt(f.sigma_sq))
+            rmse = float(np.sqrt(np.mean((y[fit_q:] - f.predict(x[fit_q:])) ** 2)))
+            rows.append({"k": d.k, "treatment": list(d.treatment_units), "controls": label, "n_control": len(c),
+                         "fit_quarters": fit_q, "held_out_quarters": int(Y.shape[0] - fit_q),
+                         "in_sample_sigma": sigma, "held_out_rmse": rmse, "ratio": rmse / sigma})
+    OUT_HOLDOUT.write_text(json.dumps(rows, indent=1) + "\n")
+    return rows
+
+
 def _outcome(o):
     return (o.k, list(o.treatment), list(o.control), list(o.unassigned), o.score.key,
             [tuple(k) for k in o.trace], o.converged)
@@ -186,4 +223,8 @@ def main():
 if __name__ == "__main__":  # pragma: no cover - command-line entry; main() and seattle_study() are tested directly
     import sys
 
-    seattle_study() if "--seattle" in sys.argv[1:] else main()
+    if "--seattle" in sys.argv[1:]:
+        seattle_study()
+        seattle_holdout()
+    else:
+        main()
