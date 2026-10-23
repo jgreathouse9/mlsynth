@@ -162,14 +162,26 @@ def test_the_walk_reaches_every_attainable_cell(seed, K, J):
 
 @pytest.mark.parametrize("row,attainable", [([1.05e-9, 0.2e-9], True), ([0.9e-9, 0.5e-9], False)])
 def test_a_slack_near_the_threshold_is_decided_by_the_authors_program(row, attainable):
-    """The least-distance point d has slack min(R d) / 1'd >= theta*_+ / sqrt(K), so it can miss the
-    1e-9 threshold that theta*_+ itself clears; HiGHS then solves theta*_+. One row [a, b] has
-    theta*_+ = max(a, b) and a point with slack (a^2 + b^2) / (a + b): 1.05e-9 against 0.91e-9 here."""
+    """Near the threshold the metric that selects a cell has 1'd near 1 / theta*_+, about 1e9 here, a
+    point too large for the least-distance problem to verify (its residual identity falls below
+    rounding), so HiGHS solves theta*_+ and its value decides on either side of 1e-9. One row [a, b]
+    has theta*_+ = max(a, b)."""
     stats = {}
     ok, d = interior.diag_attainable(np.array([row]), stats)
     assert ok is attainable and stats == {"cell_tests": 1, "cell_lp_checks": 1}
     if ok:
         assert d.min() >= 0.0 and abs(d.sum() - 1.0) <= 1e-12 and float(np.array(row) @ d) > interior.THETA_TOL
+
+
+def test_a_point_whose_slack_misses_the_threshold_does_not_count(monkeypatch):
+    """A verified point meets R d >= 1 to a tolerance relative to |R| |d|, which is loose for a large d;
+    the threshold reads its normalised slack min(R d) / 1'd, and below it HiGHS decides. Here
+    theta*_+ = 0, reached at d = (1/2, 1/2), and the verdict's point has slack 0."""
+    R = np.array([[1.0, -1.0], [-1.0, 1.0]])
+    monkeypatch.setattr(interior.lsq, "ldp_verdict", lambda G, h: (True, np.array([1.0, 1.0])))
+    stats = {}
+    assert interior.diag_attainable(R, stats) == (False, None)
+    assert stats == {"cell_tests": 1, "cell_lp_checks": 1}
 
 
 def test_an_ambiguous_verdict_goes_to_highs(monkeypatch):

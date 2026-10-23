@@ -8881,6 +8881,56 @@ timeout = 600.0
   models = "the face's fit standing for the relaxation's minimiser when it breaks the signs every generator of the cone shares, so the branch and bound asks the cone about a point outside the region whose best fit it settles"
 
 [[target]]
+name = "as-exact-interior"
+module-path = "benchmarks/studies/as_exact/interior.py"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_interior.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "exit-by-weight-not-by-ratio"
+  find = "            ratio = np.where(self.beta > 0, self.w[:, None] / self.beta, np.inf)"
+  replace = "            ratio = np.where(self.beta > 0, self.w[:, None], np.inf)"
+  models = "a ratio test that sends out the donor of least weight, not of least w_i / beta_ij, so the cell it builds need not hold X1 and the walk loses that neighbour"
+
+  [[target.mutant]]
+  id = "rows-without-the-cell-s-lift"
+  find = "        self.R = (X0[:, self.out] ** 2).T - self.beta.T @ (X0[:, self.A] ** 2).T"
+  replace = "        self.R = (X0[:, self.out] ** 2).T"
+  models = "selection rows that compare an outside donor's lift with zero instead of with the hyperplane through the lifted cell, so attainability no longer means the cell is Delaunay under some diagonal V"
+
+  [[target.mutant]]
+  id = "slack-threshold-dropped"
+  find = "        if (R @ d).min() > THETA_TOL * d.sum():"
+  replace = "        if True:"
+  models = "a least-distance point accepted whatever its normalised slack, so a cell whose theta*_+ is below the authors' 1e-9 counts as attainable"
+
+  [[target.mutant]]
+  id = "undecided-cell-read-as-unattainable"
+  find = "    if res.status == 0 and -res.fun > THETA_TOL:"
+  replace = "    if False:"
+  models = "the authors' program solved and its answer discarded, so a cell that only HiGHS can decide is always ruled out"
+
+  [[target.mutant]]
+  id = "unattainable-cells-enter-the-minimum"
+  find = """        ok, d = diag_attainable(cell.R, stats)
+        if not ok:
+            continue"""
+  replace = """        ok, d = diag_attainable(cell.R, stats)"""
+  models = "every admissible cell the walk meets taken as a candidate, attainable or not, so an exact match no positive diagonal V selects can be returned"
+
+  [[target.mutant]]
+  id = "boundary-treated-unit-admitted"
+  find = "    if not interior_margin(C1, C0) > ADMIT_TOL:"
+  replace = "    if interior_margin(C1, C0) == -np.inf:"
+  models = "a treated unit on a face of the hull let through to the walk, which Assumption 2(ii) excludes; it must be refused as outside the interior case"
+
+  [[target.mutant]]
+  id = "seed-from-an-arbitrary-vertex"
+  find = "        res = linprog(lift * (1.0 + 1e-6 * attempt * golden), A_eq=np.vstack([X0, np.ones(J)]),"
+  replace = "        res = linprog(np.zeros(J), A_eq=np.vstack([X0, np.ones(J)]),"
+  models = "a walk started from any vertex of the exact matches, which need not be attainable, so the walk can end before it meets an attainable cell"
+
+[[target]]
 name = "as-exact-rationalize"
 module-path = "benchmarks/studies/as_exact/rationalize.py"
 test-command = "python -m pytest benchmarks/studies/as_exact/test_rationalize.py benchmarks/studies/as_exact/test_exact.py -q -p no:cacheprovider -x"
