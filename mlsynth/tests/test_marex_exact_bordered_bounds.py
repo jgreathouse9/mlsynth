@@ -553,7 +553,10 @@ def test_the_bound_is_its_fresh_solve_form_and_under_the_fit_over_the_domain(
     the closed form by at most ``2e-12 * cond(G_S)`` relative (1.3e-7 on a
     sales-scale set at a condition number of 3.2e5); the check allows five
     times that, against the fresh-solve form of the whole bound, the penalty
-    bound included. It is never above the fit."""
+    bound included, and on both sides: at ``x / s`` the form with a penalty is
+    ``1/s + min a`` only where ``G_S v`` is exactly ``1/s``, so the update's
+    error moves it either way (1.3e-9 above on a sales-scale set at a condition
+    number of 3.6e4). It is never above the fit."""
     m = min(m, n)
     B, A = _sales(seed, n=n, T=7) if sales else _problem(seed, n=n, T=7)
     a = _penalty(seed + 1, n) * (float(np.abs(B - A[:, None]).mean()) ** 2
@@ -566,8 +569,8 @@ def test_the_bound_is_its_fresh_solve_form_and_under_the_fit_over_the_domain(
         assert lb[r] <= f + 1e-9 * (1.0 + f)
         cf, cond = _bound_form(B, A, S, a)
         if cond < 1e6:
-            assert lb[r] <= cf + 1e-9 * (1.0 + cf)
-            assert cf - lb[r] <= max(1e-9, 1e-11 * cond) * (1.0 + cf)
+            tol = max(1e-9, 1e-11 * cond) * (1.0 + cf)
+            assert abs(lb[r] - cf) <= tol
 
 
 @given(seed=st.integers(0, 10_000), n=st.integers(3, 9), m=st.integers(2, 5))

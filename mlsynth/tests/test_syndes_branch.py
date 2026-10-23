@@ -578,6 +578,45 @@ class TestPruneRates:
         assert 0.0 < rates.rate(size) < 1.0
 
 
+class TestTheCostModel:
+    """The costs are the one-thread calibration of #845, at the free units the
+    search's nodes have: a modelled second is a second of the clock on the
+    machine that measured them, to within the spread of its nodes."""
+
+    @pytest.mark.parametrize("n, seconds", [(10, 0.51e-3), (25, 0.80e-3),
+                                            (40, 1.03e-3), (60, 1.28e-3)])
+    def test_a_lift_evaluation_costs_what_it_measured(self, n, seconds):
+        assert branch.evaluation_seconds(n) == pytest.approx(seconds, rel=0.1)
+
+    @pytest.mark.parametrize("n, seconds", [(10, 0.26e-3), (40, 0.53e-3),
+                                            (60, 0.63e-3)])
+    def test_a_trust_region_bound_costs_what_it_measured(self, n, seconds):
+        assert branch.trust_region_seconds(n) == pytest.approx(seconds, rel=0.15)
+
+    @pytest.mark.parametrize("n, seconds", [(10, 1.71e-3), (40, 13.4e-3),
+                                            (60, 30.7e-3)])
+    def test_a_certificate_costs_what_it_measured(self, n, seconds):
+        assert branch.certificate_seconds(n) == pytest.approx(seconds, rel=0.1)
+
+    def test_a_set_priced_costs_what_it_measured(self):
+        # 2.47 µs a set at 40 units, on the enumeration's path
+        assert branch.PRICE_SECONDS_PER_UNIT * 40 == pytest.approx(2.47e-6, rel=0.1)
+
+    def test_the_default_limit_leaves_the_documented_searches_room(self):
+        """At forty units with ten treated, the documented GeoLift and
+        structureless searches do 59.6 and 60.4 modelled seconds of work under
+        these costs (#845); the default is about twice the larger."""
+        from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT
+        assert WORK_LIMIT >= 1.95 * 60.4
+
+    @given(st.integers(1, 120))
+    @settings(max_examples=40, deadline=None)
+    def test_every_cost_grows_with_the_node(self, n):
+        for cost in (branch.evaluation_seconds, branch.trust_region_seconds,
+                     branch.certificate_seconds):
+            assert 0.0 < cost(n) < cost(n + 1)
+
+
 class TestLiftCost:
     def test_it_starts_at_its_prior(self):
         cost = LiftCost(evaluations=300.0)
@@ -927,7 +966,7 @@ class TestNodeOrder:
         everyone = list(range(N))
         _, m, _ = lift(*node_parts(engine.R, [], [], everyone), 2 * K - N, target=None)
         root = 4 * alpha / float(ExactR(engine).certify([], [], everyone, K, m))
-        out = branch_and_bound(problem, engine, K, SubsetFilter(), work_limit=0.3,
+        out = branch_and_bound(problem, engine, K, SubsetFilter(), work_limit=1.5,
                                restarts=0, **EAGER)
         assert not out.closed and out.lifts > 1
         assert out.lower >= root * (1 - 1e-9)
