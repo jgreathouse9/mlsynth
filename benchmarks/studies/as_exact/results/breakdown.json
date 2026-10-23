@@ -1,0 +1,120 @@
+{
+ "commits": {
+  "synth-AS-replication": "791a3865fe3e9fd0b82a8121c0b338791b7ffa39",
+  "synthx_package": "a10a28c571a906ee76574bad9c5446c22c3a184f"
+ },
+ "tasks": {
+  "weights, diagonal: replication": {
+   "seconds": 1.6072340476666795,
+   "reps": 3,
+   "parts": {
+    "SciPy LPs": {
+     "seconds": 0.21509241333448395,
+     "share": 0.13382768592212618,
+     "calls": 170
+    },
+    "visible facets": {
+     "seconds": 0.40647493566666526,
+     "share": 0.25290338781509136,
+     "calls": 1
+    },
+    "cvxpy quadratic programs": {
+     "seconds": 0.8507429586634316,
+     "share": 0.5293211401901966,
+     "calls": 186
+    }
+   }
+  },
+  "weights, diagonal: study": {
+   "seconds": 0.11754852945000493,
+   "reps": 20,
+   "parts": {
+    "visible facets (gift wrapping)": {
+     "seconds": 0.04226091694995375,
+     "share": 0.35951889102898493,
+     "calls": 1
+    },
+    "least squares, face fits": {
+     "seconds": 0.04501081095131667,
+     "share": 0.38291258224936287,
+     "calls": 249
+    },
+    "least squares, piece fits": {
+     "seconds": 0.02007834390069547,
+     "share": 0.17080897561747105,
+     "calls": 94
+    }
+   },
+   "search": {
+    "n_visible": 132,
+    "gift_wrap_steps": 607,
+    "faces": 89,
+    "solves": 343,
+    "relaxation_prunes": 17,
+    "edges": 0,
+    "vertices": 0,
+    "lps": 0,
+    "fallbacks": 0
+   }
+  },
+  "V, diagonal: replication": {
+   "seconds": 0.09085523679996185,
+   "reps": 10,
+   "parts": {
+    "SciPy LPs": {
+     "seconds": 0.05450339819981309,
+     "share": 0.5998927537860533,
+     "calls": 40
+    },
+    "cvxpy programs": {
+     "seconds": 0.030608963899885565,
+     "share": 0.3368981797634632,
+     "calls": 2
+    }
+   }
+  },
+  "V, diagonal: study": {
+   "seconds": 0.06825025660000392,
+   "reps": 10,
+   "parts": {
+    "SciPy LPs": {
+     "seconds": 0.06468989569902987,
+     "share": 0.9478337360423369,
+     "calls": 40
+    },
+    "Newton runs": {
+     "seconds": 0.0011094817999037331,
+     "share": 0.016256082470225752,
+     "calls": 9
+    }
+   }
+  },
+  "V, PD + ranges: replication": {
+   "seconds": 0.40210900439997205,
+   "reps": 5,
+   "parts": {
+    "cvxpy programs": {
+     "seconds": 0.3867623762005678,
+     "share": 0.961834656693887,
+     "calls": 17
+    }
+   }
+  },
+  "V, PD + ranges: study": {
+   "seconds": 0.2688265486000091,
+   "reps": 5,
+   "parts": {
+    "SciPy LPs": {
+     "seconds": 0.0020695850002084627,
+     "share": 0.00769858859173849,
+     "calls": 1
+    },
+    "Newton runs": {
+     "seconds": 0.2648565873976622,
+     "share": 0.9852322576656897,
+     "calls": 164
+    }
+   }
+  }
+ }
+}
