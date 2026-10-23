@@ -165,6 +165,9 @@ def refit_selection(X_fit, Xbar_clusters, cluster_members, cluster_labels, M,
     into a treated fit and a control fit, and both are solved exactly by the
     active-set simplex solver: the computation the exact backend's search runs
     on each candidate, so a weight the optimum puts at zero is exactly zero.
+    It reads the exact backend's own penalty and fit helpers, so comparing the
+    two backends cannot check those helpers; an oracle built from the
+    definitions does (``tests/test_marex_exact_oracle.py``, #783).
     Otherwise the MIQP's own constraints and objective are rebuilt with ``z``
     continuous and pinned to ``z_sel``, a convex QP, and handed to ``solver``,
     the solver the MIQP used.

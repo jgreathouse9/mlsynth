@@ -554,12 +554,20 @@ class TestPostColAndBlankDefaults:
             MAREXConfig(df=bad, outcome="y", unitid="unit", time="time",
                         post_col="post")
 
-    def test_blank_periods_default_30pct_with_inference(self):
-        # T0=14 -> floor(0.3 * 14) = 4
-        df = _panel(J=8, T=18)
+    def test_blank_periods_default_holds_the_floor_with_inference(self):
+        # T0=40: 30% is 12 blanks, raised to the 19 the conformal quantile
+        # needs at alpha=0.05 (#744).
+        df = _panel(J=8, T=44)
         cfg = MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
-                          T0=14, m_eq=2, inference=True)
-        assert cfg.blank_periods == max(1, int(0.3 * 14))
+                          T0=40, m_eq=2, inference=True)
+        assert cfg.blank_periods == 19
+
+    def test_blank_periods_default_refused_on_a_short_pre_period(self):
+        # T0=14 holds neither 19 blank nor 10 fitting periods (#744).
+        df = _panel(J=8, T=18)
+        with pytest.raises(MlsynthConfigError, match="fitting periods"):
+            MAREXConfig(df=df, outcome="y", unitid="unit", time="time",
+                        T0=14, m_eq=2, inference=True)
 
     def test_blank_periods_default_zero_without_inference(self, panel):
         # Without inference, no blank window is carved out (design fits on
@@ -577,11 +585,11 @@ class TestPostColAndBlankDefaults:
     def test_blank_periods_default_runs_end_to_end(self):
         # Smoke: with inference=True and no blank_periods / T_post specified,
         # MAREX should pick the 30% default and produce a usable result.
-        df = _panel(J=10, T=20)
+        df = _panel(J=10, T=36)
         res = MAREX({"df": df, "outcome": "y", "unitid": "unit", "time": "time",
-                     "T0": 14, "m_eq": 2, "inference": True}).fit()
-        # The 30% default ⇒ blank_periods = 4 on T0=14
-        assert res.study.blank_periods == max(1, int(0.3 * 14))
+                     "T0": 32, "m_eq": 2, "inference": True}).fit()
+        # 30% of 32 is 9 blanks, raised to the 19-period floor at alpha=0.05
+        assert res.study.blank_periods == 19
         # Post-fit and inference both populated
         assert res.post_fit is not None
         assert res.globres.inference is not None

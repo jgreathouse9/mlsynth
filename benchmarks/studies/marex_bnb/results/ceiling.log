@@ -1,0 +1,149 @@
+
+geolift_m4: n=40 m=4 sets=91390 f*=554320
+  best design with k treated, over f*: k=1: 18.935, k=2: 3.953, k=3: 1.756
+  order index:
+    depth 1: subtree min / f*  p10 1.220  p50 1.754  p90 4.090   within 10% of f*: 2.7%
+    depth 2: subtree min / f*  p10 1.697  p50 2.546  p90 7.349   within 10% of f*: 0.1%
+    depth 3: subtree min / f*  p10 2.417  p50 4.216  p90 11.074   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:91056  0.1:88273  0.2:71770  0.3:39554  0.5:4782  0.7:386  0.8:121  0.9:15  0.95:15  1.0:15
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.241  p50 1.845  p90 3.272   within 10% of f*: 2.7%
+    depth 2: subtree min / f*  p10 1.704  p50 2.596  p90 9.908   within 10% of f*: 0.1%
+    depth 3: subtree min / f*  p10 2.370  p50 4.006  p90 8.897   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:90780  0.1:88611  0.2:68521  0.3:36192  0.5:4147  0.7:272  0.8:105  0.9:15  0.95:15  1.0:15
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.655  p50 2.427  p90 2.727   within 10% of f*: 2.7%
+    depth 2: subtree min / f*  p10 1.917  p50 3.313  p90 3.922   within 10% of f*: 0.1%
+    depth 3: subtree min / f*  p10 2.531  p50 5.029  p90 9.239   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:91390  0.1:84526  0.2:49280  0.3:29586  0.5:4636  0.7:421  0.8:110  0.9:13  0.95:13  1.0:13
+  order random:
+    depth 1: subtree min / f*  p10 1.300  p50 1.761  p90 2.514   within 10% of f*: 2.7%
+    depth 2: subtree min / f*  p10 1.782  p50 2.607  p90 4.808   within 10% of f*: 0.1%
+    depth 3: subtree min / f*  p10 2.513  p50 4.636  p90 16.713   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:90032  0.1:84006  0.2:60604  0.3:33246  0.5:4207  0.7:447  0.8:126  0.9:29  0.95:29  1.0:29
+
+county_n40_m3: n=40 m=3 sets=9880 f*=0.532314
+  best design with k treated, over f*: k=1: 9.858, k=2: 1.516
+  order index:
+    depth 1: subtree min / f*  p10 1.174  p50 1.603  p90 28.016   within 10% of f*: 5.3%
+    depth 2: subtree min / f*  p10 1.774  p50 3.976  p90 27.012   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:9580  0.1:9379  0.2:8122  0.3:5366  0.5:2328  0.7:486  0.8:149  0.9:27  0.95:27  1.0:10
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.174  p50 2.049  p90 9.141   within 10% of f*: 5.3%
+    depth 2: subtree min / f*  p10 2.038  p50 4.276  p90 16.907   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:9734  0.1:9348  0.2:7153  0.3:4753  0.5:1566  0.7:538  0.8:131  0.9:56  0.95:56  1.0:25
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.183  p50 1.408  p90 1.885   within 10% of f*: 5.3%
+    depth 2: subtree min / f*  p10 1.575  p50 2.924  p90 4.535   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:9880  0.1:9880  0.2:9294  0.3:6290  0.5:2213  0.7:526  0.8:140  0.9:22  0.95:22  1.0:14
+  order random:
+    depth 1: subtree min / f*  p10 1.174  p50 1.413  p90 2.389   within 10% of f*: 5.3%
+    depth 2: subtree min / f*  p10 1.571  p50 3.020  p90 5.521   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:9880  0.1:9864  0.2:9034  0.3:6429  0.5:2117  0.7:488  0.8:117  0.9:34  0.95:34  1.0:10
+
+county_n70_m3: n=70 m=3 sets=54740 f*=0.265153
+  best design with k treated, over f*: k=1: 10.959, k=2: 2.265
+  order index:
+    depth 1: subtree min / f*  p10 1.218  p50 2.358  p90 69.907   within 10% of f*: 4.4%
+    depth 2: subtree min / f*  p10 2.218  p50 5.016  p90 47.477   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:51556  0.1:50438  0.2:39325  0.3:23311  0.5:6131  0.7:979  0.8:426  0.9:197  0.95:71  1.0:30
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.391  p50 2.298  p90 6.183   within 10% of f*: 4.4%
+    depth 2: subtree min / f*  p10 2.335  p50 4.810  p90 14.027   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:54286  0.1:50999  0.2:36108  0.3:19576  0.5:4542  0.7:882  0.8:287  0.9:125  0.95:66  1.0:28
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.140  p50 1.568  p90 2.218   within 10% of f*: 5.9%
+    depth 2: subtree min / f*  p10 2.056  p50 3.851  p90 5.666   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:54740  0.1:54717  0.2:42042  0.3:21170  0.5:5660  0.7:1114  0.8:406  0.9:182  0.95:72  1.0:41
+  order random:
+    depth 1: subtree min / f*  p10 1.222  p50 2.003  p90 3.118   within 10% of f*: 5.9%
+    depth 2: subtree min / f*  p10 2.221  p50 4.034  p90 7.038   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:54688  0.1:54366  0.2:43727  0.3:23693  0.5:5494  0.7:1157  0.8:367  0.9:167  0.95:42  1.0:12
+
+county_n100_m3: n=100 m=3 sets=161700 f*=0.179115
+  best design with k treated, over f*: k=1: 32.047, k=2: 3.904
+  order index:
+    depth 1: subtree min / f*  p10 1.952  p50 3.718  p90 88.223   within 10% of f*: 1.0%
+    depth 2: subtree min / f*  p10 3.878  p50 9.375  p90 80.570   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:143288  0.1:120670  0.2:52318  0.3:14362  0.5:1160  0.7:137  0.8:43  0.9:43  0.95:43  1.0:43
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.879  p50 3.234  p90 8.732   within 10% of f*: 1.0%
+    depth 2: subtree min / f*  p10 3.861  p50 7.384  p90 21.961   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:154483  0.1:125289  0.2:51810  0.3:13881  0.5:1329  0.7:207  0.8:49  0.9:49  0.95:49  1.0:49
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.759  p50 2.640  p90 3.901   within 10% of f*: 1.0%
+    depth 2: subtree min / f*  p10 3.637  p50 6.567  p90 11.958   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:161641  0.1:143437  0.2:47755  0.3:13455  0.5:891  0.7:90  0.8:50  0.9:50  0.95:50  1.0:50
+  order random:
+    depth 1: subtree min / f*  p10 1.879  p50 2.937  p90 7.170   within 10% of f*: 1.0%
+    depth 2: subtree min / f*  p10 3.624  p50 6.792  p90 15.464   within 10% of f*: 0.0%
+    sets left to price at rho: 0.05:160762  0.1:141396  0.2:59119  0.3:16837  0.5:1534  0.7:65  0.8:14  0.9:14  0.95:14  1.0:14
+
+factor_J24_m4: n=24 m=4 sets=10626 f*=5.89951
+  best design with k treated, over f*: k=1: 2.614, k=2: 1.594, k=3: 1.132
+  order index:
+    depth 1: subtree min / f*  p10 1.041  p50 6.039  p90 11.122   within 10% of f*: 19.0%
+    depth 2: subtree min / f*  p10 1.241  p50 7.360  p90 11.971   within 10% of f*: 2.2%
+    depth 3: subtree min / f*  p10 1.527  p50 7.431  p90 12.369   within 10% of f*: 0.6%
+    sets left to price at rho: 0.05:10626  0.1:8720  0.2:5781  0.3:5781  0.5:5776  0.7:705  0.8:380  0.9:48  0.95:11  1.0:1
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.041  p50 6.035  p90 10.671   within 10% of f*: 19.0%
+    depth 2: subtree min / f*  p10 1.172  p50 7.215  p90 14.020   within 10% of f*: 4.3%
+    depth 3: subtree min / f*  p10 1.526  p50 7.492  p90 13.612   within 10% of f*: 0.6%
+    sets left to price at rho: 0.05:10616  0.1:8588  0.2:5781  0.3:5781  0.5:5781  0.7:416  0.8:130  0.9:28  0.95:15  1.0:3
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.383  p50 2.090  p90 2.410   within 10% of f*: 4.8%
+    depth 2: subtree min / f*  p10 1.611  p50 2.221  p90 2.601   within 10% of f*: 0.9%
+    depth 3: subtree min / f*  p10 1.665  p50 2.284  p90 2.628   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10626  0.5:3488  0.7:291  0.8:184  0.9:48  0.95:24  1.0:7
+  order random:
+    depth 1: subtree min / f*  p10 1.211  p50 1.600  p90 2.245   within 10% of f*: 9.5%
+    depth 2: subtree min / f*  p10 1.469  p50 2.009  p90 2.387   within 10% of f*: 1.7%
+    depth 3: subtree min / f*  p10 1.694  p50 2.212  p90 2.686   within 10% of f*: 0.6%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10626  0.5:4194  0.7:644  0.8:324  0.9:108  0.95:59  1.0:14
+
+factor_J30_m4: n=30 m=4 sets=27405 f*=4.62377
+  best design with k treated, over f*: k=1: 1.899, k=2: 1.290, k=3: 1.116
+  order index:
+    depth 1: subtree min / f*  p10 1.018  p50 7.895  p90 12.628   within 10% of f*: 14.8%
+    depth 2: subtree min / f*  p10 1.140  p50 10.089  p90 15.905   within 10% of f*: 4.5%
+    depth 3: subtree min / f*  p10 1.243  p50 11.641  p90 18.647   within 10% of f*: 1.0%
+    sets left to price at rho: 0.05:26720  0.1:13996  0.2:12455  0.3:12455  0.5:12450  0.7:11283  0.8:4719  0.9:642  0.95:173  1.0:18
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.018  p50 8.849  p90 18.707   within 10% of f*: 14.8%
+    depth 2: subtree min / f*  p10 1.123  p50 10.663  p90 18.822   within 10% of f*: 6.3%
+    depth 3: subtree min / f*  p10 1.223  p50 11.841  p90 21.331   within 10% of f*: 1.1%
+    sets left to price at rho: 0.05:26453  0.1:14221  0.2:12455  0.3:12455  0.5:12357  0.7:11122  0.8:5521  0.9:609  0.95:133  1.0:7
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.056  p50 1.228  p90 1.592   within 10% of f*: 14.8%
+    depth 2: subtree min / f*  p10 1.161  p50 1.456  p90 1.697   within 10% of f*: 3.2%
+    depth 3: subtree min / f*  p10 1.271  p50 1.579  p90 1.947   within 10% of f*: 0.5%
+    sets left to price at rho: 0.05:27405  0.1:27405  0.2:27405  0.3:27405  0.5:26114  0.7:8661  0.8:2587  0.9:259  0.95:72  1.0:4
+  order random:
+    depth 1: subtree min / f*  p10 1.021  p50 1.170  p90 1.990   within 10% of f*: 29.6%
+    depth 2: subtree min / f*  p10 1.123  p50 1.395  p90 1.964   within 10% of f*: 5.8%
+    depth 3: subtree min / f*  p10 1.243  p50 1.556  p90 1.984   within 10% of f*: 1.1%
+    sets left to price at rho: 0.05:27405  0.1:27405  0.2:27405  0.3:27405  0.5:26036  0.7:11719  0.8:4436  0.9:613  0.95:196  1.0:17
+
+noise_J24_m4: n=24 m=4 sets=10626 f*=2.90108
+  best design with k treated, over f*: k=1: 8.313, k=2: 3.390, k=3: 1.493
+  order index:
+    depth 1: subtree min / f*  p10 1.025  p50 1.511  p90 1.794   within 10% of f*: 14.3%
+    depth 2: subtree min / f*  p10 1.385  p50 1.845  p90 2.275   within 10% of f*: 1.7%
+    depth 3: subtree min / f*  p10 1.668  p50 2.158  p90 2.743   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10593  0.5:4597  0.7:512  0.8:117  0.9:55  0.95:30  1.0:13
+  order fit_best_first:
+    depth 1: subtree min / f*  p10 1.025  p50 1.568  p90 2.726   within 10% of f*: 19.0%
+    depth 2: subtree min / f*  p10 1.433  p50 2.015  p90 2.838   within 10% of f*: 2.2%
+    depth 3: subtree min / f*  p10 1.718  p50 2.301  p90 3.189   within 10% of f*: 0.3%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10421  0.5:4734  0.7:521  0.8:121  0.9:74  0.95:40  1.0:14
+  order fit_worst_first:
+    depth 1: subtree min / f*  p10 1.025  p50 1.322  p90 2.039   within 10% of f*: 19.0%
+    depth 2: subtree min / f*  p10 1.355  p50 1.823  p90 2.445   within 10% of f*: 1.7%
+    depth 3: subtree min / f*  p10 1.692  p50 2.154  p90 2.710   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10597  0.5:3916  0.7:325  0.8:70  0.9:22  0.95:19  1.0:6
+  order random:
+    depth 1: subtree min / f*  p10 1.025  p50 1.589  p90 2.591   within 10% of f*: 19.0%
+    depth 2: subtree min / f*  p10 1.381  p50 1.953  p90 2.818   within 10% of f*: 1.7%
+    depth 3: subtree min / f*  p10 1.726  p50 2.272  p90 3.040   within 10% of f*: 0.2%
+    sets left to price at rho: 0.05:10626  0.1:10626  0.2:10626  0.3:10497  0.5:4375  0.7:486  0.8:95  0.9:52  0.95:36  1.0:15

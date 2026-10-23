@@ -1,0 +1,92 @@
+{
+ "1.0": {
+  "batched": {
+   "bounded": 226,
+   "discarded_by_bound": 223,
+   "treated_fits": 11,
+   "coupled_fits": 11,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "seconds": 0.24
+  },
+  "per_candidate": {
+   "bounded": 233,
+   "discarded_by_bound": 229,
+   "fits": 5,
+   "fits_finished": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "seconds": 0.51
+  },
+  "shipped": {
+   "bounded": 0,
+   "discarded_by_bound": 0,
+   "fits": 234,
+   "fits_finished": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "seconds": 0.73
+  },
+  "same_design": true
+ },
+ "100.0": {
+  "batched": {
+   "bounded": 87431,
+   "discarded_by_bound": 86685,
+   "treated_fits": 754,
+   "coupled_fits": 754,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "seconds": 19.8
+  },
+  "per_candidate": {
+   "bounded": 82295,
+   "discarded_by_bound": 81717,
+   "fits": 579,
+   "fits_finished": 6,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "seconds": 131.25
+  },
+  "shipped": {
+   "bounded": 0,
+   "discarded_by_bound": 0,
+   "fits": 82296,
+   "fits_finished": 6,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "seconds": 332.45
+  },
+  "same_design": true
+ }
+}

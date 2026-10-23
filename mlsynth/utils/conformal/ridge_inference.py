@@ -37,6 +37,27 @@ Two things decide whether the test has any power, and both are the caller's:
     effect into the pre-period residuals the test calibrates against. The
     p-value reads 0.348 whether the injected effect is 5 or 100. Pass the fitted
     penalty, as augsynth does.
+
+Two more choices matter for a band on a total, and both default to the
+behaviour above:
+
+``statistic``
+    ``"sq"`` is ``(sum|u|^q / sqrt(n))^(1/q)``. ``"signed"`` is
+    ``|sum u| / sqrt(n)``, Chernozhukov, Wuthrich and Zhu's Remark 1 statistic
+    for the average effect. Under a constant-effect null the signed statistic's
+    observed value depends on the post-period effects only through their total,
+    where ``S_q`` grows with every departure from a constant path. On a MAREX
+    design with independent factors and a ramp-shaped effect, the 95% ``S_1``
+    band covers the total 11% of the time and the signed band 99.7%.
+
+``reference_start``
+    The first period whose residual enters the permutation reference; the refit
+    still matches on every period. A design chosen on an early stretch leaves
+    smaller residuals there -- 30% smaller in mean square on MAREX's fitting
+    periods -- and a reference that includes them understates the post block's
+    spread, by a factor of 1.17 on independent factors and 1.59 on factors with
+    autocorrelation 0.8. Starting the reference after that stretch keeps it out.
+    The measurements are in ``benchmarks/studies/marex_cumulative_conformal/``.
 """
 
 from __future__ import annotations
@@ -52,13 +73,48 @@ from .refit import CONFORMAL_REFIT_RULES, conformal_refit_gaps
 from ..solvers.ridge_augment import ridge_augment_weights
 
 
-def _stat(x: np.ndarray, q: float = 1.0) -> float:
-    """Conformal test statistic ``(sum|x|^q / sqrt(len))^(1/q)`` (augsynth q=1)."""
+#: Test statistics the inversion takes: ``"sq"``, ``(sum|x|^q / sqrt(n))^(1/q)``
+#: (augsynth's, at ``q = 1``), and ``"signed"``, ``|sum x| / sqrt(n)`` (CWZ's
+#: Remark 1).
+CONFORMAL_STATISTICS = ("sq", "signed")
+
+
+def _check_statistic(statistic, q):
+    """Return ``statistic`` if it is one on offer and ``q`` does not contradict it."""
+    if not isinstance(statistic, str) or statistic not in CONFORMAL_STATISTICS:
+        raise MlsynthConfigError(
+            f"statistic must be one of {CONFORMAL_STATISTICS}; got {statistic!r}.")
+    if statistic == "signed" and q != 1.0:
+        raise MlsynthConfigError(
+            f"q sets the norm of the 'sq' statistic and has no meaning for "
+            f"'signed'; got q={q!r}.")
+    return statistic
+
+
+def _check_reference_start(reference_start, pre):
+    """Return the first referenced period, which must leave a pre-period in."""
+    if isinstance(reference_start, bool) or not isinstance(
+            reference_start, (int, np.integer)):
+        raise MlsynthConfigError(
+            f"reference_start must be an int; got {reference_start!r}.")
+    if not 0 <= int(reference_start) < int(pre):
+        raise MlsynthConfigError(
+            f"reference_start must leave at least one pre-period in the "
+            f"reference, 0 <= reference_start < pre = {pre}; got "
+            f"{reference_start}.")
+    return int(reference_start)
+
+
+def _stat(x: np.ndarray, q: float = 1.0, statistic: str = "sq") -> float:
+    """Conformal test statistic: ``S_q`` (augsynth q=1) or the signed sum."""
     x = np.asarray(x, dtype=float)
+    if statistic == "signed":
+        return float(abs(np.sum(x)) / np.sqrt(x.size))
     return float((np.sum(np.abs(x) ** q) / np.sqrt(x.size)) ** (1.0 / q))
 
 
-def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
+def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed,
+                     statistic="sq"):
     """Reference statistics for the conformal test (augsynth's permutation set).
 
     ``"iid"`` draws ``ns`` random permutations of the residual path;
@@ -80,7 +136,9 @@ def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
     value nudged across a tie changes a rank. At ``q == 1`` both exponents are
     the identity and equality is provable, not merely observed; ``q == 1`` is
     also augsynth's default and every call site in this library. Any other ``q``
-    keeps the loop.
+    keeps the loop. The signed statistic takes the gather too: it is only
+    offered at ``q == 1``, and a row sum over the gathered block adds the same
+    values in the same order as the sum over one shifted path.
     """
     if conformal_type == "block":
         resids = np.asarray(resids, dtype=float)
@@ -88,9 +146,11 @@ def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
         if q == 1.0:
             post = np.arange(n)[post_slice]
             shifts = resids[(post[None, :] - np.arange(n)[:, None]) % n]
+            if statistic == "signed":
+                return np.abs(np.sum(shifts, axis=1)) / np.sqrt(post.size)
             return np.sum(np.abs(shifts), axis=1) / np.sqrt(post.size)
         return np.array(
-            [_stat(np.roll(resids, s)[post_slice], q) for s in range(n)],
+            [_stat(np.roll(resids, s)[post_slice], q, statistic) for s in range(n)],
             dtype=float,
         )
     if conformal_type == "iid":
@@ -106,6 +166,8 @@ def _reference_stats(resids, post_slice, q, *, conformal_type, ns, seed):
         P = np.empty((ns, m), dtype=float)
         for i in range(ns):
             P[i] = rng.permutation(resids)[idx]
+        if statistic == "signed":
+            return np.abs(np.sum(P, axis=1)) / np.sqrt(m)
         return (np.sum(np.abs(P) ** q, axis=1) / np.sqrt(m)) ** (1.0 / q)
     raise ValueError(f"conformal_type must be 'iid' or 'block'; got {conformal_type!r}.")
 
@@ -185,6 +247,8 @@ def conformal_pvalue(
     ridge_kwargs: Optional[Dict[str, Any]] = None,
     warm_start: Optional[np.ndarray] = None,
     return_base: bool = False,
+    statistic: str = "sq",
+    reference_start: int = 0,
 ):
     """Conformal p-value for the joint null of no post-treatment effect.
 
@@ -256,6 +320,14 @@ def conformal_pvalue(
     ridge_kwargs : dict, optional
         Other hyper-parameters forwarded to :func:`ridge_augment_weights`.
         Ignored under ``refit="sc"``.
+    statistic : {"sq", "signed"}, default "sq"
+        The test statistic; see the module docstring. ``"signed"`` needs
+        ``q = 1``, since ``q`` is the norm of the other statistic.
+    reference_start : int, default 0
+        First period whose residual enters the permutation reference, at most
+        ``pre - 1``. The refit still matches on every period; only the
+        reference window, and with it the floor ``1 / (T - reference_start)``
+        of the block p-value, moves.
 
     Returns
     -------
@@ -263,12 +335,20 @@ def conformal_pvalue(
         The conformal p-value ``mean(stat(observed_post) <= stat(permuted_post))``,
         or its finite-sample correction when ``finite_sample`` is set. With
         ``return_base``, the pair ``(p, base_weights)``.
+
+    Raises
+    ------
+    MlsynthConfigError
+        On an unknown refit rule or statistic, a ``q`` other than one with the
+        signed statistic, or a ``reference_start`` outside ``[0, pre)``.
     """
     if refit not in CONFORMAL_REFIT_RULES:
         raise MlsynthConfigError(
             f"conformal refit rule must be one of {CONFORMAL_REFIT_RULES}; "
             f"got {refit!r}."
         )
+    statistic = _check_statistic(statistic, q)
+    reference_start = _check_reference_start(reference_start, pre)
     ridge_kwargs = dict(ridge_kwargs or {})
     if lambda_ is not None:
         ridge_kwargs["lambda_"] = lambda_
@@ -289,9 +369,12 @@ def conformal_pvalue(
     out = _augmented_gaps(y, Y0, Z0, z1, ridge_kwargs, warm_start=warm_start,
                           return_base=return_base, refit=refit)
     resids, base = out if return_base else (out, None)
-    obs = _stat(resids[pre:], q)
+    obs = _stat(resids[pre:], q, statistic)
+    # the refit read every period; only the window from reference_start on is
+    # referenced, so the post block sits at pre - reference_start inside it
     perm = _reference_stats(
-        resids, slice(pre, None), q, conformal_type=conformal_type, ns=ns, seed=seed
+        resids[reference_start:], slice(pre - reference_start, None), q,
+        conformal_type=conformal_type, ns=ns, seed=seed, statistic=statistic,
     )
     if finite_sample:
         p = float((1.0 + np.sum(obs <= perm)) / (1.0 + perm.size))
@@ -472,7 +555,7 @@ def conformal_att_interval(
             Z = Z - Z.mean(axis=0)
         gaps = _augmented_gaps(shifted, Z, kwargs.get("Z0"), kwargs.get("z1"),
                                ridge_kwargs, refit=kwargs.get("refit", "ridge"))
-        return _stat(gaps[pre:], kwargs.get("q", 1.0))
+        return _stat(gaps[pre:], kwargs.get("q", 1.0), kwargs.get("statistic", "sq"))
 
     def most_conforming() -> float:
         """The candidate minimising the statistic, by ternary search."""

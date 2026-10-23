@@ -1,0 +1,19 @@
+N=3 H=2 gauss 0:0.3321 0.25:0.3225 0.5:0.2951 1:0.2084 1.5:0.1207 2:0.0603 3:0.0099 5:0.0001 (level 1/3)
+N=3 H=2 skew 0:0.3328 0.25:0.3086 0.5:0.2605 1:0.1592 1.5:0.0891 2:0.0565 3:0.0240 5:0.0032 (level 1/3)
+N=3 H=2 bimodal 0:0.3337 0.25:0.3132 0.5:0.2793 1:0.2525 1.5:0.2505 2:0.2499 3:0.2268 5:0.0006 (level 1/3)
+N=3 H=2 spike_exch 0:0.3338 0.25:0.3336 0.5:0.3329 1:0.3335 1.5:0.3338 2:0.3337 3:0.3332 5:0.3337 (level 1/3)
+n=5 H=3 subsets alpha=0.1 gauss: null 0.0879, worst path [-0.04 -0.11  0.15] -> 0.0888
+n=5 H=3 subsets alpha=0.1 skew: null 0.0898, worst path none above the null -> 0.0898
+n=5 H=3 subsets alpha=0.1 negskew: null 0.0898, worst path none above the null -> 0.0898
+n=5 H=3 subsets alpha=0.1 bimodal: null 0.0906, worst path [-0.09  0.13 -0.04] -> 0.0884
+n=5 H=3 subsets alpha=0.1 spike_exch: null 0.0873, worst path [ 20.73 -25.23   4.5 ] -> 0.1247
+n=9 H=3 cyclic alpha=0.17 gauss: null 0.1671, worst path [-0.09  0.13 -0.04] -> 0.1655
+n=9 H=3 cyclic alpha=0.17 skew: null 0.1647, worst path [-0.09  0.13 -0.04] -> 0.1663
+n=9 H=3 cyclic alpha=0.17 negskew: null 0.1647, worst path [-0.02 -0.09  0.11] -> 0.1660
+n=9 H=3 cyclic alpha=0.17 bimodal: null 0.1647, worst path [ 0.1  -0.05 -0.05] -> 0.1652
+n=9 H=3 cyclic alpha=0.17 spike_exch: null 0.1655, worst path [  7.54 -19.69  12.15] -> 0.2488
+n=12 H=4 cyclic alpha=0.13 gauss: null 0.1241, worst path none above the null -> 0.1241
+n=12 H=4 cyclic alpha=0.13 skew: null 0.1242, worst path [-0.08  0.04  0.11 -0.07] -> 0.1254
+n=12 H=4 cyclic alpha=0.13 negskew: null 0.1242, worst path [ 0.16 -0.25 -0.06  0.15] -> 0.1254
+n=12 H=4 cyclic alpha=0.13 bimodal: null 0.1287, worst path none above the null -> 0.1287
+n=12 H=4 cyclic alpha=0.13 spike_exch: null 0.1239, worst path [ 3.76 -7.82 -5.58  9.64] -> 0.1870

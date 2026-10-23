@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from mlsynth.exceptions import (MlsynthConfigError, MlsynthDataError,
                                 MlsynthEstimationError)
@@ -51,13 +53,83 @@ def test_gap_reports_one_cluster_when_there_is_no_structure():
     assert int(np.argmax(gaps)) + 1 == 1
 
 
-def test_gap_is_deterministic_under_a_fixed_seed():
+def _openmp_threads():
+    from threadpoolctl import threadpool_info
+    return [p["num_threads"] for p in threadpool_info() if p["user_api"] == "openmp"]
+
+
+@pytest.fixture
+def four_openmp_threads():
+    """The caller runs OpenMP on four threads, as scikit-learn does on a
+    four-core runner. On four threads k-means' inertia differs in the last bit
+    from one call to the next (40 of 40 repeated sweeps did, #860)."""
+    pytest.importorskip("sklearn")
+    from threadpoolctl import threadpool_limits
+    import sklearn.cluster  # noqa: F401 - load the OpenMP runtime first
+    with threadpool_limits(4, user_api="openmp"):
+        threads = _openmp_threads()
+        if not threads or max(threads) < 2:  # pragma: no cover - CI and development machines run several threads; this guards a single-core runner
+            pytest.skip("OpenMP cannot run several threads here")
+        yield threads
+
+
+def test_gap_is_deterministic_under_a_fixed_seed(four_openmp_threads):
+    """Bit for bit, under a caller running OpenMP on four threads, three times
+    over: the CI failure of #860 was one pair differing at 1.8e-15."""
     from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
     rng = np.random.default_rng(2)
     F = rng.standard_normal((60, 2))
     a, _ = gap_statistic(F, range(1, 5), n_ref=10, seed=7)
-    b, _ = gap_statistic(F, range(1, 5), n_ref=10, seed=7)
-    np.testing.assert_allclose(a, b, rtol=0, atol=0)
+    for _ in range(3):
+        b, _ = gap_statistic(F, range(1, 5), n_ref=10, seed=7)
+        np.testing.assert_allclose(a, b, rtol=0, atol=0)
+
+
+def test_kmeans_runs_on_one_openmp_thread(four_openmp_threads, monkeypatch):
+    """The mechanism, checked directly: every k-means fit inside the
+    statistic sees one OpenMP thread, whatever the caller's setting."""
+    import sklearn.cluster
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    seen = []
+    base = sklearn.cluster.KMeans
+
+    class Spy(base):
+        def fit(self, *args, **kwargs):
+            seen.append(_openmp_threads())
+            return super().fit(*args, **kwargs)
+
+    monkeypatch.setattr(sklearn.cluster, "KMeans", Spy)
+    rng = np.random.default_rng(3)
+    gap_statistic(rng.standard_normal((30, 2)), range(1, 4), n_ref=2, seed=0)
+    assert seen and all(set(t) == {1} for t in seen)
+
+
+def test_the_callers_openmp_setting_is_restored(four_openmp_threads):
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    rng = np.random.default_rng(4)
+    gap_statistic(rng.standard_normal((30, 2)), range(1, 4), n_ref=2, seed=0)
+    assert _openmp_threads() == four_openmp_threads
+
+
+def test_a_statistic_that_raises_still_restores_it(four_openmp_threads):
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    F = np.random.default_rng(5).standard_normal((30, 2))
+    F[3, 1] = np.nan
+    with pytest.raises(MlsynthDataError, match="non-finite"):
+        gap_statistic(F, range(1, 4), n_ref=2, seed=0)
+    assert _openmp_threads() == four_openmp_threads
+
+
+@given(seed=st.integers(0, 10 ** 6), n=st.integers(12, 40))
+@settings(max_examples=4, deadline=None,
+          suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
+def test_property_any_panel_and_seed_reproduce_bit_for_bit(four_openmp_threads, seed, n):
+    from mlsynth.utils.clustersc_helpers.rpca.selection import gap_statistic
+    F = np.random.default_rng(seed).standard_normal((n, 2))
+    a, sa = gap_statistic(F, range(1, 4), n_ref=3, seed=seed)
+    b, sb = gap_statistic(F, range(1, 4), n_ref=3, seed=seed)
+    np.testing.assert_array_equal(a, b)
+    np.testing.assert_array_equal(sa, sb)
 
 
 def test_gap_rejects_a_k_above_the_sample_size():

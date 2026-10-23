@@ -1,0 +1,11 @@
+{
+  "case": "zhang2026_spike",
+  "title": "Doubly robust dynamic ATT under joint selection on latent heterogeneity and lagged outcomes (Zhang 2026): Table 1 reproduction and porting decisions",
+  "paper": "Zhang, W., 'Causal Inference under Dynamic Selection: Time-Varying Covariates and Latent Heterogeneity', arXiv:2609.17170v1 (September 2026), University College London working paper, unpublished",
+  "reference_impl": "none -- the paper ships no code",
+  "path_type": "spike (demonstrate-first; no estimator added)",
+  "replication_path": "B (the paper's own Monte Carlo, Table 1)",
+  "command": "python gate_did.py 2000 && python check_distance.py && python gate_trim.py 240 && python gate_final.py 300",
+  "data": [],
+  "data_origin": "Simulated in dgp.py from the paper's Section 8.1 specification. No external data. Path A (the Bailey 2012 application) needs GFR history back to 1937 from ICPSR 36603, which the supplied Bailey replication package does not contain and which this environment cannot reach."
+}

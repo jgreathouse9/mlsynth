@@ -10,7 +10,12 @@ the optimum.
 
 The MIQP is the reference. Every configuration the backend accepts is solved
 both ways here and the designs compared; every configuration it refuses is
-checked to raise before anything is solved. Below those sit unit tests of the
+checked to raise before anything is solved. The comparison is independent only
+where the two paths are: since #756 the MIQP reports the design its selection
+defines by refitting it with this backend's own ``_penalties`` and ``side_fit``,
+so a defect in those moves both backends together and survives here (#783).
+``test_marex_exact_oracle.py`` checks them against an oracle that shares no
+code with the library. Below those sit unit tests of the
 search core against plain enumeration and of the bound against the exact fit,
 with ``hypothesis`` properties for both.
 
@@ -355,10 +360,12 @@ def test_a_conflict_across_clusters_is_refused():
 
 
 def test_too_many_candidates_is_refused_with_the_way_out(monkeypatch):
+    # Above the limit the separable designs go to the branch and bound
+    # (test_marex_branch.py); the coupled design has no bound there.
     monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
     df, T0 = _panel()
     with pytest.raises(MlsynthConfigError, match="backend='mip'"):
-        _fit(df, T0, "exact", m_eq=3)
+        _fit(df, T0, "exact", m_eq=3, design="weakly_targeted", beta=1.0)
 
 
 def test_unsatisfiable_restrictions_raise_like_the_mip():

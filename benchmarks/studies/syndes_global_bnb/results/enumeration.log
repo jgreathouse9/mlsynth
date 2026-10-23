@@ -1,0 +1,6 @@
+factor N=40 K=6 library 3.0s value=0.8339723078 treated=[2, 5, 9, 11, 12, 21]
+noise N=40 K=6 library 3.1s value=0.3244950046 treated=[4, 12, 20, 34, 35, 39]
+factor N=60 K=6 library 61.3s value=0.7183646097 treated=[9, 18, 19, 21, 30, 44]
+noise N=60 K=6 library 65.1s value=0.3352563943 treated=[16, 29, 34, 41, 47, 48]
+geolift N=40 K=8 library 63.4s value=278495.4422 treated=[0, 15, 19, 23, 24, 25, 27, 31]
+geolift N=40 K=10 library 698.1s value=237545.0339 treated=[0, 2, 5, 7, 10, 21, 24, 25, 27, 31]

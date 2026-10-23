@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-09-27T16:08:00Z",
+  "git_sha": "34f38b45cd867b2311c838cf178bb6955644ce0f",
+  "platform": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+  "python_version": "3.11.15",
+  "upstream_repo": null,
+  "upstream_sha": null,
+  "packages": {"numpy": "2.4.6"},
+  "notes": "numpy is the only dependency. mlsynth itself is not imported: the spike is self-contained so it can be re-run without the library installed."
+}
