@@ -30,20 +30,32 @@ from . import reference  # noqa: E402
 HERE = pathlib.Path(__file__).resolve().parent
 
 
-def random_instance(seed, K, J, L=12, factors=3):
-    """A factor-model panel with the treated unit pushed outward; None if X1 is in the hull."""
-    from .hull import outside_hull
+def _factor_panel(seed, K, J, L, factors, lead):
+    """X1, X0, Z1, Z0 from a factor model whose treated loadings are scaled by `lead`."""
     rng = np.random.default_rng(seed)
     lam = rng.normal(size=(J + 1, factors))
-    lam[0] *= 1.3
+    lam[0] *= lead
     f = rng.normal(size=(L + 6, factors)).cumsum(axis=0) * 0.3 + rng.normal(size=factors)
     Y = lam @ f.T + 0.3 * rng.normal(size=(J + 1, L + 6))
     C = lam @ rng.normal(size=(factors, K - 2)) + 0.5 * rng.normal(size=(J + 1, K - 2))
     X = np.column_stack([C, Y[:, 1], Y[:, 4]]).T
     X = X / X.std(axis=1, ddof=1)[:, None]
     Z = Y[:, 6:].T
-    X1, X0, Z1, Z0 = X[:, 0], X[:, 1:], Z[:, 0], Z[:, 1:]
+    return X[:, 0], X[:, 1:], Z[:, 0], Z[:, 1:]
+
+
+def random_instance(seed, K, J, L=12, factors=3):
+    """A factor-model panel with the treated unit pushed outward; None if X1 is in the hull."""
+    from .hull import outside_hull
+    X1, X0, Z1, Z0 = _factor_panel(seed, K, J, L, factors, 1.3)
     return (X1, X0, Z1, Z0) if outside_hull(X1, X0) else None
+
+
+def random_interior_instance(seed, K, J, L=12, factors=3):
+    """The same panel with the treated unit pulled toward the donors; None unless X1 is in the hull."""
+    from .hull import outside_hull
+    X1, X0, Z1, Z0 = _factor_panel(seed, K, J, L, factors, 0.5)
+    return None if outside_hull(X1, X0) else (X1, X0, Z1, Z0)
 
 
 RANDOM_SIZES = [(3, 10), (4, 15), (5, 20)]

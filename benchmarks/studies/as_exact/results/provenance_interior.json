@@ -1,0 +1,26 @@
+{
+ "generated": "2026-10-23T22:10:55+00:00",
+ "commits": {
+  "synth-AS-replication": "791a3865fe3e9fd0b82a8121c0b338791b7ffa39",
+  "synthx_package": "a10a28c571a906ee76574bad9c5446c22c3a184f"
+ },
+ "urls": {
+  "synth-AS-replication": "https://github.com/lychemon/synth-AS-replication",
+  "synthx_package": "https://github.com/lychemon/synthx_package"
+ },
+ "functions": [
+  "synthx.estimate (sc_estimator.py)",
+  "interior_cellwalk.solve_interior_cellwalk",
+  "interior_pd.solve_interior_pd",
+  "data_preparation.build_california"
+ ],
+ "data_sha256": {
+  "smoking_data.csv": "d1b537fc9b69bee16ddee19b92869fd1632afa17f3b0744ae72ba2506da7b582"
+ },
+ "python": "3.13.16",
+ "numpy": "2.5.3",
+ "scipy": "1.18.1",
+ "cvxpy": "1.9.3",
+ "clarabel": "0.11.1",
+ "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39"
+}
