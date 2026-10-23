@@ -585,9 +585,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-stopped-search-claims-optimality"
-  find = "    status = \"optimal\" if outcome.closed else \"node_limit\""
+  find = "    status = \"optimal\" if outcome.closed else \"work_limit\""
   replace = "    status = \"optimal\""
-  models = "a search stopped at its node limit reported as optimal, the defect #805 removed from the MIP path"
+  models = "a search stopped at its work limit reported as optimal, the defect #805 removed from the MIP path"
 
   [[target.mutant]]
   id = "a-stopped-search-bounds-by-its-incumbent"
@@ -618,6 +618,51 @@ timeout = 300.0
   find = "            if mode_internal == \"per_unit\":"
   replace = "            if False:"
   models = "the exact per-unit request routed to the two-way search, which solves a different objective and returns a two-way design under a per-unit label"
+
+# One limit rule (#843): SYNDES's per-unit search counts its work in modelled
+# seconds, each fit by its matrix and each node by the panel's units, and stops
+# at work_limit, where it stopped at a node count.
+[[target]]
+name = "syndes-per-unit-work-limit"
+module-path = "mlsynth/utils/syndes_helpers/per_unit_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py -q -p no:cacheprovider -x -k 'work or limit or charged or larger'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fit-is-not-charged"
+  find = "        self.work += fit_seconds(*B.shape)"
+  replace = "        self.work += 0.0"
+  models = "the fits left off the work, though they are most of a node's time, so a search that refits on every node never reaches its limit"
+
+  [[target.mutant]]
+  id = "a-node-is-not-charged"
+  find = "    node_seconds = NODE_SECONDS_PER_UNIT * N\n"
+  replace = "    node_seconds = 0.0\n"
+  models = "a node's own reading and sorting of its fits left off the work, a third of the hardest study run's time"
+
+  [[target.mutant]]
+  id = "a-fit-costs-the-same-at-any-size"
+  find = "    return FIT_SECONDS + FIT_SECONDS_PER_ENTRY * rows * cols"
+  replace = "    return FIT_SECONDS"
+  models = "every fit charged as the smallest, so the limit means fewer seconds on a panel of many periods or donors"
+
+  [[target.mutant]]
+  id = "the-limit-is-never-read"
+  find = "        if fits.work + nodes * node_seconds >= work_limit:"
+  replace = "        if False:"
+  models = "a search that runs until it closes whatever its limit, as the five-million-node cap did in practice"
+
+  [[target.mutant]]
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = best if closed else min([best] + [b for _, _, b in stack])"
+  replace = "    lower = best"
+  models = "a stopped search reporting its incumbent as the bound, as if the nodes it never searched held nothing better"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search stops at once instead of refusing the configuration"
 
 [[target]]
 name = "syndes-one-way-exact-wiring"
