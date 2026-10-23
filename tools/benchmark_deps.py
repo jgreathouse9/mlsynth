@@ -35,6 +35,13 @@ with and every pull request ran the whole registry. ``--shard i --num-shards n``
 splits the work round-robin, the same slice ``run_benchmarks.py`` takes, so the
 heavy cases spread; each shard writes its own slice with ``--out`` and one
 ``--combine`` step merges them onto the shipped map and commits once.
+
+A slice also lists, under :data:`UNMEASURED`, the cases its shard ran and could
+not measure, and the merge drops their shipped entries, so each is unmapped and
+always runs. Without the list the merge restored them from the shipped map, and
+one such entry kept the inventory from being written: on 22 October two cases
+raised under pandas 3.1, the night's merge refused the inventory, and every pull
+request that changed a module no case runs ran the whole registry.
 """
 from __future__ import annotations
 
@@ -53,6 +60,11 @@ class Unmeasured(Exception):
     Its entry is dropped, which leaves it unmapped and always run. A partial
     measurement would claim less than the case reaches.
     """
+
+
+#: The key under which a slice lists the cases its shard ran and could not
+#: measure. No case is named with a leading underscore.
+UNMEASURED = "_unmeasured"
 
 
 def _trace(name: str) -> tuple[list[str], float]:
@@ -178,19 +190,40 @@ def shard_of(names, shard: int, num_shards: int) -> list:
     return list(names)[shard::num_shards] if num_shards > 1 else list(names)
 
 
-def combine(slices, base: dict) -> dict:
-    """``base`` updated by each slice, later slices winning.
-
-    A case no slice measured keeps its base entry, so a shard that died leaves
-    everyone else's cases mapped instead of un-mapping them. A case a slice did
-    measure takes the new value, including an empty list, which is a finding.
-    """
+def _read_slice(path) -> tuple[dict, list]:
+    """A slice's measured entries, and the cases it lists as unmeasured."""
     import json as _json
     from pathlib import Path as _Path
 
-    out = dict(base)
+    body = dict(_json.loads(_Path(path).read_text()))
+    return body, list(body.pop(UNMEASURED, []))
+
+
+def measured_in(slices) -> set:
+    """The cases the slices measured: their entries, not the unmeasured list."""
+    names: set = set()
     for path in slices:
-        out.update(_json.loads(_Path(path).read_text()))
+        names.update(_read_slice(path)[0])
+    return names
+
+
+def combine(slices, base: dict) -> dict:
+    """``base`` updated by each slice, later slices winning.
+
+    A case no slice mentions keeps its base entry, so a shard that died leaves
+    everyone else's cases mapped instead of un-mapping them. A case a slice did
+    measure takes the new value, including an empty list, which is a finding. A
+    case a slice ran and could not measure loses its base entry, unless another
+    slice measured it: unmapped, it always runs, as the shard intended.
+    """
+    out = dict(base)
+    failed: set = set()
+    for path in slices:
+        entries, unmeasured = _read_slice(path)
+        out.update(entries)
+        failed.update(unmeasured)
+    for name in failed - measured_in(slices):
+        out.pop(name, None)
     return out
 
 
@@ -242,10 +275,7 @@ def main() -> int:
     from benchmarks import case_deps, registry
 
     if args.combine:
-        import json as _json
-        from_slices = set()
-        for sl in args.combine:
-            from_slices.update(_json.loads(Path(sl).read_text()))
+        from_slices = measured_in(args.combine)
         merged = combine(args.combine, base=case_deps.load())
         case_deps.save(merged, Path(args.out) if args.out else None)
         print(f"{len(merged)} case(s) mapped from {len(args.combine)} slice(s)")
@@ -257,7 +287,8 @@ def main() -> int:
             print(f"inventory: {len(files)} reachable file(s) recorded "
                   f"({why}); unclaimed ones now narrow the selection")
         else:
-            print(f"inventory: not recorded -- {why}")
+            # a workflow command, so the refusal shows on the run's summary
+            print(f"::warning title=Case map::inventory not recorded -- {why}")
         return 0
 
     names = list(registry.CASES) if args.all else args.case
@@ -284,8 +315,11 @@ def main() -> int:
         print(f"  {name}: {len(deps)} file(s), {secs:.0f}s", flush=True)
 
     path = Path(args.out) if args.out else None
+    if path is not None and skipped:
+        # a slice says what it could not measure, so the merge can unmap it
+        out[UNMEASURED] = skipped
     case_deps.save(out, path)
-    print(f"\n{len(out)} case(s) mapped"
+    print(f"\n{len(out) - (UNMEASURED in out)} case(s) mapped"
           + (f", {len(skipped)} left unmapped (they will always run)" if skipped else ""))
     return 0
 

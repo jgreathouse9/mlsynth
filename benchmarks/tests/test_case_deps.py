@@ -608,6 +608,44 @@ class TestTheMapBuilderCombinesSlices:
         out = benchmark_deps.combine([a], base={"two": ["mlsynth/y.py"]})
         assert out["two"] == ["mlsynth/y.py"]
 
+    def test_a_case_its_slice_could_not_measure_loses_its_base_entry(self, tmp_path):
+        """The shard drops an unmeasured case so that it always runs. Restoring
+        its old entry from the base undid that, and one such entry vetoed the
+        inventory: on 22 October two scpi cases raised under pandas 3.1 and no
+        inventory was written, so every pull request touching a module no case
+        runs ran the whole registry (/rca)."""
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"],
+                                 benchmark_deps.UNMEASURED: ["two"]}))
+        out = benchmark_deps.combine([a], base={"two": ["mlsynth/old.py"],
+                                                "three": ["mlsynth/y.py"]})
+        assert out == {"one": ["mlsynth/x.py"], "three": ["mlsynth/y.py"]}
+
+    def test_the_unmeasured_list_never_becomes_a_case(self, tmp_path):
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({benchmark_deps.UNMEASURED: ["two"]}))
+        out = benchmark_deps.combine([a], base={})
+        assert benchmark_deps.UNMEASURED not in out and out == {}
+        assert benchmark_deps.measured_in([a]) == set()
+
+    def test_a_case_another_slice_measured_is_kept(self, tmp_path):
+        """Shards are disjoint, but a measurement outranks a failure to make
+        one whatever order the slices come in."""
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        b = tmp_path / "b.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"]}))
+        b.write_text(json.dumps({benchmark_deps.UNMEASURED: ["one"]}))
+        for order in ([a, b], [b, a]):
+            assert benchmark_deps.combine(order, base={"one": ["mlsynth/old.py"]}) \
+                == {"one": ["mlsynth/x.py"]}
+            assert benchmark_deps.measured_in(order) == {"one"}
+
     def test_combining_nothing_returns_the_base_unchanged(self):
         from tools import benchmark_deps
 
@@ -658,7 +696,61 @@ class TestTheMapBuilderCommandLine:
         monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--case", "runs",
                                          "--case", "stops", "--out", str(out)])
         assert benchmark_deps.main() == 0
-        assert json.loads(out.read_text()) == {"runs": ["mlsynth/x.py"]}
+        assert json.loads(out.read_text()) == {
+            "runs": ["mlsynth/x.py"], benchmark_deps.UNMEASURED: ["stops"]}
+
+    @staticmethod
+    def _nightly(tmp_path, monkeypatch, base, slices):
+        """``--combine`` as the nightly job runs it, on a shipped map and an
+        inventory path of the test's own."""
+        from tools import benchmark_deps
+
+        shipped = tmp_path / "case_deps.json"
+        shipped.write_text(json.dumps(base))
+        swept = tmp_path / "case_deps_swept.json"
+        monkeypatch.setattr(case_deps, "PATH", shipped)
+        monkeypatch.setattr(case_deps, "SWEPT_PATH", swept)
+        monkeypatch.setattr(case_deps, "reachable_inventory",
+                            lambda root=None: ["mlsynth/utils/lonely.py"])
+        paths = []
+        for i, body in enumerate(slices):
+            p = tmp_path / f"case_deps.shard-{i}.json"
+            p.write_text(json.dumps(body))
+            paths.append(str(p))
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--combine", *paths])
+        assert benchmark_deps.main() == 0
+        return json.loads(shipped.read_text()), swept
+
+    def test_a_case_that_errors_in_the_sweep_no_longer_vetoes_the_inventory(
+            self, tmp_path, monkeypatch):
+        """22 October in miniature: ``stops`` had an entry and raised tonight.
+        It comes out of the map, so it always runs, and the inventory is
+        written, so a module no case runs narrows the selection."""
+        from tools import benchmark_deps
+
+        merged, swept = self._nightly(
+            tmp_path, monkeypatch,
+            base={"runs": ["mlsynth/old.py"], "stops": ["mlsynth/y.py"]},
+            slices=[{"runs": ["mlsynth/x.py"]},
+                    {benchmark_deps.UNMEASURED: ["stops"]}])
+        assert merged == {"runs": ["mlsynth/x.py"]}
+        assert case_deps.load_swept(swept) == {"mlsynth/utils/lonely.py"}
+        assert case_deps.select(["mlsynth/utils/lonely.py"], ["runs", "stops"],
+                                merged, swept=case_deps.load_swept(swept)) \
+            == ["stops"]
+
+    def test_a_dead_shard_still_withholds_the_inventory_and_says_so(
+            self, tmp_path, monkeypatch, capsys):
+        """A case no slice mentions keeps its entry and blocks the inventory,
+        as before; the refusal is a warning on the run, not a line in a green
+        job's log that nobody reads."""
+        merged, swept = self._nightly(
+            tmp_path, monkeypatch,
+            base={"runs": ["mlsynth/old.py"], "lost": ["mlsynth/y.py"]},
+            slices=[{"runs": ["mlsynth/x.py"]}])
+        assert merged["lost"] == ["mlsynth/y.py"] and not swept.exists()
+        out = capsys.readouterr().out
+        assert "::warning" in out and "not recorded" in out and "lost" in out
 
     def test_a_shard_outside_the_split_is_refused(self, monkeypatch):
         from tools import benchmark_deps
@@ -827,6 +919,7 @@ class TestInventoryIsOnlyWrittenForAFreshSweep:
         assert self._decide({"a", "b", "c"}, {"a": [], "b": []})[0]
 
 
+
 # The invariant the inventory promises, over the input domain: it can only
 # narrow. Recording what a sweep found can never add a case to the selection,
 # because `swept` is consulted in exactly one place -- the hole test -- and a
@@ -852,3 +945,50 @@ def test_an_inventory_can_only_narrow_the_selection(changed, swept, added):
     narrow = case_deps.select(changed, cases, m, added=added,
                               swept=frozenset(swept))
     assert set(narrow) <= set(wide)
+
+
+_FATES = st.sampled_from(["measured-0", "measured-1", "unmeasured-0",
+                          "unmeasured-1", "not-attempted"])
+
+
+@given(fates=st.dictionaries(st.sampled_from("abcdef"), _FATES, min_size=1),
+       based=st.sets(st.sampled_from("abcdef")),
+       files=st.lists(_PATHS, max_size=2))
+@settings(max_examples=200, deadline=None)
+def test_combining_keeps_measurements_drops_failures_and_carries_the_rest(
+        tmp_path_factory, fates, based, files):
+    """Over any split of cases into measured, attempted-but-unmeasured and
+    not attempted, and any shipped map: a measured case takes its new entry, an
+    unmeasured one has none (so it always runs), an unattempted one keeps its
+    shipped entry, and the inventory is written exactly when no shipped entry
+    was carried over unmeasured."""
+    from tools import benchmark_deps
+
+    tmp = tmp_path_factory.mktemp("slices")
+    base = {c: ["mlsynth/old.py"] for c in based}
+    bodies = [{}, {}]
+    for c, fate in fates.items():
+        kind, _, shard = fate.partition("-")
+        if kind == "measured":
+            bodies[int(shard)][c] = list(files)
+        elif kind == "unmeasured":
+            bodies[int(shard)].setdefault(benchmark_deps.UNMEASURED, []).append(c)
+    paths = []
+    for i, body in enumerate(bodies):
+        p = tmp / f"s{i}.json"
+        p.write_text(json.dumps(body))
+        paths.append(p)
+    merged = benchmark_deps.combine(paths, base=base)
+    assert benchmark_deps.UNMEASURED not in merged
+    for c in "abcdef":
+        fate = fates.get(c, "not-attempted")
+        if fate.startswith("measured"):
+            assert merged[c] == list(files)
+        elif fate.startswith("unmeasured"):
+            assert c not in merged
+        else:
+            assert merged.get(c) == base.get(c)
+    carried = {c for c in based if fates.get(c, "not-attempted") == "not-attempted"}
+    ok, _ = benchmark_deps.should_record_inventory(
+        benchmark_deps.measured_in(paths), merged)
+    assert ok == (not carried)
