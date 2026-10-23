@@ -3,11 +3,12 @@
     python -m benchmarks.studies.as_exact.scaling     # -> results/scaling.json
 
 Designs come from ``capture.random_instance`` with J = 38 donors, the Proposition 99
-donor count, and K predictors. At K = 7 each design is timed in both codes (the
-replication's median of 3 calls after a warm-up, the study's median of 5); at K = 8
-each code runs once per design; at K = 9 only the study runs. Every row carries the
-study's search counters, among them ``fallbacks``: faces whose normal cone has too
-many walls for the batched ray enumeration, listed instead by one LP per sign pattern.
+donor count, and K predictors. At K = 7 and 8 each design is timed in both codes: the
+replication once, since one call runs from seconds to minutes, and at K = 7 the
+study's median of 3 calls after the counted run. At K = 9 only the study runs. Every
+row carries the study's search counters, among them ``fallbacks``: faces whose normal
+cone has too many walls for the batched ray enumeration, listed instead by one LP per
+sign pattern.
 """
 from __future__ import annotations
 
@@ -31,7 +32,7 @@ from .capture import random_instance        # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 J = 38
-PLAN = [(7, 8, 3, 5), (8, 4, 1, 1), (9, 4, 0, 1)]   # (K, designs, replication calls, study calls)
+PLAN = [(7, 8, 1, 3), (8, 4, 1, 1), (9, 4, 0, 1)]   # (K, designs, replication calls, study calls)
 
 
 def _median_time(fn, calls):
