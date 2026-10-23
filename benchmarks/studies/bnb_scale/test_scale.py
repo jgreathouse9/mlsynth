@@ -146,7 +146,7 @@ class TestMarexInstrument:
 
     def test_a_closed_search_matches_the_enumeration(self):
         Y = panels.panel("bls", 12)
-        row = marex_scale.search(Y, 3, max_lifts=200, price_seconds=1.0)
+        row = marex_scale.search(Y, 3, price_seconds=1.0)
         assert row["closed"] and row["lifts"] > 0
         B, A = marex_scale.marex_panel(Y)
         from mlsynth.utils.marex_helpers.exact import side_fit
@@ -159,17 +159,23 @@ class TestMarexInstrument:
         assert tuple(row["treated"]) == best[1]
         assert row["gap"] <= 1e-9
 
-    def test_a_search_stopped_at_its_cap_reports_it(self):
-        row = marex_scale.search(panels.panel("bls", 12), 3, max_lifts=1,
+    def test_a_search_stopped_at_its_limit_reports_it(self):
+        row = marex_scale.search(panels.panel("bls", 12), 3, work_limit=1.5,
                                  price_seconds=1.0)
         assert not row["closed"] and row["lifts"] == 1
-        assert "computed 1 bounds" in row["stopped"]
-        # the bracket the message carries is read back, and brackets the design
+        assert "open at the limit" in row["stopped"] and row["work"] <= 1.5
+        # the certificate's bracket holds the design
         assert np.isfinite(row["lower"]) and row["lower"] <= row["upper"]
         assert row["gap"] == pytest.approx((row["upper"] - row["lower"]) / row["upper"])
 
+    def test_a_search_stopped_before_any_design_reports_it(self):
+        row = marex_scale.search(panels.panel("bls", 12), 3, work_limit=0.5,
+                                 price_seconds=1.0)
+        assert not row["closed"] and row["treated"] is None
+        assert "work_limit" in row["stopped"] and np.isnan(row["gap"])
+
     def test_the_library_is_left_as_it_was(self):
-        marex_scale.search(panels.panel("bls", 12), 3, max_lifts=1, price_seconds=1.0)
+        marex_scale.search(panels.panel("bls", 12), 3, work_limit=1.5, price_seconds=1.0)
         assert marex_branch.node_bound is marex_scale._ORIGINAL_NODE_BOUND
 
 
@@ -495,7 +501,7 @@ def test_the_runner_records_every_measurement(tmp_path, monkeypatch):
     assert run.main(["trace", *args]) == 0
     assert run.main(["profile", *args]) == 0
     assert run.main(["marex-bound", *args, "--m", "3"]) == 0
-    assert run.main(["marex-search", *args, "--m", "3", "--max-lifts", "5"]) == 0
+    assert run.main(["marex-search", *args, "--m", "3", "--work-limit", "5"]) == 0
     rows = {f.stem: [json.loads(line) for line in open(f)] for f in tmp_path.glob("*.jsonl")}
     assert set(rows) == {"syndes", "root", "trace", "lift_profile",
                          "marex-bound", "marex-search"}

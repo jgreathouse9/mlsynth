@@ -24,8 +24,9 @@ it is decided:
 * ``fitted``: fitted to completion.
 
 so the six sum to ``candidates``. The branch and bound above the candidate limit
-reports its own counts (``bnb_bounds``, ``bnb_priced``) and the designs it
-fitted.
+reports its own counts (``bnb_bounds``, ``bnb_priced``), the designs it fitted,
+its work in the cost model's seconds (``bnb_work``) and the nodes its work limit
+left open (``bnb_open``, zero when it proved its design optimal).
 
 Some fields are facts about the problem and some about the run. The candidate
 count, the search kind and the bound fallbacks of the first pass do not depend
@@ -126,6 +127,8 @@ class SearchCounts:
     second_pass: bool = False
     bnb_bounds: int = 0
     bnb_priced: int = 0
+    bnb_work: float = 0.0
+    bnb_open: int = 0
 
     def merge(self, other: "SearchCounts") -> "SearchCounts":
         return _merge(self, other)
