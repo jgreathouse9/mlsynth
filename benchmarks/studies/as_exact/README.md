@@ -46,7 +46,7 @@ repository's `data/smoking_data.csv`.
 
 | step | authors' code | this study |
 | --- | --- | --- |
-| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.26 ms |
+| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.28 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: one sign fixed at a time, a sub-cube dropped on a Farkas certificate or closed by a point with zeros on its free signs, each test one NNLS with the link vertices as walls; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
@@ -126,6 +126,17 @@ diagnosis as tests, and six mutants in `tools/mutation/targets.toml` (target
 `as-exact-lsq`) reintroduce its causes; all six are killed. The checks cost about
 14 per cent on the Proposition 99 diagonal search.
 
+A fourth came from SciPy. On a feasible system whose feasible set is one point,
+scipy 1.18.1's `nnls` returns a success status and a residual norm of 0 for an answer
+that is no minimiser (its true residual is 1.16, worse than the zero vector's). The
+checks above kept a wrong point from coming back, but `_ldp` called the system
+infeasible. Every NNLS answer is now checked against the optimality conditions and
+solved again by bounded-variable least squares when it fails them, and an empty piece
+is confirmed by a verdict that carries evidence, or by HiGHS. The system is kept in
+`results/nnls_incident.json`; on 56,073 solves from the applications and the seeded
+designs the largest violation of the conditions is 6.1e-13 of scale, so the check
+never fires there.
+
 ## Speed on Proposition 99
 
 Median wall clock of 10 calls after one warm-up, in seconds; `results/raw.json` holds
@@ -133,29 +144,32 @@ every call and the interquartile ranges.
 
 | panel | task | replication | synthx.estimate | this study | speed-up |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Proposition 99 | donor weights, diagonal (Table 1) | 1.740 | 1.873 | 0.127 | 14x |
-| Proposition 99 | donor weights, positive definite (Table D.1) | 0.674 | 0.656 | 0.082 | 8.3x |
-| Proposition 99 | V, diagonal (Table 2) | 0.121 | | 0.057 | 2.1x |
-| Proposition 99 | V, positive definite with ranges (Table 4) | 0.403 | | 0.253 | 1.6x |
-| leakage-free | donor weights, diagonal | 2.091 | 2.198 | 0.163 | 13x |
-| leakage-free | donor weights, positive definite | 0.693 | 0.630 | 0.091 | 7.6x |
+| Proposition 99 | donor weights, diagonal (Table 1) | 1.710 | 1.762 | 0.147 | 12x |
+| Proposition 99 | donor weights, positive definite (Table D.1) | 0.753 | 0.679 | 0.082 | 9.2x |
+| Proposition 99 | V, diagonal (Table 2) | 0.115 | | 0.083 | 1.4x |
+| Proposition 99 | V, positive definite with ranges (Table 4) | 0.429 | | 0.256 | 1.7x |
+| leakage-free | donor weights, diagonal | 2.166 | 2.101 | 0.138 | 16x |
+| leakage-free | donor weights, positive definite | 0.661 | 0.642 | 0.078 | 8.5x |
+
+Repeated runs move these ratios by 10 to 20 per cent; the V rows have ranged from 1.4x
+to 2.1x.
 
 The speed-up is against the replication. `synthx.estimate` runs within 10 per cent of
 it, either way, since it calls the same solvers. Where the time goes, from
 `breakdown.py` (`results/breakdown.json`):
 
-- Donor weights, diagonal class. The replication spends 50 per cent of its time in
-  186 cvxpy quadratic programs at about 4.6 ms each, 25 per cent enumerating the
-  visible facets, and 16 per cent in 170 SciPy LPs that test sign patterns face by
-  face. This study spends 35 per cent gift-wrapping the 132 visible facets and 56 per
-  cent in 343 least-squares solves at 0.2 to 0.26 ms each. On Proposition 99 no face
-  it reaches needs an LP to list its sign patterns, and 17 faces are ruled out by the
-  common-sign relaxation before any are listed.
+- Donor weights, diagonal class. The replication spends 54 per cent of its time in
+  186 cvxpy quadratic programs at about 5 ms each, 25 per cent enumerating the
+  visible facets, and 13 per cent in 170 SciPy LPs that test sign patterns face by
+  face. This study spends 31 per cent gift-wrapping the 132 visible facets and 59 per
+  cent in 343 least-squares solves at 0.2 to 0.28 ms each. Proposition 99 reaches one
+  face below the ridges, whose patterns take 28 least-distance tests, and 17 faces are
+  ruled out by the common-sign relaxation before any are listed.
 - V, diagonal class. Both codes spend most of their time in the same 40 LPs that find
   the support of V and its implicit equalities; only the two convex programs after
   them change, from 34 ms in cvxpy to about 1 ms of Newton steps.
 - V, positive definite class. The replication's 17 semidefinite programs, at about
-  23 ms each, become 164 Newton runs of the barrier method at about 1.8 ms each.
+  23 ms each, become 164 Newton runs of the barrier method at about 1.5 ms each.
 
 ## Limits
 
