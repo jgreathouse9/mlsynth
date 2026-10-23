@@ -138,10 +138,10 @@ class SearchCounts:
 class SearchNumerics:
     """Whether the numbers can be trusted.
 
-    ``bound_fallbacks`` counts the closed-form bounds of the first pass that fell
-    back to 0 (a block whose solve did not reproduce its right-hand side, or a
-    non-positive ``1'G^-1 1``): each such candidate was searched on no bound at
-    all. The coupled-fit fields cover the weakly-targeted design's fits that ran
+    ``bound_fallbacks`` counts the bounds of the first pass that fell back to 0
+    because the bordered update broke down (a prefix with no inverse, or a
+    Schur complement that is not positive): each such candidate was searched
+    on no bound at all. The coupled-fit fields cover the weakly-targeted design's fits that ran
     to completion: their Newton steps and sweeps, and the largest Frank-Wolfe
     gap at termination relative to ``1 + value``.
     """
