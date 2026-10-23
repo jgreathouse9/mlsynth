@@ -8842,32 +8842,43 @@ test-command = "python -m pytest benchmarks/studies/as_exact/test_patterns.py -q
 timeout = 900.0
 
   [[target.mutant]]
-  id = "sub-cube-closed-by-any-witness"
-  find = "        if free.size == 0 or not np.any(c[free]):            # c itself witnesses the closed sub-cube"
-  replace = "        if True:"
-  models = "a sub-cube closed by a witness that does not vanish on its free signs, which claims attainable every piece those signs allow"
+  id = "split-never-flips-a-certificate-sign"
+  find = "            child[k] = -t[k]"
+  replace = "            child[k] = t[k]"
+  models = "a split that keeps the minimiser's sign on every coordinate the certificate names, so the sub-cubes that flip one of them, where the attainable pieces are, are never searched"
 
   [[target.mutant]]
-  id = "sub-cube-dropped-without-the-free-test"
-  find = '''        if c is None:
-            ok, c = _cone_test(E, W, g, assign, stats, cache)
-            if not ok:                                        # the cone misses the sub-cube
-                continue'''
-  replace = '''        if c is None:
-            continue'''
-  models = "a sub-cube dropped because no witness vanishes on its free signs, although the cone meets it, so attainable pieces go missing"
+  id = "relaxation-minimiser-taken-on-trust"
+  find = "        attainable, used = _sign_test(cone, t, stats)"
+  replace = "        attainable, used = True, None"
+  models = "the relaxation's minimiser accepted without asking whether some c in the cone has its signs, so a fit no positive diagonal V attains is returned"
 
   [[target.mutant]]
-  id = "branch-explores-one-sign-twice"
-  find = "        same[k], other[k] = s, -s"
-  replace = "        same[k], other[k] = s, s"
-  models = "branching that explores the witness's sign of the chosen coordinate twice and the opposite sign never"
+  id = "certificate-read-from-the-wall-rows"
+  find = "        return verdict, (None if verdict else signed[evidence[len(cone.W):] > 0])"
+  replace = "        return verdict, (None if verdict else signed[evidence[:len(signed)] > 0])"
+  models = "the certificate's coordinates read from its first multipliers, the walls', so the split follows coordinates the proof does not use and drops a sub-cube the proof does not close"
 
   [[target.mutant]]
-  id = "ambiguous-verdict-read-as-empty"
-  find = '''    stats["pattern_lp_checks"] = stats.get("pattern_lp_checks", 0) + 1'''
-  replace = "    return False, None"
-  models = "a test whose evidence does not check read as an empty cone, where HiGHS should decide it"
+  id = "undecided-test-ends-the-node"
+  find = "    return (True, None) if res.status == 0 else (False, signed)"
+  replace = "    return (True, None) if res.status == 0 else (False, signed[:0])"
+  models = "a sub-cube HiGHS calls empty for the minimiser's signs read as empty for every sign, so the node ends where it should be split on each signed coordinate"
+
+[[target]]
+name = "as-exact-search"
+module-path = "benchmarks/studies/as_exact/exact.py"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_exact.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "face-fit-stands-for-the-relaxation"
+  find = """                if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
+                    root = sign_piece_ls(X0, X1, Z1, Z0, cols, common)
+                    ctr["solves"] += 1"""
+  replace = """                if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
+                    ctr["solves"] += 1"""
+  models = "the face's fit standing for the relaxation's minimiser when it breaks the signs every generator of the cone shares, so the branch and bound asks the cone about a point outside the region whose best fit it settles"
 
 [[target]]
 name = "as-exact-rationalize"
