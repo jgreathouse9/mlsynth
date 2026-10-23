@@ -3,8 +3,7 @@
 The certificate's bound is the mode's exact search's, and there are two ways it
 falls short. The search can raise: no admissible design, a fit that did not
 converge, or a two-way problem singular past its limits. Then there is no bound,
-and the certificate says why. Or the search can stop at its limit: a node or work
-limit, or the candidate limit past which the global modes report the Rayleigh bound.
+and the certificate says why. Or the search can stop at its node or work limit.
 Then the bound is valid and the design is not proven optimal.
 
 The bound is a diagnostic, never a correctness requirement: a failed bound

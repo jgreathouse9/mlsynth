@@ -10,8 +10,9 @@ lower bound on the optimum with its design (``design.solve_outcome``):
   the optimum when it closes and its smallest open node bound at its work
   limit;
 * ``global_equal_weights`` (:mod:`~.one_way_exact`): the enumeration under the
-  ridge bound, which reports the optimum itself when it closes and the Rayleigh
-  bound past its candidate limit;
+  ridge bound, which reports the optimum itself; above its candidate limit the
+  same branch and bound with one-way's leaves, which reports the optimum when
+  it closes and its smallest open bound at its work limit;
 * ``per_unit`` (:mod:`~.per_unit_exact`): the branch and bound on units, which
   reports the optimum when it closes and its smallest open node bound at its node
   limit.

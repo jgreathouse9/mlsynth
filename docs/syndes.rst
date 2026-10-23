@@ -1049,13 +1049,39 @@ unit that is an exact combination of others, no bound can be formed. Since
 them, and the design is still the optimum. Past that it raises, naming a positive
 ``lam``, more pre-treatment periods and ``backend="mip"`` as the ways out.
 
-Above the candidate limit, the search prices the two-way swap search's
-candidates as one-way designs instead, and returns the best with
-``status="candidate_limit"``, the Rayleigh bound, the gap to it, and a
-``SYNDESSolveWarning``. The Rayleigh bound holds for one-way too, since one-way
-is two-way with the treated weights fixed. Treated-side restrictions are refused
-there, since the swap search does not build its candidates inside them; donor
-rules still apply.
+Above the candidate limit, the one-way design is searched by the two-way
+design's branch and bound (above). One-way is two-way with the treated weights
+fixed, so its value at any treated set is at least two-way's, and a node whose
+two-way bound clears the best one-way design found holds no better one. The
+tree, its bounds and their certificates in exact arithmetic carry over
+unchanged. Only the sets a node prices differ: they are bounded by the closed
+form above and fitted as the enumeration fits them, a block's best-bounded set
+as it is priced and the rest in order of their bound at the end. The swap
+search's local optima seed the first design. Every restriction applies, as in
+the two-way search: forced and forbidden units, conflict pairs, stratum quotas,
+the cost budget, the pool's excluded designs and the donor rules.
+
+``work_limit`` caps the search in modelled seconds, as for two-way, with each
+set bounded and each fit charged: about 0.4 microseconds a set at two treated
+units, 3 at ten and 40 at forty, and a fit 0.8 ms on a pool of 18 controls and
+2 to 3 ms on a pool of 38. A search that reaches the limit returns its best
+design with ``status="work_limit"``, the smallest bound over the nodes and sets
+it left open, and a ``SYNDESSolveWarning``.
+
+On the study's 24 instances past the limit, at the default limit on one
+thread, the search certified the optimum on 7: GeoLift with ten treated in 52
+seconds, the structureless panels at 40 units in 42 to 97 seconds, and the
+four-factor panels at 100 units with five treated in 143 seconds. On the other
+17 it stopped at the limit with its design 0.06 to 1.2 percent above its bound
+(median 0.45 percent); at 100 units with ten treated that bound is the Rayleigh
+bound. Its design matched the swap search's on 16 instances and improved on it
+on 8, by up to 0.8 percent. Against SCIP at the MIP path's defaults it was
+better on 19, equal on 3, and worse on 2, by 0.09 and 0.15 percent.
+With one unit forced into the treated set, two forbidden and two conflict pairs
+on every instance, the search certified 10 of the 24, in 4 to 98 seconds, and
+stopped at the limit on the other 14 with its design 0.03 to 1.3 percent above
+its bound (median 0.55 percent). Every design kept the restrictions, which the
+swap search refused past the limit.
 
 The study behind this search is
 `benchmarks/studies/syndes_one_way_exact <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/syndes_one_way_exact>`_.
@@ -1066,9 +1092,7 @@ that study. Both searches now build their candidates as arrays and score them
 in blocks of 20,000, which brought the enumeration to about 1 microsecond a set
 at 40 units (two-way 0.8, one-way 1.1). SCIP
 at the MIP path's defaults returned a design on every run, the optimum on 35 of
-54, and one up to 10 percent worse on the rest. Beyond the limit, the swap
-search's design was within 2.7 percent of the Rayleigh bound on every run, in
-under a second.
+54, and one up to 10 percent worse on the rest.
 
 The per-unit design by search
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2007,7 +2031,8 @@ and extracts the assignment, weights, and pre-period prediction.
    :undoc-members:
 
 The exact one-way backend: enumeration under the ridge bound, pricing in bound
-order, and the swap-search fallback above the candidate limit.
+order, and above the candidate limit the two-way branch and bound with one-way's
+leaves.
 
 .. automodule:: mlsynth.utils.syndes_helpers.one_way_exact
    :members:
