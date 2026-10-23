@@ -16,6 +16,7 @@ bound equals ``f(S)`` at a leaf. The study behind the choice is
 The anchor is brute force: every treated set priced from fresh fits.
 """
 
+import math
 import warnings
 from itertools import combinations
 
@@ -30,8 +31,14 @@ from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.syndes_helpers.certificate import design_objective
 from mlsynth.utils.syndes_helpers.optimization import (SYNDESSolveWarning,
                                                         estimate_lambda)
+from hypothesis import given, settings, strategies as st
+
+from mlsynth.utils.syndes_helpers import per_unit_exact as per_unit_mod
 from mlsynth.utils.syndes_helpers.per_unit_exact import (
+    NODE_SECONDS_PER_UNIT,
+    WORK_LIMIT,
     UnitFits,
+    fit_seconds,
     solve_per_unit_exact,
     solve_per_unit_exact_pool,
 )
@@ -396,20 +403,28 @@ def test_the_pool_stops_when_the_region_is_exhausted():
 
 
 # --------------------------------------------------------------------------- #
-# a search stopped at its node limit says so
+# a search stopped at its work limit says so
 # --------------------------------------------------------------------------- #
 
 
-def test_a_search_stopped_at_its_node_limit_warns_and_reports_a_valid_bound():
-    """Three nodes leave this panel's incumbent above the optimum, so the
-    reported bound has to come from the open nodes, not from the incumbent."""
+def _root_work(Y):
+    """The modelled seconds of the root fits, which every search pays first."""
+    return UnitFits(Y, estimate_lambda(Y)).work
+
+
+def test_a_search_stopped_at_its_work_limit_warns_and_reports_a_valid_bound():
+    """A fifth of the closed search's work leaves this panel's incumbent above
+    the optimum, so the reported bound has to come from the open nodes, not
+    from the incumbent."""
     Y = _panel(N=12, seed=22)
     lam = estimate_lambda(Y)
     _, optimum = _brute_force(Y, 5, lam)
-    with pytest.warns(SYNDESSolveWarning, match="node limit"):
-        d = solve_per_unit_exact(Y, 5, node_limit=3)
+    full = solve_per_unit_exact(Y, 5).raw_results["work"]
+    with pytest.warns(SYNDESSolveWarning, match="work limit"):
+        d = solve_per_unit_exact(Y, 5, work_limit=full / 5)
     out = d.solve_outcome
-    assert out.status == "node_limit" and out.stopped_at_limit
+    assert out.status == "work_limit" and out.stopped_at_limit
+    assert math.isfinite(out.dual_bound)
     assert d.raw_results["certified"] is False
     assert d.objective_value > optimum * (1 + 1e-6)
     assert out.dual_bound <= optimum * (1 + 1e-12)
@@ -417,16 +432,93 @@ def test_a_search_stopped_at_its_node_limit_warns_and_reports_a_valid_bound():
         (d.objective_value - out.dual_bound) / d.objective_value, rel=1e-12)
 
 
-def test_a_node_limit_reached_before_any_design_raises():
-    """The seed, the two best root fits, is ruled out by a conflict, and one
-    node finds no leaf."""
+def test_a_work_limit_reached_before_any_design_raises():
+    """The seed, the two best root fits, is ruled out by a conflict, and the
+    root fits alone spend the limit."""
     Y = _panel(seed=25)
     lam = estimate_lambda(Y)
     roots = [_phi(Y, i, [j for j in range(8) if j != i], lam) for i in range(8)]
     a, b = (int(u) for u in np.argsort(roots)[:2])
-    with pytest.raises(MlsynthEstimationError, match="node limit"):
-        solve_per_unit_exact(Y, 2, node_limit=1,
+    with pytest.raises(MlsynthEstimationError, match="work limit") as err:
+        solve_per_unit_exact(Y, 2, work_limit=_root_work(Y) / 2,
                              restrictions=DesignRestrictions(conflict_pairs=[(a, b)]))
+    assert "work_limit" in str(err.value)
+
+
+@pytest.mark.parametrize("limit", [0, -1.0, float("nan"), float("inf"), True, "60"])
+def test_an_invalid_work_limit_is_refused(limit):
+    with pytest.raises(MlsynthConfigError, match="work_limit"):
+        solve_per_unit_exact(_panel(), 3, work_limit=limit)
+
+
+def test_every_fit_and_every_node_is_charged(monkeypatch):
+    """The work is each fit at its size's cost and each node at its own."""
+    sizes = []
+    real = per_unit_mod.solve_simplex_qp
+
+    def counted(B, A, **kwargs):
+        sizes.append(B.shape)
+        return real(B, A, **kwargs)
+
+    monkeypatch.setattr(per_unit_mod, "solve_simplex_qp", counted)
+    Y = _panel(N=10, seed=3)
+    d = solve_per_unit_exact(Y, 4)
+    raw = d.raw_results
+    assert raw["n_fits"] == len(sizes) and raw["n_nodes"] > 0
+    expected = (math.fsum(fit_seconds(r, c) for r, c in sizes)
+                + raw["n_nodes"] * 10 * NODE_SECONDS_PER_UNIT)
+    assert raw["work"] == pytest.approx(expected, rel=1e-12)
+
+
+def test_a_fit_costs_more_on_a_larger_matrix():
+    assert 0.0 < fit_seconds(12, 5) < fit_seconds(12, 6) < fit_seconds(13, 6)
+
+
+def test_the_search_stops_within_a_node_of_its_limit():
+    """The limit is read between nodes, so the work passes it by at most the
+    last node's: its fits and its own charge."""
+    Y = _panel(N=12, seed=22)
+    full = solve_per_unit_exact(Y, 5).raw_results
+    limit = full["work"] / 2
+    with pytest.warns(SYNDESSolveWarning):
+        raw = solve_per_unit_exact(Y, 5, work_limit=limit).raw_results
+    assert limit <= raw["work"] < full["work"]
+    assert raw["n_nodes"] < full["n_nodes"]
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10**6), N=st.integers(6, 9), K=st.integers(2, 4),
+       frac=st.floats(0.01, 1.2))
+def test_property_the_bound_holds_at_any_work_limit(seed, N, K, frac):
+    """At any limit the search either reports that it found no design, or
+    returns one whose reported bound is under the optimum; a search not
+    stopped returns the optimum."""
+    Y = _panel(N=N, seed=seed)
+    lam = estimate_lambda(Y)
+    _, optimum = _brute_force(Y, K, lam)
+    full = solve_per_unit_exact(Y, K).raw_results["work"]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SYNDESSolveWarning)
+            d = solve_per_unit_exact(Y, K, work_limit=full * frac)
+    except MlsynthEstimationError:
+        return
+    out = d.solve_outcome
+    assert out.dual_bound <= optimum * (1 + 1e-9) + 1e-300
+    assert optimum <= d.objective_value * (1 + 1e-9)
+    if not out.stopped_at_limit:
+        assert d.objective_value == pytest.approx(optimum, rel=1e-9)
+
+
+def test_the_default_limit_closes_the_studys_hardest_run():
+    """Half of twenty units treated on a panel with no structure (the per-unit
+    study's noise_n20_k10_s0) takes 31,083 nodes and 203,903 fits, each on at
+    most nineteen donors over thirty periods. Charged at that largest fit, its
+    work stays under the default limit."""
+    hardest = (203_903 * fit_seconds(30 + 19, 19)
+               + 31_083 * 20 * NODE_SECONDS_PER_UNIT)
+    assert hardest < WORK_LIMIT
+    assert per_unit_mod.solve_per_unit_exact.__kwdefaults__["work_limit"] == WORK_LIMIT
 
 
 def test_a_closed_search_is_silent():

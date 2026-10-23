@@ -40,6 +40,7 @@ from mlsynth.utils.marex_helpers.branch import (BranchResult, NodeBound,
                                                lambda_min_lower, node_bound)
 from mlsynth.utils.marex_helpers.certify import Dyadic, ExactData
 from mlsynth.utils.marex_helpers.config import MAREXConfig
+from mlsynth.utils.marex_helpers.diagnostics import MAREXSearchWarning
 from mlsynth.utils.marex_helpers.exact import (ClusterDesign, search_cluster,
                                               side_fit)
 from mlsynth.utils.syndes_helpers.exact import SubsetFilter
@@ -554,6 +555,110 @@ def test_the_default_costs_bound_a_large_root():
     assert branch_mod.PRICE_SECONDS * 10_000 < branch_mod.lift_seconds(10)
 
 
+# ------------------------------------------------------------- the work limit
+#: A set priced at a second and a bound at a second, so a limit of a few
+#: seconds stops the search after a bound or two.
+UNIT_COSTS = dict(price_seconds=1.0, lift_seconds=lambda k: 1.0)
+
+
+def _charges(monkeypatch):
+    """Record the ``k`` of every bound the search computes."""
+    ks = []
+    real = branch_mod.node_bound
+
+    def counted(data, m, I, O, F, lin_t=None, lin_c=None):
+        ks.append(max(len(I) + len(F), len(O) + len(F)))
+        return real(data, m, I, O, F, lin_t, lin_c)
+
+    monkeypatch.setattr(branch_mod, "node_bound", counted)
+    return ks
+
+
+def test_a_closed_search_reports_its_work_and_no_open_node():
+    B, A = _problem(0, 8)
+    res = _search(B, A, [3], **ALWAYS_LIFT)
+    assert res.open == 0 and res.closed
+    assert res.work > 0
+
+
+def test_a_search_at_its_limit_returns_its_best_design_and_bracket():
+    B, A = _problem(17, 9)
+    truth = _brute(B, A, [3])[0][0]
+    res = _search(B, A, [3], work_limit=2.5, **UNIT_COSTS)
+    assert not res.closed and res.open > 0
+    assert res.work <= 2.5
+    d, c = res.designs[0], res.certificate
+    assert _close(_objective(B, A, d.treated), d.value)
+    assert c.lower <= truth * (1 + 1e-12)
+    assert truth <= d.value * (1 + 1e-12) and d.value <= c.upper * (1 + 1e-12)
+    assert c.lower < c.upper
+
+
+def test_pricing_is_charged_per_set():
+    B, A = _problem(2, 8)
+    res = _search(B, A, [3], price_seconds=1e-3, lift_seconds=lambda k: 1.0)
+    assert res.lifts == 0
+    assert res.work == pytest.approx(res.priced * 1e-3, rel=1e-12)
+
+
+def test_a_bound_is_charged_at_its_cost(monkeypatch):
+    ks = _charges(monkeypatch)
+    B, A = _problem(4, 9)
+    res = _search(B, A, [3], price_seconds=1.0, lift_seconds=lambda k: 0.5 + k)
+    assert res.lifts == len(ks) > 0
+    assert res.work == pytest.approx(res.priced * 1.0 + sum(0.5 + k for k in ks),
+                                     rel=1e-12)
+
+
+def test_no_charge_passes_the_limit(monkeypatch):
+    """The search does not start a bound or a pricing that would take its
+    work past the limit: the work is at most the limit."""
+    ks = _charges(monkeypatch)
+    B, A = _problem(4, 9)
+    full = _search(B, A, [3], price_seconds=1.0, lift_seconds=lambda k: 0.5 + k)
+    limit = full.work / 2
+    ks.clear()
+    res = _search(B, A, [3], work_limit=limit, price_seconds=1.0,
+                  lift_seconds=lambda k: 0.5 + k)
+    assert res.work <= limit and not res.closed
+    assert res.work == pytest.approx(res.priced * 1.0 + sum(0.5 + k for k in ks),
+                                     rel=1e-12)
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10**6), n=st.integers(6, 9), m=st.integers(2, 4),
+       limit=st.floats(0.5, 40.0), linear=st.booleans())
+def test_property_the_bracket_holds_at_any_limit(seed, n, m, limit, linear):
+    """At any limit the search either reports that it found no design, or
+    returns a design whose certificate brackets the optimum, with its work
+    within the limit; a search with no open node returns the optimum."""
+    m = min(m, n - 2)
+    B, A = _problem(seed, n)
+    rng = np.random.default_rng(seed + 3)
+    lin = rng.uniform(0, 3, n) if linear else None
+    truth = _brute(B, A, [m], lin_t=lin, lin_c=lin)[0][0]
+    try:
+        res = _search(B, A, [m], linear_treated=lin, linear_control=lin,
+                      work_limit=limit, **UNIT_COSTS)
+    except exact_mod.SearchNotClosed:
+        return
+    d, c = res.designs[0], res.certificate
+    assert res.work <= limit
+    assert c.lower <= truth * (1 + 1e-12) + 1e-300
+    assert truth <= d.value * (1 + 1e-9)
+    assert d.value <= c.upper * (1 + 1e-12)
+    if res.closed:
+        assert _close(d.value, truth)
+
+
+def test_the_default_limit_closes_the_documented_searches():
+    """Walmart with eight treated, the largest search the docs report, is
+    modelled at about 150 seconds: 22 bounds at 45 markets and 33 million sets
+    priced. The default limit leaves it room."""
+    walmart8 = 22 * branch_mod.lift_seconds(45) + 33_257_562 * branch_mod.PRICE_SECONDS
+    assert walmart8 < branch_mod.WORK_LIMIT
+
+
 # ------------------------------------------------------------- edge cases
 def test_an_exact_tie_is_reported_unresolved():
     B, A = _problem(6, 7)
@@ -652,11 +757,20 @@ def test_forced_units_that_conflict_admit_no_design():
         _search(B, A, [2], filt=filt, **ALWAYS_LIFT)
 
 
-def test_a_search_that_runs_out_of_lifts_reports_its_gap():
+@pytest.mark.parametrize("limit", [0, -1.0, float("nan"), float("inf"), True, "60"])
+def test_an_invalid_work_limit_is_refused(limit):
     B, A = _problem(17, 9)
-    with pytest.raises(MlsynthEstimationError, match="gap") as err:
-        _search(B, A, [3], max_lifts=1, **ALWAYS_LIFT)
-    assert "backend='mip'" in str(err.value)
+    with pytest.raises(MlsynthConfigError, match="work_limit"):
+        _search(B, A, [3], work_limit=limit)
+
+
+def test_a_limit_reached_before_any_design_is_reported():
+    """No design to return: the search says so, names the limit, and does
+    not point to a backend that is gone."""
+    B, A = _problem(17, 9)
+    with pytest.raises(exact_mod.SearchNotClosed, match="work_limit") as err:
+        _search(B, A, [3], work_limit=0.5, **UNIT_COSTS)
+    assert "mip" not in str(err.value)
 
 
 def test_non_finite_data_is_refused():
@@ -705,15 +819,35 @@ def test_marex_above_the_limit_keeps_a_pool(monkeypatch):
         [p["mip_objective"] for p in want.pool], rel=1e-9)
 
 
-def test_marex_reports_a_search_that_did_not_close_as_such(monkeypatch):
+def test_marex_reports_a_search_that_found_no_design_as_such(monkeypatch):
     def stop(*args, **kwargs):
-        raise exact_mod.SearchNotClosed("gap left open; use backend='mip'")
+        raise exact_mod.SearchNotClosed("no design within the limit; raise work_limit")
     df, T0 = _panel(J=9)
     _low_limit(monkeypatch)
     monkeypatch.setattr(branch_mod, "branch_and_bound", stop)
     with pytest.raises(exact_mod.SearchNotClosed) as err:
         MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3))).fit()
     assert "infeasible" not in str(err.value)
+
+
+def test_marex_warns_when_a_search_reaches_its_work_limit(monkeypatch):
+    real = branch_mod.branch_and_bound
+
+    def limited(*args, **kwargs):
+        return real(*args, work_limit=3.0, price_seconds=1.0,
+                    lift_seconds=lambda k: 1.0, **kwargs)
+    df, T0 = _panel(J=9)
+    want = MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3))).fit()
+    _low_limit(monkeypatch)
+    monkeypatch.setattr(branch_mod, "branch_and_bound", limited)
+    with pytest.warns(MAREXSearchWarning, match="work limit"):
+        res = MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3, certify=True))).fit()
+    cert = res.certificate
+    assert cert.lower <= want.globres.objective * (1 + 1e-9)
+    assert want.globres.objective <= res.globres.objective * (1 + 1e-9)
+    assert res.globres.objective <= cert.upper * (1 + 1e-12)
+    counts = res.search.counts
+    assert counts.bnb_open > 0 and 0 < counts.bnb_work <= 3.0
 
 
 def test_marex_above_the_limit_still_refuses_the_coupled_design(monkeypatch):

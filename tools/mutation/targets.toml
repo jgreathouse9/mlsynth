@@ -585,9 +585,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-stopped-search-claims-optimality"
-  find = "    status = \"optimal\" if outcome.closed else \"node_limit\""
+  find = "    status = \"optimal\" if outcome.closed else \"work_limit\""
   replace = "    status = \"optimal\""
-  models = "a search stopped at its node limit reported as optimal, the defect #805 removed from the MIP path"
+  models = "a search stopped at its work limit reported as optimal, the defect #805 removed from the MIP path"
 
   [[target.mutant]]
   id = "a-stopped-search-bounds-by-its-incumbent"
@@ -618,6 +618,51 @@ timeout = 300.0
   find = "            if mode_internal == \"per_unit\":"
   replace = "            if False:"
   models = "the exact per-unit request routed to the two-way search, which solves a different objective and returns a two-way design under a per-unit label"
+
+# One limit rule (#843): SYNDES's per-unit search counts its work in modelled
+# seconds, each fit by its matrix and each node by the panel's units, and stops
+# at work_limit, where it stopped at a node count.
+[[target]]
+name = "syndes-per-unit-work-limit"
+module-path = "mlsynth/utils/syndes_helpers/per_unit_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py -q -p no:cacheprovider -x -k 'work or limit or charged or larger'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fit-is-not-charged"
+  find = "        self.work += fit_seconds(*B.shape)"
+  replace = "        self.work += 0.0"
+  models = "the fits left off the work, though they are most of a node's time, so a search that refits on every node never reaches its limit"
+
+  [[target.mutant]]
+  id = "a-node-is-not-charged"
+  find = "    node_seconds = NODE_SECONDS_PER_UNIT * N\n"
+  replace = "    node_seconds = 0.0\n"
+  models = "a node's own reading and sorting of its fits left off the work, a third of the hardest study run's time"
+
+  [[target.mutant]]
+  id = "a-fit-costs-the-same-at-any-size"
+  find = "    return FIT_SECONDS + FIT_SECONDS_PER_ENTRY * rows * cols"
+  replace = "    return FIT_SECONDS"
+  models = "every fit charged as the smallest, so the limit means fewer seconds on a panel of many periods or donors"
+
+  [[target.mutant]]
+  id = "the-limit-is-never-read"
+  find = "        if fits.work + nodes * node_seconds >= work_limit:"
+  replace = "        if False:"
+  models = "a search that runs until it closes whatever its limit, as the five-million-node cap did in practice"
+
+  [[target.mutant]]
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = best if closed else min([best] + [b for _, _, b in stack])"
+  replace = "    lower = best"
+  models = "a stopped search reporting its incumbent as the bound, as if the nodes it never searched held nothing better"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search stops at once instead of refusing the configuration"
 
 [[target]]
 name = "syndes-one-way-exact-wiring"
@@ -7053,6 +7098,56 @@ timeout = 900.0
   replace = "        order = tuple(free0[i] for i in np.argsort(x, kind=\"stable\"))"
   models = "the units branched on in the reverse of the root relaxation's order, the least decided first, a worse tree for the same optimum"
 
+# The two-way search's cost model, recalibrated on one thread (#845): each cost
+# against what it measured, so a modelled second stays a second of the clock.
+[[target]]
+name = "syndes-cost-model"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k 'TestTheCostModel or TestLiftCost or work'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-evaluation-costs-its-eigendecomposition-alone"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 1e-4 + 2e-9 * (n + 1) ** 3"
+  models = "the model before #845, which charged a lift's evaluation for its eigendecomposition and not for the rest of the evaluation, the cut matrix or L-BFGS-B, a quarter of what it costs"
+
+  [[target.mutant]]
+  id = "the-evaluation-cost-loses-its-slope"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 3.4e-4"
+  models = "an evaluation charged the same at every node, so a lift at sixty free units costs what one at ten does"
+
+  [[target.mutant]]
+  id = "pricing-at-the-old-rate"
+  find = "PRICE_SECONDS_PER_UNIT = 6.0e-8"
+  replace = "PRICE_SECONDS_PER_UNIT = 2.5e-8"
+  models = "a design priced at the pre-#845 rate, under half of what it costs, so the limit lets a search that prices run twice as long"
+
+  [[target.mutant]]
+  id = "the-certificate-at-the-old-rate"
+  find = "    return 9e-4 + 8.4e-6 * n ** 2"
+  replace = "    return 6e-4 + 6.6e-6 * n ** 2"
+  models = "a certificate charged at the pre-#845 rate"
+
+  [[target.mutant]]
+  id = "the-trust-region-grows-as-a-cube"
+  find = "    return 1.8e-4 + 8.5e-6 * n"
+  replace = "    return 2e-4 + 5e-9 * n ** 3"
+  models = "the trust region's pre-#845 cubic, which over-charges it twice over at sixty free units"
+
+[[target]]
+name = "syndes-work-limit-default"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k leaves_the_documented"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-limit-at-the-old-default"
+  find = "WORK_LIMIT = 120.0"
+  replace = "WORK_LIMIT = 60.0"
+  models = "the default left at 60 after the costs rose, where the searches the docs report at forty units with ten treated need 60"
+
 [[target]]
 name = "marex-bnb-work"
 module-path = "mlsynth/utils/marex_helpers/branch.py"
@@ -7412,7 +7507,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-branch-and-bound-counts-are-dropped"
-  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted)"
+  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted,\n                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                report.counts.update(candidates=n_cand)"
   models = "the branch and bound's bounds, sets priced and fits discarded, as before #774"
 
@@ -7562,10 +7657,10 @@ timeout = 300.0
   models = "the timing wrapper left on node_bound after a search, so the next search in the process times through two wrappers"
 
   [[target.mutant]]
-  id = "the-bracket-is-not-read"
-  find = "        found = _BRACKET.search(str(exc))"
-  replace = "        found = None"
-  models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
+  id = "a-stopped-search-reads-as-closed"
+  find = "        row.update(closed=res.closed,"
+  replace = "        row.update(closed=True,"
+  models = "a search stopped at its work limit recorded as closed, so its row reads as a certified design (#843 moved the cap from bounds to work, and the bracket from the message to the certificate)"
 
 # The root's bounds and the lift's stopping (#842, for #837 and #858). The
 # trace replicates the lift's stopping rules, so each mutant makes the replica
@@ -7958,52 +8053,77 @@ timeout = 120.0
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
 
-# The two-way search's cost model, recalibrated on one thread (#845): each cost
-# against what it measured, so a modelled second stays a second of the clock.
+# One limit rule (#843): MAREX's search stops at a work limit in the cost
+# model's seconds and returns its best design with a bracket that still holds,
+# where it raised after a thousand bounds.
 [[target]]
-name = "syndes-cost-model"
-module-path = "mlsynth/utils/syndes_helpers/branch.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k 'TestTheCostModel or TestLiftCost or work'"
+name = "marex-work-limit"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work or limit or charged or bracket or closed_search or no_design'"
 timeout = 900.0
 
   [[target.mutant]]
-  id = "an-evaluation-costs-its-eigendecomposition-alone"
-  find = "    return 3.4e-4 + 1.65e-5 * n"
-  replace = "    return 1e-4 + 2e-9 * (n + 1) ** 3"
-  models = "the model before #845, which charged a lift's evaluation for its eigendecomposition and not for the rest of the evaluation, the cut matrix or L-BFGS-B, a quarter of what it costs"
+  id = "pricing-is-not-charged"
+  find = "            state[\"work\"] += charge\n            price(m, sub, O, F)"
+  replace = "            price(m, sub, O, F)"
+  models = "the sets a search prices left off its work, so a search that prices most of its sets never reaches its limit"
 
   [[target.mutant]]
-  id = "the-evaluation-cost-loses-its-slope"
-  find = "    return 3.4e-4 + 1.65e-5 * n"
-  replace = "    return 3.4e-4"
-  models = "an evaluation charged the same at every node, so a lift at sixty free units costs what one at ten does"
+  id = "a-bound-is-not-charged"
+  find = "        state[\"work\"] += charge\n        nb = node_bound("
+  replace = "        nb = node_bound("
+  models = "the persp+N bounds left off the work, the charge that dominates MAREX's searches, so the limit binds only on pricing"
 
   [[target.mutant]]
-  id = "pricing-at-the-old-rate"
-  find = "PRICE_SECONDS_PER_UNIT = 6.0e-8"
-  replace = "PRICE_SECONDS_PER_UNIT = 2.5e-8"
-  models = "a design priced at the pre-#845 rate, under half of what it costs, so the limit lets a search that prices run twice as long"
+  id = "a-bound-may-pass-the-limit"
+  find = "        charge = lift_seconds(k)\n        if state[\"work\"] + charge > work_limit:"
+  replace = "        charge = lift_seconds(k)\n        if state[\"work\"] > work_limit:"
+  models = "the limit checked after the fact, so the search starts a bound that takes its work past the limit, by minutes at eighty markets"
 
   [[target.mutant]]
-  id = "the-certificate-at-the-old-rate"
-  find = "    return 9e-4 + 8.4e-6 * n ** 2"
-  replace = "    return 6e-4 + 6.6e-6 * n ** 2"
-  models = "a certificate charged at the pre-#845 rate"
+  id = "pricing-may-pass-the-limit"
+  find = "            charge = count * price_seconds\n            if state[\"work\"] + charge > work_limit:"
+  replace = "            charge = count * price_seconds\n            if state[\"work\"] > work_limit:"
+  models = "a subtree priced whole although its pricing takes the work past the limit"
 
   [[target.mutant]]
-  id = "the-trust-region-grows-as-a-cube"
-  find = "    return 1.8e-4 + 8.5e-6 * n"
-  replace = "    return 2e-4 + 5e-9 * n ** 3"
-  models = "the trust region's pre-#845 cubic, which over-charges it twice over at sixty free units"
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = min([lower] + still_open)"
+  replace = "    lower = min([lower])"
+  models = "a stopped search certifying the incumbent's own bracket, as if the nodes it never searched held nothing better"
+
+  [[target.mutant]]
+  id = "the-stopped-node-is-dropped"
+  find = "        if state[\"work\"] + charge > work_limit:\n            left.append(bound)\n            break"
+  replace = "        if state[\"work\"] + charge > work_limit:\n            break"
+  models = "the node the search was about to bound forgotten when it stops, though best first it holds the least bound of all and may hold the optimum"
+
+  [[target.mutant]]
+  id = "no-design-reads-as-infeasible"
+  find = "    if left and not best.items:"
+  replace = "    if False:"
+  models = "a search stopped before it found a design reported as a cluster with no admissible design"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search raises for want of a design instead of refusing the configuration"
 
 [[target]]
-name = "syndes-work-limit-default"
-module-path = "mlsynth/utils/syndes_helpers/exact.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k leaves_the_documented"
-timeout = 300.0
+name = "marex-work-limit-report"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work_limit'"
+timeout = 900.0
 
   [[target.mutant]]
-  id = "the-limit-at-the-old-default"
-  find = "WORK_LIMIT = 120.0"
-  replace = "WORK_LIMIT = 60.0"
-  models = "the default left at 60 after the costs rose, where the searches the docs report at forty units with ten treated need 60"
+  id = "a-stopped-search-is-silent"
+  find = "                if not found.closed:"
+  replace = "                if False:"
+  models = "a design from a search stopped at its limit returned without the warning that it is not a proven optimum"
+
+  [[target.mutant]]
+  id = "the-work-is-not-reported"
+  find = "                                     bnb_work=found.work, bnb_open=found.open)"
+  replace = "                                     bnb_open=found.open)"
+  models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
