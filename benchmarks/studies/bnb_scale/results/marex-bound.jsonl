@@ -1,0 +1,4 @@
+{"markets": 80, "m": 6, "seconds": 224.70291983, "modelled": 25.0, "lower": 0.027834394530225733, "relaxation": 0.027839187782718714, "kind": "bls", "load_before": 1.0849609375, "load_after": 6.61962890625}
+{"markets": 100, "m": 6, "seconds": 787.624523956, "modelled": 47.875, "lower": 0.01736213725219931, "relaxation": 0.017366591378132613, "kind": "bls", "load_before": 6.61962890625, "load_after": 3.4765625}
+{"markets": 45, "m": 6, "seconds": 7.104313855000001, "modelled": 5.271484375, "lower": 0.04119980972837081, "relaxation": 0.04121688648810502, "kind": "bls", "load_before": 0.083984375, "load_after": 0.15771484375}
+{"markets": 60, "m": 6, "seconds": 44.374669244, "modelled": 11.125, "lower": 0.03611531544811789, "relaxation": 0.03613878467242304, "kind": "bls", "load_before": 0.15771484375, "load_after": 0.9521484375}

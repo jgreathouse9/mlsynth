@@ -1,0 +1,12 @@
+noise N=24 K=4 seed=0: N=24 K=4 sets=10,626 price 0.07s (6.44 us/set); best 0.558155 exact=True; root Rayleigh/best 0.8965
+  order=index   ceiling: sets left at rho 0.98:19 (0.2%) 0.99:4 (0.0%) 0.995:2 (0.0%) 0.999:2 (0.0%) 1.0:2 (0.0%)
+  order=relaxed ceiling: sets left at rho 0.98:25 (0.2%) 0.99:4 (0.0%) 0.995:2 (0.0%) 0.999:2 (0.0%) 1.0:2 (0.0%)
+noise N=24 K=4 seed=1: N=24 K=4 sets=10,626 price 0.02s (1.67 us/set); best 0.536486 exact=True; root Rayleigh/best 0.8914
+  order=index   ceiling: sets left at rho 0.98:15 (0.1%) 0.99:7 (0.1%) 0.995:7 (0.1%) 0.999:3 (0.0%) 1.0:3 (0.0%)
+  order=relaxed ceiling: sets left at rho 0.98:18 (0.2%) 0.99:17 (0.2%) 0.995:17 (0.2%) 0.999:4 (0.0%) 1.0:4 (0.0%)
+noise N=30 K=5 seed=0: N=30 K=5 sets=142,506 price 0.27s (1.87 us/set); best 0.426691 exact=True; root Rayleigh/best 0.9069
+  order=index   ceiling: sets left at rho 0.98:48 (0.0%) 0.99:7 (0.0%) 0.995:7 (0.0%) 0.999:7 (0.0%) 1.0:7 (0.0%)
+  order=relaxed ceiling: sets left at rho 0.98:26 (0.0%) 0.99:1 (0.0%) 0.995:1 (0.0%) 0.999:1 (0.0%) 1.0:1 (0.0%)
+noise N=30 K=5 seed=1: N=30 K=5 sets=142,506 price 0.13s (0.88 us/set); best 0.464018 exact=True; root Rayleigh/best 0.9079
+  order=index   ceiling: sets left at rho 0.98:45 (0.0%) 0.99:31 (0.0%) 0.995:8 (0.0%) 0.999:5 (0.0%) 1.0:5 (0.0%)
+  order=relaxed ceiling: sets left at rho 0.98:33 (0.0%) 0.99:16 (0.0%) 0.995:3 (0.0%) 0.999:2 (0.0%) 1.0:2 (0.0%)

@@ -89,8 +89,11 @@ def _closed_form(B, A, S, a):
     return 1.0 / s, (2.0 + t) ** 2 / (4.0 * s) - u / 4.0
 
 
-def _shipped_bound(B, A, subsets, linear=None):
-    """The closed form alone, clipped at zero: the bound before the penalties."""
+def _shipped_bound(B, A, subsets, linear=None, report=None, *, rigorous=True):
+    """The closed form alone, clipped at zero: the bound before the penalties.
+
+    It takes the search's ``report`` and ``rigorous`` and ignores them, so it
+    can stand in for :func:`treated_fit_bound` inside the search."""
     out = np.zeros(len(subsets))
     for r, S in enumerate(subsets):
         cf = _closed_form(B, A, S, None if linear is None else linear[list(S)])
@@ -207,11 +210,15 @@ def test_the_uniqueness_check_reports_the_mirror_tie():
 
 
 # ------------------------------------------------- unit: the treated bound
-def test_the_treated_bound_is_at_least_the_sum_of_the_minimums():
+# ``rigorous`` picks the path: the safe form on every row, or the closed form
+# straight from the update on the well-conditioned rows. Both keep the
+# sum of the minimums.
+@pytest.mark.parametrize("rigorous", [True, False])
+def test_the_treated_bound_is_at_least_the_sum_of_the_minimums(rigorous):
     B, A, lin_t, _ = _heavy(32)
     subs = _subsets(B.shape[1], 3)
-    lb = treated_fit_bound(B, A, subs, linear=lin_t)
-    plain = treated_fit_bound(B, A, subs)
+    lb = treated_fit_bound(B, A, subs, linear=lin_t, rigorous=rigorous)
+    plain = treated_fit_bound(B, A, subs, rigorous=rigorous)
     mins = lin_t[subs].min(axis=1)
     assert np.all(lb >= plain + mins - 1e-9 * (1.0 + lb))
 
@@ -225,7 +232,8 @@ def test_the_treated_bound_is_at_least_the_shipped_closed_form():
     assert np.any(lb > 0.0)
 
 
-def test_a_large_penalty_no_longer_drives_the_treated_bound_to_zero():
+@pytest.mark.parametrize("rigorous", [True, False])
+def test_a_large_penalty_no_longer_drives_the_treated_bound_to_zero(rigorous):
     """The closed form spends negative weight on the costly markets."""
     B, A = _problem(34)
     n = B.shape[1]
@@ -233,18 +241,20 @@ def test_a_large_penalty_no_longer_drives_the_treated_bound_to_zero():
     subs = _subsets(n, 3)
     shipped = _shipped_bound(B, A, subs, lin_t)
     assert np.any(shipped < lin_t[subs].min(axis=1))
-    lb = treated_fit_bound(B, A, subs, linear=lin_t)
+    lb = treated_fit_bound(B, A, subs, linear=lin_t, rigorous=rigorous)
     assert np.all(lb >= lin_t[subs].min(axis=1))
 
 
-def test_the_treated_bound_never_exceeds_the_treated_fit_under_heavy_penalties():
+@pytest.mark.parametrize("rigorous", [True, False])
+def test_the_treated_bound_never_exceeds_the_treated_fit_under_heavy_penalties(
+        rigorous):
     B, A = _problem(36)
     n = B.shape[1]
     for scale in (0.01, 1.0, 100.0):
         lin_t = _penalty(37, n, scale)
         for m in (1, 2, 3, 4):
             subs = _subsets(n, m)
-            lb = treated_fit_bound(B, A, subs, linear=lin_t)
+            lb = treated_fit_bound(B, A, subs, linear=lin_t, rigorous=rigorous)
             fit = np.array([_fit(B, A, S, lin_t) for S in subs])
             assert np.all(lb <= fit + 1e-8 * (1.0 + fit))
 
@@ -413,14 +423,15 @@ def test_the_penalty_bounds_spare_fits_the_shipped_bound_pays_for(monkeypatch):
 
 
 # ----------------------------------------------------------- edge cases
-def test_duplicate_markets_still_get_the_smallest_penalty():
+@pytest.mark.parametrize("rigorous", [True, False])
+def test_duplicate_markets_still_get_the_smallest_penalty(rigorous):
     """A singular Gram leaves no closed form; the penalty term still bounds."""
     B, A = _problem(50)
     n = B.shape[1]
     B[:, 1] = B[:, 0]
     lin_t = 1.0 + _penalty(51, n, 2.0)
     subs = np.array([S for S in _subsets(n, 3) if 0 in S and 1 in S])
-    lb = treated_fit_bound(B, A, subs, linear=lin_t)
+    lb = treated_fit_bound(B, A, subs, linear=lin_t, rigorous=rigorous)
     fit = np.array([_fit(B, A, S, lin_t) for S in subs])
     assert np.all(lb >= lin_t[subs].min(axis=1))
     assert np.all(lb <= fit + 1e-8 * (1.0 + fit))
@@ -505,14 +516,15 @@ def test_the_combined_bound_never_exceeds_a_candidates_objective(
 
 
 @given(seed=st.integers(0, 10_000), n=st.integers(2, 8), m=st.integers(1, 5),
-       scale=_scale)
+       scale=_scale, rigorous=st.booleans())
 @settings(max_examples=60, deadline=None)
-def test_the_treated_bound_is_at_least_each_of_its_parts(seed, n, m, scale):
+def test_the_treated_bound_is_at_least_each_of_its_parts(seed, n, m, scale,
+                                                          rigorous):
     m = min(m, n)
     B, A = _problem(seed, n=n, T=7)
     lin_t = _penalty(seed + 1, n, scale)
     subs = _subsets(n, m)
-    lb = treated_fit_bound(B, A, subs, linear=lin_t)
+    lb = treated_fit_bound(B, A, subs, linear=lin_t, rigorous=rigorous)
     mins = lin_t[subs].min(axis=1)
     assert np.all(lb >= mins)
     for r, S in enumerate(subs):

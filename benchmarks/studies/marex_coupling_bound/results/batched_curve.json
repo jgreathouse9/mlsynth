@@ -1,0 +1,168 @@
+{
+ "1.0": {
+  "optimum": 997952.291777092,
+  "under_optimum_closed_form": 234,
+  "ceiling": {
+   "sampled": 234,
+   "left_with_lb": 5,
+   "left_with_g": 5,
+   "left_with_lb_projected": 5,
+   "required_share_of_distance_q10_q50_q90_q99": [
+    0.217,
+    0.447,
+    0.826,
+    1.07
+   ]
+  },
+  "frank_wolfe_plain": {
+   "cleared_within": {
+    "1": 0,
+    "2": 0,
+    "5": 0,
+    "10": 0,
+    "20": 0,
+    "50": 0,
+    "100": 2,
+    "200": 58
+   },
+   "left_after_200": 176,
+   "us_per_candidate": 381.8
+  },
+  "frank_wolfe_pairwise": {
+   "cleared_within": {
+    "1": 0,
+    "2": 0,
+    "5": 0,
+    "10": 0,
+    "20": 0,
+    "50": 0,
+    "100": 1,
+    "200": 1
+   },
+   "left_after_200": 233,
+   "us_per_candidate": 494.8
+  },
+  "wolfe_batch_512": {
+   "cleared": 229,
+   "left": 5,
+   "status_counts": {
+    "1": 229,
+    "2": 2,
+    "3": 3
+   },
+   "us_per_candidate": 295.8
+  },
+  "wolfe_batch_2048": {
+   "cleared": 229,
+   "left": 5,
+   "status_counts": {
+    "1": 229,
+    "2": 2,
+    "3": 3
+   },
+   "us_per_candidate": 238.5
+  },
+  "wolfe_batch_8192": {
+   "cleared": 229,
+   "left": 5,
+   "status_counts": {
+    "1": 229,
+    "2": 2,
+    "3": 3
+   },
+   "us_per_candidate": 236.9
+  },
+  "validity": {
+   "sampled": 234,
+   "max_bound_over_exact": 0.9999999999838994,
+   "median_abs_relative_gap": 1.5976825418206886e-10,
+   "status_counts": {
+    "2": 114,
+    "3": 120
+   }
+  }
+ },
+ "100.0": {
+  "optimum": 34658222.14826186,
+  "under_optimum_closed_form": 87439,
+  "ceiling": {
+   "sampled": 1000,
+   "left_with_lb": 1,
+   "left_with_g": 1,
+   "left_with_lb_projected": 87,
+   "required_share_of_distance_q10_q50_q90_q99": [
+    0.428,
+    0.612,
+    0.778,
+    0.94
+   ]
+  },
+  "frank_wolfe_plain": {
+   "cleared_within": {
+    "1": 0,
+    "2": 11,
+    "5": 40,
+    "10": 266,
+    "20": 1506,
+    "50": 9877,
+    "100": 26695,
+    "200": 53412
+   },
+   "left_after_200": 34027,
+   "us_per_candidate": 373.3
+  },
+  "frank_wolfe_pairwise": {
+   "cleared_within": {
+    "1": 0,
+    "2": 11,
+    "5": 18,
+    "10": 48,
+    "20": 152,
+    "50": 660,
+    "100": 2603,
+    "200": 9039
+   },
+   "left_after_200": 78400,
+   "us_per_candidate": 666.2
+  },
+  "wolfe_batch_512": {
+   "cleared": 86855,
+   "left": 584,
+   "status_counts": {
+    "1": 86855,
+    "2": 422,
+    "3": 162
+   },
+   "us_per_candidate": 174.1
+  },
+  "wolfe_batch_2048": {
+   "cleared": 86855,
+   "left": 584,
+   "status_counts": {
+    "1": 86855,
+    "2": 422,
+    "3": 162
+   },
+   "us_per_candidate": 178.1
+  },
+  "wolfe_batch_8192": {
+   "cleared": 86855,
+   "left": 584,
+   "status_counts": {
+    "1": 86855,
+    "2": 422,
+    "3": 162
+   },
+   "us_per_candidate": 213.3
+  },
+  "validity": {
+   "sampled": 300,
+   "max_bound_over_exact": 1.0000000000027116,
+   "median_abs_relative_gap": 2.9397817513654445e-11,
+   "status_counts": {
+    "2": 246,
+    "3": 54
+   }
+  }
+ }
+}

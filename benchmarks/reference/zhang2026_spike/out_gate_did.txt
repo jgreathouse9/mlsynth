@@ -1,0 +1,5 @@
+DID, N=1000, T0=20, 2000 reps
+  bias        -2.16   (paper 2.16, sign unstated)  +/- 0.04 MC
+  SD           1.93   (paper 1.94)
+  coverage     80.1   (paper 79.8)
+  treated share 0.499
