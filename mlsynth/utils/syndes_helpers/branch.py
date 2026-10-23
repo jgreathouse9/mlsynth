@@ -17,9 +17,9 @@ bounds the node pushed last goes first, so a split dives into the child that
 includes. Until it has a design to return, from a seed, a cutoff or a set
 priced or waiting to be, the search dives depth first, since best first can spend its limit near
 the root and price none. Each open node carries the certified bound of its nearest lifted
-ancestor, valid for every set below it; a stopped search reports, for each node
-it left open, that bound or the node's own trust-region bound, whichever is
-higher.
+ancestor, valid for every set below it; a stopped search reports the smallest
+bound over the nodes it left open, each node's the higher of that bound and its
+own trust-region bound (Limits, below).
 
 The node bound. Every set below the node has ``f(S) >= 4 alpha / U`` for any
 ``U >= max sigma'R sigma`` over the subtree. With ``sigma``'s decided part fixed

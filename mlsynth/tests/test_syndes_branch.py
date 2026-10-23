@@ -1267,10 +1267,12 @@ class TestTheBracketAfterTheLimit:
     def test_a_bound_its_certificate_fails_is_not_reported(self, monkeypatch):
         """With no certificate, no node prunes and none passes a bound to its
         children, and the open nodes' own bounds go uncertified: the bracket is
-        the Rayleigh bound. The swap search's seeds give the search a design."""
+        the Rayleigh bound. The swap search's seeds give the search a design,
+        and the bracket has room to bound every open node."""
         Y = _noise(N=16, seed=13)
         problem, engine = _engine(Y)
         monkeypatch.setattr(branch.ExactR, "certify", lambda self, *a: None)
+        monkeypatch.setattr(branch, "BRACKET_SHARE", 1e12)
         out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=0.05,
                                **EAGER)
         assert not out.closed and out.treated is not None
