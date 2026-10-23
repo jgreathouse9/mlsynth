@@ -2,10 +2,10 @@
 
 Abadie and Shang (2026), "Synthetic Control: An Exact Geometric Formulation"
 (arXiv:2610.26576), replace the bilevel choice of predictor weights with a search over
-the faces of the donor hull. This study reimplements the exterior case (the treated
-unit outside the donor hull) with NumPy and SciPy only, and asks two questions on
-Proposition 99: does it return the authors' answers, and how fast is it against their
-current code.
+the faces of the donor hull. This study reimplements both of its cases with NumPy and
+SciPy only, the exterior case (the treated unit outside the donor hull) and the
+interior case (inside it, Section 5), and asks two questions: does it return the
+authors' answers, and how fast is it against their current code.
 
 This is a study, not a benchmark case, and it is not wired into the library. The
 seconds are machine-dependent: one machine with four cores visible, Python 3.13.16,
@@ -15,6 +15,8 @@ nothing else running.
     python -m benchmarks.studies.as_exact.capture    # the oracle bundle, from the authors' code
     python -m benchmarks.studies.as_exact.run        # Proposition 99 timings -> results/raw.json
     python -m benchmarks.studies.as_exact.scaling    # random designs, K = 7 to 9 -> results/scaling.json
+    python -m benchmarks.studies.as_exact.capture_interior   # the interior oracle, from synthx
+    python -m benchmarks.studies.as_exact.run_interior       # interior timings -> results/interior.json
     pytest benchmarks/studies/as_exact               # offline, against the bundle
     MLSYNTH_AS_EXACT_LIVE=1 pytest benchmarks/studies/as_exact -k live   # reruns their code
 
@@ -51,6 +53,7 @@ repository's `data/smoking_data.csv`.
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: none listed, the face searched by branch and bound over sign sub-cubes, each test one NNLS with the link vertices as walls whose Farkas certificate picks the split; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before the face is searched (`exact.py`) |
 | predictor weights V | one LP per predictor and per inequality for the diagonal class's support and implicit equalities; cvxpy `log_det`, analytic centre and semidefinite range programs | one LP for the support and implicit equalities together (Schrijver, Theory of Linear and Integer Programming, sec. 8.1); Newton's method with the equalities eliminated and the barrier method (Boyd and Vandenberghe, sec. 10.2 and ch. 11), started at the paper's own Lemma B.1 construction, with a line search that asks for the objective alone (`rationalize.py`) |
+| the interior case | diagonal V: a walk over the attainable cells, one HiGHS LP per cell, each exit tried in turn; PD V: a walk over every admissible cell, a cvxpy semidefinite program for each cell that improves the incumbent; no predictor weights for an interior w | one solve per cell gives X1's weights, the selection rows and every neighbour; attainability by one NNLS with checked evidence; PD V: the admissible cells tested in order of loss by a barrier method that stops at a checked certificate either way; V the analytic centre of the metrics that select the cell (`interior.py`) |
 
 The faces containing a given face are reached by walking ridges that contain it; in
 a simplicial polytope they form a connected subgraph of the facet-ridge graph (the
@@ -197,10 +200,67 @@ it, either way, since it calls the same solvers. Where the time goes, from
   25 ms each, become 164 Newton runs of the barrier method at about 0.8 ms each; a
   trial step of the line search costs one Cholesky factor.
 
+## The interior case
+
+Inside the donor hull every positive definite V leaves the same exact matches, and the
+paper selects among them by Abadie and L'Hour's vanishing penalty. The chosen weights
+are the barycentric weights of X1 in a cell of K + 1 donors, the Delaunay cell of the
+transformed donors that holds X1 (Section 5, Lemma C.2). A cell is attainable in a class
+of V when some V in the class selects it, <Q_j^A, V> > 0 for every donor outside it, and
+the answer is the attainable cell of least validation loss (Proposition 5). The
+replication package has no interior case; `synthx` does (`interior_cellwalk.py`,
+`interior_vsearch.py`, `interior_pd.py`), and `interior.py` follows its two searches.
+`exact.solve_diag` and `exact.solve_pd` hand it a treated unit inside the hull, as the
+authors' `estimate` does.
+
+- Diagonal class. A walk over the cells that trade one donor for another, from the cell
+  the identity metric selects, that expands only attainable cells. As d moves through
+  the positive orthant the selected cell changes only by such trades, so the walk
+  reaches every attainable cell; `test_interior.py` checks that against every set of
+  K + 1 donors. A cell costs one solve with [X0_A; 1'], which gives X1's weights and
+  every outside donor's barycentric coordinates. The selection rows are one product,
+  the neighbours one ratio test per outside donor, and attainability, R d >= 1 with
+  d >= 0, one least-distance problem whose point or Farkas certificate is checked. The
+  authors solve one HiGHS LP per cell and try the exits in turn.
+- Positive definite class. Most cells are attainable here: 83 to 97 per cent of a
+  sample of 150 on each Proposition 99 placebo, against at most 2 per cent under
+  diagonal V. Every admissible cell is therefore listed, as the authors list them, and
+  the cells are tested in increasing order of loss; the first attainable one is the
+  answer. On the four placebos it is the first cell tested, the best of all exact
+  matches. The test is the paper's semidefinite program, solved by a barrier method
+  from the metric that makes the cell a regular simplex and stopped at the first
+  evidence that checks: a positive definite V with every slack above 1e-9, or a point
+  y of the simplex whose dual bound K lambda_max(sum_j y_j Q_j) is at or below it.
+  cvxpy decides only when neither checks, which on these designs never happens. The
+  authors test with cvxpy every cell that improves their incumbent.
+- Predictor weights. The authors' `predictor_weights.py` builds on the exterior
+  optimality conditions, which are empty at r = 0, so for an interior w it reports the
+  uniform metric. Here V is the analytic centre of the metrics that select w's cell,
+  the representative the paper names (Section 5.3), with the log-det maximiser over
+  their closure and, in the positive definite class, the range of each V_kk. The tests
+  check that under the reported centre the vanishing penalty selects w, one LP.
+
+The oracle is `synthx.estimate` at the pinned commit on 28 interior designs
+(`capture_interior.py`, `results/reference_interior.json`): the four Proposition 99
+donors that lie inside the other donors' hull (Illinois, Iowa, Nebraska and South
+Dakota), each as a placebo's treated unit, and 24 seeded designs with K = 2 to 5 and
+J = 8 to 20. Both classes match it on all 28, losses to 1e-9 and weights to 1e-8, with
+the same cell. Brute force over every set of K + 1 donors agrees on the small designs,
+and two properties draw a random positive diagonal or positive definite V and check
+that the match it selects fits no better than the optimum. The leakage-free validation
+sample poses the same problem on these placebos: the three years it drops are lagged
+outcomes among the predictors, which every exact match reproduces.
+
+These are the units an in-space placebo needs: 4 of Proposition 99's 38 donors lie
+inside the hull of the other 37.
+
 ## Limits
 
-- Only the exterior case is implemented; `synthx` also has the interior case (a walk
-  over Delaunay cells).
+- A treated unit on the boundary of the donor hull, matched exactly by fewer than
+  K + 1 donors, is covered by neither case and is refused; `synthx` does not support
+  it either. The interior searches stop at the authors' limit of 200,000 cells. The
+  positive definite class meets it first, since it lists every admissible cell: the
+  Iowa placebo has 114,354.
 - The search assumes the paper's general position: simplicial facets, no ties. A donor
   hull of lower dimension, as when predictors are shares of a whole, is refused in both
   classes; `synthx` refuses it in the diagonal class and reduces to the donors' span in
