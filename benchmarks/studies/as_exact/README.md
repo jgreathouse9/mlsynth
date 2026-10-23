@@ -168,17 +168,17 @@ every call and the interquartile ranges.
 
 | panel | task | replication | synthx.estimate | this study | speed-up |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Proposition 99 | donor weights, diagonal (Table 1) | 1.664 | 1.715 | 0.075 | 22x |
-| Proposition 99 | donor weights, positive definite (Table D.1) | 0.690 | 0.720 | 0.058 | 12x |
-| Proposition 99 | V, diagonal (Table 2) | 0.088 | | 0.004 | 23x |
-| Proposition 99 | V, positive definite with ranges (Table 4) | 0.399 | | 0.155 | 2.6x |
-| leakage-free | donor weights, diagonal | 2.117 | 1.990 | 0.107 | 20x |
-| leakage-free | donor weights, positive definite | 0.717 | 0.666 | 0.062 | 12x |
+| Proposition 99 | donor weights, diagonal (Table 1) | 1.635 | 1.652 | 0.065 | 25x |
+| Proposition 99 | donor weights, positive definite (Table D.1) | 0.660 | 0.629 | 0.049 | 13x |
+| Proposition 99 | V, diagonal (Table 2) | 0.088 | | 0.003 | 25x |
+| Proposition 99 | V, positive definite with ranges (Table 4) | 0.418 | | 0.115 | 3.6x |
+| leakage-free | donor weights, diagonal | 2.010 | 2.023 | 0.105 | 19x |
+| leakage-free | donor weights, positive definite | 0.669 | 0.568 | 0.050 | 13x |
 
 Repeated runs move these ratios by 10 to 20 per cent. Taken together, Tables 1 and 2
-come back 22x faster, Tables D.1 and 4 5.1x, and all four 9.7x.
+come back 25x faster, Tables D.1 and 4 6.6x, and all four 12x.
 
-The speed-up is against the replication. `synthx.estimate` runs within 10 per cent of
+The speed-up is against the replication. `synthx.estimate` runs within 15 per cent of
 it, either way, since it calls the same solvers. Where the time goes, from
 `breakdown.py` (`results/breakdown.json`):
 
@@ -187,8 +187,9 @@ it, either way, since it calls the same solvers. Where the time goes, from
   visible facets, and 15 per cent in 170 SciPy LPs that test sign patterns face by
   face. This study spends 46 per cent gift-wrapping the 132 visible facets and 43 per
   cent in 343 least-squares solves at 0.12 to 0.2 ms each. Proposition 99 reaches one
-  face below the ridges, whose patterns take 28 least-distance tests, and 17 faces are
-  ruled out by the common-sign relaxation before any are listed.
+  face below the ridges, which the branch and bound settles with one least-distance
+  test, and 17 faces are ruled out by the common-sign relaxation before they are
+  searched.
 - V, diagonal class. The replication finds the support of V and its implicit
   equalities with 40 LPs, about 1.6 ms each, mostly in SciPy's HiGHS wrapper; here one
   LP finds both, and 9 Newton runs follow, about 5 ms in all.
