@@ -7503,8 +7503,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-bracket-drops-the-inherited-bound"
-  find = "        heapq.heapreplace(heap, (max(bound, own), 0, i))"
-  replace = "        heapq.heapreplace(heap, (own, 0, i))"
+  find = "        heapreplace(heap, (max(bound, own), 0, i))"
+  replace = "        heapreplace(heap, (own, 0, i))"
   models = "a bounded node's own trust-region bound taken alone where the bound it inherited from a lift is higher"
 
   [[target.mutant]]

@@ -102,6 +102,7 @@ from __future__ import annotations
 
 import heapq
 import math
+from heapq import heapify, heapreplace
 from dataclasses import dataclass
 from fractions import Fraction
 from functools import lru_cache
@@ -746,7 +747,7 @@ def least_open_bound(
     nodes bounded. The cost exceeds ``budget`` by at most one node's.
     """
     heap = [(float(b), 1, i) for i, (b, _) in enumerate(items)]
-    heapq.heapify(heap)
+    heapify(heap)
     spent, evaluated = 0.0, 0
     while heap:
         bound, unbounded, i = heap[0]
@@ -755,7 +756,7 @@ def least_open_bound(
         own, cost = evaluate(*items[i])
         spent += cost
         evaluated += 1
-        heapq.heapreplace(heap, (max(bound, own), 0, i))
+        heapreplace(heap, (max(bound, own), 0, i))
     return np.inf, spent, evaluated
 
 
