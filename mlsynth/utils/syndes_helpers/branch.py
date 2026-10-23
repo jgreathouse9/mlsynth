@@ -117,9 +117,11 @@ PRUNE_RTOL = 1e-12
 #: Restarts of the swap search whose local optima seed the incumbent.
 RESTARTS = 32
 
-#: Seconds to price one set per unit of ``N``: 1.0 µs a set at 40 units on the
-#: enumeration's path after #828, on one thread.
-PRICE_SECONDS_PER_UNIT = 2.5e-8
+#: Seconds to price one set per unit of ``N``: 2.5 µs a set at 40 units on the
+#: enumeration's path, on one thread, from 24 to 50 units (#845). Below
+#: ``N = T + 1`` the closed form prices a set exactly; above it, a set it
+#: cannot price is fitted at the end, which this does not count.
+PRICE_SECONDS_PER_UNIT = 6.0e-8
 
 # the lift's schedule, BiqCrunch's defaults on parts divided by their largest entry
 ALPHA0, ALPHA_SCALE, ALPHA_MIN = 1e-1, 0.5, 5e-5
@@ -142,22 +144,26 @@ _SIGNS = np.array([[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]], dtype=np.i
 
 
 def trust_region_seconds(n: int) -> float:
-    """Seconds for one trust-region bound on ``n`` free units: 0.2 ms at 10 and
-    0.55 ms at 40."""
-    return 2e-4 + 5e-9 * n ** 3
+    """Seconds for one trust-region bound on ``n`` free units: 0.26 ms at 10,
+    0.53 ms at 40 and 0.63 ms at 60, on one thread (#845)."""
+    return 1.8e-4 + 8.5e-6 * n
 
 
 def certificate_seconds(n: int) -> float:
-    """Seconds to certify a bound on ``n`` free units in exact arithmetic: 1.4 ms
-    at 10 and 11 ms at 40. Paid only by a bound that prunes."""
-    return 6e-4 + 6.6e-6 * n ** 2
+    """Seconds to certify a bound on ``n`` free units in exact arithmetic: 1.7 ms
+    at 10, 13 ms at 40 and 31 ms at 60, on one thread (#845). Paid only by a
+    bound that prunes."""
+    return 9e-4 + 8.4e-6 * n ** 2
 
 
 def evaluation_seconds(n: int) -> float:
-    """Seconds for one evaluation of the lift's dual on ``n`` free units, an
-    eigendecomposition of an ``(n + 1)``-row matrix: 0.11 ms at 10 and 0.24 ms
-    at 40."""
-    return 1e-4 + 2e-9 * (n + 1) ** 3
+    """Seconds the lift spends per evaluation of its dual on ``n`` free units:
+    0.51 ms at 10, 1.0 ms at 40 and 1.3 ms at 60, on one thread (#845). The
+    eigendecomposition of an ``(n + 1)``-row matrix is a quarter to a third of
+    it; the rest is the evaluation's other arithmetic, the cut matrix, SciPy's
+    L-BFGS-B and the separation of triangles (#844). Up to 60 free units it
+    grows about linearly."""
+    return 3.4e-4 + 1.65e-5 * n
 
 
 # ----------------------------------------------------------------------

@@ -96,9 +96,11 @@ CANDIDATE_LIMIT = 20_000_000
 #: Seconds of work, in the branch and bound's cost model, that it may do at one
 #: size above the candidate limit before it stops and reports its gap. The model
 #: counts sets priced, bounds, lift evaluations and certificates, never a clock;
-#: at forty units a modelled second took two to three of the clock where most
-#: nodes lift, and under one where the search mostly prices.
-WORK_LIMIT = 60.0
+#: calibrated on one thread (#845), a modelled second took 0.89 to 1.07 seconds
+#: of the clock on six searches at 30 to 40 units. The searches the docs report
+#: at forty units with ten treated do about 60 modelled seconds; the default is
+#: twice that.
+WORK_LIMIT = 120.0
 
 #: Designs generated and scored per chunk while streaming. It changes no result.
 #: Scoring builds an ``(N, CHUNK)`` sign matrix; at 200,000 sets and 40 units that
