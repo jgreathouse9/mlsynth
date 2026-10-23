@@ -7531,6 +7531,110 @@ timeout = 1200.0
   replace = "    flush()"
   models = "the bracket's bounds and certificates left out of the work the search reports"
 
+  # #881: reliability branching. Each mutant changes which unit a node splits
+  # on, or what the pseudo-costs record, never the answer.
+  [[target.mutant]]
+  id = "a-fall-is-recorded-as-a-fall"
+  find = "        self.total[key] = self.total.get(key, 0.0) + max(rise, 0.0)"
+  replace = "        self.total[key] = self.total.get(key, 0.0) + rise"
+  models = "a child whose bound fell below its parent's counted as a negative rise, so a unit can score below one never split"
+
+  [[target.mutant]]
+  id = "an-infinite-rise-is-kept"
+  find = "        if not np.isfinite(rise):\n            return"
+  replace = "        if False:\n            return"
+  models = "a child with no admissible set recorded as an infinite rise, holding its unit's mean at infinity for the rest of the search"
+
+  [[target.mutant]]
+  id = "one-side-makes-a-unit-reliable"
+  find = "        return min(self.count.get((u, True), 0),"
+  replace = "        return max(self.count.get((u, True), 0),"
+  models = "a unit trusted once either side has RELIABLE rises, so the other side's mean rests on a few splits"
+
+  [[target.mutant]]
+  id = "an-unseen-side-scores-zero"
+  find = "        return sum(self.total.values()) / n if n else 1.0"
+  replace = "        return sum(self.total.values()) / n if n else 0.0"
+  models = "the stand-in for a side never split set to zero before any split, the convention the score's ties are not drawn for"
+
+  [[target.mutant]]
+  id = "the-score-leans-to-the-larger-rise"
+  find = "    return (1.0 - MU) * min(down, up) + MU * max(down, up)"
+  replace = "    return MU * min(down, up) + (1.0 - MU) * max(down, up)"
+  models = "the score's weights swapped, so a split that helps one child a lot and the other not at all scores best"
+
+  [[target.mutant]]
+  id = "a-trial-scores-its-falls"
+  find = "            s = score(max(down, 0.0), max(up, 0.0))"
+  replace = "            s = score(down, up)"
+  models = "a trial's fall scored as a negative rise, unlike the pseudo-costs it is compared with"
+
+  [[target.mutant]]
+  id = "a-trial-is-not-recorded"
+  find = "            costs.record(k, False, down)\n            costs.record(k, True, up)"
+  replace = "            pass"
+  models = "the trials' rises thrown away, so no unit ever becomes reliable and every node tries every unit"
+
+  [[target.mutant]]
+  id = "the-trials-never-stop"
+  find = "        elif stale >= LOOKAHEAD:\n            break"
+  replace = "        elif False:\n            break"
+  models = "the lookahead ignored, so a node tries every unreliable unit"
+
+  [[target.mutant]]
+  id = "a-better-score-does-not-reset-the-lookahead"
+  find = "            top, top_score, stale = k, s, 0"
+  replace = "            top, top_score = k, s"
+  models = "the count of trials without a better score kept across a better one, so the search stops early"
+
+  [[target.mutant]]
+  id = "a-decided-child-is-charged-as-a-bound"
+  find = "        return (4.0 * alpha / q if q > 0.0 else 0.0), False"
+  replace = "        return (4.0 * alpha / q if q > 0.0 else 0.0), True"
+  models = "a decided child's closed form charged and counted as a trust-region bound"
+
+  [[target.mutant]]
+  id = "a-decided-child-forgets-its-free-units"
+  find = "        sigma[list(I) + (list(F) if r == n else [])] = 1.0"
+  replace = "        sigma[list(I)] = 1.0"
+  models = "a child whose free units must all be treated read as treating only its fixed ones"
+
+  [[target.mutant]]
+  id = "an-empty-child-is-tried"
+  find = "                if not space_of(cI, cO).size:"
+  replace = "                if False:"
+  models = "a child with no admissible set under a stratum given a finite bound, so a split that removes it scores as an ordinary one"
+
+  [[target.mutant]]
+  id = "the-trials-are-free"
+  find = "                    counts[\"work\"] += trust_region_seconds(len(cF))"
+  replace = "                    pass"
+  models = "the trials' trust-region bounds left out of the work, so the limit misses them"
+
+  [[target.mutant]]
+  id = "the-trial-sides-are-swapped"
+  find = "            return bounds[0], bounds[1]"
+  replace = "            return bounds[1], bounds[0]"
+  models = "a trial's bounds handed back include side first, so each rise is recorded on the other side"
+
+  [[target.mutant]]
+  id = "a-bounded-child-records-nothing"
+  find = "            costs.record(origin[0], origin[1], here - origin[2])"
+  replace = "            pass"
+  models = "the rises seen when children are bounded thrown away, so the pseudo-costs learn only from trials"
+
+  [[target.mutant]]
+  id = "a-bounded-child-records-its-bound"
+  find = "                push(key, *child, sub, inherited, (u, include, here))"
+  replace = "                push(key, *child, sub, inherited, (u, include, 0.0))"
+  models = "the parent's bound dropped from the child's origin, so the rise recorded is the child's bound itself"
+
+  [[target.mutant]]
+  id = "every-node-splits-on-its-first-unit"
+  find = "        u = reliable_unit(F, costs, here, trials_at(I, O, F))"
+  replace = "        u = F[0]"
+  models = "the root relaxation's order back in place of reliability branching, the rule #881 replaced"
+
   [[target.mutant]]
   id = "children-keyed-below-their-parent"
   find = "            key = max(key, 4.0 * alpha / U)"

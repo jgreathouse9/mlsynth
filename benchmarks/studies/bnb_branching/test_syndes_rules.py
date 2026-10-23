@@ -34,13 +34,13 @@ def _setup(Y):
 def test_the_library_choices_are_the_library(make, N, K, seed):
     problem, engine = _setup(make(N, seed=seed))
     lib = branch.branch_and_bound(problem, engine, K, SubsetFilter())
-    got = sr.search(problem, engine, K)
-    assert (got["nodes"], got["lifts"], got["pruned"], got["priced"]) == (
-        lib.nodes, lib.lifts, lib.pruned, lib.priced)
+    got = sr.search(problem, engine, K, rule="pseudo")
+    assert (got["nodes"], got["lifts"], got["pruned"], got["priced"], got["trials"]) == (
+        lib.nodes, lib.lifts, lib.pruned, lib.priced, lib.trials)
     assert got["work"] == pytest.approx(lib.work, rel=1e-12)
     assert got["value"] == pytest.approx(lib.value, rel=1e-12)
     assert got["lower"] == pytest.approx(lib.lower, rel=1e-12)
-    assert got["certified"] == lib.certified and got["trials"] == 0
+    assert got["certified"] == lib.certified
 
 
 @given(st.integers(8, 11), st.integers(0, 10 ** 6), st.booleans(),

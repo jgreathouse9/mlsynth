@@ -8,9 +8,13 @@ searched here, and the search returns the same optimum.
 Nodes. A node fixes some units into the treated set (``I``), some out of it
 (``O``), and leaves ``F`` free; its subtree is every admissible treated set of
 size ``K`` that contains ``I`` and avoids ``O``. A node is either priced set by
-set, exactly as the enumeration prices, or bounded and split on its first free
-unit, in the order of the root relaxation's maximiser, into a child that
-includes the unit and one that excludes it. Best first: the open node whose
+set, exactly as the enumeration prices, or bounded and split on a free unit
+into a child that includes the unit and one that excludes it. The unit is
+chosen by reliability branching (:func:`reliable_unit`; Achterberg, Koch and
+Martin 2005): each unit's mean rise in bound per split, by side, is recorded,
+a unit with too few rises is tried by its children's trust-region bounds, and
+the free units start in the order of the root relaxation's maximiser (#881).
+Best first: the open node whose
 parent's bound is smallest is bounded next, so a search stopped at its limit
 has raised the smallest open bound as far as its work allowed; between equal
 bounds the node pushed last goes first, so a split dives into the child that
@@ -67,8 +71,8 @@ survives is lifted when pricing it costs more than a lift, weighted by the
 lift's own chance. Each chance is estimated per subtree size as the search runs,
 pooled across sizes (:class:`PruneRates`), and the lift's cost is learned from
 the lifts paid for, in evaluations (:class:`LiftCost`). The costs are constants
-and counts, never a clock, so a search makes the same decisions on every
-machine; they decide where it spends time, never what it proves.
+and counts, never a clock, so the same arithmetic makes the same decisions on
+any machine; they decide where it spends time, never what it proves.
 
 Restrictions. Forced and forbidden units start the root's ``I`` and ``O``;
 forced units and stratum quotas decide how many sets a node holds
@@ -79,9 +83,9 @@ the filter. A bound over more sets than the admissible ones is still a bound.
 Limits. ``work_limit`` caps the search's work in the cost model's seconds: the
 sets priced, the bounds, the lifts' evaluations and the certificates, each at its
 modelled cost, so it caps a search whose bounds do not prune as well as one whose
-lifts do. It reads counts, never a clock, so a search stops at the same node on
-every machine. A search that reaches it stops and returns its best design, with
-the smallest certified bound over the nodes still open. Only the smallest
+lifts do. It reads counts, never a clock, so the same arithmetic stops at the
+same node on any machine. A search that reaches it stops and returns its best
+design, with the smallest certified bound over the nodes still open. Only the smallest
 decides the bracket, so the open nodes are bounded lowest first
 (:func:`least_open_bound`), with what the limit left and at most
 ``BRACKET_SHARE`` of it past it; a node the budget does not reach keeps the
@@ -152,6 +156,11 @@ LIFT_EVALUATIONS = 300.0
 #: Share of the work limit a stopped search may spend past it bounding the
 #: nodes it left open (:func:`least_open_bound`), on top of what the limit left.
 BRACKET_SHARE = 0.05
+
+#: Reliability branching's defaults in Achterberg, Koch and Martin (2005):
+#: eight rises a side before a unit's pseudo-cost is trusted, four trials in a
+#: row without a better score, and a sixth of the larger rise in the score.
+RELIABLE, LOOKAHEAD, MU = 8, 4, 1.0 / 6.0
 
 # signs of (X_ij, X_ik, X_jk) in each type; type 1 has no negative edge, the
 # others one positive edge: (i, j), (i, k), (j, k)
@@ -724,6 +733,106 @@ class BranchOutcome:
     priced: int
     solved: int
     work: float
+    trials: int = 0
+
+
+# ----------------------------------------------------------------------
+# the branching unit
+# ----------------------------------------------------------------------
+
+
+class PseudoCosts:
+    """Each unit's mean rise in bound per split of it, by side (``True`` for the
+    child that includes it). A fall counts as no rise. An infinite rise, from a
+    child with no admissible set, is not recorded: it would hold the unit's mean
+    at infinity for the rest of the search."""
+
+    def __init__(self) -> None:
+        self.total: Dict[Tuple[int, bool], float] = {}
+        self.count: Dict[Tuple[int, bool], int] = {}
+
+    def record(self, u: int, include: bool, rise: float) -> None:
+        if not np.isfinite(rise):
+            return
+        key = (u, include)
+        self.total[key] = self.total.get(key, 0.0) + max(rise, 0.0)
+        self.count[key] = self.count.get(key, 0) + 1
+
+    def reliable(self, u: int) -> bool:
+        """Whether ``u`` has ``RELIABLE`` rises recorded on both sides."""
+        return min(self.count.get((u, True), 0),
+                   self.count.get((u, False), 0)) >= RELIABLE
+
+    def mean(self, u: int, include: bool, default: float) -> float:
+        n = self.count.get((u, include), 0)
+        return self.total[(u, include)] / n if n else default
+
+    def overall(self) -> float:
+        """The mean rise over every split recorded; one before any is."""
+        n = sum(self.count.values())
+        return sum(self.total.values()) / n if n else 1.0
+
+
+def score(down: float, up: float) -> float:
+    """A split's score from its two rises, ``(1 - MU) min + MU max``: the
+    smaller rise counts most, since the search must bound both children."""
+    return (1.0 - MU) * min(down, up) + MU * max(down, up)
+
+
+def trial_bound(R: np.ndarray, alpha: float, K: int, I: Sequence[int],
+                O: Sequence[int], F: Sequence[int]) -> Tuple[float, bool]:
+    """A child's bound as a trial reads it, and whether it is a trust-region
+    bound, charged as one. A child with every unit decided holds one set, and
+    its closed form is the bound; a child whose size cannot be reached holds
+    none, and its bound is infinite. A relaxation with no positive maximum
+    gives no bound, read as zero."""
+    r, n = K - len(I), len(F)
+    if r < 0 or r > n:
+        return np.inf, False
+    if r == 0 or r == n:
+        sigma = -np.ones(R.shape[0])
+        sigma[list(I) + (list(F) if r == n else [])] = 1.0
+        q = float(sigma @ R @ sigma)
+        return (4.0 * alpha / q if q > 0.0 else 0.0), False
+    U, _, _ = trust_region(*node_parts(R, I, O, F), 2 * r - n)
+    return (4.0 * alpha / U if np.isfinite(U) and U > 0.0 else 0.0), True
+
+
+def reliable_unit(F: Sequence[int], costs: PseudoCosts, here: float,
+                  trial: Callable[[int], Tuple[float, float]]) -> int:
+    """The free unit a node splits on, by reliability branching (Achterberg,
+    Koch and Martin 2005).
+
+    The units are taken in order of their pseudo-costs' score, the mean over
+    every split standing in for a side never split, and ``F``'s order breaks
+    ties: before any split it is the root relaxation's order. A reliable unit
+    is scored by its pseudo-costs. Any other is tried: ``trial(k)`` returns the
+    bounds of the children excluding and including ``k``, and their rises over
+    the node's bound ``here`` are recorded and scored. The search ends after
+    ``LOOKAHEAD`` trials in a row without a better score, and returns the unit
+    that scored best, the first among equals.
+    """
+    default = costs.overall()
+
+    def estimate(k: int) -> float:
+        return score(costs.mean(k, False, default), costs.mean(k, True, default))
+
+    order = sorted(F, key=lambda k: -estimate(k))
+    top, top_score, stale = order[0], -np.inf, 0
+    for k in order:
+        if costs.reliable(k):
+            s = estimate(k)
+        else:
+            down, up = (b - here for b in trial(k))
+            costs.record(k, False, down)
+            costs.record(k, True, up)
+            s = score(max(down, 0.0), max(up, 0.0))
+            stale += 1
+        if s > top_score:
+            top, top_score, stale = k, s, 0
+        elif stale >= LOOKAHEAD:
+            break
+    return top
 
 
 def least_open_bound(
@@ -814,6 +923,7 @@ def branch_and_bound(
         def lift_cost(n, p):
             return lift_seconds(n)
     bound_rates, lift_rates = PruneRates(), PruneRates()
+    costs = PseudoCosts()
 
     I0 = tuple(sorted(filt.forced_in))
     O0 = tuple(sorted(filt.forbidden))
@@ -830,7 +940,7 @@ def branch_and_bound(
     pending: List[Tuple[np.ndarray, np.ndarray]] = []
     buffer: List[np.ndarray] = []
     counts = {"priced": 0, "buffered": 0, "nodes": 0, "lifts": 0, "pruned": 0,
-              "work": 0.0}
+              "work": 0.0, "trials": 0}
 
     def price_block(sets: np.ndarray) -> None:
         value, S, open_sets, open_bounds, seconds = leaves.price(sets, best[0])
@@ -876,6 +986,33 @@ def branch_and_bound(
     def space_of(I, O) -> SearchSpace:
         return SearchSpace.build(N, K, forced=I, forbidden=O, strata=filt.strata)
 
+    def split(I, O, F, u):
+        """The children on ``u``: one without it, and one with it and without
+        its conflict partners."""
+        out = partners.get(u, set())
+        rest = tuple(k for k in F if k != u)
+        return ((I, O + (u,), rest),
+                (I + (u,), O + tuple(k for k in rest if k in out),
+                 tuple(k for k in rest if k not in out)))
+
+    def trials_at(I, O, F):
+        """The node's trial: both children's bounds on a unit, a trust-region
+        bound charged as one; a decided child's closed form, one quadratic form,
+        is not charged."""
+        def trial(k):
+            bounds = []
+            for cI, cO, cF in split(I, O, F, k):
+                if not space_of(cI, cO).size:
+                    bounds.append(np.inf)
+                    continue
+                b, bounded = trial_bound(R, alpha, K, cI, cO, cF)
+                if bounded:
+                    counts["trials"] += 1
+                    counts["work"] += trust_region_seconds(len(cF))
+                bounds.append(b)
+            return bounds[0], bounds[1]
+        return trial
+
     # the incumbent: the caller's sets and the swap search's local optima
     seeds = []
     if incumbent_sets is not None and len(np.atleast_2d(incumbent_sets)):
@@ -900,10 +1037,11 @@ def branch_and_bound(
     # node that can hold none, or have r out of range, or force two units that
     # conflict: a child includes a unit only with its partners sent out.
     # An open node: its parent's bound (the key), a tie-break that sends the
-    # node pushed last first, the node, and its nearest lifted ancestor's
-    # certified bound.
+    # node pushed last first, the node, its nearest lifted ancestor's certified
+    # bound, and the split that made it: the unit, the side, and the parent's
+    # trust-region bound, from which its rise is recorded.
     Node = Tuple[float, int, Tuple[int, ...], Tuple[int, ...], Tuple[int, ...],
-                 SearchSpace, float]
+                 SearchSpace, float, Optional[Tuple[int, bool, float]]]
     heap: List[Node] = []
     dive: List[Node] = []
     pushed = [0]
@@ -912,9 +1050,9 @@ def branch_and_bound(
         # a design to return: a value, or a set priced or waiting to be
         return bool(np.isfinite(best[0]) or pending or buffer)
 
-    def push(key, I, O, F, space, inherited) -> None:
+    def push(key, I, O, F, space, inherited, origin) -> None:
         pushed[0] += 1
-        entry = (key, -pushed[0], I, O, F, space, inherited)
+        entry = (key, -pushed[0], I, O, F, space, inherited, origin)
         if found():
             heapq.heappush(heap, entry)
         else:
@@ -929,14 +1067,14 @@ def branch_and_bound(
 
     root = space_of(I0, O0)
     if root.size and not any(partners.get(u, set()) & set(I0) for u in I0):
-        push(-np.inf, I0, O0, order, root, -np.inf)
+        push(-np.inf, I0, O0, order, root, -np.inf, None)
     closed = True
     while heap or dive:
         if counts["work"] >= work_limit:
             closed = False
             break
         entry = pop()
-        key, _, I, O, F, space, inherited = entry
+        key, _, I, O, F, space, inherited, origin = entry
         r, n = K - len(I), len(F)
         bucket = space.size.bit_length()
         p_bound = bound_rates.rate(bucket)
@@ -954,6 +1092,9 @@ def branch_and_bound(
         parts = node_parts(R, I, O, F)
         s = 2 * r - n
         U, _, m = trust_region(*parts, s)
+        here = 4.0 * alpha / U if np.isfinite(U) and U > 0.0 else 0.0
+        if origin is not None:
+            costs.record(origin[0], origin[1], here - origin[2])
         hit = discards(I, O, F, U, m)
         bound_rates.record(bucket, hit)
         p_lift = lift_rates.rate(bucket)
@@ -978,14 +1119,11 @@ def branch_and_bound(
                 inherited = max(inherited, round_down(four_alpha / exact))
         if np.isfinite(U) and U > 0.0:
             key = max(key, 4.0 * alpha / U)
-        u, rest = F[0], F[1:]
-        out = partners.get(u, set())
-        for child in ((I, O + (u,), rest),
-                      (I + (u,), O + tuple(k for k in rest if k in out),
-                       tuple(k for k in rest if k not in out))):
+        u = reliable_unit(F, costs, here, trials_at(I, O, F))
+        for include, child in zip((False, True), split(I, O, F, u)):
             sub = space_of(child[0], child[1])
             if sub.size:
-                push(key, *child, sub, inherited)
+                push(key, *child, sub, inherited, (u, include, here))
 
     # what the limit left open: a decided node is priced; any other keeps its
     # inherited bound, or its own trust-region bound, certified, where that is
@@ -993,7 +1131,7 @@ def branch_and_bound(
     # below the Rayleigh bound
     rayleigh = engine.global_lower_bound(K)
     undecided = []
-    for _, _, I, O, F, space, inherited in heap + dive:
+    for _, _, I, O, F, space, inherited, _ in heap + dive:
         r = K - len(I)
         if r == 0 or r == len(F):
             enumerate_subtree(space)
@@ -1039,7 +1177,8 @@ def branch_and_bound(
             duality_gap=0.0, lower=float(lower), closed=closed,
             certified=bool(lower >= float(cutoff) * (1.0 - CERTIFY_RTOL)),
             nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
-            priced=counts["priced"], solved=solved, work=counts["work"])
+            priced=counts["priced"], solved=solved, work=counts["work"],
+            trials=counts["trials"])
     if best[1] is None:
         if not closed:
             raise MlsynthEstimationError(
@@ -1062,4 +1201,5 @@ def branch_and_bound(
         certified=bool(gap / scale <= CERTIFY_RTOL
                        and value - lower <= CERTIFY_RTOL * scale),
         nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
-        priced=counts["priced"], solved=solved, work=counts["work"])
+        priced=counts["priced"], solved=solved, work=counts["work"],
+        trials=counts["trials"])

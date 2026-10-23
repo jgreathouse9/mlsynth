@@ -869,11 +869,29 @@ have returned, certified.
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
 remaining treated units among the free ones. A node is either priced design by
-design, as the enumeration prices, or bounded and split on its first free unit
-into a child that treats the unit and one that does not. A bound pays off only
-when it rules out the node's designs at once, so the search bounds a node only
-when pricing its designs would cost more than the bound, weighted by how often
+design, as the enumeration prices, or bounded and split on one free unit into
+a child that treats the unit and one that does not. A bound pays off only when
+it rules out the node's designs at once, so the search bounds a node only when
+pricing its designs would cost more than the bound, weighted by how often
 bounds have ruled out nodes of that size so far.
+
+The unit a node splits on is chosen by reliability branching (Achterberg, Koch
+and Martin 2005). Each child's bound is at least its parent's, and the search
+records, for each unit and each side of a split on it, the mean rise in bound
+it has seen, the unit's pseudo-cost. A node splits on the unit whose two rises
+score best, the score :math:`\tfrac{5}{6}\min + \tfrac{1}{6}\max` of the
+two, since both children must be searched and the smaller rise decides how
+much the split helps. A unit with fewer than eight rises recorded on a side has
+no reliable pseudo-cost, so it is tried: both children's trust-region bounds
+are computed, charged as bounds, and recorded. The search stops trying after
+four trials in a row without a better score. Before any split the units are
+taken in the order of the root relaxation's maximiser. On the study's nine
+panels of forty units with six, eight and ten treated, the seven searches that
+certify did 31% less work than splitting on the first unit in that order, and
+the two stopped at the limit ended closer to their bound (0.110% from it
+against 0.170% at ten treated). The rule lost on the smallest search (no
+structure, six treated: 17.0 modelled seconds against 11.2). The comparison is
+`benchmarks/studies/bnb_branching <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/bnb_branching>`_.
 
 The next node is the open one whose parent had the smallest bound (best first),
 so a search stopped at its limit has raised its smallest open bound as far as
@@ -951,8 +969,11 @@ limit past it (6 modelled seconds at the default); a node that budget does not
 reach keeps the bound it inherited, which is still a bound. The design
 is certified when that bound reaches it; otherwise a ``SYNDESSolveWarning`` says
 it is not a proven optimum. The costs and the limit are constants and counts,
-never a clock, so a search makes the same decisions, and stops at the same node,
-on every machine.
+never a clock, so the same arithmetic makes the same decisions, and stops at the
+same node, on any machine. A different BLAS kernel can round a bound differently
+and, through the pseudo-costs, send the search down another path: on the
+benchmark panels the designs and certificates agree, and the work differs by up
+to a fifth.
 
 With ``K=None`` every size is searched, the cheapest first. A design of one size
 bounds the others, so before any size is searched the swap search on

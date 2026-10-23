@@ -4,17 +4,18 @@
 choices opened up, and everything else, the bounds, their certificates, the
 cost model, the node order and the work limit, taken from the library as it
 stands. A test holds it to the library count for count under the library's
-choices (``rule="root"``, ``seeds="swap"``).
+choices (``rule="pseudo"`` since #881, ``seeds="swap"``).
 
 The branching unit (``rule``):
 
-- ``root``, the library's: the free units in the order of the root
+- ``root``, the library's until #881: the free units in the order of the root
   trust region's maximiser, largest first, and every node splits on its first;
 - ``easy``: at each bounded node, the free unit whose entry in that node's
   trust-region maximiser is largest in magnitude, the one the relaxation is
   surest of;
 - ``hard``: the one whose entry is smallest in magnitude;
-- ``pseudo``: reliability branching (Achterberg, Koch and Martin 2005). Each
+- ``pseudo``, the library's since #881: reliability branching (Achterberg,
+  Koch and Martin 2005). Each
   unit's pseudo-cost is the mean gain in bound per split of it, up and down. A
   unit with fewer than ``RELIABLE`` gains on either side is tried, at most
   ``LOOKAHEAD`` such trials in a row without a better score: both children's
