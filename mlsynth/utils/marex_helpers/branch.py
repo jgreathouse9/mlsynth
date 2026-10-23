@@ -73,6 +73,15 @@ certificate comes with it: ``lower <= f* <= f(design) <= upper``, with the sets
 whose exact lower bound does not clear ``upper`` listed as unresolved, as
 :func:`~mlsynth.utils.marex_helpers.certify.certify_cluster` lists them.
 
+The work limit. The search charges its work in the cost model's seconds: a
+set priced at ``price_seconds``, a bound at ``lift_seconds(k)``. It does not
+start a pricing or a bound that would take its work past ``work_limit``. A
+search stopped there returns the best design it found, and its certificate's
+lower bound is the least of the bounds of the nodes it left open, so the
+certificate still brackets the optimum; ``open`` counts those nodes, and a
+search with none open has proved its design optimal. Only a search stopped
+before it found any design raises.
+
 Restrictions. Forced and forbidden units start the root's ``I`` and ``O``;
 stratum quotas and forced units decide how many sets a node holds
 (:func:`~mlsynth.utils.marex_helpers.exact.count_candidates`, which drops a node
@@ -98,7 +107,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..syndes_helpers.exact import SubsetFilter
 from .certify import ClusterCertificate, Dyadic, ExactData, round_down, round_up
 from .exact import (ClusterDesign, SearchNotClosed, _TopK, _chunks,
@@ -108,8 +117,13 @@ from .exact import (ClusterDesign, SearchNotClosed, _TopK, _chunks,
 #: the search spends time, never what it proves.
 PRICE_SECONDS = 1e-6
 
-#: Bounds the search may compute before it stops and reports its gap.
-MAX_LIFTS = 1_000
+#: The work a search may do, in the cost model's seconds, before it stops and
+#: returns its best design with the bracket it reached. Every search the docs
+#: report closes well inside it: Walmart with eight treated does 145 seconds of
+#: it, and the BLS panel with 80 markets and six treated
+#: (``benchmarks/studies/bnb_scale``) at most about 450 (11 bounds and 169
+#: million sets).
+WORK_LIMIT = 600.0
 
 #: The solver of the persp+N relaxation.
 SOLVER = "CLARABEL"
@@ -413,13 +427,23 @@ class BranchResult:
 
     ``designs`` are the ``top_k`` best, best first; ``certificate`` brackets the
     best one; ``lifts`` counts the persp+N bounds computed and ``priced`` the
-    sets priced one at a time.
+    sets priced one at a time. ``work`` is the work done in the cost model's
+    seconds, the quantity ``work_limit`` caps, and ``open`` counts the nodes
+    the limit left open whose bound does not clear the design: none when the
+    search closed.
     """
 
     designs: List[ClusterDesign]
     certificate: ClusterCertificate
     lifts: int
     priced: int
+    work: float
+    open: int
+
+    @property
+    def closed(self) -> bool:
+        """Whether the search proved its design optimal."""
+        return self.open == 0
 
 
 def branch_and_bound(
@@ -434,7 +458,7 @@ def branch_and_bound(
     top_k: int = 1,
     price_seconds: float = PRICE_SECONDS,
     lift_seconds: Callable[[int], float] = lift_seconds,
-    max_lifts: int = MAX_LIFTS,
+    work_limit: float = WORK_LIMIT,
 ) -> BranchResult:
     """The ``top_k`` best designs of one cluster by a certified branch and bound.
 
@@ -444,14 +468,19 @@ def branch_and_bound(
 
     Raises
     ------
+    MlsynthConfigError
+        For a ``work_limit`` that is not a positive finite number.
     MlsynthDataError
         For a panel with a NaN or an infinite value.
     MlsynthEstimationError
         When no admissible design exists.
     SearchNotClosed
-        When ``max_lifts`` bounds did not close the gap; the message gives the
-        certified bracket reached.
+        When the work limit is reached before any design is found.
     """
+    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
+            or not np.isfinite(work_limit) or work_limit <= 0):
+        raise MlsynthConfigError(
+            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
     data = ExactData(B, A)
     B, A, n = data.B, data.A, data.n
     lin_t = None if linear_treated is None else np.asarray(linear_treated, float)
@@ -467,7 +496,8 @@ def branch_and_bound(
     best = _TopK(top_k)
     brackets: Dict[Tuple[int, ...], Tuple[Fraction, Fraction]] = {}
     floors: Dict[Tuple[int, ...], Fraction] = {}
-    state = {"lifts": 0, "priced": 0, "admissible": False}
+    state = {"lifts": 0, "priced": 0, "work": 0.0, "admissible": False}
+    left: List[Fraction] = []          # the bounds of the nodes the limit left open
 
     def pool(S: Sequence[int]) -> List[int]:
         drop = set(S)
@@ -562,8 +592,13 @@ def branch_and_bound(
         state["admissible"] = True
         if len(O) + len(F) - r < 1:              # every set treats every market
             continue
-        if count < 2 or not count * price_seconds > lift_seconds(
-                max(len(I) + len(F), len(O) + len(F))):
+        k = max(len(I) + len(F), len(O) + len(F))
+        if count < 2 or not count * price_seconds > lift_seconds(k):
+            charge = count * price_seconds
+            if state["work"] + charge > work_limit:
+                left.append(bound)
+                break
+            state["work"] += charge
             price(m, sub, O, F)
             continue
         h_floor = control_floor(tuple(sorted(O + F)))
@@ -571,19 +606,11 @@ def branch_and_bound(
         bound = max(bound, g_floor + h_floor)
         if clears(bound):
             continue
-        if state["lifts"] >= max_lifts:
-            lows = [item[0] for item in queue] + [bound]
-            lows += [lo for lo, _ in brackets.values()]
-            lower = min(lows)
-            cut = threshold()
-            raise SearchNotClosed(
-                f"The branch and bound computed {max_lifts:,} bounds without "
-                f"closing its gap: the best design found is within "
-                f"{'an unknown amount' if cut is None else f'{float(cut - lower):.6g}'} "
-                f"of the optimum ({float(lower):.6g} <= f* <= "
-                f"{'inf' if cut is None else f'{float(cut):.6g}'}). Use "
-                f"backend='mip', or narrow the design with restrictions or a "
-                f"smaller treated count.")
+        charge = lift_seconds(k)
+        if state["work"] + charge > work_limit:
+            left.append(bound)
+            break
+        state["work"] += charge
         nb = node_bound(data, m, I, O, F, lin_t, lin_c)
         state["lifts"] += 1
         if nb.lower is not None:
@@ -603,6 +630,13 @@ def branch_and_bound(
         heapq.heappush(queue, (bound, next(counter), m, I, tuple(sorted(O + (j,))),
                                tuple(k for k in F if k != j)))
 
+    left += [item[0] for item in queue]
+    if left and not best.items:
+        raise SearchNotClosed(
+            f"The branch and bound reached its work limit ({work_limit:g} modelled "
+            f"seconds) before it found an admissible design. Narrow the design "
+            f"with restrictions, clusters or a smaller treated count, or raise "
+            f"work_limit.")
     if not best.items:
         if not state["admissible"]:
             raise MlsynthEstimationError(
@@ -618,8 +652,11 @@ def branch_and_bound(
         if S != top.treated and lo <= upper:
             unresolved.append(S)
             lower = min(lower, lo)
+    still_open = [b for b in left if not clears(b)]
+    lower = min([lower] + still_open)
     certificate = ClusterCertificate(lower=round_down(lower), upper=round_up(upper),
                                      unresolved=tuple(sorted(unresolved)),
                                      fitted=len(brackets))
     return BranchResult(designs=list(best.items), certificate=certificate,
-                        lifts=state["lifts"], priced=state["priced"])
+                        lifts=state["lifts"], priced=state["priced"],
+                        work=state["work"], open=len(still_open))

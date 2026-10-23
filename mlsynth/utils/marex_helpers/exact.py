@@ -254,7 +254,7 @@ class CoupledFitNotCertified(MlsynthEstimationError):
 
 
 class SearchNotClosed(MlsynthEstimationError):
-    """The branch and bound ran out of bounds before its gap closed."""
+    """The branch and bound reached its work limit before it found a design."""
 
 
 def _coupled_point(Bs: np.ndarray, Bc: np.ndarray, A: np.ndarray, beta: float,
@@ -1281,8 +1281,19 @@ def _designs(
                 designs, cert = found.designs, found.certificate
                 report.timing["branch_and_bound"] = time.perf_counter() - clock
                 report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,
-                                     bnb_priced=found.priced, fitted=cert.fitted)
+                                     bnb_priced=found.priced, fitted=cert.fitted,
+                                     bnb_work=found.work, bnb_open=found.open)
                 kind = "branch_and_bound"
+                if not found.closed:
+                    upper = float(cert.upper)
+                    warnings.warn(
+                        f"MAREX exact search, cluster {str(lab)!r}: the branch and "
+                        f"bound reached its work limit with {found.open} node(s) "
+                        f"still open; the design is the best found, within "
+                        f"{float(cert.gap) / max(abs(upper), 1e-300):.3g} of the "
+                        "optimum relative to its objective, not a proven optimum. "
+                        "Narrow the design with restrictions, clusters or a smaller "
+                        "treated count.", MAREXSearchWarning, stacklevel=3)
             else:
                 designs = search_cluster(
                     B_k, A_k, sizes, filt=filt,

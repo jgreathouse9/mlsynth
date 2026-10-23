@@ -782,7 +782,9 @@ counts them:
 
 The six add up to ``candidates``. Above the candidate limit the branch and
 bound reports the bounds it computed (``bnb_bounds``), the sets it priced one at
-a time (``bnb_priced``) and the designs it fitted.
+a time (``bnb_priced``), the designs it fitted, its work in the cost model's
+seconds (``bnb_work``) and the nodes its work limit left open (``bnb_open``,
+zero when it proved its design optimal).
 
 ``res.search.clearance`` is a histogram of how far each discarded set's bound
 sat above the incumbent, relative to it, in log-spaced bins; ``quantile(q)``
@@ -943,11 +945,19 @@ which the exact backend refused before, takes 35.5 seconds with
 `benchmarks/studies/marex_bnb/library_search.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/studies/marex_bnb/library_search.py>`_.
 
-The search raises after a thousand bounds without closing its gap, giving the
-bracket it reached and naming ``backend="mip"``. A bound's cost grows with
-the cube of the markets on a side, so at a few hundred markets in one cluster
-it is out of reach; clusters, restrictions or a smaller treated count bring each
-search back within it. The weakly-targeted design couples the treated and
+The search counts its work in the same cost model that decides where it
+spends time: a microsecond per set priced and :math:`1 + 3 (k / 40)^3` seconds
+per bound with :math:`k` markets on the larger side. It stops at 600 such
+seconds, and does not start a pricing or a bound that would take it past them.
+Every search in the table above closes well inside the limit (Walmart with eight
+treated does about 150 of them). A search stopped there returns the best design
+it found and warns with a ``MAREXSearchWarning`` giving its relative gap. Its
+certificate stays valid: the lower bound is the least bound among the nodes it
+left open, so the certificate brackets the optimum, and
+``res.search.counts.bnb_open`` counts those nodes. Only a search stopped before
+it found any design raises. A bound's cost grows with the cube of the markets on
+a side, so at a few hundred markets in one cluster the limit binds; clusters,
+restrictions or a smaller treated count bring each search back within it. The weakly-targeted design couples the treated and
 control fits, which the bound splits, so it is refused above the limit. The
 tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
 the bound, with the papers behind each piece, is in

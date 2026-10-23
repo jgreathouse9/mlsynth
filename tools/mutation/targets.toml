@@ -585,9 +585,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-stopped-search-claims-optimality"
-  find = "    status = \"optimal\" if outcome.closed else \"node_limit\""
+  find = "    status = \"optimal\" if outcome.closed else \"work_limit\""
   replace = "    status = \"optimal\""
-  models = "a search stopped at its node limit reported as optimal, the defect #805 removed from the MIP path"
+  models = "a search stopped at its work limit reported as optimal, the defect #805 removed from the MIP path"
 
   [[target.mutant]]
   id = "a-stopped-search-bounds-by-its-incumbent"
@@ -618,6 +618,51 @@ timeout = 300.0
   find = "            if mode_internal == \"per_unit\":"
   replace = "            if False:"
   models = "the exact per-unit request routed to the two-way search, which solves a different objective and returns a two-way design under a per-unit label"
+
+# One limit rule (#843): SYNDES's per-unit search counts its work in modelled
+# seconds, each fit by its matrix and each node by the panel's units, and stops
+# at work_limit, where it stopped at a node count.
+[[target]]
+name = "syndes-per-unit-work-limit"
+module-path = "mlsynth/utils/syndes_helpers/per_unit_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_per_unit_exact.py -q -p no:cacheprovider -x -k 'work or limit or charged or larger'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fit-is-not-charged"
+  find = "        self.work += fit_seconds(*B.shape)"
+  replace = "        self.work += 0.0"
+  models = "the fits left off the work, though they are most of a node's time, so a search that refits on every node never reaches its limit"
+
+  [[target.mutant]]
+  id = "a-node-is-not-charged"
+  find = "    node_seconds = NODE_SECONDS_PER_UNIT * N\n"
+  replace = "    node_seconds = 0.0\n"
+  models = "a node's own reading and sorting of its fits left off the work, a third of the hardest study run's time"
+
+  [[target.mutant]]
+  id = "a-fit-costs-the-same-at-any-size"
+  find = "    return FIT_SECONDS + FIT_SECONDS_PER_ENTRY * rows * cols"
+  replace = "    return FIT_SECONDS"
+  models = "every fit charged as the smallest, so the limit means fewer seconds on a panel of many periods or donors"
+
+  [[target.mutant]]
+  id = "the-limit-is-never-read"
+  find = "        if fits.work + nodes * node_seconds >= work_limit:"
+  replace = "        if False:"
+  models = "a search that runs until it closes whatever its limit, as the five-million-node cap did in practice"
+
+  [[target.mutant]]
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = best if closed else min([best] + [b for _, _, b in stack])"
+  replace = "    lower = best"
+  models = "a stopped search reporting its incumbent as the bound, as if the nodes it never searched held nothing better"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search stops at once instead of refusing the configuration"
 
 [[target]]
 name = "syndes-one-way-exact-wiring"
@@ -3984,6 +4029,46 @@ timeout = 300.0
                                if ".".join(parts[:i]) in by_name)"""
   models = "edges for what an import executes, not for what it reads: one config import becomes an importer of every structure its package re-exports, and a change to marex_helpers/structures.py selects 230 of 243 cases"
 
+# /rca: the PR suite ran the whole registry because no inventory reached main.
+# The night after the inventory could first be committed, two mapped cases
+# raised under pandas 3.1; their slice dropped them, the merge restored their
+# old entries, and an old entry vetoes the inventory. One mutant per cause.
+[[target]]
+name = "case-deps-unmeasured"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-merge-restores-a-case-its-shard-could-not-measure"
+  find = "    for name in failed - measured_in(slices):\n        out.pop(name, None)\n"
+  replace = "    for name in failed - measured_in(slices):\n        pass\n"
+  models = "the merge before the fix: a case a live shard ran and could not measure keeps its shipped entry, so one case that raises on a night withholds the inventory and the PR suite runs the whole registry"
+
+  [[target.mutant]]
+  id = "a-slice-does-not-say-what-it-could-not-measure"
+  find = "    if path is not None and skipped:"
+  replace = "    if False:"
+  models = "a shard that drops an unmeasured case from its slice without listing it, so the merge cannot tell it from a case in a shard that died"
+
+  [[target.mutant]]
+  id = "the-unmeasured-list-becomes-a-case"
+  find = "    return body, list(body.pop(UNMEASURED, []))"
+  replace = "    return body, list(body.get(UNMEASURED, []))"
+  models = "the list of unmeasured cases merged into the map as a case of its own, which the selection then always runs and the inventory check counts"
+
+  [[target.mutant]]
+  id = "a-failure-outranks-a-measurement"
+  find = "    for name in failed - measured_in(slices):"
+  replace = "    for name in failed:"
+  models = "a case one slice measured dropped because another listed it as unmeasured, so the order of the slices decides what is mapped"
+
+  [[target.mutant]]
+  id = "a-withheld-inventory-is-a-log-line"
+  find = '            print(f"::warning title=Case map::inventory not recorded -- {why}")'
+  replace = '            print(f"inventory: not recorded -- {why}")'
+  models = "the refusal printed into a green job's log, where it sat for a day while every pull request that touched an unmeasured module ran the whole registry"
+
 [[target]]
 name = "case-deps-measured-domain"
 module-path = "tools/benchmark_deps.py"
@@ -5559,6 +5644,56 @@ timeout = 900.0
   replace = "        if count < 2 or count * price_seconds > lift_seconds("
   models = "bounding the subtrees that are cheap to price and pricing the ones that are expensive"
 
+# MAREX's node bound by a regularised dual (#833): the study's dual and the
+# smooth bound it maximises, certified by the library's certificate.
+[[target]]
+name = "marex-dual"
+module-path = "benchmarks/studies/marex_dual/dual.py"
+test-command = "python -m pytest benchmarks/studies/marex_dual/test_dual.py -q -p no:cacheprovider -x"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-eigenvalue-term-taken-once"
+  find = "        exact += const + 2.0 * neg[0]"
+  replace = "        exact += const + neg[0]"
+  models = "the certificate's 2 min(0, lambda_min) per side read as one, forgetting tr M <= 2, so the float bound sits above the library's exact one"
+
+  [[target.mutant]]
+  id = "the-smoothing-costs-nothing"
+  find = "        smooth += const - (neg @ neg) / (2.0 * a) - 2.0 * a"
+  replace = "        smooth += const - (neg @ neg) / (2.0 * a)"
+  models = "the smooth bound without its 2a, which is then above the exact bound and no bound at all"
+
+  [[target.mutant]]
+  id = "the-simplex-bisects-the-wrong-way"
+  find = "            lo = nu\n        else:\n            hi = nu"
+  replace = "            hi = nu\n        else:\n            lo = nu"
+  models = "the capped simplex's multiplier moved away from its root, the defect the property test caught while the dual was written"
+
+  [[target.mutant]]
+  id = "the-coupling-gradient-flipped"
+  find = "        grad[b[\"beta\"][0]:b[\"beta\"][1]] = x - X.sum(axis=1)"
+  replace = "        grad[b[\"beta\"][0]:b[\"beta\"][1]] = X.sum(axis=1) - x"
+  models = "the gradient of X 1 = x's multipliers with the wrong sign, so L-BFGS-B climbs away from the bound on them"
+
+  [[target.mutant]]
+  id = "the-start-is-the-stuck-point"
+  find = "            lam[:, 0] = lam[:, 2] = lam0"
+  replace = "            lam[:, 0] = lam[:, 2] = 0.0"
+  models = "the perspective factors started at zero, where their gradient vanishes and they never move"
+
+  [[target.mutant]]
+  id = "the-best-multipliers-are-not-kept"
+  find = "            if ex > best[\"exact\"]:"
+  replace = "            if False:"
+  models = "the certificate read at the start point, not at the best iterate"
+
+  [[target.mutant]]
+  id = "the-target-is-ignored"
+  find = "            if goal is not None and best[\"exact\"] >= goal:\n                raise _Reached"
+  replace = "            if False:\n                raise _Reached"
+  models = "a node that already prunes solved to the end, the early stop the issue's procedure relies on"
+
 [[target]]
 name = "marex-branch-wiring"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
@@ -6460,6 +6595,150 @@ timeout = 600.0
   models = "a pool that reads any failure, a fit that did not converge among them, as an exhausted region and returns the designs it has"
 
 [[target]]
+name = "syndes-one-way-branch"
+module-path = "mlsynth/utils/syndes_helpers/one_way_exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_one_way_branch.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "past-the-limit-it-still-enumerates"
+  find = "    if space.size > candidate_limit:\n        return _search_by_branching("
+  replace = "    if False:\n        return _search_by_branching("
+  models = "an instance past the candidate limit enumerated anyway, so the limit means nothing and a search of 848 million sets runs to the end (#820)"
+
+  [[target.mutant]]
+  id = "a-set-with-no-control-is-a-design"
+  find = "            bounds[self._banned[sets].any(axis=1).all(axis=1)] = np.inf"
+  replace = "            pass"
+  models = "a set whose donor rules leave it no control bounded as a design, so it stays open and is fitted, or with every pool empty fills the open sets with the whole tree"
+
+  [[target.mutant]]
+  id = "the-fitted-set-stays-open"
+  find = "            alive[j] = False\n"
+  replace = "            pass\n"
+  models = "the set a block just fitted kept open beside its own value, fitted again at the end and charged twice"
+
+  [[target.mutant]]
+  id = "a-block-is-not-fitted-as-it-is-bounded"
+  find = "        if bounds[j] < best:\n            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
+  replace = "        if False:\n            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
+  models = "no incumbent from the sets a node prices, so the tree prunes only on the seeds and every set under them stays open to the end"
+
+  [[target.mutant]]
+  id = "a-block-keeps-sets-its-fit-rules-out"
+  find = "        alive &= bounds < min(best, value)"
+  replace = "        alive &= bounds < best"
+  models = "the open sets compared with the incumbent before the block's fit, so without a design every set the search prices stays open"
+
+  [[target.mutant]]
+  id = "the-resolution-fits-every-open-set"
+  find = "            if bounds[k] >= value:\n                break\n            if S is not None"
+  replace = "            if False:\n                break\n            if S is not None"
+  models = "the open sets fitted past the first bound that reaches the incumbent, each a fit of up to 10 ms that cannot change the design"
+
+  [[target.mutant]]
+  id = "the-resolution-ignores-the-limit"
+  find = "            if S is not None and seconds + self.seconds_per_fit > budget:"
+  replace = "            if False:"
+  models = "the open sets fitted however far past the work limit, so the limit caps the tree but not its leaves"
+
+  [[target.mutant]]
+  id = "the-resolution-stops-without-a-design"
+  find = "            if S is not None and seconds + self.seconds_per_fit > budget:"
+  replace = "            if seconds + self.seconds_per_fit > budget:"
+  models = "a search at its limit with open sets and no design that stops fitting, so it raises when one fit would have given it a design to return"
+
+  [[target.mutant]]
+  id = "a-stopped-resolution-reports-nothing-open"
+  find = "                return value, S, n_fit, seconds, float(bounds[k])"
+  replace = "                return value, S, n_fit, seconds, np.inf"
+  models = "a resolution stopped at the limit that reports no set left open, so the search reads as closed and its bound passes over the sets it never fitted"
+
+  [[target.mutant]]
+  id = "a-fit-in-a-block-is-free"
+  find = "            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
+  replace = "            value, S, seconds = self.value(sets[j]), sets[j], 0.0"
+  models = "a fit made while pricing a block not charged, so the limit misses the work of a search that fits a set in every block"
+
+  [[target.mutant]]
+  id = "a-fit-in-the-resolution-is-free"
+  find = "            seconds += self.seconds_per_fit\n"
+  replace = "            seconds += 0.0\n"
+  models = "the fits of the open sets not charged, so a search with many open sets runs past its limit"
+
+  [[target.mutant]]
+  id = "the-settled-treated-weights-are-one"
+  find = "        treated[np.asarray(S, dtype=np.int64)] = 1.0 / self.K"
+  replace = "        treated[np.asarray(S, dtype=np.int64)] = 1.0"
+  models = "the design's treated weights left at one instead of 1/K, so its contrast is not the one its objective prices"
+
+  [[target.mutant]]
+  id = "the-ridge-cost-is-linear-in-k"
+  find = "    return 3e-7 + 2.55e-8 * K ** 2"
+  replace = "    return 3e-7 + 2.55e-8 * K"
+  models = "a set's ridge bound costed as linear in K, 1.3 µs at forty treated where it measured 40 µs, so the search prices large subtrees it should bound"
+
+  [[target.mutant]]
+  id = "the-fit-cost-is-linear-in-the-pool"
+  find = "    return 2e-4 + 1.2e-6 * P ** 2"
+  replace = "    return 2e-4 + 1.2e-6 * P"
+  models = "a fit costed as linear in its pool, 0.3 ms at 98 controls where it measured 8 ms, so the limit undercounts the leaves"
+
+  [[target.mutant]]
+  id = "an-unbounded-limit-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or work_limit <= 0):"
+  models = "an infinite or NaN work_limit accepted, so a search meant to stop never does"
+
+  [[target.mutant]]
+  id = "the-limit-is-not-passed-on"
+  find = "    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed),\n                      float(work_limit))"
+  replace = "    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed))"
+  models = "the caller's work_limit validated and then dropped, so the search runs to the default"
+
+[[target]]
+name = "syndes-one-way-branch-tree"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_one_way_branch.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-tree-ignores-the-callers-leaves"
+  find = "    leaves = TwoWayLeaves(problem, engine) if leaves is None else leaves"
+  replace = "    leaves = TwoWayLeaves(problem, engine)"
+  models = "a one-way search whose sets are priced as two-way designs, so it returns the two-way optimum's treated set at the two-way value"
+
+  [[target.mutant]]
+  id = "the-tree-charges-two-ways-price"
+  find = "    modelled = leaves.seconds_per_set"
+  replace = "    modelled = PRICE_SECONDS_PER_UNIT * N"
+  models = "a one-way set charged the two-way closed form's price, a fixed 2.5e-8 a unit where the ridge bound's grows with K squared"
+
+  [[target.mutant]]
+  id = "the-leaves-work-is-not-charged"
+  find = "        counts[\"work\"] += seconds\n        if value < best[0]:"
+  replace = "        if value < best[0]:"
+  models = "the fits the leaves make while pricing a block not counted, so the limit misses them"
+
+  [[target.mutant]]
+  id = "the-resolution-gets-no-budget"
+  find = "            candidates, bounds, best[0], best[1], work_limit - counts[\"work\"])"
+  replace = "            candidates, bounds, best[0], best[1], np.inf)"
+  models = "the open sets resolved without the work left, so the leaves run past the limit the tree stopped at"
+
+  [[target.mutant]]
+  id = "open-sets-leave-the-tree-closed"
+  find = "            closed = False\n            open_lower = min(open_lower, unresolved)"
+  replace = "            open_lower = min(open_lower, unresolved)"
+  models = "sets the resolution left open counted as closed, so a stopped search reads as having finished its tree"
+
+  [[target.mutant]]
+  id = "open-sets-do-not-bound"
+  find = "            closed = False\n            open_lower = min(open_lower, unresolved)"
+  replace = "            closed = False"
+  models = "sets the resolution left open dropped from the bound, so it can pass the optimum among them and certify a design that is not"
+
+[[target]]
 name = "syndes-two-way-singular"
 module-path = "mlsynth/utils/syndes_helpers/exact.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_two_way_singular.py -q -x -p no:cacheprovider"
@@ -7053,6 +7332,56 @@ timeout = 900.0
   replace = "        order = tuple(free0[i] for i in np.argsort(x, kind=\"stable\"))"
   models = "the units branched on in the reverse of the root relaxation's order, the least decided first, a worse tree for the same optimum"
 
+# The two-way search's cost model, recalibrated on one thread (#845): each cost
+# against what it measured, so a modelled second stays a second of the clock.
+[[target]]
+name = "syndes-cost-model"
+module-path = "mlsynth/utils/syndes_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k 'TestTheCostModel or TestLiftCost or work'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-evaluation-costs-its-eigendecomposition-alone"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 1e-4 + 2e-9 * (n + 1) ** 3"
+  models = "the model before #845, which charged a lift's evaluation for its eigendecomposition and not for the rest of the evaluation, the cut matrix or L-BFGS-B, a quarter of what it costs"
+
+  [[target.mutant]]
+  id = "the-evaluation-cost-loses-its-slope"
+  find = "    return 3.4e-4 + 1.65e-5 * n"
+  replace = "    return 3.4e-4"
+  models = "an evaluation charged the same at every node, so a lift at sixty free units costs what one at ten does"
+
+  [[target.mutant]]
+  id = "pricing-at-the-old-rate"
+  find = "PRICE_SECONDS_PER_UNIT = 6.0e-8"
+  replace = "PRICE_SECONDS_PER_UNIT = 2.5e-8"
+  models = "a design priced at the pre-#845 rate, under half of what it costs, so the limit lets a search that prices run twice as long"
+
+  [[target.mutant]]
+  id = "the-certificate-at-the-old-rate"
+  find = "    return 9e-4 + 8.4e-6 * n ** 2"
+  replace = "    return 6e-4 + 6.6e-6 * n ** 2"
+  models = "a certificate charged at the pre-#845 rate"
+
+  [[target.mutant]]
+  id = "the-trust-region-grows-as-a-cube"
+  find = "    return 1.8e-4 + 8.5e-6 * n"
+  replace = "    return 2e-4 + 5e-9 * n ** 3"
+  models = "the trust region's pre-#845 cubic, which over-charges it twice over at sixty free units"
+
+[[target]]
+name = "syndes-work-limit-default"
+module-path = "mlsynth/utils/syndes_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_branch.py -q -p no:cacheprovider -x -k leaves_the_documented"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-limit-at-the-old-default"
+  find = "WORK_LIMIT = 120.0"
+  replace = "WORK_LIMIT = 60.0"
+  models = "the default left at 60 after the costs rose, where the searches the docs report at forty units with ten treated need 60"
+
 [[target]]
 name = "marex-bnb-work"
 module-path = "mlsynth/utils/marex_helpers/branch.py"
@@ -7412,7 +7741,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-branch-and-bound-counts-are-dropped"
-  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted)"
+  find = "                report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,\n                                     bnb_priced=found.priced, fitted=cert.fitted,\n                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                report.counts.update(candidates=n_cand)"
   models = "the branch and bound's bounds, sets priced and fits discarded, as before #774"
 
@@ -7562,10 +7891,10 @@ timeout = 300.0
   models = "the timing wrapper left on node_bound after a search, so the next search in the process times through two wrappers"
 
   [[target.mutant]]
-  id = "the-bracket-is-not-read"
-  find = "        found = _BRACKET.search(str(exc))"
-  replace = "        found = None"
-  models = "a search stopped at its cap reported with no bracket, which is the only gap a capped search has"
+  id = "a-stopped-search-reads-as-closed"
+  find = "        row.update(closed=res.closed,"
+  replace = "        row.update(closed=True,"
+  models = "a search stopped at its work limit recorded as closed, so its row reads as a certified design (#843 moved the cap from bounds to work, and the bracket from the message to the certificate)"
 
 # The root's bounds and the lift's stopping (#842, for #837 and #858). The
 # trace replicates the lift's stopping rules, so each mutant makes the replica
@@ -7958,146 +8287,77 @@ timeout = 120.0
   replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
 
+# One limit rule (#843): MAREX's search stops at a work limit in the cost
+# model's seconds and returns its best design with a bracket that still holds,
+# where it raised after a thousand bounds.
 [[target]]
-name = "syndes-one-way-branch"
-module-path = "mlsynth/utils/syndes_helpers/one_way_exact.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_one_way_branch.py -q -x -p no:cacheprovider"
+name = "marex-work-limit"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work or limit or charged or bracket or closed_search or no_design'"
 timeout = 900.0
 
   [[target.mutant]]
-  id = "past-the-limit-it-still-enumerates"
-  find = "    if space.size > candidate_limit:\n        return _search_by_branching("
-  replace = "    if False:\n        return _search_by_branching("
-  models = "an instance past the candidate limit enumerated anyway, so the limit means nothing and a search of 848 million sets runs to the end (#820)"
+  id = "pricing-is-not-charged"
+  find = "            state[\"work\"] += charge\n            price(m, sub, O, F)"
+  replace = "            price(m, sub, O, F)"
+  models = "the sets a search prices left off its work, so a search that prices most of its sets never reaches its limit"
 
   [[target.mutant]]
-  id = "a-set-with-no-control-is-a-design"
-  find = "            bounds[self._banned[sets].any(axis=1).all(axis=1)] = np.inf"
-  replace = "            pass"
-  models = "a set whose donor rules leave it no control bounded as a design, so it stays open and is fitted, or with every pool empty fills the open sets with the whole tree"
+  id = "a-bound-is-not-charged"
+  find = "        state[\"work\"] += charge\n        nb = node_bound("
+  replace = "        nb = node_bound("
+  models = "the persp+N bounds left off the work, the charge that dominates MAREX's searches, so the limit binds only on pricing"
 
   [[target.mutant]]
-  id = "the-fitted-set-stays-open"
-  find = "            alive[j] = False\n"
-  replace = "            pass\n"
-  models = "the set a block just fitted kept open beside its own value, fitted again at the end and charged twice"
+  id = "a-bound-may-pass-the-limit"
+  find = "        charge = lift_seconds(k)\n        if state[\"work\"] + charge > work_limit:"
+  replace = "        charge = lift_seconds(k)\n        if state[\"work\"] > work_limit:"
+  models = "the limit checked after the fact, so the search starts a bound that takes its work past the limit, by minutes at eighty markets"
 
   [[target.mutant]]
-  id = "a-block-is-not-fitted-as-it-is-bounded"
-  find = "        if bounds[j] < best:\n            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
-  replace = "        if False:\n            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
-  models = "no incumbent from the sets a node prices, so the tree prunes only on the seeds and every set under them stays open to the end"
+  id = "pricing-may-pass-the-limit"
+  find = "            charge = count * price_seconds\n            if state[\"work\"] + charge > work_limit:"
+  replace = "            charge = count * price_seconds\n            if state[\"work\"] > work_limit:"
+  models = "a subtree priced whole although its pricing takes the work past the limit"
 
   [[target.mutant]]
-  id = "a-block-keeps-sets-its-fit-rules-out"
-  find = "        alive &= bounds < min(best, value)"
-  replace = "        alive &= bounds < best"
-  models = "the open sets compared with the incumbent before the block's fit, so without a design every set the search prices stays open"
+  id = "the-open-nodes-are-left-out-of-the-bound"
+  find = "    lower = min([lower] + still_open)"
+  replace = "    lower = min([lower])"
+  models = "a stopped search certifying the incumbent's own bracket, as if the nodes it never searched held nothing better"
 
   [[target.mutant]]
-  id = "the-resolution-fits-every-open-set"
-  find = "            if bounds[k] >= value:\n                break\n            if S is not None"
-  replace = "            if False:\n                break\n            if S is not None"
-  models = "the open sets fitted past the first bound that reaches the incumbent, each a fit of up to 10 ms that cannot change the design"
+  id = "the-stopped-node-is-dropped"
+  find = "        if state[\"work\"] + charge > work_limit:\n            left.append(bound)\n            break"
+  replace = "        if state[\"work\"] + charge > work_limit:\n            break"
+  models = "the node the search was about to bound forgotten when it stops, though best first it holds the least bound of all and may hold the optimum"
 
   [[target.mutant]]
-  id = "the-resolution-ignores-the-limit"
-  find = "            if S is not None and seconds + self.seconds_per_fit > budget:"
-  replace = "            if False:"
-  models = "the open sets fitted however far past the work limit, so the limit caps the tree but not its leaves"
+  id = "no-design-reads-as-infeasible"
+  find = "    if left and not best.items:"
+  replace = "    if False:"
+  models = "a search stopped before it found a design reported as a cluster with no admissible design"
 
   [[target.mutant]]
-  id = "the-resolution-stops-without-a-design"
-  find = "            if S is not None and seconds + self.seconds_per_fit > budget:"
-  replace = "            if seconds + self.seconds_per_fit > budget:"
-  models = "a search at its limit with open sets and no design that stops fitting, so it raises when one fit would have given it a design to return"
-
-  [[target.mutant]]
-  id = "a-stopped-resolution-reports-nothing-open"
-  find = "                return value, S, n_fit, seconds, float(bounds[k])"
-  replace = "                return value, S, n_fit, seconds, np.inf"
-  models = "a resolution stopped at the limit that reports no set left open, so the search reads as closed and its bound passes over the sets it never fitted"
-
-  [[target.mutant]]
-  id = "a-fit-in-a-block-is-free"
-  find = "            value, S, seconds = self.value(sets[j]), sets[j], self.seconds_per_fit"
-  replace = "            value, S, seconds = self.value(sets[j]), sets[j], 0.0"
-  models = "a fit made while pricing a block not charged, so the limit misses the work of a search that fits a set in every block"
-
-  [[target.mutant]]
-  id = "a-fit-in-the-resolution-is-free"
-  find = "            seconds += self.seconds_per_fit\n"
-  replace = "            seconds += 0.0\n"
-  models = "the fits of the open sets not charged, so a search with many open sets runs past its limit"
-
-  [[target.mutant]]
-  id = "the-settled-treated-weights-are-one"
-  find = "        treated[np.asarray(S, dtype=np.int64)] = 1.0 / self.K"
-  replace = "        treated[np.asarray(S, dtype=np.int64)] = 1.0"
-  models = "the design's treated weights left at one instead of 1/K, so its contrast is not the one its objective prices"
-
-  [[target.mutant]]
-  id = "the-ridge-cost-is-linear-in-k"
-  find = "    return 3e-7 + 2.55e-8 * K ** 2"
-  replace = "    return 3e-7 + 2.55e-8 * K"
-  models = "a set's ridge bound costed as linear in K, 1.3 µs at forty treated where it measured 40 µs, so the search prices large subtrees it should bound"
-
-  [[target.mutant]]
-  id = "the-fit-cost-is-linear-in-the-pool"
-  find = "    return 2e-4 + 1.2e-6 * P ** 2"
-  replace = "    return 2e-4 + 1.2e-6 * P"
-  models = "a fit costed as linear in its pool, 0.3 ms at 98 controls where it measured 8 ms, so the limit undercounts the leaves"
-
-  [[target.mutant]]
-  id = "an-unbounded-limit-is-accepted"
+  id = "a-limit-of-zero-is-accepted"
   find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
-  replace = "            or work_limit <= 0):"
-  models = "an infinite or NaN work_limit accepted, so a search meant to stop never does"
-
-  [[target.mutant]]
-  id = "the-limit-is-not-passed-on"
-  find = "    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed),\n                      float(work_limit))"
-  replace = "    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed))"
-  models = "the caller's work_limit validated and then dropped, so the search runs to the default"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted, so the search raises for want of a design instead of refusing the configuration"
 
 [[target]]
-name = "syndes-one-way-branch-tree"
-module-path = "mlsynth/utils/syndes_helpers/branch.py"
-test-command = "python -m pytest mlsynth/tests/test_syndes_one_way_branch.py -q -x -p no:cacheprovider"
+name = "marex-work-limit-report"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x -k 'work_limit'"
 timeout = 900.0
 
   [[target.mutant]]
-  id = "the-tree-ignores-the-callers-leaves"
-  find = "    leaves = TwoWayLeaves(problem, engine) if leaves is None else leaves"
-  replace = "    leaves = TwoWayLeaves(problem, engine)"
-  models = "a one-way search whose sets are priced as two-way designs, so it returns the two-way optimum's treated set at the two-way value"
+  id = "a-stopped-search-is-silent"
+  find = "                if not found.closed:"
+  replace = "                if False:"
+  models = "a design from a search stopped at its limit returned without the warning that it is not a proven optimum"
 
   [[target.mutant]]
-  id = "the-tree-charges-two-ways-price"
-  find = "    modelled = leaves.seconds_per_set"
-  replace = "    modelled = PRICE_SECONDS_PER_UNIT * N"
-  models = "a one-way set charged the two-way closed form's price, a fixed 2.5e-8 a unit where the ridge bound's grows with K squared"
-
-  [[target.mutant]]
-  id = "the-leaves-work-is-not-charged"
-  find = "        counts[\"work\"] += seconds\n        if value < best[0]:"
-  replace = "        if value < best[0]:"
-  models = "the fits the leaves make while pricing a block not counted, so the limit misses them"
-
-  [[target.mutant]]
-  id = "the-resolution-gets-no-budget"
-  find = "            candidates, bounds, best[0], best[1], work_limit - counts[\"work\"])"
-  replace = "            candidates, bounds, best[0], best[1], np.inf)"
-  models = "the open sets resolved without the work left, so the leaves run past the limit the tree stopped at"
-
-  [[target.mutant]]
-  id = "open-sets-leave-the-tree-closed"
-  find = "            closed = False\n            open_lower = min(open_lower, unresolved)"
-  replace = "            open_lower = min(open_lower, unresolved)"
-  models = "sets the resolution left open counted as closed, so a stopped search reads as having finished its tree"
-
-  [[target.mutant]]
-  id = "open-sets-do-not-bound"
-  find = "            closed = False\n            open_lower = min(open_lower, unresolved)"
-  replace = "            closed = False"
-  models = "sets the resolution left open dropped from the bound, so it can pass the optimum among them and certify a design that is not"
+  id = "the-work-is-not-reported"
+  find = "                                     bnb_work=found.work, bnb_open=found.open)"
+  replace = "                                     bnb_open=found.open)"
+  models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"

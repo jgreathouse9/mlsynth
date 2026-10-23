@@ -128,8 +128,10 @@ def test_a_raising_call_is_still_charged_and_unwinds():
 # ----------------------------------------------------------------------
 
 
-#: Pricing dear enough that a 14-unit search bounds, lifts and prices.
-COSTS = {"price_seconds": 1e-4}
+#: Pricing dear enough that a 14-unit search bounds, lifts and prices: under
+#: #845's costs a lift takes about five times what it was charged before, and
+#: at 1e-4 a set the search priced every subtree and lifted nothing.
+COSTS = {"price_seconds": 1e-3}
 
 
 @pytest.fixture(scope="module")
