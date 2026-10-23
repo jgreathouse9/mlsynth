@@ -1,0 +1,9 @@
+{
+  "case": "vanillasc_exact",
+  "title": "Exact synthetic control: Proposition 99 and West Germany (Abadie and Shang 2026, run_all.py)",
+  "paper": "Abadie & Shang (2026), Synthetic Control: An Exact Geometric Formulation, Tables 1-6, D.1, D.2",
+  "reference_impl": "lychemon/synth-AS-replication run_all.py (live run @ 791a3865, synthx_package @ a10a28c5)",
+  "path_type": "Path A",
+  "command": "python benchmarks/reference/vanillasc_exact/reference.py",
+  "data": ["basedata/abadie_shang_smoking.csv", "basedata/abadie_shang_germany.csv"]
+}
