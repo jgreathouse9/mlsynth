@@ -286,3 +286,24 @@ def test_a_walk_past_its_cell_limit_raises():
     X1, X0, Z1, Z0 = _design(4020, 3, 12)
     with pytest.raises(RuntimeError, match="cell limit"):
         interior.solve_interior_diag(X1, X0, Z1, Z0, max_cells=1)
+
+
+def _selection(S1, S0, V):
+    """The exact match the vanishing penalty selects under V: the vertex of F where
+    sum_j w_j X_j'V X_j is least (paper, eq. 16), one LP."""
+    J = S0.shape[1]
+    res = linprog(np.einsum("kj,kl,lj->j", S0, V, S0), A_eq=np.vstack([S0, np.ones(J)]),
+                  b_eq=np.append(S1, 1.0), bounds=(0, None), method="highs")
+    return res.x
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(2, 5), extra=st.integers(1, 20), metric=st.integers(0, 2 ** 31))
+def test_property_no_positive_diagonal_metric_selects_a_better_match(seed, K, extra, metric):
+    """Proposition 5 without enumeration: whatever positive diagonal V is drawn, the match it selects
+    fits no better than the walk's optimum."""
+    X1, X0, Z1, Z0 = _design(seed, K, K + 1 + extra)
+    loss, _ = interior.solve_interior_diag(X1, X0, Z1, Z0)
+    S1, S0 = _standardise(X1, X0)
+    w = _selection(S1, S0, np.diag(np.random.default_rng(metric).dirichlet(np.ones(K))))
+    assert loss <= float(np.sum((Z1 - Z0 @ w) ** 2)) * (1 + 1e-9) + 1e-12

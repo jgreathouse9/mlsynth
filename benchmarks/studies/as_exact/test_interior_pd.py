@@ -200,3 +200,17 @@ def test_no_attainable_cell_is_reported(monkeypatch):
     monkeypatch.setattr(interior, "pd_attainable", lambda Q, stats, V0=None: (False, None))
     with pytest.raises(ValueError, match="no admissible cell is attainable"):
         interior.solve_interior_pd(X1, X0, Z1, Z0)
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(2, 4), extra=st.integers(1, 12), metric=st.integers(0, 2 ** 31))
+def test_property_no_positive_definite_metric_selects_a_better_match(seed, K, extra, metric):
+    """Proposition 5 without enumeration, for the full class: a random positive definite V selects a
+    match that fits no better than the search's optimum."""
+    from .test_interior import _selection
+    X1, X0, Z1, Z0 = _design(seed, K, K + 1 + extra)
+    loss, _ = interior.solve_interior_pd(X1, X0, Z1, Z0)
+    S1, S0 = _standardise(X1, X0)
+    L = np.random.default_rng(metric).normal(size=(K, K))
+    w = _selection(S1, S0, L @ L.T + 1e-3 * np.eye(K))
+    assert loss <= float(np.sum((Z1 - Z0 @ w) ** 2)) * (1 + 1e-9) + 1e-12

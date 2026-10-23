@@ -223,8 +223,9 @@ def _prepared(X1, X0, Z1, Z0):
         raise ValueError("inputs must be finite")
     C1, C0 = _standardised(X1, X0)
     if not interior_margin(C1, C0) > ADMIT_TOL:
-        raise ValueError("the interior case needs the treated unit strictly inside the donor hull, "
-                         "matched by no fewer than K + 1 donors; use exact.solve_diag outside it")
+        raise ValueError("the treated unit is on the boundary of the donor hull or outside it; the "
+                         "interior case needs it strictly inside the donor hull, matched by no fewer "
+                         "than K + 1 donors (Assumption 2(ii)), and exact.py takes a unit outside it")
     return X1, X0, Z1, Z0, C1, C0
 
 

@@ -1,4 +1,8 @@
-"""The exact synthetic control of Abadie and Shang (2026), exterior case, without cvxpy.
+"""The exact synthetic control of Abadie and Shang (2026), without cvxpy.
+
+A treated unit outside the donor hull is solved here; one inside it is matched exactly,
+and interior.py selects among the exact matches (paper, Section 5). A unit on the
+hull's boundary is covered by neither case and is refused.
 
 Diagonal class (their problem (5)): minimise the validation loss ||Z1 - Z0 w||^2 over the
 closure of the donor weights attainable with strictly positive diagonal predictor
@@ -26,6 +30,7 @@ import itertools
 
 import numpy as np
 
+from . import interior
 from .hull import Hull, outside_hull
 from .lsq import sign_piece_ls, simplex_ls
 from .patterns import cone_compatible, edge_min, face_min, facet_patterns, ridge_patterns
@@ -38,9 +43,16 @@ def _check(X1, X0, Z1, Z0):
         raise ValueError("expected X1 (K,), X0 (K, J), Z1 (L,), Z0 (L, J)")
     if not all(np.isfinite(a).all() for a in (X1, X0, Z1, Z0)):
         raise ValueError("inputs must be finite")
-    if not outside_hull(X1, X0):
-        raise ValueError("X1 lies in the donor hull; only the exterior case is implemented")
     return X1, X0, Z1, Z0
+
+
+def _interior(solve, X1, X0, Z1, Z0, stats):
+    """The interior search's answer, with its counters and the case it took."""
+    st = {}
+    loss, w = solve(X1, X0, Z1, Z0, stats=st)
+    if stats is not None:
+        stats.update(st, regime="interior")
+    return loss, w
 
 
 def _finish(w, Z1, Z0):
@@ -53,6 +65,8 @@ def _finish(w, Z1, Z0):
 
 def solve_diag(X1, X0, Z1, Z0, stats=None):
     X1, X0, Z1, Z0 = _check(X1, X0, Z1, Z0)
+    if not outside_hull(X1, X0):
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats)
     K, J = X0.shape
     hull = Hull(X0, X1)
     vis = hull.visible_facets()
@@ -142,12 +156,14 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
     if w_best is None:                                   # pragma: no cover - P has an attainable point
         raise RuntimeError("no attainable point found")
     if stats is not None:
-        stats.update(n_visible=len(vis), gift_wrap_steps=hull.n_wrap, **ctr)
+        stats.update(regime="exterior", n_visible=len(vis), gift_wrap_steps=hull.n_wrap, **ctr)
     return _finish(w_best, Z1, Z0)
 
 
 def solve_pd(X1, X0, Z1, Z0, stats=None):
     X1, X0, Z1, Z0 = _check(X1, X0, Z1, Z0)
+    if not outside_hull(X1, X0):
+        return _interior(interior.solve_interior_pd, X1, X0, Z1, Z0, stats)
     J = X0.shape[1]
     vis = Hull(X0, X1).visible_facets()
     best = (np.inf, None, None)
@@ -157,7 +173,7 @@ def solve_pd(X1, X0, Z1, Z0, stats=None):
         if val is not None and val < best[0]:
             best = (val, cols, beta)
     if stats is not None:
-        stats.update(n_visible=len(vis))
+        stats.update(regime="exterior", n_visible=len(vis))
     w = np.zeros(J)
     w[best[1]] = best[2]
     return _finish(w, Z1, Z0)

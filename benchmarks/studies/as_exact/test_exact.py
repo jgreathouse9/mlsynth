@@ -109,12 +109,33 @@ def test_proposition_99_headline_numbers():
 
 
 # --------------------------------------------------------------------------- failures
-def test_treated_unit_inside_the_hull_is_refused():
-    _, X0, Z1, Z0 = _inputs(CASES["prop99"])
-    with pytest.raises(ValueError, match="donor hull"):
-        exact.solve_diag(X0[:, :5].mean(axis=1), X0, Z1, Z0)
-    with pytest.raises(ValueError, match="donor hull"):
-        exact.solve_pd(X0[:, :5].mean(axis=1), X0, Z1, Z0)
+def test_an_interior_treated_unit_goes_to_the_interior_search():
+    """Inside the donor hull both classes select among exact matches (interior.py, paper sec. 5)."""
+    from . import interior
+    from .test_interior import CASES as INTERIOR
+    args = _inputs(INTERIOR["random_interior_K3_J12_seed4007"])
+    for solve, inner in ((exact.solve_diag, interior.solve_interior_diag),
+                         (exact.solve_pd, interior.solve_interior_pd)):
+        st = {}
+        loss, w = solve(*args, stats=st)
+        want_loss, want_w = inner(*args)
+        assert loss == want_loss and np.array_equal(w, want_w) and st["regime"] == "interior"
+
+
+def test_the_search_reports_the_exterior_case():
+    for solve in (exact.solve_diag, exact.solve_pd):
+        st = {}
+        solve(*_inputs(CASES["prop99"]), stats=st)
+        assert st["regime"] == "exterior"
+
+
+def test_a_treated_unit_on_the_hull_s_boundary_is_refused():
+    """X1 on an edge of the hull is matched exactly by two donors, fewer than K + 1: it is outside the
+    hull for neither case and strictly inside it for neither (Assumptions 1(i) and 2(ii))."""
+    X0 = np.array([[0.0, 4.0, 0.0, 1.0], [0.0, 0.0, 4.0, 1.0]])
+    for solve in (exact.solve_diag, exact.solve_pd):
+        with pytest.raises(ValueError, match="boundary of the donor hull"):
+            solve(np.array([2.0, 0.0]), X0, np.zeros(1), np.zeros((1, 4)))
 
 
 def test_predictors_that_sum_to_a_constant_are_refused():
