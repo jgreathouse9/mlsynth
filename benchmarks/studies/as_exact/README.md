@@ -186,12 +186,13 @@ it, either way, since it calls the same solvers. Where the time goes, from
   designs stay below 600.
 - Proposition 99 has K = 7 predictors and 38 donors. On eight seeded random designs
   of that size (`scaling.py`, `results/scaling.json`) the diagonal search here took
-  0.45 to 4.0 s against the replication's 9.3 to 125 s, 16x to 46x faster (median
-  21x); on four designs at K = 8 it took 1.9 to 15 s against 40 to 542 s, 16x to
-  182x faster (median 42x). The weights agree to 1.1e-10 in every design. The search
-  cost still grows quickly with K: from K = 8, some faces have normal cones with too
-  many walls for the batched ray enumeration, and each of those falls back to one LP
-  per sign pattern, 2^K of them. At K = 9 four designs took 3.9 to 215 s on their
-  own; the slowest had 95 such faces and ran 48,645 LPs.
+  0.45 to 2.4 s against the replication's 9.1 to 118 s, 20x to 52x faster (median
+  43x); on four designs at K = 8 it took 1.8 to 7.5 s against 43 to 562 s, 19x to
+  194x faster (median 57x). The weights agree to 1.1e-10 in every design. The search
+  cost still grows quickly with K, now through the least-distance tests that list the
+  sign patterns of faces below the ridges: at K = 9 four designs took 4.5 to 29 s on
+  their own, with 3,432 to 110,126 tests, and HiGHS decided none of them. Before the
+  branching the slowest of these designs took 219 s, nearly all of it in one LP per
+  sign pattern.
 - The timings are single-threaded wall clock on one machine; read the ratios, not the
   absolute seconds.
