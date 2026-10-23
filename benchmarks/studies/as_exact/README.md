@@ -252,7 +252,22 @@ sample poses the same problem on these placebos: the three years it drops are la
 outcomes among the predictors, which every exact match reproduces.
 
 These are the units an in-space placebo needs: 4 of Proposition 99's 38 donors lie
-inside the hull of the other 37.
+inside the hull of the other 37. Timings from `run_interior.py`
+(`results/interior.json`), single-threaded wall clock in seconds; the authors' placebo
+runs are timed once, the rest are medians of three calls after a warm-up.
+
+| placebo (K = 7, J = 37) | diagonal: `synthx` | this study | speed-up | attainable cells | PD: `synthx` | this study | speed-up | admissible cells |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Illinois | 1.081 | 0.053 | 20x | 40 | 4.675 | 0.143 | 33x | 1,692 |
+| Iowa | 23.03 | 1.257 | 18x | 1,022 | 257.7 | 9.610 | 27x | 114,354 |
+| Nebraska | 1.990 | 0.101 | 20x | 80 | 7.138 | 0.210 | 34x | 2,628 |
+| South Dakota | 4.537 | 0.205 | 22x | 148 | 33.52 | 1.402 | 24x | 16,228 |
+
+On the 24 seeded designs (K = 2 to 5) the diagonal search takes 0.29 s in all against
+3.4 s (per design 3.3x to 17x, median 7.6x) and the positive definite one 0.53 s
+against 8.8 s (3.6x to 31x, median 9.2x). The weights agree with the authors' to 8e-15
+on every design. The positive definite search spends most of its time listing cells,
+0.09 ms a cell, where the authors' walk spends about 2 ms.
 
 ## Limits
 
