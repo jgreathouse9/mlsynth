@@ -70,6 +70,7 @@ def main():
         _wrap(hull.Hull, "visible_facets", "visible facets (gift wrapping)")
         _wrap(exact, "simplex_ls", "least squares, face fits")
         _wrap(exact, "sign_piece_ls", "least squares, piece fits")
+        _wrap(patterns.lsq, "sign_piece_ls", "least squares, piece fits")   # the branch and bound's own
         _wrap(patterns, "linprog", "SciPy LPs")
         out["weights, diagonal: replication"] = _profile(lambda: vfs.solve_exterior_hullfree(X0, X1, Z1, Z0), 3)
         out["weights, diagonal: study"] = _profile(lambda: exact.solve_diag(X1, X0, Z1, Z0, stats=stats), 20)

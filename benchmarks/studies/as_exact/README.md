@@ -46,7 +46,7 @@ repository's `data/smoking_data.csv`.
 
 | step | authors' code | this study |
 | --- | --- | --- |
-| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to a least-distance problem through one thin SVD, solved by one compiled NNLS call (`lsq.py`), 0.12 to 0.2 ms |
+| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to a least-distance problem through one thin SVD, solved by one compiled NNLS call (`lsq.py`), 0.09 to 0.16 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: none listed, the face searched by branch and bound over sign sub-cubes, each test one NNLS with the link vertices as walls whose Farkas certificate picks the split; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before the face is searched (`exact.py`) |
@@ -182,19 +182,19 @@ The speed-up is against the replication. `synthx.estimate` runs within 15 per ce
 it, either way, since it calls the same solvers. Where the time goes, from
 `breakdown.py` (`results/breakdown.json`):
 
-- Donor weights, diagonal class. The replication spends 54 per cent of its time in
-  186 cvxpy quadratic programs at about 5 ms each, 23 per cent enumerating the
+- Donor weights, diagonal class. The replication spends 53 per cent of its time in
+  186 cvxpy quadratic programs at about 4.7 ms each, 24 per cent enumerating the
   visible facets, and 15 per cent in 170 SciPy LPs that test sign patterns face by
-  face. This study spends 46 per cent gift-wrapping the 132 visible facets and 43 per
-  cent in 343 least-squares solves at 0.12 to 0.2 ms each. Proposition 99 reaches one
+  face. This study spends 49 per cent gift-wrapping the 132 visible facets and 42 per
+  cent in 343 least-squares solves at 0.09 to 0.16 ms each. Proposition 99 reaches one
   face below the ridges, which the branch and bound settles with one least-distance
   test, and 17 faces are ruled out by the common-sign relaxation before they are
   searched.
 - V, diagonal class. The replication finds the support of V and its implicit
-  equalities with 40 LPs, about 1.6 ms each, mostly in SciPy's HiGHS wrapper; here one
+  equalities with 40 LPs, about 1.5 ms each, mostly in SciPy's HiGHS wrapper; here one
   LP finds both, and 9 Newton runs follow, about 5 ms in all.
 - V, positive definite class. The replication's 17 semidefinite programs, at about
-  22 ms each, become 164 Newton runs of the barrier method at about 0.5 ms each; a
+  25 ms each, become 164 Newton runs of the barrier method at about 0.8 ms each; a
   trial step of the line search costs one Cholesky factor.
 
 ## Limits
@@ -212,13 +212,15 @@ it, either way, since it calls the same solvers. Where the time goes, from
   designs stay below 600.
 - Proposition 99 has K = 7 predictors and 38 donors. On eight seeded random designs
   of that size (`scaling.py`, `results/scaling.json`) the diagonal search here took
-  0.33 to 1.7 s against the replication's 8.8 to 118 s, 26x to 77x faster (median
-  66x); on four designs at K = 8 it took 1.4 to 4.2 s against 38 to 548 s, 27x to
-  228x faster (median 97x). The weights agree to 1.1e-10 in every design. The search
-  cost still grows quickly with K, now through the least-distance tests that list the
-  sign patterns of faces below the ridges: at K = 9 four designs took 3.3 to 20 s on
-  their own, with 3,354 to 108,897 tests, and HiGHS decided none of them. Before the
-  branching the slowest of these designs took 219 s, nearly all of it in one LP per
-  sign pattern.
+  0.27 to 1.1 s against the replication's 9.2 to 120 s, 26x to 116x faster (median
+  106x); on four designs at K = 8 it took 1.2 to 3.1 s against 38 to 531 s, 29x to
+  270x faster (median 125x). The weights agree to 1.1e-10 in every design. The search
+  cost still grows with K: at K = 9 four designs took 2.6 to 9.0 s on their own. The
+  branch and bound over sign sub-cubes runs 34 to 1,121 least-distance tests a design
+  there, where listing the patterns took 3,354 to 108,897, and HiGHS decided none of
+  them; most of the time left goes to the fits of the faces the search visits and to
+  the walk over the hull. The slowest of these designs took 219 s before the
+  branching, nearly all of it in one LP per sign pattern, and 20 s before the branch
+  and bound.
 - The timings are single-threaded wall clock on one machine; read the ratios, not the
   absolute seconds.
