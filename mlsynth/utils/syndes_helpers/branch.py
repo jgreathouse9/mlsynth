@@ -81,7 +81,11 @@ sets priced, the bounds, the lifts' evaluations and the certificates, each at it
 modelled cost, so it caps a search whose bounds do not prune as well as one whose
 lifts do. It reads counts, never a clock, so a search stops at the same node on
 every machine. A search that reaches it stops and returns its best design, with
-the smallest certified bound over the nodes still open.
+the smallest certified bound over the nodes still open. Only the smallest
+decides the bracket, so the open nodes are bounded lowest first
+(:func:`least_open_bound`), with what the limit left and at most
+``BRACKET_SHARE`` of it past it; a node the budget does not reach keeps the
+bound it inherited.
 
 A cutoff. Searching every size (``K=None``), a design of one size bounds the
 others: a node whose bound clears the best design of any size holds nothing
@@ -143,6 +147,10 @@ KAPPA = 1.0 / (1.0 + math.sqrt(3.0))   # scale of the triangles' multipliers
 
 #: Evaluations a lift is expected to take before any is observed.
 LIFT_EVALUATIONS = 300.0
+
+#: Share of the work limit a stopped search may spend past it bounding the
+#: nodes it left open (:func:`least_open_bound`), on top of what the limit left.
+BRACKET_SHARE = 0.05
 
 # signs of (X_ij, X_ik, X_jk) in each type; type 1 has no negative edge, the
 # others one positive edge: (i, j), (i, k), (j, k)
@@ -717,6 +725,40 @@ class BranchOutcome:
     work: float
 
 
+def least_open_bound(
+    items: Sequence[Tuple[float, object]],
+    evaluate: Callable[[float, object], Tuple[float, float]],
+    budget: float,
+) -> Tuple[float, float, int]:
+    """The smallest certified bound over the nodes a stopped search left open.
+
+    ``items`` are ``(inherited, node)`` pairs, a node's inherited certified bound
+    and what ``evaluate`` needs to bound it; ``evaluate(inherited, node)``
+    returns the node's own certified bound and its cost in modelled seconds. A
+    node's bound is the higher of the two. Only the smallest bound decides the
+    bracket, so the nodes are bounded lowest first, and the search stops when
+    the smallest bound left is one already computed: every other node's
+    inherited bound is at least that, and its own bound can only raise it. A
+    node is bounded only while ``budget`` is not spent; past it the nodes keep
+    their inherited bounds, which are still bounds.
+
+    Returns the bound (infinite with no node), the cost spent and the number of
+    nodes bounded. The cost exceeds ``budget`` by at most one node's.
+    """
+    heap = [(float(b), 1, i) for i, (b, _) in enumerate(items)]
+    heapq.heapify(heap)
+    spent, evaluated = 0.0, 0
+    while heap:
+        bound, unbounded, i = heap[0]
+        if not unbounded or spent >= budget:
+            return bound, spent, evaluated
+        own, cost = evaluate(*items[i])
+        spent += cost
+        evaluated += 1
+        heapq.heapreplace(heap, (max(bound, own), 0, i))
+    return np.inf, spent, evaluated
+
+
 def branch_and_bound(
     problem: TwoWayProblem,
     engine: BoundEngine,
@@ -946,22 +988,33 @@ def branch_and_bound(
 
     # what the limit left open: a decided node is priced; any other keeps its
     # inherited bound, or its own trust-region bound, certified, where that is
-    # higher; and none goes below the Rayleigh bound
-    open_lower = np.inf
+    # higher, bounded lowest first within the bracket's budget; and none goes
+    # below the Rayleigh bound
     rayleigh = engine.global_lower_bound(K)
+    undecided = []
     for _, _, I, O, F, space, inherited in heap + dive:
-        r, n = K - len(I), len(F)
-        if r == 0 or r == n:
+        r = K - len(I)
+        if r == 0 or r == len(F):
             enumerate_subtree(space)
-            continue
-        counts["work"] += trust_region_seconds(n)
+        else:
+            undecided.append((inherited, (I, O, F)))
+
+    def own_bound(inherited: float, node) -> Tuple[float, float]:
+        I, O, F = node
+        r, n = K - len(I), len(F)
+        cost = trust_region_seconds(n)
         U, _, m = trust_region(*node_parts(R, I, O, F), 2 * r - n)
-        if np.isfinite(U) and U > 0.0 and 4.0 * alpha / U > inherited:
-            counts["work"] += certificate_seconds(n)
-            exact = xr.certify(I, O, F, K, m)
-            if exact is not None and exact > 0:
-                inherited = max(inherited, round_down(four_alpha / exact))
-        open_lower = min(open_lower, inherited)
+        if not (np.isfinite(U) and U > 0.0 and 4.0 * alpha / U > inherited):
+            return -np.inf, cost
+        cost += certificate_seconds(n)
+        exact = xr.certify(I, O, F, K, m)
+        if exact is None or exact <= 0:
+            return -np.inf, cost
+        return round_down(four_alpha / exact), cost
+
+    budget = max(work_limit - counts["work"], 0.0) + BRACKET_SHARE * work_limit
+    open_lower, spent, _ = least_open_bound(undecided, own_bound, budget)
+    counts["work"] += spent
     flush()
 
     solved = 0
