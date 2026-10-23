@@ -4727,15 +4727,105 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-fast-path-forgets-u"
-  find = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st) - u / 4.0"
-  replace = "                    val[trust] = (2.0 + t[trust]) ** 2 / (4.0 * st)"
+  find = "                    closed = (2.0 + t[trust]) ** 2 / (4.0 * st) - u / 4.0"
+  replace = "                    closed = (2.0 + t[trust]) ** 2 / (4.0 * st)"
   models = "the penalised closed form without its - u / 4, which is above the true closed form by a quarter of a'G_S^-1 a and above the fit wherever the minimiser is interior"
 
   [[target.mutant]]
   id = "a-breakdown-reaches-the-search-as-nan"
-  find = "        val[~np.isfinite(val)] = 0.0"
+  find = "        val = np.fmax(val, mins)\n        val[~np.isfinite(val)] = 0.0"
   replace = "        pass"
-  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out"
+  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out. Since #777 two lines guard it, the sum of minimums (fmax with min a) and the zeroing of what is still not finite, so the defect is both removed; the first alone is the-sum-of-minimums-only-where-the-solve-held"
+
+[[target]]
+name = "marex-exact-penalty-bounds"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_penalty_bounds.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-largest-penalty-for-the-smallest"
+  find = "        mins = np.zeros(len(idx)) if lin is None else lin[idx].min(axis=1)"
+  replace = "        mins = np.zeros(len(idx)) if lin is None else lin[idx].max(axis=1)"
+  models = "the treated bound adding the largest penalty in the set instead of the smallest. The weights can sit on the cheapest market, so the sum of minimums is a bound and the sum with the maximum is not: it exceeds the fit and discards the optimum"
+
+  [[target.mutant]]
+  id = "the-sum-of-minimums-is-dropped"
+  find = "                    val[trust] = np.maximum(closed, 1.0 / st + mins[trust])"
+  replace = "                    val[trust] = closed"
+  models = "the fast path's treated bound left as the shipped closed form. Every design stays correct and the search goes back to fitting the candidates on which a large penalty drives the closed form to zero"
+
+  [[target.mutant]]
+  id = "the-safe-form-drops-the-sum-of-minimums"
+  find = "                if lin is not None:\n                    v0 = affine_minimiser(s[rest], None, x[rest], None)"
+  replace = "                if False:\n                    v0 = affine_minimiser(s[rest], None, x[rest], None)"
+  models = "the safe form evaluated at the penalised minimiser only, which is the closed form less its rounding. The second bound, the safe form at x / s, is then never taken, and a large penalty drives the safe path's bound to zero as it drove the shipped one"
+
+  [[target.mutant]]
+  id = "the-sum-of-minimums-only-where-the-solve-held"
+  find = "        val = np.fmax(val, mins)"
+  replace = "        val = val"
+  models = "a candidate whose Gram has no closed form, such as two identical markets, bounded by zero. The smallest penalty in the set is a bound whether or not the bordered update held, so the zero gives away the penalty term exactly where the closed form has nothing to offer"
+
+  [[target.mutant]]
+  id = "the-floor-leaves-out-a-market"
+  find = "    cols = list(range(B.shape[1]))"
+  replace = "    cols = list(range(B.shape[1] - 1))"
+  models = "the control floor fitted over the cluster less one market. A pool that holds that market can fit below the floor, so the floor discards a candidate whose controls lean on it; this is the mutant the issue names"
+
+  [[target.mutant]]
+  id = "the-floor-is-the-uncertified-value"
+  find = "    return max(value - gap, 0.0)"
+  replace = "    return max(value, 0.0)"
+  models = "the floor taken as the fit's value instead of its value less its Frank-Wolfe gap. With an exact solve the two agree, so only a solve that stops short can show it: the value is then above the minimum and the floor stops being a lower bound"
+
+  [[target.mutant]]
+  id = "the-gap-against-the-worst-vertex"
+  find = "    gap = max(float(grad @ v - grad.min()), 0.0)"
+  replace = "    gap = max(float(grad @ v - grad.max()), 0.0)"
+  models = "the Frank-Wolfe gap measured against the worst vertex of the simplex instead of the best. It is then never positive, the clip makes it zero, and the floor is the fit's value with no certificate behind it"
+
+  [[target.mutant]]
+  id = "the-gradient-forgets-the-penalty"
+  find = "        grad = grad + lin"
+  replace = "        grad = grad"
+  models = "the gap computed from the gradient of the fit term alone. At the penalised optimum that gradient is not stationary on the support, so the gap is wrong in size and the floor no longer tracks the fit"
+
+  [[target.mutant]]
+  id = "the-floor-never-reaches-the-search"
+  find = "    floor = control_fit_floor(B, A, lin_c) if beta is None else 0.0"
+  replace = "    floor = 0.0"
+  models = "the floor computed and tested on its own while the search never adds it, the shape of a bound that reads as applied and is not. Every design stays correct; only the number of fits shows it"
+
+  [[target.mutant]]
+  id = "the-first-pass-forgets-the-floor"
+  find = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t, report=rep, rigorous=rigorous) + floor"
+  replace = "    for block in _chunks(n, sizes, filt):\n        lb = treated_fit_bound(B, A, block, lin_t, report=rep, rigorous=rigorous)"
+  models = "the first pass ranking and pruning on the treated bound alone, so candidates the floor already rules out are fitted on the treated side before the floor sees them"
+
+  [[target.mutant]]
+  id = "the-second-pass-forgets-the-floor"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous) + floor"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)"
+  models = "the second pass pruning on the treated bound alone. It runs only when the buffer cannot certify the result, which no default-sized test panel reaches, so a two-candidate buffer is what exposes it"
+
+  [[target.mutant]]
+  id = "the-fitted-treated-side-ignores-the-floor"
+  find = "        if g >= cut or g + floor >= cut + margin(cut):"
+  replace = "        if g >= cut:"
+  models = "a candidate whose fitted treated side plus the floor clears the incumbent still paying for its control fit. The bound on the treated side let it through; the fit itself is tighter and the floor applies to it as well"
+
+  [[target.mutant]]
+  id = "negative-penalties-accepted"
+  find = "        if vec is not None and not (np.all(np.isfinite(vec)) and np.all(vec >= 0)):"
+  replace = "        if False:"
+  models = "a negative penalty passed to the search. The fits can then be negative, the zero clip on both bounds stops being valid, and the search can discard the optimum with no error"
+
+  [[target.mutant]]
+  id = "an-infinite-penalty-accepted"
+  find = "        if vec is not None and not (np.all(np.isfinite(vec)) and np.all(vec >= 0)):"
+  replace = "        if vec is not None and not np.all(vec >= 0):"
+  models = "the sign checked and finiteness not. NaN fails the sign test by accident and infinity passes it, so an infinite penalty reaches the bound, where inf minus inf is NaN and the closed form sets it to zero"
 
 [[target]]
 name = "marex-exact-coupled"
@@ -5563,6 +5653,18 @@ timeout = 600.0
   find = "            trivial = a.min(axis=1) if m else np.zeros(b)"
   replace = "            trivial = a.max(axis=1) if m else np.zeros(b)"
   models = "the trivial bound g(S) >= min_j a_j misstated as the largest penalty, which a fit that puts its weight on cheap markets undercuts"
+
+  [[target.mutant]]
+  id = "the-certificate-skips-the-unpenalised-point"
+  find = "                lb = at(x[:, :, 0] / s[:, None])\n                if lin is not None:"
+  replace = "                lb = at(x[:, :, 0] / s[:, None]) if lin is None else np.full(b, -np.inf)\n                if lin is not None:"
+  models = "the certificate's treated bound with a penalty taken at the penalised minimiser alone, as before #777: under a large penalty it falls toward min a while the search discards on 1/s + min a, so sets the search ruled out come back unresolved"
+
+  [[target.mutant]]
+  id = "the-certificate-skips-the-penalised-point"
+  find = "                if lin is not None:\n                    mu = (2.0 + x[:, :, 1].sum(axis=1)) / s"
+  replace = "                if False:\n                    mu = (2.0 + x[:, :, 1].sum(axis=1)) / s"
+  models = "the certificate's treated bound with a penalty taken at x / s alone, 1/s + min a, which a small penalty leaves under the closed form the search discards on"
 
   [[target.mutant]]
   id = "interval-upper-drops-the-penalty"
@@ -7873,8 +7975,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-second-pass-counts-its-fallbacks-again"
-  find = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous)\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
-  replace = "            lb = treated_fit_bound(B, A, block, lin_t, report=rep, rigorous=rigorous)\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
+  find = "            lb = treated_fit_bound(B, A, block, lin_t, rigorous=rigorous) + floor\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
+  replace = "            lb = treated_fit_bound(B, A, block, lin_t, report=rep, rigorous=rigorous) + floor\n            rep.counts[\"priced\"] += len(block)\n            rep.timing[\"pricing\"]"
   models = "the fallback count made to depend on whether the second pass ran, so a field reported as a fact about the problem moves with the buffer"
 
   [[target.mutant]]

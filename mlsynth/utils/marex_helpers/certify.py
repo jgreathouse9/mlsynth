@@ -225,7 +225,15 @@ class ExactData:
 
     def treated_bounds(self, sets: np.ndarray,
                        linear: Optional[np.ndarray] = None) -> np.ndarray:
-        """A certified lower bound on the fit of every row of ``sets``."""
+        """A certified lower bound on the fit of every row of ``sets``.
+
+        The safe form ``-c'G_S c + min_i (2 (G_S c)_i + a_i)``, less a bound on
+        its rounding, at the unpenalised minimiser ``x / s`` and, with a penalty,
+        at the penalised one, the larger kept, and never under ``min a``. At
+        ``x / s`` the form is ``1/s + min a``, the bound that keeps the penalty
+        (:func:`~mlsynth.utils.marex_helpers.exact.treated_fit_bound`), so the
+        certificate discards every set the search discards.
+        """
         sets = np.asarray(sets, dtype=np.int64)
         n_sub, m = sets.shape
         out = np.empty(n_sub)
@@ -254,31 +262,35 @@ class ExactData:
                         except np.linalg.LinAlgError:
                             pass
                 s = x[:, :, 0].sum(axis=1)
-                if lin is None:
-                    c = x[:, :, 0] / s[:, None]
-                else:
+
+                def at(c):
+                    """The form at ``c`` less its rounding; ``-inf`` where the
+                    solve gave no point."""
+                    ok = (s > 0) & np.all(np.isfinite(c), axis=1)
+                    c = np.where(ok[:, None], c, 0.0)
+                    ac = np.abs(c)
+                    l1 = ac.sum(axis=1)
+                    v = np.einsum("bij,bj->bi", G, c)
+                    q = np.einsum("bi,bi->b", c, v)
+                    err_G = g_G * (Ga + under) + under
+                    err_v = (g_m * np.einsum("bij,bj->bi", np.abs(G), ac)
+                             + np.einsum("bij,bj->bi", err_G, ac) + 2.0 * m * _ETA)
+                    r = 2.0 * v + a
+                    mn = r.min(axis=1)
+                    err_r = (2.0 * err_v + _U * np.abs(r)).max(axis=1)
+                    err_q = (g_m * np.einsum("bi,bi->b", ac, np.abs(v))
+                             + np.einsum("bi,bi->b", ac, err_v) + 2.0 * m * _ETA)
+                    err = err_r + err_q + _U * (np.abs(mn) + np.abs(q))
+                    floor = 32.0 * (m + 8) * (1.0 + l1) ** 2 * _ETA
+                    lb = np.nextafter((mn - q) - (2.0 * err + floor), -np.inf)
+                    return np.where(ok & np.isfinite(lb), lb, -np.inf)
+
+                lb = at(x[:, :, 0] / s[:, None])
+                if lin is not None:
                     mu = (2.0 + x[:, :, 1].sum(axis=1)) / s
-                    c = (mu[:, None] * x[:, :, 0] - x[:, :, 1]) / 2.0
-                ok = (s > 0) & np.all(np.isfinite(c), axis=1)
-                c = np.where(ok[:, None], c, 0.0)
-                ac = np.abs(c)
-                l1 = ac.sum(axis=1)
-                v = np.einsum("bij,bj->bi", G, c)
-                q = np.einsum("bi,bi->b", c, v)
-                err_G = g_G * (Ga + under) + under
-                err_v = (g_m * np.einsum("bij,bj->bi", np.abs(G), ac)
-                         + np.einsum("bij,bj->bi", err_G, ac) + 2.0 * m * _ETA)
-                r = 2.0 * v + a
-                mn = r.min(axis=1)
-                err_r = (2.0 * err_v + _U * np.abs(r)).max(axis=1)
-                err_q = (g_m * np.einsum("bi,bi->b", ac, np.abs(v))
-                         + np.einsum("bi,bi->b", ac, err_v) + 2.0 * m * _ETA)
-                err = err_r + err_q + _U * (np.abs(mn) + np.abs(q))
-                floor = 32.0 * (m + 8) * (1.0 + l1) ** 2 * _ETA
-                lb = np.nextafter((mn - q) - (2.0 * err + floor), -np.inf)
+                    lb = np.maximum(lb, at((mu[:, None] * x[:, :, 0] - x[:, :, 1]) / 2.0))
             trivial = a.min(axis=1) if m else np.zeros(b)
-            good = ok & np.isfinite(lb)
-            out[lo:lo + b] = np.where(good, np.maximum(lb, trivial), trivial)
+            out[lo:lo + b] = np.maximum(lb, trivial)
         return out
 
 

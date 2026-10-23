@@ -244,9 +244,11 @@ class TestAccounting:
 
     def test_a_treated_fit_that_clears_the_incumbent_is_counted(self):
         """A penalty loosens the closed-form bound, so some candidates walked on
-        it are cleared by their treated fit alone; on this panel, four."""
+        it are cleared by their treated fit alone; on this panel, one. Under the
+        closed form alone it was four: the bounds that keep the penalty (#777)
+        clear the other three before their fit."""
         _, d = _search(*_cluster(n=10, seed=4), [4], design="penalized")
-        assert d.counts.cleared_by_treated_fit == 4
+        assert d.counts.cleared_by_treated_fit == 1
         assert _fates(d) == d.counts.candidates
 
     def test_a_small_buffer_forces_the_second_pass(self, monkeypatch):
@@ -267,7 +269,8 @@ class TestAccounting:
     def test_the_treated_fits_counted_are_the_fits_run(self, seed, n, design):
         """Every candidate the walk considers runs one treated-side fit, and one
         control fit when it is fitted outside the weakly-targeted design, whose
-        coupled fit fits both sides at once."""
+        coupled fit fits both sides at once. Outside it the control floor is one
+        more fit, over the whole cluster (#777)."""
         calls = []
         real = exact_mod.side_fit
 
@@ -282,7 +285,9 @@ class TestAccounting:
         considered = (c.cleared_by_treated_fit + c.without_control
                       + c.cleared_by_fit_cutoff + c.fitted)
         controls = 0 if design == "weakly" else c.fitted
-        assert len(calls) == considered + controls
+        floor = 0 if design == "weakly" else 1
+        assert len(calls) == considered + controls + floor
+        assert calls.count(n) == floor
         assert sum(1 for k in calls if k == 3) == considered
 
     def test_the_walk_records_its_discards(self):
