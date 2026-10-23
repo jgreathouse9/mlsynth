@@ -280,3 +280,48 @@ class TestTheRunner:
         res = json.loads((tmp_path / "out.json").read_text())
         assert res["search"] and all(r["identical"] for r in res["search"] if "identical" in r)
         assert all(r["same_designs"] for r in res["end_to_end"])
+
+
+class TestTheSeattlePanel:
+    """The R ``microsynth`` package's Seattle Drug Market Intervention panel, at block-group level."""
+
+    def test_block_groups_aggregate_the_pre_intervention_blocks(self):
+        import pandas as pd
+
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        df = R.seattle()
+        assert df["geo"].nunique() == 480 and sorted(df["date"].unique()) == list(range(1, 13))
+        assert df.groupby("geo")["Y"].agg(lambda s: s.max() > s.min()).all()     # no constant series
+        raw = pd.read_parquet(R.SEATTLE)
+        assert df["Y"].sum() == raw.loc[raw["time"] <= 12, "any_crime"].sum()    # aggregation loses no crime
+
+    def test_the_dmi_block_groups_are_the_data_s(self):
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        assert R.dmi_block_groups() == list(R.DMI_BLOCK_GROUPS)
+        assert set(R.DMI_BLOCK_GROUPS) <= set(R.seattle()["geo"])
+
+    def test_a_comparison_takes_the_window(self):
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        df = R.seattle()
+        df = df[df["geo"].isin(sorted(df["geo"].unique())[:20])]
+        row = R.compare(df, 2, "carried", n_test=R.SEATTLE_N_TEST)
+        assert row["identical"] is True and row["periods"] == 12
+
+    def test_the_seattle_study_reports_designs_and_the_dmi_split(self, tmp_path, monkeypatch):
+        import json
+
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        full = R.seattle()
+        keep = sorted(set(sorted(full["geo"].unique())[:17]) | set(R.DMI_BLOCK_GROUPS))
+        monkeypatch.setattr(R, "seattle", lambda: full[full["geo"].isin(keep)])
+        monkeypatch.setattr(R, "OUT_SEATTLE", tmp_path / "seattle.json")
+        res = R.seattle_study(k=2, starts=("carried",))
+        assert json.loads((tmp_path / "seattle.json").read_text()) == res
+        assert all(r["identical"] for r in res["search"])
+        assert [d["k"] for d in res["designs"]] == [1, 2] and res["fit"]["same_designs"]
+        dmi = res["dmi_split"]
+        assert dmi["treatment"] == list(R.DMI_BLOCK_GROUPS) and len(dmi["key"]) == 6
