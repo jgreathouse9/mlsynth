@@ -881,9 +881,12 @@ its work allowed. Between equal bounds the node created last goes first, so a
 split continues into the child that treats the unit; and until the search has
 a design to return it goes depth first, since best first can spend its limit
 near the root without reaching one. A node whose bound came from the lift
-passes that bound, certified, to its children, and a search stopped at its
-limit reports for each node it left open the better of that inherited bound and
-the node's own trust-region bound.
+passes that bound, certified, to its children. A search stopped at its limit
+reports the smallest bound over the nodes it left open, each node's bound the
+better of the one it inherited and its own trust-region bound. Only the
+smallest is reported, so the open nodes are bounded lowest first: once the
+smallest bound left is one already computed, no other node can go under it,
+and the nodes not reached keep the bounds they inherited.
 
 The bound. Every design below a node has :math:`f(S) \ge 4\alpha / U` for any
 :math:`U` at least the largest :math:`\boldsymbol{\sigma}^\top \mathbf{R}\,
@@ -942,7 +945,10 @@ thread at nodes of 10 to 60 free units: an evaluation of the lift's dual takes
 priced 2.5 microseconds at 40 units. On six searches at 30 to 40 units a modelled
 second then took 0.89 to 1.07 seconds of the clock, so the default stops a hard
 size in about two minutes. A search that reaches the limit returns its best
-design and the smallest certified bound over the nodes it left open. The design
+design and the smallest certified bound over the nodes it left open. Bounding
+those nodes is charged too, against what the limit left and at most 5% of the
+limit past it (6 modelled seconds at the default); a node that budget does not
+reach keeps the bound it inherited, which is still a bound. The design
 is certified when that bound reaches it; otherwise a ``SYNDESSolveWarning`` says
 it is not a proven optimum. The costs and the limit are constants and counts,
 never a clock, so a search makes the same decisions, and stops at the same node,

@@ -42,6 +42,7 @@ from mlsynth.utils.syndes_helpers.branch import (
     Multipliers,
     PruneRates,
     branch_and_bound,
+    least_open_bound,
     lift,
     node_parts,
     separate,
@@ -847,11 +848,14 @@ class TestCutoff:
         assert tuple(got.selected_unit_indices) == tuple(want.selected_unit_indices)
         assert got.raw_results["certified"] is True
 
-    def test_a_search_stopped_at_its_limit_is_certified_when_its_bound_reaches(self):
+    def test_a_search_stopped_at_its_limit_is_certified_when_its_bound_reaches(
+            self, monkeypatch):
         """Certification reads the bound, not whether the tree closed: with the
         cutoff between the root's bound and both children's, the root is split,
         the limit leaves the children open, and their certified bounds clear
-        the cutoff."""
+        the cutoff. The bracket is given room to bound both: a limit this small
+        leaves it room for none (:class:`TestTheBracketAfterTheLimit`)."""
+        monkeypatch.setattr(branch, "BRACKET_SHARE", 1e12)
         Y = _noise(N=12, seed=3)
         problem, engine = _engine(Y)
         K, N, alpha = 4, 12, engine.alpha
@@ -1112,6 +1116,178 @@ class TestWorkLimit:
     def test_an_invalid_limit_is_refused(self, limit):
         with pytest.raises(MlsynthConfigError, match="work_limit"):
             solve_synthetic_design_exact(Y=_panel(), K=3, work_limit=limit)
+
+
+class TestTheBracketAfterTheLimit:
+    """A search stopped at its limit reports the smallest bound over the nodes
+    it left open. Only that smallest bound decides the bracket, so the open
+    nodes are bounded lowest first (:func:`least_open_bound`), and within a
+    budget: past it a node keeps the bound it inherited."""
+
+    @staticmethod
+    def _items(pairs):
+        """``(inherited, own)`` pairs as the helper's items and an evaluator
+        that records what it bounds, at a cost of one each."""
+        items = [(b, i) for i, (b, _) in enumerate(pairs)]
+        calls = []
+
+        def evaluate(inherited, i):
+            calls.append(i)
+            return pairs[i][1], 1.0
+
+        return items, evaluate, calls
+
+    bounds = st.floats(-5, 5) | st.just(-np.inf)
+
+    @given(st.lists(st.tuples(bounds, bounds), max_size=30))
+    @settings(max_examples=200, deadline=None)
+    def test_with_room_it_is_the_eager_bound(self, pairs):
+        items, evaluate, calls = self._items(pairs)
+        got, spent, evaluated = least_open_bound(items, evaluate, np.inf)
+        eager = min((max(b, o) for b, o in pairs), default=np.inf)
+        assert got == eager
+        assert evaluated == len(calls) == len(set(calls)) == spent
+
+    @given(st.lists(st.tuples(bounds, bounds), max_size=30))
+    @settings(max_examples=200, deadline=None)
+    def test_it_bounds_only_nodes_under_the_answer(self, pairs):
+        """A node whose inherited bound is above the smallest final bound cannot
+        be the smallest, so it is never bounded."""
+        items, evaluate, calls = self._items(pairs)
+        got, _, _ = least_open_bound(items, evaluate, np.inf)
+        assert all(pairs[i][0] <= got for i in calls)
+
+    @given(st.lists(st.tuples(bounds, bounds), max_size=30),
+           st.floats(0.0, 40.0))
+    @settings(max_examples=200, deadline=None)
+    def test_within_a_budget_it_stays_a_bound(self, pairs, budget):
+        """Past the budget the nodes keep their inherited bounds: the answer is
+        under the eager one, and the spending stops one bound past the budget."""
+        items, evaluate, calls = self._items(pairs)
+        got, spent, evaluated = least_open_bound(items, evaluate, budget)
+        eager = min((max(b, o) for b, o in pairs), default=np.inf)
+        assert got <= eager
+        assert spent <= budget + 1.0 and evaluated == len(calls)
+
+    def test_no_budget_bounds_nothing(self):
+        items, evaluate, calls = self._items([(1.0, 9.0), (2.0, 9.0)])
+        assert least_open_bound(items, evaluate, 0.0) == (1.0, 0.0, 0)
+        assert calls == []
+
+    def test_no_open_node_leaves_no_bound(self):
+        assert least_open_bound([], lambda b, x: (0.0, 1.0), np.inf) == (np.inf, 0.0, 0)
+
+    def test_the_search_stops_once_a_bounded_node_is_smallest(self):
+        """The first node's own bound stays under every other inherited one, so
+        it is the answer after one bound."""
+        items, evaluate, calls = self._items([(0.0, 1.0), (2.0, 9.0), (3.0, 9.0)])
+        assert least_open_bound(items, evaluate, np.inf) == (1.0, 1.0, 1)
+        assert calls == [0]
+
+    def test_a_stopped_search_reports_the_eager_bracket(self, monkeypatch):
+        """Against the rule it replaces, bounding every open node: the same
+        bound, for less work."""
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        kw = dict(work_limit=1.5, restarts=0, **EAGER)
+        lazy = branch_and_bound(problem, engine, 8, SubsetFilter(), **kw)
+        seen = []
+
+        def eager(items, evaluate, budget):
+            spent, out = 0.0, np.inf
+            for b, x in items:
+                own, cost = evaluate(b, x)
+                spent += cost
+                out = min(out, max(b, own))
+            seen.append(len(items))
+            return out, spent, len(items)
+
+        monkeypatch.setattr(branch, "least_open_bound", eager)
+        full = branch_and_bound(problem, engine, 8, SubsetFilter(), **kw)
+        assert not lazy.closed and seen and seen[0] > 1
+        assert lazy.lower == full.lower
+        assert lazy.work < full.work
+        assert lazy.lower <= _enumerated(Y, 8).objective_value * (1 + 1e-9)
+
+    def test_the_bracket_spends_at_most_its_share_past_the_limit(self, monkeypatch):
+        """The budget is what the limit leaves plus BRACKET_SHARE of it, and
+        the bracket stops one bound past it."""
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        real, calls = branch.least_open_bound, []
+
+        def watched(items, evaluate, budget):
+            out = real(items, evaluate, budget)
+            calls.append((budget, out[1]))
+            return out
+
+        monkeypatch.setattr(branch, "least_open_bound", watched)
+        limit = 1.5
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=limit,
+                               restarts=0, **EAGER)
+        (budget, spent), = calls
+        one = branch.trust_region_seconds(16) + branch.certificate_seconds(16)
+        stopped = out.work - spent
+        assert not out.closed and stopped > limit
+        assert budget == pytest.approx(branch.BRACKET_SHARE * limit, rel=1e-12)
+        assert spent <= budget + one
+
+    def test_a_search_stopped_under_its_limit_leaves_the_rest_to_the_bracket(
+            self, monkeypatch):
+        """The search stops under its limit when the next subtree's pricing would
+        pass it; the bracket then has the rest of the limit as well."""
+        Y = _noise(N=20, seed=13)
+        problem, engine = _engine(Y)
+        real, calls = branch.least_open_bound, []
+
+        def watched(items, evaluate, budget):
+            out = real(items, evaluate, budget)
+            calls.append((budget, out[1]))
+            return out
+
+        monkeypatch.setattr(branch, "least_open_bound", watched)
+        limit = 0.02
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=limit,
+                               restarts=0)
+        (budget, spent), = calls
+        stopped = out.work - spent
+        assert not out.closed and stopped < limit
+        assert budget == pytest.approx(limit - stopped + branch.BRACKET_SHARE * limit,
+                                       rel=1e-9)
+
+    def test_the_bracket_is_charged(self, monkeypatch):
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        monkeypatch.setattr(branch, "least_open_bound",
+                            lambda items, evaluate, budget: (-np.inf, 1e3, 0))
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=1.5,
+                               restarts=0, **EAGER)
+        assert out.work >= 1e3
+
+    def test_a_bound_its_certificate_fails_is_not_reported(self, monkeypatch):
+        """With no certificate, no node prunes and none passes a bound to its
+        children, and the open nodes' own bounds go uncertified: the bracket is
+        the Rayleigh bound. The swap search's seeds give the search a design,
+        and the bracket has room to bound every open node."""
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        monkeypatch.setattr(branch.ExactR, "certify", lambda self, *a: None)
+        monkeypatch.setattr(branch, "BRACKET_SHARE", 1e12)
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=0.05,
+                               **EAGER)
+        assert not out.closed and out.treated is not None
+        assert out.lower == engine.global_lower_bound(8)
+
+    def test_with_no_share_the_bracket_is_the_inherited_bounds(self, monkeypatch):
+        """A limit already spent and no share left: every open node keeps the
+        bound it inherited, still under the optimum."""
+        monkeypatch.setattr(branch, "BRACKET_SHARE", 0.0)
+        Y = _noise(N=16, seed=13)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 8, SubsetFilter(), work_limit=1.5,
+                               restarts=0, **EAGER)
+        assert not out.closed
+        assert out.lower <= _enumerated(Y, 8).objective_value * (1 + 1e-9)
 
 
 class TestStillRefused:

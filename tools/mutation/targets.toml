@@ -7347,8 +7347,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-node-is-discarded-on-its-floating-point-bound"
-  find = "        exact = xr.certify(I, O, F, K, m)\n        if exact is None"
-  replace = "        exact = Fraction(U)\n        if exact is None"
+  find = "        exact = xr.certify(I, O, F, K, m)\n        if exact is None or exact <= 0 or not"
+  replace = "        exact = Fraction(U)\n        if exact is None or exact <= 0 or not"
   models = "the certificate skipped, so a node is discarded on the relaxation's floating-point value, whatever its exact bound"
 
   [[target.mutant]]
@@ -7395,8 +7395,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-buffered-subtrees-are-never-priced"
-  find = "        open_lower = min(open_lower, inherited)\n    flush()"
-  replace = "        open_lower = min(open_lower, inherited)"
+  find = "    counts[\"work\"] += spent\n    flush()"
+  replace = "    counts[\"work\"] += spent"
   models = "the last buffer of small subtrees left unpriced when the search ends, so a design in it is never seen"
 
   [[target.mutant]]
@@ -7479,9 +7479,57 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-open-nodes-own-bounds-are-ignored"
-  find = "        if np.isfinite(U) and U > 0.0 and 4.0 * alpha / U > inherited:"
-  replace = "        if False:"
+  find = "        if not (np.isfinite(U) and U > 0.0 and 4.0 * alpha / U > inherited):"
+  replace = "        if True:"
   models = "an open node left without its own trust-region bound, so a stopped search whose open nodes all clear its cutoff, none of them lifted, is reported uncertified"
+
+  [[target.mutant]]
+  id = "a-failed-certificate-still-bounds"
+  find = "        if exact is None or exact <= 0:\n            return -np.inf, cost"
+  replace = "        if exact is None or exact <= 0:\n            return 4.0 * alpha / U, cost"
+  models = "an open node's trust-region bound reported when its certificate fails, a floating-point bound nothing confirms"
+
+  [[target.mutant]]
+  id = "the-bracket-ignores-its-budget"
+  find = "        if not unbounded or spent >= budget:"
+  replace = "        if not unbounded:"
+  models = "the bracket after the limit uncapped, the overshoot #843's follow-up removes: a search that left 43,563 nodes open spent 220.7 modelled seconds against a limit of 120"
+
+  [[target.mutant]]
+  id = "the-bracket-bounds-nothing"
+  find = "        if not unbounded or spent >= budget:"
+  replace = "        if True:"
+  models = "every open node left at its inherited bound, so a stopped search reports a looser bracket than the work it has room for"
+
+  [[target.mutant]]
+  id = "the-bracket-drops-the-inherited-bound"
+  find = "        heapreplace(heap, (max(bound, own), 0, i))"
+  replace = "        heapreplace(heap, (own, 0, i))"
+  models = "a bounded node's own trust-region bound taken alone where the bound it inherited from a lift is higher"
+
+  [[target.mutant]]
+  id = "the-bracket-has-no-share"
+  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
+  replace = "    budget = max(work_limit - counts[\"work\"], 0.0)"
+  models = "the bracket given only what the limit left, nothing once a lift has carried the search past it"
+
+  [[target.mutant]]
+  id = "the-bracket-forgets-what-the-limit-left"
+  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
+  replace = "    budget = BRACKET_SHARE * work_limit"
+  models = "a search stopped under its limit, its next subtree's pricing too dear, gives the bracket only its share"
+
+  [[target.mutant]]
+  id = "the-bracket-pays-for-the-overshoot"
+  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
+  replace = "    budget = work_limit - counts[\"work\"] + BRACKET_SHARE * work_limit"
+  models = "the work a last lift spent past the limit taken out of the bracket's share"
+
+  [[target.mutant]]
+  id = "the-bracket-is-not-charged"
+  find = "    counts[\"work\"] += spent\n    flush()"
+  replace = "    flush()"
+  models = "the bracket's bounds and certificates left out of the work the search reports"
 
   [[target.mutant]]
   id = "children-keyed-below-their-parent"
