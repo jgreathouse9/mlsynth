@@ -91,6 +91,12 @@ decides the bracket, so the open nodes are bounded lowest first
 ``BRACKET_SHARE`` of it past it; a node the budget does not reach keeps the
 bound it inherited.
 
+The loop. The queue, the work's ledger and the handling of the limit are the
+loop MAREX's search uses too (:mod:`~mlsynth.utils.search_skeleton`, #846): this
+module hands it the plan for a node, the pricing and the bound. Equal keys go
+to the node pushed last, the search dives until it has a design, and the limit
+is read before each node as well as before each pricing.
+
 A cutoff. Searching every size (``K=None``), a design of one size bounds the
 others: a node whose bound clears the best design of any size holds nothing
 better. Given that design's value as ``cutoff``, the search discards on it, and
@@ -104,9 +110,7 @@ one-way's designs when its leaves are priced as one-way's
 """
 from __future__ import annotations
 
-import heapq
 import math
-from heapq import heapify, heapreplace
 from dataclasses import dataclass
 from fractions import Fraction
 from functools import lru_cache
@@ -124,6 +128,8 @@ from .gram import BoundEngine, TwoWayProblem, maxcut_candidates, signs_from_subs
 from ..marex_helpers.branch import lambda_min_lower
 from ..marex_helpers.certify import Dyadic, round_down
 from ...exceptions import MlsynthEstimationError
+from ..search_skeleton import (Bound, Ledger, NodeQueue, Price, cheaper_to_price,
+                               least_open_bound, run)
 
 #: A node is discarded when its bound is at least the incumbent times
 #: ``1 - PRUNE_RTOL``: ties go, and nothing better than the incumbent does.
@@ -835,40 +841,6 @@ def reliable_unit(F: Sequence[int], costs: PseudoCosts, here: float,
     return top
 
 
-def least_open_bound(
-    items: Sequence[Tuple[float, object]],
-    evaluate: Callable[[float, object], Tuple[float, float]],
-    budget: float,
-) -> Tuple[float, float, int]:
-    """The smallest certified bound over the nodes a stopped search left open.
-
-    ``items`` are ``(inherited, node)`` pairs, a node's inherited certified bound
-    and what ``evaluate`` needs to bound it; ``evaluate(inherited, node)``
-    returns the node's own certified bound and its cost in modelled seconds. A
-    node's bound is the higher of the two. Only the smallest bound decides the
-    bracket, so the nodes are bounded lowest first, and the search stops when
-    the smallest bound left is one already computed: every other node's
-    inherited bound is at least that, and its own bound can only raise it. A
-    node is bounded only while ``budget`` is not spent; past it the nodes keep
-    their inherited bounds, which are still bounds.
-
-    Returns the bound (infinite with no node), the cost spent and the number of
-    nodes bounded. The cost exceeds ``budget`` by at most one node's.
-    """
-    heap = [(float(b), 1, i) for i, (b, _) in enumerate(items)]
-    heapify(heap)
-    spent, evaluated = 0.0, 0
-    while heap:
-        bound, unbounded, i = heap[0]
-        if not unbounded or spent >= budget:
-            return bound, spent, evaluated
-        own, cost = evaluate(*items[i])
-        spent += cost
-        evaluated += 1
-        heapreplace(heap, (max(bound, own), 0, i))
-    return np.inf, spent, evaluated
-
-
 def branch_and_bound(
     problem: TwoWayProblem,
     engine: BoundEngine,
@@ -940,12 +912,13 @@ def branch_and_bound(
     pending: List[Tuple[np.ndarray, np.ndarray]] = []
     buffer: List[np.ndarray] = []
     counts = {"priced": 0, "buffered": 0, "nodes": 0, "lifts": 0, "pruned": 0,
-              "work": 0.0, "trials": 0}
+              "trials": 0}
+    ledger = Ledger(work_limit)
 
     def price_block(sets: np.ndarray) -> None:
         value, S, open_sets, open_bounds, seconds = leaves.price(sets, best[0])
         counts["priced"] += len(sets)
-        counts["work"] += seconds
+        ledger.charge(seconds)
         if value < best[0]:
             best[0], best[1] = float(value), S.copy()
         if len(open_sets):
@@ -976,7 +949,7 @@ def branch_and_bound(
         if not (np.isfinite(best[0]) and m is not None and np.isfinite(U) and U > 0.0
                 and 4.0 * alpha / U >= best[0] * (1.0 - PRUNE_RTOL)):
             return False
-        counts["work"] += certificate_seconds(len(F))
+        ledger.charge(certificate_seconds(len(F)))
         exact = xr.certify(I, O, F, K, m)
         if exact is None or exact <= 0 or not four_alpha >= Fraction(best[0]) * keep * exact:
             return False
@@ -1008,7 +981,7 @@ def branch_and_bound(
                 b, bounded = trial_bound(R, alpha, K, cI, cO, cF)
                 if bounded:
                     counts["trials"] += 1
-                    counts["work"] += trust_region_seconds(len(cF))
+                    ledger.charge(trust_region_seconds(len(cF)))
                 bounds.append(b)
             return bounds[0], bounds[1]
         return trial
@@ -1036,59 +1009,22 @@ def branch_and_bound(
     # A node is pushed only when it holds an admissible set. The root is the one
     # node that can hold none, or have r out of range, or force two units that
     # conflict: a child includes a unit only with its partners sent out.
-    # An open node: its parent's bound (the key), a tie-break that sends the
-    # node pushed last first, the node, its nearest lifted ancestor's certified
-    # bound, and the split that made it: the unit, the side, and the parent's
-    # trust-region bound, from which its rise is recorded.
-    Node = Tuple[float, int, Tuple[int, ...], Tuple[int, ...], Tuple[int, ...],
-                 SearchSpace, float, Optional[Tuple[int, bool, float]]]
-    heap: List[Node] = []
-    dive: List[Node] = []
-    pushed = [0]
-
+    # An open node, keyed by its parent's bound: its units in, out and free, its
+    # sets, its nearest lifted ancestor's certified bound, and the split that
+    # made it (the unit, the side, and the parent's trust-region bound, from
+    # which its rise is recorded). Equal keys go to the node pushed last, so a
+    # split continues into the child that includes its unit.
     def found() -> bool:
         # a design to return: a value, or a set priced or waiting to be
         return bool(np.isfinite(best[0]) or pending or buffer)
 
-    def push(key, I, O, F, space, inherited, origin) -> None:
-        pushed[0] += 1
-        entry = (key, -pushed[0], I, O, F, space, inherited, origin)
-        if found():
-            heapq.heappush(heap, entry)
-        else:
-            dive.append(entry)
+    queue = NodeQueue(last_first=True, found=found)
 
-    def pop() -> Node:
-        if dive and found():
-            for waiting in dive:
-                heapq.heappush(heap, waiting)
-            dive.clear()
-        return dive.pop() if dive else heapq.heappop(heap)
-
-    root = space_of(I0, O0)
-    if root.size and not any(partners.get(u, set()) & set(I0) for u in I0):
-        push(-np.inf, I0, O0, order, root, -np.inf, None)
-    closed = True
-    while heap or dive:
-        if counts["work"] >= work_limit:
-            closed = False
-            break
-        entry = pop()
-        key, _, I, O, F, space, inherited, origin = entry
+    def bound_node(key, node, bucket):
+        I, O, F, space, inherited, origin = node
         r, n = K - len(I), len(F)
-        bucket = space.size.bit_length()
-        p_bound = bound_rates.rate(bucket)
-        if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):
-            pricing = space.size * modelled
-            if counts["work"] + pricing > work_limit and not (r == 0 or r == n):
-                dive.append(entry)
-                closed = False
-                break
-            counts["work"] += pricing
-            enumerate_subtree(space)
-            continue
         counts["nodes"] += 1
-        counts["work"] += trust_region_seconds(n)
+        ledger.charge(trust_region_seconds(n))
         parts = node_parts(R, I, O, F)
         s = 2 * r - n
         U, _, m = trust_region(*parts, s)
@@ -1105,25 +1041,46 @@ def branch_and_bound(
                     if np.isfinite(best[0]) else None)
             U, m, evaluations = lift(*parts, s, target=goal)
             learned.observe(evaluations)
-            counts["work"] += evaluations * evaluation_seconds(n)
+            ledger.charge(evaluations * evaluation_seconds(n))
             hit = discards(I, O, F, U, m)
             lift_rates.record(bucket, hit)
         if hit:
             counts["pruned"] += 1
-            continue
+            return None
         # a lift costs far more than its certificate, which the children keep
         if lifted and m is not None:
-            counts["work"] += certificate_seconds(n)
+            ledger.charge(certificate_seconds(n))
             exact = xr.certify(I, O, F, K, m)
             if exact is not None and exact > 0:
                 inherited = max(inherited, round_down(four_alpha / exact))
         if np.isfinite(U) and U > 0.0:
             key = max(key, 4.0 * alpha / U)
         u = reliable_unit(F, costs, here, trials_at(I, O, F))
+        children = []
         for include, child in zip((False, True), split(I, O, F, u)):
             sub = space_of(child[0], child[1])
             if sub.size:
-                push(key, *child, sub, inherited, (u, include, here))
+                children.append((key, (*child, sub, inherited, (u, include, here))))
+        return children
+
+    def plan(key, node):
+        """Price a decided node, or one cheaper to price than to bound
+        (weighted by how often bounds have discarded nodes of its size);
+        bound any other. A decided node is priced whatever the limit."""
+        I, O, F, space, _, _ = node
+        r, n = K - len(I), len(F)
+        bucket = space.size.bit_length()
+        p_bound = bound_rates.rate(bucket)
+        decided = r == 0 or r == n
+        if decided or cheaper_to_price(space.size, price, bound_cost(n, p_bound), p_bound):
+            return Price(cost=space.size * modelled, deferrable=not decided,
+                         run=lambda: enumerate_subtree(space))
+        return Bound(run=lambda ledger: bound_node(key, node, bucket))
+
+    root = space_of(I0, O0)
+    if root.size and not any(partners.get(u, set()) & set(I0) for u in I0):
+        queue.push(-np.inf, (I0, O0, order, root, -np.inf, None))
+    closed = run(queue, ledger, plan=plan, check_before_pop=True)
 
     # what the limit left open: a decided node is priced; any other keeps its
     # inherited bound, or its own trust-region bound, certified, where that is
@@ -1131,7 +1088,7 @@ def branch_and_bound(
     # below the Rayleigh bound
     rayleigh = engine.global_lower_bound(K)
     undecided = []
-    for _, _, I, O, F, space, inherited, _ in heap + dive:
+    for _, _, (I, O, F, space, inherited, _) in queue.open():
         r = K - len(I)
         if r == 0 or r == len(F):
             enumerate_subtree(space)
@@ -1151,9 +1108,9 @@ def branch_and_bound(
             return -np.inf, cost
         return round_down(four_alpha / exact), cost
 
-    budget = max(work_limit - counts["work"], 0.0) + BRACKET_SHARE * work_limit
+    budget = ledger.left() + BRACKET_SHARE * work_limit
     open_lower, spent, _ = least_open_bound(undecided, own_bound, budget)
-    counts["work"] += spent
+    ledger.charge(spent)
     flush()
 
     solved = 0
@@ -1161,8 +1118,8 @@ def branch_and_bound(
         candidates = np.concatenate([p for p, _ in pending])
         bounds = np.concatenate([q for _, q in pending])
         best[0], best[1], solved, seconds, unresolved = leaves.resolve(
-            candidates, bounds, best[0], best[1], work_limit - counts["work"])
-        counts["work"] += seconds
+            candidates, bounds, best[0], best[1], work_limit - ledger.spent)
+        ledger.charge(seconds)
         if unresolved < np.inf:
             # the limit left sets open, each with its bound
             closed = False
@@ -1177,7 +1134,7 @@ def branch_and_bound(
             duality_gap=0.0, lower=float(lower), closed=closed,
             certified=bool(lower >= float(cutoff) * (1.0 - CERTIFY_RTOL)),
             nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
-            priced=counts["priced"], solved=solved, work=counts["work"],
+            priced=counts["priced"], solved=solved, work=ledger.spent,
             trials=counts["trials"])
     if best[1] is None:
         if not closed:
@@ -1201,5 +1158,5 @@ def branch_and_bound(
         certified=bool(gap / scale <= CERTIFY_RTOL
                        and value - lower <= CERTIFY_RTOL * scale),
         nodes=counts["nodes"], lifts=counts["lifts"], pruned=counts["pruned"],
-        priced=counts["priced"], solved=solved, work=counts["work"],
+        priced=counts["priced"], solved=solved, work=ledger.spent,
         trials=counts["trials"])

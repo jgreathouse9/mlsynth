@@ -82,6 +82,11 @@ certificate still brackets the optimum; ``open`` counts those nodes, and a
 search with none open has proved its design optimal. Only a search stopped
 before it found any design raises.
 
+The loop. The queue, the work's ledger and the handling of the limit are the
+loop SYNDES's searches use too (:mod:`~mlsynth.utils.search_skeleton`, #846):
+this module hands it the plan for a node, the pricing and the bound. Equal keys
+go to the node pushed first, and the limit is read before each charge.
+
 Restrictions. Forced and forbidden units start the root's ``I`` and ``O``;
 stratum quotas and forced units decide how many sets a node holds
 (:func:`~mlsynth.utils.marex_helpers.exact.count_candidates`, which drops a node
@@ -98,8 +103,6 @@ the limit that design is still refused.
 from __future__ import annotations
 
 import dataclasses
-import heapq
-import itertools
 import math
 from dataclasses import dataclass
 from fractions import Fraction
@@ -107,7 +110,9 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthConfigError, MlsynthEstimationError
+from ...exceptions import MlsynthEstimationError
+from ..search_skeleton import (Bound, Deferred, Ledger, NodeQueue, Price,
+                               cheaper_to_price, check_work_limit, run)
 from ..syndes_helpers.exact import SubsetFilter
 from .certify import ClusterCertificate, Dyadic, ExactData, round_down, round_up
 from .exact import (ClusterDesign, SearchNotClosed, _TopK, _chunks,
@@ -477,10 +482,7 @@ def branch_and_bound(
     SearchNotClosed
         When the work limit is reached before any design is found.
     """
-    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
-            or not np.isfinite(work_limit) or work_limit <= 0):
-        raise MlsynthConfigError(
-            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
+    check_work_limit(work_limit)
     data = ExactData(B, A)
     B, A, n = data.B, data.A, data.n
     lin_t = None if linear_treated is None else np.asarray(linear_treated, float)
@@ -496,8 +498,8 @@ def branch_and_bound(
     best = _TopK(top_k)
     brackets: Dict[Tuple[int, ...], Tuple[Fraction, Fraction]] = {}
     floors: Dict[Tuple[int, ...], Fraction] = {}
-    state = {"lifts": 0, "priced": 0, "work": 0.0, "admissible": False}
-    left: List[Fraction] = []          # the bounds of the nodes the limit left open
+    state = {"lifts": 0, "priced": 0, "admissible": False}
+    ledger = Ledger(work_limit)
 
     def pool(S: Sequence[int]) -> List[int]:
         drop = set(S)
@@ -567,70 +569,70 @@ def branch_and_bound(
         chosen = set(I)
         return any(partners.get(j, set()) & chosen for j in chosen)
 
-    counter = itertools.count()
-    queue: List = []
+    def bound_node(bound, m, I, O, F, sub, k):
+        h_floor = control_floor(tuple(sorted(O + F)))
+        g_floor, w = fit_lower(sorted(I + F), lin_t)
+        bound = max(bound, g_floor + h_floor)
+        if clears(bound):
+            return None
+        charge = lift_seconds(k)
+        if ledger.passes(charge):
+            return Deferred(bound)
+        ledger.charge(charge)
+        nb = node_bound(data, m, I, O, F, lin_t, lin_c)
+        state["lifts"] += 1
+        if nb.lower is not None:
+            bound = max(bound, nb.lower)
+        U = sorted(I + F)
+        r = m - len(I)
+        score = nb.z if nb.z is not None else {j: float(w[U.index(j)]) for j in F}
+        guess = tuple(sorted(I + tuple(sorted(F, key=lambda k: (-score[k], k))[:r])))
+        if sub.accepts(guess):
+            fit(guess, h_floor)
+        if clears(bound):
+            return None
+        j = max(F, key=lambda k: (score[k], -k))
+        out = partners.get(j, set())
+        return [(bound, (m, tuple(sorted(I + (j,))),
+                         tuple(sorted(O + tuple(k for k in F if k in out))),
+                         tuple(k for k in F if k != j and k not in out))),
+                (bound, (m, I, tuple(sorted(O + (j,))), tuple(k for k in F if k != j)))]
+
+    def plan(bound, node):
+        """Drop a node its key clears or that holds no admissible design;
+        price one cheaper to price than to bound; bound any other."""
+        m, I, O, F = node
+        if clears(bound):
+            return None
+        r = m - len(I)
+        if r < 0 or r > len(F) or conflicted(I):
+            return None
+        sub = dataclasses.replace(filt, forced_in=frozenset(I), forbidden=frozenset(O))
+        count = count_candidates(n, [m], sub)
+        if not count:
+            return None
+        state["admissible"] = True
+        if len(O) + len(F) - r < 1:              # every set treats every market
+            return None
+        k = max(len(I) + len(F), len(O) + len(F))
+        if count < 2 or cheaper_to_price(count, price_seconds, lift_seconds(k)):
+            return Price(cost=count * price_seconds, deferrable=True,
+                         run=lambda: price(m, sub, O, F))
+        return Bound(run=lambda ledger: bound_node(bound, m, I, O, F, sub, k))
+
+    # equal keys go to the node pushed first: each size's root in order, and a
+    # split's child that includes its market before the one that excludes it
+    queue = NodeQueue(last_first=False)
     forced = tuple(sorted(filt.forced_in))
     forbidden = tuple(sorted(filt.forbidden))
     if not set(forced) & set(forbidden):
         rest = tuple(j for j in range(n) if j not in filt.forced_in
                      and j not in filt.forbidden)
         for m in sizes:
-            queue.append((Fraction(0), next(counter), int(m), forced, forbidden, rest))
-    heapq.heapify(queue)
+            queue.push(Fraction(0), (int(m), forced, forbidden, rest))
+    run(queue, ledger, plan=plan, check_before_pop=False)
 
-    while queue:
-        bound, _, m, I, O, F = heapq.heappop(queue)
-        if clears(bound):
-            continue
-        r = m - len(I)
-        if r < 0 or r > len(F) or conflicted(I):
-            continue
-        sub = dataclasses.replace(filt, forced_in=frozenset(I), forbidden=frozenset(O))
-        count = count_candidates(n, [m], sub)
-        if not count:
-            continue
-        state["admissible"] = True
-        if len(O) + len(F) - r < 1:              # every set treats every market
-            continue
-        k = max(len(I) + len(F), len(O) + len(F))
-        if count < 2 or not count * price_seconds > lift_seconds(k):
-            charge = count * price_seconds
-            if state["work"] + charge > work_limit:
-                left.append(bound)
-                break
-            state["work"] += charge
-            price(m, sub, O, F)
-            continue
-        h_floor = control_floor(tuple(sorted(O + F)))
-        g_floor, w = fit_lower(sorted(I + F), lin_t)
-        bound = max(bound, g_floor + h_floor)
-        if clears(bound):
-            continue
-        charge = lift_seconds(k)
-        if state["work"] + charge > work_limit:
-            left.append(bound)
-            break
-        state["work"] += charge
-        nb = node_bound(data, m, I, O, F, lin_t, lin_c)
-        state["lifts"] += 1
-        if nb.lower is not None:
-            bound = max(bound, nb.lower)
-        U = sorted(I + F)
-        score = nb.z if nb.z is not None else {j: float(w[U.index(j)]) for j in F}
-        guess = tuple(sorted(I + tuple(sorted(F, key=lambda k: (-score[k], k))[:r])))
-        if sub.accepts(guess):
-            fit(guess, h_floor)
-        if clears(bound):
-            continue
-        j = max(F, key=lambda k: (score[k], -k))
-        out = partners.get(j, set())
-        heapq.heappush(queue, (bound, next(counter), m, tuple(sorted(I + (j,))),
-                               tuple(sorted(O + tuple(k for k in F if k in out))),
-                               tuple(k for k in F if k != j and k not in out)))
-        heapq.heappush(queue, (bound, next(counter), m, I, tuple(sorted(O + (j,))),
-                               tuple(k for k in F if k != j)))
-
-    left += [item[0] for item in queue]
+    left = [entry[0] for entry in queue.open()]   # the bounds of the nodes left open
     if left and not best.items:
         raise SearchNotClosed(
             f"The branch and bound reached its work limit ({work_limit:g} modelled "
@@ -659,4 +661,4 @@ def branch_and_bound(
                                      fitted=len(brackets))
     return BranchResult(designs=list(best.items), certificate=certificate,
                         lifts=state["lifts"], priced=state["priced"],
-                        work=state["work"], open=len(still_open))
+                        work=ledger.spent, open=len(still_open))

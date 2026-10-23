@@ -660,10 +660,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-limit-of-zero-is-accepted"
-  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
-  replace = "            or not np.isfinite(work_limit)):"
-  models = "a limit that admits no work accepted, so the search stops at once instead of refusing the configuration"
-
+  find = "    check_work_limit(work_limit)\n"
+  replace = "    pass\n"
+  models = "the per-unit search's limit handed to it unchecked, so a limit that admits no work stops the search at once instead of refusing the configuration"
 [[target]]
 name = "syndes-one-way-exact-wiring"
 module-path = "mlsynth/estimators/syndes.py"
@@ -5880,10 +5879,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "cost-rule-inverted"
-  find = "        if count < 2 or not count * price_seconds > lift_seconds("
-  replace = "        if count < 2 or count * price_seconds > lift_seconds("
+  find = "        if count < 2 or cheaper_to_price(count, price_seconds, lift_seconds(k)):"
+  replace = "        if count < 2 or not cheaper_to_price(count, price_seconds, lift_seconds(k)):"
   models = "bounding the subtrees that are cheap to price and pricing the ones that are expensive"
-
 # MAREX's node bound by a regularised dual (#833): the study's dual and the
 # smooth bound it maximises, certified by the library's certificate.
 [[target]]
@@ -6926,10 +6924,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-unbounded-limit-is-accepted"
-  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
-  replace = "            or work_limit <= 0):"
-  models = "an infinite or NaN work_limit accepted, so a search meant to stop never does"
-
+  find = "    check_work_limit(work_limit)\n"
+  replace = "    pass\n"
+  models = "the one-way search's limit handed to it unchecked, so an infinite or NaN work_limit meant to stop a search never does"
   [[target.mutant]]
   id = "the-limit-is-not-passed-on"
   find = "    outcome = _search(fits, problem, engine, K, filt, int(candidate_limit), int(seed),\n                      float(work_limit))"
@@ -6956,16 +6953,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-leaves-work-is-not-charged"
-  find = "        counts[\"work\"] += seconds\n        if value < best[0]:"
+  find = "        ledger.charge(seconds)\n        if value < best[0]:"
   replace = "        if value < best[0]:"
   models = "the fits the leaves make while pricing a block not counted, so the limit misses them"
-
   [[target.mutant]]
   id = "the-resolution-gets-no-budget"
-  find = "            candidates, bounds, best[0], best[1], work_limit - counts[\"work\"])"
+  find = "            candidates, bounds, best[0], best[1], work_limit - ledger.spent)"
   replace = "            candidates, bounds, best[0], best[1], np.inf)"
   models = "the open sets resolved without the work left, so the leaves run past the limit the tree stopped at"
-
   [[target.mutant]]
   id = "open-sets-leave-the-tree-closed"
   find = "            closed = False\n            open_lower = min(open_lower, unresolved)"
@@ -7043,7 +7038,6 @@ timeout = 900.0
   find = "    if not certified:\n        warnings.warn("
   replace = "    if False:\n        warnings.warn("
   models = "an uncertified design returned without a warning, so a caller reading only the design cannot tell it from the optimum"
-
 
   [[target.mutant]]
   id = "the-second-pass-is-iterative-again"
@@ -7364,12 +7358,6 @@ timeout = 1200.0
   models = "only the nodes whose bound cannot clear the incumbent are sent to the certificate, so nothing is ever discarded and the search prices every set"
 
   [[target.mutant]]
-  id = "the-work-limit-is-not-enforced"
-  find = "        if counts[\"work\"] >= work_limit:"
-  replace = "        if False:"
-  models = "work_limit accepted, validated and documented, and never read"
-
-  [[target.mutant]]
   id = "the-limits-bound-ignores-the-open-nodes"
   find = "    lower = min(floor[0], open_lower, value - gap)"
   replace = "    lower = min(floor[0], value - gap)"
@@ -7395,10 +7383,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-buffered-subtrees-are-never-priced"
-  find = "    counts[\"work\"] += spent\n    flush()"
-  replace = "    counts[\"work\"] += spent"
+  find = "    ledger.charge(spent)\n    flush()"
+  replace = "    ledger.charge(spent)"
   models = "the last buffer of small subtrees left unpriced when the search ends, so a design in it is never seen"
-
   [[target.mutant]]
   id = "the-broken-closed-forms-are-never-solved"
   find = "    if pending:"
@@ -7407,10 +7394,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-decided-node-is-bounded"
-  find = "        if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):"
-  replace = "        if space.size * price * p_bound <= bound_cost(n, p_bound):"
+  find = "        if decided or cheaper_to_price(space.size, price, bound_cost(n, p_bound), p_bound):"
+  replace = "        if cheaper_to_price(space.size, price, bound_cost(n, p_bound), p_bound):"
   models = "a node with nothing left to choose sent to the bound and split, where its free units are already decided"
-
   [[target.mutant]]
   id = "the-plane-multipliers-are-halved"
   find = "    return (2.0 / rr) * Hr - (float(r @ Hr) / rr ** 2) * r"
@@ -7448,18 +7434,6 @@ timeout = 1200.0
   models = "triangles violated by a hair added every round, BiqCrunch's 0.05 threshold dropped"
 
   [[target.mutant]]
-  id = "pricing-is-not-charged-to-the-limit"
-  find = "            if counts[\"work\"] + pricing > work_limit and not (r == 0 or r == n):"
-  replace = "            if False:"
-  models = "a subtree priced whatever its size, so a search whose bounds do not prune runs past work_limit pricing every set"
-
-  [[target.mutant]]
-  id = "the-queue-is-a-stack"
-  find = "        return dive.pop() if dive else heapq.heappop(heap)"
-  replace = "        return dive.pop() if dive else heap.pop()"
-  models = "best first dropped for depth first: the open node pushed last is bounded next, whatever its bound, so a search stopped at its limit leaves the smallest open bound where the root put it"
-
-  [[target.mutant]]
   id = "no-dive-without-an-incumbent"
   find = "        return bool(np.isfinite(best[0]) or pending or buffer)"
   replace = "        return True"
@@ -7467,10 +7441,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "children-inherit-nothing"
-  find = "        if lifted and m is not None:\n            counts[\"work\"] += certificate_seconds(n)"
-  replace = "        if False:\n            counts[\"work\"] += certificate_seconds(n)"
+  find = "        if lifted and m is not None:\n            ledger.charge(certificate_seconds(n))"
+  replace = "        if False:\n            ledger.charge(certificate_seconds(n))"
   models = "a lifted node's certified bound dropped at its split, so a search stopped at its limit reports its open nodes' trust-region bounds, looser than the lifts above them"
-
   [[target.mutant]]
   id = "the-inherited-bound-is-not-certified"
   find = "            exact = xr.certify(I, O, F, K, m)\n            if exact is not None and exact > 0:\n                inherited = max(inherited, round_down(four_alpha / exact))\n        if np.isfinite(U) and U > 0.0:"
@@ -7490,47 +7463,25 @@ timeout = 1200.0
   models = "an open node's trust-region bound reported when its certificate fails, a floating-point bound nothing confirms"
 
   [[target.mutant]]
-  id = "the-bracket-ignores-its-budget"
-  find = "        if not unbounded or spent >= budget:"
-  replace = "        if not unbounded:"
-  models = "the bracket after the limit uncapped, the overshoot #843's follow-up removes: a search that left 43,563 nodes open spent 220.7 modelled seconds against a limit of 120"
-
-  [[target.mutant]]
-  id = "the-bracket-bounds-nothing"
-  find = "        if not unbounded or spent >= budget:"
-  replace = "        if True:"
-  models = "every open node left at its inherited bound, so a stopped search reports a looser bracket than the work it has room for"
-
-  [[target.mutant]]
-  id = "the-bracket-drops-the-inherited-bound"
-  find = "        heapreplace(heap, (max(bound, own), 0, i))"
-  replace = "        heapreplace(heap, (own, 0, i))"
-  models = "a bounded node's own trust-region bound taken alone where the bound it inherited from a lift is higher"
-
-  [[target.mutant]]
   id = "the-bracket-has-no-share"
-  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
-  replace = "    budget = max(work_limit - counts[\"work\"], 0.0)"
+  find = "    budget = ledger.left() + BRACKET_SHARE * work_limit"
+  replace = "    budget = ledger.left()"
   models = "the bracket given only what the limit left, nothing once a lift has carried the search past it"
-
   [[target.mutant]]
   id = "the-bracket-forgets-what-the-limit-left"
-  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
+  find = "    budget = ledger.left() + BRACKET_SHARE * work_limit"
   replace = "    budget = BRACKET_SHARE * work_limit"
   models = "a search stopped under its limit, its next subtree's pricing too dear, gives the bracket only its share"
-
   [[target.mutant]]
   id = "the-bracket-pays-for-the-overshoot"
-  find = "    budget = max(work_limit - counts[\"work\"], 0.0) + BRACKET_SHARE * work_limit"
-  replace = "    budget = work_limit - counts[\"work\"] + BRACKET_SHARE * work_limit"
+  find = "    budget = ledger.left() + BRACKET_SHARE * work_limit"
+  replace = "    budget = work_limit - ledger.spent + BRACKET_SHARE * work_limit"
   models = "the work a last lift spent past the limit taken out of the bracket's share"
-
   [[target.mutant]]
   id = "the-bracket-is-not-charged"
-  find = "    counts[\"work\"] += spent\n    flush()"
+  find = "    ledger.charge(spent)\n    flush()"
   replace = "    flush()"
   models = "the bracket's bounds and certificates left out of the work the search reports"
-
   # #881: reliability branching. Each mutant changes which unit a node splits
   # on, or what the pseudo-costs record, never the answer.
   [[target.mutant]]
@@ -7607,10 +7558,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-trials-are-free"
-  find = "                    counts[\"work\"] += trust_region_seconds(len(cF))"
+  find = "                    ledger.charge(trust_region_seconds(len(cF)))"
   replace = "                    pass"
   models = "the trials' trust-region bounds left out of the work, so the limit misses them"
-
   [[target.mutant]]
   id = "the-trial-sides-are-swapped"
   find = "            return bounds[0], bounds[1]"
@@ -7625,10 +7575,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-bounded-child-records-its-bound"
-  find = "                push(key, *child, sub, inherited, (u, include, here))"
-  replace = "                push(key, *child, sub, inherited, (u, include, 0.0))"
+  find = "                children.append((key, (*child, sub, inherited, (u, include, here))))"
+  replace = "                children.append((key, (*child, sub, inherited, (u, include, 0.0))))"
   models = "the parent's bound dropped from the child's origin, so the rise recorded is the child's bound itself"
-
   [[target.mutant]]
   id = "every-node-splits-on-its-first-unit"
   find = "        u = reliable_unit(F, costs, here, trials_at(I, O, F))"
@@ -7643,22 +7592,19 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "lifts-are-not-charged-to-the-limit"
-  find = "            counts[\"work\"] += evaluations * evaluation_seconds(n)"
+  find = "            ledger.charge(evaluations * evaluation_seconds(n))"
   replace = "            pass"
   models = "the lifts' evaluations left out of the work, so a flat panel whose every node lifts runs past work_limit"
-
   [[target.mutant]]
   id = "certificates-are-not-charged-to-the-limit"
-  find = "        counts[\"work\"] += certificate_seconds(len(F))"
+  find = "        ledger.charge(certificate_seconds(len(F)))"
   replace = "        pass"
   models = "the exact certificates left out of the work, so a search that certifies at every node runs past work_limit"
-
   [[target.mutant]]
   id = "bounds-are-not-charged-to-the-limit"
-  find = "        counts[\"nodes\"] += 1\n        counts[\"work\"] += trust_region_seconds(n)"
+  find = "        counts[\"nodes\"] += 1\n        ledger.charge(trust_region_seconds(n))"
   replace = "        counts[\"nodes\"] += 1"
   models = "the trust-region bounds left out of the work, so a search that bounds nodes without lifting or certifying never reaches work_limit"
-
   [[target.mutant]]
   id = "the-cutoff-is-ignored"
   find = "    best: List = [np.inf if cutoff is None else float(cutoff), None]"
@@ -7691,10 +7637,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-work-limit-is-not-validated"
-  find = "    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))\n            or not np.isfinite(work_limit) or work_limit <= 0):"
-  replace = "    if False:"
-  models = "a zero, negative, infinite, NaN or boolean work_limit accepted and handed to the search"
-
+  find = "    check_work_limit(work_limit)\n"
+  replace = "    pass\n"
+  models = "a zero, negative, infinite, NaN or boolean work_limit handed to the two-way search unchecked"
 # The branch and bounds' regression gates (#841). Each mutant changes how much
 # work a search does and not the design it returns; the benchmark case, which
 # pins the work, is what has to fail. The unit tests also catch
@@ -7708,10 +7653,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "every-node-is-priced"
-  find = "        if r == 0 or r == n or space.size * price * p_bound <= bound_cost(n, p_bound):"
+  find = "        if decided or cheaper_to_price(space.size, price, bound_cost(n, p_bound), p_bound):"
   replace = "        if True:"
   models = "the search turned back into enumeration: every node priced set by set, the same design returned at the cost of pricing every one"
-
   [[target.mutant]]
   id = "no-node-is-lifted"
   find = "        lifted = not hit and space.size * price * p_lift > lift_cost(n, p_lift)"
@@ -8689,40 +8633,20 @@ test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cac
 timeout = 900.0
 
   [[target.mutant]]
-  id = "pricing-is-not-charged"
-  find = "            state[\"work\"] += charge\n            price(m, sub, O, F)"
-  replace = "            price(m, sub, O, F)"
-  models = "the sets a search prices left off its work, so a search that prices most of its sets never reaches its limit"
-
-  [[target.mutant]]
   id = "a-bound-is-not-charged"
-  find = "        state[\"work\"] += charge\n        nb = node_bound("
+  find = "        ledger.charge(charge)\n        nb = node_bound("
   replace = "        nb = node_bound("
   models = "the persp+N bounds left off the work, the charge that dominates MAREX's searches, so the limit binds only on pricing"
-
   [[target.mutant]]
   id = "a-bound-may-pass-the-limit"
-  find = "        charge = lift_seconds(k)\n        if state[\"work\"] + charge > work_limit:"
-  replace = "        charge = lift_seconds(k)\n        if state[\"work\"] > work_limit:"
+  find = "        charge = lift_seconds(k)\n        if ledger.passes(charge):"
+  replace = "        charge = lift_seconds(k)\n        if ledger.spent > ledger.limit:"
   models = "the limit checked after the fact, so the search starts a bound that takes its work past the limit, by minutes at eighty markets"
-
-  [[target.mutant]]
-  id = "pricing-may-pass-the-limit"
-  find = "            charge = count * price_seconds\n            if state[\"work\"] + charge > work_limit:"
-  replace = "            charge = count * price_seconds\n            if state[\"work\"] > work_limit:"
-  models = "a subtree priced whole although its pricing takes the work past the limit"
-
   [[target.mutant]]
   id = "the-open-nodes-are-left-out-of-the-bound"
   find = "    lower = min([lower] + still_open)"
   replace = "    lower = min([lower])"
   models = "a stopped search certifying the incumbent's own bracket, as if the nodes it never searched held nothing better"
-
-  [[target.mutant]]
-  id = "the-stopped-node-is-dropped"
-  find = "        if state[\"work\"] + charge > work_limit:\n            left.append(bound)\n            break"
-  replace = "        if state[\"work\"] + charge > work_limit:\n            break"
-  models = "the node the search was about to bound forgotten when it stops, though best first it holds the least bound of all and may hold the optimum"
 
   [[target.mutant]]
   id = "no-design-reads-as-infeasible"
@@ -8732,10 +8656,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-limit-of-zero-is-accepted"
-  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
-  replace = "            or not np.isfinite(work_limit)):"
-  models = "a limit that admits no work accepted, so the search raises for want of a design instead of refusing the configuration"
-
+  find = "    check_work_limit(work_limit)\n"
+  replace = "    pass\n"
+  models = "MAREX's limit handed to its search unchecked, so a limit that admits no work raises for want of a design instead of refusing the configuration"
 [[target]]
 name = "marex-work-limit-report"
 module-path = "mlsynth/utils/marex_helpers/exact.py"
@@ -8753,3 +8676,162 @@ timeout = 900.0
   find = "                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                                     bnb_open=found.open)"
   models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
+
+# #846: the loop the certified branch and bounds share. The skeleton's tests
+# run first; the searches' own tests follow, so a mutant they miss still meets
+# the defect as each search sees it.
+[[target]]
+name = "search-skeleton"
+module-path = "mlsynth/utils/search_skeleton.py"
+test-command = "python -m pytest mlsynth/tests/test_search_skeleton.py mlsynth/tests/test_syndes_branch.py mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-work-limit-is-not-enforced"
+  find = "        if check_before_pop and ledger.exhausted():"
+  replace = "        if False:"
+  models = "SYNDES's work_limit accepted, validated and documented, and never read: the limit it reads before each node"
+
+  [[target.mutant]]
+  id = "pricing-is-not-charged-to-the-limit"
+  find = "            if step.deferrable and ledger.passes(step.cost):"
+  replace = "            if False:"
+  models = "a subtree priced whatever its size, so a SYNDES search whose bounds do not prune runs past work_limit pricing every set"
+
+  [[target.mutant]]
+  id = "pricing-may-pass-the-limit"
+  find = "            if step.deferrable and ledger.passes(step.cost):"
+  replace = "            if step.deferrable and ledger.spent > ledger.limit:"
+  models = "the limit read after the fact: MAREX prices a subtree whole although its pricing takes the work past the limit"
+
+  [[target.mutant]]
+  id = "pricing-is-not-charged"
+  find = "            ledger.charge(step.cost)\n            step.run()"
+  replace = "            step.run()"
+  models = "the sets a search prices left off its work, so a search that prices most of its sets never reaches its limit"
+
+  [[target.mutant]]
+  id = "the-stopped-node-is-dropped"
+  find = "            queue.put_back(entry, out.key)\n            return False"
+  replace = "            return False"
+  models = "the node MAREX was about to bound forgotten when the limit stops it, though best first it holds the least bound of all and may hold the optimum"
+
+  [[target.mutant]]
+  id = "the-deferred-pricing-is-forgotten"
+  find = "                queue.put_back(entry)\n                return False"
+  replace = "                return False"
+  models = "the subtree whose pricing the limit stopped dropped from the open nodes, so the bracket forgets the sets it holds"
+
+  [[target.mutant]]
+  id = "the-queue-is-a-stack"
+  find = "        return self.dive.pop() if self.dive else heapq.heappop(self.heap)"
+  replace = "        return self.dive.pop() if self.dive else self.heap.pop()"
+  models = "best first dropped for depth first: the open node pushed last is bounded next, whatever its bound, so a search stopped at its limit leaves the smallest open bound where the root put it"
+
+  [[target.mutant]]
+  id = "ties-go-the-other-way"
+  find = "        self._sign = -1 if last_first else 1"
+  replace = "        self._sign = 1 if last_first else -1"
+  models = "equal keys taken in the opposite order: SYNDES's split no longer continues into the child it pushed last, and MAREX takes its sizes' roots last first"
+
+  [[target.mutant]]
+  id = "the-search-never-dives"
+  find = "        if self._has_design():\n            heapq.heappush"
+  replace = "        if True:\n            heapq.heappush"
+  models = "best first from the start: a search with no design spreads its limit over the top of the tree and can stop with none"
+
+  [[target.mutant]]
+  id = "the-dive-never-surfaces"
+  find = "        if self.dive and self._has_design():"
+  replace = "        if False:"
+  models = "the depth-first stack kept after a design is found, so the search never turns best first"
+
+  [[target.mutant]]
+  id = "the-open-nodes-forget-the-deferred"
+  find = "        return self.heap + self.dive + self.deferred"
+  replace = "        return self.heap + self.dive"
+  models = "the node the limit stopped left out of the open nodes, so the bound over them can pass the optimum"
+
+  [[target.mutant]]
+  id = "a-node-put-back-keeps-its-old-key"
+  find = "        self.deferred.append(entry if key is None else (key,) + tuple(entry[1:]))"
+  replace = "        self.deferred.append(entry)"
+  models = "a node whose key the bound raised before the limit stopped it left under its old key"
+
+  [[target.mutant]]
+  id = "children-are-never-pushed"
+  find = "        for child_key, child in out or ():"
+  replace = "        for child_key, child in ():"
+  models = "a split's children dropped, so the search closes on the root's subtree priced or bounded and nothing below it"
+
+  [[target.mutant]]
+  id = "the-ledger-forgets-its-charges"
+  find = "        self.spent += seconds"
+  replace = "        pass"
+  models = "charges recorded nowhere, so no limit is ever reached"
+
+  [[target.mutant]]
+  id = "a-charge-at-the-limit-passes-it"
+  find = "        return self.spent + seconds > self.limit"
+  replace = "        return self.spent + seconds >= self.limit"
+  models = "a step that would bring the work exactly to the limit refused"
+
+  [[target.mutant]]
+  id = "the-limit-is-reached-late"
+  find = "        return self.spent >= self.limit"
+  replace = "        return self.spent > self.limit"
+  models = "work exactly at the limit read as room left"
+
+  [[target.mutant]]
+  id = "what-is-left-goes-negative"
+  find = "        return max(self.limit - self.spent, 0.0)"
+  replace = "        return self.limit - self.spent"
+  models = "the work a last lift spent past the limit taken out of what follows it"
+
+  [[target.mutant]]
+  id = "the-rate-is-ignored"
+  find = "    return size * price_seconds * rate <= bound_seconds"
+  replace = "    return size * price_seconds <= bound_seconds"
+  models = "the chance a bound prunes ignored, so SYNDES bounds subtrees its bounds rarely discard"
+
+  [[target.mutant]]
+  id = "pricing-and-bounding-swapped"
+  find = "    return size * price_seconds * rate <= bound_seconds"
+  replace = "    return size * price_seconds * rate > bound_seconds"
+  models = "the subtrees cheap to price bounded and the expensive ones priced"
+
+  [[target.mutant]]
+  id = "the-bracket-ignores-its-budget"
+  find = "        if not unbounded or spent >= budget:"
+  replace = "        if not unbounded:"
+  models = "the bracket after the limit uncapped, the overshoot #843's follow-up removes: a search that left 43,563 nodes open spent 220.7 modelled seconds against a limit of 120"
+
+  [[target.mutant]]
+  id = "the-bracket-bounds-nothing"
+  find = "        if not unbounded or spent >= budget:"
+  replace = "        if True:"
+  models = "every open node left at its inherited bound, so a stopped search reports a looser bracket than the work it has room for"
+
+  [[target.mutant]]
+  id = "the-bracket-drops-the-inherited-bound"
+  find = "        heapreplace(heap, (max(bound, own), 0, i))"
+  replace = "        heapreplace(heap, (own, 0, i))"
+  models = "a bounded node's own trust-region bound taken alone where the bound it inherited from a lift is higher"
+
+  [[target.mutant]]
+  id = "a-limit-of-zero-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or not np.isfinite(work_limit)):"
+  models = "a limit that admits no work accepted"
+
+  [[target.mutant]]
+  id = "an-unbounded-limit-is-accepted"
+  find = "            or not np.isfinite(work_limit) or work_limit <= 0):"
+  replace = "            or work_limit <= 0):"
+  models = "an infinite or NaN work_limit accepted, so a search meant to stop never does"
+
+  [[target.mutant]]
+  id = "a-boolean-limit-is-accepted"
+  find = "    if (isinstance(work_limit, bool) or not isinstance("
+  replace = "    if (not isinstance("
+  models = "True read as a limit of one second"

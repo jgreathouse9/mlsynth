@@ -73,6 +73,7 @@ from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
+from ..search_skeleton import check_work_limit
 from ..fast_scm_helpers.structure import IndexSet
 from ..solvers.active_set import solve_simplex_qp
 from .exact import (
@@ -472,10 +473,7 @@ def solve_one_way_exact(
     lam_value = float(estimate_lambda(Y)) if lam is None else float(lam)
     if not lam_value >= 0.0:
         raise MlsynthConfigError(f"lam must be nonnegative; got {lam!r}.")
-    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
-            or not np.isfinite(work_limit) or work_limit <= 0):
-        raise MlsynthConfigError(
-            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
+    check_work_limit(work_limit)
 
     excluded: Dict[int, set] = {}
     treated_rules = restrictions
