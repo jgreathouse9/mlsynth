@@ -6,7 +6,7 @@ The equalities are eliminated in a null-space basis. What remains is a least-squ
 problem with inequality constraints, which Lawson and Hanson (1974, Solving Least
 Squares Problems, ch. 23) reduce to a least-distance problem solved by one
 nonnegative least-squares call. SciPy's ``nnls`` is compiled, so a solve on a face of
-a few donors takes about 0.2 ms on Proposition 99.
+a few donors takes 0.2 to 0.25 ms on Proposition 99.
 """
 from __future__ import annotations
 

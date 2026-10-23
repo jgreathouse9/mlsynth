@@ -46,7 +46,7 @@ repository's `data/smoking_data.csv`.
 
 | step | authors' code | this study |
 | --- | --- | --- |
-| least squares on a face | cvxpy with Clarabel, about 4.6 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), about 0.2 ms |
+| least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.25 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
 | allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: only the link vertices as walls, in one batched SVD; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
@@ -117,18 +117,18 @@ The speed-up is against the replication. `synthx.estimate` runs within 5 per cen
 it, since it calls the same solvers. Where the time goes, from `breakdown.py`
 (`results/breakdown.json`):
 
-- Donor weights, diagonal class. The replication spends 53 per cent of its time in
-  186 cvxpy quadratic programs at about 4.6 ms each, 25 per cent enumerating the
+- Donor weights, diagonal class. The replication spends 54 per cent of its time in
+  186 cvxpy quadratic programs at about 4.9 ms each, 24 per cent enumerating the
   visible facets, and 13 per cent in 170 SciPy LPs that test sign patterns face by
-  face. This study spends 36 per cent gift-wrapping the 132 visible facets and 55 per
-  cent in 343 least-squares solves at about 0.2 ms each. On Proposition 99 no face it
-  reaches needs an LP to list its sign patterns, and 17 faces are ruled out by the
+  face. This study spends 35 per cent gift-wrapping the 132 visible facets and 56 per
+  cent in 343 least-squares solves at 0.2 to 0.25 ms each. On Proposition 99 no face
+  it reaches needs an LP to list its sign patterns, and 17 faces are ruled out by the
   common-sign relaxation before any are listed.
 - V, diagonal class. Both codes spend most of their time in the same 40 LPs that find
   the support of V and its implicit equalities; only the two convex programs after
-  them change, from 31 ms in cvxpy to about 1 ms of Newton steps.
+  them change, from 37 ms in cvxpy to about 1 ms of Newton steps.
 - V, positive definite class. The replication's 17 semidefinite programs, at about
-  23 ms each, become 164 Newton runs of the barrier method at about 1.6 ms each.
+  20 ms each, become 164 Newton runs of the barrier method at about 1.3 ms each.
 
 ## Limits
 
@@ -138,9 +138,14 @@ it, since it calls the same solvers. Where the time goes, from `breakdown.py`
   hull of lower dimension, as when predictors are shares of a whole, is refused in both
   classes; `synthx` refuses it in the diagonal class and reduces to the donors' span in
   the positive definite class.
-- Proposition 99 has K = 7 predictors and 38 donors. `scaling.py` times both codes on
-  seeded random designs of that size, and the study alone at K = 8 and 9. The search
-  cost grows quickly with K: from K = 8, some faces have normal cones with too many
-  walls for the batched ray enumeration, and those fall back to one LP per sign pattern.
+- Proposition 99 has K = 7 predictors and 38 donors. On eight seeded random designs
+  of that size (`scaling.py`, `results/scaling.json`) the diagonal search here took
+  0.45 to 4.0 s against the replication's 9.3 to 125 s, 16x to 46x faster (median
+  21x); on four designs at K = 8 it took 1.9 to 15 s against 40 to 542 s, 16x to
+  182x faster (median 42x). The weights agree to 1.1e-10 in every design. The search
+  cost still grows quickly with K: from K = 8, some faces have normal cones with too
+  many walls for the batched ray enumeration, and each of those falls back to one LP
+  per sign pattern, 2^K of them. At K = 9 four designs took 3.9 to 215 s on their
+  own; the slowest had 95 such faces and ran 48,645 LPs.
 - The timings are single-threaded wall clock on one machine; read the ratios, not the
   absolute seconds.
