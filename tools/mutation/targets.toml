@@ -4733,9 +4733,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-breakdown-reaches-the-search-as-nan"
-  find = "        val[~np.isfinite(val)] = 0.0"
+  find = "        val = np.fmax(val, mins)\n        val[~np.isfinite(val)] = 0.0"
   replace = "        pass"
-  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out"
+  models = "a row whose prefix has no inverse returned as NaN. The search compares and sorts bounds without error, so a NaN would never prune and would sort last, a candidate the bound neither rules in nor out. Since #777 two lines guard it, the sum of minimums (fmax with min a) and the zeroing of what is still not finite, so the defect is both removed; the first alone is the-sum-of-minimums-only-where-the-solve-held"
 
 [[target]]
 name = "marex-exact-penalty-bounds"
