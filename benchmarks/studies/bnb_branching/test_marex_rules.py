@@ -95,3 +95,27 @@ def test_an_unknown_choice_is_refused():
         mr.search(B, A, 3, rule="random")
     with pytest.raises(ValueError):
         mr.search(B, A, 3, order="breadth")
+
+
+def test_the_runner_writes_one_row_per_choice(monkeypatch, tmp_path):
+    """``run marex`` appends a row per rule, guess and order, each naming its
+    choices, without touching the study's own results."""
+    import json
+
+    from . import run
+
+    calls = []
+
+    def fake(name, m, rule, guess, order):
+        calls.append((name, m, rule, guess, order))
+        return {"value": 1.0, "work": 0.0}
+
+    monkeypatch.setattr(run, "RESULTS", tmp_path)
+    monkeypatch.setattr(run, "marex", fake)
+    assert run.main(["marex", "walmart", "6", "largest,pseudo", "on,off", "best"]) == 0
+    rows = [json.loads(line) for line in (tmp_path / "marex.jsonl").read_text().splitlines()]
+    assert [(r["rule"], r["guess"], r["order"]) for r in rows] == [
+        ("largest", True, "best"), ("largest", False, "best"),
+        ("pseudo", True, "best"), ("pseudo", False, "best")]
+    assert calls[0] == ("walmart", 6, "largest", True, "best")
+    assert all(r["panel"] == "walmart" and r["m"] == 6 for r in rows)
