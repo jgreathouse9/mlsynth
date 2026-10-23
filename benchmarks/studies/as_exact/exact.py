@@ -28,8 +28,7 @@ import numpy as np
 
 from .hull import Hull, outside_hull
 from .lsq import sign_piece_ls, simplex_ls
-from .patterns import (cone_compatible, edge_min, facet_patterns, lower_face_patterns,
-                       pattern_lps, ridge_patterns)
+from .patterns import branch_patterns, cone_compatible, edge_min, facet_patterns, ridge_patterns
 
 
 def _check(X1, X0, Z1, Z0):
@@ -59,7 +58,7 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
     vis = hull.visible_facets()
     scale = max(1.0, np.abs(X1).max())
     U, w_best = np.inf, None
-    ctr = dict(faces=0, solves=0, relaxation_prunes=0, edges=0, vertices=0, lps=0, fallbacks=0)
+    ctr = dict(faces=0, solves=0, relaxation_prunes=0, edges=0, vertices=0, lps=0, pattern_tests=0, pattern_lp_checks=0)
     heap, seen, tie = [], set(), itertools.count()
     for F in vis:
         seen.add(F)
@@ -119,11 +118,7 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
                     patterns = ridge_patterns(gens[0], gens[1])
                 else:
                     link = set().union(*star) - sigma
-                    patterns = lower_face_patterns(X0, sigma, link)
-                    if patterns is None:
-                        ctr["fallbacks"] += 1
-                        ctr["lps"] += 2 ** K
-                        patterns = pattern_lps(X0, sigma)
+                    patterns = branch_patterns(X0, sigma, link, stats=ctr)
             r_u = X1 - X0[:, cols] @ beta_u
             if patterns and any(np.all((s == 0) | (s * r_u >= -1e-9 * scale)) for s in patterns):
                 if u < U:                                 # the face's own minimiser is attainable

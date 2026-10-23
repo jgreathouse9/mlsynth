@@ -48,7 +48,7 @@ repository's `data/smoking_data.csv`.
 | --- | --- | --- |
 | least squares on a face | cvxpy with Clarabel, about 5 ms a call | Lawson and Hanson's reduction to one compiled NNLS call (`lsq.py`), 0.2 to 0.26 ms |
 | facets visible from X1 | per ridge, a candidate hyperplane for each donor, each checked against every donor | gift wrapping: one QR factorisation and one J x K product per ridge (`hull.py`) |
-| allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: only the link vertices as walls, in one batched SVD; edges: at most K + 1 residual intervals (`patterns.py`) |
+| allowed sign patterns of a face | extreme rays with every donor as a wall, or one LP per pattern | facet: the normal's signs; ridge: sorted sign changes of a two-generator cone; smaller faces: one sign fixed at a time, a sub-cube dropped on a Farkas certificate or closed by a point with zeros on its free signs, each test one NNLS with the link vertices as walls; edges: at most K + 1 residual intervals (`patterns.py`) |
 | pruning a face | the best unconstrained fit on the face | the same bound, then one solve with the signs every piece of the face shares (Balas, Disjunctive Programming, 2018, Theorem 1.2) before any pattern is listed (`exact.py`) |
 | predictor weights V | cvxpy `log_det`, analytic centre and semidefinite range programs | Newton's method with the equalities eliminated and the barrier method (Boyd and Vandenberghe, sec. 10.2 and ch. 11), started at the paper's own Lemma B.1 construction (`rationalize.py`) |
 
@@ -56,7 +56,18 @@ The faces containing a given face are reached by walking ridges that contain it;
 a simplicial polytope they form a connected subgraph of the facet-ridge graph (the
 polar is simple; Achatz and Kleinschmidt in Kalai and Ziegler, eds., Polytopes:
 Combinatorics and Computation, 2000, p. 155). The link vertices they expose are the
-only walls of the face's normal cone, which is what makes the ray enumeration small.
+only walls of the face's normal cone, which keeps each pattern test small.
+
+Below the ridges, a face's patterns are listed by branching on one sign at a time. A
+sub-cube of sign vectors is dropped when the cone misses all of it, and closed when a
+nonzero c in the cone has zeros on its unfixed signs, since that c lies in every
+orthant of the sub-cube. Each test is a least-distance problem solved by one NNLS,
+whose verdict carries its evidence: a point that satisfies the rows, or a Farkas
+certificate read off the same NNLS (Dantzig and Thapa, Linear Programming 2, 2003,
+sec. 6.7, a Phase I by least squares; Schrijver, Theory of Linear and Integer
+Programming, 1986, sec. 7.3). HiGHS decides a test only when neither checks.
+`test_patterns.py` checks the listing against one HiGHS LP per sign vector on faces of
+every size.
 
 ## Correctness
 

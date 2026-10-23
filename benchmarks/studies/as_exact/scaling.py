@@ -6,9 +6,10 @@ Designs come from ``capture.random_instance`` with J = 38 donors, the Propositio
 donor count, and K predictors. At K = 7 and 8 each design is timed in both codes: the
 replication once, since one call runs from seconds to minutes, and at K = 7 the
 study's median of 3 calls after the counted run. At K = 9 only the study runs. Every
-row carries the study's search counters, among them ``fallbacks``: faces whose normal
-cone has too many walls for the batched ray enumeration, listed instead by one LP per
-sign pattern.
+row carries the study's search counters, among them ``pattern_tests``, the
+least-distance tests that list the sign patterns of faces below the ridges, and
+``pattern_lp_checks``, the tests HiGHS decided because neither a point nor a Farkas
+certificate checked.
 """
 from __future__ import annotations
 
@@ -89,7 +90,7 @@ def main(argv=None):
     for K, *_ in PLAN:
         sub = [r for r in rows if r["K"] == K]
         line = (f"K={K}: study {min(r['study'] for r in sub):.2f}-{max(r['study'] for r in sub):.2f} s, "
-                f"fallback faces {[r['fallbacks'] for r in sub]}")
+                f"pattern tests {[r['pattern_tests'] for r in sub]}, HiGHS {[r['pattern_lp_checks'] for r in sub]}")
         if "ratio" in sub[0]:
             ratio = [r["ratio"] for r in sub]
             line += (f"; replication {min(r['replication'] for r in sub):.1f}-"

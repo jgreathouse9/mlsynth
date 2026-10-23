@@ -86,6 +86,16 @@ def test_proposition_99_diagonal_weights_are_uniform_on_the_retained_predictors(
     assert np.abs(d["logdet"][d["support"]] - 1 / 3).max() <= 1e-8
 
 
+def test_the_search_reports_its_work():
+    """Proposition 99 reaches one face below a ridge, whose sign patterns come from branching."""
+    st, st_pd = {}, {}
+    exact.solve_diag(*_inputs(CASES["prop99"]), stats=st)
+    exact.solve_pd(*_inputs(CASES["prop99"]), stats=st_pd)
+    assert st["n_visible"] == st_pd["n_visible"] == 132
+    assert st["pattern_tests"] > 0 and st["pattern_lp_checks"] == 0
+    assert st["solves"] >= st["faces"] > 0
+
+
 def test_proposition_99_headline_numbers():
     """Table 1 and Table D.1 of the paper, as the authors' code returns them."""
     case = CASES["prop99"]

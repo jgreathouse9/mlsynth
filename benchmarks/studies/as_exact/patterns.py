@@ -13,12 +13,17 @@ only on the cone:
                             angles lists at most K + 1 patterns;
   smaller faces:            N = {c : E c = 0, (X_v - X_a)'c <= 0 for v in link(sigma)}.
                             The facets of N(sigma) are the normal cones of the faces
-                            sigma + {v}, so the link vertices are the only walls. The
-                            extreme rays of N cut by the coordinate hyperplanes come from
-                            (d-1)-subsets of {walls, coordinate planes} (the paper's
-                            Lemma A.3 with an irredundant description), in one batched
-                            SVD. Reverse search (Avis, in Kalai and Ziegler, eds., 2000,
-                            p. 177) is the output-sensitive way to list the same rays.
+                            sigma + {v}, so the link vertices are the only walls.
+                            ``branch_patterns`` fixes one sign at a time. A sub-cube of
+                            sign vectors is dropped when the cone misses all of it, and
+                            closed when some nonzero c in N has zeros on the unfixed
+                            coordinates: that c lies in every orthant of the sub-cube,
+                            so one pattern with 0 on those coordinates covers their
+                            pieces. Each test is one least-distance problem whose verdict
+                            carries a point or a Farkas certificate (lsq.ldp_verdict; a
+                            Phase I by least squares, Dantzig and Thapa, Linear
+                            Programming 2, 2003, sec. 6.7), and HiGHS decides the rare
+                            test where neither checks.
 
 On a face of m donors the residual arrangement {r_k(w) = 0} has dimension m - 1 and
 the cone arrangement has dimension K - m, so one of them is small. Edges are handled
@@ -27,10 +32,13 @@ in the residual arrangement: at most K + 1 intervals, one attainability test eac
 from __future__ import annotations
 
 import itertools
-from math import comb
 
 import numpy as np
 from scipy.optimize import linprog
+
+from . import lsq
+
+FREE = 2                                   # a sign branch_patterns has not fixed yet
 
 
 def facet_patterns(n, tol=1e-12):
@@ -58,33 +66,97 @@ def ridge_patterns(a1, a2, tol=1e-12):
     return out
 
 
-def lower_face_patterns(X0, sigma, link, tol=1e-10, cap=60_000):
-    """S(sigma) for a normal cone of dimension >= 3; None when the subsets exceed `cap`."""
+def _equalities(E, W, g, zero, cache):
+    """A point c0 and a null-space basis N of {E c = 0, g'c = 1, c_zero = 0}, with W N, W c0 and
+    the consistency gap; cached per zero set, which sibling tests and every free test share."""
+    key = zero.tobytes()
+    if key not in cache:
+        K = E.shape[1]
+        Aeq = np.vstack([E, g[None, :], np.eye(K)[zero]])
+        beq = np.r_[np.zeros(len(E)), 1.0, np.zeros(len(zero))]
+        U, sv, Vt = np.linalg.svd(Aeq)
+        rank = int((sv > 1e-10 * sv[0]).sum())
+        c0 = Vt[:rank].T @ ((U[:, :rank].T @ beq) / sv[:rank])
+        N = Vt[rank:].T
+        cache[key] = (c0, N, W @ N, W @ c0, float(np.abs(Aeq @ c0 - beq).max()))
+    return cache[key]
+
+
+def _cone_test(E, W, g, assign, stats, cache):
+    """Is there c with E c = 0, W c <= 0, g'c = 1 and the signs `assign` asks for? (feasible, c).
+
+    assign_k is +1 or -1 for a sign, 0 for c_k = 0 and FREE for no condition. The
+    equalities are eliminated in a null-space basis and the rest is one least-distance
+    problem whose verdict carries its evidence; HiGHS decides when neither a point nor a
+    certificate checks, or when the equalities are too close to inconsistent to say.
+    """
+    K = len(assign)
+    stats["pattern_tests"] = stats.get("pattern_tests", 0) + 1
+    c0, N, WN, Wc0, gap = _equalities(E, W, g, np.flatnonzero(assign == 0), cache)
+    if gap > 1e-6:                                       # the equalities alone have no solution
+        return False, None
+    if gap <= 1e-9:
+        signed = np.flatnonzero((assign == 1) | (assign == -1))
+        if N.shape[1] == 0:                              # one point: check it where it lives
+            Gc = np.vstack([-W, assign[signed, None] * np.eye(K)[signed]])
+            ok = lsq._satisfies(Gc, np.zeros(len(Gc)), c0)
+            return ok, (c0 if ok else None)
+        G = np.vstack([-WN, assign[signed, None] * N[signed]])
+        h = np.r_[Wc0, -assign[signed] * c0[signed]]
+        verdict, evidence = lsq.ldp_verdict(G, h)
+        if verdict is True:
+            return True, c0 + N @ evidence
+        if verdict is False:
+            return False, None
+    stats["pattern_lp_checks"] = stats.get("pattern_lp_checks", 0) + 1
+    bounds = [(0, None) if s == 1 else (None, 0) if s == -1 else (0, 0) if s == 0 else (None, None) for s in assign]
+    res = linprog(np.zeros(K), A_ub=W, b_ub=np.zeros(len(W)), A_eq=np.vstack([E, g[None, :]]),
+                  b_eq=np.r_[np.zeros(len(E)), 1.0], bounds=bounds, method="highs")
+    return (True, res.x) if res.status == 0 else (False, None)
+
+
+def branch_patterns(X0, sigma, link, stats=None):
+    """S(sigma) by fixing one sign at a time (module docstring); 0 marks a free sign.
+
+    The completions of the returned patterns are exactly the sign vectors whose closed
+    orthant meets N(sigma) away from the origin. ``stats`` counts the least-distance
+    tests and the ones HiGHS decided.
+    """
+    if not link:
+        raise ValueError("a proper face has a nonempty link; pass the vertices of its star outside the face")
+    stats = {} if stats is None else stats
     K = X0.shape[0]
     cols = sorted(sigma)
     a = cols[0]
     E = (X0[:, cols[1:]] - X0[:, [a]]).T                      # E c = 0
     W = (X0[:, sorted(link)] - X0[:, [a]]).T                  # W c <= 0
-    d = K - len(cols) + 1
-    walls = np.vstack([W, np.eye(K)])
-    if comb(len(walls), d - 1) > cap:
-        return None
-    idx = np.array(list(itertools.combinations(range(len(walls)), d - 1)), dtype=int)
-    M = np.concatenate([np.broadcast_to(E, (len(idx),) + E.shape), walls[idx]], axis=1)
-    _, sv, Vt = np.linalg.svd(M)
-    ok = sv[:, -1] > 1e-9 * np.maximum(sv[:, 0], 1.0)
-    U = Vt[ok, -1, :]
-    U = np.vstack([U, -U])
-    U = U / np.abs(U).max(axis=1, keepdims=True)
-    if W.size:
-        U = U[(U @ W.T <= tol).all(axis=1)]
-    P = np.where(np.abs(U) <= tol, 0, np.sign(U)).astype(np.int8)
-    P = np.unique(P[np.any(P != 0, axis=1)], axis=0)
-    if len(P) > 1:                                            # drop patterns a weaker one implies
-        weaker = np.all((P[:, None, :] == 0) | (P[:, None, :] == P[None, :, :]), axis=2)
-        np.fill_diagonal(weaker, False)
-        P = P[~weaker.any(axis=0)]
-    return [p.astype(int) for p in P]
+    g = -W.sum(axis=0)                                        # g'c > 0 on N minus the origin
+    g /= np.linalg.norm(g)
+    out, cache = [], {}
+    stack = [(np.full(K, FREE), None)]
+    while stack:
+        assign, c = stack.pop()
+        closed = np.where(assign == FREE, 0, assign)
+        if np.any(closed != 0):
+            ok, _ = _cone_test(E, W, g, closed, stats, cache)
+            if ok:                                            # one witness covers the sub-cube
+                out.append(closed.astype(int))
+                continue
+        if c is None:
+            ok, c = _cone_test(E, W, g, assign, stats, cache)
+            if not ok:                                        # the cone misses the sub-cube
+                continue
+        free = np.flatnonzero(assign == FREE)
+        if free.size == 0 or not np.any(c[free]):            # c itself witnesses the closed sub-cube
+            out.append(closed.astype(int))
+            continue
+        k = free[np.argmax(np.abs(c[free]))]
+        s = 1 if c[k] > 0 else -1
+        same, other = assign.copy(), assign.copy()
+        same[k], other[k] = s, -s
+        stack.append((other, None))
+        stack.append((same, c))                               # c already has sign s at k
+    return out
 
 
 def cone_compatible(X0, sigma, sgn, zero):
@@ -133,17 +205,6 @@ def cone_compatible(X0, sigma, sgn, zero):
         if feasible(extra, norm, bounds):
             return True
     return False
-
-
-def pattern_lps(X0, sigma):
-    """S(sigma) by one LP per sign pattern (the reference's fallback), for oversized cones."""
-    K = X0.shape[0]
-    out = []
-    for s in itertools.product((-1, 1), repeat=K):
-        s = np.array(s)
-        if cone_compatible(X0, sigma, s.astype(float), np.zeros(K, bool)):
-            out.append(s)
-    return out
 
 
 def edge_min(X0, X1, Z1, Z0, sigma, U, tol=1e-12):

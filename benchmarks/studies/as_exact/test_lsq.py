@@ -128,6 +128,75 @@ def test_property_every_infeasible_system_is_refused(seed, n, extra, log_delta):
 
 
 @settings(max_examples=150, deadline=None)
+@given(seed=st.integers(0, 2**31 - 1), n=st.integers(2, 7), extra=st.integers(2, 40),
+       log_delta=st.floats(-7.0, -1.0), feasible=st.booleans())
+def test_property_every_verdict_carries_its_evidence(seed, n, extra, log_delta, feasible):
+    """A feasible system gets a point that satisfies it; an infeasible one a Farkas certificate."""
+    rng = np.random.default_rng(seed)
+    if feasible:
+        G, h, _ = _planted_feasible(rng, n, n + extra)
+    else:
+        G, h = _planted_infeasible(rng, n, n + extra, 10.0 ** log_delta)
+    verdict, evidence = lsq.ldp_verdict(G, h)
+    assert verdict is feasible
+    if feasible:
+        assert _violation(G, h, evidence) <= 1e-9
+    else:
+        assert evidence.min() >= 0.0 and h @ evidence > 0.0
+        assert np.abs(G.T @ evidence).max() <= 1e-9 * (np.abs(G).T @ evidence).max()
+
+
+def test_a_certificate_is_checked_before_it_is_believed(monkeypatch):
+    """An NNLS answer that is neither a solution nor a certificate gives no verdict."""
+    G, h = np.array([[1.0], [-1.0]]), np.array([1.0, 0.0])          # x >= 1 and x <= 0
+    monkeypatch.setattr(lsq, "_ldp_nnls", lambda G_, h_: (np.array([1.0, 0.0]), np.array([0.0, 0.5])))
+    assert lsq.ldp_verdict(G, h) == (None, None)
+    monkeypatch.setattr(lsq, "_ldp_nnls", lambda G_, h_: (np.array([1.0, 1.0]), np.zeros(2)))
+    verdict, u = lsq.ldp_verdict(G, h)
+    assert verdict is False and np.array_equal(u, [1.0, 1.0])
+
+
+NNLS_INCIDENT = json.loads((pathlib.Path(__file__).resolve().parent / "results" / "nnls_incident.json").read_text())
+
+
+def test_a_degenerate_system_gets_its_one_point():
+    """SciPy's nnls misreports this system (results/nnls_incident.json); the answer is still x0."""
+    G, h, x0 = (np.array(NNLS_INCIDENT[k], float) for k in ("G", "h", "x0"))
+    u, _ = lsq._ldp_nnls(G, h)
+    E = np.vstack([G.T, h[None, :]])
+    assert lsq._nnls_optimal(E, np.r_[np.zeros(3), 1.0], u)
+    assert np.allclose(lsq._ldp(G, h), x0, atol=1e-9)
+
+
+def test_an_answer_that_is_not_a_minimiser_is_solved_again(monkeypatch):
+    """u = 0 is no minimiser when some h_i > 0; bounded-variable least squares replaces it."""
+    G, h = np.array([[1.0, 0.0], [0.0, 1.0]]), np.array([1.0, 2.0])
+    monkeypatch.setattr(lsq, "nnls", lambda E, f, maxiter=None: (np.zeros(E.shape[1]), 0.0))
+    assert np.allclose(lsq._ldp(G, h), [1.0, 2.0], atol=1e-9)
+
+
+def test_an_unanswered_confirmation_goes_to_highs(monkeypatch):
+    """With no reduction answer and no evidence either way, HiGHS settles whether the piece is empty."""
+    z, Z, Gin, hin = _piece_with_injected_reduction(monkeypatch, None)
+    monkeypatch.setattr(lsq, "ldp_verdict", lambda G, h: (None, None))
+    with pytest.raises(ValueError, match="reduction failed"):
+        lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)                  # b = (1, 0, 0) satisfies b_0 >= b_1
+    assert lsq.simplex_ls(z, Z, Gin=Gin, hin=np.array([1.5])) == (None, None)
+
+
+def test_a_verdict_checks_its_point_before_it_is_believed(monkeypatch):
+    """A residual that passes the identity but points outside the rows gives no verdict.
+
+    r = (0.3, -0.1) has r_2 = -||r||^2, so the identity accepts it, and its point x = 3
+    breaks x <= 0; u = (1, 0) is no certificate either.
+    """
+    G, h = np.array([[1.0], [-1.0]]), np.array([1.0, 0.0])
+    monkeypatch.setattr(lsq, "_ldp_nnls", lambda G_, h_: (np.array([1.0, 0.0]), np.array([0.3, -0.1])))
+    assert lsq._point_from_residual(np.array([0.3, -0.1])) == pytest.approx([3.0])
+    assert lsq.ldp_verdict(G, h) == (None, None)
+
+
+@settings(max_examples=150, deadline=None)
 @given(seed=st.integers(0, 2**31 - 1), n=st.integers(2, 7), extra=st.integers(2, 40))
 def test_property_a_feasible_system_gets_its_least_norm_point(seed, n, extra):
     G, h, x0 = _planted_feasible(np.random.default_rng(seed), n, n + extra)
@@ -203,7 +272,7 @@ def test_property_a_nearly_collinear_face_is_solved_or_refused_never_misread(see
         with pytest.raises(ValueError, match="ill-conditioned"):
             lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
         return
-    val, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    _, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
     assert (b is None) == (margin < 0)
     if b is not None:
         assert _violation(Gin, hin, b) <= 1e-7

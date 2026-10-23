@@ -8780,7 +8780,7 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "failed-reduction-reads-as-infeasible"
-  find = "            if _ldp(G, h) is not None:                    # the constraints alone, without R^{-1}"
+  find = "            if _constraints_feasible(G, h):               # the constraints alone, without R^{-1}"
   replace = "            if False:"
   models = "a reduction that found nothing reported as an empty piece, so a numerical failure removes feasible weights from the search without a word"
 
@@ -8803,3 +8803,62 @@ timeout = 600.0
     sv = np.linalg.svd(E, compute_uv=False)
     if not sv[-1] > 0.0:'''
   models = "the original patch for a rank-deficient face: a 1e-12 ridge that leaves cond(R) near 1e12 and turns the reduction's answer into noise"
+
+  [[target.mutant]]
+  id = "nnls-answer-taken-on-trust"
+  find = "    if not _nnls_optimal(E, f, u):"
+  replace = "    if False:"
+  models = "scipy's nnls answer used as returned, although on a degenerate system it can report success and a zero residual for a point that is no minimiser"
+
+  [[target.mutant]]
+  id = "unanswered-confirmation-read-as-infeasible"
+  find = "    if verdict is None:"
+  replace = "    if False:"
+  models = "a piece's emptiness confirmed by a verdict that carried no evidence, so a double solver failure removes a feasible piece without a word"
+
+  [[target.mutant]]
+  id = "certificate-taken-on-trust"
+  find = '''    return bool(u.min(initial=0.0) >= 0.0 and h @ u > 0.5
+                and np.abs(G.T @ u).max(initial=0.0) <= tol * scale)'''
+  replace = "    return bool(u.min(initial=0.0) >= 0.0 and h @ u > 0.5)"
+  models = "a Farkas certificate accepted without checking G'u = 0, so any NNLS answer with h'u near 1 proves a feasible system empty"
+
+  [[target.mutant]]
+  id = "verdict-point-taken-on-trust"
+  find = "    if x is not None and _satisfies(G, h, x):"
+  replace = "    if x is not None:"
+  models = "a feasibility verdict that hands back the identity's point without checking it against the rows"
+
+[[target]]
+name = "as-exact-patterns"
+module-path = "benchmarks/studies/as_exact/patterns.py"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_patterns.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "sub-cube-closed-by-any-witness"
+  find = "        if free.size == 0 or not np.any(c[free]):            # c itself witnesses the closed sub-cube"
+  replace = "        if True:"
+  models = "a sub-cube closed by a witness that does not vanish on its free signs, which claims attainable every piece those signs allow"
+
+  [[target.mutant]]
+  id = "sub-cube-dropped-without-the-free-test"
+  find = '''        if c is None:
+            ok, c = _cone_test(E, W, g, assign, stats, cache)
+            if not ok:                                        # the cone misses the sub-cube
+                continue'''
+  replace = '''        if c is None:
+            continue'''
+  models = "a sub-cube dropped because no witness vanishes on its free signs, although the cone meets it, so attainable pieces go missing"
+
+  [[target.mutant]]
+  id = "branch-explores-one-sign-twice"
+  find = "        same[k], other[k] = s, -s"
+  replace = "        same[k], other[k] = s, s"
+  models = "branching that explores the witness's sign of the chosen coordinate twice and the opposite sign never"
+
+  [[target.mutant]]
+  id = "ambiguous-verdict-read-as-empty"
+  find = '''    stats["pattern_lp_checks"] = stats.get("pattern_lp_checks", 0) + 1'''
+  replace = "    return False, None"
+  models = "a test whose evidence does not check read as an empty cone, where HiGHS should decide it"
