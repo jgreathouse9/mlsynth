@@ -4165,6 +4165,71 @@ timeout = 300.0
   replace = """    timid, core = _tracer(_python(), None)"""
   models = "the tracer chosen without looking for a session already running, so the nesting rule never fires"
 
+# What the install reads (/rca, 2026-10-23). The first inventory to reach main
+# recorded benchmarks/constraints.txt as read by no case, and a change to the
+# pins ran the 26 unmapped cases of 243. Each mutant hands one file the install
+# reads back to the map, or one diff that changes it.
+[[target]]
+name = "case-deps-environment"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py benchmarks/tests/test_workflow_sharding.py -q -x -p no:cacheprovider"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "the-install-is-read-through-the-map"
+  find = "    if not set(ENVIRONMENT).isdisjoint(changed):  # what every case runs on"
+  replace = "    if False:  # what every case runs on"
+  models = "the state since b50e1395: a change to the pins is settled by the inventory, which records the constraints as read by no case, so a pull request that changes them runs the 26 unmapped cases of 243 and the other 217 report nothing; and pyproject.toml, outside REACHABLE, reaches the same 26"
+
+  [[target.mutant]]
+  id = "a-created-pin-file-is-not-read"
+  find = "    if not set(ENVIRONMENT).isdisjoint(changed):  # what every case runs on"
+  replace = "    if not set(ENVIRONMENT).isdisjoint(set(changed) - created):  # what every case runs on"
+  models = "the created-file rule applied to the install's inputs: a file the diff creates was read by no earlier run, but the install of this run reads it, so a diff that adds a constraints file reaches every case"
+
+  [[target.mutant]]
+  id = "the-pins-are-left-to-the-map"
+  find = 'ENVIRONMENT = ("benchmarks/constraints.txt", "pyproject.toml")'
+  replace = 'ENVIRONMENT = ("pyproject.toml",)'
+  models = "the incident's file dropped from the list: the constraints go back to the inventory, which settles them as reaching nothing"
+
+  [[target.mutant]]
+  id = "the-project-file-is-left-to-the-map"
+  find = 'ENVIRONMENT = ("benchmarks/constraints.txt", "pyproject.toml")'
+  replace = 'ENVIRONMENT = ("benchmarks/constraints.txt",)'
+  models = "pyproject.toml left outside REACHABLE, where a change to the project's dependencies or extras reaches no case"
+
+# The map's nightly commit is [skip ci], so its tests run before it or not at
+# all. Each mutant removes or defangs that step.
+[[target]]
+name = "case-deps-commit-gate"
+module-path = ".github/workflows/benchmarks.yml"
+test-command = "python -m pytest benchmarks/tests/test_workflow_sharding.py -q -x -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-map-is-committed-untested"
+  find = """          python -m pytest benchmarks/tests/test_case_deps.py \\
+            benchmarks/tests/test_case_deps_imports.py -q -p no:cacheprovider"""
+  replace = """          true"""
+  models = "the state before this change: the nightly job commits the map and the inventory with [skip ci] and no test reads them until a pull request does, which put a red case-map test on main for six hours"
+
+  [[target.mutant]]
+  id = "a-red-map-is-committed-anyway"
+  find = """      - name: Test the map before committing it
+        run: |"""
+  replace = """      - name: Test the map before committing it
+        continue-on-error: true
+        run: |"""
+  models = "the tests run and their failure is ignored, so the commit step still runs"
+
+  [[target.mutant]]
+  id = "the-import-claims-are-not-tested"
+  find = """          python -m pytest benchmarks/tests/test_case_deps.py \\
+            benchmarks/tests/test_case_deps_imports.py -q -p no:cacheprovider"""
+  replace = """          python -m pytest benchmarks/tests/test_case_deps.py -q -p no:cacheprovider"""
+  models = "the gate without the tests that read the shipped manifest through the import graph, so a map that breaks them still lands"
+
 [[target]]
 name = "lexscm-unit-effects"
 module-path = "mlsynth/utils/fast_scm_helpers/unit_effects.py"

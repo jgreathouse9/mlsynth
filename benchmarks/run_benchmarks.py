@@ -208,7 +208,8 @@ def main() -> int:
     if args.changed_from is not None:
         # Narrow to the cases the diff can reach before sharding, so the shards
         # split the work that is actually going to run. case_deps widens on any
-        # doubt: an unmapped case runs, a changed module no entry claims runs
+        # doubt: a change to what the install reads runs everything, an
+        # unmapped case runs, a changed module no entry claims runs
         # the cases claiming its importers, and any other unclaimed change runs
         # everything unless the sweep inventory records it as covered by nothing.
         from benchmarks import case_deps
