@@ -114,5 +114,5 @@ def main():
     return res
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - command-line entry; main() is tested directly
     main()

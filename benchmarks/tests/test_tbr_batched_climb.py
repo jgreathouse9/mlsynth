@@ -187,7 +187,96 @@ class TestTheBatchedClimb:
         fast = B.augment_step(S._Scorer(Y, "reference", N_TEST), [3], {0}, pools, from_pool=from_pool)
         assert fast == exact
 
+    def test_a_match_step_never_offers_the_toggle_that_empties_the_control_group(self, monkeypatch):
+        """From a one-geo control group, that geo cannot be toggled out; the step ends where the exact one does."""
+        Y = _panel(6, 40, 8)
+        offered = []
+        real = B.batched_keys
+
+        def spy(Yy, y, x, cols, a, b, n_test):
+            offered.append(list(cols))
+            return real(Yy, y, x, cols, a, b, n_test)
+
+        monkeypatch.setattr(B, "batched_keys", spy)
+        start = dict(treatment=[0], control={1}, toggleable=[1, 2, 3, 4])
+        fast = B.match_step(S._Scorer(Y, "reference", N_TEST), **start)
+        exact = B.EXACT_MATCH(S._Scorer(Y, "reference", N_TEST), **start)
+        assert offered and 1 not in offered[0]
+        assert (fast[0], [tuple(k) for k in fast[1]], fast[2]) == (exact[0], [tuple(k) for k in exact[1]], exact[2])
+
+    def test_a_window_too_short_for_the_aa_test_fails_both_climbs_alike(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        Y = _panel(7, 9, 8)                              # 9 periods, 7 held out: two left to fit
+        K, flagged = B.batched_keys(Y, Y[:, 0], Y[:, 1], [2, 3], np.zeros(2), np.ones(2), N_TEST)
+        assert flagged.all()
+        kw = dict(max_treatment_size=1, n_test=N_TEST, objective="reference")
+        with pytest.raises(MlsynthDataError, match="A/A"):
+            S.greedy_search(Y, _eligibility(8), **kw)
+        with pytest.raises(MlsynthDataError, match="A/A"):
+            B.batched_greedy_search(Y, _eligibility(8), **kw)
+
+    def test_a_match_step_with_nothing_to_toggle_stops(self):
+        Y = _panel(8, 40, 6)
+        start = dict(treatment=[0], control={1, 2}, toggleable=[])
+        fast = B.match_step(S._Scorer(Y, "reference", N_TEST), **start)
+        exact = B.EXACT_MATCH(S._Scorer(Y, "reference", N_TEST), **start)
+        assert fast[0] == exact[0] == {1, 2} and fast[2] and len(fast[1]) == 1
+
+    def test_an_augment_skips_a_geo_that_would_leave_no_control_at_all(self):
+        """Geo 1 is the whole control pool: adding it leaves nothing, even re-derived."""
+        Y = _panel(9, 40, 6)
+        pools = {"forced": [], "treatment": [1, 2, 3], "control": [1]}
+        for from_pool in (False, True):
+            fast = B.augment_step(S._Scorer(Y, "reference", N_TEST), [], {1}, pools, from_pool=from_pool)
+            exact = B.EXACT_AUGMENT(S._Scorer(Y, "reference", N_TEST), [], {1}, pools, from_pool=from_pool)
+            assert fast == exact and fast[0][0] != 1
+
+    def test_an_augment_with_no_candidate_raises_as_the_exact_step_does(self):
+        from mlsynth.exceptions import MlsynthDataError
+
+        Y = _panel(10, 40, 4)
+        pools = {"forced": [], "treatment": [1], "control": [1]}
+        with pytest.raises(MlsynthDataError, match="no treatment-eligible geo"):
+            B.augment_step(S._Scorer(Y, "reference", N_TEST), [], {1}, pools)
+
     def test_the_patch_is_undone(self):
         with B.batched():
             assert S._match is B.match_step and S._augment is B.augment_step
         assert S._match is B.EXACT_MATCH and S._augment is B.EXACT_AUGMENT
+
+
+class TestTheRunner:
+    def test_a_comparison_row_reports_identity_and_both_times(self):
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        row = R.compare(R.synthetic(16, n_days=40), 2, "carried")
+        assert row["identical"] is True and row["geos"] == 16 and row["exact_s"] > 0 < row["batched_s"]
+        assert row["exact_scores_batched"] < row["exact_scores"]
+        assert "exact_s" not in R.compare(R.synthetic(16, n_days=40), 2, "carried", exact=False)
+
+    def test_the_user_facing_fit_returns_the_same_designs(self):
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        row = R.end_to_end(R.synthetic(16, n_days=40), 2)
+        assert row["same_designs"] is True and row["geos"] == 16
+
+    def test_the_geolift_panel_is_the_shipped_one(self):
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        df = R.geolift()
+        assert df["geo"].nunique() == 40 and df["date"].nunique() == 105
+
+    def test_main_writes_every_row(self, tmp_path, monkeypatch):
+        import json
+
+        from benchmarks.studies.tbr_batched_climb import run as R
+
+        small = R.synthetic(12, n_days=40)
+        monkeypatch.setattr(R, "OUT", tmp_path / "out.json")
+        monkeypatch.setattr(R, "geolift", lambda: small)
+        monkeypatch.setattr(R, "synthetic", lambda n, **k: small)
+        R.main()
+        res = json.loads((tmp_path / "out.json").read_text())
+        assert res["search"] and all(r["identical"] for r in res["search"] if "identical" in r)
+        assert all(r["same_designs"] for r in res["end_to_end"])

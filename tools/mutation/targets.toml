@@ -8200,6 +8200,8 @@ timeout = 300.0
   find = "    flagged = flagged | ~regular                     # a re-derived control group is scored exactly"
   replace = "    flagged = flagged"
   models = "an augment candidate whose control group was re-derived from the pool scored as if it had only lost one geo, which is a different split from the one the step would take"
+  expected = "survived"
+  accepted-because = "EQUIVALENT, recorded instead of dropped. A control group is re-derived only when base - {geo} is empty, that is when base is {geo}; the batched control aggregate is then Y_geo - Y_geo, exactly zero, and the degenerate flag sends the candidate to the exact scorer anyway. The line stays because it states the rule instead of resting on that coincidence."
 
   [[target.mutant]]
   id = "rounding-boundary-unflagged"
