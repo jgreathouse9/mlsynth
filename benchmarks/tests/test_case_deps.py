@@ -27,6 +27,37 @@ import pytest
 from benchmarks import case_deps, registry
 
 
+#: The inventory as shipped. The nightly ``case-deps-commit`` job rewrites it, so
+#: a test that reads it by default asserts whatever the last sweep found.
+SHIPPED_SWEPT = case_deps.SWEPT_PATH
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _no_shipped_inventory(tmp_path_factory):
+    """Select against no inventory unless a test passes one.
+
+    Every ``select`` here that omits ``swept`` was written against the rule
+    without an inventory. The first inventory to reach ``main`` (b50e1395, a
+    ``[skip ci]`` commit) recorded ``benchmarks/constraints.txt`` as read by no
+    case, and the prose rule's negative control went red on ``main`` six hours
+    before a pull request ran it. A test that means the shipped inventory passes
+    ``swept=case_deps.load_swept(SHIPPED_SWEPT)``. Module scope, so the
+    ``hypothesis`` properties below can run under it.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(case_deps, "SWEPT_PATH",
+                   tmp_path_factory.mktemp("inventory") / "none.json")
+        yield
+
+
+def test_no_test_here_reads_the_shipped_inventory_by_default():
+    """The fixture above is in force: the default inventory is empty, whatever
+    the nightly job last committed."""
+    assert case_deps.load_swept(SHIPPED_SWEPT), \
+        "no shipped inventory, so this check has no power"
+    assert case_deps.load_swept() == frozenset()
+
+
 # --------------------------------------------------------------------------- smoke
 def test_the_manifest_loads():
     m = case_deps.load()
@@ -782,14 +813,84 @@ class TestProseIsProseWhereverItSits:
         assert case_deps.select([path], ["a", "b"], self.MAP) == []
 
     @pytest.mark.parametrize("path", [
-        "benchmarks/constraints.txt",
+        "benchmarks/data/donors.txt",
         "basedata/prop99.csv",
-        "benchmarks/R/requirements.R",
+        "benchmarks/R/sc_references.R",
     ])
     def test_a_file_a_case_could_read_is_still_a_hole(self, path):
-        """The reads a case makes are measured, so these are claimable and their
-        absence from the map is real doubt."""
+        """The reads a case makes are measured, so these are claimable and,
+        with no inventory to settle them, their absence from the map is real
+        doubt. The rule is by suffix: ``.txt`` and ``.R`` are not prose.
+
+        This test named ``benchmarks/constraints.txt`` and
+        ``benchmarks/R/requirements.R`` until the first inventory reached
+        ``main``. No case reads either: the install step does, before any case
+        runs (:class:`TestTheInstallReachesEveryCase`).
+        """
+        assert case_deps.select([path], ["a", "b"], self.MAP,
+                                swept=frozenset()) == ["a", "b"]
+
+
+class TestTheInstallReachesEveryCase:
+    """A file the pull-request suite's install reads changes what every case
+    runs on.
+
+    ``pip install -e '.[all]' -c benchmarks/constraints.txt`` reads
+    ``pyproject.toml`` and the constraints before any case runs, so no
+    measurement of ``run()`` claims either, and a complete sweep records the
+    constraints as read by nothing. Through the inventory a change to the pins
+    ran the 26 unmapped cases of 243; ``pyproject.toml`` sits outside
+    :data:`~benchmarks.case_deps.REACHABLE` and had run the same 26 since the map
+    began. Both now run every case.
+    """
+
+    MAP = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+
+    @pytest.mark.parametrize("path", ["benchmarks/constraints.txt", "pyproject.toml"])
+    def test_it_selects_every_case(self, path):
         assert case_deps.select([path], ["a", "b"], self.MAP) == ["a", "b"]
+
+    @pytest.mark.parametrize("path", ["benchmarks/constraints.txt", "pyproject.toml"])
+    def test_an_inventory_that_records_it_does_not_settle_it(self, path):
+        """The incident: the sweep found nothing that reads it."""
+        assert case_deps.select([path], ["a", "b"], self.MAP,
+                                swept=frozenset({path})) == ["a", "b"]
+
+    @pytest.mark.parametrize("path", ["benchmarks/constraints.txt", "pyproject.toml"])
+    def test_a_diff_that_creates_it_still_reaches_every_case(self, path):
+        """A created file is not a hole because no earlier run read it. A
+        created pin file is read by this run's install all the same."""
+        assert case_deps.select([path], ["a", "b"], self.MAP,
+                                added=[path]) == ["a", "b"]
+
+    def test_the_shipped_map_and_inventory_run_the_registry_on_a_pin_change(self):
+        """On the data that produced the incident: a change to the constraints
+        alone selected 26 of 243 cases."""
+        cases = list(registry.CASES)
+        picked = case_deps.select(["benchmarks/constraints.txt"], cases,
+                                  swept=case_deps.load_swept(SHIPPED_SWEPT))
+        assert picked == cases
+
+    def test_the_order_is_the_candidates_order(self):
+        assert case_deps.select(["pyproject.toml", "mlsynth/x.py"], ["b", "c", "a"],
+                                self.MAP) == ["b", "c", "a"]
+
+    def test_no_candidates_select_nothing(self):
+        assert case_deps.select(["benchmarks/constraints.txt"], [], self.MAP) == []
+
+    @pytest.mark.parametrize("path", ["requirements.txt",
+                                      "benchmarks/R/requirements.R"])
+    def test_a_file_this_install_does_not_read_keeps_the_map_rule(self, path):
+        """``build.yml`` installs ``requirements.txt`` and the R jobs run
+        ``requirements.R``; ``pr-suite`` does neither, so a change to one cannot
+        move a case it runs."""
+        assert case_deps.select([path], ["a", "b"], self.MAP,
+                                swept=frozenset({path})) == []
+
+    def test_the_list_is_not_prose_and_not_unreachable(self):
+        for path in case_deps.ENVIRONMENT:
+            assert not path.endswith(case_deps.PROSE_SUFFIXES)
+            assert not path.startswith(case_deps.NEVER_REACHABLE)
 
 
 # --------------------------------------------------------------------------
@@ -947,7 +1048,31 @@ def test_an_inventory_can_only_narrow_the_selection(changed, swept, added):
     assert set(narrow) <= set(wide)
 
 
-_FATES = st.sampled_from(["measured-0", "measured-1", "unmeasured-0",
+_INSTALLED = st.sampled_from(["benchmarks/constraints.txt", "pyproject.toml"])
+
+
+@given(changed=st.lists(_PATHS, max_size=5), at=st.integers(0, 5),
+       env=_INSTALLED, created=st.booleans(),
+       added=st.lists(_PATHS, max_size=3),
+       swept=st.lists(st.one_of(_PATHS, _INSTALLED), max_size=6),
+       entries=st.dictionaries(st.sampled_from("abcd"),
+                               st.lists(st.one_of(_PATHS, _INSTALLED), max_size=3),
+                               max_size=4),
+       cases=st.permutations(list("abcde")))
+@settings(max_examples=250, deadline=None)
+def test_a_change_to_what_the_install_reads_selects_every_case(
+        changed, at, env, created, added, swept, entries, cases):
+    """Whatever else the diff holds, whatever the map claims, whatever the
+    inventory recorded and whether or not the diff creates it, a change to a
+    file the install reads runs every candidate, in the candidates' order."""
+    diff = changed[:at] + [env] + changed[at:]
+    picked = case_deps.select(diff, cases, entries,
+                              added=added + ([env] if created else []),
+                              swept=frozenset(swept), imports={})
+    assert picked == list(cases)
+
+
+_FATES =st.sampled_from(["measured-0", "measured-1", "unmeasured-0",
                           "unmeasured-1", "not-attempted"])
 
 
