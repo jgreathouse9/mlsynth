@@ -8985,6 +8985,34 @@ timeout = 900.0
   models = "the rationalisers' cone built without the inactive donors' inequalities, so the support and the strict inequalities are read from a larger set than the one V must live in. A first version deleted the rows (Sm d)_i >= 0 and survived as an equivalent mutant: 0 <= z_i <= (Sm d)_i already implies them, and those rows were removed"
 
   [[target.mutant]]
+  id = "interior-diagonal-weights-given-exterior-conditions"
+  find = """    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _diag_interior(X1, X0, w)"""
+  replace = """    if False:
+        return _diag_interior(X1, X0, w)"""
+  models = "an interior w handed to the exterior optimality conditions, which are empty at r = 0, so any diagonal V counts and the uniform one comes back, as in the authors' code"
+
+  [[target.mutant]]
+  id = "interior-pd-weights-given-exterior-conditions"
+  find = """    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _pd_interior(X1, X0, w, ranges)"""
+  replace = """    if False:
+        return _pd_interior(X1, X0, w, ranges)"""
+  models = "the same in the positive definite class, where the exterior start divides by r'r = 0"
+
+  [[target.mutant]]
+  id = "interior-centre-without-the-selection-rows"
+  find = "    dl, dc = _diag_centres(K, list(range(K)), np.ones((1, K)), np.array([1.0]), R, (1.0 - tau) * d + tau / K)"
+  replace = "    dl, dc = _diag_centres(K, list(range(K)), np.ones((1, K)), np.array([1.0]), R[:0], (1.0 - tau) * d + tau / K)"
+  models = "the interior centre taken over the simplex alone, without the rows that make the cell the selection"
+
+  [[target.mutant]]
+  id = "pd-interior-centre-without-the-selection-rows"
+  find = "    return _pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]), C,"
+  replace = "    return _pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]), C[:0],"
+  models = "the PD centre taken over the trace-one slice alone, without the selection rows"
+
+  [[target.mutant]]
   id = "line-search-asks-for-derivatives"
   find = "        while fun(x + step * dx) > f - 0.25 * step * lam2:"
   replace = "        while not in_domain(x + step * dx) or vgh(x + step * dx)[0] > f - 0.25 * step * lam2:"
