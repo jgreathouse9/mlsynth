@@ -230,17 +230,17 @@ def _diag_classes(Aeq, Sm):
     equality (Schrijver, Theory of Linear and Integer Programming, 1986, sec. 8.1), and
     the rationalisers form a cone, so one of them reaches 1 in all of those inequalities
     at once. One LP maximises how many of y_k <= d_k and z_i <= (Sm d)_i reach 1, with y
-    and z in [0, 1]: y_k = 1 marks the support and z_i = 1 a strict inequality. The sum
+    and z in [0, 1], so z >= 0 also keeps d in the cone: y_k = 1 marks the support and
+    z_i = 1 a strict inequality. The sum
     of d is capped at (K + q) / TOL, so a coordinate or slack counts as positive when it
     can exceed TOL once d is scaled to sum one, as with one LP per row, up to a factor of
     2 (K + q) at the threshold.
     """
     q, K = Sm.shape[0], Aeq.shape[1]
     A_ub = np.vstack([np.c_[-np.eye(K), np.eye(K), np.zeros((K, q))],          # y_k <= d_k
-                      np.c_[-Sm, np.zeros((q, K)), np.eye(q)],                  # z_i <= (Sm d)_i
-                      np.c_[-Sm, np.zeros((q, K + q))],                         # (Sm d)_i >= 0
+                      np.c_[-Sm, np.zeros((q, K)), np.eye(q)],                  # 0 <= z_i <= (Sm d)_i
                       np.r_[np.ones(K), np.zeros(K + q)][None, :]])             # 1'd <= (K + q) / TOL
-    b_ub = np.r_[np.zeros(K + 2 * q), (K + q) / TOL]
+    b_ub = np.r_[np.zeros(K + q), (K + q) / TOL]
     res = linprog(np.r_[np.zeros(K), -np.ones(K + q)], A_ub=A_ub, b_ub=b_ub,
                   A_eq=np.c_[Aeq, np.zeros((len(Aeq), K + q))] if len(Aeq) else None,
                   b_eq=np.zeros(len(Aeq)) if len(Aeq) else None,

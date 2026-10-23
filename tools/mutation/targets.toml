@@ -8877,9 +8877,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "inactive-donors-left-out-of-the-cone"
-  find = "                      np.c_[-Sm, np.zeros((q, K + q))],                         # (Sm d)_i >= 0"
-  replace = "                      np.zeros((q, 2 * K + q)),"
-  models = "the rationalisers' cone built without the inactive donors' inequalities, so the support and the strict inequalities are read from a larger set than the one V must live in"
+  find = "                      np.c_[-Sm, np.zeros((q, K)), np.eye(q)],                  # 0 <= z_i <= (Sm d)_i"
+  replace = "                      np.c_[np.zeros((q, 2 * K)), np.eye(q)],"
+  models = "the rationalisers' cone built without the inactive donors' inequalities, so the support and the strict inequalities are read from a larger set than the one V must live in. A first version deleted the rows (Sm d)_i >= 0 and survived as an equivalent mutant: 0 <= z_i <= (Sm d)_i already implies them, and those rows were removed"
 
   [[target.mutant]]
   id = "line-search-asks-for-derivatives"
