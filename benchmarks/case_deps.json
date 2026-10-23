@@ -3162,6 +3162,9 @@
  ],
  "scpi_staggered_covariate": [
   "basedata/scpi_germany.csv",
+  "benchmarks/compare.py",
+  "benchmarks/registry.py",
+  "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/vanillasc.py",
   "mlsynth/utils/datautils.py",
@@ -3172,6 +3175,9 @@
  ],
  "scpi_staggered_pi": [
   "basedata/scpi_germany.csv",
+  "benchmarks/compare.py",
+  "benchmarks/registry.py",
+  "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/vanillasc.py",
   "mlsynth/utils/bilevel/engine.py",
