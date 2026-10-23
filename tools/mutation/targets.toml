@@ -8880,6 +8880,14 @@ timeout = 600.0
                     ctr["solves"] += 1"""
   models = "the face's fit standing for the relaxation's minimiser when it breaks the signs every generator of the cone shares, so the branch and bound asks the cone about a point outside the region whose best fit it settles"
 
+  [[target.mutant]]
+  id = "interior-unit-sent-to-the-exterior-search"
+  find = """    if not outside_hull(X1, X0):
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats)"""
+  replace = """    if False:
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats)"""
+  models = "a treated unit inside the donor hull sent to the visible-facet search, which has no visible facet to start from"
+
 [[target]]
 name = "as-exact-interior"
 module-path = "benchmarks/studies/as_exact/interior.py"
