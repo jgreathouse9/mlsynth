@@ -40,12 +40,19 @@ from mlsynth.utils.syndes_helpers.branch import (
     ExactR,
     LiftCost,
     Multipliers,
+    LOOKAHEAD,
+    MU,
+    RELIABLE,
     PruneRates,
+    PseudoCosts,
     branch_and_bound,
     least_open_bound,
     lift,
     node_parts,
+    reliable_unit,
+    score,
     separate,
+    trial_bound,
     trust_region,
 )
 from mlsynth.utils.syndes_helpers.certificate import syndes_certificate
@@ -991,6 +998,241 @@ class TestNodeOrder:
         assert out.value >= _enumerated(Y, 8).objective_value * (1 - 1e-9)
 
 
+class TestReliabilityBranching:
+    """Each node splits on the unit whose children's bounds are expected to rise
+    most: reliability branching (Achterberg, Koch and Martin 2005). A unit's
+    pseudo-cost is the mean rise in bound per split of it, by side; a unit with
+    fewer than RELIABLE rises on a side is tried, its children's trust-region
+    bounds computed and charged (#881)."""
+
+    def test_a_pseudo_cost_is_the_mean_rise_by_side(self):
+        costs = PseudoCosts()
+        costs.record(3, True, 2.0)
+        costs.record(3, True, 4.0)
+        costs.record(3, False, -1.0)
+        assert costs.mean(3, True, 9.0) == 3.0
+        assert costs.mean(3, False, 9.0) == 0.0     # a fall counts as no rise
+        assert costs.mean(4, True, 9.0) == 9.0      # unseen: the default
+        assert costs.overall() == 2.0
+
+    def test_with_nothing_recorded_the_default_is_one(self):
+        assert PseudoCosts().overall() == 1.0
+
+    def test_an_infinite_rise_is_not_recorded(self):
+        """A child with no admissible set has an infinite bound; its rise would
+        make the unit's mean infinite for the rest of the search."""
+        costs = PseudoCosts()
+        costs.record(0, True, np.inf)
+        assert costs.mean(0, True, 5.0) == 5.0 and costs.overall() == 1.0
+
+    def test_a_unit_is_reliable_after_enough_rises_on_both_sides(self):
+        costs = PseudoCosts()
+        for _ in range(RELIABLE):
+            costs.record(1, True, 1.0)
+        for _ in range(RELIABLE - 1):
+            costs.record(1, False, 1.0)
+        assert not costs.reliable(1)
+        costs.record(1, False, 1.0)
+        assert costs.reliable(1)
+
+    @given(st.floats(0, 1e6), st.floats(0, 1e6))
+    @settings(max_examples=200, deadline=None)
+    def test_the_score_leans_to_the_smaller_side(self, a, b):
+        s = score(a, b)
+        assert s == score(b, a)
+        assert s == pytest.approx((1 - MU) * min(a, b) + MU * max(a, b), rel=1e-12)
+        assert min(a, b) * (1 - 1e-12) <= s <= (a + b) / 2 * (1 + 1e-12)
+
+    @staticmethod
+    def _trying(rises):
+        """A trial that reads each unit's (down, up) rises from ``rises``."""
+        calls = []
+
+        def trial(k):
+            calls.append(k)
+            return rises[k]
+
+        return trial, calls
+
+    def test_reliable_units_are_not_tried(self):
+        costs = PseudoCosts()
+        for k, (down, up) in enumerate([(1.0, 1.0), (3.0, 2.0), (0.5, 9.0)]):
+            for _ in range(RELIABLE):
+                costs.record(k, False, down)
+                costs.record(k, True, up)
+        trial, calls = self._trying({})
+        assert reliable_unit((0, 1, 2), costs, 0.0, trial) == 1
+        assert calls == []
+
+    def test_unreliable_units_are_tried_until_the_lookahead_runs_out(self):
+        """Unit 1 scores best; after it, LOOKAHEAD trials without a better score
+        end the search, so the units past those are never tried."""
+        here = 2.0
+        rises = {k: (here + 1.0, here + 1.0) for k in range(10)}
+        rises[1] = (here + 5.0, here + 5.0)
+        trial, calls = self._trying(rises)
+        costs = PseudoCosts()
+        assert reliable_unit(tuple(range(10)), costs, here, trial) == 1
+        assert calls == list(range(2 + LOOKAHEAD))
+        assert costs.mean(1, True, 0.0) == 5.0 and costs.mean(1, False, 0.0) == 5.0
+
+    def test_a_trial_that_falls_scores_no_rise(self):
+        """Unit 0's fall of 3 scores as no rise, so its score is MU * 4 and beats
+        unit 1's 0.5; read as a fall it would score -1.83 and lose."""
+        trial, _ = self._trying({0: (-3.0, 4.0), 1: (0.5, 0.5)})
+        assert reliable_unit((0, 1), PseudoCosts(), 0.0, trial) == 0
+
+    @given(st.lists(st.tuples(st.floats(-5, 5), st.floats(-5, 5)), min_size=1,
+                    max_size=12), st.floats(-1, 1))
+    @settings(max_examples=200, deadline=None)
+    def test_the_unit_chosen_is_free_and_each_is_tried_once(self, rises, here):
+        F = tuple(range(len(rises)))
+        trial, calls = self._trying(dict(enumerate(rises)))
+        u = reliable_unit(F, PseudoCosts(), here, trial)
+        assert u in F and len(calls) == len(set(calls)) <= len(F)
+        best = max(score(max(d - here, 0.0), max(p - here, 0.0)) for d, p in
+                   (rises[k] for k in calls))
+        got = rises[u]
+        assert score(max(got[0] - here, 0.0), max(got[1] - here, 0.0)) == best
+
+    def test_a_decided_child_is_read_in_closed_form(self):
+        """A child with every unit decided holds one set, whose closed form is
+        its bound; it is not a trust-region bound and is not charged as one."""
+        Y = _noise(N=8, seed=2)
+        _, engine = _engine(Y)
+        R, alpha = engine.R, engine.alpha
+        bound, charged = trial_bound(R, alpha, 3, (0, 4, 6), (1,), (2, 3, 5, 7))
+        sigma = -np.ones(8)
+        sigma[[0, 4, 6]] = 1.0
+        assert bound == pytest.approx(4 * alpha / float(sigma @ R @ sigma), rel=1e-12)
+        assert not charged
+        bound, charged = trial_bound(R, alpha, 3, (0,), (1,), (2, 3))
+        sigma = -np.ones(8)
+        sigma[[0, 2, 3]] = 1.0
+        assert bound == pytest.approx(4 * alpha / float(sigma @ R @ sigma), rel=1e-12)
+        assert not charged
+
+    def test_an_undecided_child_is_read_by_its_trust_region(self):
+        Y = _noise(N=8, seed=2)
+        _, engine = _engine(Y)
+        R, alpha = engine.R, engine.alpha
+        I, O, F = (0,), (1,), (2, 3, 4, 5, 6, 7)
+        U, _, _ = trust_region(*node_parts(R, I, O, F), 2 * 2 - 6)
+        assert trial_bound(R, alpha, 3, I, O, F) == (4 * alpha / U, True)
+
+    def test_a_child_out_of_range_has_no_set(self):
+        Y = _noise(N=8, seed=2)
+        _, engine = _engine(Y)
+        assert trial_bound(engine.R, engine.alpha, 3, (0, 1, 2, 3), (), (4,)) == (
+            np.inf, False)
+        assert trial_bound(engine.R, engine.alpha, 3, (0,), (), (4,)) == (np.inf, False)
+
+    def test_a_relaxation_with_no_positive_maximum_gives_no_bound(self):
+        R = np.zeros((6, 6))
+        assert trial_bound(R, 1.0, 3, (0, 1, 2), (), (3, 4, 5)) == (0.0, False)
+        assert trial_bound(R, 1.0, 3, (0,), (), (1, 2, 3, 4, 5)) == (0.0, True)
+
+    def test_the_search_tries_and_charges_each_trial(self, monkeypatch):
+        """With a bound's cost set far above every other, the work counts the
+        nodes bounded and the trials made, one bound each."""
+        monkeypatch.setattr(branch, "trust_region_seconds", lambda n: 1e6)
+        Y = _noise(N=10, seed=13)
+        problem, engine = _engine(Y)
+        out = branch_and_bound(problem, engine, 5, SubsetFilter(), restarts=0,
+                               work_limit=np.inf, **EAGER)
+        assert out.closed and out.trials > 0
+        assert round(out.work / 1e6) == out.nodes + out.trials
+
+    def test_it_splits_on_another_unit_than_the_root_order(self, monkeypatch):
+        """Nodes split on the unit their trials or pseudo-costs score best, which
+        is not always the first in the root relaxation's order."""
+        firsts = []
+        real = branch.reliable_unit
+
+        def watched(F, costs, here, trial):
+            u = real(F, costs, here, trial)
+            firsts.append((F[0], u))
+            return u
+
+        monkeypatch.setattr(branch, "reliable_unit", watched)
+        Y = _noise(N=10, seed=13)
+        problem, engine = _engine(Y)
+        branch_and_bound(problem, engine, 5, SubsetFilter(), restarts=0, **EAGER)
+        assert any(first != u for first, u in firsts)
+
+    @staticmethod
+    def _recording(monkeypatch):
+        """Every rise recorded, as ``(unit, include, rise)``."""
+        log = []
+        real = branch.PseudoCosts.record
+
+        def record(self, u, include, rise):
+            log.append((u, include, rise))
+            return real(self, u, include, rise)
+
+        monkeypatch.setattr(branch.PseudoCosts, "record", record)
+        return log
+
+    def test_a_bounded_child_records_the_rise_its_trial_saw(self, monkeypatch):
+        """Nothing is reliable at the root, so its unit is tried; the child that
+        includes it is bounded next, and records the same rise over the root's
+        bound, and on the same side, as the trial did. At four of ten treated
+        the two sides differ (at five they mirror each other)."""
+        log = self._recording(monkeypatch)
+        chosen = []
+        real = branch.reliable_unit
+
+        def unit(F, costs, here, trial):
+            u = real(F, costs, here, trial)
+            chosen.append((u, len(log)))
+            return u
+
+        monkeypatch.setattr(branch, "reliable_unit", unit)
+        Y = _noise(N=10, seed=13)
+        problem, engine = _engine(Y)
+        branch_and_bound(problem, engine, 4, SubsetFilter(), restarts=0, **EAGER)
+        u, mark = chosen[0]
+        tried = {include: rise for k, include, rise in log[:mark] if k == u}
+        k, include, rise = log[mark]
+        assert (k, include) == (u, True) and rise > 0.0
+        assert rise == pytest.approx(tried[True], rel=1e-12)
+        assert tried[False] != tried[True]
+
+    def test_a_child_with_no_admissible_set_rises_without_bound(self, monkeypatch):
+        """Under a stratum that treats exactly one of four units, a node that
+        includes one of them has an include child on another with no set: its
+        trial reads an infinite bound, which the pseudo-costs do not keep."""
+        log = self._recording(monkeypatch)
+        Y = _noise(N=11, seed=11)
+        r = DesignRestrictions(strata=[((4, 5, 6, 7), 1, 1)])
+        problem, engine = _engine(Y)
+        filt = SubsetFilter.build(r, N=11)
+        out = branch_and_bound(problem, engine, 4, filt, restarts=0, **EAGER)
+        assert any(rise == np.inf for _, _, rise in log)
+        want = _enumerated(Y, 4, restrictions=r)
+        assert tuple(out.treated) == tuple(want.selected_unit_indices)
+
+    @given(panels, st.data())
+    @settings(max_examples=25, deadline=None,
+              suppress_health_check=[HealthCheck.too_slow])
+    def test_any_branching_unit_finds_the_optimum(self, panel, data):
+        """Which unit a node splits on decides the work, never the answer: with
+        a random unit at every node, the search still returns the enumeration's
+        optimum, certified."""
+        N = panel.shape[1]
+        K = data.draw(st.integers(1, N - 1))
+        rng = np.random.default_rng(data.draw(st.integers(0, 10 ** 6)))
+        problem, engine = _engine(panel)
+        branching = lambda F, costs, here, trial: F[int(rng.integers(len(F)))]
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(branch, "reliable_unit", branching)
+            out = branch_and_bound(problem, engine, K, SubsetFilter(), restarts=0,
+                                   work_limit=np.inf, **EAGER)
+        want = _enumerated(panel, K).objective_value
+        assert out.closed and out.certified
+        assert out.value == pytest.approx(want, rel=1e-9)
+
+
 class TestWorkLimit:
     def test_a_limit_returns_the_best_design_with_a_valid_bound(self):
         Y = _noise(N=12, seed=13)
@@ -1236,7 +1478,7 @@ class TestTheBracketAfterTheLimit:
             self, monkeypatch):
         """The search stops under its limit when the next subtree's pricing would
         pass it; the bracket then has the rest of the limit as well."""
-        Y = _noise(N=20, seed=13)
+        Y = _noise(N=16, seed=13)
         problem, engine = _engine(Y)
         real, calls = branch.least_open_bound, []
 

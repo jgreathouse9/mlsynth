@@ -181,58 +181,74 @@ def _span(lo: float, hi: float, rel: float) -> tuple:
 # and noise30_k8 lifts 18 against 5 and prices 1.72 times as many.
 # Every design and certified flag still agrees. Bands that wide would let a
 # doubling of the work through on the processors the gate runs on.
+#
+# Reliability branching (#881) moved every instance's counts and work, and no
+# design or certified flag. Against splitting on the first free unit in the
+# root relaxation's order, geolift30_k8 does half the work (5.9 against 11.9),
+# geolift32_k10 a fifth less (6.9 to 7.2 against 8.7), noise30_k8 12% more and
+# factor30_k8 1% more; the eager instances move by 3 to 5%. The pseudo-costs tie
+# the whole tree together: a node that prunes under one kernel and not under
+# another changes the rises recorded, and with them every later split, where
+# under the root order a difference stayed in its own subtree. So the counts
+# now differ by kernel family and by numpy version on most instances, and each
+# band spans four stacks: Python 3.11 with numpy 2.4.6 and scipy 1.17.1, the
+# pull-request suite's, and Python 3.13 with numpy 2.5.3 and scipy 1.18.1, each
+# under the AVX-512 (SkylakeX, SapphireRapids) and the AVX2 (Haswell, Zen)
+# kernels. The widest is geolift30_k8 under Python 3.13 and AVX2, which lifts 5
+# nodes against 11 and prices 200,617 designs against 129,818, for 4.8 modelled
+# seconds against 5.9. A search sent back to pricing every design, or a doubled
+# work, still leaves every band.
 EXPECTED = {
     # default costs
-    "geolift30_k8_nodes": _band(78, 0.05),
-    "geolift30_k8_lifts": _band(9, 0.15),
-    "geolift30_k8_pruned": _band(2, 0.05),
-    "geolift30_k8_priced": (3_108_105, 0.0),
-    "geolift30_k8_work": _band(11.94885860000001, 0.15),
+    "geolift30_k8_nodes": _span(168, 180, 0.05),
+    "geolift30_k8_lifts": _span(5, 11, 0.15),
+    "geolift30_k8_pruned": _span(41, 52, 0.05),
+    "geolift30_k8_priced": _span(129_818, 200_617, 0.0),
+    "geolift30_k8_work": _span(4.8073922, 5.978936199999985, 0.15),
     "geolift30_k8_certified": (1.0, 0.0),
     "geolift30_k8_matches_enumeration": (1.0, 0.0),
-    "geolift32_k10_nodes": _band(102, 0.05),
+    "geolift32_k10_nodes": _band(55, 0.05),
     "geolift32_k10_lifts": _band(19, 0.15),
-    "geolift32_k10_pruned": _band(49, 0.05),
-    "geolift32_k10_priced": (7_350, 0.0),
-    "geolift32_k10_work": _band(8.682166099999979, 0.15),
+    "geolift32_k10_pruned": _band(26, 0.05),
+    "geolift32_k10_priced": (5_005, 0.0),
+    "geolift32_k10_work": _span(6.934151900000018, 7.171400900000019, 0.15),
     "geolift32_k10_certified": (1.0, 0.0),
     "geolift32_k10_matches_enumeration": (1.0, 0.0),
-    "noise30_k8_nodes": _band(46, 0.05),
+    "noise30_k8_nodes": _band(36, 0.05),
     "noise30_k8_lifts": _band(4, 0.15),
-    "noise30_k8_pruned": _band(8, 0.05),
-    "noise30_k8_priced": (185_942, 0.0),
-    "noise30_k8_work": _band(3.174782599999995, 0.15),
+    "noise30_k8_pruned": _band(2, 0.05),
+    "noise30_k8_priced": (376_740, 0.0),
+    "noise30_k8_work": _span(3.402961399999987, 3.588420399999985, 0.15),
     "noise30_k8_certified": (1.0, 0.0),
     "noise30_k8_matches_enumeration": (1.0, 0.0),
-    # the bounds prune nothing here: every one of C(30, 8) designs is priced
-    "factor30_k8_nodes": _band(94, 0.05),
+    # the bounds prune one node here: all but 8,855 of C(30, 8) designs are priced
+    "factor30_k8_nodes": _span(140, 141, 0.05),
     "factor30_k8_lifts": _band(5, 0.15),
-    "factor30_k8_pruned": (0.0, 0.0),
-    "factor30_k8_priced": (5_852_925, 0.0),
-    "factor30_k8_work": _band(12.664619000000002, 0.15),
+    "factor30_k8_pruned": (1.0, 0.0),
+    "factor30_k8_priced": (5_844_070, 0.0),
+    "factor30_k8_work": _span(12.77197060000001, 12.825724100000011, 0.15),
     "factor30_k8_certified": (1.0, 0.0),
     "factor30_k8_matches_enumeration": (1.0, 0.0),
     # every node bounded and lifted
-    # AVX-512 against AVX2 kernels (see above)
-    "geolift20_k8_eager_nodes": _span(42, 46, 0.05),
-    "geolift20_k8_eager_lifts": _span(33, 39, 0.05),
-    "geolift20_k8_eager_pruned": _span(21, 22, 0.05),
-    "geolift20_k8_eager_priced": _span(1, 3, 0.0),
-    "geolift20_k8_eager_work": _span(5.040971999999998, 6.349497999999998, 0.15),
+    "geolift20_k8_eager_nodes": _span(46, 52, 0.05),
+    "geolift20_k8_eager_lifts": _span(36, 40, 0.05),
+    "geolift20_k8_eager_pruned": _span(23, 26, 0.05),
+    "geolift20_k8_eager_priced": (1.0, 0.0),
+    "geolift20_k8_eager_work": _span(5.552992499999999, 5.9874014, 0.15),
     "geolift20_k8_eager_certified": (1.0, 0.0),
     "geolift20_k8_eager_matches_enumeration": (1.0, 0.0),
-    "noise20_k8_eager_nodes": _band(30, 0.05),
-    "noise20_k8_eager_lifts": _band(29, 0.05),
-    "noise20_k8_eager_pruned": _band(12, 0.05),
-    "noise20_k8_eager_priced": (7, 0.0),
-    "noise20_k8_eager_work": _band(2.773886899999998, 0.15),
+    "noise20_k8_eager_nodes": _band(34, 0.05),
+    "noise20_k8_eager_lifts": _band(24, 0.05),
+    "noise20_k8_eager_pruned": _band(17, 0.05),
+    "noise20_k8_eager_priced": (1.0, 0.0),
+    "noise20_k8_eager_work": _span(2.4152146000000023, 2.7457721000000044, 0.15),
     "noise20_k8_eager_certified": (1.0, 0.0),
     "noise20_k8_eager_matches_enumeration": (1.0, 0.0),
-    "factor20_k8_eager_nodes": _band(119, 0.05),
-    "factor20_k8_eager_lifts": _band(111, 0.05),
-    "factor20_k8_eager_pruned": _band(56, 0.05),
-    "factor20_k8_eager_priced": (8, 0.0),
-    "factor20_k8_eager_work": _band(18.726892599999953, 0.15),
+    "factor20_k8_eager_nodes": _span(128, 133, 0.05),
+    "factor20_k8_eager_lifts": _span(115, 122, 0.05),
+    "factor20_k8_eager_pruned": _span(61, 65, 0.05),
+    "factor20_k8_eager_priced": _span(3, 8, 0.0),
+    "factor20_k8_eager_work": _span(19.38071729999996, 19.66675769999996, 0.15),
     "factor20_k8_eager_certified": (1.0, 0.0),
     "factor20_k8_eager_matches_enumeration": (1.0, 0.0),
     # K=None under work_limit=25, sizes up to 13 under the mirror rule (#838):
@@ -240,11 +256,11 @@ EXPECTED = {
     "factor26_free_value": _band(0.6019339302995382, 1e-9),
     "factor26_free_lower": _band(0.6019339302995382, 1e-9),
     "factor26_free_size": (13.0, 0.0),
-    "factor26_free_nodes": _band(83, 0.05),
+    "factor26_free_nodes": _band(84, 0.05),
     "factor26_free_lifts": _band(5, 0.15),
     "geolift26_free_value": _band(143431.35581503826, 1e-9),
     "geolift26_free_lower": _band(143431.35581503826, 1e-9),
     "geolift26_free_size": (13.0, 0.0),
-    "geolift26_free_nodes": _band(86, 0.05),
+    "geolift26_free_nodes": _span(934, 1057, 0.05),
     "geolift26_free_lifts": _band(4, 0.15),
 }
