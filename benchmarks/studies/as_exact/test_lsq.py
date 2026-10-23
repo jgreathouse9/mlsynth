@@ -312,3 +312,14 @@ def test_a_design_with_more_predictors_than_validation_periods_is_refused():
     assert X0.shape[0] - 1 > 2
     with pytest.raises(ValueError, match="validation block"):
         exact.solve_diag(X1, X0, Z1[:2], Z0[:2])
+
+
+@pytest.mark.parametrize("m", [1, 2, 5, 9])
+def test_the_simplex_basis_is_the_simplex_s_affine_hull(m):
+    """b0 = 1/m, and N is orthonormal with 1'N = 0; the cache hands out read-only arrays."""
+    b0, N = lsq._simplex_basis(m)
+    assert np.allclose(b0, 1.0 / m) and N.shape == (m, m - 1)
+    assert np.abs(np.ones(m) @ N).max(initial=0.0) <= 1e-12
+    assert np.allclose(N.T @ N, np.eye(m - 1), atol=1e-12)
+    with pytest.raises(ValueError):
+        N[...] = 0.0

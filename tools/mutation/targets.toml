@@ -8793,16 +8793,22 @@ timeout = 600.0
   [[target.mutant]]
   id = "rank-deficient-face-ridged"
   find = '''
-    sv = np.linalg.svd(E, compute_uv=False)
+    U, sv, Vt = np.linalg.svd(E, full_matrices=False)
     if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:'''
   replace = '''
     if E.shape[0] < E.shape[1] or np.linalg.matrix_rank(E) < E.shape[1]:
         eps = 1e-12 * max(1.0, float(np.abs(E).max()))
         E = np.vstack([E, eps * np.eye(E.shape[1])])
         f = np.concatenate([f, np.zeros(E.shape[1])])
-    sv = np.linalg.svd(E, compute_uv=False)
+    U, sv, Vt = np.linalg.svd(E, full_matrices=False)
     if not sv[-1] > 0.0:'''
   models = "the original patch for a rank-deficient face: a 1e-12 ridge that leaves cond(R) near 1e12 and turns the reduction's answer into noise"
+
+  [[target.mutant]]
+  id = "back-transform-loses-its-shift"
+  find = "    return None if x is None else Vt.T @ ((x + fq) / sv)"
+  replace = "    return None if x is None else Vt.T @ (x / sv)"
+  models = "the least-distance point mapped back to the weights without the shift U'f that makes it a residual, so every piece is solved for the wrong target"
 
   [[target.mutant]]
   id = "nnls-answer-taken-on-trust"
@@ -8862,3 +8868,21 @@ timeout = 900.0
   find = '''    stats["pattern_lp_checks"] = stats.get("pattern_lp_checks", 0) + 1'''
   replace = "    return False, None"
   models = "a test whose evidence does not check read as an empty cone, where HiGHS should decide it"
+
+[[target]]
+name = "as-exact-rationalize"
+module-path = "benchmarks/studies/as_exact/rationalize.py"
+test-command = "python -m pytest benchmarks/studies/as_exact/test_rationalize.py benchmarks/studies/as_exact/test_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "inactive-donors-left-out-of-the-cone"
+  find = "                      np.c_[-Sm, np.zeros((q, K + q))],                         # (Sm d)_i >= 0"
+  replace = "                      np.zeros((q, 2 * K + q)),"
+  models = "the rationalisers' cone built without the inactive donors' inequalities, so the support and the strict inequalities are read from a larger set than the one V must live in"
+
+  [[target.mutant]]
+  id = "line-search-asks-for-derivatives"
+  find = "        while fun(x + step * dx) > f - 0.25 * step * lam2:"
+  replace = "        while not in_domain(x + step * dx) or vgh(x + step * dx)[0] > f - 0.25 * step * lam2:"
+  models = "a line search that computes the gradient and Hessian at every trial step, the cost the objective-only line search removed"

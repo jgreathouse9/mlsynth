@@ -15,8 +15,9 @@ verified solution.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
-from scipy.linalg import solve_triangular
 from scipy.optimize import linprog, lsq_linear, nnls
 
 COND_MAX = 1e4      # above this the back-transform through R^{-1} leaves fewer digits than VERIFY asks for
@@ -122,25 +123,35 @@ def _constraints_feasible(G, h):
 def _lsi(E, f, G, h):
     """min ||E y - f|| subject to G y >= h. None when the reduced problem has no verified solution.
 
-    The reduction divides by R from E = QR, so it needs E of full column rank, and its
-    answer passes the 1e-7 check only while cond(E) stays below about 1e4: on random
+    The reduction divides by R = S V' from the thin SVD E = U S V', so it needs E of full
+    column rank, and its answer passes the 1e-7 check only while cond(E) = s_1 / s_n
+    stays below about 1e4: on random
     nearly collinear faces every piece is exact below 1e4 and 9 per cent fail between
     1e4 and 1e5. A face with more free weights than validation periods, or with donors
     whose validation paths are nearly collinear, is refused. Proposition 99, West Germany
     and the seeded designs in results/ stay below 600.
     """
-    sv = np.linalg.svd(E, compute_uv=False)
+    U, sv, Vt = np.linalg.svd(E, full_matrices=False)
     if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:
         cond = sv[0] / sv[-1] if sv[-1] > 0 else np.inf
         raise ValueError(
             f"the face's validation block is rank-deficient or ill-conditioned ({E.shape[0]} periods, "
             f"{E.shape[1]} free weights, condition number {cond:.1e}); the exact least-squares "
             "reduction needs full column rank")
-    Q, R = np.linalg.qr(E)
-    fq = Q.T @ f
-    GRi = solve_triangular(R, G.T, trans="T").T          # G R^{-1}
+    fq = U.T @ f
+    GRi = (G @ Vt.T) / sv                                # G R^{-1} = G V S^{-1}
     x = _ldp(GRi, h - GRi @ fq)
-    return None if x is None else solve_triangular(R, x + fq)
+    return None if x is None else Vt.T @ ((x + fq) / sv)
+
+
+@lru_cache(maxsize=None)
+def _simplex_basis(m):
+    """The simplex's centre 1/m and an orthonormal basis of the directions 1'd = 0, read-only."""
+    b0 = np.full(m, 1.0 / m)
+    N = np.linalg.svd(np.ones((1, m)))[2][1:].T
+    b0.setflags(write=False)
+    N.setflags(write=False)
+    return b0, N
 
 
 def simplex_ls(z, Z, Aeq=None, beq=None, Gin=None, hin=None):
@@ -151,14 +162,15 @@ def simplex_ls(z, Z, Aeq=None, beq=None, Gin=None, hin=None):
     empty piece.
     """
     m = Z.shape[1]
-    A = np.ones((1, m)) if Aeq is None or len(Aeq) == 0 else np.vstack([np.ones((1, m)), Aeq])
-    c = np.ones(1) if beq is None or len(beq) == 0 else np.concatenate([[1.0], beq])
-    b0, *_ = np.linalg.lstsq(A, c, rcond=None)
-    if np.abs(A @ b0 - c).max() > 1e-9 * max(1.0, np.abs(c).max()):
-        return None, None
-    _, sv, Vt = np.linalg.svd(A)
-    rank = int((sv > 1e-10 * max(sv[0], 1.0)).sum())
-    N = Vt[rank:].T                                       # null-space basis, m x d
+    if Aeq is None or len(Aeq) == 0:                      # the simplex alone, every face fit and piece
+        b0, N = _simplex_basis(m)
+    else:
+        A, c = np.vstack([np.ones((1, m)), Aeq]), np.concatenate([[1.0], beq])
+        b0, *_ = np.linalg.lstsq(A, c, rcond=None)
+        if np.abs(A @ b0 - c).max() > 1e-9 * max(1.0, np.abs(c).max()):
+            return None, None
+        _, sv, Vt = np.linalg.svd(A)
+        N = Vt[int((sv > 1e-10 * max(sv[0], 1.0)).sum()):].T    # null-space basis, m x d
     if N.shape[1] == 0:
         if b0.min() < -1e-10:
             return None, None

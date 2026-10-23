@@ -12,9 +12,9 @@ Every reported V maximises a sum of logarithms over an affine slice of the cone:
 
 Positive definite class: the strictly feasible start is the paper's own Lemma B.1
 construction, V0 = nu nu'/(nu'r) + I - r r'/||r||^2 with nu in the relative interior of
-the normal cone (one LP), so no phase-I problem is solved. Diagonal class: support and
-implicit equalities are found by LPs, as in the reference, and the average of those LP
-solutions is a relative-interior start.
+the normal cone (one LP), so no phase-I problem is solved. Diagonal class: the support
+and the implicit equalities come from one LP over the cone of rationalisers, which also
+gives the relative-interior start (``_diag_classes``).
 
 Predictors are standardised across treated and donors (sd, ddof=1), as in the paper.
 """
@@ -31,13 +31,25 @@ def _standardize(X1, X0):
     return X1 / sd, X0 / sd[:, None]
 
 
-def _newton_eq(x, vgh, A, b, in_domain, tol=1e-12, maxit=200):
-    """Newton's method on {x : A x = b} from a strictly feasible x, in the null space of A."""
-    if not in_domain(x):
-        raise ValueError("Newton's method needs a strictly feasible start")
+def _null(A):
+    """An orthonormal basis of the null space of A."""
     _, sv, Vt = np.linalg.svd(A)
     rank = int((sv > 1e-12 * max(sv[0], 1.0)).sum())
-    N = Vt[rank:].T
+    return Vt[rank:].T
+
+
+def _newton_eq(x, vgh, A, b, in_domain, fun=None, N=None, tol=1e-12, maxit=200):
+    """Newton's method on {x : A x = b} from a strictly feasible x, in the null space of A.
+
+    ``vgh`` gives the objective, gradient and Hessian, and ``fun`` the objective alone,
+    +inf outside the domain, so each trial step of the line search costs one function
+    value. ``N`` is a null-space basis of A, passed in when several runs share A.
+    """
+    if not in_domain(x):
+        raise ValueError("Newton's method needs a strictly feasible start")
+    if fun is None:
+        fun = lambda z: vgh(z)[0] if in_domain(z) else np.inf   # noqa: E731
+    N = _null(A) if N is None else N
     if N.shape[1] == 0:
         return x
     for _ in range(maxit):
@@ -50,7 +62,7 @@ def _newton_eq(x, vgh, A, b, in_domain, tol=1e-12, maxit=200):
             break
         dx = N @ dz
         step = 1.0
-        while not in_domain(x + step * dx) or vgh(x + step * dx)[0] > f - 0.25 * step * lam2:
+        while fun(x + step * dx) > f - 0.25 * step * lam2:
             step *= 0.5
             if step < 1e-16:
                 return x
@@ -101,9 +113,14 @@ def pd_rationalizers(X1, X0, w, ranges=False):
     r = X1 - X0 @ w
     p = X0 @ w - X1                            # the paper's (X0 w* - X1)
     B = _basis(K)
+    n = len(B)
+    Bm = B.reshape(n, K * K)                   # x -> vec V(x)
+
+    def mat(x):
+        return (x @ Bm).reshape(K, K)
 
     def lin(M):                                # <M, V(x)> as a row acting on x
-        return np.einsum("akl,kl->a", B, M)
+        return Bm @ M.ravel()
 
     Aeq = [lin(np.eye(K))]                     # trace one
     beq = [1.0]
@@ -120,7 +137,7 @@ def pd_rationalizers(X1, X0, w, ranges=False):
 
     def in_domain(x):
         try:
-            np.linalg.cholesky(np.tensordot(x, B, axes=1))
+            np.linalg.cholesky(mat(x))
         except np.linalg.LinAlgError:
             return False
         return C.size == 0 or np.all(C @ x > 0)
@@ -128,12 +145,12 @@ def pd_rationalizers(X1, X0, w, ranges=False):
     def barrier(mu):
         """-log det V - mu sum_j log s_j(V), with gradient and Hessian in x."""
         def vgh(x):
-            V = np.tensordot(x, B, axes=1)
+            V = mat(x)
             W = np.linalg.inv(V)
             f = -2.0 * np.log(np.diag(np.linalg.cholesky(V))).sum()
-            g = -np.einsum("akl,kl->a", B, W)
-            WB = np.einsum("kl,alm->akm", W, B)
-            H = np.einsum("akm,bmk->ab", WB, WB)
+            g = -Bm @ W.ravel()
+            WB = W @ B                         # W B_a for every basis matrix
+            H = WB.reshape(n, -1) @ WB.transpose(0, 2, 1).reshape(n, -1).T   # tr(W B_a W B_b)
             if C.size:
                 s = C @ x
                 f -= mu * np.log(s).sum()
@@ -142,13 +159,29 @@ def pd_rationalizers(X1, X0, w, ranges=False):
             return f, g, H
         return vgh
 
-    xc = _newton_eq(x0, barrier(1.0), Aeq, beq, in_domain)
+    def barrier_f(mu):
+        """The barrier alone, +inf outside the domain: all a trial step of the line search needs."""
+        def fun(x):
+            try:
+                f = -2.0 * np.log(np.diag(np.linalg.cholesky(mat(x)))).sum()
+            except np.linalg.LinAlgError:
+                return np.inf
+            if C.size:
+                s = C @ x
+                if not np.all(s > 0):
+                    return np.inf
+                f -= mu * np.log(s).sum()
+            return f
+        return fun
+
+    N = _null(Aeq)
+    xc = _newton_eq(x0, barrier(1.0), Aeq, beq, in_domain, fun=barrier_f(1.0), N=N)
     x, mu, m = x0.copy(), 1.0, max(len(inactive), 1)
     while m * mu > 1e-10:
-        x = _newton_eq(x, barrier(mu), Aeq, beq, in_domain)
+        x = _newton_eq(x, barrier(mu), Aeq, beq, in_domain, fun=barrier_f(mu), N=N)
         mu /= 20.0
-    Vc = np.tensordot(xc, B, axes=1)
-    Vl = np.tensordot(x, B, axes=1)
+    Vc = mat(xc)
+    Vl = mat(x)
     out = dict(logdet_diag=np.diag(Vl) / np.trace(Vl), center_diag=np.diag(Vc) / np.trace(Vc),
                logdet_min_eig=float(np.linalg.eigvalsh(Vl).min()), Vstar=Vl, Vcenter=Vc)
     if ranges:
@@ -160,13 +193,64 @@ def pd_rationalizers(X1, X0, w, ranges=False):
                 def vgh_lin(y, mu_box, e=e, sign=sign):
                     f0, g0, H0 = barrier(1.0)(y)
                     return sign * (e @ y) + mu_box[0] * f0, sign * e + mu_box[0] * g0, mu_box[0] * H0
+
+                def fun_lin(y, mu_box, e=e, sign=sign):
+                    return sign * (e @ y) + mu_box[0] * barrier_f(1.0)(y)
                 y, mu_box = xc.copy(), [1.0]
                 while degree * mu_box[0] > 1e-9:
-                    y = _newton_eq(y, lambda z: vgh_lin(z, mu_box), Aeq, beq, in_domain)
+                    y = _newton_eq(y, lambda z: vgh_lin(z, mu_box), Aeq, beq, in_domain,
+                                   fun=lambda z: fun_lin(z, mu_box), N=N)
                     mu_box[0] /= 10.0
                 store[k] = e @ y
         out["lo"], out["hi"] = lo, hi
     return out
+
+
+def _diag_system(X1, X0, w):
+    """The cone of diagonal rationalisers of w: d >= 0 with Aeq d = 0 and Sm d >= 0.
+
+    Predictors are standardised first; residuals at rounding size are exact matches.
+    """
+    X1, X0 = _standardize(np.asarray(X1, float), np.asarray(X0, float))
+    w = np.asarray(w, float)
+    S = np.flatnonzero(w > 1e-7)
+    inactive = np.setdiff1d(np.arange(X0.shape[1]), S)
+    j0 = S[0]
+    r = X1 - X0 @ w
+    r[np.abs(r) <= 1e-10 * max(1.0, np.abs(X1).max())] = 0.0   # exact matches, as solved to rounding
+    Aeq = (X0[:, S[1:]] - X0[:, [j0]]).T * r          # (X_j - X_j0)' Diag(d) r = 0
+    Sm = (X0[:, [j0]] - X0[:, inactive]).T * r        # slacks Sm d >= 0
+    return Aeq, Sm
+
+
+def _diag_classes(Aeq, Sm):
+    """The support of the rationalisers, the inequalities they can make strict, and a start strict in both.
+
+    Some point of a polyhedron is strict in every inequality that is not an implicit
+    equality (Schrijver, Theory of Linear and Integer Programming, 1986, sec. 8.1), and
+    the rationalisers form a cone, so one of them reaches 1 in all of those inequalities
+    at once. One LP maximises how many of y_k <= d_k and z_i <= (Sm d)_i reach 1, with y
+    and z in [0, 1]: y_k = 1 marks the support and z_i = 1 a strict inequality. The sum
+    of d is capped at (K + q) / TOL, so a coordinate or slack counts as positive when it
+    can exceed TOL once d is scaled to sum one, as with one LP per row, up to a factor of
+    2 (K + q) at the threshold.
+    """
+    q, K = Sm.shape[0], Aeq.shape[1]
+    A_ub = np.vstack([np.c_[-np.eye(K), np.eye(K), np.zeros((K, q))],          # y_k <= d_k
+                      np.c_[-Sm, np.zeros((q, K)), np.eye(q)],                  # z_i <= (Sm d)_i
+                      np.c_[-Sm, np.zeros((q, K + q))],                         # (Sm d)_i >= 0
+                      np.r_[np.ones(K), np.zeros(K + q)][None, :]])             # 1'd <= (K + q) / TOL
+    b_ub = np.r_[np.zeros(K + 2 * q), (K + q) / TOL]
+    res = linprog(np.r_[np.zeros(K), -np.ones(K + q)], A_ub=A_ub, b_ub=b_ub,
+                  A_eq=np.c_[Aeq, np.zeros((len(Aeq), K + q))] if len(Aeq) else None,
+                  b_eq=np.zeros(len(Aeq)) if len(Aeq) else None,
+                  bounds=[(0, None)] * K + [(0, 1)] * (K + q), method="highs")
+    support = [k for k in range(K) if res.status == 0 and res.x[K + k] > 0.5]
+    if not support:
+        raise ValueError("no diagonal V rationalises w (w is outside the attainable closure)")
+    strict = [i for i in range(q) if res.x[2 * K + i] > 0.5]
+    d = res.x[:K]
+    return support, strict, d[support] / d[support].sum()
 
 
 def diag_rationalizers(X1, X0, w):
@@ -175,43 +259,14 @@ def diag_rationalizers(X1, X0, w):
     Returns ``logdet`` and ``center`` (sum one), the ``support`` of V, the predictors
     ``forced_zero`` in every rationaliser, and the count of implicit equalities.
     """
-    X1, X0 = _standardize(np.asarray(X1, float), np.asarray(X0, float))
-    w = np.asarray(w, float)
-    K, J = X0.shape
-    S = np.flatnonzero(w > 1e-7)
-    inactive = np.setdiff1d(np.arange(J), S)
-    j0 = S[0]
-    r = X1 - X0 @ w
-    r[np.abs(r) <= 1e-10 * max(1.0, np.abs(X1).max())] = 0.0   # exact matches, as solved to rounding
-    Aeq = (X0[:, S[1:]] - X0[:, [j0]]).T * r          # (X_j - X_j0)' Diag(d) r = 0
-    Sm = (X0[:, [j0]] - X0[:, inactive]).T * r        # slacks Sm d >= 0
-    A_eq = np.vstack([Aeq, np.ones((1, K))])
-    b_eq = np.concatenate([np.zeros(len(Aeq)), [1.0]])
-
-    def lpmax(c):
-        res = linprog(-c, A_ub=-Sm if len(Sm) else None, b_ub=np.zeros(len(Sm)) if len(Sm) else None,
-                      A_eq=A_eq, b_eq=b_eq, bounds=(0, None), method="highs")
-        if res.status != 0:
-            raise ValueError("no diagonal V rationalises w (w is outside the attainable closure)")
-        return -res.fun, res.x
-
-    pts, support, strict = [], [], []
-    for k in range(K):
-        v, x = lpmax(np.eye(K)[k])
-        pts.append(x)
-        if v > TOL:
-            support.append(k)
-    for i in range(len(Sm)):
-        v, x = lpmax(Sm[i])
-        pts.append(x)
-        if v > TOL:
-            strict.append(i)
+    Aeq, Sm = _diag_system(X1, X0, w)
+    K = Aeq.shape[1]
+    support, strict, x0 = _diag_classes(Aeq, Sm)
     implicit = [i for i in range(len(Sm)) if i not in strict]
     sup = np.array(support)
-    Ae = np.vstack([A_eq[:, sup]] + ([Sm[implicit][:, sup]] if implicit else []))
-    be = np.concatenate([b_eq] + ([np.zeros(len(implicit))] if implicit else []))
+    Ae = np.vstack([Aeq[:, sup], np.ones((1, len(sup)))] + ([Sm[implicit][:, sup]] if implicit else []))
+    be = np.concatenate([np.zeros(len(Aeq)), [1.0]] + ([np.zeros(len(implicit))] if implicit else []))
     Cs = Sm[strict][:, sup] if strict else np.zeros((0, len(sup)))
-    x0 = np.mean(pts, axis=0)[sup]          # a mean of feasible points: relative interior, no projection
 
     def in_domain(x):
         return np.all(x > 0) and (Cs.size == 0 or np.all(Cs @ x > 0))
@@ -228,10 +283,19 @@ def diag_rationalizers(X1, X0, w):
             return f, g, H
         return vgh
 
-    xc = _newton_eq(x0, barrier(1.0), Ae, be, in_domain)
+    def barrier_f(mu):
+        """The barrier alone, +inf outside the domain."""
+        def fun(x):
+            if not in_domain(x):
+                return np.inf
+            return -np.log(x).sum() - (mu * np.log(Cs @ x).sum() if Cs.size else 0.0)
+        return fun
+
+    N = _null(Ae)
+    xc = _newton_eq(x0, barrier(1.0), Ae, be, in_domain, fun=barrier_f(1.0), N=N)
     x, mu, m = x0.copy(), 1.0, max(len(strict), 1)
     while m * mu > 1e-10:
-        x = _newton_eq(x, barrier(mu), Ae, be, in_domain)
+        x = _newton_eq(x, barrier(mu), Ae, be, in_domain, fun=barrier_f(mu), N=N)
         mu /= 20.0
     dl, dc = np.zeros(K), np.zeros(K)
     dl[sup], dc[sup] = x, xc
