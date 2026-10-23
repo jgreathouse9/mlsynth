@@ -3984,6 +3984,46 @@ timeout = 300.0
                                if ".".join(parts[:i]) in by_name)"""
   models = "edges for what an import executes, not for what it reads: one config import becomes an importer of every structure its package re-exports, and a change to marex_helpers/structures.py selects 230 of 243 cases"
 
+# /rca: the PR suite ran the whole registry because no inventory reached main.
+# The night after the inventory could first be committed, two mapped cases
+# raised under pandas 3.1; their slice dropped them, the merge restored their
+# old entries, and an old entry vetoes the inventory. One mutant per cause.
+[[target]]
+name = "case-deps-unmeasured"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-merge-restores-a-case-its-shard-could-not-measure"
+  find = "    for name in failed - measured_in(slices):\n        out.pop(name, None)\n"
+  replace = "    for name in failed - measured_in(slices):\n        pass\n"
+  models = "the merge before the fix: a case a live shard ran and could not measure keeps its shipped entry, so one case that raises on a night withholds the inventory and the PR suite runs the whole registry"
+
+  [[target.mutant]]
+  id = "a-slice-does-not-say-what-it-could-not-measure"
+  find = "    if path is not None and skipped:"
+  replace = "    if False:"
+  models = "a shard that drops an unmeasured case from its slice without listing it, so the merge cannot tell it from a case in a shard that died"
+
+  [[target.mutant]]
+  id = "the-unmeasured-list-becomes-a-case"
+  find = "    return body, list(body.pop(UNMEASURED, []))"
+  replace = "    return body, list(body.get(UNMEASURED, []))"
+  models = "the list of unmeasured cases merged into the map as a case of its own, which the selection then always runs and the inventory check counts"
+
+  [[target.mutant]]
+  id = "a-failure-outranks-a-measurement"
+  find = "    for name in failed - measured_in(slices):"
+  replace = "    for name in failed:"
+  models = "a case one slice measured dropped because another listed it as unmeasured, so the order of the slices decides what is mapped"
+
+  [[target.mutant]]
+  id = "a-withheld-inventory-is-a-log-line"
+  find = '            print(f"::warning title=Case map::inventory not recorded -- {why}")'
+  replace = '            print(f"inventory: not recorded -- {why}")'
+  models = "the refusal printed into a green job's log, where it sat for a day while every pull request that touched an unmeasured module ran the whole registry"
+
 [[target]]
 name = "case-deps-measured-domain"
 module-path = "tools/benchmark_deps.py"
