@@ -8167,3 +8167,60 @@ timeout = 900.0
   find = "                                     bnb_work=found.work, bnb_open=found.open)"
   replace = "                                     bnb_open=found.open)"
   models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
+
+# The batched TBR climb (benchmarks/studies/tbr_batched_climb). Its claim is that
+# it takes the exact climb's step every time; each defect below would make it
+# take a different one on some panel while running without error.
+[[target]]
+name = "tbr-batched-climb"
+module-path = "benchmarks/studies/tbr_batched_climb/batched.py"
+test-command = "python -m pytest benchmarks/tests/test_tbr_batched_climb.py -q -x -p no:cacheprovider -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "computed-zero-residual-trusted"
+  find = "    degenerate = tiny_x | tiny_y | tiny_r | tiny_x0 | tiny_r0 | ~finite"
+  replace = "    degenerate = tiny_x | tiny_y | tiny_x0 | ~finite"
+  models = "agents_solvers.md rule 4 broken: a perfect fit that reads 1e-13 after forming x - Y_j at its level is scored as a real residual, so the batched climb scores a candidate from rounding noise where the exact climb raises"
+
+  [[target.mutant]]
+  id = "flagged-keys-not-rescored"
+  find = "    for i in np.flatnonzero(flagged):\n        keys[i] = exact_key(int(i))"
+  replace = "    pass"
+  models = "a flag that is raised and then ignored, so degenerate and near-threshold candidates keep their batched keys"
+
+  [[target.mutant]]
+  id = "near-ties-not-rescored"
+  find = "    for i in group:\n        keys[i] = exact_key(i)"
+  replace = "    pass"
+  models = "the best chosen on batched keys alone, which on the pinned witness (seed 1, geo 9 = geo 8 (1 + 5 eps)) ties two candidates the exact keys separate by one unit in the last place, and takes the other geo"
+
+  [[target.mutant]]
+  id = "re-derived-control-scored-batched"
+  find = "    flagged = flagged | ~regular                     # a re-derived control group is scored exactly"
+  replace = "    flagged = flagged"
+  models = "an augment candidate whose control group was re-derived from the pool scored as if it had only lost one geo, which is a different split from the one the step would take"
+
+  [[target.mutant]]
+  id = "rounding-boundary-unflagged"
+  find = "    return ((np.abs(c - O.MIN_CORR) <= BAND) | (to_boundary <= BAND)"
+  replace = "    return ((np.abs(c - O.MIN_CORR) <= BAND)"
+  models = "a correlation at a round(corr, 2) boundary trusted to the batched value, where one unit in the last place moves the rounded correlation that ranks ahead of the detectable impact"
+
+  [[target.mutant]]
+  id = "aa-zero-crossing-unflagged"
+  find = "            | (np.abs(np.abs(loc) - half) <= BAND * half)"
+  replace = ""
+  models = "an A/A interval whose edge sits on zero decided by the batched value, which can flip the second gate"
+
+  [[target.mutant]]
+  id = "paper-objective-batched"
+  find = "    if scorer._objective != \"reference\":\n        return EXACT_MATCH(scorer, treatment, control, toggleable)"
+  replace = "    if False:\n        return EXACT_MATCH(scorer, treatment, control, toggleable)"
+  models = "the paper objective routed through a batched key that computes the reference objective, so a run asking for Au's f climbs another objective"
+
+  [[target.mutant]]
+  id = "empty-control-toggle-allowed"
+  find = "        cand = [g for g in toggleable if control ^ {g}]"
+  replace = "        cand = list(toggleable)"
+  models = "a match step that may toggle the last control geo out, a split the exact climb never scores"
