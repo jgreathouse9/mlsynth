@@ -16,12 +16,21 @@ the normal cone (one LP), so no phase-I problem is solved. Diagonal class: the s
 and the implicit equalities come from one LP over the cone of rationalisers, which also
 gives the relative-interior start (``_diag_classes``).
 
+Inside the donor hull w is an exact match, r = 0, and those conditions say nothing. V
+rationalises the barycentric weights w_A of cell A when A is the selection under V:
+<Q_j^A, V> > 0 for every donor j outside A (paper, eq. 18; interior.py). The centre and
+the log-det maximiser are then taken over that set, from the metric that proved the
+cell attainable, and the selection rows are the only inequalities: inside the hull no
+predictor is forced to zero and no inequality holds with equality throughout.
+
 Predictors are standardised across treated and donors (sd, ddof=1), as in the paper.
 """
 from __future__ import annotations
 
 import numpy as np
 from scipy.optimize import linprog
+
+from .hull import outside_hull
 
 TOL = 1e-9
 
@@ -104,6 +113,8 @@ def pd_rationalizers(X1, X0, w, ranges=False):
     V_kk / tr V), the matrices ``Vstar`` and ``Vcenter``, ``logdet_min_eig``, and with
     ``ranges=True`` the bounds ``lo`` and ``hi`` of each V_kk over the trace-one set.
     """
+    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _pd_interior(X1, X0, w, ranges)
     X1, X0 = _standardize(np.asarray(X1, float), np.asarray(X0, float))
     w = np.asarray(w, float)
     K, J = X0.shape
@@ -115,9 +126,6 @@ def pd_rationalizers(X1, X0, w, ranges=False):
     B = _basis(K)
     n = len(B)
     Bm = B.reshape(n, K * K)                   # x -> vec V(x)
-
-    def mat(x):
-        return (x @ Bm).reshape(K, K)
 
     def lin(M):                                # <M, V(x)> as a row acting on x
         return Bm @ M.ravel()
@@ -133,7 +141,21 @@ def pd_rationalizers(X1, X0, w, ranges=False):
                   for j in inactive])          # slacks s_j(V) = C_j x >= 0, inequality (12)
     nu = _relint_normal(X0, w, r)
     V0 = np.outer(nu, nu) / (nu @ r) + np.eye(K) - np.outer(r, r) / (r @ r)
-    x0 = (V0 / np.trace(V0))[np.triu_indices(K)]
+    return _pd_centres(K, Aeq, beq, C, (V0 / np.trace(V0))[np.triu_indices(K)], ranges)
+
+
+def _pd_centres(K, Aeq, beq, C, x0, ranges):
+    """Log-det maximiser and analytic centre of {V >= 0 : Aeq x = beq, C x > 0}, from a strictly
+    feasible x0, with V = sum_a x_a B_a (and with ``ranges`` the bounds of each V_kk)."""
+    B = _basis(K)
+    n = len(B)
+    Bm = B.reshape(n, K * K)
+
+    def mat(x):
+        return (x @ Bm).reshape(K, K)
+
+    def lin(M):
+        return Bm @ M.ravel()
 
     def in_domain(x):
         try:
@@ -176,7 +198,7 @@ def pd_rationalizers(X1, X0, w, ranges=False):
 
     N = _null(Aeq)
     xc = _newton_eq(x0, barrier(1.0), Aeq, beq, in_domain, fun=barrier_f(1.0), N=N)
-    x, mu, m = x0.copy(), 1.0, max(len(inactive), 1)
+    x, mu, m = x0.copy(), 1.0, max(len(C), 1)
     while m * mu > 1e-10:
         x = _newton_eq(x, barrier(mu), Aeq, beq, in_domain, fun=barrier_f(mu), N=N)
         mu /= 20.0
@@ -186,7 +208,7 @@ def pd_rationalizers(X1, X0, w, ranges=False):
                logdet_min_eig=float(np.linalg.eigvalsh(Vl).min()), Vstar=Vl, Vcenter=Vc)
     if ranges:
         lo, hi = np.zeros(K), np.zeros(K)
-        degree = K + len(inactive)             # barrier parameter of log det plus the slacks
+        degree = K + len(C)                    # barrier parameter of log det plus the slacks
         for k in range(K):
             e = lin(np.outer(np.eye(K)[k], np.eye(K)[k]))
             for sign, store in ((1.0, lo), (-1.0, hi)):
@@ -259,6 +281,8 @@ def diag_rationalizers(X1, X0, w):
     Returns ``logdet`` and ``center`` (sum one), the ``support`` of V, the predictors
     ``forced_zero`` in every rationaliser, and the count of implicit equalities.
     """
+    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _diag_interior(X1, X0, w)
     Aeq, Sm = _diag_system(X1, X0, w)
     K = Aeq.shape[1]
     support, strict, x0 = _diag_classes(Aeq, Sm)
@@ -267,7 +291,14 @@ def diag_rationalizers(X1, X0, w):
     Ae = np.vstack([Aeq[:, sup], np.ones((1, len(sup)))] + ([Sm[implicit][:, sup]] if implicit else []))
     be = np.concatenate([np.zeros(len(Aeq)), [1.0]] + ([np.zeros(len(implicit))] if implicit else []))
     Cs = Sm[strict][:, sup] if strict else np.zeros((0, len(sup)))
+    dl, dc = _diag_centres(K, sup, Ae, be, Cs, x0)
+    return dict(logdet=dl, center=dc, support=support,
+                forced_zero=[k for k in range(K) if k not in support], n_implicit=len(implicit))
 
+
+def _diag_centres(K, sup, Ae, be, Cs, x0):
+    """Log-det maximiser and analytic centre of {d_sup > 0 : Ae d_sup = be, Cs d_sup > 0} from a
+    strictly feasible x0, as length-K vectors that are zero off the support ``sup``."""
     def in_domain(x):
         return np.all(x > 0) and (Cs.size == 0 or np.all(Cs @ x > 0))
 
@@ -293,11 +324,58 @@ def diag_rationalizers(X1, X0, w):
 
     N = _null(Ae)
     xc = _newton_eq(x0, barrier(1.0), Ae, be, in_domain, fun=barrier_f(1.0), N=N)
-    x, mu, m = x0.copy(), 1.0, max(len(strict), 1)
+    x, mu, m = x0.copy(), 1.0, max(len(Cs), 1)
     while m * mu > 1e-10:
         x = _newton_eq(x, barrier(mu), Ae, be, in_domain, fun=barrier_f(mu), N=N)
         mu /= 20.0
     dl, dc = np.zeros(K), np.zeros(K)
     dl[sup], dc[sup] = x, xc
-    return dict(logdet=dl, center=dc, support=support,
-                forced_zero=[k for k in range(K) if k not in support], n_implicit=len(implicit))
+    return dl, dc
+
+
+def _interior_cell(X1, X0, w):
+    """w's cell inside the hull and the standardised donors; ValueError unless w is a cell's weights."""
+    from . import interior
+    X1, X0, w = (np.asarray(a, float) for a in (X1, X0, w))
+    C1, C0 = interior._standardised(X1, X0)
+    A = np.flatnonzero(w > 0)
+    if len(A) == X0.shape[0] + 1:
+        cell = interior.Cell(A, C1, C0)
+        if cell.w.min() > interior.ADMIT_TOL and np.allclose(cell.w, w[A], rtol=0.0, atol=1e-9):
+            return cell, C0
+    raise ValueError("inside the donor hull a rationalised w is an exact match on K + 1 donors, the "
+                     "barycentric weights of X1 in their simplex (paper, sec. 5.2)")
+
+
+def _diag_interior(X1, X0, w):
+    """Centre and log-det maximiser of the diagonal V under which w's cell is the selection."""
+    from . import interior
+    cell, _ = _interior_cell(X1, X0, w)
+    R = cell.R
+    K = R.shape[1]
+    ok, d = interior.diag_attainable(R, {})
+    if not ok:
+        raise ValueError("no diagonal V selects w's cell: some donor outside it lies on or below the "
+                         "cell's lifted hyperplane under every positive diagonal V")
+    tau = 0.5                                  # move the certificate inside the orthant, keeping R d > 0
+    while (R @ ((1.0 - tau) * d + tau / K)).min() <= 0.0:
+        tau /= 2.0
+    dl, dc = _diag_centres(K, list(range(K)), np.ones((1, K)), np.array([1.0]), R, (1.0 - tau) * d + tau / K)
+    return dict(logdet=dl, center=dc, support=list(range(K)), forced_zero=[], n_implicit=0)
+
+
+def _pd_interior(X1, X0, w, ranges):
+    """The PD rationalisers of w's cell, on the trace-one slice."""
+    from . import interior
+    cell, C0 = _interior_cell(X1, X0, w)
+    Q = interior.q_matrices(cell, C0)
+    K = C0.shape[0]
+    ok, V = interior.pd_attainable(Q, {}, V0=interior._steiner(C0[:, list(cell.A)]))
+    if not ok:
+        raise ValueError("no positive definite V selects w's cell")
+    if V is None:                              # pragma: no cover - cvxpy decides only at the threshold,
+        raise RuntimeError("the selecting metrics of this cell are too thin to centre from")  # no start
+    Bm = _basis(K).reshape(-1, K * K)
+    C = np.array([Bm @ Qj.ravel() for Qj in Q]).reshape(len(Q), -1)
+    return _pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]), C,
+                       (V / np.trace(V))[np.triu_indices(K)], ranges)

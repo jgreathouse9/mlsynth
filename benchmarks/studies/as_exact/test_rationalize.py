@@ -119,3 +119,152 @@ def test_a_shared_null_space_gives_the_same_answer():
     a = rationalize._newton_eq(x0, vgh, A, A @ x0, lambda x: bool(np.all(x > 0)))
     b = rationalize._newton_eq(x0, vgh, A, A @ x0, lambda x: bool(np.all(x > 0)), N=N)
     assert np.allclose(a, b, atol=1e-12) and np.allclose(A @ a, A @ x0, atol=1e-12)
+
+
+# --------------------------------------------------------------------------- the interior case
+# Inside the hull r = 0, and the exterior conditions say nothing: V rationalises w_A when the cell
+# A is its selection, <Q_j^A, V> > 0 for every donor outside A (paper, eq. 18). The analytic centre
+# and the log-det maximiser are taken over that set, on the trace-one slice. The centres are checked
+# by their optimality conditions and by the selection they make (test_interior._selection), and all
+# four against cvxpy solving the same programs. cvxpy's exponential-cone answers meet those
+# conditions only to about 1e-3 here, where Newton's method meets them to 1e-6 or better, so they
+# are compared to 1e-4.
+import cvxpy as cp                                                     # noqa: E402
+
+from . import interior                                                 # noqa: E402
+from .test_interior import CASES as INTERIOR, _selection               # noqa: E402
+
+INTERIOR_DESIGNS = ["random_interior_K3_J12_seed4007", "random_interior_K4_J16_seed4024",
+                    "random_interior_K5_J20_seed4085", "prop99_placebo_Illinois"]
+
+
+def _interior_answer(name, solve):
+    X1, X0, Z1, Z0 = _inputs(INTERIOR[name])
+    w = solve(X1, X0, Z1, Z0)[1]
+    C1, C0 = interior._standardised(X1, X0)
+    cell = interior.Cell(np.flatnonzero(w), C1, C0)
+    return X1, X0, w, cell, C1, C0
+
+
+def _centre_residual_diag(R, d):
+    """Spread of the centre's gradient 1/d + R'(1 / R d), which is a multiple of 1 at the centre."""
+    g = 1.0 / d + R.T @ (1.0 / (R @ d))
+    return float(np.ptp(g) / np.abs(g).mean())
+
+
+def _centre_residual_pd(Q, V):
+    """V^-1 + sum_j Q_j / <Q_j, V>, a multiple of I at the centre on the trace-one slice."""
+    M = np.linalg.inv(V) + np.einsum("jkl,j->kl", Q, 1.0 / np.einsum("jkl,kl->j", Q, V))
+    nu = np.trace(M @ V) / np.trace(V)
+    return float(np.abs(M - nu * np.eye(len(V))).max() / abs(nu))
+
+
+def _cvx_diag(R, centre):
+    K = R.shape[1]
+    d = cp.Variable(K)
+    obj = cp.sum(cp.log(d)) + (cp.sum(cp.log(R @ d)) if centre else 0)
+    cons = [cp.sum(d) == 1] + ([] if centre else [R @ d >= 0])
+    cp.Problem(cp.Maximize(obj), cons).solve(solver=cp.CLARABEL)
+    return d.value
+
+
+def _cvx_pd(Q, centre):
+    K = Q.shape[1]
+    V = cp.Variable((K, K), PSD=True)
+    slacks = cp.hstack([cp.trace(Qj @ V) for Qj in Q])
+    obj = cp.log_det(V) + (cp.sum(cp.log(slacks)) if centre else 0)
+    cons = [cp.trace(V) == 1] + ([] if centre else [slacks >= 0])
+    cp.Problem(cp.Maximize(obj), cons).solve(solver=cp.CLARABEL)
+    return V.value
+
+
+@pytest.mark.parametrize("name", INTERIOR_DESIGNS)
+def test_the_interior_diagonal_centre_selects_the_cell(name):
+    X1, X0, w, cell, C1, C0 = _interior_answer(name, interior.solve_interior_diag)
+    out = rationalize.diag_rationalizers(X1, X0, w)
+    d = out["center"]
+    assert d.min() > 0.0 and abs(d.sum() - 1.0) <= 1e-12 and (cell.R @ d).min() > 0.0
+    assert np.allclose(_selection(C1, C0, np.diag(d)), w, atol=1e-8)
+    assert _centre_residual_diag(cell.R, d) <= 1e-5
+    assert np.allclose(d, _cvx_diag(cell.R, centre=True), atol=1e-4)
+    dl = out["logdet"]
+    assert dl.min() >= 0.0 and abs(dl.sum() - 1.0) <= 1e-9 and (cell.R @ dl).min() >= -1e-9
+    assert np.allclose(dl, _cvx_diag(cell.R, centre=False), atol=1e-4)
+    assert out["support"] == list(range(X0.shape[0])) and out["forced_zero"] == [] and out["n_implicit"] == 0
+
+
+@pytest.mark.parametrize("name", INTERIOR_DESIGNS)
+def test_the_interior_pd_centre_selects_the_cell(name):
+    X1, X0, w, cell, C1, C0 = _interior_answer(name, interior.solve_interior_pd)
+    Q = interior.q_matrices(cell, C0)
+    out = rationalize.pd_rationalizers(X1, X0, w, ranges=True)
+    Vc, Vl = out["Vcenter"], out["Vstar"]
+    assert np.linalg.eigvalsh(Vc).min() > 0.0 and abs(np.trace(Vc) - 1.0) <= 1e-9
+    assert np.einsum("jkl,kl->j", Q, Vc).min() > 0.0
+    assert np.allclose(_selection(C1, C0, Vc), w, atol=1e-8)
+    assert _centre_residual_pd(Q, Vc) <= 1e-5
+    assert np.allclose(Vc, _cvx_pd(Q, centre=True), atol=1e-4)
+    assert abs(np.trace(Vl) - 1.0) <= 1e-9 and np.einsum("jkl,kl->j", Q, Vl).min() >= -1e-9
+    assert np.allclose(Vl, _cvx_pd(Q, centre=False), atol=1e-4)
+    assert np.allclose(out["center_diag"], np.diag(Vc)) and np.all(out["lo"] <= out["center_diag"] + 1e-9)
+    assert np.all(out["center_diag"] <= out["hi"] + 1e-9)
+
+
+def test_interior_ranges_match_one_program_per_bound():
+    X1, X0, w, cell, C1, C0 = _interior_answer("random_interior_K3_J12_seed4007", interior.solve_interior_pd)
+    Q = interior.q_matrices(cell, C0)
+    out = rationalize.pd_rationalizers(X1, X0, w, ranges=True)
+    K = X0.shape[0]
+    for k in range(K):
+        for sense, got in ((cp.Minimize, out["lo"][k]), (cp.Maximize, out["hi"][k])):
+            V = cp.Variable((K, K), PSD=True)
+            prob = cp.Problem(sense(V[k, k]), [cp.trace(V) == 1] + [cp.trace(Qj @ V) >= 0 for Qj in Q])
+            prob.solve(solver=cp.CLARABEL)
+            assert abs(prob.value - got) <= 1e-4
+
+
+@settings(max_examples=15, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(2, 4), extra=st.integers(1, 9))
+def test_property_interior_centres_select_the_answer(seed, K, extra):
+    from .test_interior import _design
+    X1, X0, Z1, Z0 = _design(seed, K, K + 1 + extra)
+    C1, C0 = interior._standardised(X1, X0)
+    w = interior.solve_interior_diag(X1, X0, Z1, Z0)[1]
+    assert np.allclose(_selection(C1, C0, np.diag(rationalize.diag_rationalizers(X1, X0, w)["center"])), w, atol=1e-8)
+    w = interior.solve_interior_pd(X1, X0, Z1, Z0)[1]
+    assert np.allclose(_selection(C1, C0, rationalize.pd_rationalizers(X1, X0, w)["Vcenter"]), w, atol=1e-8)
+
+
+def test_interior_weights_no_diagonal_v_selects_are_refused():
+    """The PD answer on this design is a cell no positive diagonal V selects (its loss is below the
+    diagonal optimum), so no diagonal rationaliser exists."""
+    case = INTERIOR["random_interior_K3_J12_seed4007"]
+    assert case["pd"]["loss"] < case["diag"]["loss"]
+    X1, X0, w, _, _, _ = _interior_answer("random_interior_K3_J12_seed4007", interior.solve_interior_pd)
+    with pytest.raises(ValueError, match="no diagonal V selects"):
+        rationalize.diag_rationalizers(X1, X0, w)
+
+
+def test_interior_weights_that_are_not_a_cell_are_refused():
+    """Inside the hull a rationalised w is the barycentric weights of K + 1 donors."""
+    X1, X0, Z1, Z0 = _inputs(INTERIOR["random_interior_K3_J12_seed4007"])
+    w = np.full(X0.shape[1], 1.0 / X0.shape[1])
+    for fn in (rationalize.diag_rationalizers, rationalize.pd_rationalizers):
+        with pytest.raises(ValueError, match="exact match on K \\+ 1 donors"):
+            fn(X1, X0, w)
+
+
+def test_interior_weights_no_positive_definite_v_selects_are_refused():
+    """On this design the best exact match is not PD-attainable: its cell is not the selection under
+    any positive definite V, so it has no rationaliser."""
+    case = INTERIOR["random_interior_K2_J8_seed4003"]
+    X1, X0, Z1, Z0 = _inputs(case)
+    C1, C0 = interior._standardised(X1, X0)
+    cells = interior.walk_admissible(C1, C0, {})
+    loss = {A: float(np.sum((Z1 - Z0[:, list(A)] @ w) ** 2)) for A, w in cells.items()}
+    A = min(loss, key=loss.get)
+    assert loss[A] < case["pd"]["loss"]
+    w = np.zeros(X0.shape[1])
+    w[list(A)] = cells[A]
+    with pytest.raises(ValueError, match="no positive definite V selects"):
+        rationalize.pd_rationalizers(X1, X0, w)
