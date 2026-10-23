@@ -20,6 +20,7 @@ a real one.
 Levels: smoke, unit invariants, edge, failure.
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -280,6 +281,17 @@ def test_the_shipped_manifest_names_nothing_unclaimable():
     assert not stray, stray
 
 
+def test_every_untracked_prefix_is_gitignored():
+    """``UNTRACKED`` is a claim about git, so check git's own list: a prefix
+    that stopped being ignored could be named by a diff again."""
+    root = Path(__file__).resolve().parents[2]
+    ignored = {line.strip() for line in (root / ".gitignore").read_text().splitlines()}
+    assert case_deps.UNTRACKED
+    for prefix in case_deps.UNTRACKED:
+        assert prefix.startswith(case_deps.REACHABLE)
+        assert prefix in ignored, prefix
+
+
 def test_the_package_init_really_is_re_export_only():
     """`RE_EXPORT_ONLY` is a claim about the file, so check the file.
 
@@ -369,6 +381,202 @@ class TestTheMapBuilderShards:
             benchmark_deps.shard_of(["a", "b"], shard, num)
 
 
+class TestTheMapClaimsWhatADiffCanName:
+    """The map keeps every reachable path a case executed or read.
+
+    It used to keep ``mlsynth/`` and ``basedata/`` only, and measure only
+    ``mlsynth``, so nothing under ``benchmarks/`` -- ``compare.py``, a
+    reference's committed CSV, a study module a case imports -- could ever be
+    claimed. Without an inventory each was a hole and ran the whole registry;
+    with one each would read as covered by nothing and run none of the cases
+    that use it.
+    """
+
+    @staticmethod
+    def _keep(paths, name="c"):
+        from tools.benchmark_deps import claimable
+        return claimable(paths, name)
+
+    def test_the_benchmarks_tree_is_claimed(self):
+        paths = ["benchmarks/compare.py",
+                 "benchmarks/reference/c/expected.csv",
+                 "benchmarks/studies/s/search.py"]
+        assert self._keep(paths) == sorted(paths)
+
+    def test_the_library_and_the_panels_still_are(self):
+        paths = ["mlsynth/utils/x.py", "basedata/p.csv"]
+        assert self._keep(paths) == sorted(paths)
+
+    def test_the_cases_own_module_is_implied_not_stored(self):
+        assert self._keep(["benchmarks/cases/c.py", "benchmarks/cases/d.py"],
+                          name="c") == ["benchmarks/cases/d.py"]
+
+    @pytest.mark.parametrize("path", [
+        "mlsynth/tests/conftest.py", "benchmarks/tests/test_x.py",
+        "mlsynth/__pycache__/x.cpython-311.pyc", "docs/x.rst", "setup.py",
+        "mlsynth/utils/x.pyc",
+        "benchmarks/reference/.cache/dpsc/src/matrix.py",
+        "benchmarks/reference/.cache/CAST_panel/sample_data/expansion.csv",
+    ])
+    def test_what_no_diff_can_reach_is_dropped(self, path):
+        assert self._keep([path]) == []
+
+    def test_the_tracer_measures_both_python_trees(self):
+        pytest.importorskip("coverage")           # the build job installs it
+        from tools.benchmark_deps import ROOT, measurement
+
+        cov = measurement()
+        roots = {Path(s).resolve() for s in cov.config.source}
+        assert {ROOT / "mlsynth", ROOT / "benchmarks"} <= roots
+
+    def test_the_tracer_is_the_fast_one_where_it_exists(self):
+        """Under the pure-Python tracer the 209 cases measured on 10-21 took
+        1,149 minutes against 240 untraced, and the shards were cancelled at
+        their cap. Coverage's ``sysmon`` core recorded the same 23 files on
+        ``wan_pda_vs_scm`` in 100.0 s against 99.2 s untraced. Before 3.12
+        there is no ``sys.monitoring``, and the pure-Python tracer stays."""
+        import sys
+
+        pytest.importorskip("coverage")
+        from tools.benchmark_deps import measurement
+
+        import coverage
+
+        config = measurement().config
+        outer = coverage.Coverage.current()
+        if sys.version_info >= (3, 12):
+            assert config.core == "sysmon" and not config.timid
+        else:                                  # the build job's 3.11
+            # a C tracer when one is already running: see TestTheTracerNests
+            assert config.timid == (outer is None or outer.config.timid)
+
+
+class TestTheTracerNests:
+    """The map's coverage session may start inside another one: the daily
+    coverage job runs this suite under pytest-cov, a C tracer. A pure-Python
+    tracer nested inside a C tracer records no line at all, so on Python 3.11
+    the map claimed only the files the audit hook saw opened, and main's
+    coverage run failed on 2026-10-22. A C tracer or ``sysmon`` nested
+    inside one records normally."""
+
+    @staticmethod
+    def _outer(timid):
+        from types import SimpleNamespace
+        return SimpleNamespace(config=SimpleNamespace(timid=timid))
+
+    def test_sys_monitoring_is_used_where_it_exists(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 12), None) == (False, "sysmon")
+        assert _tracer((3, 13), self._outer(False)) == (False, "sysmon")
+
+    def test_alone_before_3_12_the_python_tracer_stays(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), None) == (True, None)
+
+    def test_inside_a_c_tracer_it_nests_a_c_tracer(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), self._outer(False)) == (False, None)
+
+    def test_inside_a_python_tracer_it_nests_a_python_tracer(self):
+        from tools.benchmark_deps import _tracer
+        assert _tracer((3, 11), self._outer(True)) == (True, None)
+
+
+class TestTheMapMeasuresWhatTheRunnerRuns:
+    """The runner does three things for a case: it imports the module, which
+    builds ``EXPECTED`` and reads the case's reference bundle; it calls
+    ``run()``; and it ``compare()``s the two. The map measured ``run()`` alone,
+    so a reference read at import, ``compare.py`` and the runner itself were
+    never claimed. Without an inventory each was a hole; with one, each would
+    read as covered by nothing, and a changed reference value would run no case.
+    """
+
+    @pytest.fixture
+    def case(self, tmp_path, monkeypatch):
+        import sys
+        import textwrap
+
+        pytest.importorskip("coverage")           # the build job installs it
+        from tools.benchmark_deps import ROOT
+
+        panel = sorted((ROOT / "basedata").glob("*.csv"))[0]
+
+        def make(body):
+            name = f"fake_case_{len(list(tmp_path.iterdir()))}"
+            (tmp_path / f"{name}.py").write_text(textwrap.dedent(body).format(
+                root=str(ROOT), panel=str(panel)))
+            monkeypatch.syspath_prepend(str(tmp_path))
+            monkeypatch.setitem(registry.CASES, name, name)
+            sys.modules.pop(name, None)
+            return name, panel.relative_to(ROOT).as_posix()
+        return make
+
+    def test_import_run_and_compare_are_all_claimed(self, case):
+        from tools.benchmark_deps import _trace
+
+        name, panel = case('''
+            from pathlib import Path
+            _ROOT = Path({root!r})
+            (_ROOT / "benchmarks" / "reference" / "__init__.py").read_text()
+            EXPECTED = {{"x": (1.0, 0.1)}}
+
+            def run():
+                Path({panel!r}).read_text()
+                return {{"x": 1.0}}
+            ''')
+        deps, _ = _trace(name)
+        assert {"benchmarks/reference/__init__.py",       # read at import
+                panel,                                    # read in run()
+                "benchmarks/compare.py",                  # compared after it
+                "benchmarks/registry.py",                 # loaded through it
+                "benchmarks/run_benchmarks.py"} <= set(deps), deps
+
+    def test_a_run_under_another_coverage_is_still_measured(self, case, monkeypatch):
+        """The 3.11 path inside a C tracer, as the daily coverage job runs it:
+        the case's executed files are claimed, not only the files it read."""
+        import coverage
+        from tools import benchmark_deps
+
+        monkeypatch.setattr(benchmark_deps, "_python", lambda: (3, 11))
+        name, panel = case('''
+            EXPECTED = {{"x": (1.0, 0.1)}}
+
+            def run():
+                return {{"x": 1.0}}
+            ''')
+        outer = coverage.Coverage(data_file=None, timid=False)
+        outer.set_option("run:core", "ctrace")
+        outer.start()
+        try:
+            deps, _ = benchmark_deps._trace(name)
+        finally:
+            outer.stop()
+        assert {"benchmarks/compare.py", "benchmarks/registry.py",
+                "benchmarks/run_benchmarks.py"} <= set(deps), deps
+
+    @pytest.mark.parametrize("body", [
+        '''
+        from benchmarks.compare import BenchmarkSkipped
+        EXPECTED = {{}}
+        def run():
+            raise BenchmarkSkipped("needs R")
+        ''',
+        '''
+        EXPECTED = {{}}
+        def run():
+            raise RuntimeError("broke")
+        ''',
+    ], ids=["skipped", "raised"])
+    def test_a_case_that_does_not_finish_is_left_unmeasured(self, case, body):
+        """A partial measurement would under-claim, so the case stays unmapped
+        and always runs; a raising case used to take the whole shard down."""
+        from tools.benchmark_deps import Unmeasured, _trace
+
+        name, _ = case(body)
+        with pytest.raises(Unmeasured):
+            _trace(name)
+
+
 class TestTheMapBuilderCombinesSlices:
     """Each shard writes only what it measured; one job merges and commits."""
 
@@ -399,6 +607,44 @@ class TestTheMapBuilderCombinesSlices:
         a.write_text(json.dumps({"one": ["mlsynth/x.py"]}))
         out = benchmark_deps.combine([a], base={"two": ["mlsynth/y.py"]})
         assert out["two"] == ["mlsynth/y.py"]
+
+    def test_a_case_its_slice_could_not_measure_loses_its_base_entry(self, tmp_path):
+        """The shard drops an unmeasured case so that it always runs. Restoring
+        its old entry from the base undid that, and one such entry vetoed the
+        inventory: on 22 October two scpi cases raised under pandas 3.1 and no
+        inventory was written, so every pull request touching a module no case
+        runs ran the whole registry (/rca)."""
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"],
+                                 benchmark_deps.UNMEASURED: ["two"]}))
+        out = benchmark_deps.combine([a], base={"two": ["mlsynth/old.py"],
+                                                "three": ["mlsynth/y.py"]})
+        assert out == {"one": ["mlsynth/x.py"], "three": ["mlsynth/y.py"]}
+
+    def test_the_unmeasured_list_never_becomes_a_case(self, tmp_path):
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        a.write_text(json.dumps({benchmark_deps.UNMEASURED: ["two"]}))
+        out = benchmark_deps.combine([a], base={})
+        assert benchmark_deps.UNMEASURED not in out and out == {}
+        assert benchmark_deps.measured_in([a]) == set()
+
+    def test_a_case_another_slice_measured_is_kept(self, tmp_path):
+        """Shards are disjoint, but a measurement outranks a failure to make
+        one whatever order the slices come in."""
+        from tools import benchmark_deps
+
+        a = tmp_path / "a.json"
+        b = tmp_path / "b.json"
+        a.write_text(json.dumps({"one": ["mlsynth/x.py"]}))
+        b.write_text(json.dumps({benchmark_deps.UNMEASURED: ["one"]}))
+        for order in ([a, b], [b, a]):
+            assert benchmark_deps.combine(order, base={"one": ["mlsynth/old.py"]}) \
+                == {"one": ["mlsynth/x.py"]}
+            assert benchmark_deps.measured_in(order) == {"one"}
 
     def test_combining_nothing_returns_the_base_unchanged(self):
         from tools import benchmark_deps
@@ -433,6 +679,78 @@ class TestTheMapBuilderCommandLine:
                                          str(slice_), "--out", str(out)])
         assert benchmark_deps.main() == 0
         assert json.loads(out.read_text())["only"] == ["mlsynth/x.py"]
+
+    def test_a_case_that_does_not_finish_is_dropped_and_the_rest_written(
+            self, tmp_path, monkeypatch):
+        """A case that skipped or raised leaves no entry, so it always runs;
+        before, a raising case took the shard and its whole slice with it."""
+        from tools import benchmark_deps
+
+        def fake(name):
+            if name == "stops":
+                raise benchmark_deps.Unmeasured("error: RuntimeError: broke")
+            return ["mlsynth/x.py"], 0.0
+
+        out = tmp_path / "slice.json"
+        monkeypatch.setattr(benchmark_deps, "_trace", fake)
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--case", "runs",
+                                         "--case", "stops", "--out", str(out)])
+        assert benchmark_deps.main() == 0
+        assert json.loads(out.read_text()) == {
+            "runs": ["mlsynth/x.py"], benchmark_deps.UNMEASURED: ["stops"]}
+
+    @staticmethod
+    def _nightly(tmp_path, monkeypatch, base, slices):
+        """``--combine`` as the nightly job runs it, on a shipped map and an
+        inventory path of the test's own."""
+        from tools import benchmark_deps
+
+        shipped = tmp_path / "case_deps.json"
+        shipped.write_text(json.dumps(base))
+        swept = tmp_path / "case_deps_swept.json"
+        monkeypatch.setattr(case_deps, "PATH", shipped)
+        monkeypatch.setattr(case_deps, "SWEPT_PATH", swept)
+        monkeypatch.setattr(case_deps, "reachable_inventory",
+                            lambda root=None: ["mlsynth/utils/lonely.py"])
+        paths = []
+        for i, body in enumerate(slices):
+            p = tmp_path / f"case_deps.shard-{i}.json"
+            p.write_text(json.dumps(body))
+            paths.append(str(p))
+        monkeypatch.setattr("sys.argv", ["benchmark_deps.py", "--combine", *paths])
+        assert benchmark_deps.main() == 0
+        return json.loads(shipped.read_text()), swept
+
+    def test_a_case_that_errors_in_the_sweep_no_longer_vetoes_the_inventory(
+            self, tmp_path, monkeypatch):
+        """22 October in miniature: ``stops`` had an entry and raised tonight.
+        It comes out of the map, so it always runs, and the inventory is
+        written, so a module no case runs narrows the selection."""
+        from tools import benchmark_deps
+
+        merged, swept = self._nightly(
+            tmp_path, monkeypatch,
+            base={"runs": ["mlsynth/old.py"], "stops": ["mlsynth/y.py"]},
+            slices=[{"runs": ["mlsynth/x.py"]},
+                    {benchmark_deps.UNMEASURED: ["stops"]}])
+        assert merged == {"runs": ["mlsynth/x.py"]}
+        assert case_deps.load_swept(swept) == {"mlsynth/utils/lonely.py"}
+        assert case_deps.select(["mlsynth/utils/lonely.py"], ["runs", "stops"],
+                                merged, swept=case_deps.load_swept(swept)) \
+            == ["stops"]
+
+    def test_a_dead_shard_still_withholds_the_inventory_and_says_so(
+            self, tmp_path, monkeypatch, capsys):
+        """A case no slice mentions keeps its entry and blocks the inventory,
+        as before; the refusal is a warning on the run, not a line in a green
+        job's log that nobody reads."""
+        merged, swept = self._nightly(
+            tmp_path, monkeypatch,
+            base={"runs": ["mlsynth/old.py"], "lost": ["mlsynth/y.py"]},
+            slices=[{"runs": ["mlsynth/x.py"]}])
+        assert merged["lost"] == ["mlsynth/y.py"] and not swept.exists()
+        out = capsys.readouterr().out
+        assert "::warning" in out and "not recorded" in out and "lost" in out
 
     def test_a_shard_outside_the_split_is_refused(self, monkeypatch):
         from tools import benchmark_deps
@@ -556,6 +874,7 @@ class TestInventoryWalk:
                     "benchmarks/cases/x.py",
                     "benchmarks/tests/test_x.py",
                     "basedata/panel.csv",
+                    "benchmarks/reference/.cache/pkg/src/a.py",
                     "docs/thing.rst"):
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -600,6 +919,7 @@ class TestInventoryIsOnlyWrittenForAFreshSweep:
         assert self._decide({"a", "b", "c"}, {"a": [], "b": []})[0]
 
 
+
 # The invariant the inventory promises, over the input domain: it can only
 # narrow. Recording what a sweep found can never add a case to the selection,
 # because `swept` is consulted in exactly one place -- the hole test -- and a
@@ -625,3 +945,50 @@ def test_an_inventory_can_only_narrow_the_selection(changed, swept, added):
     narrow = case_deps.select(changed, cases, m, added=added,
                               swept=frozenset(swept))
     assert set(narrow) <= set(wide)
+
+
+_FATES = st.sampled_from(["measured-0", "measured-1", "unmeasured-0",
+                          "unmeasured-1", "not-attempted"])
+
+
+@given(fates=st.dictionaries(st.sampled_from("abcdef"), _FATES, min_size=1),
+       based=st.sets(st.sampled_from("abcdef")),
+       files=st.lists(_PATHS, max_size=2))
+@settings(max_examples=200, deadline=None)
+def test_combining_keeps_measurements_drops_failures_and_carries_the_rest(
+        tmp_path_factory, fates, based, files):
+    """Over any split of cases into measured, attempted-but-unmeasured and
+    not attempted, and any shipped map: a measured case takes its new entry, an
+    unmeasured one has none (so it always runs), an unattempted one keeps its
+    shipped entry, and the inventory is written exactly when no shipped entry
+    was carried over unmeasured."""
+    from tools import benchmark_deps
+
+    tmp = tmp_path_factory.mktemp("slices")
+    base = {c: ["mlsynth/old.py"] for c in based}
+    bodies = [{}, {}]
+    for c, fate in fates.items():
+        kind, _, shard = fate.partition("-")
+        if kind == "measured":
+            bodies[int(shard)][c] = list(files)
+        elif kind == "unmeasured":
+            bodies[int(shard)].setdefault(benchmark_deps.UNMEASURED, []).append(c)
+    paths = []
+    for i, body in enumerate(bodies):
+        p = tmp / f"s{i}.json"
+        p.write_text(json.dumps(body))
+        paths.append(p)
+    merged = benchmark_deps.combine(paths, base=base)
+    assert benchmark_deps.UNMEASURED not in merged
+    for c in "abcdef":
+        fate = fates.get(c, "not-attempted")
+        if fate.startswith("measured"):
+            assert merged[c] == list(files)
+        elif fate.startswith("unmeasured"):
+            assert c not in merged
+        else:
+            assert merged.get(c) == base.get(c)
+    carried = {c for c in based if fates.get(c, "not-attempted") == "not-attempted"}
+    ok, _ = benchmark_deps.should_record_inventory(
+        benchmark_deps.measured_in(paths), merged)
+    assert ok == (not carried)

@@ -1,0 +1,132 @@
+{
+ "1.0": {
+  "optimum": 997952.291777092,
+  "closed_form_survivors": 234,
+  "sampled": 234,
+  "reach_coupled_fit": 234,
+  "projected_reach": 234,
+  "leads": {
+   "lead1": {
+    "share_of_f_q10_q50_q90": [
+     0.144,
+     0.42,
+     0.689
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 204,
+    "left_to_fit_projected": 204
+   },
+   "lead1_dual": {
+    "share_of_f_q10_q50_q90": [
+     0.329,
+     0.505,
+     0.713
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 192,
+    "left_to_fit_projected": 192
+   },
+   "wolfe": {
+    "share_of_f_q10_q50_q90": [
+     0.598,
+     0.681,
+     0.771
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 5,
+    "left_to_fit_projected": 5
+   },
+   "exact_distance": {
+    "share_of_f_q10_q50_q90": [
+     0.757,
+     0.884,
+     0.966
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 5,
+    "left_to_fit_projected": 5
+   }
+  },
+  "ms_per_candidate": {
+   "treated_fit": 0.134,
+   "lead1_both": 2.222,
+   "wolfe": 1.897,
+   "exact_distance_clarabel": 14.787,
+   "cutoff_coupled_fit": 3.08
+  },
+  "wolfe_cycles_q50_q90_max": [
+   14,
+   22,
+   31
+  ],
+  "wolfe_stops": {
+   "cleared": 229,
+   "converged": 5
+  }
+ },
+ "100.0": {
+  "optimum": 34658222.14826186,
+  "closed_form_survivors": 87439,
+  "sampled": 1000,
+  "reach_coupled_fit": 926,
+  "projected_reach": 80969,
+  "leads": {
+   "lead1": {
+    "share_of_f_q10_q50_q90": [
+     -3.773,
+     -1.43,
+     0.054
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 883,
+    "left_to_fit_projected": 77209
+   },
+   "lead1_dual": {
+    "share_of_f_q10_q50_q90": [
+     0.0,
+     0.003,
+     0.317
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 817,
+    "left_to_fit_projected": 71438
+   },
+   "wolfe": {
+    "share_of_f_q10_q50_q90": [
+     0.226,
+     0.35,
+     0.529
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 5,
+    "left_to_fit_projected": 437
+   },
+   "exact_distance": {
+    "share_of_f_q10_q50_q90": [
+     0.462,
+     0.721,
+     0.972
+    ],
+    "never_above_f": true,
+    "left_to_fit_sampled": 5,
+    "left_to_fit_projected": 437
+   }
+  },
+  "ms_per_candidate": {
+   "treated_fit": 0.189,
+   "lead1_both": 2.886,
+   "wolfe": 1.562,
+   "exact_distance_clarabel": 14.302,
+   "cutoff_coupled_fit": 4.316
+  },
+  "wolfe_cycles_q50_q90_max": [
+   12,
+   18,
+   29
+  ],
+  "wolfe_stops": {
+   "cleared": 921,
+   "converged": 5
+  }
+ }
+}

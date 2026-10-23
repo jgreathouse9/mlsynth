@@ -49,6 +49,15 @@ def complete_cases(x):
     return np.all(np.invert(np.isnan(np.asarray(x, dtype=float))), axis=1)
 
 
+def _rows(data, unit_tr, ids, periods, columns=None):
+    """The rows of ``data`` for treated unit ``unit_tr``, units ``ids`` and
+    ``periods``, with the three index levels kept. Every key is a list:
+    pandas 3.1 drops an index level that a scalar selects, where 3.0 kept
+    every level once any key was a list."""
+    key = ([unit_tr], list(ids), periods)
+    return data.loc[key, :] if columns is None else data.loc[key, columns]
+
+
 def scdata_unit(data, outcome_var, period_pre, period_post, unit_tr, unit_co,
                 features, cov_adj, constant, cointegrated_data):
     """Build A, B, C, P, Y_donors for a single treated unit."""
@@ -76,10 +85,10 @@ def scdata_unit(data, outcome_var, period_pre, period_post, unit_tr, unit_co,
     data_bal['__time'] = data_bal.index.get_level_values('__time')
     data_bal['treated_unit'] = unit_tr
 
-    rows_tr_pre = data_bal.loc[(unit_tr, [unit_tr], period_pre), ]
-    rows_tr_post = data_bal.loc[(unit_tr, [unit_tr], period_post), ]
-    rows_co_pre = data_bal.loc[(unit_tr, unit_co, period_pre), ]
-    rows_co_post = data_bal.loc[(unit_tr, unit_co, period_post), ]
+    rows_tr_pre = _rows(data_bal, unit_tr, [unit_tr], period_pre)
+    rows_tr_post = _rows(data_bal, unit_tr, [unit_tr], period_post)
+    rows_co_pre = _rows(data_bal, unit_tr, unit_co, period_pre)
+    rows_co_post = _rows(data_bal, unit_tr, unit_co, period_post)
 
     Y_pre = rows_tr_pre[[outcome_var]].reset_index(level='__ID', drop=True)
     Y_pre.columns = [unit_tr]
@@ -111,7 +120,7 @@ def scdata_unit(data, outcome_var, period_pre, period_post, unit_tr, unit_co,
                 Cc['constant'] = np.ones(len(rows_tr_pre))
             if 'trend' in cov_adj:
                 Cc['trend'] = period_pre - period_pre[0] + 1
-            rows_C = data_bal.loc[(unit_tr, unit_co[0], period_pre), covs].reset_index()
+            rows_C = _rows(data_bal, unit_tr, [unit_co[0]], period_pre, covs).reset_index()
             for c in covs:
                 Cc[c] = rows_C[c].values
             for num in range(1, M + 1):
@@ -128,7 +137,7 @@ def scdata_unit(data, outcome_var, period_pre, period_post, unit_tr, unit_co,
                     Cm['constant'] = np.ones(len(rows_tr_pre))
                 if 'trend' in covs_all:
                     Cm['trend'] = period_pre - period_pre[0] + 1
-                rows_C = data_bal.loc[(unit_tr, unit_co[0], period_pre), covs].reset_index()
+                rows_C = _rows(data_bal, unit_tr, [unit_co[0]], period_pre, covs).reset_index()
                 for c in covs:
                     Cm[c] = rows_C[c].values
                 if m == 0:
@@ -170,7 +179,7 @@ def scdata_unit(data, outcome_var, period_pre, period_post, unit_tr, unit_co,
                     if 'trend' in covs_all:
                         P[f"{m}_trend"] = period_post - period_pre[0] + 1
                         covs_all.remove('trend')
-                    rows_P = data_bal.loc[(unit_tr, unit_co[0], period_post), covs_all].reset_index()
+                    rows_P = _rows(data_bal, unit_tr, [unit_co[0]], period_post, covs_all).reset_index()
                     for c in covs_all:
                         P[f"{m}_{c}"] = rows_P[c].values
                 else:

@@ -1,0 +1,16 @@
+GeoLift, 40 markets, 4 treated, f* = 554319.7579
+node                             sets   need  treated    full  seconds  full s
+root                            91390  1.000   0.9811  0.9915     35.1   252.2   optimal
+lex d1 q=0                       9139  0.743   0.9739  0.9877     32.0   205.7  PRUNE optimal
+lex d1 q=5                       5984  0.644   0.9786  0.9999     17.6   145.0  PRUNE optimal
+lex d1 q=10                      3654  1.000   0.9924  0.9999      9.6    69.5   optimal
+lex d1 q=15                      2024  0.526   0.9799  0.9967      4.2    40.6  PRUNE optimal
+lex d1 q=20                       969  0.465   0.9866  0.9980      1.5    24.9  PRUNE optimal
+lex d1 q=25                       364  0.414   0.9810  0.9985      0.6    15.4  PRUNE optimal
+lex d1 q=30                        84  0.382   0.9953  1.0000      0.1     6.1  PRUNE optimal
+lex d1 q=35                         4  0.001   0.9999  1.0000      0.0     2.2  PRUNE optimal
+out: 6 non-optimal              46376  1.000   0.9741  0.9956     17.2   139.8   optimal
+out: 1 optimal                  82251  0.874   0.8774  0.9027     26.3   170.3  PRUNE optimal
+in 1 optimal, out 1 optimal      8436  0.816   0.9856  0.9972     25.8   169.0  PRUNE optimal
+root m=6: treated 259334 (0.1295 gap)  full 272312 (0.0860 gap)  31.4 s  optimal
+root m=8: treated 141842 (0.2603 gap)  full 165254 (0.1382 gap)  33.5 s  optimal_inaccurate

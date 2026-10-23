@@ -1,0 +1,12 @@
+   207.5s node    1 |I|=0 |O|=0 |F|=40 bound 165660.93 queue    2 lower 165660.93 incumbent 191758.01 gap 13.6094% lifts 1/1
+   411.2s node    2 |I|=1 |O|=0 |F|=39 bound 174601.49 queue    3 lower 165660.93 incumbent 191758.01 gap 13.6094% lifts 2/2
+   571.9s node    3 |I|=0 |O|=1 |F|=39 bound 168914.75 queue    4 lower 168914.75 incumbent 191758.01 gap 11.9125% lifts 3/3
+   746.0s node    4 |I|=1 |O|=1 |F|=38 bound 167770.16 queue    5 lower 167770.16 incumbent 181943.38 gap 7.7899% lifts 4/4
+   916.1s node    5 |I|=2 |O|=1 |F|=37 bound 181904.22 queue    6 lower 167770.16 incumbent 181943.38 gap 7.7899% lifts 5/5
+  1300.9s node    8 |I|=2 |O|=0 |F|=38 bound 181567.68 queue    5 lower 174601.49 incumbent 181943.38 gap 4.0353% lifts 8/7
+  1865.4s node   12 |I|=3 |O|=1 |F|=36 bound 181937.12 queue    3 lower 181904.22 incumbent 181943.38 gap 0.0215% lifts 12/10
+  2028.3s node   14 |I|=4 |O|=1 |F|=35 bound 181933.42 queue    3 lower 181933.42 incumbent 181943.38 gap 0.0055% lifts 14/11
+  2150.8s node   15 |I|=5 |O|=1 |F|=34 bound 181681.39 queue    4 lower 181681.39 incumbent 181943.38 gap 0.1440% lifts 15/12
+  2250.0s node   16 |I|=6 |O|=1 |F|=33 bound 180903.94 queue    5 lower 180903.94 incumbent 181943.38 gap 0.5713% lifts 16/13
+geolift m=8: set (0, 2, 10, 12, 18, 20, 24, 27)  hi 181943.3763  lower 181943.3763  gap 2.82e-13  open 0  unresolved []  nodes 20  enumerated 1  sets 49  lifts {2: 20, 3: 13}  lift s {2: 488, 3: 1845}  pruned {1: 0, 2: 7, 3: 3}  2333 s
+exact backend (search_cluster, candidate_limit raised to 80,000,000), GeoLift, 8 treated: 181943.3763 at [0, 2, 10, 12, 18, 20, 24, 27] in 103 s

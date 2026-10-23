@@ -1,0 +1,10 @@
+
+GeoLift m=6 (treated lift): 6 children
+  depth |I| |O|  parent  inherit   fresh  fresh s inherit ms
+      1   1   0  0.8710   0.8808  0.9135    28.38      142.5
+      1   0   1  0.8354   0.8354  0.9239    28.87      206.4
+      2   2   0  0.9135   0.9167  0.9442    31.15      190.9
+      2   1   1  0.7559   0.7576  0.9079    27.68      132.6
+      2   1   1  0.9239   0.9585  0.9836    36.92      133.6
+      2   0   2  0.8307   0.8311  0.9260    35.82      131.1
+  inherit/fresh median 0.9342  min 0.8345; share of the parent-to-fresh gain recovered: median 0.058; time fresh 188.8 s, inherit 0.94 s; any certified bound above the subtree minimum: False

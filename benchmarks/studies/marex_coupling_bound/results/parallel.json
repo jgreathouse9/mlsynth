@@ -1,0 +1,217 @@
+{
+ "cores": 4,
+ "1.0": {
+  "one_process": {
+   "seconds": 0.09,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 1.0
+  },
+  "rounds_2_workers": {
+   "seconds": 0.13,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.69
+  },
+  "streaming_2_workers_2_in_flight": {
+   "seconds": 0.1,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.9
+  },
+  "streaming_2_workers_4_in_flight": {
+   "seconds": 0.11,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.82
+  },
+  "rounds_4_workers": {
+   "seconds": 0.12,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.75
+  },
+  "streaming_4_workers_4_in_flight": {
+   "seconds": 0.1,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.9
+  },
+  "streaming_4_workers_8_in_flight": {
+   "seconds": 0.13,
+   "coupled_fits": 11,
+   "discarded_by_bound": 223,
+   "batches": 1,
+   "value": 997952.291777092,
+   "treated": [
+    5,
+    10,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 0.69
+  }
+ },
+ "100.0": {
+  "one_process": {
+   "seconds": 19.42,
+   "coupled_fits": 754,
+   "discarded_by_bound": 86685,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 1.0
+  },
+  "rounds_2_workers": {
+   "seconds": 10.89,
+   "coupled_fits": 781,
+   "discarded_by_bound": 86658,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 1.78
+  },
+  "streaming_2_workers_2_in_flight": {
+   "seconds": 9.72,
+   "coupled_fits": 796,
+   "discarded_by_bound": 86643,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 2.0
+  },
+  "streaming_2_workers_4_in_flight": {
+   "seconds": 9.73,
+   "coupled_fits": 858,
+   "discarded_by_bound": 86581,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 2.0
+  },
+  "rounds_4_workers": {
+   "seconds": 6.47,
+   "coupled_fits": 837,
+   "discarded_by_bound": 86602,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 3.0
+  },
+  "streaming_4_workers_4_in_flight": {
+   "seconds": 5.26,
+   "coupled_fits": 891,
+   "discarded_by_bound": 86548,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 3.69
+  },
+  "streaming_4_workers_8_in_flight": {
+   "seconds": 5.65,
+   "coupled_fits": 968,
+   "discarded_by_bound": 86471,
+   "batches": 171,
+   "value": 34658222.14826186,
+   "treated": [
+    0,
+    9,
+    24,
+    27
+   ],
+   "same_design": true,
+   "speedup": 3.44
+  }
+ }
+}

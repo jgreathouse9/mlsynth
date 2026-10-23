@@ -1,0 +1,5 @@
+config,neg_squares_after_presolve,first_row_head,objective,status,nodes,lp_iters,secs,soc,default,nonlinear_cuts,donotaggr,expandmaxexponent
+baseline,0,[nonlinear] <c60>: -4+4*<t_soc_t_40>+(<t_soc_t_41>)^2+(<t_soc_t_42>)^2+(<t_soc_t_43>)^2+(<,6.722141,optimal,36,9864,0.949,0,532,4989,,
+no_aggregation,2,[nonlinear] <c60>: -(<t_soc_t_39>)^2+(<t_soc_t_40>)^2+(<t_soc_t_41>)^2+(<t_soc_t_42>)^2+(<,6.722141,optimal,29,5216,0.725,2,574,2860,True,
+no_expansion,2,[nonlinear] <c60>: -((2-<t_soc_t_40>))^2+(<t_soc_t_40>)^2+(<t_soc_t_41>)^2+(<t_soc_t_42>)^,6.722141,optimal,53,7354,0.943,2,574,3648,,1.0
+neither,2,[nonlinear] <c60>: -(<t_soc_t_39>)^2+(<t_soc_t_40>)^2+(<t_soc_t_41>)^2+(<t_soc_t_42>)^2+(<,6.722141,optimal,29,5216,0.693,2,574,2860,True,1.0

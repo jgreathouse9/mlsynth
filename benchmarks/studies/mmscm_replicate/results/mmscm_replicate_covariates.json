@@ -1,0 +1,210 @@
+{
+  "covariates": true,
+  "numpy": "2.4.6",
+  "panels": [
+    {
+      "abadie_baseline": {
+        "att_error_as_share_of_converged": 0.4166513672644061,
+        "att_error_from_premature_stop": -7.731273123241564,
+        "authors": {
+          "att": -26.28700995905834,
+          "iterations": 17,
+          "objective": 0.00039112434496988834,
+          "pre_rmse": 5.517906845413466
+        },
+        "converged": {
+          "att": -18.555736835816777,
+          "iterations": 115,
+          "objective": 0.00017148994524973917,
+          "pre_rmse": 2.5029159658087043,
+          "top_weights": {
+            "Connecticut": 0.1207,
+            "Nevada": 0.023,
+            "New Hampshire": 0.1423,
+            "New Mexico": 0.5168,
+            "Utah": 0.1972
+          }
+        }
+      },
+      "covariates": 1,
+      "donors": 38,
+      "identification": [
+        {
+          "att": -32.007393669383696,
+          "att_spread_over_starts": 3.9474017562282775,
+          "condition_number": 7.268217555200926,
+          "moments": 2,
+          "null_dim": 35,
+          "poly": 2,
+          "pre_rmse": 8.904815104540107,
+          "rank": 3
+        },
+        {
+          "att": -32.20738529598507,
+          "att_spread_over_starts": 5.333678658128431,
+          "condition_number": 8963.88636225131,
+          "moments": 6,
+          "null_dim": 31,
+          "poly": 6,
+          "pre_rmse": 8.93942685944781,
+          "rank": 7
+        },
+        {
+          "att": -32.21751238766216,
+          "att_spread_over_starts": 5.129512055726188,
+          "condition_number": 4448796495.933715,
+          "moments": 11,
+          "null_dim": 26,
+          "poly": 11,
+          "pre_rmse": 8.940045297952336,
+          "rank": 12
+        }
+      ],
+      "panel": "prop99",
+      "port_vs_reference": {
+        "max_abs_counterfactual_diff": 1.0846406439668499e-08,
+        "max_abs_weight_diff": 1.701417756683199e-10
+      },
+      "pre_periods": 19,
+      "published_weights": "Utah .334, Nevada .234, Montana .199, Colorado .164, Connecticut .069 (Abadie, Diamond & Hainmueller 2010)"
+    },
+    {
+      "abadie_baseline": {
+        "att_error_as_share_of_converged": 2.999013039250671,
+        "att_error_from_premature_stop": -0.5646495745782557,
+        "authors": {
+          "att": -0.75292804058964,
+          "iterations": 18,
+          "objective": 0.015437923116825346,
+          "pre_rmse": 0.08110413903800742
+        },
+        "converged": {
+          "att": -0.1882784660113843,
+          "iterations": 30,
+          "objective": 0.005266028465632709,
+          "pre_rmse": 0.13606384761108314,
+          "top_weights": {
+            "Cantabria": 0.4671,
+            "Cataluna": 0.1619,
+            "Madrid (Comunidad De)": 0.3167,
+            "Principado De Asturias": 0.0543,
+            "Rioja (La)": 0.0
+          }
+        }
+      },
+      "covariates": 6,
+      "donors": 16,
+      "identification": [
+        {
+          "att": -0.22449208475304155,
+          "att_spread_over_starts": 3.3810666328348837e-06,
+          "condition_number": 103.89898453125477,
+          "moments": 7,
+          "null_dim": 9,
+          "poly": 2,
+          "pre_rmse": 0.1323532228991268,
+          "rank": 7
+        },
+        {
+          "att": -0.29318249404032853,
+          "att_spread_over_starts": 3.6465573836630405e-06,
+          "condition_number": 265861.73080866697,
+          "moments": 11,
+          "null_dim": 5,
+          "poly": 6,
+          "pre_rmse": 0.12254136631254657,
+          "rank": 11
+        },
+        {
+          "att": -0.2991731884952376,
+          "att_spread_over_starts": 2.548762523313375e-06,
+          "condition_number": 102572712990.11505,
+          "moments": 16,
+          "null_dim": 1,
+          "poly": 11,
+          "pre_rmse": 0.12136845406391478,
+          "rank": 15
+        }
+      ],
+      "panel": "basque",
+      "port_vs_reference": {
+        "max_abs_counterfactual_diff": 7.199670193358543e-08,
+        "max_abs_weight_diff": 4.7036596562133326e-08
+      },
+      "pre_periods": 15,
+      "published_weights": "Catalonia .851, Madrid .149 (Abadie & Gardeazabal 2003)"
+    },
+    {
+      "abadie_baseline": {
+        "att_error_as_share_of_converged": -0.06505369082234178,
+        "att_error_from_premature_stop": 94.04842481589958,
+        "authors": {
+          "att": -1351.6562481555527,
+          "iterations": 22,
+          "objective": 0.002963129080634425,
+          "pre_rmse": 134.46991492186166
+        },
+        "converged": {
+          "att": -1445.7046729714523,
+          "iterations": 35,
+          "objective": 0.002483210961367581,
+          "pre_rmse": 84.9185200975165,
+          "top_weights": {
+            "Austria": 0.5846,
+            "Japan": 0.1716,
+            "Netherlands": 0.0,
+            "Switzerland": 0.0875,
+            "USA": 0.1563
+          }
+        }
+      },
+      "covariates": 3,
+      "donors": 16,
+      "identification": [
+        {
+          "att": -961.1570053488647,
+          "att_spread_over_starts": 0.002601796795715927,
+          "condition_number": 21.964032740635993,
+          "moments": 4,
+          "null_dim": 11,
+          "poly": 2,
+          "pre_rmse": 148.29923863480298,
+          "rank": 5
+        },
+        {
+          "att": -967.8001731558363,
+          "att_spread_over_starts": 0.0038103842936152432,
+          "condition_number": 92353.37187601873,
+          "moments": 8,
+          "null_dim": 7,
+          "poly": 6,
+          "pre_rmse": 146.01070117679387,
+          "rank": 9
+        },
+        {
+          "att": -1295.1165143416201,
+          "att_spread_over_starts": 0.004010148580732675,
+          "condition_number": 433281716.1344114,
+          "moments": 13,
+          "null_dim": 2,
+          "poly": 11,
+          "pre_rmse": 133.48047077601527,
+          "rank": 14
+        }
+      ],
+      "panel": "germany",
+      "port_vs_reference": {
+        "max_abs_counterfactual_diff": 8.133011215250008e-05,
+        "max_abs_weight_diff": 1.46156545486123e-08
+      },
+      "pre_periods": 30,
+      "published_weights": "Austria .42, USA .22, Japan .16, Switzerland .11, Netherlands .09 (Abadie, Diamond & Hainmueller 2015)"
+    }
+  ],
+  "python": "3.11.17",
+  "reference": "Kato & Ohda (2026), 10.1515/jci-2025-0008",
+  "reference_code": "https://github.com/MasaKat0/mmscm",
+  "scipy": "1.17.1",
+  "sector_block": false,
+  "starts": 25
+}

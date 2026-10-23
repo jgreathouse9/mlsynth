@@ -106,7 +106,11 @@ def test_flat_accessors():
 # perturbation union CI (stochastic; sanity only)
 # --------------------------------------------------------------------------- #
 def test_inference_union_ci_is_sane():
-    res = _fit(robustness_lambda=0.0, inference=True, seed=1, n_perturbations=60)
+    """At 60 perturbations the union rests on about six accepted draws, and a
+    one-ulp change in the panel moved seed 1's union off the point estimate
+    (pandas 3.1 parses the CSV correctly rounded). At 120 every seed of ten
+    kept the point inside."""
+    res = _fit(robustness_lambda=0.0, inference=True, seed=1, n_perturbations=120)
     inf = res.inference
     assert inf is not None
     assert inf.ci_lower < inf.ci_upper

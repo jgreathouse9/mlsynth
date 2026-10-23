@@ -1,0 +1,107 @@
+{
+ "m4_stored": {
+  "candidates": 91390,
+  "skipped": 17950,
+  "share_skipped": 0.1964,
+  "nodes_bounded": 8866,
+  "seconds_bounding_nodes": 0.3
+ },
+ "m4_nearest_first": {
+  "candidates": 91390,
+  "skipped": 12276,
+  "share_skipped": 0.1343,
+  "nodes_bounded": 9051,
+  "seconds_bounding_nodes": 0.3
+ },
+ "m4_farthest_first": {
+  "candidates": 91390,
+  "skipped": 20548,
+  "share_skipped": 0.2248,
+  "nodes_bounded": 8633,
+  "seconds_bounding_nodes": 0.3
+ },
+ "m4_stored_with_control": {
+  "candidates": 91390,
+  "skipped": 18032,
+  "share_skipped": 0.1973,
+  "nodes_bounded": 8866,
+  "seconds_bounding_nodes": 2.1
+ },
+ "m4_nearest_first_with_control": {
+  "candidates": 91390,
+  "skipped": 12390,
+  "share_skipped": 0.1356,
+  "nodes_bounded": 9051,
+  "seconds_bounding_nodes": 1.9
+ },
+ "m4_farthest_first_with_control": {
+  "candidates": 91390,
+  "skipped": 20824,
+  "share_skipped": 0.2279,
+  "nodes_bounded": 8624,
+  "seconds_bounding_nodes": 2.2
+ },
+ "m5_stored": {
+  "candidates": 658008,
+  "skipped": 221827,
+  "share_skipped": 0.3371,
+  "nodes_bounded": 71804,
+  "seconds_bounding_nodes": 2.5
+ },
+ "m5_nearest_first": {
+  "candidates": 658008,
+  "skipped": 205562,
+  "share_skipped": 0.3124,
+  "nodes_bounded": 68374,
+  "seconds_bounding_nodes": 2.5
+ },
+ "m5_farthest_first": {
+  "candidates": 658008,
+  "skipped": 336285,
+  "share_skipped": 0.5111,
+  "nodes_bounded": 52726,
+  "seconds_bounding_nodes": 1.8
+ },
+ "m5_stored_with_control": {
+  "candidates": 658008,
+  "skipped": 227531,
+  "share_skipped": 0.3458,
+  "nodes_bounded": 71368,
+  "seconds_bounding_nodes": 14.7
+ },
+ "m5_nearest_first_with_control": {
+  "candidates": 658008,
+  "skipped": 210817,
+  "share_skipped": 0.3204,
+  "nodes_bounded": 67904,
+  "seconds_bounding_nodes": 11.7
+ },
+ "m5_farthest_first_with_control": {
+  "candidates": 658008,
+  "skipped": 345247,
+  "share_skipped": 0.5247,
+  "nodes_bounded": 52123,
+  "seconds_bounding_nodes": 12.1
+ },
+ "m6_stored": {
+  "candidates": 3838380,
+  "skipped": 1652624,
+  "share_skipped": 0.4306,
+  "nodes_bounded": 455429,
+  "seconds_bounding_nodes": 15.7
+ },
+ "m6_nearest_first": {
+  "candidates": 3838380,
+  "skipped": 1449864,
+  "share_skipped": 0.3777,
+  "nodes_bounded": 442643,
+  "seconds_bounding_nodes": 15.5
+ },
+ "m6_farthest_first": {
+  "candidates": 3838380,
+  "skipped": 2305143,
+  "share_skipped": 0.6006,
+  "nodes_bounded": 298756,
+  "seconds_bounding_nodes": 10.4
+ }
+}

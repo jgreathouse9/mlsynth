@@ -65,11 +65,9 @@ def _inf(df=None, **kw):
 def _direct(alpha=0.05, Tb=16, T_post=6, T0=28, rho=0.0, seed=1, **kw):
     """``compute_inference`` on a synthetic contrast, with no design solve.
 
-    The level is exercised here and not through ``fit()`` on purpose:
-    ``MAREXConfig.alpha`` is documented as the level of the MDE power curve, and
-    the estimator does not route it to ``compute_inference``, which keeps its own
-    default. Driving alpha end-to-end would be asserting a plumbing path that does
-    not exist.
+    The level is exercised here directly, which needs no design solve; the
+    path from ``MAREXConfig.alpha`` through ``fit()`` to ``compute_inference`` is
+    pinned in ``test_marex_inference_validity.py``.
     """
     from mlsynth.utils.marex_helpers.inference import compute_inference
 

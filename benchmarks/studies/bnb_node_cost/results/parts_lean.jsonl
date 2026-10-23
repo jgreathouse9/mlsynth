@@ -1,0 +1,15 @@
+{"N": 40, "K": 10, "fixed": 0, "free": 40, "evaluations": 562, "identical": true, "seconds": {"library": 0.42861977699999443, "lean": 0.43465697799996406}, "panel": "factor"}
+{"N": 40, "K": 10, "fixed": 2, "free": 38, "evaluations": 649, "identical": true, "seconds": {"library": 0.7013000340000417, "lean": 0.602147225000067}, "panel": "factor"}
+{"N": 40, "K": 10, "fixed": 4, "free": 36, "evaluations": 481, "identical": true, "seconds": {"library": 0.380110779000006, "lean": 0.3785404490000701}, "panel": "factor"}
+{"N": 40, "K": 10, "fixed": 6, "free": 34, "evaluations": 645, "identical": true, "seconds": {"library": 0.529852529999971, "lean": 0.4902942859999939}, "panel": "factor"}
+{"N": 40, "K": 10, "fixed": 8, "free": 32, "evaluations": 605, "identical": true, "seconds": {"library": 0.4587149660000023, "lean": 0.4393448979999448}, "panel": "factor"}
+{"N": 40, "K": 10, "fixed": 0, "free": 40, "evaluations": 1461, "identical": true, "seconds": {"library": 1.300837809000086, "lean": 1.2686014109999633}, "panel": "geolift"}
+{"N": 40, "K": 10, "fixed": 2, "free": 38, "evaluations": 1130, "identical": true, "seconds": {"library": 1.134011022999971, "lean": 1.0044190920000347}, "panel": "geolift"}
+{"N": 40, "K": 10, "fixed": 4, "free": 36, "evaluations": 1137, "identical": true, "seconds": {"library": 1.12623233599993, "lean": 1.1439849700000195}, "panel": "geolift"}
+{"N": 40, "K": 10, "fixed": 6, "free": 34, "evaluations": 1048, "identical": true, "seconds": {"library": 1.0353606999999556, "lean": 0.9311273669999309}, "panel": "geolift"}
+{"N": 40, "K": 10, "fixed": 8, "free": 32, "evaluations": 908, "identical": true, "seconds": {"library": 0.78848335400005, "lean": 0.7513478759999543}, "panel": "geolift"}
+{"N": 40, "K": 10, "fixed": 0, "free": 40, "evaluations": 1572, "identical": true, "seconds": {"library": 1.3968040739999878, "lean": 1.4218958299999258}, "panel": "noise"}
+{"N": 40, "K": 10, "fixed": 2, "free": 38, "evaluations": 1589, "identical": true, "seconds": {"library": 1.380723558999989, "lean": 1.2803921109999692}, "panel": "noise"}
+{"N": 40, "K": 10, "fixed": 4, "free": 36, "evaluations": 1455, "identical": true, "seconds": {"library": 1.2765550579999854, "lean": 1.1798114580000174}, "panel": "noise"}
+{"N": 40, "K": 10, "fixed": 6, "free": 34, "evaluations": 1622, "identical": true, "seconds": {"library": 1.4235510400000067, "lean": 1.3452659510001013}, "panel": "noise"}
+{"N": 40, "K": 10, "fixed": 8, "free": 32, "evaluations": 1329, "identical": true, "seconds": {"library": 1.1075777279999102, "lean": 0.9323382889999721}, "panel": "noise"}

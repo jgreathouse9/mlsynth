@@ -1,0 +1,7 @@
+pseudo-distance quality vs pre-period length (design 8.1; limit slope = 12.5)
+  T0 context                              slope   corr  med err / med d
+   6 Bailey only, common pre-1965         19.86  0.694             0.83
+  11 Bailey only, per-cohort G3 max       19.86  0.770             0.78
+  19 paper robustness, 1946-1964          17.98  0.825             0.61
+  28 paper main, 1937-1964                17.77  0.857             0.56
+ 200 asymptotic reference                 13.62  0.973             0.16

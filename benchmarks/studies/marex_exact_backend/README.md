@@ -13,8 +13,12 @@ nothing here is pinned; the agreement between the backends is pinned in
 python benchmarks/studies/marex_exact_backend/timing.py \
     benchmarks/studies/marex_exact_backend/results/timing.csv
 python benchmarks/studies/marex_exact_backend/walmart_fit.py
+python -m benchmarks.studies.marex_exact_backend.check_bounds \
+    benchmarks/studies/marex_exact_backend/results/check_bounds.csv
 PYTHONHASHSEED=0 python benchmarks/studies/marex_exact_backend/walmart_scip_repeat.py
 python benchmarks/studies/marex_exact_backend/walmart_layout.py
+python benchmarks/studies/marex_exact_backend/designs.py \
+    benchmarks/studies/marex_exact_backend/results/designs.json
 ```
 
 Run them from the repository root; they read `basedata/walmart_weekly_sales.csv`.
@@ -27,8 +31,12 @@ Run them from the repository root; they read `basedata/walmart_weekly_sales.csv`
 | `walmart_fit.py` | the Walmart example of `docs/marex.rst`, the whole fit, with each backend |
 | `walmart_scip_repeat.py` | the Walmart MIQP in a fresh process, under a fixed hash seed |
 | `walmart_layout.py` | the Walmart MIQP on the same values in two memory layouts |
+| `check_bounds.py` | enumerates every treated set and tests that the pruning bound is a lower bound |
 | `results/timing.csv`, `results/timing.log` | the run behind the tables below |
+| `results/check_bounds.csv` | the bound check, one row per panel and penalty setting |
 | `results/walmart.log` | the output of the three Walmart scripts |
+| `designs.py` | the search by design and cluster count on GeoLift, and the candidates three bounds leave to fit |
+| `results/designs.json` | the run behind the last section |
 
 ## How it was measured
 
@@ -79,6 +87,38 @@ the candidate count, 2.3-fold for 2.7 times the candidates from 25 to 30 and
 The Walmart row's SCIP time is the faster of two that the same data produced;
 the last section has the other and the reason.
 
+## Is the pruning sound
+
+The times above are bought by a bound. The search fits a candidate only when
+its bound sits under the incumbent, so a bound that ever exceeds the fit it
+bounds discards the optimum and still returns fast. Speed and correctness come
+from the same mechanism, and timing alone cannot separate them.
+
+`check_bounds.py` enumerates every treated set on the panels small enough to
+fit all of them, and compares `treated_fit_bound` with the exact `side_fit` it
+claims to bound. Both closed forms are exercised: the plain treated fit is
+`1 / 1'G^-1 1`, the penalized one is `(2 + t)^2 / 4s - u / 4`, and only the
+second reads the linear term, so a run without penalties never touches it.
+
+Over 424,044 treated sets in 24 panel-and-penalty configurations, from 12
+markets to 25:
+
+| quantity | result |
+| --- | --- |
+| sets where `bound > fit` beyond `PRUNE_MARGIN` | 0 |
+| worst relative excess | 1.7e-14 |
+| sets where `bound == fit` | 52.6% on average, 36% to 69% by panel |
+
+The second row is machine precision, so the bound never discards a candidate it
+should have kept. The third says why the search is fast: on about half the
+candidates the sum-to-one minimiser is already non-negative, the simplex
+constraint is slack, and the closed form is the fit itself, not a bound on it.
+
+The check discriminates. Inflating the bound by 5% turns 211 of 220 sets on the
+first panel into violations. Dropping the centring, which is the
+`the-bound-forgets-the-target` mutant in `tools/mutation/targets.toml`, turns
+all 220 into violations with a worst excess of 1150.
+
 ## The Walmart fit, end to end
 
 `walmart_fit.py` times the example of `docs/marex.rst`, inference included. The
@@ -108,3 +148,59 @@ the level of rounding error open up, here by a factor of 1.7. The panel times
 above carry that spread too, and the geometric mean over three panels per size
 is the steadier figure. On the same two arrays the search returns the same two
 stores, with objectives 2e-16 apart.
+
+## By design and cluster count
+
+`designs.py` runs the search for every design it solves without a coupling term
+on GeoLift's 40 markets, with the 90 pre-periods as the fit window, as one
+cluster and as 2 and 4 clusters of equal size (the markets split in order along
+the first principal component of their series, each divided by its mean). It
+counts the candidates priced and the simplex fits by wrapping the search's
+functions from the outside. Single-threaded; the median of three runs where one
+takes under 3 s.
+
+One cluster of 40 markets:
+
+| design | four treated | simplex fits | five treated | simplex fits |
+| --- | ---: | ---: | ---: | ---: |
+| standard | 0.08 s | 2 | 0.48 s | 2 |
+| unit_penalized, `xi` 0.1, `lambda1_unit` 0.01 | 1.2 s | 3,321 | 23.8 s | 55,112 |
+| unit_penalized, `xi` 1, `lambda1_unit` 0.1 | 13.2 s | 35,748 | not run | |
+| penalized, `lambda1` = `lambda2` = 0.1 | 53.8 s | 47,141 | not run | |
+| penalized, `lambda1` = `lambda2` = 1 | 282.6 s | 120,990 | not run | |
+
+Clusters of equal size; the slowest design in each row:
+
+| clusters | treated per cluster | candidates | slowest | standard |
+| ---: | ---: | ---: | --- | ---: |
+| 2 of 20 | 2 | 380 | 0.30 s, unit_penalized heavy | 0.003 s |
+| 2 of 20 | 3 | 2,280 | 2.3 s, penalized 1 | 0.007 s |
+| 4 of 10 | 1 | 40 | 0.35 s, unit_penalized light | 0.001 s |
+| 4 of 10 | 2 | 180 | 0.45 s, unit_penalized heavy | 0.003 s |
+
+Each cluster is searched on its own, so the work follows the sum of the
+clusters' candidate counts, and every clustered design takes at most a few
+seconds. `unit_penalized` carries a fixed cost of about 0.2 to 0.4 s even where
+the search is trivial: the per-unit reproducibility fits it computes first.
+
+The penalised designs on one cluster fit most of their candidates. Two
+weaknesses of the bound explain it. The closed-form treated bound relaxes the
+simplex to the affine hull, which lets the weights go negative to avoid a
+linear penalty, so with a penalty it falls toward 0. Nothing bounds the control
+penalty, which is a large part of the objective once `lambda2` is on. With the
+cutoff at the optimum, four treated, the candidates each bound leaves to fit:
+
+| design | shipped bound | with `1/s + min over S of a` | with that and the control fit over the cluster |
+| --- | ---: | ---: | ---: |
+| penalized 0.1 | 42,165 | 19,773 | 5,476 |
+| penalized 1 | 87,873 | 42,911 | 24,297 |
+| unit_penalized light | 3,282 | 52 | 52 |
+| unit_penalized heavy | 35,692 | 2,949 | 2,949 |
+
+Both bounds hold for every candidate. The treated fit is at least the affine
+relaxation of its quadratic term plus the smallest treated penalty, since a
+minimum of a sum is at least the sum of the minimums. A candidate's control fit
+is at least the penalised control fit over the whole cluster, since a smaller
+donor pool only fits worse. That fit is 0 for `unit_penalized`, which has no
+control penalty and whose target is the cluster's mean. These are counts, not
+times; the bounds are not wired into the search here.
