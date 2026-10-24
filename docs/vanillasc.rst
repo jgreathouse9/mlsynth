@@ -502,8 +502,9 @@ The backend rests on three assumptions beyond those of the canonical estimator.
    1981-1990, are enough.
 
 Inference composes with the backend. The in-space placebo refits the exact
-search with each donor as the treated unit; the refits compute donor weights
-only, and the ranges and face counts are reported for the treated unit alone.
+search with each donor as the treated unit, on the treated unit's validation
+periods; the refits compute donor weights only, and the ranges and face counts
+are reported for the treated unit alone.
 
 Proposition 99 on the authors' own data and predictor specification (income,
 youth share and retail price averaged over 1980-1988, beer over 1984-1988, and
@@ -670,6 +671,20 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     is not settled is re-solved with the solver the loop used. Refits that are
     not a plain simplex fit keep the loop: covariate matching, and the ridge
     layer of Augmented SCM.
+
+    Each donor is refit with the treated unit's backend and predictors, on the
+    periods of its outcome fit, so ``fit_window`` and ``fit_exclude`` restrict
+    every refit as they restrict the treated unit's. MSCMT's placebo study does
+    the same with ``times.dep``. The ratio's two RMSPEs are taken over the whole
+    pre-period and the post-period, for every unit alike. With
+    ``bias_correct=True`` only the treated unit's gap is corrected; the donors'
+    ratios come from their uncorrected refits. A donor whose refit raises has no
+    statistic: it is left out, named with the error in a warning and in
+    ``res.inference.details["skipped_placebos"]``, and the p-value ranks the
+    treated unit among the donors that were refit. When no donor can be refit
+    the test is not computed. A ``w_constr`` fit has no refit, so its
+    placebo-type tests are not computed; ``inference="scpi"`` is built on the
+    same constrained program.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
@@ -1421,6 +1436,12 @@ Because there are :math:`\binom{N-1}{2}` matches, not :math:`N`, the
 p-value lives on an :math:`O(N^2)`-fine grid -- the granularity problem
 disappears.
 
+Every synthetic control in a match is fit with the treated unit's backend and
+predictors, on the periods of its outcome fit (``fit_window``, ``fit_exclude``).
+A match whose refit raises is left out and listed, with the unit and the error,
+in ``res.inference.details["skipped_pairs"]`` and in a warning; the p-value is
+over the matches that were fit.
+
 Two p-values. ``res.inference.p_value`` is the *naive* LTO p-value above.
 ``res.inference.details["p_powered"]`` is the *powered* variant
 :math:`p_{\mathrm{naive\text{-}LTO}} - c(N, \alpha) + \delta`, which shifts the
@@ -1553,6 +1574,11 @@ paths and reports the parameters the test does not reject, which is a
 confidence set for the path. Set ``placebo_cs_class`` to ``"constant"`` (a flat
 post-treatment effect) or ``"linear"`` (the parameter is then the per-period
 slope).
+
+Each unit's synthetic control is refit with the treated unit's backend and
+predictors, on the periods of its outcome fit. The inversion
+needs every unit's weights, so a unit whose refit raises leaves the set
+unavailable, with the unit and the error in ``unavailable_reason`` and a warning.
 
 The candidate effect is imposed across the whole panel before any statistic is
 recomputed. For each placebo unit the path is added to its own outcome and

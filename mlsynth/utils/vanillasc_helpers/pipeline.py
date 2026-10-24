@@ -246,6 +246,13 @@ def _rmspe_ratio(y: np.ndarray, cf: np.ndarray, pre: int) -> Tuple[float, float,
     return pre_r, post_r, ratio
 
 
+def _left_out(items, limit: int = 5) -> str:
+    """The first ``limit`` of ``items`` joined, and how many more there are."""
+    items = list(items)
+    more = f"; and {len(items) - limit} more" if len(items) > limit else ""
+    return "; ".join(items[:limit]) + more
+
+
 def run_vanillasc(config) -> BaseEstimatorResults:
     """Fit VanillaSC and assemble :class:`BaseEstimatorResults`."""
     covariates = list(config.covariates or [])
@@ -420,6 +427,16 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     mode = config.inference
     mode = "placebo" if mode is True else ("none" if not mode else str(mode).lower())
     inference = None
+    # Set by a placebo-type test that could not refit its units, for the
+    # requested-but-not-computed report at the end.
+    not_computed = None
+    # The placebo-type tests refit the treated unit's estimator to other units, on
+    # the periods its outcome fit used. A w_constr fit has no engine to refit.
+    no_refit = (
+        "the placebo-type tests refit the estimator to every donor, and a w_constr "
+        "fit has no refit; use inference='scpi', which is built on the same "
+        "constrained program"
+    ) if engine is None else None
 
     # SCPI prediction intervals (Cattaneo, Feng & Titiunik 2021).
     if mode == "scpi" and gap[pre:].size:
@@ -639,32 +656,56 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
-    # Leave-Two-Out refined placebo test (Lei & Sudijono 2025).
+    # Leave-Two-Out refined placebo test (Lei & Sudijono 2025). Every refit is made
+    # on the periods the treated unit's outcome fit used.
     if mode == "lto" and J >= 3 and gap[pre:].size:
         from .lto import lto_placebo_test
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            lto = lto_placebo_test(
-                engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
-                max_pairs=config.lto_max_pairs, seed=config.seed,
+        lto = None
+        if no_refit:
+            not_computed = no_refit
+        else:
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    lto = lto_placebo_test(
+                        engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
+                        max_pairs=config.lto_max_pairs, seed=config.seed,
+                        fit_periods=fit_pos,
+                    )
+            except ValueError as exc:
+                # With J >= 3 the one ValueError left is every pair's refit raising.
+                not_computed = str(exc)
+        if lto is not None:
+            skipped_pairs = [
+                [donor_names[a], donor_names[b],
+                 treated_name if u is None else donor_names[u], reason]
+                for a, b, u, reason in lto["skipped_pairs"]]
+            if skipped_pairs:
+                warnings.warn(
+                    f"leave-two-out: {len(skipped_pairs)} donor pair(s) were left out "
+                    f"because a refit raised, and the test runs over the other "
+                    f"{lto['n_pairs']}: "
+                    + _left_out(f"({a}, {b}), the refit of {u}: {r}"
+                                for a, b, u, r in skipped_pairs),
+                    UserWarning, stacklevel=2)
+            inference = InferenceResults(
+                p_value=lto["p_value"],
+                method="leave-two-out refined placebo (Lei-Sudijono 2025)",
+                confidence_level=1.0 - config.alpha,
+                details={
+                    "treated_rmspe_ratio": ratio_tr,
+                    "p_powered": lto["p_powered"],
+                    "powered_offset_c": lto["c"],
+                    "type_i_bound": lto["type_i_bound"],
+                    "reject_at_alpha": lto["reject"],
+                    "n_pairs": lto["n_pairs"],
+                    "treated_losses": lto["treated_losses"],
+                    "n_units": lto["N"],
+                    "alpha": lto["alpha"],
+                    "subsampled": lto["subsampled"],
+                    "skipped_pairs": skipped_pairs,
+                },
             )
-        inference = InferenceResults(
-            p_value=lto["p_value"],
-            method="leave-two-out refined placebo (Lei-Sudijono 2025)",
-            confidence_level=1.0 - config.alpha,
-            details={
-                "treated_rmspe_ratio": ratio_tr,
-                "p_powered": lto["p_powered"],
-                "powered_offset_c": lto["c"],
-                "type_i_bound": lto["type_i_bound"],
-                "reject_at_alpha": lto["reject"],
-                "n_pairs": lto["n_pairs"],
-                "treated_losses": lto["treated_losses"],
-                "n_units": lto["N"],
-                "alpha": lto["alpha"],
-                "subsampled": lto["subsampled"],
-            },
-        )
 
     # Debiased SC t-test for the ATT (Chernozhukov, Wuthrich & Zhu 2026).
     # The cross-fit refits the configured backend on each block-complement of
@@ -807,9 +848,15 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         )
 
-    # In-space placebo inference (Abadie): reassign treatment to each donor.
-    if mode == "placebo" and J >= 2 and gap[pre:].size:
+    # In-space placebo inference (Abadie): reassign treatment to each donor. Each
+    # donor is refit the way the treated unit was: on the periods its outcome fit
+    # used (``fit_pos``) and with its predictors. The ratio itself is taken over the
+    # whole pre-period and the post-period, for every unit alike.
+    if mode == "placebo" and J >= 2 and gap[pre:].size and no_refit:
+        not_computed = no_refit
+    elif mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
+        skipped = {}
         # The outcome-only refits are one leave-one-out family over the donor
         # matrix, so they are solved together. Restricted to the case where a
         # refit is exactly that one simplex QP: no covariates to weight, no
@@ -818,12 +865,12 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # rest with ``simplex_qp``, the same solver the engine calls below, so
         # the ranks this p-value is built from are unchanged.
         loo_W = None
-        if (engine is not None and not covariates and engine.augment != "ridge"
+        if (not covariates and engine.augment != "ridge"
                 and str(config.backend) in ("auto", "outcome-only")):
             from ..solvers.minnorm import solve_simplex_loo_exact
             from ..solvers.ridge_augment import simplex_qp
             try:
-                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)
+                loo_W = solve_simplex_loo_exact(Y0[fit_pos], fallback=simplex_qp)
             except Exception:  # pragma: no cover - fall back to the loop
                 loo_W = None
         if loo_W is not None:
@@ -844,25 +891,40 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    rj = engine.fit(yj[:pre], Y0j[:pre], X1=X1j, X0=X0j)
+                    rj = engine.fit(yj[fit_pos], Y0j[fit_pos], X1=X1j, X0=X0j)
                 cfj = rj.counterfactual(Y0j)
-                _, _, ratio_j = _rmspe_ratio(yj, cfj, pre)
-                if np.isfinite(ratio_j):
-                    ratios.append(ratio_j)
-            except Exception:  # pragma: no cover - defensive placebo-refit guard
+            except Exception as exc:
+                # A donor that cannot be refit has no statistic. The test runs over
+                # the donors that were refit, and the result names the others.
+                skipped[donor_names[j]] = f"{type(exc).__name__}: {exc}"
                 continue
-        all_ratios = np.array(ratios + [ratio_tr], dtype=float)
-        p_value = float(np.mean(all_ratios >= ratio_tr))
-        inference = InferenceResults(
-            p_value=p_value,
-            method="in-space placebo (RMSPE ratio)",
-            confidence_level=1.0 - config.alpha,
-            details={
-                "treated_rmspe_ratio": ratio_tr,
-                "n_placebos": len(ratios),
-                "rank": int(np.sum(all_ratios >= ratio_tr)),
-            },
-        )
+            _, _, ratio_j = _rmspe_ratio(yj, cfj, pre)
+            if np.isfinite(ratio_j):
+                ratios.append(ratio_j)
+        if len(skipped) == J:
+            not_computed = ("every donor's placebo refit raised: "
+                            + _left_out(f"{k}: {v}" for k, v in skipped.items()))
+        else:
+            if skipped:
+                warnings.warn(
+                    f"in-space placebo: {len(skipped)} of {J} donors were left out "
+                    f"because their refit raised, and the p-value ranks the treated "
+                    f"unit among the other {J - len(skipped)}: "
+                    + _left_out(f"{k}: {v}" for k, v in skipped.items()),
+                    UserWarning, stacklevel=2)
+            all_ratios = np.array(ratios + [ratio_tr], dtype=float)
+            p_value = float(np.mean(all_ratios >= ratio_tr))
+            inference = InferenceResults(
+                p_value=p_value,
+                method="in-space placebo (RMSPE ratio)",
+                confidence_level=1.0 - config.alpha,
+                details={
+                    "treated_rmspe_ratio": ratio_tr,
+                    "n_placebos": len(ratios),
+                    "rank": int(np.sum(all_ratios >= ratio_tr)),
+                    "skipped_placebos": skipped,
+                },
+            )
 
     # Firpo-Possebom (2018) confidence sets: the same placebo test, inverted
     # over a one-parameter family of effect paths instead of evaluated at zero.
@@ -877,22 +939,42 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # synthetic control is fitted against a pool that CONTAINS the treated
         # unit -- that is what the procedure's donor-pool correction acts on,
         # and excluding it would invert a different test.
+        # Each unit is refit the way the treated unit was: on the periods its
+        # outcome fit used and with its predictors (``Xs`` has the same column
+        # order as ``Ymat``).
         Ymat = np.column_stack([y, Y0])
         n_units = Ymat.shape[1]
+        unit_names = [treated_name, *donor_names]
         Wmat = np.empty((n_units - 1, n_units))
         Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
-        ok = True
-        for j in range(1, n_units):
+        failed = no_refit
+        for j in ([] if failed else range(1, n_units)):
             others = [k for k in range(n_units) if k != j]
+            X1j = X0j = None
+            if covariates:
+                X1j, X0j = Xs[:, j], Xs[:, others]
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    rj = engine.fit(Ymat[:pre, j], Ymat[:pre, others])
+                    rj = engine.fit(Ymat[fit_pos, j], Ymat[fit_pos][:, others],
+                                    X1=X1j, X0=X0j)
                 Wmat[:, j] = np.asarray(rj.W, dtype=float).ravel()
-            except Exception:  # pragma: no cover - defensive refit guard
-                ok = False
+            except Exception as exc:
+                failed = (f"the refit of {unit_names[j]} raised {type(exc).__name__}: "
+                          f"{exc}; the inversion needs every unit's weights")
                 break
-        if ok:
+        if failed:
+            # Reported the way an unusable level is: the set is unavailable, and why.
+            warnings.warn(f"VanillaSC inference='placebo_cs' was not computed: {failed}.",
+                          UserWarning, stacklevel=2)
+            inference = InferenceResults(
+                method="placebo-inverted confidence set (Firpo-Possebom 2018)",
+                confidence_level=1.0 - config.alpha,
+                details={"effect_class": config.placebo_cs_class,
+                         "phi": config.placebo_cs_phi,
+                         "unavailable_reason": failed},
+            )
+        else:
             v = (np.asarray(config.placebo_cs_v, dtype=float)
                  if config.placebo_cs_v is not None
                  else np.eye(1, n_units, 0).ravel())
@@ -969,7 +1051,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # so the caller is never surprised by a missing band or p-value. ``"none"``
     # (``inference=False``) is an explicit opt-out and stays ``None``.
     if inference is None and mode != "none":
-        if not gap[pre:].size:
+        if not_computed is not None:
+            reason = not_computed
+        elif not gap[pre:].size:
             reason = "there are no post-treatment periods"
         elif mode == "placebo":
             reason = f"in-space placebo needs >=2 donors (this panel has {J})"

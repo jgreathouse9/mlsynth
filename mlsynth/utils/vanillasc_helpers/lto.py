@@ -50,7 +50,7 @@ computed at (reject when it is :math:`\\le \\alpha`).
 from __future__ import annotations
 
 from math import floor, sqrt
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Sequence
 
 import numpy as np
 
@@ -129,26 +129,27 @@ def _seed_from_base(base_full: np.ndarray, pool: np.ndarray) -> Optional[np.ndar
     return v / total
 
 
-def _base_seeds(engine, y, Y0, pre, X1, X0):
+def _base_seeds(engine, y, Y0, rows, X1, X0):
     """Full-pool base fits the pair loop seeds itself from.
 
     One fit for the treated unit on all ``J`` donors, and one per donor on the
     ``J - 1`` others -- ``J + 1`` solves against the loop's ``3 * C(J, 2)``.
     Each is embedded back into a length-``J`` vector so
-    :func:`_seed_from_base` can index it by donor id.
+    :func:`_seed_from_base` can index it by donor id. ``rows`` are the periods
+    every fit of the test is made on.
 
     Returns ``(treated_base, donor_bases)``, or ``None`` when the engine's
     backend does not take a seed, so the donor bases are never paid for.
     """
     T, J = Y0.shape
-    treated = engine.fit(y[:pre], Y0[:pre], X1=X1, X0=X0)
+    treated = engine.fit(y[rows], Y0[rows], X1=X1, X0=X0)
     if treated.backend != "outcome-only":
         return None
     donor_bases = np.zeros((J, J))
     for k in range(J):
         pool = np.delete(np.arange(J), k)
         rk = engine.fit(
-            Y0[:pre, k], Y0[:pre][:, pool],
+            Y0[rows, k], Y0[rows][:, pool],
             X1=(X0[:, k] if X0 is not None else None),
             X0=(X0[:, pool] if X0 is not None else None),
         )
@@ -156,32 +157,53 @@ def _base_seeds(engine, y, Y0, pre, X1, X0):
     return np.asarray(treated.W, dtype=float), donor_bases
 
 
-def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start):
+def _fit_rows(pre, fit_periods):
+    """The periods every fit of the test is made on: ``fit_periods``, or the whole pre-period."""
+    if fit_periods is None:
+        return np.arange(int(pre))
+    rows = np.asarray(fit_periods, dtype=int).ravel()
+    if not rows.size or rows.min() < 0 or rows.max() >= int(pre):
+        raise ValueError(
+            f"fit_periods must be a non-empty set of pre-treatment row positions in "
+            f"[0, {int(pre)}); got {list(rows)}."
+        )
+    return rows
+
+
+def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start, rows=None,
+                   skipped=None):
     """Yield ``(a, b, cf_I, cf_a, cf_b)`` for each donor pair left out.
 
-    One traversal, used by both entry points. For the pair ``{a, b}`` the donor
+    One traversal, used by every entry point. For the pair ``{a, b}`` the donor
     pool is every other control, and three synthetic controls are built on it:
-    one for the treated unit and one for each left-out donor. What a caller does
-    with the three counterfactuals is its own business -- the placebo test
-    reduces each to a scalar and compares, the interval keeps the residual paths
-    and takes quantiles across pairs.
+    one for the treated unit and one for each left-out donor, each fit on
+    ``rows`` (the whole pre-period when ``None``), the periods the treated
+    unit's own fit used. What a caller does with the three counterfactuals is
+    its own business -- the placebo test reduces each to a scalar and compares,
+    the interval keeps the residual paths and takes quantiles across pairs.
 
-    A pair whose refit raises is skipped rather than counted, so a failed solve
+    A pair whose refit raises is skipped, not counted, so a failed solve
     contributes nothing instead of a zero that would shrink the reference set.
+    When ``skipped`` is a list, each such pair is appended to it as
+    ``(a, b, unit, reason)``, ``unit`` the donor whose refit raised or ``None``
+    for the treated unit.
     """
     J = Y0.shape[1]
     all_donors = np.arange(J)
+    rows = np.arange(int(pre)) if rows is None else rows
 
     bases = None
     if warm_start:
         try:
-            bases = _base_seeds(engine, y, Y0, pre, X1, X0)
-        except Exception:  # pragma: no cover - defensive base-fit guard
+            bases = _base_seeds(engine, y, Y0, rows, X1, X0)
+        except Exception:
+            # A base fit that raises costs the warm start, not the test: the seed
+            # only chooses where each pair's active set starts.
             bases = None
 
     def _cf(y_k, pool, Y0_pool, x1, ws):
         x0p = X0[:, pool] if X0 is not None else None
-        rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)
+        rk = engine.fit(y_k[rows], Y0_pool[rows], X1=x1, X0=x0p, warm_start=ws)
         return rk.counterfactual(Y0_pool)
 
     for a, b in pairs:
@@ -196,13 +218,19 @@ def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start):
             ws_I = _seed_from_base(treated_base, pool)
             ws_a = _seed_from_base(donor_bases[a], pool)
             ws_b = _seed_from_base(donor_bases[b], pool)
+        unit = None
         try:
             cf_I = _cf(y, pool, Y0_pool, X1, ws_I)
+            unit = a
             cf_a = _cf(Y0[:, a], pool, Y0_pool,
                        (X0[:, a] if X0 is not None else None), ws_a)
+            unit = b
             cf_b = _cf(Y0[:, b], pool, Y0_pool,
                        (X0[:, b] if X0 is not None else None), ws_b)
-        except Exception:  # pragma: no cover - defensive donor-refit guard
+        except Exception as exc:
+            if skipped is not None:
+                skipped.append((int(a), int(b), None if unit is None else int(unit),
+                                f"{type(exc).__name__}: {exc}"))
             continue
         yield a, b, cf_I, cf_a, cf_b
 
@@ -230,6 +258,7 @@ def lto_placebo_test(
     seed: int = 0,
     warm_start: bool = True,
     statistic: Optional[Callable[[np.ndarray, np.ndarray, int], float]] = None,
+    fit_periods: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Run the Lei-Sudijono (2025) LTO refined placebo test.
 
@@ -271,14 +300,23 @@ def lto_placebo_test(
         lets a cumulative post-period total be tested by the same procedure.
         Larger means "less like the controls": the treated unit wins a triple
         when its value exceeds both left-out donors'.
+    fit_periods : sequence of int, optional
+        Row positions, all below ``pre``, of the periods the treated unit's
+        weights were fit on (a fit window, or periods excluded from the fit).
+        Every refit of the test is made on the same rows, so each unit's
+        synthetic control is fit the way the treated unit's was. ``None`` (the
+        default) fits on the whole pre-period. The statistic still sees the
+        whole series.
 
     Returns
     -------
     dict
         ``p_value`` (naive LTO), ``p_powered`` (valid only at ``alpha``),
         ``c`` (powered offset), ``type_i_bound``, ``n_pairs``, ``treated_losses``,
-        ``N``, ``alpha``, ``reject`` (powered decision at ``alpha``), and
-        ``subsampled``.
+        ``N``, ``alpha``, ``reject`` (powered decision at ``alpha``),
+        ``subsampled``, and ``skipped_pairs``: ``(a, b, unit, reason)`` for each
+        pair left out because a refit raised, ``unit`` the donor whose refit
+        raised or ``None`` for the treated unit.
     """
     Y0 = np.asarray(Y0, float)
     y = np.asarray(y, float).ravel()
@@ -289,6 +327,7 @@ def lto_placebo_test(
             "and retain a non-empty control pool)."
         )
     N = J + 1
+    rows = _fit_rows(pre, fit_periods)
 
     pairs, subsampled = _donor_pairs(J, max_pairs, seed)
 
@@ -302,8 +341,9 @@ def lto_placebo_test(
 
     losses = 0
     n_pairs = 0
+    skipped = []
     for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
-                                                 pairs, warm_start):
+                                                 pairs, warm_start, rows, skipped):
         R_I = statistic(y, cf_I, pre)
         R_a = statistic(Y0[:, a], cf_a, pre)
         R_b = statistic(Y0[:, b], cf_b, pre)
@@ -313,8 +353,13 @@ def lto_placebo_test(
         if not (R_I > max(R_a, R_b)):     # treated unit did not win the triple
             losses += 1
 
-    if n_pairs == 0:  # pragma: no cover - unreachable when J >= 3
-        raise ValueError("LTO placebo test: no leave-two-out subproblem could be fit.")
+    if n_pairs == 0:
+        a, b, unit, reason = skipped[0]
+        raise ValueError(
+            f"LTO placebo test: no leave-two-out subproblem could be fit; every pair's "
+            f"refit raised (the first, pair ({a}, {b}), on "
+            f"{'the treated unit' if unit is None else f'donor {unit}'}: {reason})."
+        )
 
     p_naive = losses / n_pairs
     c = lto_powered_offset(N, alpha)
@@ -330,6 +375,7 @@ def lto_placebo_test(
         "alpha": float(alpha),
         "reject": bool(p_powered <= alpha),
         "subsampled": subsampled,
+        "skipped_pairs": skipped,
     }
 
 
@@ -345,6 +391,7 @@ def lto_interval(
     max_pairs: Optional[int] = None,
     seed: int = 0,
     warm_start: bool = True,
+    fit_periods: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Pointwise confidence interval for the treated unit's counterfactual.
 
@@ -362,7 +409,7 @@ def lto_interval(
 
     Parameters
     ----------
-    engine, y, Y0, pre, X1, X0, max_pairs, seed, warm_start
+    engine, y, Y0, pre, X1, X0, max_pairs, seed, warm_start, fit_periods
         As :func:`lto_placebo_test`.
     alpha : float
         Miscoverage. Must be at least ``1 / n_pairs``: below that the quantile
@@ -404,7 +451,8 @@ def lto_interval(
 
     centres, spreads, resid_i, resid_j = [], [], [], []
     for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
-                                                 pairs, warm_start):
+                                                 pairs, warm_start,
+                                                 _fit_rows(pre, fit_periods)):
         r_a = Y0[:, a] - np.asarray(cf_a).ravel()
         r_b = Y0[:, b] - np.asarray(cf_b).ravel()
         centres.append(np.asarray(cf_I).ravel())
@@ -441,6 +489,7 @@ def lto_cumulative_interval(
     max_pairs: Optional[int] = None,
     seed: int = 0,
     warm_start: bool = True,
+    fit_periods: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Confidence interval for the treated unit's cumulative post-period total.
 
@@ -466,7 +515,7 @@ def lto_cumulative_interval(
 
     Parameters
     ----------
-    engine, y, Y0, pre, X1, X0, alpha, max_pairs, seed, warm_start
+    engine, y, Y0, pre, X1, X0, alpha, max_pairs, seed, warm_start, fit_periods
         As :func:`lto_interval`.
 
     Returns
@@ -505,7 +554,8 @@ def lto_cumulative_interval(
 
     centres, spreads, resid_i, resid_j = [], [], [], []
     for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
-                                                 pairs, warm_start):
+                                                 pairs, warm_start,
+                                                 _fit_rows(pre, fit_periods)):
         r_a = Y0[pre:, a] - np.asarray(cf_a).ravel()[pre:]
         r_b = Y0[pre:, b] - np.asarray(cf_b).ravel()[pre:]
         centres.append(float(np.asarray(cf_I).ravel()[pre:].sum()))
