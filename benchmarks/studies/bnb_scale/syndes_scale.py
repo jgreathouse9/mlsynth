@@ -7,7 +7,8 @@ certificates, the largest open queue, and the swap search's seconds with whether
 its seeds already held the design. Each is read by wrapping the module's own
 functions for the length of one call; the wrappers count and pass through, so
 the search makes the same decisions, and the module is restored on the way out
-whether the search returns or raises.
+whether the search returns or raises. The queue is the shared search loop's
+(:mod:`mlsynth.utils.search_skeleton`, #846), so its ``heapq`` is the one watched.
 
 The open queue is best first's heap. The search also keeps a depth-first stack
 until its first incumbent, and the swap search supplies one before the first
@@ -22,6 +23,7 @@ from contextlib import contextmanager
 import numpy as np
 from threadpoolctl import threadpool_limits
 
+from mlsynth.utils import search_skeleton
 from mlsynth.utils.syndes_helpers import branch
 from mlsynth.utils.syndes_helpers.exact import WORK_LIMIT, SubsetFilter
 from mlsynth.utils.syndes_helpers.gram import BoundEngine, TwoWayProblem
@@ -31,7 +33,7 @@ EAGER = dict(price_seconds=1.0, bound_seconds=lambda n: 0.0,
              lift_seconds=lambda n: 0.0)
 
 _ORIGINAL = {"lift": branch.lift, "certify": branch.ExactR.certify,
-             "heapq": branch.heapq, "maxcut": branch.maxcut_candidates}
+             "heapq": search_skeleton.heapq, "maxcut": branch.maxcut_candidates}
 
 
 class _QueueWatch:
@@ -70,12 +72,13 @@ def instrumented():
         return out
 
     branch.lift, branch.ExactR.certify = lift, certify
-    branch.heapq, branch.maxcut_candidates = watch, maxcut
+    search_skeleton.heapq, branch.maxcut_candidates = watch, maxcut
     try:
         yield tally, watch
     finally:
         branch.lift, branch.ExactR.certify = _ORIGINAL["lift"], _ORIGINAL["certify"]
-        branch.heapq, branch.maxcut_candidates = _ORIGINAL["heapq"], _ORIGINAL["maxcut"]
+        search_skeleton.heapq, branch.maxcut_candidates = (_ORIGINAL["heapq"],
+                                                           _ORIGINAL["maxcut"])
 
 
 def _with_complements(seeds, N):

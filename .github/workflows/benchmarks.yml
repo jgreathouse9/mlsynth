@@ -317,7 +317,8 @@ jobs:
               - added: '**'
 
       # The filter above decides whether the shards run at all; this decides
-      # which cases they run. case_deps widens on any doubt -- an unmapped case
+      # which cases they run. case_deps widens on any doubt -- a change to a
+      # file the install step reads runs everything, an unmapped case
       # runs, a changed module no entry claims runs the cases claiming its
       # importers, and any other changed file no entry claims runs everything
       # unless a complete sweep recorded it as covered by nothing -- so it can
@@ -568,6 +569,18 @@ jobs:
           fi
           echo "Merging ${#SLICES[@]} slice(s)."
           python -u tools/benchmark_deps.py --combine "${SLICES[@]}"
+
+      # The commit below is [skip ci], so nothing tests the map once it is on
+      # main. The first inventory to reach main (b50e1395) turned a case-map
+      # test red there, and the next pull request found it six hours later.
+      # These tests read the map, the inventory and this workflow, not the
+      # package, so they need no install of it. A failure ends the job before
+      # the commit and leaves the shipped map as it stands.
+      - name: Test the map before committing it
+        run: |
+          pip install pytest hypothesis pyyaml
+          python -m pytest benchmarks/tests/test_case_deps.py \
+            benchmarks/tests/test_case_deps_imports.py -q -p no:cacheprovider
 
       # The inventory is written only by a combine over a complete sweep, so it
       # may not exist; an older one stays, since entries newer than the

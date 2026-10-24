@@ -52,6 +52,17 @@ the same thing by kind, for the prose that sits under a reachable prefix.
 An estimator pull request trips all three at once: new helper modules, new test
 modules, and one export line.
 
+Files read before any case runs
+-------------------------------
+The map records what a case's ``run()`` executes and reads. The suite's install
+reads ``pyproject.toml`` and ``benchmarks/constraints.txt`` before any case runs,
+and what it installs is what every case runs on, so a change to either reaches
+every case and no measurement can show it: a sweep records the constraints as
+read by nothing, and ``pyproject.toml`` is outside :data:`REACHABLE`. Read
+through the map, a change to the pins ran the 26 unmapped cases of 243 once the
+first inventory reached ``main``. :data:`ENVIRONMENT` lists them, and a change to
+one selects every case before the map is consulted.
+
 Modules that run only at import
 -------------------------------
 Measuring after import has a blind side. A module whose code runs only at import
@@ -99,6 +110,15 @@ UNTRACKED = ("benchmarks/reference/.cache/",)
 #: case -- that is how ``docs/ppscm.rst`` is neither a selection nor a hole. A
 #: README one directory over is the same prose, so it gets the same answer.
 PROSE_SUFFIXES = (".md", ".rst")
+
+#: Files the pull-request suite's install reads, ``pip install -e '.[all]' -c
+#: benchmarks/constraints.txt``: the project's dependencies and the versions they
+#: are pinned to. They decide what every case runs on and are read before any
+#: case runs, so no measurement of ``run()`` claims them, and a complete sweep
+#: records them as read by nothing. A change to one selects every case.
+#: ``benchmarks/tests/test_workflow_sharding.py`` holds the list to the install
+#: step.
+ENVIRONMENT = ("benchmarks/constraints.txt", "pyproject.toml")
 
 #: Modules that re-export and do nothing else. These execute at import, before
 #: measurement starts, so coverage never attributes them to a case -- and a file
@@ -459,12 +479,13 @@ def select(
     Returns
     -------
     list of str
-        A case is selected when it has no manifest entry, when its entry names a
-        changed file, when its own module changed, when its entry or its module
-        imports a changed module no entry claims, or when some changed file
-        under :data:`REACHABLE` is unclaimed with nothing to settle it -- that
-        last being a hole in the map, which widens the selection instead of
-        narrowing it.
+        Every case when a changed file is one the install reads
+        (:data:`ENVIRONMENT`). Otherwise a case is selected when it has no
+        manifest entry, when its entry names a changed file, when its own
+        module changed, when its entry or its module imports a changed module
+        no entry claims, or when some changed file under :data:`REACHABLE` is
+        unclaimed with nothing to settle it -- that last being a hole in the
+        map, which widens the selection instead of narrowing it.
     """
     if isinstance(changed, (str, bytes)) or not isinstance(changed, Sequence):
         raise TypeError(
@@ -488,6 +509,8 @@ def select(
     seen = load_swept() if swept is None else frozenset(swept)
     changed = [str(c) for c in changed]
     created = {str(a) for a in added}
+    if not set(ENVIRONMENT).isdisjoint(changed):  # what every case runs on
+        return list(cases)
 
     known = {p for deps in m.values() for p in deps}
     known.update(_case_source(name) for name in m)

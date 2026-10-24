@@ -15,6 +15,7 @@ from benchmarks.studies.bnb_scale import marex_scale, panels, syndes_scale
 from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.marex_helpers import branch as marex_branch
 from mlsynth.utils.syndes_helpers import branch as syndes_branch
+from mlsynth.utils import search_skeleton
 
 
 # ------------------------------------------------------------------ the panels
@@ -113,7 +114,7 @@ class TestSyndesInstrument:
     def test_the_library_is_left_as_it_was(self, small):
         assert syndes_branch.lift is syndes_scale._ORIGINAL["lift"]
         assert syndes_branch.ExactR.certify is syndes_scale._ORIGINAL["certify"]
-        assert syndes_branch.heapq is syndes_scale._ORIGINAL["heapq"]
+        assert search_skeleton.heapq is syndes_scale._ORIGINAL["heapq"]
         assert syndes_branch.maxcut_candidates is syndes_scale._ORIGINAL["maxcut"]
 
 
@@ -123,7 +124,7 @@ class TestSyndesFailures:
         with pytest.raises(MlsynthConfigError, match="K must lie"):
             syndes_scale.measure(panels.panel("noise", 10), 11)
         assert syndes_branch.lift is syndes_scale._ORIGINAL["lift"]
-        assert syndes_branch.heapq is syndes_scale._ORIGINAL["heapq"]
+        assert search_skeleton.heapq is syndes_scale._ORIGINAL["heapq"]
 
 
 def test_the_queue_shim_tracks_the_largest_heap():
