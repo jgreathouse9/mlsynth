@@ -206,9 +206,11 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "control is fit to the treated outcome -- the dependent SSR, "
                     "MSCMT's ``times.dep``. Restricts the pre-period outcome "
                     "optimisation to this sub-range (predictors are still matched "
-                    "over their own covariate_windows). None (default) uses the "
-                    "full pre-treatment period; this is how Abadie-Gardeazabal's "
-                    "Basque study fits gdpcap over 1960-1969 rather than 1955-1969.",
+                    "over their own covariate_windows). The placebo-type tests "
+                    "('placebo', 'lto', 'placebo_cs') refit every unit on the same "
+                    "periods. None (default) uses the full pre-treatment period; "
+                    "this is how Abadie-Gardeazabal's Basque study fits gdpcap over "
+                    "1960-1969 instead of 1955-1969.",
     )
 
     fit_exclude: Optional[List[Any]] = Field(
@@ -218,8 +220,10 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "Abadie and Shang's leakage-free specification drops the years "
                     "whose outcomes enter the predictors, so that validation and "
                     "matching do not share data (1975, 1980 and 1988 on "
-                    "Proposition 99). Every label must be a pre-treatment period, "
-                    "and at least one must remain. None (default) drops nothing.",
+                    "Proposition 99). The placebo-type tests refit every unit "
+                    "without the same periods. Every label must be a pre-treatment "
+                    "period, and at least one must remain. None (default) drops "
+                    "nothing.",
     )
     exact_v_class: Literal["diagonal", "pd"] = Field(
         default="diagonal",

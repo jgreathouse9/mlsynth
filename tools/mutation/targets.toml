@@ -9356,3 +9356,87 @@ timeout = 1500.0
   find = "    if (isinstance(work_limit, bool) or not isinstance("
   replace = "    if (not isinstance("
   models = "True read as a limit of one second"
+
+[[target]]
+name = "vanillasc-placebo-refits"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_placebo_fit_periods.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "placebo-refits-on-every-pre-period"
+  find = "                    rj = engine.fit(yj[fit_pos], Y0j[fit_pos], X1=X1j, X0=X0j)"
+  replace = "                    rj = engine.fit(yj[:pre], Y0j[:pre], X1=X1j, X0=X0j)"
+  models = "the defect this target was written for: each donor refit on the whole pre-period while the treated unit's weights were fit on a window or without excluded periods, so the p-value ranks statistics of two estimators"
+
+  [[target.mutant]]
+  id = "placebo-family-on-every-pre-period"
+  find = "                loo_W = solve_simplex_loo_exact(Y0[fit_pos], fallback=simplex_qp)"
+  replace = "                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)"
+  models = "the same defect on the batched outcome-only path, which serves the default specification"
+
+  [[target.mutant]]
+  id = "leave-two-out-refits-on-every-pre-period"
+  find = "                        fit_periods=fit_pos,"
+  replace = "                        fit_periods=None,"
+  models = "the leave-two-out test called without the fit periods, so every match refits its three units on the whole pre-period"
+
+  [[target.mutant]]
+  id = "confidence-set-refits-on-every-pre-period"
+  find = "                    rj = engine.fit(Ymat[fit_pos, j], Ymat[fit_pos][:, others],"
+  replace = "                    rj = engine.fit(Ymat[:pre, j], Ymat[:pre][:, others],"
+  models = "the placebo-inverted confidence set's refits on the whole pre-period, inverting a test of another estimator"
+
+  [[target.mutant]]
+  id = "confidence-set-refits-without-predictors"
+  find = "                X1j, X0j = Xs[:, j], Xs[:, others]"
+  replace = "                pass"
+  models = "the second defect found here: the confidence set's refits handed no predictors, so a predictor backend raised on every unit and the set read as not computed for a reason the panel did not have"
+
+  [[target.mutant]]
+  id = "skipped-placebo-unreported"
+  find = "            if skipped:"
+  replace = "            if False:"
+  models = "a donor whose refit raised dropped without a warning, which is how 7 of West Germany's 16 placebos went missing from the exact backend's p-value"
+
+  [[target.mutant]]
+  id = "placebo-without-a-refit-ranks-the-treated-unit-alone"
+  find = "        if len(skipped) == J:"
+  replace = "        if False:"
+  models = "a placebo test with no donor refit reported as computed, the treated unit ranked against itself for a p-value of 1"
+
+  [[target.mutant]]
+  id = "w-constr-fit-sent-to-the-refit-loop"
+  find = "    ) if engine is None else None"
+  replace = "    ) if False else None"
+  models = "a w_constr fit, which has no engine, run through the placebo refits; it used to return p = 1 with no placebo and no warning"
+
+  [[target.mutant]]
+  id = "skipped-pair-unreported"
+  find = "            if skipped_pairs:"
+  replace = "            if False:"
+  models = "a leave-two-out match left out without a warning, so the reported pair count is the only trace of it"
+
+[[target]]
+name = "lto-fit-periods"
+module-path = "mlsynth/utils/vanillasc_helpers/lto.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_placebo_fit_periods.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pair-refits-on-every-pre-period"
+  find = "        rk = engine.fit(y_k[rows], Y0_pool[rows], X1=x1, X0=x0p, warm_start=ws)"
+  replace = "        rk = engine.fit(y_k[:pre], Y0_pool[:pre], X1=x1, X0=x0p, warm_start=ws)"
+  models = "the match refits made on the whole pre-period whatever fit_periods says"
+
+  [[target.mutant]]
+  id = "fit-periods-unchecked"
+  find = "    if not rows.size or rows.min() < 0 or rows.max() >= int(pre):"
+  replace = "    if False:"
+  models = "fit periods outside the pre-period accepted: post-treatment rows would enter the fits, and an empty set fails every match for a reason the message does not name"
+
+  [[target.mutant]]
+  id = "skipped-pair-unrecorded"
+  find = "            if skipped is not None:"
+  replace = "            if False:"
+  models = "a match whose refit raised dropped without a record, so the caller cannot report it"
