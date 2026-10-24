@@ -393,27 +393,33 @@ directly and returns the same optimal design. It calls no mixed-integer solver,
 so it also runs on a base install, without the ``design`` extra that provides
 ``pyscipopt``.
 
-In outline, the exact backend works in three layers, each described below.
+In plain terms: within each cluster, MAREX looks for the treated markets whose
+weighted average looks like the cluster as a whole before the experiment, while
+the remaining markets, weighted, look like it too. Both composites then stand in
+for the same thing, the cluster's average market, so a gap that opens between
+them after treatment is the effect. The exact backend finds that treated set and
+proves no other set is better, in three layers.
 
-- Pricing a treated set. Once the treated markets are named, the design is two
-  small synthetic-control fits, one for each side, which ``mlsynth`` solves
-  exactly in microseconds. The set's loss is the sum of the two fits.
-- Enumeration. Up to twenty million treated sets in a cluster, the search
-  considers every set. A closed-form lower bound on each set's treated fit rules
-  out most of them without fitting them. Every set is either fitted or ruled out
-  by a bound, so the design returned is the optimum.
-- Branch and bound. Above twenty million sets the search arranges the sets in a
-  tree of nodes, each a family of sets with some markets forced into the treated
-  set and some forced out. For a node it computes a bound, a number no set in the
-  node can go under, from a relaxation solved as a semidefinite program. A node
-  whose bound is above the best design found so far, the incumbent, is
-  discarded with all its sets; any other node is split on one market or, when it
-  holds few sets, priced set by set. The search ends with the optimum proved
-  ("Large clusters: a certified branch and bound").
+- Pricing a set. Once the treated markets are named, the best weights come from
+  two small fits, one per side, solved exactly in microseconds. The set's score
+  is the sum of the two fits, :math:`f(\mathcal{S})` below.
+- Trying every set. Up to twenty million candidate sets in a cluster, the search
+  considers them all, with a shortcut: a formula gives a floor under each set's
+  treated fit without solving it, and a set whose floor is already above the
+  best score found so far is skipped. Every set is either fitted or skipped on a
+  floor that proves it cannot win.
+- Branch and bound. Above twenty million sets the search reasons about whole
+  families at once: every set that treats some given markets and avoids others.
+  It computes a floor under every set in a family from a relaxation, the problem
+  with its rules loosened so that every set in the family still fits, and
+  discards the family when that floor is above the best set found so far. A
+  family that survives is split, one more market decided at a time, and a small
+  one is priced set by set ("Large clusters: a certified branch and bound").
 
-Every bound that discards a set holds exactly, rounding included, so
-``certify=True`` reports a lower bound, the design's loss and the gap between
-them, with the optimum in between ("Certifying the search").
+What the result lets you say: the design has the smallest pre-period imbalance
+among all treated sets the cardinality and restrictions allow, and with
+``certify=True`` the result carries the proof, a floor under every alternative
+beside the design's own score ("Certifying the search").
 
 The search works because fixing the treated set splits the problem in two. In
 one cluster, write :math:`\mathcal{S}` for the treated markets,

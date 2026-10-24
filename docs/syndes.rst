@@ -456,74 +456,93 @@ Choosing among the modes
 
 
 
-How the design is solved
-------------------------
+How the treated group is chosen
+-------------------------------
 
-``backend`` chooses between two ways of finding the design. The default,
-``"exact"``, searches the treated sets directly and proves that the design it
-returns is the best one. ``"mip"`` hands the mixed-integer program above to a
-solver (SCIP by default), which may stop at a design within ``gap_limit`` of the
-best ("Solver runtime and the 5%-gap default" below). This section describes
-the exact backend in plain terms; the subsections that follow give its
-mathematics.
+SYNDES answers one question: which :math:`K` of the :math:`N` units should be
+treated, so that after the experiment the treated units can be compared with the
+rest? Its answer is the group for which a weighted average of the treated units
+and a weighted average of the other units moved together most closely before
+the experiment. If the two composites tracked each other over the pre-treatment
+periods, a gap that opens between them afterwards is the treatment's effect.
 
-Choosing a design means choosing the treated set :math:`S`, :math:`K` of the
-:math:`N` units. Once :math:`S` is named, the best treated and control weights
-are the solution of a small convex quadratic program, so every design has a loss
-:math:`f(S)` that can be computed exactly. Computing it is called pricing the
-design, and it takes microseconds. What makes the problem hard is the number of
-designs, :math:`\binom{N}{K}`: eight treated among forty units is 77 million,
-ten among forty 848 million.
+In the two-way design, a treated set :math:`S` gets weights :math:`\mathbf{a}` on
+its units and the control composite gets weights :math:`\mathbf{b}` on the
+others, each set of weights non-negative and summing to one. The set's score is
+how far apart the two composites are over the pre-period, at the best weights:
 
-Up to ``candidate_limit`` admissible designs (twenty million by default) the
-search prices them all, so nothing is skipped and the answer is certain. A
-closed-form lower bound on each design's loss, computed for every design in one
-matrix product, settles most of them without solving their quadratic program
-("The Gram reduction" and "Solving it that way" below).
+.. math::
 
-Above the limit the search runs a branch and bound, which proves the same
-answer while pricing a small fraction of the designs. Its vocabulary:
+   f(S) \;=\; \min_{\mathbf{a}, \mathbf{b}}\;
+     \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+     \Bigl( \sum_{i \in S} a_i\, y_{it} - \sum_{j \notin S} b_j\, y_{jt} \Bigr)^2
+     \;+\; \lambda \bigl(\lVert \mathbf{a} \rVert_2^2 + \lVert \mathbf{b} \rVert_2^2\bigr).
 
-- The incumbent is the best design found so far. Restarts of a swap search,
-  which replaces one treated unit by another while that lowers the loss, supply
-  a good one before the search starts.
-- A node is a family of designs: the units forced into the treated set, the
-  units forced out of it, and the free units the rest are chosen from. The first
-  node, the root, holds every design.
-- A bound is a number no design in the node can go under. When it is above the
-  incumbent's loss, every design in the node is discarded without being priced.
-  A node of three million designs whose bound is 0.025, against an incumbent of
-  0.020, is ruled out by one bound.
-- A node that is not discarded is split on one free unit into a node that
-  treats it and a node that does not. Each child holds fewer designs than its
-  parent, and its bound is at least the parent's.
-- A node with few designs is priced design by design, as the enumeration does.
-  The search bounds a node only when pricing its designs would cost more than
-  the bound.
+The first term is the average squared gap between the composites; the second, a
+ridge penalty, keeps one unit from carrying all of a side's weight. SYNDES
+returns the set with the smallest :math:`f(S)`. The one-way and per-unit designs
+score a set differently ("The three MIP formulations" above) and are chosen the
+same way.
 
-The search ends when every node has been discarded or priced, and the incumbent
-is then the optimum. A search stopped at its work limit returns the incumbent
-and the smallest bound left among its open nodes. The optimum lies between the
-two, and their relative distance is the gap the certificate reports.
+Finding that set is two problems of very different difficulty.
 
-A bound comes from a relaxation: an easier problem whose solutions include every
-design in the node, so that its minimum can only be lower than theirs. Letting a
-unit be partly treated is the obvious relaxation, and it sits about 80 percent
-below the optimum ("Certifying near-optimality" below), too low to rule out
-much. The two-way search uses two others. The first replaces each unit's
-treated-or-control sign by a point on a sphere, and is solved in under a
-millisecond. The second keeps the products of the signs in a matrix, a
-semidefinite program that is tighter and costs more, solved only where the first
-did not settle the node. The optimization literature calls the move from a
-vector to the matrix of its products lifting, which is why
-``raw_results["n_lifts"]`` counts the semidefinite relaxations the search
-solved. It counts solver work and has nothing to do with lift in the sense of a
-treatment effect. Every bound is recomputed from the solver's multipliers in
-exact arithmetic before it discards anything, so rounding in the solver decides
-where the search spends its time, never what it rules out. "The two-way design
-above the candidate limit" gives the details, and the one-way and per-unit
-designs are searched the same way, with bounds of their own ("The one-way design
-by search", "The per-unit design by search").
+- For a given :math:`S`, the best weights solve a small convex problem, the same
+  kind as fitting a synthetic control, and ``mlsynth`` solves it exactly in
+  microseconds. Computing :math:`f(S)` is called pricing the set.
+- Choosing :math:`S` is the hard part, because there are :math:`\binom{N}{K}`
+  sets to choose from: 77 million for 8 treated among 40 units, and 848 million
+  for 10 among 40.
+
+When there are at most ``candidate_limit`` sets (twenty million by default),
+SYNDES prices every one, with a shortcut: a formula gives a floor under each
+set's score without solving for its weights, and a set whose floor is already
+above the best score found so far is skipped. Every set is either priced or
+skipped on a floor that proves it cannot win, so the set returned is the best
+one ("The Gram reduction" and "Solving it that way" below).
+
+Above the limit SYNDES runs a branch and bound, which applies the same idea to
+whole families of sets at once.
+
+- A family is described by a few decisions: units that must be treated, units
+  that must not be, and the rest left open. The first family leaves every unit
+  open and so holds every set.
+- For a family, SYNDES computes a floor under the score of every set in it. If
+  the floor is already above the best set found so far, the whole family is
+  discarded without pricing any of its sets: a family of three million sets
+  whose floor is 0.025 cannot beat a set already priced at 0.020.
+- If the floor is lower, the family is split in two, one half treating some open
+  unit and the other not, and each half gets its own floor, which can only be
+  higher. A family with few sets is priced set by set.
+
+The search ends when every family has been discarded or priced, and the best
+set found is then provably the best.
+
+The floor for a family comes from a relaxation: the problem with some of its
+rules loosened, so that every set in the family is still allowed and the loosened
+problem's minimum can only be lower than theirs. Loosening "each unit is treated
+or not" to "each unit can be partly treated" is the obvious relaxation, and it is
+too loose: it sits about 80 percent below the true score ("Certifying
+near-optimality" below), so it rules out little. SYNDES uses relaxations that
+keep more of the problem's structure; "The two-way design above the candidate
+limit" describes them.
+
+What the result lets you say. The design SYNDES returns has the smallest
+pre-period gap :math:`f(S)` among all treated groups of size :math:`K` that meet
+the restrictions you set, and the search proves it. A search stopped at its work
+limit (``work_limit``) returns the best group it found and a floor under every
+group it did not rule out: the best possible design lies between the two, and
+``certify=True`` reports both and the gap between them. The result also records
+which search ran (``raw_results["search"]``: ``"price_all"`` or
+``"branch_and_bound"``), how many families it bounded (``n_nodes``), and how many
+of those bounds used its most expensive relaxation (``n_lifts``). Optimization
+texts call that relaxation a lifted one, which is where the name comes from. It
+counts computing work and has nothing to do with lift in the sense of a treatment
+effect.
+
+``backend="mip"`` reaches its design another way: it hands the whole problem to
+a general mixed-integer solver (SCIP by default), which may stop at a design
+within ``gap_limit`` of the best ("Solver runtime and the 5%-gap default"
+below). The default, ``backend="exact"``, is the search described here.
 
 Solver runtime and the 5%-gap default
 -------------------------------------
@@ -933,8 +952,8 @@ The two-way design above the candidate limit
 Past ``candidate_limit`` admissible designs (twenty million by default; forty
 units with eight treated already hold 77 million), the search stops pricing every
 design and runs a branch and bound. It returns the design the enumeration would
-have returned, certified. "How the design is solved" above introduces branch
-and bound, its bounds and its certificate.
+have returned, certified. "How the treated group is chosen" above introduces
+branch and bound in plain terms.
 
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
@@ -1023,7 +1042,7 @@ still a bound.
 
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
 bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``,
-named in "How the design is solved" above), and
+named in "How the treated group is chosen" above), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
 when it closes. ``work_limit`` (120 by default) caps each size's search in the
 cost model's seconds: every design priced, bound, relaxation evaluation and certificate

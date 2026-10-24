@@ -357,34 +357,40 @@ fact -- which is the symptom this parameter exists to prevent.
 How Stage 1 searches the treated sets
 """""""""""""""""""""""""""""""""""""
 
-Stage 1 searches the sets of :math:`m` markets for the ``top_K`` with the
-smallest imbalance :math:`L(\mathcal{S})`. Computing :math:`L(\mathcal{S})` for
-one set means solving its small quadratic program for the weights, the subject
-of the next subsection. This is called pricing the set, and it takes
-microseconds. What makes Stage 1 hard is the number of sets,
-:math:`\binom{M}{m}`.
+In plain terms, Stage 1 looks for the :math:`m` markets whose weighted average
+looks most like the whole population of candidate markets before the experiment.
+:math:`L(\mathcal{S})` above is the squared distance between the population's
+profile and the best weighted average of the chosen markets. A treated group that
+reproduces the population is one whose response to treatment speaks for the
+population.
 
-When there are at most ``enumerate_max`` sets (three million by default), the
-search prices every one. Nothing is skipped, so the ``top_K`` it returns are
-exact and the termination status is ``OPTIMAL``. A lower bound on each set's
-imbalance, in closed form ("Screened pricing" below), rules out most sets
-without solving their quadratic program.
+Finding the best group is two problems. For one candidate group, the best weights
+solve a small convex problem (the next subsection) in microseconds; computing
+:math:`L(\mathcal{S})` is called pricing the group. Choosing the group is the hard
+part, because there are :math:`\binom{M}{m}` groups: 8.2 million for 4 of 120
+markets, and 3.8 billion for 6.
 
-Above ``enumerate_max`` the search is local. It builds sets greedily from
-several starting points, improves each by swapping one market for another while
-that lowers the imbalance, and perturbs the result to escape the local optimum
-it reaches. That finds good designs quickly, but it cannot prove that no set it
-did not visit is better, so the status is ``FEASIBLE`` and the result carries a
-consensus block in place of a proof ("What the consensus block does and does
-not tell you" below).
+- When there are at most ``enumerate_max`` groups (three million by default),
+  Stage 1 prices every one, with a shortcut: a formula gives a floor under each
+  group's imbalance ("Screened pricing" below), and a group whose floor is
+  already above the ``top_K``-th best found so far is skipped. Nothing that
+  could win is skipped, so the groups returned are the best ones, and the
+  status is ``OPTIMAL``.
+- Above ``enumerate_max`` the search is local. It builds groups from several
+  starting points, swaps one market for another while that lowers the
+  imbalance, and perturbs the result to try other neighbourhoods. That finds
+  good groups quickly, but it cannot prove that a group it never visited is not
+  better, so the status is ``FEASIBLE``.
 
-SYNDES and MAREX prove their designs above their enumeration limits with a
-branch and bound. It groups the sets into families, each with some markets
-forced into the treated set and some forced out, computes for each family a
-bound no set in it can go under, and discards a family whose bound is above the
-best design found so far. That needs a bound that sees how many markets are
-treated, and "Why a search and not a full enumeration or an exact MIP" below
-explains why the relaxations that drop the count bound Stage 1 at zero.
+What the result lets you say. Under ``OPTIMAL``, the treated group is the
+best-balanced group of :math:`m` markets that meets the budget, and the search
+proves it. Under ``FEASIBLE``, it is the best group the local search found, and
+its achieved imbalance :math:`\sqrt{L(\mathcal{S})}`, which the result reports,
+is what the design's validity rests on ("Why a search and not a full enumeration
+or an exact MIP" below). SYNDES and MAREX run a branch and bound above their
+limits, which proves the best group by ruling out whole families of groups at
+once, each family with some markets forced in and some forced out. Stage 1 does
+not, for the reason that section gives.
 
 How a single tuple is built: the inner simplex QP
 """""""""""""""""""""""""""""""""""""""""""""""""""
