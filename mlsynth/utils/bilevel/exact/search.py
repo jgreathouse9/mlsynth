@@ -47,10 +47,10 @@ def _check(X1, X0, Z1, Z0):
     return X1, X0, Z1, Z0
 
 
-def _interior(solve, X1, X0, Z1, Z0, stats):
+def _interior(solve, X1, X0, Z1, Z0, stats, max_cells):
     """The interior search's answer, with its counters and the case it took."""
     st = {}
-    loss, w = solve(X1, X0, Z1, Z0, stats=st)
+    loss, w = solve(X1, X0, Z1, Z0, stats=st, max_cells=max_cells)
     if stats is not None:
         stats.update(st, regime="interior")
     return loss, w
@@ -64,10 +64,12 @@ def _finish(w, Z1, Z0):
     return float(res @ res), w
 
 
-def solve_diag(X1, X0, Z1, Z0, stats=None):
+def solve_diag(X1, X0, Z1, Z0, stats=None, max_cells=interior.MAX_CELLS):
+    """The diagonal class: (loss, w). ``stats`` receives the search's counters and its ``regime``;
+    ``max_cells`` limits an interior walk."""
     X1, X0, Z1, Z0 = _check(X1, X0, Z1, Z0)
     if not outside_hull(X1, X0):
-        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats)
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats, max_cells)
     K, J = X0.shape
     hull = Hull(X0, X1)
     vis = hull.visible_facets()
@@ -161,20 +163,26 @@ def solve_diag(X1, X0, Z1, Z0, stats=None):
     return _finish(w_best, Z1, Z0)
 
 
-def solve_pd(X1, X0, Z1, Z0, stats=None):
+def solve_pd(X1, X0, Z1, Z0, stats=None, max_cells=interior.MAX_CELLS):
+    """The positive definite class: (loss, w). Outside the hull ``stats`` also receives the number
+    of visible facets and the ``facets`` whose simplex fit is the optimum: several when the
+    optimum lies on a face they share, each as its sorted donors."""
     X1, X0, Z1, Z0 = _check(X1, X0, Z1, Z0)
     if not outside_hull(X1, X0):
-        return _interior(interior.solve_interior_pd, X1, X0, Z1, Z0, stats)
+        return _interior(interior.solve_interior_pd, X1, X0, Z1, Z0, stats, max_cells)
     J = X0.shape[1]
     vis = Hull(X0, X1).visible_facets()
-    best = (np.inf, None, None)
+    best, fits = (np.inf, None, None), []
     for F in vis:
         cols = sorted(F)
         val, beta = simplex_ls(Z1, Z0[:, cols])
-        if val is not None and val < best[0]:
-            best = (val, cols, beta)
+        if val is not None:
+            fits.append((val, tuple(cols)))
+            if val < best[0]:
+                best = (val, cols, beta)
     if stats is not None:
-        stats.update(regime="exterior", n_visible=len(vis))
+        tied = sorted(F for val, F in fits if val <= best[0] + 1e-9 * max(1.0, best[0]))
+        stats.update(regime="exterior", n_visible=len(vis), facets=tuple(tied))
     w = np.zeros(J)
     w[best[1]] = best[2]
     return _finish(w, Z1, Z0)

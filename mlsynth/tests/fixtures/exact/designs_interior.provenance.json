@@ -1,12 +1,12 @@
 {
- "generated": "2026-10-23T22:10:55+00:00",
+ "generated": "2026-10-24T00:06:46+00:00",
  "commits": {
   "synth-AS-replication": "791a3865fe3e9fd0b82a8121c0b338791b7ffa39",
   "synthx_package": "a10a28c571a906ee76574bad9c5446c22c3a184f"
  },
  "urls": {
-  "synth-AS-replication": "https://github.com/lychemon/synth-AS-replication",
-  "synthx_package": "https://github.com/lychemon/synthx_package"
+  "synth-AS-replication": "https://github.com/lychemon/synth-AS-replication.git",
+  "synthx_package": "https://github.com/lychemon/synthx_package.git"
  },
  "functions": [
   "synthx.estimate (sc_estimator.py)",

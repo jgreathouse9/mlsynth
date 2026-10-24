@@ -13,6 +13,10 @@ Two interchangeable backends solve the same optimistic bilevel program
   pairwise matching penalty, with ``lambda`` chosen by leave-one-out CV. It
   yields a unique, sparse ``W`` (:mod:`penalized`), sidestepping the ``V``
   non-identification that makes malo and mscmt disagree.
+* ``"exact"`` -- Abadie & Shang (2026): the exact optimum over every ``W``
+  some diagonal (or positive definite) ``V`` selects, found by a search over
+  the faces of the donor hull, with the selecting ``V`` reported as a
+  canonical member of its set (:mod:`exact`).
 
 The first two share the Section 3.1 / MSCMT Eq. 13 global-optimum certificate
 and the same lower bound, so they agree exactly whenever the unconstrained
@@ -24,6 +28,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .exact import solve_exact
 from .mscmt import solve_mscmt
 from .regression_v import solve_regression
 from .penalized import solve_penalized
@@ -56,13 +61,14 @@ def solve_bilevel(
     ----------
     prob : BilevelProblem
         Outcome and predictor matrices.
-    method : {"malo", "mscmt", "regression", "penalized"}
+    method : {"malo", "mscmt", "regression", "penalized", "exact"}
         Which backend to use. ``"malo"`` (default) runs the staged corner
         search; ``"mscmt"`` runs the global differential-evolution outer
         search; ``"regression"`` uses Stata ``synth``'s default closed-form
         regression rule (no outer search); ``"penalized"`` runs the
         Abadie-L'Hour penalized estimator
-        with leave-one-out ``lambda`` selection. The default preserves the
+        with leave-one-out ``lambda`` selection; ``"exact"`` solves the
+        program exactly by the Abadie-Shang search. The default preserves the
         historical behaviour of every existing caller.
     **kwargs
         Backend-specific options. For ``"malo"``: ``feas_tol``,
@@ -70,7 +76,9 @@ def solve_bilevel(
         ``lb``, ``maxiter``, ``popsize``, ``tol``, ``seed``, ``polish``,
         ``feas_tol``. For ``"penalized"``: ``lam`` (default ``"loo"``),
         ``lam_grid``, ``max_iter``, ``tol`` (see
-        :func:`mlsynth.utils.bilevel.penalized.solve_penalized`).
+        :func:`mlsynth.utils.bilevel.penalized.solve_penalized`). For
+        ``"exact"``: ``v_class``, ``ranges``, ``face_counts``, ``max_cells``
+        (see :func:`mlsynth.utils.bilevel.exact.solve_exact`).
 
     Returns
     -------
@@ -83,11 +91,13 @@ def solve_bilevel(
         return solve_mscmt(prob, **kwargs)
     if method == "penalized":
         return solve_penalized(prob, **kwargs)
+    if method == "exact":
+        return solve_exact(prob, **kwargs)
     if method == "malo":
         return _solve_malo(prob, **kwargs)
     raise ValueError(
         f"Unknown bilevel method {method!r}; expected 'malo', 'mscmt', "
-        f"'regression' or 'penalized'."
+        f"'regression', 'penalized' or 'exact'."
     )
 
 

@@ -19,3 +19,8 @@ weights are then a canonical member of the set of V that select it.
 Everything is NumPy and SciPy; cvxpy is called only to decide the rare interior
 attainability test that the barrier method leaves within rounding of its threshold.
 """
+
+from .solve import V_CLASSES, solve_exact
+from .structures import DiagonalRationalizers, ExactDetails, FaceCounts, PDRationalizers
+
+__all__ = ["V_CLASSES", "solve_exact", "DiagonalRationalizers", "ExactDetails", "FaceCounts", "PDRationalizers"]

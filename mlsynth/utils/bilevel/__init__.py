@@ -22,6 +22,8 @@ Two interchangeable backends are available via ``solve_bilevel(..., method=)``:
   search over ``log10(V)`` (the MSCMT outer optimisation).
 * ``"penalized"`` -- Abadie & L'Hour (2021): pairwise-penalized estimator with
   leave-one-out ``lambda`` selection and an optional bias correction.
+* ``"exact"`` -- Abadie & Shang (2026): the exact optimum, by a search over the
+  faces of the donor hull (:mod:`mlsynth.utils.bilevel.exact`).
 """
 
 from .structure import BilevelProblem, BilevelSolution
@@ -29,6 +31,7 @@ from .solver import solve_bilevel, lower_level_weights
 from .mscmt import solve_mscmt
 from .regression_v import regression_v, solve_regression
 from .penalized import bias_corrected_gaps, penalized_weights, solve_penalized
+from .exact import solve_exact
 from .determine_v import (
     canonical_v,
     canonical_v_diagnostics,
@@ -49,6 +52,7 @@ __all__ = [
     "solve_bilevel",
     "solve_mscmt",
     "solve_penalized",
+    "solve_exact",
     "penalized_weights",
     "bias_corrected_gaps",
     "lower_level_weights",
