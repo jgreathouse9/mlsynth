@@ -301,6 +301,62 @@ california.pd_v.logdet.full[Cigarette sales per capita (1975)]	0.191418303380564
 california.pd_v.range_lo.full[Cigarette sales per capita (1975)]	3.5655214567163666e-10
 california.pd_v.range_hi.full[Cigarette sales per capita (1975)]	0.9999999997849263
 california.pd_v.center.full[Cigarette sales per capita (1975)]	0.27942335466925916
+california.pd_v.logdet_matrix[0,0]	0.005670395022941188
+california.pd_v.center_matrix[0,0]	0.030242766818324277
+california.pd_v.logdet_matrix[0,1]	-0.0010401681747088578
+california.pd_v.center_matrix[0,1]	-0.004871360167983815
+california.pd_v.logdet_matrix[0,2]	0.0027467495766989427
+california.pd_v.center_matrix[0,2]	0.018447850364283248
+california.pd_v.logdet_matrix[0,3]	0.0018043848574359346
+california.pd_v.center_matrix[0,3]	0.01635605580951412
+california.pd_v.logdet_matrix[0,4]	-0.015290320173657617
+california.pd_v.center_matrix[0,4]	-0.12650815296225645
+california.pd_v.logdet_matrix[0,5]	-0.004080275389703463
+california.pd_v.center_matrix[0,5]	-0.013207963466904149
+california.pd_v.logdet_matrix[0,6]	0.016235177759147287
+california.pd_v.center_matrix[0,6]	0.08765654438500149
+california.pd_v.logdet_matrix[1,1]	0.14305647596789564
+california.pd_v.center_matrix[1,1]	0.02578579099756466
+california.pd_v.logdet_matrix[1,2]	-0.0005263778273070014
+california.pd_v.center_matrix[1,2]	-0.002975877628862429
+california.pd_v.logdet_matrix[1,3]	-0.0005678016789579479
+california.pd_v.center_matrix[1,3]	-0.002671378275640412
+california.pd_v.logdet_matrix[1,4]	0.004023938166451682
+california.pd_v.center_matrix[1,4]	0.020567073758519176
+california.pd_v.logdet_matrix[1,5]	0.0009397822997144548
+california.pd_v.center_matrix[1,5]	0.0021533587023176174
+california.pd_v.logdet_matrix[1,6]	-0.0031112547075650525
+california.pd_v.center_matrix[1,6]	-0.014138630960328784
+california.pd_v.logdet_matrix[2,2]	0.14424713774192513
+california.pd_v.center_matrix[2,2]	0.03626887819754657
+california.pd_v.logdet_matrix[2,3]	0.001499381595084054
+california.pd_v.center_matrix[2,3]	0.01011492910970566
+california.pd_v.logdet_matrix[2,4]	-0.010625926344912877
+california.pd_v.center_matrix[2,4]	-0.0778875418930986
+california.pd_v.logdet_matrix[2,5]	-0.002481662796625565
+california.pd_v.center_matrix[2,5]	-0.008156129271424908
+california.pd_v.logdet_matrix[2,6]	0.008215822922555512
+california.pd_v.center_matrix[2,6]	0.05354494640870823
+california.pd_v.logdet_matrix[3,3]	0.14446510968280663
+california.pd_v.center_matrix[3,3]	0.03407753743648095
+california.pd_v.logdet_matrix[3,4]	-0.011415780722276206
+california.pd_v.center_matrix[3,4]	-0.06990379504616444
+california.pd_v.logdet_matrix[3,5]	-0.0026702685414936333
+california.pd_v.center_matrix[3,5]	-0.007319777841153979
+california.pd_v.logdet_matrix[3,6]	0.008862375729940601
+california.pd_v.center_matrix[3,6]	0.048061967548096524
+california.pd_v.logdet_matrix[4,4]	0.22385949084899315
+california.pd_v.center_matrix[4,4]	0.5632992489640923
+california.pd_v.logdet_matrix[4,5]	0.01893830888474688
+california.pd_v.center_matrix[4,5]	0.05636741499213423
+california.pd_v.logdet_matrix[4,6]	-0.0628065274523383
+california.pd_v.center_matrix[4,6]	-0.37008936073182036
+california.pd_v.logdet_matrix[5,5]	0.14728308735474474
+california.pd_v.center_matrix[5,5]	0.030902403952407096
+california.pd_v.logdet_matrix[5,6]	-0.014668332734335855
+california.pd_v.center_matrix[5,6]	-0.03875455353247194
+california.pd_v.logdet_matrix[6,6]	0.19141830338056434
+california.pd_v.center_matrix[6,6]	0.27942335466925916
 california_leakage_free.diag_v.logdet[Log per-capita state income]	0.0
 california_leakage_free.diag_v.logdet[Share of population aged 15-24]	0.3333
 california_leakage_free.diag_v.logdet[Retail cigarette price]	0.3333
@@ -394,6 +450,62 @@ california_leakage_free.pd_v.logdet.full[Cigarette sales per capita (1975)]	0.19
 california_leakage_free.pd_v.range_lo.full[Cigarette sales per capita (1975)]	1.8457234357032007e-10
 california_leakage_free.pd_v.range_hi.full[Cigarette sales per capita (1975)]	0.9999999998614706
 california_leakage_free.pd_v.center.full[Cigarette sales per capita (1975)]	0.2794199383827792
+california_leakage_free.pd_v.logdet_matrix[0,0]	0.005725046091518012
+california_leakage_free.pd_v.center_matrix[0,0]	0.03025162696836949
+california_leakage_free.pd_v.logdet_matrix[0,1]	-0.0010401681864791743
+california_leakage_free.pd_v.center_matrix[0,1]	-0.0048713000027049685
+california_leakage_free.pd_v.logdet_matrix[0,2]	0.0027467496068822148
+california_leakage_free.pd_v.center_matrix[0,2]	0.01844737257111517
+california_leakage_free.pd_v.logdet_matrix[0,3]	0.0013684805484478508
+california_leakage_free.pd_v.center_matrix[0,3]	0.016279294575639813
+california_leakage_free.pd_v.logdet_matrix[0,4]	-0.014793222421407869
+california_leakage_free.pd_v.center_matrix[0,4]	-0.12641771789691839
+california_leakage_free.pd_v.logdet_matrix[0,5]	-0.003748626922722452
+california_leakage_free.pd_v.center_matrix[0,5]	-0.013149660888853495
+california_leakage_free.pd_v.logdet_matrix[0,6]	0.016235177931286954
+california_leakage_free.pd_v.center_matrix[0,6]	0.08765459186313469
+california_leakage_free.pd_v.logdet_matrix[1,1]	0.1430564772020279
+california_leakage_free.pd_v.center_matrix[1,1]	0.025773121801207423
+california_leakage_free.pd_v.logdet_matrix[1,2]	-0.0005263778296426856
+california_leakage_free.pd_v.center_matrix[1,2]	-0.002975662680219558
+california_leakage_free.pd_v.logdet_matrix[1,3]	-0.0005678016849086136
+california_leakage_free.pd_v.center_matrix[1,3]	-0.002671030186291039
+california_leakage_free.pd_v.logdet_matrix[1,4]	0.004023938191731469
+california_leakage_free.pd_v.center_matrix[1,4]	0.020566543909097998
+california_leakage_free.pd_v.logdet_matrix[1,5]	0.0009397823220944724
+california_leakage_free.pd_v.center_matrix[1,5]	0.002153547476161001
+california_leakage_free.pd_v.logdet_matrix[1,6]	-0.0031112547361321886
+california_leakage_free.pd_v.center_matrix[1,6]	-0.014138676868643745
+california_leakage_free.pd_v.logdet_matrix[2,2]	0.14424713742464254
+california_leakage_free.pd_v.center_matrix[2,2]	0.036281735888222956
+california_leakage_free.pd_v.logdet_matrix[2,3]	0.0014993816144806323
+california_leakage_free.pd_v.center_matrix[2,3]	0.010114715119380934
+california_leakage_free.pd_v.logdet_matrix[2,4]	-0.010625926450675807
+california_leakage_free.pd_v.center_matrix[2,4]	-0.07788567112916188
+california_leakage_free.pd_v.logdet_matrix[2,5]	-0.0024816628283964525
+california_leakage_free.pd_v.center_matrix[2,5]	-0.008156019472208951
+california_leakage_free.pd_v.logdet_matrix[2,6]	0.008215823012235326
+california_leakage_free.pd_v.center_matrix[2,6]	0.05354365745896053
+california_leakage_free.pd_v.logdet_matrix[3,3]	0.14445668740193432
+california_leakage_free.pd_v.center_matrix[3,3]	0.03407821924941981
+california_leakage_free.pd_v.logdet_matrix[3,4]	-0.011392751800212675
+california_leakage_free.pd_v.center_matrix[3,4]	-0.0698976749486367
+california_leakage_free.pd_v.logdet_matrix[3,5]	-0.002664038107351372
+california_leakage_free.pd_v.center_matrix[3,5]	-0.0073185069545921265
+california_leakage_free.pd_v.logdet_matrix[3,6]	0.008862375818928427
+california_leakage_free.pd_v.center_matrix[3,6]	0.048060714895615315
+california_leakage_free.pd_v.logdet_matrix[4,4]	0.2238178679428761
+california_leakage_free.pd_v.center_matrix[4,4]	0.5632878047473311
+california_leakage_free.pd_v.logdet_matrix[4,5]	0.018920990015305405
+california_leakage_free.pd_v.center_matrix[4,5]	0.05636346381430774
+california_leakage_free.pd_v.logdet_matrix[4,6]	-0.06280652817778128
+california_leakage_free.pd_v.center_matrix[4,6]	-0.37008101688413736
+california_leakage_free.pd_v.logdet_matrix[5,5]	0.14727848057784612
+california_leakage_free.pd_v.center_matrix[5,5]	0.03090753668562535
+california_leakage_free.pd_v.logdet_matrix[5,6]	-0.01466833288243977
+california_leakage_free.pd_v.center_matrix[5,6]	-0.03875399238827479
+california_leakage_free.pd_v.logdet_matrix[6,6]	0.19141830335913443
+california_leakage_free.pd_v.center_matrix[6,6]	0.2794199383827792
 germany.diag_v.logdet[Per-capita GDP (1971-80)]	0.5291
 germany.diag_v.logdet[Trade openness (1971-80)]	0.1162
 germany.diag_v.logdet[Inflation rate (1971-80)]	0.0573
@@ -478,6 +590,48 @@ germany.pd_v.logdet.full[Investment rate (1970s)]	0.16715588732464742
 germany.pd_v.range_lo.full[Investment rate (1970s)]	-1.3181939767401457e-11
 germany.pd_v.range_hi.full[Investment rate (1970s)]	0.9982768638822563
 germany.pd_v.center.full[Investment rate (1970s)]	0.06697097921526403
+germany.pd_v.logdet_matrix[0,0]	0.20514212412279495
+germany.pd_v.center_matrix[0,0]	0.176346332206556
+germany.pd_v.logdet_matrix[0,1]	-0.01750715129146531
+germany.pd_v.center_matrix[0,1]	-0.07146951113334261
+germany.pd_v.logdet_matrix[0,2]	-0.0020124798086744
+germany.pd_v.center_matrix[0,2]	-0.042795377770123696
+germany.pd_v.logdet_matrix[0,3]	0.037518005321587396
+germany.pd_v.center_matrix[0,3]	0.11274145842833848
+germany.pd_v.logdet_matrix[0,4]	0.054372676394323284
+germany.pd_v.center_matrix[0,4]	0.219644907932715
+germany.pd_v.logdet_matrix[0,5]	0.005383003693883923
+germany.pd_v.center_matrix[0,5]	0.031090011734845897
+germany.pd_v.logdet_matrix[1,1]	0.17305456861636678
+germany.pd_v.center_matrix[1,1]	0.10175160285597441
+germany.pd_v.logdet_matrix[1,2]	-0.004283535619423838
+germany.pd_v.center_matrix[1,2]	0.0242469854981922
+germany.pd_v.logdet_matrix[1,3]	-0.0033564387634120976
+germany.pd_v.center_matrix[1,3]	-0.06381596949173797
+germany.pd_v.logdet_matrix[1,4]	-0.018772965308394323
+germany.pd_v.center_matrix[1,4]	-0.1315439394576928
+germany.pd_v.logdet_matrix[1,5]	-0.0018040160437760627
+germany.pd_v.center_matrix[1,5]	-0.018692299928424087
+germany.pd_v.logdet_matrix[2,2]	0.14964364746813705
+germany.pd_v.center_matrix[2,2]	0.06850169234200995
+germany.pd_v.logdet_matrix[2,3]	0.04322007456405329
+germany.pd_v.center_matrix[2,3]	-0.02528370130127545
+germany.pd_v.logdet_matrix[2,4]	0.016816021388893147
+germany.pd_v.center_matrix[2,4]	-0.07322604810497355
+germany.pd_v.logdet_matrix[2,5]	0.0018445114443375347
+germany.pd_v.center_matrix[2,5]	-0.010607865028007275
+germany.pd_v.logdet_matrix[3,3]	0.08406478652989592
+germany.pd_v.center_matrix[3,3]	0.12485105527963067
+germany.pd_v.logdet_matrix[3,4]	0.001158731871316163
+germany.pd_v.center_matrix[3,4]	0.1926444513908571
+germany.pd_v.logdet_matrix[3,5]	-0.0003592896159166242
+germany.pd_v.center_matrix[3,5]	0.02791645827070542
+germany.pd_v.logdet_matrix[4,4]	0.22093898593806569
+germany.pd_v.center_matrix[4,4]	0.4615783207332303
+germany.pd_v.logdet_matrix[4,5]	0.005166816220829687
+germany.pd_v.center_matrix[4,5]	0.05728573584871733
+germany.pd_v.logdet_matrix[5,5]	0.16715588732464742
+germany.pd_v.center_matrix[5,5]	0.06697097921526403
 == SESSION INFO ==
 python_3.13.16
 numpy_2.5.3

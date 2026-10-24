@@ -12,6 +12,9 @@ synthetic control, with a selectable predictor-weight backend:
   search or Becker-Kloessner (2018) global differential evolution.
 * ``"penalized"`` -- Abadie-L'Hour (2021) pairwise-penalized estimator (a
   unique, sparse ``W``); works with or without covariates.
+* ``"exact"`` -- Abadie-Shang (2026): the exact optimum of the bilevel
+  program over every ``W`` some diagonal (or positive definite) ``V`` selects,
+  with that ``V``'s log-det maximiser reported (:mod:`.exact`).
 
 The engine takes plain NumPy arrays so it can be unit-tested in isolation and
 reused outside the estimator. The ``VanillaSC`` estimator feeds it the matrices
@@ -31,7 +34,7 @@ from .solver import solve_bilevel
 from ..solvers.ridge_augment import simplex_qp
 
 _BACKENDS = ("auto", "outcome-only", "malo", "mscmt", "regression",
-             "penalized")
+             "penalized", "exact")
 # Keyword arguments each bilevel backend accepts (others are filtered out so a
 # single ``solver_kwargs`` blob can be passed regardless of backend).
 _SOLVER_KWARGS = {
@@ -41,6 +44,7 @@ _SOLVER_KWARGS = {
     "regression": {"normalize", "include_treated", "pooled", "fit_intercept",
                    "max_iter", "tol"},
     "penalized": {"lam", "cv", "lam_grid", "max_iter", "tol"},
+    "exact": {"v_class", "ranges", "face_counts", "max_cells"},
 }
 _EPS = 1e-10
 
@@ -115,7 +119,7 @@ class BilevelSCM:
 
     Parameters
     ----------
-    backend : {"auto", "outcome-only", "malo", "mscmt", "penalized"}
+    backend : {"auto", "outcome-only", "malo", "mscmt", "regression", "penalized", "exact"}
         Predictor-weight backend. ``"auto"`` (default) picks ``"outcome-only"``
         when no covariates are supplied and ``"mscmt"`` when they are.
     canonical_v : bool or {"min.loss.w", "max.order"}
@@ -144,7 +148,8 @@ class BilevelSCM:
         ``1``, ``True``).
     solver_kwargs
         Extra keyword arguments forwarded to the backend (e.g. ``maxiter``,
-        ``popsize`` for ``mscmt``; ``lam`` for ``penalized``).
+        ``popsize`` for ``mscmt``; ``lam`` for ``penalized``; ``v_class``,
+        ``ranges``, ``face_counts`` for ``exact``).
     """
 
     def __init__(
@@ -237,7 +242,7 @@ class BilevelSCM:
             # backend's predictor-weight search is neither needed nor used; keep
             # the base cheap. Covariates still flow to the ridge layer below.
             backend = "outcome-only"
-        if backend in ("malo", "mscmt", "regression") and not has_cov:
+        if backend in ("malo", "mscmt", "regression", "exact") and not has_cov:
             raise ValueError(
                 f"backend {backend!r} needs covariates (X1/X0); for outcome-only "
                 "matching use backend='outcome-only' or 'penalized'."

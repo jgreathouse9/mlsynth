@@ -242,6 +242,9 @@ With one treated unit, a sharp intervention, and a scalar ATT, start with
 trend, needs no convex-hull assumption, and gives valid inference even under
 nonstationarity, all with one estimated parameter. If you want the textbook
 simplex synthetic control of Abadie and co-authors, that is :doc:`vanillasc`;
+if you match on predictors as well as outcomes and want the bilevel choice of
+predictor weights solved exactly, not searched, that is :doc:`vanillasc` with
+``backend="exact"`` (Abadie and Shang 2026, :ref:`vanillasc-exact`);
 if the Forward Parallel Trends Assumption does not hold and you want a formal
 pre-trends test, use :doc:`tssc`. If none of the escalations below applies, you
 are done.

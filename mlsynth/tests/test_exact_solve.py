@@ -16,9 +16,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies as st
-
 from _exact_support import EXTERIOR, INTERIOR, exterior_design, inputs, interior_design
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.bilevel import BilevelProblem, BilevelSolution, solve_bilevel
 from mlsynth.utils.bilevel.exact import ExactDetails, lsq, solve_exact
@@ -96,6 +97,25 @@ def test_ranges_are_computed_only_on_request():
     assert sol.metadata["exact"].pd.range_lo is None and sol.metadata["exact"].pd.range_hi is None
 
 
+def test_the_lower_bound_is_the_unconstrained_fit():
+    """The bound the predictor constraint is measured against: the best simplex fit of the validation
+    outcomes with no V at all, 58.46 against a smaller number on Proposition 99."""
+    case, sol = _prop99()
+    _, _, Z1, Z0 = inputs(case)
+    w = simplex_qp(Z0, Z1)
+    assert np.isclose(sol.lower_bound, np.sum((Z1 - Z0 @ w) ** 2), rtol=1e-10)
+    assert sol.lower_bound < 0.9 * sol.upper_loss
+
+
+def test_face_counts_are_computed_on_request_outside_the_hull():
+    case = EXTERIOR["germany"]
+    d = solve_exact(_problem(case), face_counts=True).metadata["exact"]
+    assert d.face_counts is not None and d.face_counts.total == (16, 104, 341, 583, 495, 165)
+    assert solve_exact(_problem(case)).metadata["exact"].face_counts is None
+    inner = solve_exact(_problem(INTERIOR["random_interior_K3_J12_seed4007"]), face_counts=True)
+    assert inner.metadata["exact"].face_counts is None
+
+
 @pytest.mark.parametrize("name,tag,n_facets", [("prop99", "california", 4), ("germany", "germany", 1)])
 def test_a_positive_definite_optimum_reports_the_facets_that_hold_it(name, tag, n_facets):
     """Tables D.1 and D.2: the visible facets, and the facet run_all.py reports among those holding the
@@ -162,3 +182,20 @@ def test_a_problem_without_predictors_is_refused():
     prob = BilevelProblem(y1_pre=Z1, Y0_pre=Z0, X1=np.empty(0), X0=np.empty((0, Z0.shape[1])))
     with pytest.raises(MlsynthDataError, match="predictors"):
         solve_exact(prob)
+
+
+# --------------------------------------------------------------------------- the typed details' helpers
+@settings(max_examples=25, deadline=None)
+@given(K=st.integers(1, 6), seed=st.integers(0, 10_000))
+def test_property_shares_and_names_line_up(K, seed):
+    from mlsynth.utils.bilevel.exact import PDRationalizers
+    rng = np.random.default_rng(seed)
+    L = rng.normal(size=(K, K))
+    V = L @ L.T + 0.1 * np.eye(K)
+    p = PDRationalizers(logdet=V, center=2.0 * V, logdet_min_eig=float(np.linalg.eigvalsh(V).min()))
+    assert np.isclose(p.logdet_shares.sum(), 1.0) and np.allclose(p.logdet_shares, p.center_shares)
+    names = tuple(f"p{k}" for k in range(K))
+    d = ExactDetails(v_class="pd", regime="exterior", predictor_names=names, validation_loss=1.0, pd=p)
+    assert d.by_name(p.logdet_shares) == {n: float(v) for n, v in zip(names, p.logdet_shares)}
+    with pytest.raises(AttributeError):
+        d.regime = "interior"                                # frozen

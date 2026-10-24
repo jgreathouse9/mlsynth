@@ -45,9 +45,9 @@ def load(paths: dict) -> dict:
     for p in (support, python):
         if p not in sys.path:
             sys.path.insert(0, p)
-    import data_preparation                       # noqa: E402  (theirs)
-    import predictor_weights                      # noqa: E402  (theirs)
-    import visible_facet_solver                   # noqa: E402  (theirs)
-    import synthx                                 # noqa: E402  (theirs)
+    import data_preparation  # noqa: E402  (theirs)
+    import predictor_weights  # noqa: E402  (theirs)
+    import synthx  # noqa: E402  (theirs)
+    import visible_facet_solver  # noqa: E402  (theirs)
     return dict(data_preparation=data_preparation, predictor_weights=predictor_weights,
                 visible_facet_solver=visible_facet_solver, synthx=synthx)

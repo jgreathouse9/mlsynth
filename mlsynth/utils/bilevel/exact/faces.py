@@ -64,7 +64,7 @@ def _attainable(hull, sigma, F0, z, Z, scale):
         if m < K - 1:
             val, _ = face_min(X0, X1, z, Z, sigma, set().union(*star) - sigma, np.inf)
             return bool(np.isfinite(val))
-        if len(star) != 2:
+        if len(star) != 2:       # pragma: no cover - a ridge of a simplicial hull lies in two facets
             raise MlsynthDataError("a ridge lies in other than two facets; general position fails")
         G1, G2 = star
         patterns = ridge_patterns(hull.normal[G1][0], hull.normal[G2][0])

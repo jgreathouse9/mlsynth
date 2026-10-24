@@ -15,11 +15,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from _exact_support import EXTERIOR, INTERIOR, inputs, random_instance
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 from scipy.optimize import linprog
 from scipy.spatial import ConvexHull
 
-from _exact_support import EXTERIOR, INTERIOR, inputs, random_instance
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.bilevel.exact import faces
 from mlsynth.utils.bilevel.exact.structures import FaceCounts
@@ -129,6 +130,13 @@ def test_an_interior_treated_unit_sees_no_face():
     X1, X0, _, _ = inputs(INTERIOR["random_interior_K3_J12_seed4007"])
     got = faces.face_counts(X1, X0)
     assert got.visible == (0, 0, 0) and got.attainable == (0, 0, 0) and sum(got.total) > 0
+
+
+def test_a_facet_with_more_than_k_donors_is_refused():
+    """A cube's faces hold four donors each, so its hull is not simplicial (general position fails)."""
+    X0 = np.array([[x, y, z] for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)]).T
+    with pytest.raises(MlsynthDataError, match="holds 4 donors"):
+        faces.face_counts(np.array([2.0, 2.5, 3.0]), X0)
 
 
 def test_a_lower_dimensional_hull_is_refused():

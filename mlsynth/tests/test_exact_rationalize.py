@@ -12,11 +12,14 @@ from __future__ import annotations
 import cvxpy as cp
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies as st
+from _exact_support import EXTERIOR as CASES
+from _exact_support import INTERIOR, exterior_design, interior_design
+from _exact_support import inputs as _inputs
+from _exact_support import selection as _selection
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from scipy.optimize import linprog
 
-from _exact_support import (EXTERIOR as CASES, INTERIOR, exterior_design, inputs as _inputs,
-                            interior_design, selection as _selection)
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.bilevel.exact import interior, rationalize, search
 
@@ -263,3 +266,75 @@ def test_interior_weights_no_positive_definite_v_selects_are_refused():
     w[list(A)] = cells[A]
     with pytest.raises(MlsynthDataError, match="no positive definite V selects"):
         rationalize.pd_rationalizers(X1, X0, w)
+
+
+# --------------------------------------------------------------------------- the exterior case, as properties
+def _selects(V, X1, X0, w, tol):
+    """w minimises ||X1 - X0 b||_V over the simplex: the inner problem under V, through V^(1/2)."""
+    from mlsynth.utils.solvers.ridge_augment import simplex_qp
+    lam, U = np.linalg.eigh(V)
+    S = U @ np.diag(np.sqrt(np.clip(lam, 0.0, None))) @ U.T
+    b = simplex_qp(S @ X0, S @ X1)
+    r_b, r_w = X1 - X0 @ b, X1 - X0 @ w
+    return float(r_w @ V @ r_w) <= float(r_b @ V @ r_b) + tol, b
+
+
+@settings(max_examples=15, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(3, 5), extra=st.integers(3, 9))
+def test_property_exterior_rationalisers_select_the_weights(seed, K, extra):
+    """Each reported V is in its class and selects w; the positive definite log-det maximiser selects
+    it uniquely, and the identified ranges hold both centres' shares."""
+    X1, X0, w = _rationalisable(seed, K, K + extra)
+    sd = np.column_stack([X1, X0]).std(axis=1, ddof=1)
+    S1, S0 = X1 / sd, X0 / sd[:, None]
+    d = rationalize.diag_rationalizers(X1, X0, w)
+    for vec in (d["logdet"], d["center"]):
+        assert vec.min() >= 0.0 and abs(vec.sum() - 1.0) <= 1e-9
+        assert np.all(vec[d["forced_zero"]] == 0.0)
+        assert _selects(np.diag(vec), S1, S0, w, 1e-9)[0]
+    p = rationalize.pd_rationalizers(X1, X0, w, ranges=True)
+    for V in (p["Vstar"], p["Vcenter"]):
+        assert np.linalg.eigvalsh(V).min() > 0.0 and abs(np.trace(V) - 1.0) <= 1e-9
+    ok, b = _selects(p["Vstar"], S1, S0, w, 1e-9)
+    assert ok and np.allclose(b, w, atol=1e-6)
+    for shares in (p["logdet_diag"], p["center_diag"]):
+        assert np.all(p["lo"] <= shares + 1e-7) and np.all(shares <= p["hi"] + 1e-7)
+    assert np.all(p["lo"] >= -1e-9) and np.all(p["hi"] <= 1.0 + 1e-9)
+
+
+# --------------------------------------------------------------------------- failure: Newton's method and its starts
+def test_newton_s_method_refuses_a_start_outside_its_domain():
+    from mlsynth.exceptions import MlsynthEstimationError
+    with pytest.raises(MlsynthEstimationError, match="strictly feasible start"):
+        rationalize._newton_eq(np.array([0.5, -0.5]), lambda x: (0.0, x, np.eye(2)), np.ones((1, 2)),
+                               np.zeros(1), lambda x: bool(np.all(x > 0)))
+
+
+def test_a_line_search_that_finds_no_point_in_the_domain_returns_its_start():
+    """When every trial step leaves the domain (the objective is +inf there), the search halves the step
+    to its floor and hands back the point it started from, unchanged."""
+    x0 = np.array([0.6, 0.4])
+    got = rationalize._newton_eq(x0, lambda x: (float(x @ x), 2.0 * x, 2.0 * np.eye(2)),
+                                 np.array([[1.0, -1.0]]), np.array([0.2]), lambda x: True,
+                                 fun=lambda x: np.inf)
+    assert np.array_equal(got, x0)
+
+
+def test_weights_no_positive_definite_v_rationalises_are_refused():
+    """Proposition 99's donor 0 alone is a vertex no positive definite V selects."""
+    from mlsynth.exceptions import MlsynthDataError as DataError
+    X1, X0, _, _ = _inputs(CASES["prop99"])
+    w = np.zeros(X0.shape[1])
+    w[0] = 1.0
+    with pytest.raises(DataError, match="not rationalised by any positive definite V"):
+        rationalize.pd_rationalizers(X1, X0, w)
+
+
+def test_a_centre_from_a_matrix_that_is_not_positive_definite_is_refused():
+    from mlsynth.exceptions import MlsynthEstimationError
+    K = 2
+    Bm = rationalize._basis(K).reshape(-1, K * K)
+    x0 = np.array([1.0, 0.0, -1.0])                         # V = diag(1, -1)
+    with pytest.raises(MlsynthEstimationError, match="strictly feasible start"):
+        rationalize._pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]),
+                                np.zeros((0, 3)), x0, False)

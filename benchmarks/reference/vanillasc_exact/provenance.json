@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-23T23:58:54Z",
-  "git_sha": "2d0562020effcbd631a811ad3034d11cb311459c",
+  "generated_at": "2026-10-24T00:34:13Z",
+  "git_sha": "8301402a6328c87bba7eff1c7226ef8a80a7529c",
   "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
   "command": "python benchmarks/reference/vanillasc_exact/reference.py",
   "data": [

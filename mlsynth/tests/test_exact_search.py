@@ -14,9 +14,12 @@ import os
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from _exact_support import EXTERIOR as CASES
+from _exact_support import INTERIOR, random_instance
+from _exact_support import inputs as _inputs
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
-from _exact_support import EXTERIOR as CASES, INTERIOR, inputs as _inputs, random_instance
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.bilevel.exact import interior, rationalize, search
 from mlsynth.utils.solvers.ridge_augment import simplex_qp
@@ -198,3 +201,10 @@ def test_live_against_authors_code():
         lr, wr, _ = vfs.solve_exterior_hullfree(X0, X1, Z1, Z0)
         lo, wo = search.solve_diag(X1, X0, Z1, Z0)
         assert abs(lo - lr) <= 1e-9 * max(1.0, lr) and np.abs(wo - wr).max() <= 1e-7
+
+
+def test_non_finite_inputs_are_refused():
+    X1, X0, Z1, Z0 = _inputs(CASES["germany"])
+    for solve in (search.solve_diag, search.solve_pd):
+        with pytest.raises(MlsynthDataError, match="finite"):
+            solve(X1, X0, Z1 * np.nan, Z0)

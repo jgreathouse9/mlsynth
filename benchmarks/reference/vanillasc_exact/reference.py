@@ -20,7 +20,9 @@ the run writes to ``output/``:
   optimum, diagonal (log-det maximiser, analytic centre, support) and positive
   definite (log-det maximiser, analytic centre, identified ranges). ``run_all.py``
   rounds these to four decimals; the same functions are also called here with
-  ``decimals=None`` on the saved weights, keys ending in ``.full``.
+  ``decimals=None`` on the saved weights, keys ending in ``.full``, and the positive
+  definite log-det maximiser and analytic centre are recorded entry by entry
+  (``logdet_matrix[k,l]``, ``center_matrix[k,l]``, upper triangle).
 
 The run's own check, ``output/verification.txt``, must report every paper number
 reproduced, and the two panels in its ``data/`` must be byte-identical to
@@ -44,6 +46,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -104,9 +108,9 @@ def main() -> int:
         return 1
 
     sys.path.insert(0, str(rep / "code" / "support"))
-    import data_preparation as dp            # noqa: E402  (theirs, at the pinned commit)
-    import predictor_weights as pw           # noqa: E402
-    import treatment_effects as te           # noqa: E402
+    import data_preparation as dp  # noqa: E402  (theirs, at the pinned commit)
+    import predictor_weights as pw  # noqa: E402
+    import treatment_effects as te  # noqa: E402
 
     def load(name):
         return json.loads((out / name).read_text())
@@ -165,14 +169,17 @@ def main() -> int:
         _emit(f"{tag}.pd_v.logdet_min_eig", lv["min_eig"])
         _emit(f"{tag}.pd_v.center_min_eig", av["min_eig"])
         _emit(f"{tag}.pd_v.center_n_implicit_equalities", av["n_implicit_equalities"])
-        _, fl = pw.compute_pd_logdet_and_ranges(case.X1, case.X0, case.weights, case.predictor_names,
-                                                decimals=None)
-        _, fc = pw.analytic_center(case.X1, case.X0, case.weights, case.predictor_names, decimals=None)
+        Vl, fl = pw.compute_pd_logdet_and_ranges(case.X1, case.X0, case.weights, case.predictor_names,
+                                                 decimals=None)
+        Vc, fc = pw.analytic_center(case.X1, case.X0, case.weights, case.predictor_names, decimals=None)
         for name in fl["diag"]:
             _emit(f"{tag}.pd_v.logdet.full[{name}]", fl["diag"][name])
             _emit(f"{tag}.pd_v.range_lo.full[{name}]", fl["ranges"][name][0])
             _emit(f"{tag}.pd_v.range_hi.full[{name}]", fl["ranges"][name][1])
             _emit(f"{tag}.pd_v.center.full[{name}]", fc["diag"][name])
+        for k, l in zip(*np.triu_indices(len(case.predictor_names))):   # the matrices themselves
+            _emit(f"{tag}.pd_v.logdet_matrix[{k},{l}]", Vl[k, l])
+            _emit(f"{tag}.pd_v.center_matrix[{k},{l}]", Vc[k, l])
 
     print("== SESSION INFO ==")
     print(f"python_{platform.python_version()}")

@@ -9017,3 +9017,183 @@ timeout = 900.0
   find = "        while fun(x + step * dx) > f - 0.25 * step * lam2:"
   replace = "        while not in_domain(x + step * dx) or vgh(x + step * dx)[0] > f - 0.25 * step * lam2:"
   models = "a line search that computes the gradient and Hessian at every trial step, the cost the objective-only line search removed"
+
+[[target]]
+name = "vanillasc-exact-solve"
+module-path = "mlsynth/utils/bilevel/exact/solve.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_solve.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pd-shares-reported-for-the-diagonal-class"
+  find = "    V = diagonal.logdet if diagonal is not None else pd.logdet_shares"
+  replace = "    V = pd.logdet_shares"
+  models = "the diagonal class reporting the positive definite log-det maximiser's shares as its predictor weights, a V that need not be diagonal-attainable for the donor weights it is shown beside"
+
+  [[target.mutant]]
+  id = "ranges-never-computed"
+  find = "    pr = rationalize.pd_rationalizers(X1, X0, W, ranges=ranges)"
+  replace = "    pr = rationalize.pd_rationalizers(X1, X0, W, ranges=False)"
+  models = "exact_ranges accepted and recorded but the identified ranges never computed, so the result reports None where the caller asked for Table 4's ranges"
+
+  [[target.mutant]]
+  id = "lower-bound-is-the-optimum"
+  find = "                           lower_bound=float(np.sum((Z1 - Z0 @ w_free) ** 2)), stage=\"exact\","
+  replace = "                           lower_bound=loss, stage=\"exact\","
+  models = "the unconstrained lower bound replaced by the optimum itself, which hides how much fit the predictor constraint costs (58.46 against the free fit on Proposition 99)"
+
+  [[target.mutant]]
+  id = "face-counts-never-computed"
+  find = "        face_counts=faces.face_counts(X1, X0) if face_counts and regime == \"exterior\" else None,"
+  replace = "        face_counts=None,"
+  models = "exact_face_counts accepted and recorded but the counts never computed"
+
+  [[target.mutant]]
+  id = "unknown-class-falls-to-pd"
+  find = "    if v_class not in V_CLASSES:"
+  replace = "    if False:"
+  models = "a misspelled v_class read as the positive definite class, so a typo changes the estimator without a word"
+
+  [[target.mutant]]
+  id = "lower-loss-unweighted"
+  find = "    lower = float(np.sum(V * r ** 2)) if diagonal is not None else float(r @ pd.logdet @ r / np.trace(pd.logdet))"
+  replace = "    lower = float(np.sum(r ** 2)) if diagonal is not None else float(r @ pd.logdet @ r / np.trace(pd.logdet))"
+  models = "the lower-level loss reported without the predictor weights, so it no longer measures the V-weighted discrepancy the weights minimise"
+
+[[target]]
+name = "vanillasc-exact-faces"
+module-path = "mlsynth/utils/bilevel/exact/faces.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_faces.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-facet-counted-visible"
+  find = "    visible = [F for F, eq in facets if eq[:-1] @ X1 + eq[-1] > TOL]"
+  replace = "    visible = [F for F, eq in facets]"
+  models = "the visible faces read off every facet of the hull, not only those the treated unit sees"
+
+  [[target.mutant]]
+  id = "every-visible-face-counted-attainable"
+  find = "        if _attainable(hull, sigma, F0, z, Z, scale):"
+  replace = "        if True:"
+  models = "attainability never tested, so the attainable column of Table 3 repeats the visible one"
+
+  [[target.mutant]]
+  id = "edges-taken-as-attainable"
+  find = "        (val, _), _ = edge_min(X0, X1, z, Z, sigma, np.inf)\n        return bool(np.isfinite(val))"
+  replace = "        return True"
+  models = "an edge counted attainable without the residual-arrangement test, which on Proposition 99 would count 183 attainable edges where there are 6"
+
+  [[target.mutant]]
+  id = "non-simplicial-facet-accepted"
+  find = "        if len(on) != K:"
+  replace = "        if False:"
+  models = "a facet holding more than K donors counted as if simplicial, so every subset of it is called a face and the counts are silently wrong"
+
+[[target]]
+name = "vanillasc-exact-config"
+module-path = "mlsynth/utils/vanillasc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "exact-without-covariates-accepted"
+  find = "        if self.backend == \"exact\" and not self.covariates:"
+  replace = "        if False:"
+  models = "backend='exact' accepted with no predictors, so the request fails later inside the engine or falls back to another estimator"
+
+  [[target.mutant]]
+  id = "exact-with-ridge-accepted"
+  find = "        if self.backend == \"exact\" and self.augment == \"ridge\":"
+  replace = "        if False:"
+  models = "backend='exact' combined with augment='ridge', where the ridge layer discards the exact weights it was asked to augment"
+
+  [[target.mutant]]
+  id = "exact-options-ignored-elsewhere"
+  find = "        if self.backend != \"exact\":\n            set_options = ["
+  replace = "        if False:\n            set_options = ["
+  models = "exact_v_class, exact_ranges or exact_face_counts set beside another backend and silently ignored"
+
+[[target]]
+name = "vanillasc-exact-pipeline"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "fit-exclude-ignored"
+  find = "    if config.fit_exclude:\n        pre_list = time_labels[:pre].tolist()"
+  replace = "    if False:\n        pre_list = time_labels[:pre].tolist()"
+  models = "fit_exclude accepted and recorded but every pre-treatment period kept in the outcome fit, which on Proposition 99 returns the headline weights for the leakage-free sample"
+
+  [[target.mutant]]
+  id = "unknown-exclusion-dropped"
+  find = "        if missing:\n            raise MlsynthDataError("
+  replace = "        if False:\n            raise MlsynthDataError("
+  models = "an exclusion that names no pre-treatment period dropped without a word, so a mistyped year leaks into the fit"
+
+  [[target.mutant]]
+  id = "refits-keep-the-extras"
+  find = "        if config.backend == \"exact\":\n            # The ranges and face counts describe the treated unit's fit."
+  replace = "        if False:\n            # The ranges and face counts describe the treated unit's fit."
+  models = "every placebo refit computing the ranges and face counts the treated unit's fit reports, a 2K-barrier and face-sweep cost per donor for numbers nobody reads"
+
+  [[target.mutant]]
+  id = "exact-details-dropped"
+  find = "        exact=res.diagnostics.get(\"exact\"),"
+  replace = "        exact=None,"
+  models = "the exact backend's typed details left off the result"
+
+  [[target.mutant]]
+  id = "ranges-not-forwarded"
+  find = "            ranges=config.exact_ranges,"
+  replace = "            ranges=False,"
+  models = "exact_ranges accepted by the config but never handed to the backend"
+
+[[target]]
+name = "vanillasc-exact-engine"
+module-path = "mlsynth/utils/bilevel/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "exact-falls-back-to-outcome-only"
+  find = "        if backend in (\"malo\", \"mscmt\", \"regression\", \"exact\") and not has_cov:"
+  replace = "        if backend in (\"malo\", \"mscmt\", \"regression\") and not has_cov:"
+  models = "the exact backend called without predictors running the outcome-only fit and reporting it as exact"
+
+  [[target.mutant]]
+  id = "exact-options-filtered-out"
+  find = "    \"exact\": {\"v_class\", \"ranges\", \"face_counts\", \"max_cells\"},"
+  replace = "    \"exact\": {\"v_class\"},"
+  models = "the engine's per-backend filter dropping the exact backend's ranges and face counts"
+
+[[target]]
+name = "vanillasc-exact-hull"
+module-path = "mlsynth/utils/bilevel/exact/hull.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_hull.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "neighbour-turns-the-narrowest-angle"
+  find = "        d = int(np.flatnonzero(mask)[np.argmax(ang[mask])])"
+  replace = "        d = int(np.flatnonzero(mask)[np.argmin(ang[mask])])"
+  models = "gift wrapping that rotates to the donor of least angle, which builds a plane through the hull's interior instead of the facet across the ridge"
+
+  [[target.mutant]]
+  id = "star-walks-one-ring"
+  find = "                if H not in out:\n                    out.add(H)\n                    queue.append(H)"
+  replace = "                if H not in out:\n                    out.add(H)"
+  models = "the star of a face collected from the first facet's neighbours only, so a face lying in more facets than one ring reaches gets a normal cone with walls missing"
+
+  [[target.mutant]]
+  id = "outside-read-from-the-wrong-status"
+  find = "    return res.status == 2"
+  replace = "    return res.status == 0"
+  models = "the hull-membership LP read backwards, so every treated unit inside the hull is sent to the exterior search and every one outside to the interior walk"
+
+  [[target.mutant]]
+  id = "rank-threshold-relative-only"
+  find = "    return int((sv > max(tol * sv[0], floor)).sum())"
+  replace = "    return int((sv > tol * sv[0]).sum())"
+  models = "the rank test of the original port: with every donor at one point the largest singular value is rounding, a threshold relative to it counts it, and a degenerate hull passes the general-position check"

@@ -30,12 +30,12 @@ import os
 for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
-import datetime          # noqa: E402
-import hashlib           # noqa: E402
-import json              # noqa: E402
-import platform          # noqa: E402
-import sys               # noqa: E402
-import warnings          # noqa: E402
+import datetime  # noqa: E402
+import hashlib  # noqa: E402
+import json  # noqa: E402
+import platform  # noqa: E402
+import sys  # noqa: E402
+import warnings  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -43,12 +43,12 @@ for p in (ROOT, ROOT / "mlsynth" / "tests"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-import numpy as np       # noqa: E402
-import scipy             # noqa: E402
+import numpy as np  # noqa: E402
+import scipy  # noqa: E402
+from _exact_support import random_instance, random_interior_instance  # noqa: E402
 
-from _exact_support import random_instance, random_interior_instance   # noqa: E402
 from benchmarks.reference.vanillasc_exact.authors import REPOS, fetch, load  # noqa: E402
-from mlsynth.utils.bilevel.exact.hull import outside_hull                # noqa: E402
+from mlsynth.utils.bilevel.exact.hull import outside_hull  # noqa: E402
 
 OUT = ROOT / "mlsynth" / "tests" / "fixtures" / "exact"
 EXTERIOR_SIZES, EXTERIOR_PER_SIZE = [(3, 10), (4, 15), (5, 20)], 8

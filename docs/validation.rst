@@ -9,8 +9,8 @@ test suite asserts against, so the numbers here cannot drift from what CI
 enforces. Each row links to the reference implementation, the dataset (with
 checksum), and the mlsynth case that runs the check.
 
-Coverage: **88 cross-validation checks** against original
-implementations across **45 estimators** -- 35 reproduce the reference to display precision, 29 to
+Coverage: **89 cross-validation checks** against original
+implementations across **45 estimators** -- 36 reproduce the reference to display precision, 29 to
 within two percent. A further 6 are captured on the next daily run (see `Pending capture`_). Per-estimator paper replications (Path A / Path B) are catalogued in :doc:`replications`.
 
 Legend: **exact** (agreement to display precision), **tight** (worst
@@ -202,8 +202,8 @@ Summary
      - 1 tight
      - 0.0004
    * - :ref:`VanillaSC <val-vanillasc>`
-     - 20
-     - 6 exact · 7 tight · 6 close · 1 documented
+     - 21
+     - 7 exact · 7 tight · 6 close · 1 documented
      - 4.1
    * - :ref:`mlsynth.utils.inferutils.rae <val-mlsynth-utils-inferutils-rae>`
      - 1
@@ -1435,6 +1435,12 @@ VanillaSC
      - 0.028
      - close
      - `vanillasc_carbontax <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_carbontax.py>`__
+   * - lychemon/synth-AS-replication run_all.py (live run, captured)
+     - ``abadie_shang_smoking.csv`` (d1b537fc9b69…)
+     - 115
+     - 2.3e-05
+     - exact — matches to display precision
+     - `vanillasc_exact <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_exact.py>`__
    * - Synth (uniform custom.v) + tidysynth (ADH spec)
      - —
      - 7

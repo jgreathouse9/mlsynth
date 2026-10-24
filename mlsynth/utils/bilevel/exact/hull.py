@@ -36,9 +36,18 @@ def outside_hull(X1, X0):
 
 
 def affine_rank(X0, tol=1e-7):
+    """The dimension of the donors' affine hull.
+
+    A singular value counts when it clears tol times the largest one and the rounding that
+    centring leaves, about eps |X0| per entry: when every donor sits at one point the largest
+    singular value is that rounding itself, and a threshold relative to it alone counts it.
+    """
     C = X0 - X0.mean(axis=1, keepdims=True)
     sv = np.linalg.svd(C, compute_uv=False)
-    return int((sv > tol * sv[0]).sum()) if sv.size and sv[0] > 0 else 0
+    if not sv.size:
+        return 0
+    floor = 100.0 * np.finfo(float).eps * float(np.abs(X0).max()) * np.sqrt(X0.size)
+    return int((sv > max(tol * sv[0], floor)).sum())
 
 
 def _hyperplane(P, interior):

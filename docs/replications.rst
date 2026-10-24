@@ -78,6 +78,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/cwz_ttest
    replications/vanillasc
    replications/vanillasc_olympics
+   replications/vanillasc_exact
    replications/lamba_tigers
    replications/vanillasc_staggered
    replications/synth_jhai_prop99
@@ -196,6 +197,15 @@ Canonical workhorses
   ``scpi``'s published in-sample band (durable: ``scpi_staggered``,
   ``scpi_staggered_pi``).
   → dedicated page: :doc:`replications/vanillasc_staggered`.
+* :doc:`vanillasc` (exact backend) -- Abadie & Shang (2026), "Synthetic
+  Control: An Exact Geometric Formulation." Path A, checked against the
+  authors' own ``run_all.py`` at commit 791a3865: on Proposition 99 and West
+  Germany, in the diagonal and positive definite classes and the leakage-free
+  sample, the donor weights agree to :math:`10^{-9}` or better, the losses to
+  :math:`10^{-12}`, the mean gaps (-19.0 and -19.8 packs, -1391 and -1582
+  USD), Table 3's face counts exactly, and the predictor weights of Tables 2,
+  4 and 6 to the authors' solver tolerance (durable: ``vanillasc_exact``).
+  → dedicated page: :doc:`replications/vanillasc_exact`.
 * :doc:`vanillasc` (as a forecasting method) -- Klößner & Pfeifer (2018).
   Path A: the donor pool is built from the series' own lags and there is no
   treatment, so the outcome-only fit becomes an AR whose coefficients are

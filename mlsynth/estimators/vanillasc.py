@@ -10,7 +10,9 @@ self-contained bilevel machinery:
 * **Covariates** -> the bilevel program (predictor weights ``V`` + donor
   weights ``W``), solved by a *reliable* backend: ``"mscmt"`` (global
   differential evolution, Becker-Kloessner 2018), ``"malo"`` (corner search,
-  Malo et al. 2024), or ``"penalized"`` (unique/sparse, Abadie-L'Hour 2021).
+  Malo et al. 2024), ``"penalized"`` (unique/sparse, Abadie-L'Hour 2021), or
+  ``"exact"`` (the exact optimum, Abadie-Shang 2026; its typed details are the
+  result's ``exact`` field).
 
 Because predictor weights are generically non-identified, VanillaSC reports a
 ``v_agreement`` diagnostic (the gap between the two MSCMT canonical ``V``

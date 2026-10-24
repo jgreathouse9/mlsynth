@@ -17,10 +17,11 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from _exact_support import random_instance
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 from scipy.optimize import linprog
 
-from _exact_support import random_instance
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
 from mlsynth.utils.bilevel.exact import lsq, patterns
 from mlsynth.utils.bilevel.exact.hull import Hull
@@ -215,3 +216,84 @@ def test_a_link_inside_the_face_s_affine_hull_is_refused():
     Z0 = np.eye(3, 4)
     with pytest.raises(MlsynthDataError, match="normal cone"):
         patterns.face_min(X0, np.array([0.5, -1.0]), np.zeros(3), Z0, frozenset({0, 1}), {2}, np.inf)
+
+
+# --------------------------------------------------------------------------- the cone test and the edge search
+def _cone_oracle(X0, sigma, sgn, zero):
+    """Some orthant agreeing with sgn off the zero set (either sign on it) meets N(sigma) away from 0."""
+    admitted = _feasible_sign_vectors(X0, sigma)
+    return any(all(s[k] == sgn[k] for k in range(len(sgn)) if not zero[k]) for s in admitted)
+
+
+@settings(max_examples=30, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(3, 5), extra=st.integers(3, 8), m=st.integers(1, 3),
+       pick=st.integers(0, 50), signs=st.integers(0, 2 ** 31), nzero=st.integers(0, 2))
+def test_property_cone_compatible_matches_orthant_enumeration(seed, K, extra, m, pick, signs, nzero):
+    f = _face(seed, K, K + extra, m, pick)
+    rng = np.random.default_rng(signs)
+    sgn = rng.choice([-1.0, 1.0], size=K)
+    zero = np.zeros(K, bool)
+    zero[rng.choice(K, size=nzero, replace=False)] = True
+    sgn[zero] = 0.0
+    assert patterns.cone_compatible(f.X0, f.sigma, sgn, zero) == _cone_oracle(f.X0, f.sigma, sgn, zero)
+
+
+def _edge_oracle(X0, X1, z, Z, sigma):
+    """The best fit over the union of the edge's pieces: each admitted orthant s leaves an interval of
+    t, the fit ||a - t b||^2 is convex in t, so its minimum on an interval is the clipped free minimiser."""
+    i, j = sorted(sigma)
+    g, h = X1 - X0[:, i], X0[:, j] - X0[:, i]
+    a, b = z - Z[:, i], Z[:, j] - Z[:, i]
+    t_free = (a @ b) / (b @ b)
+    best = np.inf
+    for s in _feasible_sign_vectors(X0, sigma):
+        lo, hi = 0.0, 1.0
+        for k in range(len(s)):                         # s_k (g_k - t h_k) >= 0
+            if abs(h[k]) <= 1e-12:
+                if s[k] * g[k] < 0:
+                    lo, hi = 1.0, 0.0
+            elif s[k] * h[k] > 0:
+                hi = min(hi, g[k] / h[k])
+            else:
+                lo = max(lo, g[k] / h[k])
+        if lo <= hi:
+            t = float(np.clip(t_free, lo, hi))
+            best = min(best, float(np.sum((a - t * b) ** 2)))
+    return best
+
+
+@settings(max_examples=30, deadline=None)
+@given(seed=st.integers(0, 10_000), K=st.integers(3, 6), extra=st.integers(3, 8), pick=st.integers(0, 50))
+def test_property_an_edge_gets_its_best_attainable_fit(seed, K, extra, pick):
+    f = _face(seed, K, K + extra, 2, pick)
+    (val, t), _ = patterns.edge_min(f.X0, f.X1, f.Z1, f.Z0, f.sigma, np.inf)
+    want = _edge_oracle(f.X0, f.X1, f.Z1, f.Z0, f.sigma)
+    if not np.isfinite(want):
+        assert val == np.inf and t is None
+        return
+    assert np.isclose(val, want, rtol=1e-9, atol=1e-12)
+    i, j = sorted(f.sigma)
+    a, b = f.Z1 - f.Z0[:, i], f.Z0[:, j] - f.Z0[:, i]
+    assert np.isclose(np.sum((a - t * b) ** 2), val, rtol=1e-12)
+
+
+def test_an_edge_attainable_at_one_point_gets_that_point():
+    """On edge {2, 3} of this design two residuals vanish together at t = 1/2: the open intervals on
+    either side are not attainable, the point between them is, and it is the edge's answer."""
+    X0 = np.array([[-1.0, -2.0, 0.0, 1.0, 2.0], [2.0, -2.0, 3.0, -3.0, 1.0], [3.0, 1.0, 3.0, -1.0, 3.0]])
+    X1 = np.array([2.0, 0.0, 1.0])
+    z, Z = np.zeros(5), np.eye(5)
+    (val, t), n_lp = patterns.edge_min(X0, X1, z, Z, frozenset({2, 3}), np.inf)
+    assert t == 0.5 and np.isclose(val, 0.5) and n_lp >= 3
+    assert np.allclose(X1 - (0.5 * X0[:, 2] + 0.5 * X0[:, 3]), [1.5, 0.0, 0.0])
+    assert _edge_oracle(X0, X1, z, Z, frozenset({2, 3})) == pytest.approx(0.5)
+
+
+def test_a_cone_vector_supported_on_the_zero_residuals_counts():
+    """At vertex (0, 0) of this triangle every normal has c_1 <= 0, so no c meets r = (0, 2) with
+    c_1 > 0; but c = (1, 0), supported where the residual vanishes, is in the normal cone."""
+    X0 = np.array([[0.0, 0.0, -1.0], [0.0, 1.0, 0.5]])
+    sgn, zero = np.array([0.0, 1.0]), np.array([True, False])
+    assert patterns.cone_compatible(X0, frozenset({0}), sgn, zero)
+    assert _cone_oracle(X0, frozenset({0}), sgn, zero)
+    assert not patterns.cone_compatible(X0, frozenset({0}), np.array([0.0, 1.0]), np.array([False, False]))

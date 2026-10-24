@@ -128,7 +128,7 @@ def solve_diag(X1, X0, Z1, Z0, stats=None, max_cells=interior.MAX_CELLS):
                 if root[0] is None or root[0] >= U:
                     ctr["relaxation_prunes"] += 1
                 elif m == K - 1:
-                    if len(gens) != 2:
+                    if len(gens) != 2:   # pragma: no cover - a ridge of a simplicial hull lies in two facets
                         raise MlsynthDataError("a ridge lies in other than two facets; general position fails")
                     patterns = ridge_patterns(gens[0], gens[1])
                 else:                                    # below the ridges: branch and bound

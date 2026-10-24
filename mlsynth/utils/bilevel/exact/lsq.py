@@ -1,8 +1,8 @@
-"""Simplex-constrained least squares with linear equalities and inequalities, solved exactly.
+"""Simplex-constrained least squares with linear inequalities, solved exactly.
 
-    min ||z - Z b||^2   over   b >= 0,  1'b = 1,  A b = c,  G b >= h
+    min ||z - Z b||^2   over   b >= 0,  1'b = 1,  G b >= h
 
-The equalities are eliminated in a null-space basis. What remains is a least-squares
+The equality 1'b = 1 is eliminated in a null-space basis. What remains is a least-squares
 problem with inequality constraints, which Lawson and Hanson (1974, Solving Least
 Squares Problems, ch. 23) reduce to a least-distance problem solved by one
 nonnegative least-squares call. SciPy's ``nnls`` is compiled, so a solve on a face of
@@ -156,26 +156,15 @@ def _simplex_basis(m):
     return b0, N
 
 
-def simplex_ls(z, Z, Aeq=None, beq=None, Gin=None, hin=None):
+def simplex_ls(z, Z, Gin=None, hin=None):
     """Return (loss, b) for the program in the module docstring, or (None, None) if infeasible.
 
     Raises MlsynthDataError when the face is outside the reduction's domain (see ``_lsi``)
     and MlsynthEstimationError when the reduction's answer fails its check, so that a
     numerical failure is never read as an empty piece.
     """
-    m = Z.shape[1]
-    if Aeq is None or len(Aeq) == 0:                      # the simplex alone, every face fit and piece
-        b0, N = _simplex_basis(m)
-    else:
-        A, c = np.vstack([np.ones((1, m)), Aeq]), np.concatenate([[1.0], beq])
-        b0, *_ = np.linalg.lstsq(A, c, rcond=None)
-        if np.abs(A @ b0 - c).max() > 1e-9 * max(1.0, np.abs(c).max()):
-            return None, None
-        _, sv, Vt = np.linalg.svd(A)
-        N = Vt[int((sv > 1e-10 * max(sv[0], 1.0)).sum()):].T    # null-space basis, m x d
-    if N.shape[1] == 0:
-        if b0.min() < -1e-10:
-            return None, None
+    b0, N = _simplex_basis(Z.shape[1])
+    if N.shape[1] == 0:                                   # one donor: the simplex is its vertex
         if Gin is not None and len(Gin) and (Gin @ b0 - hin).min() < -1e-9:
             return None, None
         b = np.clip(b0, 0.0, None)

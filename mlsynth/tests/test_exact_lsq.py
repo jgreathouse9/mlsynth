@@ -13,10 +13,11 @@ import json
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from _exact_support import EXTERIOR, FIXTURES, inputs
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 from scipy.optimize import linprog
 
-from _exact_support import EXTERIOR, FIXTURES, inputs
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
 from mlsynth.utils.bilevel.exact import lsq, search
 

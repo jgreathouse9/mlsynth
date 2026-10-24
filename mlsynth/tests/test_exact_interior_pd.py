@@ -12,11 +12,16 @@ from __future__ import annotations
 import cvxpy as cp
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies as st
+from _exact_support import INTERIOR as CASES
+from _exact_support import admissible as _admissible
+from _exact_support import inputs as _inputs
+from _exact_support import interior_design as _design
+from _exact_support import random_instance
+from _exact_support import selection as _selection
+from _exact_support import standardise as _standardise
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from _exact_support import (INTERIOR as CASES, admissible as _admissible, inputs as _inputs,
-                            interior_design as _design, random_instance, selection as _selection,
-                            standardise as _standardise)
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
 from mlsynth.utils.bilevel.exact import interior
 
