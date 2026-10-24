@@ -240,8 +240,22 @@ class TestTheShardsAreSkippedWhenNothingCouldMoveANumber:
         assert {m.split(".")[1] for m in registry.CASES.values()} == {"cases"}
 
     def test_the_dependency_pins_are_covered(self, patterns):
-        """They decide which versions a case gets installed against."""
+        """``pyproject.toml`` decides what a case gets installed with.
+        ``requirements.txt`` is ``build.yml``'s install, listed as it is there."""
         assert "requirements.txt" in patterns and "pyproject.toml" in patterns
+
+    def test_what_the_install_reads_passes_the_gate(self, patterns):
+        """The selection runs every case on a change to one of these
+        (``case_deps.ENVIRONMENT``), which it can do only if the gate lets the
+        shards run."""
+        from fnmatch import fnmatch
+        from benchmarks import case_deps
+
+        keep = [p for p in patterns if not p.startswith("!")]
+        drop = [p[1:] for p in patterns if p.startswith("!")]
+        for path in case_deps.ENVIRONMENT:
+            assert any(fnmatch(path, p) for p in keep), path
+            assert not any(fnmatch(path, p) for p in drop), path
 
     def test_every_listed_path_exists(self, patterns):
         """A pattern naming nothing is a filter entry that can never fire."""
@@ -380,6 +394,24 @@ class TestTheMapIsMeasuredInSlicesAndCommittedOnce:
         assert {"benchmarks/case_deps.json",
                 "benchmarks/case_deps_swept.json"} <= staged, staged
 
+    def test_the_map_is_tested_before_it_is_committed(self, jobs):
+        """The commit is ``[skip ci]``, so nothing tests the map once it is on
+        ``main``. b50e1395 put the first inventory there, a case-map test went
+        red on ``main``, and the next pull request found it six hours later. A
+        failing test stops the job before the commit and leaves the shipped map
+        as it stands."""
+        steps = jobs["case-deps-commit"]["steps"]
+        runs = [s.get("run", "") for s in steps]
+        combine = next(i for i, r in enumerate(runs) if "--combine" in r)
+        commit = next(i for i, r in enumerate(runs) if "git commit" in r)
+        tested = [i for i, r in enumerate(runs)
+                  if "pytest" in r and "benchmarks/tests/test_case_deps.py" in r
+                  and "benchmarks/tests/test_case_deps_imports.py" in r]
+        assert tested and combine < tested[0] < commit
+        step = steps[tested[0]]
+        assert not step.get("continue-on-error") and "if" not in step
+        assert "||" not in runs[tested[0]]
+
 
 class TestTheAddedSubsetReachesTheSelection:
     """A file the diff creates cannot have been executed by a pre-existing case,
@@ -450,3 +482,55 @@ class TestTheTimeoutCoversProvisioningToo:
     def test_the_suite_is_sharded_finely_enough(self, jobs):
         """Four shards left the slowest holding more than an hour of cases."""
         assert int(jobs["suite"]["env"]["NUM_SHARDS"]) >= 6
+
+
+def _install_reads(run: str) -> set:
+    """The repository files a ``pip install`` line in ``run`` reads: each
+    constraints or requirements file it names, and ``pyproject.toml`` for an
+    install of the project itself (``.``, ``.[extras]`` or ``-e .``)."""
+    import shlex
+
+    reads = set()
+    for line in run.replace("\\\n", " ").splitlines():
+        if "pip" not in line or "install" not in line:
+            continue
+        words = shlex.split(line)
+        if "install" not in words or "pip" not in words[:words.index("install")]:
+            continue
+        args = words[words.index("install") + 1:]
+        for flag, value in zip(args, args[1:]):
+            if flag in ("-c", "--constraint", "-r", "--requirement"):
+                reads.add(value)
+        if any(a == "." or a.startswith((".[", "./")) for a in args):
+            reads.add("pyproject.toml")
+    return reads
+
+
+class TestTheInstallIsWhatEveryCaseRunsOn:
+    """``case_deps.ENVIRONMENT`` is the files the ``pr-suite`` install reads.
+
+    A change to one runs every case, since it changes what every case runs on
+    and is read before any case is measured. The list is held to the install
+    step, so a file the step starts reading cannot be left to the map, which
+    would read it as reaching nothing.
+    """
+
+    def test_the_list_is_what_the_install_step_reads(self, jobs):
+        from benchmarks import case_deps
+
+        reads = set()
+        for step in jobs["pr-suite"]["steps"]:
+            reads |= _install_reads(step.get("run", ""))
+        assert reads == set(case_deps.ENVIRONMENT)
+
+    @pytest.mark.parametrize("line, reads", [
+        ("pip install -e '.[all]' -c benchmarks/constraints.txt",
+         {"pyproject.toml", "benchmarks/constraints.txt"}),
+        ("python -m pip install --upgrade pip", set()),
+        ("pip install -r requirements.txt", {"requirements.txt"}),
+        ("python -m pip install --constraint c.txt .", {"c.txt", "pyproject.toml"}),
+        ("echo pip install nothing", set()),
+        ("pip download -r r.txt", set()),
+    ])
+    def test_the_reader_reads_install_lines(self, line, reads):
+        assert _install_reads(line) == reads
