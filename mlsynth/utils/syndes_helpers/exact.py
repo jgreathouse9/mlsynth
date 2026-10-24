@@ -76,6 +76,7 @@ import warnings
 import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
+from ..search_skeleton import check_work_limit
 from ..fast_scm_helpers.structure import IndexSet
 from .enumeration import SearchSpace
 from .gram import (
@@ -908,10 +909,7 @@ def solve_synthetic_design_exact(
         ``candidate_limit`` or past :data:`PRICE_ALL_LIMIT` sets priced without
         one at zero.
     """
-    if (isinstance(work_limit, bool) or not isinstance(work_limit, (int, float, np.number))
-            or not np.isfinite(work_limit) or work_limit <= 0):
-        raise MlsynthConfigError(
-            f"work_limit must be a positive finite number of seconds; got {work_limit!r}.")
+    check_work_limit(work_limit)
     problem = TwoWayProblem.from_panel(Y, lam=lam)
     N = problem.N
     filt = SubsetFilter.build(restrictions, costs, budget, forbidden_sets, N=N)
