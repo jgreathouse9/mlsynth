@@ -456,8 +456,12 @@ Choosing among the modes
 
 
 
-How the treated group is chosen
--------------------------------
+How the treated group is chosen: overview
+-----------------------------------------
+
+This section is for the analyst who will run SYNDES and explain its choice. The
+next one, "How the treated group is chosen: theory", gives the optimization behind
+it.
 
 SYNDES answers one question: which :math:`K` of the :math:`N` units should be
 treated, so that after the experiment the treated units can be compared with the
@@ -544,8 +548,16 @@ a general mixed-integer solver (SCIP by default), which may stop at a design
 within ``gap_limit`` of the best ("Solver runtime and the 5%-gap default"
 below). The default, ``backend="exact"``, is the search described here.
 
+How the treated group is chosen: theory
+---------------------------------------
+
+This section is for readers who want the optimization behind the search: the
+mixed-integer program and its solver limits, the relaxations and their bounds,
+and the certificate. None of it is needed to run SYNDES; "How the treated group
+is chosen: overview" above is enough for that.
+
 Solver runtime and the 5%-gap default
--------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The SYNDES MIP is structurally hard. The ``two_way_global`` formulation
 contains a bilinear product :math:`q_i \coloneqq w_i D_i` between the
@@ -682,7 +694,7 @@ neither limit, and ``solve_outcome.limits_applied`` records it.
    ships with mlsynth (via ``pyscipopt``) with no license required.
 
 Certifying near-optimality
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Write the two-way program above as a quadratically constrained quadratic program
 in :math:`\mathbf{x} \coloneqq (\mathbf{w}, \mathbf{q}, \mathbf{D}) \in
@@ -775,7 +787,7 @@ its own bound, and for one-way and per-unit that bound is the optimum itself
 ("The one-way design by search", "The per-unit design by search").
 
 The Gram reduction
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 The two-way certificate takes a shorter route than the moment relaxation. The reduction
 behind it also explains where the design problem's difficulty sits.
@@ -864,7 +876,7 @@ cardinality-constrained max-cut. That is where the design problem's hardness
 lives once the weights are optimized away.
 
 Solving it that way
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 ``backend`` chooses how the design is solved. The default, ``"exact"``, searches
 treated sets in every mode: two-way with the reduction above, one-way and
@@ -947,13 +959,13 @@ conflict partners out of the treated set whenever it treats the unit.
 are ignored by this path.
 
 The two-way design above the candidate limit
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Past ``candidate_limit`` admissible designs (twenty million by default; forty
 units with eight treated already hold 77 million), the search stops pricing every
 design and runs a branch and bound. It returns the design the enumeration would
-have returned, certified. "How the treated group is chosen" above introduces
-branch and bound in plain terms.
+have returned, certified. "How the treated group is chosen: overview" above
+introduces branch and bound in plain terms.
 
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
@@ -1042,7 +1054,7 @@ still a bound.
 
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
 bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``,
-named in "How the treated group is chosen" above), and
+named in "How the treated group is chosen: overview" above), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
 when it closes. ``work_limit`` (120 by default) caps each size's search in the
 cost model's seconds: every design priced, bound, relaxation evaluation and certificate
@@ -1115,7 +1127,7 @@ the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
 where the search took 7 to 9.
 
 The one-way design by search
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 One-way fixes the treated weights at :math:`1/K`, so naming the treated set
 :math:`S` leaves one simplex fit:
@@ -1212,7 +1224,7 @@ at the MIP path's defaults returned a design on every run, the optimum on 35 of
 54, and one up to 10 percent worse on the rest.
 
 The per-unit design by search
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Per-unit has the same structure. Doudchenko et al. (2021, Appendix A.3) observe
 that it is :math:`K` one-way problems, one per treated unit, each with every
