@@ -81,7 +81,7 @@ def test_property_the_exact_value_is_the_librarys_certificate(which, seed, penal
     layout = dual.Layout(node)
     th = _theta(rng, layout, spread=0.3)
     exact, _, _ = dual.evaluate(th, node, layout, 1e-3)
-    cert = branch._certificate(node.data.gram, node.scale, node.r, node.n_free,
+    cert = dual.fullform.certificate(node.data.gram, node.scale, node.r, node.n_free,
                                dual.to_duals(th, node, layout))
     assert cert is not None
     assert float(cert) == pytest.approx(exact * float(node.scale), rel=1e-9, abs=1e-9)
@@ -212,7 +212,7 @@ def test_the_budget_stops_the_run(small):
 
 def test_a_node_whose_certificate_fails_reports_none(small, monkeypatch):
     B, A, data = small
-    monkeypatch.setattr(branch, "lambda_min_lower", lambda D, *a, **k: None)
+    monkeypatch.setattr(dual.fullform, "lambda_min_lower", lambda D, *a, **k: None)
     out = dual.dual_bound(data, 3, [], [], _split(8, [], []), max_rounds=1)
     assert out["lower"] is None
 

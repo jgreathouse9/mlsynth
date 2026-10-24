@@ -10,7 +10,8 @@ cheaper. The pieces, tested below:
 - ``lambda_min_lower``: an exact lower bound on a symmetric matrix's smallest
   eigenvalue, which the node certificate rests on;
 - ``_psd2``: a solver's 2x2 multiplier made positive semidefinite;
-- ``node_bound``: the certified persp+N bound of one node;
+- ``node_bound``: the certified persp+N bound of one node, two sides of
+  :mod:`mlsynth.utils.persp_bound` sharing their indicators;
 - ``branch_and_bound``: the search, against brute force over random panels,
   restrictions and penalties, with its certificate;
 - MAREX end to end, with the limit lowered so the branch and bound runs.
@@ -33,6 +34,7 @@ from mlsynth import MAREX
 from mlsynth.exceptions import (MlsynthConfigError, MlsynthDataError,
                                 MlsynthEstimationError)
 from mlsynth.tests.test_marex_exact_backend import _cfg, _panel
+from mlsynth.utils import persp_bound
 from mlsynth.utils.marex_helpers import branch as branch_mod
 from mlsynth.utils.marex_helpers import exact as exact_mod
 from mlsynth.utils.marex_helpers.branch import (BranchResult, NodeBound,
@@ -277,6 +279,12 @@ def _simplex(rng, k):
     return [q / total for q in raw]
 
 
+def _two_sides(data, m, I, O, F, lin_t=None, lin_c=None):
+    """The node as MAREX's ``node_bound`` sets it up: two sides sharing ``z``."""
+    return persp_bound.plan(data, m, I, O, F, linear=lin_t, control=True,
+                            linear_control=lin_c)
+
+
 @settings(max_examples=60, deadline=None)
 @given(seed=st.integers(0, 10**6), n=st.integers(3, 7), m=st.integers(1, 3),
        fix=st.integers(0, 2), linear=st.booleans(),
@@ -300,61 +308,44 @@ def test_the_certificate_holds_for_any_multipliers(seed, n, m, fix, linear, size
     C = sorted(set(O + F) - set(S))
     lin_t = rng.uniform(0, 3, n) if linear else None
     lin_c = rng.uniform(0, 3, n) if linear else None
-    G = data.gram
-    gmax = max(G.frac(i, i) for i in range(n))
-    scale = Fraction(2) ** round(math.log2(gmax))
-    pos = {j: i for i, j in enumerate(F)}
-    sides = []
-    for U, control, lin in ((sorted(I + F), False, lin_t), (sorted(O + F), True, lin_c)):
-        k = len(U)
-        free = [(i, pos[j]) for i, j in enumerate(U) if j in pos]
-        noise = lambda *shape: rng.normal(scale=size, size=shape)  # noqa: E731
-        sides.append(branch_mod._SideDuals(
-            U=U, free=free, control=control, lin=lin, y0=float(noise()),
-            alpha=float(noise()), beta=noise(k), H=noise(k, k),
-            mu=[float(noise()) for _ in free], Lam=[noise(2, 2) for _ in free]))
-    bound = branch_mod._certificate(G, scale, r, len(F), sides)
+    plan = _two_sides(data, m, I, O, F, lin_t, lin_c)
+    noise = lambda *shape: rng.normal(scale=size, size=shape)  # noqa: E731
+    sides = [dataclasses.replace(
+        s, alpha=float(noise()), H=noise(len(s.U), len(s.U)),
+        mu=tuple(float(noise()) for _ in s.free), Lam=tuple(noise(2, 2) for _ in s.free))
+        for s in plan.sides]
+    bound = persp_bound.certificate(plan, sides, [])
     if bound is None:
         return
     w, v = _simplex(rng, len(S)), _simplex(rng, len(C))
-    assert bound <= _exact_objective(G, S, w, C, v, lin_t, lin_c)
+    assert bound <= _exact_objective(data.gram, S, w, C, v, lin_t, lin_c)
 
 
-def _solved_duals(monkeypatch, data, m, I, O, F, lin_t=None, lin_c=None):
-    """The multipliers a node's solve hands its certificate, and what it scales by."""
-    seen = {}
-    real = branch_mod._certificate
-
-    def grab(G, scale, r, n_free, sides):
-        seen.update(G=G, scale=scale, r=r, n_free=n_free, sides=sides)
-        return real(G, scale, r, n_free, sides)
-    monkeypatch.setattr(branch_mod, "_certificate", grab)
-    node_bound(data, m, I, O, F, lin_t, lin_c)
-    monkeypatch.setattr(branch_mod, "_certificate", real)
-    return seen
+def _solved_duals(data, m, I, O, F, lin_t=None, lin_c=None):
+    """The node's plan and the multipliers its solve hands the certificate."""
+    plan = _two_sides(data, m, I, O, F, lin_t, lin_c)
+    _, sides, rows = persp_bound.solve(plan)
+    return plan, sides, rows
 
 
 @pytest.mark.parametrize("seed", [0, 2, 3])
-@pytest.mark.parametrize("shift, ratio", [(0.01, 0.5), (0.01, 2.0), (0.03, 0.5), (1.0, 1.0)])
-def test_the_certificate_holds_when_its_equality_multipliers_shift(monkeypatch, seed,
-                                                                   shift, ratio):
-    # Multipliers on M_00 = 1 and 1'x = 1 multiply terms that vanish at every
-    # design, so shifting them leaves the Lagrangian of every design unchanged
+@pytest.mark.parametrize("shift", [0.01, 0.03, 1.0, -1.0])
+def test_the_certificate_holds_when_its_equality_multiplier_shifts(seed, shift):
+    # The multiplier on 1'X1 = 1 multiplies a term that vanishes at every
+    # design, so shifting it leaves the Lagrangian of every design unchanged
     # while bending the certificate's matrix along the designs themselves: the
-    # bound must pay that curvature in full, twice its smallest eigenvalue.
+    # bound must pay that curvature in full, through its smallest eigenvalue.
     B, A = _problem(seed, 6, T=8)
     data = ExactData(B, A)
     I, O, F = [], [0], [1, 2, 3, 4, 5]
-    seen = _solved_duals(monkeypatch, data, 2, I, O, F)
-    sides = [dataclasses.replace(s, y0=s.y0 + shift * ratio, alpha=s.alpha + shift)
-             for s in seen["sides"]]
-    bound = branch_mod._certificate(seen["G"], seen["scale"], seen["r"],
-                                    seen["n_free"], sides)
+    plan, sides, rows = _solved_duals(data, 2, I, O, F)
+    sides = [dataclasses.replace(s, alpha=s.alpha + shift) for s in sides]
+    bound = persp_bound.certificate(plan, sides, rows)
     assert bound <= Fraction(_subtree_min(B, A, 2, I, O)) * (1 + Fraction(1, 10**12))
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
-def test_the_certificate_holds_with_multipliers_from_a_heavier_penalty(monkeypatch, seed):
+def test_the_certificate_holds_with_multipliers_from_a_heavier_penalty(seed):
     # Multipliers solved for the penalty times the certificate's own scale are
     # still multipliers: the certificate must bound the true penalty's subtree
     # with them. A certificate that left the penalty unscaled would be exact
@@ -362,13 +353,12 @@ def test_the_certificate_holds_with_multipliers_from_a_heavier_penalty(monkeypat
     B, A = _problem(seed, 6, T=8)
     data = ExactData(B, A)
     lin = np.random.default_rng(seed).uniform(0, 3, 6)
-    G = data.gram
-    scale = float(Fraction(2) ** round(math.log2(max(G.frac(i, i) for i in range(6)))))
     I, O, F = [], [0], [1, 2, 3, 4, 5]
-    seen = _solved_duals(monkeypatch, data, 2, I, O, F, lin * scale, lin * scale)
-    sides = [dataclasses.replace(s, lin=lin) for s in seen["sides"]]
-    bound = branch_mod._certificate(seen["G"], seen["scale"], seen["r"],
-                                    seen["n_free"], sides)
+    scale = float(_two_sides(data, 2, I, O, F).scale)
+    _, sides, rows = _solved_duals(data, 2, I, O, F, lin * scale, lin * scale)
+    true = _two_sides(data, 2, I, O, F, lin, lin)
+    sides = [dataclasses.replace(s, lin=t.lin) for s, t in zip(sides, true.sides)]
+    bound = persp_bound.certificate(true, sides, rows)
     truth = _subtree_min(B, A, 2, I, O, lin, lin)
     assert bound <= Fraction(truth) * (1 + Fraction(1, 10**12))
 
@@ -434,23 +424,8 @@ def test_a_solve_without_multipliers_leaves_the_node_unbounded(monkeypatch):
     assert nb.lower is None
 
 
-def test_multipliers_that_are_missing_or_not_finite_are_refused():
-    class Con:
-        def __init__(self, d):
-            self.dual_value = d
-
-    class Side:
-        def __init__(self, d):
-            self.c00 = self.cnn = self.csum = self.crow = Con(np.ones(2))
-            self.clin, self.cper = [Con(d)], []
-
-    assert branch_mod._duals_finite([Side(1.0)])
-    assert not branch_mod._duals_finite([Side(None)])
-    assert not branch_mod._duals_finite([Side(np.nan)])
-
-
 def test_an_eigenvalue_bound_that_fails_leaves_the_node_unbounded(monkeypatch):
-    monkeypatch.setattr(branch_mod, "lambda_min_lower", lambda D: None)
+    monkeypatch.setattr(persp_bound, "lambda_min_lower", lambda D: None)
     B, A = _problem(3, 6)
     nb = node_bound(ExactData(B, A), 2, [], [], list(range(6)))
     assert nb.lower is None

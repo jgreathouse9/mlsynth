@@ -1,11 +1,12 @@
 """MAREX's persp+N node bound by a regularised dual (#833).
 
 The library solves persp+N with Clarabel and certifies the multipliers it
-returns (``mlsynth.utils.marex_helpers.branch._certificate``). The certificate
-is a function of the multipliers alone: per side, ``y0`` on ``M_00 = 1``,
-``alpha`` on ``1'x = 1``, ``beta`` on ``X 1 = x``, ``H >= 0`` on ``X >= 0``,
-``mu >= 0`` on ``ind_j - x_j >= 0`` and a semidefinite 2x2 ``Lam_j`` on each
-perspective block. For any such values the Lagrangian is ``const + <S, M>``
+returns (``fullform.certificate``: the full-form certificate the library had
+when this study ran, kept beside it since #900). The certificate is a function
+of the multipliers alone: per side, ``y0`` on ``M_00 = 1``, ``alpha`` on
+``1'x = 1``, ``beta`` on ``X 1 = x``, ``H >= 0`` on ``X >= 0``, ``mu >= 0``
+on ``ind_j - x_j >= 0`` and a semidefinite 2x2 ``Lam_j`` on each perspective
+block. For any such values the Lagrangian is ``const + <S, M>``
 per side plus ``c'z``, and since a design has ``tr M <= 2`` per side and ``z``
 in the capped simplex ``{0 <= z <= 1, 1'z = r}``,
 
@@ -43,6 +44,8 @@ import numpy as np
 
 from mlsynth.utils.marex_helpers import branch
 from mlsynth.utils.marex_helpers.certify import ExactData
+
+from . import fullform
 
 #: Where the runner appends its rows.
 RESULTS = Path(__file__).resolve().parent / "results"
@@ -231,7 +234,7 @@ def evaluate(theta: np.ndarray, node: Node, layout: Layout, a: float):
 
 
 def to_duals(theta: np.ndarray, node: Node, layout: Layout) -> list:
-    """The multipliers as ``branch._certificate`` reads them."""
+    """The multipliers as ``fullform.certificate`` reads them."""
     out = []
     for s, b in zip(node.sides, layout.blocks):
         k = s.k
@@ -243,7 +246,7 @@ def to_duals(theta: np.ndarray, node: Node, layout: Layout) -> list:
         lin = None if s.lin is None else np.zeros(node.data.n)
         if lin is not None:
             lin[s.U] = s.lin * float(node.scale)
-        out.append(branch._SideDuals(
+        out.append(fullform.SideDuals(
             U=list(s.U), free=list(s.free), control=s.control, lin=lin,
             y0=float(theta[b["y0"]]), alpha=float(theta[b["alpha"]]),
             beta=np.array(theta[b["beta"][0]:b["beta"][1]]), H=H,
@@ -303,7 +306,7 @@ def dual_bound(data: ExactData, m: int, I, O, F, linear_treated=None, linear_con
         if a <= a_min:
             break
         a = max(a * shrink, a_min)
-    lower = branch._certificate(data.gram, node.scale, node.r, node.n_free,
+    lower = fullform.certificate(data.gram, node.scale, node.r, node.n_free,
                                 to_duals(best["theta"], node, layout))
     return {"lower": lower, "exact": best["exact"] * scale, "evaluations": count[0],
             "seconds": time.perf_counter() - t0, "reached": reached}

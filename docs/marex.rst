@@ -914,17 +914,15 @@ treated markets to fractions between zero and one is not enough: spreading the
 weights evenly over every market is an average of designs, and it scores
 exactly zero, because the centred predictors sum to zero. The bound used here,
 persp+N, works with the matrix of weight products. For each side of the design
-(treated and control) it keeps the weights :math:`\mathbf{x}` on the markets
-that side can use and a matrix :math:`\mathbf{X}` standing for
-:math:`\mathbf{x}\mathbf{x}^\top`, with :math:`z_j` the fraction of market
-:math:`j` that is treated, and requires
+(treated and control) it keeps a matrix :math:`\mathbf{X}` standing for
+:math:`\mathbf{w}\mathbf{w}^\top` over the markets that side can use, with
+:math:`\mathbf{x} = \mathbf{X}\mathbf{1}` standing for the weights and
+:math:`z_j` the fraction of market :math:`j` that is treated, and requires
 
 .. math::
 
-   \begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} & \mathbf{X} \end{pmatrix}
-   \succeq 0, \qquad \mathbf{X} \ge 0, \qquad
-   \mathbf{X}\mathbf{1} = \mathbf{x}, \qquad \mathbf{1}^\top \mathbf{x} = 1,
-   \qquad
+   \mathbf{X} \succeq 0, \qquad \mathbf{X} \ge 0, \qquad
+   \mathbf{1}^\top \mathbf{X}\mathbf{1} = 1, \qquad
    \begin{pmatrix} z_j & x_j \\ x_j & X_{jj} \end{pmatrix} \succeq 0,
    \qquad x_j \le z_j,
 
@@ -943,16 +941,24 @@ and Li (2014). :math:`\mathbf{X} \ge 0` is the entrywise half of the doubly
 nonnegative relaxation of Burer's (2009) completely positive form, and it
 carries most of the bound: dropping it from the full doubly nonnegative
 relaxation took that bound from 99 percent of the optimum to 29.5 percent at
-the root of GeoLift's tree with four treated.
+the root of GeoLift's tree with four treated. The relaxation is often written
+with the bordered matrix
+:math:`\begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} & \mathbf{X}
+\end{pmatrix} \succeq 0` and :math:`\mathbf{X}\mathbf{1} = \mathbf{x}`,
+:math:`\mathbf{1}^\top \mathbf{x} = 1`, the form the search first used. Those
+two equations confine the bordered matrix to a face of the semidefinite cone
+where it has no strictly feasible point; written on that face, as above, the
+relaxation is the same, and the solver reaches it 7 to 23 percent faster at
+Walmart's root (Wolkowicz and Zhao 1999; ``benchmarks/studies/lexscm_bnb``). The same
+bound serves LEXSCM's treated-set search, one side of it.
 
 A solver returns the bound in floating point, and the search does not take it on
 trust. It reads the solver's multipliers, clips each to the sign its constraint
 requires, and assembles the Lagrangian they define in exact arithmetic from the
 exact Gram matrix of the data. Every design satisfies
-:math:`\operatorname{tr}\begin{pmatrix} 1 & \mathbf{x}^\top \\ \mathbf{x} &
-\mathbf{x}\mathbf{x}^\top \end{pmatrix} \le 2` on each side, so the bound is
-the Lagrangian's constant, plus twice the smallest eigenvalue of its matrix when
-that is negative, plus the :math:`m - |\mathcal{I}|` smallest coefficients of the
+:math:`\operatorname{tr}(\mathbf{w}\mathbf{w}^\top) = \lVert \mathbf{w}
+\rVert^2 \le 1` on each side, so the bound is the Lagrangian's constant, plus
+the smallest eigenvalue of its matrix when that is negative, plus the :math:`m - |\mathcal{I}|` smallest coefficients of the
 treated fractions. The smallest eigenvalue is bounded below exactly, from a
 floating-point Cholesky factor of the shifted matrix and its exact residual.
 This is the rigorous bound of Jansson, Chaykin and Keil (2007) for semidefinite
@@ -2000,6 +2006,9 @@ Analysis* 46(1):180-200.
 Wei, L., Gómez, A., & Küçükyavuz, S. (2022). "Ideal Formulations for
 Constrained Convex Optimization Problems with Indicator Variables."
 *Mathematical Programming* 192:57-88.
+
+Wolkowicz, H., & Zhao, Q. (1999). "Semidefinite Programming Relaxations for
+the Graph Partitioning Problem." *Discrete Applied Mathematics* 96-97:461-479.
 
 Zheng, X., Sun, X., & Li, D. (2014). "Improving the Performance of MIQP Solvers
 for Quadratic Programs with Cardinality and Minimum Threshold Constraints: A

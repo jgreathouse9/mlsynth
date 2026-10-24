@@ -31,7 +31,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from mlsynth.utils.marex_helpers import branch as marex_branch
+from mlsynth.utils import persp_bound
 from mlsynth.utils.marex_helpers.certify import Dyadic
 from mlsynth.utils.syndes_helpers import branch
 from mlsynth.utils.syndes_helpers.gram import BoundEngine
@@ -114,7 +114,7 @@ STAGES = (
     (branch.ExactR, "certify", "certificate: assembly", False,
      lambda N: lambda args, out: branch.certificate_seconds(len(args[3]))),
     (branch, "lambda_min_lower", "certificate: lambda_min_lower", False, None),
-    (marex_branch, "_float", "certificate: to floating point", False, None),
+    (persp_bound, "_float", "certificate: to floating point", False, None),
     (Dyadic, "__matmul__", "certificate: exact product", False, None),
     (branch, "maxcut_candidates", "seed: swap search", False, None),
     (branch, "_settle", "settle", True, None),

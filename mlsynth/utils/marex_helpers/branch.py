@@ -23,12 +23,12 @@ with ``B`` the centred markets, ``w`` on the simplex over ``S`` and ``v`` over
 the controls. A bound over the subtree must see the products ``w w'``: the
 point that spreads the weights evenly over every market is an average of
 designs and scores exactly zero, since the centred markets sum to zero. The
-persp+N relaxation keeps one semidefinite block per side,
-``M = [[1, x'], [x, X]] >= 0`` with ``x`` the side's weights on the markets it
-can use, and adds
+persp+N relaxation (:mod:`~mlsynth.utils.persp_bound`, shared with LEXSCM's
+search) keeps one semidefinite block ``X`` per side, standing for ``w w'``, with
+``x = X 1`` the side's weights on the markets it can use, and adds
 
-- ``X >= 0`` entrywise and ``X 1 = x``, ``1'x = 1``: the products of
-  ``x >= 0`` and of the simplex;
+- ``X >= 0`` entrywise and ``1'X1 = 1``: the products of ``x >= 0`` and of the
+  simplex;
 - for every free market, the perspective ``X_jj z_j >= x_j^2`` as the 2x2 block
   ``[[z_j, x_j], [x_j, X_jj]] >= 0`` (``1 - z_j`` on the control side) and
   ``x_j <= z_j``, with ``0 <= z <= 1`` and ``sum_F z = m - |I|``.
@@ -41,20 +41,24 @@ best-diagonal program of Zheng, Sun and Li (2014); the perspective is that of
 Frangioni and Gentile (2006) and Günlük and Linderoth (2010). ``X >= 0`` is the
 entrywise half of the doubly nonnegative relaxation of Burer's (2009)
 completely positive form, which those forms lack and which carries most of the
-bound. The indicators never enter a semidefinite block, so each block has one
-row more than the markets its side can use. The study behind the choice is
-``benchmarks/studies/marex_bnb``.
+bound. The indicators never enter a semidefinite block, so each block has a
+row per market its side can use. The study behind the choice is
+``benchmarks/studies/marex_bnb``. The block is the face form of the bordered
+``[[1, x'], [x, X]] >= 0`` the search first used, whose ``X 1 = x`` and
+``1'x = 1`` left it no strictly feasible point; the face form has one, and
+solves faster to the same bound (``benchmarks/studies/lexscm_bnb``, #900).
 
 The certificate of a bound. The solver's multipliers are read, clipped to their
-signs (each 2x2 multiplier made semidefinite by :func:`_psd2`), and the
+signs (each 2x2 multiplier made semidefinite by :func:`~mlsynth.utils.persp_bound._psd2`), and the
 Lagrangian they define is assembled in exact arithmetic from the exact Gram
-matrix of the data. It is linear in the lifted variables, ``const + <S, M> +
-c'z``. A design has ``tr M = 1 + |x|^2 <= 2`` per side and ``z`` in
+matrix of the data. It is linear in the lifted variables, ``const + <S, X> +
+c'z``. A design has ``tr X = |w|^2 <= 1`` per side and ``z`` in
 ``{0 <= z <= 1, sum z = r}``, so
 
-    f(S) >= const + 2 min(0, lambda_min(S)) per side + (the r smallest c_j),
+    f(S) >= const + min(0, lambda_min(S)) per side + (the r smallest c_j),
 
-with ``lambda_min`` bounded below exactly by :func:`lambda_min_lower`. This is
+with ``lambda_min`` bounded below exactly by
+:func:`~mlsynth.utils.persp_bound.lambda_min_lower`. This is
 the rigorous bound of Jansson, Chaykin and Keil (2007) for semidefinite
 programs, with exact arithmetic in place of their interval arithmetic: any
 multipliers give a valid bound, and accurate ones a tight one. A node whose
@@ -103,7 +107,6 @@ the limit that design is still refused.
 from __future__ import annotations
 
 import dataclasses
-import math
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -111,10 +114,14 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from ...exceptions import MlsynthEstimationError
+from .. import persp_bound
+# The exact pieces live in the shared module; the names stay importable here.
+from ..persp_bound import (UNBOUNDED as _UNBOUNDED, NodeBound, _float,  # noqa: F401
+                           _from_fractions, _psd2, lambda_min_lower)
 from ..search_skeleton import (Bound, Deferred, Ledger, NodeQueue, Price,
                                cheaper_to_price, check_work_limit, run)
 from ..syndes_helpers.exact import SubsetFilter
-from .certify import ClusterCertificate, Dyadic, ExactData, round_down, round_up
+from .certify import ClusterCertificate, ExactData, round_down, round_up
 from .exact import (ClusterDesign, SearchNotClosed, _TopK, _chunks,
                     count_candidates, side_fit)
 
@@ -131,7 +138,7 @@ PRICE_SECONDS = 1e-6
 WORK_LIMIT = 600.0
 
 #: The solver of the persp+N relaxation.
-SOLVER = "CLARABEL"
+SOLVER = persp_bound.SOLVER
 
 
 def lift_seconds(k: int) -> float:
@@ -144,217 +151,8 @@ def lift_seconds(k: int) -> float:
 
 
 # ----------------------------------------------------------------------
-# exact linear algebra
-# ----------------------------------------------------------------------
-
-
-def _float(D: Dyadic) -> np.ndarray:
-    """The dyadic matrix ``D`` rounded to doubles; past the largest double,
-    an infinity."""
-    scale = 1 << D.e
-
-    def one(x: int) -> float:
-        try:
-            return float(Fraction(int(x), scale))
-        except OverflowError:
-            return math.inf if int(x) > 0 else -math.inf
-    flat = [one(x) for x in D.N.ravel()]
-    return np.array(flat, dtype=float).reshape(D.N.shape)
-
-
-def _from_fractions(rows: Sequence[Sequence[Fraction]]) -> Dyadic:
-    """The matrix of rationals ``rows``, every one a dyadic rational, exactly."""
-    flat = [q for row in rows for q in row]
-    e = max((q.denominator.bit_length() - 1 for q in flat), default=0)
-    N = np.array([int(q.numerator) << (e - (q.denominator.bit_length() - 1))
-                  for q in flat], dtype=object)
-    return Dyadic(N.reshape(len(rows), len(rows[0])), e)
-
-
-def lambda_min_lower(D: Dyadic, tries: int = 40) -> Optional[Fraction]:
-    """An exact lower bound on the smallest eigenvalue of the symmetric ``D``.
-
-    A floating-point Cholesky factor ``L`` of ``D - sigma I``, with ``sigma``
-    just under the floating-point smallest eigenvalue, is exact as a dyadic
-    matrix, so the residual ``R = D - sigma I - L L'`` is computed exactly. Then
-    ``lambda_min(D) >= sigma + lambda_min(R) >= sigma - max_i sum_j |R_ij|`` by
-    Weyl's and Gershgorin's theorems, whatever rounding produced ``L``. Returns
-    ``None`` when no factor is found.
-    """
-    S = _float(D)
-    k = S.shape[0]
-    if not np.all(np.isfinite(S)):
-        return None
-    lam = float(np.linalg.eigvalsh(S)[0])
-    size = float(np.abs(S).sum(axis=1).max()) or 1.0
-    step = max(abs(lam) * 1e-12, 64 * k * np.finfo(float).eps * size)
-    for _ in range(tries):
-        sigma = lam - step
-        try:
-            L = np.linalg.cholesky(S - sigma * np.eye(k))
-        except np.linalg.LinAlgError:
-            step *= 4.0
-            continue
-        Ld = Dyadic.of(L)
-        R = D - Dyadic.of(sigma * np.eye(k)) - Ld @ Ld.T
-        row = max(sum(abs(int(v)) for v in R.N[i]) for i in range(k))
-        return Fraction(sigma) - Fraction(row, 1 << R.e)
-    return None
-
-
-def _psd2(L: np.ndarray) -> Tuple[float, float, float]:
-    """A 2x2 symmetric matrix made positive semidefinite: the diagonal clipped
-    at zero and the off-diagonal shrunk. Any semidefinite multiplier keeps the
-    certificate valid.
-
-    ``b^2 <= a c`` is checked in exact arithmetic: ``b`` is clipped to
-    ``sqrt(a) sqrt(c)`` and moved toward zero the few units in the last place
-    that rounding can put it over. The two square roots are taken apart because
-    the product ``a c`` can be subnormal, where it carries too few digits for
-    its square root to land within a few units of the bound. Should the few
-    units not suffice, ``b = 0`` is semidefinite.
-    """
-    a = max(float(L[0, 0]), 0.0)
-    b = float(L[0, 1] + L[1, 0]) / 2.0
-    c = max(float(L[1, 1]), 0.0)
-    if Fraction(b) ** 2 <= Fraction(a) * Fraction(c):
-        return a, b, c
-    b = math.copysign(math.sqrt(a) * math.sqrt(c), b)
-    for _ in range(8):
-        if Fraction(b) ** 2 <= Fraction(a) * Fraction(c):
-            return a, b, c
-        b = math.nextafter(b, 0.0)
-    return a, 0.0, c   # pragma: no cover - sqrt(a) sqrt(c) is within 3 units
-
-
-# ----------------------------------------------------------------------
 # the node bound
 # ----------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class NodeBound:
-    """A node's certified persp+N bound.
-
-    ``lower`` is an exact lower bound on the objective of every design in the
-    node's subtree, ``relaxation`` the solver's value of the relaxation and
-    ``z`` its indicators on the free markets. All three are ``None`` when the
-    solve or its certificate failed.
-    """
-
-    lower: Optional[Fraction]
-    relaxation: Optional[float]
-    z: Optional[Dict[int, float]]
-
-
-_UNBOUNDED = NodeBound(lower=None, relaxation=None, z=None)
-
-
-class _Side:
-    """One side's semidefinite block and the constraints whose multipliers
-    certify it."""
-
-    def __init__(self, cp, U: List[int], z, pos: Dict[int, int], control: bool):
-        k = len(U)
-        self.U, self.k, self.control = U, k, control
-        self.M = cp.Variable((k + 1, k + 1), symmetric=True)
-        x, X = self.M[0, 1:], self.M[1:, 1:]
-        self.c00 = self.M[0, 0] == 1
-        self.cnn = X >= 0
-        self.csum = cp.sum(x) == 1
-        self.crow = X @ np.ones(k) == x
-        self.free = [(i, pos[j]) for i, j in enumerate(U) if j in pos]
-        self.clin, self.cper = [], []
-        for i, f in self.free:
-            ind = (1 - z[f]) if control else z[f]
-            self.clin.append(ind - x[i] >= 0)
-            self.cper.append(cp.bmat([
-                [cp.reshape(ind, (1, 1)), cp.reshape(x[i], (1, 1))],
-                [cp.reshape(x[i], (1, 1)), cp.reshape(X[i, i], (1, 1))]]) >> 0)
-        self.constraints = ([self.M >> 0, self.c00, self.cnn, self.csum,
-                             self.crow] + self.clin + self.cper)
-
-
-def _duals_finite(sides: List[_Side]) -> bool:
-    for s in sides:
-        for con in [s.c00, s.cnn, s.csum, s.crow] + s.clin + s.cper:
-            d = con.dual_value
-            if d is None or not np.all(np.isfinite(np.asarray(d, dtype=float))):
-                return False
-    return True
-
-
-@dataclass(frozen=True)
-class _SideDuals:
-    """One side's multipliers, as a solver returned them, and what they price.
-
-    ``U`` are the markets the side can use, ``free`` the pairs ``(i, f)`` of a
-    position in ``U`` and the market's position among the free markets,
-    ``control`` whether the side's indicator is ``1 - z``, and ``lin`` its
-    penalty vector over the cluster. ``y0``, ``alpha``, ``beta``, ``H``, ``mu``
-    and ``Lam`` multiply ``M_00 = 1``, ``1'x = 1``, ``X 1 = x``, ``X >= 0``,
-    ``ind_j - x_j >= 0`` and the 2x2 perspective blocks; any values will do.
-    """
-
-    U: List[int]
-    free: List[Tuple[int, int]]
-    control: bool
-    lin: Optional[np.ndarray]
-    y0: float
-    alpha: float
-    beta: np.ndarray
-    H: np.ndarray
-    mu: List[float]
-    Lam: List[np.ndarray]
-
-
-def _certificate(G: Dyadic, scale: Fraction, r: int, n_free: int,
-                 sides: Sequence[_SideDuals]) -> Optional[Fraction]:
-    """A lower bound on every design of a node, from any multipliers.
-
-    Each multiplier is first made to have its constraint's sign (``H``, ``mu``
-    clipped at zero, each 2x2 block made semidefinite), so every subtracted term
-    is zero or positive at a design; the Lagrangian is then linear in the lifted
-    variables, ``const + <S, M> + c'z`` per side in units of ``scale``, and is
-    bounded below over the designs exactly. ``None`` when a smallest eigenvalue
-    could not be bounded.
-    """
-    const = Fraction(0)
-    cz = [Fraction(0)] * n_free
-    for s in sides:
-        U = s.U
-        k = len(U)
-        H = np.clip((s.H + s.H.T) / 2.0, 0.0, None)
-        H = np.triu(H) + np.triu(H, 1).T
-        const += Fraction(s.y0) + Fraction(s.alpha)
-        S = [[Fraction(0)] * (k + 1) for _ in range(k + 1)]
-        S[0][0] = -Fraction(s.y0)
-        for a in range(k):
-            for b in range(k):
-                S[a + 1][b + 1] = (G.frac(U[a], U[b]) / scale - Fraction(H[a, b])
-                                   - (Fraction(s.beta[a]) + Fraction(s.beta[b])) / 2)
-        xc = [-Fraction(s.alpha) + Fraction(s.beta[a]) for a in range(k)]
-        if s.lin is not None:
-            xc = [xc[a] + Fraction(float(s.lin[U[a]])) / scale for a in range(k)]
-        for (i, f), mu_raw, L in zip(s.free, s.mu, s.Lam):
-            mu = Fraction(max(float(mu_raw), 0.0))
-            a_, b_, c_ = (Fraction(v) for v in _psd2(np.asarray(L, float)))
-            xc[i] += mu - 2 * b_
-            S[i + 1][i + 1] -= c_
-            if s.control:                       # the indicator is 1 - z
-                const -= mu + a_
-                cz[f] += mu + a_
-            else:                               # the indicator is z
-                cz[f] -= mu + a_
-        for a in range(k):
-            S[0][a + 1] = S[a + 1][0] = xc[a] / 2
-        lam = lambda_min_lower(_from_fractions(S))
-        if lam is None:
-            return None
-        const += 2 * min(Fraction(0), lam)
-    if n_free:
-        const += sum(sorted(cz)[:r])
-    return const * scale
 
 
 def node_bound(
@@ -369,56 +167,12 @@ def node_bound(
     """The certified persp+N bound of the node ``(I, O, F)`` with ``m`` treated.
 
     ``I``, ``O`` and ``F`` partition the cluster's markets; the penalty vectors
-    are indexed by them.
+    are indexed by them. Two sides of :mod:`~mlsynth.utils.persp_bound`, the
+    treated fit over ``I + F`` and the control fit over ``O + F``, sharing the
+    indicators.
     """
-    import cvxpy as cp
-
-    I, O, F = list(I), list(O), list(F)
-    G = data.gram
-    gmax = max(G.frac(i, i) for i in range(data.n))
-    if not 0 < gmax < Fraction(np.finfo(float).max):
-        return _UNBOUNDED
-    scale = Fraction(2) ** round(math.log2(gmax))
-    Gs = data.Gf / float(scale)
-    r = m - len(I)
-    pos = {j: i for i, j in enumerate(F)}
-    z = cp.Variable(len(F)) if F else None
-    cons = [] if z is None else [z >= 0, z <= 1, cp.sum(z) == r]
-    sides = [_Side(cp, sorted(I + F), z, pos, control=False),
-             _Side(cp, sorted(O + F), z, pos, control=True)]
-    lins = [None if linear_treated is None else np.asarray(linear_treated, float),
-            None if linear_control is None else np.asarray(linear_control, float)]
-    obj = 0
-    for s, lin in zip(sides, lins):
-        X, x = s.M[1:, 1:], s.M[0, 1:]
-        obj = obj + cp.trace(Gs[np.ix_(s.U, s.U)] @ X)
-        if lin is not None:
-            obj = obj + (lin[s.U] / float(scale)) @ x
-        cons += s.constraints
-    problem = cp.Problem(cp.Minimize(obj), cons)
-    try:
-        problem.solve(solver=SOLVER)
-    except (cp.error.SolverError, ArithmeticError, ValueError,
-            np.linalg.LinAlgError):
-        return _UNBOUNDED
-    if problem.value is None or not np.isfinite(problem.value) \
-            or not _duals_finite(sides):
-        return _UNBOUNDED
-    duals = [_SideDuals(
-        U=s.U, free=s.free, control=s.control, lin=lin,
-        y0=-float(s.c00.dual_value), alpha=-float(s.csum.dual_value),
-        beta=-np.asarray(s.crow.dual_value, dtype=float).reshape(s.k),
-        H=np.asarray(s.cnn.dual_value, dtype=float).reshape(s.k, s.k),
-        mu=[float(c.dual_value) for c in s.clin],
-        Lam=[np.asarray(c.dual_value, dtype=float) for c in s.cper])
-        for s, lin in zip(sides, lins)]
-    lower = _certificate(G, scale, r, len(F), duals)
-    if lower is None:
-        return _UNBOUNDED
-    zv = np.asarray(z.value, dtype=float) if z is not None else np.zeros(0)
-    return NodeBound(lower=lower,
-                     relaxation=float(problem.value) * float(scale),
-                     z={j: float(zv[pos[j]]) for j in F})
+    return persp_bound.bound(data, m, I, O, F, linear=linear_treated, control=True,
+                             linear_control=linear_control)
 
 
 # ----------------------------------------------------------------------
