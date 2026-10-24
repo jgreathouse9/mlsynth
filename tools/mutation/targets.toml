@@ -1979,6 +1979,8 @@ timeout = 300.0
   find = "    exact = on & (vQv - low <= 1e-10 * np.abs(vQv) + 2.0 * margin)"
   replace = "    exact = on"
   models = "any minimiser on the simplex taken as optimal without checking that the bound meets it, so an inaccurate solve on a near-collinear block hands back a feasible weight's value as the minimum"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect on every input measured, and recorded because the equivalence is the finding. An error in v from an ill-conditioned solve lies along the small-eigenvalue directions of Q, where v'Qv moves by the error squared times that small eigenvalue, so a v that lands on the simplex has an accurate value even when v itself is not. Measured on 192 three-unit blocks built as thin triangles around the target, with condition numbers up to 2.8e18: every one of the 133 whose v was on the simplex closed the gap, and the settled value was within 1e-14 of max diag Q of the optimum computed from the points themselves (NNLS on P, conditioned as the square root of Q), against 2.4e-11 for the library's QP. The check stays because it is what makes the settled value certified, value - L <= value - low, instead of only measured."
 
   [[target.mutant]]
   id = "search-ranks-by-largest-imbalance"
