@@ -729,18 +729,28 @@ class TestCertificateCheckHasPower:
     def test_a_perturbed_ranking_is_caught(self, instance, monkeypatch):
         """Seat the pool on noisy losses; the re-solve cannot hide it.
 
-        This is the failure mode the batched solver would produce: the reported
-        losses of the returned designs stay correct, because they are re-solved,
-        but they are the losses of the wrong tuples.
+        This is the failure mode either ranking solver would produce, the
+        batched QP or the affine screen that settles most tuples before it: the
+        reported losses of the returned designs stay correct, because they are
+        re-solved, but they are the losses of the wrong tuples. Both are made
+        noisy, since with the screen in front the QP sees few tuples and noise
+        in it alone would not reach the ranking.
         """
         real = ls._losses_for
+        real_screen = ls._screen_bounds
 
         def noisy(G, subsets, iters=70):
             out = real(G, subsets, iters=iters)
             rng = np.random.default_rng(0)
             return out * (1.0 + 0.1 * rng.random(out.shape))
 
+        def noisy_screen(Qs):
+            low, value, exact = real_screen(Qs)
+            rng = np.random.default_rng(1)
+            return low, value * (1.0 + 0.1 * rng.random(value.shape)), exact
+
         monkeypatch.setattr(ls, "_losses_for", noisy)
+        monkeypatch.setattr(ls, "_screen_bounds", noisy_screen)
         with pytest.raises(AssertionError, match="losses differ from brute force"):
             self._compare(instance)
 

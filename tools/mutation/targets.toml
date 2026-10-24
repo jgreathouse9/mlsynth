@@ -1917,7 +1917,7 @@ timeout = 900.0
 [[target]]
 name = "lexsearch"
 module-path = "mlsynth/utils/fast_scm_helpers/lexsearch.py"
-test-command = "python -m pytest mlsynth/tests/test_lexsearch_properties.py mlsynth/tests/test_lexsearch.py mlsynth/tests/test_lexscm_perf.py -q -p no:cacheprovider"
+test-command = "python -m pytest mlsynth/tests/test_lexsearch_properties.py mlsynth/tests/test_lexsearch.py mlsynth/tests/test_lexscm_perf.py mlsynth/tests/test_lexsearch_screen.py -q -p no:cacheprovider"
 timeout = 300.0
 
   [[target.mutant]]
@@ -1943,6 +1943,44 @@ timeout = 300.0
   find = "    loss = float(w @ (Q @ w))\n    return loss, w, loss"
   replace = "    loss = float(w @ (Q @ w))\n    return loss, w, loss * 1.05"
   models = "a lower bound that exceeds the value it bounds, which would make the reported optimality gap negative and the relaxation diagnostic meaningless"
+
+  [[target.mutant]]
+  id = "screen-solves-the-sets-it-could-rule-out"
+  find = "        need = ~exact & ~(low > tau)          # a NaN bound compares false: it is solved"
+  replace = "        need = ~exact & (low > tau)"
+  models = "the screen's test turned around, so the QP solves the sets that cannot enter the top-K and the ones that can are dropped unsolved; the enumeration still reports OPTIMAL over the full count while returning designs that are not the best"
+
+  [[target.mutant]]
+  id = "affine-value-accepted-off-the-simplex"
+  find = "    on = ok & (v >= 0.0).all(axis=1)"
+  replace = "    on = ok"
+  models = "the closed form taken as the loss when its minimiser has a negative weight, which is the minimum over the affine hull and sits below the simplex minimum, so those sets rank better than they are"
+
+  [[target.mutant]]
+  id = "threshold-taken-from-lower-bounds"
+  find = "        known = np.concatenate([best_loss, value[exact]])"
+  replace = "        known = np.concatenate([best_loss, low])"
+  models = "the K-th best taken over lower bounds instead of attained losses, which sets the threshold too low and rules out sets whose loss is inside the true top-K"
+
+  [[target.mutant]]
+  id = "unreadable-block-dropped-without-a-word"
+  find = "        need = ~exact & ~(low > tau)          # a NaN bound compares false: it is solved"
+  replace = "        need = ~exact & (low <= tau)"
+  models = "a block with a non-finite entry compared to the threshold, which is false for NaN, so the set is skipped silently instead of reaching the QP that reports it"
+
+  [[target.mutant]]
+  id = "screen-never-rules-a-set-out"
+  find = "        tau = np.partition(known, top_K - 1)[top_K - 1] if len(known) >= top_K else np.inf"
+  replace = "        tau = np.inf"
+  models = "the threshold left at infinity, so every set the closed form cannot settle goes to the QP and the enumeration costs what it cost before the screen while returning the same designs"
+
+  [[target.mutant]]
+  id = "settled-without-closing-the-gap"
+  find = "    exact = on & (vQv - low <= 1e-10 * np.abs(vQv) + 2.0 * margin)"
+  replace = "    exact = on"
+  models = "any minimiser on the simplex taken as optimal without checking that the bound meets it, so an inaccurate solve on a near-collinear block hands back a feasible weight's value as the minimum"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect on every input measured, and recorded because the equivalence is the finding. An error in v from an ill-conditioned solve lies along the small-eigenvalue directions of Q, where v'Qv moves by the error squared times that small eigenvalue, so a v that lands on the simplex has an accurate value even when v itself is not. Measured on 192 three-unit blocks built as thin triangles around the target, with condition numbers up to 2.8e18: every one of the 133 whose v was on the simplex closed the gap, and the settled value was within 1e-14 of max diag Q of the optimum computed from the points themselves (NNLS on P, conditioned as the square root of Q), against 2.4e-11 for the library's QP. The check stays because it is what makes the settled value certified, value - L <= value - low, instead of only measured."
 
   [[target.mutant]]
   id = "search-ranks-by-largest-imbalance"
