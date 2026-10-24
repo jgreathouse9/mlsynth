@@ -112,6 +112,90 @@ def _losses_for(G: np.ndarray, subsets: np.ndarray, iters: int = 70) -> np.ndarr
     return _afw_batched(Qs, iters=iters)
 
 
+def _screen_bounds(Qs: np.ndarray):
+    """Bounds on ``min_{w in simplex} w'Qw`` for an ``(N, m, m)`` PSD stack.
+
+    For each ``Q``, ``v`` is the minimiser over the affine hull,
+    ``Q^-1 1 / 1'Q^-1 1``, and
+
+        low = 2 min_j (Q v)_j - v'Q v
+
+    is a lower bound on the simplex minimum for any ``v`` at all:
+    ``(w - v)'Q(w - v) >= 0`` gives ``w'Qw >= 2 (Qv)'w - v'Qv``, and on the
+    simplex ``(Qv)'w >= min_j (Qv)_j``. An inaccurate solve therefore loosens
+    the bound but cannot invalidate it. ``low`` is lowered by the rounding of
+    ``Q``'s own PSD-ness, ``8 m eps max|diag Q| (1 + ||v||_1)^2``. When ``v``
+    lies on the simplex, ``v'Qv`` is attained, and a gap between it and
+    ``low`` of at most ``1e-10 v'Qv`` plus twice that rounding term settles the
+    minimum without the QP: the value is then within that gap of the loss.
+
+    A singular stack falls back to ``Q + m eps max|diag Q| I``, which changes
+    ``v`` and so only the tightness of ``low``. A block with a non-finite entry
+    gets ``low = NaN`` and is never settled, so it reaches the QP, which
+    reports it; a finite block whose solve breaks down gets ``low = -inf``.
+
+    Returns ``(low, value, exact)``: the bound, ``v'Qv`` where ``v`` is on the
+    simplex (``inf`` elsewhere), and the mask of blocks the screen settles.
+    """
+    Qs = np.asarray(Qs, dtype=float)
+    n, m = Qs.shape[0], Qs.shape[1]
+    finite = np.isfinite(Qs).all(axis=(1, 2))
+    if m == 1:
+        d = Qs[:, 0, 0]
+        return np.where(finite, d, np.nan), np.where(finite, d, np.inf), finite.copy()
+    Qf = np.where(finite[:, None, None], Qs, 0.0)
+    scale = np.abs(np.diagonal(Qf, axis1=1, axis2=2)).max(axis=1)
+    scale = np.where(scale > 0.0, scale, 1.0)
+    ones = np.ones((n, m, 1))
+    try:
+        y = np.linalg.solve(Qf, ones)[..., 0]
+    except np.linalg.LinAlgError:
+        ridge = m * np.finfo(float).eps * scale
+        y = np.linalg.solve(Qf + ridge[:, None, None] * np.eye(m), ones)[..., 0]
+    s = y.sum(axis=1)
+    ok = finite & np.isfinite(y).all(axis=1) & np.isfinite(s) & (s > 0.0)
+    v = y / np.where(ok, s, 1.0)[:, None]
+    Qv = np.einsum('nij,nj->ni', Qf, v)
+    vQv = np.einsum('ni,ni->n', v, Qv)
+    margin = 8.0 * m * np.finfo(float).eps * scale * (1.0 + np.abs(v).sum(axis=1)) ** 2
+    low = 2.0 * Qv.min(axis=1) - vQv - margin
+    on = ok & (v >= 0.0).all(axis=1)
+    value = np.where(on, vQv, np.inf)
+    exact = on & (vQv - low <= 1e-10 * np.abs(vQv) + 2.0 * margin)
+    low = np.where(ok, low, np.where(finite, -np.inf, np.nan))
+    return low, value, exact
+
+
+def _screened_top(G, combs, top_K, chunk, iters):
+    """The ``top_K`` smallest losses over ``combs``, solving only what it must.
+
+    Chunk by chunk, the threshold is the ``top_K``-th smallest real loss known:
+    the kept designs' and the chunk's settled ones. A set whose bound passes
+    it cannot enter the top-K and is never solved; a set the screen settles
+    takes its settled value; the rest go to the QP. Returns the sets, their
+    losses, and how many sets reached the QP.
+    """
+    m = combs.shape[1]
+    best_sets, best_loss = np.empty((0, m), dtype=combs.dtype), np.empty(0)
+    to_qp = 0
+    for s in range(0, len(combs), chunk):
+        S = combs[s:s + chunk]
+        low, value, exact = _screen_bounds(G[S[:, :, None], S[:, None, :]])
+        known = np.concatenate([best_loss, value[exact]])
+        tau = np.partition(known, top_K - 1)[top_K - 1] if len(known) >= top_K else np.inf
+        need = ~exact & ~(low > tau)          # a NaN bound compares false: it is solved
+        loss = np.where(exact, value, np.inf)
+        if need.any():
+            loss[need] = _losses_for(G, S[need], iters=iters)
+            to_qp += int(need.sum())
+        keep = loss <= tau
+        sets = np.concatenate([best_sets, S[keep]])
+        losses = np.concatenate([best_loss, loss[keep]])
+        order = np.argsort(losses, kind="stable")[:top_K]
+        best_sets, best_loss = sets[order], losses[order]
+    return best_sets, best_loss, to_qp
+
+
 # ======================================================================
 # Result container
 # ======================================================================
@@ -250,7 +334,7 @@ def _no_design_error(exact, m, M, cand, conflict, unit_costs, budget):
 
 def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
                conflict=None, strata=None, min_per=None, max_per=None,
-               required=None, forced=None):
+               required=None, forced=None, counts=None):
     cand = np.sort(np.asarray(cand))
     from itertools import combinations, chain
     forced = sorted({int(f) for f in (forced or [])})
@@ -281,11 +365,12 @@ def _enumerate(G, cand, m, top_K, unit_costs, budget, iters, chunk=300_000,
         combs = combs[_strata.satisfies_many(strata, combs, min_per, max_per, required)]
     if len(combs) == 0:
         return [], 0
-    losses = np.empty(len(combs))
-    for s in range(0, len(combs), chunk):
-        losses[s:s + len(combs[s:s + chunk])] = _losses_for(G, combs[s:s + chunk], iters=iters)
-    order = np.argsort(losses)[:top_K]
-    return [(combs[o], float(losses[o])) for o in order], len(combs)
+    # The affine screen settles most sets in closed form and rules out the ones
+    # that cannot enter the top-K; only the remainder is solved (``_screen_bounds``).
+    sets, losses, to_qp = _screened_top(G, combs, top_K, chunk, iters)
+    if counts is not None:
+        counts["to_qp"] = to_qp
+    return [(sets[i], float(losses[i])) for i in range(len(losses))], len(combs)
 
 
 # ======================================================================
@@ -590,11 +675,12 @@ def select_treated_designs(
         method = "enumerate" if total <= enumerate_max else "heuristic"
 
     consensus = None
+    counts = {"to_qp": None}
     if method == "enumerate":
         raw, n_eval = _enumerate(Gsearch, cand, m, top_K, unit_costs, budget, iters,
                                  conflict=conflict, strata=strata,
                                  min_per=min_per_stratum, max_per=max_per_stratum,
-                                 required=required, forced=forced)
+                                 required=required, forced=forced, counts=counts)
         exact = True
     elif method == "heuristic":
         raw, n_eval, consensus = _local_search(Gsearch, cand, m, top_K, unit_costs,
@@ -697,6 +783,9 @@ def select_treated_designs(
         "search": {
             "method": "enumeration" if exact else "multistart_local_search",
             "subsets_evaluated": int(n_eval),
+            # Enumeration only: the sets the affine screen could neither rule out
+            # nor settle, which the simplex QP solved. None for the local search.
+            "subsets_to_qp": counts["to_qp"],
             "consensus": consensus,          # None for enumeration
         },
         "incumbent": {

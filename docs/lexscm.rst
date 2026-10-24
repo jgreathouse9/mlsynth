@@ -408,13 +408,32 @@ closest to the target), each iteration (all vectors below are the iterate
    :math:`\nabla f(\mathbf{w})^\top \mathbf{w} - \min_i[\nabla f(\mathbf{w})]_i`
    drops below ``tol``.
 
-Two-pass precision. Scoring every candidate tuple to convergence would
-be wasteful, so Stage 1 runs AFW at two fidelities. A vectorized
-batched AFW (``_afw_batched``, ``iters=80``, all :math:`m \times m`
-problems advanced together with ``einsum``) ranks thousands of tuples in
-one sweep; only the surviving ``top_K`` are re-solved by the scalar
-``_afw_single`` at ``iters=600``, ``tol=1e-14`` to pin
-:math:`\mathbf{w}(\mathcal{S})` and the loss to full precision. Each returned
+Screened pricing. Enumeration does not solve every tuple's QP. For a
+tuple with :math:`\mathbf{Q} = \mathbf{G}_{\mathcal{S}\mathcal{S}}`, the
+minimiser over the affine hull,
+:math:`\mathbf{v} = \mathbf{Q}^{-1}\mathbf{1} / \mathbf{1}^\top\mathbf{Q}^{-1}\mathbf{1}`,
+gives the lower bound
+
+.. math::
+
+   L(\mathcal{S}) \;\ge\; 2 \min_j\, (\mathbf{Q}\mathbf{v})_j
+   - \mathbf{v}^\top \mathbf{Q}\, \mathbf{v},
+
+which holds for any :math:`\mathbf{v}`, however inexact the solve, because
+:math:`(\mathbf{w} - \mathbf{v})^\top \mathbf{Q} (\mathbf{w} - \mathbf{v}) \ge 0`
+(``_screen_bounds``). A tuple whose bound exceeds the ``top_K``-th best loss
+found so far cannot enter the shortlist and is skipped. When
+:math:`\mathbf{v}` lies on the simplex and the bound meets
+:math:`\mathbf{v}^\top \mathbf{Q} \mathbf{v}`, that value is
+:math:`L(\mathcal{S})` and no QP runs. Only the remaining tuples go to the
+batched simplex QP (``_afw_batched``, Wolfe's active set solved to
+optimality), and ``stats["search"]["subsets_to_qp"]`` counts them. On the
+45-store Walmart panel at six treated, no tuple of the 8,145,060 reached the
+QP, for ``top_K`` of 1 and of 20, and the enumeration took 16 s against 93 s
+for solving every tuple, with the same designs returned.
+
+The returned ``top_K`` are re-solved one at a time by ``_afw_single`` to
+pin :math:`\mathbf{w}(\mathcal{S})` and the loss to full precision. Each returned
 :class:`~mlsynth.utils.fast_scm_helpers.lexsearch.TreatedDesign` then
 carries its ``indices``, the high-precision ``weights``
 :math:`\mathbf{w}(\mathcal{S})`, ``loss`` :math:`= L(\mathcal{S})`,
