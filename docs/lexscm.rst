@@ -354,8 +354,59 @@ fail
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` after the
 fact -- which is the symptom this parameter exists to prevent.
 
+How Stage 1 searches the treated sets: overview
+"""""""""""""""""""""""""""""""""""""""""""""""
+
+This subsection is for the analyst who will run LEXSCM and explain its choice.
+The next one, "How Stage 1 searches the treated sets: theory", gives the
+optimization behind it.
+
+In plain terms, Stage 1 looks for the :math:`m` markets whose weighted average
+looks most like the whole population of candidate markets before the experiment.
+:math:`L(\mathcal{S})` above is the squared distance between the population's
+profile and the best weighted average of the chosen markets. A treated group that
+reproduces the population is one whose response to treatment speaks for the
+population.
+
+Finding the best group is two problems. For one candidate group, the best weights
+solve a small convex problem (the next subsection) in microseconds; computing
+:math:`L(\mathcal{S})` is called pricing the group. Choosing the group is the hard
+part, because there are :math:`\binom{M}{m}` groups: 8.2 million for 4 of 120
+markets, and 3.8 billion for 6.
+
+- When there are at most ``enumerate_max`` groups (three million by default),
+  Stage 1 prices every one, with a shortcut: a formula gives a floor under each
+  group's imbalance ("Screened pricing" below), and a group whose floor is
+  already above the ``top_K``-th best found so far is skipped. Nothing that
+  could win is skipped, so the groups returned are the best ones, and the
+  status is ``OPTIMAL``.
+- Above ``enumerate_max`` the search is local. It builds groups from several
+  starting points, swaps one market for another while that lowers the
+  imbalance, and perturbs the result to try other neighbourhoods. That finds
+  good groups quickly, but it cannot prove that a group it never visited is not
+  better, so the status is ``FEASIBLE``.
+
+What the result lets you say. Under ``OPTIMAL``, the treated group is the
+best-balanced group of :math:`m` markets that meets the budget, and the search
+proves it. Under ``FEASIBLE``, it is the best group the local search found, and
+its achieved imbalance :math:`\sqrt{L(\mathcal{S})}`, which the result reports,
+is what the design's validity rests on ("Why a search and not a full enumeration
+or an exact MIP" below). SYNDES and MAREX run a branch and bound above their
+limits, which proves the best group by ruling out whole families of groups at
+once, each family with some markets forced in and some forced out. Stage 1 does
+not, for the reason that section gives.
+
+How Stage 1 searches the treated sets: theory
+"""""""""""""""""""""""""""""""""""""""""""""""
+
+This subsection is for readers who want the optimization behind the search: the
+inner quadratic program and its solver, the screen, why Stage 1 does not run a
+branch and bound, what the consensus block measures, and how ``OPTIMAL`` is
+checked. None of it is needed to run LEXSCM; the overview above is enough for
+that.
+
 How a single tuple is built: the inner simplex QP
-"""""""""""""""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 "Building" a tuple :math:`\mathcal{S}` means solving its inner problem
 :math:`\min_{\mathbf{w} \in \Delta(\mathcal{S})} \mathbf{w}^\top
@@ -441,7 +492,7 @@ carries its ``indices``, the high-precision ``weights``
 label-keyed ``weight_dict``.
 
 Why a search and not a full enumeration or an exact MIP
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The obvious approach -- enumerate every treated combination and keep the
 best -- is defeated by combinatorics. With :math:`M` eligible markets and
@@ -495,7 +546,7 @@ reported, but only as advisory information -- for the reason above it is
 :math:`\approx 0` and is deliberately not turned into an optimality gap.)
 
 What the consensus block does and does not tell you
-"""""""""""""""""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The block records what the search did. It does not measure whether the
 incumbent is the global optimum, and ``consensus_rate`` in particular
@@ -561,7 +612,7 @@ low ``n_starts``, so raise ``n_starts`` when a budget or an adjacency graph
 is active, and enumerate when :math:`\binom{M}{m}` allows it.
 
 What ``OPTIMAL`` certifies, and how it is checked
-"""""""""""""""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The status is a statement about the algorithm and not a quantity measured on
 the instance: ``OPTIMAL`` is reported because the enumeration branch was taken.
@@ -603,7 +654,7 @@ class. Any ``K`` of them are global minimisers, so the certificate holds on the
 losses and not on the labels.
 
 Building tuples in the heuristic regime
-"""""""""""""""""""""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When :math:`\binom{M}{m}` exceeds ``enumerate_max`` the same per-tuple QP is
 reused, but the *set* of tuples scored is grown adaptively by a multi-start

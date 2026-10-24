@@ -384,8 +384,52 @@ a constrained version of the clustered one.
 
 .. _marex-search-backend:
 
+Choosing the treated markets: overview
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This section is for the analyst who will run MAREX and explain its choice. The
+next one, "Choosing the treated markets: theory", gives the optimization behind
+it.
+
+Within each cluster, MAREX looks for the treated markets whose weighted average
+looks like the cluster as a whole before the experiment, while the remaining
+markets, weighted, look like it too. Both composites then stand in for the same
+thing, the cluster's average market, so a gap that opens between them after
+treatment is the effect. The exact backend (``backend="exact"``) finds that
+treated set and proves no other set is better, in three layers.
+
+- Pricing a set. Once the treated markets are named, the best weights come from
+  two small fits, one per side, solved exactly in microseconds. The set's score
+  is the sum of the two fits, :math:`f(\mathcal{S})` below.
+- Trying every set. Up to twenty million candidate sets in a cluster, the search
+  considers them all, with a shortcut: a formula gives a floor under each set's
+  treated fit without solving it, and a set whose floor is already above the
+  best score found so far is skipped. Every set is either fitted or skipped on a
+  floor that proves it cannot win.
+- Branch and bound. Above twenty million sets the search reasons about whole
+  families at once: every set that treats some given markets and avoids others.
+  It computes a floor under every set in a family from a relaxation, the problem
+  with its rules loosened so that every set in the family still fits, and
+  discards the family when that floor is above the best set found so far. A
+  family that survives is split, one more market decided at a time, and a small
+  one is priced set by set ("Large clusters: a certified branch and bound").
+
+What the result lets you say: the design has the smallest pre-period imbalance
+among all treated sets the cardinality and restrictions allow, and with
+``certify=True`` the result carries the proof, a floor under every alternative
+beside the design's own score ("Certifying the search").
+
+Choosing the treated markets: theory
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This section is for readers who want the optimization behind the search: the
+split of the design into two fits, the bounds that rule out treated sets, the
+certificate, and the branch and bound above the candidate limit. None of it is
+needed to run MAREX; "Choosing the treated markets: overview" above is enough
+for that.
+
 Solving the design by search
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""""""""
 
 ``backend`` chooses how the design is solved. The default, ``"mip"``, hands the
 mixed-integer program above to SCIP. ``"exact"`` searches over treated sets
@@ -731,7 +775,7 @@ objective.
 .. _marex-certificate:
 
 Certifying the search
-^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""
 
 The search prices and fits candidates in floating-point arithmetic, which rounds
 every operation, so its design is optimal up to rounding that the search does
@@ -829,7 +873,7 @@ seconds and the certificate 53.
 .. _marex-search-diagnostics:
 
 What the search reports
-^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""
 
 With ``backend="exact"`` every result also says how its search reached the
 design. ``res.clusters[label].search`` summarises one cluster's search and
@@ -885,7 +929,7 @@ possible tie.
 .. _marex-branch-and-bound:
 
 Large clusters: a certified branch and bound
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+""""""""""""""""""""""""""""""""""""""""""""
 
 Eight treated among forty markets is 77 million treated sets, ten is 848
 million, and the number grows as :math:`\binom{N}{m}`. Above twenty million sets

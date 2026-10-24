@@ -456,8 +456,108 @@ Choosing among the modes
 
 
 
+How the treated group is chosen: overview
+-----------------------------------------
+
+This section is for the analyst who will run SYNDES and explain its choice. The
+next one, "How the treated group is chosen: theory", gives the optimization behind
+it.
+
+SYNDES answers one question: which :math:`K` of the :math:`N` units should be
+treated, so that after the experiment the treated units can be compared with the
+rest? Its answer is the group for which a weighted average of the treated units
+and a weighted average of the other units moved together most closely before
+the experiment. If the two composites tracked each other over the pre-treatment
+periods, a gap that opens between them afterwards is the treatment's effect.
+
+In the two-way design, a treated set :math:`S` gets weights :math:`\mathbf{a}` on
+its units and the control composite gets weights :math:`\mathbf{b}` on the
+others, each set of weights non-negative and summing to one. The set's score is
+how far apart the two composites are over the pre-period, at the best weights:
+
+.. math::
+
+   f(S) \;=\; \min_{\mathbf{a}, \mathbf{b}}\;
+     \frac{1}{T_0} \sum_{t \in \mathcal{T}_1}
+     \Bigl( \sum_{i \in S} a_i\, y_{it} - \sum_{j \notin S} b_j\, y_{jt} \Bigr)^2
+     \;+\; \lambda \bigl(\lVert \mathbf{a} \rVert_2^2 + \lVert \mathbf{b} \rVert_2^2\bigr).
+
+The first term is the average squared gap between the composites; the second, a
+ridge penalty, keeps one unit from carrying all of a side's weight. SYNDES
+returns the set with the smallest :math:`f(S)`. The one-way and per-unit designs
+score a set differently ("The three MIP formulations" above) and are chosen the
+same way.
+
+Finding that set is two problems of very different difficulty.
+
+- For a given :math:`S`, the best weights solve a small convex problem, the same
+  kind as fitting a synthetic control, and ``mlsynth`` solves it exactly in
+  microseconds. Computing :math:`f(S)` is called pricing the set.
+- Choosing :math:`S` is the hard part, because there are :math:`\binom{N}{K}`
+  sets to choose from: 77 million for 8 treated among 40 units, and 848 million
+  for 10 among 40.
+
+When there are at most ``candidate_limit`` sets (twenty million by default),
+SYNDES prices every one, with a shortcut: a formula gives a floor under each
+set's score without solving for its weights, and a set whose floor is already
+above the best score found so far is skipped. Every set is either priced or
+skipped on a floor that proves it cannot win, so the set returned is the best
+one ("The Gram reduction" and "Solving it that way" below).
+
+Above the limit SYNDES runs a branch and bound, which applies the same idea to
+whole families of sets at once.
+
+- A family is described by a few decisions: units that must be treated, units
+  that must not be, and the rest left open. The first family leaves every unit
+  open and so holds every set.
+- For a family, SYNDES computes a floor under the score of every set in it. If
+  the floor is already above the best set found so far, the whole family is
+  discarded without pricing any of its sets: a family of three million sets
+  whose floor is 0.025 cannot beat a set already priced at 0.020.
+- If the floor is lower, the family is split in two, one half treating some open
+  unit and the other not, and each half gets its own floor, which can only be
+  higher. A family with few sets is priced set by set.
+
+The search ends when every family has been discarded or priced, and the best
+set found is then provably the best.
+
+The floor for a family comes from a relaxation: the problem with some of its
+rules loosened, so that every set in the family is still allowed and the loosened
+problem's minimum can only be lower than theirs. Loosening "each unit is treated
+or not" to "each unit can be partly treated" is the obvious relaxation, and it is
+too loose: it sits about 80 percent below the true score ("Certifying
+near-optimality" below), so it rules out little. SYNDES uses relaxations that
+keep more of the problem's structure; "The two-way design above the candidate
+limit" describes them.
+
+What the result lets you say. The design SYNDES returns has the smallest
+pre-period gap :math:`f(S)` among all treated groups of size :math:`K` that meet
+the restrictions you set, and the search proves it. A search stopped at its work
+limit (``work_limit``) returns the best group it found and a floor under every
+group it did not rule out: the best possible design lies between the two, and
+``certify=True`` reports both and the gap between them. The result also records
+which search ran (``raw_results["search"]``: ``"price_all"`` or
+``"branch_and_bound"``), how many families it bounded (``n_nodes``), and how many
+of those bounds used its most expensive relaxation (``n_lifts``). Optimization
+texts call that relaxation a lifted one, which is where the name comes from. It
+counts computing work and has nothing to do with lift in the sense of a treatment
+effect.
+
+``backend="mip"`` reaches its design another way: it hands the whole problem to
+a general mixed-integer solver (SCIP by default), which may stop at a design
+within ``gap_limit`` of the best ("Solver runtime and the 5%-gap default"
+below). The default, ``backend="exact"``, is the search described here.
+
+How the treated group is chosen: theory
+---------------------------------------
+
+This section is for readers who want the optimization behind the search: the
+mixed-integer program and its solver limits, the relaxations and their bounds,
+and the certificate. None of it is needed to run SYNDES; "How the treated group
+is chosen: overview" above is enough for that.
+
 Solver runtime and the 5%-gap default
--------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The SYNDES MIP is structurally hard. The ``two_way_global`` formulation
 contains a bilinear product :math:`q_i \coloneqq w_i D_i` between the
@@ -594,7 +694,7 @@ neither limit, and ``solve_outcome.limits_applied`` records it.
    ships with mlsynth (via ``pyscipopt``) with no license required.
 
 Certifying near-optimality
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Write the two-way program above as a quadratically constrained quadratic program
 in :math:`\mathbf{x} \coloneqq (\mathbf{w}, \mathbf{q}, \mathbf{D}) \in
@@ -628,7 +728,7 @@ the squared, coupled contrast depends on. This weak bound is precisely SCIP's
 dual bound, which is why ``gap_limit`` closes so slowly.
 
 SDP / moment relaxation (the bound ``certify`` used before the Gram reduction
-below replaced it). Lift :math:`\mathbf{x}` to a moment matrix and re-introduce
+below replaced it). Embed :math:`\mathbf{x}` in a moment matrix and re-introduce
 the joint structure as second-moment identities:
 
 .. math::
@@ -647,11 +747,11 @@ exact linear constraints on :math:`\mathbf{X}`:
    X_{w_i, D_i} = q_i \;\;(\text{from } q_i = w_i D_i), \qquad
    X_{q_i, D_i} = q_i .
 
-Minimizing the lifted objective over :math:`\mathbf{M} \succeq 0` and the original
+Minimizing the objective in the moments over :math:`\mathbf{M} \succeq 0` and the original
 linear constraints is the Shor / Lasserre level-1 relaxation of the cardinality-
 constrained mixed-binary QP (see [BomzeSparseQP]_ for the Shor and RLT relaxations
 of exactly this sparsity-constrained quadratic family; the coordinate-wise
-McCormick step is why we lift, not take a perspective reformulation, which
+McCormick step is why we use the moment matrix, not a perspective reformulation, which
 for indicator quadratics gives the same bound as Shor [HanPerspShor]_). Its value
 :math:`p_{\mathrm{SDP}}` is sandwiched by
 
@@ -670,26 +770,26 @@ the integrality gap (within ~2--3% of :math:`p^\star`), so the gap it gave,
      \;\ge\; \frac{\bar{p} - p^\star}{\lvert \bar{p} \rvert}
 
 was a valid and tight bound on how far the returned design was from optimal,
-obtained without any branch-and-bound. (The lift was solved with a first-order
+obtained without any branch-and-bound. (The relaxation was solved with a first-order
 conic method, so the bound held up to solver tolerance.)
 
-How the modes interact with the lift. In one-way global the treated weights are
+How the modes interact with the moment relaxation. In one-way global the treated weights are
 pinned at :math:`1/K`, so :math:`\mathbf{D}` enters the contrast linearly: there
 is no :math:`w_i D_i` product, the McCormick step is vacuous, and
 :math:`p_{\mathrm{LP}} = p^\star` already (to ~1% in practice). In per-unit the
 weights form an :math:`N \times N` array :math:`\{w^i_j\}`, so
 :math:`\mathbf{x}` carries :math:`O(N^2)` entries and the moment matrix is
 :math:`O(N^2) \times O(N^2)`, i.e. :math:`O(N^4)` -- intractable -- while the
-continuous relaxation is ~70% loose. The two-way lift was :math:`O(N^3)`, and is
+continuous relaxation is ~70% loose. The two-way moment relaxation was :math:`O(N^3)`, and is
 described here because it is what the closed-form bound below replaced. The
 certificate no longer solves any relaxation: each mode's exact search reports
 its own bound, and for one-way and per-unit that bound is the optimum itself
 ("The one-way design by search", "The per-unit design by search").
 
 The Gram reduction
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
-The two-way certificate takes a shorter route than the lift. The reduction
+The two-way certificate takes a shorter route than the moment relaxation. The reduction
 behind it also explains where the design problem's difficulty sits.
 
 Name the treated set :math:`S = \{i : D_i = 1\}`. The coupling
@@ -763,7 +863,7 @@ reports:
 One matrix inverse and one eigenvalue. There is no relaxation to solve, so
 there is no iteration cap to exhaust and no size gate. On the panels used to
 develop it the bound reached 88.8, 90.6 and 92.0 percent of the true optimum at
-:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment lift it replaced,
+:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment relaxation it replaced,
 and took about 0.1 ms against 0.1--0.23 s. It cannot be formed in one situation:
 :math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision when
 :math:`\lambda` approaches zero on a panel with fewer pre-periods than units;
@@ -776,7 +876,7 @@ cardinality-constrained max-cut. That is where the design problem's hardness
 lives once the weights are optimized away.
 
 Solving it that way
-~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 ``backend`` chooses how the design is solved. The default, ``"exact"``, searches
 treated sets in every mode: two-way with the reduction above, one-way and
@@ -859,12 +959,13 @@ conflict partners out of the treated set whenever it treats the unit.
 are ignored by this path.
 
 The two-way design above the candidate limit
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Past ``candidate_limit`` admissible designs (twenty million by default; forty
 units with eight treated already hold 77 million), the search stops pricing every
 design and runs a branch and bound. It returns the design the enumeration would
-have returned, certified.
+have returned, certified. "How the treated group is chosen: overview" above
+introduces branch and bound in plain terms.
 
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
@@ -898,7 +999,7 @@ so a search stopped at its limit has raised its smallest open bound as far as
 its work allowed. Between equal bounds the node created last goes first, so a
 split continues into the child that treats the unit; and until the search has
 a design to return it goes depth first, since best first can spend its limit
-near the root without reaching one. A node whose bound came from the lift
+near the root without reaching one. A node whose bound came from the semidefinite relaxation
 passes that bound, certified, to its children. A search stopped at its limit
 reports the smallest bound over the nodes it left open, each node's bound the
 better of the one it inherited and its own trust-region bound. Only the
@@ -914,16 +1015,16 @@ The bound. Every design below a node has :math:`f(S) \ge 4\alpha / U` for any
 with :math:`\mathbf{1}^\top\mathbf{x}` fixed by the number of units still to
 treat. Two relaxations bound its maximum. The first replaces the sign vectors by
 the sphere they lie on, cut by that plane: a trust-region problem solved in under
-a millisecond (Moré and Sorensen 1983). The second lifts :math:`\mathbf{x}` to
+a millisecond (Moré and Sorensen 1983). The second replaces :math:`\mathbf{x}` by
 the matrix :math:`\mathbf{X} = [1; \mathbf{x}][1; \mathbf{x}]^\top`, which at
 every design is semidefinite with a unit diagonal and satisfies the triangle
 inequalities :math:`1 \pm X_{ij} \pm X_{ik} \pm X_{jk} \ge 0`. Its bound is
 computed through its dual by the procedure of the BiqCrunch solver (Krislock,
 Malick and Roupin), with no interior-point solve. The search tries the
-trust-region bound first, and the lift only on a node the first bound did not
-rule out and whose designs cost more to price than the lift.
+trust-region bound first, and the semidefinite one only on a node the first bound did not
+rule out and whose designs cost more to price than that relaxation.
 
-The certificate. Each bound comes with multipliers on the lifted constraints
+The certificate. Each bound comes with multipliers on the relaxation's constraints
 (:math:`d_i` on the unit diagonal, :math:`w_k \ge 0` on the triangle
 inequalities, and multipliers on :math:`\mathbf{X}` times the plane's normal),
 and any multipliers give a bound: for every design below the node,
@@ -952,13 +1053,14 @@ and the pool's exclusions. A bound over more designs than the admissible ones is
 still a bound.
 
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
-bounded (``n_nodes``) and the lifts computed (``n_lifts``), and
+bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``,
+named in "How the treated group is chosen: overview" above), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
 when it closes. ``work_limit`` (120 by default) caps each size's search in the
-cost model's seconds: every design priced, bound, lift evaluation and certificate
+cost model's seconds: every design priced, bound, relaxation evaluation and certificate
 is charged its modelled cost, so the limit stops a search whose bounds do not
-prune as well as one whose every node lifts. The costs were measured on one
-thread at nodes of 10 to 60 free units: an evaluation of the lift's dual takes
+prune as well as one that solves the semidefinite relaxation at every node. The costs were measured on one
+thread at nodes of 10 to 60 free units: an evaluation of the relaxation's dual takes
 0.5 ms at 10 free units and 1.0 ms at 40, a certificate 13 ms at 40, and a design
 priced 2.5 microseconds at 40 units. On six searches at 30 to 40 units a modelled
 second then took 0.89 to 1.07 seconds of the clock, so the default stops a hard
@@ -1025,7 +1127,7 @@ the limit enumeration is faster: on 3.8 million designs it takes 3 seconds,
 where the search took 7 to 9.
 
 The one-way design by search
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 One-way fixes the treated weights at :math:`1/K`, so naming the treated set
 :math:`S` leaves one simplex fit:
@@ -1122,7 +1224,7 @@ at the MIP path's defaults returned a design on every run, the optimum on 35 of
 54, and one up to 10 percent worse on the rest.
 
 The per-unit design by search
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Per-unit has the same structure. Doudchenko et al. (2021, Appendix A.3) observe
 that it is :math:`K` one-way problems, one per treated unit, each with every
@@ -1975,7 +2077,7 @@ difference-in-means baseline — the paper's headline. See
 The two-way branch and bound above the candidate limit has a regression gate
 of its own. `benchmarks/cases/syndes_bnb_work.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/syndes_bnb_work.py>`_
-pins the nodes it bounds, the lifts it computes, the designs it prices and its
+pins the nodes it bounds, the semidefinite relaxations it solves, the designs it prices and its
 work in the cost model's seconds on fixed panels, beside the design and
 whether it matches the enumeration's. See :doc:`replications/bnb_work`.
 
