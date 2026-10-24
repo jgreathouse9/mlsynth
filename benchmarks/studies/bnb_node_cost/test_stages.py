@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from hypothesis import given, settings, strategies as st
 
-from mlsynth.utils.marex_helpers import branch as marex_branch
+from mlsynth.utils import persp_bound
 from mlsynth.utils.marex_helpers.certify import Dyadic
 from mlsynth.utils.syndes_helpers import branch
 from mlsynth.utils.syndes_helpers.exact import SubsetFilter
@@ -224,7 +224,7 @@ def test_the_wrappers_come_off_whether_the_search_returns_or_raises(flat, monkey
         stages.profile(flat, 5)
     assert {(id(o), a): getattr(o, a) for o, a, *_ in stages.STAGES} == before
     assert np.linalg.eigh is before[(id(np.linalg), "eigh")]
-    assert marex_branch._float is before[(id(marex_branch), "_float")]
+    assert persp_bound._float is before[(id(persp_bound), "_float")]
     assert Dyadic.__matmul__ is before[(id(Dyadic), "__matmul__")]
 
 

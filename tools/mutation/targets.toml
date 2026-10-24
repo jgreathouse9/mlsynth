@@ -5882,23 +5882,22 @@ timeout = 600.0
   replace = "        if False:\n            raise MlsynthConfigError(\n                \"certify=True"
   models = "certify=True accepted for the weakly-targeted design, which fails only once the search has run"
 
+# The persp+N bound and its certificate, shared by MAREX's search and LEXSCM's
+# (#900). The MAREX tests run beside the module's own: they hold the two-sided
+# node, whose control side is the only user of the 1 - z indicator. The
+# bordered form's "trace-of-a-design-taken-as-one" mutant retired with the
+# bordered form: on the face, tr X <= 1 is the correct bound.
 [[target]]
-name = "marex-branch"
-module-path = "mlsynth/utils/marex_helpers/branch.py"
-test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x"
-timeout = 900.0
+name = "persp-bound"
+module-path = "mlsynth/utils/persp_bound.py"
+test-command = "python -m pytest mlsynth/tests/test_persp_bound.py mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x"
+timeout = 1200.0
 
   [[target.mutant]]
   id = "eigenvalue-term-dropped"
-  find = "        const += 2 * min(Fraction(0), lam)"
+  find = "        const += min(Fraction(0), lam)"
   replace = "        const += 0"
   models = "the node certificate taking the Lagrangian's matrix as semidefinite, so a solver's inexact multipliers give a bound above the subtree it claims to bound"
-
-  [[target.mutant]]
-  id = "trace-of-a-design-taken-as-one"
-  find = "        const += 2 * min(Fraction(0), lam)"
-  replace = "        const += min(Fraction(0), lam)"
-  models = "tr M <= 2 misread as tr M = 1, forgetting the 1 in the corner of [[1, x'], [x, x x']]"
 
   [[target.mutant]]
   id = "residual-not-subtracted"
@@ -5908,8 +5907,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "cardinality-takes-the-largest-coefficients"
-  find = "        const += sum(sorted(cz)[:r])"
-  replace = "        const += sum(sorted(cz)[-r:]) if r else 0"
+  find = "        const += sum(sorted(cz)[:p.r])"
+  replace = "        const += sum(sorted(cz)[-p.r:]) if p.r else 0"
   models = "the indicator term minimised over the wrong end, the r largest coefficients instead of the r smallest, which no design need meet"
 
   [[target.mutant]]
@@ -5937,21 +5936,63 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "perspective-blocks-dropped"
-  find = "                             self.crow] + self.clin + self.cper)"
-  replace = "                             self.crow] + self.clin)"
-  models = "the relaxation without the perspective, which scores exactly zero at the averaged point and bounds nothing"
+  find = "        self.constraints = ([self.csum, self.cnn] + self.clin + self.cper + self.clo"
+  replace = "        self.constraints = ([self.csum, self.cnn] + self.clin + self.clo"
+  models = "the perspective blocks left out of the program, so no node gets a bound from them"
 
   [[target.mutant]]
   id = "exact-gram-not-scaled"
-  find = "                S[a + 1][b + 1] = (G.frac(U[a], U[b]) / scale - Fraction(H[a, b])"
-  replace = "                S[a + 1][b + 1] = (G.frac(U[a], U[b]) - Fraction(H[a, b])"
+  find = "        S = [[G.frac(U[a], U[b]) / scale - alpha - Fraction(H[a, b]) for b in range(k)]"
+  replace = "        S = [[G.frac(U[a], U[b]) - alpha - Fraction(H[a, b]) for b in range(k)]"
   models = "the certificate assembled from the data's Gram matrix while the solver saw it scaled, so the multipliers certify a different problem"
 
   [[target.mutant]]
   id = "penalty-not-scaled"
-  find = "            xc = [xc[a] + Fraction(float(s.lin[U[a]])) / scale for a in range(k)]"
-  replace = "            xc = [xc[a] + Fraction(float(s.lin[U[a]])) for a in range(k)]"
+  find = "        q = [Fraction(0) if s.lin is None else Fraction(float(s.lin[U[a]])) / scale"
+  replace = "        q = [Fraction(0) if s.lin is None else Fraction(float(s.lin[U[a]]))"
   models = "a penalized design's linear term certified unscaled beside a scaled quadratic, which overstates the penalty's share of the bound"
+
+  [[target.mutant]]
+  id = "ridge-counted-twice"
+  find = "            S[a][a] += ridge"
+  replace = "            S[a][a] += 2 * ridge"
+  models = "the ridge added to the certificate's matrix twice, once as data and once as the option, which overstates every ridged fit"
+
+  [[target.mutant]]
+  id = "floor-hull-without-the-indicator"
+  find = "            self.clo.append(x[i] - p.floor * ind >= 0)"
+  replace = "            self.clo.append(x[i] - p.floor >= 0)"
+  models = "the floor imposed on every unit the side can use instead of on the chosen ones, a program no design meets"
+
+  [[target.mutant]]
+  id = "floor-multipliers-with-the-wrong-sign"
+  find = "            held = floor * nu - upper * rho     # x_j - c ind >= 0 and u ind - x_j >= 0"
+  replace = "            held = upper * rho - floor * nu     # x_j - c ind >= 0 and u ind - x_j >= 0"
+  models = "the floor's two rows priced with their indicator coefficients swapped in sign, so a chosen unit's term is credited instead of charged"
+
+  [[target.mutant]]
+  id = "budget-credited-instead-of-charged"
+  find = "        const -= pi * Fraction(row.rhs)"
+  replace = "        const += pi * Fraction(row.rhs)"
+  models = "a row in z added to the bound's constant where it is subtracted, which overstates the bound by twice its slack times its multiplier"
+
+  [[target.mutant]]
+  id = "a-decided-node-over-budget-is-bounded"
+  find = "        elif left < 0:"
+  replace = "        elif False:"
+  models = "a node with every unit decided and its units over the budget bounded as if the design were admissible"
+
+  [[target.mutant]]
+  id = "conflict-pair-read-as-both-out"
+  find = "            rows.append(Row(coef=coef, rhs=float(1 - held)))"
+  replace = "            rows.append(Row(coef=coef, rhs=float(-held)))"
+  models = "a conflicting pair's row written z_i + z_j <= 0, which a design holding one of the pair violates"
+
+[[target]]
+name = "marex-branch"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -p no:cacheprovider -x"
+timeout = 900.0
 
   [[target.mutant]]
   id = "threshold-from-the-best-design-only"

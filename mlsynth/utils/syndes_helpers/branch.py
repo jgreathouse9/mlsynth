@@ -125,7 +125,7 @@ from .exact import (CHUNK, CERTIFY_RTOL, WORK_LIMIT, SubsetFilter,
                     _no_feasible_design, _resolve_open, _settle, _stream_from_space,
                     with_complements)
 from .gram import BoundEngine, TwoWayProblem, maxcut_candidates, signs_from_subsets
-from ..marex_helpers.branch import lambda_min_lower
+from ..persp_bound import lambda_min_lower
 from ..marex_helpers.certify import Dyadic, round_down
 from ...exceptions import MlsynthEstimationError
 from ..search_skeleton import (Bound, Ledger, NodeQueue, Price, cheaper_to_price,
