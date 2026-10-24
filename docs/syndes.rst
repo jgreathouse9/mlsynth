@@ -628,7 +628,7 @@ the squared, coupled contrast depends on. This weak bound is precisely SCIP's
 dual bound, which is why ``gap_limit`` closes so slowly.
 
 SDP / moment relaxation (the bound ``certify`` used before the Gram reduction
-below replaced it). Lift :math:`\mathbf{x}` to a moment matrix and re-introduce
+below replaced it). Embed :math:`\mathbf{x}` in a moment matrix and re-introduce
 the joint structure as second-moment identities:
 
 .. math::
@@ -647,11 +647,11 @@ exact linear constraints on :math:`\mathbf{X}`:
    X_{w_i, D_i} = q_i \;\;(\text{from } q_i = w_i D_i), \qquad
    X_{q_i, D_i} = q_i .
 
-Minimizing the lifted objective over :math:`\mathbf{M} \succeq 0` and the original
+Minimizing the objective in the moments over :math:`\mathbf{M} \succeq 0` and the original
 linear constraints is the Shor / Lasserre level-1 relaxation of the cardinality-
 constrained mixed-binary QP (see [BomzeSparseQP]_ for the Shor and RLT relaxations
 of exactly this sparsity-constrained quadratic family; the coordinate-wise
-McCormick step is why we lift, not take a perspective reformulation, which
+McCormick step is why we use the moment matrix, not a perspective reformulation, which
 for indicator quadratics gives the same bound as Shor [HanPerspShor]_). Its value
 :math:`p_{\mathrm{SDP}}` is sandwiched by
 
@@ -670,17 +670,17 @@ the integrality gap (within ~2--3% of :math:`p^\star`), so the gap it gave,
      \;\ge\; \frac{\bar{p} - p^\star}{\lvert \bar{p} \rvert}
 
 was a valid and tight bound on how far the returned design was from optimal,
-obtained without any branch-and-bound. (The lift was solved with a first-order
+obtained without any branch-and-bound. (The relaxation was solved with a first-order
 conic method, so the bound held up to solver tolerance.)
 
-How the modes interact with the lift. In one-way global the treated weights are
+How the modes interact with the moment relaxation. In one-way global the treated weights are
 pinned at :math:`1/K`, so :math:`\mathbf{D}` enters the contrast linearly: there
 is no :math:`w_i D_i` product, the McCormick step is vacuous, and
 :math:`p_{\mathrm{LP}} = p^\star` already (to ~1% in practice). In per-unit the
 weights form an :math:`N \times N` array :math:`\{w^i_j\}`, so
 :math:`\mathbf{x}` carries :math:`O(N^2)` entries and the moment matrix is
 :math:`O(N^2) \times O(N^2)`, i.e. :math:`O(N^4)` -- intractable -- while the
-continuous relaxation is ~70% loose. The two-way lift was :math:`O(N^3)`, and is
+continuous relaxation is ~70% loose. The two-way moment relaxation was :math:`O(N^3)`, and is
 described here because it is what the closed-form bound below replaced. The
 certificate no longer solves any relaxation: each mode's exact search reports
 its own bound, and for one-way and per-unit that bound is the optimum itself
@@ -689,7 +689,7 @@ its own bound, and for one-way and per-unit that bound is the optimum itself
 The Gram reduction
 ~~~~~~~~~~~~~~~~~~~~
 
-The two-way certificate takes a shorter route than the lift. The reduction
+The two-way certificate takes a shorter route than the moment relaxation. The reduction
 behind it also explains where the design problem's difficulty sits.
 
 Name the treated set :math:`S = \{i : D_i = 1\}`. The coupling
@@ -763,7 +763,7 @@ reports:
 One matrix inverse and one eigenvalue. There is no relaxation to solve, so
 there is no iteration cap to exhaust and no size gate. On the panels used to
 develop it the bound reached 88.8, 90.6 and 92.0 percent of the true optimum at
-:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment lift it replaced,
+:math:`K = 3, 5, 7`, against 83.2, 84.9 and 86.2 for the moment relaxation it replaced,
 and took about 0.1 ms against 0.1--0.23 s. It cannot be formed in one situation:
 :math:`\mathbf{G} + \lambda\mathbf{I}` is singular to working precision when
 :math:`\lambda` approaches zero on a panel with fewer pre-periods than units;
@@ -864,7 +864,8 @@ The two-way design above the candidate limit
 Past ``candidate_limit`` admissible designs (twenty million by default; forty
 units with eight treated already hold 77 million), the search stops pricing every
 design and runs a branch and bound. It returns the design the enumeration would
-have returned, certified.
+have returned, certified. :doc:`design_search` explains branch and bound, its
+bounds and its certificate for a reader new to them.
 
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
@@ -898,7 +899,7 @@ so a search stopped at its limit has raised its smallest open bound as far as
 its work allowed. Between equal bounds the node created last goes first, so a
 split continues into the child that treats the unit; and until the search has
 a design to return it goes depth first, since best first can spend its limit
-near the root without reaching one. A node whose bound came from the lift
+near the root without reaching one. A node whose bound came from the semidefinite relaxation
 passes that bound, certified, to its children. A search stopped at its limit
 reports the smallest bound over the nodes it left open, each node's bound the
 better of the one it inherited and its own trust-region bound. Only the
@@ -914,16 +915,16 @@ The bound. Every design below a node has :math:`f(S) \ge 4\alpha / U` for any
 with :math:`\mathbf{1}^\top\mathbf{x}` fixed by the number of units still to
 treat. Two relaxations bound its maximum. The first replaces the sign vectors by
 the sphere they lie on, cut by that plane: a trust-region problem solved in under
-a millisecond (Moré and Sorensen 1983). The second lifts :math:`\mathbf{x}` to
+a millisecond (Moré and Sorensen 1983). The second replaces :math:`\mathbf{x}` by
 the matrix :math:`\mathbf{X} = [1; \mathbf{x}][1; \mathbf{x}]^\top`, which at
 every design is semidefinite with a unit diagonal and satisfies the triangle
 inequalities :math:`1 \pm X_{ij} \pm X_{ik} \pm X_{jk} \ge 0`. Its bound is
 computed through its dual by the procedure of the BiqCrunch solver (Krislock,
 Malick and Roupin), with no interior-point solve. The search tries the
-trust-region bound first, and the lift only on a node the first bound did not
-rule out and whose designs cost more to price than the lift.
+trust-region bound first, and the semidefinite one only on a node the first bound did not
+rule out and whose designs cost more to price than that relaxation.
 
-The certificate. Each bound comes with multipliers on the lifted constraints
+The certificate. Each bound comes with multipliers on the relaxation's constraints
 (:math:`d_i` on the unit diagonal, :math:`w_k \ge 0` on the triangle
 inequalities, and multipliers on :math:`\mathbf{X}` times the plane's normal),
 and any multipliers give a bound: for every design below the node,
@@ -952,13 +953,14 @@ and the pool's exclusions. A bound over more designs than the admissible ones is
 still a bound.
 
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
-bounded (``n_nodes``) and the lifts computed (``n_lifts``), and
+bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``;
+:doc:`design_search` explains the name, which is not a treatment effect), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
 when it closes. ``work_limit`` (120 by default) caps each size's search in the
-cost model's seconds: every design priced, bound, lift evaluation and certificate
+cost model's seconds: every design priced, bound, relaxation evaluation and certificate
 is charged its modelled cost, so the limit stops a search whose bounds do not
-prune as well as one whose every node lifts. The costs were measured on one
-thread at nodes of 10 to 60 free units: an evaluation of the lift's dual takes
+prune as well as one that solves the semidefinite relaxation at every node. The costs were measured on one
+thread at nodes of 10 to 60 free units: an evaluation of the relaxation's dual takes
 0.5 ms at 10 free units and 1.0 ms at 40, a certificate 13 ms at 40, and a design
 priced 2.5 microseconds at 40 units. On six searches at 30 to 40 units a modelled
 second then took 0.89 to 1.07 seconds of the clock, so the default stops a hard
@@ -1975,7 +1977,7 @@ difference-in-means baseline — the paper's headline. See
 The two-way branch and bound above the candidate limit has a regression gate
 of its own. `benchmarks/cases/syndes_bnb_work.py
 <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/syndes_bnb_work.py>`_
-pins the nodes it bounds, the lifts it computes, the designs it prices and its
+pins the nodes it bounds, the semidefinite relaxations it solves, the designs it prices and its
 work in the cost model's seconds on fixed panels, beside the design and
 whether it matches the enumeration's. See :doc:`replications/bnb_work`.
 

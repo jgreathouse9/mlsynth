@@ -486,6 +486,9 @@ not on a certificate of global optimality. LEXSCM therefore:
   immaterial under the approximate-balance criterion. Termination status is
   ``FEASIBLE``.
 
+:doc:`design_search` explains enumeration, the screen, and the certified branch
+and bound that SYNDES and MAREX run above their enumeration limits.
+
 Because the local search has no MIP optimality gap, LEXSCM reports a
 consensus block in its place: the number of independent starts run, how
 many of them ended on the incumbent (``starts_reaching_incumbent``, and

@@ -391,7 +391,9 @@ Solving the design by search
 mixed-integer program above to SCIP. ``"exact"`` searches over treated sets
 directly and returns the same optimal design. It calls no mixed-integer solver,
 so it also runs on a base install, without the ``design`` extra that provides
-``pyscipopt``.
+``pyscipopt``. :doc:`design_search` explains the ideas the search rests on
+(pricing, branch and bound, bounds, relaxations and the certificate) for a
+reader new to them.
 
 The search works because fixing the treated set splits the problem in two. In
 one cluster, write :math:`\mathcal{S}` for the treated markets,
