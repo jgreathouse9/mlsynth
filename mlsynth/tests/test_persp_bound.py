@@ -212,19 +212,25 @@ def test_the_certificate_holds_for_any_multipliers(seed, n, m, fix, linear, floo
 
 
 @pytest.mark.parametrize("seed", [0, 2, 3])
-@pytest.mark.parametrize("shift", [-1.0, 0.03, 1.0])
-def test_a_shifted_alpha_is_paid_for_by_the_eigenvalue_term(seed, shift):
+@pytest.mark.parametrize("shift", [-1.0, 0.1, 0.5])
+@pytest.mark.parametrize("ridge", [0.0, 0.5])
+def test_a_shifted_alpha_is_paid_for_by_the_eigenvalue_term(seed, shift, ridge):
     # 1'X1 = 1 makes a shift in alpha cancel at every design, but the
-    # certificate sees only tr X <= 1: it moves the constant by the shift and S
-    # by -shift 1 1', and the eigenvalue term has to take the difference back.
+    # certificate sees only tr X <= 1: the shift moves the constant by delta
+    # and S by -delta 1 1', and the eigenvalue term has to take it back. A
+    # shift of a tenth of the relaxation, in the certificate's scaled units,
+    # leaves anything added to S besides (G + ridge I)/scale room to hide the
+    # payment and lift the bound above the subtree.
     B, A = _problem(seed, 6, T=8)
     data = ExactData(B, A)
-    plan = pb.plan(data, 2, [], [0], [1, 2, 3, 4, 5])
+    r = ridge * float(np.mean(np.diag(data.Gf)))
+    plan = pb.plan(data, 2, [], [0], [1, 2, 3, 4, 5], ridge=r)
+    assert plan.scale >= 2                      # the scale has to matter for this to test it
     nb, duals, rows = pb.solve(plan)
-    moved = [dataclasses.replace(d, alpha=d.alpha + shift * abs(nb.relaxation or 1.0) * 10)
-             for d in duals]
+    delta = shift * nb.relaxation / float(plan.scale)
+    moved = [dataclasses.replace(d, alpha=d.alpha + delta) for d in duals]
     bound = pb.certificate(plan, moved, rows)
-    assert _below(bound, _subtree_min(data, 2, [], [0]))
+    assert _below(bound, _subtree_min(data, 2, [], [0], ridge=r))
 
 
 def test_a_solve_stopped_early_still_certifies_a_bound():
