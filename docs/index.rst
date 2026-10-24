@@ -371,7 +371,6 @@ measures that claim directly, which a reproduced number cannot.
    lexscm
    marex
    syndes
-   design_search
    pangeo
    geox
    spcd

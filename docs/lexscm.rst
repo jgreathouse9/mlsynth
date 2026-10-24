@@ -354,6 +354,38 @@ fail
 :func:`~mlsynth.utils.fast_scm_helpers.post_inference.approximability` after the
 fact -- which is the symptom this parameter exists to prevent.
 
+How Stage 1 searches the treated sets
+"""""""""""""""""""""""""""""""""""""
+
+Stage 1 searches the sets of :math:`m` markets for the ``top_K`` with the
+smallest imbalance :math:`L(\mathcal{S})`. Computing :math:`L(\mathcal{S})` for
+one set means solving its small quadratic program for the weights, the subject
+of the next subsection. This is called pricing the set, and it takes
+microseconds. What makes Stage 1 hard is the number of sets,
+:math:`\binom{M}{m}`.
+
+When there are at most ``enumerate_max`` sets (three million by default), the
+search prices every one. Nothing is skipped, so the ``top_K`` it returns are
+exact and the termination status is ``OPTIMAL``. A lower bound on each set's
+imbalance, in closed form ("Screened pricing" below), rules out most sets
+without solving their quadratic program.
+
+Above ``enumerate_max`` the search is local. It builds sets greedily from
+several starting points, improves each by swapping one market for another while
+that lowers the imbalance, and perturbs the result to escape the local optimum
+it reaches. That finds good designs quickly, but it cannot prove that no set it
+did not visit is better, so the status is ``FEASIBLE`` and the result carries a
+consensus block in place of a proof ("What the consensus block does and does
+not tell you" below).
+
+SYNDES and MAREX prove their designs above their enumeration limits with a
+branch and bound. It groups the sets into families, each with some markets
+forced into the treated set and some forced out, computes for each family a
+bound no set in it can go under, and discards a family whose bound is above the
+best design found so far. That needs a bound that sees how many markets are
+treated, and "Why a search and not a full enumeration or an exact MIP" below
+explains why the relaxations that drop the count bound Stage 1 at zero.
+
 How a single tuple is built: the inner simplex QP
 """""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -485,9 +517,6 @@ not on a certificate of global optimality. LEXSCM therefore:
   :math:`1\%` (mean) / :math:`7\%` (worst case) of the minimal imbalance --
   immaterial under the approximate-balance criterion. Termination status is
   ``FEASIBLE``.
-
-:doc:`design_search` explains enumeration, the screen, and the certified branch
-and bound that SYNDES and MAREX run above their enumeration limits.
 
 Because the local search has no MIP optimality gap, LEXSCM reports a
 consensus block in its place: the number of independent starts run, how

@@ -456,6 +456,75 @@ Choosing among the modes
 
 
 
+How the design is solved
+------------------------
+
+``backend`` chooses between two ways of finding the design. The default,
+``"exact"``, searches the treated sets directly and proves that the design it
+returns is the best one. ``"mip"`` hands the mixed-integer program above to a
+solver (SCIP by default), which may stop at a design within ``gap_limit`` of the
+best ("Solver runtime and the 5%-gap default" below). This section describes
+the exact backend in plain terms; the subsections that follow give its
+mathematics.
+
+Choosing a design means choosing the treated set :math:`S`, :math:`K` of the
+:math:`N` units. Once :math:`S` is named, the best treated and control weights
+are the solution of a small convex quadratic program, so every design has a loss
+:math:`f(S)` that can be computed exactly. Computing it is called pricing the
+design, and it takes microseconds. What makes the problem hard is the number of
+designs, :math:`\binom{N}{K}`: eight treated among forty units is 77 million,
+ten among forty 848 million.
+
+Up to ``candidate_limit`` admissible designs (twenty million by default) the
+search prices them all, so nothing is skipped and the answer is certain. A
+closed-form lower bound on each design's loss, computed for every design in one
+matrix product, settles most of them without solving their quadratic program
+("The Gram reduction" and "Solving it that way" below).
+
+Above the limit the search runs a branch and bound, which proves the same
+answer while pricing a small fraction of the designs. Its vocabulary:
+
+- The incumbent is the best design found so far. Restarts of a swap search,
+  which replaces one treated unit by another while that lowers the loss, supply
+  a good one before the search starts.
+- A node is a family of designs: the units forced into the treated set, the
+  units forced out of it, and the free units the rest are chosen from. The first
+  node, the root, holds every design.
+- A bound is a number no design in the node can go under. When it is above the
+  incumbent's loss, every design in the node is discarded without being priced.
+  A node of three million designs whose bound is 0.025, against an incumbent of
+  0.020, is ruled out by one bound.
+- A node that is not discarded is split on one free unit into a node that
+  treats it and a node that does not. Each child holds fewer designs than its
+  parent, and its bound is at least the parent's.
+- A node with few designs is priced design by design, as the enumeration does.
+  The search bounds a node only when pricing its designs would cost more than
+  the bound.
+
+The search ends when every node has been discarded or priced, and the incumbent
+is then the optimum. A search stopped at its work limit returns the incumbent
+and the smallest bound left among its open nodes. The optimum lies between the
+two, and their relative distance is the gap the certificate reports.
+
+A bound comes from a relaxation: an easier problem whose solutions include every
+design in the node, so that its minimum can only be lower than theirs. Letting a
+unit be partly treated is the obvious relaxation, and it sits about 80 percent
+below the optimum ("Certifying near-optimality" below), too low to rule out
+much. The two-way search uses two others. The first replaces each unit's
+treated-or-control sign by a point on a sphere, and is solved in under a
+millisecond. The second keeps the products of the signs in a matrix, a
+semidefinite program that is tighter and costs more, solved only where the first
+did not settle the node. The optimization literature calls the move from a
+vector to the matrix of its products lifting, which is why
+``raw_results["n_lifts"]`` counts the semidefinite relaxations the search
+solved. It counts solver work and has nothing to do with lift in the sense of a
+treatment effect. Every bound is recomputed from the solver's multipliers in
+exact arithmetic before it discards anything, so rounding in the solver decides
+where the search spends its time, never what it rules out. "The two-way design
+above the candidate limit" gives the details, and the one-way and per-unit
+designs are searched the same way, with bounds of their own ("The one-way design
+by search", "The per-unit design by search").
+
 Solver runtime and the 5%-gap default
 -------------------------------------
 
@@ -864,8 +933,8 @@ The two-way design above the candidate limit
 Past ``candidate_limit`` admissible designs (twenty million by default; forty
 units with eight treated already hold 77 million), the search stops pricing every
 design and runs a branch and bound. It returns the design the enumeration would
-have returned, certified. :doc:`design_search` explains branch and bound, its
-bounds and its certificate for a reader new to them.
+have returned, certified. "How the design is solved" above introduces branch
+and bound, its bounds and its certificate.
 
 A node of the search fixes some units into the treated set, some out of it, and
 leaves the rest free; the designs below it are the admissible ways to choose the
@@ -953,8 +1022,8 @@ and the pool's exclusions. A bound over more designs than the admissible ones is
 still a bound.
 
 The result. ``raw_results["search"]`` is ``"branch_and_bound"``, with the nodes
-bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``;
-:doc:`design_search` explains the name, which is not a treatment effect), and
+bounded (``n_nodes``) and the semidefinite relaxations solved (``n_lifts``,
+named in "How the design is solved" above), and
 ``raw_results["lower_bound"]`` is the search's own bound, the optimum itself
 when it closes. ``work_limit`` (120 by default) caps each size's search in the
 cost model's seconds: every design priced, bound, relaxation evaluation and certificate
