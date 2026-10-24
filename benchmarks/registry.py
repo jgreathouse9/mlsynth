@@ -129,6 +129,7 @@ CASES = {
     "lamba_tigers": "benchmarks.cases.lamba_tigers",          # cross-val vs tidysynth 0.2.0: Lamba et al. 2023 tiger reserves, staggered per-reserve SCM with zone-restricted donor pools
     "malo_prop99": "benchmarks.cases.malo_prop99",            # Path A: Malo et al. 2024 Table 1 bilevel optimum (Prop 99)
     "malo_basque": "benchmarks.cases.malo_basque",            # cross-val vs scm.corner: AG Basque bilevel optimum, beats MSCMT
+    "vanillasc_exact": "benchmarks.cases.vanillasc_exact",    # Path A + cross-val vs the authors' run_all.py @ 791a3865: Abadie-Shang 2026 exact SC, Prop 99 + West Germany, Tables 1-6, D.1, D.2
     "tasc_mc": "benchmarks.cases.tasc_mc",                    # Path B: TASC vs SC state-space ablation (Rho et al.)
     "tasc_prop99": "benchmarks.cases.tasc_prop99",            # cross-val vs authors' TimeAwareSC (srho1/tasc) on Prop 99 (d=2)
     "fscm_prop99": "benchmarks.cases.fscm_prop99",            # Path A: forward-selected SC (Prop 99)
@@ -421,6 +422,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "lto_refined_placebo":            ("X", "empirical"),
     "malo_basque":                    ("X", "empirical"),
     "malo_prop99":                    ("A", "empirical"),
+    "vanillasc_exact":                ("AX", "empirical"),
     "marex_exact_bruteforce":         ("X", "simulated"),
     "marex_scdesign_sim":             ("X", "simulated"),
     "marex_section5_bias":            ("BX", "simulated"),

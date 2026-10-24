@@ -23,6 +23,7 @@ from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import build_effect_submodels, make_weights_results
 from ..bilevel import BilevelSCM, bias_corrected_gaps
+from .structures import VanillaSCResults
 
 _EPS = 1e-12
 
@@ -303,6 +304,23 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 f"fit_window {config.fit_window} selects no pre-treatment periods "
                 f"(pre-period spans {pre_labels_arr.min()}-{pre_labels_arr.max()})."
             )
+    # Periods dropped from the outcome fit after the window, e.g. Abadie and Shang's
+    # leakage-free sample, which drops the years whose outcomes are predictors.
+    if config.fit_exclude:
+        pre_list = time_labels[:pre].tolist()
+        missing = [t for t in config.fit_exclude if t not in pre_list]
+        if missing:
+            raise MlsynthDataError(
+                f"fit_exclude names {missing}, which is not a pre-treatment period "
+                f"(the pre-period spans {pre_list[0]}-{pre_list[-1]})."
+            )
+        drop = set(config.fit_exclude)
+        fit_pos = np.array([p for p in fit_pos if pre_list[p] not in drop], dtype=int)
+        if fit_pos.size == 0:
+            raise MlsynthDataError(
+                f"fit_exclude {list(config.fit_exclude)} leaves no pre-treatment periods "
+                "in the outcome fit."
+            )
 
     # All unit bookkeeping goes through IndexSets, which preserve the original
     # label dtype (so groupby lookups match the DataFrame) and centralise the
@@ -370,6 +388,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             tol=config.mscmt_tol,
             prune_shady=config.mscmt_prune_shady,
             cv=config.penalized_cv,
+            v_class=config.exact_v_class,
+            ranges=config.exact_ranges,
+            face_counts=config.exact_face_counts,
             **penalized_lam_kwargs,
         )
         with warnings.catch_warnings():
@@ -378,6 +399,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 y[fit_pos], Y0[fit_pos],
                 X1=X1, X0=X0, donor_names=donor_names, predictor_names=pred_names,
             )
+        if config.backend == "exact":
+            # The ranges and face counts describe the treated unit's fit. The refits
+            # of inference need only donor weights, so they run without them.
+            engine = BilevelSCM("exact", v_class=config.exact_v_class, ranges=False,
+                                face_counts=False)
 
     counterfactual = res.counterfactual(Y0)
     if config.bias_correct:
@@ -984,8 +1010,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         time_periods=time_labels, weights=weights, inference=inference,
         additional_effects={"rmspe_ratio": ratio_tr},
     )
-    results = BaseEstimatorResults(
+    results = VanillaSCResults(
         **submodels,
+        exact=res.diagnostics.get("exact"),
         method_details=MethodDetailsResults(
             method_name=f"VanillaSC[{res.backend}]",
             # The sunny/shady screen's verdict, read off the solver's diagnostics.
@@ -1023,13 +1050,23 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 # default path, so the reported spec is never ambiguous.
                 "w_constr": res.diagnostics.get("w_constr"),
                 "w_constr_Q": res.diagnostics.get("w_constr_Q"),
+                "fit_exclude": list(config.fit_exclude) if config.fit_exclude else None,
+                # The exact backend's options; None for every other backend.
+                "exact_v_class": (config.exact_v_class
+                                  if res.backend == "exact" else None),
+                "exact_ranges": (config.exact_ranges
+                                 if res.backend == "exact" else None),
+                "exact_face_counts": (config.exact_face_counts
+                                      if res.backend == "exact" else None),
             },
         ),
         additional_outputs={
             "donor_names": donor_names,
             "treated_name": treated_name,
             "pre_periods": pre,
-            "solver_diagnostics": res.diagnostics,
+            # The exact backend's details are the typed ``exact`` field.
+            "solver_diagnostics": {k: v for k, v in res.diagnostics.items()
+                                   if k != "exact"},
             "covariate_balance": (
                 _covariate_balance(pred_names, Xall, res.W)
                 if covariates and Xall is not None else None

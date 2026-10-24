@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-10-24T00:34:13Z",
+  "git_sha": "8301402a6328c87bba7eff1c7226ef8a80a7529c",
+  "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+  "command": "python benchmarks/reference/vanillasc_exact/reference.py",
+  "data": [
+    {
+      "path": "basedata/abadie_shang_smoking.csv",
+      "sha256": "d1b537fc9b69bee16ddee19b92869fd1632afa17f3b0744ae72ba2506da7b582"
+    },
+    {
+      "path": "basedata/abadie_shang_germany.csv",
+      "sha256": "992153e4159b0af2c1ce730e61076704dc5b04c2a45f8d0dedcb9b8bae79c063"
+    }
+  ],
+  "packages": {
+    "python": "3.13.16",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "cvxpy": "1.9.3",
+    "clarabel": "0.11.1"
+  }
+}

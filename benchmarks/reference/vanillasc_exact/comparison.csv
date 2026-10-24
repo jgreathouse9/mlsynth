@@ -1,0 +1,123 @@
+# case: vanillasc_exact
+# generated_at: 2026-10-24T00:43:28Z
+# mlsynth_version: 2.0.0
+# estimator: VanillaSC
+# config: {"backend": "exact", "covariate_windows": {"age15to24": [1980, 1988], "beer": [1984, 1988], "cigsale_1975": [1975, 1975], "cigsale_1980": [1980, 1980], "cigsale_1988": [1988, 1988], "lnincome": [1980, 1988], "retprice": [1980, 1988]}, "covariates": ["lnincome", "age15to24", "retprice", "beer", "cigsale_1988", "cigsale_1980", "cigsale_1975"], "display_graphs": false, "inference": false, "outcome": "cigsale", "time": "year", "treat": "treated", "unitid": "state"}
+# reference_impl: lychemon/synth-AS-replication run_all.py (live run, captured)
+# reference_version: 791a3865 (v1.0.0), synthx_package a10a28c5
+quantity,mlsynth,reference,abs_diff
+california diag weight[Colorado],0.15952604915653013,0.15952604915736868,0.0
+california diag weight[Connecticut],0.06790361607299594,0.06790361607302174,0.0
+california diag weight[Montana],0.20189104888888243,0.20189104888834222,0.0
+california diag weight[Nevada],0.2356081642339335,0.23560816423374473,0.0
+california diag weight[Utah],0.33507112164765807,0.33507112164752256,0.0
+california diag validation loss,58.456614003799274,58.45661400382945,0.0
+california diag mean post-treatment gap,-18.981600400758733,-18.981600400757916,0.0
+california diagonal log-det V[Log per-capita state income],0.0,0.0,0.0
+california diagonal log-det V[Share of population aged 15-24],0.33333333391540004,0.3333426250820461,9e-06
+california diagonal log-det V[Retail cigarette price],0.3333333339154,0.33333083319888385,3e-06
+california diagonal log-det V[Per-capita beer consumption],0.0,0.0,0.0
+california diagonal log-det V[Cigarette sales per capita (1988)],0.0,8.511785989997637e-13,0.0
+california diagonal log-det V[Cigarette sales per capita (1980)],0.0,0.0,0.0
+california diagonal log-det V[Cigarette sales per capita (1975)],0.3333333321692,0.3333265378393271,7e-06
+california diagonal centre V[Log per-capita state income],0.0,0.0,0.0
+california diagonal centre V[Share of population aged 15-24],0.33333333391540004,0.3333426250820461,9e-06
+california diagonal centre V[Retail cigarette price],0.3333333339154,0.33333083319888385,3e-06
+california diagonal centre V[Per-capita beer consumption],0.0,0.0,0.0
+california diagonal centre V[Cigarette sales per capita (1988)],0.0,8.511785989997637e-13,0.0
+california diagonal centre V[Cigarette sales per capita (1980)],0.0,0.0,0.0
+california diagonal centre V[Cigarette sales per capita (1975)],0.3333333321692,0.3333265378393271,7e-06
+california PD log-det V[Log per-capita state income],0.00567039517656383,0.005670395022941188,0.0
+california PD log-det V[Share of population aged 15-24],0.1430564767581575,0.14305647596789564,0.0
+california PD log-det V[Retail cigarette price],0.14424713699493455,0.14424713774192513,0.0
+california PD log-det V[Per-capita beer consumption],0.14446510827341558,0.14446510968280663,0.0
+california PD log-det V[Cigarette sales per capita (1988)],0.2238594928962294,0.22385949084899315,0.0
+california PD log-det V[Cigarette sales per capita (1980)],0.14728308613813723,0.14728308735474474,0.0
+california PD log-det V[Cigarette sales per capita (1975)],0.19141830376256191,0.19141830338056434,0.0
+california PD centre V[Log per-capita state income],0.030242874065877685,0.030242766818324277,0.0
+california PD centre V[Share of population aged 15-24],0.025785783066433553,0.02578579099756466,0.0
+california PD centre V[Retail cigarette price],0.03626868052374478,0.03626887819754657,0.0
+california PD centre V[Per-capita beer consumption],0.034077522941622654,0.03407753743648095,0.0
+california PD centre V[Cigarette sales per capita (1988)],0.5632965312273973,0.5632992489640923,3e-06
+california PD centre V[Cigarette sales per capita (1980)],0.030903088733227273,0.030902403952407096,1e-06
+california PD centre V[Cigarette sales per capita (1975)],0.2794255194416968,0.27942335466925916,2e-06
+california pd weight[Colorado],0.028173777444653575,0.028173777476599264,0.0
+california pd weight[Connecticut],0.10249252700553228,0.10249252700027109,0.0
+california pd weight[Montana],0.30151606359021793,0.3015160635616019,0.0
+california pd weight[Nevada],0.24841366321728162,0.24841366321533478,0.0
+california pd weight[Utah],0.3194039687423146,0.319403968746193,0.0
+california pd validation loss,54.703457873089654,54.70345787308965,0.0
+california pd mean post-treatment gap,-19.77998359706844,-19.779983596883753,0.0
+california_leakage_free diag weight[Colorado],0.16880427202601614,0.16880427202642212,0.0
+california_leakage_free diag weight[Connecticut],0.07117281708686907,0.07117281708691899,0.0
+california_leakage_free diag weight[Montana],0.19510210833501274,0.1951021083346163,0.0
+california_leakage_free diag weight[Nevada],0.23329419078151847,0.23329419078146116,0.0
+california_leakage_free diag weight[Utah],0.33162661177058345,0.3316266117705814,0.0
+california_leakage_free diag validation loss,55.766850861594094,55.76685086161105,0.0
+california_leakage_free diagonal log-det V[Log per-capita state income],0.0,0.0,0.0
+california_leakage_free diagonal log-det V[Share of population aged 15-24],0.33333333391540004,0.3333336744213777,0.0
+california_leakage_free diagonal log-det V[Retail cigarette price],0.3333333339154,0.3333333146781837,0.0
+california_leakage_free diagonal log-det V[Per-capita beer consumption],0.0,0.0,0.0
+california_leakage_free diagonal log-det V[Cigarette sales per capita (1988)],0.0,1.6893458065238206e-13,0.0
+california_leakage_free diagonal log-det V[Cigarette sales per capita (1980)],0.0,0.0,0.0
+california_leakage_free diagonal log-det V[Cigarette sales per capita (1975)],0.3333333321692,0.3333330070220133,0.0
+california_leakage_free diagonal centre V[Log per-capita state income],0.0,0.0,0.0
+california_leakage_free diagonal centre V[Share of population aged 15-24],0.33333333391540004,0.3333336744213777,0.0
+california_leakage_free diagonal centre V[Retail cigarette price],0.3333333339154,0.3333333146781837,0.0
+california_leakage_free diagonal centre V[Per-capita beer consumption],0.0,0.0,0.0
+california_leakage_free diagonal centre V[Cigarette sales per capita (1988)],0.0,1.6893458065238206e-13,0.0
+california_leakage_free diagonal centre V[Cigarette sales per capita (1980)],0.0,0.0,0.0
+california_leakage_free diagonal centre V[Cigarette sales per capita (1975)],0.3333333321692,0.3333330070220133,0.0
+california_leakage_free PD log-det V[Log per-capita state income],0.005725046186846576,0.005725046091518012,0.0
+california_leakage_free PD log-det V[Share of population aged 15-24],0.1430564767580875,0.1430564772020279,0.0
+california_leakage_free PD log-det V[Retail cigarette price],0.14424713699495495,0.14424713742464254,0.0
+california_leakage_free PD log-det V[Per-capita beer consumption],0.1444566869901809,0.14445668740193432,0.0
+california_leakage_free PD log-det V[Cigarette sales per capita (1988)],0.2238178690364099,0.2238178679428761,0.0
+california_leakage_free PD log-det V[Cigarette sales per capita (1980)],0.1472784802710046,0.14727848057784612,0.0
+california_leakage_free PD log-det V[Cigarette sales per capita (1975)],0.1914183037625156,0.19141830335913443,0.0
+california_leakage_free PD centre V[Log per-capita state income],0.03025243799276141,0.03025162696836949,1e-06
+california_leakage_free PD centre V[Share of population aged 15-24],0.02578578306643352,0.025773121801207423,1.3e-05
+california_leakage_free PD centre V[Retail cigarette price],0.03626868052374452,0.036281735888222956,1.3e-05
+california_leakage_free PD centre V[Per-capita beer consumption],0.03407604921703337,0.03407821924941981,2e-06
+california_leakage_free PD centre V[Cigarette sales per capita (1988)],0.5632892470518722,0.5632878047473311,1e-06
+california_leakage_free PD centre V[Cigarette sales per capita (1980)],0.030902282706458662,0.03090753668562535,5e-06
+california_leakage_free PD centre V[Cigarette sales per capita (1975)],0.2794255194416963,0.2794199383827792,6e-06
+germany diag weight[Australia],0.045231389744726985,0.04523138972997253,0.0
+germany diag weight[Austria],0.5074130118960323,0.507413011931816,0.0
+germany diag weight[Japan],0.1464251096988819,0.14642510967857864,0.0
+germany diag weight[Switzerland],0.16587835091934142,0.16587835089742692,0.0
+germany diag weight[USA],0.13505213774101746,0.1350521377622059,0.0
+germany diag validation loss,45803.56760151882,45803.56760151911,0.0
+germany diag mean post-treatment gap,-1391.213689937092,-1391.213690017475,0.0
+germany diagonal log-det V[Per-capita GDP (1971-80)],0.5291248388035904,0.5291019891890913,2.3e-05
+germany diagonal log-det V[Trade openness (1971-80)],0.11618265619817186,0.11618738482630135,5e-06
+germany diagonal log-det V[Inflation rate (1971-80)],0.05725420675800348,0.05725796857001272,4e-06
+germany diagonal log-det V[Industry share (1971-80)],0.003763832352776431,0.003763234002852457,1e-06
+"germany diagonal log-det V[Schooling (1970, 1975)]",0.09279164652898653,0.09279531795895239,4e-06
+germany diagonal log-det V[Investment rate (1970s)],0.20088281935847116,0.20089409916439602,1.1e-05
+germany diagonal centre V[Per-capita GDP (1971-80)],0.4428873109477599,0.4428919696344574,5e-06
+germany diagonal centre V[Trade openness (1971-80)],0.13403424624349405,0.13403327827129508,1e-06
+germany diagonal centre V[Inflation rate (1971-80)],0.0714550705559386,0.07145430109991009,1e-06
+germany diagonal centre V[Industry share (1971-80)],0.0015053315607183883,0.0015054537335836334,0.0
+"germany diagonal centre V[Schooling (1970, 1975)]",0.10665209998474598,0.10665134839722608,1e-06
+germany diagonal centre V[Investment rate (1970s)],0.243465940707343,0.2434636325646285,2e-06
+germany PD log-det V[Per-capita GDP (1971-80)],0.20514212230329626,0.20514212412279495,0.0
+germany PD log-det V[Trade openness (1971-80)],0.1730545656205927,0.17305456861636678,0.0
+germany PD log-det V[Inflation rate (1971-80)],0.14964364353411963,0.14964364746813705,0.0
+germany PD log-det V[Industry share (1971-80)],0.0840647874670727,0.08406478652989592,0.0
+"germany PD log-det V[Schooling (1970, 1975)]",0.2209389981796763,0.22093898593806569,0.0
+germany PD log-det V[Investment rate (1970s)],0.16715588289524227,0.16715588732464742,0.0
+germany PD centre V[Per-capita GDP (1971-80)],0.17635759677596896,0.176346332206556,1.1e-05
+germany PD centre V[Trade openness (1971-80)],0.10175847370317104,0.10175160285597441,7e-06
+germany PD centre V[Inflation rate (1971-80)],0.06850083773484322,0.06850169234200995,1e-06
+germany PD centre V[Industry share (1971-80)],0.12485431641337559,0.12485105527963067,3e-06
+"germany PD centre V[Schooling (1970, 1975)]",0.46156768789234004,0.4615783207332303,1.1e-05
+germany PD centre V[Investment rate (1970s)],0.06696108748030123,0.06697097921526403,1e-05
+germany pd weight[Austria],0.19064446739912963,0.1906444670517898,0.0
+germany pd weight[Belgium],0.0091672553055768,0.009167256212958986,0.0
+germany pd weight[Japan],0.20579305720114321,0.20579305712278426,0.0
+germany pd weight[Netherlands],0.13304550820091376,0.13304550761009068,0.0
+germany pd weight[Norway],0.16081134771277425,0.16081134778517733,0.0
+germany pd weight[Switzerland],0.3005383641804625,0.30053836421719893,0.0
+germany pd validation loss,20286.56952104881,20286.569521049176,0.0
+germany pd mean post-treatment gap,-1582.129883920642,-1582.129883355986,1e-06

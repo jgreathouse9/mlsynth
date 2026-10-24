@@ -8742,6 +8742,462 @@ timeout = 900.0
   replace = "                                     bnb_open=found.open)"
   models = "the result's search diagnostics without the work the search did, so a caller cannot see how close it came to the limit"
 
+[[target]]
+name = "vanillasc-exact-lsq"
+module-path = "mlsynth/utils/bilevel/exact/lsq.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_lsq.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "ldp-zero-test-is-an-absolute-floor"
+  find = "    if not (r[-1] < 0.0 and abs(r[-1] + rr) <= 1e-2 * rr):"
+  replace = "    if abs(r[-1]) < 1e-12 or np.linalg.norm(r) < 1e-12:"
+  models = "the incident's decision rule: an infeasible system leaves a rounding residual of about eps / delta, which clears an absolute 1e-12 floor once the margin delta is below about 1e-4, and the quotient of two rounding numbers comes back as the solution"
+
+  [[target.mutant]]
+  id = "ldp-returns-an-unverified-point"
+  find = "    return x if x is not None and _satisfies(G, h, x) else None"
+  replace = "    return x"
+  models = "a least-distance solve that trusts its own residual test and hands back whatever point it computed"
+
+  [[target.mutant]]
+  id = "piece-sign-rows-unchecked"
+  find = "        if b.min() < -VERIFY or (Gin is not None and len(Gin) and not _satisfies(Gin, hin, b)):"
+  replace = "        if b.min() < -VERIFY:"
+  models = "a piece answered with a point that keeps the simplex but breaks its sign rows, which lets the face search accept an unattainable piece and report a loss below the attainable optimum"
+
+  [[target.mutant]]
+  id = "failed-reduction-reads-as-infeasible"
+  find = "            if _constraints_feasible(G, h):               # the constraints alone, without R^{-1}"
+  replace = "            if False:"
+  models = "a reduction that found nothing reported as an empty piece, so a numerical failure removes feasible weights from the search without a word"
+
+  [[target.mutant]]
+  id = "ill-conditioned-face-admitted"
+  find = "    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:"
+  replace = "    if E.shape[0] < E.shape[1] or not sv[-1] > 0.0:"
+  models = "the reduction run on a face whose validation paths are nearly collinear, where the back-transform through R^{-1} leaves fewer digits than the answer's check needs"
+
+  [[target.mutant]]
+  id = "rank-deficient-face-ridged"
+  find = '''
+    U, sv, Vt = np.linalg.svd(E, full_matrices=False)
+    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:'''
+  replace = '''
+    if E.shape[0] < E.shape[1] or np.linalg.matrix_rank(E) < E.shape[1]:
+        eps = 1e-12 * max(1.0, float(np.abs(E).max()))
+        E = np.vstack([E, eps * np.eye(E.shape[1])])
+        f = np.concatenate([f, np.zeros(E.shape[1])])
+    U, sv, Vt = np.linalg.svd(E, full_matrices=False)
+    if not sv[-1] > 0.0:'''
+  models = "the original patch for a rank-deficient face: a 1e-12 ridge that leaves cond(R) near 1e12 and turns the reduction's answer into noise"
+
+  [[target.mutant]]
+  id = "back-transform-loses-its-shift"
+  find = "    return None if x is None else Vt.T @ ((c * x + fq) / sv)"
+  replace = "    return None if x is None else Vt.T @ (c * x / sv)"
+  models = "the least-distance point mapped back to the weights without the shift U'f that makes it a residual, so every piece is solved for the wrong target"
+
+  [[target.mutant]]
+  id = "least-distance-step-in-outcome-units"
+  find = "    c = sv[0] + float(np.linalg.norm(fq))"
+  replace = "    c = 1.0"
+  models = "the scale incident: the least-distance point solved in the outcomes' own units, where it is about the root of the extra loss long and its quotient keeps 16 - 2 log10 ||x|| digits; on West German GDP over 1960-1990, 7 of the 16 placebo refits raised and the placebo loop skipped them"
+
+  [[target.mutant]]
+  id = "least-distance-units-omit-the-target"
+  find = "    c = sv[0] + float(np.linalg.norm(fq))"
+  replace = "    c = sv[0]"
+  models = "units read off the face alone: s_1 bounds the least-distance point only while the target sits near the face, and a treated unit far from it brings the digit loss back"
+
+  [[target.mutant]]
+  id = "nnls-answer-taken-on-trust"
+  find = "    if not _nnls_optimal(E, f, u):"
+  replace = "    if False:"
+  models = "scipy's nnls answer used as returned, although on a degenerate system it can report success and a zero residual for a point that is no minimiser"
+
+  [[target.mutant]]
+  id = "unanswered-confirmation-read-as-infeasible"
+  find = "    if verdict is None:"
+  replace = "    if False:"
+  models = "a piece's emptiness confirmed by a verdict that carried no evidence, so a double solver failure removes a feasible piece without a word"
+
+  [[target.mutant]]
+  id = "certificate-taken-on-trust"
+  find = '''    return bool(u.min(initial=0.0) >= 0.0 and h @ u > 0.5
+                and np.abs(G.T @ u).max(initial=0.0) <= tol * scale)'''
+  replace = "    return bool(u.min(initial=0.0) >= 0.0 and h @ u > 0.5)"
+  models = "a Farkas certificate accepted without checking G'u = 0, so any NNLS answer with h'u near 1 proves a feasible system empty"
+
+  [[target.mutant]]
+  id = "verdict-point-taken-on-trust"
+  find = "    if x is not None and _satisfies(G, h, x):"
+  replace = "    if x is not None:"
+  models = "a feasibility verdict that hands back the identity's point without checking it against the rows"
+
+[[target]]
+name = "vanillasc-exact-patterns"
+module-path = "mlsynth/utils/bilevel/exact/patterns.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_patterns.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "split-never-flips-a-certificate-sign"
+  find = "            child[k] = -t[k]"
+  replace = "            child[k] = t[k]"
+  models = "a split that keeps the minimiser's sign on every coordinate the certificate names, so the sub-cubes that flip one of them, where the attainable pieces are, are never searched"
+
+  [[target.mutant]]
+  id = "relaxation-minimiser-taken-on-trust"
+  find = "        attainable, used = _sign_test(cone, t, stats)"
+  replace = "        attainable, used = True, None"
+  models = "the relaxation's minimiser accepted without asking whether some c in the cone has its signs, so a fit no positive diagonal V attains is returned"
+
+  [[target.mutant]]
+  id = "certificate-read-from-the-wall-rows"
+  find = "        return verdict, (None if verdict else signed[evidence[len(cone.W):] > 0])"
+  replace = "        return verdict, (None if verdict else signed[evidence[:len(signed)] > 0])"
+  models = "the certificate's coordinates read from its first multipliers, the walls', so the split follows coordinates the proof does not use and drops a sub-cube the proof does not close"
+
+  [[target.mutant]]
+  id = "undecided-test-ends-the-node"
+  find = "    return (True, None) if res.status == 0 else (False, signed)"
+  replace = "    return (True, None) if res.status == 0 else (False, signed[:0])"
+  models = "a sub-cube HiGHS calls empty for the minimiser's signs read as empty for every sign, so the node ends where it should be split on each signed coordinate"
+
+[[target]]
+name = "vanillasc-exact-search"
+module-path = "mlsynth/utils/bilevel/exact/search.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "face-fit-stands-for-the-relaxation"
+  find = """                if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
+                    root = sign_piece_ls(X0, X1, Z1, Z0, cols, common)
+                    ctr["solves"] += 1"""
+  replace = """                if not np.all((common == 0) | (common * r_u >= -1e-9 * scale)):
+                    ctr["solves"] += 1"""
+  models = "the face's fit standing for the relaxation's minimiser when it breaks the signs every generator of the cone shares, so the branch and bound asks the cone about a point outside the region whose best fit it settles"
+
+  [[target.mutant]]
+  id = "interior-unit-sent-to-the-exterior-search"
+  find = """    if not outside_hull(X1, X0):
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats, max_cells)"""
+  replace = """    if False:
+        return _interior(interior.solve_interior_diag, X1, X0, Z1, Z0, stats, max_cells)"""
+  models = "a treated unit inside the donor hull sent to the visible-facet search, which has no visible facet to start from"
+
+[[target]]
+name = "vanillasc-exact-interior"
+module-path = "mlsynth/utils/bilevel/exact/interior.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_interior.py mlsynth/tests/test_exact_interior_pd.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "exit-by-weight-not-by-ratio"
+  find = "            ratio = np.where(self.beta > 0, self.w[:, None] / self.beta, np.inf)"
+  replace = "            ratio = np.where(self.beta > 0, self.w[:, None], np.inf)"
+  models = "a ratio test that sends out the donor of least weight, not of least w_i / beta_ij, so the cell it builds need not hold X1 and the walk loses that neighbour"
+
+  [[target.mutant]]
+  id = "rows-without-the-cell-s-lift"
+  find = "        return (self.X0[:, self.out] ** 2).T - self.beta.T @ (self.X0[:, self.A] ** 2).T"
+  replace = "        return (self.X0[:, self.out] ** 2).T"
+  models = "selection rows that compare an outside donor's lift with zero instead of with the hyperplane through the lifted cell, so attainability no longer means the cell is Delaunay under some diagonal V"
+
+  [[target.mutant]]
+  id = "slack-threshold-dropped"
+  find = "        if (R @ d).min() > THETA_TOL * d.sum():"
+  replace = "        if True:"
+  models = "a least-distance point accepted whatever its normalised slack, so a cell whose theta*_+ is below the authors' 1e-9 counts as attainable"
+
+  [[target.mutant]]
+  id = "undecided-cell-read-as-unattainable"
+  find = "    if res.status == 0 and -res.fun > THETA_TOL:"
+  replace = "    if False:"
+  models = "the authors' program solved and its answer discarded, so a cell that only HiGHS can decide is always ruled out"
+
+  [[target.mutant]]
+  id = "unattainable-cells-enter-the-minimum"
+  find = "        return (cell.w, d) if ok else None"
+  replace = "        return (cell.w, d)"
+  models = "every admissible cell the walk meets taken as a candidate, attainable or not, so an exact match no positive diagonal V selects can be returned"
+
+  [[target.mutant]]
+  id = "boundary-treated-unit-admitted"
+  find = "    if not interior_margin(C1, C0) > ADMIT_TOL:"
+  replace = "    if interior_margin(C1, C0) == -np.inf:"
+  models = "a treated unit on a face of the hull let through to the walk, which Assumption 2(ii) excludes; it must be refused as outside the interior case"
+
+  [[target.mutant]]
+  id = "seed-from-an-arbitrary-vertex"
+  find = "        res = linprog(lift * (1.0 + 1e-6 * attempt * golden), A_eq=np.vstack([X0, np.ones(J)]),"
+  replace = "        res = linprog(np.zeros(J), A_eq=np.vstack([X0, np.ones(J)]),"
+  models = "a walk started from any vertex of the exact matches, which need not be attainable, so the walk can end before it meets an attainable cell"
+
+  [[target.mutant]]
+  id = "least-loss-cell-taken-on-trust"
+  find = "        ok, _ = pd_attainable(q_matrices(cell, C0), st, V0=_steiner(C0[:, list(A)]))"
+  replace = "        ok, _ = True, None"
+  models = "the admissible cell of least loss returned without asking whether a positive definite V selects it, which on small designs it often does not"
+
+  [[target.mutant]]
+  id = "cells-tested-in-walk-order"
+  find = "    for tested, A in enumerate(sorted(losses, key=losses.get), start=1):"
+  replace = "    for tested, A in enumerate(losses, start=1):"
+  models = "cells tested in the order the walk met them, so the first attainable one need not be the best"
+
+  [[target.mutant]]
+  id = "start-metric-accepted-unchecked"
+  find = "    if np.einsum(\"jkl,kl->j\", Q, V0).min() > THETA_TOL:      # the start already selects the cell"
+  replace = "    if True:"
+  models = "the barrier's starting metric taken as evidence without checking its slacks, so every cell counts as attainable"
+
+  [[target.mutant]]
+  id = "dual-point-unchecked"
+  find = "        if K * np.linalg.eigvalsh(np.einsum(\"j,jkl->kl\", y, Q)).max() <= THETA_TOL:"
+  replace = "        if True:"
+  models = "the central path's dual point read as a proof of unattainability without its eigenvalue bound, so a cell the barrier has not yet certified is ruled out"
+
+  [[target.mutant]]
+  id = "cvxpy-verdict-reversed"
+  find = "    return (True, None) if prob.value is not None and prob.value > THETA_TOL else (False, None)"
+  replace = "    return (False, None) if prob.value is not None and prob.value > THETA_TOL else (True, None)"
+  models = "the fallback program's value read on the wrong side of the threshold"
+
+  [[target.mutant]]
+  id = "cell-matrices-without-the-cell-s-lift"
+  find = "    return np.einsum(\"kj,lj->jkl\", XO, XO) - np.einsum(\"ki,ij,li->jkl\", XA, cell.beta, XA)"
+  replace = "    return np.einsum(\"kj,lj->jkl\", XO, XO)"
+  models = "Q_j^A without the lifted cell's hyperplane, so the semidefinite test asks whether the outside donor's lift is positive"
+
+[[target]]
+name = "vanillasc-exact-rationalize"
+module-path = "mlsynth/utils/bilevel/exact/rationalize.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_rationalize.py mlsynth/tests/test_exact_search.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "inactive-donors-left-out-of-the-cone"
+  find = "                      np.c_[-Sm, np.zeros((q, K)), np.eye(q)],                  # 0 <= z_i <= (Sm d)_i"
+  replace = "                      np.c_[np.zeros((q, 2 * K)), np.eye(q)],"
+  models = "the rationalisers' cone built without the inactive donors' inequalities, so the support and the strict inequalities are read from a larger set than the one V must live in. A first version deleted the rows (Sm d)_i >= 0 and survived as an equivalent mutant: 0 <= z_i <= (Sm d)_i already implies them, and those rows were removed"
+
+  [[target.mutant]]
+  id = "interior-diagonal-weights-given-exterior-conditions"
+  find = """    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _diag_interior(X1, X0, w)"""
+  replace = """    if False:
+        return _diag_interior(X1, X0, w)"""
+  models = "an interior w handed to the exterior optimality conditions, which are empty at r = 0, so any diagonal V counts and the uniform one comes back, as in the authors' code"
+
+  [[target.mutant]]
+  id = "interior-pd-weights-given-exterior-conditions"
+  find = """    if not outside_hull(np.asarray(X1, float), np.asarray(X0, float)):
+        return _pd_interior(X1, X0, w, ranges)"""
+  replace = """    if False:
+        return _pd_interior(X1, X0, w, ranges)"""
+  models = "the same in the positive definite class, where the exterior start divides by r'r = 0"
+
+  [[target.mutant]]
+  id = "interior-centre-without-the-selection-rows"
+  find = "    dl, dc = _diag_centres(K, list(range(K)), np.ones((1, K)), np.array([1.0]), R, (1.0 - tau) * d + tau / K)"
+  replace = "    dl, dc = _diag_centres(K, list(range(K)), np.ones((1, K)), np.array([1.0]), R[:0], (1.0 - tau) * d + tau / K)"
+  models = "the interior centre taken over the simplex alone, without the rows that make the cell the selection"
+
+  [[target.mutant]]
+  id = "pd-interior-centre-without-the-selection-rows"
+  find = "    return _pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]), C,"
+  replace = "    return _pd_centres(K, (Bm @ np.eye(K).ravel())[None, :], np.array([1.0]), C[:0],"
+  models = "the PD centre taken over the trace-one slice alone, without the selection rows"
+
+  [[target.mutant]]
+  id = "line-search-asks-for-derivatives"
+  find = "        while fun(x + step * dx) > f - 0.25 * step * lam2:"
+  replace = "        while not in_domain(x + step * dx) or vgh(x + step * dx)[0] > f - 0.25 * step * lam2:"
+  models = "a line search that computes the gradient and Hessian at every trial step, the cost the objective-only line search removed"
+
+[[target]]
+name = "vanillasc-exact-solve"
+module-path = "mlsynth/utils/bilevel/exact/solve.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_solve.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pd-shares-reported-for-the-diagonal-class"
+  find = "    V = diagonal.logdet if diagonal is not None else pd.logdet_shares"
+  replace = "    V = pd.logdet_shares"
+  models = "the diagonal class reporting the positive definite log-det maximiser's shares as its predictor weights, a V that need not be diagonal-attainable for the donor weights it is shown beside"
+
+  [[target.mutant]]
+  id = "ranges-never-computed"
+  find = "    pr = rationalize.pd_rationalizers(X1, X0, W, ranges=ranges)"
+  replace = "    pr = rationalize.pd_rationalizers(X1, X0, W, ranges=False)"
+  models = "exact_ranges accepted and recorded but the identified ranges never computed, so the result reports None where the caller asked for Table 4's ranges"
+
+  [[target.mutant]]
+  id = "lower-bound-is-the-optimum"
+  find = "                           lower_bound=float(np.sum((Z1 - Z0 @ w_free) ** 2)), stage=\"exact\","
+  replace = "                           lower_bound=loss, stage=\"exact\","
+  models = "the unconstrained lower bound replaced by the optimum itself, which hides how much fit the predictor constraint costs (58.46 against the free fit on Proposition 99)"
+
+  [[target.mutant]]
+  id = "face-counts-never-computed"
+  find = "        face_counts=faces.face_counts(X1, X0) if face_counts and regime == \"exterior\" else None,"
+  replace = "        face_counts=None,"
+  models = "exact_face_counts accepted and recorded but the counts never computed"
+
+  [[target.mutant]]
+  id = "unknown-class-falls-to-pd"
+  find = "    if v_class not in V_CLASSES:"
+  replace = "    if False:"
+  models = "a misspelled v_class read as the positive definite class, so a typo changes the estimator without a word"
+
+  [[target.mutant]]
+  id = "lower-loss-unweighted"
+  find = "    lower = float(np.sum(V * r ** 2)) if diagonal is not None else float(r @ pd.logdet @ r / np.trace(pd.logdet))"
+  replace = "    lower = float(np.sum(r ** 2)) if diagonal is not None else float(r @ pd.logdet @ r / np.trace(pd.logdet))"
+  models = "the lower-level loss reported without the predictor weights, so it no longer measures the V-weighted discrepancy the weights minimise"
+
+[[target]]
+name = "vanillasc-exact-faces"
+module-path = "mlsynth/utils/bilevel/exact/faces.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_faces.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-facet-counted-visible"
+  find = "    visible = [F for F, eq in facets if eq[:-1] @ X1 + eq[-1] > TOL]"
+  replace = "    visible = [F for F, eq in facets]"
+  models = "the visible faces read off every facet of the hull, not only those the treated unit sees"
+
+  [[target.mutant]]
+  id = "every-visible-face-counted-attainable"
+  find = "        if _attainable(hull, sigma, F0, z, Z, scale):"
+  replace = "        if True:"
+  models = "attainability never tested, so the attainable column of Table 3 repeats the visible one"
+
+  [[target.mutant]]
+  id = "edges-taken-as-attainable"
+  find = "        (val, _), _ = edge_min(X0, X1, z, Z, sigma, np.inf)\n        return bool(np.isfinite(val))"
+  replace = "        return True"
+  models = "an edge counted attainable without the residual-arrangement test, which on Proposition 99 would count 183 attainable edges where there are 6"
+
+  [[target.mutant]]
+  id = "non-simplicial-facet-accepted"
+  find = "        if len(on) != K:"
+  replace = "        if False:"
+  models = "a facet holding more than K donors counted as if simplicial, so every subset of it is called a face and the counts are silently wrong"
+
+[[target]]
+name = "vanillasc-exact-config"
+module-path = "mlsynth/utils/vanillasc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "exact-without-covariates-accepted"
+  find = "        if self.backend == \"exact\" and not self.covariates:"
+  replace = "        if False:"
+  models = "backend='exact' accepted with no predictors, so the request fails later inside the engine or falls back to another estimator"
+
+  [[target.mutant]]
+  id = "exact-with-ridge-accepted"
+  find = "        if self.backend == \"exact\" and self.augment == \"ridge\":"
+  replace = "        if False:"
+  models = "backend='exact' combined with augment='ridge', where the ridge layer discards the exact weights it was asked to augment"
+
+  [[target.mutant]]
+  id = "exact-options-ignored-elsewhere"
+  find = "        if self.backend != \"exact\":\n            set_options = ["
+  replace = "        if False:\n            set_options = ["
+  models = "exact_v_class, exact_ranges or exact_face_counts set beside another backend and silently ignored"
+
+[[target]]
+name = "vanillasc-exact-pipeline"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "fit-exclude-ignored"
+  find = "    if config.fit_exclude:\n        pre_list = time_labels[:pre].tolist()"
+  replace = "    if False:\n        pre_list = time_labels[:pre].tolist()"
+  models = "fit_exclude accepted and recorded but every pre-treatment period kept in the outcome fit, which on Proposition 99 returns the headline weights for the leakage-free sample"
+
+  [[target.mutant]]
+  id = "unknown-exclusion-dropped"
+  find = "        if missing:\n            raise MlsynthDataError("
+  replace = "        if False:\n            raise MlsynthDataError("
+  models = "an exclusion that names no pre-treatment period dropped without a word, so a mistyped year leaks into the fit"
+
+  [[target.mutant]]
+  id = "refits-keep-the-extras"
+  find = "        if config.backend == \"exact\":\n            # The ranges and face counts describe the treated unit's fit."
+  replace = "        if False:\n            # The ranges and face counts describe the treated unit's fit."
+  models = "every placebo refit computing the ranges and face counts the treated unit's fit reports, a 2K-barrier and face-sweep cost per donor for numbers nobody reads"
+
+  [[target.mutant]]
+  id = "exact-details-dropped"
+  find = "        exact=res.diagnostics.get(\"exact\"),"
+  replace = "        exact=None,"
+  models = "the exact backend's typed details left off the result"
+
+  [[target.mutant]]
+  id = "ranges-not-forwarded"
+  find = "            ranges=config.exact_ranges,"
+  replace = "            ranges=False,"
+  models = "exact_ranges accepted by the config but never handed to the backend"
+
+[[target]]
+name = "vanillasc-exact-engine"
+module-path = "mlsynth/utils/bilevel/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_exact.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "exact-falls-back-to-outcome-only"
+  find = "        if backend in (\"malo\", \"mscmt\", \"regression\", \"exact\") and not has_cov:"
+  replace = "        if backend in (\"malo\", \"mscmt\", \"regression\") and not has_cov:"
+  models = "the exact backend called without predictors running the outcome-only fit and reporting it as exact"
+
+  [[target.mutant]]
+  id = "exact-options-filtered-out"
+  find = "    \"exact\": {\"v_class\", \"ranges\", \"face_counts\", \"max_cells\"},"
+  replace = "    \"exact\": {\"v_class\"},"
+  models = "the engine's per-backend filter dropping the exact backend's ranges and face counts"
+
+[[target]]
+name = "vanillasc-exact-hull"
+module-path = "mlsynth/utils/bilevel/exact/hull.py"
+test-command = "python -m pytest mlsynth/tests/test_exact_hull.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "neighbour-turns-the-narrowest-angle"
+  find = "        d = int(np.flatnonzero(mask)[np.argmax(ang[mask])])"
+  replace = "        d = int(np.flatnonzero(mask)[np.argmin(ang[mask])])"
+  models = "gift wrapping that rotates to the donor of least angle, which builds a plane through the hull's interior instead of the facet across the ridge"
+
+  [[target.mutant]]
+  id = "star-walks-one-ring"
+  find = "                if H not in out:\n                    out.add(H)\n                    queue.append(H)"
+  replace = "                if H not in out:\n                    out.add(H)"
+  models = "the star of a face collected from the first facet's neighbours only, so a face lying in more facets than one ring reaches gets a normal cone with walls missing"
+
+  [[target.mutant]]
+  id = "outside-read-from-the-wrong-status"
+  find = "    return res.status == 2"
+  replace = "    return res.status == 0"
+  models = "the hull-membership LP read backwards, so every treated unit inside the hull is sent to the exterior search and every one outside to the interior walk"
+
+  [[target.mutant]]
+  id = "rank-threshold-relative-only"
+  find = "    return int((sv > max(tol * sv[0], floor)).sum())"
+  replace = "    return int((sv > tol * sv[0]).sum())"
+  models = "the rank test of the original port: with every donor at one point the largest singular value is rounding, a threshold relative to it counts it, and a degenerate hull passes the general-position check"
+
 # #846: the loop the certified branch and bounds share. The skeleton's tests
 # run first; the searches' own tests follow, so a mutant they miss still meets
 # the defect as each search sees it.

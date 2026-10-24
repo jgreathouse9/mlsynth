@@ -88,6 +88,15 @@ it deliberately.
      - Multi-feature matching for the staggered design, mirroring
        ``scpi``'s ``scdataMulti`` -- covariate adjustment terms, a global
        constant, and cointegration differencing.
+   * - ``backend="exact"``
+     - The exact solution of the bilevel program (Abadie & Shang 2026): the
+       best validation fit among the donor weights some diagonal (or, with
+       ``exact_v_class="pd"``, positive definite) predictor weights select,
+       found by a search over the faces of the donor hull instead of a
+       search over :math:`\mathbf{V}`. See :ref:`vanillasc-exact`.
+   * - ``fit_exclude``
+     - Drop named pre-treatment periods from the outcome objective, for
+       instance the years whose outcomes are also predictors.
    * - ``oracle_weights``
      - Skip the optimisation and impose known donor weights, for the
        known-weights benchmark case.
@@ -231,7 +240,7 @@ polytope of :math:`\mathbf{V}` reproduces the same :math:`\mathbf{w}`).
 Backends
 --------
 
-The covariate path exposes four reliable solvers via ``backend=``:
+The ``backend=`` option selects among these solvers:
 
 ``"outcome-only"``
     No predictor weights; the convex simplex fit above. The well-posed
@@ -328,6 +337,16 @@ The covariate path exposes four reliable solvers via ``backend=``:
     unpenalized synthetic control. ``penalized_cv`` selects the CV criterion
     only when ``penalized_lambda`` is ``None``.
 
+``"exact"``
+    Abadie & Shang (2026): the exact optimum of the bilevel program, over
+    positive diagonal :math:`\mathbf{V}` (``exact_v_class="diagonal"``, the
+    default) or positive definite :math:`\mathbf{V}` (``"pd"``). Where
+    ``mscmt`` and ``malo`` search :math:`\mathbf{V}` and keep the best
+    weights they meet, this backend searches the geometry of the donor hull
+    and returns the global optimum, with the predictor weights that select
+    it. Checked against the authors' own replication run on Proposition 99
+    and West Germany; see :ref:`vanillasc-exact`.
+
 .. note::
 
    Both covariate backends are pinned on a paper specification by the
@@ -375,6 +394,164 @@ The covariate path exposes four reliable solvers via ``backend=``:
    SC (:class:`~mlsynth.TSSC` MSCa) with its free intercept. mlsynth's SC matches
    the authors' own ``quadprog`` program value-for-value on the simulated panels.
    See :doc:`replications/ferman_pinto_mc`.
+
+.. _vanillasc-exact:
+
+The exact backend (Abadie and Shang 2026)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The bilevel program above is non-convex in :math:`\mathbf{V}`, and the
+searching backends return the best donor weights they visit. Abadie and Shang
+(2026) solve it exactly by changing what is searched. Each :math:`\mathbf{V}`
+selects a point of the donor simplex, and the set of points some
+:math:`\mathbf{V}` selects has a closed form in the geometry of the donors'
+predictors: a finite union of polyhedra. The program becomes a least-squares
+fit of the validation outcomes over that union.
+
+Let :math:`\mathcal{T}_V \subseteq \mathcal{T}_1` be the periods of the outcome
+fit (every pre-treatment period, or those ``fit_window`` and ``fit_exclude``
+keep), :math:`\mathbf{z}_1 \coloneqq \mathbf{y}_{1,\mathcal{T}_V}` and
+:math:`\mathbf{Z}_0 \coloneqq \mathbf{Y}_{0,\mathcal{T}_V}` the treated unit's
+and the donors' outcomes there, :math:`\mathbf{r}(\mathbf{w}) \coloneqq
+\mathbf{X}_1 - \mathbf{X}_0\mathbf{w}` the predictor residual, and
+:math:`\mathcal{W}(\mathcal{V})` the closure of
+:math:`\{\mathbf{w}^\ast(\mathbf{V}) : \mathbf{V} \in \mathcal{V}\}`, the donor
+weights attainable with predictor weights in a class :math:`\mathcal{V}`. The
+exact synthetic control is
+
+.. math::
+
+   \widehat{\mathbf{w}} = \operatorname*{argmin}_{\mathbf{w} \in
+   \mathcal{W}(\mathcal{V})} \; \|\mathbf{z}_1 - \mathbf{Z}_0 \mathbf{w}\|_2^2,
+
+with :math:`\mathcal{V}` the positive diagonal matrices
+(``exact_v_class="diagonal"``, the default and the class Synth searches) or
+the positive definite ones (``"pd"``). The second class contains the first, so
+its optimum fits the validation outcomes at least as well.
+
+Two cases arise, and the backend detects which one applies.
+
+* The treated unit outside the donor hull (the exterior case). Every selected
+  point lies on a face of the hull visible from :math:`\mathbf{X}_1`. Under
+  positive definite :math:`\mathbf{V}` the attainable set is the union of the
+  visible facets (the paper's Proposition 2), and the answer is the best
+  simplex fit on one of them. Under diagonal :math:`\mathbf{V}` a point
+  :math:`\mathbf{w}` of a visible face is attainable exactly when some nonzero
+  :math:`\mathbf{c}` in the face's normal cone agrees in sign with the
+  residual, :math:`c_k\, r_k(\mathbf{w}) \ge 0` for every predictor
+  :math:`k` (Proposition A.1), so the attainable part of a face is a union of
+  polyhedral pieces, one per sign pattern its normal cone admits. The backend
+  visits the faces best first under a valid lower bound, stops once the bound
+  cannot beat the incumbent, and on a face below the ridges runs a branch and
+  bound over sign patterns in which each relaxation is one exact least-squares
+  solve and each attainability test returns a point or a Farkas certificate.
+* The treated unit inside the donor hull (the interior case). Every
+  :math:`\mathbf{V}` then matches the predictors exactly,
+  :math:`\mathbf{X}_0\mathbf{w} = \mathbf{X}_1`, and the bilevel program does
+  not choose among the exact matches. Following the paper's Section 5, the
+  backend takes the match a vanishing Abadie-L'Hour penalty selects: a cell of
+  :math:`P + 1` donors whose simplex holds :math:`\mathbf{X}_1`, the cell that
+  is Delaunay under :math:`\mathbf{V}`. The answer is the attainable cell of
+  least validation loss (Proposition 5), found by a walk over cells that
+  differ by one donor.
+
+What the predictor weights mean. The donor weights are identified; the
+predictor weights are not, and the :math:`\mathbf{V}` that select
+:math:`\widehat{\mathbf{w}}` form a convex cone. The result's
+``predictor_weights`` are a canonical member of it: the log-det maximiser on
+the slice :math:`\operatorname{tr}\mathbf{V} = 1`, the weighting that spreads
+the weight most evenly while still selecting :math:`\widehat{\mathbf{w}}`
+(its diagonal; for ``"pd"``, :math:`V_{kk}/\operatorname{tr}\mathbf{V}`). The
+typed field ``res.exact`` (an ``ExactDetails``) adds the analytic centre of
+the same set, which also keeps the inactive donors' inequalities away from
+equality; the predictors some rationaliser weights and those every
+rationaliser leaves at zero; the positive definite rationalisers of the
+diagonal answer (the paper's Table 4); with ``exact_ranges=True``, the range
+of each :math:`V_{kk}` over the positive definite rationalisers; the visible
+facets that hold a positive definite optimum; and with
+``exact_face_counts=True``, the faces of the donor hull by dimension, all,
+visible and attainable (Table 3).
+
+The backend rests on three assumptions beyond those of the canonical estimator.
+
+1. General position of the predictors. The donor hull is full-dimensional and
+   simplicial: no :math:`P + 1` donors lie on one hyperplane, so every facet
+   holds exactly :math:`P` donors (the paper's Assumption 1).
+
+   *Remark.* Predictors that sum to a constant across each unit (shares of a
+   whole), or two copies of one predictor, make the hull lower-dimensional;
+   the backend raises ``MlsynthDataError`` naming the condition. Drop one of
+   the shares or one of the copies.
+
+2. The treated unit lies strictly outside or strictly inside the donor hull.
+   Outside, it sees at least one facet; inside, it is matched exactly by no
+   fewer than :math:`P + 1` donors (Assumption 2).
+
+   *Remark.* A unit on the boundary of the hull is matched by fewer than
+   :math:`P + 1` donors and is covered by neither case; the backend refuses
+   it.
+
+3. Enough validation periods. On each face the least-squares reduction needs
+   the validation outcomes of the face's donors to have full column rank: at
+   least as many validation periods as the face has free weights, and no two
+   donors with nearly collinear validation paths.
+
+   *Remark.* West Germany's facets hold six donors, so two validation years
+   could not identify the weights on them, and the backend raises instead of
+   returning an ill-conditioned fit. The paper's ten validation years,
+   1981-1990, are enough.
+
+Inference composes with the backend. The in-space placebo refits the exact
+search with each donor as the treated unit; the refits compute donor weights
+only, and the ranges and face counts are reported for the treated unit alone.
+
+Proposition 99 on the authors' own data and predictor specification (income,
+youth share and retail price averaged over 1980-1988, beer over 1984-1988, and
+cigarette sales in 1988, 1980 and 1975):
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import VanillaSC
+
+   url = ("https://raw.githubusercontent.com/jgreathouse9/mlsynth/"
+          "refs/heads/main/basedata/abadie_shang_smoking.csv")
+   df = pd.read_csv(url)
+   df["year"] = df["year"].astype(int)
+   df["treated"] = ((df.state == "California") & (df.year >= 1989)).astype(int)
+   for year in (1988, 1980, 1975):
+       df[f"cigsale_{year}"] = df["cigsale"]   # each read in its own year below
+
+   windows = {"lnincome": (1980, 1988), "age15to24": (1980, 1988),
+              "retprice": (1980, 1988), "beer": (1984, 1988),
+              "cigsale_1988": (1988, 1988), "cigsale_1980": (1980, 1980),
+              "cigsale_1975": (1975, 1975)}
+   cfg = {"df": df, "outcome": "cigsale", "treat": "treated", "unitid": "state",
+          "time": "year", "backend": "exact", "covariates": list(windows),
+          "covariate_windows": windows, "inference": False,
+          "display_graphs": False}
+
+   res = VanillaSC(cfg).fit()
+   res.weights.donor_weights      # Utah 0.3351, Nevada 0.2356, Montana 0.2019,
+                                  # Colorado 0.1595, Connecticut 0.0679
+   res.exact.validation_loss      # 58.4566
+   res.effects.att                # -18.98 packs per capita, 1989-2000
+   res.exact.by_name(res.exact.diagonal.logdet)   # 1/3 on age15to24, retprice,
+                                                  # cigsale_1975; 0 elsewhere
+
+   pd_res = VanillaSC({**cfg, "exact_v_class": "pd"}).fit()
+   pd_res.exact.validation_loss   # 54.7035: the larger class fits better
+   pd_res.effects.att             # -19.78
+
+The diagonal answer reproduces the paper's Table 1 and the positive definite
+one its Table D.1; the predictor weights are its Table 2.
+
+Verification. The case
+`benchmarks/cases/vanillasc_exact.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/vanillasc_exact.py>`__
+runs ``VanillaSC.fit()`` on Proposition 99 and West Germany and compares it
+with a live capture of the authors' ``run_all.py`` at the commit they published,
+number by number; :doc:`replications/vanillasc_exact` sets out the results,
+the places where the two differ and why, and the runtimes.
 
 Weight-constraint families
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

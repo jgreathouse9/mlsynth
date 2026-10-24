@@ -80,6 +80,25 @@ The same 17-country × 44-year (1960–2003) GDP panel, in three covariate depth
 | `repgermany.dta` | the standard ADH covariates (`gdp`, `infrate`, `trade`, `schooling`, `invest*`) | SpillSynth / IncSCM / `botosaru_ferman_covariates` / west-Germany cases |
 | `german_reunification.csv` | `gdp` + the `Reunification` flag | ClusterSC / SpotSynth / several west-Germany cases |
 
+## Exact synthetic control — Abadie & Shang (2026)
+
+The two panels of the authors' replication package, copied byte for byte from
+`data/` of [lychemon/synth-AS-replication](https://github.com/lychemon/synth-AS-replication)
+at commit `791a3865fe3e9fd0b82a8121c0b338791b7ffa39` (v1.0.0). They hold the same
+studies as the Proposition 99 and German reunification files above, but in
+double precision: `augmented_cali_long.csv` and `repgermany.dta` store several
+columns as 32-bit floats, which moves the predictors by up to 5e-7. The exact
+backend of VanillaSC is checked against the authors' run on these copies.
+
+| File | What it is | Used by |
+|---|---|---|
+| `abadie_shang_smoking.csv` | 39 states x 1970-2000: `cigsale`, `lnincome`, `beer`, `age15to24`, `retprice` | VanillaSC `backend="exact"` (`vanillasc_exact`) |
+| `abadie_shang_germany.csv` | 17 countries x 1960-2003: `gdp`, `infrate`, `trade`, `schooling`, `invest60`, `invest70`, `invest80`, `industry` | VanillaSC `backend="exact"` (`vanillasc_exact`) |
+
+The authors release both under the Creative Commons Attribution 4.0
+International License (CC BY 4.0); cite Abadie, Diamond & Hainmueller (2010,
+JASA) for Proposition 99 and (2015, AJPS) for West Germany when using them.
+
 ## Basque Country — Abadie & Gardeazabal (2003)
 
 Two near-identical 17-column regional panels that differ by a region/year block:

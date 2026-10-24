@@ -93,12 +93,14 @@ class VanillaSCConfig(BaseEstimatorConfig):
 
     Parameters
     ----------
-    backend : {"auto", "outcome-only", "malo", "mscmt", "regression", "penalized"}
+    backend : {"auto", "outcome-only", "malo", "mscmt", "regression", "penalized", "exact"}
         Predictor-weight backend. ``"auto"`` (default) uses ``"outcome-only"``
         (convex simplex fit on pre-treatment outcomes) when no covariates are
         given, and ``"mscmt"`` (global differential-evolution ``V`` search)
         when they are. ``"malo"`` is the Malo et al. (2024) corner search,
-        ``"penalized"`` the Abadie-L'Hour (2021) unique/sparse estimator.
+        ``"penalized"`` the Abadie-L'Hour (2021) unique/sparse estimator, and
+        ``"exact"`` the Abadie-Shang (2026) exact solution of the bilevel
+        program (see ``exact_v_class``).
     covariates : list of str, optional
         Predictor columns. Each is averaged over its window (see
         ``covariate_windows``) and scaled to unit variance, then matched via
@@ -112,7 +114,22 @@ class VanillaSCConfig(BaseEstimatorConfig):
         dependent SSR, MSCMT's ``times.dep``) to a sub-range of the
         pre-treatment period; predictor matching is unaffected. ``None``
         (default) fits the full pre-period. This is how Abadie-Gardeazabal's
-        Basque study fits ``gdpcap`` over 1960-1969 rather than 1955-1969.
+        Basque study fits ``gdpcap`` over 1960-1969 instead of 1955-1969.
+    fit_exclude : list, optional
+        Pre-treatment periods dropped from the outcome fit, after
+        ``fit_window``. Abadie and Shang's leakage-free Proposition 99 sample
+        drops 1975, 1980 and 1988, the years whose outcomes are predictors.
+    exact_v_class : {"diagonal", "pd"}
+        With ``backend="exact"``, the class of predictor weights the donor
+        weights are chosen over: positive diagonal (the paper's problem (5),
+        Synth's class) or positive definite (problem (6)).
+    exact_ranges : bool
+        With ``backend="exact"``, also bound each predictor weight over the
+        positive definite weights that select the donor weights.
+    exact_face_counts : bool
+        With ``backend="exact"`` and a treated unit outside the donor hull,
+        also count the faces of the donor hull by dimension (all, visible,
+        attainable).
     canonical_v : bool or {"min.loss.w", "max.order"}
         Canonicalise the (non-identified) predictor weights for ``mscmt``
         (MSCMT ``determine_v``). The reported ``v_agreement`` is small when
@@ -147,7 +164,7 @@ class VanillaSCConfig(BaseEstimatorConfig):
     """
 
     backend: Literal["auto", "outcome-only", "malo", "mscmt", "regression",
-                     "penalized"] = Field(
+                     "penalized", "exact"] = Field(
         default="auto",
         description="Predictor-weight backend (see class docstring).",
     )
@@ -192,6 +209,41 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "over their own covariate_windows). None (default) uses the "
                     "full pre-treatment period; this is how Abadie-Gardeazabal's "
                     "Basque study fits gdpcap over 1960-1969 rather than 1955-1969.",
+    )
+
+    fit_exclude: Optional[List[Any]] = Field(
+        default=None,
+        description="Pre-treatment time labels dropped from the outcome fit (the "
+                    "dependent SSR), applied after fit_window, for every backend. "
+                    "Abadie and Shang's leakage-free specification drops the years "
+                    "whose outcomes enter the predictors, so that validation and "
+                    "matching do not share data (1975, 1980 and 1988 on "
+                    "Proposition 99). Every label must be a pre-treatment period, "
+                    "and at least one must remain. None (default) drops nothing.",
+    )
+    exact_v_class: Literal["diagonal", "pd"] = Field(
+        default="diagonal",
+        description="backend='exact' only: the class of predictor weights V the "
+                    "donor weights are chosen over. 'diagonal' (default) is "
+                    "Abadie and Shang's problem (5), positive diagonal V, the "
+                    "class Synth searches; 'pd' is problem (6), any positive "
+                    "definite V, whose optimum fits the validation outcomes at "
+                    "least as well.",
+    )
+    exact_ranges: bool = Field(
+        default=False,
+        description="backend='exact' only: also report the identified range of "
+                    "each predictor weight V_kk over the positive definite V that "
+                    "select the donor weights (the ranges of the paper's Table 4). "
+                    "Two barrier solves per predictor, on the treated unit only.",
+    )
+    exact_face_counts: bool = Field(
+        default=False,
+        description="backend='exact' only: also count the faces of the donor "
+                    "hull by dimension -- all of them, those visible from the "
+                    "treated unit, and the visible faces holding an attainable "
+                    "point (the paper's Table 3). Outside the hull only; on the "
+                    "treated unit only.",
     )
 
     @field_validator("fit_window")
@@ -647,6 +699,35 @@ class VanillaSCConfig(BaseEstimatorConfig):
             raise ValueError(
                 "w_constr cannot be combined with " + "; ".join(clashes) + "."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _exact_options_need_the_exact_backend(self):
+        """The exact backend searches the donor weights that predictor weights select, so it
+        needs predictors, and its options mean nothing to another backend. Raise instead of
+        ignoring either, so a request is never silently dropped."""
+        if self.backend == "exact" and not self.covariates:
+            raise ValueError(
+                "backend='exact' needs covariates: it searches the donor weights "
+                "some predictor weights select, and with no predictors there is "
+                "nothing to weight. Supply `covariates`, or use "
+                "backend='outcome-only'."
+            )
+        if self.backend == "exact" and self.augment == "ridge":
+            raise ValueError(
+                "backend='exact' cannot be combined with augment='ridge': the ridge "
+                "layer fits its own outcome-only base, so the exact donor weights "
+                "would be computed and then discarded."
+            )
+        if self.backend != "exact":
+            set_options = [f for f in ("exact_v_class", "exact_ranges", "exact_face_counts")
+                           if f in self.model_fields_set
+                           and getattr(self, f) != type(self).model_fields[f].default]
+            if set_options:
+                raise ValueError(
+                    f"{', '.join(set_options)} applies only to backend='exact', and "
+                    f"backend={self.backend!r} was given."
+                )
         return self
 
     @model_validator(mode="after")
