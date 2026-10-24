@@ -240,7 +240,7 @@ polytope of :math:`\mathbf{V}` reproduces the same :math:`\mathbf{w}`).
 Backends
 --------
 
-The covariate path exposes four reliable solvers via ``backend=``:
+The ``backend=`` option selects among these solvers:
 
 ``"outcome-only"``
     No predictor weights; the convex simplex fit above. The well-posed
