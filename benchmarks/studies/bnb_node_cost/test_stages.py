@@ -6,8 +6,6 @@ the wrapped search decides exactly what the library decides, that every
 wrapper comes off whether the search returns or raises, and that the cost
 model's charge per stage is the one the library adds to its work.
 """
-import time
-
 import numpy as np
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -34,10 +32,32 @@ def _library(Y, K, **kw):
     return (o.nodes, o.lifts, o.pruned, o.priced, o.work, o.value, o.lower)
 
 
-def _busy(seconds):
-    t0 = time.perf_counter()
-    while time.perf_counter() - t0 < seconds:
-        pass
+class _Clock:
+    """The ledger's clock in these checks. It moves only when a stage is said
+    to work, so each charge is exact and a loaded runner cannot move it: on
+    the wall clock, a busy-wait under coverage on a shared runner charged a
+    generator 0.031 s for 0.015 s of work. The ledger reads
+    ``stages.time.perf_counter``, which the ``clock`` fixture replaces."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def perf_counter(self):
+        return self.now
+
+    def work(self, seconds):
+        self.now += seconds
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    c = _Clock()
+    monkeypatch.setattr(stages, "time", c)
+    return c
+
+
+def _exactly(seconds):
+    return pytest.approx(seconds, abs=1e-12)
 
 
 # ----------------------------------------------------------------------
@@ -45,18 +65,18 @@ def _busy(seconds):
 # ----------------------------------------------------------------------
 
 
-def test_a_call_is_charged_its_own_time_and_its_callee_the_rest():
+def test_a_call_is_charged_its_own_time_and_its_callee_the_rest(clock):
     ledger = stages.Ledger()
-    inner = ledger.wrap("inner", lambda: _busy(0.02))
+    inner = ledger.wrap("inner", lambda: clock.work(0.02))
 
     def outer_body():
-        _busy(0.01)
+        clock.work(0.01)
         inner()
     outer = ledger.wrap("outer", outer_body)
     outer()
     assert ledger.calls == {"outer": 1, "inner": 1}
-    assert ledger.own["inner"] == pytest.approx(0.02, abs=0.008)
-    assert ledger.own["outer"] == pytest.approx(0.01, abs=0.008)
+    assert ledger.own["inner"] == _exactly(0.02)
+    assert ledger.own["outer"] == _exactly(0.01)
 
 
 @settings(max_examples=25, deadline=None)
@@ -64,24 +84,30 @@ def test_a_call_is_charged_its_own_time_and_its_callee_the_rest():
 def test_property_the_own_times_add_to_the_outermost_calls(path):
     """However the wrapped calls nest, their own times sum to the time of the
     calls made from outside every wrapper: nothing is charged twice or lost.
-    Stage ``d`` calls stage ``d + 1``, so a call at ``d`` nests ``3 - d`` deep."""
-    ledger = stages.Ledger()
-    fns = {}
+    Stage ``d`` calls stage ``d + 1``, so a call at ``d`` nests ``3 - d`` deep,
+    and each call is charged its own body's work and none of its callee's."""
+    clock = _Clock()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(stages, "time", clock)
+        ledger = stages.Ledger()
+        fns = {}
 
-    def make(d):
-        def body():
-            _busy(0.0002)
-            if d < 3:
-                fns[d + 1]()
-        return body
-    for d in range(4):
-        fns[d] = ledger.wrap(f"s{d}", make(d))
-    t0 = time.perf_counter()
-    for d in path:
-        fns[d]()
-    outside = time.perf_counter() - t0
+        def make(d):
+            def body():
+                clock.work(0.0002)
+                if d < 3:
+                    fns[d + 1]()
+            return body
+        for d in range(4):
+            fns[d] = ledger.wrap(f"s{d}", make(d))
+        t0 = clock.perf_counter()
+        for d in path:
+            fns[d]()
+        outside = clock.perf_counter() - t0
     assert sum(ledger.calls.values()) == sum(4 - d for d in path)
-    assert 0.5 * outside <= sum(ledger.own.values()) <= outside
+    assert sum(ledger.own.values()) == _exactly(outside)
+    for label, n in ledger.calls.items():
+        assert ledger.own[label] == _exactly(0.0002 * n), label
 
 
 def test_a_nested_label_names_its_caller():
@@ -94,32 +120,33 @@ def test_a_nested_label_names_its_caller():
                             "trust region > eigh": 2, "eigh": 1}
 
 
-def test_a_generator_is_charged_for_each_step_not_its_call():
+def test_a_generator_is_charged_for_each_step_not_its_call(clock):
     ledger = stages.Ledger()
 
     def blocks():
         for _ in range(3):
-            _busy(0.005)
+            clock.work(0.005)
             yield 1
     stream = ledger.wrap("enumeration", blocks)
-    outer = ledger.wrap("tree", lambda: [_busy(0.01) for _ in stream()])
+    outer = ledger.wrap("tree", lambda: [clock.work(0.01) for _ in stream()])
     outer()
     assert ledger.calls["enumeration"] == 4          # three blocks and the end
-    assert ledger.own["enumeration"] == pytest.approx(0.015, abs=0.006)
-    assert ledger.own["tree"] == pytest.approx(0.03, abs=0.01)
+    assert ledger.own["enumeration"] == _exactly(0.015)
+    assert ledger.own["tree"] == _exactly(0.03)
 
 
-def test_a_raising_call_is_still_charged_and_unwinds():
+def test_a_raising_call_is_still_charged_and_unwinds(clock):
     ledger = stages.Ledger()
 
     def boom():
-        _busy(0.005)
+        clock.work(0.005)
         raise ValueError("x")
     outer = ledger.wrap("outer", ledger.wrap("boom", boom))
     with pytest.raises(ValueError):
         outer()
     assert ledger.calls == {"outer": 1, "boom": 1}
-    assert ledger.own["boom"] >= 0.004
+    assert ledger.own["boom"] == _exactly(0.005)
+    assert ledger.own["outer"] == _exactly(0.0)
     assert ledger._stack == []
 
 
