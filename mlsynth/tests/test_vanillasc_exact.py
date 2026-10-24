@@ -169,6 +169,20 @@ def test_placebo_refits_skip_the_main_fit_s_extras(design, monkeypatch):
     assert len(calls) > 1 and not any(c["ranges"] or c["face_counts"] for c in calls[1:])
 
 
+@pytest.mark.parametrize("v_class", ["diagonal", "pd"])
+def test_every_west_german_donor_refits_over_the_full_pre_period(v_class):
+    """West German GDP per capita validated over 1960-1990: each of the 16 donors refits as the
+    treated unit, so the placebo distribution holds all 16.
+
+    The least-distance step of the reduction once lost eight digits on these fits
+    (fixtures/exact/scale_incident.json): 7 of the 16 refits raised, the placebo loop skipped
+    them, and the p-value rested on nine placebos.
+    """
+    from benchmarks.cases.vanillasc_exact import config
+    res = VanillaSC(config("germany", fit_window=None, exact_v_class=v_class, inference="placebo")).fit()
+    assert res.inference.details["n_placebos"] == 16
+
+
 # --------------------------------------------------------------------------- failure
 def _base(design, **kw):
     return _cfg(_panel(*design), 4, **kw)

@@ -132,6 +132,13 @@ def _lsi(E, f, G, h):
     1e4 and 1e5. A face with more free weights than validation periods, or with donors
     whose validation paths are nearly collinear, is refused. Proposition 99, West Germany
     and the seeded designs of the tests stay below 600.
+
+    The least-distance point x is read off a residual of size 1 / (1 + ||x||^2), so it keeps
+    about 16 - 2 log10 ||x|| digits, and ||x|| is in the outcomes' units: West German GDP
+    refitted over 1960-1990 gives ||x|| near 1.5e4 and eight digits lost
+    (fixtures/exact/scale_incident.json). Every point of the simplex lies within 1 of its
+    centre, so ||R y|| <= s_1 and the least-distance point of a feasible piece has
+    ||x|| <= c = s_1 + ||U'f||; the step is solved in units of c, where ||x|| <= 1.
     """
     U, sv, Vt = np.linalg.svd(E, full_matrices=False)
     if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:
@@ -141,9 +148,10 @@ def _lsi(E, f, G, h):
             f"{E.shape[1]} free weights, condition number {cond:.1e}); the exact least-squares "
             "reduction needs full column rank")
     fq = U.T @ f
-    GRi = (G @ Vt.T) / sv                                # G R^{-1} = G V S^{-1}
-    x = _ldp(GRi, h - GRi @ fq)
-    return None if x is None else Vt.T @ ((x + fq) / sv)
+    c = sv[0] + float(np.linalg.norm(fq))
+    GRi = c * (G @ Vt.T) / sv                            # G R^{-1} = G V S^{-1}, in units of c
+    x = _ldp(GRi, h - GRi @ fq / c)
+    return None if x is None else Vt.T @ ((c * x + fq) / sv)
 
 
 @lru_cache(maxsize=None)

@@ -8794,9 +8794,21 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "back-transform-loses-its-shift"
-  find = "    return None if x is None else Vt.T @ ((x + fq) / sv)"
-  replace = "    return None if x is None else Vt.T @ (x / sv)"
+  find = "    return None if x is None else Vt.T @ ((c * x + fq) / sv)"
+  replace = "    return None if x is None else Vt.T @ (c * x / sv)"
   models = "the least-distance point mapped back to the weights without the shift U'f that makes it a residual, so every piece is solved for the wrong target"
+
+  [[target.mutant]]
+  id = "least-distance-step-in-outcome-units"
+  find = "    c = sv[0] + float(np.linalg.norm(fq))"
+  replace = "    c = 1.0"
+  models = "the scale incident: the least-distance point solved in the outcomes' own units, where it is about the root of the extra loss long and its quotient keeps 16 - 2 log10 ||x|| digits; on West German GDP over 1960-1990, 7 of the 16 placebo refits raised and the placebo loop skipped them"
+
+  [[target.mutant]]
+  id = "least-distance-units-omit-the-target"
+  find = "    c = sv[0] + float(np.linalg.norm(fq))"
+  replace = "    c = sv[0]"
+  models = "units read off the face alone: s_1 bounds the least-distance point only while the target sits near the face, and a treated unit far from it brings the digit loss back"
 
   [[target.mutant]]
   id = "nnls-answer-taken-on-trust"

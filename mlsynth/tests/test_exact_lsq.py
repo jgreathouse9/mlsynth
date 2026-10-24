@@ -9,6 +9,7 @@ the root-cause ladder for that incident, rung by rung.
 """
 from __future__ import annotations
 
+import itertools
 import json
 
 import numpy as np
@@ -321,3 +322,108 @@ def test_the_simplex_basis_is_the_simplex_s_affine_hull(m):
     assert np.allclose(N.T @ N, np.eye(m - 1), atol=1e-12)
     with pytest.raises(ValueError):
         N[...] = 0.0
+
+
+# --------------------------------------------------------------------------- the scale incident
+SCALE_INCIDENT = json.loads((FIXTURES / "scale_incident.json").read_text())["cases"]
+
+
+def _case(c):
+    Gin = None if c["Gin"] is None else np.array(c["Gin"], float)
+    hin = None if c["hin"] is None else np.array(c["hin"], float)
+    return np.array(c["z"], float), np.array(c["Z"], float), Gin, hin
+
+
+def _active_set_optimum(z, Z, Gin, hin):
+    """min ||z - Z b||^2 over b >= 0, 1'b = 1, Gin b >= hin, by solving the equality-constrained fit of
+    every set of active rows and keeping the best feasible one; small faces only."""
+    m = Z.shape[1]
+    A = np.eye(m) if Gin is None else np.vstack([np.eye(m), Gin])
+    a = np.zeros(m) if Gin is None else np.r_[np.zeros(m), hin]
+    best = (np.inf, None)
+    for k in range(m):
+        for S in itertools.combinations(range(len(A)), k):
+            C, d = np.vstack([np.ones(m), A[list(S)]]), np.r_[1.0, a[list(S)]]
+            K = np.block([[2.0 * Z.T @ Z, C.T], [C, np.zeros((len(C), len(C)))]])
+            try:
+                b = np.linalg.solve(K, np.r_[2.0 * Z.T @ z, d])[:m]
+            except np.linalg.LinAlgError:
+                continue
+            if (A @ b - a).min() >= -1e-9 * (1.0 + np.abs(a).max()):
+                val = float(np.sum((z - Z @ b) ** 2))
+                if val < best[0]:
+                    best = (val, b)
+    return best
+
+
+@pytest.mark.parametrize("layout", ["C", "F"])
+@pytest.mark.parametrize("case", SCALE_INCIDENT, ids=lambda c: c["note"][:40])
+def test_a_large_unit_fit_is_solved_exactly_in_either_memory_layout(case, layout):
+    """West German refits over 1960-1990: the optimum to 1e-9, whichever path BLAS takes.
+
+    The least-distance point was read off a residual of size 1 / (1 + ||x||^2) with ||x|| about
+    1.5e4, so eight digits went, and whether the answer's check passed turned on the rounding of
+    the memory layout. Solved in units where ||x|| <= 1, both layouts land on the optimum.
+    """
+    z, Z, Gin, hin = _case(case)
+    Z = np.ascontiguousarray(Z) if layout == "C" else np.asfortranarray(Z)
+    val_ref, b_ref = _active_set_optimum(z, Z, Gin, hin)
+    val, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    assert np.abs(b - b_ref).max() <= 1e-9
+    assert val == pytest.approx(val_ref, rel=1e-9)
+
+
+@settings(max_examples=80, deadline=None)
+@given(seed=st.integers(0, 2**31 - 1), m=st.integers(2, 6), extra=st.integers(1, 30), k=st.integers(0, 6),
+       log_c=st.floats(-3.0, 6.0))
+def test_property_a_piece_s_weights_do_not_depend_on_the_outcomes_units(seed, m, extra, k, log_c):
+    """Outcomes in other units, c z and c Z, select the same weights and a loss c^2 times as large."""
+    rng = np.random.default_rng(seed)
+    L = m + extra
+    Z, z = rng.normal(size=(L, m)), rng.normal(size=L)
+    Gin, hin = (rng.normal(size=(k, m)), 0.3 * rng.normal(size=k)) if k else (None, None)
+    if k:
+        assume(abs(_piece_margin(Gin, hin)) > 1e-6)
+    sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
+    assume(sv[0] / sv[-1] <= lsq.COND_MAX)
+    c = 10.0 ** log_c
+    val, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    val_c, b_c = lsq.simplex_ls(c * z, c * Z, Gin=Gin, hin=hin)
+    assert (b is None) == (b_c is None)
+    if b is not None:
+        assert np.abs(b_c - b).max() <= 1e-9
+        assert val_c == pytest.approx(c * c * val, rel=1e-9)
+
+
+@settings(max_examples=80, deadline=None)
+@given(seed=st.integers(0, 2**31 - 1), m=st.integers(2, 6), extra=st.integers(1, 30), k=st.integers(0, 6),
+       log_c=st.floats(-3.0, 6.0), shift=st.floats(0.0, 10.0))
+def test_property_the_least_distance_point_is_solved_in_units_where_it_is_at_most_one(
+        seed, m, extra, k, log_c, shift):
+    """Every point the reduction hands the least-distance step has norm at most 1, whatever the units.
+
+    Any point of the simplex lies within 1 of its centre, so in the units s_1 + ||U'f|| the
+    least-distance point of a feasible piece is at most 1 long, and the step loses no digits to it.
+    """
+    rng = np.random.default_rng(seed)
+    L = m + extra
+    c = 10.0 ** log_c
+    Z, z = c * (shift + rng.normal(size=(L, m))), c * (shift + 3.0 * rng.normal(size=L))
+    Gin, hin = (rng.normal(size=(k, m)), 0.3 * rng.normal(size=k)) if k else (None, None)
+    sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
+    assume(sv[0] / sv[-1] <= lsq.COND_MAX)
+    seen = []
+    ldp = lsq._ldp
+
+    def spy(G, h):
+        x = ldp(G, h)
+        if x is not None:
+            seen.append(float(np.linalg.norm(x)))
+        return x
+
+    lsq._ldp = spy
+    try:
+        lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    finally:
+        lsq._ldp = ldp
+    assert all(n <= 1.0 + 1e-9 for n in seen)
