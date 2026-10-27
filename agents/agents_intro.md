@@ -143,6 +143,9 @@ Study these implementations before introducing new architecture.
 - `agents_estimators.md` — estimator architecture and the replication contract.
 - `agents_results.md` — the two-family result contract.
 - `agents_tests.md` — testing philosophy, instruments, and the four levels.
+- `agents_solvers.md` — what a numerical solver must do: explicit outcomes,
+  certificates on the original data, tolerances from error models, conditioning
+  and rank deficiency, with the book citation and the measured failure for each.
 - `agents_docs.md` — documentation conventions and the notation canon.
 - `agents_benchmarking.md` — definitions of done for benchmark cases.
 - `agents_combinatorial.md` — how the exact design backends search over sets:
