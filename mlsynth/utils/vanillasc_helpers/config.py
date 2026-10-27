@@ -747,4 +747,12 @@ class VanillaSCConfig(BaseEstimatorConfig):
                 "term does not exist. Supply `covariates`, or leave "
                 "bias_correct=False."
             )
+        if self.bias_correct and str(self.inference).lower() == "placebo_cs":
+            raise ValueError(
+                "inference='placebo_cs' cannot be combined with bias_correct=True: "
+                "the confidence set inverts the placebo test on the donors' "
+                "weights and uncorrected gaps, so it would not be the set of the "
+                "corrected test. Use inference='placebo' or 'lto', whose refits "
+                "are corrected, or leave bias_correct=False."
+            )
         return self

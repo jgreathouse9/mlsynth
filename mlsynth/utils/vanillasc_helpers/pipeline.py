@@ -671,6 +671,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                         engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
                         max_pairs=config.lto_max_pairs, seed=config.seed,
                         fit_periods=fit_pos,
+                        bias_correct_ridge=(config.bias_correct_ridge
+                                            if config.bias_correct else None),
                     )
             except ValueError as exc:
                 # With J >= 3 the one ValueError left is every pair's refit raising.
@@ -893,6 +895,11 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                     warnings.simplefilter("ignore")
                     rj = engine.fit(yj[fit_pos], Y0j[fit_pos], X1=X1j, X0=X0j)
                 cfj = rj.counterfactual(Y0j)
+                if config.bias_correct:
+                    # The donor's gap is corrected as the treated unit's was, with
+                    # its own weights, predictors and pool.
+                    cfj = yj - bias_corrected_gaps(rj.W, X1j, X0j, yj, Y0j,
+                                                   ridge=config.bias_correct_ridge)
             except Exception as exc:
                 # A donor that cannot be refit has no statistic. The test runs over
                 # the donors that were refit, and the result names the others.

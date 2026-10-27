@@ -677,8 +677,10 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     every refit as they restrict the treated unit's. MSCMT's placebo study does
     the same with ``times.dep``. The ratio's two RMSPEs are taken over the whole
     pre-period and the post-period, for every unit alike. With
-    ``bias_correct=True`` only the treated unit's gap is corrected; the donors'
-    ratios come from their uncorrected refits. A donor whose refit raises has no
+    ``bias_correct=True`` every unit's gap is corrected: each donor's refit is
+    corrected with its own weights, its own predictors and its own donor pool,
+    as the treated unit's is, and the leave-two-out test corrects every unit of
+    every triple the same way. A donor whose refit raises has no
     statistic: it is left out, named with the error in a warning and in
     ``res.inference.details["skipped_placebos"]``, and the p-value ranks the
     treated unit among the donors that were refit. When no donor can be refit
@@ -1571,7 +1573,8 @@ Confidence sets by inverting the placebo test
 The placebo test above answers one hypothesis: that the effect is zero.
 ``inference="placebo_cs"`` inverts it over a one-parameter family of effect
 paths and reports the parameters the test does not reject, which is a
-confidence set for the path. Set ``placebo_cs_class`` to ``"constant"`` (a flat
+confidence set for the path. The inversion works on the donors' weights and
+uncorrected gaps, so it is refused with ``bias_correct=True``. Set ``placebo_cs_class`` to ``"constant"`` (a flat
 post-treatment effect) or ``"linear"`` (the parameter is then the per-period
 slope).
 
