@@ -1107,6 +1107,67 @@ Smyth 2010), and the p-value never reaches zero.
 
 Under Assumption 5 the test is exact (Abadie and Zhao's Theorem 2).
 
+Exchangeability fails when the contrast is serially correlated, which weekly
+sales usually are. A random subset scatters the post periods across the window,
+while the observed post block is consecutive, and a run of correlated errors
+moves a consecutive block further than a scattered one. The test then rejects a
+true null too often. ``global_test="cyclic"`` replaces the subsets with
+Chernozhukov, Wüthrich and Zhu's (2021) moving blocks: the
+:math:`T_b + T_1` cyclic shifts of the blank and post contrast, each
+contributing the block of :math:`T_1` consecutive periods that ends the shifted
+series. A shift keeps neighbouring periods together, so the test needs the
+contrast to be stationary and weakly dependent, not exchangeable. The
+statistic is their Remark 1's, the magnitude of the mean post contrast
+:math:`|\bar u_{\text{post}}|`, in place of eq. (16)'s mean magnitude. Against
+an effect of one sign it is the more powerful of the two, and post contrasts
+that alternate in sign and cancel give it no evidence. The p-value is a
+multiple of :math:`1/(T_b + T_1)`, at least that, and draws nothing, so
+``max_combinations`` and ``random_state`` do not apply. The option changes the
+global p-value of every contrast MAREX tests (each cluster, the aggregate, and
+with ``unit_inference=True`` each treated unit and eq. (11)'s aggregate) and
+nothing else; the joint test over treated units keeps its subsets.
+
+.. code-block:: python
+
+   res = MAREX(dict(df=df, outcome="y", unitid="unit", time="week",
+                    T0=104, m_eq=3, inference=True,
+                    global_test="cyclic")).fit()
+   res.globres.inference.global_p_value
+
+The `marex_global_test_dependence
+<https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/marex_global_test_dependence>`_
+study measures both tests on Abadie and Zhao's Section 5 panel with serially
+correlated factors, 2,000 draws at 104 and 156 pre-experiment weeks and 12 post
+weeks. Rejection rates of a true null at 5%:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Factors
+     - ``"subsets"``, eq. (17)
+     - ``"cyclic"``
+   * - independent
+     - 5.2 / 5.2
+     - 4.7 / 2.7
+   * - AR(1) 0.5
+     - 7.8 / 7.8
+     - 6.5 / 4.0
+   * - AR(1) 0.8
+     - 16.9 / 16.5
+     - 8.6 / 6.7
+   * - AR(1) 0.95
+     - 31.9 / 27.2
+     - 16.6 / 12.5
+   * - random walk
+     - 33.6 / 31.5
+     - 24.8 / 18.2
+
+With independent factors the cyclic test detects an effect of one error
+standard deviation 39.7% and 38.6% of the time, against 23.8% and 25.0% for
+eq. (17). Neither test holds its level near a unit root: the moving blocks
+need the contrast to be stationary, and a drift that the synthetic control does
+not cancel is not.
+
 The pointwise band lays a constant half-width :math:`\hat q` around each post
 period's effect. :math:`\hat q` is the
 :math:`\lceil (T_b + 1)(1 - \alpha) \rceil`-th smallest absolute blank effect,
