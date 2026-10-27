@@ -191,6 +191,22 @@ class MAREXConfig(BaseMAREXConfig):
                     "contrast; 'unit_penalized' designs choose treated units "
                     "their clusters reproduce well.")
     T_post: Optional[int] = Field(default=None, description="Number of post-intervention periods for inference.")
+    global_test: Literal["subsets", "cyclic"] = Field(
+        default="subsets",
+        description="The global test of no effect. 'subsets' (default) is "
+                    "Abadie and Zhao's eq. (17): the mean absolute post "
+                    "contrast against the T_post-subsets of the blank and post "
+                    "periods, exact when those periods are exchangeable. "
+                    "'cyclic' is Chernozhukov, Wuthrich and Zhu's (2021) "
+                    "moving-block test with their Remark 1 statistic: the "
+                    "magnitude of the mean post contrast against the same "
+                    "statistic on every cyclic shift of the blank and post "
+                    "contrast. It holds its level when the contrast is "
+                    "serially correlated, where eq. (17) over-rejects; the "
+                    "smallest p-value it can reach is "
+                    "1 / (blank_periods + T_post). It changes the global "
+                    "p-value of every contrast MAREX tests, and nothing else.",
+    )
 
     # --- cumulative-effect band ---
     # The blank window is a contiguous stretch the fit never saw, so the effects
@@ -375,6 +391,18 @@ class MAREXConfig(BaseMAREXConfig):
         if not isinstance(v, bool):
             raise MlsynthConfigError(
                 f"cumulative_band must be True or False; got {v!r}.")
+        return v
+
+    @field_validator("global_test", mode="before")
+    @classmethod
+    def _known_global_test(cls, v):
+        """Refuse an unknown test by name, not as a Literal mismatch."""
+        if not isinstance(v, str) or v not in ("subsets", "cyclic"):
+            raise MlsynthConfigError(
+                f"global_test must be 'subsets' or 'cyclic'; got {v!r}. "
+                "'subsets' is the paper's eq. (17); 'cyclic' compares the "
+                "post contrast with the cyclic shifts of the blank and post "
+                "contrast.")
         return v
 
     @field_validator("cumulative_method", mode="before")
