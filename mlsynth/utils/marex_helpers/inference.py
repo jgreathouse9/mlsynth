@@ -5,6 +5,16 @@ synthetic control there should be noise, so its distribution calibrates a
 permutation p-value and a split-conformal confidence band for the post-period
 effect (Abadie & Zhao 2026, OA; Chernozhukov-Wuthrich-Zhu 2021).
 
+The global test has two reference sets. ``"subsets"`` is Abadie and Zhao's
+eq. (17): the mean absolute post contrast against the ``T_post``-subsets of the
+blank and post periods, exact when those periods are exchangeable. ``"cyclic"``
+is Chernozhukov, Wuthrich and Zhu's moving-block test with their Remark 1
+statistic: the magnitude of the post block's signed sum against the same
+statistic on every cyclic shift of the blank and post contrast. The shifts keep
+neighbouring periods together, so it holds its level under stationary, weakly
+dependent contrasts, where eq. (17) over-rejects (16.5% at 5% with factors
+autocorrelated at 0.8; ``benchmarks/studies/marex_global_test_dependence/``).
+
 The band for the total effect has two constructions. ``"resample"`` draws paths
 from the blank-period effects alone. ``"inversion"`` also reads the post
 outcomes: it inverts CWZ's test of a constant effect with their Remark 1
@@ -30,13 +40,16 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
 from ..conformal import (CumulativeConformalBand, block_error_paths,
-                         cumulative_conformal_by_inversion)
+                         cumulative_conformal_by_inversion, moving_block_pvalue)
 from ..conformal.quantile import split_conformal_quantile
 from .structures import MAREXInference
 from .windows import min_blank_periods
 
 #: How the band for the total effect is built; see the module docstring.
 CUMULATIVE_METHODS = ("resample", "inversion")
+
+#: The global test's reference set; see the module docstring.
+GLOBAL_TESTS = ("subsets", "cyclic")
 
 
 def compute_inference(
@@ -55,6 +68,7 @@ def compute_inference(
     cumulative_method: str = "resample",
     control_outcomes: Optional[np.ndarray] = None,
     T_post: Optional[int] = None,
+    global_test: str = "subsets",
 ) -> MAREXInference:
     """Compute permutation inference for one synthetic contrast.
 
@@ -91,6 +105,12 @@ def compute_inference(
         ``"inversion"`` only: outcomes of the units the refit may draw on, shape
         ``(J, T)``, aligned to ``Y_treated``. MAREX passes the units the design
         left untreated.
+    T_post : int, optional
+        Post periods the inference reads; every one after ``T0`` by default.
+    global_test : {"subsets", "cyclic"}
+        The global test's reference set and statistic; see the module
+        docstring. ``max_combinations`` and ``random_state`` apply to
+        ``"subsets"`` alone.
 
     Returns
     -------
@@ -99,8 +119,8 @@ def compute_inference(
     Raises
     ------
     MlsynthConfigError
-        On an unknown ``cumulative_method``, or a band by ``"inversion"``
-        without ``control_outcomes``.
+        On an unknown ``cumulative_method`` or ``global_test``, or a band by
+        ``"inversion"`` without ``control_outcomes``.
 
     Warns
     -----
@@ -112,6 +132,9 @@ def compute_inference(
         raise MlsynthConfigError(
             f"cumulative_method must be one of {CUMULATIVE_METHODS}; got "
             f"{cumulative_method!r}.")
+    if global_test not in GLOBAL_TESTS:
+        raise MlsynthConfigError(
+            f"global_test must be one of {GLOBAL_TESTS}; got {global_test!r}.")
     if (cumulative_band and cumulative_method == "inversion"
             and control_outcomes is None):
         raise MlsynthConfigError(
@@ -130,12 +153,15 @@ def compute_inference(
     full_effects = Y_treated - Y_control
 
     all_effects = np.concatenate([placebo_effects, treated_effects])
-    s_obs = float(np.mean(np.abs(treated_effects))) if T_post > 0 else 0.0
-    if T_post > 0:
+    if T_post == 0:
+        s_obs, global_p = 0.0, float("nan")
+    elif global_test == "cyclic":
+        s_obs = abs(float(np.mean(treated_effects)))
+        global_p = _cyclic_p_value(all_effects, T_post)
+    else:
+        s_obs = float(np.mean(np.abs(treated_effects)))
         global_p = _global_p_value(all_effects, T_post, s_obs,
                                    max_combinations, rng)
-    else:
-        global_p = float("nan")
 
     if placebo_effects.size and treated_effects.size:
         # Each post period joins the blank periods as one more score, so its
@@ -239,6 +265,20 @@ def _global_p_value(all_effects, T_post, s_obs, max_combinations, rng):
                    for _ in range(max_combinations)])
     s_perm = np.mean(abs_effects[pi], axis=1)
     return float((1 + np.sum(s_perm >= s_obs - tol)) / (1 + max_combinations))
+
+
+def _cyclic_p_value(all_effects, T_post):
+    """The post block's signed sum against every cyclic shift's.
+
+    With no blank period every shift's block is the whole window, so the
+    observed arrangement is the only one and the p-value is one. The shared
+    test would sum each shift in another order, and rounding can then break the
+    tie.
+    """
+    if all_effects.size == T_post:
+        return 1.0
+    return moving_block_pvalue(all_effects, block=int(T_post),
+                               statistic="abs_sum")
 
 
 def _inversion_band(y, controls, T0, TcE, T_post, *, point, alpha):

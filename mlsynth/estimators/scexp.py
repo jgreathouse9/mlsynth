@@ -179,6 +179,7 @@ class MAREX:
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
                 relaxed=self.relaxed, inference=self.inference,
                 alpha=self.config.alpha, T_post=self.config.T_post,
+                global_test=self.config.global_test,
                 unit_inference=self.config.unit_inference,
                 unit_index=panel.unit_index, time_index=panel.time_index,
                 restrictions=restrictions,
