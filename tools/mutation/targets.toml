@@ -9586,3 +9586,177 @@ timeout = 900.0
   find = "        if (not covariates and engine.augment != \"ridge\" and config.w_constr is None"
   replace = "        if (not covariates and engine.augment != \"ridge\""
   models = "a ridge or lasso fit's placebo refits solved as the simplex QP by the batched path, so the p-value ranks the treated unit's ridge statistic among simplex ones"
+
+[[target]]
+name = "marex-cyclic-global-test"
+module-path = "mlsynth/utils/marex_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py mlsynth/tests/test_marex_cyclic_global_test_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cyclic-test-reads-magnitudes"
+  find = "    return moving_block_pvalue(all_effects, block=int(T_post),\n                               statistic=\"abs_sum\")"
+  replace = "    return moving_block_pvalue(all_effects, block=int(T_post),\n                               statistic=\"mean_abs\")"
+  models = "the cyclic test scored by eq. (16)'s mean absolute contrast, which loses the power of the signed statistic and reads cancelling signs as evidence"
+
+  [[target.mutant]]
+  id = "cyclic-reference-takes-the-fitting-periods"
+  find = "        global_p = _cyclic_p_value(all_effects, T_post)"
+  replace = "        global_p = _cyclic_p_value(full_effects[:T0 + T_post], T_post)"
+  models = "a reference that reaches into the fitting periods, whose contrast the design shrank"
+
+  [[target.mutant]]
+  id = "cyclic-statistic-reported-as-eq16"
+  find = "        s_obs = abs(float(np.mean(treated_effects)))"
+  replace = "        s_obs = float(np.mean(np.abs(treated_effects)))"
+  models = "s_obs reporting eq. (16)'s statistic while the p-value is the signed one's"
+
+  [[target.mutant]]
+  id = "cyclic-tie-guard-dropped"
+  find = "    if all_effects.size == T_post:\n        return 1.0\n"
+  replace = "    if False:\n        return 1.0\n"
+  models = "with no blank period, shifts summed in another order break the tie by rounding and report a p-value below one"
+
+  [[target.mutant]]
+  id = "cyclic-is-the-default"
+  find = "    global_test: str = \"subsets\",\n) -> MAREXInference:"
+  replace = "    global_test: str = \"cyclic\",\n) -> MAREXInference:"
+  models = "the paper's eq. (17) displaced as the default"
+
+  [[target.mutant]]
+  id = "unknown-global-test-falls-through"
+  find = "    if global_test not in GLOBAL_TESTS:"
+  replace = "    if False:"
+  models = "a misspelled test name read as the paper's test"
+
+[[target]]
+name = "marex-cyclic-global-test-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "config-default-is-cyclic"
+  find = "    global_test: Literal[\"subsets\", \"cyclic\"] = Field(\n        default=\"subsets\","
+  replace = "    global_test: Literal[\"subsets\", \"cyclic\"] = Field(\n        default=\"cyclic\","
+  models = "the estimator defaulting away from the paper's test"
+
+  [[target.mutant]]
+  id = "config-accepts-non-strings"
+  find = "        if not isinstance(v, str) or v not in (\"subsets\", \"cyclic\"):\n            raise MlsynthConfigError(\n                f\"global_test must be"
+  replace = "        if isinstance(v, str) and v not in (\"subsets\", \"cyclic\"):\n            raise MlsynthConfigError(\n                f\"global_test must be"
+  models = "a non-string test name reaching pydantic's Literal check, which raises its own error type"
+
+[[target]]
+name = "marex-cyclic-global-test-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "estimator-drops-the-option"
+  find = "                global_test=self.config.global_test,\n"
+  replace = "                global_test=\"subsets\",\n"
+  models = "the config accepting global_test and the fit ignoring it"
+
+[[target]]
+name = "marex-cyclic-global-test-orchestration"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "clusters-and-aggregate-skip-the-option"
+  find = "                                 T_post=T_post, global_test=global_test,"
+  replace = "                                 T_post=T_post,"
+  models = "the cluster and aggregate contrasts tested by eq. (17) under global_test='cyclic'"
+
+  [[target.mutant]]
+  id = "unit-level-skips-the-option"
+  find = "            random_state=random_state, T_post=T_post,\n            global_test=global_test,\n"
+  replace = "            random_state=random_state, T_post=T_post,\n"
+  models = "the per-unit contrasts tested by eq. (17) under global_test='cyclic'"
+
+[[target]]
+name = "marex-cyclic-global-test-units"
+module-path = "mlsynth/utils/marex_helpers/unit_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "units-and-eq11-skip-the-option"
+  find = "                  global_test=global_test,\n"
+  replace = "                  global_test=\"subsets\",\n"
+  models = "each treated unit and eq. (11)'s aggregate tested by eq. (17) under global_test='cyclic'"
+
+[[target]]
+name = "marex-ttest-study"
+module-path = "benchmarks/studies/marex_ttest/ttest.py"
+test-command = "python -m pytest benchmarks/studies/marex_ttest/test_marex_ttest.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "blocks-start-at-the-span"
+  find = "    return T0 - K * r + np.arange(K * r).reshape(K, r)"
+  replace = "    return T0 - span + np.arange(K * r).reshape(K, r)"
+  models = "blocks placed from the start of the span instead of ending at T0, so a span longer than K r leaves the last pre-periods out of every block"
+
+  [[target.mutant]]
+  id = "standard-error-without-the-post-variance"
+  find = "    se = float(np.sqrt(1.0 + K * r / T1) * tau.std(ddof=1) / np.sqrt(K))"
+  replace = "    se = float(tau.std(ddof=1) / np.sqrt(K))"
+  models = "a standard error that counts only the block means' spread and drops the post mean's variance, which the K fold estimates share and so cannot show"
+
+  [[target.mutant]]
+  id = "t-with-k-degrees-of-freedom"
+  find = "    return float(min(1.0, 2.0 * _t.sf(abs(tstat), K - 1)))"
+  replace = "    return float(min(1.0, 2.0 * _t.sf(abs(tstat), K)))"
+  models = "the reference distribution with K degrees of freedom, whose lighter tails over-reject"
+
+  [[target.mutant]]
+  id = "one-sided-p-value"
+  find = "    return float(min(1.0, 2.0 * _t.sf(abs(tstat), K - 1)))"
+  replace = "    return float(min(1.0, 2.0 * _t.sf(tstat, K - 1)))"
+  models = "a p-value that reads only effects of one sign"
+
+  [[target.mutant]]
+  id = "folds-fitted-on-their-own-block"
+  find = "        keep = np.setdiff1d(np.arange(T0), B[k])"
+  replace = "        keep = np.arange(T0)"
+  models = "each fold's control fitted on the block it is meant to hold out, so the bias correction reads an in-sample fit"
+
+  [[target.mutant]]
+  id = "fixed-weights-ignored"
+  find = "        w = weights if weights is not None else solve_simplex_qp(Y0[keep], y[keep])"
+  replace = "        w = solve_simplex_qp(Y0[keep], y[keep])"
+  models = "the fixed-control arm refitting anyway, so the comparison of refit and fixed controls measures nothing"
+
+  [[target.mutant]]
+  id = "blank-arm-spans-the-pre-period"
+  find = "        out[f\"refit_blank_{K}\"] = debiased_ttest(y, Y0, d.T0, H, K, span=d.blank)"
+  replace = "        out[f\"refit_blank_{K}\"] = debiased_ttest(y, Y0, d.T0, H, K, span=d.T0)"
+  models = "the blank-window arm placing its blocks over the whole pre-period, where the fitting window shows the design's in-sample fit"
+
+  [[target.mutant]]
+  id = "zero-spread-reads-as-no-evidence"
+  find = "    return 0.0 if att == 0 else float(np.inf * np.sign(att))"
+  replace = "    return 0.0"
+  models = "folds that agree exactly on a nonzero effect reported as no evidence"
+
+[[target]]
+name = "marex-ttest-study-report"
+module-path = "benchmarks/studies/marex_ttest/run.py"
+test-command = "python -m pytest benchmarks/studies/marex_ttest/test_marex_ttest.py -q -p no:cacheprovider -x -k size_adjusted"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "size-adjusted-cutoff-above-the-level"
+  find = "    ok = [q for q in np.unique(p_null) if np.mean(p_null <= q) <= alpha]"
+  replace = "    ok = [q for q in np.unique(p_null) if np.mean(p_null <= q) <= 2 * alpha]"
+  models = "a size-adjusted cutoff that lets the null reject more than alpha, which credits an over-rejecting test with power it does not have"
+
+  [[target.mutant]]
+  id = "uncalibrated-test-reported-as-powerless"
+  find = "    return float(np.mean(p_alt <= max(ok))) if ok else float(\"nan\")"
+  replace = "    return float(np.mean(p_alt <= max(ok))) if ok else 0.0"
+  models = "a test that cannot be held to alpha reported as having zero power, which reads as a measurement"

@@ -123,6 +123,7 @@ def unit_level_inference(
     cumulative_block: int = 0,
     cumulative_n_sim: int = 2000,
     cumulative_seed: int = 0,
+    global_test: str = "subsets",
 ) -> MAREXUnitLevel:
     """Inference for each treated unit and for eq. (11)'s aggregate.
 
@@ -141,12 +142,15 @@ def unit_level_inference(
     T0, TcE, Tb : int
         Pre-periods, fitting periods (where the blank window starts), blank
         periods.
-    alpha, max_combinations, random_state, T_post, cumulative_* :
+    alpha, max_combinations, random_state, T_post, cumulative_*, global_test :
         As for :func:`~mlsynth.utils.marex_helpers.inference.compute_inference`,
-        applied to every unit.
+        applied to every unit and to eq. (11)'s aggregate. The joint test over
+        the units (:func:`joint_p_value`) draws subsets under either
+        ``global_test``.
     """
     common = dict(alpha=alpha, max_combinations=max_combinations,
                   random_state=random_state, T_post=T_post,
+                  global_test=global_test,
                   cumulative_band=cumulative_band,
                   cumulative_method=cumulative_method,
                   cumulative_block=cumulative_block,
