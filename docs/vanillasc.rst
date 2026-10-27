@@ -1957,6 +1957,15 @@ the per-unit, per-period effect is the gap
 unit, so calendar time :math:`T_0^{(i)} + \ell`) lines the units up on a common
 clock, :math:`\widehat{\tau}_{i,\ell}`.
 
+That program is the default. Every option of the single-treated fit applies to
+each treated unit as if it were fit alone against the never-treated donors: a
+``backend`` with ``covariates`` matches on the unit's covariates over their
+windows in its own pre-period, and ``fit_window`` and ``fit_exclude`` restrict
+the outcome fit within each unit's pre-period. An excluded period must be a
+pre-treatment period of some cohort, and a window that leaves a cohort no
+pre-treatment period raises. ``exact_ranges`` and ``exact_face_counts`` describe
+one treated unit's exact fit and raise here.
+
 The four identifying assumptions carry over unit by unit (each treated unit must
 admit a convex-hull pre-fit, no anticipation, a stable outcome model). Staggered
 adoption adds two requirements. First, the donor pool must stay clean for every
