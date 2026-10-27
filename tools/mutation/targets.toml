@@ -9590,7 +9590,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "cyclic-tie-guard-dropped"
   find = "    if all_effects.size == T_post:\n        return 1.0\n"
-  replace = ""
+  replace = "    if False:\n        return 1.0\n"
   models = "with no blank period, shifts summed in another order break the tie by rounding and report a p-value below one"
 
   [[target.mutant]]
@@ -9632,7 +9632,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "estimator-drops-the-option"
   find = "                global_test=self.config.global_test,\n"
-  replace = ""
+  replace = "                global_test=\"subsets\",\n"
   models = "the config accepting global_test and the fit ignoring it"
 
 [[target]]
@@ -9662,5 +9662,5 @@ timeout = 900.0
   [[target.mutant]]
   id = "units-and-eq11-skip-the-option"
   find = "                  global_test=global_test,\n"
-  replace = ""
+  replace = "                  global_test=\"subsets\",\n"
   models = "each treated unit and eq. (11)'s aggregate tested by eq. (17) under global_test='cyclic'"
