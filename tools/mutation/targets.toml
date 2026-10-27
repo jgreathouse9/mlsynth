@@ -9528,6 +9528,42 @@ timeout = 300.0
   models = "the ingestion check dropped. isna passes an infinite outcome, after which cd returns an ATT of nan and iscm, iterative and grossi return -inf for one in the post-period, each without an error"
 
 [[target]]
+name = "marex-global-test-dependence"
+module-path = "benchmarks/studies/marex_global_test_dependence/globaltest.py"
+test-command = "python -m pytest benchmarks/studies/marex_global_test_dependence/test_marex_global_test_dependence.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-observed-block-left-out"
+  find = "    return float(np.sum(w * (S >= S[0] - tol)) / np.sum(w))"
+  replace = "    return float(np.sum((w * (S >= S[0] - tol))[1:]) / np.sum(w[1:]))"
+  models = "the p-value taken over the reference blocks alone, without the observed one, so it can reach zero and the rotation group no longer bounds the rejections"
+
+  [[target.mutant]]
+  id = "the-signed-statistic-is-the-absolute-one"
+  find = "S = np.abs(v)[idx].mean(axis=1) if stat == \"abs\" else np.abs(v[idx].mean(axis=1))"
+  replace = "S = np.abs(v)[idx].mean(axis=1)"
+  models = "stat='signed' silently computing eq. (16), so the study's signed arms measure the absolute statistic twice"
+
+  [[target.mutant]]
+  id = "the-windows-reach-into-the-post"
+  find = "np.arange(n - H + 1)[:, None] + np.arange(H)[None, :]])"
+  replace = "np.arange(n)[:, None] + np.arange(H)[None, :]])"
+  models = "blank windows that run on into the post periods, so an effect inflates the reference and the windows arm stops being blank-only"
+
+  [[target.mutant]]
+  id = "the-weights-ignored"
+  find = "    w = np.ones(len(S)) if rho is None else recency_weights(idx, n, rho)"
+  replace = "    w = np.ones(len(S))"
+  models = "rho accepted and dropped, so the weighted arms are the unweighted ones"
+
+  [[target.mutant]]
+  id = "ties-counted-against-the-observed"
+  find = "(S >= S[0] - tol)"
+  replace = "(S > S[0] + tol)"
+  models = "reference blocks that tie the observed statistic not counted, which makes the test anti-conservative wherever the statistic is discrete"
+
+[[target]]
 name = "marex-cyclic-global-test"
 module-path = "mlsynth/utils/marex_helpers/inference.py"
 test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py mlsynth/tests/test_marex_cyclic_global_test_properties.py -q -x -p no:cacheprovider"
