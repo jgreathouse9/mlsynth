@@ -25,6 +25,7 @@ from typing import Any, Tuple
 
 import numpy as np
 
+from .objective import outcome_scale as _outcome_scale
 from .objective import outer_loss
 from .optimization import default_v20, recover_w, sweep_lambda
 from scipy.optimize import minimize
@@ -242,6 +243,7 @@ def run_placebo(
     n_placebo: int | None = None,
     seed: int = 1400,
     outer_loss_window: str = "validation",
+    outcome_scale: float | None = None,
 ) -> Tuple[np.ndarray, float, int]:
     """Return ``(placebo_atts, p_value, n_completed)``.
 
@@ -264,7 +266,14 @@ def run_placebo(
         Subsample of donors to use as placebos. ``None`` uses every donor.
     seed : int
         Seed for the subsample when ``n_placebo < N``.
+    outcome_scale : float, optional
+        The scale the treated fit's grid was put on (``design.outcome_scale``).
+        Each refit at ``selected_lambda`` divides its outcome blocks by it, so
+        the penalty means what it meant for the treated unit. ``None`` computes
+        it from this panel as the sweep does.
     """
+    scale = (_outcome_scale(Y1, Y0, T0_total) if outcome_scale is None
+             else float(outcome_scale))
     rng = np.random.default_rng(seed)
     N = X0.shape[1]
     donor_indices = np.arange(N)
@@ -281,11 +290,11 @@ def run_placebo(
         Y1_placebo = Y0[:, j].copy()
 
         if outer_loss_window == "validation":
-            Z1_outer = Y1_placebo[T0_train:T0_total]
-            Z0_outer = Y0_loo[T0_train:T0_total, :]
+            Z1_outer = Y1_placebo[T0_train:T0_total] / scale
+            Z0_outer = Y0_loo[T0_train:T0_total, :] / scale
         else:
-            Z1_outer = Y1_placebo[:T0_train]
-            Z0_outer = Y0_loo[:T0_train, :]
+            Z1_outer = Y1_placebo[:T0_train] / scale
+            Z0_outer = Y0_loo[:T0_train, :] / scale
 
         if resweep:
             # Placebo re-sweeps only need the null distribution of effects, not
@@ -298,6 +307,7 @@ def run_placebo(
                 lambda_grid=lambda_grid, solver=solver,
                 outer_loss_window=outer_loss_window,
                 robust=False,
+                outcome_scale=None if outcome_scale is None else scale,
             )
         else:
             try:

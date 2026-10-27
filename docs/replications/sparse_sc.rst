@@ -70,6 +70,7 @@ Reproducing the result
        "unitid": "state", "time": "year",
        "covariates": covs, "outcome_lag_periods": [1975, 1980, 1988],
        "run_inference": True, "inference_method": "conformal",
+       "lambda_units": "raw",              # the MATLAB driver's grid, in packs^2
        "display_graphs": False,            # defaults: FD gradient, 51-pt grid
    }).fit()
 
@@ -181,6 +182,7 @@ per capita in 1960, 1965, 1969) — :math:`P = 15` against :math:`N = 16` donors
        "covariates": ed + sec + ["popdens"],
        "outcome_lag_periods": [1960, 1965, 1969],
        "run_inference": True, "inference_method": "conformal",
+       "lambda_units": "raw",
        "display_graphs": False,
    }).fit()
 

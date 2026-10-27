@@ -94,6 +94,10 @@ class SparseSCDesign:
         Validation MSE at each grid point.
     v_path : np.ndarray
         Per-grid-point V-weights, shape ``(len(grid), P)``.
+    outcome_scale : float
+        What the outcome blocks were divided by before the sweep: the pooled
+        pre-treatment standard deviation under ``lambda_units="outcome_sd"``,
+        1 under ``"raw"``. ``lambda_grid`` and both curves are in its units.
     """
 
     v: np.ndarray
@@ -103,6 +107,7 @@ class SparseSCDesign:
     train_loss_curve: np.ndarray
     val_mse_curve: np.ndarray
     v_path: np.ndarray
+    outcome_scale: float = 1.0
 
 
 @dataclass(frozen=True)
