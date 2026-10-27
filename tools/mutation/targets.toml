@@ -9960,3 +9960,21 @@ timeout = 900.0
   find = "                    cumulative_method=self.cumulative_method,"
   replace = "                    cumulative_method=\"resample\","
   models = "a cumulative band reproduced by resampling when the design inverted a test"
+
+[[target]]
+name = "simplex-least-norm-warm-start"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_least_norm_warm_start.py -q -p no:cacheprovider -x"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "least-norm-warm-start-dropped"
+  find = "        tol=tol,\n        warm_start=warm_start,\n    )"
+  replace = "        tol=tol,\n    )"
+  models = "the warm start accepted and discarded, so every solve of a sweep starts cold and the answer is right while the six-fold saving SparseSC's inner loop relies on is gone"
+
+  [[target.mutant]]
+  id = "zero-design-warm-start-dropped"
+  find = "        return solve_simplex_qp(B, A, warm_start=warm_start)"
+  replace = "        return solve_simplex_qp(B, A)"
+  models = "the degenerate all-zero design solved without the start it was handed, the one branch where any feasible point is a minimiser and the start decides which"
