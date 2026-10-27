@@ -1,21 +1,29 @@
-"""``solve_simplex_qp_least_norm`` takes a warm start, and it changes the work, not the answer.
+"""``solve_simplex_qp_least_norm`` takes a warm start, and the answer keeps its contract.
 
 SparseSC's sweep solves the inner simplex QP several hundred thousand times along
 L-BFGS-B iterates that move ``v`` a little at a time (#934). Seeding each solve with
 the previous weights cut the least-norm solve from 627 to 94 microseconds on the
-Basque panel's 4,000-call sequence, and every warm answer equalled the cold one to
-the last bit. The augmentation adds rows, not columns, so a point of the original
+Basque panel's 4,000-call sequence, and there every warm answer equalled the cold one
+to the last bit. The augmentation adds rows, not columns, so a point of the original
 simplex is a feasible start for the augmented program as it stands.
+
+Where the plain program has one minimiser, warm and cold agree. Where it has a face
+of them, the tie-break resolves only to its own accuracy, and the warm start can land
+elsewhere within it: on a 4-by-19 design (seed 9 below) warm and cold differed by
+6.6e-6 while each sat 1.5e-4 from a two-stage least-norm reference. The warm answer is
+held to the contract ``test_least_norm_selection.py`` holds the cold one to: the fit
+within 1e-6 of ``||A||^2`` of the optimum and the norm within 0.1 per cent.
 """
 from __future__ import annotations
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 import mlsynth.utils.solvers.active_set as active_set
 from mlsynth.utils.solvers.active_set import solve_simplex_qp_least_norm
+from mlsynth.utils.solvers.minnorm import simplex_optimum_is_unique
 
 
 def _sequence(seed, m=8, J=12, steps=30, drift=0.05):
@@ -85,9 +93,15 @@ def test_a_wide_design_selects_the_same_least_norm_point_from_any_start():
 # --------------------------------------------------------------------------- property
 @settings(max_examples=40, deadline=None)
 @given(seed=st.integers(0, 10_000), m=st.integers(2, 12), J=st.integers(2, 20))
-def test_property_a_warm_started_sequence_equals_the_cold_one(seed, m, J):
+@example(seed=9, m=4, J=19)
+def test_property_a_warm_started_sequence_keeps_the_least_norm_contract(seed, m, J):
     w = None
     for B, A in _sequence(seed, m=m, J=J, steps=12):
         cold = solve_simplex_qp_least_norm(B, A)
         w = solve_simplex_qp_least_norm(B, A, warm_start=w)
-        np.testing.assert_allclose(w, cold, atol=1e-9)
+        fit = lambda z: float(np.sum((A - B @ z) ** 2))
+        assert w.min() >= 0.0 and w.sum() == pytest.approx(1.0)
+        assert fit(w) <= fit(cold) + 1e-6 * float(A @ A) + 1e-9
+        assert float(w @ w) <= float(cold @ cold) * (1.0 + 1e-3) + 1e-9
+        if simplex_optimum_is_unique(B, A, cold):
+            np.testing.assert_allclose(w, cold, atol=1e-9)

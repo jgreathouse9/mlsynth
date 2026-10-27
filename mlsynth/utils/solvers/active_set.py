@@ -476,8 +476,11 @@ def solve_simplex_qp_least_norm(
 
     ``warm_start`` is passed to ``solve_simplex_qp`` as it is: the augmentation
     adds rows, not columns, so a point of the simplex is a feasible start for the
-    augmented program, and a start off the simplex is ignored there. It changes
-    the work and not the answer -- the augmented program has one minimiser.
+    augmented program, and a start off the simplex is ignored there. Where the
+    plain program has one minimiser the start changes only the work; where it
+    has a face, the tie-break resolves to its own accuracy and the start can
+    land elsewhere within it (6.6e-6 apart on a 4-by-19 design, each answer
+    1.5e-4 from a two-stage reference), holding the same fit and norm contract.
     Along SparseSC's 4,000-solve sweep on the Basque panel it cut the solve from
     627 to 94 microseconds, and every warm answer equalled the cold one to the
     last bit (#934).
