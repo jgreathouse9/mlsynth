@@ -9864,3 +9864,99 @@ timeout = 900.0
   find = "        if self.bias_correct and str(self.inference).lower() == \"placebo_cs\":"
   replace = "        if False:"
   models = "placebo_cs admitted with bias_correct, inverting an uncorrected test around a corrected estimate"
+
+[[target]]
+name = "design-result-faces"
+module-path = "mlsynth/config_models.py"
+test-command = "python -m pytest mlsynth/tests/test_design_result_faces.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "fit-end-past-t0-accepted"
+  find = "        if not 0 <= self.fit_end <= self.T0:"
+  replace = "        if not 0 <= self.fit_end:"
+  models = "a fitting window that runs into the post period accepted as a design's timeline"
+
+  [[target.mutant]]
+  id = "blank-length-misread"
+  find = "        return self.T0 - self.fit_end"
+  replace = "        return self.fit_end"
+  models = "the held-out window's length read as the fitting window's"
+
+  [[target.mutant]]
+  id = "post-window-unbounded"
+  find = "        return slice(self.T0, self.T0 + self.post_periods)"
+  replace = "        return slice(self.T0, None)"
+  models = "a post window that reads every period after T0, not the ones the report reads"
+
+  [[target.mutant]]
+  id = "composite-overlap-accepted"
+  find = "        if both:"
+  replace = "        if False:"
+  models = "a unit accepted in both the treated and the control composite"
+
+  [[target.mutant]]
+  id = "composite-sum-unchecked"
+  find = "            if w and abs(sum(w.values()) - 1.0) > COMPOSITE_SUM_TOL:"
+  replace = "            if w and abs(sum(w.values()) - 1.0) > 1.0:"
+  models = "composite weights accepted off the simplex"
+
+  [[target.mutant]]
+  id = "pool-includes-the-treated"
+  find = "        return [u for u in self.members if u not in self.treated]"
+  replace = "        return list(self.members)"
+  models = "a refit pool that offers the treated units as their own donors"
+
+  [[target.mutant]]
+  id = "weighted-units-outside-the-members-accepted"
+  find = "            if missing:"
+  replace = "            if False:"
+  models = "a composite that weights units it did not draw from"
+
+[[target]]
+name = "design-result-faces-marex"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_design_result_faces.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "windows-without-the-blank"
+  find = "        T0=int(T0_eff), fit_end=int(TcE),"
+  replace = "        T0=int(T0_eff), fit_end=int(T0_eff),"
+  models = "windows that report no held-out period, so a later step calibrates on nothing"
+
+  [[target.mutant]]
+  id = "aggregate-members-not-recorded"
+  find = "    composite = DesignComposite(treated=treated_w_map, control=control_w_map,\n                                members=labels)"
+  replace = "    composite = DesignComposite(treated=treated_w_map, control=control_w_map,\n                                members=None)"
+  models = "an aggregate composite whose refit pool shrinks to its weighted controls"
+
+  [[target.mutant]]
+  id = "cluster-members-are-every-unit"
+  find = "                           members=[str(u) for u in c.members])"
+  replace = "                           members=labels)"
+  models = "a cluster's refit pool reaching into the other clusters"
+
+  [[target.mutant]]
+  id = "settings-forget-the-global-test"
+  find = "        alpha=alpha, T_post=T_post, global_test=global_test,"
+  replace = "        alpha=alpha, T_post=T_post, global_test=\"subsets\","
+  models = "settings that record eq. (17) whatever test the design ran"
+
+[[target]]
+name = "design-result-faces-marex-settings"
+module-path = "mlsynth/utils/marex_helpers/structures.py"
+test-command = "python -m pytest mlsynth/tests/test_design_result_faces.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "settings-drop-the-seed"
+  find = "                    random_state=self.random_state,"
+  replace = "                    random_state=None,"
+  models = "drawn subsets reproduced with a fresh seed, so the p-value is not the design's"
+
+  [[target.mutant]]
+  id = "settings-drop-the-band-method"
+  find = "                    cumulative_method=self.cumulative_method,"
+  replace = "                    cumulative_method=\"resample\","
+  models = "a cumulative band reproduced by resampling when the design inverted a test"

@@ -1,7 +1,7 @@
 from typing import List, Optional, Any, Dict, Tuple, Union, Literal
 import pandas as pd
 import numpy as np
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError, MlsynthPlottingError
 import warnings
 
@@ -612,6 +612,139 @@ class BaseEstimatorResults(MlsynthResult):
 EffectResult = BaseEstimatorResults
 
 
+class DesignWindows(BaseModel):
+    """Where a design's periods fall.
+
+    The design is fitted on ``[0, fit_end)``. It never sees the held-out (blank)
+    window ``[fit_end, T0)``, whose effects calibrate its inference, and it
+    reports on the post window ``[T0, T0 + post_periods)``. A design with no
+    held-out window has ``fit_end == T0``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    T0: int = Field(..., description="Periods before treatment; the index of the first post period.")
+    fit_end: int = Field(..., description="End (exclusive) of the fitting window, where the held-out window starts.")
+    post_periods: int = Field(..., description="Post periods the design's report reads.")
+    time_labels: Optional[List[Any]] = Field(
+        default=None, description="Label of every period, in order, when known.")
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "DesignWindows":
+        if self.T0 < 0:
+            raise ValueError(f"T0 must be at least 0; got {self.T0}.")
+        if not 0 <= self.fit_end <= self.T0:
+            raise ValueError(f"fit_end must lie in [0, T0] = [0, {self.T0}]; got {self.fit_end}.")
+        if self.post_periods < 0:
+            raise ValueError(f"post_periods must be at least 0; got {self.post_periods}.")
+        if self.time_labels is not None and len(self.time_labels) < self.T0 + self.post_periods:
+            raise ValueError(
+                f"time_labels must label at least the T0 + post_periods = "
+                f"{self.T0 + self.post_periods} periods the windows cover; got "
+                f"{len(self.time_labels)}.")
+        return self
+
+    @property
+    def blank_periods(self) -> int:
+        """Length of the held-out window."""
+        return self.T0 - self.fit_end
+
+    @property
+    def fit(self) -> slice:
+        return slice(0, self.fit_end)
+
+    @property
+    def blank(self) -> slice:
+        return slice(self.fit_end, self.T0)
+
+    @property
+    def post(self) -> slice:
+        return slice(self.T0, self.T0 + self.post_periods)
+
+
+#: Tolerance on a composite's weights summing to one. A mixed-integer solver
+#: returns weights feasible to its own tolerance (MAREX's MIP backend returns
+#: control weights summing to 1 + 5.0e-8), and the weight maps drop weights
+#: below 1e-8, so the sum is checked to 1e-6, not to machine precision.
+COMPOSITE_SUM_TOL = 1e-6
+
+
+class DesignComposite(BaseModel):
+    """One design unit's treated and control composites.
+
+    ``treated`` and ``control`` map unit labels to weights; each is on the
+    simplex, and no unit is in both. ``members`` lists the units the design
+    unit drew from (a cluster's members, or every unit for the whole design),
+    so ``pool``, its members outside the treated composite, is what a refit of
+    the treated composite may use as donors.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    treated: Dict[str, float] = Field(..., description="Treated composite: unit label to weight.")
+    control: Dict[str, float] = Field(..., description="Control composite: unit label to weight.")
+    members: Optional[List[str]] = Field(
+        default=None, description="Units the design unit drew from, in panel order.")
+
+    @model_validator(mode="after")
+    def _on_the_simplex(self) -> "DesignComposite":
+        if not self.treated:
+            raise ValueError("the treated composite must weight at least one unit.")
+        both = sorted(set(self.treated) & set(self.control))
+        if both:
+            raise ValueError(f"units {both} are in both the treated and the control composite.")
+        for side, w in (("treated", self.treated), ("control", self.control)):
+            if any(x < 0 for x in w.values()):
+                raise ValueError(f"the {side} composite has a negative weight.")
+            if w and abs(sum(w.values()) - 1.0) > COMPOSITE_SUM_TOL:
+                raise ValueError(f"the {side} composite's weights sum to {sum(w.values())!r}, not 1.")
+        if self.members is not None:
+            missing = sorted((set(self.treated) | set(self.control)) - set(self.members))
+            if missing:
+                raise ValueError(f"units {missing} carry weight but are not among the members.")
+        return self
+
+    @property
+    def treated_labels(self) -> List[str]:
+        return list(self.treated)
+
+    @property
+    def control_labels(self) -> List[str]:
+        return list(self.control)
+
+    @property
+    def pool(self) -> List[str]:
+        """The members outside the treated composite (the control labels when
+        the members are not recorded)."""
+        if self.members is None:
+            return self.control_labels
+        return [u for u in self.members if u not in self.treated]
+
+
+class DesignInferenceSettings(BaseModel):
+    """The settings a design's inference ran with.
+
+    The base holds what every design shares; an estimator subclasses it with
+    its own settings, and ``inference_kwargs`` returns them in the form the
+    estimator's inference takes, so a later step reproduces that inference.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    alpha: float = Field(..., description="Two-sided level of the bands and tests.")
+
+    @field_validator("alpha")
+    @classmethod
+    def _alpha_in_the_unit_interval(cls, v):
+        if not 0.0 < v < 1.0:
+            raise ValueError(f"alpha must lie strictly between 0 and 1; got {v}.")
+        return v
+
+    def inference_kwargs(self) -> Dict[str, Any]:
+        """The settings as keyword arguments of the estimator's inference."""
+        return {"alpha": self.alpha}
+
+
 class DesignResult(MlsynthResult):
     """The research design: an experimental-design estimator's output.
 
@@ -621,8 +754,14 @@ class DesignResult(MlsynthResult):
     the design is realized as an :class:`EffectResult`, exposed via
     :attr:`report` (today's per-estimator ``post_fit`` / ``summary``).
 
-    This is a skeleton for the two-family contract; design estimators are
-    migrated onto it after the observational family is validated.
+    Beside the assignment, the weights, the power and the report, a design
+    carries what a step after the fit needs to re-estimate its effect:
+    ``windows`` (where its fitting, held-out and post periods fall),
+    ``composite`` and ``cluster_composites`` (its treated and control weights
+    by unit label, for the whole design and for each cluster) and
+    ``inference_settings`` (how its inference ran). From those and the panel
+    the design's own inference is reproduced exactly. Each is None for a design
+    estimator that does not fill it yet; MAREX fills all four.
     """
 
     report: Optional[BaseEstimatorResults] = Field(
@@ -645,6 +784,18 @@ class DesignResult(MlsynthResult):
     )
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Free-form design diagnostics."
+    )
+    windows: Optional[DesignWindows] = Field(
+        default=None, description="Where the design's fitting, held-out and post periods fall."
+    )
+    composite: Optional[DesignComposite] = Field(
+        default=None, description="The whole design's treated and control composites."
+    )
+    cluster_composites: Optional[Dict[str, DesignComposite]] = Field(
+        default=None, description="Each cluster's treated and control composites, by cluster label."
+    )
+    inference_settings: Optional[DesignInferenceSettings] = Field(
+        default=None, description="The settings the design's inference ran with; None without inference."
     )
 
     class Config:
