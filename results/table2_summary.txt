@@ -1,0 +1,12 @@
+                      quantity this prototype: mean (sd) paper Table 2
+    Display share: truth (CCC)           0.3811 (0.0090)        0.3799
+             TRE display share           0.3792 (0.0112)        0.3782
+             TRE KL divergence           0.0002 (0.0002)        0.0002
+                 TRE Hellinger           0.0050 (0.0038)        0.0064
+             DRE display share           0.3503 (0.0122)        0.3491
+             DRE KL divergence           0.0022 (0.0013)        0.0023
+                 DRE Hellinger           0.0226 (0.0067)        0.0226
+TRE display share, true params           0.3802 (0.0069)              
+DRE display share, true params           0.3513 (0.0075)              
+
+100 runs x 10000 paths in 444s; max |alpha_hat - alpha| averaged 0.0077

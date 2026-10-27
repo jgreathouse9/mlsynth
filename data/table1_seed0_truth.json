@@ -1,0 +1,13 @@
+{
+  "seed": 0,
+  "paths": 10000,
+  "conversions": 3651,
+  "ccc": {
+    "display": 1330,
+    "search": 2139
+  },
+  "ccc_shares": {
+    "display": 0.3833957912943211,
+    "search": 0.6166042087056789
+  }
+}
