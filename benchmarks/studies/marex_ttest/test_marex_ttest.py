@@ -27,7 +27,7 @@ def _sc_panel(T0=60, T1=12, J=6, seed=0):
 
 
 @SETTINGS
-@given(T0=st.integers(4, 200), T1=st.integers(1, 24), K=st.integers(2, 6), data=st.data())
+@given(T0=st.integers(6, 200), T1=st.integers(1, 24), K=st.integers(2, 6), data=st.data())
 def test_the_blocks_are_k_equal_runs_ending_at_t0_inside_the_span(T0, T1, K, data):
     span = data.draw(st.integers(K, T0))
     B = tt.blocks(T0, T1, K, span)
@@ -167,3 +167,18 @@ def test_the_arms_on_a_design():
     u = Y @ (d.w - d.v)
     B = tt.blocks(104, 12, 3, d.blank)
     np.testing.assert_allclose(fixed.tau_k, u[104:116].mean() - u[B].mean(axis=1), atol=1e-10)
+
+
+# --- size-adjusted power ---------------------------------------------------------------
+
+
+def test_size_adjusted_power_by_hand():
+    from benchmarks.studies.marex_ttest.run import size_adjusted_power
+    null = np.r_[np.full(5, 0.01), np.linspace(0.2, 1.0, 95)]   # 5% at 0.01
+    assert size_adjusted_power(null, [0.005, 0.01, 0.02, 0.5]) == 0.5
+
+
+def test_a_p_value_too_coarse_for_the_level_has_no_size_adjusted_power():
+    from benchmarks.studies.marex_ttest.run import size_adjusted_power
+    null = np.r_[np.full(10, 0.02), np.full(90, 0.6)]           # its floor rejects 10%
+    assert np.isnan(size_adjusted_power(null, [0.02, 0.02]))

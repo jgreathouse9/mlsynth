@@ -80,6 +80,21 @@ def _arm_pvalues(rs, arm, tau):
                                                 np.empty(0), 0, K), tau) for r in rs])
 
 
+def _pvalues(rs, arm, tau):
+    if arm in ("shipped", "cyclic_signed"):
+        return np.array([r[f"{arm}_{tau}"] for r in rs])
+    return _arm_pvalues(rs, arm, tau)
+
+
+def size_adjusted_power(p_null, p_alt, alpha=ALPHA):
+    """Rejections at the largest cutoff that rejects at most ``alpha`` of the
+    null draws; NaN when every cutoff rejects more, as a discrete p-value whose
+    smallest value is too common cannot be held to ``alpha``."""
+    p_null, p_alt = np.asarray(p_null), np.asarray(p_alt)
+    ok = [q for q in np.unique(p_null) if np.mean(p_null <= q) <= alpha]
+    return float(np.mean(p_alt <= max(ok))) if ok else float("nan")
+
+
 def report():
     rows = [json.loads(line) for line in (RESULTS / "runs.jsonl").read_text().splitlines()]
     out = []
@@ -99,6 +114,10 @@ def report():
                 se = np.array([r[f"{arm}_se"] for r in rs])
                 cell[f"{arm}_halfwidth"] = float(np.median(_t.ppf(1 - ALPHA / 2, K - 1) * se))
                 cell[f"{arm}_bias"] = float(np.mean([r[f"{arm}_att"] for r in rs]))
+            for arm in ("shipped", "cyclic_signed") + tt.ARMS:
+                for tau in TAUS[1:]:
+                    cell[f"{arm}_{tau}_adjusted"] = size_adjusted_power(
+                        _pvalues(rs, arm, 0.0), _pvalues(rs, arm, tau))
             out.append(cell)
     (RESULTS / "summary.json").write_text(json.dumps(out, indent=1))
     arms = ("shipped", "cyclic_signed") + tt.ARMS
@@ -107,6 +126,13 @@ def report():
     for c in out:
         f = lambda tau: " / ".join(f"{100 * c[f'{a}_{tau}']:.1f}" for a in arms)  # noqa: E731
         print(f"| {c['regime']} | {c['T0']} | {c['blank']} | {f(0.0)} | {f(1.0)} | {f(2.0)} |")
+    print("\n| Regime | T0 | size-adjusted power tau=1: " + " / ".join(arms) + " | tau=2 |")
+    print("|---|---|---|---|")
+    for c in out:
+        g = lambda tau: " / ".join(  # noqa: E731
+            "n/a" if np.isnan(c[f"{a}_{tau}_adjusted"]) else f"{100 * c[f'{a}_{tau}_adjusted']:.1f}"
+            for a in arms)
+        print(f"| {c['regime']} | {c['T0']} | {g(1.0)} | {g(2.0)} |")
     print("\n| Regime | T0 | median 95% half-width: " + " / ".join(tt.ARMS)
           + " | mean estimate at no effect |")
     print("|---|---|---|---|")
