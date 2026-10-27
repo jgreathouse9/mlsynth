@@ -256,18 +256,6 @@ def test_a_leave_two_out_test_whose_every_pair_raises_is_not_computed(monkeypatc
     assert res.inference.p_value is None and "every pair's refit raised" in res.inference.details["reason"]
 
 
-@pytest.mark.parametrize("mode", ["placebo", "lto", "placebo_cs"])
-def test_a_w_constr_fit_says_its_placebo_test_was_not_computed(mode):
-    """A w_constr fit has no engine to refit; the test used to rank the treated unit against itself (p = 1)."""
-    with pytest.warns(UserWarning, match="w_constr"):
-        res = VanillaSC(dict(df=_panel(), outcome="y", treat="treat", unitid="unit", time="time",
-                             display_graphs=False, inference=mode, w_constr="simplex", alpha=0.2)).fit()
-    inf = res.inference
-    assert inf.p_value is None and inf.ci_lower is None
-    reason = inf.details.get("reason") or inf.details.get("unavailable_reason")
-    assert "w_constr" in reason and "scpi" in reason
-
-
 @pytest.mark.parametrize("rows", [[], [3, 12], [-1, 2]])
 def test_the_leave_two_out_test_refuses_fit_periods_outside_the_pre_period(rows):
     rng = np.random.default_rng(2)

@@ -598,7 +598,10 @@ instead, and setting both is an error. ``w_constr`` solves scpi's constrained
 program on the pre-treatment outcomes, which is a different estimator from the
 bilevel predictor-weight engine, so it cannot be combined with ``covariates``,
 a non-default ``backend``, or ``oracle_weights`` -- those raise, not silently
-picking one. ``res.method_details.parameters_used`` reports the family
+picking one. Inference that refits the estimator (the placebo-type tests,
+``ttest``, ``conformal_cumulative``) refits the same family. ``conformal``
+refits the simplex program under each null, so it takes ``w_constr="simplex"``
+only. ``res.method_details.parameters_used`` reports the family
 that ran and the budget ``Q`` it used, so a fit never leaves its specification
 ambiguous.
 
@@ -682,9 +685,8 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     statistic: it is left out, named with the error in a warning and in
     ``res.inference.details["skipped_placebos"]``, and the p-value ranks the
     treated unit among the donors that were refit. When no donor can be refit
-    the test is not computed. A ``w_constr`` fit has no refit, so its
-    placebo-type tests are not computed; ``inference="scpi"`` is built on the
-    same constrained program.
+    the test is not computed. A ``w_constr`` fit refits each donor with its own
+    constrained program.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
