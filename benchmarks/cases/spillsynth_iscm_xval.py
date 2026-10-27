@@ -8,14 +8,14 @@ reunification, outcome-only, with Austria the single affected neighbour.
 The case pins two comparisons, because the reference has two answers.
 
 Against the reference's algorithm with its quadratic program solved to the
-simplex, mlsynth agrees:
+simplex, mlsynth agrees to 2e-10 in the weights and 1e-7 USD in the estimates:
 
   ===============  ===============  ===============
   quantity         mlsynth          converged
   ===============  ===============  ===============
-  Austria in WG    ~0.464           ~0.454
-  WG in Austria    ~0.353           ~0.355
-  inclusive ATT    ~-1279           ~-1276
+  Austria in WG    0.454248         0.454248
+  WG in Austria    0.355042         0.355042
+  inclusive ATT    -1275.530        -1275.530
   ===============  ===============  ===============
 
 Against what the authors' code prints, it does not, and the reason is the
@@ -155,23 +155,26 @@ def comparison() -> dict:
 
 # Deterministic (closed-form demeaned simplex SCM + Cramer's rule; the shipped
 # cells come from a committed capture). The ``*_vs_converged`` cells pin mlsynth
-# to the reference algorithm solved to the simplex -- residual is the solver,
-# FISTA here against OSQP there, ~2%. The ``*_vs_shipped`` cells pin the distance
-# to what the authors' code prints, so the ipop infeasibility stays on the record
-# instead of being absorbed into a tolerance.
+# to the reference algorithm solved to the simplex: mlsynth's active set and
+# OSQP at 1e-9 agree to 2e-10 in the weights and 1e-7 USD in the estimates, so
+# the tolerances are OSQP's precision, not a solver gap. Under the FISTA solver
+# this replaced the gap was 0.010 in w_A and 3.3 USD in the inclusive ATT. The
+# ``*_vs_shipped`` cells pin the distance to what the authors' code prints, so
+# the ipop infeasibility stays on the record instead of being absorbed into a
+# tolerance.
 EXPECTED = {
-    "w_A": (0.464, 0.03),                    # Austria in synthetic West Germany
-    "l_WG": (0.353, 0.03),                   # West Germany in synthetic Austria
-    "inclusive_att": (-1278.8, 20.0),
-    "naive_att": (-1482.0, 20.0),
-    "w_A_vs_converged": (0.010, 0.03),       # reproduces the reference weight
-    "l_WG_vs_converged": (0.003, 0.03),
-    "inclusive_vs_converged": (3.3, 20.0),   # reproduces the reference estimate
-    "naive_vs_converged": (7.6, 20.0),
+    "w_A": (0.454248, 1e-4),                 # Austria in synthetic West Germany
+    "l_WG": (0.355042, 1e-4),                # West Germany in synthetic Austria
+    "inclusive_att": (-1275.530, 0.01),
+    "naive_att": (-1474.451, 0.01),
+    "w_A_vs_converged": (0.0, 1e-6),         # reproduces the reference weight
+    "l_WG_vs_converged": (0.0, 1e-6),
+    "inclusive_vs_converged": (0.0, 1e-3),   # reproduces the reference estimate
+    "naive_vs_converged": (0.0, 1e-3),
     "shipped_weight_sum_west_germany": (0.9666, 0.001),   # not 1: ipop is infeasible
     "shipped_weight_sum_austria": (1.1933, 0.001),        # not 1
     "shipped_w_A": (0.1762, 0.001),
     "shipped_inclusive_att": (-1651.52, 1.0),
-    "inclusive_vs_shipped": (372.7, 25.0),   # the cost of the infeasible solve
-    "naive_vs_shipped": (9.4, 25.0),         # which the headline gap hides
+    "inclusive_vs_shipped": (375.99, 1.0),   # the cost of the infeasible solve
+    "naive_vs_shipped": (1.85, 1.0),         # which the headline gap hides
 }

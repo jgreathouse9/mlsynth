@@ -16,8 +16,8 @@ is **not** pinned here.
 
 What this case pins is the **outcome-only** inclusive fit on
 ``basedata/repgermany.dta`` -- the no-covariates regime that Melnychuk's reference
-also reports: Austria carries :math:`\\approx 0.33` of synthetic West Germany and
-West Germany :math:`\\approx 0.32` of synthetic Austria, the cross-weight system
+also reports: Austria carries :math:`\\approx 0.32` of synthetic West Germany and
+West Germany :math:`\\approx 0.31` of synthetic Austria, the cross-weight system
 has :math:`\\det\\Omega \\approx 0.90`, and the inclusive (de-contaminated) ATT is
 **more negative** than the naive SCM gap, because the naive synthetic borrows from
 a contaminated Austria. A durable regression / machinery guard for the inclusive
@@ -70,10 +70,10 @@ def run() -> dict:
 # the Di Stefano-Mellace German-reunification neighbourhood and the
 # de-contamination direction (inclusive ATT more negative than the naive gap).
 EXPECTED = {
-    "att_inclusive": (-1367.76, 5.0),
-    "att_naive_scm": (-1305.95, 5.0),
-    "austria_in_wg_weight": (0.327, 0.02),    # Austria in synthetic West Germany
-    "wg_in_austria_weight": (0.318, 0.02),    # West Germany in synthetic Austria
-    "omega_det": (0.896, 0.02),               # 2x2 cross-weight system determinant
+    "att_inclusive": (-1351.86, 5.0),
+    "att_naive_scm": (-1297.48, 5.0),
+    "austria_in_wg_weight": (0.323, 0.02),    # Austria in synthetic West Germany
+    "wg_in_austria_weight": (0.315, 0.02),    # West Germany in synthetic Austria
+    "omega_det": (0.898, 0.02),               # 2x2 cross-weight system determinant
     "inclusive_more_negative": (1.0, 0.0),
 }

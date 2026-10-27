@@ -9478,3 +9478,51 @@ timeout = 900.0
   find = "            if skipped is not None:"
   replace = "            if False:"
   models = "a match whose refit raised dropped without a record, so the caller cannot report it"
+
+[[target]]
+name = "spillsynth-unit-sc"
+module-path = "mlsynth/utils/spillsynth_helpers/iscm/weights.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_unit_sc.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "plain-fit-falls-back-to-first-order"
+  find = "            w = simplex_qp(Y0[:T0], y1[:T0])"
+  replace = "            from ...solvers.simplex import simplex_lstsq\n            w = simplex_lstsq(Y0[:T0], y1[:T0])"
+  models = "the outcome-only fit handed back to the FISTA primitive it replaced. On German reunification that stops at its 2000-iteration cap short of the optimum on 15 of 17 units, moves the inclusive ATT 16 USD, and costs 37 ms a fit where the active set takes under 1"
+
+  [[target.mutant]]
+  id = "intercept-fit-falls-back-to-first-order"
+  find = "            w = simplex_qp(Y0[:T0] - mu0, y1[:T0] - mu1)"
+  replace = "            from ...solvers.simplex import simplex_lstsq\n            w = simplex_lstsq(Y0[:T0] - mu0, y1[:T0] - mu1)"
+  models = "the demeaned fit handed back to FISTA, which misses the optimum on all 17 German units and leaves the inclusive ATT 3.3 USD from Melnychuk's algorithm solved to the simplex"
+
+  [[target.mutant]]
+  id = "intercept-weights-fit-on-levels"
+  find = "            w = simplex_qp(Y0[:T0] - mu0, y1[:T0] - mu1)"
+  replace = "            w = simplex_qp(Y0[:T0], y1[:T0])"
+  models = "the weights fit to the outcomes in levels and the level shift added afterwards. The pre-period gap still has mean zero, so it reads as the intercept SCM, but it is the plain fit's weights with a constant on top and it moves when one unit's level does"
+
+  [[target.mutant]]
+  id = "non-finite-outcomes-reach-the-solver"
+  find = "    if not (np.all(np.isfinite(y1)) and np.all(np.isfinite(Y0))):"
+  replace = "    if False:"
+  models = "the finiteness guard dropped. The active set returns finite-looking weights for a design carrying a NaN -- 0.82 and 0.18 on three donors, one of them with a NaN in its pre-period -- so the estimate comes back built on them"
+
+  [[target.mutant]]
+  id = "empty-pool-reaches-the-solver"
+  find = "    if donor_idx.size == 0:"
+  replace = "    if False:"
+  models = "the empty-pool guard dropped, so a direct caller gets the active set's bare ValueError in outcome-only mode and a mean of an empty slice on the way to BilevelProblem in covariate mode, not a data error naming the unit"
+
+[[target]]
+name = "spillsynth-setup-finite-outcome"
+module-path = "mlsynth/utils/spillsynth_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_unit_sc.py -q -p no:cacheprovider -x -k ingestion"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "infinite-outcome-passes-ingestion"
+  find = "    if not finite.all():"
+  replace = "    if False:"
+  models = "the ingestion check dropped. isna passes an infinite outcome, after which cd returns an ATT of nan and iscm, iterative and grossi return -inf for one in the post-period, each without an error"

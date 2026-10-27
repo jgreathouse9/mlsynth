@@ -335,8 +335,18 @@ def prepare_spillsynth_inputs(
         raise MlsynthDataError(
             f"SPILLSYNTH: panel has {bad_cells} missing cells after pivot."
         )
+    # ``isna`` passes an infinite outcome, which every method then fed to its
+    # weight solve: cd returned an ATT of nan, the others -inf, or an IndexError
+    # from inside the solver.
+    values = Ywide_ordered.to_numpy(dtype=float)
+    finite = np.isfinite(values).all(axis=0)
+    if not finite.all():
+        bad_units = [u for u, ok in zip(units, finite) if not ok]
+        raise MlsynthDataError(
+            f"SPILLSYNTH: outcome has non-finite values for units {bad_units}."
+        )
 
-    Y = Ywide_ordered.to_numpy(dtype=float).T            # (N, T)
+    Y = values.T                                         # (N, T)
     N = Y.shape[0]
     T = Y.shape[1]
     T1 = T - T0
