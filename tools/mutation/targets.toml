@@ -9192,13 +9192,13 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "fit-exclude-ignored"
-  find = "    if config.fit_exclude:\n        pre_list = time_labels[:pre].tolist()"
-  replace = "    if False:\n        pre_list = time_labels[:pre].tolist()"
+  find = "    if config.fit_exclude:\n        pre_list = pre_labels.tolist()"
+  replace = "    if False:\n        pre_list = pre_labels.tolist()"
   models = "fit_exclude accepted and recorded but every pre-treatment period kept in the outcome fit, which on Proposition 99 returns the headline weights for the leakage-free sample"
 
   [[target.mutant]]
   id = "unknown-exclusion-dropped"
-  find = "        if missing:\n            raise MlsynthDataError("
+  find = "        if missing and strict:\n            raise MlsynthDataError("
   replace = "        if False:\n            raise MlsynthDataError("
   models = "an exclusion that names no pre-treatment period dropped without a word, so a mistyped year leaks into the fit"
 
@@ -9216,8 +9216,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "ranges-not-forwarded"
-  find = "            ranges=config.exact_ranges,"
-  replace = "            ranges=False,"
+  find = "engine = _engine(config, ranges=config.exact_ranges,"
+  replace = "engine = _engine(config, ranges=False,"
   models = "exact_ranges accepted by the config but never handed to the backend"
 
 [[target]]
@@ -9588,6 +9588,36 @@ timeout = 600.0
   find = "(S >= S[0] - tol)"
   replace = "(S > S[0] + tol)"
   models = "reference blocks that tie the observed statistic not counted, which makes the test anti-conservative wherever the statistic is discrete"
+
+[[target]]
+name = "vanillasc-staggered-fit-inputs"
+module-path = "mlsynth/utils/vanillasc_helpers/staggered.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_staggered_fit_inputs.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "staggered-unit-without-predictors"
+  find = "    if config.covariates:"
+  replace = "    if False:"
+  models = "#922: each treated unit fit with no predictors, so a predictor backend raises 'needs covariates' and backend='auto' falls back to outcome-only matching"
+
+  [[target.mutant]]
+  id = "staggered-unit-on-every-pre-period"
+  find = "    rows = _fit_positions(config, pre_labels, strict=False)"
+  replace = "    rows = np.arange(len(pre_labels))"
+  models = "#922: fit_window and fit_exclude ignored for every treated unit of a staggered panel"
+
+  [[target.mutant]]
+  id = "staggered-exact-extras-admitted"
+  find = "        if getattr(config, option, False):"
+  replace = "        if False:"
+  models = "exact_ranges or exact_face_counts accepted with several treated units, where no result carries them"
+
+  [[target.mutant]]
+  id = "staggered-exclusion-outside-every-cohort-admitted"
+  find = "        if missing:"
+  replace = "        if False:"
+  models = "a fit_exclude label that is no cohort's pre-treatment period accepted and dropped from nothing"
 
 [[target]]
 name = "vanillasc-wconstr-config"

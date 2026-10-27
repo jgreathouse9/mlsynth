@@ -28,7 +28,7 @@ from ...config_models import (
     TimeSeriesResults,
     WeightsResults,
 )
-from ..bilevel import BilevelSCM
+from ...exceptions import MlsynthConfigError, MlsynthDataError
 
 
 @dataclass(frozen=True)
@@ -60,25 +60,27 @@ class StaggeredUnitFit:
 
 
 def _fit_one_unit(config, y: np.ndarray, Y0: np.ndarray, pre: int,
-                  donor_names: List[str]):
-    """Fit a single-treated synthetic control, outcome-only, via the engine."""
-    engine = BilevelSCM(
-        config.backend,
-        canonical_v=config.canonical_v,
-        seed=config.seed,
-        augment=config.augment,
-        ridge_lambda=config.ridge_lambda,
-        residualize=config.residualize,
-        maxiter=config.mscmt_maxiter,
-        popsize=config.mscmt_popsize,
-        prune_shady=config.mscmt_prune_shady,
-        cv=config.penalized_cv,
-    )
+                  donor_names: List[str], unit_label: Any, donor_labels: List[Any],
+                  pre_labels):
+    """The single-treated fit of one treated unit against its cohort's donors.
+
+    The engine, the predictors and the outcome-fit rows are built by the same
+    helpers as the single-treated path, so the fit is the one that unit would get
+    alone: its covariates over their windows in its own pre-period, and the rows
+    ``fit_window`` and ``fit_exclude`` keep there.
+    """
+    from .pipeline import _engine, _fit_positions, _predictors
+
+    rows = _fit_positions(config, pre_labels, strict=False)
+    X1 = X0 = None
+    if config.covariates:
+        _, Xs = _predictors(config, [unit_label, *donor_labels], pre_labels)
+        X1, X0 = Xs[:, 0], Xs[:, 1:]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = engine.fit(
-            y[:pre], Y0[:pre],
-            X1=None, X0=None, donor_names=donor_names, predictor_names=[],
+        res = _engine(config).fit(
+            y[rows], Y0[rows], X1=X1, X0=X0, donor_names=donor_names,
+            predictor_names=list(config.covariates or []),
         )
     return res
 
@@ -312,6 +314,21 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
 
     cohorts = prep["cohorts"]
     time_labels = np.asarray(prep.get("time_labels"))
+    for option in ("exact_ranges", "exact_face_counts"):
+        if getattr(config, option, False):
+            raise MlsynthConfigError(
+                f"{option}=True describes a single treated unit's exact fit, and this "
+                f"panel has {sum(len(c['treated_units']) for c in cohorts.values())} "
+                "treated units; fit one of them alone to get it.")
+    if config.fit_exclude:
+        pre_any = set()
+        for c in cohorts.values():
+            pre_any.update(time_labels[:int(c["pre_periods"])].tolist())
+        missing = [t for t in config.fit_exclude if t not in pre_any]
+        if missing:
+            raise MlsynthDataError(
+                f"fit_exclude names {missing}, which is not a pre-treatment period of "
+                "any cohort.")
 
     mode = config.inference
     do_scpi = isinstance(mode, str) and mode.lower() == "scpi"
@@ -326,12 +343,15 @@ def run_vanillasc_staggered(config, prep: Dict[str, Any]) -> BaseEstimatorResult
             y_mat = y_mat[:, None]
         Y0 = np.asarray(cohort["donor_matrix"], dtype=float)
         pre = int(cohort["pre_periods"])
-        donor_names = [str(d) for d in cohort["donor_names"]]
-        treated_names = [str(u) for u in cohort["treated_units"]]
+        donor_labels = list(cohort["donor_names"])
+        treated_labels = list(cohort["treated_units"])
+        donor_names = [str(d) for d in donor_labels]
+        treated_names = [str(u) for u in treated_labels]
 
         for j, unit_name in enumerate(treated_names):
             y = y_mat[:, j]
-            res = _fit_one_unit(config, y, Y0, pre, donor_names)
+            res = _fit_one_unit(config, y, Y0, pre, donor_names, treated_labels[j],
+                                donor_labels, time_labels[:pre])
             counterfactual = res.counterfactual(Y0)
             gap = y - counterfactual
             post = gap[pre:]
