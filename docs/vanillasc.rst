@@ -494,12 +494,16 @@ The backend rests on three assumptions beyond those of the canonical estimator.
 3. Enough validation periods. On each face the least-squares reduction needs
    the validation outcomes of the face's donors to have full column rank: at
    least as many validation periods as the face has free weights, and no two
-   donors with nearly collinear validation paths.
+   donors whose validation paths agree to rounding.
 
    *Remark.* West Germany's facets hold six donors, so two validation years
-   could not identify the weights on them, and the backend raises instead of
-   returning an ill-conditioned fit. The paper's ten validation years,
-   1981-1990, are enough.
+   could not identify the weights on them, and the backend raises. The paper's
+   ten validation years, 1981-1990, are enough. Nearly collinear donors are not
+   refused: every face fit is certified optimal by the backward error of its
+   KKT conditions, and a fit that misses the certificate raises. On the Basque
+   panel, whose regions' GDP paths move together, the faces reach a condition
+   number of 2.6e4, and their weights agree with a 50-digit reference to
+   9.1e-9.
 
 Inference composes with the backend. The in-space placebo refits the exact
 search with each donor as the treated unit, on the treated unit's validation

@@ -8783,7 +8783,7 @@ timeout = 900.0
 [[target]]
 name = "vanillasc-exact-lsq"
 module-path = "mlsynth/utils/bilevel/exact/lsq.py"
-test-command = "python -m pytest mlsynth/tests/test_exact_lsq.py -q -p no:cacheprovider -x"
+test-command = "python -m pytest mlsynth/tests/test_exact_lsq.py mlsynth/tests/test_exact_lsq_conditioning.py -q -p no:cacheprovider -x"
 timeout = 600.0
 
   [[target.mutant]]
@@ -8811,29 +8811,61 @@ timeout = 600.0
   models = "a reduction that found nothing reported as an empty piece, so a numerical failure removes feasible weights from the search without a word"
 
   [[target.mutant]]
-  id = "ill-conditioned-face-admitted"
-  find = "    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:"
+  id = "condition-cap-refuses-certified-faces"
+  find = "    if E.shape[0] < E.shape[1] or not sv[-1] > max(E.shape) * np.finfo(float).eps * sv[0]:"
+  replace = "    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / 1e4:"
+  models = "the condition-number cap this target replaced: the Basque faces between 1e4 and 2.6e4, whose answers match a 50-digit reference, refused before they are solved"
+
+  [[target.mutant]]
+  id = "rank-decided-without-a-threshold"
+  find = "    if E.shape[0] < E.shape[1] or not sv[-1] > max(E.shape) * np.finfo(float).eps * sv[0]:"
   replace = "    if E.shape[0] < E.shape[1] or not sv[-1] > 0.0:"
-  models = "the reduction run on a face whose validation paths are nearly collinear, where the back-transform through R^{-1} leaves fewer digits than the answer's check needs"
+  models = "rank decided by an exact zero: two donors equal to rounding keep a singular value near eps and the reduction divides by it"
+
+  [[target.mutant]]
+  id = "face-fit-uncertified"
+  find = "    if not err <= CERTIFY:"
+  replace = "    if False:"
+  models = "the reduction's answer returned without its optimality certificate, so a face fit that misses its KKT conditions reaches the search as an optimum"
+
+  [[target.mutant]]
+  id = "face-fit-unpolished"
+  find = "    y, factored = _polish(E, f, G, h, Vt.T @ ((c * x + fq) / sv))"
+  replace = "    y, factored = Vt.T @ ((c * x + fq) / sv), (np.zeros(0, int), None)"
+  models = "the least distance point returned as it is: its active rows hold to the digits the reduction kept, about 1e-9 at a condition number of 2.6e4, so the loss falls below the optimum and the clipped weights are not the certified ones"
+
+  [[target.mutant]]
+  id = "negative-multipliers-accepted"
+  find = "        stat, neg = float(np.linalg.norm(g - G[act].T @ lam)), float(max(0.0, -lam.min()))"
+  replace = "        stat, neg = float(np.linalg.norm(g - G[act].T @ lam)), 0.0"
+  models = "a certificate that checks stationarity and not the multipliers' sign, so a point held at a row that pulls the wrong way is certified optimal"
+
+  [[target.mutant]]
+  id = "certificate-tolerance-loosened"
+  find = "CERTIFY = 1e-12     # a face fit's KKT conditions may miss by this much, relative to the face's data"
+  replace = "CERTIFY = 1e-3      # a face fit's KKT conditions may miss by this much, relative to the face's data"
+  models = "a certificate loose enough to pass a point 1e-6 off the optimum, whose backward error is 1.6e-10 or more"
 
   [[target.mutant]]
   id = "rank-deficient-face-ridged"
   find = '''
     U, sv, Vt = np.linalg.svd(E, full_matrices=False)
-    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:'''
+    cond = sv[0] / sv[-1] if sv[-1] > 0 else np.inf
+    if E.shape[0] < E.shape[1] or not sv[-1] > max(E.shape) * np.finfo(float).eps * sv[0]:'''
   replace = '''
     if E.shape[0] < E.shape[1] or np.linalg.matrix_rank(E) < E.shape[1]:
         eps = 1e-12 * max(1.0, float(np.abs(E).max()))
         E = np.vstack([E, eps * np.eye(E.shape[1])])
         f = np.concatenate([f, np.zeros(E.shape[1])])
     U, sv, Vt = np.linalg.svd(E, full_matrices=False)
+    cond = sv[0] / sv[-1] if sv[-1] > 0 else np.inf
     if not sv[-1] > 0.0:'''
   models = "the original patch for a rank-deficient face: a 1e-12 ridge that leaves cond(R) near 1e12 and turns the reduction's answer into noise"
 
   [[target.mutant]]
   id = "back-transform-loses-its-shift"
-  find = "    return None if x is None else Vt.T @ ((c * x + fq) / sv)"
-  replace = "    return None if x is None else Vt.T @ (c * x / sv)"
+  find = "    y, factored = _polish(E, f, G, h, Vt.T @ ((c * x + fq) / sv))"
+  replace = "    y, factored = _polish(E, f, G, h, Vt.T @ (c * x / sv))"
   models = "the least-distance point mapped back to the weights without the shift U'f that makes it a residual, so every piece is solved for the wrong target"
 
   [[target.mutant]]

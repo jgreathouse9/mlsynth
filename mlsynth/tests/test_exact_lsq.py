@@ -244,7 +244,7 @@ def test_property_a_piece_is_solved_when_feasible_and_refused_when_not(seed, m, 
     margin = _piece_margin(Gin, hin)
     assume(abs(margin) > 1e-6)
     sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
-    assume(sv[0] / sv[-1] <= lsq.COND_MAX)
+    assume(sv[0] / sv[-1] <= 1e4)                     # the well-conditioned faces this property is about
     val, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
     if margin < 0:
         assert b is None
@@ -260,7 +260,7 @@ def test_property_a_piece_is_solved_when_feasible_and_refused_when_not(seed, m, 
 @given(seed=st.integers(0, 2**31 - 1), m=st.integers(3, 6), extra=st.integers(1, 8), k=st.integers(1, 6),
        log_eta=st.floats(-12.0, 0.0))
 def test_property_a_nearly_collinear_face_is_solved_or_refused_never_misread(seed, m, extra, k, log_eta):
-    """Two donors with validation paths 10^log_eta apart: below the condition cap the answer is exact, above it an error."""
+    """Two donors with validation paths 10^log_eta apart: the answer is exact, or the call raises."""
     rng = np.random.default_rng(seed)
     L = m + extra
     Z, z = rng.normal(size=(L, m)), rng.normal(size=L)
@@ -269,11 +269,10 @@ def test_property_a_nearly_collinear_face_is_solved_or_refused_never_misread(see
     margin = _piece_margin(Gin, hin)
     assume(abs(margin) > 1e-6)
     sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
-    if sv[0] / sv[-1] > lsq.COND_MAX:
-        with pytest.raises(MlsynthDataError, match="ill-conditioned"):
-            lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    try:
+        _, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
+    except (MlsynthDataError, MlsynthEstimationError):
         return
-    _, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
     assert (b is None) == (margin < 0)
     if b is not None:
         assert _violation(Gin, hin, b) <= 1e-7
@@ -295,13 +294,13 @@ def test_degenerate_systems(G, h, expected):
         assert x is not None and np.allclose(x, expected, atol=1e-9)
 
 
-@pytest.mark.parametrize("L, eta", [(2, 1.0), (6, 1e-10)])
+@pytest.mark.parametrize("L, eta", [(2, 1.0), (6, 1e-17)])
 def test_a_face_outside_the_reduction_s_domain_is_refused(L, eta):
-    """Fewer validation periods than free weights, or two donors 1e-10 apart: an error naming the condition."""
+    """Fewer validation periods than free weights, or two donors equal to rounding: an error naming the rank."""
     rng = np.random.default_rng(3)
     Z, z = rng.normal(size=(L, 5)), rng.normal(size=L)
     Z[:, -1] = Z[:, 0] + eta * rng.normal(size=L)
-    with pytest.raises(MlsynthDataError, match="rank-deficient or ill-conditioned"):
+    with pytest.raises(MlsynthDataError, match="rank-deficient"):
         lsq.simplex_ls(z, Z)
 
 
@@ -385,7 +384,7 @@ def test_property_a_piece_s_weights_do_not_depend_on_the_outcomes_units(seed, m,
     if k:
         assume(abs(_piece_margin(Gin, hin)) > 1e-6)
     sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
-    assume(sv[0] / sv[-1] <= lsq.COND_MAX)
+    assume(sv[0] / sv[-1] <= 1e4)                     # the well-conditioned faces this property is about
     c = 10.0 ** log_c
     val, b = lsq.simplex_ls(z, Z, Gin=Gin, hin=hin)
     val_c, b_c = lsq.simplex_ls(c * z, c * Z, Gin=Gin, hin=hin)
@@ -411,7 +410,7 @@ def test_property_the_least_distance_point_is_solved_in_units_where_it_is_at_mos
     Z, z = c * (shift + rng.normal(size=(L, m))), c * (shift + 3.0 * rng.normal(size=L))
     Gin, hin = (rng.normal(size=(k, m)), 0.3 * rng.normal(size=k)) if k else (None, None)
     sv = np.linalg.svd(Z @ np.linalg.svd(np.ones((1, m)))[2][1:].T, compute_uv=False)
-    assume(sv[0] / sv[-1] <= lsq.COND_MAX)
+    assume(sv[0] / sv[-1] <= 1e4)                     # the well-conditioned faces this property is about
     seen = []
     ldp = lsq._ldp
 

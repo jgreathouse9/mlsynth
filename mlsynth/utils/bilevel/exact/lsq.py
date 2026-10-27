@@ -8,9 +8,11 @@ Squares Problems, ch. 23) reduce to a least-distance problem solved by one
 nonnegative least-squares call. SciPy's ``nnls`` is compiled, so a solve on a face of
 a few donors takes 0.09 to 0.16 ms on Proposition 99.
 
-Every point returned is checked against the constraints it was solved under. A point
-that fails the check raises MlsynthEstimationError, and a reduction asked to work
-outside its domain raises MlsynthDataError; "infeasible" is returned only when the
+Every point returned is checked against the constraints it was solved under, and every
+face fit is certified optimal by the backward error of its KKT conditions on the face's
+own data (``kkt_backward_error``). A point that fails either check raises
+MlsynthEstimationError, and a reduction asked to work outside its domain (a
+rank-deficient face) raises MlsynthDataError; "infeasible" is returned only when the
 constraints themselves have no verified solution.
 """
 from __future__ import annotations
@@ -22,8 +24,8 @@ from scipy.optimize import linprog, lsq_linear, nnls
 
 from ....exceptions import MlsynthDataError, MlsynthEstimationError
 
-COND_MAX = 1e4      # above this the back-transform through R^{-1} leaves fewer digits than VERIFY asks for
 VERIFY = 1e-7       # a returned point may miss a row by this much, relative to the size of the row's terms
+CERTIFY = 1e-12     # a face fit's KKT conditions may miss by this much, relative to the face's data
 
 
 def _satisfies(G, h, x, tol=VERIFY):
@@ -122,16 +124,79 @@ def _constraints_feasible(G, h):
     return verdict
 
 
+def _factor(Ga):
+    """G_A's SVD and numerical rank, for the active-set solve and its multipliers."""
+    U, S, Vt = np.linalg.svd(Ga, full_matrices=True)
+    return U, S, Vt, int(np.sum(S > max(Ga.shape) * np.finfo(float).eps * S[0]))
+
+
+def kkt_backward_error(E, f, G, h, y, s1=None, factored=None):
+    """How far y is from the KKT conditions of min ||E y - f|| subject to G y >= h, relative to the data.
+
+    With r = E y - f and g = E'r (E'E is never formed), the rows within VERIFY of their
+    bound are taken as active and the multipliers fit g = G_A' lam by least squares. The
+    error is the larger of the stationarity residual ||g - G_A' lam|| and the most negative
+    multiplier, divided by s_1 (s_1 ||y|| + ||f||), the size of g's terms. It reads as a
+    backward error, so it does not grow with the condition number: on 4,192 face fits from
+    the Basque specification it was at most 1.3e-14 up to a condition number of 2.6e4,
+    and an answer moved 1e-6 along a direction free of its active rows scored at least
+    1.6e-10 (agents_solvers.md, rule 2). ``s1``, E's largest singular value, is computed
+    when not given; ``factored``, the active rows with their ``_factor``, likewise.
+    """
+    s1 = float(np.linalg.norm(E, 2)) if s1 is None else float(s1)
+    g = E.T @ (E @ y - f)
+    act, fac = factored if factored is not None else (_active_rows(G, h, y), None)
+    if act.size:
+        U, S, Vt, r = fac if fac is not None else _factor(G[act])
+        lam = U[:, :r] @ ((Vt[:r] @ g) / S[:r])            # the least squares solution of G_A' lam = g
+        stat, neg = float(np.linalg.norm(g - G[act].T @ lam)), float(max(0.0, -lam.min()))
+    else:
+        stat, neg = float(np.linalg.norm(g)), 0.0
+    size = s1 * (s1 * float(np.linalg.norm(y)) + float(np.linalg.norm(f)))
+    return max(stat, neg) / size if size > 0.0 else max(stat, neg)
+
+
+def _active_rows(G, h, y):
+    """The rows of G y >= h that y meets to VERIFY times the size of the row's terms."""
+    return np.flatnonzero(G @ y - h <= VERIFY * (np.linalg.norm(G, axis=1) * np.linalg.norm(y) + np.abs(h)))
+
+
+def _polish(E, f, G, h, y):
+    """The least squares point on y's active rows: min ||E y - f|| subject to G_A y = h_A.
+
+    Once the active set is known the problem has equality constraints only (Björck,
+    Numerical Methods in Matrix Computations, p. 371). It is solved on the face's own
+    data in the null space of G_A, from orthogonal factorizations and with no inverse
+    of E formed (p. 372), so the active rows hold to rounding and not to the digits the
+    least distance reduction kept.
+
+    Returns the point with the active rows and their ``_factor``, which certify it.
+    """
+    act = _active_rows(G, h, y)
+    if not act.size:
+        return np.linalg.lstsq(E, f, rcond=None)[0], (act, None)
+    U, S, Vt, r = fac = _factor(G[act])
+    yp = Vt[:r].T @ ((U[:, :r].T @ h[act]) / S[:r])
+    Q2 = Vt[r:].T
+    if Q2.shape[1]:
+        yp = yp + Q2 @ np.linalg.lstsq(E @ Q2, f - E @ yp, rcond=None)[0]
+    return yp, (act, fac)
+
+
 def _lsi(E, f, G, h):
     """min ||E y - f|| subject to G y >= h. None when the reduced problem has no verified solution.
 
     The reduction divides by R = S V' from the thin SVD E = U S V', so it needs E of full
-    column rank, and its answer passes the 1e-7 check only while cond(E) = s_1 / s_n
-    stays below about 1e4: on random
-    nearly collinear faces every piece is exact below 1e4 and 9 per cent fail between
-    1e4 and 1e5. A face with more free weights than validation periods, or with donors
-    whose validation paths are nearly collinear, is refused. Proposition 99, West Germany
-    and the seeded designs of the tests stay below 600.
+    column rank, decided at max(L, n) eps times s_1 (agents_solvers.md, rule 6). A face
+    with more free weights than validation periods, or with two donors whose validation
+    paths agree to rounding, is refused. A full-rank face is solved whatever its
+    condition number. The reduction's point names the active rows, the fit is solved on
+    them directly (``_polish``) and certified with ``kkt_backward_error``, and a point
+    that breaks a row or misses ``CERTIFY`` raises. On the Basque specification the faces reach a condition
+    number of 2.6e4, and against a 50-digit reference their weights were right to
+    9.1e-9 and their losses to 1.2e-11; the weights' error grows like cond(E)^2 eps,
+    the condition of the problem itself (Björck, Numerical Methods in Matrix
+    Computations, Theorem 2.2.6), and the loss's does not.
 
     The least-distance point x is read off a residual of size 1 / (1 + ||x||^2), so it keeps
     about 16 - 2 log10 ||x|| digits, and ||x|| is in the outcomes' units: West German GDP
@@ -141,17 +206,26 @@ def _lsi(E, f, G, h):
     ||x|| <= c = s_1 + ||U'f||; the step is solved in units of c, where ||x|| <= 1.
     """
     U, sv, Vt = np.linalg.svd(E, full_matrices=False)
-    if E.shape[0] < E.shape[1] or not sv[-1] > sv[0] / COND_MAX:
-        cond = sv[0] / sv[-1] if sv[-1] > 0 else np.inf
+    cond = sv[0] / sv[-1] if sv[-1] > 0 else np.inf
+    if E.shape[0] < E.shape[1] or not sv[-1] > max(E.shape) * np.finfo(float).eps * sv[0]:
         raise MlsynthDataError(
-            f"the face's validation block is rank-deficient or ill-conditioned ({E.shape[0]} periods, "
-            f"{E.shape[1]} free weights, condition number {cond:.1e}); the exact least-squares "
-            "reduction needs full column rank")
+            f"the face's validation block is rank-deficient ({E.shape[0]} periods, {E.shape[1]} free "
+            f"weights, condition number {cond:.1e}); the exact least-squares reduction needs full "
+            "column rank")
     fq = U.T @ f
     c = sv[0] + float(np.linalg.norm(fq))
     GRi = c * (G @ Vt.T) / sv                            # G R^{-1} = G V S^{-1}, in units of c
     x = _ldp(GRi, h - GRi @ fq / c)
-    return None if x is None else Vt.T @ ((c * x + fq) / sv)
+    if x is None:
+        return None
+    y, factored = _polish(E, f, G, h, Vt.T @ ((c * x + fq) / sv))
+    err = kkt_backward_error(E, f, G, h, y, s1=sv[0], factored=factored) if _satisfies(G, h, y) else np.inf
+    if not err <= CERTIFY:
+        raise MlsynthEstimationError(
+            f"the least-squares reduction's answer on a face with condition number {cond:.1e} misses "
+            f"its optimality conditions by {err:.1e} of the data's size, above the certificate's "
+            f"{CERTIFY:.0e}")
+    return y
 
 
 @lru_cache(maxsize=None)
@@ -168,8 +242,9 @@ def simplex_ls(z, Z, Gin=None, hin=None):
     """Return (loss, b) for the program in the module docstring, or (None, None) if infeasible.
 
     Raises MlsynthDataError when the face is outside the reduction's domain (see ``_lsi``)
-    and MlsynthEstimationError when the reduction's answer fails its check, so that a
-    numerical failure is never read as an empty piece.
+    and MlsynthEstimationError when the reduction's answer fails its constraint check or
+    its optimality certificate, so that a numerical failure is never read as an empty
+    piece.
     """
     b0, N = _simplex_basis(Z.shape[1])
     if N.shape[1] == 0:                                   # one donor: the simplex is its vertex
