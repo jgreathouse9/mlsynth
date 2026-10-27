@@ -293,11 +293,22 @@ above.
   search finished: 21.6 seconds for the diagonal class, 0.2 for the positive
   definite class (measured, 2026-10-27).
 
-Whether the cap at `1e4` marks the method's limit or the problem's is not yet
-measured: at `kappa = 1.1e4`, `kappa^2 eps` is about `2.7e-8`, inside the
-weights' check, so the first bullet does not yet forbid the solve (inferred).
-The measurement that settles it compares the reduction with an active-set solve
-on the original data and with an `mpmath` reference, on the Basque faces.
+The cap at `1e4` was the method's choice, not the problem's limit (measured).
+The search on the Basque specification makes 88,631 face fits, 429 above the
+cap and none above `2.62e4`. Against a 50-digit reference, the KKT conditions
+of the equality-constrained problem on each answer's active rows verified in 50
+digits, the reduction's answers on 492 faces were right at every condition
+number: weights within `9.1e-9` (growing like `kappa^2 eps`, the first bullet),
+fits within `1.3e-11`, losses within `1.2e-11`. The cap is replaced by a
+certificate, `lsq.kkt_backward_error`, the KKT conditions' backward error on the
+face's own data. On 4,192 captured answers it was at most `1.3e-14` at every
+condition number, and an answer moved `1e-6` along a free direction scored at
+least `1.6e-10`; `CERTIFY = 1e-12` sits between them (rule 11). The reduction's
+point then names the active rows and the fit is solved on them directly (the
+third bullet's direct route, restricted to the final working set): without that
+step the point missed an active row by about `1e-9`, its loss fell below the
+optimum, and the clipped weights were not the certified ones. The certificate
+costs about a quarter on the diagonal class (California's fit 0.22 s to 0.28 s).
 
 ## 7. Iterations are safeguarded and end
 
@@ -431,9 +442,10 @@ Representative sites, for whoever takes the backlog:
 - No cap: `utils/drosc_helpers/estimation.py:75` (`while beta is None:`).
 - Rank deficiency refused where a representative is defined (rule 6):
   `utils/bilevel/exact/lsq.py` `_lsi` refuses a face with more free weights
-  than rows, and caps `kappa(E)` at `COND_MAX = 1e4` on a check of the weights,
-  not of the fit. `utils/bilevel/exact/hull.py` refuses a hull of deficient
-  affine rank without naming the predictors that carry the dependency (rule 1).
+  than rows. `utils/bilevel/exact/hull.py` refuses a hull of deficient affine
+  rank without naming the predictors that carry the dependency (rule 1). The
+  condition cap `COND_MAX = 1e4` that sat beside them is gone: each face fit is
+  certified instead (rule 6, the Basque measurement).
 
 Already right, and the models to copy:
 

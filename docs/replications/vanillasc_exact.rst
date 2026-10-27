@@ -276,6 +276,13 @@ runs the interior search four times. In the diagonal class those four take
 interior refits take 11.0 s, the semidefinite attainability tests of the cells,
 and the other 34 take 4.8 s.
 
+Each face fit is now certified optimal (the KKT conditions' backward error,
+checked on the face's own data) in place of a cap on its condition number, which
+lets the backend fit panels such as the Basque one. Measured back to back on one
+machine, the certificate costs about a quarter on the diagonal class: California's
+fit went from 0.22 s to 0.28 s and its in-space placebo from 23.6 s to 30.0 s. The
+positive definite class is unchanged (0.16 s; placebo 22.0 s and 23.6 s).
+
 Reproducing
 -----------
 
