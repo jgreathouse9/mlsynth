@@ -65,6 +65,7 @@ def solve_marex(
     cumulative_block=0,
     cumulative_n_sim=2000,
     cumulative_seed=0,
+    global_test="subsets",
     backend="mip",
     control_penalty=0.0,
     certify=False,
@@ -89,6 +90,10 @@ def solve_marex(
     inference, block-resampling the blank-period effects with block length
     ``cumulative_block`` (``0`` means the whole horizon) into ``cumulative_n_sim``
     accumulated paths, seeded by ``cumulative_seed``. It needs no extra solve.
+    ``global_test`` chooses the global test of every contrast: ``"subsets"``,
+    the paper's eq. (17), or ``"cyclic"``, the cyclic shifts of the blank and
+    post contrast (:mod:`mlsynth.utils.marex_helpers.inference`).
+
     ``cumulative_method="inversion"`` builds that band by test inversion instead,
     refitting each synthetic treated series on the units its design left
     untreated: a cluster's own unselected members, or every untreated unit for
@@ -148,7 +153,7 @@ def solve_marex(
                                  cumulative_band=cumulative_band,
                                  cumulative_method=cumulative_method,
                                  control_outcomes=Y_full_np[donors],
-                                 T_post=T_post,
+                                 T_post=T_post, global_test=global_test,
                                  cumulative_block=cumulative_block,
                                  cumulative_n_sim=cumulative_n_sim,
                                  cumulative_seed=cumulative_seed)
@@ -262,6 +267,7 @@ def solve_marex(
             adj_treated, unit_labels, T0=T0_eff, TcE=TcE, Tb=blank_periods,
             alpha=alpha, max_combinations=max_combinations,
             random_state=random_state, T_post=T_post,
+            global_test=global_test,
             cumulative_band=cumulative_band,
             cumulative_method=cumulative_method,
             cumulative_block=cumulative_block,

@@ -74,6 +74,7 @@ class _ConstrainedFit:
         self.V = None
         self.v_agreement = None
         self.predictor_names: List[str] = []
+        self.lambda_ = None             # no ridge layer over the constrained program
         self.diagnostics: Dict[str, Any] = {
             "backend": self.backend,
             "w_constr": wc["name"],
@@ -84,6 +85,25 @@ class _ConstrainedFit:
 
     def counterfactual(self, Y0: np.ndarray) -> np.ndarray:
         return np.asarray(Y0, dtype=float) @ self.W
+
+
+class _ConstrainedEngine:
+    """The engine surface for a ``w_constr`` fit, so inference refits the same family.
+
+    ``fit`` solves the constrained program on the rows it is handed and returns a
+    ``_ConstrainedFit``; the predictor and warm-start arguments the engine takes are
+    accepted and unused, since the program matches on outcomes alone.
+    """
+
+    augment = None
+
+    def __init__(self, w_constr: Any):
+        self.w_constr = w_constr
+
+    def fit(self, y_pre, Y0_pre, X1=None, X0=None, donor_names=None,
+            predictor_names=None, warm_start=None):
+        names = donor_names or [f"donor_{j}" for j in range(np.shape(Y0_pre)[1])]
+        return _ConstrainedFit(y_pre, Y0_pre, names, self.w_constr)
 
 
 def _align_oracle(oracle_weights: Dict[Any, float],
@@ -253,6 +273,84 @@ def _left_out(items, limit: int = 5) -> str:
     return "; ".join(items[:limit]) + more
 
 
+def _fit_positions(config, pre_labels, strict: bool = True) -> np.ndarray:
+    """Positions, within ``pre_labels``, of the periods the outcome fit uses.
+
+    ``fit_window`` (MSCMT's ``times.dep``) keeps an inclusive sub-range of the
+    pre-treatment period, and ``fit_exclude`` then drops named periods, e.g. Abadie
+    and Shang's leakage-free sample, which drops the years whose outcomes are
+    predictors. Predictor matching is unaffected (it uses covariate_windows). With
+    ``strict``, every excluded label must be a pre-treatment period; a staggered
+    cohort passes ``strict=False``, since a label can be post-treatment for one
+    cohort and pre-treatment for another.
+    """
+    pre_labels = np.asarray(pre_labels)
+    fit_pos = np.arange(pre_labels.size)
+    if config.fit_window is not None:
+        start, end = config.fit_window
+        lo = pre_labels.min() if start is None else start
+        hi = pre_labels.max() if end is None else end
+        fit_pos = np.flatnonzero((pre_labels >= lo) & (pre_labels <= hi))
+        if fit_pos.size == 0:
+            raise MlsynthDataError(
+                f"fit_window {config.fit_window} selects no pre-treatment periods "
+                f"(pre-period spans {pre_labels.min()}-{pre_labels.max()})."
+            )
+    if config.fit_exclude:
+        pre_list = pre_labels.tolist()
+        missing = [t for t in config.fit_exclude if t not in pre_list]
+        if missing and strict:
+            raise MlsynthDataError(
+                f"fit_exclude names {missing}, which is not a pre-treatment period "
+                f"(the pre-period spans {pre_list[0]}-{pre_list[-1]})."
+            )
+        drop = set(config.fit_exclude)
+        fit_pos = np.array([p for p in fit_pos if pre_list[p] not in drop], dtype=int)
+        if fit_pos.size == 0:
+            raise MlsynthDataError(
+                f"fit_exclude {list(config.fit_exclude)} leaves no pre-treatment periods "
+                "in the outcome fit."
+            )
+    return fit_pos
+
+
+def _predictors(config, unit_labels, pre_labels):
+    """``(Xall, Xs)``: the covariate means of ``unit_labels`` (the target first) over
+    their windows, and the same scaled to unit variance across those units."""
+    Xall = _covariate_means(
+        config.df, list(unit_labels), list(config.covariates),
+        dict(config.covariate_windows or {}), list(pre_labels),
+        config.unitid, config.time,
+    )
+    return Xall, _scale_unit_variance(Xall)
+
+
+def _engine(config, **exact_extras) -> BilevelSCM:
+    """The engine every fit of this config is made with. ``exact_extras`` sets the
+    exact backend's per-fit reports (``ranges``, ``face_counts``); refits omit them."""
+    penalized_lam_kwargs = (
+        {"lam": float(config.penalized_lambda)}
+        if config.penalized_lambda is not None else {}
+    )
+    return BilevelSCM(
+        config.backend,
+        canonical_v=config.canonical_v,
+        seed=config.seed,
+        augment=config.augment,
+        ridge_lambda=config.ridge_lambda,
+        residualize=config.residualize,
+        maxiter=config.mscmt_maxiter,
+        popsize=config.mscmt_popsize,
+        tol=config.mscmt_tol,
+        prune_shady=config.mscmt_prune_shady,
+        cv=config.penalized_cv,
+        v_class=config.exact_v_class,
+        ranges=exact_extras.get("ranges", False),
+        face_counts=exact_extras.get("face_counts", False),
+        **penalized_lam_kwargs,
+    )
+
+
 def run_vanillasc(config) -> BaseEstimatorResults:
     """Fit VanillaSC and assemble :class:`BaseEstimatorResults`."""
     covariates = list(config.covariates or [])
@@ -295,39 +393,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     time_labels = np.asarray(prep["time_labels"])
     J = Y0.shape[1]
 
-    # Outcome-fit window (MSCMT's ``times.dep``): restrict the dependent SSR to an
-    # inclusive sub-range of the pre-treatment period. Default (None) fits the
-    # full pre-period. Predictor matching is unaffected (it uses covariate_windows).
-    fit_pos = np.arange(pre)
-    if config.fit_window is not None:
-        start, end = config.fit_window
-        pre_labels_arr = time_labels[:pre]
-        lo = pre_labels_arr.min() if start is None else start
-        hi = pre_labels_arr.max() if end is None else end
-        keep = (pre_labels_arr >= lo) & (pre_labels_arr <= hi)
-        fit_pos = np.flatnonzero(keep)
-        if fit_pos.size == 0:
-            raise MlsynthDataError(
-                f"fit_window {config.fit_window} selects no pre-treatment periods "
-                f"(pre-period spans {pre_labels_arr.min()}-{pre_labels_arr.max()})."
-            )
-    # Periods dropped from the outcome fit after the window, e.g. Abadie and Shang's
-    # leakage-free sample, which drops the years whose outcomes are predictors.
-    if config.fit_exclude:
-        pre_list = time_labels[:pre].tolist()
-        missing = [t for t in config.fit_exclude if t not in pre_list]
-        if missing:
-            raise MlsynthDataError(
-                f"fit_exclude names {missing}, which is not a pre-treatment period "
-                f"(the pre-period spans {pre_list[0]}-{pre_list[-1]})."
-            )
-        drop = set(config.fit_exclude)
-        fit_pos = np.array([p for p in fit_pos if pre_list[p] not in drop], dtype=int)
-        if fit_pos.size == 0:
-            raise MlsynthDataError(
-                f"fit_exclude {list(config.fit_exclude)} leaves no pre-treatment periods "
-                "in the outcome fit."
-            )
+    fit_pos = _fit_positions(config, time_labels[:pre])
 
     # All unit bookkeeping goes through IndexSets, which preserve the original
     # label dtype (so groupby lookups match the DataFrame) and centralise the
@@ -360,46 +426,18 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # Named weight-constraint family: solve scpi's constrained program on
         # the pre-treatment outcomes. The config forbids combining this with
         # covariates / a predictor-weight backend, so there is no ambiguity
-        # about which estimator ran.
-        engine = None
-        res = _ConstrainedFit(y[fit_pos], Y0[fit_pos], donor_names,
-                              config.w_constr)
+        # about which estimator ran. Inference refits through the same engine.
+        engine = _ConstrainedEngine(config.w_constr)
+        res = engine.fit(y[fit_pos], Y0[fit_pos], donor_names=donor_names)
     else:
         # Build predictor matrices (treated + donors, donor order matches Y0 cols).
         if covariates:
-            pre_labels = list(time_labels[:pre])
-            Xall = _covariate_means(
-                config.df, list(units.labels), covariates, windows, pre_labels,
-                config.unitid, config.time,
-            )
-            Xs = _scale_unit_variance(Xall)
+            Xall, Xs = _predictors(config, units.labels, time_labels[:pre])
             X1, X0 = Xs[:, 0], Xs[:, 1:]
             pred_names = list(covariates)
 
-        # A fixed penalized penalty (numeric ``lam``) is passed straight to the
-        # penalized solver, which then skips cross-validation; ``None`` keeps
-        # the CV path selected by ``penalized_cv``.
-        penalized_lam_kwargs = (
-            {"lam": float(config.penalized_lambda)}
-            if config.penalized_lambda is not None else {}
-        )
-        engine = BilevelSCM(
-            config.backend,
-            canonical_v=config.canonical_v,
-            seed=config.seed,
-            augment=config.augment,
-            ridge_lambda=config.ridge_lambda,
-            residualize=config.residualize,
-            maxiter=config.mscmt_maxiter,
-            popsize=config.mscmt_popsize,
-            tol=config.mscmt_tol,
-            prune_shady=config.mscmt_prune_shady,
-            cv=config.penalized_cv,
-            v_class=config.exact_v_class,
-            ranges=config.exact_ranges,
-            face_counts=config.exact_face_counts,
-            **penalized_lam_kwargs,
-        )
+        engine = _engine(config, ranges=config.exact_ranges,
+                         face_counts=config.exact_face_counts)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             res = engine.fit(
@@ -409,8 +447,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         if config.backend == "exact":
             # The ranges and face counts describe the treated unit's fit. The refits
             # of inference need only donor weights, so they run without them.
-            engine = BilevelSCM("exact", v_class=config.exact_v_class, ranges=False,
-                                face_counts=False)
+            engine = _engine(config)
 
     counterfactual = res.counterfactual(Y0)
     if config.bias_correct:
@@ -430,13 +467,6 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Set by a placebo-type test that could not refit its units, for the
     # requested-but-not-computed report at the end.
     not_computed = None
-    # The placebo-type tests refit the treated unit's estimator to other units, on
-    # the periods its outcome fit used. A w_constr fit has no engine to refit.
-    no_refit = (
-        "the placebo-type tests refit the estimator to every donor, and a w_constr "
-        "fit has no refit; use inference='scpi', which is built on the same "
-        "constrained program"
-    ) if engine is None else None
 
     # SCPI prediction intervals (Cattaneo, Feng & Titiunik 2021).
     if mode == "scpi" and gap[pre:].size:
@@ -661,22 +691,19 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     if mode == "lto" and J >= 3 and gap[pre:].size:
         from .lto import lto_placebo_test
         lto = None
-        if no_refit:
-            not_computed = no_refit
-        else:
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    lto = lto_placebo_test(
-                        engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
-                        max_pairs=config.lto_max_pairs, seed=config.seed,
-                        fit_periods=fit_pos,
-                        bias_correct_ridge=(config.bias_correct_ridge
-                                            if config.bias_correct else None),
-                    )
-            except ValueError as exc:
-                # With J >= 3 the one ValueError left is every pair's refit raising.
-                not_computed = str(exc)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lto = lto_placebo_test(
+                    engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
+                    max_pairs=config.lto_max_pairs, seed=config.seed,
+                    fit_periods=fit_pos,
+                    bias_correct_ridge=(config.bias_correct_ridge
+                                        if config.bias_correct else None),
+                )
+        except ValueError as exc:
+            # With J >= 3 the one ValueError left is every pair's refit raising.
+            not_computed = str(exc)
         if lto is not None:
             skipped_pairs = [
                 [donor_names[a], donor_names[b],
@@ -854,9 +881,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # donor is refit the way the treated unit was: on the periods its outcome fit
     # used (``fit_pos``) and with its predictors. The ratio itself is taken over the
     # whole pre-period and the post-period, for every unit alike.
-    if mode == "placebo" and J >= 2 and gap[pre:].size and no_refit:
-        not_computed = no_refit
-    elif mode == "placebo" and J >= 2 and gap[pre:].size:
+    if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
         skipped = {}
         # The outcome-only refits are one leave-one-out family over the donor
@@ -867,7 +892,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # rest with ``simplex_qp``, the same solver the engine calls below, so
         # the ranks this p-value is built from are unchanged.
         loo_W = None
-        if (not covariates and engine.augment != "ridge"
+        # A w_constr family other than the simplex is not that QP, and the
+        # simplex family is solved by its own program like the main fit.
+        if (not covariates and engine.augment != "ridge" and config.w_constr is None
                 and str(config.backend) in ("auto", "outcome-only")):
             from ..solvers.minnorm import solve_simplex_loo_exact
             from ..solvers.ridge_augment import simplex_qp
@@ -954,8 +981,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         unit_names = [treated_name, *donor_names]
         Wmat = np.empty((n_units - 1, n_units))
         Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
-        failed = no_refit
-        for j in ([] if failed else range(1, n_units)):
+        failed = None
+        for j in range(1, n_units):
             others = [k for k in range(n_units) if k != j]
             X1j = X0j = None
             if covariates:

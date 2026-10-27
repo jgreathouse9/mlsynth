@@ -60,12 +60,17 @@ class MAREXInference:
     fulltreated_effects : np.ndarray
         The contrast over the whole timeline, shape ``(T,)``.
     s_obs : float
-        Observed test statistic (mean absolute post-period effect).
+        Observed test statistic: the mean absolute post-period effect under
+        ``global_test="subsets"``, the magnitude of the mean post-period effect
+        under ``"cyclic"``.
     global_p_value : float
-        Permutation p-value for the global null of no effect, Abadie and Zhao's
-        eq. (17). It uses every ``T1``-subset of the blank and post periods
-        when there are at most ``max_combinations`` of them, and otherwise
-        ``max_combinations`` drawn subsets, as ``(1 + k) / (1 + B)``. Either
+        Permutation p-value for the global null of no effect. Under
+        ``global_test="subsets"`` it is Abadie and Zhao's eq. (17): it uses
+        every ``T1``-subset of the blank and post periods when there are at
+        most ``max_combinations`` of them, and otherwise ``max_combinations``
+        drawn subsets, as ``(1 + k) / (1 + B)``. Under ``"cyclic"`` the
+        reference is the ``Tb + T1`` cyclic shifts of the blank and post
+        contrast, and the p-value is a multiple of ``1 / (Tb + T1)``. Either
         way it is never zero.
     per_period_pvals : np.ndarray
         Per-post-period p-values, shape ``(T1,)``: ``(1 + k) / (Tb + 1)``, with

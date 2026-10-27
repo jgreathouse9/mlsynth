@@ -9160,13 +9160,13 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "fit-exclude-ignored"
-  find = "    if config.fit_exclude:\n        pre_list = time_labels[:pre].tolist()"
-  replace = "    if False:\n        pre_list = time_labels[:pre].tolist()"
+  find = "    if config.fit_exclude:\n        pre_list = pre_labels.tolist()"
+  replace = "    if False:\n        pre_list = pre_labels.tolist()"
   models = "fit_exclude accepted and recorded but every pre-treatment period kept in the outcome fit, which on Proposition 99 returns the headline weights for the leakage-free sample"
 
   [[target.mutant]]
   id = "unknown-exclusion-dropped"
-  find = "        if missing:\n            raise MlsynthDataError("
+  find = "        if missing and strict:\n            raise MlsynthDataError("
   replace = "        if False:\n            raise MlsynthDataError("
   models = "an exclusion that names no pre-treatment period dropped without a word, so a mistyped year leaks into the fit"
 
@@ -9184,8 +9184,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "ranges-not-forwarded"
-  find = "            ranges=config.exact_ranges,"
-  replace = "            ranges=False,"
+  find = "engine = _engine(config, ranges=config.exact_ranges,"
+  replace = "engine = _engine(config, ranges=False,"
   models = "exact_ranges accepted by the config but never handed to the backend"
 
 [[target]]
@@ -9415,8 +9415,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "leave-two-out-refits-on-every-pre-period"
-  find = "                        fit_periods=fit_pos,"
-  replace = "                        fit_periods=None,"
+  find = "                    fit_periods=fit_pos,"
+  replace = "                    fit_periods=None,"
   models = "the leave-two-out test called without the fit periods, so every match refits its three units on the whole pre-period"
 
   [[target.mutant]]
@@ -9442,12 +9442,6 @@ timeout = 900.0
   find = "        if len(skipped) == J:"
   replace = "        if False:"
   models = "a placebo test with no donor refit reported as computed, the treated unit ranked against itself for a p-value of 1"
-
-  [[target.mutant]]
-  id = "w-constr-fit-sent-to-the-refit-loop"
-  find = "    ) if engine is None else None"
-  replace = "    ) if False else None"
-  models = "a w_constr fit, which has no engine, run through the placebo refits; it used to return p = 1 with no placebo and no warning"
 
   [[target.mutant]]
   id = "skipped-pair-unreported"
@@ -9562,6 +9556,168 @@ timeout = 600.0
   find = "(S >= S[0] - tol)"
   replace = "(S > S[0] + tol)"
   models = "reference blocks that tie the observed statistic not counted, which makes the test anti-conservative wherever the statistic is discrete"
+
+[[target]]
+name = "vanillasc-staggered-fit-inputs"
+module-path = "mlsynth/utils/vanillasc_helpers/staggered.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_staggered_fit_inputs.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "staggered-unit-without-predictors"
+  find = "    if config.covariates:"
+  replace = "    if False:"
+  models = "#922: each treated unit fit with no predictors, so a predictor backend raises 'needs covariates' and backend='auto' falls back to outcome-only matching"
+
+  [[target.mutant]]
+  id = "staggered-unit-on-every-pre-period"
+  find = "    rows = _fit_positions(config, pre_labels, strict=False)"
+  replace = "    rows = np.arange(len(pre_labels))"
+  models = "#922: fit_window and fit_exclude ignored for every treated unit of a staggered panel"
+
+  [[target.mutant]]
+  id = "staggered-exact-extras-admitted"
+  find = "        if getattr(config, option, False):"
+  replace = "        if False:"
+  models = "exact_ranges or exact_face_counts accepted with several treated units, where no result carries them"
+
+  [[target.mutant]]
+  id = "staggered-exclusion-outside-every-cohort-admitted"
+  find = "        if missing:"
+  replace = "        if False:"
+  models = "a fit_exclude label that is no cohort's pre-treatment period accepted and dropped from nothing"
+
+[[target]]
+name = "vanillasc-wconstr-config"
+module-path = "mlsynth/utils/vanillasc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_wconstr_inference.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "conformal-takes-any-family"
+  find = "        if mode == \"conformal\" and name != \"simplex\":"
+  replace = "        if False:"
+  models = "inference='conformal' accepted for a ridge or lasso fit, whose null refit then solves the simplex program and tests another estimator"
+
+[[target]]
+name = "vanillasc-wconstr-pipeline"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_wconstr_inference.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "w-constr-fit-has-no-engine"
+  find = "        engine = _ConstrainedEngine(config.w_constr)"
+  replace = "        engine = None"
+  models = "a w_constr fit left without an engine, as before #919: every refitting inference mode fails, and the placebo-type tests used to return p = 1 with no placebo"
+
+  [[target.mutant]]
+  id = "w-constr-placebo-takes-the-simplex-family-path"
+  find = "        if (not covariates and engine.augment != \"ridge\" and config.w_constr is None"
+  replace = "        if (not covariates and engine.augment != \"ridge\""
+  models = "a ridge or lasso fit's placebo refits solved as the simplex QP by the batched path, so the p-value ranks the treated unit's ridge statistic among simplex ones"
+
+[[target]]
+name = "marex-cyclic-global-test"
+module-path = "mlsynth/utils/marex_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py mlsynth/tests/test_marex_cyclic_global_test_properties.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "cyclic-test-reads-magnitudes"
+  find = "    return moving_block_pvalue(all_effects, block=int(T_post),\n                               statistic=\"abs_sum\")"
+  replace = "    return moving_block_pvalue(all_effects, block=int(T_post),\n                               statistic=\"mean_abs\")"
+  models = "the cyclic test scored by eq. (16)'s mean absolute contrast, which loses the power of the signed statistic and reads cancelling signs as evidence"
+
+  [[target.mutant]]
+  id = "cyclic-reference-takes-the-fitting-periods"
+  find = "        global_p = _cyclic_p_value(all_effects, T_post)"
+  replace = "        global_p = _cyclic_p_value(full_effects[:T0 + T_post], T_post)"
+  models = "a reference that reaches into the fitting periods, whose contrast the design shrank"
+
+  [[target.mutant]]
+  id = "cyclic-statistic-reported-as-eq16"
+  find = "        s_obs = abs(float(np.mean(treated_effects)))"
+  replace = "        s_obs = float(np.mean(np.abs(treated_effects)))"
+  models = "s_obs reporting eq. (16)'s statistic while the p-value is the signed one's"
+
+  [[target.mutant]]
+  id = "cyclic-tie-guard-dropped"
+  find = "    if all_effects.size == T_post:\n        return 1.0\n"
+  replace = "    if False:\n        return 1.0\n"
+  models = "with no blank period, shifts summed in another order break the tie by rounding and report a p-value below one"
+
+  [[target.mutant]]
+  id = "cyclic-is-the-default"
+  find = "    global_test: str = \"subsets\",\n) -> MAREXInference:"
+  replace = "    global_test: str = \"cyclic\",\n) -> MAREXInference:"
+  models = "the paper's eq. (17) displaced as the default"
+
+  [[target.mutant]]
+  id = "unknown-global-test-falls-through"
+  find = "    if global_test not in GLOBAL_TESTS:"
+  replace = "    if False:"
+  models = "a misspelled test name read as the paper's test"
+
+[[target]]
+name = "marex-cyclic-global-test-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "config-default-is-cyclic"
+  find = "    global_test: Literal[\"subsets\", \"cyclic\"] = Field(\n        default=\"subsets\","
+  replace = "    global_test: Literal[\"subsets\", \"cyclic\"] = Field(\n        default=\"cyclic\","
+  models = "the estimator defaulting away from the paper's test"
+
+  [[target.mutant]]
+  id = "config-accepts-non-strings"
+  find = "        if not isinstance(v, str) or v not in (\"subsets\", \"cyclic\"):\n            raise MlsynthConfigError(\n                f\"global_test must be"
+  replace = "        if isinstance(v, str) and v not in (\"subsets\", \"cyclic\"):\n            raise MlsynthConfigError(\n                f\"global_test must be"
+  models = "a non-string test name reaching pydantic's Literal check, which raises its own error type"
+
+[[target]]
+name = "marex-cyclic-global-test-estimator"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "estimator-drops-the-option"
+  find = "                global_test=self.config.global_test,\n"
+  replace = "                global_test=\"subsets\",\n"
+  models = "the config accepting global_test and the fit ignoring it"
+
+[[target]]
+name = "marex-cyclic-global-test-orchestration"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "clusters-and-aggregate-skip-the-option"
+  find = "                                 T_post=T_post, global_test=global_test,"
+  replace = "                                 T_post=T_post,"
+  models = "the cluster and aggregate contrasts tested by eq. (17) under global_test='cyclic'"
+
+  [[target.mutant]]
+  id = "unit-level-skips-the-option"
+  find = "            random_state=random_state, T_post=T_post,\n            global_test=global_test,\n"
+  replace = "            random_state=random_state, T_post=T_post,\n"
+  models = "the per-unit contrasts tested by eq. (17) under global_test='cyclic'"
+
+[[target]]
+name = "marex-cyclic-global-test-units"
+module-path = "mlsynth/utils/marex_helpers/unit_inference.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_cyclic_global_test.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "units-and-eq11-skip-the-option"
+  find = "                  global_test=global_test,\n"
+  replace = "                  global_test=\"subsets\",\n"
+  models = "each treated unit and eq. (11)'s aggregate tested by eq. (17) under global_test='cyclic'"
 
 [[target]]
 name = "marex-ttest-study"

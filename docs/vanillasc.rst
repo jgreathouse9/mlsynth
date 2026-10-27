@@ -598,7 +598,10 @@ instead, and setting both is an error. ``w_constr`` solves scpi's constrained
 program on the pre-treatment outcomes, which is a different estimator from the
 bilevel predictor-weight engine, so it cannot be combined with ``covariates``,
 a non-default ``backend``, or ``oracle_weights`` -- those raise, not silently
-picking one. ``res.method_details.parameters_used`` reports the family
+picking one. Inference that refits the estimator (the placebo-type tests,
+``ttest``, ``conformal_cumulative``) refits the same family. ``conformal``
+refits the simplex program under each null, so it takes ``w_constr="simplex"``
+only. ``res.method_details.parameters_used`` reports the family
 that ran and the budget ``Q`` it used, so a fit never leaves its specification
 ambiguous.
 
@@ -684,9 +687,8 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     statistic: it is left out, named with the error in a warning and in
     ``res.inference.details["skipped_placebos"]``, and the p-value ranks the
     treated unit among the donors that were refit. When no donor can be refit
-    the test is not computed. A ``w_constr`` fit has no refit, so its
-    placebo-type tests are not computed; ``inference="scpi"`` is built on the
-    same constrained program.
+    the test is not computed. A ``w_constr`` fit refits each donor with its own
+    constrained program.
 
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
@@ -1574,8 +1576,8 @@ The placebo test above answers one hypothesis: that the effect is zero.
 ``inference="placebo_cs"`` inverts it over a one-parameter family of effect
 paths and reports the parameters the test does not reject, which is a
 confidence set for the path. The inversion works on the donors' weights and
-uncorrected gaps, so it is refused with ``bias_correct=True``. Set ``placebo_cs_class`` to ``"constant"`` (a flat
-post-treatment effect) or ``"linear"`` (the parameter is then the per-period
+uncorrected gaps, so it is refused with ``bias_correct=True``. Set
+``placebo_cs_class`` to ``"constant"`` (a flat post-treatment effect) or ``"linear"`` (the parameter is then the per-period
 slope).
 
 Each unit's synthetic control is refit with the treated unit's backend and
@@ -1959,6 +1961,15 @@ the per-unit, per-period effect is the gap
 *event time* :math:`\ell \ge 1` (the :math:`\ell`-th post-treatment period for a
 unit, so calendar time :math:`T_0^{(i)} + \ell`) lines the units up on a common
 clock, :math:`\widehat{\tau}_{i,\ell}`.
+
+That program is the default. Every option of the single-treated fit applies to
+each treated unit as if it were fit alone against the never-treated donors: a
+``backend`` with ``covariates`` matches on the unit's covariates over their
+windows in its own pre-period, and ``fit_window`` and ``fit_exclude`` restrict
+the outcome fit within each unit's pre-period. An excluded period must be a
+pre-treatment period of some cohort, and a window that leaves a cohort no
+pre-treatment period raises. ``exact_ranges`` and ``exact_face_counts`` describe
+one treated unit's exact fit and raise here.
 
 The four identifying assumptions carry over unit by unit (each treated unit must
 admit a convex-hull pre-fit, no anticipation, a stable outcome model). Staggered

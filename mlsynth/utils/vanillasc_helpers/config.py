@@ -699,6 +699,13 @@ class VanillaSCConfig(BaseEstimatorConfig):
         if self.staggered_spec is not None:
             clashes.append(
                 "staggered_spec, which carries its own w_constr")
+        name = self.w_constr if isinstance(self.w_constr, str) else self.w_constr.get("name", "simplex")
+        mode = self.inference.lower() if isinstance(self.inference, str) else self.inference
+        if mode == "conformal" and name != "simplex":
+            clashes.append(
+                f"inference='conformal' (its null refit solves the simplex program, so it "
+                f"tests the simplex family's estimator, not w_constr={name!r}; use "
+                "inference='scpi' or 'placebo')")
         if clashes:
             raise ValueError(
                 "w_constr cannot be combined with " + "; ".join(clashes) + "."

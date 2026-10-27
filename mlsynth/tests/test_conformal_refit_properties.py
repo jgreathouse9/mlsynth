@@ -12,10 +12,14 @@ the refit produces on the *pre* block must stop moving once ``tau`` is large:
 the pre-period outcomes were not touched, so a refit that keeps chasing a larger
 and larger post block is redistributing the treatment effect into the very
 residuals that form the test's reference distribution. Convexity gives
-saturation for free -- a convex combination of donors is bounded by the donor
-pool whatever the treated series does -- so the ``"sc"`` rule satisfies it on
-every panel, exactly. An unconstrained rule does not: its displacement is linear
-in ``tau``, without bound.
+saturation -- a convex combination of donors is bounded by the donor pool
+whatever the treated series does -- and the ``"sc"`` rule reaches its limit at a
+finite shift. As ``tau`` grows the refit moves to the donor with the largest
+post-block total, and it sits exactly on that vertex once ``tau`` passes the
+``tau*`` its KKT conditions give (``_saturating_shift``). ``tau*`` depends on the
+panel: the closer the two largest post-block totals, the larger it is, so no one
+shift saturates every panel. An unconstrained rule does not saturate: its
+displacement is linear in ``tau``, without bound.
 
 The consequence, asserted here on the p-value itself, is power. If the pre-block
 residuals grow with ``tau`` alongside the post-block ones, the observed
@@ -24,8 +28,9 @@ a ceiling no effect size can push it past. Saturation is what stops that.
 
 The properties:
 
-* saturation -- ``d(10 tau) ~ d(tau)`` for large ``tau``, where ``d`` is the
-  largest pre-block displacement of the counterfactual;
+* saturation -- ``d(10 tau) = d(tau)`` for ``tau`` past the panel's ``tau*``,
+  where ``d`` is the largest pre-block displacement of the counterfactual, and
+  the refit is then the donor with the largest post-block total;
 * boundedness -- that displacement never exceeds the donor pool's own range,
   the bound convexity supplies;
 * power -- a large enough injected effect drives the block-scheme p-value to
@@ -35,7 +40,7 @@ The properties:
 """
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.utils.conformal import conformal_refit_gaps
@@ -75,6 +80,22 @@ def _counterfactual(y, Y0, pre, tau, rule):
     return shifted - conformal_refit_gaps(shifted, Y0, rule=rule)
 
 
+def _saturating_shift(y, Y0, pre):
+    """The donor ``k`` the ``"sc"`` refit tends to as ``tau`` grows, and the ``tau*`` past which it is there.
+
+    The refit minimises ``||s - Y0 w||^2`` over the simplex with ``s = y + tau`` on the post block.
+    As ``tau`` grows the linear term ``-2 tau 1'Y0_post w`` decides, so the limit is the donor with
+    the largest post-block total ``S_k``. The vertex ``e_k`` is optimal exactly when no other vertex
+    is a descent direction: ``(Y0_j - Y0_k)'(Y0_k - y) + tau (S_k - S_j) >= 0`` for every ``j``, which
+    gives ``tau*`` as the largest ``-(Y0_j - Y0_k)'(Y0_k - y) / (S_k - S_j)``.
+    """
+    S = Y0[pre:].sum(axis=0)
+    k = int(np.argmax(S))
+    others = [j for j in range(Y0.shape[1]) if j != k]
+    num = -((Y0[:, others] - Y0[:, [k]]).T @ (Y0[:, k] - y))
+    return k, float(max(0.0, np.max(num / (S[k] - S[others]))))
+
+
 def _pre_displacement(y, Y0, pre, tau, rule):
     """How far the pre-block counterfactual moves when ``tau`` is injected."""
     base = _counterfactual(y, Y0, pre, 0.0, rule)
@@ -93,9 +114,39 @@ def test_sc_refit_saturates_in_the_injected_shift(panel):
     to detect.
     """
     y, Y0, pre = panel
-    near = _pre_displacement(y, Y0, pre, _TAU, "sc")
-    far = _pre_displacement(y, Y0, pre, 10.0 * _TAU, "sc")
-    assert far <= near + 1e-6 * max(near, 1.0)
+    k, tau_star = _saturating_shift(y, Y0, pre)
+    assume(tau_star < 1e6)                   # a near-tie of the post totals puts the limit out of reach
+    tau = max(_TAU, 2.0 * tau_star)
+    near = _pre_displacement(y, Y0, pre, tau, "sc")
+    far = _pre_displacement(y, Y0, pre, 10.0 * tau, "sc")
+    assert far == pytest.approx(near, rel=1e-6, abs=1e-6)
+    cf = _counterfactual(y, Y0, pre, tau, "sc")
+    assert np.allclose(cf, Y0[:, k], atol=1e-6 * max(1.0, float(np.abs(Y0).max())))
+
+
+def test_the_saturating_shift_is_where_the_refit_reaches_its_vertex():
+    """On a panel whose two largest post totals are close, 1e3 is short of tau* and 2 tau* is past it.
+
+    Below tau* the refit still mixes donors; past it, it is the vertex. This is the panel family
+    where a fixed tau = 1e3 failed the saturation property (#924).
+    """
+    rng = np.random.default_rng(7)
+    for _ in range(400):
+        n, pre, post = 10, 14, 3
+        total = pre + post
+        Y0 = (rng.normal(size=(total, n)) + rng.normal(size=(1, n)) * 3.0
+              + np.arange(total)[:, None] * rng.normal(scale=0.1, size=(1, n)))
+        y = Y0 @ rng.dirichlet(np.ones(n)) + 0.2 * rng.normal(size=total)
+        k, tau_star = _saturating_shift(y, Y0, pre)
+        if 2e3 < tau_star < 1e5:
+            break
+    else:  # pragma: no cover - the draw above finds one within a few hundred panels
+        pytest.fail("no panel with tau* in (2e3, 1e5)")
+    scale = max(1.0, float(np.abs(Y0).max()))
+    below = _counterfactual(y, Y0, pre, 0.5 * tau_star, "sc")
+    past = _counterfactual(y, Y0, pre, 2.0 * tau_star, "sc")
+    assert not np.allclose(below, Y0[:, k], atol=1e-4 * scale)
+    assert np.allclose(past, Y0[:, k], atol=1e-6 * scale)
 
 
 @given(panels())
