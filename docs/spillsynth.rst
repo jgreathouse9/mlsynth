@@ -1720,6 +1720,95 @@ enough that inverting it is uncomfortable, and when you would prefer an
 estimator whose every step is a fit you can inspect. The inclusive method
 remains the sharper tool when the affected set is small and well synthesized.
 
+Scale-free fits and a held-out window (``iterative`` and ``iscm``)
+------------------------------------------------------------------
+
+Both the iterative and the inclusive method rebuild a spillover-free series for
+each affected unit from its own synthetic control. Two outcome-only options
+change how that synthetic is fit. Both are off by default, and with both off
+the two methods return exactly what they returned before the options existed.
+
+Scale-free fits (``scale_free=True``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A synthetic control is a weighted average of donors with weights on the
+simplex (non-negative, summing to one), so it can never exceed its largest
+donor. In a geo panel, where a region's sales are roughly proportional to its
+size, the affected unit to be rebuilt is often larger than every clean control,
+and the simplex fit falls short of it by a margin no choice of weights closes.
+
+The scale-free fit divides each series by its mean over the fitting window,
+:math:`m_j = T_f^{-1} \sum_{t < T_f} y_{jt}`, fits the simplex weights
+:math:`\mathbf{w}` on those relative series, and takes the synthetic back to
+the target's level:
+
+.. math::
+
+   \hat{y}_{kt} = m_k \sum_j w_j \frac{y_{jt}}{m_j}
+               = \sum_j \Big(w_j \frac{m_k}{m_j}\Big) y_{jt} .
+
+The synthetic is still linear in the donors' outcomes, with the level weights
+:math:`w_j m_k / m_j` in place of :math:`w_j`. Those are the weights the fit
+reports (``donor_weights``, and the inclusive method's cross-weights), and they
+need not sum to one. The inclusive method's system :math:`\Omega` is built from
+them unchanged, since its algebra only needs each synthetic to be linear in the
+other units' outcomes. Rescaling any unit's series by a positive constant
+leaves the treated unit's estimate unchanged. Every scaled series has mean one
+over the fitting window, so ``iscm_intercept`` has no level left to absorb and
+changes nothing under this option.
+
+Every series must have a positive mean over the fitting window, and
+``MlsynthDataError`` names the units that do not.
+
+A held-out window (``holdout_periods=h``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default every per-unit fit uses all :math:`T_0` pre-treatment periods. With
+``holdout_periods=h`` every fit, the cleaning fits and the treated unit's own,
+stops at :math:`T_f = T_0 - h`, and the correction starts there: the iterative
+method replaces the affected donors from :math:`T_f` on, and the inclusive
+method solves its system from :math:`T_f` on. The :math:`h` held-out periods
+are then a placebo window for the corrected estimator. No fit has seen them and
+no treatment has reached them, so the corrected gap over them measures the
+correction's own prediction error. It is reported as ``holdout_gap`` on the
+method's fit, beside the naive estimator's ``holdout_gap_scm`` and the
+corrected gap's ``holdout_rmspe``; ``pre_rmspe`` is then the fitting window's.
+The window also covers a spillover that begins before treatment, through
+anticipation or an announcement, as long as it begins inside the window.
+
+The treated unit's estimate does not depend on the size or sign of a spillover
+that reaches the affected units at or after :math:`T_f`. The iterative method
+replaces those outcomes. In the inclusive method a path added to affected unit
+:math:`k` moves the stacked gaps by :math:`\Omega_{\cdot k}` times that path,
+and :math:`\Omega^{-1}` returns all of it to unit :math:`k`'s spillover
+estimate.
+
+``holdout_periods`` must leave at least one period to fit on. Both options
+refuse covariates and every method other than ``iterative`` and ``iscm`` with
+``MlsynthConfigError``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import SPILLSYNTH
+
+   d = pd.read_stata("basedata/repgermany.dta")[["country", "year", "gdp"]]
+   d["treat"] = ((d.country == "West Germany") & (d.year >= 1990)).astype(int)
+
+   res = SPILLSYNTH({
+       "df": d, "outcome": "gdp", "treat": "treat",
+       "unitid": "country", "time": "year",
+       "method": "iterative", "affected_units": ["Austria"],
+       "scale_free": True,          # fit on each series relative to its mean
+       "holdout_periods": 5,        # fit on 1960-1984, correct from 1985 on
+       "display_graphs": False,
+   }).fit()
+
+   res.att                          # corrected ATT, 1990 on
+   res.iterative.holdout_gap        # corrected placebo gaps, 1985-1989
+   res.iterative.holdout_rmspe      # their RMSPE
+   res.iterative.holdout_gap_scm    # the naive estimator's placebo gaps
+
 Method: ``method='grossi'`` -- Grossi et al. (2025)
 ---------------------------------------------------
 
