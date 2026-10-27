@@ -9415,8 +9415,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "leave-two-out-refits-on-every-pre-period"
-  find = "                        fit_periods=fit_pos,"
-  replace = "                        fit_periods=None,"
+  find = "                    fit_periods=fit_pos,"
+  replace = "                    fit_periods=None,"
   models = "the leave-two-out test called without the fit periods, so every match refits its three units on the whole pre-period"
 
   [[target.mutant]]
@@ -9442,12 +9442,6 @@ timeout = 900.0
   find = "        if len(skipped) == J:"
   replace = "        if False:"
   models = "a placebo test with no donor refit reported as computed, the treated unit ranked against itself for a p-value of 1"
-
-  [[target.mutant]]
-  id = "w-constr-fit-sent-to-the-refit-loop"
-  find = "    ) if engine is None else None"
-  replace = "    ) if False else None"
-  models = "a w_constr fit, which has no engine, run through the placebo refits; it used to return p = 1 with no placebo and no warning"
 
   [[target.mutant]]
   id = "skipped-pair-unreported"
@@ -9562,3 +9556,33 @@ timeout = 600.0
   find = "(S >= S[0] - tol)"
   replace = "(S > S[0] + tol)"
   models = "reference blocks that tie the observed statistic not counted, which makes the test anti-conservative wherever the statistic is discrete"
+
+[[target]]
+name = "vanillasc-wconstr-config"
+module-path = "mlsynth/utils/vanillasc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_wconstr_inference.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "conformal-takes-any-family"
+  find = "        if mode == \"conformal\" and name != \"simplex\":"
+  replace = "        if False:"
+  models = "inference='conformal' accepted for a ridge or lasso fit, whose null refit then solves the simplex program and tests another estimator"
+
+[[target]]
+name = "vanillasc-wconstr-pipeline"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_wconstr_inference.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "w-constr-fit-has-no-engine"
+  find = "        engine = _ConstrainedEngine(config.w_constr)"
+  replace = "        engine = None"
+  models = "a w_constr fit left without an engine, as before #919: every refitting inference mode fails, and the placebo-type tests used to return p = 1 with no placebo"
+
+  [[target.mutant]]
+  id = "w-constr-placebo-takes-the-simplex-family-path"
+  find = "        if (not covariates and engine.augment != \"ridge\" and config.w_constr is None"
+  replace = "        if (not covariates and engine.augment != \"ridge\""
+  models = "a ridge or lasso fit's placebo refits solved as the simplex QP by the batched path, so the p-value ranks the treated unit's ridge statistic among simplex ones"

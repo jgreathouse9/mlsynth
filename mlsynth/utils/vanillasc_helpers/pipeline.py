@@ -74,6 +74,7 @@ class _ConstrainedFit:
         self.V = None
         self.v_agreement = None
         self.predictor_names: List[str] = []
+        self.lambda_ = None             # no ridge layer over the constrained program
         self.diagnostics: Dict[str, Any] = {
             "backend": self.backend,
             "w_constr": wc["name"],
@@ -84,6 +85,25 @@ class _ConstrainedFit:
 
     def counterfactual(self, Y0: np.ndarray) -> np.ndarray:
         return np.asarray(Y0, dtype=float) @ self.W
+
+
+class _ConstrainedEngine:
+    """The engine surface for a ``w_constr`` fit, so inference refits the same family.
+
+    ``fit`` solves the constrained program on the rows it is handed and returns a
+    ``_ConstrainedFit``; the predictor and warm-start arguments the engine takes are
+    accepted and unused, since the program matches on outcomes alone.
+    """
+
+    augment = None
+
+    def __init__(self, w_constr: Any):
+        self.w_constr = w_constr
+
+    def fit(self, y_pre, Y0_pre, X1=None, X0=None, donor_names=None,
+            predictor_names=None, warm_start=None):
+        names = donor_names or [f"donor_{j}" for j in range(np.shape(Y0_pre)[1])]
+        return _ConstrainedFit(y_pre, Y0_pre, names, self.w_constr)
 
 
 def _align_oracle(oracle_weights: Dict[Any, float],
@@ -360,10 +380,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # Named weight-constraint family: solve scpi's constrained program on
         # the pre-treatment outcomes. The config forbids combining this with
         # covariates / a predictor-weight backend, so there is no ambiguity
-        # about which estimator ran.
-        engine = None
-        res = _ConstrainedFit(y[fit_pos], Y0[fit_pos], donor_names,
-                              config.w_constr)
+        # about which estimator ran. Inference refits through the same engine.
+        engine = _ConstrainedEngine(config.w_constr)
+        res = engine.fit(y[fit_pos], Y0[fit_pos], donor_names=donor_names)
     else:
         # Build predictor matrices (treated + donors, donor order matches Y0 cols).
         if covariates:
@@ -430,13 +449,6 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # Set by a placebo-type test that could not refit its units, for the
     # requested-but-not-computed report at the end.
     not_computed = None
-    # The placebo-type tests refit the treated unit's estimator to other units, on
-    # the periods its outcome fit used. A w_constr fit has no engine to refit.
-    no_refit = (
-        "the placebo-type tests refit the estimator to every donor, and a w_constr "
-        "fit has no refit; use inference='scpi', which is built on the same "
-        "constrained program"
-    ) if engine is None else None
 
     # SCPI prediction intervals (Cattaneo, Feng & Titiunik 2021).
     if mode == "scpi" and gap[pre:].size:
@@ -661,20 +673,17 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     if mode == "lto" and J >= 3 and gap[pre:].size:
         from .lto import lto_placebo_test
         lto = None
-        if no_refit:
-            not_computed = no_refit
-        else:
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    lto = lto_placebo_test(
-                        engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
-                        max_pairs=config.lto_max_pairs, seed=config.seed,
-                        fit_periods=fit_pos,
-                    )
-            except ValueError as exc:
-                # With J >= 3 the one ValueError left is every pair's refit raising.
-                not_computed = str(exc)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lto = lto_placebo_test(
+                    engine, y, Y0, pre, X1=X1, X0=X0, alpha=config.alpha,
+                    max_pairs=config.lto_max_pairs, seed=config.seed,
+                    fit_periods=fit_pos,
+                )
+        except ValueError as exc:
+            # With J >= 3 the one ValueError left is every pair's refit raising.
+            not_computed = str(exc)
         if lto is not None:
             skipped_pairs = [
                 [donor_names[a], donor_names[b],
@@ -852,9 +861,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # donor is refit the way the treated unit was: on the periods its outcome fit
     # used (``fit_pos``) and with its predictors. The ratio itself is taken over the
     # whole pre-period and the post-period, for every unit alike.
-    if mode == "placebo" and J >= 2 and gap[pre:].size and no_refit:
-        not_computed = no_refit
-    elif mode == "placebo" and J >= 2 and gap[pre:].size:
+    if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
         skipped = {}
         # The outcome-only refits are one leave-one-out family over the donor
@@ -865,7 +872,9 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         # rest with ``simplex_qp``, the same solver the engine calls below, so
         # the ranks this p-value is built from are unchanged.
         loo_W = None
-        if (not covariates and engine.augment != "ridge"
+        # A w_constr family other than the simplex is not that QP, and the
+        # simplex family is solved by its own program like the main fit.
+        if (not covariates and engine.augment != "ridge" and config.w_constr is None
                 and str(config.backend) in ("auto", "outcome-only")):
             from ..solvers.minnorm import solve_simplex_loo_exact
             from ..solvers.ridge_augment import simplex_qp
@@ -947,8 +956,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
         unit_names = [treated_name, *donor_names]
         Wmat = np.empty((n_units - 1, n_units))
         Wmat[:, 0] = np.asarray(res.W, dtype=float).ravel()
-        failed = no_refit
-        for j in ([] if failed else range(1, n_units)):
+        failed = None
+        for j in range(1, n_units):
             others = [k for k in range(n_units) if k != j]
             X1j = X0j = None
             if covariates:
