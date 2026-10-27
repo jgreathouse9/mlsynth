@@ -9822,3 +9822,45 @@ timeout = 300.0
   find = "    return float(np.mean(p_alt <= max(ok))) if ok else float(\"nan\")"
   replace = "    return float(np.mean(p_alt <= max(ok))) if ok else 0.0"
   models = "a test that cannot be held to alpha reported as having zero power, which reads as a measurement"
+
+[[target]]
+name = "vanillasc-bias-corrected-placebos"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_bias_corrected_placebos.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "donor-placebo-gap-uncorrected"
+  find = "                if config.bias_correct:\n                    # The donor's gap is corrected"
+  replace = "                if False:\n                    # The donor's gap is corrected"
+  models = "the defect this target was written for: the treated ratio taken from the corrected gap and each donor's from its plain counterfactual, so the placebo test ranks statistics of two procedures"
+
+  [[target.mutant]]
+  id = "lto-not-told-to-correct"
+  find = "bias_correct_ridge=(config.bias_correct_ridge\n"
+  replace = "bias_correct_ridge=(None\n"
+  models = "the leave-two-out test run on plain counterfactuals while the headline gap is corrected"
+
+[[target]]
+name = "vanillasc-bias-corrected-lto"
+module-path = "mlsynth/utils/vanillasc_helpers/lto.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_bias_corrected_placebos.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "lto-triples-uncorrected"
+  find = "        if bias_correct_ridge is not None:\n            return y_k"
+  replace = "        if False:\n            return y_k"
+  models = "the ridge accepted by lto_placebo_test and never applied, so every triple compares plain counterfactuals"
+
+[[target]]
+name = "vanillasc-bias-corrected-config"
+module-path = "mlsynth/utils/vanillasc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_bias_corrected_placebos.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "confidence-set-takes-the-correction"
+  find = "        if self.bias_correct and str(self.inference).lower() == \"placebo_cs\":"
+  replace = "        if False:"
+  models = "placebo_cs admitted with bias_correct, inverting an uncorrected test around a corrected estimate"

@@ -54,6 +54,8 @@ from typing import Any, Callable, Dict, Optional, Sequence
 
 import numpy as np
 
+from ..bilevel import bias_corrected_gaps
+
 _EPS = 1e-12
 _DELTA = 1e-10
 
@@ -171,7 +173,7 @@ def _fit_rows(pre, fit_periods):
 
 
 def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start, rows=None,
-                   skipped=None):
+                   skipped=None, bias_correct_ridge=None):
     """Yield ``(a, b, cf_I, cf_a, cf_b)`` for each donor pair left out.
 
     One traversal, used by every entry point. For the pair ``{a, b}`` the donor
@@ -187,6 +189,11 @@ def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start, rows=None,
     When ``skipped`` is a list, each such pair is appended to it as
     ``(a, b, unit, reason)``, ``unit`` the donor whose refit raised or ``None``
     for the treated unit.
+
+    With ``bias_correct_ridge`` set, each counterfactual is the observed series
+    minus its Abadie-L'Hour corrected gap, taken with that fit's weights, the
+    unit's own predictors and the pool's, so every unit of a triple is summarised
+    by the same procedure.
     """
     J = Y0.shape[1]
     all_donors = np.arange(J)
@@ -204,6 +211,9 @@ def _lto_pair_fits(engine, y, Y0, pre, X1, X0, pairs, warm_start, rows=None,
     def _cf(y_k, pool, Y0_pool, x1, ws):
         x0p = X0[:, pool] if X0 is not None else None
         rk = engine.fit(y_k[rows], Y0_pool[rows], X1=x1, X0=x0p, warm_start=ws)
+        if bias_correct_ridge is not None:
+            return y_k - bias_corrected_gaps(rk.W, x1, x0p, y_k, Y0_pool,
+                                             ridge=bias_correct_ridge)
         return rk.counterfactual(Y0_pool)
 
     for a, b in pairs:
@@ -259,6 +269,7 @@ def lto_placebo_test(
     warm_start: bool = True,
     statistic: Optional[Callable[[np.ndarray, np.ndarray, int], float]] = None,
     fit_periods: Optional[Sequence[int]] = None,
+    bias_correct_ridge: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Run the Lei-Sudijono (2025) LTO refined placebo test.
 
@@ -307,6 +318,11 @@ def lto_placebo_test(
         synthetic control is fit the way the treated unit's was. ``None`` (the
         default) fits on the whole pre-period. The statistic still sees the
         whole series.
+    bias_correct_ridge : float, optional
+        When set, every unit's gap in every triple is the Abadie-L'Hour
+        corrected gap with this ridge (needs ``X1`` and ``X0``), as the treated
+        unit's is when the fit is corrected. ``None`` (the default) uses the
+        plain counterfactuals.
 
     Returns
     -------
@@ -343,7 +359,8 @@ def lto_placebo_test(
     n_pairs = 0
     skipped = []
     for a, b, cf_I, cf_a, cf_b in _lto_pair_fits(engine, y, Y0, pre, X1, X0,
-                                                 pairs, warm_start, rows, skipped):
+                                                 pairs, warm_start, rows, skipped,
+                                                 bias_correct_ridge):
         R_I = statistic(y, cf_I, pre)
         R_a = statistic(Y0[:, a], cf_a, pre)
         R_b = statistic(Y0[:, b], cf_b, pre)
