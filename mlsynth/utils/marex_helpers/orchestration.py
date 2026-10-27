@@ -8,7 +8,7 @@ import numpy as np
 
 from dataclasses import replace as _dc_replace
 
-from ...config_models import WeightsResults
+from ...config_models import DesignComposite, DesignWindows, WeightsResults
 from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_result
 from .inference import compute_inference
 from .unit_inference import unit_level_inference
@@ -19,6 +19,7 @@ from .structures import (
     MAREXClusterDesign,
     MAREXGlobalDesign,
     MAREXInference,
+    MAREXInferenceSettings,
     MAREXResults,
     MAREXStudy,
 )
@@ -355,6 +356,28 @@ def solve_marex(
     for summary in searches:
         search = summary if search is None else search.merge(summary)
 
+    # The typed faces a step after the fit reads: where the periods fall, the
+    # composites each design unit compared, and how its inference ran. With
+    # them and the panel, every contrast's inference is reproduced exactly.
+    windows = DesignWindows(
+        T0=int(T0_eff), fit_end=int(TcE),
+        post_periods=int(T_post) if T_post is not None else int(n_post),
+        time_labels=(time_periods.tolist() if time_periods is not None else None))
+    labels = [str(u) for u in unit_labels]
+    composite = DesignComposite(treated=treated_w_map, control=control_w_map,
+                                members=labels)
+    cluster_composites = {
+        k: DesignComposite(treated={str(u): x for u, x in c.unit_weight_map["Treated"].items()},
+                           control={str(u): x for u, x in c.unit_weight_map["Control"].items()},
+                           members=[str(u) for u in c.members])
+        for k, c in clusters_out.items()}
+    inference_settings = (MAREXInferenceSettings(
+        alpha=alpha, T_post=T_post, global_test=global_test,
+        max_combinations=max_combinations, random_state=random_state,
+        cumulative_band=cumulative_band, cumulative_method=cumulative_method,
+        cumulative_block=cumulative_block, cumulative_n_sim=cumulative_n_sim,
+        cumulative_seed=cumulative_seed) if inference and blank_periods > 0 else None)
+
     return MAREXResults(
         clusters=clusters_out, study=study, globres=globres, post_fit=post_fit,
         certificate=certificate, search=search,
@@ -368,4 +391,6 @@ def solve_marex(
             "design": design, "T0": T0_eff, "blank_periods": blank_periods,
             "n_clusters": len(clusters_out),
         },
+        windows=windows, composite=composite, cluster_composites=cluster_composites,
+        inference_settings=inference_settings,
     )
