@@ -12,12 +12,12 @@ donors (Austria is removed), the **direct** effect on the treated unit is
 estimated net of contamination, and a separate **spillover** effect is recovered
 for each affected neighbour. On German reunification mlsynth reproduces:
 
-* a **direct** effect on West-German GDP of :math:`\\approx -1605` -- *more*
-  negative than the naive SCM gap (:math:`-1306`) and in line with the canonical
+* a **direct** effect on West-German GDP of :math:`\\approx -1615` -- *more*
+  negative than the naive SCM gap (:math:`-1297`) and in line with the canonical
   reunification magnitude, because the naive synthetic borrows from a
   contaminated Austria;
 * Austria **excluded** from the donor weights but assigned a negative
-  **spillover** effect (:math:`\\approx -257`);
+  **spillover** effect (:math:`\\approx -260`);
 * a 15-unit clean donor pool (the full pool minus West Germany and Austria).
 
 The paper's own empirical application (the Florence tramway) relies on a
@@ -78,9 +78,9 @@ def run() -> dict:
 # negative than the naive gap, Austria removed from the donor pool but assigned a
 # negative spillover, on a 15-unit clean pool.
 EXPECTED = {
-    "direct_att": (-1605.1, 12.0),
-    "att_naive_scm": (-1305.95, 8.0),
-    "austria_spillover": (-257.2, 25.0),
+    "direct_att": (-1614.69, 12.0),
+    "att_naive_scm": (-1297.48, 8.0),
+    "austria_spillover": (-259.92, 25.0),
     "n_clean_donors": (15.0, 0.0),
     "austria_excluded": (1.0, 0.0),
     "direct_more_negative_than_naive": (1.0, 0.0),

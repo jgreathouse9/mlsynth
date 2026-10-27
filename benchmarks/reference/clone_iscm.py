@@ -22,7 +22,7 @@ Two reference points are exposed, and they are different numbers:
     correction, with the quadratic program solved to the simplex instead
     (cvxpy/OSQP at 1e-9; SLSQP stalls on this Gram). This is the number the
     reference would print if its solver landed on the constraint set, and it is
-    what mlsynth agrees with, to about 3 USD out of 1275.
+    what mlsynth agrees with, to 1e-7 USD out of 1275.
 
 Keeping both is the point. Validating mlsynth only against the converged variant
 would report agreement with a re-implementation instead of with the reference,

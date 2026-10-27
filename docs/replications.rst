@@ -726,13 +726,13 @@ Staggered adoption
   A: German reunification keeping Austria in the donor pool, the
   outcome-only inclusive fit (the no-covariates regime Melnychuk's
   reference also reports; distinct from the *Iterative* SCM and from the
-  with-covariates Table-2 spec) -- Austria carries :math:`\approx 0.33` of
-  synthetic West Germany and West Germany :math:`\approx 0.32` of synthetic
+  with-covariates Table-2 spec) -- Austria carries :math:`\approx 0.32` of
+  synthetic West Germany and West Germany :math:`\approx 0.31` of synthetic
   Austria (:math:`\det\Omega \approx 0.90`), and the inclusive ATT is more
   negative than the naive gap (durable: ``spillsynth_iscm_germany``).
   Grossi et al. (``method='grossi'``, 2025), Path A: the
   direct/spillover decomposition on German reunification -- a direct
-  effect (:math:`\approx -1605`) more negative than the naive gap, with
+  effect (:math:`\approx -1615`) more negative than the naive gap, with
   Austria removed from the donor pool but assigned a negative spillover
   (durable: ``spillsynth_grossi_germany``).
   SAR Bayesian (``method='sar'``, Sakaguchi & Tagawa 2026), Path B

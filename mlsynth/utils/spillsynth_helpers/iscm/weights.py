@@ -4,7 +4,11 @@ A synthetic control is built for one target unit from a donor pool. Two
 matching modes:
 
 * **outcome-only** -- simplex least squares on pre-treatment outcomes (the
-  classic Abadie objective), via the self-contained FISTA primitive;
+  classic Abadie objective), solved exactly by the active set behind
+  :func:`~mlsynth.utils.solvers.ridge_augment.simplex_qp`. It replaced the FISTA
+  primitive ``simplex_lstsq``, which on German reunification ran to its
+  2000-iteration cap on 31 of 34 leave-one-out fits and stopped short of the
+  optimum on 32, at about 37 ms a fit against the active set's 0.7 ms;
 * **covariate** -- predictor matching through the FSCM/MASC bilevel solver,
   with the predictor weights ``V`` jointly optimized with the donor weights
   ``W``. The bilevel *backend* is the caller's choice -- ``"malo"`` (corner
@@ -18,12 +22,13 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+from ....exceptions import MlsynthDataError
 from ...bilevel import (
     BilevelProblem,
     bias_corrected_gaps,
     solve_bilevel,
 )
-from ...solvers.simplex import simplex_lstsq
+from ...solvers.ridge_augment import simplex_qp
 
 
 def _standardize(P_target: np.ndarray, P_donors: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -78,20 +83,38 @@ def build_unit_sc(
         Root mean squared pre-treatment fit error (of the reported gap).
     sol : BilevelSolution or None
         The bilevel solution (covariate mode) or ``None`` (outcome-only).
+
+    Raises
+    ------
+    MlsynthDataError
+        If the donor pool is empty, or the target's or a donor's outcomes are
+        not finite. The active set returns weights for a design carrying a NaN,
+        so the check is made here and not left to the solver.
     """
+    donor_idx = np.asarray(donor_idx)
+    if donor_idx.size == 0:
+        raise MlsynthDataError(
+            f"SPILLSYNTH: unit {target_idx} has an empty donor pool; a "
+            "synthetic control needs at least one donor."
+        )
     y1 = Y[target_idx]
     Y0 = Y[donor_idx].T                       # (T, J)
+    if not (np.all(np.isfinite(y1)) and np.all(np.isfinite(Y0))):
+        raise MlsynthDataError(
+            f"SPILLSYNTH: unit {target_idx} or its donors have non-finite "
+            "outcomes; a synthetic control cannot be fit to them."
+        )
 
     if predictors is None:
         sol = None
         if intercept:
             mu1 = y1[:T0].mean()
             mu0 = Y0[:T0].mean(axis=0)         # per-donor pre-period mean
-            w = simplex_lstsq(Y0[:T0] - mu0, y1[:T0] - mu1)
+            w = simplex_qp(Y0[:T0] - mu0, y1[:T0] - mu1)
             a = float(mu1 - mu0 @ w)           # unpenalised level shift
             gap = y1 - (a + Y0 @ w)
         else:
-            w = simplex_lstsq(Y0[:T0], y1[:T0])
+            w = simplex_qp(Y0[:T0], y1[:T0])
             gap = y1 - Y0 @ w
     else:
         X1, X0 = _standardize(predictors[target_idx], predictors[donor_idx].T)

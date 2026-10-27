@@ -1513,7 +1513,7 @@ inclusive method keeps it in the donor pool and corrects for the spillover:
    print(res.iscm.spillover_att)        # post-period spillover on Austria
 
 Outcome-only, this reproduces the paper's neighbourhood: Austria receives
-``~0.33`` weight in synthetic West Germany and West Germany ``~0.32`` in
+``~0.32`` weight in synthetic West Germany and West Germany ``~0.31`` in
 synthetic Austria, :math:`\det\Omega \approx 0.90`, and keeping Austria in
 the pool tightens West Germany's pre-treatment fit (lower RMSPE than the
 exclude-Austria restricted fit). The inclusive ATT is more negative than
@@ -1659,11 +1659,15 @@ on is unchanged and the refit returns the same weights as the naive fit. The
 correction reaches the estimate through one channel: the cleaned post-period
 counterfactual.
 
-With ``True`` the donor's whole series is replaced. Its pre-period is then an
-exact convex combination of the units it was built from, so the refit has no
-reason to load on it and the weights move -- a second channel. On German
-reunification with the outcome-only backend, Austria's weight in synthetic
-West Germany goes from 0.46 to 0.00 and the ATT moves by roughly 320 USD.
+With ``True`` the donor's whole series is replaced. Its series is then an
+exact convex combination of the units it was built from (plus a level shift
+under the demeaned backend), so with outcome-only matching the refit fits as
+well without it, and the weights move -- a second channel. On German
+reunification with the demeaned outcome-only backend the ATT moves by roughly
+320 USD, to the estimate the pool without Austria gives, and Austria's weight
+in synthetic West Germany goes from 0.45 to 0.15. That weight is one of many:
+every split between Austria and the units its synthetic was built from fits the
+pre-period equally well and gives the same counterfactual.
 
 Melnychuk's function signature defaults the switch to ``FALSE``; the call
 sites that produce the paper's tables pass ``TRUE``. Set
@@ -1841,7 +1845,7 @@ country as a clean control:
    print(res.grossi.direct_ci)          # per-period 90% CI (eq. 3.6)
 
 On the German panel this gives a *larger* direct effect than the inclusive
-method (around :math:`-1600` vs :math:`-1370`): excluding Austria -- itself
+method (around :math:`-1615` vs :math:`-1350`): excluding Austria -- itself
 depressed by the spillover -- removes the downward drag a contaminated donor
 would impose on the counterfactual. The direct effect's 90% interval excludes
 zero; the average spillover's does not (one neighbour, a wide clean pool),

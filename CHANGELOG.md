@@ -64,6 +64,22 @@ now returns and the back-compat guarantee.
   reached is a property of the run a caller may need to act on.
 
 ### Changed
+- SPILLSYNTH's outcome-only per-unit synthetic control (`build_unit_sc`, behind
+  `method='iscm'`, `'iterative'` and `'grossi'` without covariates) is solved
+  exactly by the active set behind `simplex_qp`, in place of the FISTA primitive
+  `simplex_lstsq`. On German reunification FISTA ran to its 2000-iteration cap
+  on 31 of the 34 leave-one-out fits and stopped short of the optimum on 32, so
+  this is a speedup and an accuracy fix at once: a fit takes under 1 ms against
+  about 37 ms, and an outcome-only `iscm` or `iterative` fit on that panel runs
+  10 to 17 times faster end to end (5 times on an 80-unit panel).
+
+  The estimates move to the optimum. On German reunification the inclusive ATT
+  goes from -1367.76 to -1351.86 and the naive SCM ATT from -1305.95 to
+  -1297.48; with `iscm_intercept=True` the inclusive ATT goes from -1278.79 to
+  -1275.53, which is Melnychuk's algorithm solved to the simplex to 1e-7 USD
+  where it was 3.3 USD away. The iterative ATT goes from -1390.03 to -1381.47,
+  and grossi's direct effect from -1605.11 to -1614.69. Covariate mode is
+  unchanged.
 - SYNDES two-way exact backend: the mirror rule (#838). A design and its
   complement fit the pre-period equally well, so when no restriction names a
   side, `K=None` searches the sizes up to `N / 2` and returns the design with
@@ -91,6 +107,12 @@ now returns and the back-compat guarantee.
   `mlsynth.utils.fscm_helpers.bilevel` is a different package and is unchanged.
 
 ### Fixed
+- SPILLSYNTH accepted an infinite outcome. The missing-cell check uses `isna`,
+  which passes `inf`, and every method then returned an ATT of nan or -inf, or
+  an IndexError from inside the solver. `prepare_spillsynth_inputs` now raises
+  `MlsynthDataError` naming the units, and `build_unit_sc` refuses an empty
+  donor pool and non-finite outcomes for its target and donors: the active set
+  returns weights for a design carrying a NaN, where FISTA crashed on one.
 - `mlsynth.utils.sparse_sc_helpers.optimization.default_v20` returned all-NaN
   for a single-donor panel. With one donor `ddof=1` leaves the predictor
   standard deviation undefined, and the guard folded only `sd == 0`, so the NaN

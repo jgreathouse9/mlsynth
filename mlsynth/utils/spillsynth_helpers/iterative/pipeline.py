@@ -22,11 +22,13 @@ different estimators, so the choice is not cosmetic:
     weights and the correction reaches the estimate only through the cleaned
     post-period counterfactual.
 ``True``
-    The whole series is replaced. The cleaned donor's pre-period is then an
-    exact convex combination of the pool it was built from, so the refit has no
-    reason to load on it and the weights move -- on German reunification
-    (outcome-only) Austria's weight goes 0.46 to 0.00 and the ATT moves by
-    ~320 USD.
+    The whole series is replaced. The cleaned donor's series is then an exact
+    convex combination of the pool it was built from (plus a level shift with
+    ``intercept``), so an outcome-only refit fits as well without it and the
+    weights move. Every split of weight between the cleaned donor and that pool
+    gives the same counterfactual, so the donor's own weight is not identified:
+    on German reunification (demeaned outcome-only) it goes 0.45 to 0.15, and
+    the ATT moves by ~320 USD, to the estimate that drops Austria from the pool.
 
 The reference's function signature defaults to ``FALSE``, but its call sites --
 ``runAllMethods`` and ``runAllMethodsWithCov``, which produce the paper's tables
