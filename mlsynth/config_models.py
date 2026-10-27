@@ -662,8 +662,11 @@ class DesignWindows(BaseModel):
         return slice(self.T0, self.T0 + self.post_periods)
 
 
-#: Tolerance on a composite's weights summing to one.
-COMPOSITE_SUM_TOL = 1e-8
+#: Tolerance on a composite's weights summing to one. A mixed-integer solver
+#: returns weights feasible to its own tolerance (MAREX's MIP backend returns
+#: control weights summing to 1 + 5.0e-8), and the weight maps drop weights
+#: below 1e-8, so the sum is checked to 1e-6, not to machine precision.
+COMPOSITE_SUM_TOL = 1e-6
 
 
 class DesignComposite(BaseModel):

@@ -114,6 +114,13 @@ def test_a_composite_refuses_weights_off_the_simplex(kw, word):
         DesignComposite(**kw)
 
 
+def test_a_composite_accepts_a_solvers_rounding_and_refuses_more():
+    # MAREX's MIP backend returned control weights summing to 1 + 5.0e-8.
+    DesignComposite(treated={"a": 1.0}, control={"c": 0.5, "d": 0.5 + 4.98912602e-8})
+    with pytest.raises(ValueError, match="sum"):
+        DesignComposite(treated={"a": 1.0}, control={"c": 0.5, "d": 0.5 + 1e-4})
+
+
 def test_without_recorded_members_the_pool_is_the_control_composite():
     c = DesignComposite(treated={"a": 1.0}, control={"c": 0.4, "d": 0.6})
     assert c.members is None and c.pool == ["c", "d"]
