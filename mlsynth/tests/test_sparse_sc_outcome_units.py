@@ -103,15 +103,25 @@ def test_selection_and_weights_do_not_depend_on_the_outcome_units():
     """Thousands against units: the Basque panel's case, on a panel that fits in a second.
 
     A factor of 1000 is not exact in floating point, so the inputs differ in their last
-    bits, and L-BFGS-B stops at a different point of the outer objective's flat valley:
-    the non-anchor weights here are about 1e-4 of the anchor's and differ by a common
-    factor of 6.4. The selection, the donor weights and the ATT are what is identified.
+    bits, and L-BFGS-B stops at a different point of the outer objective's flat valley.
+    On this panel the validation losses at 1e-3, 1e-2 and 1e-1 agree to about 1e-6
+    relative, so which of them is the argmin is rounding: Python 3.13 on CI chose 0.1 in
+    one unit and 0.001 in the other. What is identified is the curve, in outcome-SD
+    units, to where L-BFGS-B stops (2.1e-4 relative at lambda = 1, measured), and so the
+    set of near-minimising lambdas; the support; and the ATT, to the spread among those
+    tied lambdas (1.9e-4 relative on CI). The unpenalised end is 19 percent worse, so a
+    tolerance of 1e-3 still separates the curve's shape.
     """
+    X1, X0, Y1, Y0 = _arrays()
+    *_, val_a, _ = _sweep(X1, X0, Y1, Y0)
+    *_, val_b, _ = _sweep(X1, X0, 1e3 * Y1, 1e3 * Y0)
+    val_a, val_b = np.asarray(val_a), np.asarray(val_b)
+    np.testing.assert_allclose(val_b, val_a, rtol=1e-3)
     a, b = _fit(_panel()), _fit(_panel(scale=1e3))
-    assert a.design.opt_lambda == b.design.opt_lambda
+    for lam, val in ((a.design.opt_lambda, val_b), (b.design.opt_lambda, val_a)):
+        assert val[GRID.index(lam)] <= val.min() * (1.0 + 1e-3)
     assert _support(a.design.v) == _support(b.design.v)
-    np.testing.assert_allclose(b.design.w, a.design.w, atol=1e-4)
-    assert b.effects.att == pytest.approx(1e3 * a.effects.att, rel=1e-5)
+    assert b.effects.att == pytest.approx(1e3 * a.effects.att, rel=1e-3)
 
 
 def test_the_raw_grid_selects_differently_in_other_units():
