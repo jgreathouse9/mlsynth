@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-27T14:31:04Z",
+ "generated": "2026-10-28T15:08:54Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -2676,6 +2676,7 @@
   "mlsynth/utils/spillsynth_helpers/sar/structures.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
   "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py",
   "mlsynth/utils/spotsynth_helpers/__init__.py",
   "mlsynth/utils/spotsynth_helpers/bayes.py",
   "mlsynth/utils/spotsynth_helpers/config.py",

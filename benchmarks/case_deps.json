@@ -3537,7 +3537,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/system.py",
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_iscm_xval": [
   "basedata/repgermany.dta",
@@ -3558,7 +3559,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/system.py",
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_iterative_germany": [
   "basedata/repgermany.dta",
@@ -3584,7 +3586,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_prop99": [
   "basedata/prop99_with_dc.csv",
