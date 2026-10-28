@@ -431,6 +431,7 @@ def solve_simplex_qp_least_norm(
     *,
     ridge: float = _LEAST_NORM_RIDGE,
     tol: float = _LEAST_NORM_TOL,
+    warm_start: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """``solve_simplex_qp``, with the tie broken by the smallest ``||w||``.
 
@@ -472,6 +473,17 @@ def solve_simplex_qp_least_norm(
     On the simplex ``||w - c*1||^2 = ||w||^2 - 2c + J c^2``, so the centre of
     the ridge only shifts the objective by a constant: least norm and least
     distance to the uniform weights are the same selection.
+
+    ``warm_start`` is passed to ``solve_simplex_qp`` as it is: the augmentation
+    adds rows, not columns, so a point of the simplex is a feasible start for the
+    augmented program, and a start off the simplex is ignored there. Where the
+    plain program has one minimiser the start changes only the work; where it
+    has a face, the tie-break resolves to its own accuracy and the start can
+    land elsewhere within it (6.6e-6 apart on a 4-by-19 design, each answer
+    1.5e-4 from a two-stage reference), holding the same fit and norm contract.
+    Along SparseSC's 4,000-solve sweep on the Basque panel it cut the solve from
+    627 to 94 microseconds, and every warm answer equalled the cold one to the
+    last bit (#934).
     """
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
@@ -481,7 +493,7 @@ def solve_simplex_qp_least_norm(
         # No scale to set a ridge from -- an all-zero or non-finite design.
         # Every feasible point is then a minimiser of a constant objective and
         # the plain solver's answer is as good as any.
-        return solve_simplex_qp(B, A)
+        return solve_simplex_qp(B, A, warm_start=warm_start)
     # Scaling ``(B, A)`` together leaves the argmin untouched, so dividing both
     # by the design's root mean column energy costs nothing and makes ``lam``
     # absolute -- which is the footing the release threshold above is on.
@@ -491,4 +503,5 @@ def solve_simplex_qp_least_norm(
         np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),
         np.concatenate([A / root, np.zeros(J)]),
         tol=tol,
+        warm_start=warm_start,
     )

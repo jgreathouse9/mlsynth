@@ -40,7 +40,10 @@ from mlsynth import (
 )
 from mlsynth.config_models import (
     BaseEstimatorResults,
+    DesignComposite,
+    DesignInferenceSettings,
     DesignResult,
+    DesignWindows,
     EffectResult,
     MlsynthResult,
 )
@@ -443,3 +446,27 @@ def test_design_resolves_to_effect_report(case, fitted_designs):
     assert not report.weights.is_empty
     dumped = report.model_dump()
     assert "effects" in dumped and dumped["effects"]["att"] is not None
+
+
+# Design estimators that fill the faces a post-fit step reads (#932). The others
+# may leave them None; a face that is filled is always the typed model.
+FACES_FILLED = {"MAREX"}
+FACE_TYPES = {"windows": DesignWindows, "composite": DesignComposite,
+              "inference_settings": DesignInferenceSettings}
+
+
+@pytest.mark.parametrize("case", [p.id for p in DESIGN])
+def test_design_faces_are_typed_wherever_they_are_filled(case, fitted_designs):
+    res = fitted_designs[case]
+    for face, typ in FACE_TYPES.items():
+        value = getattr(res, face)
+        assert value is None or isinstance(value, typ), face
+    clusters = res.cluster_composites
+    assert clusters is None or all(isinstance(c, DesignComposite) for c in clusters.values())
+    if case in FACES_FILLED:
+        assert res.windows is not None and res.composite is not None
+        assert res.cluster_composites
+        # the composite is the design: its treated side is the selected units
+        assert sorted(res.composite.treated) == sorted(str(u) for u in res.selected_units)
+        # and the windows are the report's: its series covers the design's periods
+        assert len(np.asarray(res.report.counterfactual)) >= res.windows.T0 + res.windows.post_periods

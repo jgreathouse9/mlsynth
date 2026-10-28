@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 from pydantic import ConfigDict
 
-from ...config_models import DesignResult
+from ...config_models import DesignInferenceSettings, DesignResult
 from ..conformal.cumulative_inversion import CumulativeInversionBand
 from ..conformal.structure import CumulativeConformalBand
 from .diagnostics import ExactSearchDiagnostics
@@ -45,6 +45,35 @@ class MAREXStudy:
     lambda2: float = 0.0
     xi: float = 0.0
     backend: str = "mip"
+
+
+class MAREXInferenceSettings(DesignInferenceSettings):
+    """The settings MAREX's inference ran with, as
+    :func:`~mlsynth.utils.marex_helpers.inference.compute_inference` takes them.
+
+    ``inference_kwargs`` with the design's windows and composites reproduces
+    every contrast's inference exactly.
+    """
+
+    T_post: Optional[int] = None
+    global_test: str = "subsets"
+    max_combinations: int = 1000
+    random_state: Optional[int] = None
+    cumulative_band: bool = False
+    cumulative_method: str = "resample"
+    cumulative_block: int = 0
+    cumulative_n_sim: int = 2000
+    cumulative_seed: int = 0
+
+    def inference_kwargs(self) -> Dict[str, Any]:
+        return dict(alpha=self.alpha, T_post=self.T_post, global_test=self.global_test,
+                    max_combinations=self.max_combinations,
+                    random_state=self.random_state,
+                    cumulative_band=self.cumulative_band,
+                    cumulative_method=self.cumulative_method,
+                    cumulative_block=self.cumulative_block,
+                    cumulative_n_sim=self.cumulative_n_sim,
+                    cumulative_seed=self.cumulative_seed)
 
 
 @dataclass(frozen=True)

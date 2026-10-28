@@ -175,7 +175,17 @@ following hold. Use this as a literal checklist in the PR description.
 3. **Dispatchers** (PDA, PROXIMAL, CLUSTERSC, MUSC, SCMO, SIV): apply the
    variant-delegation pattern.
 4. **Design family** (MAREX, PANGEO, SYNDES, SPCD, LEXSCM): migrate onto
-   `DesignResult`, folding `post_fit`/`summary` into `report`.
+   `DesignResult`, folding `post_fit`/`summary` into `report`. A design also
+   fills the faces a step after the fit reads (#932): `windows`
+   (`DesignWindows`: fitting, held-out and post periods), `composite` and
+   `cluster_composites` (`DesignComposite`: treated and control weights by unit
+   label, with the units drawn from) and `inference_settings` (a subclass of
+   `DesignInferenceSettings` whose `inference_kwargs()` the estimator's own
+   inference takes). The test of a filled face is that the design's inference
+   is reproduced exactly from the faces and the panel
+   (`tests/test_design_result_faces.py`); `tests/test_result_contract.py`
+   lists the design estimators that fill them in `FACES_FILLED`. MAREX does;
+   the others leave them `None` until each is migrated.
 
 Each estimator carries its own DoD checklist; do not batch-migrate without
 running the per-estimator docs/replication/conformance steps.

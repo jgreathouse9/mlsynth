@@ -1985,6 +1985,41 @@ objects, the aggregate
    stays on ``res.clusters`` / ``res.study`` / ``res.globres`` / ``res.post_fit``
    (the same ``SyntheticControlPostFit`` that ``res.report`` is built from).
 
+The result also carries what a step after the fit reads, as typed models:
+
+- ``res.windows``, a :class:`~mlsynth.config_models.DesignWindows`: the fitting
+  window ``res.windows.fit``, the blank window ``res.windows.blank`` and the post
+  window ``res.windows.post`` as slices of the timeline, with ``T0``,
+  ``fit_end``, ``blank_periods``, ``post_periods`` and the period labels;
+- ``res.composite``, a :class:`~mlsynth.config_models.DesignComposite`: the
+  aggregate treated and control weights by unit label, the units the design
+  drew from, and ``pool``, the untreated units a refit of the treated composite
+  may use as donors;
+- ``res.cluster_composites``: the same for each cluster, keyed like
+  ``res.clusters``;
+- ``res.inference_settings``, a
+  :class:`~mlsynth.utils.marex_helpers.structures.MAREXInferenceSettings`: the
+  level, ``T_post``, the global test, the subset draws and seed, and the
+  cumulative band's options. ``None`` when no inference ran.
+
+With these and the panel, every contrast's inference is reproduced exactly:
+
+.. code-block:: python
+
+   from mlsynth.utils.marex_helpers.inference import compute_inference
+
+   w, c, s = res.windows, res.composite, res.inference_settings
+   Y = df.pivot(index="unit", columns="time", values="y").loc[c.members].to_numpy()
+   wt = np.array([c.treated.get(u, 0.0) for u in c.members])
+   wc = np.array([c.control.get(u, 0.0) for u in c.members])
+   pool = Y[[c.members.index(u) for u in c.pool]]
+   inf = compute_inference(wt @ Y, wc @ Y, w.T0, w.fit_end, w.blank_periods,
+                           control_outcomes=pool, **s.inference_kwargs())
+   inf.global_p_value == res.globres.inference.global_p_value   # True
+
+``res.metadata`` keeps ``T0`` and ``blank_periods`` as mirrors of
+``res.windows``.
+
 .. automodule:: mlsynth.utils.marex_helpers.structures
    :members:
    :undoc-members:

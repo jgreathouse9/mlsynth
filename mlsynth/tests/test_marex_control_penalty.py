@@ -26,7 +26,7 @@ import warnings
 import cvxpy as cp
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
@@ -67,7 +67,7 @@ def _joint(B, A, S, C, beta, lam):
     Written from scratch in centred coordinates, ``u = B_S w - A`` and
     ``s = B_C v - A``: the objective is ``a ||u - (b / a) s||^2 + k ||s||^2 +
     beta lam d'v`` with ``a = 1 + beta (1 + lam)``, ``b = beta (1 + lam)``,
-    ``k = beta - b^2 / a`` and ``d_j = ||X_j - A||^2``.
+    ``k = beta - b^2 / a >= 0`` and ``d_j = ||X_j - A||^2``.
     """
     Bc_ = B - A[:, None]
     Bs, Bc = Bc_[:, list(S)], Bc_[:, list(C)]
@@ -75,7 +75,9 @@ def _joint(B, A, S, C, beta, lam):
     v = cp.Variable(len(C), nonneg=True)
     a = 1.0 + beta * (1.0 + lam)
     b = beta * (1.0 + lam)
-    k = beta - b * b / a
+    # k = beta (1 - beta lam (1 + lam)) / a >= 0 inside the convexity bound and
+    # is zero on it, where the subtraction can round below zero (not DCP)
+    k = max(beta - b * b / a, 0.0)
     d = (Bc ** 2).sum(axis=0)
     u, s = Bs @ w, Bc @ v
     obj = (a * cp.sum_squares(u - (b / a) * s) + k * cp.sum_squares(s)
@@ -365,6 +367,8 @@ def _inside(beta, frac):
 
 @settings(max_examples=25, deadline=None)
 @given(st.integers(0, 10_000), _beta, _frac)
+# at the bound the curvature k is zero and rounds to -2.2e-16 (not DCP)
+@example(seed=0, beta=1.25, frac=1.0)
 def test_the_oracle_is_the_joint_optimum(seed, beta, frac):
     lam = _inside(beta, frac)
     B, A = _problem(seed, n=6, T=8)
