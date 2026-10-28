@@ -3299,8 +3299,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-design-is-not-normalised-before-the-ridge"
-  find = "        np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A / root, np.zeros(J)]),"
-  replace = "        np.vstack([B, np.sqrt(lam) * np.eye(J)]),\n        np.concatenate([A, np.zeros(J)]),"
+  find = "        np.vstack([D / root, np.sqrt(lam) * np.eye(J)]),"
+  replace = "        np.vstack([D, np.sqrt(lam) * np.eye(J)]),"
   models = "the ridge left absolute against a design of any size. The pivot loop releases a pinned donor below tol * (1 + max|g|), which on a face floors at tol, so whether the selection resolves then depends on the design's energy and not on the panel: the same program scaled by 1e-4 returns a different point. This is the shape the helper shipped in, with lam scaled by the design instead and tol fixed, and it is why the tie-break did not select"
 
   [[target.mutant]]
