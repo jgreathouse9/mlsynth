@@ -127,6 +127,14 @@ def test_selection_and_weights_do_not_depend_on_the_outcome_units():
     assert b.effects.att == pytest.approx(1e3 * a.effects.att, rel=1e-3)
 
 
+def test_a_power_of_two_change_of_units_leaves_the_fit_bit_identical():
+    """The fit, not only the sweep: exact scaling, exact answer, through the estimator."""
+    a, b = _fit(_panel()), _fit(_panel(scale=2.0 ** 10))
+    assert a.design.opt_lambda == b.design.opt_lambda
+    np.testing.assert_array_equal(a.design.v, b.design.v)
+    np.testing.assert_array_equal(a.design.w, b.design.w)
+
+
 def test_the_raw_grid_selects_differently_in_other_units():
     """The defect on this panel: in raw units a factor of 1000 moves the selected lambda and drops a predictor."""
     a, b = _fit(_panel(), lambda_units="raw"), _fit(_panel(scale=1e3), lambda_units="raw")
