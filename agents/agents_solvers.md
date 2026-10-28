@@ -7,7 +7,7 @@ written here (`utils/solvers/`, `utils/bilevel/`, a study's LP code) or called
 from a package (`cvxpy`, `scipy.optimize`). It exists so that "this tolerance is
 fine" becomes a claim with a citation and a test, not a matter of taste.
 
-Four books supply the rules:
+Five books supply the rules:
 
 - Nocedal and Wright, *Numerical Optimization*, 2nd ed. (Springer, 2006), cited
   as NW with page numbers. Appendix A (floating point, conditioning, stability),
@@ -22,6 +22,14 @@ Four books supply the rules:
   Theorem 2.2.6), Section 2.7.3 (least squares with linear inequality
   constraints, the least distance reduction, rank-deficient solutions),
   Sections 1.4.6 and 2.3.8 (iterative refinement).
+- Björck, *Numerical Methods for Least Squares Problems* (SIAM, 1996), cited as
+  B96 with page numbers. The earlier and narrower book: Section 1.4.6 (the
+  backward error of an approximate least squares solution, pp. 34-36), Sections
+  1.4.3 and 2.2.3 (column scaling and reparametrisation, pp. 31, 49-51),
+  Section 2.9.3 (iterative refinement in working precision, pp. 124-125),
+  Section 5.1.5 (equality constraints imposed by a weight, pp. 192-194) and
+  Section 5.2 (active set methods for inequality-constrained least squares,
+  pp. 196-203).
 - Golub and Van Loan, *Matrix Computations*, 4th ed. (Johns Hopkins, 2013),
   cited as GvL with page numbers. Section 3.5.3 (mixed-precision iterative
   improvement, Heuristic III, p. 140).
@@ -55,11 +63,11 @@ file makes it a rule where it was not one.
 | # | Rule | Status | Book basis |
 | --- | --- | --- | --- |
 | 1 | Every outcome is explicit | binding (invariant 7) | NW p. 57, p. 370, p. 607 |
-| 2 | Optimality is certified on the original data | adopted | NW p. 370, pp. 381-382, p. 386 |
+| 2 | Optimality is certified on the original data | adopted | NW p. 370, pp. 381-382, p. 386; B96 pp. 34-36 |
 | 3 | Tolerances are relative to what they compare, with no floor | adopted | NW pp. 26-27, p. 131 |
 | 4 | A computed zero is a zero only to the rounding of its terms | adopted | R Lemma 6.45, Lemma 6.101 |
-| 5 | Do not difference what you can avoid differencing | adopted | NW p. 615 |
-| 6 | Do not square the condition number; name rank deficiency | adopted | NW pp. 251-253, p. 610, p. 617; B p. 235, pp. 371-373 |
+| 5 | Do not difference what you can avoid differencing | adopted | NW p. 615; B96 pp. 50-51 |
+| 6 | Do not square the condition number; name rank deficiency | adopted | NW pp. 251-253, p. 610, p. 617; B p. 235, pp. 371-373; B96 p. 49, pp. 192-203 |
 | 7 | Iterations are safeguarded and end | adopted | NW p. 37, p. 61, p. 62 |
 | 8 | Repairs to a solver's output are reported | binding (invariant 7) | none; invariant 7 |
 | 9 | Form quantities so the failure mode is underflow | adopted | NW p. 616 |
@@ -103,6 +111,20 @@ the caller passed, not on whatever the iteration worked with:
 The certificate re-checks every condition itself. A pivot loop that stops when
 its last test passes has checked the vertex it believed it was at; the
 certificate checks the one it returns.
+
+A small stationarity residual is evidence, not a definition. For least squares,
+"for x to have a small backward error it is sufficient that either (b - Ax) or
+A^T(b - Ax) be small, but neither of these conditions is necessary" (B96 p. 36).
+On a nearly consistent problem (an exact fit, a treated unit inside the donor
+hull) the computed residual is rounding noise and is not orthogonal to the
+range of `A`, so `A'r` measured against `||A|| ||r||` alone refuses a sound
+answer. Scale the stationarity residual by the size of the terms it is computed
+from, `s_1 (s_1 ||x|| + ||b||)` with `s_1` the largest singular value, as
+`lsq.kkt_backward_error` does; that reads as a backward error and stays bounded
+when the residual vanishes. The exact normwise backward error (Waldén, Karlsson
+and Sun, B96 Theorem 1.4.8, p. 35) exists in closed form, but the book calls the
+formula "unsuitable for computation since [it] can suffer from cancellation"
+(p. 35); mlsynth's certificates use the scaled KKT residual and say so.
 
 What it looked like. The pair-free certificate checked stationarity and the gap
 but took the dual's feasibility from the pivot loop. A `phi` built to meet both
@@ -183,6 +205,13 @@ possible" (NW p. 615). In practice:
 
 - Remove a common level when the problem is invariant to it. A pairwise or
   simplex-weighted objective reads only differences; centre before solving.
+  Centring is a reparametrisation that changes the conditioning, not the
+  problem: fitting `a + b t`, moving `t` to its mean makes the two columns
+  orthogonal, and "ill-conditioning is caused by an unsuitable formulation of
+  the problem ... a different choice of parametrization can significantly
+  reduce the condition number" (B96 Example 2.2.3, pp. 50-51). On the simplex
+  the shift is exact: `1'w = 1` gives `y - D w = (y - c) - (D - c) w` for any
+  level `c`, per row if need be.
 - Centre before a sum whose weights sum to zero: `a'e = a'(e - c)` when
   `sum(a) = 0`.
 - Near a root, form `log(f / t)` as `log1p((f - t) / t)`, not `log f - log t`.
@@ -198,6 +227,16 @@ What it looked like:
   the optimum;
 - the uncentred pairwise objective at a level of 1e8 cancelled to 1.5e-9
   relative, above the certificate's tolerance;
+- `solve_simplex_qp_least_norm` sizes its tie-breaking ridge by the design's
+  mean column energy, level included. With donors `N(0, 1)` plus a level and a
+  treated unit inside their hull plus noise of 0.3, the loss it returned
+  exceeded the optimum by up to 4.9e-8 relative at levels 1 to 1e2, by up to
+  110 percent at 1e2 to 1e4, and by up to 800 percent at 1e4 to 1e6 (300
+  problems, measured 2026-10-28). The ridge was sized by the level, so it
+  outweighed the variation it was meant to break ties within. The same solve on
+  data centred by `mean(y)` matched the optimum to 6e-16 at every level, and
+  the plain `solve_simplex_qp` on the raw data to 6.4e-16; no warning was
+  raised (rule 1);
 - Newton for the chi-square quantile stepped on `log f - log q`; near the root
   the two logs agreed to their last bit, the step was 0, and bisection did the
   work in 57 evaluations. With `log1p` the grid's worst is 6.
@@ -219,6 +258,13 @@ have the idea sees it fail.
 - Least squares by QR or SVD, not the normal equations: forming `J'J` squares
   the condition number (NW pp. 251-253; SVD "the most robust and reliable of
   all", p. 253).
+- Cholesky on `A'A` "may fail, i.e., square roots of negative numbers may
+  arise, even when `kappa(A)` is of the order of `1/sqrt(u)`" (B96 p. 49):
+  about 1e8 in double, a condition number SC designs reach.
+- Scaling the columns to unit length nearly minimises the condition number over
+  all diagonal scalings (van der Sluis, B96 Theorem 1.4.7, p. 31), but it
+  "changes the norm in which the error in x is measured" (p. 31). A column-scaled
+  solve is certified on the original columns (rule 2).
 - A linear solve by LU with partial pivoting is backward stable, and its forward
   error grows with the condition number (NW p. 617, A.32). Either estimate the
   condition number (from the triangular factor, NW p. 610) or let a certificate
@@ -259,7 +305,8 @@ the problem costs from what the method costs.
   ill-conditioned" (B p. 373, on the generalized QR factorization). Quadratic
   programming methods for the same problem "should preferably be adapted to
   work directly with `A`", since a computed `A'A` can turn indefinite (B
-  p. 372). The direct route is an active-set method on the original problem
+  p. 372). The earlier book is blunter: using a quadratic programming code on
+  the cross-product matrix "is not a numerically safe approach" (B96 p. 196). The direct route is an active-set method on the original problem
   (Stoer's, B p. 371; LSSOL, B p. 373) whose working-set factorization is
   updated as constraints enter and leave (NW pp. 478-479), with no inverse
   formed.
@@ -267,7 +314,13 @@ the problem costs from what the method costs.
   not: with `u = 10^-d` and `kappa = 10^q`, `k` refinement steps whose residuals
   are formed in precision `u^2` leave about `min(d, k(d - q))` correct digits
   (GvL Heuristic III, p. 140; B Sections 1.4.6, 2.3.8). It does not reach below
-  the problem's own condition, the first bullet's `kappa_LS`.
+  the problem's own condition, the first bullet's `kappa_LS`. In working
+  precision refinement buys stability, not digits: for least squares it
+  "improves a componentwise measure of backward stability" (Higham, reported in
+  B96 p. 125), and one step after Gaussian elimination gives a componentwise
+  backward error at machine precision when the matrix is not too ill-conditioned
+  and the components of `|A||x|` do not vary too much (Skeel, B96 p. 124). The digits of Heuristic III need the residual in higher
+  precision.
 - A rank-deficient problem with a nonempty constraint set has a bounded
   solution, and `E y` is uniquely determined even when `y` is not (Lötstedt,
   B Theorem 2.7.1, p. 371). The loss of the face is therefore defined when the
@@ -275,6 +328,53 @@ the problem costs from what the method costs.
   distance problem (B p. 372), with `z_2` free in Cline's form when
   `rank(E) < n` (B p. 373). Refusing such a face refuses a well-posed problem;
   the documented representative of this rule's last bullet applies.
+- On when the face is a point, B96 states that with `A` rank deficient "there
+  will still be a unique solution if all active constraints at the solution
+  have nonzero Lagrange multipliers. Otherwise there is an infinite manifold M
+  of optimal solutions with a unique optimal value", whose minimum-norm member
+  is a least distance problem (p. 200). Read as an algorithm, the condition is
+  on the directions left free: the constraints with nonzero multipliers stay
+  active along any move between minimisers, and the minimiser is unique when
+  `A`, restricted to the remaining coordinates and with the remaining active
+  rows appended, has full column rank. `minnorm.simplex_optimum_is_unique`
+  tests exactly that for the simplex.
+- A linearly dependent working set "can cause possible cycling", and the remedy
+  in use is "to enlarge the feasible region of the offending constraint by a
+  small quantity" (B96 p. 201). That is rule 10's perturbation, with rule 10's
+  obligation: certify on the unperturbed constraints.
+- An active-set method changes one constraint per iteration, so it "can be slow
+  to converge when the set of active constraints cannot be guessed well" (B96
+  pp. 202-203). Along a sequence of nearby problems the previous answer is that
+  guess: seeding SparseSC's 4,000 inner solves on the Basque panel with the
+  previous weights cut the least-norm solve from 627 to 94 microseconds
+  (jgreathouse9/mlsynth#940). The start changes the work, not the contract; on
+  a face it may change which member the tie-break reaches, within the tie-break's
+  own accuracy.
+
+### Equality constraints imposed by a weight
+
+Appending `gamma 1'` to the design and `gamma` to the target makes an NNLS code
+solve a simplex problem, Lawson and Hanson's method of weighting (B96 Section
+5.1.5, pp. 192-194). Three statements bound it.
+
+- The constraint holds only to `O(gamma^-2)`: the residual of the weighted rows
+  is proportional to `gamma^-2` for large `gamma` (p. 192).
+- "Except in special cases, the method of normal equations will fail for large
+  values of `gamma`" (p. 192). The weighted problem is solved by QR, with the
+  weighted rows first, and column pivoting is needed for accuracy when the
+  constraint columns are dependent: in Van Loan's example, `gamma = 1e9` gave
+  full precision with pivoting and errors of order `1e-9` without (p. 193).
+- `gamma` is sized by the variation of the data, not their level (rule 5), and
+  closing the remaining `O(gamma^-2)` gap by renormalising is a repair (rule 8):
+  allowed within the tolerance a certificate has checked, reported beyond it.
+
+What it looked like. CTSC's `_simplex_ls` (`utils/ctsc_helpers/estimate.py`)
+sets `gamma = 1e3` times the root mean square of the donors, level included,
+then renormalises. On 400 problems (measured 2026-10-28) the weights summed to
+one within 1.9e-6 at levels 1 to 1e2, 1.6e-8 at 1e2 to 1e4 and 2.2e-10 at 1e4 to
+1e6; the gap shrinks with the level because `gamma` grows with it. After
+renormalisation the loss was within 6.6e-11 of the optimum. The answer is
+accurate; the repair is unchecked and unreported.
 
 What it looked like. On Abadie and Gardeazabal's Basque specification the
 exact backend refuses three times, and each refusal is a different statement
@@ -440,6 +540,12 @@ Representative sites, for whoever takes the backlog:
 - Normal equations: `utils/solvers/ridge_augment.py:479`
   (`inv(Zc.T @ Zc)`, reused twice); `utils/rolldid_helpers/pipeline.py:56`.
 - No cap: `utils/drosc_helpers/estimation.py:75` (`while beta is None:`).
+- Ridge sized by the level (rule 5): `utils/solvers/active_set.py`
+  `solve_simplex_qp_least_norm` scales by the raw design's column energy (the
+  rule 5 measurement). Its caller `utils/scmo_helpers/solvers.py:51` then clips
+  and renormalises (rule 8).
+- Equality by weighting, with the weight sized by the level and the repair
+  unreported (rules 5, 8): `utils/ctsc_helpers/estimate.py:64`.
 - Rank deficiency refused where a representative is defined (rule 6):
   `utils/bilevel/exact/lsq.py` `_lsi` refuses a face with more free weights
   than rows. `utils/bilevel/exact/hull.py` refuses a hull of deficient affine
@@ -480,9 +586,13 @@ grep -rnE "(solve|inv|cholesky)\([A-Za-z_]+\.T @" mlsynth/ --include=*.py | grep
 - No bound on accumulated error through a pivot loop, a triangular solve or a
   dot product. R stops at single operations; the standard dot-product bound is
   Higham's (*Accuracy and Stability of Numerical Algorithms*), which was not
-  among the sources read. B and GvL give the least squares perturbation bounds
-  and the refinement heuristic, not a rounding analysis of the least distance
-  reduction; its digit loss is measured, not derived.
+  among the sources read. B, B96 and GvL give the least squares perturbation
+  bounds, the refinement heuristic and the least distance reduction (B96
+  Theorem 5.2.1, p. 197, by citation to Lawson and Hanson), not a rounding
+  analysis of that reduction; its digit loss is measured, not derived.
+- No size for a tie-breaking ridge or a constraint weight. B96 gives the
+  `gamma^-2` rate and the need for pivoting, not a value; the ridge and the
+  `1e3` are choices, and rule 5 says what they are measured against.
 - No anti-cycling rule for a bounded dual simplex, and no safeguarded Newton
   method for a scalar root (NW's Chapter 11 globalises with a merit function,
   p. 287). Brent's halving rule is named as Brent's.
