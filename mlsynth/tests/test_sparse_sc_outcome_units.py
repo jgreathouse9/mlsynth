@@ -70,8 +70,11 @@ def _sweep(X1, X0, Y1, Y0, scale=None):
 
 # --------------------------------------------------------------------------- smoke
 def test_a_fit_records_its_outcome_scale():
+    """By default the grid is on the outcome's own scale: the pooled pre-period spread, not 1."""
     res = _fit(_panel())
-    assert np.isfinite(res.design.outcome_scale) and res.design.outcome_scale > 0
+    X1, X0, Y1, Y0 = _arrays()
+    assert res.design.outcome_scale == pytest.approx(outcome_scale(Y1, Y0, T0))
+    assert res.design.outcome_scale != pytest.approx(1.0)
 
 
 # --------------------------------------------------------------------------- unit: the scale
