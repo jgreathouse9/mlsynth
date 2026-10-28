@@ -10140,3 +10140,153 @@ timeout = 300.0
   find = "        return solve_simplex_qp(B, A, warm_start=warm_start)"
   replace = "        return solve_simplex_qp(B, A)"
   models = "the degenerate all-zero design solved without the start it was handed, the one branch where any feasible point is a minimiser and the start decides which"
+
+[[target]]
+name = "spillcorrect-correct"
+module-path = "mlsynth/utils/spillcorrect_helpers/correct.py"
+test-command = "python -m pytest mlsynth/tests/test_spillcorrect.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "contaminated-control-in-its-own-pool"
+  find = "    donors = np.asarray(list(clean), dtype=int)"
+  replace = "    donors = np.asarray(list(clean) + [int(k) for k in ks], dtype=int)"
+  models = "each contaminated control rebuilt from a pool that holds itself, so its synthetic is its own spillover-carrying series and nothing is removed"
+
+  [[target.mutant]]
+  id = "iterative-rebuild-not-scaled"
+  find = "        _, cf, gap, pre_rmspe, _ = build_unit_sc(int(k), donors, Y, start, scale=scale)"
+  replace = "        _, cf, gap, pre_rmspe, _ = build_unit_sc(int(k), donors, Y, start, scale=False)"
+  models = "scale accepted and recorded while the rebuild stays a simplex average, which cannot reach a control larger than every clean one"
+
+  [[target.mutant]]
+  id = "spillover-reported-with-the-wrong-sign"
+  find = "        spill.append(gap[start:])"
+  replace = "        spill.append(-gap[start:])"
+  models = "the spillover path reported as rebuilt less observed"
+
+  [[target.mutant]]
+  id = "composite-load-dropped"
+  find = "        cross[i + 1, 0] = w[len(clean)]"
+  replace = "        cross[i + 1, 0] = 0.0"
+  models = "each control's load on the treated composite left out of the system, so the effect the composite carries into the control's gap is read as spillover"
+
+  [[target.mutant]]
+  id = "loads-on-other-controls-dropped"
+  find = "        cross[i + 1, [j + 1 for j in others]] = w[len(clean) + 1:]"
+  replace = "        pass"
+  models = "the contaminated controls' loads on each other left out, so one control's spillover leaks into another's estimate and into the effect"
+
+  [[target.mutant]]
+  id = "control-weights-left-out-of-the-system"
+  find = "    cross[0, 1:] = v"
+  replace = "    pass"
+  models = "the treated composite's equation without the control weights, which is the uncorrected estimate solved for"
+
+  [[target.mutant]]
+  id = "singular-system-solved"
+  find = "    if abs(det) < SINGULAR:"
+  replace = "    if False:"
+  models = "a singular system handed to the linear solver, which fails with a bare LinAlgError, or returns noise when det is tiny but not zero"
+
+[[target]]
+name = "spillcorrect-setup"
+module-path = "mlsynth/utils/spillcorrect_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_spillcorrect.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "design-not-checked-against-the-panel"
+  find = "        if np.abs(got - want).max() > tol:"
+  replace = "        if False:"
+  models = "a design applied to a panel it was not fit on, whose fitting window moved, so its weights are not the panel's design"
+
+  [[target.mutant]]
+  id = "unweighted-affected-used-as-donor"
+  find = "    clean = [i for i in pool if i not in affected]"
+  replace = "    clean = [i for i in pool if i not in corrected]"
+  models = "an affected control without weight kept in the donor pool, so its spillover contaminates the rebuilt series"
+
+  [[target.mutant]]
+  id = "unweighted-affected-corrected"
+  find = "    corrected = [i for i in affected if wc[i] > 0]"
+  replace = "    corrected = [i for i in affected if wc[i] >= 0]"
+  models = "a control the design does not weight corrected anyway, a fit that cannot move the estimate and is reported as a correction"
+
+  [[target.mutant]]
+  id = "many-corrections-unwarned"
+  find = "    if len(corrected) > MAX_CORRECTED or share > MAX_SHARE:"
+  replace = "    if False:"
+  models = "a correction of more controls than it was validated on, past the point where excluding the neighbours at design time did better, reported without a word"
+
+  [[target.mutant]]
+  id = "no-clean-control-reaches-the-fit"
+  find = "    if not clean:"
+  replace = "    if False:"
+  models = "every control affected, left to the per-unit fit's empty-pool error, which names neither the problem nor the remedy"
+
+[[target]]
+name = "spillcorrect-pipeline"
+module-path = "mlsynth/utils/spillcorrect_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillcorrect.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "window-always-the-post-period"
+  find = "    start = inp.fit_end if config.window == \"blank_and_post\" else inp.T0"
+  replace = "    start = inp.T0"
+  models = "the correction started at treatment whatever the window, so the blank placebos keep the spillover and the band is calibrated on the uncorrected error"
+
+  [[target.mutant]]
+  id = "inversion-band-on-the-uncorrected-controls"
+  find = "                                control_outcomes=Y[inp.pool], **settings.inference_kwargs())"
+  replace = "                                control_outcomes=inp.Y[inp.pool], **settings.inference_kwargs())"
+  models = "the inversion band refit on the observed controls, spillover included, while the point estimate reads the corrected ones"
+
+  [[target.mutant]]
+  id = "global-test-override-ignored"
+  find = "    if config.global_test is not None:\n        s = s.model_copy(update={\"global_test\": config.global_test})"
+  replace = "    if False:\n        s = s.model_copy(update={\"global_test\": config.global_test})"
+  models = "global_test accepted and the design's test run anyway"
+
+  [[target.mutant]]
+  id = "restricted-method-reports-the-correction"
+  find = "        headline, head_c, head_w = restricted, res_c, res_w"
+  replace = "        headline, head_c, head_w = corrected, cor_c, _weights(inp.labels, inp.wc)"
+  models = "method='restricted' reporting the iterative correction under the restricted name"
+
+  [[target.mutant]]
+  id = "restricted-design-keeps-the-affected-controls"
+  find = "    border.loc[affected, treated] = 1.0\n    border.loc[treated, affected] = 1.0"
+  replace = "    pass"
+  models = "the restricted re-solve run without marking the affected controls, so it is the design again and the comparison shows no difference"
+
+[[target]]
+name = "spillcorrect-config"
+module-path = "mlsynth/utils/spillcorrect_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_spillcorrect.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "treated-unit-accepted-as-affected"
+  find = "        if treated:"
+  replace = "        if False:"
+  models = "a treated unit declared contaminated, so its effect is rebuilt away as spillover"
+
+  [[target.mutant]]
+  id = "restricted-without-a-design-config"
+  find = "        if self.method == \"restricted\" and self.design_config is None:"
+  replace = "        if False:"
+  models = "method='restricted' accepted with nothing to re-solve the design with, failing at fit time on a None"
+
+  [[target.mutant]]
+  id = "design-config-overrides-accepted"
+  find = "            if clash:"
+  replace = "            if False:"
+  models = "a design_config whose df or restrictions silently replace the ones the restricted re-solve sets"
+
+  [[target.mutant]]
+  id = "global-test-without-inference-accepted"
+  find = "        if self.global_test is not None and d.inference_settings is None:"
+  replace = "        if False:"
+  models = "a new global test asked of a design with no inference, accepted and ignored"

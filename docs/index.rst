@@ -370,6 +370,7 @@ measures that claim directly, which a reproduced number cannot.
 
    lexscm
    marex
+   spillcorrect
    syndes
    pangeo
    geox

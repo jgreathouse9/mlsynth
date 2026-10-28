@@ -102,10 +102,10 @@ class TestTheVerifiedColumn:
             data.unverified
         )
 
-    def test_iscm_is_the_only_unverified_estimator(self, data):
-        # The page's prose says so in two places. If a second estimator ever
+    def test_the_unverified_estimators_are_the_ones_the_prose_names(self, data):
+        # The page's prose names them in two places. If another estimator ever
         # lands without a replication, this fails and the prose gets revisited.
-        assert sorted(data.unverified) == ["ISCM"]
+        assert sorted(data.unverified) == ["ISCM", "SPILLCORRECT"]
 
     def test_each_unverified_estimator_states_a_reason(self, data):
         for name, reason in data.unverified.items():

@@ -470,3 +470,27 @@ def test_design_faces_are_typed_wherever_they_are_filled(case, fitted_designs):
         assert sorted(res.composite.treated) == sorted(str(u) for u in res.selected_units)
         # and the windows are the report's: its series covers the design's periods
         assert len(np.asarray(res.report.counterfactual)) >= res.windows.T0 + res.windows.post_periods
+
+
+# --- post-estimation on a design: an effect result built from a design ----
+
+def test_a_design_correction_is_an_effect_result():
+    """SPILLCORRECT reads a fitted design and the realized panel and returns an
+    EffectResult: the same surface every observational estimator exposes."""
+    from mlsynth import MAREX, SPILLCORRECT
+
+    panel = _make_design_panel()[["unitid", "time", "y"]]
+    design = MAREX({"df": panel, "outcome": "y", "unitid": "unitid", "time": "time",
+                    "T0": 28, "blank_periods": 20, "T_post": 12, "m_eq": 2,
+                    "backend": "exact", "inference": True}).fit()
+    heaviest = max(design.composite.control, key=design.composite.control.get)
+    res = SPILLCORRECT({"df": panel, "outcome": "y", "unitid": "unitid",
+                        "time": "time", "design": design,
+                        "affected_units": [heaviest]}).fit()
+    assert isinstance(res, EffectResult) and isinstance(res, MlsynthResult)
+    assert res.effects.att is not None and isinstance(res.att, float)
+    assert res.time_series.counterfactual_outcome is not None
+    assert np.asarray(res.counterfactual).shape == np.asarray(res.gap).shape
+    assert res.method_details.method_name == "SPILLCORRECT/iterative"
+    assert not res.weights.is_empty and isinstance(res.donor_weights, dict)
+    assert res.model_dump(include={"effects", "inference"})["effects"]["att"] is not None
