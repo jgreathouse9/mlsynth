@@ -12,9 +12,11 @@ output of an authoritative reference implementation
 ("cross-validation").
 
 This page catalogues those replications. Every estimator is verified
-along one of these paths except ISCM, which carries a one-draw
+along one of these paths except two. ISCM carries a one-draw
 illustration only (its paper relies on a non-public panel and provides
-no Monte Carlo to reproduce).
+no Monte Carlo to reproduce). SPILLCORRECT is new: its uncorrected and
+restricted arms reproduce MAREX exactly, and the cross-validation of its
+corrections against SPILLSYNTH is the next step of #932.
 
 The runnable cases that pin these numbers -- and guard against
 regressions -- live in the durable benchmark suite; see
@@ -1000,8 +1002,12 @@ Coverage summary
        STACKEDSC, SequentialSDID, SpSyDiD)
    * - Spillover-aware (donor screening)
      - 2
-     - 2
-     - Complete (RRSC, SPOTSYNTH)
+     - 3
+     - RRSC, SPOTSYNTH verified;
+       SPILLCORRECT -- new in #932: its uncorrected and restricted
+       arms reproduce MAREX exactly, and the cross-validation of its
+       corrections against SPILLSYNTH's iterative and inclusive
+       methods is step 4 of #932
    * - Missing data
      - 3
      - 3
@@ -1040,16 +1046,17 @@ Coverage summary
      - Complete (GEOX, LEXSCM, MAREX, PANGEO, SPCD, SYNDES)
    * - Total
      - 82
-     - 83
-     - 82 of 83 estimators carry a replication.
+     - 84
+     - 82 of 84 estimators carry a replication.
 
 .. coverage-table-end
 
-Every estimator but ISCM carries a strong or solid replication
-against its source paper or against an authoritative reference
-implementation. ISCM remains a one-draw illustration -- its paper
-relies on a non-public panel and provides no Monte Carlo to
-reproduce.
+Every estimator but ISCM and SPILLCORRECT carries a strong or solid
+replication against its source paper or against an authoritative
+reference implementation. ISCM remains a one-draw illustration -- its
+paper relies on a non-public panel and provides no Monte Carlo to
+reproduce. SPILLCORRECT's cross-validation against SPILLSYNTH is step 4
+of #932.
 
 Contributing a replication
 --------------------------

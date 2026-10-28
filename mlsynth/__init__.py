@@ -97,6 +97,7 @@ from .estimators.spsydid import SpSyDiD
 from .estimators.iscm import ISCM
 from .estimators.vanillasc import VanillaSC
 from .estimators.spillsynth import SPILLSYNTH
+from .estimators.spillcorrect import SPILLCORRECT
 from .estimators.stackedsc import STACKEDSC
 from .estimators.ctsc import CTSC
 from .estimators.snn import SNN
@@ -216,6 +217,7 @@ __all__ = [
     "DTWSC",
     "EASC",
     "SPILLSYNTH",
+    "SPILLCORRECT",
     "CTSC",
     "SNN",
     "MCNNM",

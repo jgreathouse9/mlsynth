@@ -121,6 +121,7 @@ ESTIMATORS: Dict[str, str] = {
 
     # The treatment reaches the donors.
     "SPOTSYNTH": "spillover",
+    "SPILLCORRECT": "spillover",
     "RRSC": "spillover",
 
     # Missing cells in the panel.
@@ -171,5 +172,10 @@ UNVERIFIED: Dict[str, str] = {
     "ISCM": (
         "one-draw illustration only: the paper relies on a non-public panel "
         "and provides no Monte Carlo to reproduce"
+    ),
+    "SPILLCORRECT": (
+        "new in #932: its uncorrected and restricted arms reproduce MAREX "
+        "exactly, and the cross-validation of its corrections against "
+        "SPILLSYNTH's iterative and inclusive methods is step 4 of #932"
     ),
 }

@@ -851,6 +851,7 @@ _RELOCATED_CONFIGS = {
     "BEASTConfig": "mlsynth.utils.beast_helpers.config",
     "DPSCConfig": "mlsynth.utils.dpsc_helpers.config",
     "MAREXConfig": "mlsynth.utils.marex_helpers.config",
+    "SPILLCORRECTConfig": "mlsynth.utils.spillcorrect_helpers.config",
     "RMSIConfig": "mlsynth.utils.rmsi_helpers.config",
     "SPOTSYNTHConfig": "mlsynth.utils.spotsynth_helpers.config",
     "SNNConfig": "mlsynth.utils.snn_helpers.config",

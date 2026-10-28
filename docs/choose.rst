@@ -278,6 +278,11 @@ Q1.1 · Are your donors contaminated by the treatment (SUTVA / spillovers)?
 * No -- next question.
 * Yes, spatial with a known weight matrix W -- :doc:`spsydid`.
 * Yes, an enumerable per-unit spillover set -- :doc:`spillsynth`.
+* Yes, a few named controls, in an experiment already designed and run with
+  :doc:`marex` -- :doc:`spillcorrect`, which keeps the design, rebuilds the
+  contaminated controls from the clean ones and recomputes the design's
+  inference. For a spillover expected to reach every neighbour, exclude the
+  neighbours when choosing the design instead.
 * Yes, spatial but you do *not* know which donors are contaminated -- you have
   per-unit coordinates and covariates and are willing to assume spillover risk
   grows with proximity -- :doc:`bpscs`, a Bayesian SC that *down-weights*
