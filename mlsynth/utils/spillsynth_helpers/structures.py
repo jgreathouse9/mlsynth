@@ -299,6 +299,17 @@ class ISCMFit:
         or ``"outcome-only"`` when no covariates were supplied.
     predictor_weights : Optional[Dict[Any, float]]
         Treated unit's optimized predictor weights ``V`` (covariate mode).
+    scale_free : bool
+        Whether every per-unit fit divided each series by its mean over the
+        fitting window. The weights are then level weights, which need not sum
+        to one.
+    holdout_periods : int
+        Pre-treatment periods held out of every fit and corrected along with
+        the post-period. ``pre_rmspe`` is the fitting window's.
+    holdout_gap, holdout_gap_scm : np.ndarray
+        Corrected and naive gaps of the treated unit over the held-out periods,
+        shape ``(holdout_periods,)``: a placebo window for each estimator.
+        ``holdout_rmspe`` is the corrected one's RMSPE.
     """
 
     att: float
@@ -324,6 +335,17 @@ class ISCMFit:
     # inclusive method has no Cao-Dowd ``a``/``B`` artifacts, so it is stored
     # directly.
     treated_synthetic_pre: Optional[np.ndarray] = None
+    scale_free: bool = False
+    holdout_periods: int = 0
+    holdout_gap: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    holdout_gap_scm: np.ndarray = field(default_factory=lambda: np.zeros(0))
+
+    @property
+    def holdout_rmspe(self) -> float:
+        """RMSPE of the corrected held-out gap; NaN with no held-out window."""
+        if self.holdout_gap.size == 0:
+            return float("nan")
+        return float(np.sqrt(np.mean(self.holdout_gap ** 2)))
 
     # SP-dialect aliases so the shared plotter (written for the Cao-Dowd
     # "spillover-adjusted" naming) consumes an ISCMFit unchanged. The
@@ -486,7 +508,18 @@ class IterativeFit:
         equals ``pre_rmspe``.
     bilevel_solver : str
         Backend used for the per-unit SCM (``"mscmt"`` / ``"malo"`` /
-        ``"outcome-only"``).
+        ``"outcome-only"`` / ``"intercept"`` / ``"scale-free"``).
+    scale_free : bool
+        Whether every per-unit fit divided each series by its mean over the
+        fitting window. The weights are then level weights, which need not sum
+        to one.
+    holdout_periods : int
+        Pre-treatment periods held out of every fit and corrected along with
+        the post-period. ``pre_rmspe`` is the fitting window's.
+    holdout_gap, holdout_gap_scm : np.ndarray
+        Corrected and naive gaps of the treated unit over the held-out periods,
+        shape ``(holdout_periods,)``: a placebo window for each estimator.
+        ``holdout_rmspe`` is the corrected one's RMSPE.
     """
 
     att: float
@@ -506,6 +539,17 @@ class IterativeFit:
     spillover_panel_pre: Dict[Any, np.ndarray]
     replace_pre: bool = False
     bilevel_solver: str = "mscmt"
+    scale_free: bool = False
+    holdout_periods: int = 0
+    holdout_gap: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    holdout_gap_scm: np.ndarray = field(default_factory=lambda: np.zeros(0))
+
+    @property
+    def holdout_rmspe(self) -> float:
+        """RMSPE of the corrected held-out gap; NaN with no held-out window."""
+        if self.holdout_gap.size == 0:
+            return float("nan")
+        return float(np.sqrt(np.mean(self.holdout_gap ** 2)))
 
     # SP-dialect aliases for the shared accessors / plotter.
     @property

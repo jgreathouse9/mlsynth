@@ -39,6 +39,19 @@ The per-unit SCM backend is the caller's choice: outcome-only (optionally
 demeaned-with-intercept) or covariate matching through the FSCM/MASC bilevel
 solver. Melnychuk's headline German result uses the *covariate* backend
 (Abadie's ``synth`` with special predictors).
+
+Two outcome-only options change the per-unit fits (#932):
+
+``scale``
+    Each fit divides every series by its mean over the fitting window, so a
+    donor larger than every clean control can be rebuilt (see
+    :func:`~mlsynth.utils.spillsynth_helpers.iscm.weights.build_unit_sc`).
+``holdout``
+    Every fit, the cleaning fits and the treated unit's refit, stops
+    ``holdout`` periods before treatment, and the affected donors are replaced
+    from that point on. The held-out periods are then a placebo window for the
+    corrected estimator: their gap carries the correction's own prediction
+    error, and it is reported as ``holdout_gap``.
 """
 
 from __future__ import annotations
@@ -48,11 +61,13 @@ import numpy as np
 from ....exceptions import MlsynthDataError
 from ..structures import IterativeFit, SpillSynthInputs
 from ..iscm.weights import build_unit_sc
+from ..windows import fit_end
 
 
 def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
                   bias_correct: bool = False, intercept: bool = False,
-                  replace_pre: bool = False) -> IterativeFit:
+                  replace_pre: bool = False, scale: bool = False,
+                  holdout: int = 0) -> IterativeFit:
     """Run the Iterative ("waterfall") SCM and assemble an :class:`IterativeFit`.
 
     Parameters
@@ -71,15 +86,22 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         Melnychuk's ``replacePreTreatData``. False replaces each affected
         donor's post-treatment outcomes only; True replaces its whole series,
         which is what the reference's call sites do. See the module docstring.
+    scale : bool
+        Fit each series divided by its mean over the fitting window (outcome-
+        only). ``donor_weights`` are then level weights.
+    holdout : int
+        Periods before treatment held out of every fit and corrected along with
+        the post-period. ``0`` fits on the whole pre-period.
     """
     Y = np.array(inputs.Y, dtype=float)               # working copy (N, T)
     Y_orig = inputs.Y
     T0, N, p = inputs.T0, inputs.N, inputs.p
+    Tf = fit_end(T0, holdout, "iterative")             # fits use periods [0, Tf)
     P = inputs.predictors
     pnames = list(inputs.predictor_names) if inputs.predictor_names else None
     names = [inputs.treated_label, *inputs.affected_labels, *inputs.clean_labels]
     solver_label = bilevel_solver if P is not None else (
-        "intercept" if intercept else "outcome-only")
+        "scale-free" if scale else "intercept" if intercept else "outcome-only")
 
     affected = list(range(1, p + 1))
     clean = list(range(p + 1, N))
@@ -107,21 +129,23 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
     for i in affected:
         donors = np.array(sorted(clean + cleaned))
         _, cf, _, _, _ = build_unit_sc(
-            i, donors, Y, T0, predictors=P, predictor_names=pnames,
-            solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept)
+            i, donors, Y, Tf, predictors=P, predictor_names=pnames,
+            solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept,
+            scale=scale)
         spillover_panel[names[i]] = cf[T0:]
         spillover_att[names[i]] = float(np.mean(Y_orig[i, T0:] - cf[T0:]))
-        Y[i, T0:] = cf[T0:]
+        Y[i, Tf:] = cf[Tf:]
         if replace_pre:                               # replacePreTreatData=TRUE
             spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
-            Y[i, :T0] = cf[:T0]
+            Y[i, :Tf] = cf[:Tf]
         cleaned.append(i)
 
     # --- refit the treated unit on the cleaned pool -------------------------
     donors_final = np.array([j for j in range(N) if j != 0])
     w_f, cf_f, gap_f, pre_rmspe, _ = build_unit_sc(
-        0, donors_final, Y, T0, predictors=P, predictor_names=pnames,
-        solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept)
+        0, donors_final, Y, Tf, predictors=P, predictor_names=pnames,
+        solver=bilevel_solver, bias_correct=bias_correct, intercept=intercept,
+        scale=scale)
 
     # The naive counterfactual reuses the refit weights on the original
     # (contaminated) outcomes. Without replace_pre the treated unit's fitting
@@ -129,8 +153,8 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
     # pre-period fits coincide; with it they separate.
     cf_naive = Y_orig[donors_final].T @ w_f
     if intercept and P is None:                       # add back the level shift
-        mu1 = Y_orig[0, :T0].mean()
-        mu0 = Y_orig[donors_final][:, :T0].mean(axis=1)
+        mu1 = Y_orig[0, :Tf].mean()
+        mu0 = Y_orig[donors_final][:, :Tf].mean(axis=1)
         cf_naive = cf_naive + float(mu1 - mu0 @ w_f)
     gap_naive = Y_orig[0] - cf_naive
 
@@ -155,4 +179,8 @@ def run_iterative(inputs: SpillSynthInputs, *, bilevel_solver: str = "mscmt",
         naive_synthetic_pre=np.asarray(cf_naive[:T0]),
         replace_pre=replace_pre,
         bilevel_solver=solver_label,
+        scale_free=scale,
+        holdout_periods=int(holdout),
+        holdout_gap=np.asarray(gap_f[Tf:T0]),
+        holdout_gap_scm=np.asarray(gap_naive[Tf:T0]),
     )

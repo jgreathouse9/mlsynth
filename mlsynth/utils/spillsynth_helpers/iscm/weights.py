@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from ....exceptions import MlsynthDataError
+from ....exceptions import MlsynthConfigError, MlsynthDataError
 from ...bilevel import (
     BilevelProblem,
     bias_corrected_gaps,
@@ -51,6 +51,7 @@ def build_unit_sc(
     solver: str = "malo",
     bias_correct: bool = False,
     intercept: bool = False,
+    scale: bool = False,
 ):
     """Synthetic control for ``target_idx`` built from donors ``donor_idx``.
 
@@ -69,11 +70,23 @@ def build_unit_sc(
         Di Stefano & Mellace's inclusive SCM reference (Melnychuk's
         ``scm_weights``); it generally assigns the affected neighbour a larger
         weight than the plain simplex. Ignored in covariate mode.
+    scale : bool
+        If True (outcome-only mode), fit on each series divided by its mean
+        over the first ``T0`` periods, and take the synthetic back to levels by
+        the target's mean ``m_k``. The synthetic is ``sum_j (w_j m_k / m_j)
+        y_j``, so ``w`` is returned in those level weights, which no longer sum
+        to one. A simplex average of the donors cannot reach a target larger
+        than all of them; this fit can, and rescaling any donor's series leaves
+        it unchanged. Every scaled series has mean one over the first ``T0``
+        periods, so ``intercept`` has no level left to absorb and changes
+        nothing. Covariate mode refuses it.
 
     Returns
     -------
     w : np.ndarray
-        Donor weights aligned with ``donor_idx`` (on the simplex).
+        Donor weights aligned with ``donor_idx``: on the simplex, or the level
+        weights ``w_j m_k / m_j`` with ``scale``. ``cf = Y[donor_idx].T @ w``
+        (plus the level shift with ``intercept``).
     cf : np.ndarray
         Full-length synthetic counterfactual ``(T,)``.
     gap : np.ndarray
@@ -89,7 +102,10 @@ def build_unit_sc(
     MlsynthDataError
         If the donor pool is empty, or the target's or a donor's outcomes are
         not finite. The active set returns weights for a design carrying a NaN,
-        so the check is made here and not left to the solver.
+        so the check is made here and not left to the solver. With ``scale``,
+        also if a series' mean over the first ``T0`` periods is not positive.
+    MlsynthConfigError
+        If ``scale`` is combined with a predictor block.
     """
     donor_idx = np.asarray(donor_idx)
     if donor_idx.size == 0:
@@ -104,6 +120,29 @@ def build_unit_sc(
             f"SPILLSYNTH: unit {target_idx} or its donors have non-finite "
             "outcomes; a synthetic control cannot be fit to them."
         )
+
+    if scale:
+        if predictors is not None:
+            raise MlsynthConfigError(
+                "SPILLSYNTH: the scale-free fit is outcome-only; it cannot be "
+                "combined with covariate matching."
+            )
+        units = np.concatenate([[target_idx], donor_idx])
+        means = Y[units, :T0].mean(axis=1)
+        if np.any(means <= 0):
+            bad = [int(u) for u, m in zip(units, means) if m <= 0]
+            raise MlsynthDataError(
+                f"SPILLSYNTH: the scale-free fit divides each series by its "
+                f"pre-period mean, and units {bad} have none above zero."
+            )
+        Z = np.array(Y[units], dtype=float) / means[:, None]
+        w, cf, _, _, _ = build_unit_sc(0, np.arange(1, units.size), Z, T0,
+                                       intercept=intercept)
+        w = w * means[0] / means[1:]
+        cf = means[0] * cf
+        gap = y1 - cf
+        pre_rmspe = float(np.sqrt(np.mean(gap[:T0] ** 2)))
+        return w, cf, gap, pre_rmspe, None
 
     if predictors is None:
         sol = None

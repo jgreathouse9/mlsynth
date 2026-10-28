@@ -171,6 +171,32 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                     "produce the paper's tables) pass True -- set this to "
                     "reproduce the published configuration.",
     )
+    scale_free: bool = Field(
+        default=False,
+        description="(method='iterative'/'iscm', outcome-only) Fit every "
+                    "per-unit synthetic control on each series divided by its "
+                    "mean over the fitting window, and take it back to levels "
+                    "by the target's mean. A simplex average of the donors "
+                    "cannot reach a unit larger than all of them; this fit "
+                    "can, and rescaling any unit's series leaves the treated "
+                    "unit's estimate unchanged. Reach for it when outcomes are "
+                    "proportional to a unit's size, as sales in geo panels "
+                    "are. The donor and cross weights are then level weights, "
+                    "which need not sum to one.",
+    )
+    holdout_periods: int = Field(
+        default=0, ge=0,
+        description="(method='iterative'/'iscm', outcome-only) Pre-treatment "
+                    "periods held out of every per-unit fit. The fits stop "
+                    "this many periods before treatment and the correction "
+                    "starts there, so the held-out periods are a placebo "
+                    "window for the corrected estimator: its held-out gap "
+                    "(holdout_gap on the method's fit) carries the "
+                    "correction's own prediction error. Reach for it when a "
+                    "spillover may begin before treatment, or to check the "
+                    "correction out of sample. 0 fits on the whole "
+                    "pre-period.",
+    )
     n_boot: int = Field(
         default=0, ge=0,
         description="(method='grossi') Residual-resampling draws for the "
@@ -276,6 +302,25 @@ class SPILLSYNTHConfig(BaseEstimatorConfig):
                 f"SPILLSYNTH: affected_units {missing} not in df[{unit_col!r}]."
             )
         return values
+
+    @model_validator(mode="after")
+    def _check_fit_options(self) -> "SPILLSYNTHConfig":
+        used = [name for name, on in (("scale_free", self.scale_free),
+                                      ("holdout_periods", self.holdout_periods > 0))
+                if on]
+        if not used:
+            return self
+        if self.method not in ("iterative", "iscm"):
+            raise MlsynthConfigError(
+                f"SPILLSYNTH: {' and '.join(used)} apply to method='iterative' "
+                f"and method='iscm', not method={self.method!r}."
+            )
+        if self.covariates:
+            raise MlsynthConfigError(
+                f"SPILLSYNTH: {' and '.join(used)} are outcome-only; drop "
+                "covariates or the option."
+            )
+        return self
 
     @model_validator(mode="after")
     def _check_sar(cls, values: Any) -> Any:
