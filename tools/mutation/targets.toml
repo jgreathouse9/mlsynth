@@ -1885,7 +1885,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "waterfall-always-replaces-the-whole-series"
-  find = """        Y[i, T0:] = cf[T0:]
+  find = """        Y[i, Tf:] = cf[Tf:]
         if replace_pre:                               # replacePreTreatData=TRUE"""
   replace = """        Y[i, :] = cf
         if replace_pre:                               # replacePreTreatData=TRUE"""
@@ -1895,7 +1895,7 @@ timeout = 900.0
   id = "waterfall-never-replaces-the-pre-period"
   find = """        if replace_pre:                               # replacePreTreatData=TRUE
             spillover_panel_pre[names[i]] = np.asarray(cf[:T0])
-            Y[i, :T0] = cf[:T0]"""
+            Y[i, :Tf] = cf[:Tf]"""
   replace = """        if replace_pre:                               # replacePreTreatData=TRUE
             spillover_panel_pre[names[i]] = np.asarray(cf[:T0])"""
   models = "the switch recorded but not applied -- the cleaned pre-period is reported on the fit object while the donor matrix keeps the observed one, so the setting reads as honoured and the estimate is the other branch's"
@@ -9960,6 +9960,168 @@ timeout = 900.0
   find = "                    cumulative_method=self.cumulative_method,"
   replace = "                    cumulative_method=\"resample\","
   models = "a cumulative band reproduced by resampling when the design inverted a test"
+
+[[target]]
+name = "spillsynth-scale-window-unit"
+module-path = "mlsynth/utils/spillsynth_helpers/iscm/weights.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "scale-free-weights-left-on-the-simplex"
+  find = "        w = w * means[0] / means[1:]"
+  replace = "        w = w"
+  models = "the scale-free fit reporting its simplex weights, which are not the map the synthetic applies to the donors' levels, so the inclusive cross-weights and the iterative naive counterfactual read the wrong weights"
+
+  [[target.mutant]]
+  id = "scale-free-synthetic-left-relative"
+  find = "        cf = means[0] * cf"
+  replace = "        cf = cf"
+  models = "the synthetic left on the relative scale, so the cleaned series is about one where the unit sells in the hundreds"
+
+  [[target.mutant]]
+  id = "scale-means-read-past-the-fitting-window"
+  find = "        means = Y[units, :T0].mean(axis=1)"
+  replace = "        means = Y[units].mean(axis=1)"
+  models = "the scaling means taken over the whole series, so the held-out window and the post-period, spillover included, enter the fit"
+
+  [[target.mutant]]
+  id = "non-positive-means-scaled"
+  find = "        if np.any(means <= 0):"
+  replace = "        if False:"
+  models = "a series with a zero or negative pre-period mean divided by it, which flips or blows up its relative path instead of naming the unit"
+
+  [[target.mutant]]
+  id = "scale-free-fit-takes-predictors"
+  find = "        if predictors is not None:"
+  replace = "        if False:"
+  models = "the scale-free branch accepting a predictor block and dropping it without a word"
+
+[[target]]
+name = "spillsynth-scale-window-iterative"
+module-path = "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "held-out-periods-left-contaminated"
+  find = "        Y[i, Tf:] = cf[Tf:]"
+  replace = "        Y[i, T0:] = cf[T0:]"
+  models = "the affected donors replaced from treatment on, not from the start of the correction, so the held-out placebo carries the spillover it is there to expose"
+
+  [[target.mutant]]
+  id = "cleaning-fit-reads-the-held-out-window"
+  find = "            i, donors, Y, Tf, predictors=P"
+  replace = "            i, donors, Y, T0, predictors=P"
+  models = "each affected donor's cleaning fit run on the periods its spillover may already reach"
+
+  [[target.mutant]]
+  id = "treated-refit-reads-the-held-out-window"
+  find = "        0, donors_final, Y, Tf, predictors=P"
+  replace = "        0, donors_final, Y, T0, predictors=P"
+  models = "the treated unit refit on the held-out periods, so they stop being a placebo window"
+
+  [[target.mutant]]
+  id = "treated-refit-not-scaled"
+  find = "\n        scale=scale)"
+  replace = "\n        scale=False)"
+  models = "the cleaning fits scale-free and the treated unit's refit not, so a treated unit larger than every control is still out of reach"
+
+  [[target.mutant]]
+  id = "held-out-gap-is-the-naive-one"
+  find = "        holdout_gap=np.asarray(gap_f[Tf:T0]),"
+  replace = "        holdout_gap=np.asarray(gap_naive[Tf:T0]),"
+  models = "the held-out placebo reported for the uncorrected estimator under the corrected one's name"
+
+[[target]]
+name = "spillsynth-scale-window-iscm"
+module-path = "mlsynth/utils/spillsynth_helpers/iscm/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "system-solved-from-treatment"
+  find = "    solved = solve_inclusive(omega, gaps[:, Tf:])    # (m, holdout + T1)"
+  replace = "    solved = solve_inclusive(omega, gaps[:, T0:])    # (m, holdout + T1)"
+  models = "the inclusive system solved from treatment on, so the first post periods are reported as the held-out window and the effect loses them"
+
+  [[target.mutant]]
+  id = "unit-fits-read-the-held-out-window"
+  find = "            i, donor_idx, Y, Tf,"
+  replace = "            i, donor_idx, Y, T0,"
+  models = "every unit's inclusive fit run on the held-out periods"
+
+  [[target.mutant]]
+  id = "unit-fits-not-scaled"
+  find = "            i, donor_idx, Y, Tf,\n            predictors=P, predictor_names=pnames, solver=bilevel_solver,\n            bias_correct=bias_correct, intercept=intercept, scale=scale,"
+  replace = "            i, donor_idx, Y, Tf,\n            predictors=P, predictor_names=pnames, solver=bilevel_solver,\n            bias_correct=bias_correct, intercept=intercept, scale=False,"
+  models = "scale_free accepted and recorded while every inclusive fit stays on the simplex"
+
+  [[target.mutant]]
+  id = "restricted-comparison-fit-differently"
+  find = "            0, clean_idx, Y, Tf,"
+  replace = "            0, clean_idx, Y, T0,"
+  models = "the cost-of-exclusion diagnostic fit on a different window from the fit it is compared with"
+
+  [[target.mutant]]
+  id = "held-out-pre-synthetic-uncorrected"
+  find = "    treated_synthetic_pre[Tf:] = Y[0, Tf:T0] - held[0]"
+  replace = "    pass"
+  models = "the plotted and standardized pre-period counterfactual showing the uncorrected fit over the held-out window while the reported held-out gap is the corrected one"
+
+[[target]]
+name = "spillsynth-scale-window-guards"
+module-path = "mlsynth/utils/spillsynth_helpers/windows.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "whole-pre-period-held-out"
+  find = "    if holdout >= T0:"
+  replace = "    if holdout > T0:"
+  models = "a held-out window as long as the pre-period accepted, leaving every fit an empty window"
+
+  [[target.mutant]]
+  id = "negative-holdout-accepted"
+  find = "    if holdout < 0:"
+  replace = "    if False:"
+  models = "a negative held-out window read as a fitting window past treatment"
+
+[[target]]
+name = "spillsynth-scale-window-config"
+module-path = "mlsynth/utils/spillsynth_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "options-accepted-by-every-method"
+  find = "        if self.method not in (\"iterative\", \"iscm\"):"
+  replace = "        if False:"
+  models = "scale_free and holdout_periods accepted by methods that never read them"
+
+  [[target.mutant]]
+  id = "options-accepted-with-covariates"
+  find = "        if self.covariates:"
+  replace = "        if False:"
+  models = "the outcome-only options combined with covariate matching, where the scale-free fit is refused at fit time and the held-out window is untested"
+
+[[target]]
+name = "spillsynth-scale-window-estimator"
+module-path = "mlsynth/estimators/spillsynth.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_scale_window.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "estimator-drops-the-scale-option"
+  find = "\n                               scale=self.scale_free,"
+  replace = "\n                               scale=False,"
+  models = "SPILLSYNTH accepting scale_free for iscm and fitting without it"
+
+  [[target.mutant]]
+  id = "estimator-drops-the-held-out-window"
+  find = "                                    holdout=self.holdout_periods)"
+  replace = "                                    holdout=0)"
+  models = "SPILLSYNTH accepting holdout_periods for iterative and fitting on the whole pre-period"
 
 [[target]]
 name = "simplex-least-norm-warm-start"

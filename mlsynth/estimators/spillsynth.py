@@ -94,6 +94,8 @@ class SPILLSYNTH:
         self.iscm_intercept: bool = getattr(config, "iscm_intercept", False)
         self.iterative_replace_pre: bool = getattr(
             config, "iterative_replace_pre", False)
+        self.scale_free: bool = config.scale_free
+        self.holdout_periods: int = config.holdout_periods
         self.n_boot: int = getattr(config, "n_boot", 0)
         self.ci_level: float = getattr(config, "ci_level", 0.90)
         self.seed: int = getattr(config, "seed", 0)
@@ -157,7 +159,9 @@ class SPILLSYNTH:
             elif self.method == "iscm":
                 fit = run_iscm(inputs, bilevel_solver=self.bilevel_solver,
                                bias_correct=self.bias_correct,
-                               intercept=self.iscm_intercept)
+                               intercept=self.iscm_intercept,
+                               scale=self.scale_free,
+                               holdout=self.holdout_periods)
                 results = SpillSynthResults(
                     inputs=inputs, method="iscm", iscm=fit,
                 )
@@ -185,7 +189,9 @@ class SPILLSYNTH:
                 fit = run_iterative(inputs, bilevel_solver=self.bilevel_solver,
                                     bias_correct=self.bias_correct,
                                     intercept=self.iscm_intercept,
-                                    replace_pre=self.iterative_replace_pre)
+                                    replace_pre=self.iterative_replace_pre,
+                                    scale=self.scale_free,
+                                    holdout=self.holdout_periods)
                 results = SpillSynthResults(
                     inputs=inputs, method="iterative", iterative=fit,
                 )

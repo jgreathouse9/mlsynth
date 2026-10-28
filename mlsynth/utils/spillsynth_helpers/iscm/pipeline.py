@@ -11,6 +11,14 @@ Pipeline:
    unit's effect and the affected units' spillover effects (eq. 6).
 4. Report the inclusive ATT next to the naive (contaminated) SCM ATT, plus
    the pre-fit gain from keeping the affected units in the pool.
+
+Two outcome-only options change the per-unit fits (#932). ``scale`` fits each
+series divided by its mean over the fitting window, so the cross-weights are
+level weights (``w_j m_i / m_j``); the system stays exact, since every
+synthetic is still linear in the other units' outcomes. ``holdout`` stops every
+fit that many periods before treatment and solves the system from there on, so
+the held-out periods report the inclusive estimator's own placebo gap
+(``holdout_gap``).
 """
 
 from __future__ import annotations
@@ -23,6 +31,7 @@ from ....exceptions import MlsynthEstimationError
 from ..structures import ISCMFit, SpillSynthInputs
 from .system import build_omega, solve_inclusive
 from .weights import build_unit_sc
+from ..windows import fit_end
 
 # Below this absolute determinant the cross-weight system Omega is
 # (near-)singular: the affected units borrow so heavily from one another
@@ -31,7 +40,8 @@ _OMEGA_DET_WARN = 1e-6
 
 
 def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
-             bias_correct: bool = False, intercept: bool = False) -> ISCMFit:
+             bias_correct: bool = False, intercept: bool = False,
+             scale: bool = False, holdout: int = 0) -> ISCMFit:
     """Run inclusive SCM and assemble an :class:`ISCMFit`.
 
     Parameters
@@ -45,11 +55,19 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
     bias_correct : bool
         If True (and covariates supplied), apply the Abadie-L'Hour bias
         correction to each unit's gap before the inclusive Omega-correction.
+    scale : bool
+        Fit each series divided by its mean over the fitting window (outcome-
+        only). The cross-weights and ``donor_weights`` are then level weights.
+    holdout : int
+        Periods before treatment held out of every fit and corrected along with
+        the post-period. ``0`` fits on the whole pre-period.
     """
     Y, T0, N, p = inputs.Y, inputs.T0, inputs.N, inputs.p
+    Tf = fit_end(T0, holdout, "iscm")                  # fits use periods [0, Tf)
     P = inputs.predictors
     pnames = list(inputs.predictor_names) if inputs.predictor_names else None
-    solver_label = bilevel_solver if P is not None else "outcome-only"
+    solver_label = bilevel_solver if P is not None else (
+        "scale-free" if scale else "outcome-only")
 
     names = [inputs.treated_label, *inputs.affected_labels, *inputs.clean_labels]
     S = list(range(p + 1))            # affected-set row indices: treated + affected
@@ -65,9 +83,9 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
     for si, i in enumerate(S):
         donor_idx = np.array([j for j in range(N) if j != i])
         w, cf, gap, pre_rmspe, sol = build_unit_sc(
-            i, donor_idx, Y, T0,
+            i, donor_idx, Y, Tf,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
-            bias_correct=bias_correct, intercept=intercept,
+            bias_correct=bias_correct, intercept=intercept, scale=scale,
         )
         gaps[si] = gap
         # weight that each *other* affected-set unit receives in unit i's SC
@@ -99,7 +117,10 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
             RuntimeWarning,
             stacklevel=2,
         )
-    theta = solve_inclusive(omega, gaps[:, T0:])     # (m, T1)
+    solved = solve_inclusive(omega, gaps[:, Tf:])    # (m, holdout + T1)
+    held, theta = solved[:, :holdout], solved[:, holdout:]
+    treated_synthetic_pre = np.array(treated_synthetic_pre, dtype=float)
+    treated_synthetic_pre[Tf:] = Y[0, Tf:T0] - held[0]
 
     gap_incl = theta[0]
     gap_scm = gaps[0, T0:]
@@ -111,9 +132,9 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
     clean_idx = np.array([j for j in range(N) if j > p])  # clean controls only
     if clean_idx.size >= 1:
         _, _, _, pre_rmspe_restr, _ = build_unit_sc(
-            0, clean_idx, Y, T0,
+            0, clean_idx, Y, Tf,
             predictors=P, predictor_names=pnames, solver=bilevel_solver,
-            bias_correct=bias_correct, intercept=intercept,
+            bias_correct=bias_correct, intercept=intercept, scale=scale,
         )
     else:                                                  # pragma: no cover
         # Unreachable through the public pipeline: "no clean controls"
@@ -165,4 +186,8 @@ def run_iscm(inputs: SpillSynthInputs, *, bilevel_solver: str = "malo",
         bilevel_solver=solver_label,
         predictor_weights=predictor_weights,
         treated_synthetic_pre=treated_synthetic_pre,
+        scale_free=scale,
+        holdout_periods=int(holdout),
+        holdout_gap=np.asarray(held[0]),
+        holdout_gap_scm=np.asarray(gaps[0, Tf:T0]),
     )
