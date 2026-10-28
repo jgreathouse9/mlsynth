@@ -34,7 +34,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 from scipy.linalg import get_lapack_funcs
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthDataError, MlsynthEstimationError
 from .accelerate import ACCEL_MIN_DONORS, fista_warm_start
 
 # Workspace size and LAPACK handle per free-set shape. The active set solves a
@@ -484,24 +484,39 @@ def solve_simplex_qp_least_norm(
     Along SparseSC's 4,000-solve sweep on the Basque panel it cut the solve from
     627 to 94 microseconds, and every warm answer equalled the cold one to the
     last bit (#934).
+
+    The problem is solved in difference form, ``D = B - A 1'`` against a zero
+    target. On the simplex ``A - B w = -(B - A 1') w`` exactly, so the answer is
+    unchanged, and the ridge's scale is then the design's variation about the
+    target, not its level. Sized by the raw ``B``, the ridge grew with the level
+    squared: at levels of 1e4 to 1e6 it outweighed the fit, and the loss returned
+    exceeded the optimum by up to 800 percent, silently (#942; agents_solvers.md,
+    rule 5).
+
+    Raises
+    ------
+    MlsynthDataError
+        If ``B`` or ``A`` has a non-finite entry.
     """
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
+    if not (np.all(np.isfinite(B)) and np.all(np.isfinite(A))):
+        raise MlsynthDataError("solve_simplex_qp_least_norm needs a finite design and target.")
     J = B.shape[1]
-    scale = float(np.mean(np.sum(B * B, axis=0)))
-    if not np.isfinite(scale) or scale <= 0.0:
-        # No scale to set a ridge from -- an all-zero or non-finite design.
-        # Every feasible point is then a minimiser of a constant objective and
-        # the plain solver's answer is as good as any.
+    D = B - A[:, None]
+    scale = float(np.mean(np.sum(D * D, axis=0)))
+    if scale <= 0.0:
+        # Every donor equals the target: every feasible point is a minimiser of a
+        # constant objective, and the plain solver's answer is as good as any.
         return solve_simplex_qp(B, A, warm_start=warm_start)
-    # Scaling ``(B, A)`` together leaves the argmin untouched, so dividing both
-    # by the design's root mean column energy costs nothing and makes ``lam``
-    # absolute -- which is the footing the release threshold above is on.
+    # Scaling ``D`` leaves the argmin untouched, so dividing it by its root mean
+    # column energy costs nothing and makes ``lam`` absolute -- which is the
+    # footing the release threshold above is on.
     root = np.sqrt(scale)
     lam = float(ridge)
     return solve_simplex_qp(
-        np.vstack([B / root, np.sqrt(lam) * np.eye(J)]),
-        np.concatenate([A / root, np.zeros(J)]),
+        np.vstack([D / root, np.sqrt(lam) * np.eye(J)]),
+        np.zeros(D.shape[0] + J),
         tol=tol,
         warm_start=warm_start,
     )
