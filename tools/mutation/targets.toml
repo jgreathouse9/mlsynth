@@ -10208,6 +10208,119 @@ timeout = 300.0
   models = "the degenerate all-zero design solved without the start it was handed, the one branch where any feasible point is a minimiser and the start decides which"
 
 [[target]]
+name = "sparse-sc-inner-certified"
+module-path = "mlsynth/utils/sparse_sc_helpers/inner.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_inner_certified.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "inner-answer-not-certified"
+  find = "    if not kkt <= KKT_TOL:"
+  replace = "    if False:"
+  models = "#934: the solver's answer accepted unchecked, as Clarabel's status was, whose KKT residual reached 0.38 on a Basque sweep"
+
+  [[target.mutant]]
+  id = "inner-design-uncentred"
+  find = "    B = np.sqrt(v)[:, None] * (X0 - X1[:, None])\n    target = np.zeros(B.shape[0])"
+  replace = "    B = np.sqrt(v)[:, None] * X0\n    target = np.sqrt(v) * X1"
+  models = "#934: the level left in, so a predictor recorded far from zero moves w (Clarabel's w moved 0.78 at 1e6 sd)"
+
+  [[target.mutant]]
+  id = "inner-holder-start-ignored"
+  find = "    start = warm_start if warm_start is not None else (warm.w if warm is not None else None)"
+  replace = "    start = warm_start"
+  models = "the WarmStart holder filled and never read, so every solve of a sweep starts cold and the 2.7-fold saving over Clarabel becomes a 1.7-fold loss"
+
+  [[target.mutant]]
+  id = "inner-holder-not-filled"
+  find = "    if warm is not None:\n        warm.w = w"
+  replace = "    if False:\n        warm.w = w"
+  models = "the holder never receiving the answer, the same cold sweep by the other half of the hand-off"
+
+  [[target.mutant]]
+  id = "inner-face-left-to-the-active-set-solve"
+  find = "    w = _share_duplicates(B, _pairwise_member(B, solve_simplex_qp(B, target, warm_start=start)))"
+  replace = "    w = _share_duplicates(B, solve_simplex_qp(B, target, warm_start=start))"
+  models = "#934: a face of minimisers resolved by whatever member the active-set pivots reach, which the outer V-search then exploits; least norm, the documented alternative, moved the Basque fit to one predictor and the ATT from -0.673 to -0.526"
+
+  [[target.mutant]]
+  id = "inner-identical-donors-not-shared"
+  find = "    if counts.max() == 1:\n        return w"
+  replace = "    if True:\n        return w"
+  models = "identical donors left to the solver's order, so relabelling the donors moves the weights"
+
+  [[target.mutant]]
+  id = "inner-tie-break-failure-swallowed"
+  find = "    if res.status != 0:\n        raise MlsynthEstimationError("
+  replace = "    if False:\n        raise MlsynthEstimationError("
+  models = "a failed face LP passing on its unfinished point as if it were the tie-break's answer"
+
+  [[target.mutant]]
+  id = "inner-pairwise-cost-unnormalised"
+  find = "    q = q / np.abs(q).max()"
+  replace = "    q = q / np.sum(B * B, axis=0).max()"
+  models = "the face LP's objective divided by the largest cost instead of its own largest entry, which returned a member 1.1e-5 above the optimum on a face whose two best donors differ by 2e-5"
+
+  [[target.mutant]]
+  id = "inner-face-ignores-weakly-active-donors"
+  find = "        S = np.flatnonzero((w > 0.0) | (np.abs(g - float(g @ w)) <= _FACE_ACTIVE_TOL * scale))"
+  replace = "        S = np.flatnonzero(w > 0.0)"
+  models = "the face restricted to the active-set solve's support, so a zero-weight donor that fits as well, the closest one included, can never enter"
+
+  [[target.mutant]]
+  id = "inner-negative-v-solved"
+  find = "    if not np.all(np.isfinite(v)) or np.any(v < 0.0):"
+  replace = "    if not np.all(np.isfinite(v)):"
+  models = "a negative V-weight reaching sqrt as NaN instead of being refused"
+
+[[target]]
+name = "sparse-sc-adjoint-centred"
+module-path = "mlsynth/utils/sparse_sc_helpers/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_inner_certified.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "adjoint-without-the-half"
+  find = "        y = 0.5 * (Vt[keep].T @"
+  replace = "        y = (Vt[keep].T @"
+  models = "the adjoint of 2 H z = b solved as H z = b, doubling the smooth part of every gradient component"
+
+  [[target.mutant]]
+  id = "adjoint-off-the-constraint"
+  find = "        z = N @ y\n"
+  replace = "        z = N @ y + 1.0 / nA\n"
+  models = "an adjoint with a component along 1, which the sum-to-one constraint removes; it adds the level of each predictor to the gradient"
+
+  [[target.mutant]]
+  id = "objective-warm-not-passed"
+  find = "    w = solve_w(v, X1, X0, solver=solver, warm=warm)\n    r_outer = Z1 - Z0 @ w\n    T_outer"
+  replace = "    w = solve_w(v, X1, X0, solver=solver)\n    r_outer = Z1 - Z0 @ w\n    T_outer"
+  models = "the gradient path dropping the holder, so the analytical-gradient sweep, the default, runs every inner solve cold"
+
+[[target]]
+name = "sparse-sc-optimiser-warm"
+module-path = "mlsynth/utils/sparse_sc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_inner_certified.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "optimiser-gradient-path-cold"
+  find = "            lambda x, *a: outer_loss_and_grad(x, *a, warm=warm),"
+  replace = "            outer_loss_and_grad,"
+  models = "the L-BFGS-B run with the analytical gradient handed no holder"
+
+  [[target.mutant]]
+  id = "optimiser-loss-path-cold"
+  find = "        args=(X1, X0, Z1_outer, Z0_outer, lam, solver, warm),"
+  replace = "        args=(X1, X0, Z1_outer, Z0_outer, lam, solver),"
+  models = "the finite-difference L-BFGS-B run handed no holder"
+
+  # Recorded, not carried: centring the adjoint's design (XA - X1 1') N, and
+  # Xz = (XA - X1 1') z, are equivalent mutants in exact arithmetic, since
+  # 1'N = 0 and 1'z = 0. They differ only in the rounding a level adds, which
+  # at the levels tested (1e4) stays inside the gradient test's tolerance.
+
+[[target]]
 name = "least-norm-level-free"
 module-path = "mlsynth/utils/solvers/active_set.py"
 test-command = "python -m pytest mlsynth/tests/test_least_norm_level.py -q -p no:cacheprovider -x"

@@ -183,23 +183,40 @@ where :math:`\Delta^{N_0} = \{\mathbf{w} \in \mathbb{R}^{N_0}_{\ge 0} :
 QP MATLAB's ``quadprog`` solves inside
 ``sparse_synth/loss_function.m``.
 
-:mod:`mlsynth` calls Clarabel directly (bypassing CVXPY's
-canonicalization layer), which is the single biggest performance
-fix versus the prior CVXPY-based implementation: CVXPY parsing
-overhead was ~10-50 ms per call for a 39-donor problem, while the
-underlying Clarabel solve itself takes microseconds. The constraint
-skeleton ``(A, b, cones, settings)`` is cached per donor count
-:math:`N_0` so only the data terms :math:`\mathbf{H} = \mathbf{X}_0^\top
-\mathrm{diag}(\mathbf{v}) \mathbf{X}_0` and :math:`\mathbf{q} = -2
-\mathbf{X}_0^\top \mathrm{diag}(\mathbf{v}) \mathbf{x}_1` are rebuilt per
-call.
+On the simplex :math:`\mathbf{x}_1 - \mathbf{X}_0\mathbf{w} =
+-(\mathbf{X}_0 - \mathbf{x}_1\mathbf{1}^\top)\mathbf{w}`, so :mod:`mlsynth`
+solves the same programme in difference form, as least squares on the design
+:math:`\mathrm{diag}(\mathbf{v})^{1/2}(\mathbf{X}_0 - \mathbf{x}_1\mathbf{1}^\top)`
+with an active-set method. The level of each predictor drops out, so a
+predictor recorded far from zero, such as a year or a population in levels,
+does not move :math:`\mathbf{w}`. The cross-product matrix is never formed, and
+donors outside the support get weights of exactly zero. Each answer is
+checked against the optimality (KKT) conditions on that design; one that fails
+raises ``MlsynthEstimationError`` instead of entering the fit. Consecutive solves
+along the outer search start from the previous weights.
 
-For numerical robustness — the augmented k > N spec is rank-
-deficient and Clarabel can return ``InsufficientProgress`` at tight
-tolerance — the inner solve retries with a trace-scaled ridge and
-looser tolerances before falling back to a uniform-w feasible point.
-This prevents the outer L-BFGS-B sweep from aborting mid-run on a
-single bad exploration step.
+When the selected predictors let the treated unit be reproduced exactly, or
+more generally when several donor combinations fit equally well, the minimisers
+form a face of the simplex and the fit does not identify :math:`\mathbf{w}`.
+Which member the solver returns then matters, because the outer search
+optimises the validation loss of whatever it is handed. On the Basque panel
+(13 predictors, treated from 1975) about 6 percent of inner solves land on such
+a face. Taking the least-norm member moved the fit to a single predictor and an
+ATT of -0.526; the solver used before, Clarabel, returned an undocumented
+interior point and an ATT of -0.673. :mod:`mlsynth` resolves the face by Abadie
+and L'Hour's pairwise penalty in its vanishing limit: among the minimisers, the
+one that minimises
+
+.. math::
+
+   \sum_{j} w_j \,\bigl\|\mathbf{x}_1 - \mathbf{x}_{0j}\bigr\|^2_{\mathbf{v}},
+
+which puts the weight on donors whose own predictors are closest to the treated
+unit's. It is a linear programme over the face, solved only when the face is
+not a single point, so every uniquely identified answer is unchanged. Donors
+with identical predictors are interchangeable and share their weight equally.
+On Basque it returns the same donor weights and ATT as the Clarabel solve, and
+the Proposition 99 benchmark is unchanged.
 
 Outer V-weight problem
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -632,8 +649,12 @@ fit, plus another :math:`B \approx 38` placebos under
 ``inference_method="placebo"``. Two optimizations in this build
 matter:
 
-* Direct Clarabel removes CVXPY canonicalization (~30-60× per
-  call). Speedup applies universally; no correctness tradeoff.
+* The inner QP is solved by an active-set method warm-started from the
+  previous weights: about 106 microseconds per solve on the Basque panel,
+  against 410 for the direct Clarabel solve it replaced and 10-50 ms for a
+  CVXPY call. The whole Basque fit takes about the same time as before
+  (192-219 s against 196-203 s, measured back to back), since the outer
+  search takes a different path and faces add a linear programme.
 * Analytical gradient (opt-in via ``use_analytical_grad=True``)
   removes the :math:`2(P-1)` finite-difference factor (~5-10× on
   the outer loop). Tradeoff: the two paths cross different
@@ -797,6 +818,10 @@ Abadie, A., Diamond, A., & Hainmueller, J. (2010). "Synthetic Control
 Methods for Comparative Case Studies: Estimating the Effect of
 California's Tobacco Control Program." *Journal of the American
 Statistical Association* 105(490):493-505.
+
+Abadie, A., & L'Hour, J. (2021). "A Penalized Synthetic Control
+Estimator for Disaggregated Data." *Journal of the American Statistical
+Association* 116(536):1817-1834.
 
 Chernozhukov, V., Wuethrich, K., & Zhu, Y. (2021). "An Exact and
 Robust Conformal Inference Method for Counterfactual and Synthetic
