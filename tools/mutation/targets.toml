@@ -10140,3 +10140,21 @@ timeout = 300.0
   find = "        return solve_simplex_qp(B, A, warm_start=warm_start)"
   replace = "        return solve_simplex_qp(B, A)"
   models = "the degenerate all-zero design solved without the start it was handed, the one branch where any feasible point is a minimiser and the start decides which"
+
+[[target]]
+name = "least-norm-level-free"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_least_norm_level.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "ridge-sized-by-the-level"
+  find = "    scale = float(np.mean(np.sum(D * D, axis=0)))"
+  replace = "    scale = float(np.mean(np.sum(B * B, axis=0)))"
+  models = "#942: the ridge scaled by the raw design's energy, level included, so at a level of 1e4 it outweighs the fit and the loss returned is several times the optimum"
+
+  [[target.mutant]]
+  id = "non-finite-input-solved"
+  find = "    if not (np.all(np.isfinite(B)) and np.all(np.isfinite(A))):"
+  replace = "    if False:"
+  models = "a NaN in the design or target reaching the solver, which returned [0, 1] for a NaN entry instead of refusing"
