@@ -96,6 +96,7 @@ is 1 for the treated unit in post-treatment periods. Results expose
 - **SL** — Synthetic learner estimator.  (config: SLConfig)
 - **SNN** — Synthetic Nearest Neighbors (causal matrix completion) estimator.  (config: SNNConfig)
 - **SPCD** — Synthetic Principal Component Design (SPCD) estimator.  (config: SPCDConfig)
+- **SPILLCORRECT** — Correct known contaminated controls in a fitted design.  (config: SPILLCORRECTConfig)
 - **SPILLSYNTH** — Spillover-aware synthetic control estimator.  (config: SPILLSYNTHConfig)
 - **SPOTSYNTH** — Spillover-detecting synthetic control.  (config: SPOTSYNTHConfig)
 - **SRC** — Synthetic Regressing Control estimator.  (config: SRCConfig)
