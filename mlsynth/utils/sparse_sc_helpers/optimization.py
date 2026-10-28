@@ -55,6 +55,7 @@ from scipy.optimize import minimize
 
 from ...exceptions import MlsynthEstimationError
 from .inner import solve_w
+from .objective import outcome_scale as _outcome_scale
 from .objective import outer_loss, outer_loss_and_grad, selection_mse
 
 
@@ -113,6 +114,7 @@ def sweep_lambda(
     robust: bool = True,
     outer_restarts: int = 0,
     outer_restart_seed: int = 0,
+    outcome_scale: Optional[float] = None,
 ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Sweep lambda and return the best V-weights.
 
@@ -145,6 +147,13 @@ def sweep_lambda(
         Seed for those draws. The RNG is re-derived per grid point and per
         pass, so the result does not depend on grid length or on whether
         the backward continuation pass runs.
+    outcome_scale : float, optional
+        The outcome blocks are divided by this before the sweep, so the grid
+        is in units of it. ``None`` (the default) uses
+        ``objective.outcome_scale``, the pooled pre-treatment standard
+        deviation, which makes the selection independent of the outcome's
+        units (#933); ``1.0`` keeps the grid in outcome units, as the MATLAB
+        driver does. The returned curves are in the scaled units.
 
     Returns
     -------
@@ -188,6 +197,9 @@ def sweep_lambda(
         lambda_grid = default_lambda_grid()
     lambda_grid = np.asarray(lambda_grid, dtype=float)
 
+    scale = _outcome_scale(Y1, Y0, T0_total) if outcome_scale is None else float(outcome_scale)
+    Y1 = np.asarray(Y1, float) / scale
+    Y0 = np.asarray(Y0, float) / scale
     Z0_train = Y0[:T0_train, :]
     Z1_train = Y1[:T0_train]
     Z0_val = Y0[T0_train:T0_total, :]

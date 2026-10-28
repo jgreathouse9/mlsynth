@@ -58,6 +58,8 @@ def run() -> dict:
             "unitid": "state", "time": "year",
             "covariates": covs, "outcome_lag_periods": _LAGS,
             "run_inference": True, "inference_method": "conformal",
+            # The paper's numbers are on the MATLAB driver's grid, in packs^2 (#933).
+            "lambda_units": "raw",
             "display_graphs": False,
         }).fit()
 

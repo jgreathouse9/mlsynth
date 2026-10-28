@@ -236,6 +236,32 @@ Each evaluation of the outer objective invokes the inner QP, so the
 outer problem is a smooth bound-constrained NLP solved with
 L-BFGS-B (``scipy.optimize``).
 
+Units of the penalty
+~~~~~~~~~~~~~~~~~~~~
+
+The MSE term is in units of the outcome squared and the grid is a list of
+numbers, so the grid has to be put on some scale. By default
+(``lambda_units="outcome_sd"``) the outcome is divided by
+:math:`s`, the standard deviation of every unit's pre-treatment outcome
+pooled together, before the sweep:
+
+.. math::
+
+   \frac{1}{s^2 |\mathcal{W}|}
+   \sum_{t \in \mathcal{W}}
+   \bigl(y_{1t} - \mathbf{y}_{0t}^\top \mathbf{w}^\ast(\mathbf{v})\bigr)^2
+   + \lambda \, \|\mathbf{v}\|_1 ,
+
+so a change of units leaves the selected predictors, the donor weights and
+the ATT (in the outcome's own units) unchanged. ``res.design.outcome_scale``
+holds :math:`s`; ``lambda_grid`` and both loss curves are in its units.
+``lambda_units="raw"`` sets :math:`s = 1`, the grid of Vives-i-Bastida's
+MATLAB driver. On that grid the selection depends on the units the outcome
+is recorded in: on the Basque panel (13 predictors, treated from 1975) it
+kept 3 predictors with GDP per capita in thousands of dollars, 7 in dollars,
+and all 13 at a thousandth of the first. The Proposition 99 replication uses
+``"raw"``, since the paper's numbers are on that grid.
+
 Where the outer solve starts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

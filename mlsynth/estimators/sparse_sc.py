@@ -47,6 +47,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.sparse_sc_helpers.inference import conformal_inference, run_placebo
+from ..utils.sparse_sc_helpers.objective import outcome_scale
 from ..utils.sparse_sc_helpers.optimization import recover_w, sweep_lambda
 from ..utils.sparse_sc_helpers.setup import prepare_sparse_sc_inputs
 from ..utils.sparse_sc_helpers.diagnostics import (
@@ -126,6 +127,7 @@ class SparseSC:
             np.asarray(config.lambda_grid, dtype=float)
             if config.lambda_grid is not None else None
         )
+        self.lambda_units: str = config.lambda_units
         self.standardize: bool = config.standardize
         self.outer_loss_window: str = config.outer_loss_window
         self.solver: Any = config.solver
@@ -165,6 +167,8 @@ class SparseSC:
                 standardize=self.standardize,
             )
 
+            scale = (outcome_scale(inputs.Y1, inputs.Y0, inputs.T0_total)
+                     if self.lambda_units == "outcome_sd" else 1.0)
             optv, opt_lambda, grid, train_curve, val_curve, v_path = sweep_lambda(
                 X1=inputs.X1, X0=inputs.X0,
                 Y1=inputs.Y1, Y0=inputs.Y0,
@@ -178,6 +182,7 @@ class SparseSC:
                 robust=self.robust_selection,
                 outer_restarts=self.outer_restarts,
                 outer_restart_seed=self.outer_restart_seed,
+                outcome_scale=scale,
             )
             optw = recover_w(optv, inputs.X1, inputs.X0, solver=self.solver)
 
@@ -194,6 +199,7 @@ class SparseSC:
                 train_loss_curve=train_curve,
                 val_mse_curve=val_curve,
                 v_path=v_path,
+                outcome_scale=float(scale),
             )
 
             if not self.run_inference or self.inference_method == "none":
@@ -216,6 +222,7 @@ class SparseSC:
                     n_placebo=self.n_placebo,
                     seed=self.seed,
                     outer_loss_window=self.outer_loss_window,
+                    outcome_scale=float(scale),
                 )
                 inference = SparseSCInference(
                     method="abadie_placebo_permutation",
@@ -335,6 +342,8 @@ class SparseSC:
                 is_recommended=True,
                 parameters_used={
                     "outer_loss_window": self.outer_loss_window,
+                    "lambda_units": self.lambda_units,
+                    "outcome_scale": float(scale),
                     "anchor_predictor": (
                         inputs.predictor_names[0]
                         if len(inputs.predictor_names) else None),

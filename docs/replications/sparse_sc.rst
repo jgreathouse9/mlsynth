@@ -70,6 +70,7 @@ Reproducing the result
        "unitid": "state", "time": "year",
        "covariates": covs, "outcome_lag_periods": [1975, 1980, 1988],
        "run_inference": True, "inference_method": "conformal",
+       "lambda_units": "raw",              # the MATLAB driver's grid, in packs^2
        "display_graphs": False,            # defaults: FD gradient, 51-pt grid
    }).fit()
 
@@ -135,6 +136,15 @@ The selected :math:`\lambda` is not reported here: it floats among adjacent
 grid points on the flat sparse plateau, all giving the same fit, so it is not a
 stack-invariant quantity; the ATT is.
 
+The table is on the MATLAB driver's grid (``lambda_units="raw"``), in packs
+squared, because the paper's numbers are. On that grid the selection depends
+on the units the outcome is recorded in. The library's default divides the
+outcome by its pooled pre-treatment standard deviation first (32.4 packs here),
+which makes the selection unit-free; on this specification it gives an ATT of
+:math:`-18.11`, 6 predictors kept, the same four donors and a conformal upper
+bound of :math:`-15.22`, against :math:`-18.06`, 6, four and :math:`-15.08` on
+the raw grid.
+
 What it confirms
 ----------------
 
@@ -181,6 +191,7 @@ per capita in 1960, 1965, 1969) — :math:`P = 15` against :math:`N = 16` donors
        "covariates": ed + sec + ["popdens"],
        "outcome_lag_periods": [1960, 1965, 1969],
        "run_inference": True, "inference_method": "conformal",
+       "lambda_units": "raw",
        "display_graphs": False,
    }).fit()
 

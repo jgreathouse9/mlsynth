@@ -72,6 +72,19 @@ class SparseSCConfig(BaseEstimatorConfig):
             "[0] + numpy.logspace(-4, 0, 50) -- the MATLAB default."
         ),
     )
+    lambda_units: Literal["outcome_sd", "raw"] = Field(
+        default="outcome_sd",
+        description=(
+            "Units of the penalty grid. 'outcome_sd' (default) divides the "
+            "outcome by its pooled pre-treatment standard deviation before "
+            "the sweep, so the grid is relative to the outcome's own "
+            "variation and the selected predictors do not depend on the "
+            "outcome's units. 'raw' keeps the grid in outcome units squared, "
+            "as Vives-i-Bastida's MATLAB driver does; the paper's "
+            "Proposition 99 numbers are on that grid, and its selection "
+            "changes when the outcome is rescaled."
+        ),
+    )
     standardize: bool = Field(
         default=True,
         description=(

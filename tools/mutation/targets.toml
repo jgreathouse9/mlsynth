@@ -9866,6 +9866,72 @@ timeout = 900.0
   models = "placebo_cs admitted with bias_correct, inverting an uncorrected test around a corrected estimate"
 
 [[target]]
+name = "sparse-sc-outcome-units-sweep"
+module-path = "mlsynth/utils/sparse_sc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outcome_units.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "sweep-in-outcome-units"
+  find = "    Y1 = np.asarray(Y1, float) / scale\n    Y0 = np.asarray(Y0, float) / scale"
+  replace = "    Y1 = np.asarray(Y1, float)\n    Y0 = np.asarray(Y0, float)"
+  models = "the defect this target was written for: the grid trades lambda against an MSE in outcome units squared, so a change of units rescales every lambda by 1/s^2 and the selected predictors change with it"
+
+[[target]]
+name = "sparse-sc-outcome-units-placebo"
+module-path = "mlsynth/utils/sparse_sc_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outcome_units.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "placebo-refits-in-outcome-units"
+  find = "            Z1_outer = Y1_placebo[T0_train:T0_total] / scale\n            Z0_outer = Y0_loo[T0_train:T0_total, :] / scale"
+  replace = "            Z1_outer = Y1_placebo[T0_train:T0_total]\n            Z0_outer = Y0_loo[T0_train:T0_total, :]"
+  models = "each placebo refit at the selected lambda read in outcome units while the treated fit's lambda was chosen on the scaled grid, so the penalty means something else for every placebo"
+
+[[target]]
+name = "sparse-sc-outcome-units-scale"
+module-path = "mlsynth/utils/sparse_sc_helpers/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outcome_units.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "scale-reads-the-post-period"
+  find = "    Y = np.column_stack([np.asarray(Y1, float).reshape(-1, 1), np.asarray(Y0, float)])[:int(T0_total)]"
+  replace = "    Y = np.column_stack([np.asarray(Y1, float).reshape(-1, 1), np.asarray(Y0, float)])"
+  models = "the treated unit's post-period, the effect itself, entering the scale the penalty grid is put on"
+
+  [[target.mutant]]
+  id = "scale-with-a-sample-correction"
+  find = "    s = float(np.std(Y))"
+  replace = "    s = float(np.std(Y, ddof=1))"
+  models = "a different spread from the one documented, which changes every lambda's meaning by sqrt(n / (n - 1))"
+
+[[target]]
+name = "sparse-sc-outcome-units-config"
+module-path = "mlsynth/utils/sparse_sc_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outcome_units.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "raw-grid-by-default"
+  find = "        default=\"outcome_sd\","
+  replace = "        default=\"raw\","
+  models = "the unit-dependent grid as the default, which is the defect for every caller who does not set lambda_units"
+
+[[target]]
+name = "sparse-sc-outcome-units-estimator"
+module-path = "mlsynth/estimators/sparse_sc.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_outcome_units.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "estimator-scale-not-passed-to-the-sweep"
+  find = "                outcome_scale=scale,\n            )\n            optw = recover_w("
+  replace = "                outcome_scale=1.0,\n            )\n            optw = recover_w("
+  models = "the scale computed and recorded on the design but the sweep run on the raw grid, so the reported scale describes a problem that was not solved"
+
+[[target]]
 name = "design-result-faces"
 module-path = "mlsynth/config_models.py"
 test-command = "python -m pytest mlsynth/tests/test_design_result_faces.py -q -x -p no:cacheprovider"

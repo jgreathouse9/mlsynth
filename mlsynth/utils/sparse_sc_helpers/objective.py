@@ -36,6 +36,7 @@ from typing import Any, Tuple
 
 import numpy as np
 
+from ...exceptions import MlsynthDataError
 from .inner import solve_w
 
 # Donors with w_i smaller than this are treated as inactive when
@@ -43,6 +44,23 @@ from .inner import solve_w
 # the active set sensitive to solver noise; too loose (1e-3) loses
 # active donors that genuinely carry a small amount of weight.
 ACTIVE_TOL = 1e-7
+
+
+def outcome_scale(Y1: np.ndarray, Y0: np.ndarray, T0_total: int) -> float:
+    """The pooled standard deviation of every unit's pre-treatment outcome.
+
+    The outer objective trades an outcome MSE against ``lam * ||v||_1`` on a grid in
+    absolute units, so the sweep divides the outcome blocks by this to make the grid
+    relative to the outcome's own variation: a change of units then leaves the selection
+    unchanged (#933). The level drops out with the mean; the post-period does not enter.
+    An outcome with no pre-treatment variation has scale 1, since every MSE is then zero.
+    """
+    Y = np.column_stack([np.asarray(Y1, float).reshape(-1, 1), np.asarray(Y0, float)])[:int(T0_total)]
+    if not np.all(np.isfinite(Y)):
+        raise MlsynthDataError("SparseSC: the pre-treatment outcome has non-finite values, so it has "
+                               "no scale to put the penalty grid on.")
+    s = float(np.std(Y))
+    return s if s > 0.0 else 1.0
 
 
 def outer_loss(

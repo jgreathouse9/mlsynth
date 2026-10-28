@@ -17,6 +17,11 @@ California ATT from -29.04 to -18.64 against the paper's -18.2.
 
 Layers: smoke, invariants of the restart set, edge cases, failure modes,
 and a regression panel on which a cold start is measurably worse.
+
+Every sweep here runs on the raw grid (``outcome_scale=1.0``): the panels'
+critical points and the restart regressions were measured on it, and what is
+under test is the restart mechanism, not the grid's units (#933 and
+``test_sparse_sc_outcome_units.py``).
 """
 
 from __future__ import annotations
@@ -91,7 +96,7 @@ def _sweep(seed_panel: int, restarts: int, restart_seed: int = 0, **kw):
     grid = kw.pop("grid", GRID)
     return sweep_lambda(
         X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-        lambda_grid=grid, outer_loss_window="training",
+        lambda_grid=grid, outer_loss_window="training", outcome_scale=1.0,
         use_analytical_grad=True, robust=False,
         outer_restarts=restarts, outer_restart_seed=restart_seed, **kw)
 
@@ -188,7 +193,7 @@ class TestEdges:
         Y1, Y0, X1, X0, T0_total = _arrays(5)
         base = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False)
         with_zero = _sweep(5, restarts=0)
         np.testing.assert_allclose(base[0], with_zero[0], rtol=0, atol=0)
@@ -199,7 +204,7 @@ class TestEdges:
         Y1, Y0, X1, X0, T0_total = _arrays(6, P=2)
         optv, lam, _, outer, _, _ = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False,
             outer_restarts=4, outer_restart_seed=0)
         assert optv.shape == (2,)
@@ -212,7 +217,7 @@ class TestEdges:
         Y1, Y0, X1, X0, T0_total = _arrays(7, N=1)
         optv, _, _, outer, _, _ = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False,
             outer_restarts=4, outer_restart_seed=0)
         assert np.isfinite(optv).all()
@@ -224,7 +229,7 @@ class TestEdges:
         X0[3] = X0[2]; X1[3] = X1[2]          # exact duplicate predictor row
         optv, _, _, outer, _, _ = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False,
             outer_restarts=5, outer_restart_seed=0)
         assert np.isfinite(optv).all()
@@ -238,7 +243,7 @@ class TestEdges:
             Y1, Y0, X1, X0, T0_total = _arrays(panel)
             kw = dict(X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
                       T0_train=10, lambda_grid=ONE,
-                      outer_loss_window="training",
+                      outer_loss_window="training", outcome_scale=1.0,
                       use_analytical_grad=True, robust=True)
             plain = sweep_lambda(**kw)
             both = sweep_lambda(**kw, outer_restarts=5, outer_restart_seed=0)
@@ -248,7 +253,7 @@ class TestEdges:
         Y1, Y0, X1, X0, T0_total = _arrays(9)
         optv, lam, grid, outer, val, v_path = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=True,
             outer_restarts=4, outer_restart_seed=0)
         assert np.isfinite(outer).all() and np.isfinite(val).all()
@@ -281,7 +286,7 @@ class TestReportedObjectiveMatchesReportedV:
         T0_train = 10
         _, _, grid, outer, _, v_path = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=T0_train,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False,
             outer_restarts=restarts, outer_restart_seed=0)
         Z1, Z0 = Y1[:T0_train], Y0[:T0_train]
@@ -325,7 +330,7 @@ class TestReportedObjectiveMatchesReportedV:
         monkeypatch.setattr(optimization, "_minimize_outer", spy)
         _, _, grid, _, _, v_path = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=T0_train,
-            lambda_grid=GRID, outer_loss_window="training",
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
             use_analytical_grad=True, robust=False,
             outer_restarts=4, outer_restart_seed=0)
 
@@ -384,7 +389,7 @@ class TestReportedObjectiveMatchesReportedV:
             _, _, _, _, _, v = sweep_lambda(
                 X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
                 T0_train=T0_train, lambda_grid=np.array([lam], dtype=float),
-                outer_loss_window="training", use_analytical_grad=True,
+                outer_loss_window="training", outcome_scale=1.0, use_analytical_grad=True,
                 robust=False, outer_restarts=restarts, outer_restart_seed=1)
             return outer_loss(v[0, 1:], X1, X0, Z1, Z0, float(lam))
 
@@ -482,7 +487,7 @@ class TestFailures:
         monkeypatch.setattr(optimization, "_minimize_outer", flaky)
         best_v, lam, grid, outer, val, v_path = sweep_lambda(
             X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-            lambda_grid=GRID, outer_loss_window="training", robust=False,
+            lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0, robust=False,
             outer_restarts=4, outer_restart_seed=0)
 
         assert calls["n"] > 3, "the injected failure never fired"
@@ -510,7 +515,7 @@ class TestFailures:
         with pytest.raises(MlsynthEstimationError) as excinfo:
             sweep_lambda(X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total,
                          T0_train=10, lambda_grid=GRID,
-                         outer_loss_window="training", robust=False,
+                         outer_loss_window="training", outcome_scale=1.0, robust=False,
                          outer_restarts=4, outer_restart_seed=0)
         message = str(excinfo.value)
         assert "lambda" in message.lower()
@@ -537,5 +542,5 @@ class TestFailures:
         with pytest.raises(ValueError):
             sweep_lambda(
                 X1=X1, X0=X0, Y1=Y1, Y0=Y0, T0_total=T0_total, T0_train=10,
-                lambda_grid=GRID, outer_loss_window="training",
+                lambda_grid=GRID, outer_loss_window="training", outcome_scale=1.0,
                 outer_restarts=-3)
