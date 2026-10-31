@@ -308,11 +308,23 @@ with :math:`z_j = 1` when market :math:`j` is treated. Six markets that cost one
 million each spend six million, whatever their weights. Both backends take it.
 The MIQP adds the row; the exact backend drops every treated set over budget
 before fitting it, the way it drops a set that breaks a border conflict, so its
-bounds and its proof of optimality stand as they are. Under ``backend='exact'``
-the budget needs a single cluster, since each cluster is searched on its own and
-a budget summed over several would tie them together; ``backend='mip'`` takes it
-across clusters. When no treated set of the requested size fits the budget, the
-fit raises :class:`~mlsynth.exceptions.MlsynthEstimationError`.
+bounds and its proof of optimality stand as they are.
+
+With several clusters the budget ties them together. Each cluster is searched
+on its own, and the best affordable design can take a cluster's fiftieth-best
+treated set because it is cheap. The exact backend first drops, in each cluster,
+every set that would overrun the budget even if every other cluster took its
+cheapest admissible markets. It then keeps each cluster's best designs in
+order, with their costs, and picks one per cluster to minimise the summed
+objective within the budget, a multiple-choice knapsack solved by a branch and
+bound over the clusters. A combination that takes a design past a cluster's
+list scores at least that list's last value plus every other cluster's best.
+When that floor does not clear the answer, the lists it could still beat are
+doubled and the step repeats, so the design is the optimum over every
+admissible combination, the same one the MIQP returns. The lists start at 16
+designs and the step refuses past 4,096, naming ``backend='mip'``. When no
+admissible combination fits the budget, the fit raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError`.
 
 .. code-block:: python
 
@@ -783,6 +795,9 @@ naming ``backend="mip"``:
 * ``costs`` with a ``budget`` on the ``weakly_targeted`` design, whose coupled
   fit does not take the constraint, and with ``certify=True``, whose
   certificate prices each set by its unconstrained fit;
+* ``certify=True`` with a total-cost budget across clusters, since each
+  cluster's certificate covers its own best design and the budget can pick a
+  lower-ranked one;
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
 

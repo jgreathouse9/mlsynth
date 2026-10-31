@@ -599,6 +599,13 @@ class MAREXConfig(BaseMAREXConfig):
                 "certify=True splits each candidate into a treated fit and a "
                 "control fit, and the weakly-targeted design couples them; "
                 "certify the standard, penalized or unit_penalized design.")
+        if (self.market_cost_col is not None and self.cluster is not None
+                and self.cluster in self.df.columns
+                and self.df[self.cluster].nunique() > 1):
+            raise MlsynthConfigError(
+                "certify=True certifies each cluster's best design. A total-cost "
+                "budget across clusters can take a cluster's lower-ranked treated "
+                "set, which that certificate does not cover; use certify=False.")
         return self
 
     @model_validator(mode="after")

@@ -10622,3 +10622,111 @@ timeout = 900.0
   find = "            if isinstance(values.budget, (int, float)) and not isinstance(values.budget, bool):"
   replace = "            if isinstance(values.budget, int):"
   models = "the scalar budget back to integers only, so an average cost such as 3.7 cannot be stated"
+
+[[target]]
+name = "marex-exact-cluster-budget"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_cluster_budget.py mlsynth/tests/test_marex_spend_budget.py -q -p no:cacheprovider -n 4"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-forced-market-is-not-paid"
+  find = "    paid = float(c[forced].sum())"
+  replace = "    paid = 0.0"
+  models = "the cost floor drops the forced markets, so it sits under what a cluster pays and the other clusters' caps let unaffordable sets through to the combination"
+
+  [[target.mutant]]
+  id = "a-forbidden-market-fills-the-floor"
+  find = "                    if j not in filt.forced_in and j not in filt.forbidden])"
+  replace = "                    if j not in filt.forced_in])"
+  models = "the cost floor fills a size with a market the rules forbid, so it understates the cheapest admissible set"
+
+  [[target.mutant]]
+  id = "a-size-the-rules-cannot-fill-is-priced"
+  find = "        if 0 <= r <= free.size:"
+  replace = "        if 0 <= r:"
+  models = "a size with too few eligible markets is priced at the markets there are, so a cluster that admits nothing reads as cheap"
+
+  [[target.mutant]]
+  id = "the-pool-keeps-one-combination-too-many"
+  find = "            del best[k:]"
+  replace = "            del best[k + 1:]"
+  models = "the combination step returns k + 1 combinations, so the pool grows past top_K and the cutoff it prunes on is the wrong one"
+
+  [[target.mutant]]
+  id = "the-value-prune-counts-a-cluster-twice"
+  find = "            if value + v + least_value[c + 1] >= cutoff():"
+  replace = "            if value + v + least_value[c] >= cutoff():"
+  models = "the value prune adds the current cluster's least value on top of the design taken from it, so it closes branches that hold the optimum"
+
+  [[target.mutant]]
+  id = "the-cost-prune-counts-a-cluster-twice"
+  find = "            if cost + w + least_cost[c + 1] > budget + 1e-9:"
+  replace = "            if cost + w + least_cost[c] > budget + 1e-9:"
+  models = "the cost prune charges the current cluster's cheapest design on top of the one taken, so affordable combinations read as over budget"
+
+  [[target.mutant]]
+  id = "a-cost-at-the-budget-is-refused"
+  find = "            if cost + w + least_cost[c + 1] > budget + 1e-9:"
+  replace = "            if cost + w + least_cost[c + 1] >= budget:"
+  models = "a combination that spends exactly the budget is refused, unlike the subset filter that admits a set at the budget"
+
+  [[target.mutant]]
+  id = "a-full-list-reads-as-complete"
+  find = "            complete = [len(lst) < n for lst, n in zip(per_cluster, lengths)]"
+  replace = "            complete = [len(lst) <= n for lst, n in zip(per_cluster, lengths)]"
+  models = "a list cut at its length is taken to hold every design, so the bound outside it is infinite and the step stops on short lists that miss the cheap design the budget needs"
+
+  [[target.mutant]]
+  id = "no-cap-from-the-other-clusters"
+  find = "            s[\"filt\"] = dataclasses.replace(s[\"filt\"], budget=floor + max(spare, 0.0))"
+  replace = "            s[\"filt\"] = dataclasses.replace(s[\"filt\"], budget=float(max_total_cost))"
+  models = "each cluster's search admits every set within the whole budget, ignoring that the other clusters must spend at least their cheapest admissible sets"
+
+  [[target.mutant]]
+  id = "an-infeasible-budget-is-not-reported"
+  find = "        if not spare >= -1e-9:"
+  replace = "        if False:"
+  models = "a budget below the clusters' cheapest admissible sets goes on to the searches with a negative cap and fails as one cluster's emptiness, not as the budget"
+
+  [[target.mutant]]
+  id = "the-certificate-is-taken-across-clusters"
+  find = "    if spanning and certify:"
+  replace = "    if False and certify:"
+  models = "certify=True accepted with a budget across clusters, so each cluster's certificate is reported for its best design while the combination took another"
+
+  [[target.mutant]]
+  id = "the-pool-gets-one-combination"
+  find = "            combos = k_best_affordable(pairs, float(max_total_cost), top_k)"
+  replace = "            combos = k_best_affordable(pairs, float(max_total_cost), 1)"
+  models = "the solution pool under a budget across clusters returns only the best design, not the top_K"
+
+  [[target.mutant]]
+  id = "the-combination-ignores-the-costs"
+  find = "            pairs = [[(d.value, float(s[\"filt\"].costs[list(d.treated)].sum()))"
+  replace = "            pairs = [[(d.value, 0.0)"
+  models = "the combination step prices every design at zero, so it returns each cluster's best and the total spend overruns the budget"
+
+  [[target.mutant]]
+  id = "one-cluster-enters-the-combination"
+  find = "    spanning = market_costs is not None and K > 1"
+  replace = "    spanning = market_costs is not None"
+  models = "a single cluster goes through the combination step and loses its certificate, though its budget is already a rule on its treated set"
+
+[[target]]
+name = "marex-exact-cluster-budget-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_cluster_budget.py -q -p no:cacheprovider -n 4"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "one-cluster-refuses-the-certificate"
+  find = "                and self.df[self.cluster].nunique() > 1):"
+  replace = "                and self.df[self.cluster].nunique() > 0):"
+  models = "the certificate refused under a budget whenever a cluster column is set, though one cluster's budget is a rule on its treated set and its certificate stands"
+
+  [[target.mutant]]
+  id = "the-config-takes-the-certificate-across-clusters"
+  find = "                and self.df[self.cluster].nunique() > 1):"
+  replace = "                and self.df[self.cluster].nunique() > 99):"
+  models = "the configuration accepts certify=True with a budget across clusters, so the refusal waits for the search"
