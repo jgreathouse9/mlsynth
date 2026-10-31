@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-30T14:51:52Z",
+ "generated": "2026-10-31T14:41:34Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -2276,6 +2276,7 @@
   "mlsynth/utils/marex_helpers/plotter.py",
   "mlsynth/utils/marex_helpers/pool.py",
   "mlsynth/utils/marex_helpers/power.py",
+  "mlsynth/utils/marex_helpers/rehearsal.py",
   "mlsynth/utils/marex_helpers/restrictions.py",
   "mlsynth/utils/marex_helpers/select.py",
   "mlsynth/utils/marex_helpers/setup.py",
