@@ -252,13 +252,6 @@ def test_the_relaxed_program_refuses_a_budget(panel, costs):
         _budgeted(df, T0, "mip", costs, budget=6.0, relaxed=True)
 
 
-def test_the_exact_backend_refuses_a_budget_across_clusters():
-    df, T0 = _panel(J=12, seed=3, region_sizes=(6, 6))
-    with pytest.raises(MlsynthConfigError, match="backend='mip'"):
-        _fit(_with_costs(df, [1.0] * 12), T0, "exact", m_eq=1, cluster="region",
-             market_cost_col="cost", max_total_cost=5.0)
-
-
 def test_the_mip_takes_a_budget_across_clusters():
     """Region 2's only affordable market is the one it must treat, whatever the
     free design would pick there; the budget counts both regions' markets."""
