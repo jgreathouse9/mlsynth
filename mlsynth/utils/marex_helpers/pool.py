@@ -59,11 +59,16 @@ def build_marex_pool(raws: List[Dict[str, Any]], *, alpha: float = 0.05,
         fit_metric = blank_rmse if blank_rmse is not None else pre_fit_rmse
 
         # Power on the full pre-period; the fit axis uses the held-out blank.
-        baseline = (float(np.mean(full_pre[treated_idx, :]))
+        # The MDE lives on the scale of the weighted contrast, so its baseline
+        # is the design's own synthetic-treated level, not the treated units'
+        # unweighted level (#692). The curve runs to the test's own length.
+        # This analytic MDE ranks designs; it is optimistic in level (#947),
+        # and power_placebos rehearses the test for a calibrated one.
+        baseline = (float(np.mean(w_agg @ full_pre))
                     if treated_idx.size else float("nan"))
-        curve = marex_mde_curve(full_pre, contrast, horizons=range(1, 13),
+        h = max(1, int(n_post))
+        curve = marex_mde_curve(full_pre, contrast, horizons=range(1, max(12, h) + 1),
                                 alpha=alpha, power=power, baseline=baseline)
-        h = max(1, min(int(n_post), 12))
         mde_pct = float(curve["mde_pct"][h - 1])
 
         menu.append({

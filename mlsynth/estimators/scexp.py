@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
@@ -249,6 +250,47 @@ class MAREX:
                 raise
             except Exception as exc:
                 raise MlsynthEstimationError(f"MAREX pool failed: {exc}") from exc
+
+        # Power by rehearsal (#947): the planned test, run on placebo designs
+        # launched before the real launch, on pre-launch periods only.
+        if self.config.power_placebos:
+            from ..utils.marex_helpers.rehearsal import rehearse_power
+            n_post = int(panel.Y_full.shape[1] - panel.T0)
+            horizon = (self.config.power_horizon or self.config.T_post
+                       or n_post)
+            if not horizon:
+                raise MlsynthConfigError(
+                    "power_placebos needs power_horizon when the panel ends at "
+                    "T0: the rehearsal has to know how long the planned test runs.")
+            import cvxpy as cp
+            try:
+                rehearsal = rehearse_power(
+                    np.asarray(panel.Y_full, dtype=float)[:, :panel.T0], horizon=int(horizon),
+                    n_treated=len(results.selected_units),
+                    n_placebos=self.config.power_placebos,
+                    share=self.config.power_share, seed=self.config.power_seed,
+                    alpha=self.config.alpha, power_target=self.config.power_target,
+                    cumulative_method=self.config.cumulative_method,
+                    blank_periods=panel.blank_periods, covariates=panel.covariates,
+                    solve_kwargs=dict(
+                        design=self.design, beta=self.beta, lambda1=self.lambda1,
+                        lambda2=self.lambda2, xi=self.xi,
+                        lambda1_unit=self.lambda1_unit, exclusive=self.exclusive,
+                        covariate_names=panel.covariate_names,
+                        covariate_weight=covariate_weight,
+                        standardize=self.standardize,
+                        solver=self.solver or cp.SCIP, relaxed=self.relaxed,
+                        backend=self.config.backend,
+                        control_penalty=self.control_penalty,
+                        cumulative_block=self.config.cumulative_block,
+                        cumulative_n_sim=self.config.cumulative_n_sim,
+                        cumulative_seed=self.config.cumulative_seed,
+                        global_test=self.config.global_test))
+            except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
+                raise
+            except Exception as exc:  # pragma: no cover - a solver failure inside a placebo; the translated errors above are what a caller can act on
+                raise MlsynthEstimationError(f"MAREX power rehearsal failed: {exc}") from exc
+            results = results.model_copy(update={"power_rehearsal": rehearsal})
 
         if self.display_graph:
             try:
