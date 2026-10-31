@@ -1621,17 +1621,74 @@ realised ``n_post``, so the table also doubles as a *"how long do I need to
 run?"* answer — pick the smallest :math:`T` whose MDE drops below your
 target effect size.
 
-Practical reading
-"""""""""""""""""
+How far to trust the analytical MDE
+"""""""""""""""""""""""""""""""""""
 
-A typical MAREX run with ``T_post = 6``, ``blank_periods = 4`` and modest
-serial correlation (:math:`\widehat{\rho} \approx 0.5`) on a Walmart-style sales
-panel produces an MDE on the order of 0.05–0.15% of mean sales, well
-below the 1–3% effect sizes typical marketing interventions aim for; this
-is the quantitative substance of *"good designs are well-powered"*.
-Conversely, an MDE much above the expected effect is a signal the design
-needs more units (lower ``m_eq``/``m_max`` are typically *worse* for power)
-or more post-periods (extend the experiment).
+The analytical MDE prices a normal test of a mean from the blank window's
+noise. Two things make it optimistic for the test MAREX reports. A persistent
+factor accumulates over a test faster than the AR(1) inflation allows, and the
+cumulative band is a conformal test inversion, which runs conservative. On 32
+simulated panels (50 markets in four regions, 150 pre-periods, AR(0.9) regional
+factors, six test markets, a 15-period test), ``post_fit.power`` reported a
+0.95% MDE and the pool's Newey-West MDE 0.68%, while the cumulative band by
+inversion had a realized 80%-power MDE of 1.55% (#947). Use the analytical MDE
+to compare designs, and rehearse the test (below) for the size of effect it can
+find.
+
+Rehearsing the test
+"""""""""""""""""""
+
+Before launch nothing is treated, so the planned test can be run on the panel
+itself. With ``power_placebos=B``, MAREX draws :math:`B` random subsets of
+``power_share`` of the markets (85% by default). On each it solves the same
+design with the launch moved ``power_horizon`` periods earlier, and runs the
+configured cumulative band on the ``power_horizon`` pseudo-post periods. Those
+periods precede the real launch, so the placebo's estimate is pure error.
+
+Divide placebo :math:`b`'s band :math:`[L_b, U_b]` by its test composite's
+total over the pseudo-post periods, :math:`S_b`, giving
+:math:`[\ell_b, u_b] = [L_b / S_b, U_b / S_b]`. A relative effect :math:`e` on
+the test markets (:math:`e = -0.02` is a 2% drop) moves the total by
+:math:`e S_b`, and both cumulative bands move with an additive change in the
+post period, so one band per placebo prices every effect:
+
+.. math::
+
+   \pi(e) = \frac{1}{B} \sum_{b=1}^{B}
+       \mathbf{1}\bigl\{ 0 \notin [\ell_b + e,\; u_b + e] \bigr\}.
+
+The MDE for a drop is the smallest :math:`m \ge 0` past which
+:math:`\pi(-m') \ge 1 - \beta` for every :math:`m' > m`; the MDE for a lift
+reads :math:`\pi(m')` the same way.
+
+.. code-block:: python
+
+   res = MAREX(dict(df=df, outcome="sales", unitid="market", time="week",
+                    T0=150, m_eq=6, design="penalized", lambda2=1e-3,
+                    backend="exact", power_placebos=30,
+                    power_horizon=15)).fit()
+   r = res.power_rehearsal                 # MAREXPowerRehearsal
+   r.mde_drop                              # e.g. 0.018: a 1.8% drop at 80% power
+   r.power_at(-0.02)                       # power against a 2% drop
+   r.estimates.std()                       # spread of the placebo errors
+   r.lower, r.upper                        # each placebo's band, relative
+
+On the 32 panels above, with 30 placebos of 85% of the markets each, the
+rehearsal predicted a 1.80% MDE against the realized 1.55%, and the realized
+test rejected at each panel's predicted MDE 84% of the time against a target
+of 80%. The 15% conservatism that remains comes from the pseudo-launch, which
+shortens the fitting window by ``power_horizon`` periods. With placebos of two
+thirds of the controls the prediction was 2.05%: a placebo's inversion refit
+draws on its own untreated markets, so smaller placebos run wider bands.
+
+Three limits. The rehearsal is a planning number for a design setting: its
+per-panel predictions did not rank panels by their realized error (rank
+correlation -0.07), so it says how sensitive this kind of test is, not how
+precise one launch will be. The placebos keep the design, its penalties, the
+number of test markets, the covariates and the blank window, and drop the
+clusters, the geographic restrictions and the cost budgets, which choose
+markets the placebos do not have. It costs ``power_placebos`` design solves
+and as many cumulative bands, so it runs only when asked.
 
 Opting out
 """"""""""
