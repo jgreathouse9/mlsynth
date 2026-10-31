@@ -290,7 +290,10 @@ predictor distribution and limits interpolation bias (paper OA.1). Per-unit
 ``costs`` and a ``budget`` (scalar or per-cluster) add the constraint
 :math:`\sum_j c_j w_j \le B` on the treated weights. Because the weights sum to
 one, that bounds the treated group's weighted average cost per market, not the
-total the test spends; only ``backend='mip'`` takes it.
+total the test spends. A scalar budget is split evenly across clusters. Both
+backends take it; the exact backend's handling is below. ``costs`` is listed in
+MAREX's unit order, which sorts the unit labels, so with labels such as
+``u0`` to ``u11`` the order is ``u0, u1, u10, u11, u2, ...``.
 
 A budget on what the test spends is a rule on which markets are treated.
 ``market_cost_col`` names a column holding each market's cost of being in the
@@ -777,11 +780,22 @@ naming ``backend="mip"``:
 
 * a negative ``beta``, which makes the weakly-targeted coupling concave, so the
   design has no minimum to certify;
-* ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
-  a second constraint on the treated fit that the search's simplex solver does
-  not take;
+* ``costs`` with a ``budget`` on the ``weakly_targeted`` design, whose coupled
+  fit does not take the constraint, and with ``certify=True``, whose
+  certificate prices each set by its unconstrained fit;
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
+
+With ``costs`` and a ``budget`` the search fits each treated set under the
+constraint. When the set's unconstrained fit already meets the budget it is the
+answer. Otherwise the constraint binds at the optimum, and the fit is the
+simplex fit with a Lagrange multiplier on the costs added as a linear term, the
+multiplier found by bisection, since the weighted cost falls as it rises. A set
+whose cheapest market already costs more than the budget has no admissible
+weights, and the search report counts it as ``over_weight_budget``. The bound
+the search prunes with is unchanged: a constraint can only raise the minimum.
+Above the candidate limit the constraint is refused, since the branch and bound
+does not take it.
 
 Above twenty million admissible treated sets in a cluster, pricing every set
 stops being affordable. The ``standard``, ``penalized`` and ``unit_penalized``

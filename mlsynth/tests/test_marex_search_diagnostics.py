@@ -6,8 +6,8 @@ fixed-size summary per cluster (:class:`ExactSearchDiagnostics`) on each
 admissible candidate gets exactly one fate:
 
     cleared_by_bound + cleared_by_coupling + cleared_by_treated_fit
-    + without_control + unweighted + cleared_by_fit_cutoff + fitted
-    == candidates
+    + without_control + unweighted + over_weight_budget
+    + cleared_by_fit_cutoff + fitted == candidates
 
 and each count is measured where the fate is decided, never by subtraction, so
 the identity is a check. The clearance histogram holds, for each candidate the
@@ -63,7 +63,8 @@ SETTINGS = dict(max_examples=20, deadline=None,
                 suppress_health_check=[HealthCheck.too_slow])
 
 FATES = ("cleared_by_bound", "cleared_by_coupling", "cleared_by_treated_fit",
-         "without_control", "unweighted", "cleared_by_fit_cutoff", "fitted")
+         "without_control", "unweighted", "over_weight_budget",
+         "cleared_by_fit_cutoff", "fitted")
 
 
 def _cluster(n=8, T=12, seed=0, dupe=False, twins_at_mean=False):
@@ -94,6 +95,19 @@ def _search(B, A, sizes, *, design="standard", **kw):
     designs = search_cluster(B, A, sizes, filt=kw.pop("filt", SubsetFilter()),
                              report=report, **kw)
     return designs, report.freeze("enumeration")
+
+
+def _search_report_on_raise(B, A, sizes, design):
+    """The report of a search that raised, frozen as the backend would."""
+    report = SearchReport()
+    kw = {"beta": 1.0} if design == "weakly" else {}
+    if design == "penalized":
+        rng = np.random.default_rng(1)
+        kw = dict(linear_treated=rng.uniform(0, 2, B.shape[1]),
+                  linear_control=rng.uniform(0, 2, B.shape[1]))
+    with pytest.raises(MlsynthEstimationError):
+        search_cluster(B, A, sizes, filt=SubsetFilter(), report=report, **kw)
+    return report.freeze("enumeration")
 
 
 def _fates(d: ExactSearchDiagnostics) -> int:
@@ -209,7 +223,12 @@ class TestAccounting:
         B, A = _cluster(n=n, seed=seed)
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(exact_mod, "BUFFER", buffer)
-            _, d = _search(B, A, [m], design=design)
+            try:
+                _, d = _search(B, A, [m], design=design)
+            except MlsynthEstimationError:
+                # every set leaves a market unweighted (jgreathouse9/mlsynth#950):
+                # the report keeps what it counted, and the fates still add up
+                d = _search_report_on_raise(B, A, [m], design)
         assert d.counts.candidates == count_candidates(n, [m], SubsetFilter())
         assert _fates(d) == d.counts.candidates
         assert d.clearance.total + d.counts.cleared_outside_buffer == d.counts.cleared_by_bound

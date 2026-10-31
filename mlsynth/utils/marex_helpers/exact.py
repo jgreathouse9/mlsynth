@@ -195,6 +195,7 @@ from .formulation import (
     precompute_distances,
     prepare_clusters,
     prepare_fit_slices,
+    validate_costs_budget,
     validate_scm_inputs,
 )
 from .optimization import _augment_fit, finish_design
@@ -309,6 +310,56 @@ def side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
     if linear is not None:
         value += float(np.dot(linear, w))
     return value, w
+
+
+#: Bisection steps on the cost multiplier; each halves its bracket.
+BUDGET_STEPS = 200
+
+
+def budgeted_side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
+                      linear: Optional[np.ndarray] = None, *,
+                      costs: np.ndarray, budget: float
+                      ) -> Optional[Tuple[float, np.ndarray]]:
+    """``side_fit`` with the weights' average cost held to ``budget``.
+
+    ``min ||A - B[:, cols] w||^2 + linear'w`` over the simplex and
+    ``costs'w <= budget``, ``costs`` in the order of ``cols``. When the
+    unconstrained fit already meets the budget it is the answer. Otherwise the
+    inequality binds at the optimum, and the fit is the simplex fit with the
+    linear term ``linear + mu costs`` for the multiplier ``mu > 0`` at which
+    ``costs'w = budget``: the weighted cost falls as ``mu`` rises, so ``mu`` is
+    found by bisection, keeping the side of the bracket that meets the budget.
+    Returns ``None`` when no weights meet it: every market costs more.
+    """
+    cols = list(cols)
+    c = np.asarray(costs, dtype=float)
+    if float(c.min()) > budget:
+        return None
+    base = np.zeros(len(cols)) if linear is None else np.asarray(linear, dtype=float)
+    value, w = side_fit(B, A, cols, linear)
+    if float(c @ w) <= budget:
+        return value, w
+    Bs = B[:, cols]
+
+    def at(mu):
+        return np.asarray(solve_simplex_qp(Bs, A, linear=base + mu * c), dtype=float)
+
+    lo, hi = 0.0, 1.0
+    w_hi = at(hi)
+    while float(c @ w_hi) > budget and hi < 1e300:
+        lo, hi = hi, 2.0 * hi
+        w_hi = at(hi)
+    for _ in range(BUDGET_STEPS):
+        mid = 0.5 * (lo + hi)
+        if mid <= lo or mid >= hi:
+            break
+        w_mid = at(mid)
+        if float(c @ w_mid) > budget:
+            lo = mid
+        else:
+            hi, w_hi = mid, w_mid
+    r = A - Bs @ w_hi
+    return float(r @ r + base @ w_hi), w_hi
 
 
 class CoupledFitNotCertified(MlsynthEstimationError):
@@ -1163,6 +1214,8 @@ def search_cluster(
     beta: Optional[float] = None,
     control_penalty: float = 0.0,
     report: Optional[SearchReport] = None,
+    weight_costs: Optional[np.ndarray] = None,
+    weight_budget: Optional[float] = None,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -1202,6 +1255,12 @@ def search_cluster(
         coupled fits' numerics and the time by phase
         (:mod:`~mlsynth.utils.marex_helpers.diagnostics`). It keeps what it
         counted when the search raises.
+    weight_costs, weight_budget : optional
+        The weighted-average cost constraint, ``weight_costs'w <= weight_budget``
+        on the treated weights (``costs``/``budget``), in local indices. Each
+        candidate's treated side is fitted by :func:`budgeted_side_fit`; a set
+        with no admissible weights is counted ``over_weight_budget``. Not with
+        ``beta``.
 
     Raises
     ------
@@ -1215,6 +1274,14 @@ def search_cluster(
         When no admissible design exists.
     """
     n = B.shape[1]
+    if (weight_costs is None) != (weight_budget is None):
+        raise MlsynthConfigError(
+            "weight_costs and weight_budget go together: the constraint is "
+            "weight_costs'w <= weight_budget.")
+    if weight_costs is not None and beta is not None:
+        raise MlsynthConfigError(
+            "The weighted-average cost constraint is fitted on the treated side "
+            "alone; the weakly-targeted coupled fit does not take it.")
     if control_penalty and beta is None:
         raise MlsynthConfigError(
             "control_penalty charges each control its distance from the "
@@ -1267,10 +1334,20 @@ def search_cluster(
     def margin(cut: float) -> float:
         return PRUNE_MARGIN * (1.0 + abs(cut))
 
+    w_costs = None if weight_costs is None else np.asarray(weight_costs, dtype=float)
+
     def consider(S: Tuple[int, ...]) -> None:
         seen.add(S)
         cols = list(S)
-        g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
+        if w_costs is None:
+            g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
+        else:
+            fitted = budgeted_side_fit(B, A, cols, None if lin_t is None else lin_t[cols],
+                                       costs=w_costs[cols], budget=float(weight_budget))
+            if fitted is None:
+                rep.counts["over_weight_budget"] += 1
+                return
+            g, w = fitted
         cut = best.cutoff
         if g >= cut or g + floor >= cut + margin(cut):
             rep.counts["cleared_by_treated_fit"] += 1
@@ -1518,10 +1595,16 @@ def _designs(
         raise MlsynthConfigError(
             f"The exact backend solves the designs "
             f"{', '.join(sorted(EXACT_DESIGNS))}; got design={design!r}.")
-    if costs is not None or budget is not None:
+    if (costs is not None or budget is not None) and design == "weakly_targeted":
         raise MlsynthConfigError(
-            "The exact backend does not take a cost budget, which constrains "
-            "the treated weights; use backend='mip'.")
+            "The exact backend fits the weighted-average cost constraint on the "
+            "treated side alone; the weakly-targeted coupled fit does not take "
+            "it. Use backend='mip'.")
+    if (costs is not None or budget is not None) and certify:
+        raise MlsynthConfigError(
+            "The certificate prices each treated set by its unconstrained fit, "
+            "which the weighted-average cost constraint can raise; certify=True "
+            "does not take costs/budget.")
     if design == "unit_penalized" and lambda2_unit > 0:
         raise MlsynthConfigError(
             "lambda2_unit pairs the treated weights against the control weights "
@@ -1539,6 +1622,7 @@ def _designs(
     D1, _ = precompute_distances(X_fit, Xbar_clusters, cluster_members)
     cluster_of = np.array([int(np.argmax(M[j])) for j in range(N)])
     _refuse_spanning_rules(restrictions, cluster_of)
+    costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
     if market_costs is not None and K > 1:
         raise MlsynthConfigError(
             "A total-cost budget sums the treated markets of every cluster. The "
@@ -1566,8 +1650,18 @@ def _designs(
         B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
         cert = None
         report = SearchReport()
+        weighted = ({} if costs_np is None else
+                    dict(weight_costs=np.asarray(costs_np, dtype=float)[members],
+                         weight_budget=float(budget_dict[lab])))
         try:
             n_cand = count_candidates(len(members), sizes, filt)
+            if weighted and n_cand > CANDIDATE_LIMIT:
+                raise MlsynthConfigError(
+                    f"Cluster {lab!r} has {n_cand:,} treated sets, above the exact "
+                    f"backend's candidate limit of {CANDIDATE_LIMIT:,}. The branch "
+                    f"and bound that searches above it does not take the "
+                    f"weighted-average cost constraint; use backend='mip', or "
+                    f"narrow the design.")
             if design in SEPARABLE_DESIGNS and n_cand > CANDIDATE_LIMIT:
                 from .branch import branch_and_bound
                 clock = time.perf_counter()
@@ -1596,7 +1690,7 @@ def _designs(
                     linear_treated=a, linear_control=b, donor_exclusion=donors,
                     top_k=top_k,
                     beta=beta if design == "weakly_targeted" else None,
-                    control_penalty=control_penalty, report=report)
+                    control_penalty=control_penalty, report=report, **weighted)
                 kind = "enumeration"
         except (CoupledFitNotCertified, SearchNotClosed):
             raise
