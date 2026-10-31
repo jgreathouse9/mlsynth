@@ -6,7 +6,8 @@ fixed-size summary per cluster (:class:`ExactSearchDiagnostics`) on each
 admissible candidate gets exactly one fate:
 
     cleared_by_bound + cleared_by_coupling + cleared_by_treated_fit
-    + without_control + cleared_by_fit_cutoff + fitted == candidates
+    + without_control + unweighted + cleared_by_fit_cutoff + fitted
+    == candidates
 
 and each count is measured where the fate is decided, never by subtraction, so
 the identity is a check. The clearance histogram holds, for each candidate the
@@ -62,7 +63,7 @@ SETTINGS = dict(max_examples=20, deadline=None,
                 suppress_health_check=[HealthCheck.too_slow])
 
 FATES = ("cleared_by_bound", "cleared_by_coupling", "cleared_by_treated_fit",
-         "without_control", "cleared_by_fit_cutoff", "fitted")
+         "without_control", "unweighted", "cleared_by_fit_cutoff", "fitted")
 
 
 def _cluster(n=8, T=12, seed=0, dupe=False, twins_at_mean=False):
@@ -283,7 +284,7 @@ class TestAccounting:
             _, d = _search(*_cluster(n=n, seed=seed), [3], design=design)
         c = d.counts
         considered = (c.cleared_by_treated_fit + c.without_control
-                      + c.cleared_by_fit_cutoff + c.fitted)
+                      + c.unweighted + c.cleared_by_fit_cutoff + c.fitted)
         controls = 0 if design == "weakly" else c.fitted
         floor = 0 if design == "weakly" else 1
         assert len(calls) == considered + controls + floor

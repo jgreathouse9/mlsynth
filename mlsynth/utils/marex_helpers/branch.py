@@ -117,6 +117,7 @@ from ..syndes_helpers.exact import SubsetFilter
 from .certify import ClusterCertificate, Dyadic, ExactData, round_down, round_up
 from .exact import (ClusterDesign, SearchNotClosed, _TopK, _chunks,
                     count_candidates, side_fit)
+from .formulation import carries_weight
 
 #: Seconds to price one treated set; with :func:`lift_seconds` it decides where
 #: the search spends time, never what it proves.
@@ -498,6 +499,7 @@ def branch_and_bound(
     best = _TopK(top_k)
     brackets: Dict[Tuple[int, ...], Tuple[Fraction, Fraction]] = {}
     floors: Dict[Tuple[int, ...], Fraction] = {}
+    refused: set = set()
     state = {"lifts": 0, "priced": 0, "admissible": False}
     ledger = Ledger(work_limit)
 
@@ -535,10 +537,15 @@ def branch_and_bound(
         return cut is not None and bound > cut
 
     def fit(S: Tuple[int, ...], h_floor: Fraction) -> None:
-        if S in brackets:
+        if S in brackets or S in refused:
             return
         cols = list(S)
         g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
+        if not carries_weight(w):
+            # A set treats the markets it weights: one its fit gives no weight
+            # treats fewer than it holds and is not a design of its size.
+            refused.add(S)
+            return
         lo_g, hi_g = data.interval(cols, w, lin_t)
         if clears(lo_g + h_floor):
             return
@@ -656,7 +663,9 @@ def branch_and_bound(
                 "cardinality and the active restrictions.")
         raise MlsynthEstimationError(
             "No admissible design exists in this cluster: every treated set "
-            "the restrictions allow leaves no control market.")
+            "the restrictions allow leaves no control market or has a market "
+            "its fit gives no weight. A treated market must carry weight; "
+            "Abadie and Zhao count the nonzero treated weights.")
     top = best.items[0]
     lower, upper = brackets[top.treated]
     unresolved = []

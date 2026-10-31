@@ -143,6 +143,24 @@ with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
+A treated unit is one the synthetic treated unit puts weight on. Abadie and Zhao
+bound :math:`\|\mathbf{w}\|_0`, the number of nonzero treated weights, and
+the selection :math:`\mathbf{z}` alone does not: :math:`w_j \le z_j` keeps an
+unselected market's weight at zero but lets a selected one carry none, and that
+market is then neither treated nor a control. With
+:math:`\|\mathbf{w}\|_0 = m` read literally the program can have no minimum:
+where the best fit of a treated set leaves one of its markets at zero, giving
+that market weight :math:`\varepsilon` costs less as :math:`\varepsilon`
+falls and never reaches the zero-weight design. MAREX therefore counts a treated
+set as a design of size :math:`m` only when its own fit gives every one of its
+:math:`m` markets a weight above :math:`10^{-8}`, the threshold its results use to
+list treated markets. The exact backend refuses any other set during its search,
+and the MIQP cuts such a set and solves again. Under ``m_min``/``m_max`` this
+changes no optimum, since the same set without its unweighted market fits the
+treated side as well and leaves one more control. Under ``m_eq`` it can: on
+small simulated panels about one design in eight had a market at zero weight,
+and a binding budget on the treated markets' total cost made it common.
+
 From SCIP's solution MAREX keeps only the selection. SCIP counts a binary
 within its integrality tolerance of an integer as integral, so a selection
 variable left near :math:`10^{-6}` rounds to "not treated" while still allowing

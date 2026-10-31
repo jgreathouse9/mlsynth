@@ -85,6 +85,7 @@ from ...exceptions import (MlsynthConfigError, MlsynthDataError,
                            MlsynthEstimationError)
 from ..syndes_helpers.exact import SubsetFilter
 from .exact import CHUNK, ClusterDesign, _chunks, side_fit
+from .formulation import carries_weight
 
 _U = 2.0 ** -53
 _ETA = 2.0 ** -1074
@@ -391,6 +392,8 @@ def certify_cluster(
             cols = list(S)
             _, w = side_fit(data.B, data.A, cols,
                             None if lin_t is None else lin_t[cols])
+            if not carries_weight(w):
+                continue                 # not a design of its size: no rival
             lo_S = data.interval(cols, w, lin_t)[0]
             if lo_S + h_floor > upper:
                 continue

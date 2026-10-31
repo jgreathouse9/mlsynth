@@ -41,6 +41,17 @@ import numpy as np
 import pandas as pd
 
 
+#: A treated market carries weight above this or it is not treated. Abadie and
+#: Zhao bound ``||w||_0``, the count of nonzero treated weights, and MAREX's
+#: results call a market treated when its weight is above 1e-8.
+WEIGHT_FLOOR = 1e-8
+
+
+def carries_weight(w) -> bool:
+    """Whether every market of a treated set's fit carries weight."""
+    return bool(np.all(np.asarray(w, dtype=float) > WEIGHT_FLOOR))
+
+
 def get_per_cluster_param(param, klabel, default=None):
     """Resolve a possibly-per-cluster parameter to its value for ``klabel``."""
     if param is None:
