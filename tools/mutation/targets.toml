@@ -5419,8 +5419,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-design-drops-the-penalty"
-  find = "else None,\n                    control_penalty=control_penalty, report=report)"
-  replace = "else None,\n                    control_penalty=0.0, report=report)"
+  find = "else None,\n                    control_penalty=control_penalty, report=report, **weighted)"
+  replace = "else None,\n                    control_penalty=0.0, report=report, **weighted)"
   models = "the exact backend accepting control_penalty and searching each cluster without it, while the MIQP honours it"
 
   [[target.mutant]]
@@ -10554,3 +10554,71 @@ timeout = 600.0
   find = "    for k in range(z.shape[1]):"
   replace = "    for k in range(min(1, z.shape[1])):"
   models = "the check reading one cluster, so a clustered design's other clusters keep their unweighted markets"
+
+# MAREX exact backend: the weighted-average cost constraint (jgreathouse9/mlsynth#953).
+
+[[target]]
+name = "marex-exact-weighted-cost"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weighted_cost.py mlsynth/tests/test_marex_exact_backend.py -q -p no:cacheprovider -n 4"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-budget-is-never-checked"
+  find = "    if float(c @ w) <= budget:\n        return value, w"
+  replace = "    if True:\n        return value, w"
+  models = "the unconstrained fit returned whatever its weights cost, so the design meets the average-cost budget only where it was slack anyway"
+
+  [[target.mutant]]
+  id = "an-unaffordable-set-is-fitted"
+  find = "    if float(c.min()) > budget:\n        return None"
+  replace = "    if False:\n        return None"
+  models = "a set whose every market costs more than the budget fitted anyway, the bisection running to its ceiling and returning weights that break the budget"
+
+  [[target.mutant]]
+  id = "the-bracket-keeps-stale-weights"
+  find = "            hi, w_hi = mid, w_mid"
+  replace = "            hi = mid"
+  models = "the bisection narrowing the multiplier while keeping the weights of an earlier, larger one, so the fit meets the budget at a higher objective than it needs"
+
+  [[target.mutant]]
+  id = "the-budgeted-value-drops-the-penalty"
+  find = "    return float(r @ r + base @ w_hi), w_hi"
+  replace = "    return float(r @ r), w_hi"
+  models = "the budgeted fit's value without the penalised design's treated penalty, so penalised designs under a binding budget are ranked on the wrong objective"
+
+  [[target.mutant]]
+  id = "the-search-ignores-the-budget"
+  find = "        if w_costs is None:\n            g, w = side_fit("
+  replace = "        if True:\n            g, w = side_fit("
+  models = "the search fitting every set without the constraint while the backend accepts costs/budget, the configuration a silent refusal would turn into"
+
+  [[target.mutant]]
+  id = "refused-sets-go-uncounted"
+  find = "                rep.counts[\"over_weight_budget\"] += 1"
+  replace = "                rep.counts[\"over_weight_budget\"] += 0"
+  models = "the report losing the sets the budget refuses, so the fates stop summing to the candidates"
+
+  [[target.mutant]]
+  id = "every-cluster-gets-the-first-budget"
+  find = "                         weight_budget=float(budget_dict[lab])))"
+  replace = "                         weight_budget=float(budget_dict[cluster_labels[0]])))"
+  models = "a per-cluster budget read from the first cluster for all of them"
+
+  [[target.mutant]]
+  id = "the-branch-and-bound-takes-the-budget-silently"
+  find = "            if weighted and n_cand > CANDIDATE_LIMIT:"
+  replace = "            if False:"
+  models = "a cluster above the candidate limit sent to the branch and bound, which fits without the constraint, so the budget is dropped on large panels"
+
+[[target]]
+name = "marex-exact-weighted-cost-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_exact_weighted_cost.py -q -p no:cacheprovider -n 4"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fractional-budget-is-refused"
+  find = "            if isinstance(values.budget, (int, float)) and not isinstance(values.budget, bool):"
+  replace = "            if isinstance(values.budget, int):"
+  models = "the scalar budget back to integers only, so an average cost such as 3.7 cannot be stated"

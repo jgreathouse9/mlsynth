@@ -248,6 +248,20 @@ def test_what_the_budgeted_fit_does_not_cover_is_refused(over, fragment):
         _fit(df, T0, "exact", m_eq=3, costs=COSTS.tolist(), budget=3, **over)
 
 
+def test_a_direct_search_needs_both_halves_of_the_constraint():
+    B, A = _cluster()
+    with pytest.raises(MlsynthConfigError, match="go together"):
+        exact_mod.search_cluster(B, A, [2], filt=exact_mod.SubsetFilter(),
+                                 weight_costs=np.ones(6))
+
+
+def test_a_direct_search_refuses_the_constraint_on_the_coupled_fit():
+    B, A = _cluster()
+    with pytest.raises(MlsynthConfigError, match="coupled fit"):
+        exact_mod.search_cluster(B, A, [2], filt=exact_mod.SubsetFilter(), beta=1.0,
+                                 weight_costs=np.ones(6), weight_budget=2.0)
+
+
 def test_the_branch_and_bound_refuses_the_constraint(monkeypatch):
     monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
     df, T0 = _panel(seed=1)
