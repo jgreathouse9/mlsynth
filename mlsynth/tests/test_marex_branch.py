@@ -81,12 +81,17 @@ def _objective(B, A, S, lin_t=None, lin_c=None, donors=()):
 
 
 def _brute(B, A, sizes, filt=SubsetFilter(), lin_t=None, lin_c=None, donors=()):
-    """Every admissible design's objective, best first."""
+    """Every admissible design's objective, best first. A set is admissible
+    when the filter accepts it and its treated fit weights every market in it
+    (jgreathouse9/mlsynth#950)."""
     n = B.shape[1]
     out = []
     for m in sizes:
         for S in itertools.combinations(range(n), m):
             if not filt.accepts(S):
+                continue
+            w = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])[1]
+            if np.any(w <= 1e-8):
                 continue
             f = _objective(B, A, S, lin_t, lin_c, donors)
             if f is not None:

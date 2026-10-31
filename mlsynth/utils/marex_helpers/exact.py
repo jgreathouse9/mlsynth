@@ -186,7 +186,9 @@ from ..syndes_helpers.enumeration import SearchSpace
 from ..syndes_helpers.exact import SubsetFilter
 from .diagnostics import MAREXSearchWarning, SearchReport
 from .formulation import (
+    WEIGHT_FLOOR,
     build_membership_mask,
+    carries_weight,
     compute_cluster_means_members,
     get_per_cluster_param,
     per_unit_reproducibility,
@@ -1273,6 +1275,9 @@ def search_cluster(
         if g >= cut or g + floor >= cut + margin(cut):
             rep.counts["cleared_by_treated_fit"] += 1
             return
+        if beta is None and not carries_weight(w):
+            rep.counts["unweighted"] += 1
+            return
         drop = set(S)
         for i in S:
             drop |= excluded.get(i, set())
@@ -1294,6 +1299,9 @@ def search_cluster(
                 return
             value, w, v, info = fit
             rep.coupled(info, value)
+            if not carries_weight(w):
+                rep.counts["unweighted"] += 1
+                return
         rep.counts["fitted"] += 1
         best.offer(ClusterDesign(value=value, treated=tuple(S),
                                  control=tuple(control), w=w, v=v))
@@ -1399,7 +1407,9 @@ def search_cluster(
     if not best.items:
         raise MlsynthEstimationError(
             "No admissible design exists in this cluster: every treated set "
-            "the restrictions allow leaves no control market.")
+            "the restrictions allow leaves no control market or has a market "
+            "its fit gives no weight. A treated market must carry weight; "
+            "Abadie and Zhao count the nonzero treated weights.")
     return list(best.items)
 
 
