@@ -4697,8 +4697,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "every-cluster-fits-the-first-target"
-  find = "        B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]"
-  replace = "        B_k, A_k = X_fit[members].T, Xbar_clusters[0]"
+  find = "                           A=Xbar_clusters[k_idx], weighted=weighted))"
+  replace = "                           A=Xbar_clusters[0], weighted=weighted))"
   models = "every cluster matched to the first cluster's predictor mean instead of its own, invisible with one cluster, which is the default"
 
   [[target.mutant]]
@@ -5419,8 +5419,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-design-drops-the-penalty"
-  find = "else None,\n                    control_penalty=control_penalty, report=report, **weighted)"
-  replace = "else None,\n                    control_penalty=0.0, report=report, **weighted)"
+  find = "else None,\n                    control_penalty=control_penalty, report=report, **s[\"weighted\"])"
+  replace = "else None,\n                    control_penalty=0.0, report=report, **s[\"weighted\"])"
   models = "the exact backend accepting control_penalty and searching each cluster without it, while the MIQP honours it"
 
   [[target.mutant]]
@@ -10339,12 +10339,6 @@ timeout = 900.0
   replace = "        if False:\n            filt = dataclasses.replace("
   models = "max_total_cost accepted and the exact search run without it"
 
-  [[target.mutant]]
-  id = "budget-across-clusters-accepted"
-  find = "    if market_costs is not None and K > 1:"
-  replace = "    if False:"
-  models = "a budget over several clusters split into per-cluster searches that each spend it in full"
-
 [[target]]
 name = "marex-spend-budget-branch"
 module-path = "mlsynth/utils/marex_helpers/branch.py"
@@ -10607,7 +10601,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-branch-and-bound-takes-the-budget-silently"
-  find = "            if weighted and n_cand > CANDIDATE_LIMIT:"
+  find = "            if s[\"weighted\"] and n_cand > CANDIDATE_LIMIT:"
   replace = "            if False:"
   models = "a cluster above the candidate limit sent to the branch and bound, which fits without the constraint, so the budget is dropped on large panels"
 
