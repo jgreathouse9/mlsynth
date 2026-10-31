@@ -1095,7 +1095,8 @@ def _chunks(n: int, sizes: Sequence[int], filt: SubsetFilter
     tested on each finished candidate; with none of them the candidates go
     straight into an array without a per-candidate call.
     """
-    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets)
+    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets
+                 or filt.costs is not None)
     for size in sizes:
         space = _space(n, size, filt)
         if not space.size:
@@ -1501,6 +1502,7 @@ def _designs(
     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     restrictions=None, top_k=1, control_penalty=0.0, certify=False,
+    market_costs=None, max_total_cost=None,
 ) -> List[Dict[str, Any]]:
     if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
@@ -1527,6 +1529,11 @@ def _designs(
     D1, _ = precompute_distances(X_fit, Xbar_clusters, cluster_members)
     cluster_of = np.array([int(np.argmax(M[j])) for j in range(N)])
     _refuse_spanning_rules(restrictions, cluster_of)
+    if market_costs is not None and K > 1:
+        raise MlsynthConfigError(
+            "A total-cost budget sums the treated markets of every cluster. The "
+            "exact backend searches each cluster on its own, so it cannot honour a "
+            "budget that spans them; use backend='mip'.")
 
     per_cluster: List[List[ClusterDesign]] = []
     certificates: Dict[str, Any] = {}
@@ -1540,6 +1547,10 @@ def _designs(
                 f"count leaves no control market (m_eq={m_eq}, m_min={m_min}, "
                 f"m_max={m_max}, cluster size {len(members)}).")
         filt, donors = _local_rules(restrictions, members, cluster_of)
+        if market_costs is not None:
+            filt = dataclasses.replace(
+                filt, costs=np.asarray(market_costs, dtype=float)[members],
+                budget=float(max_total_cost))
         a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,
                           xi, lambda1_unit)
         B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
@@ -1582,7 +1593,8 @@ def _designs(
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
                 f"MAREX design is infeasible under the active restrictions "
-                f"(forced/forbidden units, border conflicts, size band) and the "
+                f"(forced/forbidden units, border conflicts, size band, total-cost "
+                f"budget) and the "
                 f"cluster cardinality (m_min/m_max) in cluster {lab!r}: {exc}"
             ) from exc
         per_cluster.append(designs)

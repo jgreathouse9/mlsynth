@@ -269,8 +269,38 @@ Clustering, Costs, and Budgets
 Passing a ``cluster`` column solves the design *within* each cluster (one or a
 few treated units per cluster), which better approximates the population
 predictor distribution and limits interpolation bias (paper OA.1). Per-unit
-``costs`` and a ``budget`` (scalar or per-cluster) add a knapsack constraint
-:math:`\sum_j c_j w_j \le B`, so the chosen treatment group respects a spend cap.
+``costs`` and a ``budget`` (scalar or per-cluster) add the constraint
+:math:`\sum_j c_j w_j \le B` on the treated weights. Because the weights sum to
+one, that bounds the treated group's weighted average cost per market, not the
+total the test spends; only ``backend='mip'`` takes it.
+
+A budget on what the test spends is a rule on which markets are treated.
+``market_cost_col`` names a column holding each market's cost of being in the
+test (the media held back, the fees to run it), and ``max_total_cost`` caps the
+sum over the treated markets,
+
+.. math::
+
+   \sum_j c_j z_j \le B,
+
+with :math:`z_j = 1` when market :math:`j` is treated. Six markets that cost one
+million each spend six million, whatever their weights. Both backends take it.
+The MIQP adds the row; the exact backend drops every treated set over budget
+before fitting it, the way it drops a set that breaks a border conflict, so its
+bounds and its proof of optimality stand as they are. Under ``backend='exact'``
+the budget needs a single cluster, since each cluster is searched on its own and
+a budget summed over several would tie them together; ``backend='mip'`` takes it
+across clusters. When no treated set of the requested size fits the budget, the
+fit raises :class:`~mlsynth.exceptions.MlsynthEstimationError`.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="orders", unitid="market", time="week",
+                           T0=150, m_eq=6, backend="exact",
+                           market_cost_col="test_cost", max_total_cost=2_000_000)).fit()
+
+The tests are in ``mlsynth/tests/test_marex_spend_budget.py``, against an oracle
+that enumerates every treated set within budget.
 
 Geographic design restrictions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

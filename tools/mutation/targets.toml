@@ -4685,8 +4685,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "conflict-pairs-unchecked"
-  find = "    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets)"
-  replace = "    check = bool(filt.strata or filt.forbidden_sets)"
+  find = "    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets\n"
+  replace = "    check = bool(filt.strata or filt.forbidden_sets\n"
   models = "the walk taking the fast path whenever there is no stratum, so border conflicts, which only a test on the finished candidate can see, are never checked and two bordering markets can both be treated"
 
   [[target.mutant]]
@@ -10320,3 +10320,137 @@ timeout = 300.0
   find = "n_treated=len(results.selected_units),"
   replace = "n_treated=1,"
   models = "placebo designs with a different number of test markets from the real design, rehearsing a test nobody plans to run"
+
+[[target]]
+name = "marex-spend-budget-exact"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "budget-never-checked"
+  find = "    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets\n                 or filt.costs is not None)"
+  replace = "    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets)"
+  models = "the budget carried on the filter but never tested, so the search fits over-budget treated sets"
+
+  [[target.mutant]]
+  id = "budget-not-on-the-filter"
+  find = "        if market_costs is not None:\n            filt = dataclasses.replace("
+  replace = "        if False:\n            filt = dataclasses.replace("
+  models = "max_total_cost accepted and the exact search run without it"
+
+  [[target.mutant]]
+  id = "budget-across-clusters-accepted"
+  find = "    if market_costs is not None and K > 1:"
+  replace = "    if False:"
+  models = "a budget over several clusters split into per-cluster searches that each spend it in full"
+
+[[target]]
+name = "marex-spend-budget-branch"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "over-budget-nodes-kept"
+  find = "        if over_budget(I, F, r):\n            return None"
+  replace = "        pass"
+  models = "nodes no admissible set lies under kept, so a budget nothing meets is reported as a design with no control market"
+
+  [[target.mutant]]
+  id = "prune-prices-the-dearest-markets"
+  find = "np.sort(filt.costs[list(F)])[:r]"
+  replace = "np.sort(filt.costs[list(F)])[::-1][:r]"
+  models = "the prune completing a node with its dearest markets, so it drops nodes that hold the optimum"
+
+[[target]]
+name = "marex-spend-budget-mip"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "budget-row-dropped"
+  find = "    if selection_budget is not None:"
+  replace = "    if False:"
+  models = "the MIQP solved without the budget row"
+
+  [[target.mutant]]
+  id = "budget-counts-one-cluster"
+  find = "cp.sum(cp.multiply(np.asarray(c, dtype=float), cp.sum(z, axis=1)))"
+  replace = "cp.sum(cp.multiply(np.asarray(c, dtype=float), z[:, 0]))"
+  models = "the budget summed over the first cluster's treated markets only"
+
+[[target]]
+name = "marex-spend-budget-config"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "budget-without-costs-accepted"
+  find = "        if col is None:"
+  replace = "        if False:"
+  models = "max_total_cost accepted with no cost column, failing later on a None"
+
+  [[target.mutant]]
+  id = "costs-without-budget-accepted"
+  find = "        if cap is None:"
+  replace = "        if False:"
+  models = "a cost column accepted with no budget to sum it against"
+
+  [[target.mutant]]
+  id = "budget-sign-unchecked"
+  find = "        if not (math.isfinite(cap) and cap > 0):"
+  replace = "        if not math.isfinite(cap):"
+  models = "a zero or negative budget accepted at configuration"
+
+  [[target.mutant]]
+  id = "varying-cost-accepted"
+  find = "        if (per_unit.nunique(dropna=False) > 1).any():"
+  replace = "        if False:"
+  models = "a cost column that changes over time read at its first row"
+
+  [[target.mutant]]
+  id = "negative-cost-accepted"
+  find = "        if not (np.all(np.isfinite(values)) and np.all(values >= 0)):"
+  replace = "        if not np.all(np.isfinite(values)):"
+  models = "a negative market cost accepted, which buys budget back"
+
+  [[target.mutant]]
+  id = "relaxed-with-budget-accepted"
+  find = "        if self.relaxed:\n            raise MlsynthConfigError(\n                \"a total-cost budget"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                \"a total-cost budget"
+  models = "a budget accepted beside the relaxed program, whose rounding can break it"
+
+[[target]]
+name = "marex-spend-budget-wiring"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "costs-in-the-wrong-unit-order"
+  find = "            market_costs = per_unit.reindex(list(panel.unit_index.labels)).to_numpy(dtype=float)"
+  replace = "            market_costs = per_unit.to_numpy(dtype=float)"
+  models = "costs read in the column's sorted order, not the panel's, so each market is charged another's cost"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured: the panel orders its units by the same sort the cost column's groupby uses, so the reindex is a no-op. Measured with string ids where lexicographic and natural order differ (u0, u1, u10, u11, u2, ...), a categorical with its categories reversed, and integer ids; each time the two orders agreed and the design was the only affordable pair. The reindex stays because it ties each cost to its market by label, so a change to the panel's ordering cannot charge one market another's cost; test_each_market_is_charged_its_own_cost pins the outcome."
+
+  [[target.mutant]]
+  id = "pool-without-the-budget"
+  find = "                    market_costs=market_costs,\n                    max_total_cost=self.config.max_total_cost,\n"
+  replace = "                    market_costs=None,\n                    max_total_cost=None,\n"
+  models = "the top-K pool built without the budget, so it lists designs the business cannot run"
+
+[[target]]
+name = "marex-spend-budget-orchestration"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_spend_budget.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "budget-not-forwarded"
+  find = "    if market_costs is not None:\n        # The relaxed path"
+  replace = "    if False:\n        # The relaxed path"
+  models = "the budget accepted by the estimator and never handed to either solver"
