@@ -351,6 +351,59 @@ class MAREXConfig(BaseMAREXConfig):
         default=0.80, gt=0.0, lt=1.0,
         description="Target power (1 - beta) for the MDE.",
     )
+    power_placebos: int = Field(
+        default=0, ge=0,
+        description="Rehearse the planned test on this many placebo designs and "
+                    "attach its power curve and MDE as results.power_rehearsal "
+                    "(#947). Each placebo re-solves the design on a random "
+                    "power_share of the markets, launched power_horizon periods "
+                    "before the real launch, and runs the configured cumulative "
+                    "band on the periods in between. 0 (the default) skips it; "
+                    "otherwise at least 10.",
+    )
+    power_horizon: Optional[int] = Field(
+        default=None,
+        description="Periods the planned test runs, for the rehearsal. Defaults "
+                    "to T_post, or to the periods after T0; required when the "
+                    "panel ends at T0. Needs power_placebos.",
+    )
+    power_share: float = Field(
+        default=0.85,
+        description="Share of the markets each rehearsal placebo draws, strictly "
+                    "between 0 and 1. Needs power_placebos.",
+    )
+    power_seed: int = Field(
+        default=0,
+        description="Seed for the rehearsal placebos' market draws. Needs "
+                    "power_placebos.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_power_rehearsal(self) -> "MAREXConfig":
+        """Refuse rehearsal settings without a rehearsal, and impossible ones."""
+        if self.power_placebos == 0:
+            stray = sorted({"power_horizon", "power_share", "power_seed"}
+                           & self.model_fields_set)
+            if stray:
+                raise MlsynthConfigError(
+                    f"{', '.join(stray)} configure the power rehearsal, which "
+                    f"runs only with power_placebos > 0; set power_placebos "
+                    f"(at least 10) or drop them.")
+            return self
+        if self.power_placebos < 10:
+            raise MlsynthConfigError(
+                f"power_placebos must be 0 (no rehearsal) or at least 10, so "
+                f"the power at a 0.8 target rests on more than two placebos; "
+                f"got {self.power_placebos}.")
+        if not 0.0 < float(self.power_share) < 1.0:
+            raise MlsynthConfigError(
+                f"power_share must be strictly between 0 and 1: each placebo "
+                f"draws that share of the markets, and drawing all of them "
+                f"repeats one design. Got {self.power_share}.")
+        if self.power_horizon is not None and self.power_horizon < 1:
+            raise MlsynthConfigError(
+                f"power_horizon must be at least 1 period; got {self.power_horizon}.")
+        return self
 
     @field_validator("lambda2_unit")
     @classmethod

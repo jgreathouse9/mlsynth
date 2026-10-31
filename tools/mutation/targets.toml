@@ -10224,3 +10224,99 @@ timeout = 600.0
   find = "    if not (np.all(np.isfinite(B)) and np.all(np.isfinite(A))):"
   replace = "    if False:"
   models = "a NaN in the design or target reaching the solver, which returned [0, 1] for a NaN entry instead of refusing"
+
+[[target]]
+name = "marex-power-rehearsal"
+module-path = "mlsynth/utils/marex_helpers/rehearsal.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_power_rehearsal.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "drop-and-lift-read-the-same-end"
+  find = 'above, below = (upper, lower) if direction == "drop" else (-lower, -upper)'
+  replace = 'above, below = (-lower, -upper) if direction == "drop" else (upper, lower)'
+  models = "a drop's MDE read off the band's lower end, which is the lift's threshold: on a skewed band the planned go-dark test is priced at the wrong size"
+
+  [[target.mutant]]
+  id = "a-band-that-excludes-zero-from-below-never-rejects"
+  find = "return float(np.mean((upper + e < 0) | (lower + e > 0)))"
+  replace = "return float(np.mean(upper + e < 0))"
+  models = "power that counts only bands pushed below zero, so every lift is undetectable and a placebo that already excludes zero from above is scored as a non-rejection"
+
+  [[target.mutant]]
+  id = "mde-at-the-first-crossing"
+  find = "return float(points[short[-1] + 1])"
+  replace = "return float(points[short[0] + 1])"
+  models = "the MDE read where power first reaches the target, ignoring a later dip below it, so the reported effect size is one past which power does not stay on target"
+
+  [[target.mutant]]
+  id = "unreachable-target-reported-as-finite"
+  find = 'return float("inf")'
+  replace = "return float(points[-1])"
+  models = "unbounded placebo bands that cap power below the target, reported as a finite MDE at the largest band end instead of as out of reach"
+
+  [[target.mutant]]
+  id = "the-seed-is-ignored"
+  find = "rng = np.random.default_rng(int(seed))"
+  replace = "rng = np.random.default_rng(0)"
+  models = "power_seed accepted and recorded on the result while every rehearsal draws the same markets"
+
+  [[target.mutant]]
+  id = "every-placebo-is-the-same-design"
+  find = "sub = np.sort(rng.choice(N, k, replace=False))"
+  replace = "sub = np.arange(k)"
+  models = "placebos that all draw the first k markets, so the rehearsal repeats one design n_placebos times and its power is a single draw dressed as a distribution"
+
+  [[target.mutant]]
+  id = "relative-to-the-control-composite"
+  find = "total = float(np.sum(np.asarray(g.synthetic_treated)[T0p:T0p + int(horizon)]))"
+  replace = "total = float(np.sum(np.asarray(g.synthetic_control)[T0p:T0p + int(horizon)]))"
+  models = "bands scaled by the control composite's total, which is not what a relative effect on the test markets moves"
+
+  [[target.mutant]]
+  id = "blank-window-ignored-at-the-pseudo-launch"
+  find = "    if blank_periods:\n        blank = int(blank_periods)"
+  replace = "    if False:\n        blank = int(blank_periods)"
+  models = "a rehearsal that always takes the default blank window, so a test configured with its own blank window is rehearsed with a different one"
+
+[[target]]
+name = "marex-pool-mde"
+module-path = "mlsynth/utils/marex_helpers/pool.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_power_rehearsal.py mlsynth/tests/test_marex_pool.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "baseline-from-the-unweighted-treated-level"
+  find = "baseline = (float(np.mean(w_agg @ full_pre))"
+  replace = "baseline = (float(np.mean(full_pre[treated_idx, :]))"
+  models = "#692: a weighted-contrast MDE divided by the treated units' unweighted level, so designs holding a large market rank as more powerful for their denominator"
+
+  [[target.mutant]]
+  id = "horizon-capped-at-twelve"
+  find = "h = max(1, int(n_post))"
+  replace = "h = max(1, min(int(n_post), 12))"
+  models = "a 15-period test scored at 12 periods, reporting the MDE of a shorter test than the one planned"
+
+[[target]]
+name = "marex-power-rehearsal-wiring"
+module-path = "mlsynth/estimators/scexp.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_power_rehearsal.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "rehearsal-reads-the-post-launch-periods"
+  find = "np.asarray(panel.Y_full, dtype=float)[:, :panel.T0], horizon=int(horizon),"
+  replace = "np.asarray(panel.Y_full, dtype=float), horizon=int(horizon),"
+  models = "a rehearsal handed the whole panel, so its pseudo-launch falls inside the real test and the planned test's power is priced on the outcome it is meant to plan for"
+
+  [[target.mutant]]
+  id = "power-horizon-ignored"
+  find = "horizon = (self.config.power_horizon or self.config.T_post"
+  replace = "horizon = (self.config.T_post"
+  models = "power_horizon accepted and documented while the rehearsal runs at the panel's own post length"
+
+  [[target.mutant]]
+  id = "placebos-hold-one-test-market"
+  find = "n_treated=len(results.selected_units),"
+  replace = "n_treated=1,"
+  models = "placebo designs with a different number of test markets from the real design, rehearsing a test nobody plans to run"
