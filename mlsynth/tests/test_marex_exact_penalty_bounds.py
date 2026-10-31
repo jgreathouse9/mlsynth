@@ -118,14 +118,16 @@ def _enumerate(B, A, m, lin_t=None, lin_c=None, donors=()):
     return sorted(rows)
 
 
-def _count_fits(monkeypatch):
-    """Wrap the exact fit so a test can read the calls the search makes, in order."""
+def _count_fits(monkeypatch, weights=False):
+    """Wrap the exact fit so a test can read the calls the search makes, in
+    order: ``(cols, value)``, or with ``weights`` ``(cols, value, w)``."""
     calls = []
     original = exact_mod.side_fit
 
     def counted(B, A, cols, linear=None):
         out = original(B, A, cols, linear)
-        calls.append((tuple(cols), out[0]))
+        calls.append((tuple(cols), out[0], out[1]) if weights else
+                     (tuple(cols), out[0]))
         return out
 
     monkeypatch.setattr(exact_mod, "side_fit", counted)
@@ -382,20 +384,30 @@ def test_no_candidate_gets_a_control_fit_its_treated_fit_and_the_floor_rule_out(
     A candidate whose bound is under the incumbent still has its treated side
     fitted; if that fit plus the floor clears the incumbent, the control fit
     is not paid for. The calls are read in order: a fit over ``m`` markets is
-    a treated side, over ``n - m`` a control pool, over ``n`` the floor.
+    a treated side, over ``n - m`` a control pool, over ``n`` the floor. A
+    treated fit that leaves a market unweighted is refused before its control
+    fit whatever the floor says (jgreathouse9/mlsynth#950), so only weighted
+    ones can count as spared by the floor; with them counted, the floor rule
+    could be removed and the test would still find spared candidates.
+
+    A weighted set's fit sits above its bound only where the bound is loose:
+    with a treated penalty, and more treated markets than fit periods. On a
+    longer panel every set the floor would spare is also unweighted, and the
+    test has no power. Here (four markets over three periods) the floor spares
+    weighted sets.
     """
-    n, m = 10, 3
-    B, A, lin_t, lin_c = _heavy(42, n=n, scale=10.0)
+    n, m = 10, 4
+    B, A, lin_t, lin_c = _heavy(0, n=n, T=3, scale=0.3)
     floor = _floor(B, A, lin_c)
-    calls = _count_fits(monkeypatch)
+    calls = _count_fits(monkeypatch, weights=True)
     search_cluster(B, A, sizes=[m], filt=SubsetFilter(),
                    linear_treated=lin_t, linear_control=lin_c)
     best, g, spared = np.inf, None, 0
-    for cols, value in calls + [((None,) * m, None)]:
+    for cols, value, w in calls + [((None,) * m, None, np.ones(m))]:
         if len(cols) == m:
             if g is not None and g < best:
                 spared += 1
-            g = value
+            g = value if np.all(w > 1e-8) else None
         elif len(cols) == n - m:
             cut = best + exact_mod.PRUNE_MARGIN * (1.0 + abs(best))
             assert g + floor < cut
