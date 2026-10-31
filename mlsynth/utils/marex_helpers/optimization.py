@@ -21,6 +21,7 @@ import numpy as np
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from .formulation import (
+    carries_weight,
     build_constraints,
     build_objective,
     compute_cluster_means_members,
@@ -278,7 +279,67 @@ def _refit_by_qp(X_fit, Xbar_clusters, cluster_members, cluster_labels, M, z_sel
     return w_fit, v_fit, float(prob.value)
 
 
-def solve_design(
+#: Re-solves :func:`solve_design` makes to cut treated sets with an unweighted
+#: market before it reports the design infeasible.
+MAX_WEIGHT_CUTS = 100
+
+
+def solve_design(Y_full, T0, clusters, *, forbidden=None, **kwargs):
+    """Exact mixed-integer MAREX design (was ``SCMEXP``), every treated market
+    weighted.
+
+    The MIQP links a market's weight to its selection one way, ``w_j <= z_j``:
+    an unselected market carries no weight, but a selected one may carry none
+    either, so ``sum_j z_j = m`` counts markets, not the nonzero treated
+    weights Abadie and Zhao bound. Their program, ``||w||_0 = m``, has no
+    minimum where the best fit wants a market at zero weight: the value of
+    giving it weight ``eps`` falls toward the zero-weight design's as ``eps``
+    falls, and never reaches it. A treated set is therefore a design only when
+    its own fit weights every market in it, the rule the exact backend applies.
+
+    After each solve the selection is refit (:func:`refit_selection`); where a
+    cluster's treated set has a market at weight ``<= WEIGHT_FLOOR``, that
+    set is cut from that cluster, ``sum z[S] <= |S| - 1``, and the program
+    solved again. Arguments are :func:`_solve_design_once`'s.
+    """
+    cuts = list(forbidden or [])
+    for _ in range(MAX_WEIGHT_CUTS + 1):
+        try:
+            raw = _solve_design_once(Y_full=Y_full, T0=T0, clusters=clusters,
+                                     forbidden=cuts, **kwargs)
+        except MlsynthEstimationError as exc:
+            if len(cuts) > len(forbidden or []):
+                raise MlsynthEstimationError(
+                    "No design exists in which every treated market carries "
+                    "weight: each treated set the constraints allow has a "
+                    "market its fit gives no weight. A treated market must "
+                    "carry weight; Abadie and Zhao count the nonzero treated "
+                    "weights.") from exc
+            raise
+        new = _unweighted_sets(raw)
+        if not new:
+            return raw
+        cuts.extend(new)
+    raise MlsynthEstimationError(
+        f"The MIQP returned a treated set with an unweighted market "
+        f"{MAX_WEIGHT_CUTS} times in a row. Use backend='exact', which refuses "
+        f"such sets during its search.")
+
+
+def _unweighted_sets(raw):
+    """Each cluster's treated set, as ``(unit, cluster)`` pairs, whose fit
+    leaves a selected market at weight ``<= WEIGHT_FLOOR``."""
+    z = np.asarray(raw["z_opt"]) > 0.5
+    w = np.asarray(raw["w_opt"])
+    out = []
+    for k in range(z.shape[1]):
+        S = np.flatnonzero(z[:, k])
+        if S.size and not carries_weight(w[S, k]):
+            out.append([(int(j), int(k)) for j in S])
+    return out
+
+
+def _solve_design_once(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0, xi=0.0,
     lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
@@ -287,7 +348,7 @@ def solve_design(
     warm_start=None, time_limit=None, control_penalty=0.0,
     market_costs=None, max_total_cost=None,
 ):
-    """Exact mixed-integer MAREX design (was ``SCMEXP``).
+    """One MIQP solve and refit; :func:`solve_design` repeats it.
 
     ``market_costs`` (one per row) with ``max_total_cost`` caps the treated
     markets' total cost, ``sum_j c_j z_j <= B``.

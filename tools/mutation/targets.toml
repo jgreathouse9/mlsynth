@@ -10454,3 +10454,103 @@ timeout = 900.0
   find = "    if market_costs is not None:\n        # The relaxed path"
   replace = "    if False:\n        # The relaxed path"
   models = "the budget accepted by the estimator and never handed to either solver"
+
+# MAREX: a treated market is one the design weights (jgreathouse9/mlsynth#950).
+# Abadie and Zhao bound ||w||_0; every path that fits a treated set refuses one
+# whose fit leaves a market at weight <= WEIGHT_FLOOR.
+
+[[target]]
+name = "marex-weighted-count-rule"
+module-path = "mlsynth/utils/marex_helpers/formulation.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weighted_count.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "one-weighted-market-is-enough"
+  find = "    return bool(np.all(np.asarray(w, dtype=float) > WEIGHT_FLOOR))"
+  replace = "    return bool(np.any(np.asarray(w, dtype=float) > WEIGHT_FLOOR))"
+  models = "the rule asking whether the set weights some market, which every simplex fit does, so the set's size is again the count and a market at zero weight is treated"
+
+  [[target.mutant]]
+  id = "a-zero-weight-passes-the-floor"
+  find = "WEIGHT_FLOOR = 1e-8\n"
+  replace = "WEIGHT_FLOOR = -1.0\n"
+  models = "a floor below zero, under which an exactly-zero weight counts as carried: the defect of jgreathouse9/mlsynth#950 with the rule in place and inert"
+
+[[target]]
+name = "marex-weighted-count-search"
+module-path = "mlsynth/utils/marex_helpers/exact.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weighted_count.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-search-counts-the-set"
+  find = "        if beta is None and not carries_weight(w):"
+  replace = "        if False:"
+  models = "the enumeration admitting a treated set by its size, so m_eq=m returns a design that weights fewer than m markets and holds the unweighted one out of the control pool"
+
+  [[target.mutant]]
+  id = "the-coupled-weights-go-unchecked"
+  find = "            rep.coupled(info, value)\n            if not carries_weight(w):"
+  replace = "            rep.coupled(info, value)\n            if False:"
+  models = "the weakly-targeted search admitting a set on its coupled weights without checking them, the one place the treated weights are not the treated fit's"
+
+  [[target.mutant]]
+  id = "refused-sets-go-uncounted"
+  find = "        if beta is None and not carries_weight(w):\n            rep.counts[\"unweighted\"] += 1"
+  replace = "        if beta is None and not carries_weight(w):\n            rep.counts[\"unweighted\"] += 0"
+  models = "the report losing the refused sets, so the counts stop summing to the candidates and a design the rule decided reads as one the bounds decided"
+
+[[target]]
+name = "marex-weighted-count-branch"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weighted_count.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-branch-and-bound-counts-the-set"
+  find = "        if not carries_weight(w):\n            # A set treats"
+  replace = "        if False:\n            # A set treats"
+  models = "the certified branch and bound, which runs above the candidate limit, admitting a set by its size while the enumeration below the limit refuses it: the two searches then disagree on the same program"
+
+[[target]]
+name = "marex-weighted-count-certificate"
+module-path = "mlsynth/utils/marex_helpers/certify.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weighted_count.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-certificate-holds-unweighted-rivals"
+  find = "            if not carries_weight(w):\n                continue"
+  replace = "            if False:\n                continue"
+  models = "the certificate pricing a set the search refused as a rival, so the optimum of the weighted program is reported unresolved against a set with a market at zero weight"
+
+[[target]]
+name = "marex-weighted-count-mip"
+module-path = "mlsynth/utils/marex_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_weighted_count.py -q -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mip-keeps-unweighted-sets"
+  find = "        new = _unweighted_sets(raw)"
+  replace = "        new = []"
+  models = "the MIQP's w_j <= z_j taken as the whole link between weight and selection: sum z = m then counts markets, and SCIP returns the zero-weight design the exact backend refuses"
+
+  [[target.mutant]]
+  id = "the-cuts-are-not-kept"
+  find = "        cuts.extend(new)"
+  replace = "        pass"
+  models = "the loop re-solving without the cut it found, so SCIP returns the same unweighted set until the loop gives up"
+
+  [[target.mutant]]
+  id = "an-infeasible-cut-program-reads-as-a-restriction-clash"
+  find = "            if len(cuts) > len(forbidden or []):"
+  replace = "            if False:"
+  models = "a program the cuts left infeasible reported with the solver's message, which blames the restrictions for what the weight rule did"
+
+  [[target.mutant]]
+  id = "only-the-first-cluster-is-checked"
+  find = "    for k in range(z.shape[1]):"
+  replace = "    for k in range(min(1, z.shape[1])):"
+  models = "the check reading one cluster, so a clustered design's other clusters keep their unweighted markets"

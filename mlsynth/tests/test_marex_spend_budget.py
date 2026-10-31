@@ -39,15 +39,19 @@ def _with_costs(df, costs):
 
 
 def _budget_oracle(df, T0, costs, budget, m=M):
-    """The standard design's minimum over treated sets within budget."""
+    """The standard design's minimum over treated sets within budget whose
+    treated fit weights every market (jgreathouse9/mlsynth#950)."""
     labels, X = _predictors(df, T0)
     A = X.mean(axis=0)
     best = (np.inf, None)
     for S in itertools.combinations(range(X.shape[0]), m):
         if sum(costs[i] for i in S) > budget + 1e-9:
             continue
+        g, w = _simplex_fit(X[list(S)].T, A, weights=True)
+        if np.any(w <= 1e-8):
+            continue
         C = [i for i in range(X.shape[0]) if i not in S]
-        f = _simplex_fit(X[list(S)].T, A) + _simplex_fit(X[C].T, A)
+        f = g + _simplex_fit(X[C].T, A)
         if f < best[0]:
             best = (f, S)
     if best[1] is None:

@@ -28,11 +28,12 @@ from __future__ import annotations
 import itertools
 
 import numpy as np
+import pandas as pd
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.marex_helpers import exact as exact_mod
 from mlsynth.utils.marex_helpers.exact import (
     search_cluster,
@@ -110,18 +111,23 @@ def _enumerate(B, A, m, lin_t=None, lin_c=None, donors=()):
         C = [j for j in range(n) if j not in S and j not in excluded]
         if not C:
             continue
+        w = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])[1]
+        if np.any(w <= 1e-8):
+            continue                       # not a design of its size (#950)
         rows.append((_fit(B, A, S, lin_t) + _fit(B, A, C, lin_c), S))
     return sorted(rows)
 
 
-def _count_fits(monkeypatch):
-    """Wrap the exact fit so a test can read the calls the search makes, in order."""
+def _count_fits(monkeypatch, weights=False):
+    """Wrap the exact fit so a test can read the calls the search makes, in
+    order: ``(cols, value)``, or with ``weights`` ``(cols, value, w)``."""
     calls = []
     original = exact_mod.side_fit
 
     def counted(B, A, cols, linear=None):
         out = original(B, A, cols, linear)
-        calls.append((tuple(cols), out[0]))
+        calls.append((tuple(cols), out[0], out[1]) if weights else
+                     (tuple(cols), out[0]))
         return out
 
     monkeypatch.setattr(exact_mod, "side_fit", counted)
@@ -154,8 +160,10 @@ def test_the_floor_is_a_finite_non_negative_number():
 # Comparing treated sets is only valid where the optimum is unique, and two
 # backends may return different members of a tie (#779). lambda1 == lambda2 is
 # avoided: the penalised objective is then the same function on both sides, so
-# a design and its mirror tie exactly, and CI's SCIP returned the mirror of the
-# exact backend's design at 1.0 / 1.0. _assert_unique_optimum checks the
+# a design and its mirror tie exactly wherever the mirror is a design of the
+# same size. At 1.0 / 1.0 on seed 40 the recorded tie was not a mirror: under
+# the old count both "m_eq=3" designs weighted a single market, u3, at the
+# same objective (jgreathouse9/mlsynth#950). _assert_unique_optimum checks the
 # premise on each panel before the sets are compared.
 UNIQUE_GAP = 1e-4
 
@@ -171,7 +179,10 @@ def _assert_unique_optimum(df, T0, exact, **over):
     """
     best = exact.globres.objective
     for unit in sorted(_treated(exact)):
-        other = _marex_fit(df, T0, "exact", not_to_be_treated=[unit], **over)
+        try:
+            other = _marex_fit(df, T0, "exact", not_to_be_treated=[unit], **over)
+        except MlsynthEstimationError:
+            continue        # no weighted design omits this market: nothing ties
         gap = (other.globres.objective - best) / abs(best)
         assert gap > UNIQUE_GAP, (
             f"forbidding {unit} costs {gap:.2e}: the optimum is tied with "
@@ -201,12 +212,30 @@ def test_exact_matches_the_mip_under_heavy_penalties_with_two_clusters():
     _assert_same_design(exact, mip)
 
 
-def test_the_uniqueness_check_reports_the_mirror_tie():
+def test_the_uniqueness_check_reports_a_tie():
+    """A copy of a treated market ties the design with the one that treats
+    the copy in its place, and forbidding either finds the other."""
     df, T0 = _panel(seed=40)
     over = dict(m_eq=3, design="penalized", lambda1=1.0, lambda2=1.0)
+    first = sorted(_treated(_marex_fit(df, T0, "exact", **over)))[0]
+    twin = df[df["unit"] == first].assign(unit="twin")
+    df = pd.concat([df, twin], ignore_index=True)
     exact = _marex_fit(df, T0, "exact", **over)
     with pytest.raises(AssertionError, match="tied with"):
         _assert_unique_optimum(df, T0, exact, **over)
+
+
+def test_a_market_no_weighted_design_can_omit_is_no_tie():
+    """Forbidding a treated market can leave no design that weights every
+    treated market; the uniqueness check reads that as no rival."""
+    df, T0 = _panel(J=12, seed=41, region_sizes=(6, 6))
+    over = dict(m_eq=2, cluster="region", design="penalized",
+                lambda1=1.0, lambda2=0.7)
+    exact = _marex_fit(df, T0, "exact", **over)
+    unit = sorted(_treated(exact))[0]
+    with pytest.raises(MlsynthEstimationError, match="weight"):
+        _marex_fit(df, T0, "exact", not_to_be_treated=[unit], **over)
+    _assert_unique_optimum(df, T0, exact, **over)
 
 
 # ------------------------------------------------- unit: the treated bound
@@ -355,20 +384,30 @@ def test_no_candidate_gets_a_control_fit_its_treated_fit_and_the_floor_rule_out(
     A candidate whose bound is under the incumbent still has its treated side
     fitted; if that fit plus the floor clears the incumbent, the control fit
     is not paid for. The calls are read in order: a fit over ``m`` markets is
-    a treated side, over ``n - m`` a control pool, over ``n`` the floor.
+    a treated side, over ``n - m`` a control pool, over ``n`` the floor. A
+    treated fit that leaves a market unweighted is refused before its control
+    fit whatever the floor says (jgreathouse9/mlsynth#950), so only weighted
+    ones can count as spared by the floor; with them counted, the floor rule
+    could be removed and the test would still find spared candidates.
+
+    A weighted set's fit sits above its bound only where the bound is loose:
+    with a treated penalty, and more treated markets than fit periods. On a
+    longer panel every set the floor would spare is also unweighted, and the
+    test has no power. Here (four markets over three periods) the floor spares
+    weighted sets.
     """
-    n, m = 10, 3
-    B, A, lin_t, lin_c = _heavy(42, n=n, scale=10.0)
+    n, m = 10, 4
+    B, A, lin_t, lin_c = _heavy(0, n=n, T=3, scale=0.3)
     floor = _floor(B, A, lin_c)
-    calls = _count_fits(monkeypatch)
+    calls = _count_fits(monkeypatch, weights=True)
     search_cluster(B, A, sizes=[m], filt=SubsetFilter(),
                    linear_treated=lin_t, linear_control=lin_c)
     best, g, spared = np.inf, None, 0
-    for cols, value in calls + [((None,) * m, None)]:
+    for cols, value, w in calls + [((None,) * m, None, np.ones(m))]:
         if len(cols) == m:
             if g is not None and g < best:
                 spared += 1
-            g = value
+            g = value if np.all(w > 1e-8) else None
         elif len(cols) == n - m:
             cut = best + exact_mod.PRUNE_MARGIN * (1.0 + abs(best))
             assert g + floor < cut
@@ -563,6 +602,12 @@ def test_the_penalised_search_is_exact_over_the_domain(
     lin_t, lin_c = _penalty(seed + 1, n, scale), _penalty(seed + 2, n, scale)
     donors = ((0, n - 1), (1, n - 2)) if donor and n > 3 else ()
     want = _enumerate(B, A, m, lin_t, lin_c, donors)[:top_k]
+    if not want:                         # no set weights all its markets (#950)
+        with pytest.raises(MlsynthEstimationError, match="weight"):
+            search_cluster(B, A, sizes=[m], filt=SubsetFilter(),
+                           linear_treated=lin_t, linear_control=lin_c,
+                           donor_exclusion=donors, top_k=top_k)
+        return
     got = search_cluster(B, A, sizes=[m], filt=SubsetFilter(),
                          linear_treated=lin_t, linear_control=lin_c,
                          donor_exclusion=donors, top_k=top_k)
