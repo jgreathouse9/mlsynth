@@ -6,7 +6,9 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Literal, Optional, Union
+import numpy as np
 import pandas as pd
 import warnings
 from pydantic import Field, field_validator, model_validator
@@ -293,6 +295,17 @@ class MAREXConfig(BaseMAREXConfig):
         "[min_size, max_size] lose treatment eligibility (stay donors).")
     min_size: Optional[float] = Field(default=None, description="Lower size bound.")
     max_size: Optional[float] = Field(default=None, description="Upper size bound.")
+    market_cost_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column holding each market's cost of being "
+        "in the test (the media held back, the fees to run it). With "
+        "`max_total_cost`, the treated markets' costs must sum to at most the "
+        "budget: sum_j c_j z_j <= B, a rule on which markets are treated. Distinct "
+        "from `costs`/`budget`, which bound the treated weights' average cost.")
+    max_total_cost: Optional[float] = Field(
+        default=None,
+        description="The budget on the total cost of the treated markets. "
+        "Requires `market_cost_col`.")
     cluster_col: Optional[str] = Field(
         default=None,
         description="Per-unit-constant column whose value defines an interference "
@@ -573,6 +586,38 @@ class MAREXConfig(BaseMAREXConfig):
                 "certify=True splits each candidate into a treated fit and a "
                 "control fit, and the weakly-targeted design couples them; "
                 "certify the standard, penalized or unit_penalized design.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_spend_budget(self) -> "MAREXConfig":
+        col, cap = self.market_cost_col, self.max_total_cost
+        if col is None and cap is None:
+            return self
+        if col is None:
+            raise MlsynthConfigError(
+                "max_total_cost needs market_cost_col, the column of each market's cost.")
+        if cap is None:
+            raise MlsynthConfigError(
+                "market_cost_col needs max_total_cost, the budget the costs are summed against.")
+        if not (math.isfinite(cap) and cap > 0):
+            raise MlsynthConfigError(
+                f"max_total_cost must be a positive number; got {cap!r}.")
+        if col not in self.df.columns:
+            raise MlsynthConfigError(f"market_cost_col '{col}' is not a column of df.")
+        if self.relaxed:
+            raise MlsynthConfigError(
+                "a total-cost budget is a rule on the treated set, which the "
+                "relaxed program's post-hoc rounding cannot guarantee; use relaxed=False.")
+        per_unit = self.df.groupby(self.unitid, observed=True)[col]
+        if (per_unit.nunique(dropna=False) > 1).any():
+            raise MlsynthDataError(
+                f"market_cost_col '{col}' varies within a market; it must hold one "
+                "cost per market.")
+        values = per_unit.first().to_numpy(dtype=float)
+        if not (np.all(np.isfinite(values)) and np.all(values >= 0)):
+            raise MlsynthDataError(
+                f"market_cost_col '{col}' must hold a finite, non-negative cost for "
+                "every market.")
         return self
 
     @model_validator(mode="after")

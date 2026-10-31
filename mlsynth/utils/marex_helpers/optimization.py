@@ -285,8 +285,12 @@ def solve_design(
     covariates=None, covariate_weight=1.0, standardize=False,
     solver=cp.SCIP, verbose=False, restrictions=None, forbidden=None,
     warm_start=None, time_limit=None, control_penalty=0.0,
+    market_costs=None, max_total_cost=None,
 ):
     """Exact mixed-integer MAREX design (was ``SCMEXP``).
+
+    ``market_costs`` (one per row) with ``max_total_cost`` caps the treated
+    markets' total cost, ``sum_j c_j z_j <= B``.
 
     ``forbidden`` is an optional list of previously-chosen assignments, each a
     list of ``(unit_idx, cluster_idx)`` pairs; for every one a no-good cut
@@ -315,7 +319,9 @@ def solve_design(
     w, v, z = init_cvxpy_variables(N, K)
     constraints = build_constraints(w, v, z, M, cluster_members, cluster_labels,
                                     m_eq, m_min, m_max, costs_np, budget_dict,
-                                    exclusive, restrictions=restrictions)
+                                    exclusive, restrictions=restrictions,
+                                    selection_budget=(None if market_costs is None
+                                                      else (market_costs, max_total_cost)))
     # no-good cuts: forbid each previously chosen assignment so a re-solve finds
     # the next-best distinct design (solution pool).
     for pairs in (forbidden or []):

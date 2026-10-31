@@ -153,6 +153,12 @@ class MAREX:
         )
         restrictions = None if restrictions.is_empty else restrictions
 
+        # The total-cost budget, as each market's cost in the panel's unit order.
+        market_costs = None
+        if self.config.market_cost_col is not None:
+            per_unit = self.df.groupby(self.unitid, observed=True)[self.config.market_cost_col].first()
+            market_costs = per_unit.reindex(list(panel.unit_index.labels)).to_numpy(dtype=float)
+
         # Resolve warm-start labels to row indices against the canonical
         # unit_index (the same source of truth restrictions use).
         warm_idx = None
@@ -193,6 +199,8 @@ class MAREX:
                 backend=self.config.backend,
                 control_penalty=self.control_penalty,
                 certify=self.config.certify,
+                market_costs=market_costs,
+                max_total_cost=self.config.max_total_cost,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -226,6 +234,8 @@ class MAREX:
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
                     covariate_weight=covariate_weight, standardize=self.standardize,
                     restrictions=restrictions,
+                    market_costs=market_costs,
+                    max_total_cost=self.config.max_total_cost,
                 )
                 if self.config.backend == "exact":
                     # One search keeps each cluster's top_K treated sets; the

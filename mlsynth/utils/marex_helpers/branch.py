@@ -598,6 +598,14 @@ def branch_and_bound(
                          tuple(k for k in F if k != j and k not in out))),
                 (bound, (m, I, tuple(sorted(O + (j,))), tuple(k for k in F if k != j)))]
 
+    def over_budget(I, F, r) -> bool:
+        """Whether even the ``r`` cheapest free markets put the node's forced
+        markets over the total-cost budget, so no set below it is admissible."""
+        if filt.costs is None:
+            return False
+        least = float(filt.costs[list(I)].sum()) + float(np.sort(filt.costs[list(F)])[:r].sum())
+        return least > filt.budget + 1e-9
+
     def plan(bound, node):
         """Drop a node its key clears or that holds no admissible design;
         price one cheaper to price than to bound; bound any other."""
@@ -606,6 +614,8 @@ def branch_and_bound(
             return None
         r = m - len(I)
         if r < 0 or r > len(F) or conflicted(I):
+            return None
+        if over_budget(I, F, r):
             return None
         sub = dataclasses.replace(filt, forced_in=frozenset(I), forbidden=frozenset(O))
         count = count_candidates(n, [m], sub)
