@@ -104,8 +104,16 @@ class MAREXConfig(BaseMAREXConfig):
             "distance matrix, which is bilinear in two decision variables and "
             "leaves no convex program. Use lambda1_unit, or the 'penalized' "
             "design, which weighs each side against the target separately."))
-    costs: Optional[List[float]] = None
-    budget: Optional[Union[int, Dict[int, int]]] = None
+    costs: Optional[List[float]] = Field(
+        default=None,
+        description="Each unit's cost, in the panel's unit order (sorted by "
+                    "label). With budget, bounds each cluster's treated weights' "
+                    "average cost: sum_j c_j w_j <= budget. Both backends take it; "
+                    "the exact backend fits it on the separable designs.")
+    budget: Optional[Union[float, Dict[Any, float]]] = Field(
+        default=None,
+        description="The bound on the treated weights' average cost: one number, "
+                    "split evenly across clusters, or one per cluster label.")
 
     blank_periods: Optional[int] = Field(
         default=None,
@@ -557,10 +565,15 @@ class MAREXConfig(BaseMAREXConfig):
             problems.append(
                 f"beta={self.beta} makes the weakly-targeted coupling concave, "
                 f"so the design has no minimum to certify; beta must be >= 0")
-        if self.costs is not None or self.budget is not None:
+        if (self.costs is not None or self.budget is not None) \
+                and self.design == "weakly_targeted":
             problems.append(
-                "a cost budget constrains the treated weights, which the "
-                "exact backend's per-candidate fit does not take")
+                "a cost budget on the treated weights is fitted on the treated "
+                "side alone, and the weakly-targeted coupled fit does not take it")
+        if (self.costs is not None or self.budget is not None) and self.certify:
+            problems.append(
+                "certify=True prices each treated set by its unconstrained fit, "
+                "which a cost budget on the treated weights can raise")
         for name in ("warm_start", "time_limit", "solver"):
             if getattr(self, name) is not None:
                 problems.append(
@@ -742,7 +755,7 @@ class MAREXConfig(BaseMAREXConfig):
 
         # --- budget validation ---
         if values.budget is not None:
-            if isinstance(values.budget, int):
+            if isinstance(values.budget, (int, float)) and not isinstance(values.budget, bool):
                 if values.budget <= 0:
                     raise MlsynthDataError("Scalar 'budget' must be strictly positive.")
             elif isinstance(values.budget, dict):

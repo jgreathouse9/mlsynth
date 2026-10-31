@@ -21,11 +21,13 @@ it is decided:
 * ``without_control``: its donor exclusions left no control market;
 * ``unweighted``: its treated fit gave a market no weight, so the set treats
   fewer markets than it holds and is refused;
+* ``over_weight_budget``: no treated weights on it meet the weighted-average
+  cost constraint (``costs``/``budget``): every market costs more;
 * ``cleared_by_fit_cutoff``: the weakly-targeted coupled fit stopped once its
   certified bound cleared the incumbent;
 * ``fitted``: fitted to completion.
 
-so the seven sum to ``candidates``. The branch and bound above the candidate limit
+so the eight sum to ``candidates``. The branch and bound above the candidate limit
 reports its own counts (``bnb_bounds``, ``bnb_priced``), the designs it fitted,
 its work in the cost model's seconds (``bnb_work``) and the nodes its work limit
 left open (``bnb_open``, zero when it proved its design optimal).
@@ -125,6 +127,7 @@ class SearchCounts:
     cleared_by_treated_fit: int = 0
     without_control: int = 0
     unweighted: int = 0
+    over_weight_budget: int = 0
     cleared_by_fit_cutoff: int = 0
     fitted: int = 0
     second_pass: bool = False
