@@ -122,6 +122,36 @@ def test_a_root_whose_two_blocks_will_not_fit_is_searched_on_one(monkeypatch):
     assert set(map(str, got.assignment["treated"])) == set(map(str, want.assignment["treated"]))
 
 
+def _two_forbidden(monkeypatch, memory):
+    """A nine-market panel with two markets forbidden, so the root's treated block
+    uses 7 markets and its control side 9, searched with ``memory``."""
+    df, T0 = _panel(J=9)
+    units = sorted(df["unit"].unique(), key=str)
+    _low_limit(monkeypatch)
+    _always_bound(monkeypatch)
+    monkeypatch.setattr(branch_mod, "available_memory", lambda: memory)
+    return MAREXConfig(**_cfg(df, T0, "exact", m_eq=3, not_to_be_treated=units[:2]))
+
+
+def test_the_one_block_is_estimated_on_the_treated_sides_markets(monkeypatch):
+    """Memory between one block of 7 markets and one of 9: the treated side's 7
+    fit, so the search runs. Read on the control side's 9, it would refuse."""
+    cfg = _two_forbidden(monkeypatch, (lift_bytes(7) + lift_bytes(9)) / 2 / MEMORY_SHARE)
+    calls = _spy_bounds(monkeypatch)
+    res = MAREX(cfg).fit()
+    assert calls and len(res.assignment["treated"]) == 3
+
+
+def test_the_one_block_counts_the_free_markets(monkeypatch):
+    """Memory under one block of 7 markets: refused, though the root forces no
+    market in and a count of the forced markets alone would let it run."""
+    cfg = _two_forbidden(monkeypatch, (lift_bytes(0) + lift_bytes(7)) / 2 / MEMORY_SHARE)
+    calls = _spy_bounds(monkeypatch)
+    with pytest.raises(MlsynthConfigError, match="9 markets"):
+        MAREX(cfg).fit()
+    assert calls == []
+
+
 def test_a_root_priced_set_by_set_needs_no_memory_for_a_bound(monkeypatch):
     df, T0 = _panel(J=9)
     want = MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3))).fit()
