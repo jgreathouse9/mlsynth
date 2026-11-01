@@ -1880,6 +1880,7 @@
   "mlsynth/utils/marex_helpers/certify.py",
   "mlsynth/utils/marex_helpers/diagnostics.py",
   "mlsynth/utils/marex_helpers/exact.py",
+  "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/search_skeleton.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/syndes_helpers/enumeration.py",
