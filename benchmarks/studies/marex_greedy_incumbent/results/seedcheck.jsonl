@@ -1,0 +1,3 @@
+{"panel": "section5", "m": 2, "fit_periods": 20, "completesol_calls": 1, "seed_used": true, "first_found_by": "completesol", "unknown_rate": null, "unknown_rate_limit": null}
+{"panel": "walmart", "m": 2, "fit_periods": 104, "completesol_calls": 0, "seed_used": false, "first_found_by": "trysol", "unknown_rate": 0.932836, "unknown_rate_limit": 0.85}
+{"panel": "geolift", "m": 2, "fit_periods": 90, "completesol_calls": 0, "seed_used": false, "first_found_by": "trysol", "unknown_rate": 0.925, "unknown_rate_limit": 0.85}
