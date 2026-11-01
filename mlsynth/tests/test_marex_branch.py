@@ -239,11 +239,12 @@ def _subtree_min(B, A, m, I, O, lin_t=None, lin_c=None, donors=()):
     return found[0][0] if found else None
 
 
-@settings(max_examples=25, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(seed=st.integers(0, 10**6), n=st.integers(4, 8), m=st.integers(1, 3),
-       fix=st.integers(0, 2), linear=st.booleans(), donor=st.booleans())
+       fix=st.integers(0, 2), linear=st.booleans(), donor=st.booleans(),
+       control_block=st.booleans())
 def test_the_node_bound_never_exceeds_the_subtree_minimum(seed, n, m, fix, linear,
-                                                           donor):
+                                                           donor, control_block):
     m = min(m, n - 2)
     B, A = _problem(seed, n)
     rng = np.random.default_rng(seed + 1)
@@ -257,7 +258,7 @@ def test_the_node_bound_never_exceeds_the_subtree_minimum(seed, n, m, fix, linea
     best = _subtree_min(B, A, m, I, O, lin_t, lin_c, donors)
     if best is None:
         return
-    nb = node_bound(ExactData(B, A), m, I, O, F, lin_t, lin_c)
+    nb = node_bound(ExactData(B, A), m, I, O, F, lin_t, lin_c, control_block=control_block)
     assert isinstance(nb, NodeBound)
     if nb.lower is not None:
         assert nb.lower <= Fraction(best) * (1 + Fraction(1, 10**12)) + Fraction(1, 10**300)
@@ -417,14 +418,14 @@ def test_a_degenerate_panel_gets_a_bound_of_zero_or_less():
     assert nb.lower is None or nb.lower <= 0
 
 
-# ------------------------------------------------- the bound's one block
-# The node bound solves the treated side's semidefinite block alone and adds the
+# --------------------------------------- the bound's control block, kept or not
+# The node bound solves a persp+N block per side. When the two blocks will not fit
+# in memory, the search bounds the node on the treated block alone plus the
 # certified control floor over the markets the node leaves the controls: every
 # design's objective is g(S) + h(C(S)) with C(S) inside O + F, so its minimum
-# over the node is at least the treated part's bound plus that floor. The
-# control side's own block bought one to two points of bound at the root, at
-# two to five times the solve and twice the memory, and every closed search
-# proved the same design without it.
+# over the node is at least the treated part's bound plus that floor. The answer
+# is the same either way; the one block is weaker, by one to two points at the
+# root, and needs about half the memory.
 
 def _control_floor(data, cols, lin):
     """The certified lower bound on every control fit inside ``cols``, computed
@@ -451,11 +452,19 @@ def _certificates_of(fn):
     return seen
 
 
-def test_the_node_bound_solves_the_treated_block_alone():
+def test_the_node_bound_solves_both_blocks_by_default():
+    B, A = _problem(3, 8)
+    seen = _certificates_of(lambda: node_bound(ExactData(B, A), 2, [], [1],
+                                               [0, 2, 3, 4, 5, 6, 7]))
+    (sides, _), = seen
+    assert [s.control for s in sides] == [False, True]
+
+
+def test_without_the_control_block_the_bound_solves_the_treated_block_alone():
     B, A = _problem(3, 8)
     I, O, F = [], [1], [0, 2, 3, 4, 5, 6, 7]
-    seen = _certificates_of(lambda: node_bound(ExactData(B, A), 2, I, O, F))
-    assert len(seen) == 1
+    seen = _certificates_of(lambda: node_bound(ExactData(B, A), 2, I, O, F,
+                                               control_block=False))
     (sides, _), = seen
     assert len(sides) == 1, "the control side's block is still solved"
     assert not sides[0].control and sides[0].U == sorted(I + F)
@@ -464,7 +473,7 @@ def test_the_node_bound_solves_the_treated_block_alone():
 @settings(max_examples=25, deadline=None)
 @given(seed=st.integers(0, 10**6), n=st.integers(4, 8), m=st.integers(1, 3),
        fix=st.integers(0, 2), linear=st.booleans())
-def test_the_bound_is_the_treated_certificate_plus_the_control_floor(seed, n, m, fix,
+def test_one_block_is_the_treated_certificate_plus_the_control_floor(seed, n, m, fix,
                                                                      linear):
     m = min(m, n - 2)
     B, A = _problem(seed, n)
@@ -477,7 +486,8 @@ def test_the_bound_is_the_treated_certificate_plus_the_control_floor(seed, n, m,
     lin_t = rng.uniform(0, 3, n) if linear else None
     lin_c = rng.uniform(0, 3, n) if linear else None
     box = {}
-    seen = _certificates_of(lambda: box.update(nb=node_bound(data, m, I, O, F, lin_t, lin_c)))
+    seen = _certificates_of(lambda: box.update(
+        nb=node_bound(data, m, I, O, F, lin_t, lin_c, control_block=False)))
     nb = box["nb"]
     if nb.lower is None:
         return
@@ -487,45 +497,109 @@ def test_the_bound_is_the_treated_certificate_plus_the_control_floor(seed, n, m,
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
 @pytest.mark.parametrize("linear", [False, True])
-def test_at_a_node_holding_one_set_the_bound_is_its_objective(seed, linear):
+@pytest.mark.parametrize("control_block", [True, False])
+def test_at_a_node_holding_one_set_the_bound_is_its_objective(seed, linear,
+                                                              control_block):
     # A convex fit's semidefinite relaxation is exact, and with every market
-    # decided the floor is the control fit itself: the bound is the design's
-    # value, to the certificate's rounding.
+    # decided the floor is the control fit itself: either form's bound is the
+    # design's value, to the certificate's rounding.
     B, A = _problem(seed, 7)
     rng = np.random.default_rng(seed)
     lin_t = rng.uniform(0, 3, 7) if linear else None
     lin_c = rng.uniform(0, 3, 7) if linear else None
     I, O = [1, 4], [0, 2, 3, 5, 6]
-    nb = node_bound(ExactData(B, A), 2, I, O, [], lin_t, lin_c)
+    nb = node_bound(ExactData(B, A), 2, I, O, [], lin_t, lin_c, control_block=control_block)
     value = _objective(B, A, (1, 4), lin_t, lin_c)
     assert float(nb.lower) <= value * (1 + 1e-12)
     assert float(nb.lower) >= value - 1e-6 * max(1.0, abs(value))
 
 
-def test_a_node_that_leaves_no_control_market_is_unbounded():
+@pytest.mark.parametrize("control_block", [True, False])
+def test_a_node_that_leaves_no_control_market_is_unbounded(control_block):
     B, A = _problem(2, 5)
-    nb = node_bound(ExactData(B, A), 5, list(range(5)), [], [])
+    nb = node_bound(ExactData(B, A), 5, list(range(5)), [], [], control_block=control_block)
     assert nb.lower is None and nb.relaxation is None
 
 
-def test_the_cost_model_charges_a_bound_by_the_treated_side(monkeypatch):
-    # Two markets forbidden of nine: the treated block has 7 rows' worth of
-    # markets and the controls 9. The bound solved is the treated block.
+def _memory_between_the_forms(k_treated, k_control):
+    """Memory in which one block of ``k_treated`` markets fits and the two
+    blocks with ``k_control`` on the control side do not."""
+    one = branch_mod.lift_bytes(k_treated)
+    two = branch_mod.lift_bytes(k_treated, k_control)
+    return (one + two) / 2 / branch_mod.MEMORY_SHARE
+
+
+def _blocks_of_every_bound(fn):
+    seen = _certificates_of(fn)
+    return [len(sides) for sides, _ in seen]
+
+
+def test_a_node_whose_two_blocks_fit_is_bounded_on_both(monkeypatch):
+    monkeypatch.setattr(branch_mod, "available_memory", lambda: 64 * 2 ** 30)
+    B, A = _problem(4, 9)
+    blocks = _blocks_of_every_bound(lambda: _search(B, A, [3], **ALWAYS_LIFT))
+    assert blocks and set(blocks) == {2}
+
+
+@pytest.mark.parametrize("seed", [0, 4, 7])
+def test_a_node_whose_two_blocks_do_not_fit_is_bounded_on_one(monkeypatch, seed):
+    monkeypatch.setattr(branch_mod, "available_memory",
+                        lambda: _memory_between_the_forms(9, 9))
+    B, A = _problem(seed, 9)
+    box = {}
+    blocks = _blocks_of_every_bound(
+        lambda: box.update(res=_search(B, A, [3], **ALWAYS_LIFT)))
+    assert blocks and blocks[0] == 1, "the root was bounded on both blocks"
+    res = box["res"]
+    assert res.closed
+    assert res.designs[0].treated == _brute(B, A, [3])[0][1]
+
+
+def test_a_node_whose_one_block_does_not_fit_is_refused(monkeypatch):
+    monkeypatch.setattr(branch_mod, "available_memory",
+                        lambda: branch_mod.lift_bytes(9) / 2 / branch_mod.MEMORY_SHARE)
+    B, A = _problem(4, 9)
+    with pytest.raises(MlsynthConfigError, match="9 markets"):
+        _search(B, A, [3], **ALWAYS_LIFT)
+
+
+@settings(max_examples=12, deadline=None)
+@given(seed=st.integers(0, 10**6), share=st.floats(0.0, 1.0))
+def test_whichever_form_memory_allows_the_search_returns_the_optimum(seed, share):
+    """Memory anywhere from the one block's need to both blocks' with room to
+    spare: the design is the brute-force optimum."""
+    B, A = _problem(seed, 8)
+    one, two = branch_mod.lift_bytes(8), branch_mod.lift_bytes(8, 8)
+    memory = (one + share * 2 * (two - one)) / branch_mod.MEMORY_SHARE
+    real = branch_mod.available_memory
+    branch_mod.available_memory = lambda: memory
+    try:
+        res = _search(B, A, [3], **ALWAYS_LIFT)
+    finally:
+        branch_mod.available_memory = real
+    assert res.closed and res.designs[0].treated == _brute(B, A, [3])[0][1]
+
+
+@pytest.mark.parametrize("memory, charged", [("ample", 9), ("tight", 7)])
+def test_the_cost_model_charges_the_block_solved(monkeypatch, memory, charged):
+    # Two markets forbidden of nine: the treated side can use 7 markets and the
+    # controls 9. Both blocks are charged by the larger, one block by its own.
     df, T0 = _panel(J=9)
     units = sorted(df["unit"].unique(), key=str)
     monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
-    charged = []
+    avail = 64 * 2 ** 30 if memory == "ample" else _memory_between_the_forms(7, 9)
+    monkeypatch.setattr(branch_mod, "available_memory", lambda: avail)
+    seen = []
     real = branch_mod.branch_and_bound
 
     def spy(*args, **kwargs):
         def cost(k):
-            charged.append(k)
+            seen.append(k)
             return 0.0
         return real(*args, price_seconds=1.0, lift_seconds=cost, **kwargs)
     monkeypatch.setattr(branch_mod, "branch_and_bound", spy)
     MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3, not_to_be_treated=units[:2]))).fit()
-    assert charged and charged[0] == 7
-    assert max(charged) == 7
+    assert seen and seen[0] == charged
 
 
 def test_a_failed_solve_leaves_the_node_unbounded(monkeypatch):
@@ -678,14 +752,15 @@ UNIT_COSTS = dict(price_seconds=1.0, lift_seconds=lambda k: 1.0)
 
 
 def _charges(monkeypatch):
-    """Record the ``k`` of every bound the search computes: the markets its one
-    block, the treated side's, can use."""
+    """Record the ``k`` of every bound the search computes: the markets on the
+    larger side when both blocks are solved, the treated side's when one is."""
     ks = []
     real = branch_mod.node_bound
 
-    def counted(data, m, I, O, F, lin_t=None, lin_c=None):
-        ks.append(len(I) + len(F))
-        return real(data, m, I, O, F, lin_t, lin_c)
+    def counted(data, m, I, O, F, lin_t=None, lin_c=None, control_block=True):
+        ks.append(max(len(I) + len(F), len(O) + len(F)) if control_block
+                  else len(I) + len(F))
+        return real(data, m, I, O, F, lin_t, lin_c, control_block=control_block)
 
     monkeypatch.setattr(branch_mod, "node_bound", counted)
     return ks

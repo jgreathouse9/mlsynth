@@ -191,9 +191,12 @@ CGROUP_LIMIT_FILES = ("/sys/fs/cgroup/memory.max",
                       "/sys/fs/cgroup/memory/memory.limit_in_bytes")
 
 
-def lift_bytes(k: int) -> float:
-    """Peak bytes of one persp+N bound whose treated side uses ``k`` markets."""
-    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * ((k + 1) * (k + 2) / 2) ** 2
+def lift_bytes(k_treated: int, k_control: Optional[int] = None) -> float:
+    """Peak bytes of one persp+N bound whose treated side uses ``k_treated``
+    markets and, with its control block, whose control side uses ``k_control``."""
+    sides = (k_treated,) if k_control is None else (k_treated, k_control)
+    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in sides)
+    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * entries
 
 
 def _physical_memory() -> Optional[int]:
@@ -468,15 +471,20 @@ def node_bound(
     F: Sequence[int],
     linear_treated: Optional[np.ndarray] = None,
     linear_control: Optional[np.ndarray] = None,
+    *,
+    control_block: bool = True,
 ) -> NodeBound:
     """The certified persp+N bound of the node ``(I, O, F)`` with ``m`` treated.
 
-    The treated side's semidefinite block, certified, plus the certified floor
-    under every control fit the node allows: a design's controls lie inside
-    ``O + F``, and a fit over fewer markets is no better, so
-    ``min (g + h) >= min g + h(O + F)``. ``I``, ``O`` and ``F`` partition the
-    cluster's markets; the penalty vectors are indexed by them. A node that
-    leaves no market for the controls holds no design and gets no bound.
+    With ``control_block`` the relaxation keeps a semidefinite block per side.
+    Without it, the treated side's block alone, certified, plus the certified
+    floor under every control fit the node allows: a design's controls lie
+    inside ``O + F``, and a fit over fewer markets is no better, so
+    ``min (g + h) >= min g + h(O + F)`` (:func:`certified_control_floor`). That
+    bound is weaker and needs about half the memory. ``I``, ``O`` and ``F``
+    partition the cluster's markets; the penalty vectors are indexed by them. A
+    node that leaves no market for the controls holds no design and gets no
+    bound.
     """
     import cvxpy as cp
 
@@ -495,6 +503,9 @@ def node_bound(
     cons = [] if z is None else [z >= 0, z <= 1, cp.sum(z) == r]
     sides = [_Side(cp, sorted(I + F), z, pos, control=False)]
     lins = [None if linear_treated is None else np.asarray(linear_treated, float)]
+    if control_block:
+        sides.append(_Side(cp, sorted(O + F), z, pos, control=True))
+        lins.append(None if linear_control is None else np.asarray(linear_control, float))
     obj = 0
     for s, lin in zip(sides, lins):
         X, x = s.M[1:, 1:], s.M[0, 1:]
@@ -522,7 +533,8 @@ def node_bound(
     lower = _certificate(G, scale, r, len(F), duals)
     if lower is None:
         return _UNBOUNDED
-    floor = certified_control_floor(data, sorted(O + F), linear_control)
+    floor = (Fraction(0) if control_block
+             else certified_control_floor(data, sorted(O + F), linear_control))
     zv = np.asarray(z.value, dtype=float) if z is not None else np.zeros(0)
     return NodeBound(lower=lower + floor,
                      relaxation=float(problem.value) * float(scale) + float(floor),
@@ -619,6 +631,16 @@ def branch_and_bound(
     floors: Dict[Tuple[int, ...], Fraction] = {}
     refused: set = set()
     state = {"lifts": 0, "priced": 0, "admissible": False}
+    memory = available_memory()
+
+    def form(I, O, F) -> Tuple[bool, int]:
+        """Whether the node's bound keeps the control block, and the markets on
+        the block the cost model charges for: both blocks when they fit in
+        ``MEMORY_SHARE`` of the memory, else the treated block alone."""
+        kt, kc = len(I) + len(F), len(O) + len(F)
+        if memory is None or lift_bytes(kt, kc) <= MEMORY_SHARE * memory:
+            return True, max(kt, kc)
+        return False, kt
     ledger = Ledger(work_limit)
 
     def pool(S: Sequence[int]) -> List[int]:
@@ -703,9 +725,11 @@ def branch_and_bound(
         charge = lift_seconds(k)
         if ledger.passes(charge):
             return Deferred(bound)
-        check_memory(lift_bytes(len(I) + len(F)), n, available=available_memory())
+        both, _ = form(I, O, F)
+        if not both:
+            check_memory(lift_bytes(len(I) + len(F)), n, available=memory)
         ledger.charge(charge)
-        nb = node_bound(data, m, I, O, F, lin_t, lin_c)
+        nb = node_bound(data, m, I, O, F, lin_t, lin_c, control_block=both)
         state["lifts"] += 1
         if nb.lower is not None:
             bound = max(bound, nb.lower)
@@ -750,7 +774,7 @@ def branch_and_bound(
         state["admissible"] = True
         if len(O) + len(F) - r < 1:              # every set treats every market
             return None
-        k = len(I) + len(F)                      # the bound's one block
+        _, k = form(I, O, F)
         if count < 2 or cheaper_to_price(count, price_seconds, lift_seconds(k)):
             return Price(cost=count * price_seconds, deferrable=True,
                          run=lambda: price(m, sub, O, F))

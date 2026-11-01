@@ -10733,26 +10733,26 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-guard-is-never-called"
-  find = "        check_memory(lift_bytes(len(I) + len(F)), n, available=available_memory())\n"
+  find = "            check_memory(lift_bytes(len(I) + len(F)), n, available=memory)\n"
   replace = "        pass\n"
   models = "the incident: a bound launched whatever its memory, so a 150-market root runs until the system kills it"
 
   [[target.mutant]]
   id = "the-control-side-is-read"
-  find = "        check_memory(lift_bytes(len(I) + len(F)), n,"
-  replace = "        check_memory(lift_bytes(len(O) + len(F)), n,"
-  models = "the estimate read on the control side's markets, which the bound no longer lifts"
+  find = "            check_memory(lift_bytes(len(I) + len(F)), n, available=memory)"
+  replace = "            check_memory(lift_bytes(len(O) + len(F)), n, available=memory)"
+  models = "the one block's estimate read on the control side's markets, which it does not lift"
 
   [[target.mutant]]
   id = "the-free-markets-are-left-out"
-  find = "        check_memory(lift_bytes(len(I) + len(F)), n,"
-  replace = "        check_memory(lift_bytes(len(I)), n,"
+  find = "            check_memory(lift_bytes(len(I) + len(F)), n, available=memory)"
+  replace = "            check_memory(lift_bytes(len(I)), n, available=memory)"
   models = "the block's size read from the forced markets alone, so the root reads as empty"
 
   [[target.mutant]]
   id = "the-estimate-is-quadratic"
-  find = "    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * ((k + 1) * (k + 2) / 2) ** 2"
-  replace = "    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * ((k + 1) * (k + 2) / 2)"
+  find = "    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in sides)"
+  replace = "    entries = sum(((k + 1) * (k + 2) / 2) for k in sides)"
   models = "the scaling matrix counted by its order, not its entries, so 150 markets reads as megabytes"
 
   [[target.mutant]]
@@ -10790,3 +10790,46 @@ timeout = 900.0
   find = "    return min(limits) if limits else None"
   replace = "    return max(limits) if limits else None"
   models = "the machine's memory used where the container's tighter limit binds, the incident's container"
+
+[[target]]
+name = "marex-control-block"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch.py -q -x -p no:cacheprovider -k 'block or control_floor or memory_allows or charges or subtree_minimum or one_set'"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-search-never-falls-back"
+  find = "        if memory is None or lift_bytes(kt, kc) <= MEMORY_SHARE * memory:"
+  replace = "        if True:"
+  models = "both blocks launched whatever the memory, so a node one block would bound is lost"
+
+  [[target.mutant]]
+  id = "the-search-always-falls-back"
+  find = "        if memory is None or lift_bytes(kt, kc) <= MEMORY_SHARE * memory:"
+  replace = "        if memory is None:"
+  models = "the control block dropped wherever the memory is known, weakening every bound that fits"
+
+  [[target.mutant]]
+  id = "the-floor-is-dropped"
+  find = "             else certified_control_floor(data, sorted(O + F), linear_control))"
+  replace = "             else Fraction(0))"
+  models = "the one-block bound left without the control floor, the control fit counted as zero"
+
+  [[target.mutant]]
+  id = "the-floor-is-over-the-free-markets"
+  find = "             else certified_control_floor(data, sorted(O + F), linear_control))"
+  replace = "             else certified_control_floor(data, sorted(F), linear_control))"
+  models = "the floor taken over too few markets, above some designs' control fit: an invalid bound"
+
+  [[target.mutant]]
+  id = "the-control-block-is-never-added"
+  find = "    if control_block:\n        sides.append("
+  replace = "    if False:\n        sides.append("
+  models = "the default bound solved without its control block and without the floor"
+
+  [[target.mutant]]
+  id = "one-block-charged-as-two"
+  find = "        return False, kt"
+  replace = "        return False, max(kt, kc)"
+  models = "the cost model charging the one block at the larger side's size"
+
