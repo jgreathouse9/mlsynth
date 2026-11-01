@@ -10724,3 +10724,69 @@ timeout = 900.0
   find = "                and self.df[self.cluster].nunique() > 1):"
   replace = "                and self.df[self.cluster].nunique() > 99):"
   models = "the configuration accepts certify=True with a budget across clusters, so the refusal waits for the search"
+
+[[target]]
+name = "marex-branch-memory"
+module-path = "mlsynth/utils/marex_helpers/branch.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_branch_memory.py -q -x -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-guard-is-never-called"
+  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,\n                     available=available_memory())\n"
+  replace = "        pass\n"
+  models = "the incident: a bound launched whatever its memory, so a 150-market root runs until the system kills it"
+
+  [[target.mutant]]
+  id = "the-control-side-is-left-out"
+  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,"
+  replace = "        check_memory(lift_bytes(len(I) + len(F), 0), n,"
+  models = "the estimate read on one side of the bound, half its memory"
+
+  [[target.mutant]]
+  id = "the-sides-are-swapped"
+  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,"
+  replace = "        check_memory(lift_bytes(len(O) + len(F), len(I) + len(F)), n,"
+  models = "the treated side's markets read as the control side's"
+
+  [[target.mutant]]
+  id = "the-estimate-is-quadratic"
+  find = "    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in (k_treated, k_control))"
+  replace = "    entries = sum(((k + 1) * (k + 2) / 2) for k in (k_treated, k_control))"
+  models = "the scaling matrix counted by its order, not its entries, so 150 markets reads as megabytes"
+
+  [[target.mutant]]
+  id = "the-whole-memory-is-allowed"
+  find = "    allowed = MEMORY_SHARE * available"
+  replace = "    allowed = available"
+  models = "a bound allowed every byte the process has, leaving nothing for the search"
+
+  [[target.mutant]]
+  id = "a-bound-at-the-share-is-refused"
+  find = "    if need > allowed:"
+  replace = "    if need >= allowed:"
+  models = "the boundary moved: a bound exactly at the share refused"
+
+  [[target.mutant]]
+  id = "an-unknown-limit-refuses-every-bound"
+  find = "    if available is None:\n        return\n"
+  replace = "    if available is None:\n        available = 0.0\n"
+  models = "a system that reports no memory refusing every bound, so the search never runs there"
+
+  [[target.mutant]]
+  id = "an-unlimited-cgroup-is-read-as-a-limit"
+  find = "        if text.isdigit():"
+  replace = "        if text:"
+  models = "cgroup v2's 'max' read as a number"
+
+  [[target.mutant]]
+  id = "the-physical-memory-is-ignored"
+  find = "    if physical is not None:\n        limits.append(physical)\n"
+  replace = "    if False:\n        limits.append(physical)\n"
+  models = "outside a control group the memory reads as unknown, so the guard is off"
+
+  [[target.mutant]]
+  id = "the-loosest-limit-wins"
+  find = "    return min(limits) if limits else None"
+  replace = "    return max(limits) if limits else None"
+  models = "the machine's memory used where the container's tighter limit binds, the incident's container"

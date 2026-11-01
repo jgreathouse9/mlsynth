@@ -82,6 +82,15 @@ certificate still brackets the optimum; ``open`` counts those nodes, and a
 search with none open has proved its design optimal. Only a search stopped
 before it found any design raises.
 
+Memory. An interior-point solver carries, for a semidefinite block of order
+``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries (Goulart and Chen,
+Clarabel, sec. 2.5; Todd 2001, Theorem 5.3), so a bound's memory grows as the fourth power of the markets on a
+side (:func:`lift_bytes`, fitted to Clarabel), and the work limit, which charges a
+bound when it is started, cannot stop one that never returns. Before each bound
+the search raises if the estimate exceeds ``MEMORY_SHARE`` of the memory the
+process may use (:func:`available_memory`). A child uses fewer markets than its
+parent, so in practice only the root is refused, before any work is done.
+
 The loop. The queue, the work's ledger and the handling of the limit are the
 loop SYNDES's searches use too (:mod:`~mlsynth.utils.search_skeleton`, #846):
 this module hands it the plan for a node, the pricing and the bound. Equal keys
@@ -104,13 +113,14 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import os
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..search_skeleton import (Bound, Deferred, Ledger, NodeQueue, Price,
                                cheaper_to_price, check_work_limit, run)
 from ..syndes_helpers.exact import SubsetFilter
@@ -142,6 +152,87 @@ def lift_seconds(k: int) -> float:
     fitted to Clarabel on GeoLift's 40 markets.
     """
     return 1.0 + 3.0 * (k / 40.0) ** 3
+
+
+#: Peak bytes of one persp+N bound per entry of its sides' scaling matrices, and
+#: the fixed part. An interior-point method carries, for a semidefinite block of
+#: order ``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries in the
+#: system it factors each step (Goulart and Chen, Clarabel, sec. 2.5; the Schur
+#: complement of Todd 2001, Theorem 5.3), so a side using ``k`` markets, a block
+#: of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Clarabel fixes
+#: the factor's sparsity before its first factorization (sec. 3.3), so the peak is
+#: set by the problem's size and an estimate made before launch can be trusted. Fitted to one root bound
+#: of Clarabel through CVXPY, measured in a fresh process: 112, 220, 483 and 859 MB
+#: at 40, 50, 60 and 70 markets (68.2 bytes an entry, within 10% of each), which
+#: puts 150 markets at about 17 GB and 210 at about 64 GB.
+LIFT_BYTES_PER_ENTRY = 70.0
+LIFT_BASE_BYTES = 16 * 2 ** 20
+
+#: The share of the memory available to the process (:func:`available_memory`)
+#: one bound may take; the rest is left for the search, the data and the system.
+MEMORY_SHARE = 0.75
+
+#: Where Linux states the memory limit of the process's control group: cgroup v2,
+#: then v1. ``max`` (v2) and v1's near-``2**63`` value mean no limit.
+CGROUP_LIMIT_FILES = ("/sys/fs/cgroup/memory.max",
+                      "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+
+
+def lift_bytes(k_treated: int, k_control: int) -> float:
+    """Peak bytes of one persp+N bound whose sides use ``k_treated`` and
+    ``k_control`` markets."""
+    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in (k_treated, k_control))
+    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * entries
+
+
+def _physical_memory() -> Optional[int]:
+    """The machine's physical memory in bytes, or ``None`` where the system does
+    not report it."""
+    try:
+        return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
+    except (AttributeError, ValueError, OSError):  # pragma: no cover - platform without sysconf
+        return None
+
+
+def available_memory() -> Optional[int]:
+    """The memory this process may use, in bytes: the tightest of its control
+    group's limit and the machine's physical memory, or ``None`` when neither is
+    known."""
+    limits = []
+    physical = _physical_memory()
+    if physical is not None:
+        limits.append(physical)
+    for path in CGROUP_LIMIT_FILES:
+        try:
+            with open(path) as fh:
+                text = fh.read().strip()
+        except OSError:
+            continue
+        if text.isdigit():
+            limits.append(int(text))
+    return min(limits) if limits else None
+
+
+def check_memory(need: float, n_markets: int,
+                 available: Optional[float] = None) -> None:
+    """Refuse a bound that needs more than ``MEMORY_SHARE`` of the memory available.
+
+    Raises
+    ------
+    MlsynthConfigError
+        Naming the bound's estimate, the share it may take, and the remedies.
+    """
+    if available is None:
+        return
+    allowed = MEMORY_SHARE * available
+    if need > allowed:
+        raise MlsynthConfigError(
+            f"MAREX exact search: one bound of the branch and bound over {n_markets} "
+            f"markets needs about {need / 2 ** 30:.1f} GB, above the "
+            f"{allowed / 2 ** 30:.1f} GB this process may give it, and its memory "
+            "grows as the fourth power of the markets. Search fewer markets at once: "
+            "split the design into clusters (cluster=...), restrict the markets that "
+            "can be treated, or use a machine with more memory.")
 
 
 # ----------------------------------------------------------------------
@@ -585,6 +676,8 @@ def branch_and_bound(
         charge = lift_seconds(k)
         if ledger.passes(charge):
             return Deferred(bound)
+        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,
+                     available=available_memory())
         ledger.charge(charge)
         nb = node_bound(data, m, I, O, F, lin_t, lin_c)
         state["lifts"] += 1

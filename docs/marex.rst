@@ -1147,9 +1147,21 @@ it found and warns with a ``MAREXSearchWarning`` giving its relative gap. Its
 certificate stays valid: the lower bound is the least bound among the nodes it
 left open, so the certificate brackets the optimum, and
 ``res.search.counts.bnb_open`` counts those nodes. Only a search stopped before
-it found any design raises. A bound's cost grows with the cube of the markets on
-a side, so at a few hundred markets in one cluster the limit binds; clusters,
-restrictions or a smaller treated count bring each search back within it. The weakly-targeted design couples the treated and
+it found any design raises.
+
+Memory binds before time. An interior-point solver carries, for a semidefinite
+block of order :math:`s`, a dense scaling block with :math:`(s (s + 1) / 2)^2`
+entries in the system it factors each step (Goulart and Chen, Clarabel, sec. 2.5;
+the Schur complement of Todd 2001, Theorem 5.3), so a bound's memory grows as the
+fourth power of the markets on a side. One root bound measured 0.11 GB at 40
+markets and 0.86 GB at 70; the fitted law puts 150 markets at about 17 GB and 210
+at about 64. Before each bound the search estimates its memory and raises a
+``MlsynthConfigError`` naming the estimate when it exceeds three quarters of the
+memory the process may use (the tighter of its control group's limit and the
+machine's memory). A child uses fewer markets than its parent, so in practice
+only the root can be refused, before the search has done any work. Clusters or
+restrictions on the treated markets bring each search back within it; the
+treated count does not, since every market can still be treated. The weakly-targeted design couples the treated and
 control fits, which the bound splits, so it is refused above the limit. The
 tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
 the bound, with the papers behind each piece, is in
