@@ -417,6 +417,117 @@ def test_a_degenerate_panel_gets_a_bound_of_zero_or_less():
     assert nb.lower is None or nb.lower <= 0
 
 
+# ------------------------------------------------- the bound's one block
+# The node bound solves the treated side's semidefinite block alone and adds the
+# certified control floor over the markets the node leaves the controls: every
+# design's objective is g(S) + h(C(S)) with C(S) inside O + F, so its minimum
+# over the node is at least the treated part's bound plus that floor. The
+# control side's own block bought one to two points of bound at the root, at
+# two to five times the solve and twice the memory, and every closed search
+# proved the same design without it.
+
+def _control_floor(data, cols, lin):
+    """The certified lower bound on every control fit inside ``cols``, computed
+    here independently of the search: the fit's exact lower end at its weights."""
+    cols = list(cols)
+    _, v = side_fit(data.B, data.A, cols, None if lin is None else np.asarray(lin)[cols])
+    return data.interval(cols, v, lin)[0]
+
+
+def _certificates_of(fn):
+    """Run ``fn`` and return every side list and value ``_certificate`` saw."""
+    seen = []
+    real = branch_mod._certificate
+
+    def grab(G, scale, r, n_free, sides):
+        out = real(G, scale, r, n_free, sides)
+        seen.append((sides, out))
+        return out
+    branch_mod._certificate = grab
+    try:
+        fn()
+    finally:
+        branch_mod._certificate = real
+    return seen
+
+
+def test_the_node_bound_solves_the_treated_block_alone():
+    B, A = _problem(3, 8)
+    I, O, F = [], [1], [0, 2, 3, 4, 5, 6, 7]
+    seen = _certificates_of(lambda: node_bound(ExactData(B, A), 2, I, O, F))
+    assert len(seen) == 1
+    (sides, _), = seen
+    assert len(sides) == 1, "the control side's block is still solved"
+    assert not sides[0].control and sides[0].U == sorted(I + F)
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10**6), n=st.integers(4, 8), m=st.integers(1, 3),
+       fix=st.integers(0, 2), linear=st.booleans())
+def test_the_bound_is_the_treated_certificate_plus_the_control_floor(seed, n, m, fix,
+                                                                     linear):
+    m = min(m, n - 2)
+    B, A = _problem(seed, n)
+    data = ExactData(B, A)
+    rng = np.random.default_rng(seed + 5)
+    order = rng.permutation(n).tolist()
+    I = sorted(order[:min(fix, m - 1)])
+    O = sorted(order[len(I):len(I) + fix])
+    F = sorted(set(range(n)) - set(I) - set(O))
+    lin_t = rng.uniform(0, 3, n) if linear else None
+    lin_c = rng.uniform(0, 3, n) if linear else None
+    box = {}
+    seen = _certificates_of(lambda: box.update(nb=node_bound(data, m, I, O, F, lin_t, lin_c)))
+    nb = box["nb"]
+    if nb.lower is None:
+        return
+    (_, treated), = seen
+    assert nb.lower == treated + _control_floor(data, sorted(O + F), lin_c)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+@pytest.mark.parametrize("linear", [False, True])
+def test_at_a_node_holding_one_set_the_bound_is_its_objective(seed, linear):
+    # A convex fit's semidefinite relaxation is exact, and with every market
+    # decided the floor is the control fit itself: the bound is the design's
+    # value, to the certificate's rounding.
+    B, A = _problem(seed, 7)
+    rng = np.random.default_rng(seed)
+    lin_t = rng.uniform(0, 3, 7) if linear else None
+    lin_c = rng.uniform(0, 3, 7) if linear else None
+    I, O = [1, 4], [0, 2, 3, 5, 6]
+    nb = node_bound(ExactData(B, A), 2, I, O, [], lin_t, lin_c)
+    value = _objective(B, A, (1, 4), lin_t, lin_c)
+    assert float(nb.lower) <= value * (1 + 1e-12)
+    assert float(nb.lower) >= value - 1e-6 * max(1.0, abs(value))
+
+
+def test_a_node_that_leaves_no_control_market_is_unbounded():
+    B, A = _problem(2, 5)
+    nb = node_bound(ExactData(B, A), 5, list(range(5)), [], [])
+    assert nb.lower is None and nb.relaxation is None
+
+
+def test_the_cost_model_charges_a_bound_by_the_treated_side(monkeypatch):
+    # Two markets forbidden of nine: the treated block has 7 rows' worth of
+    # markets and the controls 9. The bound solved is the treated block.
+    df, T0 = _panel(J=9)
+    units = sorted(df["unit"].unique(), key=str)
+    monkeypatch.setattr(exact_mod, "CANDIDATE_LIMIT", 10)
+    charged = []
+    real = branch_mod.branch_and_bound
+
+    def spy(*args, **kwargs):
+        def cost(k):
+            charged.append(k)
+            return 0.0
+        return real(*args, price_seconds=1.0, lift_seconds=cost, **kwargs)
+    monkeypatch.setattr(branch_mod, "branch_and_bound", spy)
+    MAREX(MAREXConfig(**_cfg(df, T0, "exact", m_eq=3, not_to_be_treated=units[:2]))).fit()
+    assert charged and charged[0] == 7
+    assert max(charged) == 7
+
+
 def test_a_failed_solve_leaves_the_node_unbounded(monkeypatch):
     import cvxpy as cp
 
@@ -567,12 +678,13 @@ UNIT_COSTS = dict(price_seconds=1.0, lift_seconds=lambda k: 1.0)
 
 
 def _charges(monkeypatch):
-    """Record the ``k`` of every bound the search computes."""
+    """Record the ``k`` of every bound the search computes: the markets its one
+    block, the treated side's, can use."""
     ks = []
     real = branch_mod.node_bound
 
     def counted(data, m, I, O, F, lin_t=None, lin_c=None):
-        ks.append(max(len(I) + len(F), len(O) + len(F)))
+        ks.append(len(I) + len(F))
         return real(data, m, I, O, F, lin_t, lin_c)
 
     monkeypatch.setattr(branch_mod, "node_bound", counted)

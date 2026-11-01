@@ -10733,26 +10733,26 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-guard-is-never-called"
-  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,\n                     available=available_memory())\n"
+  find = "        check_memory(lift_bytes(len(I) + len(F)), n, available=available_memory())\n"
   replace = "        pass\n"
   models = "the incident: a bound launched whatever its memory, so a 150-market root runs until the system kills it"
 
   [[target.mutant]]
-  id = "the-control-side-is-left-out"
-  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,"
-  replace = "        check_memory(lift_bytes(len(I) + len(F), 0), n,"
-  models = "the estimate read on one side of the bound, half its memory"
+  id = "the-control-side-is-read"
+  find = "        check_memory(lift_bytes(len(I) + len(F)), n,"
+  replace = "        check_memory(lift_bytes(len(O) + len(F)), n,"
+  models = "the estimate read on the control side's markets, which the bound no longer lifts"
 
   [[target.mutant]]
-  id = "the-sides-are-swapped"
-  find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,"
-  replace = "        check_memory(lift_bytes(len(O) + len(F), len(I) + len(F)), n,"
-  models = "the treated side's markets read as the control side's"
+  id = "the-free-markets-are-left-out"
+  find = "        check_memory(lift_bytes(len(I) + len(F)), n,"
+  replace = "        check_memory(lift_bytes(len(I)), n,"
+  models = "the block's size read from the forced markets alone, so the root reads as empty"
 
   [[target.mutant]]
   id = "the-estimate-is-quadratic"
-  find = "    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in (k_treated, k_control))"
-  replace = "    entries = sum(((k + 1) * (k + 2) / 2) for k in (k_treated, k_control))"
+  find = "    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * ((k + 1) * (k + 2) / 2) ** 2"
+  replace = "    return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * ((k + 1) * (k + 2) / 2)"
   models = "the scaling matrix counted by its order, not its entries, so 150 markets reads as megabytes"
 
   [[target.mutant]]
