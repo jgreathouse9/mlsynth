@@ -2,8 +2,8 @@
 
 Each node bound is a semidefinite program with one block of order ``k + 1`` per
 side, ``k`` the markets that side can use, solved by an interior-point method. The
-method's Nesterov-Todd scaling of a block of order ``s`` is a dense matrix with
-``(s (s + 1) / 2)^2`` entries (Todd 2001, sec. 5), so a bound's memory grows as
+method carries, for a block of order ``s``, a dense scaling block with
+``(s (s + 1) / 2)^2`` entries (Goulart and Chen, Clarabel, sec. 2.5), so a bound's memory grows as
 the fourth power of the markets. A national search over 150 DMAs launched a root
 bound that needed about 17 GB and was killed by the operating system at 14 GB,
 after half an hour, with no message: the work limit charges a bound only once it

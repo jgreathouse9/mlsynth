@@ -10734,7 +10734,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-guard-is-never-called"
   find = "        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,\n                     available=available_memory())\n"
-  replace = ""
+  replace = "        pass\n"
   models = "the incident: a bound launched whatever its memory, so a 150-market root runs until the system kills it"
 
   [[target.mutant]]

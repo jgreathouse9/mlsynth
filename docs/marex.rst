@@ -1149,9 +1149,10 @@ left open, so the certificate brackets the optimum, and
 ``res.search.counts.bnb_open`` counts those nodes. Only a search stopped before
 it found any design raises.
 
-Memory binds before time. An interior-point solver scales a semidefinite block of
-order :math:`s` by a dense matrix with :math:`(s (s + 1) / 2)^2` entries (the
-Nesterov-Todd scaling; Todd 2001, sec. 5), so a bound's memory grows as the
+Memory binds before time. An interior-point solver carries, for a semidefinite
+block of order :math:`s`, a dense scaling block with :math:`(s (s + 1) / 2)^2`
+entries in the system it factors each step (Goulart and Chen, Clarabel, sec. 2.5;
+the Schur complement of Todd 2001, Theorem 5.3), so a bound's memory grows as the
 fourth power of the markets on a side. One root bound measured 0.11 GB at 40
 markets and 0.86 GB at 70; the fitted law puts 150 markets at about 17 GB and 210
 at about 64. Before each bound the search estimates its memory and raises a

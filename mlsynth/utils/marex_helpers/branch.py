@@ -82,9 +82,9 @@ certificate still brackets the optimum; ``open`` counts those nodes, and a
 search with none open has proved its design optimal. Only a search stopped
 before it found any design raises.
 
-Memory. An interior-point solver scales a semidefinite block of order ``s`` by a
-dense matrix of ``(s (s + 1) / 2)^2`` entries (the Nesterov-Todd scaling; Todd
-2001, sec. 5), so a bound's memory grows as the fourth power of the markets on a
+Memory. An interior-point solver carries, for a semidefinite block of order
+``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries (Goulart and Chen,
+Clarabel, sec. 2.5; Todd 2001, Theorem 5.3), so a bound's memory grows as the fourth power of the markets on a
 side (:func:`lift_bytes`, fitted to Clarabel), and the work limit, which charges a
 bound when it is started, cannot stop one that never returns. Before each bound
 the search raises if the estimate exceeds ``MEMORY_SHARE`` of the memory the
@@ -155,10 +155,13 @@ def lift_seconds(k: int) -> float:
 
 
 #: Peak bytes of one persp+N bound per entry of its sides' scaling matrices, and
-#: the fixed part. An interior-point method scales a semidefinite block of order
-#: ``s`` by a dense matrix of ``(s (s + 1) / 2)^2`` entries (the Nesterov-Todd
-#: scaling; Todd 2001, sec. 5), so a side using ``k`` markets, a block of order
-#: ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Fitted to one root bound
+#: the fixed part. An interior-point method carries, for a semidefinite block of
+#: order ``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries in the
+#: system it factors each step (Goulart and Chen, Clarabel, sec. 2.5; the Schur
+#: complement of Todd 2001, Theorem 5.3), so a side using ``k`` markets, a block
+#: of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Clarabel fixes
+#: the factor's sparsity before its first factorization (sec. 3.3), so the peak is
+#: set by the problem's size and an estimate made before launch can be trusted. Fitted to one root bound
 #: of Clarabel through CVXPY, measured in a fresh process: 112, 220, 483 and 859 MB
 #: at 40, 50, 60 and 70 markets (68.2 bytes an entry, within 10% of each), which
 #: puts 150 markets at about 17 GB and 210 at about 64 GB.
