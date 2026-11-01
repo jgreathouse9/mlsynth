@@ -20,28 +20,18 @@ The bound (:func:`node_bound`). Below any node,
     f(S) = min ||B w||^2 + a'w  +  min ||B v||^2 + b'v,
 
 with ``B`` the centred markets, ``w`` on the simplex over ``S`` and ``v`` over
-the controls. The two fits share nothing once ``S`` is named, and a design's
-controls lie inside ``O + F``, where a fit is no worse than over any subset, so
-
-    min over the subtree of f  >=  min over the subtree of g  +  h(O + F),
-
-the treated part's bound plus the control floor, certified like a fitted set
-(:func:`certified_control_floor`). The control side is bounded by that floor
-alone. Its own semidefinite block, which the bound carried until this form,
-added one to two points of bound at the root and cost two to five times the
-solve and twice the memory; every search closed with it proved the same design
-without it. A bound on the treated part must see the products ``w w'``: the
+the controls. A bound over the subtree must see the products ``w w'``: the
 point that spreads the weights evenly over every market is an average of
 designs and scores exactly zero, since the centred markets sum to zero. The
-persp+N relaxation keeps one semidefinite block, ``M = [[1, x'], [x, X]] >= 0``
-with ``x`` the treated weights on the markets the treated side can use
-(``I + F``), and adds
+persp+N relaxation keeps one semidefinite block per side,
+``M = [[1, x'], [x, X]] >= 0`` with ``x`` the side's weights on the markets it
+can use, and adds
 
 - ``X >= 0`` entrywise and ``X 1 = x``, ``1'x = 1``: the products of
   ``x >= 0`` and of the simplex;
 - for every free market, the perspective ``X_jj z_j >= x_j^2`` as the 2x2 block
-  ``[[z_j, x_j], [x_j, X_jj]] >= 0`` and ``x_j <= z_j``, with ``0 <= z <= 1``
-  and ``sum_F z = m - |I|``.
+  ``[[z_j, x_j], [x_j, X_jj]] >= 0`` (``1 - z_j`` on the control side) and
+  ``x_j <= z_j``, with ``0 <= z <= 1`` and ``sum_F z = m - |I|``.
 
 Every constraint holds at ``X = x x'`` for a design, so the relaxation's
 minimum is a lower bound on the subtree. The semidefinite block with the
@@ -51,18 +41,33 @@ best-diagonal program of Zheng, Sun and Li (2014); the perspective is that of
 Frangioni and Gentile (2006) and Günlük and Linderoth (2010). ``X >= 0`` is the
 entrywise half of the doubly nonnegative relaxation of Burer's (2009)
 completely positive form, which those forms lack and which carries most of the
-bound. The indicators never enter a semidefinite block, so the block has one
-row more than the markets the treated side can use. The study behind the choice is
+bound. The indicators never enter a semidefinite block, so each block has one
+row more than the markets its side can use. The study behind the choice is
 ``benchmarks/studies/marex_bnb``.
+
+One block when two will not fit. The two fits share nothing once ``S`` is
+named, and a design's controls lie inside ``O + F``, where a fit is no worse
+than over any subset, so
+
+    min over the subtree of f  >=  min over the subtree of g  +  h(O + F):
+
+the treated block's bound plus the control floor, certified like a fitted set
+(:func:`certified_control_floor`), is also a bound. It is weaker, by one to two
+points of the optimum at the root, and needs about half the memory, so the
+search uses it at a node whose two blocks would not fit in ``MEMORY_SHARE`` of
+the memory, where it would otherwise refuse. Measured with either form at every
+node, every search closed on the same design: the one block lost twice the time
+on GeoLift with ten of forty markets treated, tied at forty to fifty markets
+elsewhere, and won by a factor of 3.8 at eighty.
 
 The certificate of a bound. The solver's multipliers are read, clipped to their
 signs (each 2x2 multiplier made semidefinite by :func:`_psd2`), and the
 Lagrangian they define is assembled in exact arithmetic from the exact Gram
 matrix of the data. It is linear in the lifted variables, ``const + <S, M> +
-c'z``. A design has ``tr M = 1 + |x|^2 <= 2`` and ``z`` in
+c'z``. A design has ``tr M = 1 + |x|^2 <= 2`` per side and ``z`` in
 ``{0 <= z <= 1, sum z = r}``, so
 
-    g(S) >= const + 2 min(0, lambda_min(S)) + (the r smallest c_j),
+    f(S) >= const + 2 min(0, lambda_min(S)) per side + (the r smallest c_j),
 
 with ``lambda_min`` bounded below exactly by :func:`lambda_min_lower`. This is
 the rigorous bound of Jansson, Chaykin and Keil (2007) for semidefinite
@@ -94,11 +99,12 @@ before it found any design raises.
 
 Memory. An interior-point solver carries, for a semidefinite block of order
 ``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries (Goulart and Chen,
-Clarabel, sec. 2.5; Todd 2001, Theorem 5.3), so a bound's memory grows as the fourth power of the markets the
-treated side can use (:func:`lift_bytes`, fitted to Clarabel), and the work limit, which charges a
+Clarabel, sec. 2.5; Todd 2001, Theorem 5.3), so a bound's memory grows as the fourth power of the markets on a
+side (:func:`lift_bytes`, fitted to Clarabel), and the work limit, which charges a
 bound when it is started, cannot stop one that never returns. Before each bound
-the search raises if the estimate exceeds ``MEMORY_SHARE`` of the memory the
-process may use (:func:`available_memory`). A child uses fewer markets than its
+the search estimates both blocks, and the treated block alone when they exceed
+``MEMORY_SHARE`` of the memory the process may use (:func:`available_memory`); it
+raises only if that one block does too. A child uses fewer markets than its
 parent, so in practice only the root is refused, before any work is done.
 
 The loop. The queue, the work's ledger and the handling of the limit are the
@@ -168,16 +174,16 @@ def lift_seconds(k: int) -> float:
 #: the fixed part. An interior-point method carries, for a semidefinite block of
 #: order ``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries in the
 #: system it factors each step (Goulart and Chen, Clarabel, sec. 2.5; the Schur
-#: complement of Todd 2001, Theorem 5.3), so the treated side using ``k``
-#: markets, a block of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of
-#: them. Clarabel fixes the factor's sparsity before its first factorization
-#: (sec. 3.3), so the peak is set by the problem's size and an estimate made
-#: before launch can be trusted. Fitted to one root bound of Clarabel through
-#: CVXPY, measured in a fresh process: 61, 129, 219, 393 and 642 MB at 40, 50,
-#: 60, 70 and 80 markets (59.2 bytes an entry and 19 MB fixed by least squares;
-#: the rounded constants are within 7% of each), which puts 150 markets at about
-#: 7.4 GB and 210 at about 28 GB. With a block per side, as the bound had until
-#: the control side's became its floor, 150 markets needed about 17 GB.
+#: complement of Todd 2001, Theorem 5.3), so a side using ``k`` markets, a
+#: block of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Clarabel
+#: fixes the factor's sparsity before its first factorization (sec. 3.3), so the
+#: peak is set by the problem's size and an estimate made before launch can be
+#: trusted. Fitted to one root bound of Clarabel through CVXPY, measured in a
+#: fresh process: on the treated block alone, 61, 129, 219, 393 and 642 MB at
+#: 40, 50, 60, 70 and 80 markets (59.2 bytes an entry and 19 MB fixed by least
+#: squares), and on both blocks 112, 220, 483 and 859 MB at 40, 50, 60 and 70;
+#: the rounded constants are within 7% of each. At 150 markets that is about
+#: 15 GB on both blocks and 7.4 GB on one; at 210, about 56 and 28.
 LIFT_BYTES_PER_ENTRY = 60.0
 LIFT_BASE_BYTES = 20 * 2 ** 20
 
