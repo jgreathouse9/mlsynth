@@ -1139,7 +1139,8 @@ which the exact backend refused before, takes 35.5 seconds with
 
 The search counts its work in the same cost model that decides where it
 spends time: a microsecond per set priced and :math:`1 + 3 (k / 40)^3` seconds
-per bound with :math:`k` markets on the larger side. It stops at 600 such
+per bound with :math:`k` markets on the larger side (on the treated side when
+the bound has one block, below). It stops at 600 such
 seconds, and does not start a pricing or a bound that would take it past them.
 Every search in the table above closes well inside the limit (Walmart with eight
 treated does about 150 of them). A search stopped there returns the best design
@@ -1154,14 +1155,27 @@ block of order :math:`s`, a dense scaling block with :math:`(s (s + 1) / 2)^2`
 entries in the system it factors each step (Goulart and Chen, Clarabel, sec. 2.5;
 the Schur complement of Todd 2001, Theorem 5.3), so a bound's memory grows as the
 fourth power of the markets on a side. One root bound measured 0.11 GB at 40
-markets and 0.86 GB at 70; the fitted law puts 150 markets at about 17 GB and 210
-at about 64. Before each bound the search estimates its memory and raises a
-``MlsynthConfigError`` naming the estimate when it exceeds three quarters of the
-memory the process may use (the tighter of its control group's limit and the
-machine's memory). A child uses fewer markets than its parent, so in practice
-only the root can be refused, before the search has done any work. Clusters or
-restrictions on the treated markets bring each search back within it; the
-treated count does not, since every market can still be treated. The weakly-targeted design couples the treated and
+markets and 0.86 GB at 70; the fitted law puts 150 markets at about 15 GB and 210
+at about 56. Before each bound the search estimates its memory against three
+quarters of the memory the process may use (the tighter of its control group's
+limit and the machine's memory).
+
+When the two blocks will not fit, the search bounds the node on the treated
+block alone. The two fits share nothing once the treated set is named, and a
+design's controls lie among the markets the node has not treated, where a fit is
+no worse than over any subset of them, so the treated block's bound plus the
+control fit over all those markets, certified like a fitted design, is still a
+bound below every design in the node. It is weaker, by one to two points of the
+optimum at the root, and needs about half the memory: 0.06 GB at 40 markets and
+0.64 GB at 80, about 7.4 GB at 150. The search returns the same design either
+way. Measured with each form at every node, the one block took twice as long on
+GeoLift with ten of forty markets treated, tied at forty to fifty markets
+elsewhere, and was 3.8 times faster at eighty. The search raises a
+``MlsynthConfigError`` naming the estimate only when even the one block will not
+fit. A child uses fewer markets than its parent, so in practice only the root
+can be refused, before the search has done any work. Clusters or restrictions on
+the treated markets bring each search back within it; the treated count does
+not, since every market can still be treated. The weakly-targeted design couples the treated and
 control fits, which the bound splits, so it is refused above the limit. The
 tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
 the bound, with the papers behind each piece, is in

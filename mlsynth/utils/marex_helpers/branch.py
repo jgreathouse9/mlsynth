@@ -45,6 +45,21 @@ bound. The indicators never enter a semidefinite block, so each block has one
 row more than the markets its side can use. The study behind the choice is
 ``benchmarks/studies/marex_bnb``.
 
+One block when two will not fit. The two fits share nothing once ``S`` is
+named, and a design's controls lie inside ``O + F``, where a fit is no worse
+than over any subset, so
+
+    min over the subtree of f  >=  min over the subtree of g  +  h(O + F):
+
+the treated block's bound plus the control floor, certified like a fitted set
+(:func:`certified_control_floor`), is also a bound. It is weaker, by one to two
+points of the optimum at the root, and needs about half the memory, so the
+search uses it at a node whose two blocks would not fit in ``MEMORY_SHARE`` of
+the memory, where it would otherwise refuse. Measured with either form at every
+node, every search closed on the same design: the one block lost twice the time
+on GeoLift with ten of forty markets treated, tied at forty to fifty markets
+elsewhere, and won by a factor of 3.8 at eighty.
+
 The certificate of a bound. The solver's multipliers are read, clipped to their
 signs (each 2x2 multiplier made semidefinite by :func:`_psd2`), and the
 Lagrangian they define is assembled in exact arithmetic from the exact Gram
@@ -87,8 +102,9 @@ Memory. An interior-point solver carries, for a semidefinite block of order
 Clarabel, sec. 2.5; Todd 2001, Theorem 5.3), so a bound's memory grows as the fourth power of the markets on a
 side (:func:`lift_bytes`, fitted to Clarabel), and the work limit, which charges a
 bound when it is started, cannot stop one that never returns. Before each bound
-the search raises if the estimate exceeds ``MEMORY_SHARE`` of the memory the
-process may use (:func:`available_memory`). A child uses fewer markets than its
+the search estimates both blocks, and the treated block alone when they exceed
+``MEMORY_SHARE`` of the memory the process may use (:func:`available_memory`); it
+raises only if that one block does too. A child uses fewer markets than its
 parent, so in practice only the root is refused, before any work is done.
 
 The loop. The queue, the work's ledger and the handling of the limit are the
@@ -146,7 +162,7 @@ SOLVER = "CLARABEL"
 
 
 def lift_seconds(k: int) -> float:
-    """Seconds for one persp+N bound with ``k`` markets on its larger side.
+    """Seconds for one persp+N bound whose treated side uses ``k`` markets.
 
     About a second to build the problem and a cubic term in the block size,
     fitted to Clarabel on GeoLift's 40 markets.
@@ -154,19 +170,22 @@ def lift_seconds(k: int) -> float:
     return 1.0 + 3.0 * (k / 40.0) ** 3
 
 
-#: Peak bytes of one persp+N bound per entry of its sides' scaling matrices, and
+#: Peak bytes of one persp+N bound per entry of its block's scaling matrix, and
 #: the fixed part. An interior-point method carries, for a semidefinite block of
 #: order ``s``, a dense scaling block of ``(s (s + 1) / 2)^2`` entries in the
 #: system it factors each step (Goulart and Chen, Clarabel, sec. 2.5; the Schur
-#: complement of Todd 2001, Theorem 5.3), so a side using ``k`` markets, a block
-#: of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Clarabel fixes
-#: the factor's sparsity before its first factorization (sec. 3.3), so the peak is
-#: set by the problem's size and an estimate made before launch can be trusted. Fitted to one root bound
-#: of Clarabel through CVXPY, measured in a fresh process: 112, 220, 483 and 859 MB
-#: at 40, 50, 60 and 70 markets (68.2 bytes an entry, within 10% of each), which
-#: puts 150 markets at about 17 GB and 210 at about 64 GB.
-LIFT_BYTES_PER_ENTRY = 70.0
-LIFT_BASE_BYTES = 16 * 2 ** 20
+#: complement of Todd 2001, Theorem 5.3), so a side using ``k`` markets, a
+#: block of order ``k + 1``, holds ``((k + 1) (k + 2) / 2)^2`` of them. Clarabel
+#: fixes the factor's sparsity before its first factorization (sec. 3.3), so the
+#: peak is set by the problem's size and an estimate made before launch can be
+#: trusted. Fitted to one root bound of Clarabel through CVXPY, measured in a
+#: fresh process: on the treated block alone, 61, 129, 219, 393 and 642 MB at
+#: 40, 50, 60, 70 and 80 markets (59.2 bytes an entry and 19 MB fixed by least
+#: squares), and on both blocks 112, 220, 483 and 859 MB at 40, 50, 60 and 70;
+#: the rounded constants are within 7% of each. At 150 markets that is about
+#: 15 GB on both blocks and 7.4 GB on one; at 210, about 56 and 28.
+LIFT_BYTES_PER_ENTRY = 60.0
+LIFT_BASE_BYTES = 20 * 2 ** 20
 
 #: The share of the memory available to the process (:func:`available_memory`)
 #: one bound may take; the rest is left for the search, the data and the system.
@@ -178,10 +197,11 @@ CGROUP_LIMIT_FILES = ("/sys/fs/cgroup/memory.max",
                       "/sys/fs/cgroup/memory/memory.limit_in_bytes")
 
 
-def lift_bytes(k_treated: int, k_control: int) -> float:
-    """Peak bytes of one persp+N bound whose sides use ``k_treated`` and
-    ``k_control`` markets."""
-    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in (k_treated, k_control))
+def lift_bytes(k_treated: int, k_control: Optional[int] = None) -> float:
+    """Peak bytes of one persp+N bound whose treated side uses ``k_treated``
+    markets and, with its control block, whose control side uses ``k_control``."""
+    sides = (k_treated,) if k_control is None else (k_treated, k_control)
+    entries = sum(((k + 1) * (k + 2) / 2) ** 2 for k in sides)
     return LIFT_BASE_BYTES + LIFT_BYTES_PER_ENTRY * entries
 
 
@@ -457,15 +477,26 @@ def node_bound(
     F: Sequence[int],
     linear_treated: Optional[np.ndarray] = None,
     linear_control: Optional[np.ndarray] = None,
+    *,
+    control_block: bool = True,
 ) -> NodeBound:
     """The certified persp+N bound of the node ``(I, O, F)`` with ``m`` treated.
 
-    ``I``, ``O`` and ``F`` partition the cluster's markets; the penalty vectors
-    are indexed by them.
+    With ``control_block`` the relaxation keeps a semidefinite block per side.
+    Without it, the treated side's block alone, certified, plus the certified
+    floor under every control fit the node allows: a design's controls lie
+    inside ``O + F``, and a fit over fewer markets is no better, so
+    ``min (g + h) >= min g + h(O + F)`` (:func:`certified_control_floor`). That
+    bound is weaker and needs about half the memory. ``I``, ``O`` and ``F``
+    partition the cluster's markets; the penalty vectors are indexed by them. A
+    node that leaves no market for the controls holds no design and gets no
+    bound.
     """
     import cvxpy as cp
 
     I, O, F = list(I), list(O), list(F)
+    if not O + F:
+        return _UNBOUNDED
     G = data.gram
     gmax = max(G.frac(i, i) for i in range(data.n))
     if not 0 < gmax < Fraction(np.finfo(float).max):
@@ -476,10 +507,11 @@ def node_bound(
     pos = {j: i for i, j in enumerate(F)}
     z = cp.Variable(len(F)) if F else None
     cons = [] if z is None else [z >= 0, z <= 1, cp.sum(z) == r]
-    sides = [_Side(cp, sorted(I + F), z, pos, control=False),
-             _Side(cp, sorted(O + F), z, pos, control=True)]
-    lins = [None if linear_treated is None else np.asarray(linear_treated, float),
-            None if linear_control is None else np.asarray(linear_control, float)]
+    sides = [_Side(cp, sorted(I + F), z, pos, control=False)]
+    lins = [None if linear_treated is None else np.asarray(linear_treated, float)]
+    if control_block:
+        sides.append(_Side(cp, sorted(O + F), z, pos, control=True))
+        lins.append(None if linear_control is None else np.asarray(linear_control, float))
     obj = 0
     for s, lin in zip(sides, lins):
         X, x = s.M[1:, 1:], s.M[0, 1:]
@@ -507,10 +539,23 @@ def node_bound(
     lower = _certificate(G, scale, r, len(F), duals)
     if lower is None:
         return _UNBOUNDED
+    floor = (Fraction(0) if control_block
+             else certified_control_floor(data, sorted(O + F), linear_control))
     zv = np.asarray(z.value, dtype=float) if z is not None else np.zeros(0)
-    return NodeBound(lower=lower,
-                     relaxation=float(problem.value) * float(scale),
+    return NodeBound(lower=lower + floor,
+                     relaxation=float(problem.value) * float(scale) + float(floor),
                      z={j: float(zv[pos[j]]) for j in F})
+
+
+def certified_control_floor(data: ExactData, cols: Sequence[int],
+                            linear: Optional[np.ndarray] = None) -> Fraction:
+    """A certified lower bound on every control fit inside ``cols``: the fit over
+    ``cols`` itself, by the exact lower end of its value at the solver's weights
+    (:meth:`~mlsynth.utils.marex_helpers.certify.ExactData.interval`)."""
+    cols = list(cols)
+    lin = None if linear is None else np.asarray(linear, float)
+    _, v = side_fit(data.B, data.A, cols, None if lin is None else lin[cols])
+    return data.interval(cols, v, lin)[0]
 
 
 # ----------------------------------------------------------------------
@@ -592,6 +637,16 @@ def branch_and_bound(
     floors: Dict[Tuple[int, ...], Fraction] = {}
     refused: set = set()
     state = {"lifts": 0, "priced": 0, "admissible": False}
+    memory = available_memory()
+
+    def form(I, O, F) -> Tuple[bool, int]:
+        """Whether the node's bound keeps the control block, and the markets on
+        the block the cost model charges for: both blocks when they fit in
+        ``MEMORY_SHARE`` of the memory, else the treated block alone."""
+        kt, kc = len(I) + len(F), len(O) + len(F)
+        if memory is None or lift_bytes(kt, kc) <= MEMORY_SHARE * memory:
+            return True, max(kt, kc)
+        return False, kt
     ledger = Ledger(work_limit)
 
     def pool(S: Sequence[int]) -> List[int]:
@@ -676,10 +731,11 @@ def branch_and_bound(
         charge = lift_seconds(k)
         if ledger.passes(charge):
             return Deferred(bound)
-        check_memory(lift_bytes(len(I) + len(F), len(O) + len(F)), n,
-                     available=available_memory())
+        both, _ = form(I, O, F)
+        if not both:
+            check_memory(lift_bytes(len(I) + len(F)), n, available=memory)
         ledger.charge(charge)
-        nb = node_bound(data, m, I, O, F, lin_t, lin_c)
+        nb = node_bound(data, m, I, O, F, lin_t, lin_c, control_block=both)
         state["lifts"] += 1
         if nb.lower is not None:
             bound = max(bound, nb.lower)
@@ -724,7 +780,7 @@ def branch_and_bound(
         state["admissible"] = True
         if len(O) + len(F) - r < 1:              # every set treats every market
             return None
-        k = max(len(I) + len(F), len(O) + len(F))
+        _, k = form(I, O, F)
         if count < 2 or cheaper_to_price(count, price_seconds, lift_seconds(k)):
             return Price(cost=count * price_seconds, deferrable=True,
                          run=lambda: price(m, sub, O, F))
