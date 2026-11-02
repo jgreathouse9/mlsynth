@@ -17,12 +17,11 @@ from ...config_models import (
     InferenceResults,
     MethodDetailsResults,
 )
-from ...exceptions import (MlsynthConfigError, MlsynthDataError,
-                           MlsynthEstimationError)
+from ...exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
+from ..bilevel import BilevelSCM, bias_corrected_gaps
 from ..datautils import dataprep
 from ..helperutils import IndexSet
 from ..results_helpers import build_effect_submodels, make_weights_results
-from ..bilevel import BilevelSCM, bias_corrected_gaps
 from .structures import VanillaSCResults
 
 _EPS = 1e-12
@@ -823,8 +822,10 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             # centred and sign-symmetric, so their absolute quantile is the
             # symmetric half-width the band reports.
             from mlsynth.utils.conformal import (
-                CumulativeConformalBand, origin_schedule,
-                resample_cumulative_paths_from_weights)
+                CumulativeConformalBand,
+                origin_schedule,
+                resample_cumulative_paths_from_weights,
+            )
 
             paths = resample_cumulative_paths_from_weights(
                 y, Y0, int(pre), horizon, _refit_weight_fn,
@@ -966,8 +967,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     # The weights every placebo needs are the ones this estimator already fits,
     # so the branch assembles them and hands them to the inversion.
     if mode == "placebo_cs" and J >= 2 and gap[pre:].size:
-        from .placebo_cs import (breakdown_phi, confidence_set,
-                                 sensitivity_sweep)
+        from .placebo_cs import breakdown_phi, confidence_set, sensitivity_sweep
 
         # Panel in the layout the inversion expects: treated unit first, then
         # the donors. Unlike the plain placebo refits above, each donor's own
