@@ -374,6 +374,11 @@ def test_invalid_estimator_output_is_logged(change):
     assert actual.summary.status.tolist() == ["failed"]
     assert len(actual.failures) == 1
     assert actual.paths.empty
+    if change == "overflow":
+        from mlsynth.utils.sensitivity_helpers.results import extract_paths
+
+        with pytest.raises(MlsynthDataError, match="nonfinite trajectory"):
+            extract_paths(result, "overflow", list(range(12)))
 
 
 @settings(max_examples=8, deadline=None)
