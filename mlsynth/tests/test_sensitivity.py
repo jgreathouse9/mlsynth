@@ -274,7 +274,7 @@ def test_duplicate_registry_and_changed_baseline():
     assert result.summary.status.tolist() == ["failed"]
 
 
-@pytest.mark.parametrize("change", ["times", "nonfinite", "exception"])
+@pytest.mark.parametrize("change", ["times", "nonfinite", "overflow", "exception"])
 def test_invalid_estimator_output_is_logged(change):
     result = VanillaSC(config()).fit()
     if change == "times":
@@ -285,6 +285,14 @@ def test_invalid_estimator_output_is_logged(change):
     elif change == "nonfinite":
         series = result.time_series.model_copy(
             update={"counterfactual_outcome": np.full(12, np.nan)}
+        )
+        result = result.model_copy(update={"time_series": series})
+    elif change == "overflow":
+        series = result.time_series.model_copy(
+            update={
+                "observed_outcome": np.full(12, 1e308),
+                "counterfactual_outcome": np.full(12, -1e308),
+            }
         )
         result = result.model_copy(update={"time_series": series})
     if change == "exception":

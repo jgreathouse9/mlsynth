@@ -3,114 +3,20 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Iterable
 from copy import deepcopy
 from importlib.metadata import version
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel, ConfigDict
 
 from .estimators.vanillasc import VanillaSC
 from .exceptions import MlsynthConfigError, MlsynthDataError
+from .utils.sensitivity_helpers.results import extract_paths
+from .utils.sensitivity_helpers.structures import _DIMENSIONS, SensitivityResult
 
-_DIMENSIONS = {"donors", "fit_window", "fit_exclude", "covariates", "covariate_windows"}
-
-
-class SensitivityResult(BaseModel):
-    """A collection of unchanged estimator results and tidy sensitivity tables.
-
-    ``summary`` has one row per attempt; ``failures`` and ``warnings`` preserve
-    unsuccessful fits and diagnostics. ``fits`` retains the complete native
-    results, including predictor weights and solver diagnostics. ``registry``
-    contains resolved configurations without repeated panel data; ``baseline``
-    preserves the original configuration, including a copy of the panel.
-    """
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
-    summary: pd.DataFrame
-    paths: pd.DataFrame
-    weights: pd.DataFrame
-    failures: pd.DataFrame
-    warnings: pd.DataFrame
-    registry: dict[str, dict[str, Any]]
-    baseline: dict[str, Any]
-    metadata: dict[str, Any]
-    fits: dict[str, Any]
-
-    def dispersion(self) -> pd.Series:
-        """Describe finite estimates, including warning-bearing fits.
-
-        Sign shares have the number of finite estimates as their denominator.
-        They describe registered designs and are not causal probabilities.
-        """
-        effects = self.summary.att.dropna()
-        return pd.Series(
-            {
-                "attempted": len(self.summary),
-                "estimated": len(effects),
-                "failed": (self.summary.status == "failed").sum(),
-                "with_warnings": (self.summary.status == "warning").sum(),
-                "min": effects.min(),
-                "median": effects.median(),
-                "max": effects.max(),
-                "std": effects.std(),
-                "positive_share": (effects > 0).mean() if len(effects) else np.nan,
-                "negative_share": (effects < 0).mean() if len(effects) else np.nan,
-                "zero_share": (effects == 0).mean() if len(effects) else np.nan,
-            }
-        )
-
-    def by_dimension(self, dimension: str) -> pd.DataFrame:
-        """Group dispersion by one design choice, without attributing causality.
-
-        Other dimensions can vary within each group. An unbalanced registry
-        does not identify a variance contribution of the selected dimension.
-        Failed designs remain in attempted/failed counts.
-        """
-        if dimension not in _DIMENSIONS:
-            raise MlsynthConfigError(f"dimension must be one of {sorted(_DIMENSIONS)}")
-        table = self.summary.copy()
-        table["choice"] = [
-            repr(self.registry[name].get(dimension)) for name in table.spec_id
-        ]
-        return (
-            table.groupby("choice", sort=False, dropna=False, observed=True)
-            .agg(
-                attempted=("spec_id", "size"),
-                estimated=("att", "count"),
-                failed=("status", lambda x: (x == "failed").sum()),
-                min=("att", "min"),
-                median=("att", "median"),
-                max=("att", "max"),
-            )
-            .reset_index()
-        )
-
-    def plot(self):
-        """Return a specification-curve Figure displaying every attempted design."""
-        fig, ax = plt.subplots()
-        ordered = self.summary.sort_values("att", kind="stable", na_position="last")
-        for i, row in enumerate(ordered.itertuples()):
-            if row.status == "failed":
-                ax.text(
-                    i,
-                    0.02,
-                    "failed",
-                    transform=ax.get_xaxis_transform(),
-                    ha="center",
-                    va="bottom",
-                    rotation=90,
-                )
-            else:
-                ax.scatter(i, row.att, marker="x" if row.status == "warning" else "o")
-        ax.axhline(0, color="grey", linewidth=0.8)
-        ax.set_xticks(range(len(ordered)), ordered.spec_id, rotation=90)
-        ax.set_ylabel("ATT")
-        ax.set_xlabel("Specification (x: fit with warnings; failed: no estimate)")
-        fig.tight_layout()
-        return fig
+__all__ = ["SensitivityResult", "SpecificationStudy"]
 
 
 class SpecificationStudy:
@@ -145,8 +51,13 @@ class SpecificationStudy:
     """
 
     def __init__(
-        self, estimator, base_config, specifications, att_periods, excluded_donors=()
-    ):
+        self,
+        estimator: type[VanillaSC],
+        base_config: dict[str, Any],
+        specifications: Iterable[dict[str, Any]],
+        att_periods: Iterable[Any],
+        excluded_donors: Iterable[Any] = (),
+    ) -> None:
         if estimator is not VanillaSC:
             raise MlsynthConfigError("Only VanillaSC is supported.")
         self._baseline = deepcopy(base_config)
@@ -219,7 +130,9 @@ class SpecificationStudy:
         if "baseline" not in names:
             self._specs.insert(0, {"name": "baseline"})
 
-    def _prepare(self, design):
+    def _prepare(
+        self, design: dict[str, Any]
+    ) -> tuple[dict[str, Any], list[Any], list[Any]]:
         cfg = self._config
         frame = cfg.df
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
@@ -325,30 +238,8 @@ class SpecificationStudy:
                     warning_rows.extend(
                         dict(spec_id=name, **warning) for warning in solver_warnings
                     )
-                    series = fitted.time_series
-                    times = list(series.time_periods)
-                    if times != self._times:
-                        raise MlsynthDataError(
-                            "Estimator changed the common trajectory periods."
-                        )
-                    observed = np.asarray(series.observed_outcome, dtype=float).reshape(
-                        -1
-                    )
-                    synthetic = np.asarray(
-                        series.counterfactual_outcome, dtype=float
-                    ).reshape(-1)
-                    donor_weights = fitted.weights.donor_weights
-                    if (
-                        observed.shape != (len(times),)
-                        or synthetic.shape != observed.shape
-                        or not np.isfinite(
-                            np.r_[observed, synthetic, list(donor_weights.values())]
-                        ).all()
-                    ):
-                        raise MlsynthDataError(
-                            "Estimator returned missing or nonfinite paths/weights."
-                        )
-                    gap = pd.Series(observed - synthetic, index=times)
+                    extracted = extract_paths(fitted, name, self._times)
+                    gap = extracted.paths.set_index("time").gap
                     row.update(
                         att=float(gap.loc[self._post].mean()),
                         pre_rmse=float(np.sqrt(np.mean(gap.loc[self._pre] ** 2))),
@@ -356,14 +247,8 @@ class SpecificationStudy:
                         status="warning" if caught or solver_warnings else "ok",
                     )
                     fits[name] = fitted
-                    paths.extend(
-                        dict(spec_id=name, time=t, observed=y, synthetic=c, gap=y - c)
-                        for t, y, c in zip(times, observed, synthetic)
-                    )
-                    weights.extend(
-                        dict(spec_id=name, donor=d, weight=w)
-                        for d, w in donor_weights.items()
-                    )
+                    paths.extend(extracted.paths.to_dict("records"))
+                    weights.extend(extracted.weights.to_dict("records"))
                 except Exception as exc:
                     failures.append(
                         dict(

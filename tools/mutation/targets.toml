@@ -85,6 +85,18 @@ timeout = 120.0
   models = "primary solver warnings are captured but omitted from the native result contract, preventing the sensitivity summary from flagging nonconvergence"
 
 [[target]]
+name = "specification-sensitivity-paths"
+module-path = "mlsynth/utils/sensitivity_helpers/results.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -k invalid_estimator_output -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "overflowed-gaps-become-estimates"
+  find = "if not np.isfinite(gap).all():"
+  replace = "if False:"
+  models = "finite observed and synthetic levels can overflow when subtracted; admitting that gap produces an infinite ATT instead of a failed specification"
+
+[[target]]
 name = "effect-primitives"
 module-path = "mlsynth/utils/effectutils.py"
 test-command = "python -m pytest mlsynth/tests/test_effect_primitives_properties.py -q -p no:cacheprovider"
