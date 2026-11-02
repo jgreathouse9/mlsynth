@@ -5,8 +5,12 @@ Picking with Synthetic Controls", *Journal of Policy Analysis and Management*
 39(2): 510-532, built on top of PR #958 (`SpecificationStudy` for VanillaSC).
 Reference code: the authors' replication package, openICPSR project 117261,
 version 2 (https://doi.org/10.3886/E117261V2), file `replications_emp.zip`.
-Nothing here is wired into `mlsynth`; this is the evidence behind the
-build/park decision.
+This is the evidence behind the build decision. The recommendation below is
+now built on the same branch: `SpecificationStudy(placebo=True)`, the
+inference methods on its result and the `identification` table, documented in
+`docs/sensitivity.rst` and checked against this spike's reference traces by
+`mlsynth/tests/test_sensitivity_inference.py`. The code in this directory is
+the spike as it was run.
 
 FPP ask how much a synthetic-control result depends on which pre-treatment
 outcome lags the analyst uses as predictors. They refit seven predictor sets,
@@ -135,11 +139,11 @@ on top of it needs five things, in this order of necessity.
    loss is zero to tolerance, which makes the minimizing weights a set and
    not a point (the usual case with few predictors and many donors), and that
    mlsynth's tie-break chose within that set by pre-period outcome fit.
-4. A one-line fix to the PR. `SpecificationStudy.fit()` records
-   `importlib.metadata.version("mlsynth")`, which raises
+4. A one-line fix to the PR. `SpecificationStudy.fit()` recorded
+   `importlib.metadata.version("mlsynth")`, which raised
    `PackageNotFoundError` from a checkout that was never pip-installed, after
-   every design has been fit; `mlsynth.__version__` already carries the
-   fallback. `placebo_study.py` patches it at import.
+   every design had been fit. #958 fixed this at `e26902be` (the version is
+   now `None` there).
 5. Two-step cross-validation (ADH 2015: choose V on a training problem, reuse
    it on predictors re-measured over a later window). VanillaSC has no way to
    take a V from elsewhere, so the Germany refit calls the bilevel engine and
@@ -152,8 +156,9 @@ E1-E2, G1-G3) and the two applications whose data are not in the package.
 
 ## Recommendation
 
-Build, after #958 merges and on its own branch: items 1 to 4 as a placebo mode
-on the study and the four inference functions on its result, with this
+Build, after #958 merges and on its own branch: items 1 to 3 as a placebo mode
+on the study and the four inference functions on its result (item 4 is fixed
+in #958), with this
 spike's Germany trace as the durable check, a `benchmarks/cases/` case that
 rebuilds Table 3's fourteen p-values, the joint test, both choice rules and
 the Figure 2 band from the captured R weights (exact to 5e-13 here). Item 5
@@ -187,7 +192,7 @@ share a predictor set.
 | `R/prepare_scripts.py` | writes the runnable copies of the authors' scripts: Germany split by specification, California with the R 4.3 edits |
 | `R/run_fpp_reference.R` | runs one of those scripts and traces every `dataprep()` and `synth()` return |
 | `R/export_trace.R` | re-emits those traces as JSON |
-| `reference/*_trace.json` | the captured reference: every synth() call's V, W and losses |
+| `benchmarks/reference/fpp_cherry_picking/*_trace.json` | the captured reference: every synth() call's V, W and losses |
 | `results/` | layer-by-layer numbers, tables, figures |
 
 ## Reproducing
@@ -198,7 +203,7 @@ covers installing R in this sandbox; Synth 1.1-5 is `cran/Synth` at
 `c946535`. Their scripts were written for R 3.x; the edits that let them run
 on R 4.3 are listed under "Reference environment" below.
 
-The traces under `reference/` came from the copies `R/prepare_scripts.py`
+The traces under `benchmarks/reference/fpp_cherry_picking/` came from the copies `R/prepare_scripts.py`
 writes (Germany one specification block per script, California with the edits
 below), each run from a working directory holding the script's data file
 (`repgermany.dta`, `smoking_dataset.csv`):
@@ -206,9 +211,9 @@ below), each run from a working directory holding the script's data file
 ```bash
 python R/prepare_scripts.py <unzipped replications_emp> <scripts>
 Rscript --vanilla R/run_fpp_reference.R <scripts>/spec_1a.R <workdir> germany_1a.rds   # ... spec_7b.R
-Rscript --vanilla R/export_trace.R reference/germany_trace.json 7 germany_1a.rds ... germany_7b.rds
+Rscript --vanilla R/export_trace.R ../../reference/fpp_cherry_picking/germany_trace.json 7 germany_1a.rds ... germany_7b.rds
 Rscript --vanilla R/run_fpp_reference.R <scripts>/replication_california_seq.R <workdir> california.rds
-Rscript --vanilla R/export_trace.R reference/california_trace.json 3 california.rds
+Rscript --vanilla R/export_trace.R ../../reference/fpp_cherry_picking/california_trace.json 3 california.rds
 ```
 
 The Python layers then run from the captured traces alone:
@@ -222,8 +227,7 @@ PYTHONPATH=../../.. python report.py germany
 PYTHONPATH=../../.. python report.py california
 ```
 
-Python needs only `requirements.txt`. `placebo_study.py` patches one line of
-the PR's module at import (see "What extending the PR needs").
+Python needs only `requirements.txt`.
 
 ## Reference environment
 

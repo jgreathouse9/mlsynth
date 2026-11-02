@@ -14,7 +14,8 @@ Each application is checked at four layers, so a disagreement can be placed:
 * ``refit``  -- mlsynth's own V search (``refit.py``), against the R run's
   validation loss (the outer problem).
 
-The reference traces are ``reference/*_trace.json`` (``R/export_trace.R``).
+The reference traces are ``benchmarks/reference/fpp_cherry_picking/*_trace.json``
+(``R/export_trace.R``).
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ import fpp
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 RESULTS = HERE / "results"
+REFERENCE = ROOT / "benchmarks" / "reference" / "fpp_cherry_picking"
 
 # Numbers printed in the paper (paper labels: "a" = no covariates).
 PAPER_TABLE3 = {"1a": 0.059, "1b": 0.059, "2a": 0.059, "2b": 0.118, "3a": 0.118,
@@ -69,7 +71,7 @@ def california_panel() -> fpp.Panel:
 
 
 def load_trace(name: str) -> dict:
-    return json.loads((HERE / "reference" / f"{name}_trace.json").read_text())
+    return json.loads((REFERENCE / f"{name}_trace.json").read_text())
 
 
 def parse_fits(calls, units, specs, two_step: bool):

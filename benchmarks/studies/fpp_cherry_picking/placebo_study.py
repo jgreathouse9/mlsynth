@@ -19,16 +19,8 @@ from typing import Dict, List, Sequence
 import numpy as np
 import pandas as pd
 
-import mlsynth
-import mlsynth.sensitivity as sensitivity
 from mlsynth import VanillaSC
 from mlsynth.sensitivity import SensitivityResult, SpecificationStudy
-
-# SpecificationStudy.fit() records importlib.metadata.version("mlsynth"), which
-# raises when mlsynth runs from a source checkout that was never pip-installed
-# (this spike runs from the repository tree). mlsynth/__init__.py already falls
-# back for __version__; the PR's module does not.
-sensitivity.version = lambda _name: mlsynth.__version__
 
 
 @dataclass
