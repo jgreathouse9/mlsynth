@@ -109,6 +109,7 @@ class SensitivityResult(BaseModel):
         ax.set_xticks(range(len(ordered)), ordered.spec_id, rotation=90)
         ax.set_ylabel("ATT")
         ax.set_xlabel("Specification (x: fit with warnings; failed: no estimate)")
+        fig.tight_layout()
         return fig
 
 
