@@ -172,7 +172,7 @@ class SpecificationStudy:
         frame = cfg.df
         periods = self._times if periods is None else periods
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
-        donors = list(all_donors if design["donors"] is None else design["donors"])
+        donors = sorted(all_donors if design["donors"] is None else design["donors"])
         if not donors or len(set(donors)) != len(donors):
             raise MlsynthConfigError("Donors must be nonempty and unique.")
         if not set(donors).issubset(all_donors) or set(donors).intersection(

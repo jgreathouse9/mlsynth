@@ -68,7 +68,7 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "donor-restriction-ignored"
-  find = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
+  find = 'donors = sorted(all_donors if design["donors"] is None else design["donors"])'
   replace = "donors = list(all_donors)"
   models = "the requested donor pool is ignored, including when the requested subset is needed to exclude a contaminated or incomplete donor"
 
@@ -183,7 +183,7 @@ timeout = 180.0
   [[target.mutant]]
   id = "empty-fitting-window-falls-back-to-default"
   find = '(fitted[0], fitted[-1]) if fitted else ()'
-  replace = '(fitted[0], fitted[-1]) if fitted else None'
+  replace = '(fitted[0], fitted[-1]) if fitted else (train[0], train[-1])'
   models = "a design with no eligible early fitting periods silently substitutes the native default window and reports a score"
 
   [[target.mutant]]
@@ -227,6 +227,40 @@ timeout = 180.0
   find = 'or seen.intersection(window)'
   replace = ''
   models = "the same scoring period enters more than one fold, changing its weight in the pooled prediction error"
+
+  [[target.mutant]]
+  id = "malformed-window-error-not-translated"
+  find = '''        raise MlsynthConfigError(
+            "validation_windows must contain iterable windows of comparable periods."
+        ) from exc'''
+  replace = '        raise'
+  models = "an accidentally flat window declaration exposes a Python TypeError instead of the public configuration error"
+
+  [[target.mutant]]
+  id = "malformed-threshold-types-admitted"
+  find = '''        not isinstance(limit, Real)
+        or isinstance(limit, bool)
+        or not np.isfinite(limit)'''
+  replace = '        not np.isfinite(limit)'
+  models = "boolean thresholds are accepted and string or complex thresholds expose low-level NumPy errors"
+
+  [[target.mutant]]
+  id = "empty-covariate-window-reaches-estimator"
+  find = 'if not bounds:'
+  replace = 'if False:'
+  models = "an empty required covariate window reaches native tuple unpacking instead of producing an explicit configuration failure"
+
+[[target]]
+name = "sensitivity-validation-donors"
+module-path = "mlsynth/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k canonical -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "resolved-donor-order-varies"
+  find = 'donors = sorted(all_donors if design["donors"] is None else design["donors"])'
+  replace = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
+  models = "equivalent donor pools leave different resolved registries, including hash-dependent order for default string IDs"
 
 [[target]]
 name = "effect-primitives"

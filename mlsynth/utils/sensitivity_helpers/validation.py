@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Callable, Iterable
 from copy import deepcopy
+from numbers import Real
 from typing import Any
 
 import numpy as np
@@ -20,13 +21,23 @@ def normalize_validation_windows(
     windows: Iterable[Iterable[Any]] | None, pre: list[Any], limit: float | None
 ) -> list[list[Any]]:
     """Freeze disjoint observed windows with at least one earlier training period."""
-    if limit is not None and (not np.isfinite(limit) or limit < 0):
+    if limit is not None and (
+        not isinstance(limit, Real)
+        or isinstance(limit, bool)
+        or not np.isfinite(limit)
+        or limit < 0
+    ):
         raise MlsynthConfigError("validation_max_rmse must be finite and nonnegative.")
     if windows is None:
         if limit is not None:
             raise MlsynthConfigError("validation_max_rmse requires validation_windows.")
         return []
-    result = [sorted(window) for window in windows]
+    try:
+        result = [sorted(window) for window in windows]
+    except TypeError as exc:
+        raise MlsynthConfigError(
+            "validation_windows must contain iterable windows of comparable periods."
+        ) from exc
     if not result:
         raise MlsynthConfigError("validation_windows must contain at least one window.")
     seen: set[Any] = set()
@@ -55,7 +66,7 @@ def training_config(
 ) -> dict[str, Any]:
     """Intersect all matching windows with training time on a copied fold panel.
 
-    Empty windows remain empty tuples, which the native config rejects.
+    Empty windows remain empty tuples for the runner to record and reject.
     The fold's treatment indicator marks its forecasting boundary; the study's
     actual treatment assignment and final-fit configuration are unchanged.
     """
@@ -115,6 +126,15 @@ def run_validation(
                     cfg = training_config(
                         effective, fit_periods, train, window[0], treated
                     )
+                    if not cfg["fit_window"]:
+                        raise MlsynthConfigError(
+                            "The fitting window is empty before validation."
+                        )
+                    for cov, bounds in cfg["covariate_windows"].items():
+                        if not bounds:
+                            raise MlsynthConfigError(
+                                f"Covariate window for {cov!r} is empty before validation."
+                            )
                     model = VanillaSC(cfg).fit()
                     fits[name][fold] = model
                     solver_warnings = model.additional_outputs.get(

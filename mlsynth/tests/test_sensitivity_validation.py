@@ -155,10 +155,35 @@ def test_empty_covariate_window_is_a_fold_failure():
     cfg.update(backend="malo", covariates=["x"], covariate_windows={"x": (6, 7)})
     result = validate(base=cfg)
     assert result.validation.status.tolist() == ["failed"]
+    assert result.validation.exception_type.tolist() == ["MlsynthConfigError"]
+    assert "empty" in result.validation.message.iloc[0]
     assert np.isnan(result.summary.validation_rmse.iloc[0])
     assert result.validation_registry["baseline"]["fold_1"]["covariate_windows"] == {
         "x": ()
     }
+
+
+@pytest.mark.parametrize("windows", [[4, 5, 6, 7], "4:7", [[None]], [[3, "4"]]])
+def test_malformed_window_types_raise_config_error(windows):
+    with patch.object(VanillaSC, "fit") as fit:
+        with pytest.raises(MlsynthConfigError, match="validation"):
+            validate(validation_windows=windows)
+        fit.assert_not_called()
+
+
+@pytest.mark.parametrize("limit", ["1", [1], True, 1j])
+def test_malformed_threshold_types_raise_config_error(limit):
+    with patch.object(VanillaSC, "fit") as fit:
+        with pytest.raises(MlsynthConfigError, match="validation"):
+            validate(validation_max_rmse=limit)
+        fit.assert_not_called()
+
+
+@given(st.permutations(["u1", "u2", "u3"]))
+@settings(max_examples=6, deadline=None)
+def test_resolved_donor_registry_has_canonical_order(donors):
+    result = validate([{"name": "reordered", "donors": list(donors)}])
+    assert result.validation_registry["reordered"]["fold_1"]["donors"] == sorted(donors)
 
 
 def test_declared_threshold_keeps_all_results_and_controls_subset_summary():

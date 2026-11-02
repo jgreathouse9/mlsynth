@@ -192,6 +192,9 @@ counterfactual reconstruction from donor weights, a constructed panel with a
 known ATT, fixed evaluation periods, donor-order invariance, pre-treatment
 information boundaries and complete failure retention. The estimator's
 empirical verification is documented in :doc:`replications/vanillasc`.
+``mlsynth/tests/test_sensitivity_validation.py`` checks native fold parity,
+held-out data perturbations, rolling folds, failed-fold retention, pooled scores
+and unchanged final policy fits, including generative tests.
 
 API
 ---

@@ -35,10 +35,15 @@ def plot_validation(summary: pd.DataFrame, limit: float | None) -> Figure:
     """Show effect/prediction comparisons without assigning values to failures."""
     fig, ax = plt.subplots()
     finite = np.isfinite(summary.att) & np.isfinite(summary.validation_rmse)
-    for row in summary.loc[finite].itertuples():
+    for position, row in enumerate(summary.loc[finite].itertuples()):
         warning = row.status == "warning" or row.validation_status == "warning"
         ax.scatter(row.validation_rmse, row.att, marker="x" if warning else "o")
-        ax.annotate(row.spec_id, (row.validation_rmse, row.att))
+        ax.annotate(
+            row.spec_id,
+            (row.validation_rmse, row.att),
+            xytext=(5, 8 if position % 2 == 0 else -14),
+            textcoords="offset points",
+        )
     missing = summary.loc[~finite, "spec_id"].tolist()
     if missing:
         ax.text(
