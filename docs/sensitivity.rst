@@ -19,7 +19,7 @@ To compare predictor sets, choose a backend that supports all intended sets.
 The fixed ``outcome-only`` backend rejects designs that add covariates.
 
 Assumptions and safeguards
--------------------------
+--------------------------
 
 1. Declare the registry before examining post-treatment estimates. Designs
    need substantive justification; they are not automatically equally credible.
@@ -61,7 +61,7 @@ descriptive comparisons: other choices can vary within groups, so this table
 does not attribute a causal contribution to any dimension.
 
 Proposition 99 example
----------------------
+----------------------
 
 Run from a repository checkout using its bundled panel. The restricted pool
 is illustrative; the example does not certify its substantive eligibility.
