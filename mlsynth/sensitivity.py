@@ -149,8 +149,14 @@ class SpecificationStudy:
             raise MlsynthConfigError(
                 "excluded_donors must be a collection of known unit IDs."
             )
-        self._excluded = tuple(excluded_donors)
-        if not set(self._excluded).issubset(frame[cfg.unitid].unique()):
+        try:
+            self._excluded = tuple(excluded_donors)
+            excluded_set = set(self._excluded)
+        except TypeError as exc:
+            raise MlsynthConfigError(
+                "excluded_donors must be a collection of hashable unit IDs."
+            ) from exc
+        if not excluded_set.issubset(frame[cfg.unitid].unique()):
             raise MlsynthConfigError(
                 "excluded_donors contains unit IDs absent from the panel."
             )
@@ -172,6 +178,8 @@ class SpecificationStudy:
         frame = cfg.df
         periods = self._times if periods is None else periods
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
+        if isinstance(design["donors"], (str, bytes)):
+            raise MlsynthConfigError("Donors must be a collection of unit IDs.")
         try:
             donors = list(all_donors if design["donors"] is None else design["donors"])
             donor_set = set(donors)

@@ -39,7 +39,7 @@ def normalize_validation_windows(
     try:
         result = [sorted(window) for window in windows]
         period_sets = [set(window) for window in result]
-    except TypeError as exc:
+    except (TypeError, ValueError) as exc:
         raise MlsynthConfigError(
             "validation_windows must contain iterable windows of comparable periods."
         ) from exc

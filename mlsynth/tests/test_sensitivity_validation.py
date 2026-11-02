@@ -164,7 +164,16 @@ def test_empty_covariate_window_is_a_fold_failure():
 
 
 @pytest.mark.parametrize(
-    "windows", [[4, 5, 6, 7], "4:7", [[None]], [[3, "4"]], [[[4]]], [[{}]]]
+    "windows",
+    [
+        [4, 5, 6, 7],
+        "4:7",
+        [[None]],
+        [[3, "4"]],
+        [[[4]]],
+        [[{}]],
+        [[np.array([3, 4]), np.array([5, 6])]],
+    ],
 )
 def test_malformed_window_types_raise_config_error(windows):
     with patch.object(VanillaSC, "fit") as fit:
@@ -191,6 +200,23 @@ def test_resolved_donor_registry_has_canonical_order(donors):
 @pytest.mark.parametrize("donors", [["u1", 2], [["u1"]], 3])
 def test_invalid_donor_types_are_configuration_failures(donors):
     result = validate([{"name": "bad_donors", "donors": donors}])
+    assert result.failures.exception_type.tolist() == ["MlsynthConfigError"]
+    assert result.validation.exception_type.iloc[1] == "MlsynthConfigError"
+
+
+@pytest.mark.parametrize("excluded", [5, [["u1"]]])
+def test_invalid_exclusion_types_raise_before_fitting(excluded):
+    with patch.object(VanillaSC, "fit") as fit:
+        with pytest.raises(MlsynthConfigError, match="excluded_donors"):
+            validate(excluded_donors=excluded)
+        fit.assert_not_called()
+
+
+def test_scalar_string_donor_pool_cannot_select_individual_characters():
+    cfg = config()
+    cfg["df"]["unit"] = cfg["df"].unit.map({"u0": "T", "u1": "A", "u2": "B", "u3": "C"})
+    result = validate([{"name": "bad_donors", "donors": "AB"}], base=cfg)
+    assert result.summary.status.tolist() == ["ok", "failed"]
     assert result.failures.exception_type.tolist() == ["MlsynthConfigError"]
     assert result.validation.exception_type.iloc[1] == "MlsynthConfigError"
 

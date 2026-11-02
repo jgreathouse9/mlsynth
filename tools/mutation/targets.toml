@@ -80,7 +80,7 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "unknown-exclusions-are-silently-ignored"
-  find = "if not set(self._excluded).issubset(frame[cfg.unitid].unique()):"
+  find = "if not excluded_set.issubset(frame[cfg.unitid].unique()):"
   replace = "if False:"
   models = "a misspelled or wrongly typed contaminated donor identifier silently leaves the donor eligible"
 
@@ -257,6 +257,12 @@ timeout = 180.0
   models = "window elements are hashed outside the existing error translation boundary"
 
   [[target.mutant]]
+  id = "ambiguous-period-errors-not-translated"
+  find = 'except (TypeError, ValueError) as exc:'
+  replace = 'except TypeError as exc:'
+  models = "nested array periods expose NumPy ambiguous-truth ValueError instead of a configuration error"
+
+  [[target.mutant]]
   id = "overflowing-threshold-errors-not-translated"
   find = '''    except (TypeError, OverflowError):
         invalid_limit = True'''
@@ -267,7 +273,7 @@ timeout = 180.0
 [[target]]
 name = "sensitivity-validation-donors"
 module-path = "mlsynth/sensitivity.py"
-test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k 'canonical or invalid_donor' -q -p no:cacheprovider --disable-warnings"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k 'canonical or invalid_donor or exclusion_types or scalar_string' -q -p no:cacheprovider --disable-warnings"
 timeout = 120.0
 
   [[target.mutant]]
@@ -283,6 +289,20 @@ timeout = 120.0
             ) from exc'''
   replace = 'raise'
   models = "an invalid nested donor identifier exposes TypeError in the failure table instead of the public configuration error"
+
+  [[target.mutant]]
+  id = "scalar-string-splits-into-donors"
+  find = 'if isinstance(design["donors"], (str, bytes)):'
+  replace = 'if False:'
+  models = "a scalar string AB selects donors A and B instead of rejecting a malformed pool declaration"
+
+  [[target.mutant]]
+  id = "malformed-exclusion-errors-not-translated"
+  find = '''raise MlsynthConfigError(
+                "excluded_donors must be a collection of hashable unit IDs."
+            ) from exc'''
+  replace = 'raise'
+  models = "a scalar or nested exclusion declaration exposes TypeError before fitting instead of the public configuration error"
 
 [[target]]
 name = "effect-primitives"
