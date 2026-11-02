@@ -41,7 +41,7 @@ def plot_validation(summary: pd.DataFrame, limit: float | None) -> Figure:
         ax.annotate(
             row.spec_id,
             (row.validation_rmse, row.att),
-            xytext=(5, 8 if position % 2 == 0 else -14),
+            xytext=(5, 8 if position % 2 == 0 else 22),
             textcoords="offset points",
         )
     missing = summary.loc[~finite, "spec_id"].tolist()
