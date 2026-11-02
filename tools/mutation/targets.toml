@@ -9585,8 +9585,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "placebo-family-on-every-pre-period"
-  find = "                loo_W = solve_simplex_loo_exact(Y0[fit_pos], fallback=simplex_qp)"
-  replace = "                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)"
+  find = "                loo_W = solve_simplex_loo_exact(pool[fit_pos], fallback=simplex_qp)"
+  replace = "                loo_W = solve_simplex_loo_exact(pool[:pre], fallback=simplex_qp)"
   models = "the same defect on the batched outcome-only path, which serves the default specification"
 
   [[target.mutant]]
