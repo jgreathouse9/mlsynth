@@ -116,8 +116,73 @@ is illustrative; the example does not certify its substantive eligibility.
 The curve displays every attempted design. Failed designs are labelled with
 no assigned effect value; crosses identify fits with warnings. An unchanged
 baseline is added if omitted. The caller explicitly displays or saves the
-returned Figure. This study is separate from placebo inference and from
-pre-treatment holdout validation, which is not implemented here.
+returned Figure. This study is separate from placebo inference.
+
+Check pre-treatment prediction
+------------------------------
+
+Add validation windows to the same study to compare prediction accuracy with
+the final treatment effect:
+
+.. code-block:: python
+
+    study = SpecificationStudy(
+        estimator=VanillaSC,
+        base_config=dict(
+            df=panel, outcome="cigsale", treat="treated", unitid="state",
+            time="year", backend="outcome-only", inference=False,
+        ),
+        specifications=[
+            {"name": "baseline"},
+            {"name": "late_fit", "fit_window": (1980, 1988)},
+        ],
+        att_periods=range(1989, 2001),
+        validation_windows=[range(1984, 1989)],
+        validation_max_rmse=20,
+    )
+    result = study.fit()
+    result.summary
+    result.validation
+    figure = result.plot_validation()
+    result.dispersion(validation_only=True)
+
+The cutoff of 20 cigarette packs per capita illustrates a declaration; it is
+not a recommended standard. Specify any cutoff before viewing estimates.
+``validation_pass`` flags that predictive criterion, and the original unfiltered
+results remain available. Passing does not certify convergence or identification.
+
+Each fold trains strictly before its first validation period. Fitting windows,
+exclusions, covariate windows and default covariate averages are restricted to
+that earlier history. Empty matching windows fail without a fallback. Native
+scaling and predictor-weight optimization use only training observations.
+Precomputed covariates must themselves exclude future information.
+
+The runner copies the fold panel, marks the validation boundary in its treatment
+indicator, and disables fold inference and plotting. The native optimizer uses
+only the fold's pre-boundary observations. Later outcomes enter prediction and
+scoring. The original treatment assignment and actual policy date are preserved;
+the final ATT fit uses the unchanged full pre-treatment configuration and inference
+settings. Fold native ``effects`` are prediction gaps, not policy effects.
+
+One window gives a holdout. Several disjoint windows give rolling-origin checks,
+for example ``[range(1980, 1984), range(1984, 1989)]``. Later folds may train on
+earlier held-out observations. All windows must contain observed pre-treatment
+periods with earlier training data. Every design is scored on identical periods.
+Pooled RMSE gives each held-out period equal weight; any failed fold makes that
+design's aggregate unavailable. Successful folds are never selected for aggregation.
+
+``validation`` records RMSE, sample counts, status and exceptions for every
+design/fold. Predictions, weights and warnings remain in ``validation_paths``,
+``validation_weights`` and ``validation_warnings``. ``validation_registry``
+records effective configurations without repeated panel data, including empty
+windows that fail. ``validation_fits`` retains native results. Both are keyed by
+specification and fold; fold IDs follow the chronological windows in ``metadata``.
+The original baseline, registry, backend and seed remain available for reproduction.
+
+``plot_validation()`` labels ATT versus pooled validation RMSE and names designs
+missing either quantity. A declared threshold is drawn without filtering the
+figure. This reports predictive sensitivity; good pre-treatment forecasts alone
+do not establish no spillovers, no anticipation or post-treatment stability.
 
 Verification
 ------------

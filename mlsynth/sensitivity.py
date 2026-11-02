@@ -17,6 +17,11 @@ from .exceptions import MlsynthConfigError, MlsynthDataError
 from .utils.sensitivity_helpers.numerics import rms
 from .utils.sensitivity_helpers.results import extract_paths
 from .utils.sensitivity_helpers.structures import _DIMENSIONS, SensitivityResult
+from .utils.sensitivity_helpers.validation import (
+    add_validation_summary,
+    normalize_validation_windows,
+    run_validation,
+)
 
 __all__ = ["SensitivityResult", "SpecificationStudy"]
 
@@ -44,6 +49,13 @@ class SpecificationStudy:
         Collection of known contaminated unit IDs, not a scalar string. Unknown
         IDs raise before fitting. A pool containing one fails. Units marked
         treated in the original panel cannot enter donor pools.
+    validation_windows : iterable of iterables, optional
+        Disjoint observed pre-treatment periods to predict. Each fold trains
+        strictly before its first period, intersecting all fitting/covariate
+        windows with that history. Empty matching windows fail the fold.
+    validation_max_rmse : float, optional
+        Finite nonnegative cutoff declared before fitting. Adds validation_pass
+        to summary without removing designs or changing final estimates.
 
     Notes
     -----
@@ -52,6 +64,9 @@ class SpecificationStudy:
     time before any donor subsetting. Declare designs before viewing effects.
     Precomputed covariate columns must themselves use only information available
     before treatment. Computational settings cannot vary in this initial API.
+    Validation windows are ordered chronologically. Fold inference is disabled;
+    the copied fold panel marks its forecasting boundary in the treatment
+    indicator. The actual policy date and final full-period fit remain fixed.
     """
 
     def __init__(
@@ -61,6 +76,8 @@ class SpecificationStudy:
         specifications: Iterable[dict[str, Any]],
         att_periods: Iterable[Any],
         excluded_donors: Iterable[Any] = (),
+        validation_windows: Iterable[Iterable[Any]] | None = None,
+        validation_max_rmse: float | None = None,
     ) -> None:
         if estimator is not VanillaSC:
             raise MlsynthConfigError("Only VanillaSC is supported.")
@@ -118,6 +135,10 @@ class SpecificationStudy:
             raise MlsynthConfigError(
                 "att_periods must be observed post-treatment periods."
             )
+        self._validation_windows = normalize_validation_windows(
+            validation_windows, self._pre, validation_max_rmse
+        )
+        self._validation_max_rmse = validation_max_rmse
         backend = cfg.backend
         if backend == "auto":
             backend = "mscmt" if cfg.covariates else "outcome-only"
@@ -145,10 +166,11 @@ class SpecificationStudy:
             self._specs.insert(0, {"name": "baseline"})
 
     def _prepare(
-        self, design: dict[str, Any]
+        self, design: dict[str, Any], periods: list[Any] | None = None
     ) -> tuple[dict[str, Any], list[Any], list[Any]]:
         cfg = self._config
         frame = cfg.df
+        periods = self._times if periods is None else periods
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
         donors = list(all_donors if design["donors"] is None else design["donors"])
         if not donors or len(set(donors)) != len(donors):
@@ -161,10 +183,10 @@ class SpecificationStudy:
             )
         selected = frame.loc[
             frame[cfg.unitid].isin([self._treated, *donors])
-            & frame[cfg.time].isin(self._times)
+            & frame[cfg.time].isin(periods)
         ].copy(deep=True)
         if (
-            len(selected) != len(self._times) * (len(donors) + 1)
+            len(selected) != len(periods) * (len(donors) + 1)
             or not np.isfinite(selected[cfg.outcome]).all()
         ):
             raise MlsynthDataError(
@@ -212,6 +234,20 @@ class SpecificationStudy:
         effective["df"] = selected.sort_values([cfg.unitid, cfg.time])
         return effective, fit_periods, donors
 
+    def _prepare_spec(
+        self,
+        spec: dict[str, Any],
+        design: dict[str, Any],
+        periods: list[Any] | None = None,
+    ) -> tuple[dict[str, Any], list[Any], list[Any]]:
+        if set(spec) - _DIMENSIONS - {"name"}:
+            raise MlsynthConfigError(
+                "Only design dimensions may vary; study and computational settings are fixed."
+            )
+        if spec["name"] == "baseline" and len(spec) != 1:
+            raise MlsynthConfigError("The baseline cannot contain overrides.")
+        return self._prepare(design, periods)
+
     def fit(self) -> SensitivityResult:
         """Fit all registered designs without filtering on fit quality or effect."""
         try:
@@ -227,6 +263,14 @@ class SpecificationStudy:
             }
             for s in self._specs
         }
+        validation = run_validation(
+            registry,
+            self._specs,
+            self._validation_windows,
+            self._pre,
+            self._treated,
+            self._prepare_spec,
+        )
         summaries, paths, weights, failures, warning_rows = [], [], [], [], []
         fits = {}
         for spec in self._specs:
@@ -242,15 +286,9 @@ class SpecificationStudy:
             with warnings.catch_warnings(record=True) as caught:
                 warnings.simplefilter("always")
                 try:
-                    if set(spec) - _DIMENSIONS - {"name"}:
-                        raise MlsynthConfigError(
-                            "Only design dimensions may vary; study and computational settings are fixed."
-                        )
-                    if name == "baseline" and len(spec) != 1:
-                        raise MlsynthConfigError(
-                            "The baseline cannot contain overrides."
-                        )
-                    effective, fit_periods, donors = self._prepare(registry[name])
+                    effective, fit_periods, donors = self._prepare_spec(
+                        spec, registry[name]
+                    )
                     row["n_donors"] = len(donors)
                     fitted = VanillaSC(effective).fit()
                     solver_warnings = fitted.additional_outputs.get(
@@ -294,8 +332,13 @@ class SpecificationStudy:
                     for w in caught
                 )
             summaries.append(row)
+        summary = pd.DataFrame(summaries)
+        if self._validation_windows:
+            summary = add_validation_summary(
+                summary, validation, self._validation_max_rmse
+            )
         return SensitivityResult(
-            summary=pd.DataFrame(summaries),
+            summary=summary,
             paths=pd.DataFrame(
                 paths, columns=["spec_id", "time", "observed", "synthetic", "gap"]
             ),
@@ -310,6 +353,8 @@ class SpecificationStudy:
             baseline=deepcopy(self._baseline),
             fits=fits,
             metadata=dict(
+                validation_windows=deepcopy(self._validation_windows),
+                validation_max_rmse=self._validation_max_rmse,
                 treated_unit=self._treated,
                 treatment_time=self._treatment_time,
                 att_periods=list(self._post),
@@ -319,4 +364,5 @@ class SpecificationStudy:
                 estimator="mlsynth.VanillaSC",
                 version=package_version,
             ),
+            **validation,
         )

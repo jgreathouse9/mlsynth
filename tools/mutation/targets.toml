@@ -110,7 +110,7 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "donor-only-periods-enter-estimation"
-  find = "& frame[cfg.time].isin(self._times)"
+  find = "& frame[cfg.time].isin(periods)"
   replace = ""
   models = "donor observations outside the fixed treated timeline enter the native estimator or fail a valid design's balance check"
 
@@ -167,6 +167,66 @@ timeout = 120.0
   find = "if not np.isfinite(gap).all():"
   replace = "if False:"
   models = "finite observed and synthetic levels can overflow when subtracted; admitting that gap produces an infinite ATT instead of a failed specification"
+
+[[target]]
+name = "sensitivity-validation"
+module-path = "mlsynth/utils/sensitivity_helpers/validation.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -q -p no:cacheprovider --disable-warnings"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "heldout-periods-enter-training"
+  find = "effective, fit_periods, train, window[0], treated"
+  replace = "effective, fit_periods, train + window, window[-1], treated"
+  models = "moving the forecast origin into the held-out window lets held-out outcomes and covariates affect fitted weights"
+
+  [[target.mutant]]
+  id = "empty-fitting-window-falls-back-to-default"
+  find = '(fitted[0], fitted[-1]) if fitted else ()'
+  replace = '(fitted[0], fitted[-1]) if fitted else None'
+  models = "a design with no eligible early fitting periods silently substitutes the native default window and reports a score"
+
+  [[target.mutant]]
+  id = "empty-covariate-window-falls-back-to-training"
+  find = '(periods[0], periods[-1]) if periods else ()'
+  replace = '(periods[0], periods[-1]) if periods else (train[0], train[-1])'
+  models = "an unavailable required predictor window is replaced with different training periods instead of failing the fold"
+
+  [[target.mutant]]
+  id = "fit-exclusions-outside-training-retained"
+  find = '[t for t in (cfg.get("fit_exclude") or []) if t < cutoff]'
+  replace = 'cfg.get("fit_exclude") or []'
+  models = "original exclusions outside the early history reach the native fold configuration and reject an otherwise valid fold"
+
+  [[target.mutant]]
+  id = "partial-fold-failure-hidden"
+  find = '(folds.status == "failed").any()'
+  replace = '(folds.status == "failed").all()'
+  models = "an aggregate validation score is reported using only the easier surviving folds after another fold fails"
+
+  [[target.mutant]]
+  id = "fold-rmse-averaged-without-period-weights"
+  find = 'scores.append(np.nan if failed else rms(gaps))'
+  replace = 'scores.append(np.nan if failed else float(folds.rmse.mean()))'
+  models = "unequal fold sizes receive equal weight and the mean of roots replaces the root of pooled squared prediction errors"
+
+  [[target.mutant]]
+  id = "failed-folds-disappear"
+  find = '            rows.append(row)'
+  replace = "            if row['status'] != 'failed':\n                rows.append(row)"
+  models = "failed attempted folds are omitted from the validation table and can no longer invalidate aggregate scores"
+
+  [[target.mutant]]
+  id = "native-fold-solver-warnings-discarded"
+  find = '"solver_warnings", []'
+  replace = '"ignored_solver_warnings", []'
+  models = "native solver warnings do not reach fold status, aggregate validation status, or the warning log"
+
+  [[target.mutant]]
+  id = "overlapping-validation-windows-accepted"
+  find = 'or seen.intersection(window)'
+  replace = ''
+  models = "the same scoring period enters more than one fold, changing its weight in the pooled prediction error"
 
 [[target]]
 name = "effect-primitives"

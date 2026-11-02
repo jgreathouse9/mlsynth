@@ -8,12 +8,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from ...exceptions import MlsynthConfigError
 from ..vanillasc_helpers.structures import VanillaSCResults
 from .numerics import median, std
-from .plotter import plot_specification_curve
+from .plotter import plot_specification_curve, plot_validation
 
 _DIMENSIONS = {"donors", "fit_window", "fit_exclude", "covariates", "covariate_windows"}
 
@@ -38,6 +38,11 @@ class SensitivityResult(BaseModel):
     results, including predictor weights and solver diagnostics. ``registry``
     contains resolved configurations without repeated panel data; ``baseline``
     preserves the original configuration, including a copy of the panel.
+    ``validation`` records every attempted design/fold, including errors.
+    ``validation_paths``, ``validation_weights`` and ``validation_warnings``
+    carry spec_id/fold_id keys. ``validation_registry`` and ``validation_fits``
+    are nested by those keys; native fold effects describe forecasting gaps,
+    not policy effects. The policy ATT remains in the main summary.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
@@ -51,21 +56,41 @@ class SensitivityResult(BaseModel):
     metadata: dict[str, Any]
     fits: dict[str, VanillaSCResults]
 
-    def dispersion(self) -> pd.Series:
+    validation: pd.DataFrame = Field(default_factory=pd.DataFrame)
+    validation_paths: pd.DataFrame = Field(default_factory=pd.DataFrame)
+    validation_weights: pd.DataFrame = Field(default_factory=pd.DataFrame)
+    validation_warnings: pd.DataFrame = Field(default_factory=pd.DataFrame)
+    validation_registry: dict[str, dict[str, dict[str, Any]]] = Field(
+        default_factory=dict
+    )
+    validation_fits: dict[str, dict[str, VanillaSCResults]] = Field(
+        default_factory=dict
+    )
+
+    def dispersion(self, validation_only: bool = False) -> pd.Series:
         """Describe finite estimates, including warning-bearing fits.
 
         Sign shares have the number of finite estimates as their denominator.
         They describe registered designs and are not causal probabilities.
         Standard deviation is NaN when fewer than two estimates are finite or
         its value exceeds the floating-point range.
+        ``validation_only=True`` describes the subset passing the cutoff
+        declared through validation_max_rmse. All original tables are retained.
         """
-        effects = self.summary.loc[np.isfinite(self.summary.att), "att"]
+        table = self.summary
+        if validation_only:
+            if self.metadata.get("validation_max_rmse") is None:
+                raise MlsynthConfigError(
+                    "Declare validation_max_rmse before fitting to summarize its subset."
+                )
+            table = table.loc[table.validation_pass]
+        effects = table.loc[np.isfinite(table.att), "att"]
         return pd.Series(
             {
-                "attempted": len(self.summary),
+                "attempted": len(table),
                 "estimated": len(effects),
-                "failed": (self.summary.status == "failed").sum(),
-                "with_warnings": (self.summary.status == "warning").sum(),
+                "failed": (table.status == "failed").sum(),
+                "with_warnings": (table.status == "warning").sum(),
                 "min": effects.min(),
                 "median": median(effects),
                 "max": effects.max(),
@@ -106,3 +131,9 @@ class SensitivityResult(BaseModel):
     def plot(self) -> Figure:
         """Return a specification-curve Figure displaying every attempted design."""
         return plot_specification_curve(self.summary)
+
+    def plot_validation(self) -> Figure:
+        """Plot ATT against pooled validation RMSE and name unplottable designs."""
+        if not self.metadata.get("validation_windows"):
+            raise MlsynthConfigError("Declare validation_windows before fitting.")
+        return plot_validation(self.summary, self.metadata.get("validation_max_rmse"))
