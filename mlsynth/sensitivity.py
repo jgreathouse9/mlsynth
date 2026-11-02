@@ -76,7 +76,7 @@ class SensitivityResult(BaseModel):
             repr(self.registry[name].get(dimension)) for name in table.spec_id
         ]
         return (
-            table.groupby("choice", sort=False, dropna=False)
+            table.groupby("choice", sort=False, dropna=False, observed=True)
             .agg(
                 attempted=("spec_id", "size"),
                 estimated=("att", "count"),
