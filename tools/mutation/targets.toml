@@ -31,6 +31,42 @@
 # outcomes are recorded, never silently tolerated.
 
 [[target]]
+name = "specification-sensitivity"
+module-path = "mlsynth/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -q -p no:cacheprovider --disable-warnings"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "att-uses-all-post-periods"
+  find = "att=float(gap.loc[self._post].mean())"
+  replace = "att=float(gap.loc[gap.index >= self._treatment_time].mean())"
+  models = "the requested ATT period is replaced by every post-treatment observation, changing the estimand while leaving full-window examples unchanged"
+
+  [[target.mutant]]
+  id = "failures-disappear-from-the-registry-summary"
+  find = "            summaries.append(row)"
+  replace = "            if row['status'] != 'failed':\n                summaries.append(row)"
+  models = "failed designs remain in an exception log but disappear from attempted-design counts and the default specification curve"
+
+  [[target.mutant]]
+  id = "post-period-fit-bound-is-silently-clipped"
+  find = "or window[1] >= self._treatment_time\n            ):"
+  replace = "or False\n            ):"
+  models = "post-treatment window bounds are admitted and the estimator silently clips them, so the executed design differs from the registered design"
+
+  [[target.mutant]]
+  id = "warning-fits-appear-successful"
+  find = 'status="warning" if caught else "ok"'
+  replace = 'status="ok"'
+  models = "nonconverged finite fits retain their estimates but lose the visible warning status in the summary and curve"
+
+  [[target.mutant]]
+  id = "donor-restriction-ignored"
+  find = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
+  replace = "donors = list(all_donors)"
+  models = "the requested donor pool is ignored, including when the requested subset is needed to exclude a contaminated or incomplete donor"
+
+[[target]]
 name = "effect-primitives"
 module-path = "mlsynth/utils/effectutils.py"
 test-command = "python -m pytest mlsynth/tests/test_effect_primitives_properties.py -q -p no:cacheprovider"

@@ -1,0 +1,334 @@
+"""The registry wraps existing fits without changing the estimand or sample."""
+
+import warnings
+from unittest.mock import patch
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+from mlsynth import VanillaSC
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.sensitivity import SensitivityResult, SpecificationStudy
+
+
+def config():
+    rng = np.random.default_rng(10)
+    donors = rng.normal(10, 2, (12, 3))
+    treated = donors @ np.array([0.2, 0.3, 0.5])
+    treated[8:] += np.arange(1, 5)
+    y = np.column_stack([treated, donors])
+    panel = pd.DataFrame(
+        [
+            (f"u{u}", t, y[t, u], int(u == 0 and t >= 8), float(u) + t / 20)
+            for u in range(4)
+            for t in range(12)
+        ],
+        columns=["unit", "time", "y", "treated", "x"],
+    )
+    return dict(
+        df=panel,
+        unitid="unit",
+        time="time",
+        outcome="y",
+        treat="treated",
+        backend="outcome-only",
+        inference=False,
+        display_graphs=False,
+    )
+
+
+def study(specs=(), base=None, **kw):
+    return SpecificationStudy(
+        estimator=VanillaSC,
+        base_config=config() if base is None else base,
+        specifications=specs,
+        att_periods=[8, 9, 10, 11],
+        **kw,
+    )
+
+
+def test_baseline_matches_standalone_and_weighted_outcomes():
+    cfg = config()
+    standalone = VanillaSC(cfg).fit()
+    result = study(base=cfg).fit()
+    assert isinstance(result, SensitivityResult)
+    assert result.summary.att.iloc[0] == pytest.approx(2.5, abs=1e-6)
+    assert result.summary.att.iloc[0] == pytest.approx(standalone.effects.att)
+    np.testing.assert_allclose(
+        result.paths.synthetic, standalone.time_series.counterfactual_outcome
+    )
+    w = result.weights.set_index("donor").weight
+    wide = cfg["df"].pivot(index="time", columns="unit", values="y")
+    np.testing.assert_allclose(result.paths.synthetic, wide[w.index] @ w)
+    assert result.metadata["treatment_time"] == 8
+    assert result.registry["baseline"]["backend"] == "outcome-only"
+    assert (
+        result.fits["baseline"].weights.donor_weights
+        == standalone.weights.donor_weights
+    )
+
+
+@settings(max_examples=6, deadline=None)
+@given(st.permutations(["u1", "u2", "u3"]))
+def test_donor_order_invariance(donors):
+    result = study([{"name": "permuted", "donors": donors}]).fit()
+    assert result.summary.att.iloc[0] == pytest.approx(
+        result.summary.att.iloc[1], abs=1e-10
+    )
+
+
+@settings(max_examples=6, deadline=None)
+@given(st.floats(min_value=-100, max_value=100, allow_nan=False))
+def test_post_outcomes_never_change_fitted_weights(delta):
+    cfg = config()
+    original = study(base=cfg).fit()
+    cfg["df"].loc[(cfg["df"].unit == "u0") & (cfg["df"].time >= 8), "y"] += delta
+    modified = study(base=cfg).fit()
+    np.testing.assert_array_equal(original.weights.weight, modified.weights.weight)
+    assert modified.summary.att.iloc[0] == pytest.approx(
+        original.summary.att.iloc[0] + delta
+    )
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"outcome": "x"},
+        {"backend": "mscmt"},
+        {"seed": 12},
+        {"df": pd.DataFrame()},
+        {"treat": "other"},
+        {"fit_window": (2, 8)},
+        {"fit_exclude": [8]},
+        {"covariate_windows": {"x": (2, 8)}},
+        {"donors": ["u0", "u1"]},
+        {"donors": []},
+        {"donors": ["u1", "u1"]},
+        {"donors": ["absent"]},
+        {"fit_window": (20, 30)},
+        {"fit_exclude": list(range(8))},
+        {"covariates": ["x"]},
+    ],
+)
+def test_invalid_design_logged_without_stopping(override):
+    result = study(
+        [{"name": "invalid", **override}, {"name": "late", "fit_window": (4, 7)}]
+    ).fit()
+    assert result.summary.status.tolist() == ["ok", "failed", "ok"]
+    assert result.failures.spec_id.tolist() == ["invalid"]
+    assert result.failures.exception_type.iloc[0] in {
+        "MlsynthConfigError",
+        "MlsynthDataError",
+    }
+    assert np.isnan(result.summary.att.iloc[1])
+    assert len(result.paths) == 24
+
+
+def test_missing_outcome_and_contamination_preserve_failure():
+    cfg = config()
+    cfg["df"].loc[(cfg["df"].unit == "u3") & (cfg["df"].time == 9), "y"] = np.nan
+    result = study([{"name": "complete", "donors": ["u1", "u2"]}], base=cfg).fit()
+    assert result.summary.status.tolist() == ["failed", "ok"]
+    result = study(
+        [{"name": "eligible", "donors": ["u1", "u2"]}], excluded_donors=["u3"]
+    ).fit()
+    assert result.summary.status.tolist() == ["failed", "ok"]
+
+
+@pytest.mark.parametrize("periods", [[], [7, 8], [8, 8], [20]])
+def test_invalid_common_att_periods_raise(periods):
+    with pytest.raises(MlsynthConfigError):
+        SpecificationStudy(
+            estimator=VanillaSC,
+            base_config=config(),
+            specifications=[],
+            att_periods=periods,
+        )
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "multiple", "reversal", "nonbinary", "missing", "duplicate"]
+)
+def test_ambiguous_treatment_or_panel_rejected(change):
+    cfg = config()
+    frame = cfg["df"]
+    if change == "none":
+        frame["treated"] = 0
+    elif change == "multiple":
+        frame.loc[(frame.unit == "u1") & (frame.time >= 9), "treated"] = 1
+    elif change == "reversal":
+        frame.loc[(frame.unit == "u0") & (frame.time == 10), "treated"] = 0
+    elif change == "nonbinary":
+        frame.loc[0, "treated"] = 2
+    elif change == "missing":
+        frame.loc[0, "time"] = np.nan
+    else:
+        cfg["df"] = pd.concat([frame, frame.iloc[:1]])
+    with pytest.raises((MlsynthConfigError, MlsynthDataError)):
+        study(base=cfg)
+
+
+def test_registry_snapshot_and_fixed_auto_backend():
+    cfg = config()
+    cfg["backend"] = "auto"
+    specs = [{"name": "short", "fit_window": (4, 7)}]
+    runner = study(specs, cfg)
+    cfg["df"].loc[:, "y"] = 0
+    specs[0]["fit_window"] = (9, 10)
+    result = runner.fit()
+    assert result.summary.status.tolist() == ["ok", "ok"]
+    assert result.metadata["backend"] == "outcome-only"
+    assert result.baseline["backend"] == "auto"
+    assert result.registry["short"]["fit_window"] == (4, 7)
+
+
+def test_warnings_are_retained_with_estimates():
+    fit = VanillaSC.fit
+
+    def warned(self):
+        warnings.warn("solver did not converge", RuntimeWarning)
+        return fit(self)
+
+    with patch.object(VanillaSC, "fit", warned):
+        result = study().fit()
+    assert result.summary.status.tolist() == ["warning"]
+    assert result.warnings.message.tolist() == ["solver did not converge"]
+    assert result.dispersion()["with_warnings"] == 1
+    assert np.isfinite(result.summary.att.iloc[0])
+
+
+def test_all_failures_plot_and_counts():
+    result = study(excluded_donors=["u1", "u2", "u3"]).fit()
+    assert result.dispersion()["failed"] == 1
+    assert np.isnan(result.dispersion()["positive_share"])
+    fig = result.plot()
+    assert len(fig.axes[0].collections) == 0
+    assert [t.get_text() for t in fig.axes[0].texts] == ["failed"]
+    plt.close(fig)
+
+
+def test_common_pre_rmse_and_subset_att():
+    runner = SpecificationStudy(
+        estimator=VanillaSC,
+        base_config=config(),
+        specifications=[{"name": "late", "fit_window": (4, 7)}],
+        att_periods=[9, 11],
+    )
+    result = runner.fit()
+    for row in result.summary.itertuples():
+        paths = result.paths[result.paths.spec_id == row.spec_id].set_index("time")
+        assert row.att == pytest.approx(paths.loc[[9, 11], "gap"].mean())
+        assert row.pre_rmse == pytest.approx(
+            np.sqrt(np.mean(paths.loc[range(8), "gap"] ** 2))
+        )
+
+
+def test_dimension_summary_retains_failures():
+    result = study(
+        [{"name": "late", "fit_window": (4, 7)}, {"name": "bad", "fit_window": (4, 10)}]
+    ).fit()
+    table = result.by_dimension("fit_window")
+    assert table.attempted.sum() == 3
+    assert table.failed.sum() == 1
+    with pytest.raises(MlsynthConfigError):
+        result.by_dimension("backend")
+
+
+def test_covariate_matching_and_plot():
+    cfg = config()
+    cfg.update(
+        backend="malo",
+        covariates=["x", "y"],
+        covariate_windows={"x": (0, 7), "y": (0, 5)},
+    )
+    result = study(
+        [{"name": "late", "covariate_windows": {"x": (3, 7), "y": (3, 7)}}], cfg
+    ).fit()
+    assert result.failures.empty
+    assert len(result.fits) == 2
+    fig = result.plot()
+    assert len(fig.axes[0].collections) == 2
+    plt.close(fig)
+
+
+def test_unsupported_estimator_and_variant_raise():
+    with pytest.raises(MlsynthConfigError, match="Only VanillaSC"):
+        SpecificationStudy(object, config(), [], [8])
+    cfg = config()
+    cfg["augment"] = "ridge"
+    with pytest.raises(MlsynthConfigError, match="classical"):
+        study(base=cfg)
+
+
+def test_duplicate_registry_and_changed_baseline():
+    with pytest.raises(MlsynthConfigError, match="names"):
+        study([{"name": "a"}, {"name": "a"}])
+    result = study([{"name": "baseline", "fit_window": (4, 7)}]).fit()
+    assert result.summary.status.tolist() == ["failed"]
+
+
+@pytest.mark.parametrize("change", ["times", "nonfinite", "exception"])
+def test_invalid_estimator_output_is_logged(change):
+    result = VanillaSC(config()).fit()
+    if change == "times":
+        series = result.time_series.model_copy(
+            update={"time_periods": list(range(1, 13))}
+        )
+        result = result.model_copy(update={"time_series": series})
+    elif change == "nonfinite":
+        series = result.time_series.model_copy(
+            update={"counterfactual_outcome": np.full(12, np.nan)}
+        )
+        result = result.model_copy(update={"time_series": series})
+    if change == "exception":
+        with patch.object(VanillaSC, "fit", side_effect=RuntimeError("solver failure")):
+            actual = study().fit()
+    else:
+        with patch.object(VanillaSC, "fit", return_value=result):
+            actual = study().fit()
+    assert actual.summary.status.tolist() == ["failed"]
+    assert len(actual.failures) == 1
+    assert actual.paths.empty
+
+
+@settings(max_examples=8, deadline=None)
+@given(st.lists(st.integers(min_value=8, max_value=11), min_size=1, unique=True))
+def test_common_att_periods_average_exactly_the_requested_gaps(periods):
+    runner = SpecificationStudy(
+        VanillaSC, config(), [{"name": "late", "fit_window": (4, 7)}], periods
+    )
+    result = runner.fit()
+    for row in result.summary.itertuples():
+        paths = result.paths[result.paths.spec_id == row.spec_id].set_index("time")
+        assert row.att == pytest.approx(paths.loc[periods, "gap"].mean())
+
+
+def test_missing_treatment_indicator_is_rejected():
+    cfg = config()
+    cfg["df"]["treated"] = cfg["df"]["treated"].astype(float)
+    cfg["df"].loc[0, "treated"] = np.nan
+    with pytest.raises(MlsynthDataError, match="must not be missing"):
+        study(base=cfg)
+
+
+@settings(max_examples=10, deadline=None)
+@given(st.integers(min_value=8, max_value=100))
+def test_every_post_treatment_fitting_window_is_a_failed_attempt(end):
+    result = study([{"name": "invalid", "fit_window": (0, end)}]).fit()
+    assert result.summary.status.tolist() == ["ok", "failed"]
+    assert result.failures.spec_id.tolist() == ["invalid"]
+
+
+@settings(max_examples=6, deadline=None)
+@given(st.lists(st.sampled_from(["u1", "u2", "u3"]), min_size=1, unique=True))
+def test_every_declared_contaminated_pool_fails(excluded):
+    result = study(excluded_donors=excluded).fit()
+    assert result.summary.status.tolist() == ["failed"]
+    assert result.failures.spec_id.tolist() == ["baseline"]
