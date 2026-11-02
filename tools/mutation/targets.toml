@@ -278,7 +278,9 @@ timeout = 120.0
 
   [[target.mutant]]
   id = "unhashable-donor-errors-not-translated"
-  find = 'raise MlsynthConfigError("Donor identifiers must be hashable.") from exc'
+  find = '''raise MlsynthConfigError(
+                "Donors must be an iterable of hashable unit identifiers."
+            ) from exc'''
   replace = 'raise'
   models = "an invalid nested donor identifier exposes TypeError in the failure table instead of the public configuration error"
 

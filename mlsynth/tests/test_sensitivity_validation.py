@@ -188,7 +188,7 @@ def test_resolved_donor_registry_has_canonical_order(donors):
     assert result.validation_registry["reordered"]["fold_1"]["donors"] == sorted(donors)
 
 
-@pytest.mark.parametrize("donors", [["u1", 2], [["u1"]]])
+@pytest.mark.parametrize("donors", [["u1", 2], [["u1"]], 3])
 def test_invalid_donor_types_are_configuration_failures(donors):
     result = validate([{"name": "bad_donors", "donors": donors}])
     assert result.failures.exception_type.tolist() == ["MlsynthConfigError"]

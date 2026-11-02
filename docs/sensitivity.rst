@@ -172,7 +172,9 @@ Pooled RMSE gives each held-out period equal weight; any failed fold makes that
 design's aggregate unavailable. Successful folds are never selected for aggregation.
 
 ``validation`` records RMSE, sample counts, status and exceptions for every
-design/fold. Predictions, weights and warnings remain in ``validation_paths``,
+design/fold. ``n_train`` counts available earlier periods; each design's actual
+matching windows remain in ``validation_registry``.
+Predictions, weights and warnings remain in ``validation_paths``,
 ``validation_weights`` and ``validation_warnings``. ``validation_registry``
 records effective configurations without repeated panel data, including empty
 windows that fail. ``validation_fits`` retains native results. Both are keyed by

@@ -172,11 +172,13 @@ class SpecificationStudy:
         frame = cfg.df
         periods = self._times if periods is None else periods
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
-        donors = list(all_donors if design["donors"] is None else design["donors"])
         try:
+            donors = list(all_donors if design["donors"] is None else design["donors"])
             donor_set = set(donors)
         except TypeError as exc:
-            raise MlsynthConfigError("Donor identifiers must be hashable.") from exc
+            raise MlsynthConfigError(
+                "Donors must be an iterable of hashable unit identifiers."
+            ) from exc
         if not donors or len(donor_set) != len(donors):
             raise MlsynthConfigError("Donors must be nonempty and unique.")
         if not donor_set.issubset(all_donors) or donor_set.intersection(self._excluded):
