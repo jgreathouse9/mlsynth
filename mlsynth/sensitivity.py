@@ -6,6 +6,7 @@ import warnings
 from collections.abc import Iterable
 from copy import deepcopy
 from importlib.metadata import version
+from statistics import mean
 from typing import Any
 
 import numpy as np
@@ -13,6 +14,7 @@ import pandas as pd
 
 from .estimators.vanillasc import VanillaSC
 from .exceptions import MlsynthConfigError, MlsynthDataError
+from .utils.sensitivity_helpers.numerics import rms
 from .utils.sensitivity_helpers.results import extract_paths
 from .utils.sensitivity_helpers.structures import _DIMENSIONS, SensitivityResult
 
@@ -240,10 +242,17 @@ class SpecificationStudy:
                     )
                     extracted = extract_paths(fitted, name, self._times)
                     gap = extracted.paths.set_index("time").gap
+                    statistics = {
+                        "att": mean(map(float, gap.loc[self._post])),
+                        "pre_rmse": rms(gap.loc[self._pre]),
+                        "fit_rmse": rms(gap.loc[fit_periods]),
+                    }
+                    if not all(np.isfinite(value) for value in statistics.values()):
+                        raise MlsynthDataError(
+                            "Estimator returned nonfinite summary statistics."
+                        )
                     row.update(
-                        att=float(gap.loc[self._post].mean()),
-                        pre_rmse=float(np.sqrt(np.mean(gap.loc[self._pre] ** 2))),
-                        fit_rmse=float(np.sqrt(np.mean(gap.loc[fit_periods] ** 2))),
+                        **statistics,
                         status="warning" if caught or solver_warnings else "ok",
                     )
                     fits[name] = fitted

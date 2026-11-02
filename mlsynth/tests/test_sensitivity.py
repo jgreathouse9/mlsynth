@@ -54,6 +54,69 @@ def study(specs=(), base=None, **kw):
     )
 
 
+@given(st.sampled_from(["u2", b"u2", ["missing"], [2]]))
+def test_exclusions_require_a_collection_of_known_unit_ids(excluded):
+    with pytest.raises(MlsynthConfigError, match="excluded_donors"):
+        study(excluded_donors=excluded)
+
+
+@given(st.booleans(), st.sampled_from([False, True, "sensitivity.png"]))
+@settings(max_examples=6, deadline=None)
+def test_batch_fits_never_display_or_save_graphs(display, save):
+    cfg = config()
+    cfg.update(display_graphs=display, save=save)
+    with patch("matplotlib.pyplot.show") as show, patch(
+        "matplotlib.figure.Figure.savefig"
+    ) as savefig:
+        result = study(base=cfg).fit()
+    assert result.failures.empty
+    show.assert_not_called()
+    savefig.assert_not_called()
+    assert result.registry["baseline"]["display_graphs"] is False
+    assert result.registry["baseline"]["save"] is False
+    assert result.baseline["display_graphs"] is display
+    assert result.baseline["save"] == save
+
+
+@given(st.booleans())
+def test_source_checkout_without_distribution_metadata_retains_results(missing):
+    from importlib.metadata import PackageNotFoundError
+
+    with patch("mlsynth.sensitivity.version") as version:
+        if missing:
+            version.side_effect = PackageNotFoundError("mlsynth")
+        else:
+            version.return_value = "test-version"
+        result = study().fit()
+    assert result.failures.empty
+    assert np.isfinite(result.summary.att.iloc[0])
+    assert result.metadata["version"] == (None if missing else "test-version")
+
+
+@given(st.one_of(st.none(), st.integers(0, 3)), st.one_of(st.none(), st.integers(4, 7)))
+@settings(max_examples=8, deadline=None)
+def test_open_fitting_window_endpoints_match_native_estimator(start, end):
+    cfg = config()
+    window = (start, end)
+    native = VanillaSC({**cfg, "fit_window": window}).fit()
+    result = study([{"name": "window", "fit_window": window}], base=cfg).fit()
+    assert result.failures.empty
+    np.testing.assert_allclose(
+        result.paths.loc[result.paths.spec_id == "window", "synthetic"],
+        native.time_series.counterfactual_outcome,
+    )
+
+
+def test_unselected_units_do_not_expand_the_common_trajectory():
+    cfg = config()
+    original = study(base=cfg).fit()
+    extra = pd.DataFrame([dict(unit="unused", time=99, y=100, treated=0, x=1)])
+    cfg["df"] = pd.concat([cfg["df"], extra], ignore_index=True)
+    cfg["donors"] = ["u1", "u2", "u3"]
+    result = study(base=cfg).fit()
+    pd.testing.assert_frame_equal(result.paths, original.paths)
+
+
 def test_baseline_matches_standalone_and_weighted_outcomes():
     cfg = config()
     standalone = VanillaSC(cfg).fit()
@@ -359,3 +422,74 @@ def test_warnings_suppressed_inside_native_pipeline_are_preserved():
     assert result.fits["baseline"].additional_outputs["solver_warnings"] == [
         {"warning_type": "RuntimeWarning", "message": "primary solver did not converge"}
     ]
+
+
+@pytest.mark.parametrize(
+    "gaps, expected",
+    [
+        ([1e308] * 4, 1e308),
+        ([1e308, 1e308, -1e308, -1e308], 0.0),
+        ([1e308, -1e308, 1e-200, 1e-200], 5e-201),
+        ([0.0] * 4, 0.0),
+        ([1e-200] * 4, 1e-200),
+    ],
+)
+def test_extreme_post_gaps_keep_finite_att(gaps, expected):
+    cfg = config()
+    frame = cfg["df"]
+    frame.loc[frame.time >= 8, "y"] = 0.0
+    frame.loc[(frame.unit == "u0") & (frame.time >= 8), "y"] = gaps
+    result = study(base=cfg).fit()
+    assert result.failures.empty
+    assert result.summary.att.iloc[0] == expected
+    assert np.isfinite(result.summary[["att", "pre_rmse", "fit_rmse"]]).all().all()
+    assert result.dispersion()["estimated"] == 1
+
+
+def test_large_pre_gap_outside_fit_window():
+    cfg = config()
+    cfg["fit_window"] = (4, 7)
+    frame = cfg["df"]
+    frame.loc[(frame.unit == "u0") & (frame.time == 0), "y"] = 1e200
+    result = study(base=cfg).fit()
+    assert result.failures.empty
+    assert result.summary.pre_rmse.iloc[0] / 1e200 == pytest.approx(1 / np.sqrt(8))
+    assert np.isfinite(result.summary.fit_rmse.iloc[0])
+
+
+def test_rms_scales_and_summary_guard():
+    from mlsynth.utils.sensitivity_helpers.numerics import rms
+
+    for scale in [0.0, np.nextafter(0.0, 1.0), 1e-200, 1e200, 1e308]:
+        assert rms([scale, -scale]) == scale
+    assert rms([3e200, 4e200]) / 1e200 == pytest.approx(np.sqrt(12.5))
+    with patch("mlsynth.sensitivity.rms", return_value=np.inf):
+        result = study().fit()
+    assert result.summary.status.tolist() == ["failed"]
+    assert result.summary[["att", "pre_rmse", "fit_rmse"]].isna().all().all()
+    assert result.paths.empty
+    assert "nonfinite summary" in result.failures.message.iloc[0]
+
+
+def test_dispersion_uses_finite_estimates_and_stable_statistics():
+    result = study().fit()
+    summary = pd.DataFrame(
+        {
+            "spec_id": ["baseline"] * 5,
+            "att": [1e308, 1e308, np.inf, -np.inf, np.nan],
+            "status": ["ok"] * 5,
+        }
+    )
+    result = result.model_copy(update={"summary": summary})
+    stats = result.dispersion()
+    assert stats["estimated"] == 2
+    assert stats["positive_share"] == 1
+    assert stats["median"] == 1e308
+    assert stats["std"] == 0
+    group = result.by_dimension("donors").iloc[0]
+    assert group.estimated == 2
+    assert group["median"] == 1e308
+    summary.loc[:, "att"] = [1e200, -1e200, np.nan, np.nan, np.nan]
+    assert result.dispersion()["std"] / 1e200 == pytest.approx(np.sqrt(2))
+    summary.loc[:, "att"] = [1.7e308, -1.7e308, np.nan, np.nan, np.nan]
+    assert np.isnan(result.dispersion()["std"])

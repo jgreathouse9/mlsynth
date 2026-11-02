@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ...exceptions import MlsynthConfigError
 from ..vanillasc_helpers.structures import VanillaSCResults
+from .numerics import median, std
 from .plotter import plot_specification_curve
 
 _DIMENSIONS = {"donors", "fit_window", "fit_exclude", "covariates", "covariate_windows"}
@@ -55,8 +56,10 @@ class SensitivityResult(BaseModel):
 
         Sign shares have the number of finite estimates as their denominator.
         They describe registered designs and are not causal probabilities.
+        Standard deviation is NaN when fewer than two estimates are finite or
+        its value exceeds the floating-point range.
         """
-        effects = self.summary.att.dropna()
+        effects = self.summary.loc[np.isfinite(self.summary.att), "att"]
         return pd.Series(
             {
                 "attempted": len(self.summary),
@@ -64,9 +67,9 @@ class SensitivityResult(BaseModel):
                 "failed": (self.summary.status == "failed").sum(),
                 "with_warnings": (self.summary.status == "warning").sum(),
                 "min": effects.min(),
-                "median": effects.median(),
+                "median": median(effects),
                 "max": effects.max(),
-                "std": effects.std(),
+                "std": std(effects),
                 "positive_share": (effects > 0).mean() if len(effects) else np.nan,
                 "negative_share": (effects < 0).mean() if len(effects) else np.nan,
                 "zero_share": (effects == 0).mean() if len(effects) else np.nan,
@@ -83,6 +86,7 @@ class SensitivityResult(BaseModel):
         if dimension not in _DIMENSIONS:
             raise MlsynthConfigError(f"dimension must be one of {sorted(_DIMENSIONS)}")
         table = self.summary.copy()
+        table.loc[~np.isfinite(table.att), "att"] = np.nan
         table["choice"] = [
             repr(self.registry[name].get(dimension)) for name in table.spec_id
         ]
@@ -93,7 +97,7 @@ class SensitivityResult(BaseModel):
                 estimated=("att", "count"),
                 failed=("status", lambda x: (x == "failed").sum()),
                 min=("att", "min"),
-                median=("att", "median"),
+                median=("att", lambda values: median(values.dropna())),
                 max=("att", "max"),
             )
             .reset_index()
