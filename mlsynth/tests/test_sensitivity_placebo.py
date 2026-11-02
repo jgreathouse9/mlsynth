@@ -321,3 +321,13 @@ def test_identification_weights_the_predictors_by_v():
     lo, hi = identified_effect_range(A, w, wide.loc[ATT, "u0"], wide.loc[ATT, donors])
     row = res.identification.iloc[0]
     assert row.att_min == pytest.approx(lo) and row.att_max == pytest.approx(hi)
+
+
+def test_placebo_units_are_treated_from_the_study_date(two_designs):
+    # Fit over the whole pre-period, so the treatment date sets the fit periods.
+    df = panel()
+    df["treated"] = ((df.unit == "u5") & (df.time >= T0)).astype(int)
+    alone = VanillaSC(base(df)).fit()
+    rows = two_designs.placebo.paths
+    rows = rows[(rows.spec_id == "baseline") & (rows.unit == "u5")]
+    np.testing.assert_allclose(rows.synthetic, alone.time_series.counterfactual_outcome)

@@ -11057,6 +11057,12 @@ timeout = 300.0
   models = "each placebo unit is treated a period after the actual treatment, so its first post period is fit as pre-treatment"
 
   [[target.mutant]]
+  id = "placebo-solver-warnings-ignored"
+  find = 'for w in fitted.additional_outputs.get("solver_warnings") or [])'
+  replace = "for w in [])"
+  models = "the primary solver's warnings, which VanillaSC captures inside the fit, are dropped for placebo fits, so a nonconverged placebo looks clean in the log"
+
+  [[target.mutant]]
   id = "identification-fails-on-zero-weight-donors"
   find = "fitted.weights.donor_weights.get(n, 0.0)"
   replace = "fitted.weights.donor_weights[n]"

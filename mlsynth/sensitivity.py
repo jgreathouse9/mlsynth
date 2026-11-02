@@ -415,7 +415,7 @@ class SpecificationStudy:
                     weights.extend(placed.weights.assign(unit=unit)[WEIGHT_COLUMNS].to_dict("records"))
                     warning_rows.extend(
                         dict(spec_id=name, unit=unit, **w)
-                        for w in fitted.additional_outputs.get("solver_warnings", []))
+                        for w in fitted.additional_outputs.get("solver_warnings") or [])
                 except Exception as exc:
                     failures.append(dict(spec_id=name, unit=unit,
                                          exception_type=type(exc).__name__, message=str(exc)))
