@@ -409,6 +409,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     oracle_w = None
     X1 = X0 = Xs = None
     pred_names: List[str] = []
+    fit_warnings = []
     if config.oracle_weights is not None:
         infmode = config.inference
         compatible = (infmode is False) or (
@@ -438,8 +439,8 @@ def run_vanillasc(config) -> BaseEstimatorResults:
 
         engine = _engine(config, ranges=config.exact_ranges,
                          face_counts=config.exact_face_counts)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with warnings.catch_warnings(record=True) as fit_warnings:
+            warnings.simplefilter("always")
             res = engine.fit(
                 y[fit_pos], Y0[fit_pos],
                 X1=X1, X0=X0, donor_names=donor_names, predictor_names=pred_names,
@@ -1179,6 +1180,10 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             },
         ),
         additional_outputs={
+            "solver_warnings": [
+                {"warning_type": w.category.__name__, "message": str(w.message)}
+                for w in fit_warnings
+            ],
             "donor_names": donor_names,
             "treated_name": treated_name,
             "pre_periods": pre,

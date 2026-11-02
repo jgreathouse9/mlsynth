@@ -45,7 +45,8 @@ original configuration and a copy of the panel. ``metadata`` records the fixed
 periods, exclusions, backend, estimator and package version. Archive these with
 the analysis and software environment.
 
-Exceptions appear in ``failures``. Captured warnings, including nonconvergence,
+Exceptions appear in ``failures``. Captured warnings, including primary-solver
+messages preserved in native ``additional_outputs['solver_warnings']`` and nonconvergence,
 appear in ``warnings`` and mark successful finite fits as ``warning``. Their
 estimates remain visible. All selected units must have finite outcomes on the
 common full trajectory; a missing post-treatment observation fails a design

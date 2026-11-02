@@ -56,15 +56,33 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "warning-fits-appear-successful"
-  find = 'status="warning" if caught else "ok"'
+  find = 'status="warning" if caught or solver_warnings else "ok"'
   replace = 'status="ok"'
   models = "nonconverged finite fits retain their estimates but lose the visible warning status in the summary and curve"
+
+  [[target.mutant]]
+  id = "native-solver-warnings-ignored"
+  find = '"solver_warnings", []'
+  replace = '"ignored_solver_warnings", []'
+  models = "the native estimator captures primary-solver warnings internally, and the runner fails to surface them even though its outer warning handler works"
 
   [[target.mutant]]
   id = "donor-restriction-ignored"
   find = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
   replace = "donors = list(all_donors)"
   models = "the requested donor pool is ignored, including when the requested subset is needed to exclude a contaminated or incomplete donor"
+
+[[target]]
+name = "specification-sensitivity-warnings"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -k suppressed -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "primary-solver-warnings-discarded"
+  find = '"solver_warnings": ['
+  replace = '"discarded_solver_warnings": ['
+  models = "primary solver warnings are captured but omitted from the native result contract, preventing the sensitivity summary from flagging nonconvergence"
 
 [[target]]
 name = "effect-primitives"

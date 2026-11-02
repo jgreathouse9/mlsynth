@@ -332,3 +332,22 @@ def test_every_declared_contaminated_pool_fails(excluded):
     result = study(excluded_donors=excluded).fit()
     assert result.summary.status.tolist() == ["failed"]
     assert result.failures.spec_id.tolist() == ["baseline"]
+
+
+def test_warnings_suppressed_inside_native_pipeline_are_preserved():
+    from mlsynth.utils.bilevel import BilevelSCM
+
+    fit = BilevelSCM.fit
+
+    def warned(self, *args, **kwargs):
+        warnings.warn("primary solver did not converge", RuntimeWarning)
+        return fit(self, *args, **kwargs)
+
+    with patch.object(BilevelSCM, "fit", warned):
+        result = study().fit()
+    assert result.summary.status.tolist() == ["warning"]
+    assert result.warnings.message.tolist() == ["primary solver did not converge"]
+    assert result.warnings.warning_type.tolist() == ["RuntimeWarning"]
+    assert result.fits["baseline"].additional_outputs["solver_warnings"] == [
+        {"warning_type": "RuntimeWarning", "message": "primary solver did not converge"}
+    ]

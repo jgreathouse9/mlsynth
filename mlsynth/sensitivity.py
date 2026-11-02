@@ -318,6 +318,12 @@ class SpecificationStudy:
                     effective, fit_periods, donors = self._prepare(registry[name])
                     row["n_donors"] = len(donors)
                     fitted = VanillaSC(effective).fit()
+                    solver_warnings = fitted.additional_outputs.get(
+                        "solver_warnings", []
+                    )
+                    warning_rows.extend(
+                        dict(spec_id=name, **warning) for warning in solver_warnings
+                    )
                     series = fitted.time_series
                     times = list(series.time_periods)
                     if times != self._times:
@@ -346,7 +352,7 @@ class SpecificationStudy:
                         att=float(gap.loc[self._post].mean()),
                         pre_rmse=float(np.sqrt(np.mean(gap.loc[self._pre] ** 2))),
                         fit_rmse=float(np.sqrt(np.mean(gap.loc[fit_periods] ** 2))),
-                        status="warning" if caught else "ok",
+                        status="warning" if caught or solver_warnings else "ok",
                     )
                     fits[name] = fitted
                     paths.extend(
