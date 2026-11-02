@@ -163,7 +163,9 @@ def test_empty_covariate_window_is_a_fold_failure():
     }
 
 
-@pytest.mark.parametrize("windows", [[4, 5, 6, 7], "4:7", [[None]], [[3, "4"]]])
+@pytest.mark.parametrize(
+    "windows", [[4, 5, 6, 7], "4:7", [[None]], [[3, "4"]], [[[4]]], [[{}]]]
+)
 def test_malformed_window_types_raise_config_error(windows):
     with patch.object(VanillaSC, "fit") as fit:
         with pytest.raises(MlsynthConfigError, match="validation"):
@@ -171,7 +173,7 @@ def test_malformed_window_types_raise_config_error(windows):
         fit.assert_not_called()
 
 
-@pytest.mark.parametrize("limit", ["1", [1], True, 1j])
+@pytest.mark.parametrize("limit", ["1", [1], True, 1j, 10**400])
 def test_malformed_threshold_types_raise_config_error(limit):
     with patch.object(VanillaSC, "fit") as fit:
         with pytest.raises(MlsynthConfigError, match="validation"):
@@ -184,6 +186,13 @@ def test_malformed_threshold_types_raise_config_error(limit):
 def test_resolved_donor_registry_has_canonical_order(donors):
     result = validate([{"name": "reordered", "donors": list(donors)}])
     assert result.validation_registry["reordered"]["fold_1"]["donors"] == sorted(donors)
+
+
+@pytest.mark.parametrize("donors", [["u1", 2], [["u1"]]])
+def test_invalid_donor_types_are_configuration_failures(donors):
+    result = validate([{"name": "bad_donors", "donors": donors}])
+    assert result.failures.exception_type.tolist() == ["MlsynthConfigError"]
+    assert result.validation.exception_type.iloc[1] == "MlsynthConfigError"
 
 
 def test_declared_threshold_keeps_all_results_and_controls_subset_summary():

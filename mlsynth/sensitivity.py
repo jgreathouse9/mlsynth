@@ -172,15 +172,18 @@ class SpecificationStudy:
         frame = cfg.df
         periods = self._times if periods is None else periods
         all_donors = set(frame[cfg.unitid].unique()) - {self._treated}
-        donors = sorted(all_donors if design["donors"] is None else design["donors"])
-        if not donors or len(set(donors)) != len(donors):
+        donors = list(all_donors if design["donors"] is None else design["donors"])
+        try:
+            donor_set = set(donors)
+        except TypeError as exc:
+            raise MlsynthConfigError("Donor identifiers must be hashable.") from exc
+        if not donors or len(donor_set) != len(donors):
             raise MlsynthConfigError("Donors must be nonempty and unique.")
-        if not set(donors).issubset(all_donors) or set(donors).intersection(
-            self._excluded
-        ):
+        if not donor_set.issubset(all_donors) or donor_set.intersection(self._excluded):
             raise MlsynthConfigError(
                 "Donor pool contains absent, treated or declared contaminated units."
             )
+        donors = sorted(donors, key=repr)
         selected = frame.loc[
             frame[cfg.unitid].isin([self._treated, *donors])
             & frame[cfg.time].isin(periods)

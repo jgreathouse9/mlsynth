@@ -21,12 +21,16 @@ def normalize_validation_windows(
     windows: Iterable[Iterable[Any]] | None, pre: list[Any], limit: float | None
 ) -> list[list[Any]]:
     """Freeze disjoint observed windows with at least one earlier training period."""
-    if limit is not None and (
-        not isinstance(limit, Real)
-        or isinstance(limit, bool)
-        or not np.isfinite(limit)
-        or limit < 0
-    ):
+    try:
+        invalid_limit = limit is not None and (
+            not isinstance(limit, Real)
+            or isinstance(limit, bool)
+            or not np.isfinite(limit)
+            or limit < 0
+        )
+    except (TypeError, OverflowError):
+        invalid_limit = True
+    if invalid_limit:
         raise MlsynthConfigError("validation_max_rmse must be finite and nonnegative.")
     if windows is None:
         if limit is not None:
@@ -34,6 +38,7 @@ def normalize_validation_windows(
         return []
     try:
         result = [sorted(window) for window in windows]
+        period_sets = [set(window) for window in result]
     except TypeError as exc:
         raise MlsynthConfigError(
             "validation_windows must contain iterable windows of comparable periods."
@@ -41,11 +46,11 @@ def normalize_validation_windows(
     if not result:
         raise MlsynthConfigError("validation_windows must contain at least one window.")
     seen: set[Any] = set()
-    for window in result:
+    for window, periods in zip(result, period_sets):
         if (
             not window
-            or len(set(window)) != len(window)
-            or not set(window).issubset(pre)
+            or len(periods) != len(window)
+            or not periods.issubset(pre)
             or window[0] <= pre[0]
             or seen.intersection(window)
         ):

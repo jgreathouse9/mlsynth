@@ -68,7 +68,7 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "donor-restriction-ignored"
-  find = 'donors = sorted(all_donors if design["donors"] is None else design["donors"])'
+  find = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
   replace = "donors = list(all_donors)"
   models = "the requested donor pool is ignored, including when the requested subset is needed to exclude a contaminated or incomplete donor"
 
@@ -238,10 +238,10 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "malformed-threshold-types-admitted"
-  find = '''        not isinstance(limit, Real)
-        or isinstance(limit, bool)
-        or not np.isfinite(limit)'''
-  replace = '        not np.isfinite(limit)'
+  find = '''            not isinstance(limit, Real)
+            or isinstance(limit, bool)
+            or not np.isfinite(limit)'''
+  replace = '            not np.isfinite(limit)'
   models = "boolean thresholds are accepted and string or complex thresholds expose low-level NumPy errors"
 
   [[target.mutant]]
@@ -250,17 +250,37 @@ timeout = 180.0
   replace = 'if False:'
   models = "an empty required covariate window reaches native tuple unpacking instead of producing an explicit configuration failure"
 
+  [[target.mutant]]
+  id = "unhashable-period-errors-not-translated"
+  find = '        period_sets = [set(window) for window in result]'
+  replace = '        period_sets = (set(window) for window in result)'
+  models = "window elements are hashed outside the existing error translation boundary"
+
+  [[target.mutant]]
+  id = "overflowing-threshold-errors-not-translated"
+  find = '''    except (TypeError, OverflowError):
+        invalid_limit = True'''
+  replace = '''    except (TypeError, OverflowError):
+        raise'''
+  models = "an integer beyond NumPy scalar range exposes TypeError instead of a configuration error"
+
 [[target]]
 name = "sensitivity-validation-donors"
 module-path = "mlsynth/sensitivity.py"
-test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k canonical -q -p no:cacheprovider --disable-warnings"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k 'canonical or invalid_donor' -q -p no:cacheprovider --disable-warnings"
 timeout = 120.0
 
   [[target.mutant]]
   id = "resolved-donor-order-varies"
-  find = 'donors = sorted(all_donors if design["donors"] is None else design["donors"])'
-  replace = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
+  find = 'donors = sorted(donors, key=repr)'
+  replace = 'donors = list(donors)'
   models = "equivalent donor pools leave different resolved registries, including hash-dependent order for default string IDs"
+
+  [[target.mutant]]
+  id = "unhashable-donor-errors-not-translated"
+  find = 'raise MlsynthConfigError("Donor identifiers must be hashable.") from exc'
+  replace = 'raise'
+  models = "an invalid nested donor identifier exposes TypeError in the failure table instead of the public configuration error"
 
 [[target]]
 name = "effect-primitives"
