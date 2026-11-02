@@ -884,7 +884,31 @@ def run_vanillasc(config) -> BaseEstimatorResults:
     if mode == "placebo" and J >= 2 and gap[pre:].size:
         ratios = []
         skipped = {}
-        # The outcome-only refits are one leave-one-out family over the donor
+        # Each placebo unit's pool is the other donors, plus the treated unit
+        # when ``placebo_includes_treated`` asks for ADH (2010)'s pools. The
+        # columns of ``pool`` (and of ``Xpool``) are the pool's units in that
+        # order, so donor ``j`` is column ``shift + j``.
+        with_treated = bool(config.placebo_includes_treated)
+        shift = 1 if with_treated else 0
+        pool = np.column_stack([y, Y0]) if with_treated else Y0
+        pool_names = ([treated_name] if with_treated else []) + donor_names
+        Xpool = (Xs if with_treated else Xs[:, 1:]) if covariates else None
+        # Every unit's gaps, donor weights and ratio, the treated unit's from
+        # the main fit, so the test can be rebuilt, combined or inverted.
+        unit_gaps = {treated_name: [float(g) for g in gap]}
+        unit_weights = {treated_name: {n: float(w) for n, w in zip(donor_names, res.W)}}
+        unit_ratios = {treated_name: float(ratio_tr)}
+
+        def record(j, others, weights, cfj):
+            ratio_j = _rmspe_ratio(Y0[:, j], cfj, pre)[2]
+            unit_gaps[donor_names[j]] = [float(g) for g in Y0[:, j] - cfj]
+            unit_weights[donor_names[j]] = {pool_names[k]: float(w)
+                                            for k, w in zip(others, weights)}
+            unit_ratios[donor_names[j]] = float(ratio_j)
+            if np.isfinite(ratio_j):
+                ratios.append(ratio_j)
+
+        # The outcome-only refits are one leave-one-out family over the pool
         # matrix, so they are solved together. Restricted to the case where a
         # refit is exactly that one simplex QP: no covariates to weight, no
         # augmentation layer over the base, and a backend that reduces to it.
@@ -899,24 +923,23 @@ def run_vanillasc(config) -> BaseEstimatorResults:
             from ..solvers.minnorm import solve_simplex_loo_exact
             from ..solvers.ridge_augment import simplex_qp
             try:
-                loo_W = solve_simplex_loo_exact(Y0[fit_pos], fallback=simplex_qp)
+                loo_W = solve_simplex_loo_exact(pool[fit_pos], fallback=simplex_qp)
             except Exception:  # pragma: no cover - fall back to the loop
                 loo_W = None
         if loo_W is not None:
             for j in range(J):
-                others = [k for k in range(J) if k != j]
-                cfj = Y0[:, others] @ loo_W[j, others]
-                _, _, ratio_j = _rmspe_ratio(Y0[:, j], cfj, pre)
-                if np.isfinite(ratio_j):
-                    ratios.append(ratio_j)
+                c = shift + j
+                others = [k for k in range(pool.shape[1]) if k != c]
+                record(j, others, loo_W[c, others], pool[:, others] @ loo_W[c, others])
         for j in ([] if loo_W is not None else range(J)):
-            others = [k for k in range(J) if k != j]
+            c = shift + j
+            others = [k for k in range(pool.shape[1]) if k != c]
             yj = Y0[:, j]
-            Y0j = Y0[:, others]
+            Y0j = pool[:, others]
             X1j = X0j = None
             if covariates:
-                X1j = Xs[:, 1 + j]
-                X0j = Xs[:, [1 + k for k in others]]
+                X1j = Xpool[:, c]
+                X0j = Xpool[:, others]
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -932,9 +955,7 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                 # the donors that were refit, and the result names the others.
                 skipped[donor_names[j]] = f"{type(exc).__name__}: {exc}"
                 continue
-            _, _, ratio_j = _rmspe_ratio(yj, cfj, pre)
-            if np.isfinite(ratio_j):
-                ratios.append(ratio_j)
+            record(j, others, rj.W, cfj)
         if len(skipped) == J:
             not_computed = ("every donor's placebo refit raised: "
                             + _left_out(f"{k}: {v}" for k, v in skipped.items()))
@@ -957,6 +978,10 @@ def run_vanillasc(config) -> BaseEstimatorResults:
                     "n_placebos": len(ratios),
                     "rank": int(np.sum(all_ratios >= ratio_tr)),
                     "skipped_placebos": skipped,
+                    "placebo_includes_treated": with_treated,
+                    "unit_gaps": unit_gaps,
+                    "unit_weights": unit_weights,
+                    "unit_ratios": unit_ratios,
                 },
             )
 
