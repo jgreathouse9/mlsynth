@@ -694,6 +694,22 @@ distribution -- emits a warning and returns an ``InferenceResults`` whose
     the test is not computed. A ``w_constr`` fit refits each donor with its own
     constrained program.
 
+    By default a donor's refit draws on the other donors only, so no placebo
+    is built from the treated unit, whose post-treatment outcomes carry the
+    effect. Abadie, Diamond and Hainmueller (2010) and Ferman, Pinto and
+    Possebom (2020) keep the treated unit in every placebo unit's pool;
+    ``placebo_includes_treated=True`` does the same, and leaves the treated
+    unit's own fit unchanged. Either way the details keep every unit's
+    statistic, so the test can be rebuilt, combined across designs (as the
+    specification study's joint test does) or inverted:
+    ``details["unit_gaps"]`` holds each unit's gap path over all periods,
+    ``details["unit_weights"]`` its donor weights by donor, and
+    ``details["unit_ratios"]`` its post/pre RMSPE ratio, the treated unit's
+    included; ``details["placebo_includes_treated"]`` records the pools used.
+    A skipped donor has no entry. Without augmentation or bias correction the
+    weights rebuild the gaps: a unit's gap is its outcome minus its weighted
+    donors' outcomes.
+
 ``"conformal"`` -- prediction intervals (Chernozhukov, Wüthrich & Zhu 2021)
     The ``augsynth`` default for Augmented SCM, and a *distribution-free* test
     by inversion. For a sharp null :math:`H_0:\ \tau_t = \tau_0` the post-period
