@@ -6,9 +6,14 @@ Picking with Synthetic Controls", *Journal of Policy Analysis and Management*
 Reference code: the authors' replication package, openICPSR project 117261,
 version 2 (https://doi.org/10.3886/E117261V2), file `replications_emp.zip`.
 This is the evidence behind the build decision. The recommendation below is
-now built on the same branch: `SpecificationStudy(placebo=True)`, the
-inference methods on its result and the `identification` table, documented in
-`docs/sensitivity.rst` and checked against this spike's reference traces by
+now built on the same branch, in two parts. VanillaSC's in-space placebo
+records every unit's gaps, donor weights and ratio, and
+`placebo_includes_treated=True` keeps the treated unit in the placebo pools
+(item 1, for which the spike runs its own loop). A `SpecificationStudy` fit
+with `inference="placebo"` combines those fits through the inference methods
+on its result and reports the `identification` table (items 2 and 3). Both
+are documented in `docs/vanillasc.rst` and `docs/sensitivity.rst` and checked
+against this spike's reference traces by
 `mlsynth/tests/test_sensitivity_inference.py`. The code in this directory is
 the spike as it was run.
 

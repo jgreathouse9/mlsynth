@@ -1,10 +1,11 @@
-"""Placebo runs over a registry of designs, and the inference built on them.
+"""Inference across a registry of designs, read from each design's own placebo.
 
-With ``placebo=True`` every design that fits the treated unit is refit once per
-unit of its pool with that unit treated and the actually treated unit kept as
-an ordinary donor (Abadie, Diamond and Hainmueller 2010; Ferman, Pinto and
-Possebom 2020). The result's inference methods rank the treated unit among
-those placebo fits.
+Run with ``inference="placebo"``, every design's native VanillaSC fit carries
+its in-space placebo: each unit's gaps, donor weights and ratio
+(``inference.details``). ``placebo_includes_treated=True`` keeps the treated
+unit in the placebo units' pools, as Abadie, Diamond and Hainmueller (2010)
+and Ferman, Pinto and Possebom (2020) do. The result's inference methods rank
+the treated unit among those placebo fits and combine the designs.
 """
 
 from unittest.mock import patch
@@ -12,11 +13,11 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from mlsynth import VanillaSC
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.sensitivity import SpecificationStudy
 from mlsynth.utils.sensitivity_helpers.inference import (
     donohue,
@@ -24,8 +25,9 @@ from mlsynth.utils.sensitivity_helpers.inference import (
     joint_pvalue,
     permutation_pvalue,
     ratio_statistic,
+    synthetic_gaps,
 )
-from mlsynth.utils.sensitivity_helpers.structures import PlaceboRuns
+from mlsynth.utils.sensitivity_helpers.placebo import stack
 
 T, N, T0 = 14, 7, 10
 ATT = list(range(T0, T))
@@ -42,60 +44,80 @@ def panel(effect=3.0, seed=7, labels=UNITS):
     return pd.DataFrame(rows, columns=["unit", "time", "y", "treated"])
 
 
-def base(df=None):
+def base(df=None, inference="placebo", **kw):
+    extra = {"placebo_includes_treated": True} if inference == "placebo" else {}
     return dict(df=panel() if df is None else df, unitid="unit", time="time",
                 outcome="y", treat="treated", backend="outcome-only",
-                inference=False, display_graphs=False)
+                inference=inference, display_graphs=False, **extra, **kw)
 
 
 def study(specs=(), df=None, **kw):
-    return SpecificationStudy(VanillaSC, base(df), specs, ATT, **kw)
+    return SpecificationStudy(VanillaSC, base(df, **kw), specs, ATT)
 
 
 @pytest.fixture(scope="module")
 def two_designs():
-    return study([{"name": "late", "fit_window": (4, 9)}], placebo=True).fit()
+    return study([{"name": "late", "fit_window": (4, 9)}]).fit()
+
+
+def details(result, spec):
+    return result.fits[spec].inference.details
 
 
 def gaps_of(result, spec, units=UNITS):
-    p = result.placebo.paths
-    p = p[p.spec_id == spec]
-    return np.column_stack([
-        p[p.unit == u].set_index("time").gap.reindex(range(T)).to_numpy(float)
-        for u in units])
+    """``(T, N)`` gaps from the native details; missing where a refit was skipped."""
+    gaps = details(result, spec)["unit_gaps"]
+    return np.column_stack([np.asarray(gaps.get(u, [np.nan] * T), float) for u in units])
 
 
-def test_placebo_runs_cover_every_unit_of_every_design(two_designs):
-    res = two_designs
-    assert isinstance(res.placebo, PlaceboRuns)
+def skipping(unit, periods):
+    """Patches under which ``unit``'s placebo refit on ``periods`` raises.
+
+    Without the batched leave-one-out solve every placebo is refit one by one.
+    """
+    from mlsynth.utils.bilevel import BilevelSCM
+
+    target = panel().query("unit == @unit").sort_values("time").y.to_numpy()[list(periods)]
+    real = BilevelSCM.fit
+
+    def failing(engine, y_pre, Y0_pre, *a, **kw):
+        if np.array_equal(np.asarray(y_pre, float), target):
+            raise MlsynthEstimationError("placebo solver failure")
+        return real(engine, y_pre, Y0_pre, *a, **kw)
+
+    return (patch("mlsynth.utils.solvers.minnorm.solve_simplex_loo_exact",
+                  side_effect=RuntimeError("no batch")),
+            patch.object(BilevelSCM, "fit", failing))
+
+
+def test_every_design_carries_every_units_placebo(two_designs):
     for spec in ("baseline", "late"):
-        assert set(res.placebo.paths.loc[res.placebo.paths.spec_id == spec, "unit"]) == set(UNITS)
-    assert res.placebo.failures.empty
-    table = res.placebo_test()
+        assert set(details(two_designs, spec)["unit_gaps"]) == set(UNITS)
+    table = two_designs.placebo_test()
     assert list(table.index) == ["baseline", "late"]
     assert ((table.p_value > 0) & (table.p_value <= 1)).all()
     assert (table.n_units == N).all()
 
 
-def test_treated_rows_are_the_main_fit(two_designs):
-    res = two_designs
+def test_the_treated_units_placebo_entry_is_its_main_fit(two_designs):
     for spec in ("baseline", "late"):
-        main = res.paths[res.paths.spec_id == spec].reset_index(drop=True)
-        rows = res.placebo.paths
-        rows = rows[(rows.spec_id == spec) & (rows.unit == "u0")].reset_index(drop=True)
-        np.testing.assert_allclose(rows.synthetic, main.synthetic)
+        main = two_designs.paths[two_designs.paths.spec_id == spec].gap.to_numpy()
+        np.testing.assert_allclose(details(two_designs, spec)["unit_gaps"]["u0"], main)
 
 
-def test_placebo_fit_is_a_standalone_fit_with_that_unit_treated(two_designs):
+@pytest.mark.parametrize("spec, window", [("late", (4, 9)), ("baseline", None)])
+def test_a_placebo_is_a_standalone_fit_with_that_unit_treated(two_designs, spec, window):
     df = panel()
     df["treated"] = ((df.unit == "u3") & (df.time >= T0)).astype(int)
-    alone = VanillaSC(dict(base(df), fit_window=(4, 9))).fit()
-    rows = two_designs.placebo.paths
-    rows = rows[(rows.spec_id == "late") & (rows.unit == "u3")]
-    np.testing.assert_allclose(rows.synthetic, alone.time_series.counterfactual_outcome)
-    w = two_designs.placebo.weights
-    w = w[(w.spec_id == "late") & (w.unit == "u3")]
-    assert "u0" in set(w.donor)  # the treated unit is in the placebo's pool
+    cfg = base(df, inference=False)
+    if window:
+        cfg["fit_window"] = window
+    alone = VanillaSC(cfg).fit()
+    counterfactual = np.asarray(alone.time_series.counterfactual_outcome, float).ravel()
+    observed = np.asarray(alone.time_series.observed_outcome, float).ravel()
+    np.testing.assert_allclose(details(two_designs, spec)["unit_gaps"]["u3"],
+                               observed - counterfactual, atol=1e-6)
+    assert "u0" in details(two_designs, spec)["unit_weights"]["u3"]
 
 
 def test_placebo_test_ranks_the_ratio_statistic(two_designs):
@@ -108,6 +130,14 @@ def test_placebo_test_ranks_the_ratio_statistic(two_designs):
     rooted = two_designs.placebo_test(root=True)
     np.testing.assert_allclose(rooted.statistic, np.sqrt(table.statistic))
     np.testing.assert_allclose(rooted.p_value, table.p_value)
+
+
+def test_placebo_test_uses_the_requested_windows(two_designs):
+    pre, post = np.arange(T) < 6, np.isin(np.arange(T), [12, 13])
+    table = two_designs.placebo_test(pre_periods=range(6), post_periods=[12, 13])
+    stat = ratio_statistic(gaps_of(two_designs, "baseline"), pre, post)
+    assert table.loc["baseline", "statistic"] == pytest.approx(stat[0])
+    assert table.loc["baseline", "p_value"] == pytest.approx(permutation_pvalue(stat, 0))
 
 
 def test_joint_test_combines_the_designs(two_designs):
@@ -125,8 +155,7 @@ def test_choice_rules(two_designs):
     G = np.stack([gaps_of(two_designs, s) for s in ("baseline", "late")])
     post = np.arange(T) >= T0
     dz = two_designs.choose("dube-zipperer")
-    np.testing.assert_allclose(dz.loc[["baseline", "late"]],
-                               dube_zipperer(G, post, 0))
+    np.testing.assert_allclose(dz.loc[["baseline", "late"]], dube_zipperer(G, post, 0))
     assert list(dz) == sorted(dz)
     window = [7, 8, 9]
     daw = two_designs.choose("donohue", window=window)
@@ -149,118 +178,85 @@ def test_confidence_band_brackets_the_average_effect(two_designs):
     np.testing.assert_allclose(post.upper - post.average, (post.upper - post.average).iloc[0])
 
 
-def test_inference_without_placebo_runs_is_reported():
-    res = study().fit()
-    assert res.placebo is None
+@pytest.mark.parametrize("inference", [False, "lto"])
+def test_inference_without_the_in_space_placebo_is_reported(inference):
+    res = study(inference=inference).fit()
     for call in (res.placebo_test, res.joint_test, res.confidence_band,
                  lambda: res.choose("dube-zipperer")):
-        with pytest.raises(MlsynthConfigError, match="placebo"):
+        with pytest.raises(MlsynthConfigError, match="inference='placebo'"):
             call()
 
 
-def test_placebo_flag_must_be_boolean():
-    with pytest.raises(MlsynthConfigError, match="placebo"):
-        study(placebo="yes")
-
-
 def test_joint_inference_needs_designs_with_one_unit_set():
-    res = study([{"name": "pool", "donors": ["u1", "u2", "u3"]}], placebo=True).fit()
+    res = study([{"name": "pool", "donors": ["u1", "u2", "u3"]}]).fit()
     assert res.placebo_test().loc["pool", "n_units"] == 4
-    with pytest.raises(MlsynthConfigError, match="unit"):
+    with pytest.raises(MlsynthConfigError, match="unit set"):
         res.joint_test()
     assert res.joint_test(designs=["pool"])["n_units"] == 4
 
 
-def test_failed_placebo_fit_is_logged_and_left_out():
-    fit = VanillaSC.fit
-
-    def failing(self):
-        df, cfg = self.config.df, self.config
-        if set(df.loc[df[cfg.treat] == 1, cfg.unitid]) == {"u2"}:
-            raise RuntimeError("placebo solver failure")
-        return fit(self)
-
-    with patch.object(VanillaSC, "fit", failing):
-        res = study(placebo=True).fit()
-    assert res.placebo.failures[["spec_id", "unit"]].values.tolist() == [["baseline", "u2"]]
-    assert res.placebo.failures.message.iloc[0] == "placebo solver failure"
+def test_a_placebo_that_could_not_be_refit_is_left_out():
+    batch, refit = skipping("u2", range(T0))
+    with batch, refit:
+        res = study().fit()
+    assert "u2" in details(res, "baseline")["skipped_placebos"]
     assert res.placebo_test().loc["baseline", "n_units"] == N - 1
+    assert res.summary.status.tolist() == ["warning"]
+
+
+def test_a_unit_skipped_in_one_design_still_counts_in_the_joint_test():
+    batch, refit = skipping("u2", range(T0))  # the baseline's fit periods, not late's
+    with batch, refit:
+        res = study([{"name": "late", "fit_window": (4, 9)}]).fit()
+    assert "u2" in details(res, "baseline")["skipped_placebos"]
+    assert "u2" in details(res, "late")["unit_gaps"]
+    pre, post = np.arange(T) < T0, np.arange(T) >= T0
+    stats = np.column_stack([ratio_statistic(gaps_of(res, s), pre, post)
+                             for s in ("baseline", "late")])
+    out = res.joint_test()
+    assert out["n_units"] == N
+    assert out["p_value"] == pytest.approx(joint_pvalue(stats, 0))
+
+
+def test_the_stacked_weights_rebuild_the_stacked_gaps(two_designs):
+    s = stack(two_designs.fits, panel(), "unit", "time", "y", "u0", ["baseline", "late"])
+    assert s.units == UNITS and s.times == list(range(T))
+    for d in range(2):
+        np.testing.assert_allclose(synthetic_gaps(s.outcomes, s.weights[d]), s.gaps[d],
+                                   atol=1e-8)
+
+
+def test_numeric_unit_ids_are_matched_to_the_placebo_labels(two_designs):
+    res = study(df=panel(labels=list(range(N)))).fit()
+    expected = two_designs.placebo_test().loc["baseline"]
+    assert res.placebo_test().loc["baseline", "p_value"] == pytest.approx(expected.p_value)
+    band = res.confidence_band(significance=2 / N, precision=8)
+    assert np.isfinite(band.loc[T0:, ["lower", "upper"]].to_numpy()).all()
+
+
+def test_a_design_too_small_for_a_placebo_is_left_out_and_reported():
+    res = study([{"name": "one_donor", "donors": ["u1"]}]).fit()
+    assert list(res.placebo_test().index) == ["baseline"]
+    with pytest.raises(MlsynthConfigError, match="No placebo runs"):
+        res.joint_test(designs=["one_donor"])
+    status = res.summary.set_index("spec_id").status
+    assert status["one_donor"] == "warning"
+    logged = res.warnings[res.warnings.spec_id == "one_donor"].message
+    assert logged.str.contains("needs >=2 donors").any()
 
 
 @settings(max_examples=4, deadline=None)
-@given(st.permutations(UNITS[1:]))
-def test_placebo_pvalues_do_not_depend_on_unit_labels(order):
-    labels = ["u0", *order]
-    renamed = study(df=panel(labels=labels), placebo=True).fit().placebo_test()
-    original = study(placebo=True).fit().placebo_test()
-    assert renamed.loc["baseline", "p_value"] == pytest.approx(original.loc["baseline", "p_value"])
-
-
-def convex_panel():
-    rng = np.random.default_rng(10)
-    donors = rng.normal(10, 2, (12, 3))
-    treated = donors @ np.array([0.2, 0.3, 0.5])
-    treated[8:] += 2.0
-    y = np.column_stack([treated, donors])
-    return pd.DataFrame([(f"u{u}", t, y[t, u], int(u == 0 and t >= 8))
-                         for u in range(4) for t in range(12)],
-                        columns=["unit", "time", "y", "treated"])
-
-
-def test_identification_marks_designs_that_leave_the_effect_open():
-    res = SpecificationStudy(VanillaSC, base(convex_panel()),
-                             [{"name": "one_period", "fit_window": (7, 7)}],
-                             range(8, 12)).fit()
-    ident = res.identification.set_index("spec_id")
-    assert bool(ident.loc["baseline", "identified"])
-    assert ident.loc["baseline", "att_max"] - ident.loc["baseline", "att_min"] < 1e-6
-    assert not bool(ident.loc["one_period", "identified"])
-    for spec, row in ident.iterrows():
-        assert row.att_min - 1e-7 <= row.att <= row.att_max + 1e-7
-
-
-def test_identification_uses_the_weighted_predictors_with_covariates():
-    df = convex_panel()
-    df["x"] = df.unit.str[1:].astype(float) + df.time / 20
-    cfg = dict(base(df), backend="malo", covariates=["x", "y"],
-               covariate_windows={"x": (0, 7), "y": (0, 5)})
-    res = SpecificationStudy(VanillaSC, cfg, [], range(8, 12)).fit()
-    row = res.identification.set_index("spec_id").loc["baseline"]
-    assert row.att_min - 1e-7 <= row.att <= row.att_max + 1e-7
-    assert isinstance(row.identified, (bool, np.bool_))
-    assert row.att == pytest.approx(res.summary.set_index("spec_id").loc["baseline", "att"])
-
-
-def test_identification_failure_is_reported_and_keeps_the_estimate():
-    with patch("mlsynth.sensitivity.identified_effect_range",
-               side_effect=RuntimeError("program failed")):
-        res = study().fit()
-    row = res.identification.iloc[0]
-    assert np.isnan(row.att_min) and row.identified is None
-    assert res.summary.status.tolist() == ["ok"]
-    assert "identification not computed: program failed" in res.warnings.message.tolist()
-
-
-def test_placebo_solver_warnings_are_logged_by_unit():
-    from mlsynth.utils.bilevel import BilevelSCM
-
-    fit = BilevelSCM.fit
-
-    def warned(self, *args, **kwargs):
-        import warnings
-
-        warnings.warn("primary solver did not converge", RuntimeWarning)
-        return fit(self, *args, **kwargs)
-
-    with patch.object(BilevelSCM, "fit", warned):
-        res = study(placebo=True).fit()
-    logged = res.placebo.warnings
-    assert set(logged.unit) == set(UNITS[1:])
-    assert (logged.message == "primary solver did not converge").all()
+@example(order=list(reversed(UNITS)))  # the treated unit's label sorts last
+@given(st.permutations(UNITS))
+def test_placebo_tests_do_not_depend_on_unit_labels(two_designs, order):
+    renamed = study(df=panel(labels=order)).fit().placebo_test().loc["baseline"]
+    original = two_designs.placebo_test().loc["baseline"]
+    assert renamed.p_value == pytest.approx(original.p_value)
+    assert renamed.statistic == pytest.approx(original.statistic, rel=1e-6)
 
 
 def test_inference_reports_unknown_designs_periods_and_empty_selections(two_designs):
-    with pytest.raises(MlsynthConfigError, match="No placebo runs"):
+    with pytest.raises(MlsynthConfigError, match="No placebo"):
         two_designs.joint_test(designs=["nope"])
     with pytest.raises(MlsynthConfigError, match="No designs"):
         two_designs.joint_test(designs=[])
@@ -283,8 +279,34 @@ def test_undefined_treated_statistic_is_reported_as_missing(two_designs):
     assert (table.n_units == N - 1).all()
 
 
+# --- identification ---------------------------------------------------------
+
+
+def convex_panel():
+    rng = np.random.default_rng(10)
+    donors = rng.normal(10, 2, (12, 3))
+    treated = donors @ np.array([0.2, 0.3, 0.5])
+    treated[8:] += 2.0
+    y = np.column_stack([treated, donors])
+    return pd.DataFrame([(f"u{u}", t, y[t, u], int(u == 0 and t >= 8))
+                         for u in range(4) for t in range(12)],
+                        columns=["unit", "time", "y", "treated"])
+
+
+def test_identification_marks_designs_that_leave_the_effect_open():
+    res = SpecificationStudy(VanillaSC, base(convex_panel(), inference=False),
+                             [{"name": "one_period", "fit_window": (7, 7)}],
+                             range(8, 12)).fit()
+    ident = res.identification.set_index("spec_id")
+    assert bool(ident.loc["baseline", "identified"])
+    assert ident.loc["baseline", "att_max"] - ident.loc["baseline", "att_min"] < 1e-6
+    assert not bool(ident.loc["one_period", "identified"])
+    for _, row in ident.iterrows():
+        assert row.att_min - 1e-7 <= row.att <= row.att_max + 1e-7
+
+
 def test_identification_is_computed_when_donors_get_zero_weight():
-    res = study().fit()
+    res = study(inference=False).fit()
     assert len(res.fits["baseline"].weights.donor_weights) < N - 1  # some donor at zero
     row = res.identification.iloc[0]
     assert np.isfinite(row.att_min) and np.isfinite(row.att_max)
@@ -292,12 +314,16 @@ def test_identification_is_computed_when_donors_get_zero_weight():
     assert res.warnings.empty
 
 
-def test_placebo_test_uses_the_requested_windows(two_designs):
-    pre, post = np.arange(T) < 6, np.isin(np.arange(T), [12, 13])
-    table = two_designs.placebo_test(pre_periods=range(6), post_periods=[12, 13])
-    stat = ratio_statistic(gaps_of(two_designs, "baseline"), pre, post)
-    assert table.loc["baseline", "statistic"] == pytest.approx(stat[0])
-    assert table.loc["baseline", "p_value"] == pytest.approx(permutation_pvalue(stat, 0))
+def test_identification_uses_the_weighted_predictors_with_covariates():
+    df = convex_panel()
+    df["x"] = df.unit.str[1:].astype(float) + df.time / 20
+    cfg = dict(base(df, inference=False), backend="malo", covariates=["x", "y"],
+               covariate_windows={"x": (0, 7), "y": (0, 5)})
+    res = SpecificationStudy(VanillaSC, cfg, [], range(8, 12)).fit()
+    row = res.identification.set_index("spec_id").loc["baseline"]
+    assert row.att_min - 1e-7 <= row.att <= row.att_max + 1e-7
+    assert isinstance(row.identified, (bool, np.bool_))
+    assert row.att == pytest.approx(res.summary.set_index("spec_id").loc["baseline", "att"])
 
 
 def test_identification_weights_the_predictors_by_v():
@@ -308,7 +334,7 @@ def test_identification_weights_the_predictors_by_v():
     df = panel()
     df["x"] = df.unit.map({u: rng.normal() for u in UNITS}) + rng.normal(0, 0.1, len(df))
     df["z"] = df.unit.map({u: rng.normal() for u in UNITS})
-    cfg = dict(base(df), backend="malo", covariates=["x", "z", "y"],
+    cfg = dict(base(df, inference=False), backend="malo", covariates=["x", "z", "y"],
                covariate_windows={"x": (0, 9), "z": (0, 9), "y": (6, 9)})
     res = SpecificationStudy(VanillaSC, cfg, [], ATT).fit()
     fitted = res.fits["baseline"]
@@ -323,11 +349,11 @@ def test_identification_weights_the_predictors_by_v():
     assert row.att_min == pytest.approx(lo) and row.att_max == pytest.approx(hi)
 
 
-def test_placebo_units_are_treated_from_the_study_date(two_designs):
-    # Fit over the whole pre-period, so the treatment date sets the fit periods.
-    df = panel()
-    df["treated"] = ((df.unit == "u5") & (df.time >= T0)).astype(int)
-    alone = VanillaSC(base(df)).fit()
-    rows = two_designs.placebo.paths
-    rows = rows[(rows.spec_id == "baseline") & (rows.unit == "u5")]
-    np.testing.assert_allclose(rows.synthetic, alone.time_series.counterfactual_outcome)
+def test_identification_failure_is_reported_and_keeps_the_estimate():
+    with patch("mlsynth.sensitivity.identified_effect_range",
+               side_effect=RuntimeError("program failed")):
+        res = study(inference=False).fit()
+    row = res.identification.iloc[0]
+    assert np.isnan(row.att_min) and row.identified is None
+    assert res.summary.status.tolist() == ["ok"]
+    assert "identification not computed: program failed" in res.warnings.message.tolist()

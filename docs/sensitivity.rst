@@ -116,7 +116,7 @@ is illustrative; the example does not certify its substantive eligibility.
 The curve displays every attempted design. Failed designs are labelled with
 no assigned effect value; crosses identify fits with warnings. An unchanged
 baseline is added if omitted. The caller explicitly displays or saves the
-returned Figure. Without ``placebo=True`` the study is descriptive; the next
+returned Figure. With ``inference=False`` the study is descriptive; the next
 section adds inference across the designs.
 
 Inference across designs
@@ -130,11 +130,14 @@ with seven predictor sets and twelve pre-treatment periods, a test at a
 nominal 5 percent finds at least one rejection about 14 percent of the time
 when there is no effect. Their remedy keeps the designs and combines them.
 
-With ``placebo=True`` the study refits every design once per unit of its
-pool, with that unit treated from the same date. The actually treated unit
-stays in the placebo units' pools as an ordinary donor, as in Abadie, Diamond
-and Hainmueller (2010). Placebo fits run without the estimator's own
-inference. The cost is the number of designs times the size of the pool.
+With ``inference="placebo"`` in the base configuration, every design's own
+VanillaSC fit runs the in-space placebo: each unit of the design's pool is
+refit as the treated one, from the same date, on the design's fit periods and
+predictors, and the fit records every unit's gaps and donor weights.
+``placebo_includes_treated=True`` keeps the actually treated unit in the
+placebo units' pools as an ordinary donor, as Abadie, Diamond and Hainmueller
+(2010) and Ferman, Pinto and Possebom do; without it the treated unit is left
+out of them. The cost is the number of designs times the size of the pool.
 
 Let :math:`j = 1` denote the treated unit, :math:`\mathcal{T}_1` the
 pre-treatment periods (:math:`T_0` of them) and :math:`\mathcal{T}_2` the ATT
@@ -198,14 +201,14 @@ p-values from 0.588 and 0.353 to 0.059.
         base_config=dict(
             df=panel, outcome="cigsale", treat="treated",
             unitid="state", time="year", backend="outcome-only",
-            inference=False, display_graphs=False,
+            inference="placebo", placebo_includes_treated=True,
+            display_graphs=False,
         ),
         specifications=[
             {"name": "baseline"},
             {"name": "late_fit", "fit_window": (1980, 1988)},
         ],
         att_periods=range(1989, 2001),
-        placebo=True,
     )
     result = study.fit()
     result.placebo_test()              # one row per design
@@ -236,8 +239,9 @@ run produced: all fourteen p-values of Table 3 to 1e-12, the joint test
 where Synth's optimizer moves the published cells, is written up in
 `benchmarks/studies/fpp_cherry_picking
 <https://github.com/jgreathouse9/mlsynth/tree/main/benchmarks/studies/fpp_cherry_picking>`_.
-``mlsynth/tests/test_sensitivity_placebo.py`` checks that each placebo fit is
-a standalone VanillaSC fit with that unit treated and the treated unit in the
+``mlsynth/tests/test_sensitivity_placebo.py`` checks that the tests rank the
+placebo fits each design's VanillaSC fit records, and that each of those is a
+standalone VanillaSC fit with that unit treated and the treated unit in the
 pool.
 
 API
@@ -248,8 +252,6 @@ API
 
 .. autoclass:: mlsynth.sensitivity.SensitivityResult
    :members:
-
-.. autoclass:: mlsynth.sensitivity.PlaceboRuns
 
 .. automodule:: mlsynth.utils.sensitivity_helpers.inference
    :members:

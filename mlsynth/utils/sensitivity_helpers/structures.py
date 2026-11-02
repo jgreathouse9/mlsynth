@@ -21,28 +21,11 @@ from .inference import (
     ratio_statistic,
 )
 from .numerics import median, std
-from .placebo import PlaceboStack, stack
+from .placebo import PlaceboStack, placebo_details, stack
 from .plotter import plot_specification_curve
 
 _DIMENSIONS = {"donors", "fit_window", "fit_exclude", "covariates", "covariate_windows"}
 IDENTIFICATION_COLUMNS = ["spec_id", "att", "att_min", "att_max", "identified"]
-
-
-class PlaceboRuns(BaseModel):
-    """Every design refit with each unit of its pool treated in turn.
-
-    The actually treated unit stays in the placebo units' pools as an ordinary
-    donor. ``paths`` and ``weights`` hold one block per design and unit, the
-    treated unit's own block being its main fit; ``failures`` and ``warnings``
-    log placebo fits that raised or warned. A unit with a failed fit has no
-    statistic and is left out of every ranking.
-    """
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
-    paths: pd.DataFrame
-    weights: pd.DataFrame
-    failures: pd.DataFrame
-    warnings: pd.DataFrame
 
 
 @dataclass(frozen=True)
@@ -83,9 +66,6 @@ class SensitivityResult(BaseModel):
         "vector that fits the design's matched quantities as well as the solved one. "
         "identified is False when that range has positive width: the design does not "
         "pin the weights, and the effect, down.",
-    )
-    placebo: Optional[PlaceboRuns] = Field(
-        default=None, description="Placebo runs; present when the study ran with placebo=True."
     )
 
     def dispersion(self) -> pd.Series:
@@ -146,15 +126,16 @@ class SensitivityResult(BaseModel):
 
     # --- inference across designs (Ferman, Pinto and Possebom 2020) ---------
 
-    def _runs(self) -> PlaceboRuns:
-        if self.placebo is None:
-            raise MlsynthConfigError(
-                "This study ran without placebo runs; refit it with placebo=True."
-            )
-        return self.placebo
-
     def _designs(self, designs: Optional[Sequence[str]]) -> list:
-        fitted = list(dict.fromkeys(self._runs().paths.spec_id))
+        """``designs`` (default: every fitted design), each with its in-space placebo."""
+        fitted = [spec for spec, fit in self.fits.items() if placebo_details(fit) is not None]
+        if not fitted:
+            raise MlsynthConfigError(
+                "Inference across designs ranks each design's in-space placebo; fit "
+                "the study with inference='placebo' in the base configuration "
+                "(placebo_includes_treated=True gives the pools of Abadie, Diamond "
+                "and Hainmueller 2010)."
+            )
         if designs is None:
             return fitted
         unknown = set(designs) - set(fitted)
@@ -163,9 +144,8 @@ class SensitivityResult(BaseModel):
         return list(designs)
 
     def _stack(self, designs: Sequence[str]) -> PlaceboStack:
-        runs, base = self._runs(), self.baseline
-        return stack(runs.paths, runs.weights, runs.failures, base["df"],
-                     base["unitid"], base["time"], base["outcome"],
+        base = self.baseline
+        return stack(self.fits, base["df"], base["unitid"], base["time"], base["outcome"],
                      self.metadata["treated_unit"], designs)
 
     def _windows(self, s: PlaceboStack, pre_periods, post_periods):

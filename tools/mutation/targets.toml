@@ -11039,28 +11039,10 @@ timeout = 240.0
   models = "the effect's range is taken over the whole simplex instead of the weights that fit as well as the solution, so every design reads as unidentified"
 
 [[target]]
-name = "sensitivity-placebo"
+name = "sensitivity-identification"
 module-path = "mlsynth/sensitivity.py"
 test-command = "python -m pytest mlsynth/tests/test_sensitivity_placebo.py -q -p no:cacheprovider --disable-warnings"
 timeout = 300.0
-
-  [[target.mutant]]
-  id = "placebo-pools-drop-the-treated-unit"
-  find = 'df = effective["df"].copy()'
-  replace = 'df = effective["df"][effective["df"][cfg.unitid] != self._treated].copy()'
-  models = "placebo units are fit without the actually treated unit in their pools, VanillaSC's own convention, not the one ADH (2010) and FPP rank against"
-
-  [[target.mutant]]
-  id = "placebo-treated-one-period-late"
-  find = "& (df[cfg.time] >= self._treatment_time)).astype(int)"
-  replace = "& (df[cfg.time] > self._treatment_time)).astype(int)"
-  models = "each placebo unit is treated a period after the actual treatment, so its first post period is fit as pre-treatment"
-
-  [[target.mutant]]
-  id = "placebo-solver-warnings-ignored"
-  find = 'for w in fitted.additional_outputs.get("solver_warnings") or [])'
-  replace = "for w in [])"
-  models = "the primary solver's warnings, which VanillaSC captures inside the fit, are dropped for placebo fits, so a nonconverged placebo looks clean in the log"
 
   [[target.mutant]]
   id = "identification-fails-on-zero-weight-donors"
@@ -11092,6 +11074,12 @@ timeout = 300.0
   replace = "return pd.Series(values, name=rule).sort_values(ascending=False)"
   models = "the design with the worst prediction error is listed first and read as the one chosen"
 
+  [[target.mutant]]
+  id = "designs-without-a-placebo-ranked"
+  find = "fitted = [spec for spec, fit in self.fits.items() if placebo_details(fit) is not None]"
+  replace = "fitted = list(self.fits)"
+  models = "a design whose fit carries no in-space placebo (another inference mode, or a pool too small for one) is ranked as if it had one, and the call fails on the missing details instead of saying the study needs inference='placebo'"
+
 [[target]]
 name = "sensitivity-placebo-stack"
 module-path = "mlsynth/utils/sensitivity_helpers/placebo.py"
@@ -11103,6 +11091,42 @@ timeout = 300.0
   find = "if any(units != sets[0] for units in sets[1:]):"
   replace = "if False:"
   models = "designs whose donor pools differ are pooled into one joint test, ranking units against placebo distributions they were not part of"
+
+  [[target.mutant]]
+  id = "other-inference-details-read-as-a-placebo"
+  find = 'return details if "unit_gaps" in details else None'
+  replace = "return details or None"
+  models = "a fit run with another inference mode (leave-two-out) is read as if it carried the in-space placebo"
+
+  [[target.mutant]]
+  id = "skipped-units-leave-the-unit-set"
+  find = 'return set(details["unit_gaps"]) | set(details["skipped_placebos"])'
+  replace = 'return set(details["unit_gaps"])'
+  models = "a unit whose refit raised in one design drops out of that design's unit set, so designs with the same pool can no longer be combined"
+
+  [[target.mutant]]
+  id = "treated-unit-ranked-where-its-label-sorts"
+  find = "names = [str(treated), *sorted(sets[0] - {str(treated)})]"
+  replace = "names = sorted(sets[0])"
+  models = "the unit at the first position is the one whose label sorts first, so the test ranks a donor's statistic as the treated unit's whenever the treated label does not sort first"
+
+  [[target.mutant]]
+  id = "outcomes-looked-up-by-string-label"
+  find = "units = [labels[n] for n in names]"
+  replace = "units = names"
+  models = "VanillaSC's string labels are used to look up the panel's outcomes, which come back missing when the unit IDs are numbers"
+
+  [[target.mutant]]
+  id = "weights-outside-a-pool-left-missing"
+  find = "            W[d, j] = 0.0\n"
+  replace = ""
+  models = "a placebo's weight on units outside its pool, including itself, is missing instead of zero, so the band rebuilds no gaps under its nulls"
+
+  [[target.mutant]]
+  id = "weights-filed-under-the-donor"
+  find = "W[d, j, index[donor]] = weight"
+  replace = "W[d, index[donor], j] = weight"
+  models = "each unit's weights are stored in the donor's row, so the band's nulls rebuild every gap from the wrong combination of units"
 
 [[target]]
 name = "vanillasc-placebo-units"

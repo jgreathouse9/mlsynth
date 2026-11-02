@@ -16,22 +16,15 @@ from .estimators.vanillasc import VanillaSC
 from .exceptions import MlsynthConfigError, MlsynthDataError
 from .utils.sensitivity_helpers.inference import identified_effect_range
 from .utils.sensitivity_helpers.numerics import rms
-from .utils.sensitivity_helpers.placebo import (
-    FAILURE_COLUMNS,
-    PATH_COLUMNS,
-    WARNING_COLUMNS,
-    WEIGHT_COLUMNS,
-)
 from .utils.sensitivity_helpers.results import extract_paths
 from .utils.sensitivity_helpers.structures import (
     _DIMENSIONS,
     IDENTIFICATION_COLUMNS,
-    PlaceboRuns,
     SensitivityResult,
 )
 from .utils.vanillasc_helpers.pipeline import _fit_positions, _predictors
 
-__all__ = ["PlaceboRuns", "SensitivityResult", "SpecificationStudy"]
+__all__ = ["SensitivityResult", "SpecificationStudy"]
 
 
 class SpecificationStudy:
@@ -57,14 +50,6 @@ class SpecificationStudy:
         Collection of known contaminated unit IDs, not a scalar string. Unknown
         IDs raise before fitting. A pool containing one fails. Units marked
         treated in the original panel cannot enter donor pools.
-    placebo : bool
-        Also refit every design once per unit of its pool, with that unit
-        treated from the same date and the actually treated unit kept in the
-        pool as an ordinary donor (Abadie, Diamond and Hainmueller 2010). The
-        result's ``placebo_test``, ``joint_test``, ``confidence_band`` and
-        ``choose`` need these runs. They multiply the number of fits by the
-        size of the pool. Placebo fits run without the estimator's own
-        inference.
 
     Notes
     -----
@@ -73,6 +58,14 @@ class SpecificationStudy:
     time before any donor subsetting. Declare designs before viewing effects.
     Precomputed covariate columns must themselves use only information available
     before treatment. Computational settings cannot vary in this initial API.
+
+    With ``inference="placebo"`` in ``base_config`` every design's native fit
+    carries its in-space placebo: each unit of its pool refit as if treated,
+    with its gaps and donor weights. The result's ``placebo_test``,
+    ``joint_test``, ``confidence_band`` and ``choose`` read those fits.
+    ``placebo_includes_treated=True`` keeps the treated unit in the placebo
+    units' pools as an ordinary donor (Abadie, Diamond and Hainmueller 2010),
+    as Ferman, Pinto and Possebom (2020) do.
     """
 
     def __init__(
@@ -82,13 +75,9 @@ class SpecificationStudy:
         specifications: Iterable[dict[str, Any]],
         att_periods: Iterable[Any],
         excluded_donors: Iterable[Any] = (),
-        placebo: bool = False,
     ) -> None:
         if estimator is not VanillaSC:
             raise MlsynthConfigError("Only VanillaSC is supported.")
-        if not isinstance(placebo, bool):
-            raise MlsynthConfigError("placebo must be True or False.")
-        self._placebo = placebo
         self._baseline = deepcopy(base_config)
         base = deepcopy(base_config)
         self._donors = base.pop("donors", None)
@@ -251,7 +240,6 @@ class SpecificationStudy:
         summaries, paths, weights, failures, warning_rows = [], [], [], [], []
         fits = {}
         identification = []
-        placebo = ([], [], [], [])  # paths, weights, failures, warnings
         for spec in self._specs:
             name = spec["name"]
             row = dict(
@@ -322,8 +310,6 @@ class SpecificationStudy:
             identification.append(
                 self._identify(name, fits[name], effective, fit_periods, row["att"],
                                warning_rows))
-            if self._placebo:
-                self._placebo_fits(name, effective, donors, extracted, placebo)
         return SensitivityResult(
             summary=pd.DataFrame(summaries),
             paths=pd.DataFrame(
@@ -340,16 +326,6 @@ class SpecificationStudy:
             baseline=deepcopy(self._baseline),
             fits=fits,
             identification=pd.DataFrame(identification, columns=IDENTIFICATION_COLUMNS),
-            placebo=(
-                PlaceboRuns(
-                    paths=pd.DataFrame(placebo[0], columns=PATH_COLUMNS),
-                    weights=pd.DataFrame(placebo[1], columns=WEIGHT_COLUMNS),
-                    failures=pd.DataFrame(placebo[2], columns=FAILURE_COLUMNS),
-                    warnings=pd.DataFrame(placebo[3], columns=WARNING_COLUMNS),
-                )
-                if self._placebo
-                else None
-            ),
             metadata=dict(
                 treated_unit=self._treated,
                 treatment_time=self._treatment_time,
@@ -359,7 +335,6 @@ class SpecificationStudy:
                 backend=self._config.backend,
                 estimator="mlsynth.VanillaSC",
                 version=package_version,
-                placebo=self._placebo,
             ),
         )
 
@@ -395,30 +370,3 @@ class SpecificationStudy:
             return dict(spec_id=name, att=att, att_min=np.nan, att_max=np.nan, identified=None)
         identified = bool(hi - lo <= 1e-6 * max(1.0, abs(att)))
         return dict(spec_id=name, att=att, att_min=lo, att_max=hi, identified=identified)
-
-    def _placebo_fits(self, name, effective, donors, extracted, placebo):
-        """Refit ``name`` with each pool unit treated, the treated unit as a donor."""
-        cfg = self._config
-        paths, weights, failures, warning_rows = placebo
-        paths.extend(extracted.paths.assign(unit=self._treated)[PATH_COLUMNS].to_dict("records"))
-        weights.extend(extracted.weights.assign(unit=self._treated)[WEIGHT_COLUMNS].to_dict("records"))
-        for unit in donors:
-            df = effective["df"].copy()
-            df[cfg.treat] = ((df[cfg.unitid] == unit)
-                             & (df[cfg.time] >= self._treatment_time)).astype(int)
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                try:
-                    fitted = VanillaSC({**effective, "df": df, "inference": False}).fit()
-                    placed = extract_paths(fitted, name, self._times)
-                    paths.extend(placed.paths.assign(unit=unit)[PATH_COLUMNS].to_dict("records"))
-                    weights.extend(placed.weights.assign(unit=unit)[WEIGHT_COLUMNS].to_dict("records"))
-                    warning_rows.extend(
-                        dict(spec_id=name, unit=unit, **w)
-                        for w in fitted.additional_outputs.get("solver_warnings") or [])
-                except Exception as exc:
-                    failures.append(dict(spec_id=name, unit=unit,
-                                         exception_type=type(exc).__name__, message=str(exc)))
-            warning_rows.extend(
-                dict(spec_id=name, unit=unit, warning_type=w.category.__name__,
-                     message=str(w.message)) for w in caught)
