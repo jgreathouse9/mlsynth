@@ -54,10 +54,12 @@ def study(specs=(), base=None, **kw):
     )
 
 
-@given(st.sampled_from(["u2", b"u2", ["missing"], [2]]))
+@given(st.sampled_from(["2", b"2", ["missing"], [2]]))
 def test_exclusions_require_a_collection_of_known_unit_ids(excluded):
+    cfg = config()
+    cfg["df"]["unit"] = cfg["df"].unit.str[-1]
     with pytest.raises(MlsynthConfigError, match="excluded_donors"):
-        study(excluded_donors=excluded)
+        study(base=cfg, excluded_donors=excluded)
 
 
 @given(st.booleans(), st.sampled_from([False, True, "sensitivity.png"]))
@@ -65,9 +67,10 @@ def test_exclusions_require_a_collection_of_known_unit_ids(excluded):
 def test_batch_fits_never_display_or_save_graphs(display, save):
     cfg = config()
     cfg.update(display_graphs=display, save=save)
-    with patch("matplotlib.pyplot.show") as show, patch(
-        "matplotlib.figure.Figure.savefig"
-    ) as savefig:
+    with (
+        patch("matplotlib.pyplot.show") as show,
+        patch("matplotlib.figure.Figure.savefig") as savefig,
+    ):
         result = study(base=cfg).fit()
     assert result.failures.empty
     show.assert_not_called()
@@ -107,10 +110,12 @@ def test_open_fitting_window_endpoints_match_native_estimator(start, end):
     )
 
 
-def test_unselected_units_do_not_expand_the_common_trajectory():
+@given(st.sampled_from(["unused", "u1"]), st.integers(12, 100))
+@settings(max_examples=6, deadline=None)
+def test_unselected_units_do_not_expand_the_common_trajectory(unit, time):
     cfg = config()
     original = study(base=cfg).fit()
-    extra = pd.DataFrame([dict(unit="unused", time=99, y=100, treated=0, x=1)])
+    extra = pd.DataFrame([dict(unit=unit, time=time, y=100, treated=0, x=1)])
     cfg["df"] = pd.concat([cfg["df"], extra], ignore_index=True)
     cfg["donors"] = ["u1", "u2", "u3"]
     result = study(base=cfg).fit()
@@ -169,6 +174,8 @@ def test_post_outcomes_never_change_fitted_weights(delta):
         {"df": pd.DataFrame()},
         {"treat": "other"},
         {"fit_window": (2, 8)},
+        {"fit_window": (1,)},
+        {"fit_window": (1, 7, 8)},
         {"fit_exclude": [8]},
         {"covariate_windows": {"x": (2, 8)}},
         {"donors": ["u0", "u1"]},

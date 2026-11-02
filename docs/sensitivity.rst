@@ -17,6 +17,14 @@ backend and seed cannot vary across designs. ``backend="auto"`` is resolved
 once from the baseline, preventing predictor changes from switching solvers.
 To compare predictor sets, choose a backend that supports all intended sets.
 The fixed ``outcome-only`` backend rejects designs that add covariates.
+Per-fit display and saving are disabled, including when enabled in the supplied
+baseline. The original baseline is preserved; the registry records the effective
+settings. Display or save the figure returned by ``result.plot()`` explicitly.
+Other settings, including inference, retain their configured values. Set
+``inference=False`` when only the descriptive sensitivity results are needed.
+``fit_window`` accepts ``None`` for either endpoint, using the first or last
+pre-treatment period respectively. When removing covariates, also clear any
+inherited ``covariate_windows`` entries for those covariates.
 
 Assumptions and safeguards
 --------------------------
@@ -30,6 +38,8 @@ Assumptions and safeguards
    Declare other known contaminated donors in ``excluded_donors``. The runner
    fixes treatment identity and timing before donor subsetting and rejects
    any requested donor pool that violates these restrictions.
+   Exclusions must be a collection of IDs present in the original panel;
+   scalar strings and unknown IDs raise before fitting.
 4. No anticipation, no spillovers and stability of the untreated relationship
    remain substantive assumptions. Good pre-treatment fit does not establish them.
 
@@ -44,6 +54,10 @@ native results in ``fits`` preserve predictor weights and solver diagnostics.
 original configuration and a copy of the panel. ``metadata`` records the fixed
 periods, exclusions, backend, estimator and package version. Archive these with
 the analysis and software environment.
+The package version is ``None`` if distribution metadata is unavailable in a
+source checkout. The registry excludes the panel and includes the runner's
+``donors`` field: to replay a native fit, remove that field and supply the
+original panel restricted to the declared donors, treated unit and common times.
 
 Exceptions appear in ``failures``. Captured warnings, including primary-solver
 messages preserved in native ``additional_outputs['solver_warnings']`` and nonconvergence,
@@ -51,6 +65,9 @@ appear in ``warnings`` and mark successful finite fits as ``warning``. Their
 estimates remain visible. All selected units must have finite outcomes on the
 common full trajectory; a missing post-treatment observation fails a design
 instead of shortening its ATT period. There is no fit-quality filter.
+The common trajectory consists of the treated unit's observed periods; extra
+periods belonging only to donors or unrelated units do not expand it. Warnings
+include native library diagnostics and need not indicate final nonconvergence.
 
 ``dispersion()`` reports counts, the range, median, sample standard deviation
 and sign shares among finite estimates, including fits with warnings. The

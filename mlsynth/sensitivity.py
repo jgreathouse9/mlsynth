@@ -5,7 +5,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Iterable
 from copy import deepcopy
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from statistics import mean
 from typing import Any
 
@@ -33,6 +33,7 @@ class SpecificationStudy:
         Existing estimator arguments, including ``df``. ``donors`` optionally
         restricts the baseline pool and is removed before estimator construction.
         ``backend='auto'`` is resolved once from the baseline covariates.
+        Per-fit plotting and saving are disabled; call ``result.plot()`` instead.
     specifications : iterable of dict
         Unique nonempty ``name`` plus overrides for donors, covariates,
         covariate_windows, fit_window or fit_exclude. An unchanged baseline is
@@ -40,7 +41,8 @@ class SpecificationStudy:
     att_periods : iterable
         Fixed, unique observed post-treatment periods over which gaps are averaged.
     excluded_donors : iterable
-        Known contaminated donors. A pool containing one fails. Units marked
+        Collection of known contaminated unit IDs, not a scalar string. Unknown
+        IDs raise before fitting. A pool containing one fails. Units marked
         treated in the original panel cannot enter donor pools.
 
     Notes
@@ -103,7 +105,7 @@ class SpecificationStudy:
             raise MlsynthDataError(
                 "Treatment must be permanent after its first occurrence."
             )
-        self._times = sorted(frame[cfg.time].unique())
+        self._times = sorted(treated_frame[cfg.time].unique())
         self._pre = [t for t in self._times if t < self._treatment_time]
         self._post = list(att_periods)
         if not self._pre or not self._post or len(set(self._post)) != len(self._post):
@@ -116,11 +118,21 @@ class SpecificationStudy:
             raise MlsynthConfigError(
                 "att_periods must be observed post-treatment periods."
             )
-        if cfg.backend == "auto":
-            self._config = cfg.model_copy(
-                update={"backend": "mscmt" if cfg.covariates else "outcome-only"}
+        backend = cfg.backend
+        if backend == "auto":
+            backend = "mscmt" if cfg.covariates else "outcome-only"
+        self._config = cfg.model_copy(
+            update={"backend": backend, "display_graphs": False, "save": False}
+        )
+        if isinstance(excluded_donors, (str, bytes)):
+            raise MlsynthConfigError(
+                "excluded_donors must be a collection of known unit IDs."
             )
         self._excluded = tuple(excluded_donors)
+        if not set(self._excluded).issubset(frame[cfg.unitid].unique()):
+            raise MlsynthConfigError(
+                "excluded_donors contains unit IDs absent from the panel."
+            )
         self._specs = deepcopy(list(specifications))
         names = [s.get("name") for s in self._specs]
         if any(not isinstance(n, str) or not n for n in names) or len(
@@ -147,9 +159,10 @@ class SpecificationStudy:
             raise MlsynthConfigError(
                 "Donor pool contains absent, treated or declared contaminated units."
             )
-        selected = frame.loc[frame[cfg.unitid].isin([self._treated, *donors])].copy(
-            deep=True
-        )
+        selected = frame.loc[
+            frame[cfg.unitid].isin([self._treated, *donors])
+            & frame[cfg.time].isin(self._times)
+        ].copy(deep=True)
         if (
             len(selected) != len(self._times) * (len(donors) + 1)
             or not np.isfinite(selected[cfg.outcome]).all()
@@ -160,11 +173,13 @@ class SpecificationStudy:
         fit_periods = list(self._pre)
         window = design.get("fit_window")
         if window is not None:
-            if (
-                len(window) != 2
-                or window[0] > window[1]
-                or window[1] >= self._treatment_time
-            ):
+            if len(window) != 2:
+                raise MlsynthConfigError("fit_window must contain two endpoints.")
+            window = tuple(
+                bound if bound is not None else limit
+                for bound, limit in zip(window, (self._pre[0], self._pre[-1]))
+            )
+            if window[0] > window[1] or window[1] >= self._treatment_time:
                 raise MlsynthConfigError(
                     "fit_window must be ordered and strictly pre-treatment."
                 )
@@ -199,6 +214,10 @@ class SpecificationStudy:
 
     def fit(self) -> SensitivityResult:
         """Fit all registered designs without filtering on fit quality or effect."""
+        try:
+            package_version = version("mlsynth")
+        except PackageNotFoundError:
+            package_version = None
         base = self._config.model_dump(exclude={"df"})
         base["donors"] = deepcopy(self._donors)
         registry = {
@@ -298,6 +317,6 @@ class SpecificationStudy:
                 excluded_donors=self._excluded,
                 backend=self._config.backend,
                 estimator="mlsynth.VanillaSC",
-                version=version("mlsynth"),
+                version=package_version,
             ),
         )
