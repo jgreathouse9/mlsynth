@@ -505,3 +505,21 @@ def test_dispersion_uses_finite_estimates_and_stable_statistics():
     assert result.dispersion()["std"] / 1e200 == pytest.approx(np.sqrt(2))
     summary.loc[:, "att"] = [1.7e308, -1.7e308, np.nan, np.nan, np.nan]
     assert np.isnan(result.dispersion()["std"])
+
+
+@pytest.mark.parametrize(
+    "effects, expected",
+    [
+        (
+            [1e308, np.nextafter(1e308, np.inf)],
+            (np.nextafter(1e308, np.inf) - 1e308) / np.sqrt(2),
+        ),
+        ([2.0, 4.0], np.sqrt(2)),
+        ([1e308, -1e308], np.sqrt(2) * 1e308),
+    ],
+)
+def test_dispersion_preserves_spread_at_large_common_levels(effects, expected):
+    result = study().fit()
+    summary = pd.DataFrame({"att": effects, "status": ["ok", "ok"]})
+    result = result.model_copy(update={"summary": summary})
+    assert result.dispersion()["std"] / expected == pytest.approx(1.0, rel=1e-12)
