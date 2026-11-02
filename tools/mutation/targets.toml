@@ -38,8 +38,8 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "att-uses-all-post-periods"
-  find = "att=mean(map(float, gap.loc[self._post]))"
-  replace = "att=mean(map(float, gap.loc[gap.index >= self._treatment_time]))"
+  find = '"att": mean(map(float, gap.loc[self._post]))'
+  replace = '"att": mean(map(float, gap.loc[gap.index >= self._treatment_time]))'
   models = "the requested ATT period is replaced by every post-treatment observation, changing the estimand while leaving full-window examples unchanged"
 
   [[target.mutant]]
@@ -116,8 +116,8 @@ timeout = 180.0
 
   [[target.mutant]]
   id = "finite-gaps-overflow-att"
-  find = "att=mean(map(float, gap.loc[self._post]))"
-  replace = "att=float(gap.loc[self._post].mean())"
+  find = '"att": mean(map(float, gap.loc[self._post]))'
+  replace = '"att": float(gap.loc[self._post].mean())'
   models = "ordinary summation overflows on finite large gaps even when their mean is representable"
 
 [[target]]
