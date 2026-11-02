@@ -17,6 +17,7 @@ from .exceptions import MlsynthConfigError, MlsynthDataError
 from .utils.sensitivity_helpers.numerics import rms
 from .utils.sensitivity_helpers.results import extract_paths
 from .utils.sensitivity_helpers.structures import _DIMENSIONS, SensitivityResult
+from .utils.vanillasc_helpers.pipeline import _fit_positions
 
 __all__ = ["SensitivityResult", "SpecificationStudy"]
 
@@ -170,7 +171,6 @@ class SpecificationStudy:
             raise MlsynthDataError(
                 "Every selected unit needs finite outcomes at all common trajectory periods."
             )
-        fit_periods = list(self._pre)
         window = design.get("fit_window")
         if window is not None:
             if len(window) != 2:
@@ -183,15 +183,12 @@ class SpecificationStudy:
                 raise MlsynthConfigError(
                     "fit_window must be ordered and strictly pre-treatment."
                 )
-            fit_periods = [t for t in fit_periods if window[0] <= t <= window[1]]
-        excluded = design.get("fit_exclude") or []
-        if not set(excluded).issubset(self._pre):
-            raise MlsynthConfigError(
-                "fit_exclude must contain observed pre-treatment periods."
-            )
-        fit_periods = [t for t in fit_periods if t not in excluded]
-        if not fit_periods:
-            raise MlsynthConfigError("The fitting window is empty.")
+        fit_config = cfg.model_copy(
+            update={field: design.get(field) for field in ("fit_window", "fit_exclude")}
+        )
+        fit_periods = [
+            self._pre[i] for i in _fit_positions(fit_config, self._pre, strict=True)
+        ]
         covariates = design.get("covariates") or []
         if covariates and design["backend"] == "outcome-only":
             raise MlsynthConfigError(

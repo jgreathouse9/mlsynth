@@ -120,6 +120,12 @@ timeout = 180.0
   replace = '"att": float(gap.loc[self._post].mean())'
   models = "ordinary summation overflows on finite large gaps even when their mean is representable"
 
+  [[target.mutant]]
+  id = "fit-rmse-ignores-native-selected-periods"
+  find = "_fit_positions(fit_config, self._pre, strict=True)"
+  replace = "np.arange(len(self._pre))"
+  models = "the native fit uses its declared window and exclusions, but the reported fitting RMSE incorrectly uses every pre-treatment period"
+
 [[target]]
 name = "specification-sensitivity-numerics"
 module-path = "mlsynth/utils/sensitivity_helpers/numerics.py"

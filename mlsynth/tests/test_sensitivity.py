@@ -523,3 +523,70 @@ def test_dispersion_preserves_spread_at_large_common_levels(effects, expected):
     summary = pd.DataFrame({"att": effects, "status": ["ok", "ok"]})
     result = result.model_copy(update={"summary": summary})
     assert result.dispersion()["std"] / expected == pytest.approx(1.0, rel=1e-12)
+
+
+@pytest.mark.parametrize(
+    "window, excluded, expected",
+    [
+        (None, None, [10, 12, 15, 17, 21, 24, 28, 31]),
+        ((None, None), [15, 28], [10, 12, 17, 21, 24, 31]),
+        ((12, None), [10, 24], [12, 15, 17, 21, 28, 31]),
+        ((None, 24), [12, 21], [10, 15, 17, 24]),
+        ((13, 30), [17], [15, 21, 24, 28]),
+        ((12, 28), [], [12, 15, 17, 21, 24, 28]),
+    ],
+)
+def test_fit_rmse_uses_native_window_and_exclusions_on_irregular_times(
+    window, excluded, expected
+):
+    cfg = config()
+    frame = cfg["df"]
+    frame.loc[(frame.unit == "u0") & (frame.time < 8), "y"] += [
+        2,
+        -1,
+        3,
+        -2,
+        1,
+        -3,
+        2,
+        -1,
+    ]
+    times = [10, 12, 15, 17, 21, 24, 28, 31, 35, 42, 50, 70]
+    frame["time"] = frame.time.map(dict(enumerate(times)))
+    design = {"fit_window": window, "fit_exclude": excluded}
+    native = VanillaSC({**cfg, **design}).fit()
+    result = SpecificationStudy(
+        VanillaSC, cfg, [{"name": "window", **design}], att_periods=times[8:]
+    ).fit()
+    assert result.failures.empty
+    paths = result.paths.loc[result.paths.spec_id == "window"].set_index("time")
+    np.testing.assert_allclose(
+        paths.synthetic, native.time_series.counterfactual_outcome
+    )
+    summary = result.summary.set_index("spec_id").loc["window"]
+    assert summary.fit_rmse == pytest.approx(
+        np.sqrt(np.mean(paths.gap.loc[expected] ** 2))
+    )
+    assert summary.pre_rmse == pytest.approx(
+        np.sqrt(np.mean(paths.gap.loc[times[:8]] ** 2))
+    )
+    assert result.registry["window"]["fit_window"] == window
+    assert result.registry["window"]["fit_exclude"] == excluded
+
+
+@pytest.mark.parametrize(
+    "design",
+    [
+        {"fit_window": (-3, -1)},
+        {"fit_window": (4, 7), "fit_exclude": [4, 5, 6, 7]},
+        {"fit_window": (4, 7), "fit_exclude": [-1]},
+        {"fit_window": (4, None), "fit_exclude": [8]},
+    ],
+)
+def test_native_period_selection_errors_remain_failed_designs(design):
+    result = study([{"name": "invalid", **design}]).fit()
+    assert result.summary.status.tolist() == ["ok", "failed"]
+    assert result.failures.spec_id.tolist() == ["invalid"]
+    assert result.failures.exception_type.tolist() == ["MlsynthDataError"]
+    assert np.isnan(result.summary.fit_rmse.iloc[1])
+    assert result.paths.spec_id.unique().tolist() == ["baseline"]
