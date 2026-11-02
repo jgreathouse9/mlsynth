@@ -10977,3 +10977,123 @@ timeout = 1200.0
   replace = "        return False, max(kt, kc)"
   models = "the cost model charging the one block at the larger side's size"
 
+
+[[target]]
+name = "sensitivity-inference"
+module-path = "mlsynth/utils/sensitivity_helpers/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_inference.py -q -p no:cacheprovider --disable-warnings"
+timeout = 240.0
+
+  [[target.mutant]]
+  id = "pvalue-counts-only-strictly-larger"
+  find = "return float(np.mean(finite >= stat[position]))"
+  replace = "return float(np.mean(finite > stat[position]))"
+  models = "the treated unit no longer counts itself and ties count in its favour, so the smallest attainable p-value becomes zero instead of one over the number of units"
+
+  [[target.mutant]]
+  id = "pvalue-denominator-counts-units-without-a-statistic"
+  find = "finite = stat[np.isfinite(stat)]"
+  replace = "finite = np.where(np.isfinite(stat), stat, -np.inf)"
+  models = "placebos whose fit failed are counted as least extreme, so p-values shrink; FPP's Germany 7a, which skips Austria, would read 1/17 instead of the script's 1/16"
+
+  [[target.mutant]]
+  id = "joint-test-ranks-one-design"
+  find = "means = np.nanmean(stats, axis=1)"
+  replace = "means = stats[:, 0]"
+  models = "the joint test silently reports the first design's placebo test instead of the mean statistic across designs"
+
+  [[target.mutant]]
+  id = "dube-zipperer-scores-the-treated-unit"
+  find = "if j != position and np.isfinite(G[:, j]).all()]"
+  replace = "if np.isfinite(G[:, j]).all()]"
+  models = "the treated unit's own post-period gap, which carries the effect, enters the criterion meant to judge prediction of untreated units"
+
+  [[target.mutant]]
+  id = "ratio-statistic-inverted"
+  find = "ratio = np.mean(scaled[post] ** 2, axis=0) / pre_ms"
+  replace = "ratio = pre_ms / np.mean(scaled[post] ** 2, axis=0)"
+  models = "pre over post instead of post over pre: units with the largest post-treatment gaps rank as least extreme"
+
+  [[target.mutant]]
+  id = "ratio-statistic-squares-in-original-units"
+  find = "scaled = gaps / np.where(scale > 0, scale, 1.0)"
+  replace = "scaled = gaps"
+  models = "gaps are squared in their own units, so tiny pre-period gaps underflow to a zero denominator and huge ones overflow, and a unit loses its statistic"
+
+  [[target.mutant]]
+  id = "band-null-adds-the-effect"
+  find = "Yn[:, position] = Y[:, position] - (base + c * post)"
+  replace = "Yn[:, position] = Y[:, position] + (base + c * post)"
+  models = "the null adds the hypothesised effect to the treated unit instead of netting it out, so the band no longer inverts the test"
+
+  [[target.mutant]]
+  id = "band-placebos-keep-the-observed-treated-donor"
+  find = "[ratio_statistic(synthetic_gaps(Yn, Wd), pre, post) for Wd in W])"
+  replace = "[ratio_statistic(np.column_stack([synthetic_gaps(Yn, Wd)[:, :1], synthetic_gaps(Y, Wd)[:, 1:]]), pre, post) for Wd in W])"
+  models = "placebo units' synthetic controls keep the treated unit's observed outcome instead of its outcome under the null, the donor-pool correction Firpo and Possebom (2018) build the band on"
+
+  [[target.mutant]]
+  id = "identified-range-ignores-the-fit"
+  find = "A_ub = np.vstack([As, -As])"
+  replace = "A_ub = np.vstack([0 * As, 0 * As])"
+  models = "the effect's range is taken over the whole simplex instead of the weights that fit as well as the solution, so every design reads as unidentified"
+
+[[target]]
+name = "sensitivity-placebo"
+module-path = "mlsynth/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_placebo.py -q -p no:cacheprovider --disable-warnings"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "placebo-pools-drop-the-treated-unit"
+  find = 'df = effective["df"].copy()'
+  replace = 'df = effective["df"][effective["df"][cfg.unitid] != self._treated].copy()'
+  models = "placebo units are fit without the actually treated unit in their pools, VanillaSC's own convention, not the one ADH (2010) and FPP rank against"
+
+  [[target.mutant]]
+  id = "placebo-treated-one-period-late"
+  find = "& (df[cfg.time] >= self._treatment_time)).astype(int)"
+  replace = "& (df[cfg.time] > self._treatment_time)).astype(int)"
+  models = "each placebo unit is treated a period after the actual treatment, so its first post period is fit as pre-treatment"
+
+  [[target.mutant]]
+  id = "identification-fails-on-zero-weight-donors"
+  find = "fitted.weights.donor_weights.get(n, 0.0)"
+  replace = "fitted.weights.donor_weights[n]"
+  models = "donor_weights omits donors with zero weight; indexing it raises and the identification diagnostic is lost whenever a donor gets no weight"
+
+  [[target.mutant]]
+  id = "identification-ignores-predictor-weights"
+  find = "A = np.sqrt(np.clip(v, 0.0, None))[:, None] * Xs[:, 1:]"
+  replace = "A = Xs[:, 1:]"
+  models = "every predictor constrains the equally-good-fit set, including those V gives no weight, so designs read as better identified than they are"
+
+[[target]]
+name = "sensitivity-placebo-results"
+module-path = "mlsynth/utils/sensitivity_helpers/structures.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_placebo.py -q -p no:cacheprovider --disable-warnings"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "post-window-override-ignored"
+  find = 'post = self.metadata["att_periods"] if post_periods is None else post_periods'
+  replace = 'post = self.metadata["att_periods"]'
+  models = "a requested post-treatment window is replaced by the ATT periods without notice"
+
+  [[target.mutant]]
+  id = "choice-ranks-descending"
+  find = "return pd.Series(values, name=rule).sort_values()"
+  replace = "return pd.Series(values, name=rule).sort_values(ascending=False)"
+  models = "the design with the worst prediction error is listed first and read as the one chosen"
+
+[[target]]
+name = "sensitivity-placebo-stack"
+module-path = "mlsynth/utils/sensitivity_helpers/placebo.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_placebo.py -q -p no:cacheprovider --disable-warnings"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "designs-with-different-pools-combined"
+  find = "if any(units != sets[0] for units in sets[1:]):"
+  replace = "if False:"
+  models = "designs whose donor pools differ are pooled into one joint test, ranking units against placebo distributions they were not part of"
