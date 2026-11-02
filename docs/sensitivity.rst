@@ -115,4 +115,7 @@ API
 ---
 
 .. automodule:: mlsynth.sensitivity
+   :members: SpecificationStudy
+
+.. autoclass:: mlsynth.sensitivity.SensitivityResult
    :members:
