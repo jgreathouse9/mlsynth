@@ -564,3 +564,21 @@ def test_the_solve_stays_on_the_directions_the_shift_kept():
     # and on the kept directions it is the least-squares solution
     kept = Vt.T @ Vt
     np.testing.assert_allclose(kept @ (M.T @ (M @ v - b)), 0.0, atol=1e-6 * np.linalg.norm(M.T @ b))
+
+
+@pytest.mark.parametrize("eps", [1e-6, 1e-10, 1e-13])
+def test_a_tiny_price_still_breaks_an_exact_tie(eps):
+    """Two exact copies of a donor make a face of minimisers, and a linear term
+    of any size picks one copy: all the weight goes to the cheaper one. The ray
+    test compared the term's null part with ``tol * max(1, |q|)``; on unit-scale
+    data that floor is absolute, so a price difference below 1e-9 was missed
+    and the solver split the copies by pivot order (#960)."""
+    rng = np.random.default_rng(0)
+    B = rng.normal(size=(6, 4))
+    B = np.column_stack([B, B[:, 1]])          # donor 4 is an exact copy of donor 1
+    A = 0.6 * B[:, 1] + 0.4 * B[:, 2]
+    lin = np.zeros(5)
+    lin[1] = eps                               # the original is dearer than its copy
+    w = solve_simplex_qp(B, A, linear=lin)
+    assert w[1] == 0.0
+    assert w[4] == pytest.approx(0.6, abs=1e-9)

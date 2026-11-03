@@ -10833,3 +10833,143 @@ timeout = 1200.0
   replace = "        return False, max(kt, kc)"
   models = "the cost model charging the one block at the larger side's size"
 
+
+[[target]]
+name = "simplex-qp-units"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_units.py mlsynth/tests/test_active_set_linear.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-loop-works-in-the-callers-units"
+  find = "    B, A, linear = _unit_problem(B, A, linear)\n"
+  replace = "\n"
+  models = "the defect of #829 and #960: the pivot loop on the caller's data, where its floored and absolute tolerances let the units decide. At a scale of 1e-6 it stopped 37% above the optimum and reported converged"
+
+  [[target.mutant]]
+  id = "the-target-level-is-kept"
+  find = "    return D / scale, np.zeros(D.shape[0]), lin\n"
+  replace = "    return B / scale, A / scale, lin\n"
+  models = "the unit scale taken without the difference form, so a common level stays in the data the loop tests; at a level of 1e8 it stopped 37% above the optimum (rule 5)"
+
+  [[target.mutant]]
+  id = "the-linear-term-scaled-like-the-data"
+  find = "    lin = None if linear is None else linear / (scale * scale)\n"
+  replace = "    lin = None if linear is None else linear / scale\n"
+  models = "the linear term divided by the scale and not its square, so the unit-scale problem weighs the penalty against a fit it no longer matches and the answer moves with the units"
+
+  [[target.mutant]]
+  id = "converged-is-the-loops-own-test"
+  find = "        converged = bool(converged) and certified\n"
+  replace = "        converged = bool(converged)\n"
+  models = "converged read from the pivot loop's last test, which checked the point it believed it was at; the certificate is then computed and ignored (rule 2)"
+
+  [[target.mutant]]
+  id = "the-certificate-accepts-everything"
+  find = "    return max(stat, neg) / size if size > 0.0 else max(stat, neg)\n"
+  replace = "    return 0.0\n"
+  models = "a certificate that passes any point, which keeps every solve green and proves nothing"
+
+  [[target.mutant]]
+  id = "the-certificate-skips-dual-feasibility"
+  find = "    neg = 0.0 if on.all() else max(0.0, -float((g[~on] - nu).min()))\n"
+  replace = "    neg = 0.0\n"
+  models = "stationarity checked and dual feasibility not, so a vertex the optimum does not use, where stationarity holds trivially, is accepted"
+
+  [[target.mutant]]
+  id = "the-release-test-looser-than-the-certificate"
+  find = """                release = min(tol * scale, 0.1 * CERTIFY_TOL * (
+                    fro2 * float(np.linalg.norm(w)) + lin_half))"""
+  replace = """                release = tol * scale"""
+  models = "the pinned-donor release test at tol * (1 + max|g|) alone: on the unit-scale problem near-copies priced apart by 1e-11 of the gradient's size were left on the dearer copy, 2.75e-8 above the optimum"
+
+  [[target.mutant]]
+  id = "the-ray-test-floored"
+  find = "                if np.linalg.norm(qn) > tol * float(np.linalg.norm(q)):\n"
+  replace = "                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):\n"
+  models = "the max(1, |q|) floor #829 names, which on the unit-scale problem makes the ray test absolute"
+
+  [[target.mutant]]
+  id = "an-uncertified-answer-is-silent"
+  find = """        if not converged:
+            warnings.warn(SimplexQPUncertifiedWarning("""
+  replace = """        if False:
+            warnings.warn(SimplexQPUncertifiedWarning("""
+  models = "an uncertified answer returned to a caller that did not ask for the diagnostics, with no report (rule 1)"
+
+[[target]]
+name = "ridge-augment-doctrine"
+module-path = "mlsynth/utils/solvers/ridge_augment.py"
+test-command = "python -m pytest mlsynth/tests/test_ridge_augment_doctrine.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-ridge-solve-forms-the-gram"
+  find = "    return solve_ridge_path(A, B, W, np.array([float(lambda_)]))[0]\n"
+  replace = "    return (A - B @ W) @ np.linalg.solve(B @ B.T + lambda_ * np.identity(B.shape[0]), B)\n"
+  models = "the ridge correction from B B' + lambda I, which squares the condition number of B: 1.2e-6 to 1.5e-6 from the exact correction at condition 1e8, against 8.5e-10 for the SVD (rule 6)"
+
+  [[target.mutant]]
+  id = "the-short-panel-path-forms-the-gram"
+  find = "    U, S, Vt = np.linalg.svd(B, full_matrices=False)       # U (m,r) S (r,) Vt (r,J)\n    a = M @ U                                               # (r,)\n"
+  replace = "    S, U = np.linalg.eigh(B @ B.T)\n    S = np.sqrt(np.clip(S, 0.0, None))\n    Vt = (U.T @ B) / np.where(S > 0, S, 1.0)[:, None]\n    a = M @ U                                               # (r,)\n"
+  models = "the grid path through the eigendecomposition of B B', the route short panels took: 3.5e-6 from the exact correction at condition 1e8 (rule 6)"
+
+  [[target.mutant]]
+  id = "the-fallback-status-is-not-read"
+  find = "        if problem.status in _CVXPY_OPTIMAL and w.value is not None:\n"
+  replace = "        if True:\n"
+  models = "the fallback taking whatever the first solver left, with no status read: a failed solve then surfaces as an untyped error or a point that is not an optimum (rule 1)"
+
+  [[target.mutant]]
+  id = "the-fallback-is-silent"
+  find = """    warnings.warn(SimplexFallbackWarning(
+        "simplex_qp: the active set did not certify the base weights "
+        f"(KKT error {reason}); solved by cvxpy"""
+  replace = """    (lambda *a, **k: None)(SimplexFallbackWarning(
+        "simplex_qp: the active set did not certify the base weights "
+        f"(KKT error {reason}); solved by cvxpy"""
+  models = "weights from the fallback returned with no report that the exact solver failed (rule 1)"
+
+  [[target.mutant]]
+  id = "the-repair-is-unreported"
+  find = "              if clipped > _CLIP_ROUNDING else \"\")\n"
+  replace = "              if False else \"\")\n"
+  models = "a negative weight clipped and the weights renormalised without saying so (rule 8)"
+
+  [[target.mutant]]
+  id = "the-fallback-at-default-tolerances"
+  find = "        problem.solve(solver=solver, **_CVXPY_TOLERANCES[solver])\n"
+  replace = "        problem.solve(solver=solver)\n"
+  models = "the fallback at the solvers' defaults, where CLARABEL stopped at an interior point the certificate scored 8.7e-4"
+
+[[target]]
+name = "geox-augsynth-scaled-l2"
+module-path = "mlsynth/utils/geox_helpers/engines/augsynth/__init__.py"
+test-command = "python -m pytest mlsynth/tests/test_ridge_augment_doctrine.py -q -p no:cacheprovider -x -k scaled_l2"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "a-computed-norm-against-exact-zero"
+  find = "    if denom <= 64.0 * np.finfo(float).eps * terms:\n"
+  replace = "    if denom == 0.0:\n"
+  models = "the uniform-weight imbalance tested against exact zero, so rounding noise becomes the denominator and the ratio an arbitrary number (rule 4)"
+
+[[target]]
+name = "bilevel-ridge-base"
+module-path = "mlsynth/utils/bilevel/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_ridge_augment_doctrine.py -q -p no:cacheprovider -x -k ridge_fit"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-discarded-base-is-solved"
+  find = """            W = (None if self.augment == "ridge"
+                 else simplex_qp(Y0_pre, y_pre, warm_start=warm_start))"""
+  replace = """            W = simplex_qp(Y0_pre, y_pre, warm_start=warm_start)"""
+  models = "a simplex QP solved for a base the ridge layer then replaces, paid on every GEOX candidate and backtest"
+
+  [[target.mutant]]
+  id = "the-warm-start-is-dropped"
+  find = "                min_1se=self.min_1se,\n                warm_start=warm_start,\n"
+  replace = "                min_1se=self.min_1se,\n"
+  models = "the caller's warm start not passed to the base solve that is kept, so a sweep's neighbouring solution is discarded"

@@ -260,3 +260,15 @@ def test_clean_solve_is_silent():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         solve_simplex_qp(B, A)
+
+
+def test_converged_means_certified(monkeypatch):
+    """A point the loop accepts but the certificate refuses is not converged:
+    ``converged`` is the certificate's verdict, not the pivot loop's last test."""
+    import mlsynth.utils.solvers.active_set as active_set
+    monkeypatch.setattr(active_set, "simplex_kkt_error", lambda *a, **k: 1.0)
+    B, A = _problem(12)
+    _, info = active_set.solve_simplex_qp(B, A, return_info=True)
+    assert not info["converged"] and not info["certified"]
+    with pytest.warns(SimplexQPUncertifiedWarning):
+        active_set.solve_simplex_qp(B, A)

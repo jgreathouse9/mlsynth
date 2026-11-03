@@ -269,8 +269,11 @@ class BilevelSCM:
             # under-converges on long, ill-conditioned pre-windows (e.g. the
             # 89-quarter Kansas panel: -0.006 vs the exact -0.029), so the
             # outcome-only base -- which Augmented SCM also augments -- is solved
-            # exactly, matching augsynth's quadprog.
-            W = simplex_qp(Y0_pre, y_pre, warm_start=warm_start)
+            # exactly, matching augsynth's quadprog. With ``augment="ridge"`` the
+            # ridge layer below solves its own base, so this one would be thrown
+            # away; the caller's warm start goes to that solve instead (#960).
+            W = (None if self.augment == "ridge"
+                 else simplex_qp(Y0_pre, y_pre, warm_start=warm_start))
         else:
             if not has_cov:
                 # Predictor-free penalized fit: match on the outcome lags alone.
@@ -307,7 +310,8 @@ class BilevelSCM:
             if v_agreement is not None and not np.isfinite(v_agreement):
                 v_agreement = None  # canonicalisation did not certify
 
-        W = np.asarray(W, dtype=float).ravel()
+        if W is not None:
+            W = np.asarray(W, dtype=float).ravel()
 
         # Optional ridge augmentation (Augmented SCM): a bias-correction layer
         # over an *accurately solved* simplex SCM. augsynth's ridge augments the
@@ -334,6 +338,7 @@ class BilevelSCM:
                 lambda_min_ratio=self.lambda_min_ratio,
                 holdout_length=self.holdout_length,
                 min_1se=self.min_1se,
+                warm_start=warm_start,
             )
             W_base = ra.W_base
             W = ra.W
