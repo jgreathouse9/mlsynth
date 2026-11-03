@@ -193,6 +193,17 @@ class TBRMMDesign(BaseModel):
     n_candidates_evaluated: int = Field(
         default=0,
         description="Objective evaluations spent reaching this design.")
+    search: Literal["greedy", "local"] = Field(
+        default="greedy",
+        description="Which search produced the design: Algorithm 1's greedy, or "
+                    "the local search that starts from it. Under 'local' the "
+                    "trace opens at the greedy's key and records the accepted "
+                    "steps of the winning descent.")
+    greedy_key: Optional[Tuple[float, ...]] = Field(
+        default=None,
+        description="Under search='local', the key the greedy's design scored at "
+                    "this size, so the improvement can be read off beside "
+                    "`matching_trace[-1]`. None under 'greedy'.")
     effect: Optional[TBRMMEffect] = Field(
         default=None,
         description="This design's realized effect, present only when the panel "

@@ -11056,3 +11056,165 @@ timeout = 300.0
   find = "    AMA_inv, _ = _invert_AMA(A.T @ M @ A, label=\"A' M A\", warn=False)\n    Q ="
   replace = "    AMA_inv = np.linalg.inv(A.T @ M @ A)\n    Q ="
   models = "the pure-donor sensitivity inverting A' M A bare, the same unnamed failure"
+
+[[target]]
+name = "tbr-batched-scorer"
+module-path = "mlsynth/utils/tbr_helpers/design/batched.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-correlation-is-the-slope"
+  find = "    corr = np.clip(s_xy / np.sqrt(np.where(ok, s_xx * s_yy, 1.0)),\n"
+  replace = "    corr = np.clip(s_xy / np.where(ok, s_xx, 1.0),\n"
+  models = "the group correlation read off the slope's ratio S_xy / S_xx, which is the correlation only when the two aggregates have the same spread"
+
+  [[target.mutant]]
+  id = "durbin-watson-slope-not-squared"
+  find = "    dw = (d_yy - 2.0 * beta * d_xy + beta * beta * d_xx) / rss\n"
+  replace = "    dw = (d_yy - 2.0 * beta * d_xy + beta * d_xx) / rss\n"
+  models = "the differenced residual's norm expanded with the slope once where the quadratic term carries it twice"
+
+  [[target.mutant]]
+  id = "the-differences-are-the-levels"
+  find = "        Gd=diffs.T @ diffs, G1=G1,\n"
+  replace = "        Gd=G, G1=G1,\n"
+  models = "the Durbin-Watson numerator from the centred levels instead of the first differences"
+
+  [[target.mutant]]
+  id = "the-aa-fit-on-the-whole-window"
+  find = "        Gd=diffs.T @ diffs, G1=G1,\n"
+  replace = "        Gd=diffs.T @ diffs, G1=G,\n"
+  models = "the A/A refit's sums taken over the whole window, held-out periods included, so the holdout is estimated by a fit that has seen it"
+
+  [[target.mutant]]
+  id = "the-aa-scale-drops-the-test-errors"
+  find = "    scale = n_test * sigma1 * np.sqrt(1.0 / n_fit + (x_hold - x_fit) ** 2 / f_xx\n                                      + 1.0 / n_test)\n"
+  replace = "    scale = n_test * sigma1 * np.sqrt(1.0 / n_fit + (x_hold - x_fit) ** 2 / f_xx)\n"
+  models = "the A/A interval without eqn 6's own term for the held-out window's errors, so it is too narrow"
+
+  [[target.mutant]]
+  id = "the-bridge-path-without-the-slope"
+  find = "    path = cache.P @ UT.T - beta[None, :] * (cache.P @ UC.T)\n"
+  replace = "    path = cache.P @ UT.T - (cache.P @ UC.T)\n"
+  models = "the cumulative residual path with the slope held at one, which is the DID path and not TBR's"
+
+  [[target.mutant]]
+  id = "the-required-impact-loses-a-term"
+  find = "                 + 1.0 / n + 1.0 / n_test)\n"
+  replace = "                 + 1.0 / n_test)\n"
+  models = "the reference's required-impact constant without its 1 / n term"
+
+  [[target.mutant]]
+  id = "degenerate-designs-kept-in-the-gram-form"
+  find = "    for r in np.flatnonzero(degenerate):\n"
+  replace = "    for r in np.flatnonzero(degenerate)[:0]:\n"
+  models = "designs whose forms are rounding-level zeros scored from the Gram form instead of the direct fit (rule 4): a constant control aggregate divides by a computed zero"
+
+  [[target.mutant]]
+  id = "a-geo-in-both-groups-is-scored"
+  find = "    if np.any((UT > 0) & (UC > 0)):\n"
+  replace = "    if False:\n"
+  models = "a design counting one geo in both aggregates accepted and scored, the double counting the greedy's step rules out"
+
+[[target]]
+name = "tbr-local-search"
+module-path = "mlsynth/utils/tbr_helpers/design/local.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-worst-neighbour-is-taken"
+  find = "            best = int(np.lexsort(keys.T[::-1])[-1])\n"
+  replace = "            best = int(np.lexsort(keys.T[::-1])[0])\n"
+  models = "the descent reading the lowest key in the neighbourhood, which the confirmation then refuses, so the search stops where it started"
+
+  [[target.mutant]]
+  id = "the-restarts-are-never-drawn"
+  find = "    for _ in range(restarts):\n"
+  replace = "    for _ in range(0):\n"
+  models = "local_restarts accepted and recorded while no random design is ever descended from"
+
+  [[target.mutant]]
+  id = "a-geo-leaves-treatment-for-a-role-it-lacks"
+  find = "            if UNASSIGNED in r:\n                landings.append(False)\n"
+  replace = "            if True:\n                landings.append(False)\n"
+  models = "a geo leaving the treatment group held out of the experiment whatever its roles, so a geo eligible for treatment alone can be swapped out, against Au's A_i"
+
+  [[target.mutant]]
+  id = "a-pinned-control-is-dropped"
+  find = "    for g in sorted(free):\n        if g in inT:\n"
+  replace = "    for g in sorted(free | pinned):\n        if g in inT:\n"
+  models = "a geo whose only role outside treatment is control toggled out of the control group"
+
+  [[target.mutant]]
+  id = "no-control-swaps"
+  find = "    for b in sorted(C & free):\n"
+  replace = "    for b in []:\n"
+  models = "the control swap removed, the move the greedy's single toggles reach only through a worse design"
+
+  [[target.mutant]]
+  id = "no-treatment-swaps"
+  find = "        for g in sorted(treatable - inT):\n"
+  replace = "        for g in []:\n"
+  models = "the treatment swap removed, so a geo the greedy added is never replaced"
+
+  [[target.mutant]]
+  id = "the-entering-geo-stays-a-control"
+  find = "                C2 = (C - {g}) | ({t} if to_control else set())\n"
+  replace = "                C2 = C | ({t} if to_control else set())\n"
+  models = "a control geo promoted to treatment left in the control group too, Au's R_uad gap"
+
+  [[target.mutant]]
+  id = "a-worse-restart-replaces-the-best"
+  find = "        if run[2].key > best[2].key:\n"
+  replace = "        if True:\n"
+  models = "the last restart kept whatever it scores, so the search can return a design worse than the greedy's"
+
+  [[target.mutant]]
+  id = "a-restart-trace-falls"
+  find = "            best_trace = [start.score.key] + [k for k in run[3]\n                                              if k > start.score.key]\n"
+  replace = "            best_trace = [start.score.key] + list(run[3])\n"
+  models = "a winning restart's trace starting below the greedy's key, so the reported climb falls"
+
+[[target]]
+name = "tbr-local-wiring"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-local-search-is-never-run"
+  find = "    if config.search == \"local\":\n"
+  replace = "    if False:\n"
+  models = "search='local' accepted and recorded on every design while the greedy's designs are returned"
+
+  [[target.mutant]]
+  id = "the-greedy-key-is-the-local-key"
+  find = "        greedy_keys = [o.score.key for o in outcomes]\n        outcomes = [local_search("
+  replace = "        outcomes = [local_search("
+  models = "greedy_key read after the local search replaced the outcomes, so the improvement reads as none"
+
+[[target]]
+name = "tbr-local-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-paper-objective-is-searched-locally"
+  find = "        if self.search == \"local\" and self.objective != \"reference\":\n"
+  replace = "        if False:\n"
+  models = "search='local' run with objective='paper', whose p-values the batched scorer does not compute, so moves are screened by the wrong objective"
+
+  [[target.mutant]]
+  id = "local-settings-silently-ignored"
+  find = "        if self.search != \"local\" and local_settings:\n"
+  replace = "        if False:\n"
+  models = "local_restarts or local_seed accepted under search='greedy', where nothing reads them"
+
+  [[target.mutant]]
+  id = "a-named-split-searched-locally"
+  find = "        if self.search == \"local\" and not searched:\n"
+  replace = "        if False:\n"
+  models = "search='local' accepted on a named split, which has no design to improve"

@@ -159,6 +159,37 @@ class TBRConfig(BaseEstimatorConfig):
                     "reference walk's design.",
     )
 
+    search: Literal["greedy", "local"] = Field(
+        default="greedy",
+        description="Searched mode: what runs after Algorithm 1. 'greedy' "
+                    "(default) returns the hill climb's designs, which is what "
+                    "Google's implementation returns and what the benchmark "
+                    "reproduces. 'local' then descends from each size's greedy "
+                    "design and from local_restarts random designs of the same "
+                    "size, moving one control geo in, out or for another, or one "
+                    "treated geo for another, and keeps a move only when the "
+                    "direct fit confirms it improves the objective, so a design is "
+                    "never worse than the greedy's. On the GeoLift markets it "
+                    "shrinks the smallest detectable impact by 17% at one treated "
+                    "geo. Requires objective='reference'.",
+    )
+
+    local_restarts: int = Field(
+        default=10,
+        ge=0,
+        description="Searched mode with search='local': random designs per "
+                    "treatment size the local search also descends from, besides "
+                    "the greedy's.",
+    )
+
+    local_seed: int = Field(
+        default=0,
+        description="Searched mode with search='local': seed for the random "
+                    "restarts, so a design can be reproduced. The restarts at "
+                    "treatment size k draw from local_seed + k, so each size's "
+                    "draws do not depend on how many sizes are searched.",
+    )
+
     treatment_eligible_col: Optional[str] = Field(
         default=None,
         description="Column marking geos the advertiser allows in the treatment "
@@ -290,6 +321,22 @@ class TBRConfig(BaseEstimatorConfig):
                 "a split you already have, or max_treatment_size and n_test to "
                 "search for one."
             )
+
+        local_settings = {"local_restarts", "local_seed"} & self.model_fields_set
+        if self.search != "local" and local_settings:
+            raise MlsynthConfigError(
+                f"{sorted(local_settings)} tune the local search, which runs only "
+                f"with search='local'; set it, or drop them.")
+        if self.search == "local" and not searched:
+            raise MlsynthConfigError(
+                "search='local' improves a searched design and a named split has "
+                "nothing to search; drop it, or drop treatment_col/control_col to "
+                "design instead.")
+        if self.search == "local" and self.objective != "reference":
+            raise MlsynthConfigError(
+                "search='local' scores its moves with the reference objective, "
+                "whose terms are quadratic forms in the group memberships; the "
+                "paper's p-values are not, so use objective='reference'.")
 
         if searched:
             if self.n_test is None:

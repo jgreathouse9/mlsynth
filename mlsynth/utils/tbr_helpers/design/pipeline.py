@@ -18,6 +18,7 @@ from ..setup import _binary_unit_flag, _block_flag_start
 from .config import TBRConfig
 from ...post_fit import compute_post_fit_tbrmm, to_effect_result
 from .estimate import measure_design
+from .local import local_search
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
 from .structures import TBRResults, TBRMMDesign
 
@@ -110,6 +111,13 @@ def run(config: TBRConfig) -> TBRResults:
         y_matrix, eligibility, max_treatment_size=config.max_treatment_size,
         n_test=config.n_test, objective=config.objective,
         control_start=config.control_start)
+    greedy_keys = [None] * len(outcomes)
+    if config.search == "local":
+        greedy_keys = [o.score.key for o in outcomes]
+        outcomes = [local_search(y_matrix, eligibility, o, n_test=config.n_test,
+                                 restarts=config.local_restarts,
+                                 seed=config.local_seed + o.k)
+                    for o in outcomes]
 
     # When the panel carries realized periods, every candidate is measured on
     # them -- not only the recommendation -- so the menu can be compared after
@@ -122,7 +130,7 @@ def run(config: TBRConfig) -> TBRResults:
 
     designs = []
     measured = []
-    for o in outcomes:
+    for o, greedy_key in zip(outcomes, greedy_keys):
         treatment_units = [units[j] for j in o.treatment]
         control_units = [units[j] for j in o.control]
         effect, treated_path, control_path = (
@@ -142,6 +150,9 @@ def run(config: TBRConfig) -> TBRResults:
             matching_trace=[tuple(float(v) for v in key) for key in o.trace],
             matching_converged=o.converged,
             n_candidates_evaluated=o.evaluations,
+            search=config.search,
+            greedy_key=(None if greedy_key is None
+                        else tuple(float(v) for v in greedy_key)),
             effect=effect,
         ))
     best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
