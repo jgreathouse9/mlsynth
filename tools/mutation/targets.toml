@@ -11136,10 +11136,10 @@ timeout = 600.0
   models = "local_restarts accepted and recorded while no random design is ever descended from"
 
   [[target.mutant]]
-  id = "a-forced-geo-is-swapped-out"
-  find = "        if t in forced:\n            continue\n"
-  replace = "        if False:\n            continue\n"
-  models = "a geo eligible for treatment alone swapped out of the treatment group, against Au's A_i"
+  id = "a-geo-leaves-treatment-for-a-role-it-lacks"
+  find = "            if UNASSIGNED in r:\n                landings.append(False)\n"
+  replace = "            if True:\n                landings.append(False)\n"
+  models = "a geo leaving the treatment group held out of the experiment whatever its roles, so a geo eligible for treatment alone can be swapped out, against Au's A_i"
 
   [[target.mutant]]
   id = "a-pinned-control-is-dropped"

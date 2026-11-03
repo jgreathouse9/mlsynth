@@ -65,7 +65,7 @@ def neighbourhood(treatment: Sequence[int], control: Set[int],
     control group when it must, outside when it must, and to each in turn when
     it may. No move empties the control group.
     """
-    forced, treatable, pinned, free = _sides(roles)
+    _, treatable, pinned, free = _sides(roles)
     T = sorted(treatment)
     C = set(control)
     inT = set(T)
@@ -81,8 +81,8 @@ def neighbourhood(treatment: Sequence[int], control: Set[int],
         for a in outside_free:
             out.append((T, (C - {b}) | {a}))
     for t in T:
-        if t in forced:
-            continue
+        # A geo eligible for treatment alone has no role to land in, so it is
+        # never swapped out and every treatment group keeps it.
         r = roles[t]
         landings = []
         if t in pinned:
