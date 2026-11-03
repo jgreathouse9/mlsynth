@@ -457,6 +457,11 @@ from hypothesis import strategies as st         # noqa: E402
        gap_exp=st.sampled_from([-16, -15, -14, -13, -12, -11, -10, -8, -6, -3]),
        scale_exp=st.floats(3, 7), equal=st.booleans())
 @example(seed=3, J=3, T=6, gap_exp=-14, scale_exp=3.0, equal=False)
+# #960: near-copies priced apart by 1e-11 of the gradient's size. The first was
+# left on the dearer copy once the problem was solved at unit scale; the second
+# was 1.6e-8 above the optimum on main as well.
+@example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.0, equal=True)
+@example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.75, equal=True)
 @settings(max_examples=80, deadline=None)
 def test_it_reaches_the_minimiser_on_near_collinear_designs(
         seed, J, T, gap_exp, scale_exp, equal):
