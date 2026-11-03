@@ -243,3 +243,14 @@ def test_ridge_fit_forwards_the_warm_start(monkeypatch):
     start = np.full(8, 1.0 / 8)
     BilevelSCM(augment="ridge").fit(y, Y0, warm_start=start)
     np.testing.assert_array_equal(seen["warm_start"], start)
+
+
+def test_plain_fit_still_solves_its_base():
+    """Only the ridge path skips the base solve: without augmentation the
+    simplex weights are the answer."""
+    rng = np.random.default_rng(8)
+    Y0 = rng.normal(size=(25, 8)).cumsum(axis=0)
+    y = Y0[:, :3].mean(axis=1) + 0.1 * rng.normal(size=25)
+    res = BilevelSCM().fit(y, Y0)
+    np.testing.assert_array_equal(res.W, simplex_qp(Y0, y))
+    assert res.W_base is None and res.is_simplex

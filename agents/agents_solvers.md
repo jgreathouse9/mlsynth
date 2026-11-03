@@ -528,7 +528,7 @@ Representative sites, for whoever takes the backlog:
 
 - Floors: `utils/solvers/simplex.py:274` (`prev - obj <= tol * max(1.0,
   abs(prev))`, a squared residual, so small-scale data make it absolute);
-  `utils/solvers/active_set.py:287`; `utils/solvers/nnls.py:92`
+  `utils/solvers/nnls.py:92`
   (`tol = max(tol, 1e-12)` floors a scaled tolerance);
   `utils/bilevel/mscmt.py:268`; `utils/bilevel/determine_v.py:308`.
 - Silent caps: `utils/solvers/simplex.py:73` defaults `warn` to False and 8 of
@@ -537,8 +537,10 @@ Representative sites, for whoever takes the backlog:
   renormalises at 90-92); `utils/syndes_helpers/certificate.py:114` checks only
   `value is None`, so `optimal_inaccurate` reaches a lower bound that an inexact
   relaxation can invalidate.
-- Normal equations: `utils/solvers/ridge_augment.py:479`
+- Normal equations: `utils/solvers/ridge_augment.py` `_residualized_matching`
   (`inv(Zc.T @ Zc)`, reused twice); `utils/rolldid_helpers/pipeline.py:56`.
+- Absolute floor on a standard deviation (rule 3): `utils/solvers/ridge_augment.py`
+  `build_matching` (`sdz < _EPS`), the covariate path of the ridge layer.
 - No cap: `utils/drosc_helpers/estimation.py:75` (`while beta is None:`).
 - Ridge sized by the level (rule 5): `utils/solvers/active_set.py`
   `solve_simplex_qp_least_norm` scales by the raw design's column energy (the
@@ -566,6 +568,19 @@ Already right, and the models to copy:
   `MlsynthEstimationError`, not a fallback.
 - `utils/pcr/core.py:100-108`: singular values cut relative to the largest, and
   rank 0 raises.
+- `utils/solvers/active_set.py` `solve_simplex_qp` (#829, #960): the pivot loop
+  runs on the program in difference form at unit scale (a power-of-two division,
+  so data that differ by a power of two give the same bits), and `converged` is
+  `simplex_kkt_error` on the caller's data, at most `CERTIFY_TOL`. Before it, a
+  scale of 1e-6 or a level of 1e8 left the loop 37% above the optimum, reported
+  converged at 1e-6. A caller that does not read `info` gets
+  `SimplexQPUncertifiedWarning`.
+- `utils/solvers/ridge_augment.py` (#960): the ridge correction through the
+  thin SVD of `B` (the Gram form erred by 1.2e-6 to 3.5e-6 against an exact
+  rational solve at condition 1e8, the SVD by at most 8.5e-10), and a cvxpy
+  fallback that reads each status, raises when no solver returns an optimum,
+  and reports itself, its repairs and its certificate in a
+  `SimplexFallbackWarning`.
 
 Sweeps (documentation-level, like those in `agents_unix.md`; they over-count):
 
