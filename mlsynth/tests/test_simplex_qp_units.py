@@ -313,3 +313,45 @@ def test_rows_in_small_units_are_certified(walmart_covariate_fit):
     """Every solve of the fit certified: an uncertified one would have raised
     in the fixture, which turns ``SimplexQPUncertifiedWarning`` into an error."""
     assert np.isfinite(walmart_covariate_fit)
+
+
+# --------------------------------------------------------------------------
+# A release the objective cannot see: the threshold is what resolves it
+# --------------------------------------------------------------------------
+
+def _pinned_below_the_certificate(seed, c, J0, m, extra):
+    """A solved design plus ``extra`` donors the optimum gives tiny weight.
+
+    Each new donor is the current fit plus a direction orthogonal to the
+    residual, moved along the residual so that its reduced gradient at the old
+    optimum is ``-c`` times the certificate's size. Releasing one gains about
+    ``c^2`` of the objective, below its rounding for ``c`` near 1e-10, so only
+    the release threshold can resolve the second and later ones (the first
+    checked release always runs).
+    """
+    rng = np.random.default_rng(seed)
+    D0 = rng.normal(size=(m, J0)) + 3.0
+    w0 = solve_simplex_qp(D0, np.zeros(m))
+    r0 = D0 @ w0
+    cols = []
+    for _ in range(extra):
+        z = rng.normal(size=m)
+        cols.append(D0 @ w0 + z - (z @ r0) / (r0 @ r0) * r0)
+    D = np.column_stack([D0] + cols)
+    size = np.linalg.norm(D) ** 2 * np.linalg.norm(w0)
+    D[:, J0:] -= c * size / (r0 @ r0) * r0[:, None]
+    return D, np.concatenate([w0, np.zeros(extra)])
+
+
+@settings(max_examples=40, deadline=None)
+@given(seed=st.integers(0, 10_000), extra=st.integers(2, 4),
+       c_exp=st.floats(-9.8, -9.2), shape=st.sampled_from([(4, 6), (6, 12)]))
+def test_a_release_below_the_objectives_rounding_is_still_made(seed, extra, c_exp, shape):
+    """Reduced gradients 1.5e-10 to 6e-10 of the certificate's size: the
+    certificate refuses the point that keeps them pinned, and the objective
+    cannot tell the release from rounding. A release threshold at ``tol`` left
+    97 of 405 such designs uncertified; at a tenth of the certificate, none."""
+    D, start = _pinned_below_the_certificate(seed, 10.0 ** c_exp, *shape, extra)
+    _, info = solve_simplex_qp(D, np.zeros(D.shape[0]), warm_start=start,
+                               accelerate=False, return_info=True)
+    assert info["certified"], info

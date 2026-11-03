@@ -10880,19 +10880,23 @@ timeout = 900.0
   id = "the-release-test-looser-than-the-certificate"
   find = "    rel = min(tol, 0.1 * CERTIFY_TOL)\n"
   replace = "    rel = tol\n"
-  models = "the pinned-donor release test at tol alone, looser than the certificate: on the unit-scale problem near-copies priced apart by 1e-11 of the gradient's size were left on the dearer copy, 2.75e-8 above the optimum"
+  models = "the pinned-donor release test at tol alone, looser than the certificate: pinned donors whose reduced gradients are 1.5e-10 to 6e-10 of the certificate's size, too small to show in the objective, stay pinned and the point is uncertified (97 of 405 designs)"
 
   [[target.mutant]]
   id = "one-release-threshold-for-every-donor"
   find = "                thr = size[ai] + float(size[free].mean())\n"
   replace = "                thr = np.full(ai.size, 2.0 * float(size.max()))\n"
   models = "the release threshold set by the largest gradient term, the data's norm in place of each donor's own terms: on the Walmart covariate rows (8.7e3 down to 7.8e-3) the small rows went unfit, a pre-period RMSE of 1.532 against 1.384 (rule 3)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT while the checked release is in place, and recorded as such instead of being dropped. The largest term bounds every donor's own, so a reduced gradient the normwise certificate can see clears this threshold as well; one it cannot see, a small-unit row next to a large one, falls inside the rounding bound either way, where the release is judged by the objective. Measured: on the 429 Walmart solves and 150 random ones, 0 answers worse than the shipped test beyond rounding, 0 unconverged, and 1.7 percent more pivots. Before the checked release existed this mutant was the 1.532 regression, so it stays as the record of which half of the release test fixed that."
 
   [[target.mutant]]
   id = "the-gradient-from-the-gram"
   find = "            g = B.T @ r if linear is None else B.T @ r + 0.5 * linear\n"
   replace = "            g = (B.T @ B) @ w - B.T @ A if linear is None else (B.T @ B) @ w - B.T @ A + 0.5 * linear\n"
   models = "the gradient as G w - c, whose rounding, eps |B|'|B| |w|, is on rows a million times apart the size of the small rows' whole contribution (rule 6)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT while the checked release is in place. The Gram's rounding, eps |B|'|B| |w|, is the same size as the rounding bound the release test already allows, so it moves no reduced gradient across the threshold that the residual form would not, and inside the bound the release is judged by the objective, which is computed in residual form in both. Measured: on the 429 Walmart solves and 150 random ones, 0 answers worse beyond rounding, 0 unconverged, 2 more pivots. The residual form is kept because the bound is derived for it and it never forms the J-by-J Gram (rule 6)."
 
   [[target.mutant]]
   id = "no-rounding-allowance"
