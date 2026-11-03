@@ -135,7 +135,12 @@ def _unit_problem(B: np.ndarray, A: np.ndarray, linear: Optional[np.ndarray]):
     energy = float(np.mean(np.einsum("ij,ij->j", D, D)))
     scale = 1.0
     if energy > 0.0 and np.isfinite(energy):
-        scale = float(np.ldexp(1.0, int(np.frexp(np.sqrt(energy))[1])))
+        # The nearest power of two, so data already at unit scale are left as
+        # they are: the mantissa from frexp lies in [1/2, 1), and comparing it
+        # with sqrt(1/2) rounds the exponent without a logarithm, so the choice
+        # is the same for data that differ by a power of two.
+        mantissa, exponent = np.frexp(np.sqrt(energy))
+        scale = float(np.ldexp(1.0, int(exponent) - int(mantissa < np.sqrt(0.5))))
     lin = None if linear is None else linear / (scale * scale)
     return D / scale, np.zeros(D.shape[0]), lin
 

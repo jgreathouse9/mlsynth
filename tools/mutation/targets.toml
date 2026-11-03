@@ -3107,7 +3107,7 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "unbounded-subproblem-solved-as-if-bounded"
-  find = "                if np.linalg.norm(qn) > tol * max(1.0, float(np.linalg.norm(q))):"
+  find = "                if np.linalg.norm(qn) > tol * float(np.linalg.norm(q)):"
   replace = "                if False:"
   models = "a free-set subproblem that is unbounded along a null direction of the design, solved as though its minimum were interior. The residual shift reproduces only the part of the term in the row space, so the point returned is not stationary -- 54 percent above the optimum on a 3 by 12 design, reported as converged"
 

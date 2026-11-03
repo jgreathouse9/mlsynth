@@ -178,6 +178,12 @@ def test_a_ridge_under_the_threshold_leaves_the_answer_to_the_pivots(name):
     therefore disagree. The old pair also happens to land on the least-norm
     point under some starting rules, which is why it read as working -- so this
     drives the start explicitly instead of relying on any one seed.
+
+    The foil's ridge is 1e-12. The release threshold is the smaller of
+    ``tol * (1 + max|g|)`` and a tenth of the certificate's threshold on the
+    size of the gradient's terms (#960), and at that the old foil of 1e-10
+    resolved the one-equation design to 1.5e-6 of the reference; at 1e-12 every
+    design here stays 0.18 or more away.
     """
     B, A = _designs()[name]
     J = B.shape[1]
@@ -193,7 +199,7 @@ def test_a_ridge_under_the_threshold_leaves_the_answer_to_the_pivots(name):
     first, last = np.zeros(J), np.zeros(J)
     first[0] = last[-1] = 1.0
 
-    under = [solve(1e-10, 1e-9, w) for w in (first, last)]
+    under = [solve(1e-12, 1e-9, w) for w in (first, last)]
     assert min(float(np.abs(u - ref).max()) for u in under) > 1e-2
 
     now = [solve(_LEAST_NORM_RIDGE, _LEAST_NORM_TOL, w) for w in (first, last)]
