@@ -382,13 +382,28 @@ def _near_copies(seed=0, gap=1e-12):
 
 
 def _reference(B, A, lin):
-    """Clarabel at tight tolerances: the minimiser, renormalised onto the simplex."""
+    """Clarabel at tight tolerances: the minimiser, renormalised onto the simplex.
+
+    On some draws (columns near 2e4, prices near 1e4, copies 1e-16 apart)
+    Clarabel stops with a numerical error on the raw data, on ``main`` as on
+    this branch. Dividing ``B`` and ``A`` by ``s`` and the price by ``s^2``
+    divides the objective by ``s^2`` and leaves the minimiser where it is, so
+    that problem is the fallback.
+    """
     import cvxpy as cp
-    w = cp.Variable(B.shape[1])
-    cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w) + lin @ w),
-               [w >= 0, cp.sum(w) == 1]).solve(
-        solver=cp.CLARABEL, tol_gap_abs=1e-10, tol_gap_rel=1e-12, tol_feas=1e-12)
-    w = np.maximum(np.asarray(w.value, float).ravel(), 0.0)
+
+    def solve(B, A, lin):
+        w = cp.Variable(B.shape[1])
+        cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w) + lin @ w),
+                   [w >= 0, cp.sum(w) == 1]).solve(
+            solver=cp.CLARABEL, tol_gap_abs=1e-10, tol_gap_rel=1e-12, tol_feas=1e-12)
+        return np.maximum(np.asarray(w.value, float).ravel(), 0.0)
+
+    try:
+        w = solve(B, A, lin)
+    except cp.error.SolverError:
+        s = float(np.abs(B).max())
+        w = solve(B / s, A / s, lin / (s * s))
     return w / w.sum()
 
 
@@ -462,6 +477,8 @@ from hypothesis import strategies as st         # noqa: E402
 # was 1.6e-8 above the optimum on main as well.
 @example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.0, equal=True)
 @example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.75, equal=True)
+# A draw whose reference fails on the raw data (see ``_reference``).
+@example(seed=39, J=4, T=15, gap_exp=-16, scale_exp=4.0, equal=True)
 @settings(max_examples=80, deadline=None)
 def test_it_reaches_the_minimiser_on_near_collinear_designs(
         seed, J, T, gap_exp, scale_exp, equal):
