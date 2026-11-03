@@ -66,11 +66,16 @@ def _scaled_l2(A: np.ndarray, B: np.ndarray, w: np.ndarray) -> float:
 
     Unitless: 0 is a perfect pre-fit, 1 is no better than averaging every donor,
     above 1 is worse than the average. ``nan`` when the uniform-weight
-    imbalance is zero, which leaves the ratio undefined.
+    imbalance is zero to the rounding of its terms, which leaves the ratio
+    undefined: a computed ``||B w_unif - A||`` is known only to about ``eps``
+    times the size of ``B w_unif`` and ``A`` (``agents_solvers.md``, rule 4),
+    and dividing by that noise reported an arbitrary ratio (#960).
     """
     J = B.shape[1]
-    denom = float(np.linalg.norm(B @ np.full(J, 1.0 / J) - A))
-    if denom == 0.0:
+    uniform = B @ np.full(J, 1.0 / J)
+    denom = float(np.linalg.norm(uniform - A))
+    terms = float(np.linalg.norm(uniform) + np.linalg.norm(A))
+    if denom <= 64.0 * np.finfo(float).eps * terms:
         return float("nan")
     return float(np.linalg.norm(B @ w - A) / denom)
 

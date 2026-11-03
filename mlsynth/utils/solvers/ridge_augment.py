@@ -38,6 +38,7 @@ weights ``W``,
 from __future__ import annotations
 
 import inspect
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
@@ -46,6 +47,14 @@ import numpy as np
 from ...exceptions import MlsynthEstimationError
 
 _EPS = 1e-12
+
+
+class SimplexFallbackWarning(RuntimeWarning):
+    """The active set did not certify the base weights; cvxpy solved them.
+
+    It names the solver status, the certificate's KKT error, and any repair
+    made to the returned weights (``agents_solvers.md``, rules 1 and 8).
+    """
 
 # Max condition number of the ridge Gram ``B B^T + lambda I`` tolerated when
 # tuning the penalty in the *residualized* covariate path, whose Gram is
@@ -91,30 +100,82 @@ def simplex_qp(B: np.ndarray, A: np.ndarray, warm_start=None) -> np.ndarray:
     -------
     numpy.ndarray, shape (J,)
     """
-    from .active_set import solve_simplex_qp
+    from . import active_set
 
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
-    w, info = solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
+    w, info = active_set.solve_simplex_qp(B, A, warm_start=warm_start, return_info=True)
     if info["converged"]:
         return w
-    return _simplex_qp_cvxpy(B, A)  # pragma: no cover - rare degenerate fallback
+    return _simplex_qp_cvxpy(B, A, reason=info.get("kkt_error"))
 
 
-def _simplex_qp_cvxpy(B: np.ndarray, A: np.ndarray) -> np.ndarray:
-    """Reference simplex QP via cvxpy/CLARABEL -- the fallback / oracle."""
+#: Solver statuses the fallback accepts as an optimum; "optimal_inaccurate" is
+#: not one of them.
+_CVXPY_OPTIMAL = ("optimal",)
+
+#: Each fallback solver runs at tight tolerances. At its defaults CLARABEL
+#: stopped at an interior point whose zero weights read 1e-10 to 4e-9, and the
+#: certificate scored it 8.7e-4.
+_CVXPY_TOLERANCES = {
+    "CLARABEL": dict(tol_gap_abs=1e-12, tol_gap_rel=1e-12, tol_feas=1e-12),
+    "SCS": dict(eps_abs=1e-10, eps_rel=1e-10, max_iters=200_000),
+}
+
+#: A clip of a negative weight up to this size is the rounding of an interior-
+#: point solver's feasibility tolerance and not a repair (rule 4); a larger one
+#: is reported (rule 8).
+_CLIP_ROUNDING = 1e-8
+
+
+def _simplex_qp_cvxpy(B: np.ndarray, A: np.ndarray, reason=None) -> np.ndarray:
+    """The simplex QP by cvxpy, when the active set did not certify its answer.
+
+    CLARABEL first and SCS second, each on unit-scale data in difference form
+    (the program :func:`active_set.solve_simplex_qp` solves), and each read by
+    its status: a solver that does not report an optimum has not returned one
+    (``agents_solvers.md``, rule 1). With no optimum from either, the fit
+    raises. Every use of this path, the clip of any negative weight beyond the
+    solvers' rounding, and the certificate of the point returned are reported
+    in one :class:`SimplexFallbackWarning` (rule 8).
+    """
     import cvxpy as cp
+
+    from .active_set import _unit_problem, simplex_kkt_error
 
     B = np.asarray(B, dtype=float)
     A = np.asarray(A, dtype=float).ravel()
+    D, _, _ = _unit_problem(B, A, None)
     w = cp.Variable(B.shape[1], nonneg=True)
-    problem = cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w)), [cp.sum(w) == 1])
-    problem.solve(solver=cp.CLARABEL)
-    if w.value is None:  # pragma: no cover - degenerate fallback
-        problem.solve(solver=cp.SCS)
-    weights = np.clip(np.asarray(w.value, dtype=float).ravel(), 0.0, None)
-    s = weights.sum()
-    return weights / s if s > _EPS else weights
+    problem = cp.Problem(cp.Minimize(cp.sum_squares(D @ w)), [cp.sum(w) == 1])
+    tried = []
+    for solver in (cp.CLARABEL, cp.SCS):
+        problem.solve(solver=solver, **_CVXPY_TOLERANCES[solver])
+        tried.append(f"{solver}: {problem.status}")
+        if problem.status in _CVXPY_OPTIMAL and w.value is not None:
+            break
+    else:
+        warnings.warn(SimplexFallbackWarning(
+            "simplex_qp: the active set did not certify the base weights "
+            f"(KKT error {reason}); the cvxpy fallback found no optimum "
+            f"({'; '.join(tried)})."), stacklevel=3)
+        raise MlsynthEstimationError(
+            "simplex_qp: no solver returned an optimum for the base simplex "
+            f"weights (status {'; '.join(tried)}).")
+    raw = np.asarray(w.value, dtype=float).ravel()
+    clipped = float(max(0.0, -raw.min()))
+    weights = np.clip(raw, 0.0, None)
+    total = weights.sum()
+    weights = weights / total
+    kkt = simplex_kkt_error(B, A, weights)
+    repair = (f"; a negative weight of {clipped:.2e} was clipped to zero and the "
+              f"weights renormalised from a sum of {total:.12g}"
+              if clipped > _CLIP_ROUNDING else "")
+    warnings.warn(SimplexFallbackWarning(
+        "simplex_qp: the active set did not certify the base weights "
+        f"(KKT error {reason}); solved by cvxpy ({tried[-1]}), KKT error of "
+        f"the returned weights {kkt:.2e}{repair}."), stacklevel=3)
+    return weights
 
 
 def solve_ridge(
@@ -139,14 +200,13 @@ def solve_ridge(
         The additive ridge correction ``W_ridge``; the augmented weights are
         ``W + W_ridge``.
     """
-    A = np.asarray(A, dtype=float).ravel()
-    B = np.asarray(B, dtype=float)
-    W = np.asarray(W, dtype=float).ravel()
-    M = A - B @ W
-    # Solve (B B^T + lambda I) X = B instead of forming the inverse: same result,
-    # one LAPACK solve instead of a full inversion plus a matmul.
-    X = np.linalg.solve(B @ B.T + lambda_ * np.identity(B.shape[0]), B)
-    return M @ X
+    # Through B's thin SVD, as the grid path is, so the two agree to rounding.
+    # Solving (B B^T + lambda I) X = B formed the Gram and squared the condition
+    # number of B (agents_solvers.md, rule 6): against an exact rational solve
+    # at the bottom of the CV grid (condition 1e8) it erred by 1.2e-6 to 1.5e-6
+    # on a long and a short panel, where the SVD form errs by 7.2e-10 to
+    # 8.5e-10 (#960).
+    return solve_ridge_path(A, B, W, np.array([float(lambda_)]))[0]
 
 
 def solve_ridge_path(
@@ -154,28 +214,19 @@ def solve_ridge_path(
 ) -> np.ndarray:
     """Ridge corrections for a whole lambda grid from one matrix factorization.
 
-    Equivalent to ``np.vstack([solve_ridge(A, B, W, lam) for lam in lambdas])``
-    but evaluates the entire grid from a single factorization instead of
-    inverting ``B B^T + lambda I`` once per lambda. Two algebraically identical
-    routes, chosen by shape so the factored matrix is the smaller one:
+    Equal to ``np.vstack([solve_ridge(A, B, W, lam) for lam in lambdas])``,
+    from a single factorization. With the economy SVD ``B = U diag(S) V^T``
+    (``r = min(m, J)`` components),
 
-    * ``J < m`` (the long-panel regime -- more periods than donors):
-      the *dual*. With the economy SVD ``B = U diag(S) V^T`` (``r = min(m, J)``
-      components),
+        inv(B B^T + lambda I) B = U diag(S / (S^2 + lambda)) V^T,
 
-          inv(B B^T + lambda I) B = U diag(S / (S^2 + lambda)) V^T,
-
-      so ``M @ inv(...) @ B = (a * S / (S^2 + lambda)) @ V^T`` with
-      ``a = M U``. This factors the ``m x J`` matrix (cost ``O(m J^2)``) and
-      works in ``r`` components instead of eigendecomposing the ``m x m``
-      ``B B^T`` (cost ``O(m^3)``) -- a large saving when ``m >> J``.
-    * ``m <= J``: the symmetric eigendecomposition ``B B^T = V diag(d) V^T``
-      (the smaller, ``m x m``, matrix here), giving
-      ``(p / (d + lambda)) @ Q`` with ``p = M V``, ``Q = V^T B``.
-
-    The ``+ lambda I`` keeps every shifted system positive-definite, so both
-    routes match :func:`solve_ridge` to numerical tolerance even when ``B B^T``
-    is rank-deficient (collinear donors).
+    so ``M @ inv(...) @ B = (a * S / (S^2 + lambda)) @ V^T`` with ``a = M U``,
+    in either shape. The SVD factors ``B`` itself, so it does not square its
+    condition number the way ``B B^T`` does (``agents_solvers.md``, rule 6): the
+    eigendecomposition of ``B B^T`` that served short panels (``m <= J``) erred
+    by 3.5e-6 against an exact solve at the bottom of the CV grid, the SVD by
+    8.5e-10 (#960). A rank-deficient ``B`` (collinear donors) has singular values
+    at rounding, which the ``+ lambda`` in each denominator keeps finite.
 
     Parameters
     ----------
@@ -197,20 +248,11 @@ def solve_ridge_path(
     B = np.asarray(B, dtype=float)
     W = np.asarray(W, dtype=float).ravel()
     lambdas = np.asarray(lambdas, dtype=float).ravel()
-    M = A - B @ W                                   # (m,)
-    m, J = B.shape
-    if J < m:
-        # Dual: economy SVD of B (r = min(m, J) = J components) -> O(m J^2),
-        # avoiding the O(m^3) eigendecomposition of the m x m matrix B B^T.
-        U, S, Vt = np.linalg.svd(B, full_matrices=False)   # U (m,r) S (r,) Vt (r,J)
-        a = M @ U                                           # (r,)
-        scale = (a[None, :] * S[None, :]) / (S[None, :] ** 2 + lambdas[:, None])
-        return scale @ Vt                                  # (L, J)
-    d, V = np.linalg.eigh(B @ B.T)                  # (m,), (m, m) symmetric PSD
-    p = M @ V                                       # (m,)
-    Q = V.T @ B                                     # (m, J)
-    scale = p[None, :] / (d[None, :] + lambdas[:, None])   # (L, m)
-    return scale @ Q                                # (L, J)
+    M = A - B @ W                                           # (m,)
+    U, S, Vt = np.linalg.svd(B, full_matrices=False)       # U (m,r) S (r,) Vt (r,J)
+    a = M @ U                                               # (r,)
+    scale = (a[None, :] * S[None, :]) / (S[None, :] ** 2 + lambdas[:, None])
+    return scale @ Vt                                       # (L, J)
 
 
 def generate_lambdas(
