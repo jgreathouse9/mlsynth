@@ -398,3 +398,58 @@ def test_a_price_keeps_priced_donors_out_of_an_exact_fit(seed):
     w, info = solve_simplex_qp(B, A, linear=price, accelerate=False, return_info=True)
     assert info["certified"]
     assert np.all(w[3:] == 0.0)
+
+
+# --------------------------------------------------------------------------
+# What the free-set solve cannot resolve, and releases that buy nothing
+# --------------------------------------------------------------------------
+
+def test_a_release_the_free_set_solve_cannot_act_on_is_not_made():
+    """A SYNDES two-way contrast (``test_syndes_two_way_singular``), columns
+    from 1 down to 1e-25. Without a floor at the free-set solve's own rounding
+    a donor was released at a reduced gradient of 1e-16 against a threshold of
+    1e-27, the solve pinned it again at once, and the loop cycled to its pivot
+    cap of 200."""
+    B = np.array([
+        [-2.6413081808980973e-09, -5.2826163617961946e-09, -4.5051443332849699e-25, -2.6413081808980981e-09],
+        [6.6809643709239364e-02, 3.8386219379743306e-17, -2.9285281518796885e-01, -3.5966245889720816e-01],
+        [-1.0236325167931548e-16, 1.5354487751897322e-16, -3.5827138087760421e-16, -1.0236325167931548e-16],
+        [-1.0000000000000000e+00, -5.1181625839657739e-17, -8.4268224583413032e-01, 1.5731775416586963e-01]])
+    _, info = solve_simplex_qp(B, np.zeros(4), return_info=True)
+    assert info["converged"] and info["pivots"] < 10, info
+
+
+def _face(seed, m=3, J=13):
+    """More donors than rows and a target inside their hull: a face of exact
+    fits, the shape of SDID's time-weight problem."""
+    rng = np.random.default_rng(seed)
+    B = rng.normal(size=(m, J)) * 50.0
+    return B, B @ rng.dirichlet(np.ones(J)), rng
+
+
+def _nudged(B, A, rng):
+    return (B * (1 + 1e-13 * rng.normal(size=B.shape)),
+            A * (1 + 1e-13 * rng.normal(size=A.shape)))
+
+
+@pytest.mark.parametrize("seed", [26, 29, 59, 110, 157])
+def test_a_face_does_not_move_when_the_data_move_by_rounding(seed):
+    """On a face the reduced gradients are rounding noise and the first release
+    inside the bound is always made. Kept when it bought nothing, it moved the
+    answer along the face by an amount set by that noise: SDID's ATT moved 6.4
+    percent when the panel was multiplied by 7.5. These seeds moved without the
+    return to the released-from point; with it, none of 2,000 does."""
+    B, A, rng = _face(seed)
+    w0 = solve_simplex_qp(B, A)
+    w1 = solve_simplex_qp(*_nudged(B, A, rng))
+    assert float(np.abs(w1 - w0).max()) < 1e-8
+
+
+@settings(max_examples=60, deadline=None)
+@given(seed=st.integers(0, 100_000))
+def test_faces_are_stable_under_rounding(seed):
+    """The property behind the pinned seeds, over the domain."""
+    B, A, rng = _face(seed)
+    w0 = solve_simplex_qp(B, A)
+    w1 = solve_simplex_qp(*_nudged(B, A, rng))
+    assert float(np.abs(w1 - w0).max()) < 1e-8

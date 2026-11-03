@@ -385,6 +385,8 @@ def solve_simplex_qp(
     lin_abs = 0.0 if linear is None else 0.5 * np.abs(linear)
     rel = min(tol, 0.1 * CERTIFY_TOL)
     noise = (J + 1) * 0.5 * float(np.finfo(float).eps)
+    fro2 = float(np.sum(B * B))
+    lin_half = 0.0 if linear is None else 0.5 * float(np.linalg.norm(linear))
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
     # otherwise the uniform point. A wide pool with nothing from the caller
@@ -404,7 +406,7 @@ def solve_simplex_qp(
 
     pivots = 0
     converged = False
-    f_stop = np.inf                               # objective at the last checked release
+    f_stop, w_stop = np.inf, None                 # the point of the last checked release
     for _ in range(max_iter):
         free = np.where(~active)[0]
         if free.size == 0:                        # never pin every variable
@@ -504,39 +506,53 @@ def solve_simplex_qp(
                 # n terms errs by at most n u times the sum of their moduli). A
                 # threshold on the data's norm let the rows of a small-unit
                 # covariate go unfit next to an 8.7e3 row, and 64 eps in place
-                # of the bound hid a release worth 2.5e-15 under a threshold of
+                # of the bound hid a release of 2.5e-15 under a threshold of
                 # 2.6e-15 (#960); one at tol on the whole gradient left
                 # near-copies priced 1e-11 apart on the dearer copy.
+                #
+                # Below the rounding of the free-set solve itself no release
+                # can act: that solve is backward stable on the whole of D, so
+                # it resolves a reduced gradient only to about gamma_{J+1}
+                # times the certificate's size, ||D||_F^2 ||w|| + ||l|| / 2.
+                # Without that floor a SYNDES contrast whose columns ran from 1
+                # down to 1e-25 released a donor at a reduced gradient of 1e-16
+                # against a threshold of 1e-27, the solve pinned it again at
+                # once, and the loop cycled to its pivot cap.
                 size = rel * (absB.T @ np.abs(r) + lin_abs) + noise * (absB.T @ (absB @ w + absA))
-                thr = size[ai] + float(size[free].mean())
+                floor = noise * (fro2 * float(np.linalg.norm(w)) + lin_half)
+                thr = size[ai] + float(size[free].mean()) + floor
                 k = int(np.argmin(reduced / thr))
                 if reduced[k] < -thr[k]:
                     active[ai[k]] = False
                     pivots += 1
                     continue
-                # Inside the rounding bound the sign of a reduced gradient is
-                # unknown, and the bound is a worst case: on the Walmart
-                # covariate rows (#960) stopping there left 17 of 429 solves
-                # above the Gram-form loop's objective, beyond rounding, by up
-                # to 6.4 times. So a negative one is still released, and the
-                # release is judged by the objective, which the residual form
-                # computes to its own rounding: the loop goes on while each
-                # stop point improves on the last by more than that rounding,
-                # and stops at the first that does not. Every checked release
-                # lowers the objective, so no stop point repeats and the extra
-                # pivots are finite.
-                k = int(np.argmin(reduced))
-                if reduced[k] < 0.0:
-                    f = float(r @ r)
-                    f_err = float(r @ r) + 2.0 * float(np.abs(r) @ (absB @ w + absA))
-                    if linear is not None:
-                        f += float(linear @ w)
-                        f_err += float(np.abs(linear) @ w)
-                    if f < f_stop - noise * f_err:
-                        f_stop = f
-                        active[ai[k]] = False
-                        pivots += 1
-                        continue
+            # Inside the rounding bound the sign of a reduced gradient is
+            # unknown, and the bound is a worst case: on the Walmart covariate
+            # rows (#960) stopping there left 17 of 429 solves above the
+            # Gram-form loop's objective, beyond rounding, by up to 6.4 times.
+            # So a negative one is still released, and the release is judged
+            # by the objective, which the residual form computes to its own
+            # rounding: a release is kept only if the next stop point is lower
+            # by more than that rounding, and otherwise the loop returns the
+            # point it released from. Keeping a release that bought nothing
+            # would move the answer along a face of minimisers by rounding
+            # noise, which changes with the units, and the answer with it.
+            # Every kept release lowers the objective, so no stop point
+            # repeats and the extra pivots are finite.
+            k = int(np.argmin(reduced)) if active.any() else -1
+            if w_stop is not None or (k >= 0 and reduced[k] < 0.0):
+                f = float(r @ r)
+                f_err = float(r @ r) + 2.0 * float(np.abs(r) @ (absB @ w + absA))
+                if linear is not None:
+                    f += float(linear @ w)
+                    f_err += float(np.abs(linear) @ w)
+                if w_stop is not None and not f < f_stop - noise * f_err:
+                    w = w_stop                    # the last release bought nothing
+                elif k >= 0 and reduced[k] < 0.0:
+                    f_stop, w_stop = f, w.copy()
+                    active[ai[k]] = False
+                    pivots += 1
+                    continue
             converged = True
             break
 

@@ -10884,8 +10884,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "one-release-threshold-for-every-donor"
-  find = "                thr = size[ai] + float(size[free].mean())\n"
-  replace = "                thr = np.full(ai.size, 2.0 * float(size.max()))\n"
+  find = "                thr = size[ai] + float(size[free].mean()) + floor\n"
+  replace = "                thr = np.full(ai.size, 2.0 * float(size.max())) + floor\n"
   models = "the release threshold set by the largest gradient term, the data's norm in place of each donor's own terms: on the Walmart covariate rows (8.7e3 down to 7.8e-3) the small rows went unfit, a pre-period RMSE of 1.532 against 1.384 (rule 3)"
   expected = "survived"
   accepted-because = "EQUIVALENT while the checked release is in place, and recorded as such instead of being dropped. The largest term bounds every donor's own, so a reduced gradient the normwise certificate can see clears this threshold as well; one it cannot see, a small-unit row next to a large one, falls inside the rounding bound either way, where the release is judged by the objective. Measured: on the 429 Walmart solves and 150 random ones, 0 answers worse than the shipped test beyond rounding, 0 unconverged, and 1.7 percent more pivots. Before the checked release existed this mutant was the 1.532 regression, so it stays as the record of which half of the release test fixed that."
@@ -10906,22 +10906,34 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-release-inside-the-rounding-bound"
-  find = "                if reduced[k] < 0.0:\n"
-  replace = "                if False:\n"
+  find = "                elif k >= 0 and reduced[k] < 0.0:\n"
+  replace = "                elif False:\n"
   models = "the loop stopping at the rounding bound, a worst case: 17 of the 429 Walmart solves above the Gram-form loop's objective, beyond rounding, and a pre-period RMSE of 1.390"
 
   [[target.mutant]]
   id = "the-checked-release-ignores-the-price"
-  find = "                        f += float(linear @ w)\n"
-  replace = "                        f += 0.0\n"
+  find = "                    f += float(linear @ w)\n"
+  replace = "                    f += 0.0\n"
   models = "the release inside the rounding bound judged by the fit alone when the program carries a price"
   expected = "survived"
   accepted-because = "EQUIVALENT on every input the suite and the measurements have. The release is only checked when the whole reduced gradient, fit and price together, is inside its rounding bound, so the step it allows changes the priced objective by about the square of a rounding-level slope; the price's share of that change is below the objective's own rounding, which is what the comparison allows. The price stays in the comparison because the objective the loop minimises includes it, and the zero-price and priced exact-fit properties cover the lines."
 
   [[target.mutant]]
+  id = "no-floor-at-the-solves-resolution"
+  find = "                thr = size[ai] + float(size[free].mean()) + floor\n"
+  replace = "                thr = size[ai] + float(size[free].mean())\n"
+  models = "the release threshold without the free-set solve's own rounding: on a SYNDES contrast with columns from 1 down to 1e-25 a donor was released at 1e-16 against 1e-27, pinned again at once, and the loop cycled to its pivot cap"
+
+  [[target.mutant]]
+  id = "a-release-that-bought-nothing-is-kept"
+  find = "                    w = w_stop                    # the last release bought nothing\n"
+  replace = "                    pass\n"
+  models = "a release inside the rounding bound kept when the next stop point is no lower, which moves the answer along a face by rounding noise: SDID's ATT moved 6.4 percent under a factor of 7.5 on the panel"
+
+  [[target.mutant]]
   id = "the-release-inside-the-bound-unchecked"
-  find = "                    if f < f_stop - noise * f_err:\n"
-  replace = "                    if True:\n"
+  find = "                if w_stop is not None and not f < f_stop - noise * f_err:\n"
+  replace = "                if False:\n"
   models = "a release inside the rounding bound taken without asking whether the last one lowered the objective, so a stop point with a noise-negative reduced gradient releases until the pivot cap"
 
   [[target.mutant]]
