@@ -377,13 +377,14 @@ def solve_simplex_qp(
 
     if max_iter is None:
         max_iter = 50 * J
-    G = B.T @ B                                   # (J, J) Gram
-    c = B.T @ A
-    if linear is not None:
-        c = c - 0.5 * linear
-    # The certificate's scale on this (unit-scale) problem, for the release test.
-    fro2 = float(np.trace(G))
-    lin_half = 0.0 if linear is None else 0.5 * float(np.linalg.norm(linear))
+    # The release test's terms (see the full-step block): moduli of the data,
+    # a relative threshold never looser than the certificate, and the rounding
+    # bound gamma_{J+1} with u = eps / 2.
+    absB = np.abs(B)
+    absA = np.abs(A)
+    lin_abs = 0.0 if linear is None else 0.5 * np.abs(linear)
+    rel = min(tol, 0.1 * CERTIFY_TOL)
+    noise = (J + 1) * 0.5 * float(np.finfo(float).eps)
 
     # Feasible start: a valid warm start (on the simplex) seeds the active set;
     # otherwise the uniform point. A wide pool with nothing from the caller
@@ -403,6 +404,7 @@ def solve_simplex_qp(
 
     pivots = 0
     converged = False
+    f_stop = np.inf                               # objective at the last checked release
     for _ in range(max_iter):
         free = np.where(~active)[0]
         if free.size == 0:                        # never pin every variable
@@ -482,26 +484,59 @@ def solve_simplex_qp(
             # Full step to the free-set optimum.
             w = np.zeros(J)
             w[free] = np.maximum(wF, 0.0)
-            g = G @ w - c
+            # The gradient in residual form, B'(B w - A) plus half the price,
+            # not G w - c: the Gram adds an error of eps |B|'|B| |w| that, on a
+            # design whose rows differ in scale by 1e6, is the size of the
+            # small rows' whole contribution (rule 6; #960).
+            r = B @ w - A
+            g = B.T @ r if linear is None else B.T @ r + 0.5 * linear
             nu = float(g[free].mean())            # sum-to-one multiplier (g_i == nu on free)
             if active.any():
                 # Dual feasibility: a pinned variable is optimal iff its reduced
                 # gradient g_i >= nu. Release the most-violating one if any.
                 ai = np.where(active)[0]
                 reduced = g[ai] - nu
-                scale = 1.0 + float(np.max(np.abs(g)))
-                # Never looser than the certificate the point must pass: a
-                # tenth of CERTIFY_TOL on the size of g's terms, the scale the
-                # certificate divides by. Two near-copies priced apart by 1e-11
-                # of that size were otherwise left on the dearer copy, which
-                # the certificate then refused (#960).
-                release = min(tol * scale, 0.1 * CERTIFY_TOL * (
-                    fro2 * float(np.linalg.norm(w)) + lin_half))
-                k = int(np.argmin(reduced))
-                if reduced[k] < -release:
+                # Each reduced gradient against the size of its own terms
+                # (rule 3): g_i is B_i'r plus half the price, so its size is
+                # |B_i|'|r| + |l_i| / 2, and its rounding is bounded by
+                # gamma_{J+1} |B_i|'(|B| w + |A|) (Higham, Accuracy and Stability
+                # of Numerical Algorithms, 2nd ed., Lemma 3.1: a dot product of
+                # n terms errs by at most n u times the sum of their moduli). A
+                # threshold on the data's norm let the rows of a small-unit
+                # covariate go unfit next to an 8.7e3 row, and 64 eps in place
+                # of the bound hid a release worth 2.5e-15 under a threshold of
+                # 2.6e-15 (#960); one at tol on the whole gradient left
+                # near-copies priced 1e-11 apart on the dearer copy.
+                size = rel * (absB.T @ np.abs(r) + lin_abs) + noise * (absB.T @ (absB @ w + absA))
+                thr = size[ai] + float(size[free].mean())
+                k = int(np.argmin(reduced / thr))
+                if reduced[k] < -thr[k]:
                     active[ai[k]] = False
                     pivots += 1
                     continue
+                # Inside the rounding bound the sign of a reduced gradient is
+                # unknown, and the bound is a worst case: on the Walmart
+                # covariate rows (#960) stopping there left 17 of 429 solves
+                # above the Gram-form loop's objective, beyond rounding, by up
+                # to 6.4 times. So a negative one is still released, and the
+                # release is judged by the objective, which the residual form
+                # computes to its own rounding: the loop goes on while each
+                # stop point improves on the last by more than that rounding,
+                # and stops at the first that does not. Every checked release
+                # lowers the objective, so no stop point repeats and the extra
+                # pivots are finite.
+                k = int(np.argmin(reduced))
+                if reduced[k] < 0.0:
+                    f = float(r @ r)
+                    f_err = float(r @ r) + 2.0 * float(np.abs(r) @ (absB @ w + absA))
+                    if linear is not None:
+                        f += float(linear @ w)
+                        f_err += float(np.abs(linear) @ w)
+                    if f < f_stop - noise * f_err:
+                        f_stop = f
+                        active[ai[k]] = False
+                        pivots += 1
+                        continue
             converged = True
             break
 
@@ -523,18 +558,20 @@ def solve_simplex_qp(
     return _finish(w, pivots, converged)
 
 
-# The pivot loop releases a pinned donor when its reduced gradient falls below
-# ``tol * (1 + max|g|)``. On a face the fit is exact, so ``max|g|`` vanishes and
-# that threshold floors at ``tol`` in absolute terms, while a ridge set relative
-# to the design's energy carries a signal that scales with the design. Below the
-# threshold the selection does not happen and the answer comes from pivot order,
-# which is what the rule exists to remove. Normalising the design first puts the
-# two in the same units, and the ratio of these constants is then what decides
-# whether the selection resolves. The signal the ridge creates is ``lam`` times
-# the distance to the face's shortest point, and that distance runs to 1e-2, so
-# the ratio has to cover it: 1e4 holds on a 5-, a 38- and a 31-dimensional face
-# under both seeding rules, where 1e2 leaves the widest one 2.8e-3 off. The
-# ratio is bought from ``tol`` and not from the ridge, because the ridge has a
+# When these constants were set, the pivot loop released a pinned donor when its
+# reduced gradient fell below ``tol * (1 + max|g|)``. On a face the fit is exact,
+# so ``max|g|`` vanished and that threshold floored at ``tol`` in absolute terms,
+# while a ridge set relative to the design's energy carries a signal that scales
+# with the design. Below the threshold the selection did not happen and the
+# answer came from pivot order, which is what the rule exists to remove.
+# Normalising the design first puts the two in the same units, and the ratio of
+# these constants then decided whether the selection resolved. Since #960 the
+# release test is relative to each donor's own terms with no floor, and the
+# selection resolves at any ridge above rounding, so the ratio is now a margin.
+# The signal the ridge creates is ``lam`` times the distance to the face's
+# shortest point, and that distance runs to 1e-2, so the ratio had to cover it:
+# 1e4 held on a 5-, a 38- and a 31-dimensional face under both seeding rules,
+# where 1e2 left the widest one 2.8e-3 off. The ratio is bought from ``tol`` and not from the ridge, because the ridge has a
 # ceiling of its own -- above roughly 1e-7 it starts to move a problem that
 # already had one minimiser, which is the penalty it must not become.
 _LEAST_NORM_RIDGE: float = 1e-8

@@ -40,6 +40,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .estimation import _invert_AMA
 from .scm_core import fit_demeaned_sc
 
 
@@ -125,7 +126,7 @@ def pure_donor_sensitivity(
     M = I_B.T @ I_B + 1e-12 * np.eye(N)
 
     # SP misspecification weights: row 0 of (A(A'MA)^{-1}A'(I-B)'(I-B) - I).
-    AMA_inv = np.linalg.inv(A.T @ M @ A)
+    AMA_inv, _ = _invert_AMA(A.T @ M @ A, label="A' M A", warn=False)
     Q = A @ AMA_inv @ A.T @ I_B.T @ I_B - np.eye(N)
     w_sp_row = Q[0]                                      # (N,)
 

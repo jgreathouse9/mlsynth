@@ -272,3 +272,44 @@ def test_converged_means_certified(monkeypatch):
     assert not info["converged"] and not info["certified"]
     with pytest.warns(SimplexQPUncertifiedWarning):
         active_set.solve_simplex_qp(B, A)
+
+
+# --------------------------------------------------------------------------
+# Rows in different units: the Walmart covariate specification (#960)
+# --------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def walmart_covariate_fit():
+    """STACKEDSC on Wiltshire's public panel, matched on eight covariates.
+
+    Its 429 solves have rows from 8.7e3 down to 7.8e-3: population next to
+    shares. Run once for the module; about four seconds.
+    """
+    from benchmarks.cases import wiltshire_walmart as wm
+    df = wm._panel()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        warnings.simplefilter("error", SimplexQPUncertifiedWarning)
+        from mlsynth import STACKEDSC
+        res = STACKEDSC({"df": df, "outcome": "emps_n10", "treat": "treat",
+                         "unitid": "cty_fips", "time": "year",
+                         "agg_weights": "pop90", "n_lags": 5, "n_leads": 6,
+                         "display_graphs": False, "covariates": wm.COVARIATES,
+                         "covariate_windows": wm.COVARIATE_WINDOW}).fit()
+    return float(res.fit_diagnostics.rmse_pre)
+
+
+def test_rows_in_small_units_are_fit(walmart_covariate_fit):
+    """The pre-period RMSE of the covariate fit, against the Gram-form loop's
+    1.383693. Measured on the other release tests: a threshold on the data's
+    norm gave 1.532 (the small rows left unfit, which the benchmark caught),
+    and the componentwise test that stops at its rounding bound gave 1.390.
+    This release gives 1.383777. The bound, 1.3845, passes it and refuses
+    both of the others."""
+    assert walmart_covariate_fit <= 1.3845
+
+
+def test_rows_in_small_units_are_certified(walmart_covariate_fit):
+    """Every solve of the fit certified: an uncertified one would have raised
+    in the fixture, which turns ``SimplexQPUncertifiedWarning`` into an error."""
+    assert np.isfinite(walmart_covariate_fit)

@@ -10878,10 +10878,39 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-release-test-looser-than-the-certificate"
-  find = """                release = min(tol * scale, 0.1 * CERTIFY_TOL * (
-                    fro2 * float(np.linalg.norm(w)) + lin_half))"""
-  replace = """                release = tol * scale"""
-  models = "the pinned-donor release test at tol * (1 + max|g|) alone: on the unit-scale problem near-copies priced apart by 1e-11 of the gradient's size were left on the dearer copy, 2.75e-8 above the optimum"
+  find = "    rel = min(tol, 0.1 * CERTIFY_TOL)\n"
+  replace = "    rel = tol\n"
+  models = "the pinned-donor release test at tol alone, looser than the certificate: on the unit-scale problem near-copies priced apart by 1e-11 of the gradient's size were left on the dearer copy, 2.75e-8 above the optimum"
+
+  [[target.mutant]]
+  id = "one-release-threshold-for-every-donor"
+  find = "                thr = size[ai] + float(size[free].mean())\n"
+  replace = "                thr = np.full(ai.size, 2.0 * float(size.max()))\n"
+  models = "the release threshold set by the largest gradient term, the data's norm in place of each donor's own terms: on the Walmart covariate rows (8.7e3 down to 7.8e-3) the small rows went unfit, a pre-period RMSE of 1.532 against 1.384 (rule 3)"
+
+  [[target.mutant]]
+  id = "the-gradient-from-the-gram"
+  find = "            g = B.T @ r if linear is None else B.T @ r + 0.5 * linear\n"
+  replace = "            g = (B.T @ B) @ w - B.T @ A if linear is None else (B.T @ B) @ w - B.T @ A + 0.5 * linear\n"
+  models = "the gradient as G w - c, whose rounding, eps |B|'|B| |w|, is on rows a million times apart the size of the small rows' whole contribution (rule 6)"
+
+  [[target.mutant]]
+  id = "no-rounding-allowance"
+  find = "    noise = (J + 1) * 0.5 * float(np.finfo(float).eps)\n"
+  replace = "    noise = 0.0\n"
+  models = "the release test and the objective check without the rounding bound, so a reduced gradient that is rounding noise is released again and again: 27 of the 429 Walmart solves hit the pivot cap"
+
+  [[target.mutant]]
+  id = "no-release-inside-the-rounding-bound"
+  find = "                if reduced[k] < 0.0:\n"
+  replace = "                if False:\n"
+  models = "the loop stopping at the rounding bound, a worst case: 17 of the 429 Walmart solves above the Gram-form loop's objective, beyond rounding, and a pre-period RMSE of 1.390"
+
+  [[target.mutant]]
+  id = "the-release-inside-the-bound-unchecked"
+  find = "                    if f < f_stop - noise * f_err:\n"
+  replace = "                    if True:\n"
+  models = "a release inside the rounding bound taken without asking whether the last one lowered the objective, so a stop point with a noise-negative reduced gradient releases until the pivot cap"
 
   [[target.mutant]]
   id = "the-ray-test-floored"
@@ -10973,3 +11002,33 @@ timeout = 300.0
   find = "                min_1se=self.min_1se,\n                warm_start=warm_start,\n"
   replace = "                min_1se=self.min_1se,\n"
   models = "the caller's warm start not passed to the base solve that is kept, so a sweep's neighbouring solution is discarded"
+
+[[target]]
+name = "spillsynth-cd-identification"
+module-path = "mlsynth/utils/spillsynth_helpers/cd/inference.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_cd_identification.py -q -p no:cacheprovider -x"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-sandwich-inverts-bare"
+  find = "    AMA_inv, _ = _invert_AMA(A.T @ M @ A, label=\"A' M A\", warn=False)\n    return A @ AMA_inv @ A.T @ I_B.T\n"
+  replace = "    AMA_inv = np.linalg.inv(A.T @ M @ A)\n    return A @ AMA_inv @ A.T @ I_B.T\n"
+  models = "G_matrix inverting A' M A with a bare np.linalg.inv, so an unidentified spillover structure surfaces as 'estimation failed (Singular matrix)' with no word of Assumption 1(d) (#960)"
+
+  [[target.mutant]]
+  id = "the-kappa-test-inverts-bare"
+  find = "    AMA_inv, _ = _invert_AMA(AMA, label=\"A' M A\", warn=False)\n    Gamma_A"
+  replace = "    AMA_inv = np.linalg.inv(AMA)\n    Gamma_A"
+  models = "the kappa_A specification test inverting A' M A bare, the same unnamed failure"
+
+[[target]]
+name = "spillsynth-cd-sensitivity-identification"
+module-path = "mlsynth/utils/spillsynth_helpers/cd/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_spillsynth_cd_identification.py -q -p no:cacheprovider -x"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-sensitivity-inverts-bare"
+  find = "    AMA_inv, _ = _invert_AMA(A.T @ M @ A, label=\"A' M A\", warn=False)\n    Q ="
+  replace = "    AMA_inv = np.linalg.inv(A.T @ M @ A)\n    Q ="
+  models = "the pure-donor sensitivity inverting A' M A bare, the same unnamed failure"

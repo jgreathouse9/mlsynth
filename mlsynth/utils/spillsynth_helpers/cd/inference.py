@@ -34,6 +34,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from .estimation import _invert_AMA
+
 
 def compute_pre_residuals(Y_pre: np.ndarray, a: np.ndarray, B: np.ndarray) -> np.ndarray:
     """Pre-period residuals :math:`\\widehat u_t = (I - B) Y_t - a`.
@@ -66,7 +68,7 @@ def G_matrix(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     N = B.shape[0]
     I_B = np.eye(N) - B
     M = I_B.T @ I_B
-    AMA_inv = np.linalg.inv(A.T @ M @ A)
+    AMA_inv, _ = _invert_AMA(A.T @ M @ A, label="A' M A", warn=False)
     return A @ AMA_inv @ A.T @ I_B.T
 
 
@@ -379,7 +381,7 @@ def kappa_A_test(
     # Sample projection Γ̂_A onto colspan((I - B̂) A).
     IB_A = I_B @ A                                          # (N, k)
     AMA = IB_A.T @ IB_A                                     # (k, k)
-    AMA_inv = np.linalg.inv(AMA)
+    AMA_inv, _ = _invert_AMA(AMA, label="A' M A", warn=False)
     Gamma_A = IB_A @ AMA_inv @ IB_A.T                       # (N, N)
     I_minus_Gamma = np.eye(N) - Gamma_A
 

@@ -31,6 +31,12 @@ design to unit mean column energy costs nothing and puts the ridge and the
 release threshold in the same units. What decides whether the selection
 resolves is then the ratio of the two constants, and 100 is enough on all three
 shapes across four decades of design scale while 10 is not.
+
+Since #960 the release test has no absolute floor. Each pinned donor's reduced
+gradient is tested against its own terms, and inside their rounding bound a
+release is kept when it lowers the objective. The selection now resolves at any
+ridge above rounding (1e-15 at ``tol = 1e-9`` on all three shapes), so the
+ratio is a margin, not the condition, and the foil is no ridge at all.
 """
 from __future__ import annotations
 
@@ -153,6 +159,11 @@ def test_relabelling_the_donors_does_not_move_the_selection(name):
 def test_the_ridge_clears_the_pivot_release_threshold():
     """The invariant nobody asserted, and the one the shipped constants broke.
 
+    Under the floored release test of the time. The relative test of #960
+    resolves a ridge down to rounding
+    (``test_the_release_test_resolves_a_ridge_above_rounding``), so the pair now
+    keeps a margin the selection no longer needs; it is kept as shipped.
+
     A ridge at or below ``tol`` asks the pivot loop to resolve a gradient it
     treats as zero, so the selection does not happen. The signal is ``ridge``
     times the distance to the face's shortest point, which runs to 1e-2, so the
@@ -168,44 +179,65 @@ def test_the_ridge_clears_the_pivot_release_threshold():
         "leaves the selection below the release threshold")
 
 
-@pytest.mark.parametrize("name", list(_designs()))
-def test_a_ridge_under_the_threshold_leaves_the_answer_to_the_pivots(name):
-    """The mechanism, demonstrated instead of asserted in a comment.
-
-    The augmentation is rebuilt here so the starting point can be set, because
-    that is what the defect is about: under the threshold the ridge cannot move
-    the pivots off whichever face point they reach, and two different starts
-    therefore disagree. The old pair also happens to land on the least-norm
-    point under some starting rules, which is why it read as working -- so this
-    drives the start explicitly instead of relying on any one seed.
-
-    The foil's ridge is 1e-12. The release threshold is the smaller of
-    ``tol * (1 + max|g|)`` and a tenth of the certificate's threshold on the
-    size of the gradient's terms (#960), and at that the old foil of 1e-10
-    resolved the one-equation design to 1.5e-6 of the reference; at 1e-12 every
-    design here stays 0.18 or more away.
-    """
-    B, A = _designs()[name]
+def _augmented(B, A, ridge, tol, warm):
+    """The augmentation rebuilt so the starting point can be set."""
     J = B.shape[1]
-    ref, _ = _reference(B, A)
     root = np.sqrt(float(np.mean(np.sum(B * B, axis=0))))
+    return solve_simplex_qp(
+        np.vstack([B / root, np.sqrt(ridge) * np.eye(J)]),
+        np.concatenate([A / root, np.zeros(J)]),
+        tol=tol, warm_start=warm)
 
-    def solve(ridge, tol, warm):
-        return solve_simplex_qp(
-            np.vstack([B / root, np.sqrt(ridge) * np.eye(J)]),
-            np.concatenate([A / root, np.zeros(J)]),
-            tol=tol, warm_start=warm)
 
+def _starts(J):
     first, last = np.zeros(J), np.zeros(J)
     first[0] = last[-1] = 1.0
+    return first, last
 
-    under = [solve(1e-12, 1e-9, w) for w in (first, last)]
+
+@pytest.mark.parametrize("name", list(_designs()))
+def test_without_the_ridge_the_answer_is_the_pivots(name):
+    """The mechanism, demonstrated instead of asserted in a comment.
+
+    The starting point is set, because that is what the defect is about:
+    without a selection the pivots stop on whichever face point they reach, and
+    two different starts therefore disagree. The old pair also happens to land
+    on the least-norm point under some starting rules, which is why it read as
+    working -- so this drives the start explicitly instead of relying on any one
+    seed.
+
+    The foil is no ridge. Until #960 it was a ridge under the release threshold
+    (1e-10, then 1e-12, at ``tol = 1e-9``); the relative release test resolves
+    those to 1.5e-6 of the reference, so the only ridge the pivots cannot see is
+    one below rounding. Without it every design stays 0.24 or more away.
+    """
+    B, A = _designs()[name]
+    ref, _ = _reference(B, A)
+    under = [_augmented(B, A, 0.0, 1e-9, w) for w in _starts(B.shape[1])]
     assert min(float(np.abs(u - ref).max()) for u in under) > 1e-2
 
-    now = [solve(_LEAST_NORM_RIDGE, _LEAST_NORM_TOL, w) for w in (first, last)]
+    now = [_augmented(B, A, _LEAST_NORM_RIDGE, _LEAST_NORM_TOL, w)
+           for w in _starts(B.shape[1])]
     for got in now:
         assert float(np.abs(got - ref).max()) < 1e-2, float(np.abs(got - ref).max())
     assert float(np.abs(now[0] - now[1]).max()) < 1e-2
+
+
+@pytest.mark.parametrize("name", list(_designs()))
+def test_the_release_test_resolves_a_ridge_above_rounding(name):
+    """A ridge of 1e-15 on unit-scale data is signal, and the pivots see it.
+
+    Measured from both starts at the default ``tol``: 1.5e-6, 1.2e-6 and 2.4e-5
+    from the reference on the three shapes, the same as at 1e-12. At 1e-16 one
+    start on the level spec stops 0.4 away, and at 1e-18 the first two shapes
+    are 0.15 and 0.11 away. A release test with an absolute floor, or with a
+    relative one that stops at its rounding bound, leaves this to the pivots.
+    """
+    B, A = _designs()[name]
+    ref, _ = _reference(B, A)
+    for w in _starts(B.shape[1]):
+        got = _augmented(B, A, 1e-15, 1e-9, w)
+        assert float(np.abs(got - ref).max()) < 1e-2, float(np.abs(got - ref).max())
 
 
 @pytest.mark.parametrize("name", list(_designs()))
