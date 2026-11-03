@@ -355,3 +355,46 @@ def test_a_release_below_the_objectives_rounding_is_still_made(seed, extra, c_ex
     _, info = solve_simplex_qp(D, np.zeros(D.shape[0]), warm_start=start,
                                accelerate=False, return_info=True)
     assert info["certified"], info
+
+
+def _exact_fit(seed, m=5, J=20, k=3):
+    """A target the first ``k`` donors reproduce exactly. At the stop point
+    the residual is rounding, so the reduced gradients are rounding noise and
+    the release inside the bound is what decides; every seed tried reaches it."""
+    rng = np.random.default_rng(seed)
+    B = rng.normal(size=(m, J))
+    wt = np.zeros(J)
+    wt[:k] = rng.dirichlet(np.ones(k))
+    return B, B @ wt
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10_000))
+def test_a_zero_price_is_no_price_through_the_checked_release(seed):
+    """The release inside the rounding bound adds the price to the objective
+    it compares; a zero price must leave the fit and the certificate as they
+    are without one. Not the point: the fit is exact on a face, and the priced
+    and unpriced free-set solves (``_linear_split`` against ``gelsy``) stop at
+    different members of it."""
+    B, A = _exact_fit(seed)
+    w0, i0 = solve_simplex_qp(B, A, accelerate=False, return_info=True)
+    w1, i1 = solve_simplex_qp(B, A, linear=np.zeros(B.shape[1]),
+                              accelerate=False, return_info=True)
+    assert i0["certified"] and i1["certified"]
+    scale = float(np.abs(B).sum() + np.abs(A).sum())
+    for w in (w0, w1):
+        assert float(np.linalg.norm(B @ w - A)) <= 1e-12 * scale
+
+
+@settings(max_examples=25, deadline=None)
+@given(seed=st.integers(0, 10_000))
+def test_a_price_keeps_priced_donors_out_of_an_exact_fit(seed):
+    """Edge: the fit is exact with or without the priced donors, so the price
+    alone decides, and a donor that costs something and buys nothing stays at
+    zero."""
+    B, A = _exact_fit(seed)
+    price = np.zeros(B.shape[1])
+    price[3:] = 1e-3 * float(np.linalg.norm(B)) ** 2
+    w, info = solve_simplex_qp(B, A, linear=price, accelerate=False, return_info=True)
+    assert info["certified"]
+    assert np.all(w[3:] == 0.0)

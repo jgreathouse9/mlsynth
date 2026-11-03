@@ -10911,6 +10911,14 @@ timeout = 900.0
   models = "the loop stopping at the rounding bound, a worst case: 17 of the 429 Walmart solves above the Gram-form loop's objective, beyond rounding, and a pre-period RMSE of 1.390"
 
   [[target.mutant]]
+  id = "the-checked-release-ignores-the-price"
+  find = "                        f += float(linear @ w)\n"
+  replace = "                        f += 0.0\n"
+  models = "the release inside the rounding bound judged by the fit alone when the program carries a price"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input the suite and the measurements have. The release is only checked when the whole reduced gradient, fit and price together, is inside its rounding bound, so the step it allows changes the priced objective by about the square of a rounding-level slope; the price's share of that change is below the objective's own rounding, which is what the comparison allows. The price stays in the comparison because the objective the loop minimises includes it, and the zero-price and priced exact-fit properties cover the lines."
+
+  [[target.mutant]]
   id = "the-release-inside-the-bound-unchecked"
   find = "                    if f < f_stop - noise * f_err:\n"
   replace = "                    if True:\n"
