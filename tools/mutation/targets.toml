@@ -11947,7 +11947,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -11970,8 +11970,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-cut-admits-the-incumbent"
-  find = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), m - 1)\n"
-  replace = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), m)\n"
+  find = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)\n"
+  replace = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut))\n"
   models = "the no-good cut read as sum_C u - sum_notC u <= |C|, which the incumbent meets, so its size cannot go below zero"
 
   [[target.mutant]]
@@ -12024,8 +12024,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-worse-leaf-replaces-the-incumbent"
-  find = "        if cu > 0 and r > inc[\"lam\"]:\n"
-  replace = "        if cu > 0 and r < inc[\"lam\"]:\n"
+  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "        if cu > 0 and r < inc[\"lam\"] and C not in excluded:\n"
   models = "a design worse than the incumbent adopted, and a better one passed over"
 
   [[target.mutant]]
@@ -12045,3 +12045,51 @@ timeout = 900.0
   find = "        sizes = sorted({pc[2] for pc in s1})\n"
   replace = "        sizes = []\n"
   models = "every size taken as ruled out by the hull stage, so nothing is searched"
+
+  [[target.mutant]]
+  id = "an-excluded-leaf-is-adopted"
+  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "        if cu > 0 and r > inc[\"lam\"]:\n"
+  models = "a fully fixed leaf adopted although it is an excluded design, which a leaf reaches without the relaxation and its cut"
+
+  [[target.mutant]]
+  id = "an-excluded-neighbour-is-the-incumbent"
+  find = "        if not T or set(T) in excluded:\n"
+  replace = "        if not T:\n"
+  models = "the incumbent taken from an excluded design's neighbours without checking it is not itself excluded"
+
+  [[target.mutant]]
+  id = "the-excluded-designs-are-not-cut"
+  find = "        _branch(c, G, out, m, excluded + [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
+  replace = "        _branch(c, G, out, m, [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
+  models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
+
+[[target]]
+name = "tbr-bnb-gated"
+module-path = "benchmarks/studies/tbr_bnb/gated.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-failing-design-is-accepted"
+  find = "        if all(gates):\n"
+  replace = "        if gates[0]:\n"
+  models = "a design that passes the correlation floor but fails another gate taken as the passing optimum"
+
+  [[target.mutant]]
+  id = "the-correlation-floor-does-not-stop"
+  find = "        if not gates[0]:\n"
+  replace = "        if False:\n"
+  models = "the search continued past a design below the correlation floor, though every remaining design correlates less"
+
+  [[target.mutant]]
+  id = "a-failing-design-is-not-excluded"
+  find = "        excluded.append(set(res.controls))\n"
+  replace = "        pass\n"
+  models = "a design that fails a gate certified again, so the search never reaches the next one"
+
+  [[target.mutant]]
+  id = "every-error-reads-as-no-design"
+  find = "        except NoDesignLeft:\n"
+  replace = "        except ValueError:\n"
+  models = "any error, a refused certificate among them, read as no design being left"

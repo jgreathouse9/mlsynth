@@ -248,7 +248,7 @@ per size `m`: at the incumbent's ratio `lam*`, does any design of size `m` have
 relaxation in `u` alone, a 37 by 37 matrix on the hardest group against the
 joint lift's 73 by 73. Its constraints are `diag U = u`, the products of
 `0 <= u <= 1` (Sherali and Adams 1990), the size and the slope sign `c'u >= 0`
-with their products, a no-good cut at the incumbent's size, and triangle
+with their products, a no-good cut on the incumbent at every size, and triangle
 inequalities (Padberg 1989) added where the relaxation's solution violates
 them. The certificate is the Lagrangian dual at Clarabel's multipliers, summed
 in rationals, with the trace of the lifted matrix exactly `1 + m`. The slope
@@ -293,15 +293,67 @@ Their reported times (rank 4, 35 generators: 13,160 cells in 171 s) would have
 ruled it out at the ranks the GeoLift Gram matrix needs anyway.
 
 The reference key's four gates are not in this formulation, as they are not in
-the joint lift's.
+the joint lift's; the next section adds them.
+
+## The gates
+
+The reference implementation ranks designs by the key `(corr_test, aa_test,
+bb_test, dw_test, round(corr, 2), 1 / required_impact)`, read lexicographically
+(`mlsynth.utils.tbr_helpers.design.objective.score_split`). For a fixed
+treatment group `RSS = y'y (1 - corr^2)` on the centred window, so among the
+designs that pass all four gates the one of least RSS also has the greatest
+correlation, hence the greatest rounded correlation, and the least required
+impact among designs that share it, because the required impact rises with the
+residual scale (derived here from `required_impact`'s formula). The key's
+optimum is therefore the least-RSS passing design.
+
+The gates are tests on the fitted residuals, not constraints on `u` a
+relaxation can carry, so `gated.py` handles them lazily. `certify_gated`
+certifies the RSS-best design not yet excluded (`certify_slope_free(...,
+exclude=...)`), scores it with the library's own gates, and when a gate fails
+excludes the design with a no-good cut and certifies again. Each round's design
+is the next by RSS, so the first that passes is the passing optimum, and every
+earlier round is a certified failure. The cut
+`sum_C u - sum_notC u <= |C| - 1` admits every design but `C` at every size
+(at size `m` with `t` geos in common it reads `2t - m <= |C| - 1`, which fails
+only when the design is `C`; derived here), so one cut per excluded design is
+added to every size's relaxation. The correlation gate ends the search when it
+fails: the RSS-best remaining design has the greatest correlation of all
+remaining ones, so none of them reaches 0.8 either, and the answer is a
+certificate that no design passes. A search that excludes every positive-slope
+design ends the same way.
+
+On the four GeoLift groups with the benchmark's A/A window (`n_test = 14`) the
+RSS-best design passes all four gates in the first round, so the gated optimum
+is the slope-free one and the gates cost one scoring call
+(`results/gated.log`):
+
+| treatment group | rounds | controls | key's last entry, `1 / required_impact` | seconds |
+| --- | --- | --- | --- | --- |
+| dallas | 1 | 5, 9, 18, 38 | 0.00128 | 17 |
+| dallas, denver | 1 | 3, 5, 17, 37 | 0.00055 | 18 |
+| cincinnati, dallas, denver | 1 | 3, 5, 6, 16, 28, 33, 36 | 0.00049 | 34 |
+| chicago, cincinnati, dallas, denver | 1 | 15, 18, 19, 27, 28, 32, 35 | 0.00038 | 47 |
+
+The exclusions are exercised on simulated AR(1) panels (`brute.panel_ar`),
+where designs fail the gates: the tests check the rounds against enumeration of
+the key (`brute.gated_optimum`) on seeds drawn by hypothesis, the exclusion order, the
+correlation stop, the no-design-passes certificate and the round limit. Before
+the gates the incumbent's cut was added only at the incumbent's size, which is
+not enough once excluded designs of other sizes must stay out; the cut now goes
+to every size. The first mutation run left one mutant alive, the excluded
+designs' cuts dropped, because the branch and bound still found the right
+answer by branching around them. With the cuts the excluded design's size
+closes in one to three nodes on the test panels, and without them in eight to
+ten, so the test pins the node count at three or fewer.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (241 tests, about 70 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (256 tests, about 80 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 98 mutants of the twenty
+but for the lines marked `pragma: no cover`, each with its reason. The 105 mutants of the 21
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -389,7 +441,8 @@ fixing is certified to the solver's value.
    RSS of `hull.positive_rss`), and a better design becomes the incumbent with
    its own no-good cut beside the earlier ones (`oracle.Oracle(cuts=...)`,
    `certificate.joint_bound(nogood=[...])`). See the table below.
-8. The gates, handled lazily by no-good cuts.
+8. The gates, handled lazily by no-good cuts (done here, on the slope-free
+   search; see The gates).
 9. The search over treatment groups.
 10. Tightness on other panels and at more geos.
 11. This study.
@@ -404,7 +457,8 @@ fixing is certified to the solver's value.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `slopefree.py`: the slope-free relaxation, its certificate and `certify_slope_free()`.
-- `brute.py`: enumeration, the truth the tests check against.
+- `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
+- `brute.py`: enumeration, the truth the tests check against, and the simulated AR(1) panels.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
 - `results/`: the logs of the runs above.
 

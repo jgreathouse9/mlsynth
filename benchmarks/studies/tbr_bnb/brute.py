@@ -39,3 +39,38 @@ def positive_optimum(y, X):
                 if v < best:
                     best, arg = v, set(C)
     return best, arg
+
+
+def panel_ar(seed: int, n: int = 40, p: int = 6, rho: float = 0.6):
+    """A panel whose treatment aggregate carries AR(1) noise, so that the
+    Durbin-Watson and A/A gates fail for some designs and pass for others."""
+    rng = np.random.default_rng(seed)
+    f = rng.normal(size=n).cumsum()
+    X = f[:, None] * rng.uniform(0.5, 1.5, p) + rng.normal(size=(n, p)) * 3
+    e = np.zeros(n)
+    for t in range(1, n):
+        e[t] = rho * e[t - 1] + rng.normal()
+    k = int(rng.integers(1, p))
+    y = X[:, :k].sum(axis=1) * rng.uniform(0.3, 1.5) + e * 4
+    return y - y.mean(), X - X.mean(axis=0)
+
+
+def gated_optimum(y, X, n_test: int):
+    """The lowest-RSS positive-slope control group that passes the reference key's
+    four gates, by enumeration, and the gates of the RSS-best design; the group is
+    None when no design passes."""
+    from mlsynth.utils.tbr_helpers.design.objective import score_split
+
+    rows = []
+    for r in range(1, X.shape[1] + 1):
+        for C in combinations(range(X.shape[1]), r):
+            x = X[:, list(C)].sum(axis=1)
+            b = (y @ x) / (x @ x)
+            if b > 0:
+                rows.append((float(((y - b * x) ** 2).sum()), set(C)))
+    rows.sort(key=lambda t: t[0])
+    for rss, C in rows:
+        d = score_split(y, X[:, sorted(C)].sum(axis=1), objective="reference", n_test=n_test).detail
+        if d["corr_test"] and d["aa_test"] and d["bb_test"] and d["dw_test"]:
+            return rss, C
+    return None, None

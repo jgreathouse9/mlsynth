@@ -73,7 +73,7 @@ def test_every_design_satisfies_the_constraint_table(seed):
 def test_the_cut_excludes_the_incumbent_and_no_other_design():
     y, X = panel(1, p=5)
     _, c, G = _exact(y, X)
-    R = Rows(c, 2, cut={0, 3})
+    R = Rows(c, 2, cuts=[{0, 3}])
     for C, u in _designs(5, 2):
         if c @ u.astype(object) >= 0:
             assert R.holds(_lifted(u)) == (C != {0, 3})
@@ -117,7 +117,7 @@ def test_the_relaxation_certifies_the_optimum_on_small_panels(seed):
     _, C = positive_optimum(y, X)
     lam = _ratio(c, G, C)
     for m in range(1, 7):
-        st_ = size_certificate(c, G, lam, m, cut=C if len(C) == m else None)
+        st_ = size_certificate(c, G, lam, m, cuts=[C])
         assert st_.certified, (seed, m, st_)
 
 
@@ -235,13 +235,6 @@ def test_lam_is_rounded_down_to_a_double(q):
 
 def test_some_ratios_round_up_to_nearest():
     assert any(Q(float(q)) > q for q in (Q(1, 3), Q(2, 3), Q(1, 10), Q(7, 3), Q(5, 7)))
-
-
-def test_a_cut_of_the_wrong_size_is_refused():
-    y, X = panel(1, p=4)
-    _, c, G = _exact(y, X)
-    with pytest.raises(ValueError, match="size"):
-        Rows(c, 2, cut={0, 1, 2})
 
 
 # ---------------------------------------------------------------- branching
