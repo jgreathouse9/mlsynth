@@ -122,16 +122,21 @@ ETA = 2.0 ** -1074                       # the smallest subnormal double
 
 
 def _gamma(k):
-    """gamma_k = k u / (1 - k u), the dot-product rounding constant (Higham 2002, Sect. 3.1)."""
+    """gamma_k = k u / (1 - k u), the rounding constant of Bjorck (2015), Lemma 1.4.2."""
     return k * U / (1.0 - k * U)
 
 
 def _dot_err(k, moduli):
     """A bound on the rounding of k-term dot products whose moduli are given:
-    gamma_k |a|'|b| (Higham 2002, eq. (3.5)), which assumes no underflow, plus
-    k ETA for it. Derived here from IEEE 754 round to nearest: a product that
-    lands in the subnormal range errs by at most half their spacing, 2^-1075, and
-    a sum that lands there is exact, so each of the k products adds at most ETA."""
+    gamma_k |a|'|b| (Bjorck 2015, eq. (1.4.10)), which rests on the standard
+    model (1.4.5) and so holds only if no underflow occurs, plus k ETA for it.
+    Derived here from Russinoff (2022): every denormal is an integer multiple of
+    the smallest positive denormal, ETA = 2^-1074 for doubles (Lemma 5.11 and
+    Definition 5.19), and denormal rounding rounds to that grid (Definition 6.9).
+    Every double is a multiple of ETA, so a sum whose exact value lands in the
+    subnormal range is representable and exact, and a product rounded to nearest
+    there errs by at most ETA / 2. Each of the k products adds at most ETA / 2,
+    and the later roundings scale that by at most 1 + gamma_k < 2, so k ETA covers it."""
     return _gamma(k) * moduli + k * ETA
 
 
@@ -163,8 +168,9 @@ def hull_bound_float(y, X, w, lo, hi, m):
     hull_bound is f(w) + min_P g'(x - w) with f(w) = ||y - X w||^2, g its gradient
     and P = {0 <= x <= hi, m lo <= sum x <= m hi}. Here each quantity is a double,
     and each rounding error is bounded by the a priori bound for a dot product of
-    k terms, |fl(a'b) - a'b| <= gamma_k |a|'|b| (Higham 2002, Lemma 3.1 and
-    eq. (3.5)), and subtracted. Derived here from that bound:
+    k terms, |fl(a'b) - a'b| < gamma_k |a|'|b| (Bjorck 2015, Lemma 1.4.2 and
+    eq. (1.4.10), in the notation of Higham 2002), and subtracted. Derived here
+    from that bound:
 
       r~ = fl(X w - y),  |r~ - r| <= e = gamma_{p+1} (|X||w| + |y|),
       f(w) >= fl(r~'r~) - gamma_n |r~|'|r~| - 2 |r~|'e        (since e'e >= 0),
@@ -180,8 +186,11 @@ def hull_bound_float(y, X, w, lo, hi, m):
     returns -inf, a bound that clears nothing. The last combination f + dual - g'w - err is done in
     rationals from those few doubles and rounded down, so it adds no error.
 
+    Bjorck, A. (2015). Numerical Methods in Matrix Computations. Springer.
     Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
         SIAM.
+    Russinoff, D. M. (2022). Formal Verification of Floating-Point Hardware
+        Design, 2nd ed. Springer.
     """
     y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
     w = np.asarray(w, dtype=float)
@@ -203,7 +212,7 @@ def hull_bound_float(y, X, w, lo, hi, m):
 
 def residual_bound(y, X, w):
     """r~ = fl(X w - y) and e with |r~ - (X w - y)| <= e componentwise: a dot
-    product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Higham 2002, eq. (3.5))."""
+    product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Bjorck 2015, eq. (1.4.10))."""
     r = X @ w - y
     return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w) + np.abs(y))
 
@@ -226,7 +235,7 @@ def dual_bound(g, lo, hi, m):
     """knapsack_dual at the greedy multiplier, and a bound on its rounding: each
     term hi min(0, g_j - lam) and lam A or lam B within gamma_3 of itself (one
     subtraction, one product, and A = fl(m lo), B = fl(m hi)), their sum within
-    gamma_p, so gamma_{p+3} times the moduli bounds the whole (Higham 2002, Sect. 3.1)."""
+    gamma_p, so gamma_{p+3} times the moduli bounds the whole (Bjorck 2015, Lemma 1.4.2)."""
     lam = _greedy_lambda(g, lo, hi, m)
     terms = hi * np.minimum(0.0, g - lam)
     err = _dot_err(g.shape[0] + 3, float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))
@@ -244,7 +253,7 @@ def perturbed_knapsack_bound(g, d, lo, hi, m):
 
 def linear_bound(g, d, w):
     """fl(g~'w) and an error with g'w <= fl(g~'w) + err for every g within d of g~:
-    gamma_p |g~|'|w|, the rounding (Higham 2002, eq. (3.5)), plus d'|w|."""
+    gamma_p |g~|'|w|, the rounding (Bjorck 2015, eq. (1.4.10)), plus d'|w|."""
     aw = np.abs(w)
     return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)
 
