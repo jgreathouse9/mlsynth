@@ -252,3 +252,43 @@ def test_a_wide_design_with_a_linear_term_meets_the_caps_along_its_ray(seed):
     best, _ = _brute(B, A, u, lin)
     assert np.all(w <= u + 1e-12) and w.min() >= 0
     assert _obj(B, A, w, lin) == pytest.approx(best, rel=1e-9, abs=1e-12)
+
+
+def test_the_certificate_refuses_a_weight_held_at_its_cap_that_should_come_down():
+    """Hold the worst-fitting donor at its cap and fit the rest optimally: the
+    zero side and the free set are then optimal, and only the cap side is not."""
+    rng = np.random.default_rng(13)
+    B = rng.normal(size=(12, 5)); A = B[:, 1:3].mean(1) + 0.05 * rng.normal(size=12)
+    u = np.full(5, 0.5)
+    j = 0                                                     # A is built without donor 0
+    held = 0.3; u_held = u.copy(); u_held[j] = held
+    rest = [k for k in range(5) if k != j]
+    v = solve_simplex_qp(B[:, rest] * (1 - held), A - held * B[:, j], upper=u[rest] / (1 - held))
+    w = np.zeros(5); w[j] = held; w[rest] = v * (1 - held)
+    opt = solve_simplex_qp(B, A, upper=u_held)
+    assert _obj(B, A, opt) < _obj(B, A, w) - 1e-6               # the held weight should come down
+    assert simplex_kkt_error(B, A, w, upper=u_held) > 1e-10
+
+
+def test_unequal_loose_caps_change_no_bit():
+    """Caps of one or more that differ from donor to donor still cannot bind."""
+    for seed in range(5):
+        B, A, _ = _case(seed)
+        np.testing.assert_array_equal(solve_simplex_qp(B, A, upper=np.array([1.0, 2.0, 5.0, 1.5, 3.0])),
+                                      solve_simplex_qp(B, A))
+
+
+@SETTINGS
+@given(seed=st.integers(0, 100_000), J=st.integers(2, 6))
+def test_property_caps_below_the_uniform_weight(seed, J):
+    """Some caps below 1 / J, so the uniform point is not in the capped simplex."""
+    rng = np.random.default_rng(seed)
+    B = rng.normal(size=(8, J)); A = B[:, :1].sum(1) + 0.3 * rng.normal(size=8)
+    u = rng.uniform(0.02, 1.0, size=J)
+    u[0] = 0.5 / J                                            # below the uniform weight
+    if u.sum() < 1:
+        u[1:] *= (1.0 - u[0]) / u[1:].sum() * 1.01
+    w = solve_simplex_qp(B, A, upper=u)
+    best, _ = _brute(B, A, u)
+    assert w.min() >= 0 and np.all(w <= u + 1e-12) and abs(w.sum() - 1) < 1e-12
+    assert _obj(B, A, w) <= best * (1 + 1e-10) + 1e-12
