@@ -229,10 +229,11 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
     simplex QPs at the band's ends. Its point is certified by the capped hull's
     first-order bound, valid for the piece at any point and at least the band's
     own value there, since its linear minimum is over the smaller set. Only the
-    pairs it cannot rule out reach the second tier, the capped hull by
-    Clarabel, so the survivors are the capped hull's. Each certificate is read
-    in floating point first (certificate.hull_clears) and in rationals only
-    when that one cannot clear, so the decisions are the exact certificate's.
+    pairs it cannot rule out reach the second tier, the capped hull, one exact
+    capped simplex QP per pair (hull.ControlBound), so the survivors are the
+    capped hull's. Each certificate is read in floating point first
+    (certificate.hull_clears) and in rationals only when that one cannot clear,
+    so the decisions are the exact certificate's.
     """
     p = X.shape[1]
     band = Band(y, X) if two_tier else None
@@ -249,7 +250,7 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
                     continue
             stats["capped_solved"] += 1
             v = hull.piece(lo, hi, m)
-            if v < float(UB) * (1 - 1e-6) or not hull_clears(D, y, X, hull.w.value, lo, hi, m, UB, checks):
+            if v < float(UB) * (1 - 1e-6) or not hull_clears(D, y, X, hull.point, lo, hi, m, UB, checks):
                 out.append((lo, hi, m))
     stats["band_solves"] = 0 if band is None else band.solves
     stats["float_checks"] = checks.get("float", 0)
