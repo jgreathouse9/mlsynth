@@ -55,6 +55,16 @@ import numpy as np
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 
+def shor_trace(m, hi):
+    """tr Z <= 1 + m hi^2 on the Shor lift's feasible set (diag W <= hi w, sum w <= m hi)."""
+    return 1 + m * hi * hi
+
+
+def joint_trace(m, hi):
+    """tr Z <= 1 + m + m hi^2 on the joint lift's feasible set, lo >= 0 (module docstring)."""
+    return 1 + m + m * hi * hi
+
+
 def qarr(A):
     return np.vectorize(Q, otypes=[object])(np.asarray(A, dtype=float))
 
@@ -107,12 +117,14 @@ def hull_bound(D, wbar, lo, hi, m):
     return f + g @ (v - w)
 
 
-def shor_bound(lift, D, lo, hi, m, scale):
+def shor_bound(lift, D, lo, hi, m, scale, duals=None):
     """Exact bound on the Shor lift (lifts.Lift level 'shor') from its last solve."""
     p = D.p; n = p + 1
     lo, hi, m = Q(float(lo)), Q(float(hi)), Q(int(m))
     s2 = Q(float(scale)) ** 2
-    duals = [qarr(c.dual_value) * s2 for c in lift.prob.constraints[1:]]
+    if duals is None:
+        duals = [c.dual_value for c in lift.prob.constraints[1:]]
+    duals = [qarr(d) * s2 for d in duals]
     Gf = np.full((n, n), Q(0), dtype=object); k = Q(0)
     Gf[1:, 1:] += D.G; Gf[0, 1:] += -2 * D.c; k += D.yy
     tags = ["Z00", "w>=0", "w<=hi", "dW>=lo w", "dW<=hi w", "sw>=m lo", "sw<=m hi",
@@ -145,7 +157,7 @@ def shor_bound(lift, D, lo, hi, m, scale):
     lam = lambda_min_lower(_from_fractions(Ssym.tolist()))
     if lam is None:
         return None, Ssym, k
-    return k + min(Q(0), lam) * (1 + m * hi * hi), Ssym, k
+    return k + min(Q(0), lam) * shor_trace(m, hi), Ssym, k
 
 
 FACT = {"u": ({"U": 1}, {"V": 1}, {"Ui": 1}),
@@ -238,5 +250,5 @@ def joint_bound(lift, y, X, lo, hi, m, skip=(), keep_sym=True, duals=None, fixes
     lam = lambda_min_lower(_from_fractions(Ssym.tolist()))
     if lam is None:
         return None, Ssym, k
-    trmax = 1 + m + m * hi * hi
+    trmax = joint_trace(m, hi)
     return k + min(Q(0), lam) * trmax, Ssym, k

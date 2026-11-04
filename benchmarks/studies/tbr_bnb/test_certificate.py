@@ -203,3 +203,73 @@ def test_no_eigenvalue_bound_means_no_certificate(monkeypatch):
     assert joint_bound(L, y, X, 0.4, 0.9, 3)[0] is None        # multipliers read from the lift
     S = Lift(y, X, "shor"); S.piece(0.4, 0.9, 3)
     assert shor_bound(S, ExactData(y, X), 0.4, 0.9, 3, S.scale)[0] is None
+
+
+# ---------------------------------------------------------------- the trace bounds and the multipliers' signs
+from .certificate import joint_trace, shor_trace  # noqa: E402
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), lo=st.floats(0.0, 1.0), width=st.floats(1.05, 4.0), m=st.integers(1, 6))
+def test_the_trace_bounds_hold_at_every_design_and_are_attained(seed, lo, width, m):
+    """A design's lifted matrix has trace at most the bound, with equality at b = hi."""
+    from fractions import Fraction
+    hi = lo * width if lo > 0 else width - 1.0
+    rng = np.random.default_rng(seed)
+    u = np.zeros(6); u[rng.choice(6, m, replace=False)] = 1
+    for b in (rng.uniform(lo, hi), hi):
+        zj = np.r_[1, u, b * u]; zs = np.r_[1, b * u]
+        assert zj @ zj <= float(joint_trace(m, Fraction(hi))) * (1 + 1e-12)
+        assert zs @ zs <= float(shor_trace(m, Fraction(hi))) * (1 + 1e-12)
+    assert zj @ zj == pytest.approx(float(joint_trace(m, Fraction(hi))), rel=1e-12)
+    assert zs @ zs == pytest.approx(float(shor_trace(m, Fraction(hi))), rel=1e-12)
+
+
+def test_a_negative_inequality_multiplier_is_ignored():
+    """Weak duality admits only nonnegative multipliers on inequalities: a negative
+    one is clipped to zero, so the certificate is the one with that multiplier at zero."""
+    y, X = panel(11)
+    L = Lift(y, X, "full"); _solve(L, 0.4, 0.9, 3)
+    duals = _duals(L)
+    zero = [np.array(d, dtype=float) for d in duals]
+    zero[8][1, 2] = 0.0                                      # a product family's multiplier
+    bad = [np.array(d, dtype=float) for d in zero]
+    bad[8][1, 2] = -50.0
+    assert joint_bound(L, y, X, 0.4, 0.9, 3, duals=bad)[0] == joint_bound(L, y, X, 0.4, 0.9, 3, duals=zero)[0]
+    S = Lift(y, X, "shor"); S.piece(0.4, 0.9, 3)
+    D = ExactData(y, X); sd = [c.dual_value for c in S.prob.constraints[1:]]
+    szero = [np.array(d, dtype=float) for d in sd]
+    szero[-1][0, 1] = 0.0                                    # W >= 0
+    sbad = [np.array(d, dtype=float) for d in szero]
+    sbad[-1][0, 1] = -50.0
+    assert shor_bound(S, D, 0.4, 0.9, 3, S.scale, duals=sbad)[0] == shor_bound(S, D, 0.4, 0.9, 3, S.scale, duals=szero)[0]
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), lo=st.floats(0.0, 1.0), width=st.floats(1.05, 4.0), m=st.integers(1, 6))
+def test_the_shor_bound_never_exceeds_the_piece_optimum_for_any_multipliers(seed, lo, width, m):
+    y, X = panel(seed)
+    hi = lo * width if lo > 0 else width - 1.0
+    S = Lift(y, X, "shor"); S.piece(lo, hi, m)
+    rng = np.random.default_rng(seed)
+    duals = [np.asarray(c.dual_value) * rng.uniform(0, 3, np.shape(c.dual_value))
+             + rng.normal(0, 0.01, np.shape(c.dual_value)) for c in S.prob.constraints[1:]]
+    b = shor_bound(S, ExactData(y, X), lo, hi, m, S.scale, duals=duals)[0]
+    if b is not None:
+        assert float(b) <= piece_optimum(y, X, lo, hi, m) * (1 + 1e-12)
+
+
+def test_a_binding_fixing_is_certified_to_the_solvers_value():
+    """Fixing in a geo outside the optimum binds; the certificate then matches the
+    solver's value to its accuracy, which a wrong constant on the fixing would not."""
+    y, X = panel(12)
+    lo, hi, m = 0.3, 0.9, 3
+    vals = {j: piece_optimum(y, X, lo, hi, m, include={j}) for j in range(6)}
+    j = max(vals, key=vals.get)                              # the most expensive geo to force in
+    L = Lift(y, X, "full")
+    fx = L.prob.variables()[0][1 + j, 0] == 1
+    P = _solve(L, lo, hi, m, [fx])
+    d = float(np.ravel(fx.dual_value)[0])
+    b, _, _ = joint_bound(L, y, X, lo, hi, m, duals=_duals(L), fixes=[(j, 1, d)])
+    assert abs(d) * L.scale ** 2 > 1e-3 * abs(float(b))      # the fixing binds
+    assert float(b) == pytest.approx(P.value * L.scale ** 2, rel=1e-5)

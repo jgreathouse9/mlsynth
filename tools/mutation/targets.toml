@@ -11229,8 +11229,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-joint-trace-forgets-the-size"
-  find = "    trmax = 1 + m + m * hi * hi\n"
-  replace = "    trmax = 1 + m + hi * hi\n"
+  find = "    return 1 + m + m * hi * hi\n"
+  replace = "    return 1 + m + hi * hi\n"
   models = "the joint lift's trace bound 1 + m + m hi^2 read without the size, so a negative eigenvalue is charged too little and the bound rises above the optimum"
 
   [[target.mutant]]
@@ -11253,8 +11253,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-shor-trace-forgets-the-size"
-  find = "    return k + min(Q(0), lam) * (1 + m * hi * hi), Ssym, k\n"
-  replace = "    return k + min(Q(0), lam) * (1 + hi * hi), Ssym, k\n"
+  find = "    return 1 + m * hi * hi\n"
+  replace = "    return 1 + hi * hi\n"
   models = "the Shor trace bound 1 + m hi^2 without the size"
 
   [[target.mutant]]
