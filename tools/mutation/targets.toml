@@ -12216,8 +12216,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-refused-group-reads-as-certified"
-  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n        out.certified &= res.certified\n"
-  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n"
+  find = "        if not res.certified:\n            left_open.append((list(T), yy, c))\n"
+  replace = "        if False:\n            left_open.append((list(T), yy, c))\n"
   models = "a survivor whose own certification was cut short counted as certified"
 
   [[target.mutant]]
@@ -12233,7 +12233,25 @@ timeout = 1200.0
   models = "the start group counted twice, once certified and once screened"
 
   [[target.mutant]]
+  id = "open-groups-are-not-retried"
+  find = "        if c is not None and (c_then is None or c < c_then):\n"
+  replace = "        if False:\n"
+  models = "a group left open on its turn never certified again, though the final incumbent's lower ceiling asks a weaker claim of it"
+
+  [[target.mutant]]
+  id = "the-retry-asks-the-old-question"
+  find = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  replace = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c_then)\n"
+  models = "an open group retried against the ceiling it already failed, not the final incumbent's"
+
+  [[target.mutant]]
+  id = "a-group-still-open-reads-as-certified"
+  find = "                continue\n        out.certified = False\n"
+  replace = "                continue\n        pass\n"
+  models = "a group open after its retry, or never retried, counted as certified"
+
+  [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n"
-  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=None)\n"
+  find = "        c = ceiling(yy, *class_of())\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  replace = "        c = None\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"

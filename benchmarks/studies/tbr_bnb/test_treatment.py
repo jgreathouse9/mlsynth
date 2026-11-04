@@ -254,6 +254,60 @@ def test_no_incumbent_has_no_ceiling():
     assert ceiling(Q(10), None, None) is None
 
 
+def _worst_passing(M, k=2):
+    """The passing group whose own optimum has the smallest key."""
+    own = {}
+    for t in combinations(range(M.shape[1]), k):
+        res = certify_gated(*_split(M, t)[:2], n_test=N_TEST, restarts=3)
+        if res.passing:
+            own[t] = res.key
+    return list(min(own, key=own.get))
+
+
+def _flaky(monkeypatch, fail_calls):
+    """certify_gated, cut short on the given calls (1-based), as if a group's
+    certificate had not closed in time; returns the ceilings each call saw."""
+    from . import treatment as tr
+
+    real = tr.certify_gated
+    seen = []
+
+    def wrapped(y, X, *a, ceiling=None, **kw):
+        res = real(y, X, *a, ceiling=ceiling, **kw)
+        seen.append(ceiling)
+        if len(seen) in fail_calls:
+            res.certified = False
+        return res
+
+    monkeypatch.setattr(tr, "certify_gated", wrapped)
+    return seen
+
+
+def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
+    """A survivor whose certificate does not close against the ceiling of its turn
+    is certified again at the end against the final incumbent's, which is lower
+    when the incumbent improved since: the search is certified once it closes."""
+    M = geo_panel(5)
+    start = _worst_passing(M)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    assert plain.replaced >= 1                           # the incumbent improves during the search
+    seen = _flaky(monkeypatch, {2})                      # the first survivor after the start
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    assert out.certified and out.retried == 1
+    assert seen[-1] is not None and seen[-1] < seen[1]  # retried at a lower ceiling
+    assert out.key == plain.key
+
+
+def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkeypatch):
+    M = geo_panel(5)
+    start = _worst_passing(M)
+    calls = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    n = len(calls.survivors)
+    seen = _flaky(monkeypatch, {2, n + 1})               # open on its turn and on its retry
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    assert not out.certified and out.retried == 1
+
+
 def test_a_refused_certificate_is_reported(monkeypatch):
     """A group whose own certification is cut short leaves the search uncertified."""
     from . import treatment as tr

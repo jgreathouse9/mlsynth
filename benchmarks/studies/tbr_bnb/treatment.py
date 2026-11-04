@@ -42,6 +42,14 @@ k = 2 branched to the depth limit at one size, and others ran to the round limit
 designs that kept failing the gates, though none of them could reach the
 incumbent's class.
 
+A group whose certificate does not close against the ceiling of its turn is
+certified again once every group has been read, against the final incumbent's
+ceiling, which is lower whenever the incumbent improved after its turn: a weaker
+claim than the one that failed. The certificates of the groups that closed on
+their turn still hold, since they were proved against ceilings at least as
+high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
+its retry.
+
 """
 from __future__ import annotations
 
@@ -134,6 +142,7 @@ class TreatmentCertificate:
     groups: int
     screened_out: int
     replaced: int = 0                       # times a survivor replaced the incumbent
+    retried: int = 0                        # open groups certified again at the final ceiling
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -148,6 +157,11 @@ def _start(M, k, n_test, restarts):
     out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="reference")
     best = local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0)
     return best.treatment
+
+
+def _yy(M, T):
+    y, _, _ = _split(M, T)
+    return sum(Q(v) ** 2 for v in y.tolist())
 
 
 def _optimum(M, T, n_test, restarts, ceiling=None):
@@ -180,7 +194,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
 
     t1 = time.perf_counter()
     res, C = _optimum(M, T0, n_test, restarts)
-    out.certified &= res.certified
+    left_open = [] if res.certified else [(list(T0), _yy(M, T0), None)]
     out.survivors.append(dict(treatment=list(T0), certified=res.certified, passing=res.passing,
                               key=res.key, rounds=len(res.rounds), stopped=res.stopped,
                               seconds=time.perf_counter() - t1, start=True))
@@ -204,13 +218,26 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
             out.screened_out += 1
             continue
         t1 = time.perf_counter()
-        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))
-        out.certified &= res.certified
+        c = ceiling(yy, *class_of())
+        res, C = _optimum(M, T, n_test, restarts, ceiling=c)
+        if not res.certified:
+            left_open.append((list(T), yy, c))
         out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
                                   key=res.key, rounds=len(res.rounds), stopped=res.stopped,
                                   seconds=time.perf_counter() - t1))
         if res.passing and (out.key is None or res.key > out.key):
             take(T, res, C)
             out.replaced += 1
+    for T, yy, c_then in left_open:         # the incumbent only improves, so its ceiling only falls
+        c = ceiling(yy, *class_of())
+        if c is not None and (c_then is None or c < c_then):
+            out.retried += 1
+            res, C = _optimum(M, T, n_test, restarts, ceiling=c)
+            if res.passing and res.key > out.key:
+                take(T, res, C)
+                out.replaced += 1
+            if res.certified:
+                continue
+        out.certified = False
     out.seconds = time.perf_counter() - t0
     return out
