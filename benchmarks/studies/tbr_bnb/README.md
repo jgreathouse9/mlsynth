@@ -347,13 +347,115 @@ answer by branching around them. With the cuts the excluded design's size
 closes in one to three nodes on the test panels, and without them in eight to
 ten, so the test pins the node count at three or fewer.
 
+## The treatment groups
+
+Within one treatment group the least-RSS passing design has the key's greatest
+value (The gates). Across treatment groups the key compares the rounded
+correlation and then `1 / required_impact`, and the required impact is a constant
+times `sqrt(RSS / (n - 2))` on the shared window, so the best design with `k`
+treatment geos is the best of the groups' own optima, compared on
+`round(corr, 2)` and then on RSS (derived here). `treatment.py` searches every
+group of the size, every geo eligible for every role:
+
+1. An incumbent from the library's greedy search and local search (#964), with
+   its own group's optimum certified (`gated.certify_gated`).
+2. An exact floor on the RSS of every positive-slope design of every group
+   (`rss_floor`). With `w = b u` every such design is a point of
+   `{0 <= w <= cap}`, so the group's nonnegative least squares over that box is
+   at most its RSS; the float hull certificate (`certificate.hull_bound_float`,
+   with `lo = 0` and the size constraint slack) bounds it from below at the NNLS
+   point. The cap is `ExactData.slope_cap`'s, with one eigenvalue floor for every
+   group: a group's control Gram matrix is a principal submatrix of the full one,
+   whose smallest eigenvalue is at least the full matrix's (derived here). The
+   floor costs about 0.5 ms a group and sits within 1e-8 (relative) of the NNLS
+   value.
+3. A group whose floor rules it out is skipped (`can_compete`): every design's
+   `corr^2 = 1 - RSS / y'y`, so the floor bounds the group's correlation, and a
+   group that cannot reach the incumbent's rounded class, or can reach it only
+   with a larger RSS, cannot have a larger key. The class edges are half a
+   rounding step either side, less a slack of 1e-9 for the key's correlation
+   being a double; the slack is a tolerance, not derived.
+4. Every other group is certified against its ceiling, the RSS below which one of
+   its designs could beat the incumbent (`ceiling`). Each size's relaxation is
+   tested at `y'y - ceiling` instead of at the group's own optimum
+   (`certify_slope_free(..., ceiling=...)`), and the group's gated search ends,
+   certified, at the first round whose RSS-best design is not below the ceiling.
+   A group whose optimum beats the incumbent's key replaces it.
+
+On GeoLift (`n_test = 14`, `results/treatment.log`):
+
+| treatment geos | groups | ruled out by the floor | certified one by one | seconds | the key's optimum | `round(corr, 2)` | `1 / required_impact` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 40 | 39 | 1 | 14 | dallas | 0.99 | 0.001283 |
+| 2 | 780 | 770 | 10 | 172 | dallas, milwaukee | 1.00 | 0.000652 |
+| 3 | 9,880 | 9,869 | 11 | 410 | austin, dallas, jacksonville | 1.00 | 0.000631 |
+
+The reference implementation's designs (`benchmarks/cases/tbrmm.py`) round to
+0.99 at every size, with `1 / required_impact` of 0.000999, 0.000450, 0.000433
+and 0.000369. At one geo the reference's treatment group is the optimum's and
+the certified control group is 28% better on that entry. From two geos up the
+optimum is another treatment group whose correlation rounds to 1.00, which the
+key ranks above any design at 0.99.
+
+Three things were found on the way, each from a run that came back uncertified.
+
+- Certifying each surviving group's own optimum left groups open. At two geos
+  some groups' RSS-ordered designs kept failing the gates and ran to
+  `certify_gated`'s 50-round limit at 140-300 s each, and one group (denver,
+  jacksonville) branched to the depth limit at size 9. None of them could reach
+  the incumbent's class: the second group's own best correlation is 0.99482. A
+  stop rule read before each round's gates certified the first kind; only the
+  ceiling, which asks each relaxation the narrower question, certified both. With
+  it two geos take 259 s against 1,147 s uncertified, and three take 516 s
+  against 1,098 s.
+- The node left open was a node with one design. `_branch` evaluated a node
+  exactly only once every geo was fixed, and that node had nine of its nine geos
+  fixed in and three out, so it was bounded and split on geos with one value left
+  until the depth limit. A node with `m` geos fixed in, or `p - m` fixed out, is
+  now evaluated as its one design; with that, the group's own optimum certifies
+  in 81 s, and its branching finds a design better than the local search's (RSS
+  2.754e6 against 2.759e6).
+- A first run at four geos certified 92 of its 93 survivors; the last was
+  certified in a second call against the final incumbent's ceiling, a stronger
+  claim than the one its own run had attempted. The run in the table is a single
+  search.
+
+## Pricing
+
+A node whose subtree holds few designs is priced instead of bounded, as in
+MAREX's branch and bound (`search_skeleton.cheaper_to_price`): every design's
+ratio `(c'u)^2 / u'Gu` is computed in doubles for the whole subtree at once
+(`slopefree.price_subtree`), with an upper bound on its rounding, twice the
+dot-product bound (Bjorck 2015, Lemma 1.4.2) on the sum `c'u` and on the Gram sum
+`u'Gu` with the underflow allowance of `certificate._dot_err`. A design is
+discarded only when that bound is at or below the incumbent's ratio, and the rest
+are evaluated exactly, best bound first. The limit is the cost model's
+break-even: one relaxation takes 1.5-1.9 s at the root on the GeoLift groups
+(4.3 s with a round of triangles), one priced design 0.6-2.0 us, so 750,000
+designs, which prices sizes up to 5 of 38 at their roots (`results/pricing.log`):
+
+| treatment group | every node bounded | small subtrees priced | nodes priced |
+| --- | --- | --- | --- |
+| dallas | 16.7 s | 9.4 s | 5 of 6 |
+| dallas, denver | 17.2 s | 10.5 s | 5 of 7 |
+| cincinnati, dallas, denver | 34.2 s | 25.9 s | 5 of 14 |
+| chicago, cincinnati, dallas, denver | 46.3 s | 36.0 s | 5 of 17 |
+
+Each certifies the same design either way. The saving is about five relaxations
+a group, the smallest and largest sizes; the middle sizes, which hold up to
+`10^10` designs at the root and most of the time on the larger groups, are still
+bounded. Of the 440,000-670,000 designs priced per group, at most one needed
+exact arithmetic. The relaxation's own tests bound every node, since on their
+small panels pricing closes every size at its root; `test_pricing.py` checks the
+priced path against enumeration and that both paths certify the same design.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (256 tests, about 80 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (315 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 105 mutants of the 21
+but for the lines marked `pragma: no cover`, each with its reason. The 128 mutants of the 22
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -443,7 +545,8 @@ fixing is certified to the solver's value.
    `certificate.joint_bound(nogood=[...])`). See the table below.
 8. The gates, handled lazily by no-good cuts (done here, on the slope-free
    search; see The gates).
-9. The search over treatment groups.
+9. The search over treatment groups (done here, by enumeration of the groups
+   with an exact floor and a ceiling for each one; see The treatment groups).
 10. Tightness on other panels and at more geos.
 11. This study.
 12. The build: `search="exact"` with `certify`.
@@ -458,7 +561,9 @@ fixing is certified to the solver's value.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `slopefree.py`: the slope-free relaxation, its certificate and `certify_slope_free()`.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
-- `brute.py`: enumeration, the truth the tests check against, and the simulated AR(1) panels.
+- `treatment.py`: the search over treatment groups, `certify_treatment()`.
+- `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
+  `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
 - `results/`: the logs of the runs above.
 
