@@ -11468,3 +11468,45 @@ timeout = 900.0
   find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
   models = "a pair ruled out by the band's double value without its exact certificate"
+
+[[target]]
+name = "tbr-bnb-capped"
+module-path = "benchmarks/studies/tbr_bnb/hull.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_capped.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-slack-has-no-cap"
+  find = "        upper[-1] = (B - A) / B\n"
+  replace = "        upper[-1] = 1.0\n"
+  models = "the band's lower end dropped, so a total below m lo is admitted and the value falls below the capped hull's minimum"
+
+  [[target.mutant]]
+  id = "the-slack-is-pinned-at-zero"
+  find = "        upper[-1] = (B - A) / B\n"
+  replace = "        upper[-1] = 0.0\n"
+  models = "the total forced to the band's upper end, a value above the minimum whenever it lies inside the band, and so no bound"
+
+  [[target.mutant]]
+  id = "the-per-geo-cap-is-dropped"
+  find = "        upper = np.full(self.p + 1, hi / B)\n"
+  replace = "        upper = np.full(self.p + 1, 1.0)\n"
+  models = "the band without its per-geo cap solved in place of the capped hull, a weaker bound reported as the capped one"
+
+  [[target.mutant]]
+  id = "the-point-is-left-in-v"
+  find = "        self.point = B * v[:self.p]\n"
+  replace = "        self.point = v[:self.p]\n"
+  models = "the minimiser reported on the simplex scale, not in w = B v, so the value and the certificate are read at the wrong point"
+
+  [[target.mutant]]
+  id = "an-infeasible-piece-reaches-the-solver"
+  find = "        if A > B or self.p * hi < A:\n"
+  replace = "        if False:\n"
+  models = "a piece with no slope handed to the solver, which refuses its caps, where it should contribute +inf"
+
+  [[target.mutant]]
+  id = "a-zero-slope-reaches-the-solver"
+  find = "        if B <= 0:               # hi = 0: the set is the origin\n"
+  replace = "        if B < 0:                # hi = 0: the set is the origin\n"
+  models = "the band [0, 0] scaled by its own zero end, caps of 0 / 0, where the set is the origin and the value y'y"

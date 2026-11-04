@@ -157,7 +157,7 @@ def test_the_hull_bound_holds_at_any_point(seed, lo, width, m, shift):
     hi = lo * width if lo > 0 else width - 1.0
     H = ControlBound(y, X)
     H.piece(lo, hi, m)
-    w = H.w.value + shift * np.random.default_rng(seed).normal(size=6)
+    w = H.point + shift * np.random.default_rng(seed).normal(size=6)
     assert float(hull_bound(ExactData(y, X), w, lo, hi, m)) <= piece_optimum(y, X, lo, hi, m) * (1 + 1e-12)
 
 
