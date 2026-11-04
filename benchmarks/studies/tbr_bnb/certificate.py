@@ -117,6 +117,120 @@ def hull_bound(D, wbar, lo, hi, m):
     return f + g @ (v - w)
 
 
+U = 2.0 ** -53                          # unit roundoff of IEEE double
+
+
+def _gamma(k):
+    """gamma_k = k u / (1 - k u), the dot-product rounding constant (Higham 2002, Sect. 3.1)."""
+    return k * U / (1.0 - k * U)
+
+
+def knapsack_dual(g, lo, hi, m, lam=None):
+    """A lower bound on min g'x over {0 <= x <= hi, m lo <= sum x <= m hi} from the
+    LP dual of the sum constraint, valid at every multiplier lam (weak duality):
+
+        sum_j hi min(0, g_j - lam) + lam A   (lam >= 0, A = m lo),
+        sum_j hi min(0, g_j - lam) + lam B   (lam <  0, B = m hi).
+
+    Derived here: for lam >= 0, g'x >= g'x - lam (sum x - A) on the set, and the
+    right side is minimised over the box alone coordinate by coordinate; for
+    lam < 0 the same with the upper end. The default lam is the greedy fill's
+    marginal cost (Dantzig 1957), where the bound equals the knapsack minimum:
+    the cost of the coordinate the fill stops in when it stops at an end of the
+    band, and zero when it stops strictly inside, where the sum is slack.
+    """
+    g = np.asarray(g, dtype=float)
+    A, B = m * lo, m * hi
+    if lam is None:
+        lam = _greedy_lambda(g, lo, hi, m)
+    terms = hi * np.minimum(0.0, g - lam)
+    return float(terms.sum()) + (lam * A if lam >= 0 else lam * B)
+
+
+def hull_bound_float(y, X, w, lo, hi, m):
+    """hull_bound in floating point, rounded so it never exceeds the exact value.
+
+    hull_bound is f(w) + min_P g'(x - w) with f(w) = ||y - X w||^2, g its gradient
+    and P = {0 <= x <= hi, m lo <= sum x <= m hi}. Here each quantity is a double,
+    and each rounding error is bounded by the a priori bound for a dot product of
+    k terms, |fl(a'b) - a'b| <= gamma_k |a|'|b| (Higham 2002, Lemma 3.1 and
+    eq. (3.5)), and subtracted. Derived here from that bound:
+
+      r~ = fl(X w - y),  |r~ - r| <= e = gamma_{p+1} (|X||w| + |y|),
+      f(w) >= fl(r~'r~) - gamma_n |r~|'|r~| - 2 |r~|'e        (since e'e >= 0),
+      g~ = fl(2 X'r~),   |g~ - g| <= d = 2 gamma_n |X|'|r~| + 2 |X|'e,
+      min_P g'x >= knapsack_dual(g~) - err_dual - max(d) m hi  (sum x <= m hi),
+      -g'w >= -fl(g~'w) - gamma_p |g~|'|w| - d'|w|,
+
+    with err_dual = gamma_{p+3} (sum_j |hi min(0, g~_j - lam)| + |lam| m max(lo, hi)),
+    which covers the rounding of the dual's terms, their sum, lam A and of
+    A = fl(m lo), B = fl(m hi) themselves. The error terms are sums of nonnegative
+    products of computed doubles, each within a relative gamma_{n+p+8} of its
+    exact value, so inflating their total by 1 + 1e-6 covers their own rounding
+    whenever n + p < 10^9. The last combination f + dual - g'w - err is done in
+    rationals from those few doubles and rounded down, so it adds no error.
+
+    Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
+        SIAM.
+    """
+    y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
+    w = np.asarray(w, dtype=float)
+    n, p = X.shape
+    if w.shape != (p,):
+        raise ValueError(f"the point must hold one weight per control: expected ({p},), got {w.shape}")
+    if not np.all(np.isfinite(w)):
+        raise ValueError("the point must be finite")
+    aX, aw = np.abs(X), np.abs(w)
+    r = X @ w - y
+    e = _gamma(p + 1) * (aX @ aw + np.abs(y))
+    ar = np.abs(r)
+    f = float(r @ r)
+    f_err = _gamma(n) * float(ar @ ar) + 2.0 * float(ar @ e)
+    g = 2.0 * (X.T @ r)
+    d = 2.0 * _gamma(n) * (aX.T @ ar) + 2.0 * (aX.T @ e)
+    A, B = m * lo, m * hi
+    lam = _greedy_lambda(g, lo, hi, m)
+    dual = knapsack_dual(g, lo, hi, m, lam=lam)
+    terms = hi * np.minimum(0.0, g - lam)
+    dual_err = _gamma(p + 3) * (float(np.abs(terms).sum()) + abs(lam) * max(A, B))
+    gw = float(g @ w)
+    gw_err = _gamma(p) * float(np.abs(g) @ aw)
+    err = (f_err + dual_err + gw_err + float(d.max()) * B + float(d @ aw)) * (1.0 + 1e-6)
+    return round_down(Q(f) + Q(dual) - Q(gw) - Q(err))
+
+
+def round_down(x):
+    """The largest double at most the rational x: float() rounds to nearest, and a
+    result above x is stepped down one ulp (an exact comparison decides)."""
+    out = float(x)
+    if Q(out) > x:
+        out = float(np.nextafter(out, -np.inf))
+    return out
+
+
+def _greedy_lambda(g, lo, hi, m):
+    """The multiplier knapsack_dual uses by default (see its docstring)."""
+    A, B = m * lo, m * hi
+    s, last = 0.0, 0.0
+    for j in np.argsort(g, kind="stable"):
+        if s >= B or (g[j] >= 0 and s >= A):
+            break
+        last = float(g[j])
+        s += min(hi, (B - s) if g[j] < 0 else (A - s))
+    return last if (s >= B or last >= 0) else 0.0
+
+
+def hull_clears(D, y, X, w, lo, hi, m, UB, stats):
+    """Whether the hull's first-order certificate at w is at least UB: the float
+    bound decides when it clears UB, and the exact one otherwise. The float bound
+    never exceeds the exact one, so the decision is the exact certificate's."""
+    stats["float"] = stats.get("float", 0) + 1
+    if Q(hull_bound_float(y, X, w, lo, hi, m)) >= UB:
+        return True
+    stats["exact"] = stats.get("exact", 0) + 1
+    return hull_bound(D, w, lo, hi, m) >= UB
+
+
 def shor_bound(lift, D, lo, hi, m, scale, duals=None):
     """Exact bound on the Shor lift (lifts.Lift level 'shor') from its last solve."""
     p = D.p; n = p + 1
