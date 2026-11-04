@@ -35,7 +35,7 @@ from typing import List, Optional, Sequence, Set, Tuple
 import cvxpy as cp
 import numpy as np
 
-from .certificate import ExactData, hull_bound, joint_bound, shor_bound
+from .certificate import ExactData, hull_clears, joint_bound, shor_bound
 from .dual import smoothed_lbfgs
 from .hull import Band, ControlBound, positive_rss, rss_of
 from .lifts import Lift
@@ -231,25 +231,30 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
     own value there, since its linear minimum is over the smaller set. Only the
     pairs it cannot rule out reach the second tier, the capped hull, one exact
     capped simplex QP per pair (hull.ControlBound), so the survivors are the
-    capped hull's.
+    capped hull's. Each certificate is read in floating point first
+    (certificate.hull_clears) and in rationals only when that one cannot clear,
+    so the decisions are the exact certificate's.
     """
     p = X.shape[1]
     band = Band(y, X) if two_tier else None
     hull = ControlBound(y, X)
     stats = {"band_pruned": 0, "capped_solved": 0}
+    checks = {}
     out = []
     for lo, hi in pieces:
         for m in range(1, p + 1):
             if band is not None:
                 v, w = band.value(lo, hi, m)
-                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:
+                if v >= float(UB) * (1 - 1e-6) and hull_clears(D, y, X, w, lo, hi, m, UB, checks):
                     stats["band_pruned"] += 1
                     continue
             stats["capped_solved"] += 1
             v = hull.piece(lo, hi, m)
-            if v < float(UB) * (1 - 1e-6) or hull_bound(D, hull.point, lo, hi, m) < UB:
+            if v < float(UB) * (1 - 1e-6) or not hull_clears(D, y, X, hull.point, lo, hi, m, UB, checks):
                 out.append((lo, hi, m))
     stats["band_solves"] = 0 if band is None else band.solves
+    stats["float_checks"] = checks.get("float", 0)
+    stats["exact_checks"] = checks.get("exact", 0)
     return out, stats
 
 

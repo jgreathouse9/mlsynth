@@ -117,6 +117,187 @@ def hull_bound(D, wbar, lo, hi, m):
     return f + g @ (v - w)
 
 
+U = 2.0 ** -53                          # unit roundoff of IEEE double
+ETA = 2.0 ** -1074                       # the smallest subnormal double
+
+
+def _gamma(k):
+    """gamma_k = k u / (1 - k u), the rounding constant of Bjorck (2015), Lemma 1.4.2."""
+    return k * U / (1.0 - k * U)
+
+
+def _dot_err(k, moduli):
+    """A bound on the rounding of k-term dot products whose moduli are given:
+    gamma_k |a|'|b| (Bjorck 2015, eq. (1.4.10)), which rests on the standard
+    model (1.4.5) and so holds only if no underflow occurs, plus k ETA for it.
+    Derived here from Russinoff (2022): every denormal is an integer multiple of
+    the smallest positive denormal, ETA = 2^-1074 for doubles (Lemma 5.11 and
+    Definition 5.19), and denormal rounding rounds to that grid (Definition 6.9).
+    Every double is a multiple of ETA, so a sum whose exact value lands in the
+    subnormal range is representable and exact, and a product rounded to nearest
+    there errs by at most ETA / 2. Each of the k products adds at most ETA / 2,
+    and the later roundings scale that by at most 1 + gamma_k < 2, so k ETA covers it."""
+    return _gamma(k) * moduli + k * ETA
+
+
+def knapsack_dual(g, lo, hi, m, lam=None):
+    """A lower bound on min g'x over {0 <= x <= hi, m lo <= sum x <= m hi} from the
+    LP dual of the sum constraint, valid at every multiplier lam (weak duality):
+
+        sum_j hi min(0, g_j - lam) + lam A   (lam >= 0, A = m lo),
+        sum_j hi min(0, g_j - lam) + lam B   (lam <  0, B = m hi).
+
+    Derived here: for lam >= 0, g'x >= g'x - lam (sum x - A) on the set, and the
+    right side is minimised over the box alone coordinate by coordinate; for
+    lam < 0 the same with the upper end. The default lam is the greedy fill's
+    marginal cost (Dantzig 1957), where the bound equals the knapsack minimum:
+    the cost of the coordinate the fill stops in when it stops at an end of the
+    band, and zero when it stops strictly inside, where the sum is slack.
+    """
+    g = np.asarray(g, dtype=float)
+    A, B = m * lo, m * hi
+    if lam is None:
+        lam = _greedy_lambda(g, lo, hi, m)
+    terms = hi * np.minimum(0.0, g - lam)
+    return float(terms.sum()) + (lam * A if lam >= 0 else lam * B)
+
+
+def hull_bound_float(y, X, w, lo, hi, m):
+    """hull_bound in floating point, rounded so it never exceeds the exact value.
+
+    hull_bound is f(w) + min_P g'(x - w) with f(w) = ||y - X w||^2, g its gradient
+    and P = {0 <= x <= hi, m lo <= sum x <= m hi}. Here each quantity is a double,
+    and each rounding error is bounded by the a priori bound for a dot product of
+    k terms, |fl(a'b) - a'b| < gamma_k |a|'|b| (Bjorck 2015, Lemma 1.4.2 and
+    eq. (1.4.10), in the notation of Higham 2002), and subtracted. Derived here
+    from that bound:
+
+      r~ = fl(X w - y),  |r~ - r| <= e = gamma_{p+1} (|X||w| + |y|),
+      f(w) >= fl(r~'r~) - gamma_n |r~|'|r~| - 2 |r~|'e        (since e'e >= 0),
+      g~ = fl(2 X'r~),   |g~ - g| <= d = 2 gamma_n |X|'|r~| + 2 |X|'e,
+      min_P g'x >= knapsack_dual(g~) - err_dual - max(d) m hi  (sum x <= m hi),
+      -g'w >= -fl(g~'w) - gamma_p |g~|'|w| - d'|w|,
+
+    with err_dual = gamma_{p+3} (sum_j |hi min(0, g~_j - lam)| + |lam| m max(lo, hi)),
+    which covers the rounding of the dual's terms, their sum, lam A and of
+    A = fl(m lo), B = fl(m hi) themselves. The error terms are themselves doubles,
+    and inflate() raises their total to cover their own rounding. Every dot-product
+    bound also carries an allowance for underflow (_dot_err), and an overflow
+    returns -inf, a bound that clears nothing. The last combination f + dual - g'w - err is done in
+    rationals from those few doubles and rounded down, so it adds no error.
+
+    Bjorck, A. (2015). Numerical Methods in Matrix Computations. Springer.
+    Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
+        SIAM.
+    Russinoff, D. M. (2022). Formal Verification of Floating-Point Hardware
+        Design, 2nd ed. Springer.
+    """
+    y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
+    w = np.asarray(w, dtype=float)
+    n, p = X.shape
+    if w.shape != (p,):
+        raise ValueError(f"the point must hold one weight per control: expected ({p},), got {w.shape}")
+    if not np.all(np.isfinite(w)):
+        raise ValueError("the point must be finite")
+    r, e = residual_bound(y, X, w)
+    f, f_err = objective_bound(r, e)
+    g, d = gradient_bound(X, r, e)
+    kn, kn_err = perturbed_knapsack_bound(g, d, lo, hi, m)
+    gw, gw_err = linear_bound(g, d, w)
+    err = inflate(f_err + kn_err + gw_err)
+    if not all(np.isfinite(v) for v in (f, kn, gw, err)):
+        return -np.inf                  # an overflow: no bound, and the exact certificate decides
+    return round_down(Q(f) + Q(kn) - Q(gw) - Q(err))
+
+
+def residual_bound(y, X, w):
+    """r~ = fl(X w - y) and e with |r~ - (X w - y)| <= e componentwise: a dot
+    product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Bjorck 2015, eq. (1.4.10))."""
+    r = X @ w - y
+    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w) + np.abs(y))
+
+
+def objective_bound(r, e):
+    """fl(r~'r~) and the error with r'r >= fl(r~'r~) - err for every r within e of
+    r~: r'r >= r~'r~ - 2 |r~|'e, and fl(r~'r~) errs by at most gamma_n |r~|'|r~|."""
+    ar = np.abs(r)
+    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)
+
+
+def gradient_bound(X, r, e):
+    """g~ = fl(2 X'r~) and d with |g~ - 2 X'r| <= d for every r within e of r~:
+    the rounding of X'r~, gamma_n |X|'|r~|, and |X'(r~ - r)| <= |X|'e, doubled."""
+    aX = np.abs(X)
+    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)
+
+
+def dual_bound(g, lo, hi, m):
+    """knapsack_dual at the greedy multiplier, and a bound on its rounding: each
+    term hi min(0, g_j - lam) and lam A or lam B within gamma_3 of itself (one
+    subtraction, one product, and A = fl(m lo), B = fl(m hi)), their sum within
+    gamma_p, so gamma_{p+3} times the moduli bounds the whole (Bjorck 2015, Lemma 1.4.2)."""
+    lam = _greedy_lambda(g, lo, hi, m)
+    terms = hi * np.minimum(0.0, g - lam)
+    err = _dot_err(g.shape[0] + 3, float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))
+    return knapsack_dual(g, lo, hi, m, lam=lam), err
+
+
+def perturbed_knapsack_bound(g, d, lo, hi, m):
+    """A value and an error with min_P g'x >= value - err for every gradient g
+    within d of the computed g~: the dual at g~ less its rounding, and less
+    max(d) m hi, since every x in P has 0 <= x and sum x <= m hi, so
+    |(g - g~)'x| <= max(d) sum x (derived here)."""
+    dual, dual_err = dual_bound(g, lo, hi, m)
+    return dual, dual_err + float(d.max()) * (m * hi)
+
+
+def linear_bound(g, d, w):
+    """fl(g~'w) and an error with g'w <= fl(g~'w) + err for every g within d of g~:
+    gamma_p |g~|'|w|, the rounding (Bjorck 2015, eq. (1.4.10)), plus d'|w|."""
+    aw = np.abs(w)
+    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)
+
+
+def inflate(err):
+    """An error total computed in doubles, raised to cover its own rounding: it is a
+    sum of nonnegative products of doubles, within a relative gamma_{n+p+8} of its
+    exact value, and 1e-6 exceeds that whenever n + p < 10^9 (derived here)."""
+    return err * (1.0 + 1e-6)
+
+
+def round_down(x):
+    """The largest double at most the rational x: float() rounds to nearest, and a
+    result above x is stepped down one ulp (an exact comparison decides)."""
+    out = float(x)
+    if Q(out) > x:
+        out = float(np.nextafter(out, -np.inf))
+    return out
+
+
+def _greedy_lambda(g, lo, hi, m):
+    """The multiplier knapsack_dual uses by default (see its docstring)."""
+    A, B = m * lo, m * hi
+    s, last = 0.0, 0.0
+    for j in np.argsort(g, kind="stable"):
+        if s >= B or (g[j] >= 0 and s >= A):
+            break
+        last = float(g[j])
+        s += min(hi, (B - s) if g[j] < 0 else (A - s))
+    return last if (s >= B or last >= 0) else 0.0
+
+
+def hull_clears(D, y, X, w, lo, hi, m, UB, stats):
+    """Whether the hull's first-order certificate at w is at least UB: the float
+    bound decides when it clears UB, and the exact one otherwise. The float bound
+    never exceeds the exact one, so the decision is the exact certificate's."""
+    stats["float"] = stats.get("float", 0) + 1
+    fb = hull_bound_float(y, X, w, lo, hi, m)
+    if np.isfinite(fb) and Q(fb) >= UB:
+        return True
+    stats["exact"] = stats.get("exact", 0) + 1
+    return hull_bound(D, w, lo, hi, m) >= UB
+
+
 def shor_bound(lift, D, lo, hi, m, scale, duals=None):
     """Exact bound on the Shor lift (lifts.Lift level 'shor') from its last solve."""
     p = D.p; n = p + 1

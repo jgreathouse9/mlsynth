@@ -11467,9 +11467,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-band-prunes-on-its-float-value"
-  find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
+  find = "                if v >= float(UB) * (1 - 1e-6) and hull_clears(D, y, X, w, lo, hi, m, UB, checks):\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
-  models = "a pair ruled out by the band's double value without its exact certificate"
+  models = "a pair ruled out by the band's double value without its certificate"
 
 # The TBR study's incumbent (#965, step 7): a positive-slope descent, designs
 # adopted from the nodes' primal points, and a no-good cut per known design.
@@ -11611,3 +11611,117 @@ timeout = 900.0
   find = "        while upper.sum() < 1.0:\n"
   replace = "        while False:\n"
   models = "caps that sum to one exactly but round below it handed to the solver, which refuses them, on the single-point pieces m = p, lo = hi"
+
+[[target]]
+name = "tbr-bnb-float-cert"
+module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_float_cert.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-dual-reads-the-wrong-end"
+  find = "    return float(terms.sum()) + (lam * A if lam >= 0 else lam * B)\n"
+  replace = "    return float(terms.sum()) + (lam * B if lam >= 0 else lam * A)\n"
+  models = "the sum's multiplier priced at the far end of the band, a value above the knapsack minimum and so no bound"
+
+  [[target.mutant]]
+  id = "the-greedy-multiplier-is-zero"
+  find = "    return last if (s >= B or last >= 0) else 0.0\n"
+  replace = "    return 0.0\n"
+  models = "the dual read at lam = 0 whatever the fill, a valid but loose bound that leaves every tight pair to the exact certificate"
+
+  [[target.mutant]]
+  id = "the-underflow-allowance-is-dropped"
+  find = "    return _gamma(k) * moduli + k * ETA\n"
+  replace = "    return _gamma(k) * moduli\n"
+  models = "the relative rounding bound used below the normal range, where a product's error is absolute"
+
+  [[target.mutant]]
+  id = "the-residual-bound-drops-the-target"
+  find = "    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w) + np.abs(y))\n"
+  replace = "    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w))\n"
+  models = "the residual's rounding bounded without the target's term, which the subtraction X w - y rounds as well"
+
+  [[target.mutant]]
+  id = "the-objective-error-is-dropped"
+  find = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)\n"
+  replace = "    return float(r @ r), 0.0\n"
+  models = "f(w) read as its rounded value, which can exceed the exact one"
+
+  [[target.mutant]]
+  id = "the-objective-ignores-the-residual-error"
+  find = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)\n"
+  replace = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar))\n"
+  models = "f(w) bounded for the computed residual only, not for every residual within e of it"
+
+  [[target.mutant]]
+  id = "the-gradient-error-is-dropped"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  replace = "    return 2.0 * (X.T @ r), 0.0 * (aX.T @ e)\n"
+  models = "the computed gradient taken as exact, though it carries the residual's error and its own rounding"
+
+  [[target.mutant]]
+  id = "the-gradient-ignores-the-residual-error"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  replace = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r))\n"
+  models = "the gradient bounded for its own rounding only, not for the residual's error it inherits"
+
+  [[target.mutant]]
+  id = "the-dual-error-is-dropped"
+  find = "    err = _dot_err(g.shape[0] + 3, float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))\n"
+  replace = "    err = 0.0\n"
+  models = "the knapsack dual's own rounding, and that of m lo and m hi, left out"
+
+  [[target.mutant]]
+  id = "the-knapsack-error-uses-the-lower-end"
+  find = "    return dual, dual_err + float(d.max()) * (m * hi)\n"
+  replace = "    return dual, dual_err + float(d.max()) * (m * lo)\n"
+  models = "the gradient error over the hull bounded by m lo, not m hi, the largest total a point of the hull carries"
+
+  [[target.mutant]]
+  id = "the-knapsack-ignores-the-gradient-error"
+  find = "    return dual, dual_err + float(d.max()) * (m * hi)\n"
+  replace = "    return dual, dual_err\n"
+  models = "the knapsack read at the computed gradient as if it were the true one"
+
+  [[target.mutant]]
+  id = "the-linear-term-error-is-dropped"
+  find = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)\n"
+  replace = "    return float(g @ w), float(d @ aw)\n"
+  models = "the rounding of g'w left out"
+
+  [[target.mutant]]
+  id = "the-linear-term-ignores-the-gradient-error"
+  find = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)\n"
+  replace = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw))\n"
+  models = "g'w bounded at the computed gradient only, not for every gradient within d of it"
+
+  [[target.mutant]]
+  id = "the-error-terms-are-not-inflated"
+  find = "    return err * (1.0 + 1e-6)\n"
+  replace = "    return err\n"
+  models = "the error terms taken as exact, though each is itself a rounded double"
+
+  [[target.mutant]]
+  id = "an-overflow-is-read-as-a-bound"
+  find = "    if not all(np.isfinite(v) for v in (f, kn, gw, err)):\n"
+  replace = "    if False:\n"
+  models = "an infinite or undefined intermediate carried into the rational combination"
+
+  [[target.mutant]]
+  id = "an-infinite-bound-is-compared"
+  find = "    if np.isfinite(fb) and Q(fb) >= UB:\n"
+  replace = "    if Q(fb) >= UB:\n"
+  models = "the float bound's -inf, the sign of an overflow, compared as a number"
+
+  [[target.mutant]]
+  id = "the-result-is-rounded-to-nearest"
+  find = "    if Q(out) > x:\n"
+  replace = "    if False:\n"
+  models = "the final rational rounded to the nearest double, which can lie above it"
+
+  [[target.mutant]]
+  id = "the-exact-fallback-is-skipped"
+  find = "    return hull_bound(D, w, lo, hi, m) >= UB\n"
+  replace = "    return False\n"
+  models = "a pair the float bound cannot clear kept without asking the exact certificate, which may clear it"

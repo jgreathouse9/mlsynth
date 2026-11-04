@@ -199,11 +199,11 @@ the local search gets wrong, not a saving when it gets it right.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (109 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (148 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 34 mutants of the twelve
+but for two lines marked with their reasons. The 52 mutants of the thirteen
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -220,8 +220,21 @@ fixing is certified to the solver's value.
 2. Warm starts parent to child (done here). Piece to neighbouring piece, of the
    same size, was measured and dropped: it saves 6% of the solver's evaluations
    and no time.
-3. Certificate cost: a floating-point check with a rigorous rounding bound if
-   the rational one dominates.
+3. Certificate cost (done here for the hull): `certificate.hull_bound_float`
+   reads the hull's first-order certificate in doubles and subtracts a rigorous
+   bound on every rounding error, the dot-product bound of Bjorck (2015),
+   Lemma 1.4.2 and eq. (1.4.10), with an allowance for underflow derived from
+   Russinoff (2022), Lemma 5.11 and Definition 6.9 (every double is a multiple
+   of the smallest denormal); the last combination is done in rationals and rounded
+   down. `certificate.hull_clears` decides on it when it clears the incumbent
+   and on the exact certificate otherwise, so the stage keeps exactly the exact
+   one's survivors. On the four groups the hull stage takes 1.2-1.5 s against
+   6.5-8.2 s, with the same survivors and no pair left to the exact
+   certificate (`results/float_cert.log`); the float bound sits a median 7e-14
+   of `y'y` below the exact one. Hypothesis found the bound failing at
+   subnormal slopes (`lo = hi = 1.1e-308`), where the relative rounding bound
+   does not hold; the underflow allowance closes it. The joint lift's
+   certificate is next.
 4. Trim the lift entry by entry (a working set).
 5. The hull stage on the library's active-set solvers. (a), done here: the band
    without the per-geo cap (`hull.Band`), one `nnls` per group and
@@ -260,7 +273,7 @@ fixing is certified to the solver's value.
 
 - `panel.py`: the scoring window and the four groups.
 - `hull.py`, `lifts.py`: the capped hull as one capped simplex QP, the band without the per-geo cap, and the lift levels.
-- `certificate.py`: every exact bound, the slope cap, fixings and the cut.
+- `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the hull's float certificate.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `brute.py`: enumeration, the truth the tests check against.
@@ -318,3 +331,14 @@ fixing is certified to the solver's value.
   for unconstrained and ball-constrained convex optimization. Comput. Optim.
   Appl. 73, 159-199. Read and not used: it covers unconstrained and
   ball-constrained problems, not sign-constrained multipliers.
+- Björck, Å. (2015). Numerical Methods in Matrix Computations. Springer.
+  Lemma 1.4.2 and eq. (1.4.10), the dot-product rounding bound the float
+  certificate uses, under the standard model (1.4.5), which holds only if no
+  underflow or overflow occurs.
+- Russinoff, D. M. (2022). Formal Verification of Floating-Point Hardware
+  Design, 2nd ed. Springer. Lemma 5.11, Definitions 5.19 and 6.9: denormals
+  are the multiples of the smallest positive denormal, and denormal rounding
+  rounds to that grid, from which the underflow allowance is derived.
+- Nocedal, J. and Wright, S. J. (2006). Numerical Optimization, 2nd ed.
+  Springer. Sect. 16.5, the active-set method of `solve_simplex_qp` that the
+  capped hull calls.
