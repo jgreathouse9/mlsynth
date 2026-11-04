@@ -119,10 +119,14 @@ class Lift:
             obj = yy - 2 * c @ w + cp.trace(G @ W)
         self.prob = cp.Problem(cp.Minimize(obj), cons)
 
-    def piece(self, b_lo, b_hi, m, big=1e6):
+    def piece(self, b_lo, b_hi, m, big=1e6, tol=None):
+        """The lift's minimum over slopes in [b_lo, b_hi] and size m, in the units of
+        y. ``tol`` sets Clarabel's three stopping tolerances (absolute and relative
+        gap, feasibility); None keeps Clarabel's own."""
         self.lo.value, self.hi.value, self.m.value = b_lo, min(b_hi, big), m
+        kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol, tol_feas=tol)
         try:
-            self.prob.solve(solver=cp.CLARABEL)
+            self.prob.solve(solver=cp.CLARABEL, **kw)
         except cp.error.SolverError:  # pragma: no cover - Clarabel raises only on a numerical
             self.prob.solve(solver=cp.SCS, eps=1e-8, max_iters=20000)  # breakdown, never on the study's panels
         if self.prob.status not in ("optimal", "optimal_inaccurate"):
