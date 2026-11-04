@@ -37,6 +37,21 @@ def rss_of(y, X, idx):
     return float(y @ y - (y @ x) ** 2 / xx) if xx > 0 else float(y @ y)
 
 
+def positive_rss(y, X, idx):
+    """The best RSS over positive slopes: y'y - (y'x)^2 / x'x when y'x > 0, else y'y.
+
+    A design whose best-fit slope is not positive fails the correlation gate, and
+    its infimum over positive slopes is the limit b -> 0+, the total y'y (derived
+    here: ||y - b x||^2 is convex in b with its minimum at b* = y'x / x'x <= 0, so
+    it increases on b > 0). The incumbent search scores designs this way, so it
+    never settles on one the certificate's slope pieces, which cover (0, cap],
+    do not cover.
+    """
+    x = X[:, list(idx)].sum(1)
+    xx, xy = float(x @ x), float(y @ x)
+    return float(y @ y - xy * xy / xx) if xx > 0 and xy > 0 else float(y @ y)
+
+
 class ControlBound:
     """The capped hull: min ||y - X w||^2 over {0 <= w <= hi, A <= sum w <= B}.
 

@@ -174,13 +174,36 @@ stopped at the same margin again, and one node grew into 511 open leaves. The
 solver now aims 1e-6 past the incumbent and, if a certificate still fails,
 continues toward a higher target before branching.
 
+### The incumbent during the search
+
+`certify(y, X, restarts=r)` on each group, the eight runs sharing four cores
+(`results/incumbent.log`):
+
+| treatment group | restarts | pairs after hull, Shor | nodes | adopted | time |
+| --- | --- | --- | --- | --- | --- |
+| dallas | 50 | 13, 1 | 3 | 0 | 60 s |
+| dallas | 1 | 65, 43 | 53 | 1 | 436 s |
+| dallas, denver | 50 | 18, 3 | 5 | 0 | 77 s |
+| dallas, denver | 1 | 66, 50 | 52 | 1 | 302 s |
+| cincinnati, dallas, denver | 50 | 36, 11 | 15 | 0 | 196 s |
+| cincinnati, dallas, denver | 1 | 89, 64 | 80 | 4 | 598 s |
+| chicago, cincinnati, dallas, denver | 50 | 41, 15 | 35 | 0 | 406 s |
+| chicago, cincinnati, dallas, denver | 1 | 79, 57 | 77 | 4 | 576 s |
+
+Every run is certified at the same design. From one restart the search finds
+the optimum itself, adopting one to four designs on the way, at 1.4 to 7.3 times
+the cost: a poor start costs time, not the proof. Fifty restarts already reach
+the optimum, so with them nothing is adopted, and the times match the table
+above within the noise of shared cores. The update is a guarantee for a start
+the local search gets wrong, not a saving when it gets it right.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (70 tests, about 25 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (80 tests, about 40 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 19 mutants of the five
+but for two lines marked with their reasons. The 27 mutants of the eleven
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -194,7 +217,9 @@ fixing is certified to the solver's value.
 
 1. Node solver: smoothed L-BFGS-B with stall-and-branch (done here); Clarabel
    for nodes left at the depth limit.
-2. Warm starts parent to child (done here); piece to neighbouring piece.
+2. Warm starts parent to child (done here). Piece to neighbouring piece, of the
+   same size, was measured and dropped: it saves 6% of the solver's evaluations
+   and no time.
 3. Certificate cost: a floating-point check with a rigorous rounding bound if
    the rational one dominates.
 4. Trim the lift entry by entry (a working set).
@@ -211,7 +236,12 @@ fixing is certified to the solver's value.
    bounds in `solve_simplex_qp`, on its own branch, after which the capped tier
    is one exact call per pair.
 6. Branching rules and node order.
-7. Incumbent from #964's local search.
+7. Incumbent from #964's local search, improved during the search (done here).
+   Each node rounds its eigen-primal to a design of its size within its
+   fixings, descends from it (`search.Incumbent.offer`, on the positive-slope
+   RSS of `hull.positive_rss`), and a better design becomes the incumbent with
+   its own no-good cut beside the earlier ones (`oracle.Oracle(cuts=...)`,
+   `certificate.joint_bound(nogood=[...])`). See the table below.
 8. The gates, handled lazily by no-good cuts.
 9. The search over treatment groups.
 10. Tightness on other panels and at more geos.

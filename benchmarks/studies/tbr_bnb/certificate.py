@@ -240,8 +240,10 @@ def joint_bound(lift, y, X, lo, hi, m, skip=(), keep_sym=True, duals=None, fixes
     for j, val, d in fixes:            # u_j == val, stored as u_j - val
         d = Q(float(d)) * s2
         Gf[0, iu + j] += d; k -= Q(val) * d
-    if nogood is not None:             # sum_C u - sum_notC u - (|C|-1) <= 0, multiplier >= 0
-        Cset, d = nogood
+    # sum_C u - sum_notC u - (|C|-1) <= 0 per known design, multipliers >= 0; one
+    # (C, d) or a list of them
+    cuts = [] if nogood is None else ([nogood] if isinstance(nogood[0], (set, frozenset)) else list(nogood))
+    for Cset, d in cuts:
         d = max(Q(float(d)), Q(0)) * s2
         for j in range(p):
             Gf[0, iu + j] += d if j in Cset else -d

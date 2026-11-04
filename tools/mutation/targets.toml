@@ -11290,6 +11290,8 @@ timeout = 900.0
   find = "                        if up.any():\n                            ratios = np.minimum(ratios, np.where(\n"
   replace = "                        if False:\n                            ratios = np.minimum(ratios, np.where(\n"
   models = "the linear term's ray followed past a cap, stopping only at zero"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect since the vertex rule (simplex-qp-upper-vertex). A ray that overshoots a cap is clipped there by the step's own bookkeeping, which pins every free weight at or past its cap and sets it to the cap, and the next free-set solve restores the sum. Before the vertex rule that repair could land on a vertex and cycle, which is what killed this mutant; now the loop leaves the vertex. Measured on 200 seeds of the wide-design ray test: 0 wrong answers and 0 unconverged solves with the mutant, in 1,407 pivots against 1,419 without it. The guard stays because it keeps every iterate feasible by construction instead of by repair."
 
 # The TBR certified-design study (#965): certificates, dual oracle, node solvers,
 # search and lifts of benchmarks/studies/tbr_bnb.
@@ -11403,9 +11405,9 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-incumbent-node-without-its-cut"
-  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, ngd), fixes=fixes)\n"
-  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, 0.0), fixes=fixes)\n"
-  models = "the no-good cut's multiplier dropped from the certificate, so the node holding the incumbent can never close"
+  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)\n"
+  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=None, fixes=fixes)\n"
+  models = "the no-good cuts' multipliers dropped from the certificate, so the node holding the incumbent can never close"
 
   [[target.mutant]]
   id = "too-many-fixed-in-geos-allowed"
@@ -11468,6 +11470,98 @@ timeout = 900.0
   find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
   models = "a pair ruled out by the band's double value without its exact certificate"
+
+# The TBR study's incumbent (#965, step 7): a positive-slope descent, designs
+# adopted from the nodes' primal points, and a no-good cut per known design.
+[[target]]
+name = "tbr-bnb-incumbent"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "a-better-design-is-never-adopted"
+  find = "        if rss < self.UB:\n            self.UB, self.C = rss, set(design)\n"
+  replace = "        if False:\n            self.UB, self.C = rss, set(design)\n"
+  models = "the search never replacing its starting incumbent, so a poor start leaves the nodes holding the better design open"
+
+  [[target.mutant]]
+  id = "an-adopted-design-gets-no-cut"
+  find = "            self.cuts.append(set(design))\n"
+  replace = "            pass\n"
+  models = "an adopted incumbent without its no-good cut, so the node holding it can never close"
+
+[[target]]
+name = "tbr-bnb-incumbent-hull"
+module-path = "benchmarks/studies/tbr_bnb/hull.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-slope-sign-is-ignored"
+  find = "    return float(y @ y - xy * xy / xx) if xx > 0 and xy > 0 else float(y @ y)\n"
+  replace = "    return float(y @ y - xy * xy / xx) if xx > 0 else float(y @ y)\n"
+  models = "a negative-slope design scored by its best fit, so the descent can settle on a design the slope pieces do not cover"
+
+[[target]]
+name = "tbr-bnb-incumbent-certificate"
+module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "only-the-first-cut-is-read"
+  find = "    cuts = [] if nogood is None else ([nogood] if isinstance(nogood[0], (set, frozenset)) else list(nogood))\n"
+  replace = "    cuts = [] if nogood is None else ([nogood] if isinstance(nogood[0], (set, frozenset)) else list(nogood)[:1])\n"
+  models = "the certificate reading the first known design's cut and dropping the adopted ones'"
+
+[[target]]
+name = "tbr-bnb-incumbent-oracle"
+module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_oracle.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-cut-constant-is-off-by-one"
+  find = "            Gf[0, iu:iw] += d * sg; k -= d * (len(c) - 1)\n"
+  replace = "            Gf[0, iu:iw] += d * sg; k -= d * len(c)\n"
+  models = "the oracle's no-good cut read as sum_C u - sum_notC u <= |C|, which admits the excluded design"
+
+[[target]]
+name = "simplex-qp-upper-vertex"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_upper_vertex.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-vertex-is-not-recognised"
+  find = "        if free.size == 0 and capped.any():\n"
+  replace = "        if False:\n"
+  models = "a vertex of the capped simplex handed to the free-set loop with nothing free, the defect this target exists for: the solve cycles to its pivot cap"
+
+  [[target.mutant]]
+  id = "only-the-capped-weight-is-released"
+  find = "                    active[j] = False\n"
+  replace = "                    pass\n"
+  models = "the vertex left by unpinning the capped weight alone, which with its total fixed cannot move, so nu is read from its own gradient and the loop cycles"
+
+  [[target.mutant]]
+  id = "the-vertex-is-accepted-unchecked"
+  find = "                if gv[i] - gv[j] > sv[i] + sv[j] + floor_v:\n"
+  replace = "                if False:\n"
+  models = "every vertex taken as optimal, so a solve started at the wrong design returns it"
+
+  [[target.mutant]]
+  id = "the-mass-goes-to-the-dearest-zero-weight"
+  find = "                j = int(ri[int(np.argmin(gv[ri]))])\n"
+  replace = "                j = int(ri[int(np.argmax(gv[ri]))])\n"
+  models = "the interval's upper end read as the largest gradient at zero, so an optimal vertex is left and a violated one can be accepted"
+
+  [[target.mutant]]
+  id = "a-fixed-weight-is-released"
+  find = "            ri = np.where(active & (upper > tol))[0]\n"
+  replace = "            ri = np.where(active)[0]\n"
+  models = "a weight fixed by a cap of zero counted as able to rise, so its gradient bounds nu and an optimal vertex is left toward a weight that cannot move"
 
 [[target]]
 name = "tbr-bnb-capped"
