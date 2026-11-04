@@ -293,7 +293,12 @@ fixing is certified to the solver's value.
    A negative multiplier is now checked to give the bound of a zero one, and a
    constant that loses all 24 of its terms to rounding is checked exactly. On
    the small panels every prune is decided by the float bound
-   (`test_certify_prunes_on_the_float_certificate`).
+   (`test_certify_prunes_on_the_float_certificate`). On the four GeoLift
+   groups every one of the 2, 4, 13 and 25 prunes is decided by the float
+   bound and none falls back; the certificates take 0.01-0.07 s against
+   2.0-18.4 s, and `certify` 38, 48, 135 and 273 s against 42, 53, 138 and
+   284 s, with the same nodes, prunes and designs (`results/joint_float.log`).
+   What remains is the node solver: 221 s of the hardest group's 273 s.
 4. Trim the lift entry by entry (a working set).
 5. The hull stage on the library's active-set solvers. (a), done here: the band
    without the per-geo cap (`hull.Band`), one `nnls` per group and
