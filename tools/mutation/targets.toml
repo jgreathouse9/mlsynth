@@ -11947,7 +11947,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12024,8 +12024,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-worse-leaf-replaces-the-incumbent"
-  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
-  replace = "        if cu > 0 and r < inc[\"lam\"] and C not in excluded:\n"
+  find = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r < inc[\"lam\"] and C not in excluded:\n"
   models = "a design worse than the incumbent adopted, and a better one passed over"
 
   [[target.mutant]]
@@ -12048,8 +12048,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-excluded-leaf-is-adopted"
-  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
-  replace = "        if cu > 0 and r > inc[\"lam\"]:\n"
+  find = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"]:\n"
   models = "a fully fixed leaf adopted although it is an excluded design, which a leaf reaches without the relaxation and its cut"
 
   [[target.mutant]]
@@ -12063,6 +12063,42 @@ timeout = 900.0
   find = "        _branch(c, G, out, m, excluded + [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   replace = "        _branch(c, G, out, m, [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
+
+  [[target.mutant]]
+  id = "the-sum-rounding-is-not-bounded"
+  find = "    e_s = 2 * _dot_err(k + 2, sa)\n"
+  replace = "    e_s = 0 * _dot_err(k + 2, sa)\n"
+  models = "the double sum c'u taken as exact, so cancellation in it can put a design's bound below its ratio and discard it"
+
+  [[target.mutant]]
+  id = "the-gram-rounding-is-not-bounded"
+  find = "    e_d = 2 * _dot_err(k * k + k + 2, da)\n"
+  replace = "    e_d = 0 * _dot_err(k * k + k + 2, da)\n"
+  models = "the double sum u'Gu taken as exact, so a denominator rounded up lowers the bound below the ratio"
+
+  [[target.mutant]]
+  id = "the-fixed-in-geos-are-left-out-of-the-price"
+  find = "    s = c1[0] + cfF[combos].sum(axis=1)\n"
+  replace = "    s = cfF[combos].sum(axis=1)\n"
+  models = "a priced node's designs scored without the geos its fixings put in"
+
+  [[target.mutant]]
+  id = "a-priced-excluded-design-is-adopted"
+  find = "        out.exact += 1\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "        out.exact += 1\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"]:\n"
+  models = "pricing adopts a design the gated search excluded, so a design that failed a gate comes back"
+
+  [[target.mutant]]
+  id = "the-candidates-are-taken-worst-first"
+  find = "    cands.sort(key=lambda t: -t[0])\n"
+  replace = "    cands.sort(key=lambda t: t[0])\n"
+  models = "the candidates evaluated from the smallest bound up, so the early stop ends the subtree before its best design"
+
+  [[target.mutant]]
+  id = "no-subtree-is-priced"
+  find = "    if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model\n"
+  replace = "    if False:   # cheaper_to_price at the cost model\n"
+  models = "the price-or-bound choice never taken, every node bounded however small its subtree"
 
   [[target.mutant]]
   id = "a-one-design-node-is-bounded"
