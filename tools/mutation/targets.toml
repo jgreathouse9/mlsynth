@@ -12094,6 +12094,12 @@ timeout = 900.0
   replace = "        except ValueError:\n"
   models = "any error, a refused certificate among them, read as no design being left"
 
+  [[target.mutant]]
+  id = "the-stop-rule-is-ignored"
+  find = "        if stop is not None and stop(res.incumbent):\n"
+  replace = "        if False:\n"
+  models = "a caller's stop rule never consulted, so a group that cannot compete runs on through its failing designs"
+
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
@@ -12159,3 +12165,9 @@ timeout = 1200.0
   find = "        if list(T) == T0:\n            continue\n"
   replace = "        if False:\n            continue\n"
   models = "the start group counted twice, once certified and once screened"
+
+  [[target.mutant]]
+  id = "survivors-carry-no-stop-rule"
+  find = "                          stop=lambda rss, yy=yy: not can_compete(yy, rss, *class_of()))\n"
+  replace = "                          stop=None)\n"
+  models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"

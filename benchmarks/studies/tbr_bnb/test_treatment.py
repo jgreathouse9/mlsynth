@@ -19,7 +19,8 @@ from mlsynth.exceptions import MlsynthDataError
 
 from .brute import geo_panel, treatment_optimum
 from .certificate import ExactData
-from .treatment import (EDGE, SLACK, can_compete, certify_treatment, gram_floor,
+from .gated import certify_gated
+from .treatment import (EDGE, SLACK, _split, can_compete, certify_treatment, gram_floor,
                         rss_floor)
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -83,12 +84,19 @@ def test_the_screen_rules_out_groups():
 
 
 def test_a_better_group_replaces_a_poor_start():
-    """Started from the worst group of the size, the search still ends at the key's
-    optimum: a survivor that beats the incumbent replaces it."""
+    """Started from the passing group whose own optimum has the smallest key, the
+    search still ends at the key's optimum: a survivor that beats the incumbent
+    replaces it. The start passes, so the incumbent is set before any survivor is
+    certified and has to be replaced, not merely filled."""
     M = geo_panel(5)
     key, T, _ = treatment_optimum(M, 2, N_TEST)
-    worst = max(combinations(range(M.shape[1]), 2), key=lambda t: float(M[:, list(t)].sum(axis=1).var()))
-    assert set(worst) != T
+    own = {}
+    for t in combinations(range(M.shape[1]), 2):
+        res = certify_gated(*_split(M, t)[:2], n_test=N_TEST, restarts=3)
+        if res.passing:
+            own[t] = res.key
+    worst = min(own, key=own.get)
+    assert set(worst) != T and own[worst] < tuple(key)
     out = certify_treatment(M, 2, n_test=N_TEST, start=list(worst), restarts=5)
     assert out.certified and set(out.treatment) == T
     assert tuple(out.key) == pytest.approx(tuple(key), rel=1e-12)
@@ -195,6 +203,28 @@ def test_a_singular_gram_gives_no_floor_and_rules_nothing_out():
     M = np.column_stack([M, M[:, 0]])          # a duplicated geo
     assert gram_floor(M) is None
     assert rss_floor(M, (1,), None) == 0
+
+
+def test_each_survivor_stops_once_its_rounds_cannot_compete(monkeypatch):
+    """Every group certified after the incumbent is set carries a stop rule: a round
+    whose RSS rules the group out ends that group's search."""
+    from . import treatment as tr
+
+    real = tr.certify_gated
+    rules = []
+
+    def spy(*a, stop=None, **kw):
+        rules.append(stop)
+        return real(*a, stop=stop, **kw)
+
+    monkeypatch.setattr(tr, "certify_gated", spy)
+    out = certify_treatment(geo_panel(5), 2, n_test=N_TEST, restarts=3)
+    assert out.passing and len(rules) == len(out.survivors) >= 2
+    assert rules[0] is None                       # the start, before any incumbent
+    for stop in rules[1:]:
+        assert stop(Q(10) ** 30) is True           # an RSS no design of the class can have
+        assert stop(Q(0)) is False                 # a perfect fit always competes
+    assert all("stopped" in s for s in out.survivors)
 
 
 def test_a_refused_certificate_is_reported(monkeypatch):

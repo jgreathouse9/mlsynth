@@ -16,13 +16,17 @@ fails exclude it with a no-good cut and certify again. Each round's design is th
 next by RSS, so the first that passes is the passing optimum. The correlation gate
 ends the search at once when it fails: the RSS-best remaining design has the
 greatest correlation of all remaining ones, so none of them reaches 0.8 either.
+A caller's stop rule ends it the same way: it is handed each round's RSS before
+the gates are scored, and every remaining design has at least that RSS, so a
+caller that needs nothing at or above it (treatment.py, against an incumbent from
+another treatment group) is answered, certified, without that round's design.
 """
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 
@@ -42,6 +46,7 @@ class GatedCertificate:
     key: Optional[tuple]                   # the reference key at it
     passing: bool                          # a design passes all four gates
     certified: bool                        # the answer is proved, not cut short by max_rounds
+    stopped: bool = False                  # the caller's stop rule ended the search
     rounds: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -53,7 +58,8 @@ def gates_of(y, X, controls, n_test):
 
 
 def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 50,
-                  max_rounds: int = 50, **kw) -> GatedCertificate:
+                  max_rounds: int = 50, stop: Optional[Callable[[Q], bool]] = None,
+                  **kw) -> GatedCertificate:
     """The least-RSS positive-slope control group that passes the reference key's
     four gates, certified, or a certificate that none does (module docstring)."""
     t0 = time.perf_counter()
@@ -66,6 +72,9 @@ def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 
             out.certified = True               # no positive-slope design is left
             break
         if not res.certified:                  # pragma: no cover - the GeoLift groups and the test panels close
+            break
+        if stop is not None and stop(res.incumbent):
+            out.certified = out.stopped = True # every remaining design has at least this RSS
             break
         gates, key = gates_of(y, X, res.controls, n_test)
         out.rounds.append(dict(controls=res.controls, rss=res.incumbent, gates=gates, seconds=res.seconds))

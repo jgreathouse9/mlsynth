@@ -30,7 +30,11 @@ being a double; the slack is a tolerance, not derived.
 
 Every group that the floor does not rule out is certified, with the incumbent
 replaced whenever a group's optimum has a larger key, and the floors are read again
-against the new incumbent before each certification.
+against the new incumbent before each certification. A group's certification takes
+its designs in order of RSS (gated.py), so each round's RSS is a floor on every
+design left, and the group's search stops, certified, at the first round that
+can_compete rules out; without that, a group whose designs keep failing the gates
+runs to certify_gated's round limit and the search is left uncertified.
 
 Horn, R. A. and Johnson, C. R. (2013). Matrix Analysis, 2nd ed. Cambridge
     University Press.
@@ -134,9 +138,9 @@ def _start(M, k, n_test, restarts):
     return best.treatment
 
 
-def _optimum(M, T, n_test, restarts):
+def _optimum(M, T, n_test, restarts, stop=None):
     y, X, rest = _split(M, T)
-    res = certify_gated(y, X, n_test=n_test, restarts=restarts)
+    res = certify_gated(y, X, n_test=n_test, restarts=restarts, stop=stop)
     C = [rest[j] for j in res.controls] if res.passing else None
     return res, C
 
@@ -166,7 +170,8 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     res, C = _optimum(M, T0, n_test, restarts)
     out.certified &= res.certified
     out.survivors.append(dict(treatment=list(T0), certified=res.certified, passing=res.passing,
-                              key=res.key, seconds=time.perf_counter() - t1, start=True))
+                              key=res.key, rounds=len(res.rounds), stopped=res.stopped,
+                              seconds=time.perf_counter() - t1, start=True))
     if res.passing:
         take(T0, res, C)
     lam = gram_floor(M)
@@ -187,10 +192,12 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
             out.screened_out += 1
             continue
         t1 = time.perf_counter()
-        res, C = _optimum(M, T, n_test, restarts)
+        res, C = _optimum(M, T, n_test, restarts,
+                          stop=lambda rss, yy=yy: not can_compete(yy, rss, *class_of()))
         out.certified &= res.certified
         out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
-                                  key=res.key, seconds=time.perf_counter() - t1))
+                                  key=res.key, rounds=len(res.rounds), stopped=res.stopped,
+                                  seconds=time.perf_counter() - t1))
         if res.passing and (out.key is None or res.key > out.key):
             take(T, res, C)
             out.replaced += 1

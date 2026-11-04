@@ -124,6 +124,38 @@ def test_the_round_limit_leaves_the_search_uncertified():
     assert not out.certified and len(out.rounds) == 1
 
 
+def test_a_stop_rule_ends_the_search_certified_without_a_design():
+    """A caller that needs nothing at or above a round's RSS stops the search there:
+    every remaining design has at least that RSS, so the answer is certified."""
+    y, X = panel_ar(1)
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=lambda rss: True)
+    assert out.certified and not out.passing and out.controls is None
+    assert out.stopped and out.rounds == []
+
+
+def test_the_stop_rule_reads_each_rounds_rss_before_its_gates():
+    """The rule sees each round's certified RSS, in increasing order, and a round it
+    stops is not scored."""
+    y, X = panel_ar(7)
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    assert len(full.rounds) >= 2
+    seen = []
+
+    def stop(rss):
+        seen.append(rss)
+        return len(seen) == 2
+
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=stop)
+    assert seen == [full.rounds[0]["rss"], full.rounds[1]["rss"]]
+    assert out.certified and out.stopped and not out.passing and len(out.rounds) == 1
+
+
+def test_no_stop_rule_runs_to_the_passing_design():
+    y, X = panel_ar(7)
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=lambda rss: False)
+    assert out.passing and not out.stopped
+
+
 def test_an_a_a_window_too_long_for_the_scoring_window_is_refused():
     y, X = panel_ar(1, n=10)
     with pytest.raises(MlsynthDataError, match="A/A"):
