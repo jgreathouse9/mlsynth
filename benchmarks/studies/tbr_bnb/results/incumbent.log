@@ -1,0 +1,8 @@
+[dallas] restarts 50: RSS 704316.1152 ['chicago', 'denver', 'memphis', 'washington']; 1989 -> 13 -> 1; 3 nodes, 2 pruned, 1 branched, 0 adopted, 0 open; CERTIFIED in 60s
+[dallas] restarts 1: RSS 704316.1152 ['chicago', 'denver', 'memphis', 'washington']; 2184 -> 65 -> 43; 53 nodes, 48 pruned, 5 branched, 1 adopted, 0 open; CERTIFIED in 436s
+[dallas+denver] restarts 50: RSS 3810912.775 ['baton rouge', 'chicago', 'memphis', 'washington']; 1900 -> 18 -> 3; 5 nodes, 4 pruned, 1 branched, 0 adopted, 0 open; CERTIFIED in 77s
+[dallas+denver] restarts 1: RSS 3810912.775 ['baton rouge', 'chicago', 'memphis', 'washington']; 2166 -> 66 -> 50; 52 nodes, 51 pruned, 1 branched, 1 adopted, 0 open; CERTIFIED in 302s
+[cincinnati+dallas+denver] restarts 50: RSS 4771180.387 ['baton rouge', 'chicago', 'cleveland', 'memphis', 'portland', 'san diego', 'washington']; 1924 -> 36 -> 11; 15 nodes, 13 pruned, 2 branched, 0 adopted, 0 open; CERTIFIED in 196s
+[cincinnati+dallas+denver] restarts 1: RSS 4771180.387 ['baton rouge', 'chicago', 'cleveland', 'memphis', 'portland', 'san diego', 'washington']; 2146 -> 89 -> 64; 80 nodes, 72 pruned, 8 branched, 4 adopted, 0 open; CERTIFIED in 598s
+[chicago+cincinnati+dallas+denver] restarts 50: RSS 8083009.301 ['memphis', 'minneapolis', 'nashville', 'portland', 'reno', 'san diego', 'washington']; 1872 -> 41 -> 15; 35 nodes, 25 pruned, 10 branched, 0 adopted, 0 open; CERTIFIED in 406s
+[chicago+cincinnati+dallas+denver] restarts 1: RSS 8083009.301 ['memphis', 'minneapolis', 'nashville', 'portland', 'reno', 'san diego', 'washington']; 2052 -> 79 -> 57; 77 nodes, 67 pruned, 10 branched, 4 adopted, 0 open; CERTIFIED in 576s
