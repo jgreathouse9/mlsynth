@@ -361,3 +361,50 @@ def test_certify_prunes_on_the_float_certificate(seed):
     assert out.certified and float(out.incumbent) == pytest.approx(best, rel=1e-9)
     assert out.search.checks["float"] == out.search.pruned > 0
     assert out.search.checks.get("exact", 0) == 0
+
+
+def test_a_negative_inequality_multiplier_is_read_as_zero():
+    y, X, O1, yv = _node(1)
+    neg = yv.copy(); idx = np.flatnonzero(O1.ineq)[::7]
+    neg[idx] = -np.abs(neg[idx]) - 1.0
+    zero = neg.copy(); zero[idx] = 0.0
+    assert joint_bound_float(O1, neg) == joint_bound_float(O1, zero)
+
+
+def test_the_assembly_rounding_is_bounded_where_every_term_is_lost():
+    """k = 1 less 24 fixing terms of 0.45 u each: each one rounds away, so fl(k) = 1
+    is wrong by 10.8 u, while the data's rounding (one period, y'y = 1) and the
+    coefficients (lo, hi dyadic) allow only about u. Only the assembly's own
+    gamma_{N+8} covers it."""
+    y, X = np.array([1.0]), np.array([[0.5, 0.25, 0.75, 1.0, 0.125, 0.5]])
+    fixes = [(j % 6, 1) for j in range(24)]
+    O1 = Oracle(y, X, 0.5, 0.75, 2, fixes=fixes, unscaled=True)
+    yv = np.zeros(O1.dim); yv[O1.sl["fix"]] = 0.45 * U
+    S, kk, E, ek = joint_assembly(O1, yv)
+    _, Sx, kx = _exact(y, X, O1, yv, 0.5, 0.75, 2)
+    assert kk == 1.0 and 1 - kx == Q(24) * Q(0.45 * U)
+    assert abs(Q(kk) - kx) <= Q(ek)
+    assert _coef_error(0.5, 0.75) < 1e-300 and float(1 - kx) > 4 * U    # the case has power
+
+
+def test_an_eigenvalue_estimate_too_high_grows_the_shift(monkeypatch):
+    """A first shift above lambda_min leaves S - sigma I indefinite; the shift grows
+    until the factor exists, and the bound is still below lambda_min."""
+    S = _known(8, [3, -2, 5, 1, 7, -4, 2, 9])
+    real = np.linalg.eigvalsh
+    monkeypatch.setattr(certificate.np.linalg, "eigvalsh", lambda A: real(A) + 0.5)
+    lam = lambda_min_lower_float(S)
+    assert lam is not None and Q(lam) <= -4
+
+
+def test_a_failed_eigenvalue_bound_gives_no_bound(monkeypatch):
+    y, X, O1, yv = _node(0)
+    monkeypatch.setattr(certificate, "lambda_min_lower_float", lambda S: None)
+    assert joint_bound_float(O1, yv) == -np.inf
+
+
+def test_a_bound_below_the_doubles_gives_no_bound(monkeypatch):
+    """k and T lambda each finite, their sum below -1.8e308."""
+    S = _known(8, [-1, 0, 0, 0, 0, 0, 0, 0]) * 2.0 ** 1020      # lambda_min = -1.1e307
+    monkeypatch.setattr(certificate, "joint_assembly", lambda O, yv: (S, -1.5e308, np.zeros((8, 8)), 0.0))
+    assert joint_bound_float(SimpleNamespace(m=3.0, hi=0.9), None) == -np.inf
