@@ -11725,3 +11725,63 @@ timeout = 900.0
   find = "    return hull_bound(D, w, lo, hi, m) >= UB\n"
   replace = "    return False\n"
   models = "a pair the float bound cannot clear kept without asking the exact certificate, which may clear it"
+
+[[target]]
+name = "tbr-bnb-settings-dual"
+module-path = "benchmarks/studies/tbr_bnb/dual.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-memory-is-the-old-one"
+  find = "LBFGS_MEMORY = 10\n"
+  replace = "LBFGS_MEMORY = 20\n"
+  models = "the node solver back at 20 correction pairs, the same answers at up to 1.4 times the time"
+
+  [[target.mutant]]
+  id = "the-memory-is-too-short"
+  find = "LBFGS_MEMORY = 10\n"
+  replace = "LBFGS_MEMORY = 5\n"
+  models = "5 correction pairs, which leaves the hardest GeoLift group uncertified"
+
+  [[target.mutant]]
+  id = "the-memory-never-reaches-the-solver"
+  find = "            opts = dict(maxfun=mf, maxcor=LBFGS_MEMORY)\n"
+  replace = "            opts = dict(maxfun=mf, maxcor=20)\n"
+  models = "the measured setting defined and not passed to L-BFGS-B"
+
+[[target]]
+name = "tbr-bnb-settings-lifts"
+module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-tolerance-never-reaches-clarabel"
+  find = "        kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol, tol_feas=tol)\n"
+  replace = "        kw = {}\n"
+  models = "a tolerance accepted by Lift.piece and dropped before Clarabel sees it"
+
+  [[target.mutant]]
+  id = "one-of-the-three-tolerances-is-dropped"
+  find = "        kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol, tol_feas=tol)\n"
+  replace = "        kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol)\n"
+  models = "the feasibility tolerance left at Clarabel's default, so the solve stops on the gap alone"
+
+[[target]]
+name = "tbr-bnb-settings-search"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-shor-tolerance-is-too-loose"
+  find = "SHOR_TOL = 1e-5\n"
+  replace = "SHOR_TOL = 1e-4\n"
+  models = "a Shor tolerance that keeps 18 pairs on the hardest group where 1e-5 keeps 15"
+
+  [[target.mutant]]
+  id = "the-shor-stage-ignores-its-tolerance"
+  find = "        v = shor.piece(*pc, tol=SHOR_TOL)\n"
+  replace = "        v = shor.piece(*pc)\n"
+  models = "the measured tolerance defined and the Shor stage solving at Clarabel's default"

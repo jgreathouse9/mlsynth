@@ -36,6 +36,14 @@ import numpy as np
 import cvxpy as cp
 from scipy.optimize import minimize
 
+#: The number of correction pairs L-BFGS-B stores (scipy's ``maxcor``; m in Byrd,
+#: Lu, Nocedal and Zhu 1995). Measured on the four GeoLift groups (#965,
+#: results/solver_settings.log): 10 gives the same nodes, prunes and branches as
+#: 20 at 70-87% of the time, the work L-BFGS-B does per call falling with m; 5
+#: leaves the hardest group uncertified, its multipliers converging too slowly
+#: within the evaluation budget.
+LBFGS_MEMORY = 10
+
 
 def _svec_basis(r):
     idx = [(i, j) for i in range(r) for j in range(i, r)]
@@ -157,7 +165,7 @@ def smoothed_lbfgs(O, y0, target=None, *, alpha0=1e-2, alpha_min=1e-9, shrink=0.
     try:
         while alpha >= alpha_min:
             mf = stage_budget(stage) if stage_budget is not None else maxfun
-            opts = dict(maxfun=mf, maxcor=20)
+            opts = dict(maxfun=mf, maxcor=LBFGS_MEMORY)
             if ftol is not None: opts["ftol"] = ftol
             res = minimize(fun, y, args=(alpha,), jac=True, method="L-BFGS-B", bounds=bounds, options=opts)
             y = res.x; alpha *= shrink; stage += 1
