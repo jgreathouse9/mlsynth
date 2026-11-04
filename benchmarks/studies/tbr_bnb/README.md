@@ -220,8 +220,20 @@ fixing is certified to the solver's value.
 2. Warm starts parent to child (done here). Piece to neighbouring piece, of the
    same size, was measured and dropped: it saves 6% of the solver's evaluations
    and no time.
-3. Certificate cost: a floating-point check with a rigorous rounding bound if
-   the rational one dominates.
+3. Certificate cost (done here for the hull): `certificate.hull_bound_float`
+   reads the hull's first-order certificate in doubles and subtracts a rigorous
+   bound on every rounding error, the dot-product bound of Higham (2002),
+   Lemma 3.1 and eq. (3.5), with an allowance for underflow derived from IEEE
+   754 round to nearest; the last combination is done in rationals and rounded
+   down. `certificate.hull_clears` decides on it when it clears the incumbent
+   and on the exact certificate otherwise, so the stage keeps exactly the exact
+   one's survivors. On the four groups the hull stage takes 1.5-1.7 s against
+   8.7-10.8 s, with the same survivors and no pair left to the exact
+   certificate (`results/float_cert.log`); the float bound sits a median 7e-14
+   of `y'y` below the exact one. Hypothesis found the bound failing at
+   subnormal slopes (`lo = hi = 1.1e-308`), where the relative rounding bound
+   does not hold; the underflow allowance closes it. The joint lift's
+   certificate is next.
 4. Trim the lift entry by entry (a working set).
 5. The hull stage on the library's active-set solvers. (a), done here: the band
    without the per-geo cap (`hull.Band`), one `nnls` per group and
@@ -253,7 +265,7 @@ fixing is certified to the solver's value.
 
 - `panel.py`: the scoring window and the four groups.
 - `hull.py`, `lifts.py`: the hull QP, the band without the per-geo cap, and the lift levels.
-- `certificate.py`: every exact bound, the slope cap, fixings and the cut.
+- `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the hull's float certificate.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `brute.py`: enumeration, the truth the tests check against.
