@@ -517,7 +517,7 @@ def solve_simplex_qp(
                     continue
             converged = True
             break
-        if free.size == 0:  # pragma: no cover - with no weight capped, every weight at zero sums below J tol < 1
+        if free.size == 0:  # pragma: no cover - with no weight capped, all at zero would sum below J tol, under one for tol < 1/J
             active[int(np.argmax(w))] = False     # never pin every variable
             free = np.where(~active & ~capped)[0]
         BF = B[:, free]
