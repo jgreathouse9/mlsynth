@@ -234,11 +234,11 @@ All of it is in `results/solver_settings.log`.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (148 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (159 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 52 mutants of the thirteen
+but for two lines marked with their reasons. The 59 mutants of the sixteen
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
