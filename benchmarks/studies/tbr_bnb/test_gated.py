@@ -55,12 +55,17 @@ def test_failing_designs_are_excluded_in_order(seed):
     assert [float(r["rss"]) for r in out.rounds] == sorted(float(r["rss"]) for r in out.rounds)
 
 
-def test_an_excluded_design_is_never_returned():
-    y, X = panel(0, p=6)
-    best = certify_slope_free(y, X, restarts=10)
-    second = certify_slope_free(y, X, restarts=10, exclude=[set(best.controls)])
+@pytest.mark.parametrize("seed", range(3))
+def test_an_excluded_design_is_never_returned(seed):
+    """The excluded optimum is cut from every size's relaxation, so its own size
+    closes in at most three nodes (1, 3 and 1 on these panels) where branching
+    around it to the leaves takes 8 to 10."""
+    y, X = panel(seed, p=6)
+    best = certify_slope_free(y, X, restarts=10, hull=False)
+    second = certify_slope_free(y, X, restarts=10, hull=False, exclude=[set(best.controls)])
     assert second.certified and set(second.controls) != set(best.controls)
     assert second.incumbent >= best.incumbent
+    assert second.sizes[len(best.controls)]["nodes"] <= 3
 
 
 def test_a_cut_holds_at_every_size_for_every_other_design():
