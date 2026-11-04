@@ -11468,3 +11468,39 @@ timeout = 900.0
   find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
   models = "a pair ruled out by the band's double value without its exact certificate"
+
+[[target]]
+name = "simplex-qp-upper-vertex"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_upper_vertex.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-vertex-is-not-recognised"
+  find = "        if free.size == 0 and capped.any():\n"
+  replace = "        if False:\n"
+  models = "a vertex of the capped simplex handed to the free-set loop with nothing free, the defect this target exists for: the solve cycles to its pivot cap"
+
+  [[target.mutant]]
+  id = "only-the-capped-weight-is-released"
+  find = "                    active[j] = False\n"
+  replace = "                    pass\n"
+  models = "the vertex left by unpinning the capped weight alone, which with its total fixed cannot move, so nu is read from its own gradient and the loop cycles"
+
+  [[target.mutant]]
+  id = "the-vertex-is-accepted-unchecked"
+  find = "                if g[i] - g[j] > size[i] + size[j] + floor:\n"
+  replace = "                if False:\n"
+  models = "every vertex taken as optimal, so a solve started at the wrong design returns it"
+
+  [[target.mutant]]
+  id = "the-mass-goes-to-the-dearest-zero-weight"
+  find = "                j = int(ri[int(np.argmin(g[ri]))])\n"
+  replace = "                j = int(ri[int(np.argmax(g[ri]))])\n"
+  models = "the interval's upper end read as the largest gradient at zero, so an optimal vertex is left and a violated one can be accepted"
+
+  [[target.mutant]]
+  id = "a-fixed-weight-is-released"
+  find = "            ri = np.where(active & (upper > tol))[0]\n"
+  replace = "            ri = np.where(active)[0]\n"
+  models = "a weight fixed by a cap of zero counted as able to rise, so its gradient bounds nu and an optimal vertex is left toward a weight that cannot move"

@@ -353,7 +353,11 @@ def solve_simplex_qp(
         the target less the capped donors' part, with total one less their caps;
         a weight at its cap is released when its reduced gradient is above the
         free set's multiplier; and a step stops at whichever bound it meets
-        first. It is the hull of the shared-slope design problem at a fixed
+        first. At a vertex, where no weight is free, the multiplier is only
+        bounded, by the interval the pinned weights' conditions leave; the
+        vertex is optimal when that interval is nonempty, and is otherwise left
+        by releasing the capped weight and the weight at zero that violate it
+        most. It is the hull of the shared-slope design problem at a fixed
         total (``benchmarks/studies/tbr_bnb``, #965): ``min ||y - X w||^2`` over
         ``0 <= w <= hi, sum(w) = s`` is this program in ``v = w / s`` with
         ``B = s X`` and ``upper = hi / s``.
@@ -479,11 +483,42 @@ def solve_simplex_qp(
     f_stop, w_stop = np.inf, None                 # the point of the last checked release
     for _ in range(max_iter):
         free = np.where(~active & ~capped)[0]
+        if free.size == 0 and capped.any():
+            # A vertex of the capped simplex: every weight at zero or at its cap,
+            # the caps of the capped ones summing to one. No free weight fixes
+            # the sum-to-one multiplier nu; the KKT conditions only bound it,
+            # max g over the capped weights <= nu <= min g over the weights at
+            # zero that can rise (a cap of zero fixes a weight, which then
+            # carries no sign condition). The vertex is optimal iff that
+            # interval is nonempty, under the release test's rounding terms;
+            # otherwise moving mass from the capped weight with the largest
+            # gradient to the rising one with the smallest lowers the objective
+            # at rate g_i - g_j, the steepest of these pair moves (each has
+            # the same length), so both are released and the free-set solve on
+            # the pair takes the step. Unpinning one capped weight instead fixed
+            # nu at that weight's own gradient, released another against it,
+            # stepped zero and cycled to the pivot cap. Derived here from the
+            # KKT conditions (Nocedal and Wright, Numerical Optimization, 2nd
+            # ed., Thm 12.1) of the capped simplex, inside the active-set
+            # method of their Sect. 16.5.
+            r = B @ w - A
+            g = B.T @ r if linear is None else B.T @ r + 0.5 * linear
+            size = rel * (absB.T @ np.abs(r) + lin_abs) + noise * (absB.T @ (absB @ w + absA))
+            floor = noise * (fro2 * float(np.linalg.norm(w)) + lin_half)
+            ci = np.where(capped)[0]
+            ri = np.where(active & (upper > tol))[0]
+            if ri.size:
+                i = int(ci[int(np.argmax(g[ci]))])
+                j = int(ri[int(np.argmin(g[ri]))])
+                if g[i] - g[j] > size[i] + size[j] + floor:
+                    capped[i] = False
+                    active[j] = False
+                    pivots += 1
+                    continue
+            converged = True
+            break
         if free.size == 0:                        # never pin every variable
-            if capped.any():
-                capped[int(np.argmax(np.where(capped, w, -np.inf)))] = False
-            else:
-                active[int(np.argmax(w))] = False
+            active[int(np.argmax(w))] = False
             free = np.where(~active & ~capped)[0]
         BF = B[:, free]
         nF = free.size
