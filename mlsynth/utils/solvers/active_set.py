@@ -83,7 +83,8 @@ CERTIFY_TOL: float = 1e-10
 
 
 def simplex_kkt_error(B: np.ndarray, A: np.ndarray, w: np.ndarray,
-                      linear: Optional[np.ndarray] = None) -> float:
+                      linear: Optional[np.ndarray] = None,
+                      upper: Optional[np.ndarray] = None) -> float:
     """How far ``w`` is from the KKT conditions of ``min ||A - B w||^2 + linear'w``
     on the simplex, relative to the size of the terms the conditions are made of.
 
@@ -92,7 +93,10 @@ def simplex_kkt_error(B: np.ndarray, A: np.ndarray, w: np.ndarray,
     with the target's level removed (``agents_solvers.md``, rule 5). With
     ``g = D'D w + linear / 2``, the conditions are stationarity on the support
     (``g_i`` equal to one multiplier ``nu`` wherever ``w_i > 0``) and dual
-    feasibility off it (``g_i >= nu``). The error is the larger of
+    feasibility off it (``g_i >= nu``). With caps ``upper``, a weight at its cap
+    satisfies ``g_i <= nu`` instead, the multiplier of ``w_i <= u_i`` being
+    ``nu - g_i >= 0``; when no weight lies strictly between its bounds, ``nu`` is
+    the midpoint of the interval the pinned conditions leave. The error is the larger of
     ``||g_S - nu||`` and the most negative ``g_i - nu`` off the support,
     divided by ``||D||_F (||D||_F ||w|| + ||linear|| / 2)``, the size of
     ``g``'s terms (rule 2; the scaling of :func:`lsq.kkt_backward_error`, with
@@ -109,12 +113,29 @@ def simplex_kkt_error(B: np.ndarray, A: np.ndarray, w: np.ndarray,
         linear = np.asarray(linear, dtype=float).ravel()
         g = g + 0.5 * linear
         size_lin = 0.5 * float(np.linalg.norm(linear))
-    on = w > 1e-9
-    if not on.any():                          # pragma: no cover - w sums to one
-        on = w >= w.max()
-    nu = float(g[on].mean())
-    stat = float(np.linalg.norm(g[on] - nu))
-    neg = 0.0 if on.all() else max(0.0, -float((g[~on] - nu).min()))
+    if upper is None:
+        on = w > 1e-9
+        if not on.any():                          # pragma: no cover - w sums to one
+            on = w >= w.max()
+        nu = float(g[on].mean())
+        stat = float(np.linalg.norm(g[on] - nu))
+        neg = 0.0 if on.all() else max(0.0, -float((g[~on] - nu).min()))
+    else:
+        u = np.broadcast_to(np.asarray(upper, dtype=float), w.shape)
+        cap = w >= u - 1e-9
+        zero = (w <= 1e-9) & ~cap
+        on = ~cap & ~zero
+        if on.any():
+            nu = float(g[on].mean())
+            stat = float(np.linalg.norm(g[on] - nu))
+        else:
+            lo_nu = float(g[cap].max()) if cap.any() else -np.inf
+            hi_nu = float(g[zero].min()) if zero.any() else np.inf
+            nu = (lo_nu + hi_nu) / 2.0 if np.isfinite(lo_nu) and np.isfinite(hi_nu) else (
+                lo_nu if np.isfinite(lo_nu) else hi_nu)
+            stat = 0.0
+        neg = max(0.0, -float((g[zero] - nu).min())) if zero.any() else 0.0
+        neg = max(neg, float((g[cap] - nu).max())) if cap.any() else neg
     fro = float(np.linalg.norm(D))
     size = fro * fro * float(np.linalg.norm(w)) + size_lin
     return max(stat, neg) / size if size > 0.0 else max(stat, neg)
@@ -214,7 +235,7 @@ def _solve_on_range(U: np.ndarray, sv: np.ndarray, Vt: np.ndarray,
     return Vt.T @ ((U.T @ b) / sv)
 
 
-def _assert_optimal_with_linear(B, A, w, linear, tol):
+def _assert_optimal_with_linear(B, A, w, linear, tol, upper=None):
     """Check the returned point against the conditions, when a linear term is set.
 
     The pivot loop tests primal feasibility of the free set and dual
@@ -236,9 +257,10 @@ def _assert_optimal_with_linear(B, A, w, linear, tol):
     the loop wrongly accepts raises and is never returned.
     """
     g = 2.0 * (B.T @ (B @ w - A)) + linear
-    on = w > tol
-    if not on.any():                          # pragma: no cover - w sums to 1
-        return
+    cap = np.zeros(w.shape, dtype=bool) if upper is None else w >= upper - tol
+    on = (w > tol) & ~cap
+    if not on.any():                          # pragma: no cover - every weight at a bound:
+        return                                # the certificate on the caller's data decides
     nu = float(g[on].mean())
     # Scale by the curvature, not by the gradient. A fit that is close to exact
     # has a gradient near zero, and dividing by it turns rounding noise into an
@@ -251,7 +273,10 @@ def _assert_optimal_with_linear(B, A, w, linear, tol):
     scale = 2.0 * float(np.einsum("ij,ij->j", core, core).max(initial=0.0))
     scale = max(scale, 1e-300)
     stat = float(np.abs(g[on] - nu).max()) / scale
-    dual = 0.0 if on.all() else -min(0.0, float((g[~on] - nu).min()) / scale)
+    low = ~on & ~cap
+    dual = 0.0 if not low.any() else -min(0.0, float((g[low] - nu).min()) / scale)
+    if cap.any():
+        dual = max(dual, max(0.0, float((g[cap] - nu).max()) / scale))
     if max(stat, dual) > 1e-6:
         raise SimplexQPNotOptimal(
             f"linear term: the active set did not reach the minimiser on this "
@@ -272,8 +297,9 @@ def solve_simplex_qp(
     max_iter: Optional[int] = None,
     return_info: bool = False,
     accelerate: bool = True,
+    upper=None,
 ):
-    """Minimise ``||A - B w||^2`` over ``w >= 0, sum(w) == 1``.
+    """Minimise ``||A - B w||^2`` over ``w >= 0, sum(w) == 1``, and ``w <= upper``.
 
     Parameters
     ----------
@@ -315,6 +341,22 @@ def solve_simplex_qp(
         Whether a cold solve on a pool of at least ``ACCEL_MIN_DONORS`` may seed
         itself with a FISTA warm start (default ``True``). Set ``False`` for the
         cold path -- it changes the work, not the weights.
+    upper : float or np.ndarray, shape (J,), optional
+        Caps on the weights, the capped simplex ``{0 <= w <= u, sum(w) = 1}``;
+        a scalar caps every donor. ``None`` leaves the program untouched, bit for
+        bit, and so do caps of one or more, which cannot bind on the simplex.
+        The caps must be finite, nonnegative and sum to at least one, or the set
+        is empty. The loop is the bounded-variable active set (Nocedal and
+        Wright, Numerical Optimization, 2nd ed., Sect. 16.5, for bound
+        constraints in an active-set method): a weight is pinned at zero, pinned
+        at its cap, or free; the free set solves the same least squares toward
+        the target less the capped donors' part, with total one less their caps;
+        a weight at its cap is released when its reduced gradient is above the
+        free set's multiplier; and a step stops at whichever bound it meets
+        first. It is the hull of the shared-slope design problem at a fixed
+        total (``benchmarks/studies/tbr_bnb``, #965): ``min ||y - X w||^2`` over
+        ``0 <= w <= hi, sum(w) = s`` is this program in ``v = w / s`` with
+        ``B = s X`` and ``upper = hi / s``.
 
     Returns
     -------
@@ -343,6 +385,23 @@ def solve_simplex_qp(
             )
         if not np.all(np.isfinite(linear)):
             raise ValueError("linear must be finite.")
+    if upper is not None:
+        u_cap = np.asarray(upper, dtype=float)
+        u_cap = np.full(J, float(u_cap)) if u_cap.ndim == 0 else u_cap.ravel()
+        if u_cap.shape != (J,):
+            raise ValueError(
+                f"upper must hold one cap per donor: expected ({J},), got {u_cap.shape}.")
+        if not np.all(np.isfinite(u_cap)):
+            raise ValueError("upper must be finite.")
+        if np.any(u_cap < 0):
+            raise ValueError("upper must be nonnegative.")
+        if u_cap.sum() < 1.0:
+            raise ValueError(
+                f"upper must sum to at least one for the capped simplex to hold a "
+                f"point; it sums to {u_cap.sum():.6g}.")
+        # A cap of one or more cannot bind on the simplex, so all-loose caps are
+        # the uncapped program and take its path, bit for bit.
+        upper = None if np.all(u_cap >= 1.0) else u_cap
 
     # The caller's data, for the certificate; the loop works on the same program
     # in unit scale and difference form.
@@ -354,11 +413,13 @@ def solve_simplex_qp(
         total = w.sum()
         if total > 0:
             w = w / total
+        if upper is not None:
+            w = np.minimum(w, upper)              # the normalisation's rounding
         if linear is not None:
-            _assert_optimal_with_linear(B, A, w, linear, tol)
+            _assert_optimal_with_linear(B, A, w, linear, tol, upper)
         # ``converged`` means certified on the caller's data (rule 2): the
         # loop's own last test checked the point it believed it was at.
-        kkt = simplex_kkt_error(B_in, A_in, w, linear_in)
+        kkt = simplex_kkt_error(B_in, A_in, w, linear_in, upper)
         certified = kkt <= CERTIFY_TOL
         converged = bool(converged) and certified
         if return_info:
@@ -397,30 +458,49 @@ def solve_simplex_qp(
     if warm_start is not None:
         ws = np.asarray(warm_start, dtype=float).ravel()
         if (ws.shape == (J,) and np.all(np.isfinite(ws))
-                and ws.min() >= -tol and abs(ws.sum() - 1.0) <= 1e-6):
+                and ws.min() >= -tol and abs(ws.sum() - 1.0) <= 1e-6
+                and (upper is None or np.all(ws <= upper + tol))):
             w = np.clip(ws, 0.0, None)
             w = w / w.sum()
+            if upper is not None:
+                w = np.minimum(w, upper)
     if w is None:
-        w = np.full(J, 1.0 / J)
+        # The uniform point, or with caps the point proportional to them, which
+        # lies in the capped simplex whenever the caps sum to at least one.
+        w = np.full(J, 1.0 / J) if upper is None else upper / upper.sum()
     active = w <= tol                             # variables pinned at the 0 bound
+    # variables pinned at their caps; none without caps
+    capped = np.zeros(J, dtype=bool) if upper is None else (w >= upper - tol) & ~active
+    if upper is not None:
+        w[capped] = upper[capped]
 
     pivots = 0
     converged = False
     f_stop, w_stop = np.inf, None                 # the point of the last checked release
     for _ in range(max_iter):
-        free = np.where(~active)[0]
+        free = np.where(~active & ~capped)[0]
         if free.size == 0:                        # never pin every variable
-            active[int(np.argmax(w))] = False
-            free = np.where(~active)[0]
+            if capped.any():
+                capped[int(np.argmax(np.where(capped, w, -np.inf)))] = False
+            else:
+                active[int(np.argmax(w))] = False
+            free = np.where(~active & ~capped)[0]
         BF = B[:, free]
         nF = free.size
+        # With caps the free set carries what the capped donors leave: a total of
+        # one less their caps, toward the target less their part of the fit.
+        if capped.any():
+            t_free = 1.0 - float(upper[capped].sum())
+            A_free = A - B[:, capped] @ upper[capped]
+        else:
+            t_free, A_free = 1.0, A
         # Equality-constrained LSQ on the free set: min ||BF wF - A||^2 s.t.
         # 1' wF = 1, solved on the null space of 1' so we factor BF *directly*
         # instead of the normal equations BF'BF (which would square the
         # condition number). lstsq tolerates a rank-deficient BF (|free| > T0,
         # collinear donors), so no epsilon-I is needed.
         if nF == 1:
-            wF = np.array([1.0])
+            wF = np.array([t_free])
         else:
             # Null space of 1' via the difference basis Z[:, j] = e_j - e_{nF-1}.
             # Then BF @ Z = BF[:, :-1] - BF[:, -1:] and the uniform particular
@@ -428,7 +508,7 @@ def solve_simplex_qp(
             # matmul. Rank-revealing QR (LAPACK gelsy) is ~3x faster than SVD
             # lstsq and robust to a rank-deficient system (collinear free donors).
             M = BF[:, :nF - 1] - BF[:, nF - 1:nF]
-            rhs = A - BF.mean(axis=1)
+            rhs = A - BF.mean(axis=1) if not capped.any() else A_free - t_free * BF.mean(axis=1)
             if linear is not None:
                 # In v the objective gains (Z' l_F)' v, so stationarity reads
                 # M'M v = M' rhs - Z' l_F / 2. Shifting the residual by any u
@@ -463,15 +543,24 @@ def solve_simplex_qp(
                     d = d / float(np.abs(d).max())
                     cur = w[free]
                     blocking = d < -tol
-                    if blocking.any():
+                    up = (d > tol) if upper is not None else np.zeros(nF, dtype=bool)
+                    if blocking.any() or up.any():
                         ratios = np.where(
                             blocking, cur / np.maximum(-d, tol), np.inf)
+                        if up.any():
+                            ratios = np.minimum(ratios, np.where(
+                                up, (upper[free] - cur) / np.maximum(d, tol), np.inf))
                         cur = cur + float(ratios.min()) * d
                         w = np.zeros(J)
                         w[free] = np.maximum(cur, 0.0)
+                        if upper is not None:
+                            w[capped] = upper[capped]
+                            top = free[cur >= upper[free] - tol]
+                            w[top] = upper[top]
+                            capped[top] = True
                         hit = free[cur <= tol]
-                        if hit.size == 0:         # pragma: no cover - numerical
-                            hit = free[[int(np.argmin(cur))]]
+                        if hit.size == 0 and (upper is None or not np.any(cur >= upper[free] - tol)):
+                            hit = free[[int(np.argmin(cur))]]  # pragma: no cover - numerical
                         active[hit] = True
                         pivots += 1
                         continue
@@ -479,13 +568,16 @@ def solve_simplex_qp(
             else:
                 v = _gelsy_lstsq(M, rhs)
             wF = np.empty(nF)
-            wF[:nF - 1] = 1.0 / nF + v
-            wF[nF - 1] = 1.0 / nF - v.sum()
+            wF[:nF - 1] = t_free / nF + v
+            wF[nF - 1] = t_free / nF - v.sum()
 
-        if wF.min() >= -tol:
+        if wF.min() >= -tol and (upper is None or np.all(wF <= upper[free] + tol)):
             # Full step to the free-set optimum.
             w = np.zeros(J)
             w[free] = np.maximum(wF, 0.0)
+            if upper is not None:
+                w[free] = np.minimum(w[free], upper[free])
+                w[capped] = upper[capped]
             # The gradient in residual form, B'(B w - A) plus half the price,
             # not G w - c: the Gram adds an error of eps |B|'|B| |w| that, on a
             # design whose rows differ in scale by 1e6, is the size of the
@@ -493,11 +585,14 @@ def solve_simplex_qp(
             r = B @ w - A
             g = B.T @ r if linear is None else B.T @ r + 0.5 * linear
             nu = float(g[free].mean())            # sum-to-one multiplier (g_i == nu on free)
-            if active.any():
+            # A variable pinned at its cap is optimal iff g_i <= nu, so its
+            # reduced gradient is nu - g_i; the two pinned sets are tested as one.
+            pinned = active | capped
+            if pinned.any():
                 # Dual feasibility: a pinned variable is optimal iff its reduced
                 # gradient g_i >= nu. Release the most-violating one if any.
-                ai = np.where(active)[0]
-                reduced = g[ai] - nu
+                ai = np.where(pinned)[0]
+                reduced = np.where(capped[ai], nu - g[ai], g[ai] - nu)
                 # Each reduced gradient against the size of its own terms
                 # (rule 3): g_i is B_i'r plus half the price, so its size is
                 # |B_i|'|r| + |l_i| / 2, and its rounding is bounded by
@@ -524,6 +619,7 @@ def solve_simplex_qp(
                 k = int(np.argmin(reduced / thr))
                 if reduced[k] < -thr[k]:
                     active[ai[k]] = False
+                    capped[ai[k]] = False
                     pivots += 1
                     continue
             # Inside the rounding bound the sign of a reduced gradient is
@@ -539,7 +635,7 @@ def solve_simplex_qp(
             # noise, which changes with the units, and the answer with it.
             # Every kept release lowers the objective, so no stop point
             # repeats and the extra pivots are finite.
-            k = int(np.argmin(reduced)) if active.any() else -1
+            k = int(np.argmin(reduced)) if pinned.any() else -1
             if w_stop is not None or (k >= 0 and reduced[k] < 0.0):
                 f = float(r @ r)
                 f_err = float(r @ r) + 2.0 * float(np.abs(r) @ (absB @ w + absA))
@@ -551,6 +647,7 @@ def solve_simplex_qp(
                 elif k >= 0 and reduced[k] < 0.0:
                     f_stop, w_stop = f, w.copy()
                     active[ai[k]] = False
+                    capped[ai[k]] = False
                     pivots += 1
                     continue
             converged = True
@@ -561,12 +658,31 @@ def solve_simplex_qp(
         direction = wF - cur
         blocking = direction < -tol
         ratios = np.where(blocking, cur / np.maximum(-direction, tol), np.inf)
-        step = min(1.0, float(ratios.min()))
+        if upper is not None:
+            # a step stops at whichever bound it meets first: zero or the cap
+            uF = upper[free]
+            rising = direction > tol
+            ratios_up = np.where(rising, (uF - cur) / np.maximum(direction, tol), np.inf)
+            step = min(1.0, float(ratios.min()), float(ratios_up.min()))
+        else:
+            step = min(1.0, float(ratios.min()))
         cur = cur + step * direction
         w = np.zeros(J)
         w[free] = np.maximum(cur, 0.0)
         hit = free[cur <= tol]
-        if hit.size == 0:                         # numerical safety
+        if upper is not None:
+            w[capped] = upper[capped]
+            top = free[cur >= uF - tol]
+            w[top] = upper[top]
+            capped[top] = True
+            if hit.size == 0 and top.size == 0:   # pragma: no cover - numerical safety: a step that
+                j = int(np.argmin(np.minimum(ratios, ratios_up)))  # moves no coordinate onto a bound
+                if ratios_up[j] < ratios[j]:
+                    capped[free[j]] = True
+                    w[free[j]] = upper[free[j]]
+                else:
+                    hit = free[[j]]
+        elif hit.size == 0:                       # numerical safety
             hit = free[[int(np.argmin(cur))]]
         active[hit] = True
         pivots += 1
