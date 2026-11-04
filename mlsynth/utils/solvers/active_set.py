@@ -501,16 +501,16 @@ def solve_simplex_qp(
             # KKT conditions (Nocedal and Wright, Numerical Optimization, 2nd
             # ed., Thm 12.1) of the capped simplex, inside the active-set
             # method of their Sect. 16.5.
-            r = B @ w - A
-            g = B.T @ r if linear is None else B.T @ r + 0.5 * linear
-            size = rel * (absB.T @ np.abs(r) + lin_abs) + noise * (absB.T @ (absB @ w + absA))
-            floor = noise * (fro2 * float(np.linalg.norm(w)) + lin_half)
+            rv = B @ w - A
+            gv = B.T @ rv if linear is None else B.T @ rv + 0.5 * linear
+            sv = rel * (absB.T @ np.abs(rv) + lin_abs) + noise * (absB.T @ (absB @ w + absA))
+            floor_v = noise * (fro2 * float(np.linalg.norm(w)) + lin_half)
             ci = np.where(capped)[0]
             ri = np.where(active & (upper > tol))[0]
             if ri.size:
-                i = int(ci[int(np.argmax(g[ci]))])
-                j = int(ri[int(np.argmin(g[ri]))])
-                if g[i] - g[j] > size[i] + size[j] + floor:
+                i = int(ci[int(np.argmax(gv[ci]))])
+                j = int(ri[int(np.argmin(gv[ri]))])
+                if gv[i] - gv[j] > sv[i] + sv[j] + floor_v:
                     capped[i] = False
                     active[j] = False
                     pivots += 1

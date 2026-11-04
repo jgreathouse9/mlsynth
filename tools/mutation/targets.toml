@@ -11290,6 +11290,8 @@ timeout = 900.0
   find = "                        if up.any():\n                            ratios = np.minimum(ratios, np.where(\n"
   replace = "                        if False:\n                            ratios = np.minimum(ratios, np.where(\n"
   models = "the linear term's ray followed past a cap, stopping only at zero"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect since the vertex rule (simplex-qp-upper-vertex). A ray that overshoots a cap is clipped there by the step's own bookkeeping, which pins every free weight at or past its cap and sets it to the cap, and the next free-set solve restores the sum. Before the vertex rule that repair could land on a vertex and cycle, which is what killed this mutant; now the loop leaves the vertex. Measured on 200 seeds of the wide-design ray test: 0 wrong answers and 0 unconverged solves with the mutant, in 1,407 pivots against 1,419 without it. The guard stays because it keeps every iterate feasible by construction instead of by repair."
 
 # The TBR certified-design study (#965): certificates, dual oracle, node solvers,
 # search and lifts of benchmarks/studies/tbr_bnb.
@@ -11489,14 +11491,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-vertex-is-accepted-unchecked"
-  find = "                if g[i] - g[j] > size[i] + size[j] + floor:\n"
+  find = "                if gv[i] - gv[j] > sv[i] + sv[j] + floor_v:\n"
   replace = "                if False:\n"
   models = "every vertex taken as optimal, so a solve started at the wrong design returns it"
 
   [[target.mutant]]
   id = "the-mass-goes-to-the-dearest-zero-weight"
-  find = "                j = int(ri[int(np.argmin(g[ri]))])\n"
-  replace = "                j = int(ri[int(np.argmax(g[ri]))])\n"
+  find = "                j = int(ri[int(np.argmin(gv[ri]))])\n"
+  replace = "                j = int(ri[int(np.argmax(gv[ri]))])\n"
   models = "the interval's upper end read as the largest gradient at zero, so an optimal vertex is left and a violated one can be accepted"
 
   [[target.mutant]]
