@@ -1,0 +1,28 @@
+[dallas] incumbent |C|=4 slope 0.17881 RSS 704316.1152 (exact)
+[dallas] slope cap 11.133 (62x the incumbent's), 51 pieces x 39 sizes
+[dallas] hull: 1989 -> 13 (1976 certified prunes, 25s)
+[dallas] shor: 13 -> 1 (17s)
+[dallas] L-BFGS-B branch and bound: 3 nodes, 2 pruned, 1 branched, 0 to Clarabel; lbfgs 24s, certificates 2s
+[dallas] joint lift + branching: 1 nodes at the root, 0 solved, 0 open (26s)
+[dallas] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 704316.1152  [85s]
+[dallas+denver] incumbent |C|=4 slope 0.50406 RSS 3810912.775 (exact)
+[dallas+denver] slope cap 26.525 (53x the incumbent's), 50 pieces x 38 sizes
+[dallas+denver] hull: 1900 -> 18 (1882 certified prunes, 23s)
+[dallas+denver] shor: 18 -> 3 (21s)
+[dallas+denver] L-BFGS-B branch and bound: 5 nodes, 4 pruned, 1 branched, 0 to Clarabel; lbfgs 36s, certificates 3s
+[dallas+denver] joint lift + branching: 3 nodes at the root, 0 solved, 0 open (39s)
+[dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 3810912.775  [95s]
+[cincinnati+dallas+denver] incumbent |C|=7 slope 0.38505 RSS 4771180.387 (exact)
+[cincinnati+dallas+denver] slope cap 32.763 (85x the incumbent's), 52 pieces x 37 sizes
+[cincinnati+dallas+denver] hull: 1924 -> 36 (1888 certified prunes, 21s)
+[cincinnati+dallas+denver] shor: 36 -> 11 (45s)
+[cincinnati+dallas+denver] L-BFGS-B branch and bound: 15 nodes, 13 pruned, 2 branched, 0 to Clarabel; lbfgs 104s, certificates 9s
+[cincinnati+dallas+denver] joint lift + branching: 11 nodes at the root, 0 solved, 0 open (113s)
+[cincinnati+dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 4771180.387  [191s]
+[chicago+cincinnati+dallas+denver] incumbent |C|=7 slope 0.52742 RSS 8083009.301 (exact)
+[chicago+cincinnati+dallas+denver] slope cap 42.623 (81x the incumbent's), 52 pieces x 36 sizes
+[chicago+cincinnati+dallas+denver] hull: 1872 -> 41 (1831 certified prunes, 20s)
+[chicago+cincinnati+dallas+denver] shor: 41 -> 15 (49s)
+[chicago+cincinnati+dallas+denver] L-BFGS-B branch and bound: 35 nodes, 25 pruned, 10 branched, 0 to Clarabel; lbfgs 269s, certificates 16s
+[chicago+cincinnati+dallas+denver] joint lift + branching: 15 nodes at the root, 0 solved, 0 open (285s)
+[chicago+cincinnati+dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 8083009.301  [365s]
