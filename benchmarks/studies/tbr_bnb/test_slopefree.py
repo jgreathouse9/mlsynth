@@ -332,3 +332,29 @@ def test_the_hull_stage_keeps_the_optimums_size_against_a_poor_incumbent(monkeyp
     out = certify_slope_free(y, X)
     assert len(C) in out.sizes_after_hull
     assert out.certified and set(out.controls) == C
+
+
+def test_a_fixing_excludes_the_designs_that_disagree_with_it():
+    y, X = panel(3, p=5)
+    _, c, G = _exact(y, X)
+    R = Rows(c, 2, fixes=[(1, 1), (3, 0)])
+    for C, u in _designs(5, 2):
+        if c @ u.astype(object) >= 0:
+            assert R.holds(_lifted(u)) == (1 in C and 3 not in C)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_every_size_holding_a_better_design_survives_the_hull(monkeypatch, seed):
+    """Against a poor incumbent, each size with any design of lower RSS reaches the
+    relaxation: the hull stage rules out only sizes it has proved hold none."""
+    y, X = panel(seed, p=6)
+    worst = _worse_incumbent(monkeypatch, y, X)
+    D = ExactData(y, X)
+    rss_inc = D.yy - _ratio(D.c, D.G, {worst})
+    better = set()
+    for m in range(1, 7):
+        for C, u in _designs(6, m):
+            if D.c @ u.astype(object) > 0 and D.yy - _ratio(D.c, D.G, C) < rss_inc:
+                better.add(m); break
+    out = certify_slope_free(y, X)
+    assert better <= set(out.sizes_after_hull)
