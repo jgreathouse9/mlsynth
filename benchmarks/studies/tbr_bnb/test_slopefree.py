@@ -351,3 +351,57 @@ def test_every_size_holding_a_better_design_survives_the_hull(monkeypatch, seed)
                 better.add(m); break
     out = certify_slope_free(y, X)
     assert better <= set(out.sizes_after_hull)
+
+
+# ---------------------------------------------------------------- the ceiling
+
+
+def test_a_ceiling_below_the_optimum_is_held():
+    """Asked only whether any design has an RSS below a ceiling under the optimum,
+    the certificate answers no: the ceiling is held, and the design it reports is a
+    real one at or above the optimum."""
+    y, X = panel(0, p=6)
+    best, _ = positive_optimum(y, X)
+    out = certify_slope_free(y, X, restarts=10, ceiling=Q(best) * Q(99, 100))
+    assert out.certified and out.ceiling_held
+    assert float(out.incumbent) >= best * (1 - 1e-9)
+
+
+def test_a_ceiling_above_the_optimum_changes_nothing():
+    y, X = panel(0, p=6)
+    best, C = positive_optimum(y, X)
+    out = certify_slope_free(y, X, restarts=10, ceiling=Q(best) * Q(101, 100))
+    assert out.certified and not out.ceiling_held
+    assert set(out.controls) == C and float(out.incumbent) == pytest.approx(best, rel=1e-9)
+
+
+def test_a_ceiling_held_from_a_poor_incumbent_still_adopts_a_design_below_it(monkeypatch):
+    """With a poor incumbent above the ceiling, branching that reaches a design below
+    the ceiling adopts it, so the ceiling is not reported held."""
+    from . import search
+
+    y, X = panel(1, p=6)
+    best, C = positive_optimum(y, X)
+    worst = max((set(t) for r in range(1, 7) for t in combinations(range(6), r)),
+                key=lambda S: -_ratio_of(y, X, S))
+    monkeypatch.setattr(search, "incumbent", lambda y, X, restarts, seed: (None, worst))
+    out = certify_slope_free(y, X, restarts=1, hull=False, ceiling=Q(best) * Q(101, 100))
+    assert out.certified and not out.ceiling_held and set(out.controls) == C
+
+
+def _ratio_of(y, X, S):
+    x = X[:, sorted(S)].sum(axis=1)
+    return (y @ x) ** 2 / (x @ x) if y @ x > 0 else -np.inf
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), f=st.sampled_from([Q(95, 100), Q(98, 100), Q(102, 100), Q(105, 100)]))
+def test_property_the_ceiling_is_held_exactly_when_no_design_is_below_it(seed, f):
+    y, X = panel(seed % 60, p=5)
+    best, _ = positive_optimum(y, X)
+    if best == np.inf:
+        return
+    out = certify_slope_free(y, X, restarts=5, ceiling=Q(best) * f)
+    assert out.certified and out.ceiling_held == (f < 1)
+    if f > 1:
+        assert float(out.incumbent) == pytest.approx(best, rel=1e-9)

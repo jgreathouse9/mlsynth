@@ -20,8 +20,8 @@ from mlsynth.exceptions import MlsynthDataError
 from .brute import geo_panel, treatment_optimum
 from .certificate import ExactData
 from .gated import certify_gated
-from .treatment import (EDGE, SLACK, _split, can_compete, certify_treatment, gram_floor,
-                        rss_floor)
+from .treatment import (EDGE, SLACK, _split, can_compete, ceiling, certify_treatment,
+                        gram_floor, rss_floor)
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -205,26 +205,53 @@ def test_a_singular_gram_gives_no_floor_and_rules_nothing_out():
     assert rss_floor(M, (1,), None) == 0
 
 
-def test_each_survivor_stops_once_its_rounds_cannot_compete(monkeypatch):
-    """Every group certified after the incumbent is set carries a stop rule: a round
-    whose RSS rules the group out ends that group's search."""
+def test_each_survivor_is_certified_against_the_incumbents_ceiling(monkeypatch):
+    """Every group certified after the incumbent is set is asked only whether it has
+    a design below its ceiling, the RSS at which it would stop competing."""
     from . import treatment as tr
 
     real = tr.certify_gated
-    rules = []
+    seen = []
 
-    def spy(*a, stop=None, **kw):
-        rules.append(stop)
-        return real(*a, stop=stop, **kw)
+    def spy(y, X, *a, ceiling=None, **kw):
+        seen.append((sum(Q(v) ** 2 for v in y.tolist()), ceiling))
+        return real(y, X, *a, ceiling=ceiling, **kw)
 
     monkeypatch.setattr(tr, "certify_gated", spy)
     out = certify_treatment(geo_panel(5), 2, n_test=N_TEST, restarts=3)
-    assert out.passing and len(rules) == len(out.survivors) >= 2
-    assert rules[0] is None                       # the start, before any incumbent
-    for stop in rules[1:]:
-        assert stop(Q(10) ** 30) is True           # an RSS no design of the class can have
-        assert stop(Q(0)) is False                 # a perfect fit always competes
+    assert out.passing and len(seen) == len(out.survivors) >= 2
+    assert seen[0][1] is None                      # the start, before any incumbent
+    assert all(c is not None and 0 < c < yy for yy, c in seen[1:])
     assert all("stopped" in s for s in out.survivors)
+
+
+def _compete_reference(yy, floor, r_star, rss_star):
+    """can_compete read directly off the rounding, the form ceiling() replaces."""
+    corr2 = 1 - floor / yy
+    up, low = r_star + EDGE - SLACK, r_star - EDGE - SLACK
+    if corr2 >= up * up:
+        return True
+    if corr2 < low * low:
+        return False
+    return floor < rss_star
+
+
+@given(yy=st.integers(10 ** 3, 10 ** 9), f=st.fractions(0, 1), r=st.sampled_from([Q(81, 100), Q(9, 10), Q(99, 100), Q(1)]),
+       g=st.fractions(0, 1))
+@SETTINGS
+def test_property_the_ceiling_agrees_with_the_rounding(yy, f, r, g):
+    """A group competes exactly when its floor is below its ceiling (equality, a
+    single RSS, aside)."""
+    yy = Q(yy); floor = yy * f; rss_star = yy * g
+    c = ceiling(yy, r, rss_star)
+    assume_away = floor == c
+    if not assume_away:
+        assert can_compete(yy, floor, r, rss_star) == _compete_reference(yy, floor, r, rss_star)
+        assert can_compete(yy, floor, r, rss_star) == (floor < c)
+
+
+def test_no_incumbent_has_no_ceiling():
+    assert ceiling(Q(10), None, None) is None
 
 
 def test_a_refused_certificate_is_reported(monkeypatch):

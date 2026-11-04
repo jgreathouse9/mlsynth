@@ -12036,8 +12036,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-hull-reads-a-smaller-upper-bound"
-  find = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - lam)\n"
-  replace = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), (D.yy - lam) / 2)\n"
+  find = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)\n"
+  replace = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), (D.yy - test) / 2)\n"
   models = "the hull stage given half the incumbent's RSS, so it discards sizes that hold better designs"
 
   [[target.mutant]]
@@ -12063,6 +12063,18 @@ timeout = 900.0
   find = "        _branch(c, G, out, m, excluded + [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   replace = "        _branch(c, G, out, m, [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
+
+  [[target.mutant]]
+  id = "the-ceiling-does-not-raise-the-test-ratio"
+  find = "        test = D.yy - ceiling              # only a design below the ceiling matters\n"
+  replace = "        pass\n"
+  models = "the ceiling accepted and ignored, so each size is tested at the incumbent's own ratio and the ceiling is never held"
+
+  [[target.mutant]]
+  id = "a-held-ceiling-reports-the-ceiling-as-a-design"
+  find = "    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself\n        inc.update(lam=lam)\n"
+  replace = "    if False:\n        inc.update(lam=lam)\n"
+  models = "a held ceiling reported as the incumbent's RSS, a value no design has"
 
 [[target]]
 name = "tbr-bnb-gated"
@@ -12095,10 +12107,16 @@ timeout = 900.0
   models = "any error, a refused certificate among them, read as no design being left"
 
   [[target.mutant]]
-  id = "the-stop-rule-is-ignored"
-  find = "        if stop is not None and stop(res.incumbent):\n"
+  id = "the-ceiling-does-not-end-the-search"
+  find = "        if res.ceiling_held or (ceiling is not None and res.incumbent >= ceiling):\n"
   replace = "        if False:\n"
-  models = "a caller's stop rule never consulted, so a group that cannot compete runs on through its failing designs"
+  models = "a round whose RSS-best design is not below the caller's ceiling scored and excluded, so a group that cannot compete runs on through its failing designs"
+
+  [[target.mutant]]
+  id = "the-ceiling-is-not-passed-on"
+  find = "exclude=excluded, ceiling=ceiling, **kw)"
+  replace = "exclude=excluded, **kw)"
+  models = "each round certified to the group's own optimum, the harder claim that left a GeoLift group open at the depth limit"
 
 [[target]]
 name = "tbr-bnb-treatment"
@@ -12114,8 +12132,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-group-above-the-class-is-ruled-out-on-rss"
-  find = "    if corr2 >= up * up:\n        return True\n"
-  replace = "    if False:\n        return True\n"
+  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
+  replace = "    return min(rss_star, yy * (1 - low * low))\n"
   models = "a group whose correlation could round above the incumbent's class compared on RSS, though the key ranks the rounded correlation first"
 
   [[target.mutant]]
@@ -12132,8 +12150,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-whole-class-is-ruled-out"
-  find = "    if corr2 < low * low:\n"
-  replace = "    if corr2 < up * up:\n"
+  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
+  replace = "    return yy * (1 - up * up)\n"
   models = "every group that cannot round above the incumbent's class ruled out, including those that could beat its RSS within it"
 
   [[target.mutant]]
@@ -12150,8 +12168,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-refused-group-reads-as-certified"
-  find = "        res, C = _optimum(M, T, n_test, restarts)\n        out.certified &= res.certified\n"
-  replace = "        res, C = _optimum(M, T, n_test, restarts)\n"
+  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n        out.certified &= res.certified\n"
+  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n"
   models = "a survivor whose own certification was cut short counted as certified"
 
   [[target.mutant]]
@@ -12167,7 +12185,7 @@ timeout = 1200.0
   models = "the start group counted twice, once certified and once screened"
 
   [[target.mutant]]
-  id = "survivors-carry-no-stop-rule"
-  find = "                          stop=lambda rss, yy=yy: not can_compete(yy, rss, *class_of()))\n"
-  replace = "                          stop=None)\n"
+  id = "survivors-carry-no-ceiling"
+  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))\n"
+  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=None)\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"

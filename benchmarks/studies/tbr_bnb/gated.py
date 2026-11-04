@@ -16,17 +16,18 @@ fails exclude it with a no-good cut and certify again. Each round's design is th
 next by RSS, so the first that passes is the passing optimum. The correlation gate
 ends the search at once when it fails: the RSS-best remaining design has the
 greatest correlation of all remaining ones, so none of them reaches 0.8 either.
-A caller's stop rule ends it the same way: it is handed each round's RSS before
-the gates are scored, and every remaining design has at least that RSS, so a
-caller that needs nothing at or above it (treatment.py, against an incumbent from
-another treatment group) is answered, certified, without that round's design.
+A caller's ceiling ends it the same way. A caller that needs only designs whose
+RSS is below a ceiling (treatment.py, against an incumbent from another treatment
+group) has each round certified against it (slopefree.certify_slope_free's
+ceiling), and the search ends, certified, at the first round whose RSS-best
+remaining design is not below it: every remaining design has at least that RSS.
 """
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 import numpy as np
 
@@ -46,7 +47,7 @@ class GatedCertificate:
     key: Optional[tuple]                   # the reference key at it
     passing: bool                          # a design passes all four gates
     certified: bool                        # the answer is proved, not cut short by max_rounds
-    stopped: bool = False                  # the caller's stop rule ended the search
+    stopped: bool = False                  # no remaining design is below the caller's ceiling
     rounds: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -58,7 +59,7 @@ def gates_of(y, X, controls, n_test):
 
 
 def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 50,
-                  max_rounds: int = 50, stop: Optional[Callable[[Q], bool]] = None,
+                  max_rounds: int = 50, ceiling: Optional[Q] = None,
                   **kw) -> GatedCertificate:
     """The least-RSS positive-slope control group that passes the reference key's
     four gates, certified, or a certificate that none does (module docstring)."""
@@ -67,14 +68,14 @@ def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 
     out = GatedCertificate(controls=None, rss=None, key=None, passing=False, certified=False)
     while len(out.rounds) < max_rounds:
         try:
-            res = certify_slope_free(y, X, restarts=restarts, exclude=excluded, **kw)
+            res = certify_slope_free(y, X, restarts=restarts, exclude=excluded, ceiling=ceiling, **kw)
         except NoDesignLeft:
             out.certified = True               # no positive-slope design is left
             break
         if not res.certified:                  # pragma: no cover - the GeoLift groups and the test panels close
             break
-        if stop is not None and stop(res.incumbent):
-            out.certified = out.stopped = True # every remaining design has at least this RSS
+        if res.ceiling_held or (ceiling is not None and res.incumbent >= ceiling):
+            out.certified = out.stopped = True # every remaining design has at least the ceiling
             break
         gates, key = gates_of(y, X, res.controls, n_test)
         out.rounds.append(dict(controls=res.controls, rss=res.incumbent, gates=gates, seconds=res.seconds))

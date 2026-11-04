@@ -124,36 +124,51 @@ def test_the_round_limit_leaves_the_search_uncertified():
     assert not out.certified and len(out.rounds) == 1
 
 
-def test_a_stop_rule_ends_the_search_certified_without_a_design():
-    """A caller that needs nothing at or above a round's RSS stops the search there:
-    every remaining design has at least that RSS, so the answer is certified."""
+def test_a_ceiling_at_zero_ends_the_search_at_once():
+    """No design has an RSS below zero, so a caller that needs one is answered,
+    certified, before any design is scored."""
     y, X = panel_ar(1)
-    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=lambda rss: True)
-    assert out.certified and not out.passing and out.controls is None
-    assert out.stopped and out.rounds == []
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=Q(0))
+    assert out.certified and out.stopped and not out.passing and out.controls is None
+    assert out.rounds == []
 
 
-def test_the_stop_rule_reads_each_rounds_rss_before_its_gates():
-    """The rule sees each round's certified RSS, in increasing order, and a round it
-    stops is not scored."""
+def test_a_ceiling_ends_the_search_at_the_first_round_above_it():
+    """With the ceiling between the first two rounds' RSS, the first round is scored
+    and fails, and the search ends at the second, certified."""
     y, X = panel_ar(7)
     full = certify_gated(y, X, n_test=N_TEST, restarts=10)
-    assert len(full.rounds) >= 2
-    seen = []
-
-    def stop(rss):
-        seen.append(rss)
-        return len(seen) == 2
-
-    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=stop)
-    assert seen == [full.rounds[0]["rss"], full.rounds[1]["rss"]]
+    assert len(full.rounds) >= 2 and not all(full.rounds[0]["gates"])
+    mid = (full.rounds[0]["rss"] + full.rounds[1]["rss"]) / 2
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=mid)
     assert out.certified and out.stopped and not out.passing and len(out.rounds) == 1
 
 
-def test_no_stop_rule_runs_to_the_passing_design():
+def test_the_ceiling_reaches_every_rounds_relaxation(monkeypatch):
+    """Each round's certificate is asked the narrower question, so a group that
+    cannot reach the ceiling closes without its own optimum being proved."""
+    from . import gated
+
+    real = gated.certify_slope_free
+    seen = []
+
+    def spy(*a, ceiling=None, **kw):
+        seen.append(ceiling)
+        return real(*a, ceiling=ceiling, **kw)
+
+    monkeypatch.setattr(gated, "certify_slope_free", spy)
     y, X = panel_ar(7)
-    out = certify_gated(y, X, n_test=N_TEST, restarts=10, stop=lambda rss: False)
-    assert out.passing and not out.stopped
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    c = full.rss * 2
+    certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=c)
+    assert seen[-1] == c and len(seen) >= 2
+
+
+def test_a_ceiling_above_the_passing_design_changes_nothing():
+    y, X = panel_ar(7)
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=full.rss * 2)
+    assert out.passing and not out.stopped and out.controls == full.controls
 
 
 def test_an_a_a_window_too_long_for_the_scoring_window_is_refused():

@@ -30,11 +30,15 @@ being a double; the slack is a tolerance, not derived.
 
 Every group that the floor does not rule out is certified, with the incumbent
 replaced whenever a group's optimum has a larger key, and the floors are read again
-against the new incumbent before each certification. A group's certification takes
-its designs in order of RSS (gated.py), so each round's RSS is a floor on every
-design left, and the group's search stops, certified, at the first round that
-can_compete rules out; without that, a group whose designs keep failing the gates
-runs to certify_gated's round limit and the search is left uncertified.
+against the new incumbent before each certification. A group is certified against
+its ceiling, the RSS below which one of its designs could beat the incumbent: each
+size's relaxation is tested at y'y - ceiling instead of at the group's own
+optimum, a weaker claim that closes sooner, and the group's gated search ends,
+certified, at the first round whose RSS-best design is not below the ceiling.
+Certifying each group's own optimum instead leaves groups open on GeoLift: one at
+k = 2 branched to the depth limit at one size, and others ran to the round limit on
+designs that kept failing the gates, though none of them could reach the
+incumbent's class.
 
 Horn, R. A. and Johnson, C. R. (2013). Matrix Analysis, 2nd ed. Cambridge
     University Press.
@@ -92,20 +96,27 @@ def rss_floor(M, T: Sequence[int], lam: Optional[Q]) -> Q:
     return max(Q(0), fl) if fl != -np.inf else Q(0)
 
 
+def ceiling(yy: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> Optional[Q]:
+    """The RSS below which a design of a group with y'y = ``yy`` could have a key
+    above the incumbent's, whose rounded correlation is ``r_star`` and RSS
+    ``rss_star``; None when there is no incumbent.
+
+    A design's corr^2 is 1 - RSS / y'y. At or below yy (1 - up^2) its correlation
+    could round above the incumbent's class, so it competes whatever its RSS; at or
+    above yy (1 - low^2) it cannot reach the class; between them it is in the class
+    and competes when its RSS is below the incumbent's."""
+    if r_star is None:
+        return None
+    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star
+    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star
+    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))
+
+
 def can_compete(yy: Q, floor: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> bool:
     """Whether a group whose designs have RSS at least ``floor`` (and y'y = ``yy``)
-    could have a design whose key is above the incumbent's, whose rounded
-    correlation is ``r_star`` and RSS ``rss_star``."""
-    if r_star is None:
-        return True
-    corr2 = 1 - floor / yy                # every design's corr^2 is at most this
-    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star
-    if corr2 >= up * up:
-        return True
-    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star
-    if corr2 < low * low:
-        return False
-    return floor < rss_star
+    could have a design whose key is above the incumbent's (see ceiling)."""
+    c = ceiling(yy, r_star, rss_star)
+    return c is None or floor < c
 
 
 @dataclass
@@ -138,9 +149,9 @@ def _start(M, k, n_test, restarts):
     return best.treatment
 
 
-def _optimum(M, T, n_test, restarts, stop=None):
+def _optimum(M, T, n_test, restarts, ceiling=None):
     y, X, rest = _split(M, T)
-    res = certify_gated(y, X, n_test=n_test, restarts=restarts, stop=stop)
+    res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling)
     C = [rest[j] for j in res.controls] if res.passing else None
     return res, C
 
@@ -192,8 +203,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
             out.screened_out += 1
             continue
         t1 = time.perf_counter()
-        res, C = _optimum(M, T, n_test, restarts,
-                          stop=lambda rss, yy=yy: not can_compete(yy, rss, *class_of()))
+        res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling(yy, *class_of()))
         out.certified &= res.certified
         out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
                                   key=res.key, rounds=len(res.rounds), stopped=res.stopped,

@@ -308,6 +308,7 @@ class SlopeFreeCertificate:
     certified: bool = False
     seconds: float = 0.0
     hull_seconds: float = 0.0
+    ceiling_held: bool = False            # certified: no design has an RSS below the ceiling
 
 
 def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
@@ -366,7 +367,8 @@ def _best_neighbour(c, G, seeds, excluded):
 
 def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
-                       hull: bool = True, exclude: Sequence[Set[int]] = ()) -> SlopeFreeCertificate:
+                       hull: bool = True, exclude: Sequence[Set[int]] = (),
+                       ceiling: Optional[Q] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -376,6 +378,13 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     every size none of whose slope pieces survives it; each remaining size is
     certified by the slope-free relaxation at the incumbent's ratio, with a no-good
     cut for each excluded design and triangle cuts, and branched on where it is not.
+
+    With a ``ceiling`` above the incumbent's RSS the question is narrower: whether any
+    design has an RSS below the ceiling. Each size is then tested at the ratio
+    y'y - ceiling, larger than the incumbent's, and a leaf replaces the incumbent only
+    when it beats that ratio. When none does the ceiling is held: the incumbent is
+    reported at its own RSS, and ``certified`` means no design is below the ceiling,
+    not that the incumbent is optimal.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -395,22 +404,29 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
             raise NoDesignLeft("no control group has a positive slope: every design fails the "
                                "correlation gate, so there is no incumbent to certify")
         cu, lam = _ratio(c, G, C)
+    test = lam
+    if ceiling is not None and D.yy - ceiling > lam:
+        test = D.yy - ceiling              # only a design below the ceiling matters
     sizes = list(range(1, p + 1)); t_h = 0.0
     cap = D.slope_cap()
     if hull and cap is not None:
         t0 = time.perf_counter()
         b_inc = float(lam / cu)           # c'u / u'Gu, since lam = (c'u)^2 / u'Gu
-        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - lam)
+        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
-    inc = {"lam": lam, "C": set(C)}
+    inc = {"lam": test, "C": set(C)}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h)
     for m in sizes:                      # a size certified at a ratio stays certified at a larger one
         t0 = time.perf_counter(); n0 = out.nodes
         _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
         out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
+    out.ceiling_held = inc["lam"] == test and test > lam
+    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself
+        inc.update(lam=lam)
     out.incumbent, out.ratio, out.controls = D.yy - inc["lam"], inc["lam"], sorted(inc["C"])
     out.certified = not out.open
+    out.ceiling_held &= out.certified
     out.seconds = time.perf_counter() - t_all
     return out
