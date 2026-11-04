@@ -345,3 +345,30 @@ def test_a_point_of_the_wrong_shape_is_refused():
     y, X = panel(0)
     with pytest.raises(ValueError, match="one weight per control"):
         hull_bound_float(y, X, np.full(5, 0.1), 0.3, 0.9, 3)
+
+
+# ---------------------------------------------------------------- the stage
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_the_stage_keeps_the_exact_certificates_survivors(seed, monkeypatch):
+    """hull_survivors with the float certificate first keeps exactly the pairs it
+    keeps with the exact certificate alone, and asks the exact one only for the
+    pairs the float one cannot clear."""
+    from . import search
+    y, X = panel(seed)
+    D = ExactData(y, X)
+    _, C = search.incumbent(y, X, restarts=20)
+    x = X[:, sorted(C)].sum(1); b = float((y @ x) / (x @ x))
+    UB = D.rss(C, b)
+    pcs = search.pieces_to(b, D.slope_cap(), 1.25)
+    fast, stats = search.hull_survivors(y, X, D, pcs, UB)
+    assert stats["float_checks"] > 0 and stats["exact_checks"] < stats["float_checks"]
+
+    def exact_only(D, y, X, w, lo, hi, m, UB, stats):
+        stats["float"] = stats.get("float", 0) + 1
+        return hull_bound(D, w, lo, hi, m) >= UB
+
+    monkeypatch.setattr(search, "hull_clears", exact_only)
+    slow, _ = search.hull_survivors(y, X, D, pcs, UB)
+    assert fast == slow

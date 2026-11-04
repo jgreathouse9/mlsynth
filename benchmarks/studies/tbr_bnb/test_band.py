@@ -118,6 +118,6 @@ def test_the_band_prunes_only_on_its_certificate(monkeypatch):
     x = X[:, sorted(C)].sum(1); b = float((y @ x) / (x @ x))
     UB = D.rss(C, b)
     pcs = pieces_to(b, D.slope_cap(), 1.25)
-    monkeypatch.setattr(search, "hull_bound", lambda *a, **k: UB - 1)
+    monkeypatch.setattr(search, "hull_clears", lambda *a, **k: False)
     _, stats = hull_survivors(y, X, D, pcs, UB, two_tier=True)
     assert stats["band_pruned"] == 0 and stats["capped_solved"] == len(pcs) * 6

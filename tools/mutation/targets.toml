@@ -11467,9 +11467,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-band-prunes-on-its-float-value"
-  find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
+  find = "                if v >= float(UB) * (1 - 1e-6) and hull_clears(D, y, X, w, lo, hi, m, UB, checks):\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
-  models = "a pair ruled out by the band's double value without its exact certificate"
+  models = "a pair ruled out by the band's double value without its certificate"
 
 # The TBR study's incumbent (#965, step 7): a positive-slope descent, designs
 # adopted from the nodes' primal points, and a no-good cut per known design.
