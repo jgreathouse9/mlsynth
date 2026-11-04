@@ -11393,6 +11393,6 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-band-prunes-on-its-float-value"
-  find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m, cap=m * hi) >= UB:\n"
+  find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
   models = "a pair ruled out by the band's double value without its exact certificate"
