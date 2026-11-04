@@ -118,7 +118,7 @@ def test_property_the_floor_is_below_every_design(seed, k, t):
 @SETTINGS
 def test_property_the_gram_floor_holds_for_every_treatment_group(seed):
     """The full Gram matrix's eigenvalue floor bounds every principal submatrix's
-    smallest eigenvalue (Cauchy interlacing), so one floor serves every group."""
+    smallest eigenvalue, so one floor serves every group."""
     M = geo_panel(seed % 300, p=6)
     lam = gram_floor(M)
     assert lam is not None and lam > 0

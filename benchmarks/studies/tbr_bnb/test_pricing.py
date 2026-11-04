@@ -174,3 +174,52 @@ def test_the_limit_is_where_pricing_costs_one_bound():
     L = slopefree.PRICE_LIMIT
     assert cheaper_to_price(L, slopefree.PRICE_SECONDS, slopefree.BOUND_SECONDS)
     assert not cheaper_to_price(L * 2 + 1, slopefree.PRICE_SECONDS, slopefree.BOUND_SECONDS)
+
+
+# ---------------------------------------------------------------- the rounding terms
+
+
+def _floats_of(c, G):
+    return (np.array([float(v) for v in c]), np.array([[float(v) for v in r] for r in G]))
+
+
+@given(a=st.integers(1, 10 ** 6), b=st.integers(1, 10 ** 6), big=st.integers(10 ** 7, 10 ** 9))
+@SETTINGS
+def test_property_the_bound_holds_where_the_numerator_cancels(a, b, big):
+    """c'u = (big + a/3e5) + (-big + b/7e5) is about 1e-5 while its terms are about
+    1e8, so each term's rounding (an ulp of 1e8 is 1.5e-8) is some 1e-3 of the sum:
+    far beyond the 1e-6 inflation, so the sum's own error term has to carry it."""
+    c = np.array([Q(big) + Q(a, 300000), -Q(big) + Q(b, 700000), Q(1)], dtype=object)
+    G = np.array([[Q(1), Q(0), Q(0)], [Q(0), Q(1), Q(0)], [Q(0), Q(0), Q(1)]], dtype=object)
+    cf, Gf = _floats_of(c, G)
+    cu, r = _ratio(c, G, {0, 1})
+    ub = ratio_upper(c, G, cf, Gf, set(), [0, 1])
+    assert cu > 0 and Q(ub) >= r
+
+
+@given(a=st.integers(1, 10 ** 6), b=st.integers(1, 10 ** 6), e=st.integers(1, 10 ** 6),
+       big=st.integers(10 ** 7, 10 ** 9))
+@SETTINGS
+def test_property_the_bound_holds_where_the_gram_sum_cancels(a, b, e, big):
+    """u'Gu = G00 + G11 + 2 G01 with G00, G11 about big and G01 about -big: the sum is
+    about 1e-5 while its terms are about 1e8, so the Gram sum's own error term has to
+    carry its rounding."""
+    c = np.array([Q(1), Q(1), Q(0)], dtype=object)
+    G = np.array([[Q(big) + Q(a, 300000), -Q(big) + Q(e, 500000), Q(0)],
+                  [-Q(big) + Q(e, 500000), Q(big) + Q(b, 700000), Q(0)],
+                  [Q(0), Q(0), Q(1)]], dtype=object)
+    cf, Gf = _floats_of(c, G)
+    cu, r = _ratio(c, G, {0, 1})
+    ub = ratio_upper(c, G, cf, Gf, set(), [0, 1])
+    assert Q(ub) >= r
+
+
+def test_the_best_bound_is_evaluated_first():
+    """From a weak incumbent every positive design is a candidate; taken best bound
+    first, the first exact value already clears every later bound, so only a design
+    or two is evaluated exactly, not the whole subtree."""
+    y, X = panel(0, p=6)
+    D = ExactData(y, X)
+    positive = sum(1 for C in _subtree(6, 3, []) if _ratio(D.c, D.G, C)[0] > 0)
+    out, inc = _run(D.c, D.G, 3, [], Q(0))
+    assert positive >= 5 and out.exact <= 2

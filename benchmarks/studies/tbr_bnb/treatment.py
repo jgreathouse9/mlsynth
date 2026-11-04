@@ -19,7 +19,9 @@ the number of controls, so that the size constraint is slack). The cap is that o
 certificate.ExactData.slope_cap, ||y|| / sqrt(lambda_min(G)), with one lower bound on
 lambda_min for every group: the controls' Gram matrix is a principal submatrix of the
 full one, and a principal submatrix's smallest eigenvalue is at least the full
-matrix's (Cauchy interlacing; Horn and Johnson 2013, Thm 4.3.28).
+matrix's: it is the least Rayleigh quotient over vectors supported on the
+submatrix's indices, a subset of the vectors the full matrix's is taken over
+(derived here).
 
 Each design of the group has corr^2 = 1 - RSS / y'y, so the floor bounds its
 correlation too, and can_compete reads the rounding: a group whose correlation bound
@@ -40,8 +42,6 @@ k = 2 branched to the depth limit at one size, and others ran to the round limit
 designs that kept failing the gates, though none of them could reach the
 incumbent's class.
 
-Horn, R. A. and Johnson, C. R. (2013). Matrix Analysis, 2nd ed. Cambridge
-    University Press.
 """
 from __future__ import annotations
 
@@ -69,7 +69,8 @@ SLACK = Q(1, 10 ** 9)
 
 def gram_floor(M) -> Optional[Q]:
     """An exact lower bound on the smallest eigenvalue of M'M, or None when none
-    positive is found; by Cauchy interlacing it bounds every group's control Gram."""
+    positive is found; it bounds every group's control Gram, a principal submatrix
+    (module docstring)."""
     Mq = qarr(np.asarray(M, dtype=float))
     lam = lambda_min_lower(_from_fractions((Mq.T @ Mq).tolist()))
     return lam if lam is not None and lam > 0 else None
