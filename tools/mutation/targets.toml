@@ -11268,6 +11268,8 @@ timeout = 900.0
   find = "        upper = None if np.all(u_cap >= 1.0) else u_cap\n"
   replace = "        upper = u_cap\n"
   models = "caps that cannot bind routed through the capped loop, which starts elsewhere and need not return today's bits"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect. Caps of one or more never pin a weight, so the capped loop differs from the uncapped one only in its start, u / sum(u) against the uniform point, and the point it returns is the final free set's least squares, which LAPACK's gelsy solves to the same minimum-norm point whatever path reached that free set. Measured: identical bits on the unit tests' seeds with equal and unequal loose caps, and on 20 panels with duplicated donors, where the minimisers form a face and a start could have chosen among them. The routing stays because it makes the bit identity hold by construction, not by measurement."
 
   [[target.mutant]]
   id = "an-empty-capped-simplex-accepted"
@@ -11280,6 +11282,8 @@ timeout = 900.0
   find = "        w = np.full(J, 1.0 / J) if upper is None else upper / upper.sum()\n"
   replace = "        w = np.full(J, 1.0 / J)\n"
   models = "the uniform start kept when it lies above a cap, an infeasible start"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect. A uniform start above a cap is flagged capped by the next line (w >= u - tol) and set to its cap, and the free set's total, one less the caps, restores the sum at the first full step, so the loop repairs the infeasible start. Measured: test_property_caps_below_the_uniform_weight, which draws caps below 1 / J so the uniform point is outside the capped simplex, reached the exact minimum on all 60 examples with the mutant in place. The feasible start stays because the active set's argument assumes feasible iterates."
 
   [[target.mutant]]
   id = "the-ray-runs-past-a-cap"
