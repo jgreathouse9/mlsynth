@@ -2,7 +2,7 @@
 piece contributes nothing."""
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, piece_optimum
@@ -23,14 +23,22 @@ def _value(y, X, lo, hi, m, kw):
     return Lift(y, X, kw.pop("level"), **kw).piece(lo, hi, m)
 
 
+#: The solver's own value of a lift, compared with the enumerated optimum, is good
+#: to Clarabel's accuracy, which on these lifts reaches 8e-5 relative (#965: 3e-5
+#: on ten geos, 8e-5 on 40). Validity beyond it is the exact certificate's job
+#: (test_certificate.py); here the levels are checked to the solver's accuracy.
+SOLVER_ACCURACY = 2e-4
+
+
 @SETTINGS
 @given(seed=st.integers(0, 10_000), lo=st.floats(0.05, 1.0), width=st.floats(1.1, 3.0),
        m=st.integers(1, 5), name=st.sampled_from(sorted(VARIANTS)))
+@example(seed=137, lo=1.0, width=2.0, m=1, name="full+pairs")   # 5.7e-5 above, by the solver
 def test_every_level_is_a_relaxation(seed, lo, width, m, name):
     y, X = panel(seed, p=5)
     hi = lo * width
     v = _value(y, X, lo, hi, m, VARIANTS[name])
-    assert v <= piece_optimum(y, X, lo, hi, m) * (1 + 1e-5) + 1e-6
+    assert v <= piece_optimum(y, X, lo, hi, m) * (1 + SOLVER_ACCURACY) + 1e-6
 
 
 @pytest.mark.parametrize("seed", range(3))

@@ -37,7 +37,7 @@ import numpy as np
 
 from .certificate import ExactData, hull_bound, joint_bound, shor_bound
 from .dual import smoothed_lbfgs
-from .hull import ControlBound, rss_of
+from .hull import Band, ControlBound, rss_of
 from .lifts import Lift
 from .oracle import Oracle
 
@@ -176,6 +176,34 @@ def pieces_to(b_inc: float, cap: Fraction, ratio: float = 1.25) -> List[Tuple[fl
     return [(0.0, edges[0])] + list(zip(edges[:-1], edges[1:]))
 
 
+def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
+    """The (piece, size) pairs the hull stage cannot rule out, and what it did.
+
+    The first tier is the band without the per-geo cap (hull.Band): one NNLS and
+    simplex QPs at the band's ends, certified by the hull's first-order bound
+    with the cap at m hi. Only the pairs it cannot rule out reach the second
+    tier, the capped hull by Clarabel, so the survivors are the capped hull's.
+    """
+    p = X.shape[1]
+    band = Band(y, X) if two_tier else None
+    hull = ControlBound(y, X)
+    stats = {"band_pruned": 0, "capped_solved": 0}
+    out = []
+    for lo, hi in pieces:
+        for m in range(1, p + 1):
+            if band is not None:
+                v, w = band.value(lo, hi, m)
+                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m, cap=m * hi) >= UB:
+                    stats["band_pruned"] += 1
+                    continue
+            stats["capped_solved"] += 1
+            v = hull.piece(lo, hi, m)
+            if v < float(UB) * (1 - 1e-6) or hull_bound(D, hull.w.value, lo, hi, m) < UB:
+                out.append((lo, hi, m))
+    stats["band_solves"] = 0 if band is None else band.solves
+    return out, stats
+
+
 def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int = 200,
             seed: int = 0, max_depth: int = 10) -> Certificate:
     """Certify that no control group with a positive slope has a lower RSS than the incumbent.
@@ -198,13 +226,7 @@ def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int 
     if cap is None:
         raise ValueError("the controls' Gram matrix is singular: no slope cap, no certificate")
     pieces = pieces_to(b_inc, cap, ratio)
-    hull = ControlBound(y, X)
-    s1 = []
-    for lo, hi in pieces:
-        for m in range(1, p + 1):
-            v = hull.piece(lo, hi, m)
-            if v < float(UB) * (1 - 1e-6) or hull_bound(D, hull.w.value, lo, hi, m) < UB:
-                s1.append((lo, hi, m))
+    s1, _ = hull_survivors(y, X, D, pieces, UB)
     shor = Lift(y, X, "shor")
     s2 = []
     for pc in s1:
