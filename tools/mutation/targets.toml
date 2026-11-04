@@ -11436,3 +11436,35 @@ timeout = 1500.0
   find = "                cons.append(V == V.T)\n"
   replace = "                pass\n"
   models = "the joint lift without V = V', the shared-slope identity its tightness rests on (#965: a 12% gap without it)"
+
+# The two-tier hull stage of the TBR study (#965, roadmap step 5a): the band
+# without the per-geo cap, its certificate, and the prune it makes.
+[[target]]
+name = "tbr-bnb-band"
+module-path = "benchmarks/studies/tbr_bnb/hull.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-band-takes-the-farther-end"
+  find = "        return self._at(A if self.s_nnls < A else B)\n"
+  replace = "        return self._at(B if self.s_nnls < A else A)\n"
+  models = "the band's minimum read at the end of the band away from the NNLS total, a value above the minimum and so no bound"
+
+  [[target.mutant]]
+  id = "the-band-is-the-nnls-everywhere"
+  find = "        if A <= self.s_nnls <= B:\n"
+  replace = "        if True:\n"
+  models = "the unconstrained NNLS value taken for every band, a valid but weaker number that is not the band's minimum"
+
+[[target]]
+name = "tbr-bnb-band-search"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-band-prunes-on-its-float-value"
+  find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
+  replace = "                if v >= float(UB) * (1 - 1e-6):\n"
+  models = "a pair ruled out by the band's double value without its exact certificate"

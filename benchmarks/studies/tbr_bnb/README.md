@@ -176,7 +176,7 @@ continues toward a higher target before branching.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (54 tests, about 20 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (70 tests, about 25 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
@@ -198,10 +198,18 @@ fixing is certified to the solver's value.
 3. Certificate cost: a floating-point check with a rigorous rounding bound if
    the rational one dominates.
 4. Trim the lift entry by entry (a working set).
-5. The hull stage on the library's active-set solvers: (a) the band without the
-   per-geo cap by one `nnls` per group and `solve_simplex_qp(s X, y)` at the
-   band's ends (0.27-0.37 s against 5.4-6.3 s, same survivors after the capped
-   hull on the band's 108-111), then (b) upper bounds in `solve_simplex_qp`.
+5. The hull stage on the library's active-set solvers. (a), done here: the band
+   without the per-geo cap (`hull.Band`), one `nnls` per group and
+   `solve_simplex_qp(s X, y)` at the band's nearer end, its point certified by
+   the capped hull's first-order bound (valid for the piece at any point, and at
+   least the band's value there), then the capped hull only on what
+   the band cannot rule out (`search.hull_survivors`). On the four groups the
+   band rules out 94-95% of the pairs with 1,531-1,653 simplex QPs, the capped
+   hull runs on 108-127, and the stage takes 6.7-7.9 s against 19.7-24.9 s for
+   the capped hull alone, with the same survivors (measured with the cores
+   shared; the band's exact certificates are most of what remains). (b): upper
+   bounds in `solve_simplex_qp`, on its own branch, after which the capped tier
+   is one exact call per pair.
 6. Branching rules and node order.
 7. Incumbent from #964's local search.
 8. The gates, handled lazily by no-good cuts.
@@ -214,7 +222,7 @@ fixing is certified to the solver's value.
 ## Files
 
 - `panel.py`: the scoring window and the four groups.
-- `hull.py`, `lifts.py`: the hull QP and the lift levels.
+- `hull.py`, `lifts.py`: the hull QP, the band without the per-geo cap, and the lift levels.
 - `certificate.py`: every exact bound, the slope cap, fixings and the cut.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
@@ -248,6 +256,8 @@ fixing is certified to the solver's value.
 - Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the
   optimal value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
 - Boyd, S. and Vandenberghe, L. (2004). Convex Optimization. Cambridge.
+- Lawson, C. L. and Hanson, R. J. (1974). Solving Least Squares Problems.
+  Prentice-Hall.
 - Dantzig, G. B. (1957). Discrete-variable extremum problems. Oper. Res. 5,
   266-288.
 - Horn, R. A. and Johnson, C. R. (2013). Matrix Analysis, 2nd ed. Cambridge.
