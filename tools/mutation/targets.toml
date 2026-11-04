@@ -11785,3 +11785,105 @@ timeout = 900.0
   find = "        v = shor.piece(*pc, tol=SHOR_TOL)\n"
   replace = "        v = shor.piece(*pc)\n"
   models = "the measured tolerance defined and the Shor stage solving at Clarabel's default"
+
+[[target]]
+name = "tbr-bnb-slope-free"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-trace-bound-is-the-size"
+  find = "    return k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    return k + m * max(Q(0), -low)\n"
+  models = "the positive eigenvalue charged m times, though tr Z = 1 + m counts the constant entry"
+
+  [[target.mutant]]
+  id = "the-positive-eigenvalue-is-uncharged"
+  find = "    return k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    return k + 0 * max(Q(0), -low)\n"
+  models = "the Lagrangian's constant read as the bound, which holds only when S is negative semidefinite"
+
+  [[target.mutant]]
+  id = "the-inequality-multipliers-are-not-clipped"
+  find = "            if clip and yq < 0:\n"
+  replace = "            if False:\n"
+  models = "a negative multiplier on an inequality kept, which bounds a different Lagrangian"
+
+  [[target.mutant]]
+  id = "the-cut-admits-the-incumbent"
+  find = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), m - 1)\n"
+  replace = "            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), m)\n"
+  models = "the no-good cut read as sum_C u - sum_notC u <= |C|, which the incumbent meets, so its size cannot go below zero"
+
+  [[target.mutant]]
+  id = "the-slope-sign-is-reversed"
+  find = "        le(row(*((u(j), -c[j]) for j in range(p))), 0, True)                      # c'u >= 0\n"
+  replace = "        le(row(*((u(j), c[j]) for j in range(p))), 0, True)                      # c'u >= 0\n"
+  models = "c'u <= 0 imposed, which excludes every positive-slope design the search is about"
+
+  [[target.mutant]]
+  id = "the-slope-product-is-reversed"
+  find = "            le(row(*((U(i, j), -c[j]) for j in range(p))), 0, True)              # u_i c'u >= 0\n"
+  replace = "            le(row(*((U(i, j), c[j]) for j in range(p))), 0, True)              # u_i c'u >= 0\n"
+  models = "u_i c'u <= 0 imposed, which a positive-slope design containing geo i violates"
+
+  [[target.mutant]]
+  id = "the-triangle-reads-the-wrong-geo"
+  find = "                le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)\n"
+  replace = "                le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(j), -1)), 0)\n"
+  models = "U_ij + U_ik - U_jk <= u_j, which a design holding i and k but not j violates"
+
+  [[target.mutant]]
+  id = "the-separation-reads-the-wrong-geo"
+  find = "        v = U[i, j] + U[i, kk] - U[j, kk] - u[i]\n"
+  replace = "        v = U[i, j] + U[i, kk] - U[j, kk] - u[j]\n"
+  models = "the triangle's violation measured against u_j, so binary points are reported as violating it"
+
+  [[target.mutant]]
+  id = "the-objective-adds-the-gram"
+  find = "    return np.outer(c, c) - lam * np.asarray(G, dtype=object)\n"
+  replace = "    return np.outer(c, c) + lam * np.asarray(G, dtype=object)\n"
+  models = "the Dinkelbach objective with the denominator's sign reversed"
+
+  [[target.mutant]]
+  id = "the-ratio-is-not-squared"
+  find = "    return cu, (cu * cu / (u @ G @ u)) if cu > 0 else Q(0)\n"
+  replace = "    return cu, (cu / (u @ G @ u)) if cu > 0 else Q(0)\n"
+  models = "the slope read as the ratio, so lam is not y'y minus the incumbent's RSS"
+
+  [[target.mutant]]
+  id = "lam-rounds-to-nearest"
+  find = "    return Q(round_down(Q(q)))\n"
+  replace = "    return Q(float(Q(q)))\n"
+  models = "lam rounded to the nearest double, which can sit above lam* and certify a weaker claim than optimality"
+
+  [[target.mutant]]
+  id = "the-dyadic-guard-is-dropped"
+  find = "    if any(q.denominator & (q.denominator - 1) for q in S.flat):\n"
+  replace = "    if False:\n"
+  models = "a non-dyadic matrix handed to _from_fractions, which reads it as a different one"
+
+  [[target.mutant]]
+  id = "a-worse-leaf-replaces-the-incumbent"
+  find = "        if cu > 0 and r > inc[\"lam\"]:\n"
+  replace = "        if cu > 0 and r < inc[\"lam\"]:\n"
+  models = "a design worse than the incumbent adopted, and a better one passed over"
+
+  [[target.mutant]]
+  id = "the-fixings-are-dropped"
+  find = "        for j, v in fixes:\n            eq(row((u(j), 1)), v)\n"
+  replace = "        for j, v in fixes:\n            pass\n"
+  models = "a branch's fixings left out of its relaxation, so the child bounds the parent's problem and never closes"
+
+  [[target.mutant]]
+  id = "the-hull-reads-a-smaller-upper-bound"
+  find = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - lam)\n"
+  replace = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), (D.yy - lam) / 2)\n"
+  models = "the hull stage given half the incumbent's RSS, so it discards sizes that hold better designs"
+
+  [[target.mutant]]
+  id = "the-hull-sizes-are-discarded"
+  find = "        sizes = sorted({pc[2] for pc in s1})\n"
+  replace = "        sizes = []\n"
+  models = "every size taken as ruled out by the hull stage, so nothing is searched"
