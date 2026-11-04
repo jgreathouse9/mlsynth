@@ -11583,45 +11583,69 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-residual-bound-drops-the-target"
-  find = "    e = _gamma(p + 1) * (aX @ aw + np.abs(y))\n"
-  replace = "    e = _gamma(p + 1) * (aX @ aw)\n"
+  find = "    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w) + np.abs(y))\n"
+  replace = "    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w))\n"
   models = "the residual's rounding bounded without the target's term, which the subtraction X w - y rounds as well"
 
   [[target.mutant]]
   id = "the-objective-error-is-dropped"
-  find = "    f_err = _gamma(n) * float(ar @ ar) + 2.0 * float(ar @ e)\n"
-  replace = "    f_err = 0.0\n"
+  find = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)\n"
+  replace = "    return float(r @ r), 0.0\n"
   models = "f(w) read as its rounded value, which can exceed the exact one"
 
   [[target.mutant]]
+  id = "the-objective-ignores-the-residual-error"
+  find = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)\n"
+  replace = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar)\n"
+  models = "f(w) bounded for the computed residual only, not for every residual within e of it"
+
+  [[target.mutant]]
   id = "the-gradient-error-is-dropped"
-  find = "    d = 2.0 * _gamma(n) * (aX.T @ ar) + 2.0 * (aX.T @ e)\n"
-  replace = "    d = 0.0 * (aX.T @ ar)\n"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  replace = "    return 2.0 * (X.T @ r), 0.0 * (aX.T @ e)\n"
   models = "the computed gradient taken as exact, though it carries the residual's error and its own rounding"
 
   [[target.mutant]]
+  id = "the-gradient-ignores-the-residual-error"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  replace = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r))\n"
+  models = "the gradient bounded for its own rounding only, not for the residual's error it inherits"
+
+  [[target.mutant]]
   id = "the-dual-error-is-dropped"
-  find = "    dual_err = _gamma(p + 3) * (float(np.abs(terms).sum()) + abs(lam) * max(A, B))\n"
-  replace = "    dual_err = 0.0\n"
+  find = "    err = _gamma(g.shape[0] + 3) * (float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))\n"
+  replace = "    err = 0.0\n"
   models = "the knapsack dual's own rounding, and that of m lo and m hi, left out"
 
   [[target.mutant]]
+  id = "the-knapsack-error-uses-the-lower-end"
+  find = "    return dual, dual_err + float(d.max()) * (m * hi)\n"
+  replace = "    return dual, dual_err + float(d.max()) * (m * lo)\n"
+  models = "the gradient error over the hull bounded by m lo, not m hi, the largest total a point of the hull carries"
+
+  [[target.mutant]]
+  id = "the-knapsack-ignores-the-gradient-error"
+  find = "    return dual, dual_err + float(d.max()) * (m * hi)\n"
+  replace = "    return dual, dual_err\n"
+  models = "the knapsack read at the computed gradient as if it were the true one"
+
+  [[target.mutant]]
   id = "the-linear-term-error-is-dropped"
-  find = "    gw_err = _gamma(p) * float(np.abs(g) @ aw)\n"
-  replace = "    gw_err = 0.0\n"
+  find = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)\n"
+  replace = "    return float(g @ w), float(d @ aw)\n"
   models = "the rounding of g'w left out"
 
   [[target.mutant]]
-  id = "the-error-terms-are-not-inflated"
-  find = "    err = (f_err + dual_err + gw_err + float(d.max()) * B + float(d @ aw)) * (1.0 + 1e-6)\n"
-  replace = "    err = (f_err + dual_err + gw_err + float(d.max()) * B + float(d @ aw))\n"
-  models = "the error terms taken as exact, though each is itself a rounded double"
+  id = "the-linear-term-ignores-the-gradient-error"
+  find = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)\n"
+  replace = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw)\n"
+  models = "g'w bounded at the computed gradient only, not for every gradient within d of it"
 
   [[target.mutant]]
-  id = "the-knapsack-error-uses-the-lower-end"
-  find = "    err = (f_err + dual_err + gw_err + float(d.max()) * B + float(d @ aw)) * (1.0 + 1e-6)\n"
-  replace = "    err = (f_err + dual_err + gw_err + float(d.max()) * A + float(d @ aw)) * (1.0 + 1e-6)\n"
-  models = "the gradient error over the hull bounded by m lo, not m hi, the largest total a point of the hull can carry"
+  id = "the-error-terms-are-not-inflated"
+  find = "    return err * (1.0 + 1e-6)\n"
+  replace = "    return err\n"
+  models = "the error terms taken as exact, though each is itself a rounded double"
 
   [[target.mutant]]
   id = "the-result-is-rounded-to-nearest"
@@ -11634,4 +11658,3 @@ timeout = 900.0
   find = "    return hull_bound(D, w, lo, hi, m) >= UB\n"
   replace = "    return False\n"
   models = "a pair the float bound cannot clear kept without asking the exact certificate, which may clear it"
-

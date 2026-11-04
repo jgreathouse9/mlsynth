@@ -8,7 +8,9 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel
-from .certificate import ExactData, hull_bound, hull_bound_float, hull_clears, knapsack_dual, round_down
+from .certificate import (ExactData, dual_bound, gradient_bound, hull_bound, hull_bound_float, hull_clears,
+                          inflate, knapsack_dual, linear_bound, objective_bound, perturbed_knapsack_bound,
+                          qarr, residual_bound, round_down)
 from .hull import Band
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -153,6 +155,95 @@ def test_property_round_down_is_the_largest_double_below(num, den):
     d = round_down(x)
     assert Q(d) <= x
     assert Q(float(np.nextafter(d, np.inf))) > x
+
+
+# ---------------------------------------------------------------- the components, against exact rationals
+#
+# Each error term is a worst-case bound, orders of magnitude above the rounding
+# random data produce, so the whole certificate has no power to see one dropped.
+# Each component is checked on its own, on inputs that make its term's rounding
+# real: a check that fails for the component without its term.
+
+
+def _case(seed, k=0, tiny=False):
+    y, X = panel(seed)
+    if tiny:                                  # X w far below y: the subtraction's rounding is y's
+        X = X * 1e-12
+    y, X = y * 2.0 ** k, X * 2.0 ** k
+    w = np.random.default_rng(seed).uniform(0, 0.4, size=X.shape[1])
+    return y, X, w
+
+
+def _exact_residual(y, X, w):
+    return qarr(X) @ qarr(w) - qarr(y)
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+@example(seed=0, k=0, tiny=True)
+def test_property_the_residual_bound_holds(seed, k, tiny):
+    y, X, w = _case(seed, k, tiny)
+    r, e = residual_bound(y, X, w)
+    exact = _exact_residual(y, X, w)
+    assert all(abs(Q(float(a)) - b) <= Q(inflate(float(c))) for a, b, c in zip(r, exact, e))
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+def test_property_the_objective_bound_holds(seed, k, tiny):
+    y, X, w = _case(seed, k, tiny)
+    r, e = residual_bound(y, X, w)
+    f, err = objective_bound(r, e)
+    exact = _exact_residual(y, X, w)
+    assert Q(f) - Q(inflate(err)) <= exact @ exact
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+def test_property_the_gradient_bound_holds(seed, k, tiny):
+    y, X, w = _case(seed, k, tiny)
+    r, e = residual_bound(y, X, w)
+    g, d = gradient_bound(X, r, e)
+    exact = 2 * (qarr(X).T @ _exact_residual(y, X, w))
+    assert all(abs(Q(float(a)) - b) <= Q(inflate(float(c))) for a, b, c in zip(g, exact, d))
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), m=st.integers(1, 6), lo=st.floats(0.0, 1.0),
+       width=st.floats(1.0, 4.0), scale=st.floats(1e-3, 1e6))
+@example(seed=0, m=2, lo=0.0, width=2.0, scale=10.0)    # the dual's sum rounds above the minimum here
+def test_property_the_dual_bound_holds(seed, m, lo, width, scale):
+    g = np.random.default_rng(seed).normal(size=6) * scale
+    hi = _draw(lo, width) if width > 1.0 else lo
+    v, err = dual_bound(g, lo, hi, m)
+    assert Q(v) - Q(inflate(err)) <= _knapsack_exact(g, lo, hi, m)
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), m=st.integers(1, 6), lo=st.floats(0.0, 0.5),
+       width=st.floats(1.5, 4.0), size=st.floats(0.1, 5.0))
+def test_property_the_perturbed_knapsack_bound_holds(seed, m, lo, width, size):
+    """For the gradient lowered by its whole error bound, the worst case for a
+    filled point, and a fill that runs to m hi."""
+    rng = np.random.default_rng(seed)
+    gt = -np.abs(rng.normal(size=6)) * 10            # all negative: the fill ends at m hi
+    d = np.full(6, size)
+    hi = _draw(lo, width)
+    v, err = perturbed_knapsack_bound(gt, d, lo, hi, m)
+    assert Q(v) - Q(inflate(err)) <= _knapsack_exact(gt - d, lo, hi, m)
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), size=st.floats(0.0, 5.0))
+@example(seed=0, k=0, size=3.0)       # d'|w| rounds below its exact value: only the inflation covers it
+def test_property_the_linear_bound_holds(seed, k, size):
+    """For the gradient raised by its whole error bound along the sign of w, the worst case."""
+    rng = np.random.default_rng(seed)
+    g = rng.normal(size=6) * 2.0 ** k; w = rng.uniform(-1, 1, size=6)
+    d = np.full(6, size * 2.0 ** k)
+    v, err = linear_bound(g, d, w)
+    gt = [Q(float(a)) + Q(float(b)) * (1 if c >= 0 else -1) for a, b, c in zip(g, d, w)]
+    assert sum(a * Q(float(c)) for a, c in zip(gt, w)) <= Q(v) + Q(inflate(err))
 
 
 # ---------------------------------------------------------------- edges

@@ -164,10 +164,8 @@ def hull_bound_float(y, X, w, lo, hi, m):
 
     with err_dual = gamma_{p+3} (sum_j |hi min(0, g~_j - lam)| + |lam| m max(lo, hi)),
     which covers the rounding of the dual's terms, their sum, lam A and of
-    A = fl(m lo), B = fl(m hi) themselves. The error terms are sums of nonnegative
-    products of computed doubles, each within a relative gamma_{n+p+8} of its
-    exact value, so inflating their total by 1 + 1e-6 covers their own rounding
-    whenever n + p < 10^9. The last combination f + dual - g'w - err is done in
+    A = fl(m lo), B = fl(m hi) themselves. The error terms are themselves doubles,
+    and inflate() raises their total to cover their own rounding. The last combination f + dual - g'w - err is done in
     rationals from those few doubles and rounded down, so it adds no error.
 
     Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
@@ -180,23 +178,68 @@ def hull_bound_float(y, X, w, lo, hi, m):
         raise ValueError(f"the point must hold one weight per control: expected ({p},), got {w.shape}")
     if not np.all(np.isfinite(w)):
         raise ValueError("the point must be finite")
-    aX, aw = np.abs(X), np.abs(w)
+    r, e = residual_bound(y, X, w)
+    f, f_err = objective_bound(r, e)
+    g, d = gradient_bound(X, r, e)
+    kn, kn_err = perturbed_knapsack_bound(g, d, lo, hi, m)
+    gw, gw_err = linear_bound(g, d, w)
+    err = inflate(f_err + kn_err + gw_err)
+    return round_down(Q(f) + Q(kn) - Q(gw) - Q(err))
+
+
+def residual_bound(y, X, w):
+    """r~ = fl(X w - y) and e with |r~ - (X w - y)| <= e componentwise: a dot
+    product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Higham 2002, eq. (3.5))."""
     r = X @ w - y
-    e = _gamma(p + 1) * (aX @ aw + np.abs(y))
+    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w) + np.abs(y))
+
+
+def objective_bound(r, e):
+    """fl(r~'r~) and the error with r'r >= fl(r~'r~) - err for every r within e of
+    r~: r'r >= r~'r~ - 2 |r~|'e, and fl(r~'r~) errs by at most gamma_n |r~|'|r~|."""
     ar = np.abs(r)
-    f = float(r @ r)
-    f_err = _gamma(n) * float(ar @ ar) + 2.0 * float(ar @ e)
-    g = 2.0 * (X.T @ r)
-    d = 2.0 * _gamma(n) * (aX.T @ ar) + 2.0 * (aX.T @ e)
-    A, B = m * lo, m * hi
+    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)
+
+
+def gradient_bound(X, r, e):
+    """g~ = fl(2 X'r~) and d with |g~ - 2 X'r| <= d for every r within e of r~:
+    the rounding of X'r~, gamma_n |X|'|r~|, and |X'(r~ - r)| <= |X|'e, doubled."""
+    aX = np.abs(X)
+    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)
+
+
+def dual_bound(g, lo, hi, m):
+    """knapsack_dual at the greedy multiplier, and a bound on its rounding: each
+    term hi min(0, g_j - lam) and lam A or lam B within gamma_3 of itself (one
+    subtraction, one product, and A = fl(m lo), B = fl(m hi)), their sum within
+    gamma_p, so gamma_{p+3} times the moduli bounds the whole (Higham 2002, Sect. 3.1)."""
     lam = _greedy_lambda(g, lo, hi, m)
-    dual = knapsack_dual(g, lo, hi, m, lam=lam)
     terms = hi * np.minimum(0.0, g - lam)
-    dual_err = _gamma(p + 3) * (float(np.abs(terms).sum()) + abs(lam) * max(A, B))
-    gw = float(g @ w)
-    gw_err = _gamma(p) * float(np.abs(g) @ aw)
-    err = (f_err + dual_err + gw_err + float(d.max()) * B + float(d @ aw)) * (1.0 + 1e-6)
-    return round_down(Q(f) + Q(dual) - Q(gw) - Q(err))
+    err = _gamma(g.shape[0] + 3) * (float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))
+    return knapsack_dual(g, lo, hi, m, lam=lam), err
+
+
+def perturbed_knapsack_bound(g, d, lo, hi, m):
+    """A value and an error with min_P g'x >= value - err for every gradient g
+    within d of the computed g~: the dual at g~ less its rounding, and less
+    max(d) m hi, since every x in P has 0 <= x and sum x <= m hi, so
+    |(g - g~)'x| <= max(d) sum x (derived here)."""
+    dual, dual_err = dual_bound(g, lo, hi, m)
+    return dual, dual_err + float(d.max()) * (m * hi)
+
+
+def linear_bound(g, d, w):
+    """fl(g~'w) and an error with g'w <= fl(g~'w) + err for every g within d of g~:
+    gamma_p |g~|'|w|, the rounding (Higham 2002, eq. (3.5)), plus d'|w|."""
+    aw = np.abs(w)
+    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)
+
+
+def inflate(err):
+    """An error total computed in doubles, raised to cover its own rounding: it is a
+    sum of nonnegative products of doubles, within a relative gamma_{n+p+8} of its
+    exact value, and 1e-6 exceeds that whenever n + p < 10^9 (derived here)."""
+    return err * (1.0 + 1e-6)
 
 
 def round_down(x):
