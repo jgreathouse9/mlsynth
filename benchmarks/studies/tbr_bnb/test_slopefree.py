@@ -405,3 +405,44 @@ def test_property_the_ceiling_is_held_exactly_when_no_design_is_below_it(seed, f
     assert out.certified and out.ceiling_held == (f < 1)
     if f > 1:
         assert float(out.incumbent) == pytest.approx(best, rel=1e-9)
+
+
+# ---------------------------------------------------------------- a node with one design
+
+
+def _node(y, X, m, fixes, lam, max_depth=12):
+    from .slopefree import SlopeFreeCertificate, _branch
+
+    D = ExactData(y, X)
+    out = SlopeFreeCertificate(incumbent=Q(0), controls=[], ratio=Q(0), sizes_after_hull=[])
+    inc = {"lam": lam, "C": set()}
+    _branch(D.c, D.G, out, m, [], list(fixes), 6, 400, 0, max_depth, inc, [])
+    return out, inc, D
+
+
+@pytest.mark.parametrize("fixes", [
+    [(0, 1), (1, 1)],                       # m geos fixed in: the rest are out
+    [(2, 0), (3, 0), (4, 0)],               # p - m geos fixed out: the rest are in
+])
+def test_a_node_with_one_design_is_evaluated_not_bounded(monkeypatch, fixes):
+    """A node whose fixings leave a single design of its size is that design: it is
+    evaluated exactly, with no relaxation solved, even at the depth limit."""
+    from . import slopefree
+
+    monkeypatch.setattr(slopefree, "size_certificate",
+                        lambda *a, **k: pytest.fail("a one-design node was bounded"))
+    y, X = panel(0, p=5)
+    C = {j for j, v in fixes if v} or {0, 1}
+    D = ExactData(y, X)
+    u = np.zeros(5, dtype=object); u[:] = Q(0); u[sorted(C)] = Q(1)
+    cu = D.c @ u
+    out, inc, _ = _node(y, X, 2, fixes, Q(-1), max_depth=0)
+    assert out.nodes == 1 and out.open == []
+    if cu > 0:
+        assert inc["C"] == C and inc["lam"] == cu * cu / (u @ D.G @ u)
+
+
+def test_a_one_design_node_below_the_incumbent_is_closed():
+    y, X = panel(0, p=5)
+    out, inc, _ = _node(y, X, 2, [(0, 1), (1, 1)], Q(10) ** 30, max_depth=0)
+    assert out.nodes == 1 and out.open == [] and inc["C"] == set()

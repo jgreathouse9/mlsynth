@@ -12065,6 +12065,18 @@ timeout = 900.0
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
 
   [[target.mutant]]
+  id = "a-one-design-node-is-bounded"
+  find = "    if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it\n"
+  replace = "    if len(fixes) == p:   # the fixings leave one design: evaluate it\n"
+  models = "a node whose fixings leave a single design bounded and split on geos with one value left, down to the depth limit"
+
+  [[target.mutant]]
+  id = "the-free-geos-are-left-out-of-the-one-design"
+  find = "        if ones < m:                              # every free geo is in\n"
+  replace = "        if False:                                 # every free geo is in\n"
+  models = "the design of a node with p - m geos fixed out read as its fixed-in geos alone, a design of the wrong size"
+
+  [[target.mutant]]
   id = "the-ceiling-does-not-raise-the-test-ratio"
   find = "        test = D.yy - ceiling              # only a design below the ceiling matters\n"
   replace = "        pass\n"

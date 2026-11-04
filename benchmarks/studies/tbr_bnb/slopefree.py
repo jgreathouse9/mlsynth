@@ -313,8 +313,11 @@ class SlopeFreeCertificate:
 
 def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
     """Prune the node by its certificate, or branch on its most fractional geo; a
-    fully fixed node is a design, evaluated exactly, and one better than the
-    incumbent replaces it. The nodes after it are searched at the new ratio; those
+    node whose fixings leave one design of size m (m geos fixed in, or p - m fixed
+    out) is that design, evaluated exactly, and one better than the incumbent
+    replaces it. Bounding such a node instead branches on geos with one value
+    left, down to the depth limit: on GeoLift a size-9 node with nine geos fixed
+    in was left open that way. The nodes after it are searched at the new ratio; those
     before it were pruned at a smaller ratio, the stronger claim, and no other node
     holds the new design, since the fixings partition the designs."""
     p = len(c)
@@ -322,8 +325,10 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     if ones > m or len(fixes) - ones > p - m:
         return
     out.nodes += 1
-    if len(fixes) == p:
+    if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it
         C = {j for j, v in fixes if v}
+        if ones < m:                              # every free geo is in
+            C |= {j for j in range(p) if j not in dict(fixes)}
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
