@@ -11218,3 +11218,149 @@ timeout = 600.0
   find = "        if self.search == \"local\" and not searched:\n"
   replace = "        if False:\n"
   models = "search='local' accepted on a named split, which has no design to improve"
+
+# The TBR certified-design study (#965): certificates, dual oracle, node solvers,
+# search and lifts of benchmarks/studies/tbr_bnb.
+[[target]]
+name = "tbr-bnb-certificate"
+module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-joint-trace-forgets-the-size"
+  find = "    trmax = 1 + m + m * hi * hi\n"
+  replace = "    trmax = 1 + m + hi * hi\n"
+  models = "the joint lift's trace bound 1 + m + m hi^2 read without the size, so a negative eigenvalue is charged too little and the bound rises above the optimum"
+
+  [[target.mutant]]
+  id = "the-products-multipliers-not-clipped"
+  find = "            D = -np.maximum(d, Q(0))          # e >= 0 is stored as -e <= 0\n"
+  replace = "            D = -d          # e >= 0 is stored as -e <= 0\n"
+  models = "a negative multiplier on a product inequality kept, which weak duality does not allow"
+
+  [[target.mutant]]
+  id = "the-knapsack-fills-the-dearest-first"
+  find = "    for j in sorted(range(D.p), key=lambda j: g[j]):\n"
+  replace = "    for j in sorted(range(D.p), key=lambda j: -g[j]):\n"
+  models = "the hull's linear minimum filled from the most expensive coordinate, a value above the minimum and so no bound"
+
+  [[target.mutant]]
+  id = "the-first-order-term-dropped"
+  find = "    return f + g @ (v - w)\n"
+  replace = "    return f\n"
+  models = "the hull bound read as the objective at the point, which is an upper bound on the hull's minimum, not a lower one"
+
+  [[target.mutant]]
+  id = "the-shor-trace-forgets-the-size"
+  find = "    return k + min(Q(0), lam) * (1 + m * hi * hi), Ssym, k\n"
+  replace = "    return k + min(Q(0), lam) * (1 + hi * hi), Ssym, k\n"
+  models = "the Shor trace bound 1 + m hi^2 without the size"
+
+  [[target.mutant]]
+  id = "the-slope-cap-too-low"
+  find = "        ratio2 = self.yy / lam                 # b^2 <= y'y / lambda_min\n"
+  replace = "        ratio2 = self.yy / (4 * lam)                 # b^2 <= y'y / lambda_min\n"
+  models = "a slope cap below the largest positive best-fit slope, which leaves designs outside every piece"
+
+  [[target.mutant]]
+  id = "the-no-good-cut-signs-swapped"
+  find = "            Gf[0, iu + j] += d if j in Cset else -d\n"
+  replace = "            Gf[0, iu + j] += -d if j in Cset else d\n"
+  models = "the no-good cut's coefficients flipped, a cut that excludes the complement of the incumbent and admits the incumbent"
+
+  [[target.mutant]]
+  id = "the-fixing-constant-signed-wrong"
+  find = "        Gf[0, iu + j] += d; k -= Q(val) * d\n"
+  replace = "        Gf[0, iu + j] += d; k += Q(val) * d\n"
+  models = "the fixing u_j = val entered as u_j = -val in the Lagrangian's constant"
+
+[[target]]
+name = "tbr-bnb-oracle"
+module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_oracle.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-primal-point-without-its-trace"
+  find = "            v = Q[:, 0]; Z = self.T * np.outer(v, v)\n"
+  replace = "            v = Q[:, 0]; Z = np.outer(v, v)\n"
+  models = "the supergradient read at v v' instead of T v v', which is not where the minimum is attained"
+
+  [[target.mutant]]
+  id = "the-adjoint-misses-a-transpose"
+  find = "        Gf[iu:iw, iu:iw] += Tm[0]; Gf[iu:iw, iw:] += Tm[1] + Tm[2].T; Gf[iw:, iw:] += Tm[3]\n"
+  replace = "        Gf[iu:iw, iu:iw] += Tm[0]; Gf[iu:iw, iw:] += Tm[1] + Tm[2]; Gf[iw:, iw:] += Tm[3]\n"
+  models = "the term w_i u_j placed as u_i w_j, which the shared slope makes equal only at a design"
+
+  [[target.mutant]]
+  id = "the-eigenvalue-uncharged"
+  find = "            return k + self.T * lam[0], self.expr(Z), lam, Q\n"
+  replace = "            return k + lam[0], self.expr(Z), lam, Q\n"
+  models = "the negative eigenvalue charged once instead of T times, a value above the lift's and no bound"
+
+[[target]]
+name = "tbr-bnb-dual"
+module-path = "benchmarks/studies/tbr_bnb/dual.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_dual.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-best-bound-is-not-kept"
+  find = "        if exact > best[0]: best[0], best[1] = exact, yv.copy()\n"
+  replace = "        if False: best[0], best[1] = exact, yv.copy()\n"
+  models = "the best certified bound seen is never recorded, so the method reports minus infinity"
+
+  [[target.mutant]]
+  id = "the-gradient-ascends"
+  find = "        return -val, -grad\n"
+  replace = "        return -val, grad\n"
+  models = "L-BFGS-B handed the smoothed bound's gradient with the wrong sign, so it walks away from the bound"
+
+  [[target.mutant]]
+  id = "the-stage-budget-ignored"
+  find = "            mf = stage_budget(stage) if stage_budget is not None else maxfun\n"
+  replace = "            mf = maxfun\n"
+  models = "the growing stage budget measured on the 40-geo nodes ignored for the flat one"
+
+[[target]]
+name = "tbr-bnb-search"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-incumbent-node-without-its-cut"
+  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, ngd), fixes=fixes)\n"
+  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, 0.0), fixes=fixes)\n"
+  models = "the no-good cut's multiplier dropped from the certificate, so the node holding the incumbent can never close"
+
+  [[target.mutant]]
+  id = "too-many-fixed-in-geos-allowed"
+  find = "    if ones > m or len(fixed) - ones > p - m:\n"
+  replace = "    if ones > m + 1 or len(fixed) - ones > p - m:\n"
+  models = "a node with more fixed-in geos than its size searched, which holds no design"
+
+  [[target.mutant]]
+  id = "the-negative-slope-certified"
+  find = "    if not b_inc > 0:\n"
+  replace = "    if False:\n"
+  models = "a treatment group with no positive-slope control group sent to a search whose pieces only cover positive slopes"
+
+  [[target.mutant]]
+  id = "the-descent-takes-a-worse-move"
+  find = "            if vals[i] < cur * (1 - 1e-12):\n"
+  replace = "            if vals[i] > cur * (1 - 1e-12):\n"
+  models = "the incumbent descent accepting a move only when it is worse"
+
+[[target]]
+name = "tbr-bnb-lifts"
+module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lifts.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-slope-is-not-shared"
+  find = "                cons.append(V == V.T)\n"
+  replace = "                pass\n"
+  models = "the joint lift without V = V', the shared-slope identity its tightness rests on (#965: a 12% gap without it)"
