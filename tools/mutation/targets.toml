@@ -11386,18 +11386,6 @@ timeout = 900.0
   models = "the unconstrained NNLS value taken for every band, a valid but weaker number that is not the band's minimum"
 
 [[target]]
-name = "tbr-bnb-band-certificate"
-module-path = "benchmarks/studies/tbr_bnb/certificate.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"
-timeout = 900.0
-
-  [[target.mutant]]
-  id = "the-band-certified-as-the-capped-hull"
-  find = "    capq = hi if cap is None else Q(float(cap))\n"
-  replace = "    capq = hi\n"
-  models = "the band's certificate computed with the per-geo cap it does not have, a different linear minimum from the band's"
-
-[[target]]
 name = "tbr-bnb-band-search"
 module-path = "benchmarks/studies/tbr_bnb/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"

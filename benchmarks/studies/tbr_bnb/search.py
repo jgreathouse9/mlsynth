@@ -180,9 +180,11 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
     """The (piece, size) pairs the hull stage cannot rule out, and what it did.
 
     The first tier is the band without the per-geo cap (hull.Band): one NNLS and
-    simplex QPs at the band's ends, certified by the hull's first-order bound
-    with the cap at m hi. Only the pairs it cannot rule out reach the second
-    tier, the capped hull by Clarabel, so the survivors are the capped hull's.
+    simplex QPs at the band's ends. Its point is certified by the capped hull's
+    first-order bound, valid for the piece at any point and at least the band's
+    own value there, since its linear minimum is over the smaller set. Only the
+    pairs it cannot rule out reach the second tier, the capped hull by
+    Clarabel, so the survivors are the capped hull's.
     """
     p = X.shape[1]
     band = Band(y, X) if two_tier else None
@@ -193,7 +195,7 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
         for m in range(1, p + 1):
             if band is not None:
                 v, w = band.value(lo, hi, m)
-                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m, cap=m * hi) >= UB:
+                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:
                     stats["band_pruned"] += 1
                     continue
             stats["capped_solved"] += 1

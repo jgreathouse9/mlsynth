@@ -62,26 +62,25 @@ def test_the_band_never_exceeds_the_capped_hull(seed, lo, width, m):
 @SETTINGS
 @given(seed=st.integers(0, 10_000), lo=st.floats(0.0, 1.0), width=st.floats(1.05, 4.0), m=st.integers(1, 6),
        shift=st.floats(-1.0, 1.0))
-def test_the_band_certificate_holds_at_any_point(seed, lo, width, m, shift):
+def test_the_band_point_certifies_the_piece(seed, lo, width, m, shift):
+    """The capped hull's first-order bound at the band's point, or any other, is
+    a bound on the piece."""
     y, X = panel(seed)
     hi = lo * width if lo > 0 else width - 1.0
     _, w = Band(y, X).value(lo, hi, m)
     w = w + shift * np.random.default_rng(seed).normal(size=6)
-    b = hull_bound(ExactData(y, X), w, lo, hi, m, cap=m * hi)
+    b = hull_bound(ExactData(y, X), w, lo, hi, m)
     assert float(b) <= piece_optimum(y, X, lo, hi, m) * (1 + 1e-12)
 
 
-def test_the_band_certificate_is_tight_at_the_band_point():
-    y, X = panel(2)
-    v, w = Band(y, X).value(0.3, 0.9, 3)
-    assert float(hull_bound(ExactData(y, X), w, 0.3, 0.9, 3, cap=3 * 0.9)) == pytest.approx(v, rel=1e-8)
-
-
-def test_the_cap_free_hull_certificate_is_unchanged_by_default():
-    y, X = panel(3)
-    H = ControlBound(y, X); H.piece(0.3, 0.9, 3)
-    D = ExactData(y, X)
-    assert hull_bound(D, H.w.value, 0.3, 0.9, 3) == hull_bound(D, H.w.value, 0.3, 0.9, 3, cap=0.9)
+@pytest.mark.parametrize("seed", range(4))
+def test_the_band_point_certifies_at_least_the_band_value(seed):
+    """At the band's minimiser the linear minimum over the band is zero, and over
+    the smaller capped hull it is no less, so the certificate is at least the band."""
+    y, X = panel(seed)
+    for lo, hi, m in ((0.3, 0.9, 3), (0.1, 0.25, 2), (0.05, 0.6, 5)):
+        v, w = Band(y, X).value(lo, hi, m)
+        assert float(hull_bound(ExactData(y, X), w, lo, hi, m)) >= v * (1 - 1e-8)
 
 
 @pytest.mark.parametrize("seed", range(3))

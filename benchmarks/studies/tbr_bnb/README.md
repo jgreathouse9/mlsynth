@@ -200,8 +200,9 @@ fixing is certified to the solver's value.
 4. Trim the lift entry by entry (a working set).
 5. The hull stage on the library's active-set solvers. (a), done here: the band
    without the per-geo cap (`hull.Band`), one `nnls` per group and
-   `solve_simplex_qp(s X, y)` at the band's nearer end, certified by the hull's
-   first-order bound with the cap at `m hi`, then the capped hull only on what
+   `solve_simplex_qp(s X, y)` at the band's nearer end, its point certified by
+   the capped hull's first-order bound (valid for the piece at any point, and at
+   least the band's value there), then the capped hull only on what
    the band cannot rule out (`search.hull_survivors`). On the four groups the
    band rules out 94-95% of the pairs with 1,531-1,653 simplex QPs, the capped
    hull runs on 108-127, and the stage takes 6.7-7.9 s against 19.7-24.9 s for

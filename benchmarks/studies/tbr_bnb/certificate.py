@@ -98,15 +98,11 @@ class ExactData:
         return r
 
 
-def hull_bound(D, wbar, lo, hi, m, cap=None):
-    """min ||y - X w||^2 over {0 <= w <= cap, m lo <= sum w <= m hi} from below:
+def hull_bound(D, wbar, lo, hi, m):
+    """min ||y - X w||^2 over {0 <= w <= hi, m lo <= sum w <= m hi} from below:
     f(wbar) + min_P g'(w - wbar), g the gradient at wbar; valid for any wbar
-    because f is convex. The linear minimum over P is a continuous knapsack.
-
-    ``cap`` is the per-geo cap, ``hi`` by default (the capped hull); the band
-    without it is ``cap = m hi``, which the sum already implies."""
+    because f is convex. The linear minimum over P is a continuous knapsack."""
     lo, hi, m = Q(float(lo)), Q(float(hi)), Q(int(m))
-    capq = hi if cap is None else Q(float(cap))
     w = qarr(wbar)
     Gw = D.G @ w
     f = D.yy - 2 * (D.c @ w) + w @ Gw
@@ -117,7 +113,7 @@ def hull_bound(D, wbar, lo, hi, m, cap=None):
         if s >= B or (g[j] >= 0 and s >= A):
             break
         need = (B - s) if g[j] < 0 else (A - s)
-        t = min(capq, need); v[j] = t; s += t
+        t = min(hi, need); v[j] = t; s += t
     return f + g @ (v - w)
 
 
