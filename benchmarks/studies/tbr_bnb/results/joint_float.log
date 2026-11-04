@@ -1,0 +1,13 @@
+# certify on the four GeoLift groups: main (5e427899, exact joint certificate) against
+# claude/tbr-bnb-joint-float (ab91b35e, float certificate with the exact one as fallback).
+# One run at a time, BLAS on one thread, alternating the two trees; restarts=50.
+# 'old' is main and 'new' the branch; 'certificates' is SearchStats.cert_seconds,
+# 'checks' the float certificates tried and the exact fallbacks taken.
+old [dallas] certified True RSS 704316.115221 controls [5, 9, 18, 38] in 42s; 3 nodes, 2 pruned, 1 branched, evals 2095, lbfgs 15.8s, certificates 2.04s, checks None
+new [dallas] certified True RSS 704316.115221 controls [5, 9, 18, 38] in 38s; 3 nodes, 2 pruned, 1 branched, evals 2095, lbfgs 16.3s, certificates 0.01s, checks {'float': 2}
+old [dallas+denver] certified True RSS 3810912.77492 controls [3, 5, 17, 37] in 53s; 5 nodes, 4 pruned, 1 branched, evals 3303, lbfgs 24.0s, certificates 3.08s, checks None
+new [dallas+denver] certified True RSS 3810912.77492 controls [3, 5, 17, 37] in 48s; 5 nodes, 4 pruned, 1 branched, evals 3303, lbfgs 22.8s, certificates 0.02s, checks {'float': 4}
+old [cincinnati+dallas+denver] certified True RSS 4771180.38693 controls [3, 5, 6, 16, 28, 33, 36] in 138s; 15 nodes, 13 pruned, 2 branched, evals 12307, lbfgs 82.5s, certificates 10.24s, checks None
+new [cincinnati+dallas+denver] certified True RSS 4771180.38693 controls [3, 5, 6, 16, 28, 33, 36] in 135s; 15 nodes, 13 pruned, 2 branched, evals 12307, lbfgs 88.9s, certificates 0.04s, checks {'float': 13}
+old [chicago+cincinnati+dallas+denver] certified True RSS 8083009.30113 controls [15, 18, 19, 27, 28, 32, 35] in 284s; 35 nodes, 25 pruned, 10 branched, evals 32402, lbfgs 214.4s, certificates 18.39s, checks None
+new [chicago+cincinnati+dallas+denver] certified True RSS 8083009.30113 controls [15, 18, 19, 27, 28, 32, 35] in 273s; 35 nodes, 25 pruned, 10 branched, evals 32402, lbfgs 221.4s, certificates 0.07s, checks {'float': 25}

@@ -234,12 +234,12 @@ All of it is in `results/solver_settings.log`.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (159 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (199 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 59 mutants of the sixteen
-`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
+but for two lines marked with their reasons. The 82 mutants of the nineteen
+`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
 `lambda_min(S)` is near zero, so the trace barely moves the bound), a negative
@@ -268,8 +268,37 @@ fixing is certified to the solver's value.
    certificate (`results/float_cert.log`); the float bound sits a median 7e-14
    of `y'y` below the exact one. Hypothesis found the bound failing at
    subnormal slopes (`lo = hi = 1.1e-308`), where the relative rounding bound
-   does not hold; the underflow allowance closes it. The joint lift's
-   certificate is next.
+   does not hold; the underflow allowance closes it.
+
+   The joint lift's certificate is done the same way
+   (`certificate.joint_bound_float`, decided by `certificate.joint_clears`).
+   S and k are assembled in doubles by an oracle in the data's units
+   (`oracle.Oracle(unscaled=True)`), and a second pass over the same assembly
+   sums the moduli of each entry's terms (`Oracle.S_k_moduli`), which bounds
+   their rounding by the same dot-product bound; the data's own rounding
+   (`fl(X'X)`, `fl(X'y)`, `fl(y'y)`) is bounded beside it. `lambda_min(S)` is
+   bounded below by the steps of mlsynth's `lambda_min_lower` (a Cholesky
+   factor of `S - sigma I`, then Weyl's theorem and a Gershgorin row bound,
+   Golub and Van Loan 2013, Cor. 8.1.6 and Thm 8.1.3), with the residual
+   bounded instead of computed exactly, and Weyl's theorem once more moves it
+   from `fl(S)` to `S`. Each rounding claim is checked exactly, in rationals,
+   by a hypothesis property, and the whole bound against an exact upper bound
+   on the dual function (the Rayleigh quotient at the computed eigenvector).
+   Hypothesis found one hole: with a subnormal `lo`, `lo^2` underflows to zero
+   and the coefficient has no relative bound, so there the float bound gives
+   up and the exact certificate decides. The first mutation run left two
+   assertions too weak: unclipped inequality multipliers passed a validity
+   check they happened to satisfy, and dropping the assembly's own rounding
+   term passed because random sums rarely lose more than 2u of their moduli.
+   A negative multiplier is now checked to give the bound of a zero one, and a
+   constant that loses all 24 of its terms to rounding is checked exactly. On
+   the small panels every prune is decided by the float bound
+   (`test_certify_prunes_on_the_float_certificate`). On the four GeoLift
+   groups every one of the 2, 4, 13 and 25 prunes is decided by the float
+   bound and none falls back; the certificates take 0.01-0.07 s against
+   2.0-18.4 s, and `certify` 38, 48, 135 and 273 s against 42, 53, 138 and
+   284 s, with the same nodes, prunes and designs (`results/joint_float.log`).
+   What remains is the node solver: 221 s of the hardest group's 273 s.
 4. Trim the lift entry by entry (a working set).
 5. The hull stage on the library's active-set solvers. (a), done here: the band
    without the per-geo cap (`hull.Band`), one `nnls` per group and
@@ -308,7 +337,7 @@ fixing is certified to the solver's value.
 
 - `panel.py`: the scoring window and the four groups.
 - `hull.py`, `lifts.py`: the capped hull as one capped simplex QP, the band without the per-geo cap, and the lift levels.
-- `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the hull's float certificate.
+- `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the float certificates of the hull and the joint lift.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `brute.py`: enumeration, the truth the tests check against.
@@ -366,6 +395,9 @@ fixing is certified to the solver's value.
   for unconstrained and ball-constrained convex optimization. Comput. Optim.
   Appl. 73, 159-199. Read and not used: it covers unconstrained and
   ball-constrained problems, not sign-constrained multipliers.
+- Golub, G. H. and Van Loan, C. F. (2013). Matrix Computations, 4th ed. Johns
+  Hopkins. Cor. 8.1.6 (Weyl) and Thm 8.1.3 (Gershgorin), the eigenvalue steps
+  of the joint lift's float certificate.
 - Björck, Å. (2015). Numerical Methods in Matrix Computations. Springer.
   Lemma 1.4.2 and eq. (1.4.10), the dot-product rounding bound the float
   certificate uses, under the standard model (1.4.5), which holds only if no
