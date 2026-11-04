@@ -197,13 +197,48 @@ the optimum, so with them nothing is adopted, and the times match the table
 above within the noise of shared cores. The update is a guarantee for a start
 the local search gets wrong, not a saving when it gets it right.
 
+### Where the time goes, and two settings
+
+A profile of `certify` on the hardest group (406 s) put 302 s in the node
+solver, of which the dual's own evaluations were 57 s: the rest was L-BFGS-B's
+bookkeeping over the joint lift's 26,015 multipliers (24,336 sign-constrained).
+The exact joint-lift certificates were 45 s and the Shor stage 50 s. On Dallas
+(55 s) the node solver was 24 s, 17.7 s of it in L-BFGS-B's core routine, and
+the Shor stage 16 s.
+
+- The node solver now stores 10 correction pairs (`dual.LBFGS_MEMORY`), not 20.
+  On the four groups that gives the same nodes, prunes and branches as 20 at
+  70-87% of the time: 40, 58, 145 and 272 s against 50, 67, 193 and 391 s. With 5
+  the hardest group is not certified (47 nodes, one left open): its multipliers
+  converge too slowly within the evaluation budget.
+- The Shor stage solves at Clarabel tolerance 1e-5 (`search.SHOR_TOL`), not the
+  default 1e-8: the same survivors at about 89% of the time. At 1e-4 the hardest
+  group keeps 18 pairs against 15.
+- A working set (step 4) would trim less than it promises: at a node's final
+  multipliers 15% of the sign-constrained ones are zero and 46% are below 1e-3 of
+  the largest, so it could at most halve L-BFGS-B's bookkeeping.
+- Moving the Shor stage onto the smoothed L-BFGS dual is a negative result. An
+  oracle in `shor_bound`'s layout, checked against Clarabel's multipliers (equal
+  to 1e-8), keeps 5 more pairs than Clarabel on Dallas and on the hardest group:
+  those pairs sit just above the incumbent, and the first-order dual does not
+  close that margin within its budget, with or without the stall rule. Run first
+  and handed to Clarabel where it falls short, it keeps Clarabel's survivors and
+  saves 3.5 s and 1.5 s, which does not pay for a second Shor solver.
+- Andrei (2017), Sect. 6.4-6.5, compares L-BFGS-B with the spectral projected
+  gradient method (Birgin, Martinez and Raydan): about even in CPU time over 800
+  test problems (Tables 6.2-6.3), but far behind on ill-conditioned
+  40,000-variable problems (Tables 6.4-6.5, 83 s against 1.9 s), which is the
+  regime of the smoothed dual at small smoothing. It is not tried here.
+
+All of it is in `results/solver_settings.log`.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (188 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (199 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 75 mutants of the sixteen
+but for two lines marked with their reasons. The 82 mutants of the nineteen
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -369,3 +404,7 @@ fixing is certified to the solver's value.
 - Nocedal, J. and Wright, S. J. (2006). Numerical Optimization, 2nd ed.
   Springer. Sect. 16.5, the active-set method of `solve_simplex_qp` that the
   capped hull calls.
+- Andrei, N. (2017). Continuous Nonlinear Optimization for Engineering
+  Applications in GAMS Technology. Springer. Sect. 6.4 (the spectral projected
+  gradient method, Algorithm 6.2, Theorem 6.5) and Sect. 6.5 (L-BFGS-B), with
+  their comparison in Tables 6.2-6.5.

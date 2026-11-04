@@ -1,0 +1,25 @@
+# certify(y, X, restarts=50) with L-BFGS-B memory (maxcor) 5, 10, 20, one run at a time
+maxcor 5 [dallas] certified True RSS 704316.1152 in 33s; 3 nodes, 2 pruned, 1 branched, evals 1380, lbfgs 7s, certificates 2s
+maxcor 10 [dallas] certified True RSS 704316.1152 in 40s; 3 nodes, 2 pruned, 1 branched, evals 2095, lbfgs 15s, certificates 2s
+maxcor 20 [dallas] certified True RSS 704316.1152 in 50s; 3 nodes, 2 pruned, 1 branched, evals 2096, lbfgs 24s, certificates 2s
+maxcor 5 [chicago+cincinnati+dallas+denver] certified False RSS 8083009.301 in 271s; 47 nodes, 30 pruned, 16 branched, evals 41078, lbfgs 191s, certificates 22s
+maxcor 10 [chicago+cincinnati+dallas+denver] certified True RSS 8083009.301 in 272s; 35 nodes, 25 pruned, 10 branched, evals 32402, lbfgs 199s, certificates 18s
+maxcor 20 [chicago+cincinnati+dallas+denver] certified True RSS 8083009.301 in 391s; 35 nodes, 25 pruned, 10 branched, evals 31806, lbfgs 314s, certificates 17s
+maxcor 10 [dallas+denver] certified True RSS 3810912.775 in 58s; 5 nodes, 4 pruned, 1 branched, evals 3303, lbfgs 25s, certificates 3s
+maxcor 20 [dallas+denver] certified True RSS 3810912.775 in 67s; 5 nodes, 4 pruned, 1 branched, evals 3284, lbfgs 36s, certificates 3s
+maxcor 10 [cincinnati+dallas+denver] certified True RSS 4771180.387 in 145s; 15 nodes, 13 pruned, 2 branched, evals 12307, lbfgs 81s, certificates 10s
+maxcor 20 [cincinnati+dallas+denver] certified True RSS 4771180.387 in 193s; 15 nodes, 13 pruned, 2 branched, evals 11557, lbfgs 129s, certificates 11s
+
+# Shor stage: Clarabel's stopping tolerance (None = Clarabel's default) on the hull survivors
+[dallas] tol None: 18.2s, 273 iterations, keeps 1
+[dallas] tol 1e-06: 16.9s, 240 iterations, keeps 1
+[dallas] tol 1e-05: 16.2s, 224 iterations, keeps 1
+[dallas] tol 0.0001: 14.1s, 199 iterations, keeps 1
+[chicago+cincinnati+dallas+denver] tol None: 51.3s, 1172 iterations, keeps 15
+[chicago+cincinnati+dallas+denver] tol 1e-06: 48.3s, 1048 iterations, keeps 15
+[chicago+cincinnati+dallas+denver] tol 1e-05: 45.5s, 955 iterations, keeps 15
+[chicago+cincinnati+dallas+denver] tol 0.0001: 38.3s, 840 iterations, keeps 18
+
+# Shor stage on the smoothed L-BFGS dual (a scratch oracle in shor_bound's layout), against Clarabel
+[dallas] 13 pairs. Clarabel 18.5s keeps 1. (a) L-BFGS, no stall rule: 4.8s keeps 6 (4500 evals), extra 5. (b) L-BFGS with stall rule then Clarabel on the rest: 5.2+9.8s keeps 1, same as Clarabel True
+[chicago+cincinnati+dallas+denver] 41 pairs. Clarabel 51.4s keeps 15. (a) L-BFGS, no stall rule: 25.1s keeps 20 (25273 evals), extra 5. (b) L-BFGS with stall rule then Clarabel on the rest: 23.9+26.0s keeps 15, same as Clarabel True

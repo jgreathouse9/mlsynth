@@ -49,6 +49,15 @@ BUDGET = lambda k: min(60 * 2 ** k, 800)  # noqa: E731
 #: The solver aims this far past the incumbent, relative, so the exact certificate
 #: (which loses up to about 3e-8 relative to the double bound) still clears it.
 HEADROOM = 1e-6
+
+#: Clarabel's stopping tolerance in the Shor stage. The stage prunes only on the
+#: exact certificate (certificate.shor_bound) of the solve's multipliers, so the
+#: tolerance changes the work and how tight that certificate is, never its
+#: validity. Measured on the four GeoLift groups (#965,
+#: results/solver_settings.log): 1e-5 keeps the same survivors as Clarabel's
+#: default 1e-8 at about 89% of the time; 1e-4 keeps 18 pairs on the hardest
+#: group against 15.
+SHOR_TOL = 1e-5
 #: The stall rule: at ``STALL_AT`` evaluations a node below ``STALL_BELOW`` of the
 #: incumbent branches, and every node not pruned by ``STALL_LAST`` does.
 STALL_AT, STALL_BELOW, STALL_LAST = 900, -0.02, 1700
@@ -278,7 +287,7 @@ def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int 
     shor = Lift(y, X, "shor")
     s2 = []; shor_value = {}
     for pc in s1:
-        v = shor.piece(*pc)
+        v = shor.piece(*pc, tol=SHOR_TOL)
         shor_value[pc] = v
         if v < float(UB) * (1 - 1e-4):
             s2.append(pc)
