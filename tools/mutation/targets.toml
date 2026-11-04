@@ -12102,9 +12102,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-cap-is-too-small"
-  find = "    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))\n"
-  replace = "    cap = Q(math.sqrt(float(yy / lam)) * 1e-3)\n"
-  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS"
+  find = "    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))\n    while cap * cap * lam < yy:"
+  replace = "    cap = Q(math.sqrt(float(yy / lam)) * 1e-3)\n    while False:"
+  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS (the cap and its rounding guard together: the guard alone repairs a small cap)"
 
   [[target.mutant]]
   id = "a-group-above-the-class-is-ruled-out-on-rss"
