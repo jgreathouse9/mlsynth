@@ -232,13 +232,76 @@ the Shor stage 16 s.
 
 All of it is in `results/solver_settings.log`.
 
+## Without the slope
+
+At the best slope `b = c'u / u'Gu` (with `c = X'y`, `G = X'X` and `u` the
+indicator of the control group) the residual sum of squares is
+
+    RSS(C) = y'y - (c'u)^2 / u'Gu      when c'u > 0,
+
+so the best control group maximises the ratio `(c'u)^2 / u'Gu` over binary `u`
+with a positive slope (derived here from the normal equation of `b`). That is
+a fractional 0-1 program, and its parametric form (Dinkelbach 1967; Borrero,
+Gillen and Prokopyev 2017, Sect. 4.2) turns certification into one question
+per size `m`: at the incumbent's ratio `lam*`, does any design of size `m` have
+`u'(cc' - lam* G)u > 0`? `slopefree.py` answers it with a semidefinite
+relaxation in `u` alone, a 37 by 37 matrix on the hardest group against the
+joint lift's 73 by 73. Its constraints are `diag U = u`, the products of
+`0 <= u <= 1` (Sherali and Adams 1990), the size and the slope sign `c'u >= 0`
+with their products, a no-good cut at the incumbent's size, and triangle
+inequalities (Padberg 1989) added where the relaxation's solution violates
+them. The certificate is the Lagrangian dual at Clarabel's multipliers, summed
+in rationals, with the trace of the lifted matrix exactly `1 + m`. The slope
+pieces, the Shor stage and the joint lift's node solver are not used; the hull
+stage runs first and rules out every size none of whose pieces survive it.
+
+On the four GeoLift groups every size the hull stage leaves is certified at
+the root, with no branching (`results/slope_free.log`):
+
+| treatment group | sizes after the hull | `certify` (joint lift, `results/joint_float.log`) | `certify_slope_free` |
+| --- | --- | --- | --- |
+| dallas | 6 | 38 s | 18 s |
+| dallas, denver | 7 | 48 s | 21 s |
+| cincinnati, dallas, denver | 14 | 135 s | 35 s |
+| chicago, cincinnati, dallas, denver | 17 | 273 s | 54 s |
+
+Each certifies the same design at the same RSS as `certify`. On the hardest
+group sizes 8, 9 and 10 sit above zero at the root, with bounds 0.98%, 1.33%
+and under 0.01% below the incumbent's RSS, and one round of about 400 triangle
+inequalities closes each. Branching (`_branch`, on the most fractional geo) is
+implemented and tested on small panels against a poor incumbent; the GeoLift
+groups never reach it.
+
+The certificate first read a different matrix than the one it built.
+`lambda_min_lower` takes its matrix through mlsynth's `_from_fractions`, which
+reads every entry as a dyadic rational, and a ratio such as `9/10 lam*` is not
+one. The bound came out 11% loose on a test panel, and it could as well have
+come out too low. `lam` now enters as the largest double below it
+(`dyadic_below`), which proves the stronger statement that no design exceeds
+it, and `bound` refuses a non-dyadic matrix.
+
+Two other routes were read and ruled out before building. The accelerated
+Dinkelbach method (Chen, Zheng and Xia 2025) speeds the outer root-finding,
+which is one step here because the incumbent's ratio is already the root to
+test, and its rates assume a twice-differentiable parametric function, which a
+finite design set does not have. A bound from the zonotope of a low-rank part
+of `G` (Allemand, Fukuda, Liebling and Steiner 2001; Ferrez, Fukuda and
+Liebling 2005) needs the objective to be convex, and neither the ratio nor its
+parametric form is: the ratio's superlevel sets `{c'u >= sqrt(lam u'Gu)}` are
+convex (derived here), so its maximum over the hull need not be at a vertex.
+Their reported times (rank 4, 35 generators: 13,160 cells in 171 s) would have
+ruled it out at the ranks the GeoLift Gram matrix needs anyway.
+
+The reference key's four gates are not in this formulation, as they are not in
+the joint lift's.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (199 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (241 tests, about 70 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 82 mutants of the nineteen
+but for two lines marked with their reasons. The 98 mutants of the twenty
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -340,6 +403,7 @@ fixing is certified to the solver's value.
 - `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the float certificates of the hull and the joint lift.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
+- `slopefree.py`: the slope-free relaxation, its certificate and `certify_slope_free()`.
 - `brute.py`: enumeration, the truth the tests check against.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
 - `results/`: the logs of the runs above.
@@ -413,3 +477,22 @@ fixing is certified to the solver's value.
   Applications in GAMS Technology. Springer. Sect. 6.4 (the spectral projected
   gradient method, Algorithm 6.2, Theorem 6.5) and Sect. 6.5 (L-BFGS-B), with
   their comparison in Tables 6.2-6.5.
+- Dinkelbach, W. (1967). On nonlinear fractional programming. Manag. Sci. 13,
+  492-498.
+- Borrero, J. S., Gillen, C. and Prokopyev, O. A. (2017). Fractional 0-1
+  programming: applications and algorithms. J. Global Optim. 69, 255-282.
+  Sect. 4.2, the parametric method.
+- Padberg, M. (1989). The boolean quadric polytope: some characteristics,
+  facets and relatives. Math. Program. 45, 139-172.
+- Sherali, H. D. and Adams, W. P. (1990). A hierarchy of relaxations between
+  the continuous and convex hull representations for zero-one programming
+  problems. SIAM J. Discrete Math. 3, 411-430.
+- Chen, H., Zheng, C. and Xia, Y. (2025). Accelerated Dinkelbach method.
+  arXiv:2510.26257. Theorems 2.3, 2.4 and 3.14 assume a twice continuously
+  differentiable parametric function.
+- Allemand, K., Fukuda, K., Liebling, T. M. and Steiner, E. (2001). A
+  polynomial case of unconstrained zero-one quadratic optimization. Math.
+  Program. 91, 49-52.
+- Ferrez, J.-A., Fukuda, K. and Liebling, T. M. (2005). Solving the fixed rank
+  convex quadratic maximization in binary variables by a parallel zonotope
+  construction algorithm. Eur. J. Oper. Res. 166, 35-50. Table 1.
