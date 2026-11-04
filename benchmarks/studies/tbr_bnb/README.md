@@ -199,11 +199,11 @@ the local search gets wrong, not a saving when it gets it right.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (80 tests, about 40 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (109 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 27 mutants of the eleven
+but for two lines marked with their reasons. The 34 mutants of the twelve
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -232,9 +232,16 @@ fixing is certified to the solver's value.
    band rules out 94-95% of the pairs with 1,531-1,653 simplex QPs, the capped
    hull runs on 108-127, and the stage takes 6.7-7.9 s against 19.7-24.9 s for
    the capped hull alone, with the same survivors (measured with the cores
-   shared; the band's exact certificates are most of what remains). (b): upper
-   bounds in `solve_simplex_qp`, on its own branch, after which the capped tier
-   is one exact call per pair.
+   shared; the band's exact certificates are most of what remains). (b), done
+   here: the capped tier is one call of `solve_simplex_qp(..., upper=...)` per
+   pair (#967), through a slack weight with a zero column capped at `B - A`, which
+   makes the band an equality (`hull.ControlBound`). Moving onto it found a
+   defect in the solver, a cycle at a vertex of the capped simplex, whose
+   vertices here are the designs; it is fixed in #970. On the four groups the
+   survivors are the same as Clarabel's (`results/capped.log`), the solves alone take 9.7-12.6 s against
+   10.5-14.8 s for all 1,872-1,989 pairs, and the exact certificates take about
+   as long again (7-10 s), so the stage gains an exact tier and no cvxpy more than
+   it gains time; the two-tier stage is unchanged (7.6-9.5 s against 8.0-9.6 s).
 6. Branching rules and node order.
 7. Incumbent from #964's local search, improved during the search (done here).
    Each node rounds its eigen-primal to a design of its size within its
@@ -252,7 +259,7 @@ fixing is certified to the solver's value.
 ## Files
 
 - `panel.py`: the scoring window and the four groups.
-- `hull.py`, `lifts.py`: the hull QP, the band without the per-geo cap, and the lift levels.
+- `hull.py`, `lifts.py`: the capped hull as one capped simplex QP, the band without the per-geo cap, and the lift levels.
 - `certificate.py`: every exact bound, the slope cap, fixings and the cut.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.

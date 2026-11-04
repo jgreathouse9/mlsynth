@@ -26,7 +26,6 @@ Au, T. C. (2018). A time-based regression matched markets approach for designing
     geo experiments. Google technical report.
 """
 import numpy as np
-import cvxpy as cp
 
 from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.solvers.nnls import nnls
@@ -54,30 +53,59 @@ def positive_rss(y, X, idx):
 
 
 class ControlBound:
+    """The capped hull: min ||y - X w||^2 over {0 <= w <= hi, A <= sum w <= B}.
+
+    One call of the library's capped simplex QP,
+    mlsynth.utils.solvers.active_set.solve_simplex_qp(..., upper=...), an
+    active-set method with bounds on the variables (Nocedal and Wright 2006,
+    Sect. 16.5). Derived here: a slack weight w0 with a zero column, capped at
+    B - A, makes the band an equality, sum w + w0 = B, since then sum w lies in
+    [A, B] exactly when w0 lies in [0, B - A]; in v = (w, w0) / B the set is the
+    capped simplex {0 <= v <= u, sum v = 1} with u = (hi / B, ..., hi / B,
+    (B - A) / B), and the objective is ||y - (B X, 0) v||^2. The caps sum to
+    (p hi - A) / B + 1, at least one whenever p hi >= A, which holds for every
+    size m <= p since A = m lo <= m hi. The solve is exact, so the value is the
+    minimum and the point the minimiser, to rounding; the stage still prunes
+    only on the first-order certificate at the point (certificate.hull_bound).
+
+    Nocedal, J. and Wright, S. J. (2006). Numerical Optimization, 2nd ed.
+        Springer.
+    """
+
     def __init__(self, y, X):
         self.scale = float(np.linalg.norm(y))
         self.y, self.X = y / self.scale, X / self.scale
-        p = X.shape[1]
-        self.w = cp.Variable(p)
-        self.cap = cp.Parameter(nonneg=True)
-        self.lo = cp.Parameter(nonneg=True)
-        self.hi = cp.Parameter(nonneg=True)
-        self.prob = cp.Problem(cp.Minimize(cp.sum_squares(self.y - self.X @ self.w)),
-                               [self.w >= 0, self.w <= self.cap,
-                                cp.sum(self.w) >= self.lo, cp.sum(self.w) <= self.hi])
+        self.p = X.shape[1]
+        self._Z = np.zeros((X.shape[0], self.p + 1))
+        self.point = None
+        self._warm = None
         self.solves = 0
 
-    def piece(self, b_lo, b_hi, m, big=1e9):
-        """Lower bound over slopes in [b_lo, b_hi] and |C| = m."""
-        self.cap.value = min(b_hi, big)
-        self.lo.value = m * b_lo
-        self.hi.value = min(m * b_hi, big)
-        self.prob.solve(solver=cp.CLARABEL)
+    def piece(self, b_lo, b_hi, m):
+        """Lower bound over slopes in [b_lo, b_hi] and |C| = m; the minimiser is
+        left in ``self.point`` (None for an infeasible piece)."""
+        A, B, hi = m * b_lo, m * b_hi, b_hi
         self.solves += 1
-        if self.prob.status not in ("optimal", "optimal_inaccurate"):
+        if A > B or self.p * hi < A:
+            self.point = None
             return np.inf        # infeasible piece contributes nothing
-        return float(self.prob.value) * self.scale ** 2
-
+        if B <= 0:               # hi = 0: the set is the origin
+            self.point = np.zeros(self.p)
+            return float(self.y @ self.y) * self.scale ** 2
+        self._Z[:, :self.p] = B * self.X
+        upper = np.full(self.p + 1, hi / B)
+        upper[-1] = (B - A) / B
+        # p hi >= A makes the caps sum to at least one exactly, but in floating
+        # point m = p and lo = hi can round them below (six caps of 0.1 / 0.6 sum
+        # to 1 - 1.1e-16). The slack takes the rounding: a relaxation of order eps,
+        # which the certificate at the point (exact arithmetic) does not rely on.
+        while upper.sum() < 1.0:
+            upper[-1] = np.nextafter(upper[-1] + (1.0 - upper.sum()), np.inf)
+        v = solve_simplex_qp(self._Z, self.y, upper=upper, warm_start=self._warm)
+        self._warm = v
+        self.point = B * v[:self.p]
+        r = self.y - self.X @ self.point
+        return float(r @ r) * self.scale ** 2
 
 
 class Band:
