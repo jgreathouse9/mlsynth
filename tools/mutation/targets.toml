@@ -11331,9 +11331,9 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-incumbent-node-without-its-cut"
-  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, ngd), fixes=fixes)\n"
-  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, 0.0), fixes=fixes)\n"
-  models = "the no-good cut's multiplier dropped from the certificate, so the node holding the incumbent can never close"
+  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)\n"
+  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=None, fixes=fixes)\n"
+  models = "the no-good cuts' multipliers dropped from the certificate, so the node holding the incumbent can never close"
 
   [[target.mutant]]
   id = "too-many-fixed-in-geos-allowed"
