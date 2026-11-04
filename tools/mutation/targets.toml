@@ -11405,8 +11405,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-incumbent-node-without-its-cut"
-  find = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)\n"
-  replace = "        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=None, fixes=fixes)\n"
+  find = "            O1 = Oracle(y, X, lo, hi, m, cuts=O.cuts or None, fixes=O.fixes, unscaled=True)\n"
+  replace = "            O1 = Oracle(y, X, lo, hi, m, cuts=None, fixes=O.fixes, unscaled=True)\n"
   models = "the no-good cuts' multipliers dropped from the certificate, so the node holding the incumbent can never close"
 
   [[target.mutant]]
@@ -11523,8 +11523,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-cut-constant-is-off-by-one"
-  find = "            Gf[0, iu:iw] += d * sg; k -= d * (len(c) - 1)\n"
-  replace = "            Gf[0, iu:iw] += d * sg; k -= d * len(c)\n"
+  find = "            Gf[0, iu:iw] += d * a(sg); k += s * (d * (len(c) - 1))\n"
+  replace = "            Gf[0, iu:iw] += d * a(sg); k += s * (d * len(c))\n"
   models = "the oracle's no-good cut read as sum_C u - sum_notC u <= |C|, which admits the excluded design"
 
 [[target]]
@@ -11710,8 +11710,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-infinite-bound-is-compared"
-  find = "    if np.isfinite(fb) and Q(fb) >= UB:\n"
-  replace = "    if Q(fb) >= UB:\n"
+  find = "    fb = hull_bound_float(y, X, w, lo, hi, m)\n    if np.isfinite(fb) and Q(fb) >= UB:\n"
+  replace = "    fb = hull_bound_float(y, X, w, lo, hi, m)\n    if Q(fb) >= UB:\n"
   models = "the float bound's -inf, the sign of an overflow, compared as a number"
 
   [[target.mutant]]
@@ -11725,3 +11725,161 @@ timeout = 900.0
   find = "    return hull_bound(D, w, lo, hi, m) >= UB\n"
   replace = "    return False\n"
   models = "a pair the float bound cannot clear kept without asking the exact certificate, which may clear it"
+
+[[target]]
+name = "tbr-bnb-joint-float"
+module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-inequality-multipliers-are-not-clipped"
+  find = "    yv = np.where(O.ineq, np.maximum(yv, 0.0), yv)\n"
+  replace = "    yv = np.asarray(yv)\n"
+  models = "a negative multiplier on an inequality read as given, which bounds a different Lagrangian from the one joint_bound certifies and need not bound the node"
+
+  [[target.mutant]]
+  id = "the-assembly-rounding-is-dropped"
+  find = "    rel = _gamma(N + 8) + 2.0 * _coef_error(O.lo, O.hi)\n"
+  replace = "    rel = 2.0 * _coef_error(O.lo, O.hi)\n"
+  models = "the sums that assemble S and k taken as exact, though each of their N terms is rounded on the way"
+
+  [[target.mutant]]
+  id = "the-assembly-underflow-is-dropped"
+  find = "    E = rel * M + 2 * N * ETA\n"
+  replace = "    E = rel * M\n"
+  models = "the relative rounding bound used where products underflow, whose error is absolute"
+
+  [[target.mutant]]
+  id = "the-gram-rounding-is-dropped"
+  find = "    E[iw:, iw:] += _dot_err(O.nobs, np.maximum(aG, aG.T))\n"
+  replace = "    pass\n"
+  models = "fl(X'X) taken as X'X, which a Gram matrix that cancels gets wrong by a multiple of itself"
+
+  [[target.mutant]]
+  id = "the-target-rounding-is-dropped-below-the-diagonal"
+  find = "    E[0, iw:] += dc; E[iw:, 0] += dc\n"
+  replace = "    E[0, iw:] += dc\n"
+  models = "the rounding of X'y charged to the first row of S and not to the first column, which holds the same entries"
+
+  [[target.mutant]]
+  id = "the-term-count-misses-the-constant"
+  find = "    return 16 * p * p + 32 * p + len(O.cuts) + len(O.fixes) + 40\n"
+  replace = "    return 32 * p + len(O.cuts) + len(O.fixes) + 40\n"
+  models = "the count of terms in k missing the 16 p^2 bound-factor terms the constant sums, so gamma_N is short by a factor of p"
+
+  [[target.mutant]]
+  id = "the-residual-ignores-the-factor"
+  find = "    return L, R, inflate(_dot_err(n + 2, np.abs(S) + abs(sigma) * np.eye(n) + aL @ aL.T))\n"
+  replace = "    return L, R, inflate(_dot_err(n + 2, np.abs(S) + abs(sigma) * np.eye(n)))\n"
+  models = "the rounding of L L' bounded by |S| instead of |L||L|', which is smaller off the diagonal wherever L L' cancels"
+
+  [[target.mutant]]
+  id = "the-underflow-allowance-is-dropped"
+  find = "    return _gamma(k) * moduli + k * ETA\n"
+  replace = "    return _gamma(k) * moduli\n"
+  models = "the residual's and the data's rounding bounded relatively in the subnormal range, where a product errs by up to ETA / 2"
+
+  [[target.mutant]]
+  id = "the-eigenvalue-ignores-the-assembly-error"
+  find = "        return round_down(Q(k) - Q(ek) + T * min(Q(0), Q(lam) - Q(eS)))\n"
+  replace = "        return round_down(Q(k) - Q(ek) + T * min(Q(0), Q(lam)))\n"
+  models = "lambda_min of fl(S) read as lambda_min of S, which Weyl's theorem moves by up to ||fl(S) - S||"
+
+  [[target.mutant]]
+  id = "the-constant-ignores-its-error"
+  find = "        return round_down(Q(k) - Q(ek) + T * min(Q(0), Q(lam) - Q(eS)))\n"
+  replace = "        return round_down(Q(k) + T * min(Q(0), Q(lam) - Q(eS)))\n"
+  models = "fl(k) read as k"
+
+  [[target.mutant]]
+  id = "a-positive-eigenvalue-is-credited"
+  find = "        return round_down(Q(k) - Q(ek) + T * min(Q(0), Q(lam) - Q(eS)))\n"
+  replace = "        return round_down(Q(k) - Q(ek) + T * (Q(lam) - Q(eS)))\n"
+  models = "a positive smallest eigenvalue credited T times, though the trace bound only caps the loss from a negative one"
+
+  [[target.mutant]]
+  id = "the-shor-trace-bound"
+  find = "    T = joint_trace(Q(int(O.m)), Q(O.hi))\n"
+  replace = "    T = shor_trace(Q(int(O.m)), Q(O.hi))\n"
+  models = "the Shor lift's trace bound 1 + m hi^2 used for the joint lift's matrix, whose U block adds m to the trace"
+
+  [[target.mutant]]
+  id = "the-coefficient-error-is-not-capped"
+  find = "    return float(np.nextafter(float(worst), np.inf)) if worst <= Q(1, 4) else np.inf\n"
+  replace = "    return float(np.nextafter(float(worst), np.inf))\n"
+  models = "a coefficient that underflows to zero charged a relative 2 kappa of itself, which is zero"
+
+  [[target.mutant]]
+  id = "an-infinite-joint-bound-is-compared"
+  find = "    fb = joint_bound_float(O, yv)\n    if np.isfinite(fb) and Q(fb) >= UB:\n"
+  replace = "    fb = joint_bound_float(O, yv)\n    if Q(fb) >= UB:\n"
+  models = "the float bound's -inf, the sign of an overflow or a failed factor, compared as a number"
+
+  [[target.mutant]]
+  id = "the-fallback-reads-an-empty-cut-list"
+  find = "    cb, _, _ = joint_bound(_UNIT, y, X, lo, hi, m, duals=duals, nogood=cuts or None, fixes=fixes)\n"
+  replace = "    cb, _, _ = joint_bound(_UNIT, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)\n"
+  models = "a node with no cuts handed to joint_bound as an empty list, which it indexes"
+
+  [[target.mutant]]
+  id = "the-joint-fallback-is-skipped"
+  find = "    return cb is not None and cb >= UB\n"
+  replace = "    return False\n"
+  models = "a node the float bound cannot clear kept open without asking the exact certificate"
+
+  [[target.mutant]]
+  id = "the-residual-rounding-is-not-charged"
+  find = "        rho = inflate(float((np.abs(R) + E).sum(axis=1).max()))\n"
+  replace = "        rho = inflate(float(np.abs(R).sum(axis=1).max()))\n"
+  models = "the Cholesky residual's row sums read from its rounded value, without the bound on its rounding"
+  expected = "survived"
+  accepted-because = "EQUIVALENT while the computed eigenvalue is accurate, and recorded because that premise is the finding. The shift sits max(1e-12 |lambda|, 64 n eps |S|) under the computed smallest eigenvalue, above LAPACK's backward error, so S - sigma I is positive definite and sigma - ||R|| <= sigma < lambda_min(S) holds with or without R. The residual and its rounding guard an eigenvalue estimate wrong by more than that, as in mlsynth's lambda_min_lower, which they share. The rounding bound itself is pinned by its exact property test (test_property_the_residual_error_bounds_its_rounding)."
+
+[[target]]
+name = "tbr-bnb-joint-float-oracle"
+module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-moduli-are-signed"
+  find = "        a = np.abs if mod else (lambda x: x)  # noqa: E731\n"
+  replace = "        a = lambda x: x  # noqa: E731\n"
+  models = "the moduli pass summed with the terms' signs, so cancellation makes the rounding bound smaller than the rounding"
+
+  [[target.mutant]]
+  id = "the-moduli-subtract"
+  find = "        s = 1.0 if mod else -1.0\n"
+  replace = "        s = -1.0\n"
+  models = "the moduli pass subtracting the terms the assembly subtracts, so a modulus can cancel"
+
+  [[target.mutant]]
+  id = "the-moduli-keep-the-coefficient-signs"
+  find = "        Tm = np.einsum(\"ft,fij->tij\", a(self.K), Y)       # per-term multiplier matrices\n"
+  replace = "        Tm = np.einsum(\"ft,fij->tij\", self.K, Y)       # per-term multiplier matrices\n"
+  models = "the bound-factor coefficients' signs kept in the moduli, so the 16 families' terms cancel there"
+
+  [[target.mutant]]
+  id = "the-data-moduli-are-signed"
+  find = "            self.data_moduli = (aX.T @ aX, aX.T @ ay, float(ay @ ay))\n"
+  replace = "            self.data_moduli = (X.T @ X, X.T @ y, float(y @ y))\n"
+  models = "the data's rounding bounded by X'X instead of |X|'|X|, which is small exactly where X'X cancels"
+
+  [[target.mutant]]
+  id = "the-unscaled-oracle-is-scaled"
+  find = "        self.scale = 1.0 if unscaled else float(np.linalg.norm(y))\n"
+  replace = "        self.scale = float(np.linalg.norm(y))\n"
+  models = "the certificate's oracle divided by a rounded scale, a nearby problem and not this one"
+
+[[target]]
+name = "tbr-bnb-joint-float-search"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-multipliers-stay-scaled"
+  find = "        clears = joint_clears(O1, yb * scale2, y, X, lo, hi, m, inc.UB, stats.checks)\n"
+  replace = "        clears = joint_clears(O1, yb, y, X, lo, hi, m, inc.UB, stats.checks)\n"
+  models = "the scaled problem's multipliers handed to the certificate of the unscaled one, a valid but far looser bound that sends every prune to the exact certificate"

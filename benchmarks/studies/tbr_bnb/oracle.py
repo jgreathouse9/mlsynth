@@ -48,11 +48,18 @@ def _coef(lo, hi):
 
 
 class Oracle:
-    def __init__(self, y, X, lo, hi, m, C=None, fixes=(), cuts=None):
-        self.scale = float(np.linalg.norm(y))
+    def __init__(self, y, X, lo, hi, m, C=None, fixes=(), cuts=None, unscaled=False):
+        """``unscaled`` keeps the data's units (scale 1), for the float certificate
+        (certificate.joint_bound_float), and records the moduli |X|'|X|, |X|'|y| and
+        |y|'|y| that bound the rounding of G, c and y'y."""
+        self.scale = 1.0 if unscaled else float(np.linalg.norm(y))
         y, X = y / self.scale, X / self.scale
         p = X.shape[1]; self.p = p; self.n = 2 * p + 1
         self.G, self.c, self.yy = X.T @ X, X.T @ y, float(y @ y)
+        if unscaled:
+            aX, ay = np.abs(X), np.abs(y)
+            self.nobs = X.shape[0]
+            self.data_moduli = (aX.T @ aX, aX.T @ ay, float(ay @ ay))
         self.lo, self.hi, self.m = float(lo), float(hi), float(m)
         self.K = _coef(self.lo, self.hi)
         self.T = 1.0 + m + m * hi * hi
@@ -88,27 +95,40 @@ class Oracle:
 
     # ---- adjoint: S(y) and k(y)
     def S_k(self, yv):
+        return self._assemble(yv, False)
+
+    def S_k_moduli(self, yv):
+        """The same assembly over the moduli of every term: entry by entry, the sum
+        of |term| over the terms S(y) and k(y) sum, which bounds their rounding
+        (certificate.joint_assembly)."""
+        return self._assemble(yv, True)
+
+    def _assemble(self, yv, mod):
+        """S(y), k(y), or with ``mod`` their moduli. The signed pass adds s * x for a
+        subtracted x with s = -1, which rounds exactly as subtracting x does."""
+        a = np.abs if mod else (lambda x: x)  # noqa: E731
+        s = 1.0 if mod else -1.0
         p, m, n = self.p, self.m, self.n
         iu, iw = 1, p + 1
         Gf = np.zeros((n, n)); k = self.yy
-        Gf[iw:, iw:] += self.G; Gf[0, iw:] += -2 * self.c
-        g = lambda key: yv[self.sl[key]]
-        d = g("z00")[0]; Gf[0, 0] += d; k -= d
-        d = g("dU"); Gf[np.arange(iu, iw), np.arange(iu, iw)] += d; Gf[0, iu:iw] -= d
-        d = g("dV"); Gf[np.arange(iu, iw), np.arange(iw, n)] += d; Gf[0, iw:] -= d
-        d = g("su")[0]; Gf[0, iu:iw] += d; k -= m * d
-        d = g("rU"); Gf[iu:iw, iu:iw] += d[:, None]; Gf[0, iu:iw] -= m * d
-        d = g("cV"); Gf[iu:iw, iw:] += d[None, :]; Gf[0, iw:] -= m * d
-        D = g("sym").reshape(p, p); Gf[iu:iw, iw:] += D - D.T
-        Y = -g("fam").reshape(16, p, p)                   # expr = -form
-        Tm = np.einsum("ft,fij->tij", self.K, Y)          # per-term multiplier matrices
+        Gf[iw:, iw:] += a(self.G); Gf[0, iw:] += s * 2 * a(self.c)
+        g = lambda key: a(yv[self.sl[key]])  # noqa: E731
+        d = g("z00")[0]; Gf[0, 0] += d; k += s * d
+        d = g("dU"); Gf[np.arange(iu, iw), np.arange(iu, iw)] += d; Gf[0, iu:iw] += s * d
+        d = g("dV"); Gf[np.arange(iu, iw), np.arange(iw, n)] += d; Gf[0, iw:] += s * d
+        d = g("su")[0]; Gf[0, iu:iw] += d; k += s * (m * d)
+        d = g("rU"); Gf[iu:iw, iu:iw] += d[:, None]; Gf[0, iu:iw] += s * (m * d)
+        d = g("cV"); Gf[iu:iw, iw:] += d[None, :]; Gf[0, iw:] += s * (m * d)
+        D = g("sym").reshape(p, p); Gf[iu:iw, iw:] += D + s * D.T
+        Y = s * g("fam").reshape(16, p, p)                # expr = -form
+        Tm = np.einsum("ft,fij->tij", a(self.K), Y)       # per-term multiplier matrices
         Gf[iu:iw, iu:iw] += Tm[0]; Gf[iu:iw, iw:] += Tm[1] + Tm[2].T; Gf[iw:, iw:] += Tm[3]
         Gf[0, iu:iw] += Tm[4].sum(1) + Tm[5].sum(0); Gf[0, iw:] += Tm[6].sum(1) + Tm[7].sum(0)
         k += Tm[8].sum()
         for d, sg, c in zip(g("ng") if self.cuts else (), self.signs, self.cuts):
-            Gf[0, iu:iw] += d * sg; k -= d * (len(c) - 1)
+            Gf[0, iu:iw] += d * a(sg); k += s * (d * (len(c) - 1))
         for (j, v), d in zip(self.fixes, g("fix")):
-            Gf[0, iu + j] += d; k -= v * d
+            Gf[0, iu + j] += d; k += s * (v * d)
         return (Gf + Gf.T) / 2, k
 
     def theta(self, yv):
@@ -126,3 +146,13 @@ class Oracle:
         if self.cuts: parts.append(np.ravel(nogood.dual_value))
         parts += [np.ravel(c.dual_value) for c in fix_cons]
         return np.concatenate(parts)
+
+
+def unpack(O: Oracle, yv: np.ndarray, p: int):
+    """The oracle's multiplier vector in the form :func:`joint_bound` reads."""
+    g = lambda k: yv[O.sl[k]]  # noqa: E731
+    duals = ([g("z00")[0], g("dU"), g("dV"), g("su")[0], g("rU"), g("cV"), g("sym").reshape(p, p)]
+             + [f for f in g("fam").reshape(16, p, p)])
+    fixes = [(j, v, float(d)) for (j, v), d in zip(O.fixes, g("fix"))]
+    cuts = [(set(c), float(d)) for c, d in zip(O.cuts, g("ng"))] if O.cuts else []
+    return duals, cuts, fixes

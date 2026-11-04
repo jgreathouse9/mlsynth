@@ -1,8 +1,9 @@
 """Branch and bound on geos with smoothed L-BFGS-B as the node solver (#965).
 
-A node prunes when the exact certificate of its multipliers (certificate.joint_bound)
-clears the incumbent, branches on its most fractional geo when it stalls, and
-stops at a depth limit. The fractional values are read from the eigenvector
+A node prunes when the certificate of its multipliers clears the incumbent: the
+float one (certificate.joint_bound_float), or the exact one (certificate.joint_bound)
+when the float one falls short (certificate.joint_clears). It branches on its
+most fractional geo when it stalls, and stops at a depth limit. The fractional values are read from the eigenvector
 behind the bound, the primal point Z* = T v v' of the dual function
 (oracle.py). Children warm-start from the parent's multipliers, the fixing
 multiplier at zero. Inside a branch and bound an approximate dual solution is
@@ -35,11 +36,11 @@ from typing import List, Optional, Sequence, Set, Tuple
 import cvxpy as cp
 import numpy as np
 
-from .certificate import ExactData, hull_clears, joint_bound, shor_bound
+from .certificate import ExactData, hull_clears, joint_clears, shor_bound
 from .dual import smoothed_lbfgs
 from .hull import Band, ControlBound, positive_rss, rss_of
 from .lifts import Lift
-from .oracle import Oracle
+from .oracle import Oracle, unpack  # noqa: F401  (unpack is read from here too)
 
 #: Stage k of the smoothing schedule takes up to this many evaluations
 #: (measured on the 40-geo nodes, #965: shorter early stages and longer late ones
@@ -66,6 +67,7 @@ class SearchStats:
     lbfgs_seconds: float = 0.0
     cert_seconds: float = 0.0
     adopted: int = 0                    # better designs found by rounding a node's primal point
+    checks: dict = field(default_factory=dict)  # joint certificates: 'float' tried, 'exact' fallbacks
     open: List[tuple] = field(default_factory=list)
 
 
@@ -113,16 +115,6 @@ class Certificate:
     seconds: float
 
 
-def unpack(O: Oracle, yv: np.ndarray, p: int):
-    """The oracle's multiplier vector in the form :func:`joint_bound` reads."""
-    g = lambda k: yv[O.sl[k]]  # noqa: E731
-    duals = ([g("z00")[0], g("dU"), g("dV"), g("su")[0], g("rU"), g("cV"), g("sym").reshape(p, p)]
-             + [f for f in g("fam").reshape(16, p, p)])
-    fixes = [(j, v, float(d)) for (j, v), d in zip(O.fixes, g("fix"))]
-    cuts = [(set(c), float(d)) for c, d in zip(O.cuts, g("ng"))] if O.cuts else []
-    return duals, cuts, fixes
-
-
 def stalled(evals: int, best: float, target: float) -> bool:
     margin = (best - target) / abs(target)
     return (evals >= STALL_AT and margin < STALL_BELOW) or evals >= STALL_LAST
@@ -156,6 +148,7 @@ def run_node(y, X, lift, inc: Incumbent, scale2, lo, hi, m, fixed, y_warm, stats
         y0[O.sl["fix"].start:O.sl["fix"].start + n_fix] = y_warm["y"][head + n_cut:head + n_cut + n_fix]
     stats.nodes += 1
     yb = y0
+    O1 = None                           # the node's oracle in the data's units, for the certificate
     for head in (HEADROOM, 100 * HEADROOM):
         target = float(inc.UB) / scale2 * (1 + head)
         t0 = time.perf_counter()
@@ -164,11 +157,12 @@ def run_node(y, X, lift, inc: Incumbent, scale2, lo, hi, m, fixed, y_warm, stats
         stats.evals += inf["evals"]
         if th < target:
             break
-        duals, cuts, fixes = unpack(O, yb, p)
         t1 = time.perf_counter()
-        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)
+        if O1 is None:
+            O1 = Oracle(y, X, lo, hi, m, cuts=O.cuts or None, fixes=O.fixes, unscaled=True)
+        clears = joint_clears(O1, yb * scale2, y, X, lo, hi, m, inc.UB, stats.checks)
         stats.cert_seconds += time.perf_counter() - t1
-        if cb is not None and cb >= inc.UB:
+        if clears:
             stats.pruned += 1
             return
         stats.cert_failed += 1
