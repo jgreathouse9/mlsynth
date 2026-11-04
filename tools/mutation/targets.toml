@@ -3155,8 +3155,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "returned-point-is-not-checked"
-  find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
-  replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol)"
+  find = "        if linear is not None:\n            _assert_optimal_with_linear(B, A, w, linear, tol, upper)"
+  replace = "        if False:\n            _assert_optimal_with_linear(B, A, w, linear, tol, upper)"
   models = "the guard removed, so a point the pivot loop wrongly accepts is handed back instead of raising"
   expected = "survived"
   accepted-because = "EQUIVALENT while the ray branch is correct, and recorded as such instead of being dropped. The guard exists to catch a non-stationary point, the ray branch is what stops one being produced, so with both present no input separates the two. That premise failed once: before #782 a ray read from rounding noise made the loop cycle on near-copies of a market, and on that input this mutant would have returned a point 17.5 percent above the optimum where the guard raised. With the null part a projection, 400 near-collinear designs no longer reach the guard, so the equivalence holds again on every input the suite has. It is kept as the check that turned #625's 54-percent error and #782's cycle into raises, and `_assert_optimal_with_linear` is unit-tested directly so the guard itself is not unverified."
@@ -11218,6 +11218,78 @@ timeout = 600.0
   find = "        if self.search == \"local\" and not searched:\n"
   replace = "        if False:\n"
   models = "search='local' accepted on a named split, which has no design to improve"
+
+# Upper bounds in the simplex QP (#965, roadmap step 5): the capped simplex
+# {0 <= w <= u, sum(w) = 1} through the active set and its certificate.
+[[target]]
+name = "simplex-qp-upper"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_upper.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-capped-weight-released-as-if-at-zero"
+  find = "                reduced = np.where(capped[ai], nu - g[ai], g[ai] - nu)\n"
+  replace = "                reduced = np.where(capped[ai], g[ai] - nu, g[ai] - nu)\n"
+  models = "a weight at its cap tested as if pinned at zero, so it is released when it should stay and kept when it should go"
+
+  [[target.mutant]]
+  id = "the-free-total-ignores-the-caps"
+  find = "            t_free = 1.0 - float(upper[capped].sum())\n"
+  replace = "            t_free = 1.0\n"
+  models = "the free set asked to sum to one while the capped weights already hold part of it, so the weights sum past one"
+
+  [[target.mutant]]
+  id = "the-target-keeps-the-capped-part"
+  find = "            A_free = A - B[:, capped] @ upper[capped]\n"
+  replace = "            A_free = A\n"
+  models = "the free set fitting the whole target while the capped donors already fit part of it"
+
+  [[target.mutant]]
+  id = "a-step-runs-past-a-cap"
+  find = "            step = min(1.0, float(ratios.min()), float(ratios_up.min()))\n"
+  replace = "            step = min(1.0, float(ratios.min()))\n"
+  models = "the line search stopping only at zero, so a step runs a weight past its cap"
+
+  [[target.mutant]]
+  id = "a-full-step-past-a-cap-accepted"
+  find = "        if wF.min() >= -tol and (upper is None or np.all(wF <= upper[free] + tol)):\n"
+  replace = "        if wF.min() >= -tol:\n"
+  models = "the free-set optimum taken although it puts a weight above its cap"
+
+  [[target.mutant]]
+  id = "the-certificate-blind-at-the-cap"
+  find = "        neg = max(neg, float((g[cap] - nu).max())) if cap.any() else neg\n"
+  replace = "        neg = neg\n"
+  models = "the certificate checking only the zero side, so a weight held at its cap that should come down is certified"
+
+  [[target.mutant]]
+  id = "loose-caps-take-the-capped-path"
+  find = "        upper = None if np.all(u_cap >= 1.0) else u_cap\n"
+  replace = "        upper = u_cap\n"
+  models = "caps that cannot bind routed through the capped loop, which starts elsewhere and need not return today's bits"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect. Caps of one or more never pin a weight, so the capped loop differs from the uncapped one only in its start, u / sum(u) against the uniform point, and the point it returns is the final free set's least squares, which LAPACK's gelsy solves to the same minimum-norm point whatever path reached that free set. Measured: identical bits on the unit tests' seeds with equal and unequal loose caps, and on 20 panels with duplicated donors, where the minimisers form a face and a start could have chosen among them. The routing stays because it makes the bit identity hold by construction, not by measurement."
+
+  [[target.mutant]]
+  id = "an-empty-capped-simplex-accepted"
+  find = "        if u_cap.sum() < 1.0:\n"
+  replace = "        if u_cap.sum() < 0.0:\n"
+  models = "caps that sum below one accepted, an empty feasible set"
+
+  [[target.mutant]]
+  id = "the-start-ignores-the-caps"
+  find = "        w = np.full(J, 1.0 / J) if upper is None else upper / upper.sum()\n"
+  replace = "        w = np.full(J, 1.0 / J)\n"
+  models = "the uniform start kept when it lies above a cap, an infeasible start"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect. A uniform start above a cap is flagged capped by the next line (w >= u - tol) and set to its cap, and the free set's total, one less the caps, restores the sum at the first full step, so the loop repairs the infeasible start. Measured: test_property_caps_below_the_uniform_weight, which draws caps below 1 / J so the uniform point is outside the capped simplex, reached the exact minimum on all 60 examples with the mutant in place. The feasible start stays because the active set's argument assumes feasible iterates."
+
+  [[target.mutant]]
+  id = "the-ray-runs-past-a-cap"
+  find = "                        if up.any():\n                            ratios = np.minimum(ratios, np.where(\n"
+  replace = "                        if False:\n                            ratios = np.minimum(ratios, np.where(\n"
+  models = "the linear term's ray followed past a cap, stopping only at zero"
 
 # The TBR certified-design study (#965): certificates, dual oracle, node solvers,
 # search and lifts of benchmarks/studies/tbr_bnb.
