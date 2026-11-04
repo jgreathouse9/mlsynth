@@ -47,12 +47,16 @@ Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the
 Balas, E. and Jeroslow, R. (1972). Canonical cuts on the unit hypercube. SIAM J.
     Appl. Math. 23, 61-69.
 """
+import functools
 import math
 from fractions import Fraction as Q
+from types import SimpleNamespace
 
 import numpy as np
 
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
+
+from .oracle import FAMS, TERMS, _coef, unpack
 
 
 def shor_trace(m, hi):
@@ -435,3 +439,174 @@ def joint_bound(lift, y, X, lo, hi, m, skip=(), keep_sym=True, duals=None, fixes
         return None, Ssym, k
     trmax = joint_trace(m, hi)
     return k + min(Q(0), lam) * trmax, Ssym, k
+
+
+# ---------------------------------------------------------------- the joint lift in floating point
+#
+# joint_bound sums S and k in rationals and bounds lambda_min(S) by an exact
+# Cholesky residual. Here the same bound comes from doubles with every rounding
+# bounded a priori, and the few doubles left are combined in rationals:
+#
+#   |fl(S) - S| <= E entrywise, |fl(k) - k| <= e_k           (joint_assembly),
+#   lambda_min(S) >= lambda_min(fl(S)) - ||E||_inf            (Weyl; Gershgorin),
+#   lambda_min(fl(S)) >= sigma - ||R||_inf, R = fl(S) - sigma I - L L'
+#                                                             (lambda_min_lower_float),
+#   bound = fl(k) - e_k + T min(0, lambda_low - ||E||_inf).
+#
+# Weyl's theorem (Golub and Van Loan 2013, Cor. 8.1.6) moves an eigenvalue of a
+# symmetric matrix by at most the 2-norm of a symmetric perturbation, and the
+# 2-norm of a symmetric matrix is at most its largest absolute row sum, since
+# every eigenvalue lies in a Gershgorin disc (Golub and Van Loan 2013,
+# Thm 8.1.3). The two steps are those of mlsynth's lambda_min_lower, with the
+# residual's rounding bounded instead of computed exactly.
+#
+# Golub, G. H. and Van Loan, C. F. (2013). Matrix Computations, 4th ed. Johns
+#     Hopkins.
+
+_UNIT = SimpleNamespace(scale=1.0)       # a lift whose multipliers are in the data's units
+
+
+@functools.lru_cache(maxsize=64)
+def _coef_error(lo, hi):
+    """kappa = max |K~ - K| / |K| over the oracle's coefficient table, K~ its doubles
+    and K the same products of lo and hi in rationals, or infinity above 1/4, where
+    |K| <= 2 |K~| (joint_assembly's step) fails; a product that underflows has
+    kappa up to 1. No entry is zero in one and not the other."""
+    Kf = _coef(lo, hi)
+    worst = Q(0)
+    for i, (a, g) in enumerate(FAMS):
+        exact = family(a, g, Q(lo), Q(hi))
+        for t, name in enumerate(TERMS):
+            e, f = Q(exact.get(name, 0)), Q(float(Kf[i, t]))
+            if e == 0:
+                assert f == 0, (a, g, name)
+                continue
+            worst = max(worst, abs(f - e) / abs(e))
+    return float(np.nextafter(float(worst), np.inf)) if worst <= Q(1, 4) else np.inf
+
+
+def joint_terms(O):
+    """N, at least the number of terms in any entry of the oracle's S or in k: the
+    16 bound-factor families meet each entry of U, V and W twice (the entry and its
+    transpose) and sum over p into each entry of the first row (16 p twice), and
+    over p^2 into k, with the cuts, the fixings and the ten other blocks besides."""
+    p = O.p
+    return 16 * p * p + 32 * p + len(O.cuts) + len(O.fixes) + 40
+
+
+def joint_assembly(O, yv):
+    """fl(S), fl(k) and bounds E, e_k on their rounding, entrywise:
+
+        |fl(S) - S| <= E,  |fl(k) - k| <= e_k,
+
+    S and k the exact assembly from the double data and the double multipliers,
+    inequality multipliers clipped at zero as joint_bound clips them. Each entry
+    is a sum of at most N = joint_terms(O) terms, each a double, a product of two
+    doubles, or a product with a coefficient K~ within kappa of K (_coef_error),
+    and the symmetrising (A + A')/2 adds one sum; so its rounding is at most
+    (gamma_{N+8} + 2 kappa) times the sum of the terms' moduli, which the
+    oracle's S_k_moduli assembles (Bjorck 2015, eq. (1.4.10), derived here for
+    the coefficient), plus 2 N ETA for underflow (_dot_err). The data's own
+    rounding adds gamma_n |X|'|X| to the W block, gamma_n |X|'|y| to the c
+    entries and gamma_n |y|'|y| to k, with n the number of periods. The error
+    terms are doubles, and inflate() covers their own rounding.
+    """
+    if O.scale != 1.0:
+        raise ValueError("the float certificate reads the data's units: build the oracle with unscaled=True")
+    yv = np.where(O.ineq, np.maximum(yv, 0.0), yv)
+    S, k = O.S_k(yv)
+    M, mk = O.S_k_moduli(yv)
+    N = joint_terms(O)
+    rel = _gamma(N + 8) + 2.0 * _coef_error(O.lo, O.hi)
+    E = rel * M + 2 * N * ETA
+    ek = rel * mk + 2 * N * ETA
+    aG, ac, ayy = O.data_moduli
+    iw = O.p + 1
+    E[iw:, iw:] += _dot_err(O.nobs, np.maximum(aG, aG.T))
+    dc = _dot_err(O.nobs, ac)
+    E[0, iw:] += dc; E[iw:, 0] += dc
+    ek += _dot_err(O.nobs, ayy)
+    return S, k, inflate(E), inflate(ek)
+
+
+def cholesky_residual(S, sigma):
+    """A Cholesky factor L of fl(S - sigma I), R~ = fl(S - sigma I - L L') and E with
+    |R~ - R| <= E entrywise, R the exact residual from the doubles S, sigma and L;
+    None when the factorisation fails. Derived here from the a priori bounds: the
+    diagonal shift rounds by u |S_ii - sigma|, the n-term dot products of L L' by
+    gamma_n |L||L|' (Bjorck 2015, eq. (1.4.10)), the subtraction by u of its
+    result, and together gamma_{n+2} (|S| + |sigma| I + |L||L|') bounds them, with
+    (n + 2) ETA for underflow (_dot_err)."""
+    n = S.shape[0]
+    A = S - sigma * np.eye(n)
+    try:
+        L = np.linalg.cholesky(A)
+    except np.linalg.LinAlgError:
+        return None
+    R = A - L @ L.T
+    aL = np.abs(L)
+    return L, R, inflate(_dot_err(n + 2, np.abs(S) + abs(sigma) * np.eye(n) + aL @ aL.T))
+
+
+def lambda_min_lower_float(S, tries=40):
+    """A double at most lambda_min(S) for the symmetric double S, or None: the steps
+    of mlsynth's lambda_min_lower (a shift sigma just under the computed smallest
+    eigenvalue, a Cholesky factor of S - sigma I, then Weyl and Gershgorin:
+    lambda_min(S) >= sigma - max_i sum_j |R_ij|), with R bounded by
+    cholesky_residual instead of computed exactly. The last subtraction is done in
+    rationals and rounded down."""
+    S = np.asarray(S, dtype=float)
+    if not np.all(np.isfinite(S)):
+        return None
+    n = S.shape[0]
+    lam = float(np.linalg.eigvalsh(S)[0])
+    size = float(np.abs(S).sum(axis=1).max()) or 1.0
+    step = max(abs(lam) * 1e-12, 64 * n * np.finfo(float).eps * size)
+    for _ in range(tries):
+        sigma = lam - step
+        out = cholesky_residual(S, sigma)
+        if out is None:
+            step *= 4.0
+            continue
+        _, R, E = out
+        rho = inflate(float((np.abs(R) + E).sum(axis=1).max()))
+        if not (np.isfinite(rho) and np.isfinite(sigma)):
+            return None
+        return round_down(Q(sigma) - Q(rho))
+    return None  # pragma: no cover - 40 quadruplings of the shift factor any finite symmetric matrix
+
+
+def joint_bound_float(O, yv):
+    """joint_bound in floating point, at most the dual function at yv (see the
+    section comment above): fl(k) - e_k + T min(0, lambda_low - ||E||_inf), with T
+    the trace bound in rationals. ``O`` is an oracle in the data's units
+    (``Oracle(..., unscaled=True)``) and ``yv`` its multipliers in those units. An
+    overflow, a non-finite multiplier or a failed factorisation returns -inf, a
+    bound that clears nothing."""
+    S, k, E, ek = joint_assembly(O, yv)
+    if not (np.all(np.isfinite(S)) and np.all(np.isfinite(E)) and np.isfinite(k) and np.isfinite(ek)):
+        return -np.inf
+    lam = lambda_min_lower_float(S)
+    eS = inflate(float(E.sum(axis=1).max()))
+    if lam is None or not np.isfinite(eS):
+        return -np.inf
+    T = joint_trace(Q(int(O.m)), Q(O.hi))
+    try:
+        return round_down(Q(k) - Q(ek) + T * min(Q(0), Q(lam) - Q(eS)))
+    except OverflowError:
+        return -np.inf                  # below the most negative double
+
+
+def joint_clears(O, yv, y, X, lo, hi, m, UB, stats):
+    """Whether the joint lift's certificate at the multipliers yv (data units) is at
+    least UB: the float bound decides when it clears UB, and the exact certificate
+    at the same multipliers otherwise. Both are lower bounds on the node, so a
+    prune by either is valid."""
+    stats["float"] = stats.get("float", 0) + 1
+    fb = joint_bound_float(O, yv)
+    if np.isfinite(fb) and Q(fb) >= UB:
+        return True
+    stats["exact"] = stats.get("exact", 0) + 1
+    duals, cuts, fixes = unpack(O, yv, X.shape[1])
+    cb, _, _ = joint_bound(_UNIT, y, X, lo, hi, m, duals=duals, nogood=cuts or None, fixes=fixes)
+    return cb is not None and cb >= UB

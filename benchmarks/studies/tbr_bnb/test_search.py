@@ -105,7 +105,7 @@ def test_an_unreachable_node_branches_down_to_the_depth_limit(monkeypatch):
 
 
 def test_a_failed_certificate_retries_then_branches(monkeypatch):
-    """The double bound clears the target but the exact one does not: the node
+    """The double bound clears the target but the certificate does not: the node
     retries with more headroom, then branches instead of pruning."""
     from . import search
     from .lifts import Lift
@@ -113,7 +113,7 @@ def test_a_failed_certificate_retries_then_branches(monkeypatch):
     _, C = incumbent(y, X, restarts=5)
     x = X[:, sorted(C)].sum(1); b = float((y @ x) / (x @ x))
     UB = ExactData(y, X).rss(C, b) * Fraction(1, 2)            # far below every bound
-    monkeypatch.setattr(search, "joint_bound", lambda *a, **k: (UB - 1, None, None))
+    monkeypatch.setattr(search, "joint_clears", lambda *a, **k: False)
     stats = SearchStats()
     inc = Incumbent(UB=UB, C=set(C), cuts=[set(C)], D=ExactData(y, X))
     run_node(y, X, Lift(y, X, "full"), inc, float(np.linalg.norm(y)) ** 2,
