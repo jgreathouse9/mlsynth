@@ -20,8 +20,10 @@ uu', and the constraints every binary design meets (Rows):
     products of the bounds 0 <= u <= 1 (Sherali and Adams 1990);
   * sum u = m and its products sum_j U_ij = m u_i;
   * c'u >= 0 and its products with u_i and 1 - u_i;
-  * a no-good cut sum_C u - sum_notC u <= |C| - 1 excluding the incumbent at its size
-    (Balas and Jeroslow 1972), so that size's bound can fall below zero;
+  * no-good cuts sum_C u - sum_notC u <= |C| - 1, one per excluded design and one for
+    the incumbent, so the incumbent's size can fall below zero; each excludes its C
+    and no other binary vector at any size (Balas and Jeroslow 1972), since a design
+    of size m sharing t geos with C has 2t - m <= |C| - 1 unless it is C (derived here);
   * triangle inequalities U_ij + U_ik - U_jk <= u_i and u_i + u_j + u_k - U_ij -
     U_ik - U_jk <= 1, valid at every binary point (Padberg 1989), added where the
     relaxation's solution violates them;
@@ -93,12 +95,10 @@ class Rows:
     builds the solver's model and the certificate, so the certificate holds for the
     constraints written here whatever the solver did."""
 
-    def __init__(self, c: Sequence, m: int, cut: Optional[Set[int]] = None,
+    def __init__(self, c: Sequence, m: int, cuts: Sequence[Set[int]] = (),
                  triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
                  fixes: Sequence[Tuple[int, int]] = ()):
         p = len(c)
-        if cut is not None and len(cut) != m:
-            raise ValueError(f"the no-good cut's design has size {len(cut)}, not the relaxation's size {m}")
         self.p, self.n, self.m = p, p + 1, m
         self.eq: List[Dict] = []; self.beq: List = []
         self.ineq: List[Dict] = []; self.bin: List = []
@@ -137,8 +137,8 @@ class Rows:
         for i in range(p):
             le(row(*((U(i, j), -c[j]) for j in range(p))), 0, True)              # u_i c'u >= 0
             le(row(*((U(i, j), c[j]) for j in range(p)), *((u(j), -c[j]) for j in range(p))), 0, True)
-        if cut is not None:
-            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), m - 1)
+        for cut in cuts:
+            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)
         for kind, (i, j, k) in triangles:
             if kind == 0:
                 le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)
@@ -265,7 +265,7 @@ class SizeResult:
     u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
 
 
-def size_certificate(c, G, lam, m, cut=None, fixes=(), rounds=6, per_round=400) -> SizeResult:
+def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0:
     the relaxation's certificate, with up to ``rounds`` rounds of the ``per_round``
     most violated triangle inequalities where it is above zero."""
@@ -274,7 +274,7 @@ def size_certificate(c, G, lam, m, cut=None, fixes=(), rounds=6, per_round=400) 
     A = objective(c, G, lam)
     tri: List = []
     for r in range(rounds + 1):
-        R = Rows(c, m, cut=cut, triangles=tri, fixes=fixes)
+        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
         sol = solve(c, G, lam, R)
         b = bound(A, R, sol.y_eq, sol.y_in, m)
         u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
@@ -310,7 +310,7 @@ class SlopeFreeCertificate:
     hull_seconds: float = 0.0
 
 
-def _branch(c, G, out, m, cut, fixes, rounds, per_round, depth, max_depth, inc):
+def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
     """Prune the node by its certificate, or branch on its most fractional geo; a
     fully fixed node is a design, evaluated exactly, and one better than the
     incumbent replaces it. The nodes after it are searched at the new ratio; those
@@ -324,11 +324,10 @@ def _branch(c, G, out, m, cut, fixes, rounds, per_round, depth, max_depth, inc):
     if len(fixes) == p:
         C = {j for j, v in fixes if v}
         cu, r = _ratio(c, G, C)
-        if cu > 0 and r > inc["lam"]:
+        if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
         return
-    res = size_certificate(c, G, inc["lam"], m, cut=cut if cut is not None and len(cut) == m else None,
-                           fixes=fixes, rounds=rounds, per_round=per_round)
+    res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round)
     if res.certified:
         return
     if depth >= max_depth:
@@ -337,30 +336,65 @@ def _branch(c, G, out, m, cut, fixes, rounds, per_round, depth, max_depth, inc):
     free = [j for j in range(p) if j not in dict(fixes)]
     j = min(free, key=lambda j: abs(res.u[j] - 0.5)) if res.u is not None else free[0]
     for v in (1, 0):
-        _branch(c, G, out, m, cut, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc)
+        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded)
+
+
+class NoDesignLeft(ValueError):
+    """No positive-slope design remains to certify: none has a positive slope, or
+    every one near the incumbent is excluded."""
+
+
+def _best_neighbour(c, G, seeds, excluded):
+    """The best positive-slope design one add, drop or swap from any seed that is
+    not excluded, or None."""
+    p = len(c); cand = set()
+    for S in seeds:
+        S = set(S)
+        for j in range(p):
+            cand.add(frozenset(S ^ {j}))
+            if j not in S:
+                cand.update(frozenset((S - {k}) | {j}) for k in S)
+    best = None
+    for T in cand:
+        if not T or set(T) in excluded:
+            continue
+        cu, r = _ratio(c, G, T)
+        if cu > 0 and (best is None or r > best[0]):
+            best = (r, set(T))
+    return None if best is None else best[1]
 
 
 def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
-                       hull: bool = True) -> SlopeFreeCertificate:
-    """Certify that no control group with a positive slope has a lower RSS than the incumbent.
+                       hull: bool = True, exclude: Sequence[Set[int]] = ()) -> SlopeFreeCertificate:
+    """Certify that no control group with a positive slope, other than the designs in
+    ``exclude``, has a lower RSS than the incumbent.
 
-    The incumbent comes from the study's RSS descent (search.incumbent). The hull
-    stage (search.hull_survivors) rules out every size none of whose slope pieces
-    survives it; each remaining size is certified by the slope-free relaxation at
-    the incumbent's ratio, with triangle cuts, and branched on where it is not.
+    The incumbent comes from the study's RSS descent (search.incumbent), or, when that
+    design is excluded, from its best add, drop or swap neighbour, or that of an
+    excluded design, that is not. The hull stage (search.hull_survivors) rules out
+    every size none of whose slope pieces survives it; each remaining size is
+    certified by the slope-free relaxation at the incumbent's ratio, with a no-good
+    cut for each excluded design and triangle cuts, and branched on where it is not.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
     t_all = time.perf_counter()
     p = X.shape[1]
+    excluded = [set(e) for e in exclude]
     _, C = incumbent(y, X, restarts=restarts, seed=seed)
     D = ExactData(y, X)
     c, G = D.c, D.G
     cu, lam = _ratio(c, G, C)
-    if not cu > 0:
-        raise ValueError("no control group has a positive slope: every design fails the "
-                         "correlation gate, so there is no incumbent to certify")
+    if set(C) in excluded or not cu > 0:
+        C = _best_neighbour(c, G, [C] + excluded, excluded)
+        if C is None:
+            if excluded:
+                raise NoDesignLeft("no design is left: every positive-slope design near the "
+                                 "incumbent is excluded")
+            raise NoDesignLeft("no control group has a positive slope: every design fails the "
+                               "correlation gate, so there is no incumbent to certify")
+        cu, lam = _ratio(c, G, C)
     sizes = list(range(1, p + 1)); t_h = 0.0
     cap = D.slope_cap()
     if hull and cap is not None:
@@ -374,7 +408,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
                                hull_seconds=t_h)
     for m in sizes:                      # a size certified at a ratio stays certified at a larger one
         t0 = time.perf_counter(); n0 = out.nodes
-        _branch(c, G, out, m, inc["C"], [], rounds, per_round, 0, max_depth, inc)
+        _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
         out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
     out.incumbent, out.ratio, out.controls = D.yy - inc["lam"], inc["lam"], sorted(inc["C"])
     out.certified = not out.open
