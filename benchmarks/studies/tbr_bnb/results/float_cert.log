@@ -1,4 +1,4 @@
-[dallas] two tiers: exact certificates 10.8s, float first 1.5s; survivors 13 / 13 same True; float checks 1976, exact fallbacks 0
-[dallas+denver] two tiers: exact certificates 8.7s, float first 1.6s; survivors 18 / 18 same True; float checks 1882, exact fallbacks 0
-[cincinnati+dallas+denver] two tiers: exact certificates 8.9s, float first 1.7s; survivors 36 / 36 same True; float checks 1888, exact fallbacks 0
-[chicago+cincinnati+dallas+denver] two tiers: exact certificates 8.9s, float first 1.7s; survivors 41 / 41 same True; float checks 1831, exact fallbacks 0
+[dallas] two tiers: exact certificates 8.2s, float first 1.4s; survivors 13 / 13 same True; float checks 1976, exact fallbacks 0
+[dallas+denver] two tiers: exact certificates 7.9s, float first 1.5s; survivors 18 / 18 same True; float checks 1882, exact fallbacks 0
+[cincinnati+dallas+denver] two tiers: exact certificates 7.9s, float first 1.4s; survivors 36 / 36 same True; float checks 1888, exact fallbacks 0
+[chicago+cincinnati+dallas+denver] two tiers: exact certificates 6.5s, float first 1.2s; survivors 41 / 41 same True; float checks 1831, exact fallbacks 0

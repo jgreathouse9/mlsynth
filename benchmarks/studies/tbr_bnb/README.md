@@ -199,11 +199,11 @@ the local search gets wrong, not a saving when it gets it right.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (109 tests, about 60 s) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (148 tests, about 60 s) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for two lines marked with their reasons. The 34 mutants of the twelve
+but for two lines marked with their reasons. The 52 mutants of the thirteen
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -227,8 +227,8 @@ fixing is certified to the solver's value.
    754 round to nearest; the last combination is done in rationals and rounded
    down. `certificate.hull_clears` decides on it when it clears the incumbent
    and on the exact certificate otherwise, so the stage keeps exactly the exact
-   one's survivors. On the four groups the hull stage takes 1.5-1.7 s against
-   8.7-10.8 s, with the same survivors and no pair left to the exact
+   one's survivors. On the four groups the hull stage takes 1.2-1.5 s against
+   6.5-8.2 s, with the same survivors and no pair left to the exact
    certificate (`results/float_cert.log`); the float bound sits a median 7e-14
    of `y'y` below the exact one. Hypothesis found the bound failing at
    subnormal slopes (`lo = hi = 1.1e-308`), where the relative rounding bound
