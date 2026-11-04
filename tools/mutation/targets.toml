@@ -11510,3 +11510,10 @@ timeout = 900.0
   find = "        if B <= 0:               # hi = 0: the set is the origin\n"
   replace = "        if B < 0:                # hi = 0: the set is the origin\n"
   models = "the band [0, 0] scaled by its own zero end, caps of 0 / 0, where the set is the origin and the value y'y"
+
+
+  [[target.mutant]]
+  id = "the-rounding-reaches-the-solver"
+  find = "        while upper.sum() < 1.0:\n"
+  replace = "        while False:\n"
+  models = "caps that sum to one exactly but round below it handed to the solver, which refuses them, on the single-point pieces m = p, lo = hi"

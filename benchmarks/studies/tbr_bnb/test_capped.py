@@ -122,6 +122,7 @@ def test_the_point_is_feasible_and_certifies_its_own_value(seed, lo, width, m):
 @given(seed=st.integers(0, 10_000), lo=st.floats(0.0, 1.0), width=st.floats(1.05, 4.0),
        m=st.integers(1, 6))
 @example(seed=0, lo=0.0, width=1.05, m=6)
+@example(seed=0, lo=5e-324, width=1.25, m=6)          # hi rounds to lo: caps that sum to 1 - 1e-16
 def test_the_capped_hull_sits_between_the_band_and_the_piece(seed, lo, width, m):
     """The band relaxes the capped hull, which relaxes the piece."""
     y, X = panel(seed)
@@ -200,3 +201,14 @@ def test_a_zero_slope_leaves_only_the_origin():
     H = ControlBound(y, X)
     assert H.piece(0.0, 0.0, 3) == pytest.approx(float(y @ y), rel=1e-12)
     assert np.array_equal(H.point, np.zeros(6))
+
+
+def test_caps_that_round_below_one_are_lifted_by_the_slack():
+    """m = p and lo = hi make the set the single point w = hi: the caps sum to one
+    exactly, and in floating point 6 caps of 0.1 / 0.6 sum to 1 - 1.1e-16. The slack
+    takes the rounding, so the solve sees caps summing to one and returns that point."""
+    y, X = panel(0)
+    H = ControlBound(y, X)
+    v = H.piece(0.1, 0.1, 6)
+    assert np.allclose(H.point, 0.1, rtol=1e-12)
+    assert v == pytest.approx(float(np.sum((y - X @ np.full(6, 0.1)) ** 2)), rel=1e-12)

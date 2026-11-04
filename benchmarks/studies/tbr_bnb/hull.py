@@ -80,6 +80,12 @@ class ControlBound:
         self._Z[:, :self.p] = B * self.X
         upper = np.full(self.p + 1, hi / B)
         upper[-1] = (B - A) / B
+        # p hi >= A makes the caps sum to at least one exactly, but in floating
+        # point m = p and lo = hi can round them below (six caps of 0.1 / 0.6 sum
+        # to 1 - 1.1e-16). The slack takes the rounding: a relaxation of order eps,
+        # which the certificate at the point (exact arithmetic) does not rely on.
+        while upper.sum() < 1.0:
+            upper[-1] = np.nextafter(upper[-1] + (1.0 - upper.sum()), np.inf)
         v = solve_simplex_qp(self._Z, self.y, upper=upper, warm_start=self._warm)
         self._warm = v
         self.point = B * v[:self.p]
