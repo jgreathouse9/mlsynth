@@ -1,0 +1,4 @@
+pairs only: 15 survivors, incumbent 8083009 (rounded best 8083009), bound 7964020, gap +1.472%, 300s
+pairs+ac: 15 survivors, incumbent 8083009 (rounded best 8083009), bound 7969487, gap +1.404%, 329s
+full: 15 survivors, incumbent 8083009 (rounded best 8083009), bound 8019398, gap +0.787%, 472s
+full+pairs: 15 survivors, incumbent 8083009 (rounded best 8083009), bound 8026753, gap +0.696%, 495s

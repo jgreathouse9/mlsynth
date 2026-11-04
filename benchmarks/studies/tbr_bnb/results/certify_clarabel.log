@@ -1,0 +1,24 @@
+[dallas] incumbent |C|=4 slope 0.17881 RSS 704316.1152 (exact)
+[dallas] slope cap 11.133 (62x the incumbent's), 51 pieces x 39 sizes
+[dallas] hull: 1989 -> 13 (1976 certified prunes, 15s)
+[dallas] shor: 13 -> 1 (11s)
+[dallas] joint lift + branching: 1 nodes at the root, 1 solved, 0 open (40s)
+[dallas] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 704316.1152  [76s]
+[dallas+denver] incumbent |C|=4 slope 0.50406 RSS 3810912.775 (exact)
+[dallas+denver] slope cap 26.525 (53x the incumbent's), 50 pieces x 38 sizes
+[dallas+denver] hull: 1900 -> 18 (1882 certified prunes, 13s)
+[dallas+denver] shor: 18 -> 3 (13s)
+[dallas+denver] joint lift + branching: 3 nodes at the root, 3 solved, 0 open (100s)
+[dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 3810912.775  [134s]
+[cincinnati+dallas+denver] incumbent |C|=7 slope 0.38505 RSS 4771180.387 (exact)
+[cincinnati+dallas+denver] slope cap 32.763 (85x the incumbent's), 52 pieces x 37 sizes
+[cincinnati+dallas+denver] hull: 1924 -> 36 (1888 certified prunes, 13s)
+[cincinnati+dallas+denver] shor: 36 -> 11 (28s)
+[cincinnati+dallas+denver] joint lift + branching: 11 nodes at the root, 11 solved, 0 open (393s)
+[cincinnati+dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 4771180.387  [440s]
+[chicago+cincinnati+dallas+denver] incumbent |C|=7 slope 0.52742 RSS 8083009.301 (exact)
+[chicago+cincinnati+dallas+denver] slope cap 42.623 (81x the incumbent's), 52 pieces x 36 sizes
+[chicago+cincinnati+dallas+denver] hull: 1872 -> 41 (1831 certified prunes, 12s)
+[chicago+cincinnati+dallas+denver] shor: 41 -> 15 (30s)
+[chicago+cincinnati+dallas+denver] joint lift + branching: 15 nodes at the root, 21 solved, 0 open (666s)
+[chicago+cincinnati+dallas+denver] CERTIFIED OPTIMAL: every other control group with a positive slope has RSS at least 8083009.301  [714s]

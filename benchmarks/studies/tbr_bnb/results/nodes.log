@@ -1,0 +1,16 @@
+(0.2727,0.3408) m=10: margin over incumbent  clarabel +3.400% [34s] | lbfgs cold +0.004% cert +0.004% [5.3s, 1228 ev] | warm +0.004% [5.1s] | bundle -110.631% [61s] | exact cert 0.4s
+(0.2727,0.3408) m=11: margin over incumbent  clarabel +2.252% [32s] | lbfgs cold +0.003% cert +0.003% [5.7s, 1268 ev] | warm +0.000% [5.0s] | bundle -99.003% [60s] | exact cert 0.5s
+(0.2727,0.3408) m=12: margin over incumbent  clarabel +3.393% [30s] | lbfgs cold +0.007% cert +0.007% [4.9s, 1086 ev] | warm +0.012% [4.7s] | bundle -328.496% [43s] | exact cert 0.4s
+(0.2727,0.3408) m=13: margin over incumbent  clarabel +3.730% [25s] | lbfgs cold +0.065% cert +0.065% [4.3s, 912 ev] | warm +0.063% [4.2s] | bundle -175.205% [61s] | exact cert 0.4s
+(0.2727,0.3408) m=14: margin over incumbent  clarabel +10.648% [32s] | lbfgs cold +1.472% cert +1.472% [4.9s, 1019 ev] | warm +1.417% [4.9s] | bundle -266.551% [61s] | exact cert 0.5s
+(0.3408,0.426) m= 8: margin over incumbent  clarabel +3.964% [33s] | lbfgs cold +0.027% cert +0.027% [5.6s, 1227 ev] | warm +0.047% [5.7s] | bundle -157.637% [38s] | exact cert 0.4s
+(0.3408,0.426) m= 9: margin over incumbent  clarabel -0.508% [34s] | lbfgs cold -1.088% cert -1.088% [11.6s, 2336 ev] | warm -1.051% [11.6s] | bundle -122.583% [57s] | exact cert 0.4s
+(0.3408,0.426) m=10: margin over incumbent  clarabel +0.100% [30s] | lbfgs cold -0.709% cert -0.709% [11.2s, 2223 ev] | warm -0.306% [10.6s] | bundle -249.477% [60s] | exact cert 0.4s
+(0.3408,0.426) m=11: margin over incumbent  clarabel +2.563% [33s] | lbfgs cold +0.035% cert +0.035% [6.9s, 1400 ev] | warm +0.002% [5.1s] | bundle -116.134% [60s] | exact cert 0.5s
+(0.3408,0.426) m=12: margin over incumbent  clarabel +16.521% [28s] | lbfgs cold +0.979% cert +0.979% [4.3s, 906 ev] | warm +3.774% [4.3s] | bundle -225.279% [60s] | exact cert 0.4s
+(0.426,0.5326) m= 7: margin over incumbent  clarabel +0.320% [38s] | lbfgs cold +0.000% cert +0.000% [8.8s, 1757 ev] | warm +0.000% [9.1s] | bundle -122.205% [54s] | exact cert 0.4s
+(0.426,0.5326) m= 8: margin over incumbent  clarabel -0.787% [33s] | lbfgs cold -1.494% cert -1.494% [13.1s, 2497 ev] | warm -1.216% [11.7s] | bundle -147.403% [56s] | exact cert 0.4s
+(0.426,0.5326) m= 9: margin over incumbent  clarabel +0.003% [35s] | lbfgs cold -1.456% cert -1.456% [12.9s, 2351 ev] | warm -0.794% [8.9s] | bundle -134.696% [48s] | exact cert 0.5s
+(0.5326,0.6657) m= 6: margin over incumbent  clarabel +6.454% [35s] | lbfgs cold +0.037% cert +0.037% [6.1s, 1215 ev] | warm +0.062% [6.6s] | bundle -300.835% [37s] | exact cert 0.4s
+(0.5326,0.6657) m= 7: margin over incumbent  clarabel +0.674% [30s] | lbfgs cold +0.003% cert +0.003% [11.4s, 1967 ev] | warm +0.014% [7.7s] | bundle -298.123% [46s] | exact cert 0.4s
+done
