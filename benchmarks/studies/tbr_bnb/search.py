@@ -37,7 +37,7 @@ import numpy as np
 
 from .certificate import ExactData, hull_bound, joint_bound, shor_bound
 from .dual import smoothed_lbfgs
-from .hull import Band, ControlBound, rss_of
+from .hull import Band, ControlBound, positive_rss, rss_of
 from .lifts import Lift
 from .oracle import Oracle
 
@@ -65,7 +65,35 @@ class SearchStats:
     evals: int = 0
     lbfgs_seconds: float = 0.0
     cert_seconds: float = 0.0
+    adopted: int = 0                    # better designs found by rounding a node's primal point
     open: List[tuple] = field(default_factory=list)
+
+
+@dataclass
+class Incumbent:
+    """The best design known, its exact RSS, and every design a no-good cut excludes."""
+
+    UB: Fraction
+    C: Set[int]
+    cuts: List[Set[int]]
+    D: Optional[ExactData] = None
+
+    def offer(self, y, X, design: Set[int], stats: "SearchStats") -> None:
+        """Adopt ``design`` when its exact RSS at its double slope beats the incumbent.
+
+        Every design a cut excludes is known, and none of them beats the best, so
+        the cuts stay valid as the incumbent improves: a node they help close
+        holds no design below the incumbent, and a node pruned against an earlier
+        incumbent was pruned against a larger number.
+        """
+        if not design or design == self.C or positive_rss(y, X, design) >= float(self.UB):
+            return
+        x = X[:, sorted(design)].sum(1)
+        rss = self.D.rss(design, float((y @ x) / (x @ x)))
+        if rss < self.UB:
+            self.UB, self.C = rss, set(design)
+            self.cuts.append(set(design))
+            stats.adopted += 1
 
 
 @dataclass
@@ -91,7 +119,8 @@ def unpack(O: Oracle, yv: np.ndarray, p: int):
     duals = ([g("z00")[0], g("dU"), g("dV"), g("su")[0], g("rU"), g("cV"), g("sym").reshape(p, p)]
              + [f for f in g("fam").reshape(16, p, p)])
     fixes = [(j, v, float(d)) for (j, v), d in zip(O.fixes, g("fix"))]
-    return duals, float(g("ng")[0]), fixes
+    cuts = [(set(c), float(d)) for c, d in zip(O.cuts, g("ng"))] if O.cuts else []
+    return duals, cuts, fixes
 
 
 def stalled(evals: int, best: float, target: float) -> bool:
@@ -99,7 +128,16 @@ def stalled(evals: int, best: float, target: float) -> bool:
     return (evals >= STALL_AT and margin < STALL_BELOW) or evals >= STALL_LAST
 
 
-def run_node(y, X, lift, C, UB, scale2, lo, hi, m, fixed, y_warm, stats: SearchStats,
+def _rounded(u, m, fixed, p):
+    """The node's design nearest its primal point: the fixed-in geos, then the
+    free ones with the largest weights, to size m."""
+    fx = dict(fixed)
+    ones = [j for j, v in fx.items() if v == 1]
+    free = sorted((j for j in range(p) if j not in fx), key=lambda j: -u[j])
+    return set(ones + free[:max(0, m - len(ones))])
+
+
+def run_node(y, X, lift, inc: Incumbent, scale2, lo, hi, m, fixed, y_warm, stats: SearchStats,
              depth: int = 0, max_depth: int = 10) -> None:
     """Prune the node, or branch on its most fractional geo; record it open past ``max_depth``."""
     p = X.shape[1]
@@ -107,25 +145,30 @@ def run_node(y, X, lift, C, UB, scale2, lo, hi, m, fixed, y_warm, stats: SearchS
     if ones > m or len(fixed) - ones > p - m:
         stats.infeasible += 1
         return
-    O = Oracle(y, X, lo, hi, m, C=C, fixes=fixed)
+    O = Oracle(y, X, lo, hi, m, cuts=inc.cuts, fixes=fixed)
     y0 = np.zeros(O.dim)
     if y_warm is not None:
-        y0[:len(y_warm)] = y_warm[:O.dim]          # same layout; the new fixing starts at 0
+        # the parent's layout: the cuts it knew, then its fixings; new ones start at 0
+        n_cut, n_fix = y_warm["cuts"], y_warm["fixes"]
+        head = O.sl["fam"].stop
+        y0[:head] = y_warm["y"][:head]
+        y0[O.sl["ng"].start:O.sl["ng"].start + n_cut] = y_warm["y"][head:head + n_cut]
+        y0[O.sl["fix"].start:O.sl["fix"].start + n_fix] = y_warm["y"][head + n_cut:head + n_cut + n_fix]
     stats.nodes += 1
     yb = y0
     for head in (HEADROOM, 100 * HEADROOM):
-        target = float(UB) / scale2 * (1 + head)
+        target = float(inc.UB) / scale2 * (1 + head)
         t0 = time.perf_counter()
         th, yb, inf = smoothed_lbfgs(O, y0, target=target, stage_budget=BUDGET, handoff=stalled)
         stats.lbfgs_seconds += time.perf_counter() - t0
         stats.evals += inf["evals"]
         if th < target:
             break
-        duals, ngd, fixes = unpack(O, yb, p)
+        duals, cuts, fixes = unpack(O, yb, p)
         t1 = time.perf_counter()
-        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=(C, ngd), fixes=fixes)
+        cb, _, _ = joint_bound(lift, y, X, lo, hi, m, duals=duals, nogood=cuts, fixes=fixes)
         stats.cert_seconds += time.perf_counter() - t1
-        if cb is not None and cb >= UB:
+        if cb is not None and cb >= inc.UB:
             stats.pruned += 1
             return
         stats.cert_failed += 1
@@ -133,15 +176,18 @@ def run_node(y, X, lift, C, UB, scale2, lo, hi, m, fixed, y_warm, stats: SearchS
     if depth >= max_depth or len(fixed) == p:
         stats.open.append((lo, hi, m, tuple(fixed)))
         return
-    # branch on the most fractional geo of the eigen-primal behind the bound
+    # the eigen-primal behind the bound: round it to a design, then branch on its
+    # most fractional geo
     Sm, _ = O.S_k(yb)
     v = np.linalg.eigh(Sm)[1][:, 0]
     u = np.clip(v[1:p + 1] / v[0], 0, 1) if abs(v[0]) > 1e-12 else np.full(p, 0.5)
+    inc.offer(y, X, _rounded(u, m, fixed, p), stats)
     free = [j for j in range(p) if j not in dict(fixed)]
     j = min(free, key=lambda j: abs(u[j] - 0.5))
     stats.branched += 1
+    warm = {"y": yb, "cuts": len(O.cuts), "fixes": len(fixed)}
     for val in (0, 1):
-        run_node(y, X, lift, C, UB, scale2, lo, hi, m, fixed + [(j, val)], yb, stats, depth + 1, max_depth)
+        run_node(y, X, lift, inc, scale2, lo, hi, m, fixed + [(j, val)], warm, stats, depth + 1, max_depth)
 
 
 def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 0) -> Tuple[float, Set[int]]:
@@ -150,13 +196,13 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
     rng = np.random.default_rng(seed)
 
     def descend(C):
-        cur = rss_of(y, X, C)
+        cur = positive_rss(y, X, C)
         while True:
             moves = [mv for mv in ([C ^ {j} for j in range(p)]
                                    + [(C - {a}) | {b} for a in C for b in range(p) if b not in C]) if mv]
             if not moves:                       # one candidate control: nothing to move
                 return cur, C
-            vals = [rss_of(y, X, mv) for mv in moves]
+            vals = [positive_rss(y, X, mv) for mv in moves]
             i = int(np.argmin(vals))
             if vals[i] < cur * (1 - 1e-12):
                 C, cur = moves[i], vals[i]
@@ -206,7 +252,7 @@ def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
     return out, stats
 
 
-def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int = 200,
+def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int = 50,
             seed: int = 0, max_depth: int = 10) -> Certificate:
     """Certify that no control group with a positive slope has a lower RSS than the incumbent.
 
@@ -230,9 +276,10 @@ def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int 
     pieces = pieces_to(b_inc, cap, ratio)
     s1, _ = hull_survivors(y, X, D, pieces, UB)
     shor = Lift(y, X, "shor")
-    s2 = []
+    s2 = []; shor_value = {}
     for pc in s1:
         v = shor.piece(*pc)
+        shor_value[pc] = v
         if v < float(UB) * (1 - 1e-4):
             s2.append(pc)
             continue
@@ -242,8 +289,12 @@ def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int 
     full = Lift(y, X, "full")
     stats = SearchStats()
     scale2 = float(np.linalg.norm(y)) ** 2
-    for pc in s2:
-        run_node(y, X, full, set(C), UB, scale2, *pc, [], None, stats, max_depth=max_depth)
-    return Certificate(incumbent=UB, controls=sorted(int(j) for j in C), slope=b_inc, slope_cap=cap,
+    inc = Incumbent(UB=UB, C=set(C), cuts=[set(C)], D=D)
+    # the most promising pairs first, so a better incumbent is found early
+    for pc in sorted(s2, key=lambda pc: shor_value[pc]):
+        run_node(y, X, full, inc, scale2, *pc, [], None, stats, max_depth=max_depth)
+    x = X[:, sorted(inc.C)].sum(axis=1)
+    return Certificate(incumbent=inc.UB, controls=sorted(int(j) for j in inc.C),
+                       slope=float((y @ x) / (x @ x)), slope_cap=cap,
                        pieces=len(pieces), pairs=len(pieces) * p, after_hull=len(s1), after_shor=len(s2),
                        search=stats, certified=not stats.open, seconds=time.perf_counter() - t_all)
