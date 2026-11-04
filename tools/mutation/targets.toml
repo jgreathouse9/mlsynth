@@ -11396,3 +11396,59 @@ timeout = 900.0
   find = "                if v >= float(UB) * (1 - 1e-6) and hull_bound(D, w, lo, hi, m) >= UB:\n"
   replace = "                if v >= float(UB) * (1 - 1e-6):\n"
   models = "a pair ruled out by the band's double value without its exact certificate"
+
+# The TBR study's incumbent (#965, step 7): a positive-slope descent, designs
+# adopted from the nodes' primal points, and a no-good cut per known design.
+[[target]]
+name = "tbr-bnb-incumbent"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "a-better-design-is-never-adopted"
+  find = "        if rss < self.UB:\n            self.UB, self.C = rss, set(design)\n"
+  replace = "        if False:\n            self.UB, self.C = rss, set(design)\n"
+  models = "the search never replacing its starting incumbent, so a poor start leaves the nodes holding the better design open"
+
+  [[target.mutant]]
+  id = "an-adopted-design-gets-no-cut"
+  find = "            self.cuts.append(set(design))\n"
+  replace = "            pass\n"
+  models = "an adopted incumbent without its no-good cut, so the node holding it can never close"
+
+[[target]]
+name = "tbr-bnb-incumbent-hull"
+module-path = "benchmarks/studies/tbr_bnb/hull.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-slope-sign-is-ignored"
+  find = "    return float(y @ y - xy * xy / xx) if xx > 0 and xy > 0 else float(y @ y)\n"
+  replace = "    return float(y @ y - xy * xy / xx) if xx > 0 else float(y @ y)\n"
+  models = "a negative-slope design scored by its best fit, so the descent can settle on a design the slope pieces do not cover"
+
+[[target]]
+name = "tbr-bnb-incumbent-certificate"
+module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "only-the-first-cut-is-read"
+  find = "    cuts = [] if nogood is None else ([nogood] if isinstance(nogood[0], (set, frozenset)) else list(nogood))\n"
+  replace = "    cuts = [] if nogood is None else ([nogood] if isinstance(nogood[0], (set, frozenset)) else list(nogood)[:1])\n"
+  models = "the certificate reading the first known design's cut and dropping the adopted ones'"
+
+[[target]]
+name = "tbr-bnb-incumbent-oracle"
+module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_oracle.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-cut-constant-is-off-by-one"
+  find = "            Gf[0, iu:iw] += d * sg; k -= d * (len(c) - 1)\n"
+  replace = "            Gf[0, iu:iw] += d * sg; k -= d * len(c)\n"
+  models = "the oracle's no-good cut read as sum_C u - sum_notC u <= |C|, which admits the excluded design"

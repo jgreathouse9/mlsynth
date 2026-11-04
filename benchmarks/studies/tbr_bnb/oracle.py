@@ -48,7 +48,7 @@ def _coef(lo, hi):
 
 
 class Oracle:
-    def __init__(self, y, X, lo, hi, m, C=None, fixes=()):
+    def __init__(self, y, X, lo, hi, m, C=None, fixes=(), cuts=None):
         self.scale = float(np.linalg.norm(y))
         y, X = y / self.scale, X / self.scale
         p = X.shape[1]; self.p = p; self.n = 2 * p + 1
@@ -56,17 +56,20 @@ class Oracle:
         self.lo, self.hi, self.m = float(lo), float(hi), float(m)
         self.K = _coef(self.lo, self.hi)
         self.T = 1.0 + m + m * hi * hi
-        self.C = None if C is None else sorted(C)
-        self.sign = None if C is None else np.array([1.0 if j in set(C) else -1.0 for j in range(p)])
+        # One no-good cut per known design: sum_C u - sum_notC u <= |C| - 1 excludes
+        # that design and no other (Balas and Jeroslow 1972). ``C`` is one design.
+        self.cuts = [sorted(c) for c in (cuts if cuts is not None else ([] if C is None else [C]))]
+        self.C = self.cuts[0] if self.cuts else None
+        self.signs = [np.array([1.0 if j in set(c) else -1.0 for j in range(p)]) for c in self.cuts]
         self.fixes = list(fixes)
         sizes = [("z00", 1), ("dU", p), ("dV", p), ("su", 1), ("rU", p), ("cV", p), ("sym", p * p),
-                 ("fam", 16 * p * p)] + ([("ng", 1)] if C is not None else []) + [("fix", len(self.fixes))]
+                 ("fam", 16 * p * p)] + ([("ng", len(self.cuts))] if self.cuts else []) + [("fix", len(self.fixes))]
         self.sl = {}; o = 0
         for k, s in sizes:
             self.sl[k] = slice(o, o + s); o += s
         self.dim = o
         self.ineq = np.zeros(o, dtype=bool); self.ineq[self.sl["fam"]] = True
-        if C is not None: self.ineq[self.sl["ng"]] = True
+        if self.cuts: self.ineq[self.sl["ng"]] = True
 
     # ---- forward map: expr(Z) for every multiplier, in layout order
     def expr(self, Z):
@@ -79,7 +82,7 @@ class Oracle:
         fam = -np.einsum("ft,tij->fij", self.K, terms)
         parts = [[Z[0, 0] - 1.0], np.diag(U) - u, np.diag(V) - w, [u.sum() - m],
                  U.sum(1) - m * u, V.sum(0) - m * w, (V - V.T).ravel(), fam.ravel()]
-        if self.C is not None: parts.append([self.sign @ u - (len(self.C) - 1)])
+        if self.cuts: parts.append([sg @ u - (len(c) - 1) for sg, c in zip(self.signs, self.cuts)])
         parts.append([u[j] - v for j, v in self.fixes])
         return np.concatenate([np.ravel(x) for x in parts])
 
@@ -102,8 +105,8 @@ class Oracle:
         Gf[iu:iw, iu:iw] += Tm[0]; Gf[iu:iw, iw:] += Tm[1] + Tm[2].T; Gf[iw:, iw:] += Tm[3]
         Gf[0, iu:iw] += Tm[4].sum(1) + Tm[5].sum(0); Gf[0, iw:] += Tm[6].sum(1) + Tm[7].sum(0)
         k += Tm[8].sum()
-        if self.C is not None:
-            d = g("ng")[0]; Gf[0, iu:iw] += d * self.sign; k -= d * (len(self.C) - 1)
+        for d, sg, c in zip(g("ng") if self.cuts else (), self.signs, self.cuts):
+            Gf[0, iu:iw] += d * sg; k -= d * (len(c) - 1)
         for (j, v), d in zip(self.fixes, g("fix")):
             Gf[0, iu + j] += d; k -= v * d
         return (Gf + Gf.T) / 2, k
@@ -120,6 +123,6 @@ class Oracle:
     def duals_from_cvxpy(self, constraints, nogood=None, fix_cons=()):
         """Pack a Clarabel solve's multipliers (cvxpy order) into this layout."""
         parts = [np.ravel(c.dual_value) for c in constraints]
-        if self.C is not None: parts.append(np.ravel(nogood.dual_value))
+        if self.cuts: parts.append(np.ravel(nogood.dual_value))
         parts += [np.ravel(c.dual_value) for c in fix_cons]
         return np.concatenate(parts)
