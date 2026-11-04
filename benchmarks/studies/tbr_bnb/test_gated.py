@@ -21,6 +21,15 @@ from .gated import certify_gated
 from .slopefree import Rows, certify_slope_free
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+
+
+@pytest.fixture(autouse=True)
+def _bound_every_node(monkeypatch):
+    """These tests are of the relaxation and its branching, so every node is
+    bounded: on panels this small, pricing would close every size at its root
+    (test_pricing.py checks that the two give the same answer)."""
+    from . import slopefree
+    monkeypatch.setattr(slopefree, "PRICE_LIMIT", 0)
 N_TEST = 8
 
 

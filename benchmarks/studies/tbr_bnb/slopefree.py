@@ -65,7 +65,7 @@ import scipy.sparse as sp
 
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
-from .certificate import ExactData, round_down
+from .certificate import ExactData, _dot_err, round_down
 
 
 def dyadic_below(q) -> Q:
@@ -309,6 +309,111 @@ class SlopeFreeCertificate:
     seconds: float = 0.0
     hull_seconds: float = 0.0
     ceiling_held: bool = False            # certified: no design has an RSS below the ceiling
+    priced: int = 0                       # designs priced in batched subtrees
+    priced_nodes: int = 0                 # subtrees priced instead of bounded
+    exact: int = 0                        # priced designs the float bound could not discard
+
+
+#: The cost model of the choice between pricing a subtree and bounding it, as MAREX's
+#: branch and bound makes it (search_skeleton.cheaper_to_price): seconds for one
+#: relaxation of a size, 1.5-1.9 s at the root on the GeoLift groups (4.3 s with a
+#: round of triangles), and for one design in the batched pass, 0.6-2.0 us
+#: (README, "Pricing"). The limit, 750,000 designs, prices sizes up to 5 of 38.
+BOUND_SECONDS = 1.5
+PRICE_SECONDS = 2e-6
+PRICE_LIMIT = int(BOUND_SECONDS / PRICE_SECONDS)
+#: Designs per batch, so that the gathered s-by-s blocks stay a few million doubles.
+_CELLS = 2_000_000
+
+
+def _floats(c, G, inc):
+    """The doubles nearest c and G, made once per search and kept on ``inc``."""
+    if "_floats" not in inc:
+        inc["_floats"] = (np.array([float(v) for v in c]), np.array([[float(v) for v in r] for r in G]))
+    return inc["_floats"]
+
+
+def _upper_batch(fixed, cfF, GfF, combos):
+    """An upper bound in doubles on (c'u)^2 / u'Gu for each row of ``combos`` (indices
+    into the free geos), the fixed-in part given exactly in ``fixed``; -inf where c'u
+    cannot be positive, inf where u'Gu cannot be bounded away from zero.
+
+    c'u = c1 + sum_S c_j and u'Gu = G11 + 2 sum_S g1_j + sum_{S x S} G_ij, with c1,
+    G11 and g1 the fixed-in sums, exact in rationals and then rounded. Each double sum
+    of k terms errs by at most gamma_k times the sum of its terms' moduli, and each
+    term's own rounding from the exact value by u times its modulus, so twice
+    _dot_err(k + 1, moduli) bounds both (Bjorck 2015, Lemma 1.4.2, with the underflow
+    allowance of certificate._dot_err; the factor 2 covers the product of the two
+    relative errors, derived here). The bound is (|s| + e_s)^2 / (d - e_d), raised
+    by inflate's 1e-6 for its own three roundings."""
+    c1, G11, g1 = fixed
+    k = combos.shape[1]
+    s = c1[0] + cfF[combos].sum(axis=1)
+    sa = abs(c1[0]) + np.abs(cfF)[combos].sum(axis=1)
+    blk = GfF[combos[:, :, None], combos[:, None, :]]
+    d = G11[0] + 2 * g1[0][combos].sum(axis=1) + blk.sum(axis=(1, 2))
+    da = abs(G11[0]) + 2 * np.abs(g1[0])[combos].sum(axis=1) + np.abs(blk).sum(axis=(1, 2))
+    e_s = 2 * _dot_err(k + 2, sa)
+    e_d = 2 * _dot_err(k * k + k + 2, da)
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        ub = (np.abs(s) + e_s) ** 2 / (d - e_d) * (1.0 + 1e-6)
+    ub = np.where(d - e_d > 0, ub, np.inf)
+    return np.where(s + e_s > 0, ub, -np.inf)
+
+
+def _fixed(c, G, cf, ins, F):
+    c1 = sum((c[i] for i in ins), Q(0))
+    G11 = sum((G[i, j] for i in ins for j in ins), Q(0))
+    g1 = np.array([float(sum((G[i, j] for i in ins), Q(0))) for j in F])
+    return (float(c1),), (float(G11),), (g1,)
+
+
+def ratio_upper(c, G, cf, Gf, ins, S) -> float:
+    """The batched bound for the one design ``ins`` + ``S`` (S a list of free geos)."""
+    ins = sorted(ins); F = sorted(set(range(len(c))) - set(ins))
+    fixed = _fixed(c, G, cf, ins, F)
+    pos = [F.index(j) for j in S]
+    c1, G11, g1 = fixed
+    return float(_upper_batch(((c1[0],), (G11[0],), (g1[0],)), cf[F], Gf[np.ix_(F, F)],
+                              np.array([pos]))[0])
+
+
+def price_subtree(c, G, out, m, fixes, inc, excluded):
+    """Price every design of size m within the fixings: discard those whose double
+    bound (_upper_batch) is at most the incumbent's ratio, and evaluate the rest
+    exactly, best bound first, adopting one that beats the incumbent and is not
+    excluded. Every discard is on a rigorous bound, so the subtree is closed."""
+    p = len(c)
+    fx = dict(fixes)
+    ins = sorted(j for j, v in fixes if v)
+    F = [j for j in range(p) if j not in fx]
+    k = m - len(ins)
+    cf, Gf = _floats(c, G, inc)
+    fixed = _fixed(c, G, cf, ins, F)
+    cfF, GfF = cf[F], Gf[np.ix_(F, F)]
+    lam_lo = round_down(inc["lam"])
+    per = max(1, _CELLS // max(1, k * k))
+    gen = itertools.combinations(range(len(F)), k)
+    cands = []
+    out.priced_nodes += 1
+    while True:
+        chunk = list(itertools.islice(gen, per))
+        if not chunk:
+            break
+        combos = np.array(chunk, dtype=np.int64)
+        out.priced += len(chunk)
+        ub = _upper_batch(fixed, cfF, GfF, combos)
+        for i in np.nonzero(ub > lam_lo)[0]:
+            cands.append((float(ub[i]), chunk[i]))
+    cands.sort(key=lambda t: -t[0])
+    for ub, combo in cands:
+        if Q(ub) <= inc["lam"]:                # every later bound is at most this one
+            break
+        C = set(ins) | {F[i] for i in combo}
+        out.exact += 1
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
 
 
 def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
@@ -332,6 +437,9 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
+        return
+    if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
+        price_subtree(c, G, out, m, fixes, inc, excluded)
         return
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round)
     if res.certified:
