@@ -85,6 +85,11 @@ def test_the_vertex_is_left_along_the_most_violated_pair():
     w, info = _solve(B, A, u, warm_start=start, accelerate=False)
     assert info["converged"]
     assert np.allclose(w, [0.0, 0.0, 0.5, 0.5], atol=1e-12)
+    # Each vertex is left in one pivot that frees the pair: two vertices to leave,
+    # a step to each, and the final check. Freeing the capped weight alone costs
+    # a pivot more per vertex (6), since the free-set check must then find the
+    # weight at zero.
+    assert info["pivots"] <= 4
 
 
 def test_the_uncapped_path_changes_no_bit():
@@ -135,6 +140,9 @@ def test_a_donor_fixed_at_a_zero_cap_is_never_released():
     w, info = _solve(B, A, u)
     assert info["converged"] and info["certified"]
     assert w[4] == 0.0
+    # Counting the fixed weight as able to rise sends the vertex's mass toward
+    # it, a step of length zero, and doubles the work (6 pivots).
+    assert info["pivots"] <= 3
     assert _obj(B, A, w) == pytest.approx(_brute(B, A, u)[0], rel=1e-10)
 
 
