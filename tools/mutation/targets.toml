@@ -12093,3 +12093,69 @@ timeout = 900.0
   find = "        except NoDesignLeft:\n"
   replace = "        except ValueError:\n"
   models = "any error, a refused certificate among them, read as no design being left"
+
+[[target]]
+name = "tbr-bnb-treatment"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-cap-is-too-small"
+  find = "    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))\n"
+  replace = "    cap = Q(math.sqrt(float(yy / lam)) * 1e-3)\n"
+  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS"
+
+  [[target.mutant]]
+  id = "a-group-above-the-class-is-ruled-out-on-rss"
+  find = "    if corr2 >= up * up:\n        return True\n"
+  replace = "    if False:\n        return True\n"
+  models = "a group whose correlation could round above the incumbent's class compared on RSS, though the key ranks the rounded correlation first"
+
+  [[target.mutant]]
+  id = "the-upper-edge-has-no-slack"
+  find = "    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star\n"
+  replace = "    up = r_star + EDGE                    # below up, round(corr, 2) <= r_star\n"
+  models = "the upper class edge taken as exact, so a correlation within the double's error of rounding up is compared on RSS"
+
+  [[target.mutant]]
+  id = "the-lower-edge-has-no-slack"
+  find = "    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star\n"
+  replace = "    low = r_star - EDGE                   # below low, round(corr, 2) < r_star\n"
+  models = "the lower class edge taken as exact, so a correlation within the double's error of the class is ruled out"
+
+  [[target.mutant]]
+  id = "the-whole-class-is-ruled-out"
+  find = "    if corr2 < low * low:\n"
+  replace = "    if corr2 < up * up:\n"
+  models = "every group that cannot round above the incumbent's class ruled out, including those that could beat its RSS within it"
+
+  [[target.mutant]]
+  id = "the-incumbent-is-never-replaced"
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n"
+  replace = "        if res.passing and out.key is None:\n"
+  models = "a survivor whose optimum beats the incumbent's key left unused, so the start group is returned"
+
+  [[target.mutant]]
+  id = "every-group-is-ruled-out"
+  find = "        if not can_compete(yy, floor, *class_of()):\n"
+  replace = "        if True:\n"
+  models = "the screen ruling out every group, so the incumbent is never challenged"
+
+  [[target.mutant]]
+  id = "a-refused-group-reads-as-certified"
+  find = "        res, C = _optimum(M, T, n_test, restarts)\n        out.certified &= res.certified\n"
+  replace = "        res, C = _optimum(M, T, n_test, restarts)\n"
+  models = "a survivor whose own certification was cut short counted as certified"
+
+  [[target.mutant]]
+  id = "a-singular-gram-gives-a-floor"
+  find = "    return lam if lam is not None and lam > 0 else None\n"
+  replace = "    return lam\n"
+  models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
+
+  [[target.mutant]]
+  id = "the-start-group-is-screened-again"
+  find = "        if list(T) == T0:\n            continue\n"
+  replace = "        if False:\n            continue\n"
+  models = "the start group counted twice, once certified and once screened"

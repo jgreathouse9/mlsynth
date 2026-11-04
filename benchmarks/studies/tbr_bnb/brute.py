@@ -74,3 +74,36 @@ def gated_optimum(y, X, n_test: int):
         if d["corr_test"] and d["aa_test"] and d["bb_test"] and d["dw_test"]:
             return rss, C
     return None, None
+
+
+def geo_panel(seed: int, n: int = 40, p: int = 7, rho: float = 0.5):
+    """Centred series of ``p`` geos (periods by geos) on one trend, with geo sizes
+    that differ and AR(1) noise, so that treatment groups differ in fit and some
+    designs fail the gates."""
+    rng = np.random.default_rng(seed)
+    f = rng.normal(size=n).cumsum()
+    size = rng.uniform(1.0, 6.0, p)
+    e = np.zeros((n, p))
+    for t in range(1, n):
+        e[t] = rho * e[t - 1] + rng.normal(size=p)
+    Y = (f[:, None] * rng.uniform(0.6, 1.4, p) + 2.0 * e) * size
+    return Y - Y.mean(axis=0)
+
+
+def treatment_optimum(M, k: int, n_test: int):
+    """The reference key's best design with ``k`` treatment geos, by enumeration of
+    every treatment group and control group, among designs that pass the four gates:
+    (key, treatment, controls), or (None, None, None) when no design passes."""
+    from mlsynth.utils.tbr_helpers.design.objective import score_split
+
+    p = M.shape[1]
+    best = (None, None, None)
+    for T in combinations(range(p), k):
+        y = M[:, list(T)].sum(axis=1)
+        rest = [j for j in range(p) if j not in T]
+        for r in range(1, len(rest) + 1):
+            for C in combinations(rest, r):
+                s = score_split(y, M[:, list(C)].sum(axis=1), objective="reference", n_test=n_test)
+                if all(s.key[:4]) and (best[0] is None or s.key > best[0]):
+                    best = (s.key, set(T), set(C))
+    return best
