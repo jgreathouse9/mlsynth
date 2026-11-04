@@ -210,6 +210,32 @@ def test_property_the_gradient_bound_holds(seed, k, tiny):
 
 
 @SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+def test_property_the_objective_bound_holds_for_every_residual_within_e(seed, k, tiny):
+    """The worst residual in the box: each component moved toward zero by e."""
+    y, X, w = _case(seed, k, tiny)
+    r, e = residual_bound(y, X, w)
+    f, err = objective_bound(r, e)
+    worst = [max(abs(Q(float(a))) - Q(float(b)), Q(0)) for a, b in zip(r, e)]
+    assert Q(f) - Q(inflate(err)) <= sum(v * v for v in worst)
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+def test_property_the_gradient_bound_holds_for_every_residual_within_e(seed, k, tiny):
+    """For each gradient entry j, the worst residual in the box: each component
+    moved by e along the sign of X_ij."""
+    y, X, w = _case(seed, k, tiny)
+    r, e = residual_bound(y, X, w)
+    g, d = gradient_bound(X, r, e)
+    Xq, rq, eq = qarr(X), qarr(r), qarr(e)
+    for j in range(X.shape[1]):
+        worst = [rq[i] + eq[i] * (1 if X[i, j] >= 0 else -1) for i in range(X.shape[0])]
+        exact = 2 * sum(Xq[i, j] * worst[i] for i in range(X.shape[0]))
+        assert abs(Q(float(g[j])) - exact) <= Q(inflate(float(d[j])))
+
+
+@SETTINGS
 @given(seed=st.integers(0, 10_000), m=st.integers(1, 6), lo=st.floats(0.0, 1.0),
        width=st.floats(1.0, 4.0), scale=st.floats(1e-3, 1e6))
 @example(seed=0, m=2, lo=0.0, width=2.0, scale=10.0)    # the dual's sum rounds above the minimum here
