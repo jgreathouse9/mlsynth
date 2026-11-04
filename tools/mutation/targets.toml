@@ -11582,38 +11582,44 @@ timeout = 900.0
   models = "the dual read at lam = 0 whatever the fill, a valid but loose bound that leaves every tight pair to the exact certificate"
 
   [[target.mutant]]
+  id = "the-underflow-allowance-is-dropped"
+  find = "    return _gamma(k) * moduli + k * ETA\n"
+  replace = "    return _gamma(k) * moduli\n"
+  models = "the relative rounding bound used below the normal range, where a product's error is absolute"
+
+  [[target.mutant]]
   id = "the-residual-bound-drops-the-target"
-  find = "    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w) + np.abs(y))\n"
-  replace = "    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w))\n"
+  find = "    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w) + np.abs(y))\n"
+  replace = "    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w))\n"
   models = "the residual's rounding bounded without the target's term, which the subtraction X w - y rounds as well"
 
   [[target.mutant]]
   id = "the-objective-error-is-dropped"
-  find = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)\n"
+  find = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)\n"
   replace = "    return float(r @ r), 0.0\n"
   models = "f(w) read as its rounded value, which can exceed the exact one"
 
   [[target.mutant]]
   id = "the-objective-ignores-the-residual-error"
-  find = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)\n"
-  replace = "    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar)\n"
+  find = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)\n"
+  replace = "    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar))\n"
   models = "f(w) bounded for the computed residual only, not for every residual within e of it"
 
   [[target.mutant]]
   id = "the-gradient-error-is-dropped"
-  find = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
   replace = "    return 2.0 * (X.T @ r), 0.0 * (aX.T @ e)\n"
   models = "the computed gradient taken as exact, though it carries the residual's error and its own rounding"
 
   [[target.mutant]]
   id = "the-gradient-ignores-the-residual-error"
-  find = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
-  replace = "    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r))\n"
+  find = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)\n"
+  replace = "    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r))\n"
   models = "the gradient bounded for its own rounding only, not for the residual's error it inherits"
 
   [[target.mutant]]
   id = "the-dual-error-is-dropped"
-  find = "    err = _gamma(g.shape[0] + 3) * (float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))\n"
+  find = "    err = _dot_err(g.shape[0] + 3, float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))\n"
   replace = "    err = 0.0\n"
   models = "the knapsack dual's own rounding, and that of m lo and m hi, left out"
 
@@ -11631,14 +11637,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-linear-term-error-is-dropped"
-  find = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)\n"
+  find = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)\n"
   replace = "    return float(g @ w), float(d @ aw)\n"
   models = "the rounding of g'w left out"
 
   [[target.mutant]]
   id = "the-linear-term-ignores-the-gradient-error"
-  find = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)\n"
-  replace = "    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw)\n"
+  find = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)\n"
+  replace = "    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw))\n"
   models = "g'w bounded at the computed gradient only, not for every gradient within d of it"
 
   [[target.mutant]]
@@ -11646,6 +11652,18 @@ timeout = 900.0
   find = "    return err * (1.0 + 1e-6)\n"
   replace = "    return err\n"
   models = "the error terms taken as exact, though each is itself a rounded double"
+
+  [[target.mutant]]
+  id = "an-overflow-is-read-as-a-bound"
+  find = "    if not all(np.isfinite(v) for v in (f, kn, gw, err)):\n"
+  replace = "    if False:\n"
+  models = "an infinite or undefined intermediate carried into the rational combination"
+
+  [[target.mutant]]
+  id = "an-infinite-bound-is-compared"
+  find = "    if np.isfinite(fb) and Q(fb) >= UB:\n"
+  replace = "    if Q(fb) >= UB:\n"
+  models = "the float bound's -inf, the sign of an overflow, compared as a number"
 
   [[target.mutant]]
   id = "the-result-is-rounded-to-nearest"

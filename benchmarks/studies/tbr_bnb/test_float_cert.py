@@ -181,6 +181,7 @@ def _exact_residual(y, X, w):
 @SETTINGS
 @given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
 @example(seed=0, k=0, tiny=True)
+@example(seed=0, k=-1040, tiny=False)                  # X w and y subnormal
 def test_property_the_residual_bound_holds(seed, k, tiny):
     y, X, w = _case(seed, k, tiny)
     r, e = residual_bound(y, X, w)
@@ -212,6 +213,7 @@ def test_property_the_gradient_bound_holds(seed, k, tiny):
 @given(seed=st.integers(0, 10_000), m=st.integers(1, 6), lo=st.floats(0.0, 1.0),
        width=st.floats(1.0, 4.0), scale=st.floats(1e-3, 1e6))
 @example(seed=0, m=2, lo=0.0, width=2.0, scale=10.0)    # the dual's sum rounds above the minimum here
+@example(seed=0, m=1, lo=1.1125369292536007e-308, width=1.0, scale=0.125)   # products underflow
 def test_property_the_dual_bound_holds(seed, m, lo, width, scale):
     g = np.random.default_rng(seed).normal(size=6) * scale
     hi = _draw(lo, width) if width > 1.0 else lo
@@ -278,6 +280,28 @@ def test_a_band_wider_than_the_controls_fill():
     """m hi above what p caps of hi can hold: the fill takes every negative cost."""
     g = np.array([-2.0, -1.0, 3.0])
     assert knapsack_dual(g, 0.0, 0.5, 9) == pytest.approx(float(_knapsack_exact(g, 0.0, 0.5, 9)))
+
+
+@pytest.mark.parametrize("k", [-1040, -1060])
+def test_subnormal_data_keep_the_bound_below_the_exact_one(k):
+    """Below the normal range the relative bounds fail; the underflow allowance holds."""
+    y, X = panel(0)
+    y, X = y * 2.0 ** k, X * 2.0 ** k
+    w = np.full(6, 0.1)
+    assert Q(hull_bound_float(y, X, w, 0.1, 0.4, 3)) <= hull_bound(ExactData(y, X), w, 0.1, 0.4, 3)
+
+
+def test_an_overflow_gives_no_bound_and_the_exact_certificate_decides():
+    """Data near the top of the double range overflow the squares: the float bound is
+    -inf, and the decision is the exact certificate's."""
+    y, X = panel(0)
+    y, X = y * 2.0 ** 1000, X * 2.0 ** 1000
+    w = np.full(6, 0.1)
+    assert hull_bound_float(y, X, w, 0.1, 0.4, 3) == -np.inf
+    D = ExactData(y, X)
+    exact = hull_bound(D, w, 0.1, 0.4, 3)
+    stats = {}
+    assert hull_clears(D, y, X, w, 0.1, 0.4, 3, exact, stats) and stats["exact"] == 1
 
 
 # ---------------------------------------------------------------- failure

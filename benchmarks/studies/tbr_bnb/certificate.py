@@ -118,11 +118,21 @@ def hull_bound(D, wbar, lo, hi, m):
 
 
 U = 2.0 ** -53                          # unit roundoff of IEEE double
+ETA = 2.0 ** -1074                       # the smallest subnormal double
 
 
 def _gamma(k):
     """gamma_k = k u / (1 - k u), the dot-product rounding constant (Higham 2002, Sect. 3.1)."""
     return k * U / (1.0 - k * U)
+
+
+def _dot_err(k, moduli):
+    """A bound on the rounding of k-term dot products whose moduli are given:
+    gamma_k |a|'|b| (Higham 2002, eq. (3.5)), which assumes no underflow, plus
+    k ETA for it. Derived here from IEEE 754 round to nearest: a product that
+    lands in the subnormal range errs by at most half their spacing, 2^-1075, and
+    a sum that lands there is exact, so each of the k products adds at most ETA."""
+    return _gamma(k) * moduli + k * ETA
 
 
 def knapsack_dual(g, lo, hi, m, lam=None):
@@ -165,7 +175,9 @@ def hull_bound_float(y, X, w, lo, hi, m):
     with err_dual = gamma_{p+3} (sum_j |hi min(0, g~_j - lam)| + |lam| m max(lo, hi)),
     which covers the rounding of the dual's terms, their sum, lam A and of
     A = fl(m lo), B = fl(m hi) themselves. The error terms are themselves doubles,
-    and inflate() raises their total to cover their own rounding. The last combination f + dual - g'w - err is done in
+    and inflate() raises their total to cover their own rounding. Every dot-product
+    bound also carries an allowance for underflow (_dot_err), and an overflow
+    returns -inf, a bound that clears nothing. The last combination f + dual - g'w - err is done in
     rationals from those few doubles and rounded down, so it adds no error.
 
     Higham, N. J. (2002). Accuracy and Stability of Numerical Algorithms, 2nd ed.
@@ -184,6 +196,8 @@ def hull_bound_float(y, X, w, lo, hi, m):
     kn, kn_err = perturbed_knapsack_bound(g, d, lo, hi, m)
     gw, gw_err = linear_bound(g, d, w)
     err = inflate(f_err + kn_err + gw_err)
+    if not all(np.isfinite(v) for v in (f, kn, gw, err)):
+        return -np.inf                  # an overflow: no bound, and the exact certificate decides
     return round_down(Q(f) + Q(kn) - Q(gw) - Q(err))
 
 
@@ -191,21 +205,21 @@ def residual_bound(y, X, w):
     """r~ = fl(X w - y) and e with |r~ - (X w - y)| <= e componentwise: a dot
     product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Higham 2002, eq. (3.5))."""
     r = X @ w - y
-    return r, _gamma(X.shape[1] + 1) * (np.abs(X) @ np.abs(w) + np.abs(y))
+    return r, _dot_err(X.shape[1] + 1, np.abs(X) @ np.abs(w) + np.abs(y))
 
 
 def objective_bound(r, e):
     """fl(r~'r~) and the error with r'r >= fl(r~'r~) - err for every r within e of
     r~: r'r >= r~'r~ - 2 |r~|'e, and fl(r~'r~) errs by at most gamma_n |r~|'|r~|."""
     ar = np.abs(r)
-    return float(r @ r), _gamma(r.shape[0]) * float(ar @ ar) + 2.0 * float(ar @ e)
+    return float(r @ r), _dot_err(r.shape[0], float(ar @ ar)) + 2.0 * float(ar @ e)
 
 
 def gradient_bound(X, r, e):
     """g~ = fl(2 X'r~) and d with |g~ - 2 X'r| <= d for every r within e of r~:
     the rounding of X'r~, gamma_n |X|'|r~|, and |X'(r~ - r)| <= |X|'e, doubled."""
     aX = np.abs(X)
-    return 2.0 * (X.T @ r), 2.0 * _gamma(X.shape[0]) * (aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)
+    return 2.0 * (X.T @ r), 2.0 * _dot_err(X.shape[0], aX.T @ np.abs(r)) + 2.0 * (aX.T @ e)
 
 
 def dual_bound(g, lo, hi, m):
@@ -215,7 +229,7 @@ def dual_bound(g, lo, hi, m):
     gamma_p, so gamma_{p+3} times the moduli bounds the whole (Higham 2002, Sect. 3.1)."""
     lam = _greedy_lambda(g, lo, hi, m)
     terms = hi * np.minimum(0.0, g - lam)
-    err = _gamma(g.shape[0] + 3) * (float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))
+    err = _dot_err(g.shape[0] + 3, float(np.abs(terms).sum()) + abs(lam) * m * max(lo, hi))
     return knapsack_dual(g, lo, hi, m, lam=lam), err
 
 
@@ -232,7 +246,7 @@ def linear_bound(g, d, w):
     """fl(g~'w) and an error with g'w <= fl(g~'w) + err for every g within d of g~:
     gamma_p |g~|'|w|, the rounding (Higham 2002, eq. (3.5)), plus d'|w|."""
     aw = np.abs(w)
-    return float(g @ w), _gamma(g.shape[0]) * float(np.abs(g) @ aw) + float(d @ aw)
+    return float(g @ w), _dot_err(g.shape[0], float(np.abs(g) @ aw)) + float(d @ aw)
 
 
 def inflate(err):
@@ -268,7 +282,8 @@ def hull_clears(D, y, X, w, lo, hi, m, UB, stats):
     bound decides when it clears UB, and the exact one otherwise. The float bound
     never exceeds the exact one, so the decision is the exact certificate's."""
     stats["float"] = stats.get("float", 0) + 1
-    if Q(hull_bound_float(y, X, w, lo, hi, m)) >= UB:
+    fb = hull_bound_float(y, X, w, lo, hi, m)
+    if np.isfinite(fb) and Q(fb) >= UB:
         return True
     stats["exact"] = stats.get("exact", 0) + 1
     return hull_bound(D, w, lo, hi, m) >= UB
