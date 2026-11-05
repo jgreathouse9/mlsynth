@@ -12007,7 +12007,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-tiers-are-not-counted"
   find = "    out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1\n"
-  replace = ""
+  replace = "    pass\n"
   models = "the certificate silent on which tier decided each node"
 
   [[target.mutant]]
