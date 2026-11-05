@@ -11974,7 +11974,9 @@ timeout = 900.0
   id = "the-size-free-rows-admit-the-empty-design"
   find = "            le(row(*((u(j), -1) for j in range(p))), -1)                      # sum u >= 1\n"
   replace = ""
-  models = "the size-free rows without sum u >= 1, so u = 0 is feasible, the relaxation's maximum is at least zero, and no group is screened out"
+  models = "the size-free rows without sum u >= 1, the row that excludes the empty design"
+  expected = "survived"
+  accepted-because = "equivalent: the products (sum u - 1)(1 - u_i) >= 0 summed over i give 1'U1 <= (p + 1) s - p with s = sum u, and U >= uu' gives 1'U1 >= s^2, so (s - 1)(s - p) <= 0 and s >= 1 on the relaxation without the row (derived here); the row is kept as the stated constraint"
 
   [[target.mutant]]
   id = "the-size-free-product-has-the-wrong-sign"

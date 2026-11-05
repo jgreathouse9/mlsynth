@@ -134,6 +134,22 @@ def test_property_a_certificate_holds_for_every_design(seed, p, f):
         assert res.bound <= 0
 
 
+def test_the_first_order_multipliers_are_checked_exactly(monkeypatch):
+    """Multipliers the first-order method returns certify only when the exact bound
+    at them is at most zero: at zero multipliers the bound is (1 + p) lambda_max of
+    the objective, above zero, so the relaxation's own multipliers decide, and a
+    ratio below the best design's is not certified."""
+    _, _, c, G = _data(3, 6)
+
+    def zeros(A, R, m, c_, warm=None, **k):
+        return slopefree.Multipliers("full", np.zeros(R.n_eq), np.zeros(R.n_in)), {"evals": 1}
+
+    monkeypatch.setattr(slopefree, "dual_multipliers", zeros)
+    assert not group_certificate(c, G, _best_ratio(c, G) * Q(99, 100)).certified
+    res = group_certificate(c, G, _best_ratio(c, G) * Q(12, 10))
+    assert res.certified and res.tier == "full"
+
+
 def test_the_full_relaxation_decides_when_the_dual_gives_up(monkeypatch):
     _, _, c, G = _data(3, 6)
     monkeypatch.setattr(slopefree, "dual_multipliers", lambda *a, **k: (None, {"evals": 0}))
