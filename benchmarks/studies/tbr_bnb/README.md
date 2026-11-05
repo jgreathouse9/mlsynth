@@ -499,9 +499,72 @@ exact arithmetic. The relaxation's own tests bound every node, since on their
 small panels pricing closes every size at its root; `test_pricing.py` checks the
 priced path against enumeration and that both paths certify the same design.
 
+## The cascade
+
+At four geos on GeoLift the queue certifies 33 groups, and a stage profile of
+that run (379 s on a quiet machine, BLAS on one thread) put 224 s in Clarabel:
+242 root sizes, one relaxation each, 241 of them closed in round 0 and none
+branched. Their bounds were far below zero, which left room for weaker,
+cheaper certificates. The Lagrangian bound holds at any multipliers and for any
+subset of the rows, so `size_certificate` tries three, cheapest first:
+
+1. The previous root size's multipliers at this size's rows. They are screened
+   in doubles (`_screen`, an eigenvalue of the same matrix) and, when the screen
+   is at or below zero, evaluated exactly by `bound`. No solve.
+2. The Shor relaxation (`Rows(..., level="shor")`): the equalities (diag U = u,
+   the size and its products, the fixings), `c'u >= 0` and the cuts, without the
+   products of the bounds and of `c'u`. A solver failure here hands the size on.
+3. The full relaxation, with its rounds of triangles, as before.
+
+On the 242 recorded sizes, reused multipliers closed 43 of the 239 that had a
+previous size, at about 0.02 s each, and the Shor relaxation closed 212 of 242 at
+0.37 s a solve, against 1.07 s for the full relaxation. A variant of the Shor
+relaxation with the `u_i c'u` products kept could not be solved by Clarabel on
+the sizes Shor left open, so the third tier is the full relaxation.
+
+The four-geo search certifies the same design (austin, dallas, minneapolis,
+reno) in 230 s, where it took 379 s: the 242 sizes take 100 s, where they took
+246 s, with 207 solves, 90 s of them in Clarabel. Each tier's certificate is
+the exact bound, so a size is closed only when that bound is at or below zero;
+`test_cascade.py` checks each tier against enumeration and that a tier which
+does not close, or whose solver fails, hands the size to the next.
+
+### The dual tier
+
+None of the three certificates above needs the relaxation's optimum, only
+multipliers at which the exact bound is at or below zero. So the cascade has a
+tier between the reused multipliers and the Shor relaxation that looks for them
+directly (`dual_multipliers`): L-BFGS-B (Byrd, Lu, Nocedal and Zhu 1995), with the
+inequality multipliers bounded at zero, on a smoothing of the certificate
+
+    F(y) = b'y + (1 + m) max(0, lambda_max(S(y))),
+
+namely `max {<Z, S> - a/2 ||Z||^2 : Z >= 0, tr Z <= 1 + m}`, within `a (1 + m)^2 / 2`
+of it, whose maximiser projects the eigenvalues of `S / a` onto
+`{z >= 0, sum z <= 1 + m}` (derived here). It starts from the previous size's
+multipliers, shrinks `a` tenfold per stage, stops at the first iterate whose
+unsmoothed `F` is below zero, and gives up after 400 evaluations. The rows
+carrying `c` are divided by a power of two near `max |c|`, as `solve` divides
+them for Clarabel: without it the dual stalled above zero on every GeoLift
+group tried, since those rows are orders of magnitude above the others.
+
+On the 242 recorded root sizes it closed 240 (209 of 210 warm-started, 31 of 32
+cold), at a mean of 0.04 s (median 0.017 s) and at most 309 evaluations, against
+0.37 s for a Shor solve; the exact bound at its multipliers costs another 0.04 s.
+The two it left open went on to Clarabel. With it, the four-geo search
+(`results/cascade.log`, with the y'y of the floor stage in integers):
+
+| run | wall | size certificates | Clarabel solves |
+| --- | --- | --- | --- |
+| before the cascade | 379 s | 246 s | 243, 224 s |
+| reuse, Shor, full | 213 s | 112 s | 207, 103 s |
+| reuse, dual, Shor, full | 131 s | 28 s | 7, 6 s |
+
+The same design is certified in each.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (324 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (369 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
@@ -609,7 +672,8 @@ fixing is certified to the solver's value.
 - `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the float certificates of the hull and the joint lift.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
-- `slopefree.py`: the slope-free relaxation, its certificate and `certify_slope_free()`.
+- `slopefree.py`: the slope-free relaxation, its certificate, the cascade of certificates for one size
+  (`size_certificate`) and `certify_slope_free()`.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
 - `treatment.py`: the search over treatment groups, `certify_treatment()`.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
