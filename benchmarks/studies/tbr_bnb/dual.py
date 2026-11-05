@@ -92,7 +92,7 @@ def spectral_bundle(O, y0, target=None, *, iters=300, r_new=4, r_max=16, u=None,
         for _ in range(gs_passes):
             base = e0 + eta
             lin.value = cobj + B.T @ yh + B.T @ base / u
-            prob.solve(solver=cp.CLARABEL)
+            prob.solve(solver=cp.CLARABEL, max_threads=1)   # fork-safe (slopefree.solve)
             xs = np.asarray(x.value).ravel()
             rr = e0 + B @ xs
             eta_new = np.where(O.ineq, np.maximum(0.0, -u * yh - rr), 0.0)

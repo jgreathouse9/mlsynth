@@ -149,3 +149,54 @@ def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
     out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0, n_jobs=2)
     assert mark.exists() and out.retried >= 1
     assert _answer(out) == _answer(plain)
+
+
+# ---------------------------------------------------------------- Clarabel after a fork
+
+
+def _recorded_size():
+    """A relaxation of the size the four-geo GeoLift search solves (36 controls)."""
+    from . import slopefree as sf
+    from .certificate import ExactData
+
+    M = geo_panel(11, n=90, p=37)
+    D = ExactData(M[:, 0], M[:, 1:])
+    lam = sf.dyadic_below(D.yy / 2)
+    return D.c, D.G, lam, sf.Rows(D.c, 10)
+
+
+def _solve_status(c, G, lam, R):
+    from . import slopefree as sf
+    return sf.solve(c, G, lam, R).status
+
+
+def test_the_relaxation_is_solved_on_one_thread(monkeypatch):
+    """Clarabel's automatic threading (max_threads = 0) starts a native thread pool
+    on a solve of this size, and a worker forked afterwards inherits the pool's
+    state but not its threads: its next solve never returns (the four-geo GeoLift
+    search at n_jobs = 4 hung in its first certification wave that reached
+    Clarabel). The study's parallelism is its processes, so Clarabel runs on one."""
+    import cvxpy as cp
+
+    seen = []
+    real = cp.Problem.solve
+    monkeypatch.setattr(cp.Problem, "solve", lambda self, *a, **k: seen.append(k) or real(self, *a, **k))
+    _solve_status(*_recorded_size())
+    assert seen and all(k.get("max_threads") == 1 for k in seen)
+
+
+def test_a_forked_worker_solves_after_the_parent_has():
+    import os
+    from concurrent.futures import TimeoutError as Timeout
+
+    args = _recorded_size()
+    _solve_status(*args)                     # the parent solves first, as the start group does
+    pool = treatment._pool(1)
+    try:
+        assert pool.submit(_solve_status, *args).result(timeout=120) is not None
+    except Timeout:                          # pragma: no cover - reached only while the hang is back
+        for p in list(pool._processes):
+            os.kill(p, 9)
+        pytest.fail("a worker forked after the parent's solve never returned")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)

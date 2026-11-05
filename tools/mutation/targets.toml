@@ -11967,7 +11967,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12023,6 +12023,12 @@ timeout = 900.0
   find = "    rho = ok[-1] if ok.size else 0       # in doubles none passes when u_1 dwarfs T; the largest is kept\n"
   replace = "    rho = ok[-1]\n"
   models = "the projection's scan trusted in doubles, where an entry far above the cap leaves no index passing and the scan reads an empty array"
+
+  [[target.mutant]]
+  id = "clarabel-starts-its-own-threads"
+  find = "    prob.solve(solver=\"CLARABEL\", max_threads=1)   # a thread pool would hang a worker forked after it\n"
+  replace = "    prob.solve(solver=\"CLARABEL\")   # a thread pool would hang a worker forked after it\n"
+  models = "Clarabel left to its automatic threading, whose native thread pool a forked worker inherits without its threads, so certify_treatment(n_jobs > 1) hangs at its first Clarabel solve in a worker"
 
   [[target.mutant]]
   id = "an-empty-node-is-searched"
