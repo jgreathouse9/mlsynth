@@ -12113,6 +12113,12 @@ timeout = 900.0
   models = "the design of a node with p - m geos fixed out read as its fixed-in geos alone, a design of the wrong size"
 
   [[target.mutant]]
+  id = "the-start-is-ignored"
+  find = "    C = set(start) if start is not None else incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
+  replace = "    C = incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
+  models = "a caller's design ignored and the group searched again"
+
+  [[target.mutant]]
   id = "the-ceiling-does-not-raise-the-test-ratio"
   find = "        test = D.yy - ceiling              # only a design below the ceiling matters\n"
   replace = "        pass\n"
@@ -12210,8 +12216,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "every-group-is-ruled-out"
-  find = "        if not can_compete(yy, floor, *class_of()):\n"
-  replace = "        if True:\n"
+  find = "        if not can_compete(yy, floor, *class_of()):\n            out.screened_out += 1\n"
+  replace = "        if True:\n            out.screened_out += 1\n"
   models = "the screen ruling out every group, so the incumbent is never challenged"
 
   [[target.mutant]]
@@ -12233,6 +12239,30 @@ timeout = 1200.0
   models = "the start group counted twice, once certified and once screened"
 
   [[target.mutant]]
+  id = "the-pass-does-not-adopt-its-best-design"
+  find = "            if key is not None and (out.key is None or key > out.key):\n                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
+  replace = "            if False:\n                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
+  models = "the pass's best local design left unused, so the groups are certified against the start's ceiling"
+
+  [[target.mutant]]
+  id = "the-queue-is-not-ordered"
+  find = "        rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,\n"
+  replace = "        sorted(rows, key=lambda r: (local.get(r[2], (None, None))[1] is None,\n"
+  models = "the groups certified in the floor's order, not best local design first"
+
+  [[target.mutant]]
+  id = "certifications-are-not-seeded"
+  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=seed)\n"
+  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=None)\n"
+  models = "each certification searching its group again, though the pass has already found its design"
+
+  [[target.mutant]]
+  id = "a-gate-failing-local-design-is-taken"
+  find = "    return sorted(C), (key if cu > 0 and all(gates) else None), D.yy - ratio, rest\n"
+  replace = "    return sorted(C), (key if cu > 0 else None), D.yy - ratio, rest\n"
+  models = "a local design that fails a gate taken as the incumbent"
+
+  [[target.mutant]]
   id = "open-groups-are-not-retried"
   find = "        if c is not None and (c_then is None or c < c_then):\n"
   replace = "        if False:\n"
@@ -12252,6 +12282,6 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        c = ceiling(yy, *class_of())\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
-  replace = "        c = None\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  find = "        c = ceiling(yy, *class_of())\n        seed, pass_key = local.get(T, (None, None))\n"
+  replace = "        c = None\n        seed, pass_key = local.get(T, (None, None))\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"

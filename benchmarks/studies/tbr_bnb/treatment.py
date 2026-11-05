@@ -143,6 +143,7 @@ class TreatmentCertificate:
     screened_out: int
     replaced: int = 0                       # times a survivor replaced the incumbent
     searched: int = 0                       # groups given a local search before certification
+    pass_key: Optional[tuple] = None        # the incumbent's key when the pass ends
     retried: int = 0                        # open groups certified again at the final ceiling
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
@@ -245,6 +246,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
             if key is not None and (out.key is None or key > out.key):
                 out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key
                 out.passing = True
+        out.pass_key = out.key
         # best local design first; groups with no passing design after, in correlation-bound order
         rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,
                                  tuple(-v for v in local[r[2]][1]) if local.get(r[2], (None, None))[1] else ()))

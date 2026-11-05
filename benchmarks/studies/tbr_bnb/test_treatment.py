@@ -328,6 +328,18 @@ def test_the_pass_needs_no_more_certifications_than_without_it():
     assert on.replaced <= off.replaced
 
 
+def test_the_pass_adopts_its_best_design_as_the_incumbent():
+    """From the worst passing start, the pass's best local design is the key's optimum
+    on this panel, so it is the incumbent before any group is certified and no
+    certification replaces it."""
+    M = geo_panel(5)
+    key, T, _ = treatment_optimum(M, 2, N_TEST)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
+    assert out.pass_key is not None
+    assert tuple(out.pass_key) == pytest.approx(tuple(key), rel=1e-12)
+    assert out.replaced == 0
+
+
 def test_groups_are_certified_best_local_design_first():
     M = geo_panel(5)
     out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
