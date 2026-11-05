@@ -452,6 +452,19 @@ def test_a_node_with_one_design_is_evaluated_not_bounded(monkeypatch, fixes):
         assert inc["C"] == C and inc["lam"] == cu * cu / (u @ D.G @ u)
 
 
+@pytest.mark.parametrize("fixes", [
+    [(0, 1), (1, 1), (2, 1)],               # more geos fixed in than the size
+    [(0, 0), (1, 0), (2, 0), (3, 0)],       # more fixed out than the size leaves
+])
+def test_a_node_holding_no_design_of_its_size_is_not_counted(monkeypatch, fixes):
+    from . import slopefree
+
+    monkeypatch.setattr(slopefree, "size_certificate", lambda *a, **k: pytest.fail("an empty node was bounded"))
+    y, X = panel(0, p=5)
+    out, inc, _ = _node(y, X, 2, fixes, Q(-1), max_depth=0)
+    assert out.nodes == 0 and out.open == [] and inc["C"] == set()
+
+
 def test_a_one_design_node_below_the_incumbent_is_closed():
     y, X = panel(0, p=5)
     out, inc, _ = _node(y, X, 2, [(0, 1), (1, 1)], Q(10) ** 30, max_depth=0)

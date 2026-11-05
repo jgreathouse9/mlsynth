@@ -11951,6 +11951,12 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py be
 timeout = 900.0
 
   [[target.mutant]]
+  id = "an-empty-node-is-searched"
+  find = "    if ones > m or len(fixes) - ones > p - m:\n        return\n"
+  replace = "    if False:\n        return\n"
+  models = "a node whose fixings leave no design of its size counted and searched, though it holds nothing to certify"
+
+  [[target.mutant]]
   id = "the-shor-rows-drop-the-diagonal"
   find = "        for i in range(p):\n            eq(row((U(i, i), 1), (u(i), -1)), 0)\n"
   replace = "        for i in range(p if full else 0):\n            eq(row((U(i, i), 1), (u(i), -1)), 0)\n"
