@@ -11967,8 +11967,62 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-size-free-rows-admit-the-empty-design"
+  find = "            le(row(*((u(j), -1) for j in range(p))), -1)                      # sum u >= 1\n"
+  replace = ""
+  models = "the size-free rows without sum u >= 1, so u = 0 is feasible, the relaxation's maximum is at least zero, and no group is screened out"
+
+  [[target.mutant]]
+  id = "the-size-free-product-has-the-wrong-sign"
+  find = "le(row(*((u(j), -1) for j in range(p)), (u(i), -1), *((U(i, j), 1) for j in range(p))), -1)"
+  replace = "le(row(*((u(j), -1) for j in range(p)), (u(i), 1), *((U(i, j), 1) for j in range(p))), -1)"
+  models = "a product row that cuts off every design containing geo i, so the screen certifies a relaxation that holds none of them"
+
+  [[target.mutant]]
+  id = "the-group-trace-is-one-size"
+  find = "    return bound(A, R, y_eq, y_in, R.p)\n"
+  replace = "    return bound(A, R, y_eq, y_in, 1)\n"
+  models = "the size-free certificate charged a trace of 2, not 1 + p, so its bound is below the relaxation's maximum"
+
+  [[target.mutant]]
+  id = "a-positive-group-bound-certifies"
+  find = "        if b is not None and b <= 0:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0)\n"
+  replace = "        if b is not None:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0)\n"
+  models = "the dual tier's certificate taken whatever its sign, so a group holding a design below the ceiling is screened out"
+
+  [[target.mutant]]
+  id = "the-screen-has-no-clarabel-tier"
+  find = "    if b is not None and b <= 0:\n        return GroupResult(True, b, \"full\", time.perf_counter() - t0)\n"
+  replace = "    if False:\n        return GroupResult(True, b, \"full\", time.perf_counter() - t0)\n"
+  models = "the screen given up when the first-order multipliers do not close it, so the relaxation's own multipliers are never read"
+
+  [[target.mutant]]
+  id = "the-screen-closes-nothing"
+  find = "        if screen.certified:               # no design of any size is below the ceiling\n"
+  replace = "        if False:                          # no design of any size is below the ceiling\n"
+  models = "the screen's certificate computed and thrown away, so every size is still searched"
+
+  [[target.mutant]]
+  id = "the-screen-runs-without-a-ceiling"
+  find = "    if group_screen and test > lam:\n"
+  replace = "    if group_screen:\n"
+  models = "the screen tried at the incumbent's own ratio, where it can only reprove the incumbent and reports a ceiling held that no caller set"
+
+  [[target.mutant]]
+  id = "the-screen-ignores-its-switch"
+  find = "    if group_screen and test > lam:\n"
+  replace = "    if test > lam:\n"
+  models = "group_screen=False not honoured, so the search without the screen cannot be run for comparison"
+
+  [[target.mutant]]
+  id = "a-held-ceiling-reports-the-ceiling-as-the-incumbent"
+  find = "            return SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=[],"
+  replace = "            return SlopeFreeCertificate(incumbent=D.yy - test, controls=sorted(C), ratio=lam, sizes_after_hull=[],"
+  models = "a group closed by the screen reported at the ceiling, not at its own incumbent's RSS, which no design of it attains"
 
   [[target.mutant]]
   id = "the-dual-certifies-without-the-exact-bound"
