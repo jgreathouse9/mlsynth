@@ -12185,6 +12185,42 @@ timeout = 1200.0
   models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS (the cap and its rounding guard together: the guard alone repairs a small cap)"
 
   [[target.mutant]]
+  id = "the-smallest-denominator-scales-the-sum"
+  find = "    D = max(d for _, d in parts)\n"
+  replace = "    D = min(d for _, d in parts)\n"
+  models = "the common denominator taken as the smallest, so D // d truncates to zero for every finer double and y'y loses those terms"
+
+  [[target.mutant]]
+  id = "the-scaled-numerator-is-not-squared"
+  find = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D * D)\n"
+  replace = "    return Q(sum(n * (D // d) ** 2 for n, d in parts), D * D)\n"
+  models = "the square applied to the scale alone, so y'y is the sum of n (D/d)^2, not of (n D/d)^2"
+
+  [[target.mutant]]
+  id = "the-common-denominator-is-not-squared"
+  find = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D * D)\n"
+  replace = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D)\n"
+  models = "the sum of squared numerators divided by D, not D^2, so y'y is D times too large"
+
+  [[target.mutant]]
+  id = "a-non-finite-entry-is-not-reported"
+  find = "    except (OverflowError, ValueError) as exc:\n"
+  replace = "    except ZeroDivisionError as exc:\n"
+  models = "an infinite or missing entry of the treatment series escaping as Python's OverflowError or ValueError, not the study's data error"
+
+  [[target.mutant]]
+  id = "the-screen-computes-yy-twice"
+  find = "        rows.append((rss_floor(M, T, lam, yy=yy), yy, T))\n"
+  replace = "        rows.append((rss_floor(M, T, lam), yy, T))\n"
+  models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
+
+  [[target.mutant]]
+  id = "the-floor-ignores-a-given-yy"
+  find = "    if yy is None:\n        yy = square_sum(y)\n"
+  replace = "    yy = square_sum(y)\n"
+  models = "the floor recomputing y'y whatever it is given, so the screen's copy is never read and the stage pays for y'y twice"
+
+  [[target.mutant]]
   id = "a-group-above-the-class-is-ruled-out-on-rss"
   find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
   replace = "    return min(rss_star, yy * (1 - low * low))\n"
