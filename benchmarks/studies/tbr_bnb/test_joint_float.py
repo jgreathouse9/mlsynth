@@ -285,15 +285,20 @@ def test_an_infinite_float_bound_falls_back_to_the_exact_one(monkeypatch):
 @SETTINGS
 @given(lo=st.floats(0.0, 1.0), width=st.floats(1e-6, 5.0))
 @example(lo=2.225073858507203e-309, width=1.0)
+@example(lo=1.7558521295436744e-155, width=1.0)
 def test_property_the_coefficients_round_once(lo, width):
     """Each coefficient is lo, hi, 1, or a single product of two of them, so it is
-    within u of its exact value, unless lo^2 underflows; then kappa is infinite
-    and the float bound gives up."""
+    within u of its exact value, unless lo^2 underflows. A product that underflows
+    to a subnormal keeps fewer digits, so kappa, the exact relative error, can
+    exceed u (lo = 1.76e-155 gives 4.3e-15), and it is infinite above 1/4, where
+    the float bound gives up; lo^2 rounding to zero is that case."""
     kappa = _coef_error(lo, lo + width)
     if lo == 0 or lo * lo >= 2.0 ** -1022:
         assert kappa <= U
-    else:
+    elif lo * lo == 0:
         assert kappa == np.inf
+    else:
+        assert kappa == np.inf or kappa <= 0.25
 
 
 def test_an_underflowing_coefficient_gives_no_float_bound():
