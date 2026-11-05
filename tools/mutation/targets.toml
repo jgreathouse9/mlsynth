@@ -12311,6 +12311,12 @@ timeout = 1200.0
   models = "an open group retried against the ceiling it already failed, not the final incumbent's"
 
   [[target.mutant]]
+  id = "a-retried-optimum-is-not-taken"
+  find = "            if res.passing and res.key > out.key:\n                take(T, res, C)\n"
+  replace = "            if False:\n                take(T, res, C)\n"
+  models = "a group whose optimum is found only on its retry left out of the incumbent, so the search reports a worse design as certified"
+
+  [[target.mutant]]
   id = "a-group-still-open-reads-as-certified"
   find = "                continue\n        out.certified = False\n"
   replace = "                continue\n        pass\n"

@@ -356,6 +356,33 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     assert out.key == plain.key
 
 
+def test_a_retried_group_can_replace_the_incumbent(monkeypatch):
+    """The winning group cut short on its turn, before its passing design is found:
+    the groups after it lower the ceiling, so it is retried, and its optimum, found
+    on the retry, replaces the incumbent."""
+    from . import treatment as tr
+
+    M = geo_panel(5)
+    start = _worst_passing(M)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    turn = 1 + [s["treatment"] for s in plain.survivors].index(sorted(plain.treatment))
+    assert turn > 1                                     # the winner is not the start
+    real = tr.certify_gated
+    calls = []
+
+    def wrapped(y, X, *a, **kw):
+        res = real(y, X, *a, **kw)
+        calls.append(1)
+        if len(calls) == turn:
+            res.certified, res.passing = False, False
+        return res
+
+    monkeypatch.setattr(tr, "certify_gated", wrapped)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    assert out.certified and out.retried == 1
+    assert out.key == plain.key and sorted(out.treatment) == sorted(plain.treatment)
+
+
 def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkeypatch):
     M = geo_panel(5)
     start = _worst_passing(M)
