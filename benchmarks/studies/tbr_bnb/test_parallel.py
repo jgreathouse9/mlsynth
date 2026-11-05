@@ -111,6 +111,15 @@ def test_the_floors_are_the_same_in_chunks():
 # ---------------------------------------------------------------- edges and failures
 
 
+def test_a_pool_maps_in_order_as_this_process_does():
+    """_star unpacks a job's arguments in the worker; called here too, so its line is
+    measured in this process."""
+    argss = [(3, 1), (1, 4), (5, 9), (2, 6)]
+    assert treatment._star(divmod, (7, 2)) == divmod(7, 2)
+    with treatment._pool(2) as pool:
+        assert treatment._map(pool, divmod, argss) == treatment._map(None, divmod, argss)
+
+
 def test_one_job_starts_no_pool(monkeypatch):
     monkeypatch.setattr(treatment, "_pool", lambda n: pytest.fail("a pool was started for one job"))
     out = certify_treatment(geo_panel(3, p=5), 1, n_test=N_TEST, restarts=5, n_jobs=1)
