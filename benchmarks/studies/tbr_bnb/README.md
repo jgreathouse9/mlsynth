@@ -570,6 +570,49 @@ The two it left open went on to Clarabel. With it, the four-geo search
 
 The same design is certified in each.
 
+## One certificate for every size
+
+The treatment search's floor (`rss_floor`) is a nonnegative least-squares fit:
+any nonnegative weighting of the controls, a relaxation of the shared slope on
+an equal-weight control group. On the 32 groups that survive it at four geos
+the floor sits 15-40% below each group's best design. Two tighter relaxations in
+the weights alone, the convex hull of the equal-weight designs of each size and
+the same hull with a slope cap for each size (taken optimistically from a greedy
+bound on u'Gu), gave the NNLS value on all 32 and ruled out none. The convex hull
+of {b u} holds every mixture of one-control designs, the NNLS fit is one, and a
+relaxation in w scores the objective at the mixture, below the mixed designs'
+own values (derived here). So any relaxation that admits unequal weights is at
+most the floor: the rank-one and 2 x 2 convexifications for indicators
+(Atamtürk and Gómez 2025; Han, Gómez and Atamtürk 2023) relax a problem whose
+optimum, without a cardinality constraint, is the NNLS value.
+
+A tighter bound has to know u_j^2 = u_j. The slope-free search already holds
+one, size by size: the ratio test u'(cc' - lam G)u <= 0 (Dinkelbach 1967) over
+the semidefinite relaxation with the bound products. Asked only whether any
+design of a group is below a ceiling, `certify_slope_free` now first tries that
+relaxation once for every size (`group_certificate`): the rows of `Rows(c,
+None)`, in which sum u >= 1 and its products with 1 - u_i, (sum u - 1)(1 - u_i)
+>= 0, replace the size equality and its products, and a trace bound of 1 + p.
+The first-order multipliers are tried first and Clarabel's after, and the exact
+certificate decides. When it is at most zero no design of any size is below
+the ceiling, and neither the hull stage nor a size is searched. Without the
+bound products the same relaxation ruled out none of the 32 groups.
+
+On the 32 recorded survivors the certificate closed 31, 27 of them through the
+first-order multipliers at about 0.25 s a group and 4 through Clarabel at about
+2 s. The one it leaves open is the group of the certified optimum, which no
+certificate can close. End to end on GeoLift at four geos
+(`results/group_screen.log`, `main` and this branch on one host):
+
+| `n_jobs` | `main` | with the group screen | the design |
+| --- | --- | --- | --- |
+| 1 | 168.6 s | 121.8 s | austin, dallas, minneapolis, reno |
+| 4 | 72.9 s | 60.4 s | the same, key and RSS equal |
+
+The screen runs inside the worker that certifies the group, in parallel with the
+rest of its wave. The gain at four processes, 17% against 28% at one, has not
+been decomposed.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -609,12 +652,12 @@ process.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (378 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (424 tests, about 75 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 136 mutants of the 22
-`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
+but for the lines marked `pragma: no cover`, each with its reason. The 185 mutants of the 22
+`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for two recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
 `lambda_min(S)` is near zero, so the trace barely moves the bound), a negative
