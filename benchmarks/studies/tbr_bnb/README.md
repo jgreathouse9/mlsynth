@@ -564,7 +564,7 @@ The same design is certified in each.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (343 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (369 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
