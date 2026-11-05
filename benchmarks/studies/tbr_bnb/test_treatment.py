@@ -97,7 +97,7 @@ def test_a_better_group_replaces_a_poor_start():
             own[t] = res.key
     worst = min(own, key=own.get)
     assert set(worst) != T and own[worst] < tuple(key)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=list(worst), restarts=5)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=list(worst), restarts=5, pass_restarts=0)
     assert out.certified and set(out.treatment) == T
     assert tuple(out.key) == pytest.approx(tuple(key), rel=1e-12)
     assert out.replaced >= 1
@@ -289,10 +289,10 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     when the incumbent improved since: the search is certified once it closes."""
     M = geo_panel(5)
     start = _worst_passing(M)
-    plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert plain.replaced >= 1                           # the incumbent improves during the search
     seen = _flaky(monkeypatch, {2})                      # the first survivor after the start
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert out.certified and out.retried == 1
     assert seen[-1] is not None and seen[-1] < seen[1]  # retried at a lower ceiling
     assert out.key == plain.key
@@ -301,11 +301,75 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
 def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkeypatch):
     M = geo_panel(5)
     start = _worst_passing(M)
-    calls = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    calls = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     n = len(calls.survivors)
     seen = _flaky(monkeypatch, {2, n + 1})               # open on its turn and on its retry
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert not out.certified and out.retried == 1
+
+
+# ---------------------------------------------------------------- the pass and the queue
+
+
+def test_the_pass_needs_no_more_certifications_than_without_it():
+    """From a poor start, a local search in every group the start keeps finds a better
+    incumbent before anything is certified, so no more groups need certifying, and the
+    answer is the key's optimum either way."""
+    M = geo_panel(5)
+    start = _worst_passing(M)
+    key, T, _ = treatment_optimum(M, 2, N_TEST)
+    off = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    on = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10)
+    for out in (off, on):
+        assert out.certified and set(out.treatment) == T
+        assert tuple(out.key) == pytest.approx(tuple(key), rel=1e-12)
+    assert off.searched == 0 and on.searched >= 1
+    assert len(on.survivors) <= len(off.survivors)
+    assert on.replaced <= off.replaced
+
+
+def test_the_pass_adopts_its_best_design_as_the_incumbent():
+    """From the worst passing start, the pass's best local design is the key's optimum
+    on this panel, so it is the incumbent before any group is certified and no
+    certification replaces it."""
+    M = geo_panel(5)
+    key, T, _ = treatment_optimum(M, 2, N_TEST)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
+    assert out.pass_key is not None
+    assert tuple(out.pass_key) == pytest.approx(tuple(key), rel=1e-12)
+    assert out.replaced == 0
+
+
+def test_groups_are_certified_best_local_design_first():
+    M = geo_panel(5)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
+    keys = [s["pass_key"] for s in out.survivors if not s.get("start")]
+    passing = [k for k in keys if k is not None]
+    assert passing == sorted(passing, reverse=True)
+    assert all(k is None for k in keys[len(passing):])     # groups with no passing local design last
+
+
+def test_each_certification_starts_from_its_groups_local_design(monkeypatch):
+    from . import treatment as tr
+
+    real = tr.certify_gated
+    seen = []
+
+    def spy(y, X, *a, start=None, **kw):
+        seen.append(start)
+        return real(y, X, *a, start=start, **kw)
+
+    monkeypatch.setattr(tr, "certify_gated", spy)
+    M = geo_panel(5)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
+    assert len(seen) == len(out.survivors) >= 2
+    assert seen[0] is None                                # the start group, before the pass
+    assert all(s is not None and len(s) >= 1 for s in seen[1:])
+
+
+def test_a_negative_pass_is_refused():
+    with pytest.raises(MlsynthDataError, match="pass_restarts"):
+        certify_treatment(geo_panel(0), 2, n_test=N_TEST, pass_restarts=-1)
 
 
 def test_a_refused_certificate_is_reported(monkeypatch):

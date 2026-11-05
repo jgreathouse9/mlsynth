@@ -428,6 +428,45 @@ Three things were found on the way, each from a run that came back uncertified.
   so their certificates stand. The four-geo row is a single search with one such
   retry.
 
+## The queue
+
+Most of the four-geo search above certifies groups that cannot win: the
+winner (austin, dallas, minneapolis, reno) was the 89th of 93 survivors
+certified, so most were certified against an earlier incumbent's ceiling, a
+higher one. With the final incumbent from the start, the floor alone rules out
+61 of the 93, and 382 of the 383 sizes that reach the relaxation close at the
+root (measured on the 93, at the final ceiling, without triangles). The bound
+is tight enough; the incumbent arrives late.
+
+So before any group is certified, every group the start incumbent leaves gets
+a local search of `pass_restarts` random starts (the study's RSS descent,
+`search.incumbent`), the best passing design becomes the incumbent, the groups
+are certified best local design first (the reference key's order: rounded
+correlation, then RSS), and each certification starts from its group's local
+design (`certify_slope_free(..., start=)`) instead of searching again. A
+certification still proves its group's claim against the ceiling of its turn,
+so the order changes the work, never the answer.
+
+Ten restarts are the fewest that give the four-geo optimum's own design: on
+the 93 survivors, 10 restarts reach the 50-restart design in 48 groups and the
+same best design overall, 5 restarts reach the winning group with a weaker
+design (`1 / required_impact` 0.000531 against 0.000542), and one descent from
+the rounded support of the group's nonnegative least squares reaches another
+group (0.000526): its support is a weighted fit's, and rounded to equal weights
+it is a poor start. At four geos (`results/queue.log`):
+
+| | total | certifications | groups certified | incumbent replaced | groups retried |
+| --- | --- | --- | --- | --- | --- |
+| without the pass | 1,117 s | 1,043 s | 93 | 3 | 1 |
+| with the pass, 10 restarts | 371 s | 274 s | 33 | 0 | 0 |
+
+The pass searches 90 groups in about 45 s, and its best design is already the
+certified optimum, so the incumbent is never replaced and no group is left
+open. On 15 markets with three treated (455 groups) both searches certify the
+optimum found by enumeration of all 1.9 million designs (austin, baton rouge,
+dallas; 0.99 and 0.000518) in 1.4-1.6 s, the start incumbent there being
+already near it.
+
 ## Pricing
 
 A node whose subtree holds few designs is priced instead of bounded, as in
@@ -459,11 +498,11 @@ priced path against enumeration and that both paths certify the same design.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (315 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (324 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 128 mutants of the 22
+but for the lines marked `pragma: no cover`, each with its reason. The 136 mutants of the 22
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for one recorded as equivalent with its reason. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

@@ -481,7 +481,8 @@ def _best_neighbour(c, G, seeds, excluded):
 def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
                        hull: bool = True, exclude: Sequence[Set[int]] = (),
-                       ceiling: Optional[Q] = None) -> SlopeFreeCertificate:
+                       ceiling: Optional[Q] = None,
+                       start: Optional[Set[int]] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -491,6 +492,9 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     every size none of whose slope pieces survives it; each remaining size is
     certified by the slope-free relaxation at the incumbent's ratio, with a no-good
     cut for each excluded design and triangle cuts, and branched on where it is not.
+
+    A caller that already holds a design passes it as ``start``, and it replaces the
+    RSS descent's (the treatment search's pass has already searched the group).
 
     With a ``ceiling`` above the incumbent's RSS the question is narrower: whether any
     design has an RSS below the ceiling. Each size is then tested at the ratio
@@ -504,7 +508,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     t_all = time.perf_counter()
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
-    _, C = incumbent(y, X, restarts=restarts, seed=seed)
+    C = set(start) if start is not None else incumbent(y, X, restarts=restarts, seed=seed)[1]
     D = ExactData(y, X)
     c, G = D.c, D.G
     cu, lam = _ratio(c, G, C)
