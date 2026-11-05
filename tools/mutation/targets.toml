@@ -3992,6 +3992,26 @@ test-command = "python -m pytest benchmarks/tests/test_case_deps_imports.py benc
 timeout = 300.0
 
   [[target.mutant]]
+  id = "the-first-graph-read-is-kept-for-every-tree"
+  find = """@lru_cache(maxsize=4)
+def _shipped_graph(root: Path) -> Dict[str, FrozenSet[str]] | None:
+    \"\"\"The graph of the tree at ``root``, read once per process and kept by root:
+    a test that points ``PATH`` at a temporary tree gets that tree's graph, and
+    the checked-out tree's graph is not replaced by it.\"\"\"
+    return import_graph(root)"""
+  replace = """_memo: list = []
+
+
+def _shipped_graph(root: Path) -> Dict[str, FrozenSet[str]] | None:
+    if not _memo:
+        _memo.append(import_graph(root))
+    return _memo[0]
+
+
+_shipped_graph.cache_clear = _memo.clear"""
+  models = "the cache #983 tripped over: the first graph read is kept whatever tree it was read from, so a test that reads a temporary tree's graph first leaves {} for the shipped one in that worker"
+
+  [[target.mutant]]
   id = "importers-are-ignored"
   find = "            claimed = importers_of(c, graph) & known"
   replace = "            claimed = frozenset()"
