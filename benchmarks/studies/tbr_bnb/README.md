@@ -370,8 +370,11 @@ group of the size, every geo eligible for every role:
    group: a group's control Gram matrix is a principal submatrix of the full one,
    whose smallest eigenvalue is at least the full matrix's (the interlacing
    inequalities, Hogben 2007, Sect. 8.2, Fact 5, once per deleted row). The
-   floor costs about 0.5 ms a group and sits within 1e-8 (relative) of the NNLS
-   value.
+   floor sits within 1e-8 (relative) of the NNLS value. Each group's `y'y` is
+   computed once, exactly, in integers (`square_sum`: every finite double is an
+   integer over a power of two); as a sum of Fractions, computed twice, it was 70%
+   of the stage. The stage, `y'y` and the floor for each of the 91,390 groups at
+   four geos, takes 17 s, 0.18 ms a group, where it took 49 s.
 3. A group whose floor rules it out is skipped (`can_compete`): every design's
    `corr^2 = 1 - RSS / y'y`, so the floor bounds the group's correlation, and a
    group that cannot reach the incumbent's rounded class, or can reach it only
