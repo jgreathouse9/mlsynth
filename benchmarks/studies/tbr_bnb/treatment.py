@@ -68,7 +68,7 @@ from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .certificate import hull_bound_float, qarr
-from .gated import certify_gated
+from .gated import certify_gated, gates_of
 
 #: Half a step of round(corr, 2), and the slack for the key's correlation being a double.
 EDGE = Q(5, 1000)
@@ -142,6 +142,7 @@ class TreatmentCertificate:
     groups: int
     screened_out: int
     replaced: int = 0                       # times a survivor replaced the incumbent
+    searched: int = 0                       # groups given a local search before certification
     retried: int = 0                        # open groups certified again at the final ceiling
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
@@ -164,24 +165,44 @@ def _yy(M, T):
     return sum(Q(v) ** 2 for v in y.tolist())
 
 
-def _optimum(M, T, n_test, restarts, ceiling=None):
+def _local(M, T, n_test, restarts):
+    """The study's RSS descent in group T from ``restarts`` random starts: its design
+    (indices into the group's controls), the reference key when the design has a
+    positive slope and passes the four gates (else None), and its exact RSS."""
+    from .certificate import ExactData
+    from .search import incumbent
+    from .slopefree import _ratio
+
     y, X, rest = _split(M, T)
-    res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling)
+    _, C = incumbent(y, X, restarts=restarts)
+    D = ExactData(y, X)
+    cu, ratio = _ratio(D.c, D.G, C)
+    gates, key = gates_of(y, X, C, n_test)
+    return sorted(C), (key if cu > 0 and all(gates) else None), D.yy - ratio, rest
+
+
+def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
+    y, X, rest = _split(M, T)
+    kw = {} if start is None else {"start": set(start)}
+    res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling, **kw)
     C = [rest[j] for j in res.controls] if res.passing else None
     return res, C
 
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
-                      restarts: int = 50) -> TreatmentCertificate:
+                      restarts: int = 50, pass_restarts: int = 10) -> TreatmentCertificate:
     """The reference key's best design with ``k`` treatment geos over the columns of
     ``M`` (centred, periods by geos, every geo eligible for every role), certified
-    (module docstring)."""
+    (module docstring). ``pass_restarts`` random starts for the local search each
+    surviving group gets before any is certified; 0 skips the pass."""
     t0 = time.perf_counter()
     M = np.asarray(M, dtype=float)
     p = M.shape[1]
     if not 1 <= k <= p - 1:
         raise MlsynthDataError(f"a treatment group of {k} geos leaves no control among {p} geos; "
                                f"k has to be between 1 and {p - 1}.")
+    if pass_restarts < 0:
+        raise MlsynthDataError(f"pass_restarts is {pass_restarts}; it cannot be negative.")
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
     T0 = sorted(start) if start is not None else sorted(_start(M, k, n_test, restarts))
@@ -213,18 +234,34 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     def class_of():
         return (None, None) if out.key is None else (Q(out.key[4]), out.rss)
 
+    local = {}                              # the pass: group -> (design, key or None)
+    if pass_restarts:
+        for floor, yy, T in rows:
+            if not can_compete(yy, floor, *class_of()):
+                continue
+            C, key, rss, rest = _local(M, T, n_test, pass_restarts)
+            local[T] = (C, key)
+            out.searched += 1
+            if key is not None and (out.key is None or key > out.key):
+                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key
+                out.passing = True
+        # best local design first; groups with no passing design after, in correlation-bound order
+        rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,
+                                 tuple(-v for v in local[r[2]][1]) if local.get(r[2], (None, None))[1] else ()))
+
     for floor, yy, T in rows:
         if not can_compete(yy, floor, *class_of()):
             out.screened_out += 1
             continue
         t1 = time.perf_counter()
         c = ceiling(yy, *class_of())
-        res, C = _optimum(M, T, n_test, restarts, ceiling=c)
+        seed, pass_key = local.get(T, (None, None))
+        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=seed)
         if not res.certified:
             left_open.append((list(T), yy, c))
         out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
                                   key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                                  seconds=time.perf_counter() - t1))
+                                  pass_key=pass_key, seconds=time.perf_counter() - t1))
         if res.passing and (out.key is None or res.key > out.key):
             take(T, res, C)
             out.replaced += 1

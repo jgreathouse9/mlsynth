@@ -455,3 +455,31 @@ def test_a_one_design_node_below_the_incumbent_is_closed():
     y, X = panel(0, p=5)
     out, inc, _ = _node(y, X, 2, [(0, 1), (1, 1)], Q(10) ** 30, max_depth=0)
     assert out.nodes == 1 and out.open == [] and inc["C"] == set()
+
+
+# ---------------------------------------------------------------- a given start
+
+
+def test_a_given_start_replaces_the_local_search(monkeypatch):
+    """A caller that already holds a design hands it over, and the certificate starts
+    from it without searching again."""
+    from . import search
+
+    y, X = panel(0, p=6)
+    best, C = positive_optimum(y, X)
+    monkeypatch.setattr(search, "incumbent", lambda *a, **k: pytest.fail("the start was searched again"))
+    out = certify_slope_free(y, X, start=C)
+    assert out.certified and set(out.controls) == C
+    assert float(out.incumbent) == pytest.approx(best, rel=1e-9)
+
+
+def test_a_poor_start_still_reaches_the_optimum(monkeypatch):
+    """From a poor start the certificate cannot close at the start's ratio, branches,
+    and adopts the optimum on the way."""
+    y, X = panel(1, p=5)
+    best, C = positive_optimum(y, X)
+    D = ExactData(y, X)
+    worst = min((j for j in range(5) if D.c[j] > 0), key=lambda j: D.c[j] ** 2 / D.G[j, j])
+    assert {worst} != C
+    out = certify_slope_free(y, X, start={worst}, hull=False)
+    assert out.certified and set(out.controls) == C
