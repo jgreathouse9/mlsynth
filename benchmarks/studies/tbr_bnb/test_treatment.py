@@ -22,7 +22,7 @@ from .certificate import ExactData
 from .gated import certify_gated
 from . import treatment
 from .treatment import (EDGE, SLACK, _split, can_compete, ceiling, certify_treatment,
-                        gram_floor, rss_floor, square_sum)
+                        design_moments, gram_floor, rss_floor, square_sum)
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -254,6 +254,91 @@ def test_the_screen_computes_yy_once_per_group(monkeypatch):
     assert out.certified
     # once for each group the screen reads, and once for the start group if it is left open
     assert len(calls) <= out.groups
+
+
+# ---------------------------------------------------------------- one design's moments in integers
+
+
+def _fraction_moments(y, X, C):
+    D = ExactData(y, X)
+    u = np.zeros(X.shape[1], dtype=object); u[:] = Q(0); u[sorted(C)] = Q(1)
+    return D.c @ u, u @ D.G @ u, D.yy
+
+
+def test_smoke_design_moments_are_exact_on_a_panel():
+    M = geo_panel(4, p=7)
+    y, X, _ = _split(M, (0, 3))
+    for C in ({0}, {1, 4}, {0, 2, 3}, set(range(5))):
+        got = design_moments(y, X, C)
+        assert all(isinstance(v, Q) for v in got)
+        assert got == _fraction_moments(y, X, C)
+
+
+@given(seed=st.integers(0, 10_000), scale=st.sampled_from([1e-300, 1e-6, 1.0, 1e6, 1e150]),
+       cols=st.sets(st.integers(0, 4), min_size=1))
+@settings(max_examples=150, deadline=None)
+def test_property_design_moments_match_the_fraction_arithmetic(seed, scale, cols):
+    rng = np.random.default_rng(seed)
+    y = rng.normal(size=9) * scale
+    X = rng.normal(size=(9, 5)) * scale
+    assert design_moments(y, X, cols) == _fraction_moments(y, X, cols)
+
+
+def test_design_moments_of_a_negative_slope():
+    """c'u < 0 is returned as it is: the caller decides what a negative slope means."""
+    y = np.array([1.0, -2.0, 0.5]); X = -np.column_stack([y, y * 0.5])
+    cu, uGu, yy = design_moments(y, X, {0, 1})
+    assert cu < 0 and uGu > 0 and yy == square_sum(y)
+
+
+def test_design_moments_of_an_empty_design_raise():
+    y = np.ones(3); X = np.ones((3, 2))
+    with pytest.raises(MlsynthDataError, match="no control"):
+        design_moments(y, X, set())
+
+
+@pytest.mark.parametrize("bad", [np.inf, np.nan])
+def test_design_moments_of_a_non_finite_column_raise(bad):
+    y = np.ones(3); X = np.ones((3, 2)); X[1, 1] = bad
+    with pytest.raises(MlsynthDataError, match="finite"):
+        design_moments(y, X, {1})
+
+
+def test_the_pass_scores_its_design_without_the_exact_gram(monkeypatch):
+    """The pass needs one design's c'u, u'Gu and y'y, not the group's whole exact
+    Gram, which took 0.17 s of its 0.5 s a group on GeoLift."""
+    from . import certificate
+
+    M = geo_panel(2, p=6)
+    T = (0, 1)
+    want = treatment._local(M, T, N_TEST, 3)
+    monkeypatch.setattr(certificate, "ExactData", lambda *a, **k: pytest.fail("the pass built the exact Gram"))
+    got = treatment._local(M, T, N_TEST, 3)
+    assert got == want
+
+
+def test_the_pass_reports_the_exact_rss_of_its_design():
+    M = geo_panel(3, p=6)
+    T = (2, 5)
+    C, _, rss, rest = treatment._local(M, T, N_TEST, 3)
+    y, X, _ = _split(M, T)
+    cu, uGu, yy = _fraction_moments(y, X, C)
+    assert rss == (yy - cu * cu / uGu if cu > 0 else yy)
+
+
+def test_a_pass_design_with_a_negative_slope_has_the_rss_of_no_fit(monkeypatch):
+    """A design whose c'u is not positive has no positive slope: its RSS is y'y and
+    it carries no key, whatever its gates."""
+    from . import search
+
+    M = geo_panel(2, p=6)
+    T = (0, 1)
+    y, X, _ = _split(M, T)
+    D = ExactData(y, X)
+    neg = next(j for j in range(X.shape[1]) if D.c[j] < 0)
+    monkeypatch.setattr(search, "incumbent", lambda *a, **k: (0.0, {neg}))
+    C, key, rss, _ = treatment._local(M, T, N_TEST, 3)
+    assert C == [neg] and key is None and rss == D.yy
 
 
 def test_a_singular_gram_gives_no_floor_and_rules_nothing_out():
