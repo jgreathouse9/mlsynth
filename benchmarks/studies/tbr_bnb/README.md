@@ -250,7 +250,9 @@ joint lift's 73 by 73. Its constraints are `diag U = u`, the products of
 `0 <= u <= 1` (Sherali and Adams 1990), the size and the slope sign `c'u >= 0`
 with their products, a no-good cut on the incumbent at every size, and triangle
 inequalities (Padberg 1989) added where the relaxation's solution violates
-them. The certificate is the Lagrangian dual at Clarabel's multipliers, summed
+them. The certificate is the Lagrangian dual at Clarabel's multipliers (the
+weak-duality argument of the S-procedure; Boyd, El Ghaoui, Feron and Balakrishnan
+1994, Sect. 2.6.3), summed
 in rationals, with the trace of the lifted matrix exactly `1 + m`. The slope
 pieces, the Shor stage and the joint lift's node solver are not used; the hull
 stage runs first and rules out every size none of whose pieces survive it.
@@ -366,7 +368,8 @@ group of the size, every geo eligible for every role:
    with `lo = 0` and the size constraint slack) bounds it from below at the NNLS
    point. The cap is `ExactData.slope_cap`'s, with one eigenvalue floor for every
    group: a group's control Gram matrix is a principal submatrix of the full one,
-   whose smallest eigenvalue is at least the full matrix's (derived here). The
+   whose smallest eigenvalue is at least the full matrix's (the interlacing
+   inequalities, Hogben 2007, Sect. 8.2, Fact 5, once per deleted row). The
    floor costs about 0.5 ms a group and sits within 1e-8 (relative) of the NNLS
    value.
 3. A group whose floor rules it out is skipped (`can_compete`): every design's
@@ -389,6 +392,7 @@ On GeoLift (`n_test = 14`, `results/treatment.log`):
 | 1 | 40 | 39 | 1 | 14 | dallas | 0.99 | 0.001283 |
 | 2 | 780 | 770 | 10 | 172 | dallas, milwaukee | 1.00 | 0.000652 |
 | 3 | 9,880 | 9,869 | 11 | 410 | austin, dallas, jacksonville | 1.00 | 0.000631 |
+| 4 | 91,390 | 91,297 | 93 | 1,117 | austin, dallas, minneapolis, reno | 1.00 | 0.000542 |
 
 The reference implementation's designs (`benchmarks/cases/tbrmm.py`) round to
 0.99 at every size, with `1 / required_impact` of 0.000999, 0.000450, 0.000433
@@ -415,10 +419,14 @@ Three things were found on the way, each from a run that came back uncertified.
   now evaluated as its one design; with that, the group's own optimum certifies
   in 81 s, and its branching finds a design better than the local search's (RSS
   2.754e6 against 2.759e6).
-- A first run at four geos certified 92 of its 93 survivors; the last was
-  certified in a second call against the final incumbent's ceiling, a stronger
-  claim than the one its own run had attempted. The run in the table is a single
-  search.
+- At four geos two runs certified 92 of the 93 survivors and left one open
+  (austin, dallas, jacksonville, reno, 149-170 s): its turn came against an
+  earlier incumbent's ceiling. Against the final incumbent's, lower and so a
+  weaker claim, it closes in 34 s. The search now certifies every group left open
+  again once all groups are read, when the ceiling has fallen since its turn; the
+  groups that closed on their turn were proved against ceilings at least as high,
+  so their certificates stand. The four-geo row is a single search with one such
+  retry.
 
 ## Pricing
 
@@ -592,11 +600,14 @@ fixing is certified to the solver's value.
   quadratic optimization with indicator variables. Math. Program. 202, 95-134.
 - Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the
   optimal value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
+- Boyd, S., El Ghaoui, L., Feron, E. and Balakrishnan, V. (1994). Linear Matrix
+  Inequalities in System and Control Theory. SIAM.
 - Boyd, S. and Vandenberghe, L. (2004). Convex Optimization. Cambridge.
 - Lawson, C. L. and Hanson, R. J. (1974). Solving Least Squares Problems.
   Prentice-Hall.
 - Dantzig, G. B. (1957). Discrete-variable extremum problems. Oper. Res. 5,
   266-288.
+- Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 - Horn, R. A. and Johnson, C. R. (2013). Matrix Analysis, 2nd ed. Cambridge.
 - Helmberg, C. and Kiwiel, K. C. (2002). A spectral bundle method with bounds.
   Math. Program. 93, 173-194.

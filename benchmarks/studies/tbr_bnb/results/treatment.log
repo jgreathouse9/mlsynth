@@ -1,0 +1,122 @@
+# certify_treatment on the GeoLift window at 2cdeb749 (k = 1-3 at cdc44a96, whose search is the same but for the
+# retry of groups left open, which none of k = 1-3 needed), n_test = 14, restarts = 50, BLAS on one thread, other
+# runs sharing the four cores. Each survivor line: its group, whether certified, and its own passing key.
+[k=1] certified True passing True treatment ['dallas'] controls ['chicago', 'denver', 'memphis', 'washington'] key (1, 1, 1, 1, 0.99, 0.001283157690787248) groups 40 screened_out 39 survivors 1 replaced 0 certifications 8s total 14s
+   ['dallas'] certified True stopped False rounds 1 passing True key (1, 1, 1, 1, 0.99, 0.001283157690787248) 8.1s
+[k=2] certified True passing True treatment ['dallas', 'milwaukee'] controls ['austin', 'boston', 'chicago', 'jacksonville', 'kansas city', 'memphis', 'new orleans', 'san diego', 'tucson'] key (1, 1, 1, 1, 1.0, 0.0006520306466373055) groups 780 screened_out 770 survivors 10 replaced 0 certifications 165s total 172s
+   ['dallas', 'milwaukee'] certified True stopped False rounds 1 passing True key (1, 1, 1, 1, 1.0, 0.0006520306466373055) 35.1s
+   ['denver', 'milwaukee'] certified True stopped True rounds 0 passing False key None 21.7s
+   ['cleveland', 'dallas'] certified True stopped True rounds 0 passing False key None 14.5s
+   ['denver', 'jacksonville'] certified True stopped True rounds 0 passing False key None 27.0s
+   ['chicago', 'washington'] certified True stopped True rounds 0 passing False key None 16.5s
+   ['jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 17.2s
+   ['chicago', 'denver'] certified True stopped True rounds 0 passing False key None 4.9s
+   ['chicago', 'jacksonville'] certified True stopped True rounds 0 passing False key None 11.5s
+   ['dallas', 'jacksonville'] certified True stopped True rounds 0 passing False key None 7.1s
+   ['austin', 'dallas'] certified True stopped True rounds 0 passing False key None 9.6s
+[k=3] certified True passing True treatment ['austin', 'dallas', 'jacksonville'] controls ['baltimore', 'boston', 'cincinnati', 'denver', 'detroit', 'indianapolis', 'kansas city', 'memphis', 'milwaukee', 'minneapolis', 'new orleans', 'oklahoma city', 'orlando', 'washington'] key (1, 1, 1, 1, 1.0, 0.0006306078837376914) groups 9880 screened_out 9869 survivors 11 replaced 0 certifications 394s total 410s
+   ['austin', 'dallas', 'jacksonville'] certified True stopped False rounds 3 passing True key (1, 1, 1, 1, 1.0, 0.0006306078837376914) 195.7s
+   ['dallas', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 10.9s
+   ['austin', 'denver', 'new orleans'] certified True stopped True rounds 0 passing False key None 15.5s
+   ['chicago', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 35.8s
+   ['chicago', 'denver', 'jacksonville'] certified True stopped True rounds 0 passing False key None 4.7s
+   ['chicago', 'dallas', 'jacksonville'] certified True stopped True rounds 0 passing False key None 10.1s
+   ['austin', 'dallas', 'reno'] certified True stopped True rounds 0 passing False key None 28.7s
+   ['austin', 'jacksonville', 'reno'] certified True stopped True rounds 0 passing False key None 20.9s
+   ['austin', 'dallas', 'minneapolis'] certified True stopped True rounds 0 passing False key None 30.6s
+   ['austin', 'denver', 'minneapolis'] certified True stopped True rounds 0 passing False key None 22.8s
+   ['austin', 'chicago', 'jacksonville'] certified True stopped True rounds 0 passing False key None 17.9s
+[k=4] certified True passing True treatment ['austin', 'dallas', 'minneapolis', 'reno'] controls ['boston', 'chicago', 'cincinnati', 'cleveland', 'columbus', 'denver', 'houston', 'jacksonville', 'memphis', 'miami', 'nashville', 'washington'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) groups 91390 screened_out 91297 survivors 93 replaced 3 retried 1 certifications 1043s total 1117s
+   ['austin', 'baton rouge', 'dallas', 'jacksonville'] certified True stopped False rounds 1 passing True key (1, 1, 1, 1, 1.0, 0.0004979272982557912) 25.2s
+   ['atlanta', 'boston', 'cleveland', 'denver'] certified True stopped True rounds 0 passing False key None 9.4s
+   ['cleveland', 'denver', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 10.1s
+   ['cleveland', 'dallas', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 9.9s
+   ['atlanta', 'boston', 'cleveland', 'dallas'] certified True stopped True rounds 0 passing False key None 12.3s
+   ['cleveland', 'dallas', 'denver', 'milwaukee'] certified True stopped True rounds 0 passing False key None 9.4s
+   ['cleveland', 'columbus', 'dallas', 'milwaukee'] certified True stopped True rounds 0 passing False key None 20.1s
+   ['austin', 'memphis', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 4.6s
+   ['detroit', 'memphis', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 2.6s
+   ['dallas', 'denver', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 10.9s
+   ['denver', 'milwaukee', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 11.7s
+   ['dallas', 'milwaukee', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 11.2s
+   ['cincinnati', 'memphis', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 5.5s
+   ['austin', 'denver', 'milwaukee', 'new orleans'] certified True stopped True rounds 0 passing False key None 6.5s
+   ['austin', 'dallas', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 14.3s
+   ['cleveland', 'milwaukee', 'portland', 'saint paul'] certified True stopped True rounds 0 passing False key None 10.5s
+   ['cleveland', 'denver', 'milwaukee', 'minneapolis'] certified True stopped True rounds 0 passing False key None 8.9s
+   ['atlanta', 'denver', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 6.1s
+   ['jacksonville', 'milwaukee', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 9.2s
+   ['austin', 'denver', 'new orleans', 'washington'] certified True stopped True rounds 0 passing False key None 7.9s
+   ['cleveland', 'dallas', 'milwaukee', 'minneapolis'] certified True stopped True rounds 0 passing False key None 17.8s
+   ['cleveland', 'dallas', 'milwaukee', 'portland'] certified True stopped True rounds 0 passing False key None 24.7s
+   ['austin', 'cleveland', 'dallas', 'milwaukee'] certified True stopped True rounds 0 passing False key None 18.6s
+   ['denver', 'jacksonville', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 7.4s
+   ['dallas', 'jacksonville', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 9.4s
+   ['atlanta', 'cleveland', 'dallas', 'portland'] certified True stopped True rounds 0 passing False key None 15.4s
+   ['austin', 'boston', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 2.8s
+   ['cleveland', 'dallas', 'detroit', 'milwaukee'] certified True stopped True rounds 0 passing False key None 6.2s
+   ['atlanta', 'austin', 'denver', 'jacksonville'] certified True stopped True rounds 0 passing False key None 11.8s
+   ['baton rouge', 'cleveland', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 7.1s
+   ['austin', 'dallas', 'denver', 'new orleans'] certified True stopped True rounds 0 passing False key None 10.7s
+   ['atlanta', 'dallas', 'denver', 'jacksonville'] certified True stopped True rounds 0 passing False key None 4.9s
+   ['atlanta', 'dallas', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 10.2s
+   ['boston', 'chicago', 'cleveland', 'dallas'] certified True stopped True rounds 0 passing False key None 7.5s
+   ['chicago', 'milwaukee', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 10.1s
+   ['austin', 'denver', 'reno', 'tucson'] certified True stopped True rounds 0 passing False key None 2.5s
+   ['cincinnati', 'milwaukee', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 10.9s
+   ['atlanta', 'austin', 'cleveland', 'dallas'] certified True stopped True rounds 0 passing False key None 7.4s
+   ['atlanta', 'dallas', 'denver', 'minneapolis'] certified True stopped True rounds 0 passing False key None 9.2s
+   ['atlanta', 'austin', 'dallas', 'denver'] certified True stopped True rounds 0 passing False key None 5.6s
+   ['dallas', 'denver', 'milwaukee', 'minneapolis'] certified True stopped True rounds 0 passing False key None 10.8s
+   ['austin', 'dallas', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 9.5s
+   ['atlanta', 'cleveland', 'dallas', 'minneapolis'] certified True stopped True rounds 0 passing False key None 6.6s
+   ['austin', 'denver', 'new orleans', 'reno'] certified True stopped True rounds 0 passing False key None 16.0s
+   ['austin', 'denver', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 7.4s
+   ['chicago', 'jacksonville', 'saint paul', 'washington'] certified True stopped False rounds 1 passing True key (1, 1, 1, 1, 1.0, 0.0005256499448453766) 11.2s
+   ['austin', 'dallas', 'denver', 'milwaukee'] certified True stopped True rounds 0 passing False key None 3.4s
+   ['cincinnati', 'dallas', 'milwaukee', 'saint paul'] certified True stopped True rounds 0 passing False key None 11.2s
+   ['atlanta', 'austin', 'dallas', 'jacksonville'] certified True stopped True rounds 0 passing False key None 16.3s
+   ['atlanta', 'austin', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 6.8s
+   ['dallas', 'milwaukee', 'minneapolis', 'saint paul'] certified True stopped True rounds 0 passing False key None 8.7s
+   ['chicago', 'denver', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 2.6s
+   ['milwaukee', 'portland', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 7.5s
+   ['atlanta', 'austin', 'denver', 'minneapolis'] certified True stopped True rounds 0 passing False key None 7.6s
+   ['dallas', 'jacksonville', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 8.8s
+   ['austin', 'denver', 'minneapolis', 'new orleans'] certified True stopped True rounds 0 passing False key None 6.1s
+   ['atlanta', 'austin', 'dallas', 'minneapolis'] certified True stopped True rounds 0 passing False key None 13.0s
+   ['atlanta', 'dallas', 'jacksonville', 'portland'] certified True stopped True rounds 0 passing False key None 14.1s
+   ['dallas', 'milwaukee', 'portland', 'saint paul'] certified True stopped True rounds 0 passing False key None 6.6s
+   ['austin', 'denver', 'jacksonville', 'reno'] certified True stopped True rounds 0 passing False key None 18.2s
+   ['austin', 'jacksonville', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 9.2s
+   ['austin', 'chicago', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 20.1s
+   ['dallas', 'detroit', 'milwaukee', 'minneapolis'] certified True stopped True rounds 0 passing False key None 5.9s
+   ['austin', 'denver', 'jacksonville', 'saint paul'] certified True stopped True rounds 0 passing False key None 6.1s
+   ['austin', 'jacksonville', 'reno', 'washington'] certified True stopped True rounds 0 passing False key None 18.1s
+   ['chicago', 'dallas', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 2.2s
+   ['cincinnati', 'jacksonville', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 10.7s
+   ['austin', 'dallas', 'jacksonville', 'saint paul'] certified True stopped True rounds 0 passing False key None 9.2s
+   ['austin', 'dallas', 'milwaukee', 'minneapolis'] certified True stopped True rounds 0 passing False key None 6.7s
+   ['chicago', 'dallas', 'jacksonville', 'saint paul'] certified True stopped True rounds 0 passing False key None 6.3s
+   ['austin', 'columbus', 'dallas', 'jacksonville'] certified True stopped True rounds 0 passing False key None 8.3s
+   ['austin', 'dallas', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 8.1s
+   ['atlanta', 'dallas', 'minneapolis', 'portland'] certified True stopped True rounds 0 passing False key None 10.5s
+   ['jacksonville', 'portland', 'saint paul', 'washington'] certified True stopped True rounds 0 passing False key None 10.3s
+   ['chicago', 'jacksonville', 'portland', 'washington'] certified True stopped True rounds 0 passing False key None 14.7s
+   ['austin', 'dallas', 'jacksonville', 'reno'] certified False stopped False rounds 0 passing False key None 98.9s
+   ['austin', 'dallas', 'indianapolis', 'reno'] certified True stopped True rounds 0 passing False key None 7.6s
+   ['austin', 'chicago', 'denver', 'jacksonville'] certified True stopped True rounds 0 passing False key None 7.0s
+   ['austin', 'cleveland', 'dallas', 'minneapolis'] certified True stopped True rounds 0 passing False key None 7.7s
+   ['columbus', 'dallas', 'jacksonville', 'portland'] certified True stopped True rounds 0 passing False key None 7.0s
+   ['austin', 'denver', 'minneapolis', 'reno'] certified True stopped True rounds 0 passing False key None 16.8s
+   ['chicago', 'cincinnati', 'jacksonville', 'washington'] certified True stopped True rounds 0 passing False key None 8.2s
+   ['dallas', 'jacksonville', 'portland', 'washington'] certified True stopped True rounds 0 passing False key None 2.5s
+   ['austin', 'dallas', 'denver', 'minneapolis'] certified True stopped True rounds 0 passing False key None 6.2s
+   ['baton rouge', 'dallas', 'jacksonville', 'saint paul'] certified True stopped True rounds 0 passing False key None 5.7s
+   ['austin', 'chicago', 'jacksonville', 'reno'] certified True stopped True rounds 0 passing False key None 16.8s
+   ['austin', 'dallas', 'portland', 'reno'] certified True stopped False rounds 2 passing True key (1, 1, 1, 1, 1.0, 0.0005325416644867073) 43.0s
+   ['austin', 'chicago', 'dallas', 'jacksonville'] certified True stopped True rounds 0 passing False key None 15.0s
+   ['austin', 'dallas', 'minneapolis', 'reno'] certified True stopped False rounds 1 passing True key (1, 1, 1, 1, 1.0, 0.0005417610232889155) 23.0s
+   ['austin', 'jacksonville', 'portland', 'reno'] certified True stopped True rounds 0 passing False key None 15.6s
+   ['austin', 'dallas', 'jacksonville', 'minneapolis'] certified True stopped True rounds 0 passing False key None 2.4s
+   ['austin', 'dallas', 'detroit', 'minneapolis'] certified True stopped True rounds 0 passing False key None 8.3s
+   ['austin', 'dallas', 'minneapolis', 'portland'] certified True stopped True rounds 0 passing False key None 5.3s

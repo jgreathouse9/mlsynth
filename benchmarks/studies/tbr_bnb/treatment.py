@@ -19,9 +19,8 @@ the number of controls, so that the size constraint is slack). The cap is that o
 certificate.ExactData.slope_cap, ||y|| / sqrt(lambda_min(G)), with one lower bound on
 lambda_min for every group: the controls' Gram matrix is a principal submatrix of the
 full one, and a principal submatrix's smallest eigenvalue is at least the full
-matrix's: it is the least Rayleigh quotient over vectors supported on the
-submatrix's indices, a subset of the vectors the full matrix's is taken over
-(derived here).
+matrix's (the interlacing inequalities, Hogben 2007, Sect. 8.2, Fact 5, applied
+once per deleted row and column).
 
 Each design of the group has corr^2 = 1 - RSS / y'y, so the floor bounds its
 correlation too, and can_compete reads the rounding: a group whose correlation bound
@@ -50,6 +49,7 @@ their turn still hold, since they were proved against ceilings at least as
 high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
 its retry.
 
+Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
 from __future__ import annotations
 
