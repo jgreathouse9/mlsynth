@@ -303,11 +303,12 @@ def test_a_round_adds_the_separated_triangles(monkeypatch):
     real_rows = sf.Rows
 
     def rows(*a, **k):
-        seen.append(list(k.get("triangles", ())))
+        if k.get("level", "full") == "full":
+            seen.append(list(k.get("triangles", ())))
         return real_rows(*a, **k)
 
     monkeypatch.setattr(sf, "Rows", rows)
-    monkeypatch.setattr(sf, "bound", lambda *a, **k: next(bounds))
+    monkeypatch.setattr(sf, "bound", lambda A, R, *a, **k: Q(1) if R.level == "shor" else next(bounds))
     monkeypatch.setattr(sf, "separate_triangles", lambda u, U, k=400: [(0.1, 0, (0, 1, 2))])
     res = sf.size_certificate(c, G, Q(1, 2), 2)
     assert res.certified and res.rounds == 1 and res.triangles == 1

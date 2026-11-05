@@ -11947,8 +11947,62 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-shor-rows-drop-the-diagonal"
+  find = "        for i in range(p):\n            eq(row((U(i, i), 1), (u(i), -1)), 0)\n"
+  replace = "        for i in range(p if full else 0):\n            eq(row((U(i, i), 1), (u(i), -1)), 0)\n"
+  models = "the Shor rows without diag U = u, so tr Z = 1 + m no longer holds on their feasible set and the trace bound under-charges lambda_max"
+
+  [[target.mutant]]
+  id = "the-shor-rows-drop-the-slope-sign"
+  find = "        le(row(*((u(j), -c[j]) for j in range(p))), 0, True)                      # c'u >= 0\n"
+  replace = "        if full:\n            le(row(*((u(j), -c[j]) for j in range(p))), 0, True)                      # c'u >= 0\n"
+  models = "the Shor relaxation without c'u >= 0, a weaker certificate that closes fewer sizes and admits the negative-slope designs the problem excludes"
+
+  [[target.mutant]]
+  id = "reused-multipliers-certify-on-the-screen"
+  find = "            b = bound(A, R, warm.y_eq, warm.y_in, m)\n            if b is not None and b <= 0:\n"
+  replace = "            b = Q(-1)\n            if True:\n"
+  models = "a size certified by reused multipliers on the float screen alone, with no exact bound, so a rounding error can certify a size that holds a better design"
+
+  [[target.mutant]]
+  id = "the-screen-is-not-consulted"
+  find = "        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in and \\\n                _screen(A, R, warm.y_eq, warm.y_in, m) <= 0:\n"
+  replace = "        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in:\n"
+  models = "the exact bound tried for every reused set of multipliers, the 58 ms evaluation the float screen exists to skip"
+
+  [[target.mutant]]
+  id = "a-shor-failure-raises"
+  find = "    except cp.error.SolverError:\n        sol = None                       # the full relaxation decides\n"
+  replace = "    except ZeroDivisionError:\n        sol = None                       # the full relaxation decides\n"
+  models = "a solver failure on the Shor relaxation ending the search, though the full relaxation could still decide the size"
+
+  [[target.mutant]]
+  id = "a-shor-closure-is-ignored"
+  find = "        if b is not None and b <= 0:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"shor\",\n"
+  replace = "        if False:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"shor\",\n"
+  models = "the full relaxation solved for a size the Shor relaxation already closed, the cost the cascade exists to remove"
+
+  [[target.mutant]]
+  id = "the-shor-tier-certifies-above-zero"
+  find = "        if b is not None and b <= 0:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"shor\",\n"
+  replace = "        if b is not None:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"shor\",\n"
+  models = "the Shor tier certifying whatever its bound, so a size holding a design above zero is closed"
+
+  [[target.mutant]]
+  id = "multipliers-are-not-handed-on"
+  find = "            inc[\"warm\"] = res.multipliers       # the next size's first try\n"
+  replace = "            pass\n"
+  models = "every root size starting cold, so the reuse tier never runs"
+
+  [[target.mutant]]
+  id = "the-tiers-are-not-counted"
+  find = "    out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1\n"
+  replace = ""
+  models = "the certificate silent on which tier decided each node"
 
   [[target.mutant]]
   id = "the-trace-bound-is-the-size"
