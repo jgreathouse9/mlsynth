@@ -303,11 +303,12 @@ def test_a_round_adds_the_separated_triangles(monkeypatch):
     real_rows = sf.Rows
 
     def rows(*a, **k):
-        seen.append(list(k.get("triangles", ())))
+        if k.get("level", "full") == "full":
+            seen.append(list(k.get("triangles", ())))
         return real_rows(*a, **k)
 
     monkeypatch.setattr(sf, "Rows", rows)
-    monkeypatch.setattr(sf, "bound", lambda *a, **k: next(bounds))
+    monkeypatch.setattr(sf, "bound", lambda A, R, *a, **k: Q(1) if R.level == "shor" else next(bounds))
     monkeypatch.setattr(sf, "separate_triangles", lambda u, U, k=400: [(0.1, 0, (0, 1, 2))])
     res = sf.size_certificate(c, G, Q(1, 2), 2)
     assert res.certified and res.rounds == 1 and res.triangles == 1
@@ -449,6 +450,19 @@ def test_a_node_with_one_design_is_evaluated_not_bounded(monkeypatch, fixes):
     assert out.nodes == 1 and out.open == []
     if cu > 0:
         assert inc["C"] == C and inc["lam"] == cu * cu / (u @ D.G @ u)
+
+
+@pytest.mark.parametrize("fixes", [
+    [(0, 1), (1, 1), (2, 1)],               # more geos fixed in than the size
+    [(0, 0), (1, 0), (2, 0), (3, 0)],       # more fixed out than the size leaves
+])
+def test_a_node_holding_no_design_of_its_size_is_not_counted(monkeypatch, fixes):
+    from . import slopefree
+
+    monkeypatch.setattr(slopefree, "size_certificate", lambda *a, **k: pytest.fail("an empty node was bounded"))
+    y, X = panel(0, p=5)
+    out, inc, _ = _node(y, X, 2, fixes, Q(-1), max_depth=0)
+    assert out.nodes == 0 and out.open == [] and inc["C"] == set()
 
 
 def test_a_one_design_node_below_the_incumbent_is_closed():
