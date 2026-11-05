@@ -86,6 +86,7 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
+from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .certificate import ExactData, _dot_err, round_down
@@ -116,9 +117,14 @@ class Rows:
     triangle of Z (index 0 the constant, j + 1 the geo j). A row is a dict
     {(a, b): coefficient} with a <= b, read as sum coefficient * Z_ab. The same table
     builds the solver's model and the certificate, so the certificate holds for the
-    constraints written here whatever the solver did."""
+    constraints written here whatever the solver did.
 
-    def __init__(self, c: Sequence, m: int, cuts: Sequence[Set[int]] = (),
+    With ``m`` None the rows hold the designs of every size: sum u >= 1 and its
+    products with 1 - u_i, (sum u - 1)(1 - u_i) >= 0, replace sum u = m and its
+    products (the products with u_i follow from U_ii = u_i and U_ij >= 0), and the
+    trace bound is 1 + p (group_bound)."""
+
+    def __init__(self, c: Sequence, m: Optional[int], cuts: Sequence[Set[int]] = (),
                  triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
                  fixes: Sequence[Tuple[int, int]] = (), level: str = "full"):
         if level not in ("full", "shor"):
@@ -149,9 +155,14 @@ class Rows:
         eq(row(((0, 0), 1)), 1)
         for i in range(p):
             eq(row((U(i, i), 1), (u(i), -1)), 0)
-        eq(row(*((u(i), 1) for i in range(p))), m)
-        for i in range(p):
-            eq(row(*((U(i, j), 1) for j in range(p)), (u(i), -m)), 0)
+        if m is not None:
+            eq(row(*((u(i), 1) for i in range(p))), m)
+            for i in range(p):
+                eq(row(*((U(i, j), 1) for j in range(p)), (u(i), -m)), 0)
+        else:
+            le(row(*((u(j), -1) for j in range(p))), -1)                      # sum u >= 1
+            for i in range(p):                                                 # (sum u - 1)(1 - u_i) >= 0
+                le(row(*((u(j), -1) for j in range(p)), (u(i), -1), *((U(i, j), 1) for j in range(p))), -1)
         for j, v in fixes:
             eq(row((u(j), 1)), v)
         for i, j in itertools.combinations(range(p) if full else (), 2):
@@ -496,6 +507,47 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     return SizeResult(False, None, rounds, len(tri), time.perf_counter() - t0)  # pragma: no cover - the loop returns
 
 
+@dataclass
+class GroupResult:
+    certified: bool
+    bound: Optional[Q]
+    tier: str                            # dual, full, or open when neither closed it
+    seconds: float
+
+
+def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
+    """bound() on the size-free rows (Rows with m None), whose trace is 1 + sum u,
+    at most 1 + p."""
+    return bound(A, R, y_eq, y_in, R.p)
+
+
+def group_certificate(c, G, lam) -> GroupResult:
+    """Whether no design of any size has u'(cc' - lam G)u > 0 (with c'u >= 0), by the
+    size-free rows' certificate: the first-order multipliers first, then the
+    relaxation's own (Clarabel). Certified at lam' = dyadic_below(lam) <= lam, so no
+    design's ratio exceeds lam' either."""
+    t0 = time.perf_counter()
+    if len(c) == 0:
+        raise MlsynthDataError("the group screen needs a candidate control: there is no candidate control.")
+    lam = dyadic_below(lam)
+    A = objective(c, G, lam)
+    R = Rows(c, None)
+    w, _ = dual_multipliers(A, R, R.p, c)
+    b = None
+    if w is not None:
+        b = group_bound(A, R, w.y_eq, w.y_in)
+        if b is not None and b <= 0:
+            return GroupResult(True, b, "dual", time.perf_counter() - t0)
+    try:
+        sol = solve(c, G, lam, R)
+    except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
+        return GroupResult(False, b, "open", time.perf_counter() - t0)
+    b = group_bound(A, R, sol.y_eq, sol.y_in)
+    if b is not None and b <= 0:
+        return GroupResult(True, b, "full", time.perf_counter() - t0)
+    return GroupResult(False, b, "open", time.perf_counter() - t0)
+
+
 def _ratio(c, G, C):
     u = np.zeros(len(c), dtype=object); u[:] = Q(0); u[sorted(C)] = Q(1)
     cu = c @ u
@@ -521,6 +573,8 @@ class SlopeFreeCertificate:
     priced_nodes: int = 0                 # subtrees priced instead of bounded
     exact: int = 0                        # priced designs the float bound could not discard
     tiers: Dict[str, int] = field(default_factory=dict)   # sizes and nodes decided by each tier
+    group_tier: Optional[str] = None      # the group screen's tier, None when it was not tried
+    group_seconds: float = 0.0
 
 
 #: The cost model of the choice between pricing a subtree and bounding it, as MAREX's
@@ -695,7 +749,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
                        hull: bool = True, exclude: Sequence[Set[int]] = (),
                        ceiling: Optional[Q] = None,
-                       start: Optional[Set[int]] = None) -> SlopeFreeCertificate:
+                       start: Optional[Set[int]] = None,
+                       group_screen: bool = True) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -715,6 +770,10 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     when it beats that ratio. When none does the ceiling is held: the incumbent is
     reported at its own RSS, and ``certified`` means no design is below the ceiling,
     not that the incumbent is optimal.
+
+    Before any size is searched against a ceiling, ``group_screen`` tries one
+    certificate for every size at that ratio (group_certificate); when it closes,
+    the ceiling is held without the hull stage or a size.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -737,6 +796,14 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     test = lam
     if ceiling is not None and D.yy - ceiling > lam:
         test = D.yy - ceiling              # only a design below the ceiling matters
+    screen = None
+    if group_screen and test > lam:
+        screen = group_certificate(c, G, test)
+        if screen.certified:               # no design of any size is below the ceiling
+            return SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=[],
+                                        certified=True, ceiling_held=True, group_tier=screen.tier,
+                                        group_seconds=screen.seconds,
+                                        seconds=time.perf_counter() - t_all)
     sizes = list(range(1, p + 1)); t_h = 0.0
     cap = D.slope_cap()
     if hull and cap is not None:
@@ -747,7 +814,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         t_h = time.perf_counter() - t0
     inc = {"lam": test, "C": set(C)}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
-                               hull_seconds=t_h)
+                               hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
+                               group_seconds=0.0 if screen is None else screen.seconds)
     for m in sizes:                      # a size certified at a ratio stays certified at a larger one
         t0 = time.perf_counter(); n0 = out.nodes
         _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
