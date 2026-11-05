@@ -12325,15 +12325,15 @@ timeout = 1200.0
   models = "the common denominator taken as the smallest, so D // d truncates to zero for every finer double and y'y loses those terms"
 
   [[target.mutant]]
-  id = "the-scaled-numerator-is-not-squared"
-  find = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D * D)\n"
-  replace = "    return Q(sum(n * (D // d) ** 2 for n, d in parts), D * D)\n"
-  models = "the square applied to the scale alone, so y'y is the sum of n (D/d)^2, not of (n D/d)^2"
+  id = "the-numerators-are-not-brought-to-one-denominator"
+  find = "    return [n * (D // d) for n, d in parts], D\n"
+  replace = "    return [n for n, d in parts], D\n"
+  models = "the numerators left at their own denominators, not brought to the common one, so every entry finer than the coarsest is read too large"
 
   [[target.mutant]]
   id = "the-common-denominator-is-not-squared"
-  find = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D * D)\n"
-  replace = "    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D)\n"
+  find = "    return Q(sum(n * n for n in ints), D * D)\n"
+  replace = "    return Q(sum(n * n for n in ints), D)\n"
   models = "the sum of squared numerators divided by D, not D^2, so y'y is D times too large"
 
   [[target.mutant]]
@@ -12353,6 +12353,42 @@ timeout = 1200.0
   find = "    if yy is None:\n        yy = square_sum(y)\n"
   replace = "    yy = square_sum(y)\n"
   models = "the floor recomputing y'y whatever it is given, so the screen's copy is never read and the stage pays for y'y twice"
+
+  [[target.mutant]]
+  id = "the-columns-keep-the-smallest-denominator"
+  find = "    D = max(d for _, d in cols)\n"
+  replace = "    D = min(d for _, d in cols)\n"
+  models = "the design's columns brought to the coarsest denominator, so D // d truncates to zero for every finer column and X u loses them"
+
+  [[target.mutant]]
+  id = "a-column-is-not-rescaled"
+  find = "        f = D // d\n"
+  replace = "        f = 1\n"
+  models = "each column's integers added at its own denominator, so X u mixes scales whenever the columns' denominators differ"
+
+  [[target.mutant]]
+  id = "the-cross-term-has-the-wrong-denominator"
+  find = "    cu = Q(sum(a * b for a, b in zip(yi, xu)), Dy * D)\n"
+  replace = "    cu = Q(sum(a * b for a, b in zip(yi, xu)), D * D)\n"
+  models = "c'u divided by the columns' denominator twice, not by y's and the columns', wrong whenever y and X sit at different scales"
+
+  [[target.mutant]]
+  id = "the-design-gram-is-divided-once"
+  find = "    return cu, Q(sum(v * v for v in xu), D * D), Q(sum(v * v for v in yi), Dy * Dy)\n"
+  replace = "    return cu, Q(sum(v * v for v in xu), D), Q(sum(v * v for v in yi), Dy * Dy)\n"
+  models = "u'Gu divided by D, not D^2, so the design's RSS is off by the factor D"
+
+  [[target.mutant]]
+  id = "an-empty-design-is-not-reported"
+  find = "    if not C:\n        raise MlsynthDataError(\"the control group is empty: a design with no control has no slope.\")\n"
+  replace = "    if False:\n        raise MlsynthDataError(\"the control group is empty: a design with no control has no slope.\")\n"
+  models = "an empty control group read as a design, failing later as a bare ValueError, not the study's data error"
+
+  [[target.mutant]]
+  id = "a-negative-slope-is-fitted"
+  find = "    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
+  replace = "    ratio = cu * cu / uGu\n"
+  models = "a pass design with c'u <= 0 credited with the fit of a negative slope, though the shared slope must be positive, so its RSS reads below y'y"
 
   [[target.mutant]]
   id = "a-group-above-the-class-is-ruled-out-on-rss"
@@ -12428,8 +12464,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-gate-failing-local-design-is-taken"
-  find = "    return sorted(C), (key if cu > 0 and all(gates) else None), D.yy - ratio, rest\n"
-  replace = "    return sorted(C), (key if cu > 0 else None), D.yy - ratio, rest\n"
+  find = "    return sorted(C), (key if cu > 0 and all(gates) else None), yy - ratio, rest\n"
+  replace = "    return sorted(C), (key if cu > 0 else None), yy - ratio, rest\n"
   models = "a local design that fails a gate taken as the incumbent"
 
   [[target.mutant]]

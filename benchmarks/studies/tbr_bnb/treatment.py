@@ -90,23 +90,49 @@ def _split(M, T):
     return M[:, T].sum(axis=1), M[:, rest], rest
 
 
-def square_sum(v) -> Q:
-    """The exact sum of squares of the doubles ``v``.
-
-    A finite double is an integer over a power of two, n / d. With D the largest of
-    the denominators, every D / d is an integer, and the sum is
-    sum (n D / d)^2 / D^2, one division of Python integers. The sum of Fractions it
-    replaces reduces every partial sum by a gcd; on the GeoLift window (90 periods)
-    it took 0.19 ms a group, this 0.03 ms."""
+def _integers(v, what="y'y"):
+    """The doubles ``v`` as integers over one power of two, D: a finite double is an
+    integer over a power of two, n / d, and with D the largest of the d every D / d
+    is an integer. Returns the integers and D (1 for no entry)."""
     try:
         parts = [float(x).as_integer_ratio() for x in np.asarray(v, dtype=float).ravel()]
     except (OverflowError, ValueError) as exc:
-        raise MlsynthDataError("y'y needs finite values: the treatment group's series "
+        raise MlsynthDataError(f"{what} needs finite values: the treatment group's series "
                                "has an infinite or missing entry.") from exc
     if not parts:
-        return Q(0)
+        return [], 1
     D = max(d for _, d in parts)
-    return Q(sum((n * (D // d)) ** 2 for n, d in parts), D * D)
+    return [n * (D // d) for n, d in parts], D
+
+
+def square_sum(v) -> Q:
+    """The exact sum of squares of the doubles ``v``: sum n_t^2 / D^2 over _integers,
+    one division of Python integers. The sum of Fractions it replaces reduces every
+    partial sum by a gcd; on the GeoLift window (90 periods) it took 0.19 ms a
+    group, this 0.03 ms."""
+    ints, D = _integers(v)
+    return Q(sum(n * n for n in ints), D * D)
+
+
+def design_moments(y, X, C):
+    """c'u, u'Gu and y'y exactly at the control group C (columns of X), with
+    c = X'y and G = X'X: u'Gu = ||X u||^2 and c'u = y'X u, X u summed over C in
+    integers. The pass scores one design per group, and the exact Gram it built
+    for that (certificate.ExactData) took 0.17 s of the 0.5 s a group on GeoLift;
+    this takes 0.4 ms."""
+    C = sorted(C)
+    if not C:
+        raise MlsynthDataError("the control group is empty: a design with no control has no slope.")
+    yi, Dy = _integers(y)
+    cols = [_integers(X[:, j], "a control's series") for j in C]
+    D = max(d for _, d in cols)
+    xu = [0] * len(yi)
+    for vals, d in cols:
+        f = D // d
+        for t, v in enumerate(vals):
+            xu[t] += v * f
+    cu = Q(sum(a * b for a, b in zip(yi, xu)), Dy * D)
+    return cu, Q(sum(v * v for v in xu), D * D), Q(sum(v * v for v in yi), Dy * Dy)
 
 
 def rss_floor(M, T: Sequence[int], lam: Optional[Q], yy: Optional[Q] = None) -> Q:
@@ -191,16 +217,14 @@ def _local(M, T, n_test, restarts):
     """The study's RSS descent in group T from ``restarts`` random starts: its design
     (indices into the group's controls), the reference key when the design has a
     positive slope and passes the four gates (else None), and its exact RSS."""
-    from .certificate import ExactData
     from .search import incumbent
-    from .slopefree import _ratio
 
     y, X, rest = _split(M, T)
     _, C = incumbent(y, X, restarts=restarts)
-    D = ExactData(y, X)
-    cu, ratio = _ratio(D.c, D.G, C)
+    cu, uGu, yy = design_moments(y, X, C)
+    ratio = cu * cu / uGu if cu > 0 else Q(0)
     gates, key = gates_of(y, X, C, n_test)
-    return sorted(C), (key if cu > 0 and all(gates) else None), D.yy - ratio, rest
+    return sorted(C), (key if cu > 0 and all(gates) else None), yy - ratio, rest
 
 
 def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
