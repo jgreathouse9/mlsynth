@@ -20,8 +20,9 @@ from mlsynth.exceptions import MlsynthDataError
 from .brute import geo_panel, treatment_optimum
 from .certificate import ExactData
 from .gated import certify_gated
+from . import treatment
 from .treatment import (EDGE, SLACK, _split, can_compete, ceiling, certify_treatment,
-                        gram_floor, rss_floor)
+                        gram_floor, rss_floor, square_sum)
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -198,6 +199,63 @@ def test_one_control_left():
         assert set(out.treatment) == T and len(out.controls) == 1
 
 
+# ---------------------------------------------------------------- y'y in integers
+
+
+def _fraction_sum(v):
+    return sum(Q(x) ** 2 for x in v)
+
+
+def test_smoke_square_sum_is_exact_on_mixed_exponents():
+    v = [0.1, -3.5, 1e300, 5e-324, 2.0 ** -1074, -1e-300, 7.0]
+    s = square_sum(np.array(v))
+    assert isinstance(s, Q) and s == _fraction_sum(v)
+
+
+def test_square_sum_of_a_panel_column():
+    M = geo_panel(3, p=6)
+    y, _, _ = _split(M, (0, 2))
+    assert square_sum(y) == _fraction_sum(y.tolist())
+
+
+@given(st.lists(st.floats(allow_nan=False, allow_infinity=False, allow_subnormal=True), max_size=40))
+@settings(max_examples=300, deadline=None)
+def test_property_square_sum_is_the_exact_sum_of_squares(v):
+    assert square_sum(np.array(v, dtype=float)) == _fraction_sum(v)
+
+
+def test_square_sum_of_nothing_is_zero():
+    assert square_sum(np.array([], dtype=float)) == 0
+    assert square_sum(np.zeros(5)) == 0
+
+
+def test_square_sum_of_integers():
+    assert square_sum(np.array([3.0, -4.0])) == 25
+
+
+@pytest.mark.parametrize("bad", [np.inf, -np.inf, np.nan])
+def test_square_sum_of_a_non_finite_value_raises(bad):
+    with pytest.raises(MlsynthDataError, match="finite"):
+        square_sum(np.array([1.0, bad]))
+
+
+def test_the_floor_reads_a_given_yy():
+    M = geo_panel(5, p=6); lam = gram_floor(M); T = (1, 4)
+    y, _, _ = _split(M, T)
+    assert rss_floor(M, T, lam, yy=square_sum(y)) == rss_floor(M, T, lam)
+
+
+def test_the_screen_computes_yy_once_per_group(monkeypatch):
+    calls = []
+    real = treatment.square_sum
+    monkeypatch.setattr(treatment, "square_sum", lambda v: calls.append(1) or real(v))
+    M = geo_panel(2, p=6)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0)
+    assert out.certified
+    # once for each group the screen reads, and once for the start group if it is left open
+    assert len(calls) <= out.groups
+
+
 def test_a_singular_gram_gives_no_floor_and_rules_nothing_out():
     M = geo_panel(1, p=5)
     M = np.column_stack([M, M[:, 0]])          # a duplicated geo
@@ -296,6 +354,33 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     assert out.certified and out.retried == 1
     assert seen[-1] is not None and seen[-1] < seen[1]  # retried at a lower ceiling
     assert out.key == plain.key
+
+
+def test_a_retried_group_can_replace_the_incumbent(monkeypatch):
+    """The winning group cut short on its turn, before its passing design is found:
+    the groups after it lower the ceiling, so it is retried, and its optimum, found
+    on the retry, replaces the incumbent."""
+    from . import treatment as tr
+
+    M = geo_panel(5)
+    start = _worst_passing(M)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    turn = 1 + [s["treatment"] for s in plain.survivors].index(sorted(plain.treatment))
+    assert turn > 1                                     # the winner is not the start
+    real = tr.certify_gated
+    calls = []
+
+    def wrapped(y, X, *a, **kw):
+        res = real(y, X, *a, **kw)
+        calls.append(1)
+        if len(calls) == turn:
+            res.certified, res.passing = False, False
+        return res
+
+    monkeypatch.setattr(tr, "certify_gated", wrapped)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    assert out.certified and out.retried == 1
+    assert out.key == plain.key and sorted(out.treatment) == sorted(plain.treatment)
 
 
 def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkeypatch):
