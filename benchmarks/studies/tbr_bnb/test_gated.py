@@ -21,6 +21,15 @@ from .gated import certify_gated
 from .slopefree import Rows, certify_slope_free
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+
+
+@pytest.fixture(autouse=True)
+def _bound_every_node(monkeypatch):
+    """These tests are of the relaxation and its branching, so every node is
+    bounded: on panels this small, pricing would close every size at its root
+    (test_pricing.py checks that the two give the same answer)."""
+    from . import slopefree
+    monkeypatch.setattr(slopefree, "PRICE_LIMIT", 0)
 N_TEST = 8
 
 
@@ -122,6 +131,53 @@ def test_the_round_limit_leaves_the_search_uncertified():
     y, X = panel_ar(7)
     out = certify_gated(y, X, n_test=N_TEST, restarts=10, max_rounds=1)
     assert not out.certified and len(out.rounds) == 1
+
+
+def test_a_ceiling_at_zero_ends_the_search_at_once():
+    """No design has an RSS below zero, so a caller that needs one is answered,
+    certified, before any design is scored."""
+    y, X = panel_ar(1)
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=Q(0))
+    assert out.certified and out.stopped and not out.passing and out.controls is None
+    assert out.rounds == []
+
+
+def test_a_ceiling_ends_the_search_at_the_first_round_above_it():
+    """With the ceiling between the first two rounds' RSS, the first round is scored
+    and fails, and the search ends at the second, certified."""
+    y, X = panel_ar(7)
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    assert len(full.rounds) >= 2 and not all(full.rounds[0]["gates"])
+    mid = (full.rounds[0]["rss"] + full.rounds[1]["rss"]) / 2
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=mid)
+    assert out.certified and out.stopped and not out.passing and len(out.rounds) == 1
+
+
+def test_the_ceiling_reaches_every_rounds_relaxation(monkeypatch):
+    """Each round's certificate is asked the narrower question, so a group that
+    cannot reach the ceiling closes without its own optimum being proved."""
+    from . import gated
+
+    real = gated.certify_slope_free
+    seen = []
+
+    def spy(*a, ceiling=None, **kw):
+        seen.append(ceiling)
+        return real(*a, ceiling=ceiling, **kw)
+
+    monkeypatch.setattr(gated, "certify_slope_free", spy)
+    y, X = panel_ar(7)
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    c = full.rss * 2
+    certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=c)
+    assert seen[-1] == c and len(seen) >= 2
+
+
+def test_a_ceiling_above_the_passing_design_changes_nothing():
+    y, X = panel_ar(7)
+    full = certify_gated(y, X, n_test=N_TEST, restarts=10)
+    out = certify_gated(y, X, n_test=N_TEST, restarts=10, ceiling=full.rss * 2)
+    assert out.passing and not out.stopped and out.controls == full.controls
 
 
 def test_an_a_a_window_too_long_for_the_scoring_window_is_refused():

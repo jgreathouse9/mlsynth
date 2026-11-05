@@ -11947,7 +11947,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12024,8 +12024,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-worse-leaf-replaces-the-incumbent"
-  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
-  replace = "        if cu > 0 and r < inc[\"lam\"] and C not in excluded:\n"
+  find = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r < inc[\"lam\"] and C not in excluded:\n"
   models = "a design worse than the incumbent adopted, and a better one passed over"
 
   [[target.mutant]]
@@ -12036,8 +12036,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-hull-reads-a-smaller-upper-bound"
-  find = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - lam)\n"
-  replace = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), (D.yy - lam) / 2)\n"
+  find = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)\n"
+  replace = "        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), (D.yy - test) / 2)\n"
   models = "the hull stage given half the incumbent's RSS, so it discards sizes that hold better designs"
 
   [[target.mutant]]
@@ -12048,8 +12048,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-excluded-leaf-is-adopted"
-  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
-  replace = "        if cu > 0 and r > inc[\"lam\"]:\n"
+  find = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "            C |= {j for j in range(p) if j not in dict(fixes)}\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"]:\n"
   models = "a fully fixed leaf adopted although it is an excluded design, which a leaf reaches without the relaxation and its cut"
 
   [[target.mutant]]
@@ -12063,6 +12063,66 @@ timeout = 900.0
   find = "        _branch(c, G, out, m, excluded + [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   replace = "        _branch(c, G, out, m, [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
+
+  [[target.mutant]]
+  id = "the-sum-rounding-is-not-bounded"
+  find = "    e_s = 2 * _dot_err(k + 2, sa)\n"
+  replace = "    e_s = 0 * _dot_err(k + 2, sa)\n"
+  models = "the double sum c'u taken as exact, so cancellation in it can put a design's bound below its ratio and discard it"
+
+  [[target.mutant]]
+  id = "the-gram-rounding-is-not-bounded"
+  find = "    e_d = 2 * _dot_err(k * k + k + 2, da)\n"
+  replace = "    e_d = 0 * _dot_err(k * k + k + 2, da)\n"
+  models = "the double sum u'Gu taken as exact, so a denominator rounded up lowers the bound below the ratio"
+
+  [[target.mutant]]
+  id = "the-fixed-in-geos-are-left-out-of-the-price"
+  find = "    s = c1[0] + cfF[combos].sum(axis=1)\n"
+  replace = "    s = cfF[combos].sum(axis=1)\n"
+  models = "a priced node's designs scored without the geos its fixings put in"
+
+  [[target.mutant]]
+  id = "a-priced-excluded-design-is-adopted"
+  find = "        out.exact += 1\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n"
+  replace = "        out.exact += 1\n        cu, r = _ratio(c, G, C)\n        if cu > 0 and r > inc[\"lam\"]:\n"
+  models = "pricing adopts a design the gated search excluded, so a design that failed a gate comes back"
+
+  [[target.mutant]]
+  id = "the-candidates-are-taken-worst-first"
+  find = "    cands.sort(key=lambda t: -t[0])\n"
+  replace = "    cands.sort(key=lambda t: t[0])\n"
+  models = "the candidates evaluated from the smallest bound up, so the early stop ends the subtree before its best design"
+
+  [[target.mutant]]
+  id = "no-subtree-is-priced"
+  find = "    if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model\n"
+  replace = "    if False:   # cheaper_to_price at the cost model\n"
+  models = "the price-or-bound choice never taken, every node bounded however small its subtree"
+
+  [[target.mutant]]
+  id = "a-one-design-node-is-bounded"
+  find = "    if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it\n"
+  replace = "    if len(fixes) == p:   # the fixings leave one design: evaluate it\n"
+  models = "a node whose fixings leave a single design bounded and split on geos with one value left, down to the depth limit"
+
+  [[target.mutant]]
+  id = "the-free-geos-are-left-out-of-the-one-design"
+  find = "        if ones < m:                              # every free geo is in\n"
+  replace = "        if False:                                 # every free geo is in\n"
+  models = "the design of a node with p - m geos fixed out read as its fixed-in geos alone, a design of the wrong size"
+
+  [[target.mutant]]
+  id = "the-ceiling-does-not-raise-the-test-ratio"
+  find = "        test = D.yy - ceiling              # only a design below the ceiling matters\n"
+  replace = "        pass\n"
+  models = "the ceiling accepted and ignored, so each size is tested at the incumbent's own ratio and the ceiling is never held"
+
+  [[target.mutant]]
+  id = "a-held-ceiling-reports-the-ceiling-as-a-design"
+  find = "    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself\n        inc.update(lam=lam)\n"
+  replace = "    if False:\n        inc.update(lam=lam)\n"
+  models = "a held ceiling reported as the incumbent's RSS, a value no design has"
 
 [[target]]
 name = "tbr-bnb-gated"
@@ -12093,3 +12153,105 @@ timeout = 900.0
   find = "        except NoDesignLeft:\n"
   replace = "        except ValueError:\n"
   models = "any error, a refused certificate among them, read as no design being left"
+
+  [[target.mutant]]
+  id = "the-ceiling-does-not-end-the-search"
+  find = "        if res.ceiling_held or (ceiling is not None and res.incumbent >= ceiling):\n"
+  replace = "        if False:\n"
+  models = "a round whose RSS-best design is not below the caller's ceiling scored and excluded, so a group that cannot compete runs on through its failing designs"
+
+  [[target.mutant]]
+  id = "the-ceiling-is-not-passed-on"
+  find = "exclude=excluded, ceiling=ceiling, **kw)"
+  replace = "exclude=excluded, **kw)"
+  models = "each round certified to the group's own optimum, the harder claim that left a GeoLift group open at the depth limit"
+
+[[target]]
+name = "tbr-bnb-treatment"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-cap-is-too-small"
+  find = "    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))\n    while cap * cap * lam < yy:"
+  replace = "    cap = Q(math.sqrt(float(yy / lam)) * 1e-3)\n    while False:"
+  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS (the cap and its rounding guard together: the guard alone repairs a small cap)"
+
+  [[target.mutant]]
+  id = "a-group-above-the-class-is-ruled-out-on-rss"
+  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
+  replace = "    return min(rss_star, yy * (1 - low * low))\n"
+  models = "a group whose correlation could round above the incumbent's class compared on RSS, though the key ranks the rounded correlation first"
+
+  [[target.mutant]]
+  id = "the-upper-edge-has-no-slack"
+  find = "    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star\n"
+  replace = "    up = r_star + EDGE                    # below up, round(corr, 2) <= r_star\n"
+  models = "the upper class edge taken as exact, so a correlation within the double's error of rounding up is compared on RSS"
+
+  [[target.mutant]]
+  id = "the-lower-edge-has-no-slack"
+  find = "    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star\n"
+  replace = "    low = r_star - EDGE                   # below low, round(corr, 2) < r_star\n"
+  models = "the lower class edge taken as exact, so a correlation within the double's error of the class is ruled out"
+
+  [[target.mutant]]
+  id = "the-whole-class-is-ruled-out"
+  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
+  replace = "    return yy * (1 - up * up)\n"
+  models = "every group that cannot round above the incumbent's class ruled out, including those that could beat its RSS within it"
+
+  [[target.mutant]]
+  id = "the-incumbent-is-never-replaced"
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n"
+  replace = "        if res.passing and out.key is None:\n"
+  models = "a survivor whose optimum beats the incumbent's key left unused, so the start group is returned"
+
+  [[target.mutant]]
+  id = "every-group-is-ruled-out"
+  find = "        if not can_compete(yy, floor, *class_of()):\n"
+  replace = "        if True:\n"
+  models = "the screen ruling out every group, so the incumbent is never challenged"
+
+  [[target.mutant]]
+  id = "a-refused-group-reads-as-certified"
+  find = "        if not res.certified:\n            left_open.append((list(T), yy, c))\n"
+  replace = "        if False:\n            left_open.append((list(T), yy, c))\n"
+  models = "a survivor whose own certification was cut short counted as certified"
+
+  [[target.mutant]]
+  id = "a-singular-gram-gives-a-floor"
+  find = "    return lam if lam is not None and lam > 0 else None\n"
+  replace = "    return lam\n"
+  models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
+
+  [[target.mutant]]
+  id = "the-start-group-is-screened-again"
+  find = "        if list(T) == T0:\n            continue\n"
+  replace = "        if False:\n            continue\n"
+  models = "the start group counted twice, once certified and once screened"
+
+  [[target.mutant]]
+  id = "open-groups-are-not-retried"
+  find = "        if c is not None and (c_then is None or c < c_then):\n"
+  replace = "        if False:\n"
+  models = "a group left open on its turn never certified again, though the final incumbent's lower ceiling asks a weaker claim of it"
+
+  [[target.mutant]]
+  id = "the-retry-asks-the-old-question"
+  find = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  replace = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c_then)\n"
+  models = "an open group retried against the ceiling it already failed, not the final incumbent's"
+
+  [[target.mutant]]
+  id = "a-group-still-open-reads-as-certified"
+  find = "                continue\n        out.certified = False\n"
+  replace = "                continue\n        pass\n"
+  models = "a group open after its retry, or never retried, counted as certified"
+
+  [[target.mutant]]
+  id = "survivors-carry-no-ceiling"
+  find = "        c = ceiling(yy, *class_of())\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  replace = "        c = None\n        res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
+  models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"

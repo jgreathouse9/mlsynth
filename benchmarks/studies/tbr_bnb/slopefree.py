@@ -65,7 +65,7 @@ import scipy.sparse as sp
 
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
-from .certificate import ExactData, round_down
+from .certificate import ExactData, _dot_err, round_down
 
 
 def dyadic_below(q) -> Q:
@@ -308,12 +308,121 @@ class SlopeFreeCertificate:
     certified: bool = False
     seconds: float = 0.0
     hull_seconds: float = 0.0
+    ceiling_held: bool = False            # certified: no design has an RSS below the ceiling
+    priced: int = 0                       # designs priced in batched subtrees
+    priced_nodes: int = 0                 # subtrees priced instead of bounded
+    exact: int = 0                        # priced designs the float bound could not discard
+
+
+#: The cost model of the choice between pricing a subtree and bounding it, as MAREX's
+#: branch and bound makes it (search_skeleton.cheaper_to_price): seconds for one
+#: relaxation of a size, 1.5-1.9 s at the root on the GeoLift groups (4.3 s with a
+#: round of triangles), and for one design in the batched pass, 0.6-2.0 us
+#: (README, "Pricing"). The limit, 750,000 designs, prices sizes up to 5 of 38.
+BOUND_SECONDS = 1.5
+PRICE_SECONDS = 2e-6
+PRICE_LIMIT = int(BOUND_SECONDS / PRICE_SECONDS)
+#: Designs per batch, so that the gathered s-by-s blocks stay a few million doubles.
+_CELLS = 2_000_000
+
+
+def _floats(c, G, inc):
+    """The doubles nearest c and G, made once per search and kept on ``inc``."""
+    if "_floats" not in inc:
+        inc["_floats"] = (np.array([float(v) for v in c]), np.array([[float(v) for v in r] for r in G]))
+    return inc["_floats"]
+
+
+def _upper_batch(fixed, cfF, GfF, combos):
+    """An upper bound in doubles on (c'u)^2 / u'Gu for each row of ``combos`` (indices
+    into the free geos), the fixed-in part given exactly in ``fixed``; -inf where c'u
+    cannot be positive, inf where u'Gu cannot be bounded away from zero.
+
+    c'u = c1 + sum_S c_j and u'Gu = G11 + 2 sum_S g1_j + sum_{S x S} G_ij, with c1,
+    G11 and g1 the fixed-in sums, exact in rationals and then rounded. Each double sum
+    of k terms errs by at most gamma_k times the sum of its terms' moduli, and each
+    term's own rounding from the exact value by u times its modulus, so twice
+    _dot_err(k + 1, moduli) bounds both (Bjorck 2015, Lemma 1.4.2, with the underflow
+    allowance of certificate._dot_err; the factor 2 covers the product of the two
+    relative errors, derived here). The bound is (|s| + e_s)^2 / (d - e_d), raised
+    by inflate's 1e-6 for its own three roundings."""
+    c1, G11, g1 = fixed
+    k = combos.shape[1]
+    s = c1[0] + cfF[combos].sum(axis=1)
+    sa = abs(c1[0]) + np.abs(cfF)[combos].sum(axis=1)
+    blk = GfF[combos[:, :, None], combos[:, None, :]]
+    d = G11[0] + 2 * g1[0][combos].sum(axis=1) + blk.sum(axis=(1, 2))
+    da = abs(G11[0]) + 2 * np.abs(g1[0])[combos].sum(axis=1) + np.abs(blk).sum(axis=(1, 2))
+    e_s = 2 * _dot_err(k + 2, sa)
+    e_d = 2 * _dot_err(k * k + k + 2, da)
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        ub = (np.abs(s) + e_s) ** 2 / (d - e_d) * (1.0 + 1e-6)
+    ub = np.where(d - e_d > 0, ub, np.inf)
+    return np.where(s + e_s > 0, ub, -np.inf)
+
+
+def _fixed(c, G, cf, ins, F):
+    c1 = sum((c[i] for i in ins), Q(0))
+    G11 = sum((G[i, j] for i in ins for j in ins), Q(0))
+    g1 = np.array([float(sum((G[i, j] for i in ins), Q(0))) for j in F])
+    return (float(c1),), (float(G11),), (g1,)
+
+
+def ratio_upper(c, G, cf, Gf, ins, S) -> float:
+    """The batched bound for the one design ``ins`` + ``S`` (S a list of free geos)."""
+    ins = sorted(ins); F = sorted(set(range(len(c))) - set(ins))
+    fixed = _fixed(c, G, cf, ins, F)
+    pos = [F.index(j) for j in S]
+    c1, G11, g1 = fixed
+    return float(_upper_batch(((c1[0],), (G11[0],), (g1[0],)), cf[F], Gf[np.ix_(F, F)],
+                              np.array([pos]))[0])
+
+
+def price_subtree(c, G, out, m, fixes, inc, excluded):
+    """Price every design of size m within the fixings: discard those whose double
+    bound (_upper_batch) is at most the incumbent's ratio, and evaluate the rest
+    exactly, best bound first, adopting one that beats the incumbent and is not
+    excluded. Every discard is on a rigorous bound, so the subtree is closed."""
+    p = len(c)
+    fx = dict(fixes)
+    ins = sorted(j for j, v in fixes if v)
+    F = [j for j in range(p) if j not in fx]
+    k = m - len(ins)
+    cf, Gf = _floats(c, G, inc)
+    fixed = _fixed(c, G, cf, ins, F)
+    cfF, GfF = cf[F], Gf[np.ix_(F, F)]
+    lam_lo = round_down(inc["lam"])
+    per = max(1, _CELLS // max(1, k * k))
+    gen = itertools.combinations(range(len(F)), k)
+    cands = []
+    out.priced_nodes += 1
+    while True:
+        chunk = list(itertools.islice(gen, per))
+        if not chunk:
+            break
+        combos = np.array(chunk, dtype=np.int64)
+        out.priced += len(chunk)
+        ub = _upper_batch(fixed, cfF, GfF, combos)
+        for i in np.nonzero(ub > lam_lo)[0]:
+            cands.append((float(ub[i]), chunk[i]))
+    cands.sort(key=lambda t: -t[0])
+    for ub, combo in cands:
+        if Q(ub) <= inc["lam"]:                # every later bound is at most this one
+            break
+        C = set(ins) | {F[i] for i in combo}
+        out.exact += 1
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
 
 
 def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
     """Prune the node by its certificate, or branch on its most fractional geo; a
-    fully fixed node is a design, evaluated exactly, and one better than the
-    incumbent replaces it. The nodes after it are searched at the new ratio; those
+    node whose fixings leave one design of size m (m geos fixed in, or p - m fixed
+    out) is that design, evaluated exactly, and one better than the incumbent
+    replaces it. Bounding such a node instead branches on geos with one value
+    left, down to the depth limit: on GeoLift a size-9 node with nine geos fixed
+    in was left open that way. The nodes after it are searched at the new ratio; those
     before it were pruned at a smaller ratio, the stronger claim, and no other node
     holds the new design, since the fixings partition the designs."""
     p = len(c)
@@ -321,11 +430,16 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     if ones > m or len(fixes) - ones > p - m:
         return
     out.nodes += 1
-    if len(fixes) == p:
+    if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it
         C = {j for j, v in fixes if v}
+        if ones < m:                              # every free geo is in
+            C |= {j for j in range(p) if j not in dict(fixes)}
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
+        return
+    if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
+        price_subtree(c, G, out, m, fixes, inc, excluded)
         return
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round)
     if res.certified:
@@ -366,7 +480,8 @@ def _best_neighbour(c, G, seeds, excluded):
 
 def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
-                       hull: bool = True, exclude: Sequence[Set[int]] = ()) -> SlopeFreeCertificate:
+                       hull: bool = True, exclude: Sequence[Set[int]] = (),
+                       ceiling: Optional[Q] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -376,6 +491,13 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     every size none of whose slope pieces survives it; each remaining size is
     certified by the slope-free relaxation at the incumbent's ratio, with a no-good
     cut for each excluded design and triangle cuts, and branched on where it is not.
+
+    With a ``ceiling`` above the incumbent's RSS the question is narrower: whether any
+    design has an RSS below the ceiling. Each size is then tested at the ratio
+    y'y - ceiling, larger than the incumbent's, and a leaf replaces the incumbent only
+    when it beats that ratio. When none does the ceiling is held: the incumbent is
+    reported at its own RSS, and ``certified`` means no design is below the ceiling,
+    not that the incumbent is optimal.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -395,22 +517,29 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
             raise NoDesignLeft("no control group has a positive slope: every design fails the "
                                "correlation gate, so there is no incumbent to certify")
         cu, lam = _ratio(c, G, C)
+    test = lam
+    if ceiling is not None and D.yy - ceiling > lam:
+        test = D.yy - ceiling              # only a design below the ceiling matters
     sizes = list(range(1, p + 1)); t_h = 0.0
     cap = D.slope_cap()
     if hull and cap is not None:
         t0 = time.perf_counter()
         b_inc = float(lam / cu)           # c'u / u'Gu, since lam = (c'u)^2 / u'Gu
-        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - lam)
+        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
-    inc = {"lam": lam, "C": set(C)}
+    inc = {"lam": test, "C": set(C)}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h)
     for m in sizes:                      # a size certified at a ratio stays certified at a larger one
         t0 = time.perf_counter(); n0 = out.nodes
         _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
         out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
+    out.ceiling_held = inc["lam"] == test and test > lam
+    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself
+        inc.update(lam=lam)
     out.incumbent, out.ratio, out.controls = D.yy - inc["lam"], inc["lam"], sorted(inc["C"])
     out.certified = not out.open
+    out.ceiling_held &= out.certified
     out.seconds = time.perf_counter() - t_all
     return out

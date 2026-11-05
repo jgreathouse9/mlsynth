@@ -1,0 +1,10 @@
+# certify_slope_free on the four GeoLift groups at e587b99a (the code of cdc44a96), restarts=50, two runs side by side,
+# BLAS on one thread: 'limit 750000' prices every subtree of at most that many designs, 'limit 0' bounds every node.
+[dallas] limit 750000 certified True RSS 704316.115221 controls [5, 9, 18, 38] nodes 6 priced_nodes 5 priced 667927 exact 1 9.4s
+[dallas+denver] limit 750000 certified True RSS 3810912.774918 controls [3, 5, 17, 37] nodes 7 priced_nodes 5 priced 584934 exact 1 10.5s
+[cincinnati+dallas+denver] limit 750000 certified True RSS 4771180.386932 controls [3, 5, 6, 16, 28, 33, 36] nodes 14 priced_nodes 5 priced 510415 exact 0 25.9s
+[chicago+cincinnati+dallas+denver] limit 750000 certified True RSS 8083009.301131 controls [15, 18, 19, 27, 28, 32, 35] nodes 17 priced_nodes 5 priced 443703 exact 0 36.0s
+[dallas] limit 0 certified True RSS 704316.115221 controls [5, 9, 18, 38] nodes 6 priced_nodes 0 priced 0 exact 0 16.7s
+[dallas+denver] limit 0 certified True RSS 3810912.774918 controls [3, 5, 17, 37] nodes 7 priced_nodes 0 priced 0 exact 0 17.2s
+[cincinnati+dallas+denver] limit 0 certified True RSS 4771180.386932 controls [3, 5, 6, 16, 28, 33, 36] nodes 14 priced_nodes 0 priced 0 exact 0 34.2s
+[chicago+cincinnati+dallas+denver] limit 0 certified True RSS 8083009.301131 controls [15, 18, 19, 27, 28, 32, 35] nodes 17 priced_nodes 0 priced 0 exact 0 46.3s
