@@ -12406,7 +12406,7 @@ timeout = 1200.0
   id = "a-wave-replaces-on-a-tie"
   find = "            if res.passing and (out.key is None or res.key > out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
   replace = "            if res.passing and (out.key is None or res.key >= out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
-  models = "an equal key from a later group in the wave replacing the incumbent, so the reported design depends on n_jobs when two groups tie"
+  models = "an equal key from a later group in a wave replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
 
   [[target.mutant]]
   id = "a-wave-is-not-screened"

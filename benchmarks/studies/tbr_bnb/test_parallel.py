@@ -76,6 +76,28 @@ def test_every_group_is_screened_or_certified_in_parallel():
     assert out.screened_out + len(out.survivors) == out.groups
 
 
+def test_a_tie_in_a_wave_keeps_the_first_design(monkeypatch):
+    """A group in a wave whose optimum has exactly the incumbent's key does not
+    replace it: ties go to the first design in queue order. Exact ties between
+    groups need identical data, so one group's result is given the incumbent's key."""
+    M = geo_panel(5, p=6)
+    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0)
+    assert plain.passing and len(plain.survivors) >= 2
+    target, real = plain.survivors[1]["treatment"], treatment._optimum
+
+    def tied(M_, T, *a, **k):
+        res, C = real(M_, T, *a, **k)
+        if sorted(T) == target:
+            res.passing, res.key = True, plain.key
+            C = [j for j in range(M_.shape[1]) if j not in T][:1]
+        return res, C
+
+    monkeypatch.setattr(treatment, "_optimum", tied)       # read inside the forked workers
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, n_jobs=2)
+    assert out.replaced == 0
+    assert (out.treatment, out.controls, out.key) == (plain.treatment, plain.controls, plain.key)
+
+
 def test_the_floors_are_the_same_in_chunks():
     M = geo_panel(2, p=7)
     lam = treatment.gram_floor(M)
