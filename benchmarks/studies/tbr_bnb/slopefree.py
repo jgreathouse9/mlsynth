@@ -211,7 +211,12 @@ def _pow2(x):
 def solve(c, G, lam, R: Rows) -> Solve:
     """The relaxation by Clarabel in scaled units: the objective divided by a power
     of two near its largest entry and the rows carrying c by one near max |c|, both
-    exact, so the multipliers return to the data's units by those two factors."""
+    exact, so the multipliers return to the data's units by those two factors.
+
+    Clarabel runs on one thread. Its automatic threading starts a native thread
+    pool on a relaxation of the GeoLift groups' size, and a process forked after
+    that (a worker of certify_treatment's pool) inherits the pool's state but not
+    its threads, so its next solve never returns."""
     A = np.asarray(objective(c, G, lam), dtype=float)
     s = _pow2(float(np.abs(A).max())); cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
     Me, Mi = R.matrices(cs)
@@ -222,7 +227,7 @@ def solve(c, G, lam, R: Rows) -> Solve:
     ce = Me @ z == np.asarray(R.beq, dtype=float)
     ci = Mi @ z <= np.asarray(R.bin, dtype=float)
     prob = cp.Problem(cp.Maximize(cp.trace(A0 @ Z)), [Z >> 0, ce, ci])
-    prob.solve(solver="CLARABEL")
+    prob.solve(solver="CLARABEL", max_threads=1)   # a thread pool would hang a worker forked after it
     if ce.dual_value is None:            # pragma: no cover - Clarabel returns duals whenever it returns
         return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)
     y_in = np.array(ci.dual_value, dtype=float) * s

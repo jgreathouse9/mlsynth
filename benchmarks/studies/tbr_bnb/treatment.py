@@ -49,12 +49,24 @@ their turn still hold, since they were proved against ceilings at least as
 high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
 its retry.
 
+With ``n_jobs`` above one the floors are computed in chunks over a pool of forked
+processes, and the pass and the certifications run in waves of ``n_jobs`` groups.
+A wave's groups are screened and given their ceilings from the incumbent as the
+wave is filled, and their results are applied in queue order, a group replacing
+the incumbent only with a strictly larger key. A group certified in a wave against
+a ceiling the wave's later results lower holds against the lower one too (no
+design below a ceiling means none below a lower one), and the certified design is
+the one the sequential search finds, ties included: n_jobs = 1 is that search.
+
 Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
 from __future__ import annotations
 
 import math
+import multiprocessing
 import time
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
 from itertools import combinations
@@ -227,6 +239,64 @@ def _local(M, T, n_test, restarts):
     return sorted(C), (key if cu > 0 and all(gates) else None), yy - ratio, rest
 
 
+def _pool(n_jobs):
+    """A pool of ``n_jobs`` forked workers. Forked, not spawned, so a worker starts
+    with the parent's modules (and BLAS settings) already loaded."""
+    return ProcessPoolExecutor(max_workers=n_jobs, mp_context=multiprocessing.get_context("fork"))
+
+
+def _star(fn, args):
+    return fn(*args)
+
+
+def _map(pool, fn, argss):
+    """fn over argss, in order: in this process when pool is None, else on the pool,
+    whose errors reach the caller as they were raised."""
+    if pool is None:
+        return [fn(*a) for a in argss]
+    return list(pool.map(_star, [fn] * len(argss), argss))
+
+
+def _floor_chunk(M, lam, groups):
+    out = []
+    for T in groups:
+        yy = _yy(M, T)
+        out.append((rss_floor(M, T, lam, yy=yy), yy, T))
+    return out
+
+
+def _floor_rows(M, groups, lam, pool, n_jobs):
+    """(floor, y'y, T) for each group, in the order given: in chunks over the pool,
+    four per worker, so a slow chunk does not hold the others."""
+    if pool is None or len(groups) < 2:
+        return _floor_chunk(M, lam, groups)
+    n = min(len(groups), 4 * n_jobs)
+    size = -(-len(groups) // n)
+    chunks = [groups[i:i + size] for i in range(0, len(groups), size)]
+    return [r for part in _map(pool, _floor_chunk, [(M, lam, c) for c in chunks]) for r in part]
+
+
+def _waves(rows, n_jobs, admit):
+    """The rows in waves of up to n_jobs admitted ones: ``admit(row)`` is read as each
+    wave is filled, against the incumbent as it stands then, and a row it refuses
+    takes no place in the wave."""
+    i = 0
+    while i < len(rows):
+        wave = []
+        while i < len(rows) and len(wave) < n_jobs:
+            row = rows[i]; i += 1
+            if admit(row):
+                wave.append(row)
+        if wave:
+            yield wave
+
+
+def _optimum_timed(M, T, n_test, restarts, ceiling=None, start=None):
+    t0 = time.perf_counter()
+    res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling, start=start)
+    return res, C, time.perf_counter() - t0
+
+
 def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
     y, X, rest = _split(M, T)
     kw = {} if start is None else {"start": set(start)}
@@ -236,11 +306,14 @@ def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
 
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
-                      restarts: int = 50, pass_restarts: int = 10) -> TreatmentCertificate:
+                      restarts: int = 50, pass_restarts: int = 10,
+                      n_jobs: int = 1) -> TreatmentCertificate:
     """The reference key's best design with ``k`` treatment geos over the columns of
     ``M`` (centred, periods by geos, every geo eligible for every role), certified
     (module docstring). ``pass_restarts`` random starts for the local search each
-    surviving group gets before any is certified; 0 skips the pass."""
+    surviving group gets before any is certified; 0 skips the pass. ``n_jobs``
+    processes compute the floors, the pass and the certifications (module
+    docstring); 1 runs them in this process."""
     t0 = time.perf_counter()
     M = np.asarray(M, dtype=float)
     p = M.shape[1]
@@ -249,6 +322,13 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
                                f"k has to be between 1 and {p - 1}.")
     if pass_restarts < 0:
         raise MlsynthDataError(f"pass_restarts is {pass_restarts}; it cannot be negative.")
+    if not isinstance(n_jobs, int) or n_jobs < 1:
+        raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
+    with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:
+        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0)
+
+
+def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
     T0 = sorted(start) if start is not None else sorted(_start(M, k, n_test, restarts))
@@ -268,12 +348,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     if res.passing:
         take(T0, res, C)
     lam = gram_floor(M)
-    rows = []
-    for T in combinations(range(p), k):
-        if list(T) == T0:
-            continue
-        yy = _yy(M, T)
-        rows.append((rss_floor(M, T, lam, yy=yy), yy, T))
+    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)
     rows.sort(key=lambda r: r[0] / r[1])  # the highest correlation bound first
 
     def class_of():
@@ -281,36 +356,38 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
 
     local = {}                              # the pass: group -> (design, key or None)
     if pass_restarts:
-        for floor, yy, T in rows:
-            if not can_compete(yy, floor, *class_of()):
-                continue
-            C, key, rss, rest = _local(M, T, n_test, pass_restarts)
-            local[T] = (C, key)
-            out.searched += 1
-            if key is not None and (out.key is None or key > out.key):
-                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key
-                out.passing = True
+        for wave in _waves(rows, n_jobs, lambda r: can_compete(r[1], r[0], *class_of())):
+            found = _map(pool, _local, [(M, T, n_test, pass_restarts) for _, _, T in wave])
+            for (_, _, T), (C, key, rss, rest) in zip(wave, found):   # in queue order
+                local[T] = (C, key)
+                out.searched += 1
+                if key is not None and (out.key is None or key > out.key):
+                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key
+                    out.passing = True
         out.pass_key = out.key
         # best local design first; groups with no passing design after, in correlation-bound order
         rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,
                                  tuple(-v for v in local[r[2]][1]) if local.get(r[2], (None, None))[1] else ()))
 
-    for floor, yy, T in rows:
-        if not can_compete(yy, floor, *class_of()):
-            out.screened_out += 1
-            continue
-        t1 = time.perf_counter()
-        c = ceiling(yy, *class_of())
-        seed, pass_key = local.get(T, (None, None))
-        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=seed)
-        if not res.certified:
-            left_open.append((list(T), yy, c))
-        out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
-                                  key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                                  pass_key=pass_key, seconds=time.perf_counter() - t1))
-        if res.passing and (out.key is None or res.key > out.key):
-            take(T, res, C)
-            out.replaced += 1
+    def admit(row):                         # screened against the incumbent as the wave fills
+        floor, yy, T = row
+        if can_compete(yy, floor, *class_of()):
+            return True
+        out.screened_out += 1
+        return False
+
+    for wave in _waves(rows, n_jobs, admit):
+        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for _, yy, T in wave]
+        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, seed) for T, _, c, seed, _ in jobs])
+        for (T, yy, c, seed, pass_key), (res, C, secs) in zip(jobs, done):   # in queue order
+            if not res.certified:
+                left_open.append((list(T), yy, c))
+            out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
+                                      key=res.key, rounds=len(res.rounds), stopped=res.stopped,
+                                      pass_key=pass_key, ceiling=c, seconds=secs))
+            if res.passing and (out.key is None or res.key > out.key):
+                take(T, res, C)
+                out.replaced += 1
     for T, yy, c_then in left_open:         # the incumbent only improves, so its ceiling only falls
         c = ceiling(yy, *class_of())
         if c is not None and (c_then is None or c < c_then):

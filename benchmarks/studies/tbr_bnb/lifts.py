@@ -126,7 +126,7 @@ class Lift:
         self.lo.value, self.hi.value, self.m.value = b_lo, min(b_hi, big), m
         kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol, tol_feas=tol)
         try:
-            self.prob.solve(solver=cp.CLARABEL, **kw)
+            self.prob.solve(solver=cp.CLARABEL, max_threads=1, **kw)   # fork-safe (slopefree.solve)
         except cp.error.SolverError:  # pragma: no cover - Clarabel raises only on a numerical
             self.prob.solve(solver=cp.SCS, eps=1e-8, max_iters=20000)  # breakdown, never on the study's panels
         if self.prob.status not in ("optimal", "optimal_inaccurate"):

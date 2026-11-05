@@ -11967,7 +11967,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12023,6 +12023,12 @@ timeout = 900.0
   find = "    rho = ok[-1] if ok.size else 0       # in doubles none passes when u_1 dwarfs T; the largest is kept\n"
   replace = "    rho = ok[-1]\n"
   models = "the projection's scan trusted in doubles, where an entry far above the cap leaves no index passing and the scan reads an empty array"
+
+  [[target.mutant]]
+  id = "clarabel-starts-its-own-threads"
+  find = "    prob.solve(solver=\"CLARABEL\", max_threads=1)   # a thread pool would hang a worker forked after it\n"
+  replace = "    prob.solve(solver=\"CLARABEL\")   # a thread pool would hang a worker forked after it\n"
+  models = "Clarabel left to its automatic threading, whose native thread pool a forked worker inherits without its threads, so certify_treatment(n_jobs > 1) hangs at its first Clarabel solve in a worker"
 
   [[target.mutant]]
   id = "an-empty-node-is-searched"
@@ -12309,7 +12315,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
@@ -12344,8 +12350,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-screen-computes-yy-twice"
-  find = "        rows.append((rss_floor(M, T, lam, yy=yy), yy, T))\n"
-  replace = "        rows.append((rss_floor(M, T, lam), yy, T))\n"
+  find = "        out.append((rss_floor(M, T, lam, yy=yy), yy, T))\n"
+  replace = "        out.append((rss_floor(M, T, lam), yy, T))\n"
   models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
 
   [[target.mutant]]
@@ -12391,6 +12397,48 @@ timeout = 1200.0
   models = "a pass design with c'u <= 0 credited with the fit of a negative slope, though the shared slope must be positive, so its RSS reads below y'y"
 
   [[target.mutant]]
+  id = "a-wave-takes-no-incumbent"
+  find = "            if res.passing and (out.key is None or res.key > out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
+  replace = "            if False:\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
+  models = "a wave's results recorded but never adopted, so a better design found by a survivor is not the one reported"
+
+  [[target.mutant]]
+  id = "a-wave-replaces-on-a-tie"
+  find = "            if res.passing and (out.key is None or res.key > out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
+  replace = "            if res.passing and (out.key is None or res.key >= out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
+  models = "an equal key from a later group in a wave replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
+
+  [[target.mutant]]
+  id = "a-wave-is-not-screened"
+  find = "        if can_compete(yy, floor, *class_of()):\n            return True\n        out.screened_out += 1\n        return False\n"
+  replace = "        return True\n"
+  models = "every group certified whatever its floor, the cost the screen removes, and the screened-out count left at zero"
+
+  [[target.mutant]]
+  id = "the-last-floor-chunk-is-dropped"
+  find = "    return [r for part in _map(pool, _floor_chunk, [(M, lam, c) for c in chunks]) for r in part]\n"
+  replace = "    return [r for part in _map(pool, _floor_chunk, [(M, lam, c) for c in chunks[:-1]]) for r in part]\n"
+  models = "the groups of the last chunk never floored or searched, so a design among them is never considered"
+
+  [[target.mutant]]
+  id = "one-job-starts-a-pool"
+  find = "    with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:\n"
+  replace = "    with _pool(n_jobs) as pool:\n"
+  models = "the sequential search sent through a pool of one worker, paying its start and the pickling for nothing"
+
+  [[target.mutant]]
+  id = "a-non-positive-n-jobs-passes"
+  find = "    if not isinstance(n_jobs, int) or n_jobs < 1:\n"
+  replace = "    if not isinstance(n_jobs, int):\n"
+  models = "n_jobs of zero or below taken, so the waves admit no group and the search reports the start group as certified"
+
+  [[target.mutant]]
+  id = "a-worker-error-is-swallowed"
+  find = "    return list(pool.map(_star, [fn] * len(argss), argss))\n"
+  replace = "    try:\n        return list(pool.map(_star, [fn] * len(argss), argss))\n    except ValueError:\n        return [fn(*a) for a in argss]\n"
+  models = "a worker's error caught and the work redone in this process, so a failure in a worker is hidden from the caller"
+
+  [[target.mutant]]
   id = "a-group-above-the-class-is-ruled-out-on-rss"
   find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
   replace = "    return min(rss_star, yy * (1 - low * low))\n"
@@ -12422,14 +12470,14 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "every-group-is-ruled-out"
-  find = "        if not can_compete(yy, floor, *class_of()):\n            out.screened_out += 1\n"
-  replace = "        if True:\n            out.screened_out += 1\n"
+  find = "        if can_compete(yy, floor, *class_of()):\n            return True\n"
+  replace = "        if False:\n            return True\n"
   models = "the screen ruling out every group, so the incumbent is never challenged"
 
   [[target.mutant]]
   id = "a-refused-group-reads-as-certified"
-  find = "        if not res.certified:\n            left_open.append((list(T), yy, c))\n"
-  replace = "        if False:\n            left_open.append((list(T), yy, c))\n"
+  find = "            if not res.certified:\n                left_open.append((list(T), yy, c))\n"
+  replace = "            if False:\n                left_open.append((list(T), yy, c))\n"
   models = "a survivor whose own certification was cut short counted as certified"
 
   [[target.mutant]]
@@ -12440,14 +12488,14 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-start-group-is-screened-again"
-  find = "        if list(T) == T0:\n            continue\n"
-  replace = "        if False:\n            continue\n"
+  find = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
+  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k)], lam, pool, n_jobs)\n"
   models = "the start group counted twice, once certified and once screened"
 
   [[target.mutant]]
   id = "the-pass-does-not-adopt-its-best-design"
-  find = "            if key is not None and (out.key is None or key > out.key):\n                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
-  replace = "            if False:\n                out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
+  find = "                if key is not None and (out.key is None or key > out.key):\n                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
+  replace = "                if False:\n                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
   models = "the pass's best local design left unused, so the groups are certified against the start's ceiling"
 
   [[target.mutant]]
@@ -12458,8 +12506,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "certifications-are-not-seeded"
-  find = "        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=seed)\n"
-  replace = "        res, C = _optimum(M, T, n_test, restarts, ceiling=c, start=None)\n"
+  find = "        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, seed) for T, _, c, seed, _ in jobs])\n"
+  replace = "        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, None) for T, _, c, seed, _ in jobs])\n"
   models = "each certification searching its group again, though the pass has already found its design"
 
   [[target.mutant]]
@@ -12494,6 +12542,6 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        c = ceiling(yy, *class_of())\n        seed, pass_key = local.get(T, (None, None))\n"
-  replace = "        c = None\n        seed, pass_key = local.get(T, (None, None))\n"
+  find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for _, yy, T in wave]\n"
+  replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for _, yy, T in wave]\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
