@@ -41,17 +41,30 @@ Since the bound holds at any multipliers, and for any subset of the rows (a
 relaxation with fewer rows contains more points, and every design among them), a
 size is tried by a cascade of certificates, cheapest first (size_certificate):
 the previous size's multipliers at this size's rows, screened in doubles and
-then evaluated exactly; the Shor relaxation, which keeps the equalities, c'u >= 0
+then evaluated exactly; multipliers from a first-order method on the certificate
+itself (dual_multipliers: L-BFGS-B on its smoothing, warm-started from the previous
+size), evaluated exactly; the Shor relaxation, which keeps the equalities, c'u >= 0
 and the cuts and drops the bound products and the products of c'u; then the full
 relaxation with its rounds of triangles. On the 242 root sizes of the four-geo
 GeoLift search the first closed 43 of the 239 that had a previous size, the
-second 212 of 242 at 0.37 s a solve against 1.07 s for the full relaxation.
+first-order method 240 of 242 at 0.04 s a size, the Shor relaxation 212 of 242 at
+0.37 s a solve, against 1.07 s for the full relaxation.
+
+The smoothing of T max(0, lambda_max(S)) is max {<Z, S> - a/2 ||Z||^2 : Z >= 0,
+tr Z <= T}, within a T^2 / 2 of it, with the maximiser given by projecting the
+eigenvalues of S / a onto {z >= 0, sum z <= T} (derived here; dual.smoothed_lbfgs
+smooths the joint lift's dual by Young's inequality instead), minimised by
+L-BFGS-B (Byrd, Lu, Nocedal and Zhu 1995).
 
 Balas, E. and Jeroslow, R. (1972). Canonical cuts on the unit hypercube. SIAM J.
     Appl. Math. 23, 61-69.
 Borrero, J. S., Gillen, C. and Prokopyev, O. A. (2017). Fractional 0-1 programming:
     applications and algorithms. J. Global Optim. 69, 255-282.
+Byrd, R. H., Lu, P., Nocedal, J. and Zhu, C. (1995). A limited memory algorithm for bound
+    constrained optimization. SIAM J. Sci. Comput. 16, 1190-1208.
 Dinkelbach, W. (1967). On nonlinear fractional programming. Manag. Sci. 13, 492-498.
+Duchi, J., Shalev-Shwartz, S., Singer, Y. and Chandra, T. (2008). Efficient projections
+    onto the l1-ball for learning in high dimensions. Proc. 25th ICML, 272-279.
 Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the optimal
     value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
 Padberg, M. (1989). The boolean quadric polytope: some characteristics, facets and
@@ -284,7 +297,7 @@ class SizeResult:
     triangles: int
     seconds: float
     u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
-    tier: str = "full"                   # the cascade's tier that decided: reuse, shor or full
+    tier: str = "full"                   # the cascade's tier that decided: reuse, dual, shor or full
     multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
 
 
@@ -298,6 +311,134 @@ def _screen(A, R: Rows, y_eq, y_in, m) -> float:
     S = np.zeros((n, n)); S[1:, 1:] = np.asarray(A, dtype=float); S -= (E + E.T) / 2
     k = float(np.dot(y_eq, np.asarray(R.beq, dtype=float)) + np.dot(y_in, np.asarray(R.bin, dtype=float)))
     return k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
+
+
+def _capped(v, T):
+    """The projection of v onto {z >= 0, sum z <= T}: max(v - theta, 0), with
+    theta >= 0 the smallest shift that brings the sum to at most T. When the sum of
+    max(v, 0) is above T the projection is onto the scaled simplex, by the sort and
+    scan of Duchi, Shalev-Shwartz, Singer and Chandra (2008); the capped form is
+    derived here from its KKT conditions."""
+    z = np.maximum(v, 0.0)
+    if z.sum() <= T:
+        return z
+    u = np.sort(v)[::-1]
+    css = np.cumsum(u)
+    ok = np.nonzero(u - (css - T) / np.arange(1, len(u) + 1) > 0)[0]
+    rho = ok[-1] if ok.size else 0       # in doubles none passes when u_1 dwarfs T; the largest is kept
+    z = np.maximum(v - (css[rho] - T) / (rho + 1), 0.0)
+    if not z.any():
+        z = np.where(v == u[0], 1.0, 0.0)
+    return z * min(1.0, T / z.sum())
+
+
+class _Dual:
+    """The certificate of bound() as a function of the multipliers, in the solver's
+    units (the objective divided by s, the rows carrying c by cs, as solve does):
+    F(y) = b'y + T max(0, lambda_max(S(y))), T = 1 + m, and its smoothing
+    b'y + max {<Z, S(y)> - a/2 ||Z||^2 : Z >= 0, tr Z <= T}, whose maximiser is
+    Q diag(_capped(lambda / a, T)) Q' and whose gradient in y is b - rows(Z)."""
+
+    def __init__(self, A, R: Rows, m, c):
+        A = np.asarray(A, dtype=float)
+        self.n, self.T, self.ne = R.n, 1.0 + m, R.n_eq
+        self.s = _pow2(float(np.abs(A).max()))
+        self.cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
+        Me, Mi = R.matrices(self.cs)
+        self.M = sp.vstack([Me, Mi]).tocsr()
+        self.MT = self.M.T.tocsr()
+        self.b = np.concatenate([np.asarray(R.beq, dtype=float), np.asarray(R.bin, dtype=float)])
+        self.size = len(self.b)
+        self.c_idx = self.ne + np.asarray(R.c_rows, dtype=int)
+        self.A0 = np.zeros((self.n, self.n)); self.A0[1:, 1:] = A / self.s
+        self.scale = max(1e-300, float(np.abs(np.linalg.eigvalsh(self.A0)).max()))
+
+    def S(self, y):
+        E = (self.MT @ y).reshape(self.n, self.n, order="F")
+        return self.A0 - (E + E.T) / 2
+
+    def value(self, y):
+        return float(self.b @ y + self.T * max(0.0, np.linalg.eigvalsh(self.S(y))[-1]))
+
+    def smoothed(self, y, a):
+        lam, Q = np.linalg.eigh(self.S(y))
+        z = _capped(lam / a, self.T)
+        Z = (Q * z) @ Q.T
+        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b - self.M @ Z.reshape(-1, order="F")
+
+    def start(self, w: Optional["Multipliers"]):
+        y = np.zeros(self.size)
+        if w is not None and w.level == "full" and len(w.y_eq) + len(w.y_in) == self.size:
+            y[:self.ne] = np.asarray(w.y_eq, dtype=float) / self.s
+            y[self.ne:] = np.maximum(np.asarray(w.y_in, dtype=float), 0.0) / self.s
+            y[self.c_idx] *= self.cs
+        return y
+
+    def back(self, y):
+        """The multipliers in the data's units, as bound() reads them."""
+        out = np.asarray(y, dtype=float) * self.s
+        out[self.c_idx] /= self.cs
+        return out[:self.ne], out[self.ne:]
+
+
+#: The dual's evaluations before it gives up: on the 242 root sizes of the four-geo
+#: GeoLift search the 240 it closed took a median of 9, at most 309.
+DUAL_BUDGET = 400
+
+
+def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
+                     maxfun=150, stages=6, budget: Optional[int] = None):
+    """Multipliers at which the float certificate of R is below zero, or None.
+
+    L-BFGS-B (bounds y_in >= 0) on the smoothed certificate of _Dual, from ``warm``
+    when it is the full rows' and of their shape, else from zero; the smoothing
+    starts with a T^2 / 2 at about |F| at the start and shrinks tenfold per stage,
+    and the search stops at the first iterate whose unsmoothed F is below zero, or
+    gives up after ``budget`` evaluations (DUAL_BUDGET when not given). The
+    float value only decides whether the exact bound is tried: size_certificate
+    certifies with bound() at the multipliers returned."""
+    from scipy.optimize import minimize
+
+    D = _Dual(A, R, m, c)
+    y = D.start(warm)
+    info = {"evals": 1}
+    f0 = D.value(y)
+    if f0 < 0:
+        return Multipliers("full", *D.back(y)), info
+    best = [f0, y]
+
+    limit = DUAL_BUDGET if budget is None else budget
+
+    class _Closed(Exception):
+        pass
+
+    class _Spent(Exception):
+        pass
+
+    def fun(yv, a):
+        info["evals"] += 1
+        if info["evals"] > limit:
+            raise _Spent
+        f, g = D.smoothed(yv, a)
+        true = D.value(yv)
+        if true < best[0]:
+            best[0], best[1] = true, yv.copy()
+        if true < 0:
+            raise _Closed
+        return f, g
+
+    bounds = [(None, None)] * D.ne + [(0.0, None)] * (D.size - D.ne)
+    a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2   # a start at F = 0 would leave a near zero and lambda / a past 1e17
+    try:
+        for _ in range(stages):
+            y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
+                         options=dict(maxfun=maxfun, maxcor=20)).x
+            a *= 0.1
+    except _Closed:
+        return Multipliers("full", *D.back(best[1])), info
+    except _Spent:
+        pass
+    return None, info
 
 
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
@@ -317,6 +458,12 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             b = bound(A, R, warm.y_eq, warm.y_in, m)
             if b is not None and b <= 0:
                 return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="reuse", multipliers=warm)
+    R = Rows(c, m, cuts=cuts, fixes=fixes)
+    w, _ = dual_multipliers(A, R, m, c, warm=warm)
+    if w is not None:
+        b = bound(A, R, w.y_eq, w.y_in, m)
+        if b is not None and b <= 0:
+            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
     R = Rows(c, m, cuts=cuts, fixes=fixes, level="shor")
     try:
         sol = solve(c, G, lam, R)
