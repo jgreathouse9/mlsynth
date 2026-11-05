@@ -1,0 +1,95 @@
+# Stage timings of certify_treatment on the GeoLift window at k = 4 (n_test = 14, restarts = 50, pass_restarts = 10),
+# BLAS on one thread, both on one host (Intel Xeon @ 2.10GHz, 4 cores, quiet): main at 4e4fe778 (the y'y in integers, the
+# cascade and the dual tier) and the same with the pass's design scored by design_moments. Each line: seconds, calls, the stage.
+## main
+[k=4] certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) survivors 33 searched 90 wall 192.7s
+    93.11s          [certify] treatment._optimum
+    93.11s       33 treatment._optimum
+    93.11s          [certify] gated.certify_slope_free
+    93.11s       33 gated.certify_slope_free
+    66.61s          [pass] treatment._local
+    66.61s       90 treatment._local
+    47.68s       91 search.incumbent
+    45.19s          [pass] search.incumbent
+    39.51s          [certify] slopefree.size_certificate
+    39.51s      242 slopefree.size_certificate
+    30.59s          [certify] search.hull_survivors
+    30.59s       33 search.hull_survivors
+    21.18s          [pass] certificate.ExactData
+    21.18s       90 certificate.ExactData
+    19.17s          [floors] treatment.rss_floor
+    19.09s    91389 treatment.rss_floor
+    11.45s          [certify] slopefree.price_subtree
+    11.45s      165 slopefree.price_subtree
+    10.56s          [certify] slopefree.bound
+    10.56s      246 slopefree.bound
+     8.76s          [certify] slopefree.ExactData
+     8.76s       33 slopefree.ExactData
+     8.57s      455 Rows.__init__
+     8.14s          [floors] treatment.hull_bound_float
+     8.03s    91389 treatment.hull_bound_float
+     7.84s          [certify] slopefree.solve
+     7.84s        7 slopefree.solve
+     7.76s        7 cvxpy.Problem.solve (all)
+     7.67s          clarabel solve_time
+     7.66s          [floors] treatment.nnls
+     7.54s    91389 treatment.nnls
+     3.95s          [setup] treatment._start
+     3.95s        1 treatment._start
+     2.59s      455 Rows.matrices
+     2.49s          [certify] search.incumbent
+     1.73s          [certify] slopefree.lambda_min_lower
+     1.73s      246 slopefree.lambda_min_lower
+     0.31s          [certify] treatment.gram_floor
+     0.31s        1 treatment.gram_floor
+     0.04s          [pass] treatment.gates_of
+     0.04s       90 treatment.gates_of
+     0.00s          [certify] slopefree.separate_triangles
+     0.00s        1 slopefree.separate_triangles
+     0.00s          [certify] gated.gates_of
+     0.00s        1 gated.gates_of
+## with design_moments in the pass
+[k=4] certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) survivors 33 searched 90 wall 159.5s
+    87.54s          [certify] treatment._optimum
+    87.54s       33 treatment._optimum
+    87.53s          [certify] gated.certify_slope_free
+    87.53s       33 gated.certify_slope_free
+    41.49s       91 search.incumbent
+    39.69s          [pass] treatment._local
+    39.69s       90 treatment._local
+    39.59s          [pass] search.incumbent
+    39.04s          [certify] slopefree.size_certificate
+    39.04s      242 slopefree.size_certificate
+    27.95s          [certify] search.hull_survivors
+    27.95s       33 search.hull_survivors
+    18.68s          [floors] treatment.rss_floor
+    18.60s    91389 treatment.rss_floor
+    10.54s          [certify] slopefree.price_subtree
+    10.54s      165 slopefree.price_subtree
+    10.19s          [certify] slopefree.bound
+    10.19s      246 slopefree.bound
+     8.27s      455 Rows.__init__
+     7.81s          [floors] treatment.hull_bound_float
+     7.80s          [certify] slopefree.ExactData
+     7.80s       33 slopefree.ExactData
+     7.71s    91389 treatment.hull_bound_float
+     7.62s          [floors] treatment.nnls
+     7.50s    91389 treatment.nnls
+     7.41s          [certify] slopefree.solve
+     7.41s        7 slopefree.solve
+     7.34s        7 cvxpy.Problem.solve (all)
+     7.25s          clarabel solve_time
+     3.76s          [setup] treatment._start
+     3.76s        1 treatment._start
+     2.71s      455 Rows.matrices
+     1.90s          [certify] search.incumbent
+     1.64s          [certify] slopefree.lambda_min_lower
+     1.64s      246 slopefree.lambda_min_lower
+     0.37s          [certify] treatment.gram_floor
+     0.37s        1 treatment.gram_floor
+     0.03s          [pass] treatment.gates_of
+     0.03s       90 treatment.gates_of
+     0.00s          [certify] slopefree.separate_triangles
+     0.00s        1 slopefree.separate_triangles
+     0.00s          [certify] gated.gates_of
+     0.00s        1 gated.gates_of

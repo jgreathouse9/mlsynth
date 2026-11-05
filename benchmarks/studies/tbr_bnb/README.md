@@ -465,7 +465,15 @@ it is a poor start. At four geos (`results/queue.log`):
 
 The pass searches 90 groups in about 45 s, and its best design is already the
 certified optimum, so the incumbent is never replaced and no group is left
-open. On 15 markets with three treated (455 groups) both searches certify the
+open. A third of that was scoring: each group's local design was scored through
+the group's whole exact Gram (`certificate.ExactData`), 0.17 s a group, though
+the score needs only the design's `c'u`, `u'Gu` and `y'y`. `design_moments` gives
+those exactly from integers over a power of two, as `square_sum` does for `y'y`,
+in 0.4 ms. On one host, with the cascade and the dual tier in both runs
+(`results/pass.log`), the pass takes 39.7 s, where it took 66.6 s (21.2 s of it
+in `ExactData`), and the four-geo search 159.5 s, where it took 192.7 s; that
+host runs the whole search about 1.45 times slower than the one behind the
+other tables here. On 15 markets with three treated (455 groups) both searches certify the
 optimum found by enumeration of all 1.9 million designs (austin, baton rouge,
 dallas; 0.99 and 0.000518) in 1.4-1.6 s, the start incumbent there being
 already near it.
@@ -564,7 +572,7 @@ The same design is certified in each.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (369 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (378 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
