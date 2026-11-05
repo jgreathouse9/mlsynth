@@ -92,6 +92,27 @@ class TestTheShippedTree:
 
 
 # --------------------------------------------------------------- unit: the graph
+class TestTheShippedGraphIsKeyedByItsTree:
+    """The shipped graph is read once per process and kept. A test that points
+    ``PATH`` at a temporary tree and reaches :func:`import_graph` (the nightly
+    ``--combine`` tests do) must not leave that tree's graph behind for the
+    shipped one: on #983 it did, and in the worker that ran them next the shipped
+    graph read as ``{}``."""
+
+    def test_a_graph_read_under_another_path_is_not_kept_for_the_shipped_tree(
+            self, tmp_path, monkeypatch):
+        case_deps._shipped_graph.cache_clear()
+        with monkeypatch.context() as m:
+            m.setattr(case_deps, "PATH", tmp_path / "benchmarks" / "case_deps.json")
+            assert case_deps.import_graph() == {}          # the temporary tree has no module
+        assert "mlsynth/utils/marex_helpers/structures.py" in case_deps.import_graph()
+
+    def test_the_shipped_graph_is_read_once(self, monkeypatch):
+        case_deps._shipped_graph.cache_clear()
+        first = case_deps.import_graph()
+        assert case_deps.import_graph() is first
+
+
 class TestTheGraphReadsEverySpelling:
     """Each way of naming a module produces the same edge."""
 
