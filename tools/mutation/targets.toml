@@ -11971,6 +11971,60 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py be
 timeout = 900.0
 
   [[target.mutant]]
+  id = "the-dual-certifies-without-the-exact-bound"
+  find = "        b = bound(A, R, w.y_eq, w.y_in, m)\n        if b is not None and b <= 0:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"dual\", multipliers=w)\n"
+  replace = "        b = Q(-1)\n        if True:\n            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier=\"dual\", multipliers=w)\n"
+  models = "a size certified on the dual's float value, with no exact bound, so a rounding error or a dual bug can close a size that holds a better design"
+
+  [[target.mutant]]
+  id = "the-dual-tier-is-skipped"
+  find = "    w, _ = dual_multipliers(A, R, m, c, warm=warm)\n"
+  replace = "    w = None\n"
+  models = "every size that reuse cannot close sent to Clarabel, the cost the dual tier removes"
+
+  [[target.mutant]]
+  id = "the-projection-ignores-the-cap"
+  find = "    z = np.maximum(v, 0.0)\n    if z.sum() <= T:\n        return z\n"
+  replace = "    z = np.maximum(v, 0.0)\n    if True:\n        return z\n"
+  models = "the smoothing's maximiser left above tr Z <= T, so the smoothed value is not the certificate's and the dual descends on the wrong function"
+
+  [[target.mutant]]
+  id = "the-dual-gradient-has-the-wrong-sign"
+  find = "        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b - self.M @ Z.reshape(-1, order=\"F\")\n"
+  replace = "        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b + self.M @ Z.reshape(-1, order=\"F\")\n"
+  models = "the gradient of the rows' term with its sign flipped, S(y) = A - sum y_k E_k read as A + sum y_k E_k"
+
+  [[target.mutant]]
+  id = "the-c-rows-are-not-rescaled"
+  find = "        Me, Mi = R.matrices(self.cs)\n"
+  replace = "        Me, Mi = R.matrices(1.0)\n"
+  models = "the rows carrying c left at their own scale, orders of magnitude above the rest, where the dual stalls above zero"
+
+  [[target.mutant]]
+  id = "the-warm-start-is-ignored"
+  find = "    y = D.start(warm)\n"
+  replace = "    y = D.start(None)\n"
+  models = "the dual starting from zero whatever the previous size handed on"
+
+  [[target.mutant]]
+  id = "the-dual-never-gives-up"
+  find = "        if info[\"evals\"] > limit:\n            raise _Spent\n"
+  replace = "        if False:\n            raise _Spent\n"
+  models = "a dual that cannot close a size spending every stage's evaluations before handing it on"
+
+  [[target.mutant]]
+  id = "the-smoothing-has-no-floor"
+  find = "    a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2"
+  replace = "    a = abs(f0) / D.T ** 2"
+  models = "a start at F near zero leaving the smoothing near zero, so lambda / a overflows the projection"
+
+  [[target.mutant]]
+  id = "the-projection-has-no-fallback"
+  find = "    rho = ok[-1] if ok.size else 0       # in doubles none passes when u_1 dwarfs T; the largest is kept\n"
+  replace = "    rho = ok[-1]\n"
+  models = "the projection's scan trusted in doubles, where an entry far above the cap leaves no index passing and the scan reads an empty array"
+
+  [[target.mutant]]
   id = "an-empty-node-is-searched"
   find = "    if ones > m or len(fixes) - ones > p - m:\n        return\n"
   replace = "    if False:\n        return\n"

@@ -95,3 +95,51 @@
      0.00s        1 slopefree.separate_triangles
      0.00s          [certify] gated.gates_of
      0.00s        1 gated.gates_of
+
+## with the dual tier (merged with the y'y of the floor stage, #982)
+[k=4] certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) survivors 33 searched 90 wall 130.5s
+    61.31s          [certify] treatment._optimum
+    61.31s       33 treatment._optimum
+    61.30s          [certify] gated.certify_slope_free
+    61.30s       33 gated.certify_slope_free
+    45.97s          [pass] treatment._local
+    45.97s       90 treatment._local
+    31.98s       91 search.incumbent
+    30.51s          [pass] search.incumbent
+    27.80s          [certify] slopefree.size_certificate
+    27.80s      242 slopefree.size_certificate
+    18.56s          [certify] search.hull_survivors
+    18.56s       33 search.hull_survivors
+    15.29s          [pass] certificate.ExactData
+    15.29s       90 certificate.ExactData
+    13.41s          [floors] treatment.rss_floor
+    13.36s    91389 treatment.rss_floor
+     7.59s          [certify] slopefree.price_subtree
+     7.59s      165 slopefree.price_subtree
+     7.22s          [certify] slopefree.bound
+     7.22s      246 slopefree.bound
+     6.01s          [certify] slopefree.solve
+     6.01s        7 slopefree.solve
+     5.96s        7 cvxpy.Problem.solve (all)
+     5.92s      455 Rows.__init__
+     5.90s          clarabel solve_time
+     5.68s          [certify] slopefree.ExactData
+     5.68s       33 slopefree.ExactData
+     5.67s          [floors] treatment.hull_bound_float
+     5.60s    91389 treatment.hull_bound_float
+     5.31s          [floors] treatment.nnls
+     5.23s    91389 treatment.nnls
+     2.73s          [setup] treatment._start
+     2.73s        1 treatment._start
+     1.74s      455 Rows.matrices
+     1.47s          [certify] search.incumbent
+     1.15s          [certify] slopefree.lambda_min_lower
+     1.15s      246 slopefree.lambda_min_lower
+     0.21s          [certify] treatment.gram_floor
+     0.21s        1 treatment.gram_floor
+     0.03s          [pass] treatment.gates_of
+     0.03s       90 treatment.gates_of
+     0.00s          [certify] slopefree.separate_triangles
+     0.00s        1 slopefree.separate_triangles
+     0.00s          [certify] gated.gates_of
+     0.00s        1 gated.gates_of

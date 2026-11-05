@@ -529,9 +529,42 @@ the exact bound, so a size is closed only when that bound is at or below zero;
 `test_cascade.py` checks each tier against enumeration and that a tier which
 does not close, or whose solver fails, hands the size to the next.
 
+### The dual tier
+
+None of the three certificates above needs the relaxation's optimum, only
+multipliers at which the exact bound is at or below zero. So the cascade has a
+tier between the reused multipliers and the Shor relaxation that looks for them
+directly (`dual_multipliers`): L-BFGS-B (Byrd, Lu, Nocedal and Zhu 1995), with the
+inequality multipliers bounded at zero, on a smoothing of the certificate
+
+    F(y) = b'y + (1 + m) max(0, lambda_max(S(y))),
+
+namely `max {<Z, S> - a/2 ||Z||^2 : Z >= 0, tr Z <= 1 + m}`, within `a (1 + m)^2 / 2`
+of it, whose maximiser projects the eigenvalues of `S / a` onto
+`{z >= 0, sum z <= 1 + m}` (derived here). It starts from the previous size's
+multipliers, shrinks `a` tenfold per stage, stops at the first iterate whose
+unsmoothed `F` is below zero, and gives up after 400 evaluations. The rows
+carrying `c` are divided by a power of two near `max |c|`, as `solve` divides
+them for Clarabel: without it the dual stalled above zero on every GeoLift
+group tried, since those rows are orders of magnitude above the others.
+
+On the 242 recorded root sizes it closed 240 (209 of 210 warm-started, 31 of 32
+cold), at a mean of 0.04 s (median 0.017 s) and at most 309 evaluations, against
+0.37 s for a Shor solve; the exact bound at its multipliers costs another 0.04 s.
+The two it left open went on to Clarabel. With it, the four-geo search
+(`results/cascade.log`, with the y'y of the floor stage in integers):
+
+| run | wall | size certificates | Clarabel solves |
+| --- | --- | --- | --- |
+| before the cascade | 379 s | 246 s | 243, 224 s |
+| reuse, Shor, full | 213 s | 112 s | 207, 103 s |
+| reuse, dual, Shor, full | 131 s | 28 s | 7, 6 s |
+
+The same design is certified in each.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (343 tests, about 80 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (369 tests, about 80 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
