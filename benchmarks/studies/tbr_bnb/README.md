@@ -570,6 +570,43 @@ The two it left open went on to Clarabel. With it, the four-geo search
 
 The same design is certified in each.
 
+## Several processes
+
+`certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
+forked processes, and runs the pass and the certifications in waves of `n_jobs`
+groups. A wave's groups are screened and given their ceilings from the incumbent
+as the wave fills, and their results are applied in queue order, a group
+replacing the incumbent only with a strictly larger key. A certificate proved
+against a ceiling that the wave's later results lower still holds, since no
+design below a ceiling means none below a lower one, so the certified design is
+the sequential search's at every `n_jobs`, ties included; `n_jobs = 1` starts no
+pool and is that search. `test_parallel.py` checks the two agree as a hypothesis
+property, against enumeration, and that a group left open in a wave is retried
+and a worker's error reaches the caller.
+
+Clarabel runs on one thread in every solve of the study (`max_threads=1`). Its
+automatic threading starts a native thread pool on a relaxation of the GeoLift
+groups' size, six threads in the parent after one solve against two on one
+thread, and a worker forked after that inherits the pool's state but not its
+threads: its next solve never returns. The first four-process run hung that way
+in its first certification wave that reached Clarabel, every process asleep and
+the stuck worker inside `slopefree.solve`; the small test panels had never
+reached Clarabel in a worker. `test_parallel.py` solves a relaxation of the
+recorded size in the parent and then in a forked worker.
+
+On GeoLift at four geos (`results/parallel.log`, one host, BLAS on one thread):
+
+| `n_jobs` | wall | pass groups searched | groups certified | the design |
+| --- | --- | --- | --- | --- |
+| 1 | 163.1 s | 90 | 33 | austin, dallas, minneapolis, reno |
+| 4 | 64.5 s | 95 | 33 | the same, key and RSS equal |
+
+The four-process pass searches five more groups: a wave admits its groups against
+the incumbent as it starts, so a group the wave's own better design would have
+screened out is searched anyway. The search before the pool (the library's
+greedy and local search and the start group's certification) runs in one
+process.
+
 ## Tests
 
 `pytest benchmarks/studies/tbr_bnb/` (378 tests, about 80 s with four workers) checks every bound
