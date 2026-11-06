@@ -20,7 +20,7 @@ from mlsynth.exceptions import MlsynthDataError
 from .brute import geo_panel, treatment_optimum
 from .certificate import ExactData
 from .gated import certify_gated
-from . import treatment
+from . import fastfloor, treatment
 from .treatment import (EDGE, SLACK, _split, can_compete, ceiling, certify_treatment,
                         design_moments, gram_floor, rss_floor, square_sum)
 
@@ -245,7 +245,11 @@ def test_the_floor_reads_a_given_yy():
     assert rss_floor(M, T, lam, yy=square_sum(y)) == rss_floor(M, T, lam)
 
 
-def test_the_screen_computes_yy_once_per_group(monkeypatch):
+@pytest.mark.parametrize("fast", [False, True])
+def test_the_screen_computes_yy_once_per_group(monkeypatch, fast):
+    """On both paths: the numpy one (rss_floor) and, with numba, the compiled one,
+    whose brackets need no square_sum at all."""
+    monkeypatch.setattr(fastfloor, "AVAILABLE", fast and fastfloor.AVAILABLE)
     calls = []
     real = treatment.square_sum
     monkeypatch.setattr(treatment, "square_sum", lambda v: calls.append(1) or real(v))
