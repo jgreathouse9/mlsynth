@@ -11476,6 +11476,8 @@ timeout = 1500.0
   find = "                toggled[u] = np.inf                     # dropping the only control leaves no design\n"
   replace = "                pass                                    # dropping the only control leaves no design\n"
   models = "the empty design scored as a move, which scores y'y and is never below a design's RSS"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured. Dropping the only control j gives c'u - c_j and u'Gu - 2 v_j + G_jj, both zero up to the rounding the updates carried, which scores y'y (or, after drift, y'y less the square of one residue over another), and the descent takes a move only when it lowers the RSS below the current one by a relative 1e-12, which y'y never does since every design's RSS is at most y'y. Measured on 3,600 descents over simulated panels of one to nine controls and 40 fourteen-geo panels at three treated: no descent returned the empty design or raised. The guard stays for the drifted case, where a ratio of two residues is not bounded."
 
   [[target.mutant]]
   id = "the-swaps-are-never-taken"

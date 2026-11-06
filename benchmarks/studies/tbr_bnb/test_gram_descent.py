@@ -107,6 +107,16 @@ def test_the_reported_rss_is_the_series_score_where_the_gram_rounds_differently(
     assert v == positive_rss(y, X, C)
 
 
+def test_a_swap_is_taken_where_no_add_or_drop_helps():
+    """From this start, adds and drops alone stop at {1, ..., 5} (RSS 24,721); the swaps
+    reach {0} (RSS 454), as the series-scored descent does."""
+    y, X = panel(17, p=6)
+    v, C = incumbent(y, X, restarts=1, seed=4)
+    v0, C0 = _reference(y, X, restarts=1, seed=4)
+    assert C == C0 == {0} and v == pytest.approx(v0, rel=1e-12)
+    assert _local_optimum(y, X, C, v)
+
+
 def test_the_best_restart_is_kept():
     y, X = panel(7, p=8)
     each = [incumbent(y, X, restarts=1, seed=s)[0] for s in range(6)]
