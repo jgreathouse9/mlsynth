@@ -11444,8 +11444,50 @@ timeout = 1500.0
 [[target]]
 name = "tbr-bnb-search"
 module-path = "benchmarks/studies/tbr_bnb/search.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py benchmarks/studies/tbr_bnb/test_gram_descent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
+
+  [[target.mutant]]
+  id = "a-swap-keeps-the-cross-term-sign"
+  find = "                              - 2.0 * G[np.ix_(A, B)])\n"
+  replace = "                              + 2.0 * G[np.ix_(A, B)])\n"
+  models = "a swap's u'Gu with +2 G_ab, the cross term of the two moved controls with the wrong sign, so swaps are scored wrong"
+
+  [[target.mutant]]
+  id = "an-added-control-misses-its-diagonal"
+  find = "            toggled = rss(s + sign * c, q + sign * 2.0 * v + d)\n"
+  replace = "            toggled = rss(s + sign * c, q + sign * 2.0 * v)\n"
+  models = "adds and drops scored without G_jj, so every toggled design's u'Gu is off by the moved control's own norm"
+
+  [[target.mutant]]
+  id = "a-swap-does-not-move-v"
+  find = "                v = v + G[:, b] - G[:, a]; u[a] = False; u[b] = True\n"
+  replace = "                u[a] = False; u[b] = True\n"
+  models = "v = G u left at the design before the swap, so every later move is scored against the wrong design"
+
+  [[target.mutant]]
+  id = "a-toggle-does-not-move-v"
+  find = "                s += sg * c[j]; q += sg * 2.0 * v[j] + d[j]; v = v + sg * G[:, j]; u[j] = not u[j]\n"
+  replace = "                s += sg * c[j]; q += sg * 2.0 * v[j] + d[j]; u[j] = not u[j]\n"
+  models = "v = G u left at the design before an add or drop"
+
+  [[target.mutant]]
+  id = "the-only-control-can-be-dropped"
+  find = "                toggled[u] = np.inf                     # dropping the only control leaves no design\n"
+  replace = "                pass                                    # dropping the only control leaves no design\n"
+  models = "the empty design scored as a move, which scores y'y and is never below a design's RSS"
+
+  [[target.mutant]]
+  id = "the-swaps-are-never-taken"
+  find = "                if swapped.flat[k] < best:\n"
+  replace = "                if False:\n"
+  models = "the descent by adds and drops only, which stops at designs one swap could improve"
+
+  [[target.mutant]]
+  id = "a-zero-restart-count-passes"
+  find = "    if restarts < 1:\n"
+  replace = "    if restarts < 0:\n"
+  models = "no start, so min() of nothing raises a ValueError, not MlsynthDataError"
 
   [[target.mutant]]
   id = "the-incumbent-node-without-its-cut"
@@ -11467,8 +11509,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-descent-takes-a-worse-move"
-  find = "            if vals[i] < cur * (1 - 1e-12):\n"
-  replace = "            if vals[i] > cur * (1 - 1e-12):\n"
+  find = "            if not best < cur * (1 - 1e-12):\n"
+  replace = "            if not best > cur * (1 - 1e-12):\n"
   models = "the incumbent descent accepting a move only when it is worse"
 
 [[target]]
