@@ -27,7 +27,8 @@ from mlsynth.exceptions import MlsynthDataError
 
 from . import fastfloor, treatment
 from .brute import geo_panel
-from .certificate import ExactData, hull_bound
+from . import certificate
+from .certificate import ExactData, add_down, hull_bound
 from .treatment import _split, certify_treatment, gram_floor, rss_floor, square_sum
 
 needs_numba = pytest.mark.skipif(not fastfloor.AVAILABLE, reason="numba is not installed")
@@ -161,6 +162,72 @@ def test_a_script_loads_the_kernel_after_the_suite_compiled_it():
     for _ in range(2):                                # compile and save, then load
         r = subprocess.run([sys.executable, "-c", code], cwd=root, capture_output=True, text=True, timeout=900)
         assert r.returncode == 0, r.stderr[-3000:]
+
+
+@needs_numba
+@SETTINGS
+@given(seed=st.integers(0, 10_000), k=st.integers(1, 3), e=st.integers(-20, 20))
+def test_property_the_certificates_pieces_are_box_bound_floats(seed, k, e):
+    """f, the knapsack term, g'w and the error are box_bound_float's. f and the error are
+    sums of positive terms and agree to a relative 1e-9, so a dropped error term moves
+    err by a large part of itself. At an NNLS point the gradient is rounding noise on
+    the free coordinates, so the knapsack term and g'w agree only to within the
+    gradient's error bound d, twice: each computation is within d of the exact one."""
+    M = np.ldexp(_panel(seed, 24, 7), e)
+    T = tuple(range(k))
+    (fl, lo, hi, w, y, cap), lam = _parts(M, T)
+    if lam is None or not math.isfinite(fl):
+        return
+    X = _split(M, T)[1]
+    f, kn, gw, err = fastfloor.certificate_parts(np.ascontiguousarray(M), np.asarray(T, np.int64), w, cap)
+    r, ee = certificate.residual_bound(y, X, w)
+    f0, f_err = certificate.objective_bound(r, ee)
+    g, d = certificate.gradient_bound(X, r, ee)
+    terms = cap * np.minimum(0.0, g)
+    kn0 = float(terms.sum())
+    kn_err = certificate._dot_err(X.shape[1] + 3, float(np.abs(terms).sum())) + float(d.max()) * (X.shape[1] * cap)
+    gw0, gw_err = certificate.linear_bound(g, d, w)
+    err0 = certificate.inflate(f_err + kn_err + gw_err)
+    assert f == pytest.approx(f0, rel=1e-9, abs=1e-300)
+    assert abs(kn - kn0) <= 2 * cap * float(d.sum()) + 1e-9 * float(np.abs(terms).sum()) + 1e-300
+    assert abs(gw - gw0) <= 2 * float(d @ np.abs(w)) + 1e-9 * float(np.abs(g) @ np.abs(w)) + 1e-300
+    assert err == pytest.approx(err0, rel=1e-9, abs=1e-300)
+
+
+@needs_numba
+def test_the_floor_is_the_pieces_each_addition_rounded_down():
+    M = geo_panel(5)
+    (fl, lo, hi, w, y, cap), _ = _parts(M, (0, 3))
+    f, kn, gw, err = fastfloor.certificate_parts(np.ascontiguousarray(M), np.array([0, 3], np.int64), w, cap)
+    assert fl == add_down(add_down(add_down(f, kn), -gw), -err)
+
+
+@needs_numba
+@SETTINGS
+@given(seed=st.integers(0, 10_000), e=st.integers(-200, 200), lam_e=st.integers(-60, 60))
+def test_property_the_cap_covers_the_brackets_top(seed, e, lam_e):
+    """cap^2 lambda >= hi exactly, with lambda the double the kernel is given, and the
+    cap at most 2e-9 above the root."""
+    M = np.ldexp(_panel(seed, 20, 6), e)
+    lamf = 2.0 ** lam_e * 1.37
+    (fl, lo, hi, w, y, cap) = fastfloor.floor_parts(np.ascontiguousarray(M), np.ascontiguousarray(M.T @ M),
+                                                     np.array([0, 2], np.int64), lamf)
+    if not math.isfinite(cap):
+        return
+    assert Q(cap) * Q(cap) * Q(lamf) >= Q(hi)
+    assert cap <= math.sqrt(hi / lamf) * (1 + 2e-9)
+
+
+def test_a_kernel_floor_at_or_below_zero_is_a_floor_of_zero(monkeypatch):
+    """The kernel's raw bound below zero, or -inf, is 0 in the row."""
+    M = geo_panel(5)
+    groups = [(0, 1), (0, 2), (1, 2)]
+    monkeypatch.setattr(fastfloor, "AVAILABLE", True)
+    monkeypatch.setattr(fastfloor, "floors", lambda *a: (np.array([-1.0, -np.inf, 0.0]),
+                                                          np.array([1.0, 1.0, 1.0]), np.array([2.0, 2.0, 2.0])))
+    rows = treatment._floor_chunk(M, gram_floor(M), groups)
+    assert all(floor == 0 and isinstance(floor, Q) for floor, _, _ in rows)
+    assert all(yy == (1.0, 2.0) for _, yy, _ in rows)
 
 
 # ---------------------------------------------------------------- edges

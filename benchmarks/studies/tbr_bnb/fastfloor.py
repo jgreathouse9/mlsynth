@@ -190,6 +190,66 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
 
 
 @njit(cache=_CACHE)
+def _certificate(M, rest, y, w, cap, r, e, ar, g, d):
+    """box_bound_float's pieces at w over the box {0 <= x <= cap}: (f, kn, gw, err),
+    the bound being f + kn - gw - err with each addition rounded down. Term for term
+    certificate.residual_bound, objective_bound, gradient_bound, the knapsack at
+    multiplier 0 with perturbed_knapsack_bound's perturbation, linear_bound and
+    inflate, each sum computed left to right."""
+    n = y.shape[0]
+    m = rest.shape[0]
+    for t in range(n):
+        acc = 0.0
+        mod = 0.0
+        for j in range(m):
+            xv = M[t, rest[j]]
+            acc += xv * w[j]
+            mod += abs(xv) * abs(w[j])
+        r[t] = acc - y[t]
+        e[t] = _dot_err(m + 1, mod + abs(y[t]))
+        ar[t] = abs(r[t])
+    f = 0.0
+    ff = 0.0
+    fe = 0.0
+    for t in range(n):
+        f += r[t] * r[t]
+        ff += ar[t] * ar[t]
+        fe += ar[t] * e[t]
+    f_err = _dot_err(n, ff) + 2.0 * fe
+    dmax = 0.0
+    for j in range(m):
+        acc = 0.0
+        mr = 0.0
+        me = 0.0
+        for t in range(n):
+            xv = M[t, rest[j]]
+            acc += xv * r[t]
+            mr += abs(xv) * ar[t]
+            me += abs(xv) * e[t]
+        g[j] = 2.0 * acc
+        d[j] = 2.0 * _dot_err(n, mr) + 2.0 * me
+        if d[j] > dmax:
+            dmax = d[j]
+    kn = 0.0
+    kabs = 0.0
+    for j in range(m):
+        tv = cap * min(0.0, g[j])
+        kn += tv
+        kabs += abs(tv)
+    kn_err = _dot_err(m + 3, kabs) + dmax * (m * cap)
+    gw = 0.0
+    gwabs = 0.0
+    dw = 0.0
+    for j in range(m):
+        gw += g[j] * w[j]
+        gwabs += abs(g[j]) * abs(w[j])
+        dw += d[j] * abs(w[j])
+    gw_err = _dot_err(m, gwabs) + dw
+    err = (f_err + kn_err + gw_err) * (1.0 + 1e-6)
+    return f, kn, gw, err
+
+
+@njit(cache=_CACHE)
 def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d):
     """The floor, bracket and cap of one group (T sorted), the point left in w.
     Returns (floor, lo, hi, cap); nan where the group is left to rss_floor."""
@@ -241,55 +301,7 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d
             w[j] = 0.0
         if w[j] > cap:
             w[j] = cap
-    # box_bound_float, term for term
-    for t in range(n):
-        acc = 0.0
-        mod = 0.0
-        for j in range(m):
-            xv = M[t, rest[j]]
-            acc += xv * w[j]
-            mod += abs(xv) * abs(w[j])
-        r[t] = acc - y[t]
-        e[t] = _dot_err(m + 1, mod + abs(y[t]))
-        ar[t] = abs(r[t])
-    f = 0.0
-    ff = 0.0
-    fe = 0.0
-    for t in range(n):
-        f += r[t] * r[t]
-        ff += ar[t] * ar[t]
-        fe += ar[t] * e[t]
-    f_err = _dot_err(n, ff) + 2.0 * fe
-    dmax = 0.0
-    for j in range(m):
-        acc = 0.0
-        mr = 0.0
-        me = 0.0
-        for t in range(n):
-            xv = M[t, rest[j]]
-            acc += xv * r[t]
-            mr += abs(xv) * ar[t]
-            me += abs(xv) * e[t]
-        g[j] = 2.0 * acc
-        d[j] = 2.0 * _dot_err(n, mr) + 2.0 * me
-        if d[j] > dmax:
-            dmax = d[j]
-    kn = 0.0
-    kabs = 0.0
-    for j in range(m):
-        tv = cap * min(0.0, g[j])
-        kn += tv
-        kabs += abs(tv)
-    kn_err = _dot_err(m + 3, kabs) + dmax * (m * cap)
-    gw = 0.0
-    gwabs = 0.0
-    dw = 0.0
-    for j in range(m):
-        gw += g[j] * w[j]
-        gwabs += abs(g[j]) * abs(w[j])
-        dw += d[j] * abs(w[j])
-    gw_err = _dot_err(m, gwabs) + dw
-    err = (f_err + kn_err + gw_err) * (1.0 + 1e-6)
+    f, kn, gw, err = _certificate(M, rest, y, w, cap, r, e, ar, g, d)
     return _add_down(_add_down(_add_down(f, kn), -gw), -err), lo, hi, cap
 
 
@@ -373,3 +385,21 @@ def floor_parts(M, Gf, T, lamf):
     passive = np.zeros(m, np.bool_)
     fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d)
     return fl, lo, hi, w, y, cap
+
+
+@njit(cache=_CACHE)
+def certificate_parts(M, T, w, cap):
+    """The certificate's pieces (f, kn, gw, err) for group T at the point w (over the
+    controls in ascending order) and cap. For tests."""
+    n, p = M.shape
+    T = _sorted(T)
+    rest = _controls(p, T)
+    m = rest.shape[0]
+    y = np.empty(n)
+    for t in range(n):
+        v = 0.0
+        for q in range(T.shape[0]):
+            v += M[t, T[q]]
+        y[t] = v
+    r = np.empty(n); e = np.empty(n); ar = np.empty(n); g = np.empty(m); d = np.empty(m)
+    return _certificate(M, rest, y, w.copy(), cap, r, e, ar, g, d)
