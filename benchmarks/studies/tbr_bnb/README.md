@@ -921,7 +921,7 @@ of 50 ms each (94 ms at most over 40 groups).
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (578 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (579 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
