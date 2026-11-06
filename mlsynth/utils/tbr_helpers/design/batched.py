@@ -151,7 +151,8 @@ def score_designs(cache: DesignCache, UT: np.ndarray, UC: np.ndarray) -> np.ndar
     s_xx = np.where(ok, s_xx, 1.0)
     f_xx = np.where(ok, f_xx, 1.0)
 
-    corr = np.clip(s_xy / np.sqrt(np.where(ok, s_xx * s_yy, 1.0)),
+    # The square root of each form, as score_split takes it (#990).
+    corr = np.clip(s_xy / (np.sqrt(s_xx) * np.sqrt(np.where(ok, s_yy, 1.0))),
                    -0.999999, 0.999999)
     sigma = np.sqrt(rss / (n - 2))
     sq = np.sqrt(const.phi * (n + 1) / (n * n_test * (n - 1))

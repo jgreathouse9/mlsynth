@@ -313,7 +313,10 @@ def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
                                               "bg" if p_bg == f else "r2")})
 
     sums = fit.sums
-    corr = (float(sums.s_xy / np.sqrt(sums.s_xx * sums.s_yy))
+    # Each sum's square root, not the root of their product: the product leaves
+    # the range of doubles at a scale of about 2^-270 or 2^270, either sum only
+    # near 2^-511 or 2^511 (#990).
+    corr = (float(sums.s_xy / (np.sqrt(sums.s_xx) * np.sqrt(sums.s_yy)))
             if sums.s_xx > 0.0 and sums.s_yy > 0.0 else 0.0)
     corr = float(np.clip(corr, -0.999999, 0.999999))
     impact = required_impact(sigma, sums.n, n_test)

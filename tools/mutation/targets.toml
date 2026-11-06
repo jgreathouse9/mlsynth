@@ -11080,14 +11080,20 @@ timeout = 300.0
 [[target]]
 name = "tbr-batched-scorer"
 module-path = "mlsynth/utils/tbr_helpers/design/batched.py"
-test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+test-command = "python -m pytest mlsynth/tests/test_tbr_local_search.py mlsynth/tests/test_tbr_corr_range.py -q -p no:cacheprovider -x"
 timeout = 600.0
 
   [[target.mutant]]
   id = "the-correlation-is-the-slope"
-  find = "    corr = np.clip(s_xy / np.sqrt(np.where(ok, s_xx * s_yy, 1.0)),\n"
+  find = "    corr = np.clip(s_xy / (np.sqrt(s_xx) * np.sqrt(np.where(ok, s_yy, 1.0))),\n"
   replace = "    corr = np.clip(s_xy / np.where(ok, s_xx, 1.0),\n"
   models = "the group correlation read off the slope's ratio S_xy / S_xx, which is the correlation only when the two aggregates have the same spread"
+
+  [[target.mutant]]
+  id = "the-batched-correlation-roots-the-product"
+  find = "    corr = np.clip(s_xy / (np.sqrt(s_xx) * np.sqrt(np.where(ok, s_yy, 1.0))),\n"
+  replace = "    corr = np.clip(s_xy / np.sqrt(np.where(ok, s_xx * s_yy, 1.0)),\n"
+  models = "the group correlation from the root of S_xx S_yy, which underflows below a scale of about 2^-270 and overflows above 2^270 (#990)"
 
   [[target.mutant]]
   id = "durbin-watson-slope-not-squared"
@@ -12705,3 +12711,15 @@ timeout = 1200.0
   find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for _, yy, T in wave]\n"
   replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for _, yy, T in wave]\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
+
+[[target]]
+name = "tbr-objective-correlation"
+module-path = "mlsynth/utils/tbr_helpers/design/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_corr_range.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-correlation-roots-the-product"
+  find = "    corr = (float(sums.s_xy / (np.sqrt(sums.s_xx) * np.sqrt(sums.s_yy)))\n"
+  replace = "    corr = (float(sums.s_xy / np.sqrt(sums.s_xx * sums.s_yy))\n"
+  models = "the key's correlation from the root of s_xx s_yy, which underflows below a scale of about 2^-270 and overflows above 2^270 (#990)"
