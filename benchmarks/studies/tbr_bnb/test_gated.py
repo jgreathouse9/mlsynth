@@ -242,3 +242,15 @@ def test_another_value_error_is_not_read_as_no_design(monkeypatch):
     y, X = panel_ar(1)
     with pytest.raises(ValueError, match="dyadic"):
         certify_gated(y, X, n_test=N_TEST)
+
+
+def test_a_slope_free_certificate_left_open_leaves_the_round_uncertified(monkeypatch):
+    """When the slope-free search ends with nodes open (here the depth limit at the root
+    from the poorest start), the gated search stops uncertified, with no round recorded;
+    the treatment search retries such a group at the final ceiling. GeoLift at five
+    geos reached this from the library's start design."""
+    y, X = panel(0, p=5)
+    D = ExactData(y, X)
+    worst = min((j for j in range(5) if D.c[j] > 0), key=lambda j: D.c[j] ** 2 / D.G[j, j])
+    out = certify_gated(y, X, n_test=8, restarts=3, start={worst}, hull=False, max_depth=0)
+    assert not out.certified and out.rounds == [] and not out.passing
