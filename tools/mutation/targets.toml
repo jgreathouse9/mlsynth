@@ -12089,8 +12089,32 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-value-reads-the-smallest-eigenvalue"
+  find = "by + self.T * max(0.0, float(lam[-1])))"
+  replace = "by + self.T * max(0.0, float(lam[0])))"
+  models = "the unsmoothed value from lambda_min, not lambda_max"
+
+  [[target.mutant]]
+  id = "the-value-is-not-floored-at-zero"
+  find = "by + self.T * max(0.0, float(lam[-1])))"
+  replace = "by + self.T * float(lam[-1]))"
+  models = "the value's T max(0, lambda_max) without the max, below the certificate when S is negative definite"
+
+  [[target.mutant]]
+  id = "the-equality-multipliers-are-bounded"
+  find = "np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)]"
+  replace = "np.zeros(D.size)"
+  models = "the free equality multipliers held at zero or above"
+
+  [[target.mutant]]
+  id = "each-evaluation-decomposes-twice"
+  find = "        f, g, true = D.smoothed_and_value(yv, a)\n"
+  replace = "        f, g, true = D.smoothed_and_value(yv, a)\n        true = D.value(yv)\n"
+  models = "the value decomposed again after the smoothing, the cost the change removed"
 
   [[target.mutant]]
   id = "the-size-free-rows-admit-the-empty-design"
@@ -12168,8 +12192,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dual-gradient-has-the-wrong-sign"
-  find = "        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b - self.M @ Z.reshape(-1, order=\"F\")\n"
-  replace = "        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b + self.M @ Z.reshape(-1, order=\"F\")\n"
+  find = "        return (by + float(z @ lam) - a / 2 * float(z @ z), self.b - self.M @ Z.reshape(-1, order=\"F\"),\n"
+  replace = "        return (by + float(z @ lam) - a / 2 * float(z @ z), self.b + self.M @ Z.reshape(-1, order=\"F\"),\n"
   models = "the gradient of the rows' term with its sign flipped, S(y) = A - sum y_k E_k read as A + sum y_k E_k"
 
   [[target.mutant]]
@@ -12493,7 +12517,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
@@ -12663,6 +12687,24 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "a box bound below zero, or -inf, returned as the floor in place of 0"
 
   [[target.mutant]]
+  id = "a-kernel-nan-is-taken-as-a-floor"
+  find = "        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
+  replace = "        if False:\n            out.append(_floor_row(M, lam, T))\n"
+  models = "a group the kernel left (a nan floor) kept as a row, not computed by rss_floor"
+
+  [[target.mutant]]
+  id = "a-kernel-floor-is-not-clamped"
+  find = "out.append((f if f > 0 else Q(0), (float(a), float(b)), T))"
+  replace = "out.append((f, (float(a), float(b)), T))"
+  models = "a raw bound below zero, or -inf, kept as the floor in place of 0"
+
+  [[target.mutant]]
+  id = "the-kernel-runs-without-a-gram-floor"
+  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n"
+  replace = "    if not fastfloor.AVAILABLE or not groups:\n"
+  models = "the kernel called on a panel with no Gram floor, where every floor is 0"
+
+  [[target.mutant]]
   id = "the-start-is-not-marked"
   find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
   replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"
@@ -12700,8 +12742,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-screen-computes-yy-twice"
-  find = "        out.append((rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T))\n"
-  replace = "        out.append((rss_floor(M, T, lam), yy, T))\n"
+  find = "    return rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T\n"
+  replace = "    return rss_floor(M, T, lam), yy, T\n"
   models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
 
   [[target.mutant]]
@@ -12907,3 +12949,112 @@ timeout = 600.0
   find = "    corr = (float(sums.s_xy / (np.sqrt(sums.s_xx) * np.sqrt(sums.s_yy)))\n"
   replace = "    corr = (float(sums.s_xy / np.sqrt(sums.s_xx * sums.s_yy))\n"
   models = "the key's correlation from the root of s_xx s_yy, which underflows below a scale of about 2^-270 and overflows above 2^270 (#990)"
+
+[[target]]
+name = "tbr-bnb-fastfloor"
+module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-series-is-summed-right-to-left"
+  find = "        for q in range(kk):\n            v += M[t, T[q]]\n        y[t] = v\n"
+  replace = "        for q in range(kk - 1, -1, -1):\n            v += M[t, T[q]]\n        y[t] = v\n"
+  models = "the treated columns summed in another order than _split's, so the floor bounds another series"
+
+  [[target.mutant]]
+  id = "the-brackets-bottom-ignores-the-rounding"
+  find = "lo = np.nextafter(s * (1.0 - gm), -np.inf)"
+  replace = "lo = np.nextafter(s, -np.inf)"
+  models = "the bracket's bottom one step below the computed sum, above y'y when the sum rounds up"
+
+  [[target.mutant]]
+  id = "the-brackets-top-ignores-the-rounding"
+  find = "hi = np.nextafter(s * (1.0 + 2.0 * gm), np.inf)"
+  replace = "hi = np.nextafter(s, np.inf)"
+  models = "the bracket's top one step above the computed sum, below y'y when the sum rounds down"
+
+  [[target.mutant]]
+  id = "the-series-range-is-unchecked"
+  find = "(av >= _TINY and av <= _HUGE)"
+  replace = "True"
+  models = "a series entry whose square is subnormal or overflows bracketed by the relative argument"
+
+  [[target.mutant]]
+  id = "eight-treated-geos-are-summed-left-to-right"
+  find = "    if kk > MAX_TREATED:\n"
+  replace = "    if False:\n"
+  models = "eight or more treated columns summed left to right where numpy sums them pairwise"
+
+  [[target.mutant]]
+  id = "a-zero-series-is-stepped-off-zero"
+  find = "    if s == 0.0:"
+  replace = "    if False:"
+  models = "a zero series bracketed above zero, so its cap falls off the range"
+
+  [[target.mutant]]
+  id = "the-cap-has-no-margin"
+  find = "cap = math.sqrt(qv) * (1.0 + 1e-9)"
+  replace = "cap = math.sqrt(qv)"
+  models = "the cap without the margin over its roundings, below sqrt(hi / lambda) about half the time"
+
+  [[target.mutant]]
+  id = "the-cap-range-is-unchecked"
+  find = "if not (qv >= _CAP_LO and qv <= _CAP_HI):"
+  replace = "if False:"
+  models = "a quotient off the doubles' normal range, where the cap's rounding is not relative"
+
+  [[target.mutant]]
+  id = "the-residual-error-is-dropped"
+  find = "e[t] = _dot_err(m + 1, mod + abs(y[t]))"
+  replace = "e[t] = 0.0"
+  models = "the residual's rounding left out of every error term"
+
+  [[target.mutant]]
+  id = "the-objective-error-ignores-the-residual"
+  find = "f_err = _dot_err(n, ff) + 2.0 * fe"
+  replace = "f_err = _dot_err(n, ff)"
+  models = "f(w) bounded for the computed residual only"
+
+  [[target.mutant]]
+  id = "the-knapsack-ignores-the-gradient-error"
+  find = "kn_err = _dot_err(m + 3, kabs) + dmax * (m * cap)"
+  replace = "kn_err = _dot_err(m + 3, kabs)"
+  models = "the gradient's rounding not carried into the box minimum"
+
+  [[target.mutant]]
+  id = "the-linear-error-ignores-the-gradient-error"
+  find = "gw_err = _dot_err(m, gwabs) + dw"
+  replace = "gw_err = _dot_err(m, gwabs)"
+  models = "g'w's error without the gradient's perturbation"
+
+  [[target.mutant]]
+  id = "the-error-is-not-inflated"
+  find = "err = (f_err + kn_err + gw_err) * (1.0 + 1e-6)"
+  replace = "err = f_err + kn_err + gw_err"
+  models = "the error total not raised to cover its own rounding"
+
+  [[target.mutant]]
+  id = "the-knapsack-reads-the-positive-costs"
+  find = "tv = cap * min(0.0, g[j])"
+  replace = "tv = cap * max(0.0, g[j])"
+  models = "the box minimum over the costs that raise the objective, above the true minimum"
+
+  [[target.mutant]]
+  id = "the-last-additions-round-to-nearest"
+  find = "    return np.nextafter(s, -np.inf)\n"
+  replace = "    return s\n"
+  models = "the floor's three additions rounded to nearest, above their exact sum where nearest rounds up"
+
+  [[target.mutant]]
+  id = "the-active-set-stops-early"
+  find = "tol = 1e-12 * cmax"
+  replace = "tol = 1e-3 * cmax"
+  models = "the active set stopped short of the NNLS optimum, a point whose floor is loose"
+
+  [[target.mutant]]
+  id = "the-active-set-adds-the-wrong-coordinate"
+  find = "                if g > best:"
+  replace = "                if g < best:"
+  models = "the coordinate that raises the objective added to the passive set"
+
