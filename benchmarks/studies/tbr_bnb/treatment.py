@@ -81,6 +81,7 @@ from scipy.optimize import nnls
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
+from . import fastfloor
 from .certificate import box_bound_float, qarr
 from .gated import certify_gated, gates_of
 
@@ -415,16 +416,30 @@ def _map(pool, fn, argss):
     return list(pool.map(_star, [fn] * len(argss), argss))
 
 
+def _floor_row(M, lam, T):
+    y = _split(M, T)[0]
+    b = yy_bracket(y)
+    yy = b if b is not None else square_sum(y)
+    return rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T
+
+
 def _floor_chunk(M, lam, groups):
     """(floor, y'y, T) for each group, the y'y a float bracket (yy_bracket) or, for a
     series that leaves none, exact; the floor's cap reads the bracket's top, a bound
-    on y'y from above being all the cap needs."""
+    on y'y from above being all the cap needs. With numba installed, fastfloor
+    computes the chunk in one compiled loop, and a group it leaves (a nan floor) takes
+    this path."""
+    if lam is None or not fastfloor.AVAILABLE or not groups:
+        return [_floor_row(M, lam, T) for T in groups]
+    Mc = np.ascontiguousarray(M, dtype=float)
+    fl, lo, hi = fastfloor.floors(Mc, np.ascontiguousarray(Mc.T @ Mc), np.asarray(groups, dtype=np.int64),
+                                  float(lam))
     out = []
-    for T in groups:
-        y = _split(M, T)[0]
-        b = yy_bracket(y)
-        yy = b if b is not None else square_sum(y)
-        out.append((rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T))
+    for f, a, b, T in zip(fl, lo, hi, groups):
+        if math.isnan(f):
+            out.append(_floor_row(M, lam, T))
+        else:
+            out.append((f if f > 0 else Q(0), (float(a), float(b)), T))
     return out
 
 
