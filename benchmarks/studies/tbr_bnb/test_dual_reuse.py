@@ -108,3 +108,28 @@ def test_the_closures_and_evaluations_are_the_old_ones(monkeypatch, seed, m):
     assert (new[0] is None) == (old[0] is None) and new[1]["evals"] == old[1]["evals"]
     if new[0] is not None:
         assert np.allclose(new[0].y_in, old[0].y_in) and np.allclose(new[0].y_eq, old[0].y_eq)
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), shift=st.floats(-1e3, 1e3))
+def test_property_the_value_is_floored_at_b_y(seed, shift):
+    """F(y) = b'y + T max(0, lambda_max): with S(y) shifted below zero the value is b'y,
+    never below it, and it is value()'s on either side of zero."""
+    A, R, m, c = _dual()
+    D = sf._Dual(A, R, m, c)
+    S0 = D.S
+    D.S = lambda y: S0(y) - shift * np.eye(D.n)
+    y = np.abs(np.random.default_rng(seed).normal(size=D.size)) * 1e-2
+    _, _, v = D.smoothed_and_value(y, 1e-2)
+    by = float(D.b @ y)
+    assert v >= by and abs(v - D.value(y)) <= 1e-12 * (abs(by) + D.T * (abs(shift) + D.scale)) + 1e-300
+
+
+def test_a_negative_definite_dual_has_value_b_y():
+    A, R, m, c = _dual()
+    D = sf._Dual(A, R, m, c)
+    D.S = lambda y: -np.eye(D.n)
+    y = np.zeros(D.size)
+    y[D.ne:] = 1.0
+    _, _, v = D.smoothed_and_value(y, 1e-2)
+    assert v == float(D.b @ y) == D.value(y)
