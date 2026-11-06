@@ -793,11 +793,11 @@ square root, rounded up to a double, or to inf, a cap whose bound clears nothing
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (490 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (527 tests, about 75 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 219 mutants of the 22
+but for the lines marked `pragma: no cover`, each with its reason. The 232 mutants of the 22
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
