@@ -95,8 +95,9 @@ def test_the_start_group_is_certified_against_a_better_incumbent():
     start = _worst_passing(M)
     out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10)
     mine = [s for s in out.survivors if s.get("start")]
-    assert len(mine) <= 1
-    assert all(s["ceiling"] is not None and s["treatment"] == sorted(start) for s in mine)
+    theirs = [s for s in out.survivors if s["treatment"] == sorted(start)]
+    assert mine == theirs and len(mine) <= 1               # certified once, and marked, or screened out
+    assert all(s["ceiling"] is not None for s in mine)
     assert set(out.treatment) != set(start)
 
 
@@ -170,6 +171,37 @@ def test_a_start_with_no_passing_design_leaves_no_incumbent(monkeypatch):
     assert out.certified and set(out.treatment) == T
 
 
+def test_a_library_design_that_fails_the_gates_is_not_the_incumbent(monkeypatch):
+    """The library's design is the first incumbent only when it passes: one that fails
+    a gate leaves the first certification without a ceiling."""
+    from .brute import treatment_optimum as _opt
+    from mlsynth.utils.tbr_helpers.design.objective import score_split
+
+    M = geo_panel(5)
+    failing = None
+    for T in combinations(range(M.shape[1]), 2):
+        rest = [j for j in range(M.shape[1]) if j not in T]
+        for r in range(1, len(rest) + 1):
+            for C in combinations(rest, r):
+                sc = score_split(M[:, list(T)].sum(axis=1), M[:, list(C)].sum(axis=1), objective="reference",
+                                 n_test=N_TEST)
+                if not all(sc.key[:4]):
+                    failing = (list(T), list(C))
+                    break
+            if failing:
+                break
+        if failing:
+            break
+    assert failing is not None
+    assert treatment._design(M, *failing, N_TEST)[1] is None
+    monkeypatch.setattr(treatment, "_start", lambda M_, k, n_test, restarts: failing)
+    seen = _spy_ceilings(monkeypatch)
+    key, T, _ = _opt(M, 2, N_TEST)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0)
+    assert seen[0] is None
+    assert out.certified and set(out.treatment) == T
+
+
 # ---------------------------------------------------------------- the exact data in integers
 
 
@@ -215,6 +247,18 @@ def test_the_exact_data_keep_the_rationals_for_rss():
 
 def test_all_zero_data():
     _check(np.zeros(4), np.zeros((4, 2)))
+
+
+def test_no_periods():
+    D = ExactData(np.zeros(0), np.zeros((0, 3)))
+    assert D.yy == 0 and D.G.shape == (3, 3) and D.c.shape == (3,)
+    assert all(v == 0 and isinstance(v, Q) for v in list(D.G.ravel()) + list(D.c))
+
+
+def test_one_control():
+    M = geo_panel(4, p=3)
+    y, X, _ = _split(M, (0, 1))
+    _check(y, X)
 
 
 @pytest.mark.parametrize("bad", [np.inf, -np.inf, np.nan])

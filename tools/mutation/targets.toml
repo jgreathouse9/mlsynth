@@ -11318,8 +11318,32 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-certificate"
 module-path = "benchmarks/studies/tbr_bnb/certificate.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-gram-is-over-one-denominator"
+  find = "        self.G = to_q(N.T @ N, Dx * Dx)\n"
+  replace = "        self.G = to_q(N.T @ N, Dx)\n"
+  models = "the Gram divided by the controls' denominator once, not squared, so every entry is off by that power of two"
+
+  [[target.mutant]]
+  id = "the-cross-products-use-the-controls-denominator-twice"
+  find = "        self.c = to_q(N.T @ n, Dx * Dy)\n"
+  replace = "        self.c = to_q(N.T @ n, Dx * Dx)\n"
+  models = "X'y over Dx^2, not Dx Dy, wrong whenever y and X have different denominators"
+
+  [[target.mutant]]
+  id = "the-denominator-is-the-first-entrys"
+  find = "    D = max((d for _, d in parts), default=1)\n"
+  replace = "    D = parts[0][1] if parts else 1\n"
+  models = "the common denominator taken from the first entry, so entries with finer denominators are truncated by the integer division"
+
+  [[target.mutant]]
+  id = "non-finite-data-pass"
+  find = "    if not np.isfinite(A).all():\n"
+  replace = "    if False:\n"
+  models = "an infinite or missing entry reaching as_integer_ratio, which raises an error that is not MlsynthDataError"
 
   [[target.mutant]]
   id = "the-joint-trace-forgets-the-size"
@@ -12371,8 +12395,38 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-start-design-is-not-adopted"
+  find = "    if key0 is not None:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
+  replace = "    if False:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
+  models = "the start's passing design not taken as the first incumbent, so the first groups are certified without a ceiling"
+
+  [[target.mutant]]
+  id = "a-failing-start-design-is-adopted"
+  find = "    return Cg, (key if cu > 0 and all(gates) else None), yy - ratio, rest\n"
+  replace = "    return Cg, key, yy - ratio, rest\n"
+  models = "the library's design taken as the incumbent whatever its gates, so a design that fails one can be reported"
+
+  [[target.mutant]]
+  id = "the-start-group-is-searched-in-the-pass"
+  find = "lambda r: r[2] not in local and can_compete(r[1], r[0], *class_of())"
+  replace = "lambda r: can_compete(r[1], r[0], *class_of())"
+  models = "the start group searched again by the pass, a second local search of a group whose design is already known"
+
+  [[target.mutant]]
+  id = "the-library-design-is-dropped"
+  find = "        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)\n"
+  replace = "        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)\n"
+  models = "the library's own design replaced by the group's RSS-best design, which can fail the gates and leave no incumbent"
+
+  [[target.mutant]]
+  id = "the-start-is-not-marked"
+  find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
+  replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"
+  models = "the start group's certification not marked as the start's"
 
   [[target.mutant]]
   id = "the-cap-is-too-small"
@@ -12448,8 +12502,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-negative-slope-is-fitted"
-  find = "    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
-  replace = "    ratio = cu * cu / uGu\n"
+  find = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
+  replace = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu\n"
   models = "a pass design with c'u <= 0 credited with the fit of a negative slope, though the shared slope must be positive, so its RSS reads below y'y"
 
   [[target.mutant]]
@@ -12543,10 +12597,10 @@ timeout = 1200.0
   models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
 
   [[target.mutant]]
-  id = "the-start-group-is-screened-again"
-  find = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
-  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k)], lam, pool, n_jobs)\n"
-  models = "the start group counted twice, once certified and once screened"
+  id = "the-start-group-is-left-out-of-the-queue"
+  find = "    rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)\n"
+  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
+  models = "the start group adopted as the incumbent and never certified, so a better design in it is never found and the count of screened and certified groups is one short"
 
   [[target.mutant]]
   id = "the-pass-does-not-adopt-its-best-design"

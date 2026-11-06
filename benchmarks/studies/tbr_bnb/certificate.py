@@ -103,9 +103,9 @@ class ExactData:
         N, Dx = _integer_matrix(X)
         self._y, self._X = y, X
         to_q = np.vectorize(Q, otypes=[object])
-        self.G = to_q(N.T @ N, Dx * Dx) if N.size else np.empty((N.shape[1], N.shape[1]), dtype=object)
-        self.c = to_q(N.T @ n, Dx * Dy) if N.size else np.empty(N.shape[1], dtype=object)
-        self.yy = Q(int(n @ n) if n.size else 0, Dy * Dy)
+        self.G = to_q(N.T @ N, Dx * Dx)
+        self.c = to_q(N.T @ n, Dx * Dy)
+        self.yy = Q(int(n @ n), Dy * Dy)
         self.p = X.shape[1]
 
     @functools.cached_property
