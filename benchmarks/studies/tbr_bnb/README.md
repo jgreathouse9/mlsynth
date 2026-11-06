@@ -866,13 +866,66 @@ Measured and not built:
   multipliers are bounded and many sit at zero, the case L-BFGS-B's Cauchy point and
   subspace minimisation are built for.
 
+## Five geos
+
+At five geos GeoLift has 658,008 treatment groups. On one process the search took
+about 410 s and certified austin, dallas, jacksonville, portland and reno; 136 groups
+survived the screen and their certifications took 379 s, 300 s of it one group's.
+That group was the eventual optimum, certified from its pass design:
+
+| start of the certification | RSS | sizes branched | nodes | open at the depth limit | time |
+| --- | --- | --- | --- | --- | --- |
+| the pass design (10 restarts, 20 controls) | 5,089,437.7 | 13 to 17 | 224 | 4 | 300.5 s |
+| the RSS descent (50 restarts, 17 controls) | 4,860,705.3 | none | 23 | 0 | 10.3 s |
+
+The second row is the group's retry at the final ceiling; from the same design at the
+first ceiling the certification took 10.1 s. Both ceilings are above the group's
+optimum, so both certifications prove that optimum, not a ceiling.
+
+The pass gives every group the RSS descent's best of `pass_restarts` (10) starts, and
+the certification started from that design without searching again. Its ten starts
+stopped at a local optimum; fifty reach the group's optimum. The slope-free search
+tests every size at its start's ratio, y'y less the start's RSS, and at the pass
+design's ratio sizes 13 to 17 do not close at the root. Their branches found the
+optimum but left four nodes open at depth 12, so the certificate came back open (the
+gated search's break on an open certificate had been marked unreachable), and the
+group was certified on its retry, which ran the descent.
+
+`certify_slope_free` now runs its descent whether or not it is given a start, and
+starts from the design with the higher ratio, the given one on a tie. The descent
+costs a median of 50 ms a certification.
+
+The first attempt at this fix was wrong. The slow group was taken to be the start
+group, certified from the library search's design (chosen by the key, not the RSS),
+and the start group was given the descent; at five geos that measured 426 and 408 s
+against 402 and 423 s on `main`. The start group's certification took 0.2 s. The
+record of each certification's start (`results/best_start.log`) showed the slow group
+was a pass group.
+
+On GeoLift (`results/best_start.log`, one host; `main` from two alternating runs with
+the first attempt, this branch from two runs after them):
+
+| | `main` | this branch |
+| --- | --- | --- |
+| five geos, one process | 402.4 s, 423.4 s | 65.0 s, 65.4 s |
+| five geos, four processes | 371.1 s, 389.1 s | 39.6 s, 40.4 s |
+| four geos, one process | 26.0 s, 25.8 s | 27.2 s, 27.3 s |
+| four geos, four processes | 16.2 s, 16.2 s | 15.9 s, 15.8 s |
+
+Every run certifies the same design with the same key. At five geos 71 groups survive
+the screen against 136 (the optimum's own certification no longer delays the
+incumbent), 657,937 are screened out against 657,872, and none is retried. On `main`
+four processes barely help at five geos, since the one certification took 300 s. At
+four geos the descents add about 1.3 s on one process, 32 certifications at a median
+of 50 ms each (94 ms at most over 40 groups).
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (574 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (578 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 259 mutants of the 23
+but for the lines marked `pragma: no cover`, each with its reason. The 262 mutants of the 23
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
