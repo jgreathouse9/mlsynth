@@ -382,7 +382,8 @@ def _scratch(m, fill):
 
 @needs_numba
 def test_a_singular_active_set_ends_the_solve():
-    """The solve that adds the third column fails (its pivot is 2 - 1 - 1 = 0). The step
+    """From w = (1/2, 0, 1/2) the solve that adds column 1 to {0, 2} fails (the Gram is
+    singular, its last pivot 0). The step
     after it must not read the scratch it left: with that scratch positive, a step to it
     moves nothing out of the set and the same solve fails again, for ever."""
     root = str(Path(__file__).resolve().parents[3])
@@ -395,7 +396,7 @@ def test_a_singular_active_set_ends_the_solve():
     assert np.all(w >= 0) and float(w @ G @ w - 2 * c @ w) < 0
     v, passive, idx, L, z, x = _scratch(3, 1.0)       # in this process too, once it is known to end
     fastfloor._nnls_gram(G, c, passive, v, idx, L, z, x, 500)
-    assert np.array_equal(v, w) and not passive[2]
+    assert np.array_equal(v, w) and passive.tolist() == [True, False, True]   # column 1 was the one added
 
 
 @needs_numba
