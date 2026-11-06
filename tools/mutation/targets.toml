@@ -12555,12 +12555,16 @@ timeout = 1200.0
   find = "yy=Q(b[1]) if b is not None else yy)"
   replace = "yy=Q(b[0]) if b is not None else yy)"
   models = "the slope cap built from the bracket's bottom, below y'y by up to 2^-47 relative"
+expected = "survived"
+accepted-because = "EQUIVALENT in validity, derived here. The cap is sqrt(yy / lam) times (1 + 1e-9), and the bracket's bottom lo is below y'y by at most a factor (1 - 2^-48) / (1 + 2^-48), about 1 - 2^-47. The factor (1 + 1e-9)^2, about 1 + 2e-9, exceeds that gap by five orders of magnitude, and the square root's rounding is one part in 2^52, so a cap built from lo still satisfies cap^2 lam >= y'y: every design stays inside the box and the floor stays a lower bound. The two caps differ by under 2^-46 relative, which moves a floor by rounding only, and no test can tell a valid floor from a valid floor. The top is read because it is the side the bound needs, not the side a test detects."
 
   [[target.mutant]]
   id = "the-class-is-held-past-a-new-rss"
   find = "        if held[0] is not out.key or held[1] is not out.rss:\n"
   replace = "        if held[0] is not out.key:\n"
   models = "the incumbent's class read from an earlier RSS when the RSS changes with the key held"
+expected = "survived"
+accepted-because = "EQUIVALENT under the current code, read from every assignment. The incumbent's key and RSS are written together at all three sites (the start, take, and the pass), and each write pairs a key with the RSS it was scored with, so the RSS never changes while the key's identity is held and the RSS test adds nothing the key test does not. It stays as the guard for a later change that rescores the incumbent in place: the class reads out.rss, and a cache keyed on the key alone would then hand back the old RSS."
 
   [[target.mutant]]
   id = "the-start-is-not-marked"
