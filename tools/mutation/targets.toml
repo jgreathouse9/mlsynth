@@ -11318,8 +11318,32 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-certificate"
 module-path = "benchmarks/studies/tbr_bnb/certificate.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-gram-is-over-one-denominator"
+  find = "        self.G = to_q(N.T @ N, Dx * Dx)\n"
+  replace = "        self.G = to_q(N.T @ N, Dx)\n"
+  models = "the Gram divided by the controls' denominator once, not squared, so every entry is off by that power of two"
+
+  [[target.mutant]]
+  id = "the-cross-products-use-the-controls-denominator-twice"
+  find = "        self.c = to_q(N.T @ n, Dx * Dy)\n"
+  replace = "        self.c = to_q(N.T @ n, Dx * Dx)\n"
+  models = "X'y over Dx^2, not Dx Dy, wrong whenever y and X have different denominators"
+
+  [[target.mutant]]
+  id = "the-denominator-is-the-first-entrys"
+  find = "    D = max((d for _, d in parts), default=1)\n"
+  replace = "    D = parts[0][1] if parts else 1\n"
+  models = "the common denominator taken from the first entry, so entries with finer denominators are truncated by the integer division"
+
+  [[target.mutant]]
+  id = "non-finite-data-pass"
+  find = "    if not np.isfinite(A).all():\n"
+  replace = "    if False:\n"
+  models = "an infinite or missing entry reaching as_integer_ratio, which raises an error that is not MlsynthDataError"
 
   [[target.mutant]]
   id = "the-joint-trace-forgets-the-size"
@@ -11420,8 +11444,58 @@ timeout = 1500.0
 [[target]]
 name = "tbr-bnb-search"
 module-path = "benchmarks/studies/tbr_bnb/search.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py benchmarks/studies/tbr_bnb/test_gram_descent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
+
+  [[target.mutant]]
+  id = "a-swap-keeps-the-cross-term-sign"
+  find = "                              - 2.0 * G[np.ix_(A, B)])\n"
+  replace = "                              + 2.0 * G[np.ix_(A, B)])\n"
+  models = "a swap's u'Gu with +2 G_ab, the cross term of the two moved controls with the wrong sign, so swaps are scored wrong"
+
+  [[target.mutant]]
+  id = "an-added-control-misses-its-diagonal"
+  find = "            toggled = rss(s + sign * c, q + sign * 2.0 * v + d)\n"
+  replace = "            toggled = rss(s + sign * c, q + sign * 2.0 * v)\n"
+  models = "adds and drops scored without G_jj, so every toggled design's u'Gu is off by the moved control's own norm"
+
+  [[target.mutant]]
+  id = "a-swap-does-not-move-v"
+  find = "                v = v + G[:, b] - G[:, a]; u[a] = False; u[b] = True\n"
+  replace = "                u[a] = False; u[b] = True\n"
+  models = "v = G u left at the design before the swap, so every later move is scored against the wrong design"
+
+  [[target.mutant]]
+  id = "a-toggle-does-not-move-v"
+  find = "                s += sg * c[j]; q += sg * 2.0 * v[j] + d[j]; v = v + sg * G[:, j]; u[j] = not u[j]\n"
+  replace = "                s += sg * c[j]; q += sg * 2.0 * v[j] + d[j]; u[j] = not u[j]\n"
+  models = "v = G u left at the design before an add or drop"
+
+  [[target.mutant]]
+  id = "the-only-control-can-be-dropped"
+  find = "                toggled[u] = np.inf                     # dropping the only control leaves no design\n"
+  replace = "                pass                                    # dropping the only control leaves no design\n"
+  models = "the empty design scored as a move, which scores y'y and is never below a design's RSS"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured. Dropping the only control j gives c'u - c_j and u'Gu - 2 v_j + G_jj, both zero up to the rounding the updates carried, which scores y'y (or, after drift, y'y less the square of one residue over another), and the descent takes a move only when it lowers the RSS below the current one by a relative 1e-12, which y'y never does since every design's RSS is at most y'y. Measured on 3,600 descents over simulated panels of one to nine controls and 40 fourteen-geo panels at three treated: no descent returned the empty design or raised. The guard stays for the drifted case, where a ratio of two residues is not bounded."
+
+  [[target.mutant]]
+  id = "the-swaps-are-never-taken"
+  find = "                if swapped.flat[k] < best:\n"
+  replace = "                if False:\n"
+  models = "the descent by adds and drops only, which stops at designs one swap could improve"
+
+  [[target.mutant]]
+  id = "the-reported-rss-is-the-gram-score"
+  find = "    _, C = min((descend(C) for C in starts), key=lambda r: r[0])\n    return positive_rss(y, X, C), C\n"
+  replace = "    return min((descend(C) for C in starts), key=lambda r: r[0])\n"
+  models = "the RSS returned is the Gram score, which differs from the design's positive_rss by rounding"
+
+  [[target.mutant]]
+  id = "a-zero-restart-count-passes"
+  find = "    if restarts < 1:\n"
+  replace = "    if restarts < 0:\n"
+  models = "no start, so min() of nothing raises a ValueError, not MlsynthDataError"
 
   [[target.mutant]]
   id = "the-incumbent-node-without-its-cut"
@@ -11443,8 +11517,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-descent-takes-a-worse-move"
-  find = "            if vals[i] < cur * (1 - 1e-12):\n"
-  replace = "            if vals[i] > cur * (1 - 1e-12):\n"
+  find = "            if not best < cur * (1 - 1e-12):\n"
+  replace = "            if not best > cur * (1 - 1e-12):\n"
   models = "the incumbent descent accepting a move only when it is worse"
 
 [[target]]
@@ -12371,8 +12445,38 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-start-design-is-not-adopted"
+  find = "    if key0 is not None:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
+  replace = "    if False:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
+  models = "the start's passing design not taken as the first incumbent, so the first groups are certified without a ceiling"
+
+  [[target.mutant]]
+  id = "a-failing-start-design-is-adopted"
+  find = "    return Cg, (key if cu > 0 and all(gates) else None), yy - ratio, rest\n"
+  replace = "    return Cg, key, yy - ratio, rest\n"
+  models = "the library's design taken as the incumbent whatever its gates, so a design that fails one can be reported"
+
+  [[target.mutant]]
+  id = "the-start-group-is-searched-in-the-pass"
+  find = "lambda r: r[2] not in local and can_compete(r[1], r[0], *class_of())"
+  replace = "lambda r: can_compete(r[1], r[0], *class_of())"
+  models = "the start group searched again by the pass, a second local search of a group whose design is already known"
+
+  [[target.mutant]]
+  id = "the-library-design-is-dropped"
+  find = "        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)\n"
+  replace = "        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)\n"
+  models = "the library's own design replaced by the group's RSS-best design, which can fail the gates and leave no incumbent"
+
+  [[target.mutant]]
+  id = "the-start-is-not-marked"
+  find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
+  replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"
+  models = "the start group's certification not marked as the start's"
 
   [[target.mutant]]
   id = "the-cap-is-too-small"
@@ -12448,8 +12552,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-negative-slope-is-fitted"
-  find = "    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
-  replace = "    ratio = cu * cu / uGu\n"
+  find = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
+  replace = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu\n"
   models = "a pass design with c'u <= 0 credited with the fit of a negative slope, though the shared slope must be positive, so its RSS reads below y'y"
 
   [[target.mutant]]
@@ -12543,10 +12647,10 @@ timeout = 1200.0
   models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
 
   [[target.mutant]]
-  id = "the-start-group-is-screened-again"
-  find = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
-  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k)], lam, pool, n_jobs)\n"
-  models = "the start group counted twice, once certified and once screened"
+  id = "the-start-group-is-left-out-of-the-queue"
+  find = "    rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)\n"
+  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
+  models = "the start group adopted as the incumbent and never certified, so a better design in it is never found and the count of screened and certified groups is one short"
 
   [[target.mutant]]
   id = "the-pass-does-not-adopt-its-best-design"
