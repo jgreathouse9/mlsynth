@@ -203,9 +203,10 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
     c'u - c_a and u'Gu - 2 v_a + G_aa, and swapping a for b gives c'u - c_a + c_b and
     u'Gu - 2 v_a + G_aa + 2 v_b + G_bb - 2 G_ab (derived here by expanding (u +/- e)'G(u +/- e)).
     The RSS is y'y - (c'u)^2 / u'Gu when c'u > 0, else y'y (hull.positive_rss). Scored
-    from the series one move at a time the descent took 0.36 s a GeoLift group (10
+    from the series one move at a time the descent took 0.48 s a GeoLift group (10
     restarts, 36 controls); from the Gram, 0.011 s, with the same designs on the 73
-    groups measured."""
+    groups measured. The Gram scores choose the design; the RSS returned is the
+    design's positive_rss, since the two differ by rounding (1e-12 relative)."""
     if restarts < 1:
         raise MlsynthDataError(f"restarts is {restarts}; the descent needs at least one start.")
     p = X.shape[1]
@@ -248,7 +249,8 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
 
     starts = [set(rng.choice(p, size=int(rng.integers(1, p + 1)), replace=False).tolist())
               for _ in range(restarts)]
-    return min((descend(C) for C in starts), key=lambda r: r[0])
+    _, C = min((descend(C) for C in starts), key=lambda r: r[0])
+    return positive_rss(y, X, C), C
 
 
 def pieces_to(b_inc: float, cap: Fraction, ratio: float = 1.25) -> List[Tuple[float, float]]:

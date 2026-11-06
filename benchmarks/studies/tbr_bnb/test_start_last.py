@@ -111,6 +111,21 @@ def test_the_start_group_is_searched_once(monkeypatch):
     assert out.searched == len(calls) - 1                 # the start's search is not the pass's
 
 
+def test_the_optimum_group_as_the_start_is_searched_once_and_marked(monkeypatch):
+    """With the key's optimum group as the start, no group screens it out: the pass
+    leaves it alone (its design is already known), and it is certified once, marked
+    as the start."""
+    M = geo_panel(5)
+    _, T, _ = treatment_optimum(M, 2, N_TEST)
+    real, calls = treatment._local, []
+    monkeypatch.setattr(treatment, "_local", lambda M_, T_, *a: calls.append(tuple(sorted(T_))) or real(M_, T_, *a))
+    out = certify_treatment(M, 2, n_test=N_TEST, start=sorted(T), restarts=3, pass_restarts=10)
+    assert calls.count(tuple(sorted(T))) == 1
+    mine = [s for s in out.survivors if s.get("start")]
+    assert len(mine) == 1 and set(mine[0]["treatment"]) == T
+    assert out.certified and set(out.treatment) == T
+
+
 def test_the_start_groups_seed_is_its_local_design(monkeypatch):
     """The start group's certification starts from the design found for it before
     the pass, as every other group's starts from its pass design."""

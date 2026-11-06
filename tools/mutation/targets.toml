@@ -11484,6 +11484,12 @@ timeout = 1500.0
   models = "the descent by adds and drops only, which stops at designs one swap could improve"
 
   [[target.mutant]]
+  id = "the-reported-rss-is-the-gram-score"
+  find = "    _, C = min((descend(C) for C in starts), key=lambda r: r[0])\n    return positive_rss(y, X, C), C\n"
+  replace = "    return min((descend(C) for C in starts), key=lambda r: r[0])\n"
+  models = "the RSS returned is the Gram score, which differs from the design's positive_rss by rounding"
+
+  [[target.mutant]]
   id = "a-zero-restart-count-passes"
   find = "    if restarts < 1:\n"
   replace = "    if restarts < 0:\n"

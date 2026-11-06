@@ -89,6 +89,24 @@ def test_property_the_design_is_a_local_optimum_scored_as_reported(seed, p, rest
     assert _local_optimum(y, X, C, v)
 
 
+@SETTINGS
+@given(seed=st.integers(0, 10_000), p=st.integers(1, 9), restarts=st.integers(1, 4))
+def test_property_the_reported_rss_is_the_series_score(seed, p, restarts):
+    """The Gram scores pick the design; the RSS reported for it is positive_rss's, to
+    the bit, so a caller comparing it with a series-scored RSS sees no rounding gap."""
+    y, X = panel(seed % 500, p=p)
+    v, C = incumbent(y, X, restarts=restarts, seed=seed)
+    assert v == positive_rss(y, X, C)
+
+
+def test_the_reported_rss_is_the_series_score_where_the_gram_rounds_differently():
+    """Seed 857 at six controls: the Gram score of the design differs from the series
+    score by 1.2e-12 relative."""
+    y, X = panel(857, p=6)
+    v, C = incumbent(y, X, restarts=1, seed=857)
+    assert v == positive_rss(y, X, C)
+
+
 def test_the_best_restart_is_kept():
     y, X = panel(7, p=8)
     each = [incumbent(y, X, restarts=1, seed=s)[0] for s in range(6)]
