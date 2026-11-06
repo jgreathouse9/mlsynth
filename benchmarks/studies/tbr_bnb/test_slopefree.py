@@ -504,6 +504,23 @@ def test_a_given_start_is_kept_when_the_descent_finds_nothing_better(monkeypatch
     assert float(out.incumbent) == pytest.approx(best, rel=1e-9)
 
 
+def test_a_start_better_than_the_descents_design_is_used(monkeypatch):
+    """With the descent patched to its poorest design, a caller's optimum starts the
+    search: the descent does not overrule a better start."""
+    from . import search
+
+    y, X = panel(1, p=5)
+    best, C = positive_optimum(y, X)
+    D = ExactData(y, X)
+    worst = min((j for j in range(5) if D.c[j] > 0), key=lambda j: D.c[j] ** 2 / D.G[j, j])
+    assert {worst} != C
+    monkeypatch.setattr(search, "incumbent", lambda y, X, **k: (None, {worst}))
+    seen = _first_ratio(monkeypatch)
+    out = certify_slope_free(y, X, start=C, hull=False)
+    assert seen and seen[0] == _ratio(D.c, D.G, C)
+    assert out.certified and set(out.controls) == C
+
+
 def test_a_poor_start_gives_way_to_the_descents_design(monkeypatch):
     """A given start comes from a cheaper search (the treatment pass descends from 10
     starts); at five geos on GeoLift one such start had RSS 5,089,437.7 where the

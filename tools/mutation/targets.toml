@@ -12468,9 +12468,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-start-is-ignored"
-  find = "    C = set(start) if start is not None else incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
-  replace = "    C = incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
-  models = "a caller's design ignored and the group searched again"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if False:\n"
+  models = "a caller's design ignored, the descent's taken even when the caller's is better"
 
   [[target.mutant]]
   id = "the-ceiling-does-not-raise-the-test-ratio"
