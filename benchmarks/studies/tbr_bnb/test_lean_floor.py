@@ -288,6 +288,26 @@ def test_the_floor_is_the_old_floor_to_rounding_on_every_geo_group():
         assert Q(new) >= Q(old) - abs(Q(old)) * Q(1, 10 ** 12)
 
 
+@pytest.mark.parametrize("raw", [-1.0, -1e-300, -math.inf])
+def test_a_box_bound_at_or_below_zero_gives_a_zero_floor(monkeypatch, raw):
+    """A bound below zero (an exact or near-exact fit, where the rounding error
+    exceeds the residual) or -inf (an overflow) is a floor of 0. A panel cannot
+    make the first case with a Gram floor: an exact fit makes the Gram singular."""
+    M = geo_panel(5)
+    lam = gram_floor(M)
+    monkeypatch.setattr(treatment, "box_bound_float", lambda y, X, w, hi: raw)
+    fl = rss_floor(M, (1, 4), lam)
+    assert fl == 0 and isinstance(fl, Q)
+
+
+def test_an_overflow_floor_is_zero_not_minus_infinity():
+    """Past the doubles' range the box bound is -inf; the floor is 0."""
+    M = geo_panel(5) * 2.0 ** 1000
+    lam = gram_floor(M)
+    fl = rss_floor(M, (1, 4), lam)
+    assert fl == 0 and isinstance(fl, Q)
+
+
 def test_the_floor_takes_a_bracket_top_as_yy():
     M = geo_panel(5)
     lam = gram_floor(M)
