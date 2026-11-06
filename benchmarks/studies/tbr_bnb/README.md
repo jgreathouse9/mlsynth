@@ -748,13 +748,56 @@ route throughout. Its answer there is not the unscaled panel's. The key's
 correlation is computed as s_xy / sqrt(s_xx s_yy), and that product leaves the
 double range below a scale of about 2^-270 and above 2^270 (#990).
 
+## The floor's per-call costs
+
+After the float screen, the floors took 16.1 s of the 42 s four-geo run, about
+0.18 ms a group: NNLS 6.4 s, the hull certificate 6.8 s, the bracket 1.2 s, and the
+split and the cap 1.7 s. A spike over sampled groups measured what each part of a
+floor costs and what would replace it:
+
+- Floors from the Gram. The panel is 90 periods by 36 controls, so the Gram does
+  not shrink the problem: NNLS through a Cholesky factor of the group's Gram took
+  88 us against 65 us on the series, and slicing the group's Gram out of the
+  panel's took 32 us.
+- A first-order point in place of NNLS. The floor adds cap |g_j| for each
+  coordinate whose gradient is still negative, and the cap is a median 80 times
+  the largest weight, so the floor is only useful at a point that meets the
+  optimality conditions almost exactly. Batched FISTA, with the box projection
+  (a clip; the hull's simplex projection has nothing to do here) and restarts,
+  screened out none of 4,000 groups after 200 steps (140 us a group) and 412 after
+  1,000 (730 us), against 3,998 for NNLS (124 us under the same load). Plain
+  projected gradient and a clipped least-squares point did no better. The
+  groups' X'X have condition numbers near 1.7e4.
+- The certificate's own costs. With lo = 0 and the size at the number of controls
+  the knapsack's sum constraint is implied by the box, so the greedy fill (6 us)
+  is not needed: `box_bound_float` takes the multiplier as 0, valid at any
+  multiplier and the box minimum there. The last step's four rationals (10 us)
+  are three additions each rounded one step down (`add_down`), and the cap's
+  Fractions (6 us) are doubles where the quotient y'y / lambda is a normal double
+  (`slope_cap`). The bound is the same to 9e-16 relative on the groups sampled.
+
+On GeoLift at four geos (`results/lean_floor.log`, two alternating runs of each
+branch on one host):
+
+| `n_jobs` | `claude/tbr-float-screen` | this branch | the design |
+| --- | --- | --- | --- |
+| 1 | 40.8 s, 41.4 s | 37.4 s, 35.8 s | austin, dallas, minneapolis, reno |
+| 4 | 20.3 s, 19.6 s | 17.7 s, 18.0 s | the same, key and RSS equal |
+
+The counts are the same.
+
+The exact cap that remains for the other cases read float(y'y / lambda), which
+raised past the doubles, and below them left a zero cap that its widening loop
+could not raise. It is now an integer root (`root_above`), at most 2^-64 above the
+square root, rounded up to a double, or to inf, a cap whose bound clears nothing.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (490 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (528 tests, about 75 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 219 mutants of the 22
+but for the lines marked `pragma: no cover`, each with its reason. The 232 mutants of the 22
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
