@@ -1,0 +1,7 @@
+ 01:07:09 up 56 min,  0 user,  load average: 2.16, 1.35, 1.09
+== main
+n_jobs=1 wall 110.2s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 33 searched 90 screened 91357 replaced 0 retried 0
+n_jobs=4 wall 50.5s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 33 searched 95 screened 91357 replaced 0 retried 0
+== branch
+n_jobs=1 wall 47.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 replaced 0 retried 0
+n_jobs=4 wall 23.0s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 replaced 0 retried 0
