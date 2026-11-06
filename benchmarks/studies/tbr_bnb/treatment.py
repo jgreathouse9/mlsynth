@@ -62,6 +62,7 @@ Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
 from __future__ import annotations
 
+import functools
 import math
 import multiprocessing
 import time
@@ -71,7 +72,7 @@ from dataclasses import dataclass, field
 from fractions import Fraction as Q
 from itertools import combinations
 from math import comb
-from typing import List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy.optimize import nnls
@@ -187,6 +188,95 @@ def can_compete(yy: Q, floor: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> 
     return c is None or floor < c
 
 
+#: The relative margin of the float bracket and the float screen: 2^-48, 32 units of
+#: rounding, against the at most four roundings of relative size 2^-53 that either
+#: side carries (derived here).
+_MARGIN = 2.0 ** -48
+#: An entry between these, or zero, has a normal square; a sum of _MAX_PERIODS such
+#: squares is below 2^1021 and does not overflow.
+_TINY, _HUGE, _MAX_PERIODS = 2.0 ** -500, 2.0 ** 500, 2 ** 20
+#: A product at or above this is a normal double, whose rounding is relative.
+_NORMAL = 2.0 ** -1000
+
+
+def yy_bracket(y) -> Optional[Tuple[float, float]]:
+    """lo <= y'y <= hi in doubles, or None when the bound is not shown to hold.
+
+    Each square of an entry that is zero or between 2^-500 and 2^500 is a normal
+    double rounded by a relative 2^-53 at most, so their sum is within that of y'y,
+    every term being nonnegative, and math.fsum rounds it once more (it returns the
+    correctly rounded sum of its doubles). With s that value, s (1 -/+ 2^-48), each
+    rounded once, bracket y'y: the four roundings together move s by less than
+    5 * 2^-53 (derived here). An entry outside that range, a non-finite one, or more
+    than 2^20 entries leaves no bracket, and the caller takes the exact sum."""
+    y = np.asarray(y, dtype=float)
+    a = np.abs(y)
+    if (a.size > _MAX_PERIODS or not np.isfinite(a).all() or (a > _HUGE).any()
+            or ((a > 0) & (a < _TINY)).any()):
+        return None
+    s = math.fsum((y * y).tolist())
+    return s * (1 - _MARGIN), s * (1 + _MARGIN)
+
+
+@functools.lru_cache(maxsize=16)
+def _class_doubles(r_star: Q, rss_star: Q):
+    """1 - up^2, 1 - low^2 and the incumbent's RSS (ceiling's terms) as doubles, each
+    rounded once; None in place of 1 - up^2 when it is not positive. 1 - low^2 is
+    not positive only for a class near -1, where 1 - up^2 is (up - low is 2 EDGE),
+    so the ceiling there is yy (1 - up^2) in doubles and in rationals alike."""
+    up = r_star + EDGE - SLACK
+    low = r_star - EDGE - SLACK
+    a, b = 1 - up * up, 1 - low * low
+    return (float(a) if a > 0 else None), float(b), float(rss_star)
+
+
+def compete_bracket(floor: Q, lo: float, hi: float, r_star: Optional[Q],
+                    rss_star: Optional[Q]) -> Optional[bool]:
+    """can_compete(yy, floor, r_star, rss_star) for every yy in [lo, hi] when the
+    doubles show one answer for all of them, else None.
+
+    ceiling(yy) = max(yy (1 - up^2), min(rss_star, yy (1 - low^2))) is nondecreasing
+    in yy, its second term being nonnegative and growing, and its first at most zero
+    whenever 1 - up^2 is: so the group competes at every yy in the bracket when the
+    floor is below ceiling(lo), and at none when it is at least ceiling(hi). Each
+    ceiling is computed in doubles from terms rounded once, by products rounded once,
+    and compared with the floor rounded once across a relative margin of 2^-48:
+    from normal positive operands the roundings move each side by under 5 * 2^-53
+    (derived here). A ceiling below 2^-1000, where rounding is not relative, is left
+    undecided; the floor needs no such guard, a floor rounded to a subnormal double
+    being within 2^-1074 of it, far below a ceiling of 2^-1000 times the margin."""
+    if r_star is None:
+        return True
+    a, b, rss = _class_doubles(r_star, rss_star)
+
+    def ceil(yy):
+        second = min(rss, yy * b)
+        return second if a is None else max(yy * a, second)
+
+    f = float(floor)
+    c_lo, c_hi = ceil(lo), ceil(hi)
+    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):
+        return True
+    if c_hi >= _NORMAL and f * (1 - _MARGIN) >= c_hi:
+        return False
+    return None
+
+
+YYBound = Union[Tuple[float, float], Q]
+
+
+def _competes(floor: Q, yy: YYBound, exact: Callable[[], Q], r_star: Optional[Q],
+              rss_star: Optional[Q]) -> bool:
+    """can_compete for a row whose y'y is a float bracket (decided in doubles where
+    compete_bracket can, else at the exact y'y that ``exact`` returns) or exact."""
+    if isinstance(yy, tuple):
+        got = compete_bracket(floor, yy[0], yy[1], r_star, rss_star)
+        if got is not None:
+            return got
+        yy = exact()
+    return can_compete(yy, floor, r_star, rss_star)
+
+
 @dataclass
 class TreatmentCertificate:
     """The outcome of :func:`certify_treatment` for one treatment size."""
@@ -270,11 +360,24 @@ def _map(pool, fn, argss):
 
 
 def _floor_chunk(M, lam, groups):
+    """(floor, y'y, T) for each group, the y'y a float bracket (yy_bracket) or, for a
+    series that leaves none, exact; the floor's cap reads the bracket's top, a bound
+    on y'y from above being all the cap needs."""
     out = []
     for T in groups:
-        yy = _yy(M, T)
-        out.append((rss_floor(M, T, lam, yy=yy), yy, T))
+        y = _split(M, T)[0]
+        b = yy_bracket(y)
+        yy = b if b is not None else square_sum(y)
+        out.append((rss_floor(M, T, lam, yy=Q(b[1]) if b is not None else yy), yy, T))
     return out
+
+
+def _ratio(row) -> float:
+    """The row's floor over its y'y in doubles: the queue's order, one minus the
+    group's squared-correlation bound."""
+    floor, yy, _ = row
+    top = yy[1] if isinstance(yy, tuple) else float(yy)
+    return float(floor) / top if top > 0 else math.inf
 
 
 def _floor_rows(M, groups, lam, pool, n_jobs):
@@ -363,13 +466,31 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
     left_open = []
     lam = gram_floor(M)
     rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)
-    rows.sort(key=lambda r: r[0] / r[1])  # the highest correlation bound first
+    rows.sort(key=_ratio)                  # the highest correlation bound first
+    exact = {}
 
-    def class_of():
-        return (None, None) if out.key is None else (Q(out.key[4]), out.rss)
+    def exact_yy(T, yy):                    # a row's exact y'y, computed once a group
+        if not isinstance(yy, tuple):
+            return yy
+        if T not in exact:
+            exact[T] = _yy(M, T)
+        return exact[T]
+
+    held = [None, None, (None, None)]
+
+    def class_of():                         # the incumbent's class, rebuilt when it changes
+        if out.key is None:
+            return (None, None)
+        if held[0] is not out.key or held[1] is not out.rss:
+            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss)
+        return held[2]
+
+    def competes(row):
+        floor, yy, T = row
+        return _competes(floor, yy, lambda: exact_yy(T, yy), *class_of())
 
     if pass_restarts:                       # the pass: group -> (design, key or None)
-        for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and can_compete(r[1], r[0], *class_of())):
+        for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and competes(r)):
             found = _map(pool, _local, [(M, T, n_test, pass_restarts) for _, _, T in wave])
             for (_, _, T), (C, key, rss, rest) in zip(wave, found):   # in queue order
                 local[T] = (C, key)
@@ -383,14 +504,14 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
                                  tuple(-v for v in local[r[2]][1]) if local.get(r[2], (None, None))[1] else ()))
 
     def admit(row):                         # screened against the incumbent as the wave fills
-        floor, yy, T = row
-        if can_compete(yy, floor, *class_of()):
+        if competes(row):
             return True
         out.screened_out += 1
         return False
 
     for wave in _waves(rows, n_jobs, admit):
-        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for _, yy, T in wave]
+        exacts = [(T, exact_yy(T, yy)) for _, yy, T in wave]
+        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for T, yy in exacts]
         done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, seed) for T, _, c, seed, _ in jobs])
         for (T, yy, c, seed, pass_key), (res, C, secs) in zip(jobs, done):   # in queue order
             if not res.certified:

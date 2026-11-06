@@ -12451,7 +12451,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
@@ -12468,8 +12468,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-start-group-is-searched-in-the-pass"
-  find = "lambda r: r[2] not in local and can_compete(r[1], r[0], *class_of())"
-  replace = "lambda r: can_compete(r[1], r[0], *class_of())"
+  find = "lambda r: r[2] not in local and competes(r)"
+  replace = "lambda r: competes(r)"
   models = "the start group searched again by the pass, a second local search of a group whose design is already known"
 
   [[target.mutant]]
@@ -12477,6 +12477,112 @@ timeout = 1200.0
   find = "        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)\n"
   replace = "        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)\n"
   models = "the library's own design replaced by the group's RSS-best design, which can fail the gates and leave no incumbent"
+
+  [[target.mutant]]
+  id = "the-bracket-has-no-margin"
+  find = "    return s * (1 - _MARGIN), s * (1 + _MARGIN)\n"
+  replace = "    return s, s\n"
+  models = "the float sum of squares taken as y'y itself, which a sum rounded down puts below the exact one"
+
+  [[target.mutant]]
+  id = "a-tiny-entry-is-bracketed"
+  find = " or ((a > 0) & (a < _TINY)).any()):"
+  replace = "):"
+  models = "an entry whose square is subnormal bracketed, where its rounding is no longer relative"
+
+  [[target.mutant]]
+  id = "a-huge-entry-is-bracketed"
+  find = "or (a > _HUGE).any()\n"
+  replace = "\n"
+  models = "an entry whose square or sum overflows bracketed"
+
+  [[target.mutant]]
+  id = "the-period-count-is-unchecked"
+  find = "    if (a.size > _MAX_PERIODS or not np.isfinite(a).all()"
+  replace = "    if (not np.isfinite(a).all()"
+  models = "a series long enough for its sum of squares to overflow bracketed"
+
+  [[target.mutant]]
+  id = "the-competing-side-reads-the-top"
+  find = "    c_lo, c_hi = ceil(lo), ceil(hi)\n"
+  replace = "    c_lo, c_hi = ceil(hi), ceil(hi)\n"
+  models = "a group taken as competing against the ceiling at the bracket's top, which a y'y at its bottom may not reach"
+
+  [[target.mutant]]
+  id = "the-screened-side-reads-the-bottom"
+  find = "    c_lo, c_hi = ceil(lo), ceil(hi)\n"
+  replace = "    c_lo, c_hi = ceil(lo), ceil(lo)\n"
+  models = "a group screened out against the ceiling at the bracket's bottom, which a y'y at its top may exceed"
+
+  [[target.mutant]]
+  id = "the-competing-side-has-no-margin"
+  find = "    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):\n"
+  replace = "    if c_lo >= _NORMAL and f < c_lo:\n"
+  models = "a floor at the exact ceiling taken as competing where the ceiling in doubles rounds up past it"
+
+  [[target.mutant]]
+  id = "the-screened-side-has-no-margin"
+  find = "    if c_hi >= _NORMAL and f * (1 - _MARGIN) >= c_hi:\n"
+  replace = "    if c_hi >= _NORMAL and f >= c_hi:\n"
+  models = "a floor just below the exact ceiling screened out where the ceiling in doubles rounds down below it"
+
+  [[target.mutant]]
+  id = "a-subnormal-ceiling-is-decided"
+  find = "    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):\n"
+  replace = "    if f < c_lo * (1 - _MARGIN):\n"
+  models = "a ceiling below the normal range decided in doubles, where its rounding is absolute"
+
+  [[target.mutant]]
+  id = "an-undecided-group-is-taken-as-decided"
+  find = "        if got is not None:\n            return got\n        yy = exact()\n"
+  replace = "        return bool(got)\n"
+  models = "a group the doubles cannot decide screened out without its exact y'y"
+
+  [[target.mutant]]
+  id = "an-exact-row-is-read-as-a-bracket"
+  find = "    if isinstance(yy, tuple):\n        got = compete_bracket("
+  replace = "    if True:\n        got = compete_bracket("
+  models = "a row whose series left no bracket read as one"
+
+  [[target.mutant]]
+  id = "the-exact-yy-is-not-kept"
+  find = "        if T not in exact:\n            exact[T] = _yy(M, T)\n        return exact[T]\n"
+  replace = "        return _yy(M, T)\n"
+  models = "a group's exact y'y computed again at each screen and certification"
+
+  [[target.mutant]]
+  id = "the-survivors-read-the-bracket"
+  find = "        exacts = [(T, exact_yy(T, yy)) for _, yy, T in wave]\n"
+  replace = "        exacts = [(T, yy) for _, yy, T in wave]\n"
+  models = "a survivor's ceiling built from the float bracket, not its exact y'y"
+
+  [[target.mutant]]
+  id = "the-cap-reads-the-bottom"
+  find = "yy=Q(b[1]) if b is not None else yy)"
+  replace = "yy=Q(b[0]) if b is not None else yy)"
+  models = "the slope cap built from the bracket's bottom, below y'y by up to 2^-47 relative"
+expected = "survived"
+accepted-because = "EQUIVALENT in validity, derived here. The cap is sqrt(yy / lam) times (1 + 1e-9), and the bracket's bottom lo is below y'y by at most a factor (1 - 2^-48) / (1 + 2^-48), about 1 - 2^-47. The factor (1 + 1e-9)^2, about 1 + 2e-9, exceeds that gap by five orders of magnitude, and the square root's rounding is one part in 2^52, so a cap built from lo still satisfies cap^2 lam >= y'y: every design stays inside the box and the floor stays a lower bound. The two caps differ by under 2^-46 relative, which moves a floor by rounding only, and no test can tell a valid floor from a valid floor. The top is read because it is the side the bound needs, not the side a test detects."
+
+  [[target.mutant]]
+  id = "the-class-is-held-past-a-new-rss"
+  find = "        if held[0] is not out.key or held[1] is not out.rss:\n"
+  replace = "        if held[0] is not out.key:\n"
+  models = "the incumbent's class read from an earlier RSS when the RSS changes with the key held"
+expected = "survived"
+accepted-because = "EQUIVALENT under the current code, read from every assignment. The incumbent's key and RSS are written together at all three sites (the start, take, and the pass), and each write pairs a key with the RSS it was scored with, so the RSS never changes while the key's identity is held and the RSS test adds nothing the key test does not. It stays as the guard for a later change that rescores the incumbent in place: the class reads out.rss, and a cache keyed on the key alone would then hand back the old RSS."
+
+  [[target.mutant]]
+  id = "an-exact-row-is-read-again"
+  find = "        if not isinstance(yy, tuple):\n            return yy\n"
+  replace = "        if False:\n            return yy\n"
+  models = "a row whose floors carried the exact y'y computes it a second time"
+
+  [[target.mutant]]
+  id = "the-upper-edge-follows-the-lower"
+  find = "    return (float(a) if a > 0 else None), float(b), float(rss_star)\n"
+  replace = "    return (float(a) if a > 0 and b > 0 else None), float(b), float(rss_star)\n"
+  models = "a class near -1 losing its yy (1 - up^2) term, so its ceiling in doubles is negative"
 
   [[target.mutant]]
   id = "the-start-is-not-marked"
@@ -12516,7 +12622,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-screen-computes-yy-twice"
-  find = "        out.append((rss_floor(M, T, lam, yy=yy), yy, T))\n"
+  find = "        out.append((rss_floor(M, T, lam, yy=Q(b[1]) if b is not None else yy), yy, T))\n"
   replace = "        out.append((rss_floor(M, T, lam), yy, T))\n"
   models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
 
@@ -12576,7 +12682,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-wave-is-not-screened"
-  find = "        if can_compete(yy, floor, *class_of()):\n            return True\n        out.screened_out += 1\n        return False\n"
+  find = "        if competes(row):\n            return True\n        out.screened_out += 1\n        return False\n"
   replace = "        return True\n"
   models = "every group certified whatever its floor, the cost the screen removes, and the screened-out count left at zero"
 
@@ -12636,7 +12742,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "every-group-is-ruled-out"
-  find = "        if can_compete(yy, floor, *class_of()):\n            return True\n"
+  find = "        if competes(row):\n            return True\n"
   replace = "        if False:\n            return True\n"
   models = "the screen ruling out every group, so the incumbent is never challenged"
 
@@ -12708,8 +12814,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for _, yy, T in wave]\n"
-  replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for _, yy, T in wave]\n"
+  find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for T, yy in exacts]\n"
+  replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for T, yy in exacts]\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
 
 [[target]]
