@@ -1,0 +1,13 @@
+ 07:43:29 up  7:33,  0 user,  load average: 1.37, 4.04, 4.62
+== claude/tbr-float-screen f9c6ee78
+n_jobs=1 wall 40.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 20.3s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== this branch 2814368c
+n_jobs=1 wall 37.4s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 17.7s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== claude/tbr-float-screen f9c6ee78
+n_jobs=1 wall 41.4s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 19.6s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== this branch 2814368c
+n_jobs=1 wall 35.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 18.0s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358

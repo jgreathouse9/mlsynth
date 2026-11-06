@@ -211,6 +211,7 @@ def test_property_the_gradient_bound_holds(seed, k, tiny):
 
 @SETTINGS
 @given(seed=st.integers(0, 10_000), k=st.integers(-20, 20), tiny=st.booleans())
+@example(seed=1, k=-20, tiny=False)     # one where the residual's own error decides
 def test_property_the_objective_bound_holds_for_every_residual_within_e(seed, k, tiny):
     """The worst residual in the box: each component moved toward zero by e."""
     y, X, w = _case(seed, k, tiny)
