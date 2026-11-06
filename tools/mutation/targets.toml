@@ -12567,6 +12567,18 @@ expected = "survived"
 accepted-because = "EQUIVALENT under the current code, read from every assignment. The incumbent's key and RSS are written together at all three sites (the start, take, and the pass), and each write pairs a key with the RSS it was scored with, so the RSS never changes while the key's identity is held and the RSS test adds nothing the key test does not. It stays as the guard for a later change that rescores the incumbent in place: the class reads out.rss, and a cache keyed on the key alone would then hand back the old RSS."
 
   [[target.mutant]]
+  id = "an-exact-row-is-read-again"
+  find = "        if not isinstance(yy, tuple):\n            return yy\n"
+  replace = ""
+  models = "a row whose floors carried the exact y'y computes it a second time"
+
+  [[target.mutant]]
+  id = "the-upper-edge-follows-the-lower"
+  find = "    return (float(a) if a > 0 else None), float(b), float(rss_star)\n"
+  replace = "    return (float(a) if a > 0 and b > 0 else None), float(b), float(rss_star)\n"
+  models = "a class near -1 losing its yy (1 - up^2) term, so its ceiling in doubles is negative"
+
+  [[target.mutant]]
   id = "the-start-is-not-marked"
   find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
   replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"

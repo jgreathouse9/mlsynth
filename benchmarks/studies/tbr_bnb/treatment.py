@@ -221,12 +221,12 @@ def yy_bracket(y) -> Optional[Tuple[float, float]]:
 @functools.lru_cache(maxsize=16)
 def _class_doubles(r_star: Q, rss_star: Q):
     """1 - up^2, 1 - low^2 and the incumbent's RSS (ceiling's terms) as doubles, each
-    rounded once, or None when the screen in doubles does not apply to the class."""
+    rounded once; None in place of 1 - up^2 when it is not positive. 1 - low^2 is
+    not positive only for a class near -1, where 1 - up^2 is (up - low is 2 EDGE),
+    so the ceiling there is yy (1 - up^2) in doubles and in rationals alike."""
     up = r_star + EDGE - SLACK
     low = r_star - EDGE - SLACK
     a, b = 1 - up * up, 1 - low * low
-    if b <= 0 or rss_star < 0:
-        return None
     return (float(a) if a > 0 else None), float(b), float(rss_star)
 
 
@@ -247,10 +247,7 @@ def compete_bracket(floor: Q, lo: float, hi: float, r_star: Optional[Q],
     being within 2^-1074 of it, far below a ceiling of 2^-1000 times the margin."""
     if r_star is None:
         return True
-    terms = _class_doubles(r_star, rss_star)
-    if terms is None:
-        return None
-    a, b, rss = terms
+    a, b, rss = _class_doubles(r_star, rss_star)
 
     def ceil(yy):
         second = min(rss, yy * b)

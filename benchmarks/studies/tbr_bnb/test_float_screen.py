@@ -28,7 +28,7 @@ N_TEST = 8
 SETTINGS = settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 SAFE = st.floats(min_value=-2.0 ** 400, max_value=2.0 ** 400, allow_nan=False, allow_infinity=False).filter(
     lambda v: v == 0 or abs(v) >= 2.0 ** -400)
-CLASSES = st.sampled_from([None] + [Q(c, 100) for c in (50, 80, 95, 97, 98, 99, 100)])
+CLASSES = st.sampled_from([None] + [Q(c, 100) for c in (-100, -99, -50, 0, 50, 80, 95, 97, 98, 99, 100)])
 
 
 def _double_ceiling(yy, r_star, rss_star):
@@ -297,15 +297,41 @@ def test_an_undecided_screen_everywhere_certifies_the_same_design(monkeypatch):
     assert calls and len(calls) == len(set(calls))       # every group read exactly, once
 
 
-def test_a_panel_too_small_for_the_bracket_takes_the_exact_route():
-    """Scaled by 2^-520 no group has a bracket, and the certified design is the
-    unscaled panel's: correlation and the gates do not see the scale."""
+def test_a_panel_too_small_for_the_bracket_has_no_bracket_in_any_group():
+    """Scaled by 2^-520 every square is below the normal range, so no group has a
+    bracket and every floor's y'y is the exact sum. (The search itself is not
+    compared with the unscaled panel's: the key's correlation does not survive that
+    scale, #990.)"""
+    small = np.ldexp(geo_panel(5), -520)
+    groups = list(combinations(range(small.shape[1]), 2))
+    assert all(yy_bracket(_split(small, T)[0]) is None for T in groups)
+    rows = treatment._floor_chunk(small, treatment.gram_floor(small), groups)
+    assert all(isinstance(yy, Q) and yy == square_sum(_split(small, T)[0]) for _, yy, T in rows)
+
+
+def test_rows_with_no_bracket_certify_the_same_design(monkeypatch):
+    """With no group bracketed, every row carries its exact y'y from the floors: the
+    search is the exact one, and the exact y'y is never computed a second time."""
     M = geo_panel(5)
     want = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
-    small = np.ldexp(M, -520)
-    assert all(yy_bracket(_split(small, T)[0]) is None for T in combinations(range(small.shape[1]), 2))
-    got = certify_treatment(small, 2, n_test=N_TEST, restarts=3)
-    assert got.certified and got.treatment == want.treatment
+    monkeypatch.setattr(treatment, "yy_bracket", lambda y: None)
+    calls = _count_exact(monkeypatch)
+    got = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    assert (got.treatment, got.key, got.rss, got.certified) == (want.treatment, want.key, want.rss, want.certified)
+    assert len(got.survivors) == len(want.survivors) > 0 and got.screened_out == want.screened_out
+    assert calls == []
+
+
+def test_a_class_near_minus_one_is_decided_from_the_upper_edge():
+    """At class -1, 1 - low^2 is negative and the ceiling is yy (1 - up^2)."""
+    r = Q(-1)
+    a, b, _ = treatment._class_doubles(r, Q(5))
+    assert a is not None and a > 0 and b < 0
+    yy = Q(1000)
+    c = ceiling(yy, r, Q(5))
+    assert c == yy * (1 - (r + EDGE - SLACK) ** 2)
+    assert compete_bracket(c / 2, 1000.0, 1000.0, r, Q(5)) is True
+    assert compete_bracket(c * 2, 1000.0, 1000.0, r, Q(5)) is False
 
 
 @pytest.mark.parametrize("bad", [np.nan, np.inf])
