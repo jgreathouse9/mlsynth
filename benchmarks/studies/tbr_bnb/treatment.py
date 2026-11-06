@@ -14,8 +14,9 @@ The proof is a floor on the RSS of every positive-slope design of the group. Wit
 = b u, every such design is a point of {0 <= w <= cap}, cap the slope cap, so the
 group's nonnegative least squares, min ||y - X w||^2 over w >= 0 and w <= cap, is at
 most its RSS. Its value is bounded below exactly at the NNLS point by the float hull
-certificate over that box (certificate.hull_bound_float, with lo = 0 and the size at
-the number of controls, so that the size constraint is slack). The cap is that of
+certificate over that box (certificate.box_bound_float: the hull's with lo = 0 and the
+size at the number of controls, the size constraint slack and the knapsack at
+multiplier 0). The cap (slope_cap, in doubles where its rounding is relative) is that of
 certificate.ExactData.slope_cap, ||y|| / sqrt(lambda_min(G)), with one lower bound on
 lambda_min for every group: the controls' Gram matrix is a principal submatrix of the
 full one, and a principal submatrix's smallest eigenvalue is at least the full
@@ -80,7 +81,7 @@ from scipy.optimize import nnls
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
-from .certificate import hull_bound_float, qarr
+from .certificate import box_bound_float, qarr
 from .gated import certify_gated, gates_of
 
 #: Half a step of round(corr, 2), and the slack for the key's correlation being a double.
@@ -148,21 +149,76 @@ def design_moments(y, X, C):
     return cu, Q(sum(v * v for v in xu), D * D), Q(sum(v * v for v in yi), Dy * Dy)
 
 
-def rss_floor(M, T: Sequence[int], lam: Optional[Q], yy: Optional[Q] = None) -> Q:
-    """An exact lower bound on the RSS of every positive-slope design whose treatment
-    group is T (module docstring); 0 when lam is None. ``yy`` is the group's y'y,
-    computed here when not given."""
+#: The range in which the float slope cap's relative argument holds: a quotient
+#: y'y / lambda and its root are normal doubles, so each rounding is relative.
+_CAP_RANGE = (2.0 ** -1000, 2.0 ** 1000)
+
+
+#: The scale of the exact cap's integer root: the cap exceeds sqrt(y'y / lambda) by
+#: at most a relative 2^-64.
+_ROOT_SCALE = 2 ** 64
+
+
+def root_above(q: Q) -> Q:
+    """A rational r > 0 with r^2 > q, for a rational q > 0: with q = a / b in lowest
+    terms and K = _ROOT_SCALE, r = (isqrt(a b K^2) + 1) / (b K). Then (b K r)^2 >
+    a b K^2, so r^2 > a / b, and b K r - 1 <= sqrt(a b) K, so r exceeds sqrt(q) by
+    at most 1 / (b K) <= sqrt(q) / K since a b >= 1 (derived here)."""
+    a, b = q.numerator, q.denominator
+    return Q(math.isqrt(a * b * _ROOT_SCALE * _ROOT_SCALE) + 1, b * _ROOT_SCALE)
+
+
+def _cap_exact(yy: Q, lam: Q) -> float:
+    """The slope cap from rationals, for any y'y and lambda: root_above(y'y / lambda)
+    rounded up to a double, or inf past the doubles, a cap whose bound clears
+    nothing."""
+    q = Q(yy) / lam
+    if q == 0:
+        return 0.0
+    r = root_above(q)
+    try:
+        c = float(r)
+    except OverflowError:
+        return math.inf
+    return c if Q(c) >= r else math.nextafter(c, math.inf)
+
+
+def slope_cap(yy: Union[float, Q], lam: Q) -> float:
+    """A double cap with cap^2 lambda >= y'y, for y'y at most ``yy``.
+
+    In doubles when ``yy`` is one and the quotient is in _CAP_RANGE: float(lambda)
+    is within a relative u = 2^-53 of lambda, the quotient and its root each round
+    by u more, and the product with 1 + 1e-9 by u, so the cap is at least
+    sqrt(y'y / lambda) (1 + 1e-9)(1 - u)^4 / sqrt(1 + u) > sqrt(y'y / lambda), the
+    margin being 10^7 times the roundings (derived here). Zero for a zero y'y.
+    Otherwise, a rational y'y or a quotient off the range, the exact construction."""
+    if isinstance(yy, float):
+        if yy == 0.0:
+            return 0.0
+        lf = float(lam)
+        if lf > 0.0:
+            q = yy / lf
+            if _CAP_RANGE[0] <= q <= _CAP_RANGE[1]:
+                return math.sqrt(q) * (1 + 1e-9)
+        yy = Q(yy)
+    return _cap_exact(yy, lam)
+
+
+def rss_floor(M, T: Sequence[int], lam: Optional[Q], yy: Union[None, float, Q] = None) -> Union[float, Q]:
+    """A lower bound on the RSS of every positive-slope design whose treatment group
+    is T (module docstring), a double or 0; 0 when lam is None. ``yy`` is the
+    group's y'y or a double above it (all the cap needs), computed here when not
+    given. The bound is the hull's at the NNLS point over the box
+    {0 <= x <= cap}, box_bound_float."""
     if lam is None:
         return Q(0)
     y, X, _ = _split(M, T)
     if yy is None:
         yy = square_sum(y)
-    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))
-    while cap * cap * lam < yy:           # pragma: no cover - rounding guard
-        cap *= Q(1000001, 1000000)
+    cap = slope_cap(yy, lam)
     w, _ = nnls(X, y)
-    fl = hull_bound_float(y, X, np.minimum(w, float(cap)), 0.0, float(cap), X.shape[1])
-    return max(Q(0), fl) if fl != -np.inf else Q(0)
+    fl = box_bound_float(y, X, np.minimum(w, cap), cap)
+    return fl if fl > 0 else Q(0)
 
 
 def ceiling(yy: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> Optional[Q]:
@@ -368,7 +424,7 @@ def _floor_chunk(M, lam, groups):
         y = _split(M, T)[0]
         b = yy_bracket(y)
         yy = b if b is not None else square_sum(y)
-        out.append((rss_floor(M, T, lam, yy=Q(b[1]) if b is not None else yy), yy, T))
+        out.append((rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T))
     return out
 
 

@@ -248,6 +248,52 @@ def hull_bound_float(y, X, w, lo, hi, m):
     return round_down(Q(f) + Q(kn) - Q(gw) - Q(err))
 
 
+def add_down(a: float, b: float) -> float:
+    """A double at most a + b: the sum rounded to nearest, stepped down one ulp.
+
+    Derived here. Rounded to nearest, a + b is either the largest double at most the
+    sum or the smallest at least it; one step down from either is at most the sum,
+    since the double below the second is the first, in the subnormal range too. A
+    sum that is not finite gives -inf, a
+    bound that clears nothing: one step down from inf is the largest double, which
+    is no bound on an overflowed sum."""
+    s = a + b
+    if not math.isfinite(s):
+        return -math.inf
+    return math.nextafter(s, -math.inf)
+
+
+def box_bound_float(y, X, w, hi):
+    """hull_bound_float over the box {0 <= x <= hi}, cheaper by two steps.
+
+    With lo = 0 and m the number of controls the sum constraint of the hull's P is
+    implied by the box, so the knapsack is taken at multiplier 0, valid at every
+    multiplier by weak duality and equal there to the box minimum hi sum min(0, g):
+    no greedy fill. Its rounding is dual_bound's at lam = 0, gamma_{p+3} times the
+    terms' moduli, and the gradient's perturbation is perturbed_knapsack_bound's,
+    max(d) p hi. The last combination f + dual - g'w - err is three additions, each
+    rounded down by add_down, in place of four rationals (derived here: each step
+    is at most its exact sum and the next is increasing in it)."""
+    y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
+    w = np.asarray(w, dtype=float)
+    n, p = X.shape
+    if w.shape != (p,):
+        raise ValueError(f"the point must hold one weight per control: expected ({p},), got {w.shape}")
+    if not np.all(np.isfinite(w)):
+        raise ValueError("the point must be finite")
+    r, e = residual_bound(y, X, w)
+    f, f_err = objective_bound(r, e)
+    g, d = gradient_bound(X, r, e)
+    terms = hi * np.minimum(0.0, g)
+    kn = float(terms.sum())
+    kn_err = _dot_err(p + 3, float(np.abs(terms).sum())) + float(d.max()) * (p * hi)
+    gw, gw_err = linear_bound(g, d, w)
+    err = inflate(f_err + kn_err + gw_err)
+    # an overflow (an infinite or undefined term) leaves a sum that is not finite,
+    # and add_down gives -inf for it: no bound
+    return add_down(add_down(add_down(f, kn), -gw), -err)
+
+
 def residual_bound(y, X, w):
     """r~ = fl(X w - y) and e with |r~ - (X w - y)| <= e componentwise: a dot
     product of p terms less y_i, so gamma_{p+1} (|X||w| + |y|) (Bjorck 2015, eq. (1.4.10))."""

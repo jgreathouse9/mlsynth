@@ -11715,7 +11715,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-float-cert"
 module-path = "benchmarks/studies/tbr_bnb/certificate.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_float_cert.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_float_cert.py benchmarks/studies/tbr_bnb/test_lean_floor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -11804,8 +11804,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-overflow-is-read-as-a-bound"
-  find = "    if not all(np.isfinite(v) for v in (f, kn, gw, err)):\n"
-  replace = "    if False:\n"
+  find = "    if not all(np.isfinite(v) for v in (f, kn, gw, err)):\n        return -np.inf                  # an overflow: no bound, and the exact certificate decides\n"
+  replace = "    if False:\n        return -np.inf                  # an overflow: no bound, and the exact certificate decides\n"
   models = "an infinite or undefined intermediate carried into the rational combination"
 
   [[target.mutant]]
@@ -11813,6 +11813,48 @@ timeout = 900.0
   find = "    fb = hull_bound_float(y, X, w, lo, hi, m)\n    if np.isfinite(fb) and Q(fb) >= UB:\n"
   replace = "    fb = hull_bound_float(y, X, w, lo, hi, m)\n    if Q(fb) >= UB:\n"
   models = "the float bound's -inf, the sign of an overflow, compared as a number"
+
+  [[target.mutant]]
+  id = "add-down-rounds-to-nearest"
+  find = "    return math.nextafter(s, -math.inf)\n"
+  replace = "    return s\n"
+  models = "a sum rounded to nearest, above the exact sum whenever nearest rounds up"
+
+  [[target.mutant]]
+  id = "add-down-steps-past-an-overflow"
+  find = "    s = a + b\n    if not math.isfinite(s):\n        return -math.inf\n"
+  replace = "    s = a + b\n"
+  models = "an overflowed sum stepped down from inf to the largest double, a bound on nothing read as a huge one"
+
+  [[target.mutant]]
+  id = "the-box-knapsack-reads-the-positive-costs"
+  find = "    terms = hi * np.minimum(0.0, g)\n    kn = float(terms.sum())\n"
+  replace = "    terms = hi * np.maximum(0.0, g)\n    kn = float(terms.sum())\n"
+  models = "the box minimum taken over the costs that raise the objective, above the true minimum"
+
+  [[target.mutant]]
+  id = "the-box-knapsack-has-no-rounding"
+  find = "    kn_err = _dot_err(p + 3, float(np.abs(terms).sum())) + float(d.max()) * (p * hi)\n"
+  replace = "    kn_err = float(d.max()) * (p * hi)\n"
+  models = "the box minimum's own rounding left out of the error"
+
+  [[target.mutant]]
+  id = "the-box-ignores-the-gradient-error"
+  find = "    kn_err = _dot_err(p + 3, float(np.abs(terms).sum())) + float(d.max()) * (p * hi)\n"
+  replace = "    kn_err = _dot_err(p + 3, float(np.abs(terms).sum()))\n"
+  models = "the gradient's rounding not carried into the box minimum, max(d) p hi left out"
+
+  [[target.mutant]]
+  id = "the-box-sum-is-rounded-to-nearest"
+  find = "    return add_down(add_down(add_down(f, kn), -gw), -err)\n"
+  replace = "    return f + kn - gw - err\n"
+  models = "the last three additions rounded to nearest, above their exact sum where nearest rounds up"
+
+  [[target.mutant]]
+  id = "the-box-drops-the-linear-error"
+  find = "    err = inflate(f_err + kn_err + gw_err)\n    # an overflow"
+  replace = "    err = inflate(f_err + kn_err)\n    # an overflow"
+  models = "the rounding of g'w left out of the box bound's error"
 
   [[target.mutant]]
   id = "the-result-is-rounded-to-nearest"
@@ -12451,7 +12493,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
@@ -12558,8 +12600,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-cap-reads-the-bottom"
-  find = "yy=Q(b[1]) if b is not None else yy)"
-  replace = "yy=Q(b[0]) if b is not None else yy)"
+  find = "yy=b[1] if b is not None else yy)"
+  replace = "yy=b[0] if b is not None else yy)"
   models = "the slope cap built from the bracket's bottom, below y'y by up to 2^-47 relative"
 expected = "survived"
 accepted-because = "EQUIVALENT in validity, derived here. The cap is sqrt(yy / lam) times (1 + 1e-9), and the bracket's bottom lo is below y'y by at most a factor (1 - 2^-48) / (1 + 2^-48), about 1 - 2^-47. The factor (1 + 1e-9)^2, about 1 + 2e-9, exceeds that gap by five orders of magnitude, and the square root's rounding is one part in 2^52, so a cap built from lo still satisfies cap^2 lam >= y'y: every design stays inside the box and the floor stays a lower bound. The two caps differ by under 2^-46 relative, which moves a floor by rounding only, and no test can tell a valid floor from a valid floor. The top is read because it is the side the bound needs, not the side a test detects."
@@ -12585,6 +12627,42 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "a class near -1 losing its yy (1 - up^2) term, so its ceiling in doubles is negative"
 
   [[target.mutant]]
+  id = "the-float-cap-takes-any-quotient"
+  find = "            if _CAP_RANGE[0] <= q <= _CAP_RANGE[1]:\n"
+  replace = "            if True:\n"
+  models = "the float cap used for a quotient off the normal range, where its rounding is not relative"
+
+  [[target.mutant]]
+  id = "the-float-cap-divides-by-a-zero-floor"
+  find = "        if lf > 0.0:\n"
+  replace = "        if True:\n"
+  models = "a Gram floor below the doubles read as zero and divided by"
+
+  [[target.mutant]]
+  id = "the-root-is-not-raised"
+  find = "    return Q(math.isqrt(a * b * _ROOT_SCALE * _ROOT_SCALE) + 1, b * _ROOT_SCALE)\n"
+  replace = "    return Q(math.isqrt(a * b * _ROOT_SCALE * _ROOT_SCALE), b * _ROOT_SCALE)\n"
+  models = "the integer root taken from below, at or under sqrt(q), so the cap can fall short"
+
+  [[target.mutant]]
+  id = "the-exact-cap-rounds-to-nearest"
+  find = "    return c if Q(c) >= r else math.nextafter(c, math.inf)\n"
+  replace = "    return c\n"
+  models = "the rational cap rounded to nearest, below r when nearest rounds down"
+
+  [[target.mutant]]
+  id = "the-cap-overflow-raises"
+  find = "    except OverflowError:\n        return math.inf\n"
+  replace = "    except ZeroDivisionError:\n        return math.inf\n"
+  models = "a cap past the doubles raising, so a panel with a tiny Gram floor stops the search"
+
+  [[target.mutant]]
+  id = "a-negative-floor-is-kept"
+  find = "    return fl if fl > 0 else Q(0)\n"
+  replace = "    return fl\n"
+  models = "a box bound below zero, or -inf, returned as the floor in place of 0"
+
+  [[target.mutant]]
   id = "the-start-is-not-marked"
   find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
   replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"
@@ -12592,9 +12670,9 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-cap-is-too-small"
-  find = "    cap = Q(math.sqrt(float(yy / lam)) * (1 + 1e-9))\n    while cap * cap * lam < yy:"
-  replace = "    cap = Q(math.sqrt(float(yy / lam)) * 1e-3)\n    while False:"
-  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS (the cap and its rounding guard together: the guard alone repairs a small cap)"
+  find = "                return math.sqrt(q) * (1 + 1e-9)\n"
+  replace = "                return math.sqrt(q) * 1e-3\n"
+  models = "a slope cap below some designs' slopes, so the box leaves them out and the floor rises above their RSS"
 
   [[target.mutant]]
   id = "the-smallest-denominator-scales-the-sum"
@@ -12622,7 +12700,7 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-screen-computes-yy-twice"
-  find = "        out.append((rss_floor(M, T, lam, yy=Q(b[1]) if b is not None else yy), yy, T))\n"
+  find = "        out.append((rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T))\n"
   replace = "        out.append((rss_floor(M, T, lam), yy, T))\n"
   models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
 
