@@ -268,6 +268,12 @@ def test_the_exact_cap_is_tight():
     assert cap * cap * lam >= yy and cap * cap * lam <= yy * (1 + Q(1, 2 ** 50))
 
 
+def test_a_zero_rational_yy_has_a_zero_cap():
+    """An exact y'y of zero (a series with no bracket that is zero) gives a zero cap
+    through the exact construction too."""
+    assert slope_cap(Q(0), Q(1, 7)) == 0.0
+
+
 def test_an_exact_yy_takes_the_exact_cap():
     yy = square_sum(np.array([3.0, 4.0]))
     cap = slope_cap(yy, Q(1, 3))
