@@ -12093,6 +12093,18 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py be
 timeout = 900.0
 
   [[target.mutant]]
+  id = "a-given-start-skips-the-descent"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None:\n"
+  models = "a caller's design taken whatever the descent finds, as the 10-restart pass design at five geos on GeoLift"
+
+  [[target.mutant]]
+  id = "the-lower-ratio-design-starts"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None and _ratio(c, G, set(start))[1] <= _ratio(c, G, C)[1]:\n"
+  models = "the search started from the design with the higher RSS of the two"
+
+  [[target.mutant]]
   id = "the-value-reads-the-smallest-eigenvalue"
   find = "by + self.T * max(0.0, float(lam[-1])))"
   replace = "by + self.T * max(0.0, float(lam[0])))"

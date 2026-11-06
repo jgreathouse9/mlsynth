@@ -795,11 +795,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
     D = ExactData(y, X)
     c, G = D.c, D.G
-    if start is not None:                # kept unless the descent found a design with a lower RSS
-        cs, ls = _ratio(c, G, set(start))
-        cd, ld = _ratio(c, G, C)
-        if cs > 0 and (not cd > 0 or ls >= ld):
-            C = set(start)
+    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:
+        C = set(start)                   # kept unless the descent found a design with a lower RSS
     cu, lam = _ratio(c, G, C)
     if set(C) in excluded or not cu > 0:
         C = _best_neighbour(c, G, [C] + excluded, excluded)
