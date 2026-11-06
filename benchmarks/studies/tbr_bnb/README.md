@@ -818,6 +818,14 @@ A group the kernel cannot do in doubles comes back with a nan floor and takes
 how tight a floor is: on every four-geo group the kernel's floors are `rss_floor`'s
 to 1e-10 relative.
 
+The active set ends where a Cholesky solve on it fails, at its last feasible point,
+with the column just added left out. The first version stepped toward the solution
+of that failed solve, which is whatever an earlier solve left in the scratch; when
+those entries were positive nothing left the set, and the same solve failed again
+without end (`test_a_singular_active_set_ends_the_solve`, a singular three-column
+Gram). The floors of real panels never reached it, since their c is the Gram's own
+B'y, but a floor that can hang the search is a defect whatever its inputs.
+
 numba keys its disk cache on the source file and records the module's name in it.
 The suite imports the module as `studies.tbr_bnb.fastfloor` and a script as
 `benchmarks.studies.tbr_bnb.fastfloor`, and a cache written under the first failed

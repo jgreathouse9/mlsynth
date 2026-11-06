@@ -357,3 +357,87 @@ def test_a_non_finite_series_is_refused_with_or_without_the_kernel(monkeypatch, 
         M[3, 2] = bad
         with pytest.raises(MlsynthDataError, match="finite"):
             treatment._floor_chunk(M, gram_floor(geo_panel(5)), [(1, 2)])
+
+
+# ---------------------------------------------------------------- the active set on a singular Gram
+
+_SINGULAR = """
+import sys
+import numpy as np
+sys.path.insert(0, {root!r})
+from benchmarks.studies.tbr_bnb import fastfloor as ff
+G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]])   # column 3 is 1 + 2
+c = np.array([1.0, 1.0, 1.5])
+w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)
+L = np.zeros((3, 3)); z = np.zeros(3); x = np.ones(3)                # scratch left positive
+ff._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+print(repr(w.tolist()))
+"""
+
+
+def _scratch(m, fill):
+    return (np.zeros(m), np.zeros(m, np.bool_), np.zeros(m, np.int64), np.zeros((m, m)),
+            np.zeros(m), np.full(m, fill))
+
+
+@needs_numba
+def test_a_singular_active_set_ends_the_solve():
+    """The solve that adds the third column fails (its pivot is 2 - 1 - 1 = 0). The step
+    after it must not read the scratch it left: with that scratch positive, a step to it
+    moves nothing out of the set and the same solve fails again, for ever."""
+    root = str(Path(__file__).resolve().parents[3])
+    run = subprocess.run([sys.executable, "-c", _SINGULAR.format(root=root)],
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    w = np.array(eval(run.stdout.strip()))
+    G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]])
+    c = np.array([1.0, 1.0, 1.5])
+    assert np.all(w >= 0) and float(w @ G @ w - 2 * c @ w) < 0
+    v, passive, idx, L, z, x = _scratch(3, 1.0)       # in this process too, once it is known to end
+    fastfloor._nnls_gram(G, c, passive, v, idx, L, z, x, 500)
+    assert np.array_equal(v, w) and not passive[2]
+
+
+@needs_numba
+def test_the_cholesky_reports_a_matrix_that_is_not_positive_definite():
+    A = np.array([[1.0, 1.0], [1.0, 1.0]])
+    idx = np.array([0, 1], np.int64)
+    assert not fastfloor._chol_solve(A, np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
+    assert fastfloor._chol_solve(np.eye(2), np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
+
+
+@needs_numba
+@SETTINGS
+@given(seed=st.integers(0, 10_000), m=st.integers(2, 7), r=st.integers(1, 6), fill=st.floats(-5, 5))
+def test_property_the_active_set_ends_feasible_and_below_its_start(seed, m, r, fill):
+    """On Grams of any rank, with any scratch: w >= 0, finite, and the objective
+    w'Gw - 2c'w no higher than at w = 0. c is B'y, as a floor's is."""
+    rng = np.random.default_rng(seed)
+    B = rng.normal(size=(min(r, m), m))
+    if m > 1:
+        B[:, -1] = B[:, 0] + B[:, 1] * (seed % 2)           # an exact dependence half the time
+    y = rng.normal(size=B.shape[0])
+    G, c = B.T @ B, B.T @ y
+    w, passive, idx, L, z, x = _scratch(m, fill)
+    fastfloor._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+    assert np.all(np.isfinite(w)) and np.all(w >= 0)
+    assert float(w @ G @ w - 2 * c @ w) <= 1e-9 * (1 + float(np.abs(G).sum() + np.abs(c).sum()))
+
+
+@needs_numba
+def test_an_addition_past_the_doubles_is_minus_infinity():
+    """_add_down rounds down; a sum that is not finite is no floor, so it is -inf."""
+    assert fastfloor._add_down(1e308, 1e308) == -np.inf
+    assert fastfloor._add_down(np.inf, -np.inf) == -np.inf
+    assert fastfloor._add_down(1.0, 2.0) == np.nextafter(3.0, -np.inf)
+
+
+@needs_numba
+def test_a_group_out_of_order_is_the_group_in_order():
+    M = geo_panel(5)
+    lam = float(gram_floor(M))
+    args = (np.ascontiguousarray(M), np.ascontiguousarray(M.T @ M))
+    assert np.array_equal(fastfloor._sorted(np.array([3, 0, 2, 1], np.int64)), [0, 1, 2, 3])
+    a = fastfloor.floors(*args, np.array([[0, 2, 4]], np.int64), lam)
+    b = fastfloor.floors(*args, np.array([[4, 0, 2]], np.int64), lam)
+    assert all(np.array_equal(u, v) for u, v in zip(a, b))

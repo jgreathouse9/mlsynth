@@ -12957,6 +12957,24 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py -q
 timeout = 1200.0
 
   [[target.mutant]]
+  id = "a-singular-solve-steps-to-stale-scratch"
+  find = "            if not ok:                           # the column is in the set's span: x is stale,\n                passive[jbest] = False           # so stop at w, the last feasible point\n                return\n            allpos = True\n"
+  replace = "            allpos = ok\n"
+  models = "a failed Cholesky on the active set read as a step toward the scratch it left, which with positive scratch never leaves the set"
+
+  [[target.mutant]]
+  id = "a-group-is-sorted-descending"
+  find = "        while j >= 0 and out[j] > v:"
+  replace = "        while j >= 0 and out[j] < v:"
+  models = "the group's geos sorted the wrong way, so the series is summed in another order than _split's"
+
+  [[target.mutant]]
+  id = "an-overflowed-addition-is-kept"
+  find = "    if not np.isfinite(s):\n        return -np.inf\n"
+  replace = "    if not np.isfinite(s):\n        return s\n"
+  models = "a sum past the doubles (inf or nan) kept as a floor"
+
+  [[target.mutant]]
   id = "the-series-is-summed-right-to-left"
   find = "        for q in range(kk):\n            v += M[t, T[q]]\n        y[t] = v\n"
   replace = "        for q in range(kk - 1, -1, -1):\n            v += M[t, T[q]]\n        y[t] = v\n"

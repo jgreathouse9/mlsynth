@@ -164,7 +164,10 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
                     idx[k] = j
                     k += 1
             ok = _chol_solve(G, c, idx, k, L, z, x)
-            allpos = ok
+            if not ok:                           # the column is in the set's span: x is stale,
+                passive[jbest] = False           # so stop at w, the last feasible point
+                return
+            allpos = True
             for q in range(k):
                 if not (x[q] > 0.0):
                     allpos = False
@@ -298,7 +301,7 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d
     _nnls_gram(G, c, passive, w, idx, L, z, x, 500)
     for j in range(m):
         if not (w[j] >= 0.0):
-            w[j] = 0.0
+            w[j] = 0.0  # pragma: no cover - the active set keeps w >= 0 (positive solves, step-backs clipped to 0)
         if w[j] > cap:
             w[j] = cap
     f, kn, gw, err = _certificate(M, rest, y, w, cap, r, e, ar, g, d)
