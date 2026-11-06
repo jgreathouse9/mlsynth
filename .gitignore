@@ -9,6 +9,9 @@ dist/
 
 # Ignore Python bytecode files
 *.pyc
+# numba's on-disk cache of compiled kernels (benchmarks/studies/tbr_bnb/fastfloor.py)
+*.nbi
+*.nbc
 *.pyo
 
 # Coverage files

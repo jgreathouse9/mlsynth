@@ -11,7 +11,10 @@ the kernel against _split, square_sum, the exact certificate and rss_floor, and 
 search with the kernel against the search without it.
 """
 import math
+import subprocess
+import sys
 from fractions import Fraction as Q
+from pathlib import Path
 from itertools import combinations
 
 import numpy as np
@@ -138,6 +141,26 @@ def test_the_order_of_the_groups_does_not_change_a_floor():
     a = fastfloor.floors(*args, groups, lam)[0]
     b = fastfloor.floors(*args, groups[::-1].copy(), lam)[0][::-1]
     assert np.allclose(a, b, rtol=1e-9, atol=0)
+
+
+@needs_numba
+def test_a_script_loads_the_kernel_after_the_suite_compiled_it():
+    """The suite imports the module as studies.tbr_bnb.fastfloor and a script as
+    benchmarks.studies.tbr_bnb.fastfloor. numba records the module's name in its disk
+    cache, so the cache is written only under the second name: a script compiles the
+    kernel, then loads it, without the import error a shared cache raised."""
+    assert fastfloor._CACHE is (fastfloor.__name__ == fastfloor.CANONICAL_NAME)
+    M = geo_panel(5)                                  # the suite's own compile, under its name
+    fastfloor.floors(np.ascontiguousarray(M), np.ascontiguousarray(M.T @ M),
+                     np.array([[0, 1]], np.int64), float(gram_floor(M)))
+    root = Path(__file__).resolve().parents[3]
+    code = ("import numpy as np; from benchmarks.studies.tbr_bnb import fastfloor as f; "
+            "M = np.random.default_rng(0).normal(10, 1, (30, 6)).cumsum(0); "
+            "fl, lo, hi = f.floors(M, M.T @ M, np.array([[0, 1]], np.int64), 1e-3); "
+            "assert f._CACHE and np.isfinite(hi[0])")
+    for _ in range(2):                                # compile and save, then load
+        r = subprocess.run([sys.executable, "-c", code], cwd=root, capture_output=True, text=True, timeout=900)
+        assert r.returncode == 0, r.stderr[-3000:]
 
 
 # ---------------------------------------------------------------- edges

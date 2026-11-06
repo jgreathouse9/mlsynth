@@ -50,6 +50,14 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
             return args[0]
         return lambda f: f
 
+#: Compiled code is cached on disk only under this module name. numba keys its cache
+#: files on the source file but records the module's name in them, so a cache written
+#: when the module was imported as ``studies.tbr_bnb.fastfloor`` (the suite's import
+#: name) fails to load where it is ``benchmarks.studies.tbr_bnb.fastfloor``, with an
+#: import error from inside numba. Under any other name the kernel compiles in memory.
+CANONICAL_NAME = "benchmarks.studies.tbr_bnb.fastfloor"
+_CACHE = __name__ == CANONICAL_NAME
+
 #: numpy sums fewer than this many columns left to right.
 MAX_TREATED = 7
 #: The range of an entry whose square is a normal double.
@@ -60,17 +68,17 @@ _U = 2.0 ** -53
 _ETA = 2.0 ** -1074
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _gamma(k):
     return k * _U / (1.0 - k * _U)
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _dot_err(k, moduli):
     return _gamma(k) * moduli + k * _ETA
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _add_down(a, b):
     s = a + b
     if not np.isfinite(s):
@@ -78,7 +86,7 @@ def _add_down(a, b):
     return np.nextafter(s, -np.inf)
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _chol_solve(A, b, idx, k, L, z, x):
     """x = A[idx, idx]^{-1} b[idx] by Cholesky; False when A[idx, idx] is not positive
     definite in doubles."""
@@ -106,7 +114,7 @@ def _chol_solve(A, b, idx, k, L, z, x):
     return True
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
     """min w'Gw - 2c'w over w >= 0, Lawson and Hanson's active set from ``passive``."""
     m = c.shape[0]
@@ -181,7 +189,7 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
                     passive[j] = False
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d):
     """The floor, bracket and cap of one group (T sorted), the point left in w.
     Returns (floor, lo, hi, cap); nan where the group is left to rss_floor."""
@@ -285,7 +293,7 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d
     return _add_down(_add_down(_add_down(f, kn), -gw), -err), lo, hi, cap
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _sorted(T):
     out = T.copy()
     for i in range(1, out.shape[0]):
@@ -298,7 +306,7 @@ def _sorted(T):
     return out
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _controls(p, T):
     out = np.empty(p - T.shape[0], np.int64)
     q = 0
@@ -313,7 +321,7 @@ def _controls(p, T):
     return out
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def floors(M, Gf, groups, lamf):
     """(floor, lo, hi) for each row of ``groups``: the box bound (not yet clipped at
     zero) and the bracket on y'y, nan where the group is left to rss_floor. M is the
@@ -350,7 +358,7 @@ def floors(M, Gf, groups, lamf):
     return out_f, out_lo, out_hi
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def floor_parts(M, Gf, T, lamf):
     """One group from a cold start, with its point and series: (floor, lo, hi, w, y,
     cap), w over the controls in ascending order. For tests and inspection."""
