@@ -706,14 +706,56 @@ Three other changes were measured and not made:
   analysis is written for the series; a Gram form needs its own, for at most
   15 s of the run.
 
+## The y'y bracket and the screen in doubles
+
+After the halving, the floors' exact y'y (the sum of squares in Python integers)
+took 6.1 s of the 48 s four-geo run, and the screen's Fraction comparisons took 2.4 s
+more. A group needs y'y twice: for its floor's slope cap, and for the screen
+against the incumbent's ceiling. Neither needs it exactly.
+
+- `yy_bracket` bounds y'y in doubles, lo <= y'y <= hi, from `math.fsum` of the
+  squares, widened by 2^-48 either side. Each square of an entry that is zero
+  or between 2^-500 and 2^500 is a normal double within a relative 2^-53 of the
+  exact square, and `fsum` rounds their sum once more, so the sum is within
+  about 2^-52 of y'y relative, sixteen times inside the margin (derived here). A series with an entry outside that range, a
+  non-finite entry or more than 2^20 periods gets no bracket and keeps the exact
+  sum.
+- The slope cap reads the bracket's top: the cap needs y'y from above.
+- The ceiling is nondecreasing in y'y, so a group competes for every y'y in the
+  bracket when its floor is below ceiling(lo), and for none when the floor is at
+  least ceiling(hi). `compete_bracket` decides both in doubles across a relative
+  margin of 2^-48. The ceiling's terms and products are each rounded once, which
+  moves either side by under 5 * 2^-53 (derived here). A ceiling below 2^-1000,
+  where rounding is no longer relative, is left undecided.
+- An undecided group, and every group that is certified, reads the exact y'y,
+  computed once a group. The certificate's ceiling is the exact one.
+
+On the four-geo GeoLift run, 91,390 brackets take 1.2 s and the 182,779 screens
+take 0.4 s, none of them undecided. The exact y'y is computed for the 32 certified
+groups only. `results/float_screen.log` has two alternating runs of each branch on
+one host:
+
+| `n_jobs` | `claude/tbr-start-last` | this branch | the design |
+| --- | --- | --- | --- |
+| 1 | 46.8 s, 47.5 s | 42.8 s, 40.8 s | austin, dallas, minneapolis, reno |
+| 4 | 22.1 s, 22.2 s | 19.4 s, 18.1 s | the same, key and RSS equal |
+
+The counts are the same: 98 groups searched in the pass on one process (103 on
+four), 91,358 screened out and 32 certified.
+
+On a panel scaled by 2^-520, no group has a bracket, so the search takes the exact
+route throughout. Its answer there is not the unscaled panel's. The key's
+correlation is computed as s_xy / sqrt(s_xx s_yy), and that product leaves the
+double range below a scale of about 2^-270 and above 2^270 (#990).
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (455 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (490 tests, about 75 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 202 mutants of the 22
-`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for two recorded as equivalent with their reasons. The first run
+but for the lines marked `pragma: no cover`, each with its reason. The 219 mutants of the 22
+`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
 `lambda_min(S)` is near zero, so the trace barely moves the bound), a negative
