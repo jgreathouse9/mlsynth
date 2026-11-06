@@ -647,16 +647,72 @@ On GeoLift at four geos (`results/parallel.log`, one host, BLAS on one thread):
 The four-process pass searches five more groups: a wave admits its groups against
 the incumbent as it starts, so a group the wave's own better design would have
 screened out is searched anyway. The search before the pool (the library's
-greedy and local search and the start group's certification) runs in one
-process.
+greedy and local search) runs in one process; the start group is certified in a
+wave like every other group (next section).
+
+## Halving the four-geo run
+
+A profile of the four-geo GeoLift search on one process (98 s on that host)
+put 36 s in the pass, 34 s in the certifications (11.4 s of them the start
+group's), 16 s in the floors and 3.4 s in the start. Three changes halve it:
+
+- The start group is certified in its turn. The search used to certify the
+  start group's own optimum before any incumbent existed. The design that chose
+  the start group is now the first incumbent without a certificate (the
+  library search's design, which passes its gates, or the group's local design
+  when the caller gives the start), and the start group joins the queue, to be
+  certified against the incumbent of its turn like every other group. A design
+  is an incumbent whatever proves it, and the start group's own certificate is
+  still required.
+- ExactData builds its Gram, cross products and y'y from the doubles' integers
+  over one power of two, one division each: 8 ms a group against 223 ms for the
+  Fraction products, the same rationals.
+- The incumbent's RSS descent (`search.incumbent`) scores every move of a step
+  at once from c = X'y, G = X'X and v = G u: an add, drop or swap changes c'u and
+  u'Gu by a few entries of c, v and G. Scored from the series one move at a
+  time it took 0.48 s a group; from the Gram, 0.011 s, with the same designs on
+  the 73 groups measured.
+
+On GeoLift at four geos (`results/gram_descent.log`, `main` and this branch on
+one host):
+
+| `n_jobs` | `main` | this branch | the design |
+| --- | --- | --- | --- |
+| 1 | 110.2 s | 47.8 s | austin, dallas, minneapolis, reno |
+| 4 | 50.5 s | 23.0 s | the same, key and RSS equal |
+
+With the start in its turn the pass searches 98 groups, not 90: its incumbent is
+the library's design, weaker than the start group's certified optimum it used to
+start from, so fewer groups are screened out before the pass. One more group is
+screened out before certification and one fewer certified (91,358 and 32, against
+91,357 and 33). `results/start_last.log` has the timing of the first two changes
+alone: 94.8 s and 37.6 s.
+
+Three other changes were measured and not made:
+
+- Fewer pass restarts. At 10 restarts the run took 94.8 s and certified 32
+  groups; at 5, 331.7 s and 58; at 2, 551.9 s; at 1, 571.6 s; with no pass,
+  431.5 s and 100. A weaker pass leaves a weaker incumbent, so more groups
+  survive the screen and each is certified against a higher ceiling. On four
+  simulated 14-geo panels at three geos every setting ran in about a second.
+- Warm-starting the group screen's first-order multipliers from the previous
+  group's. On the 31 recorded survivors it took 6,804 evaluations against 6,655
+  from zero, and closed the same 29: the multipliers belong to each group's
+  objective, and a start near the boundary begins the smoothing too fine.
+- Floors from the global Gram. The floor's parts take 7.8 s (the hull
+  certificate), 7.2 s (NNLS), 4.8 s (the exact y'y) and 2.3 s (the split and
+  the cap) on one process. The exact y'y has to be the floating-point sum's, which
+  the Gram of the panel does not give, and the hull certificate's rounding
+  analysis is written for the series; a Gram form needs its own, for at most
+  15 s of the run.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (424 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (455 tests, about TIME s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 185 mutants of the 22
+but for the lines marked `pragma: no cover`, each with its reason. The 202 mutants of the 22
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for two recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
