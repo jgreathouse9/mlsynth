@@ -12569,7 +12569,7 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   [[target.mutant]]
   id = "an-exact-row-is-read-again"
   find = "        if not isinstance(yy, tuple):\n            return yy\n"
-  replace = ""
+  replace = "        if False:\n            return yy\n"
   models = "a row whose floors carried the exact y'y computes it a second time"
 
   [[target.mutant]]
