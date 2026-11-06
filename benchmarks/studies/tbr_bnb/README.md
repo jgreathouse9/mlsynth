@@ -735,7 +735,7 @@ take 0.4 s, none of them undecided. The exact y'y is computed for the 32 certifi
 groups only. `results/float_screen.log` has two alternating runs of each branch on
 one host:
 
-| `n_jobs` | `claude/tbr-start-last` | this branch | the design |
+| `n_jobs` | `main` after #989 | this branch | the design |
 | --- | --- | --- | --- |
 | 1 | 46.8 s, 47.5 s | 42.8 s, 40.8 s | austin, dallas, minneapolis, reno |
 | 4 | 22.1 s, 22.2 s | 19.4 s, 18.1 s | the same, key and RSS equal |
