@@ -12479,6 +12479,12 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_gated.py -q -p 
 timeout = 900.0
 
   [[target.mutant]]
+  id = "an-open-slope-free-certificate-is-read-as-closed"
+  find = "        if not res.certified:                  # nodes left open (GeoLift at five geos from a poor start)\n            break\n"
+  replace = "        if False:\n            break\n"
+  models = "a slope-free certificate with nodes left open taken as a certificate, the group reported certified"
+
+  [[target.mutant]]
   id = "a-failing-design-is-accepted"
   find = "        if all(gates):\n"
   replace = "        if gates[0]:\n"
@@ -12519,6 +12525,24 @@ name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-start-group-starts-from-the-library-design"
+  find = "        if rss_d < rss0:\n            S0 = Cd\n"
+  replace = "        if rss_d < rss0:\n            S0 = C0\n"
+  models = "the start group certified from the library's key-chosen design whatever its RSS, as at five geos on GeoLift"
+
+  [[target.mutant]]
+  id = "the-higher-rss-start-is-taken"
+  find = "        if rss_d < rss0:\n"
+  replace = "        if rss_d > rss0:\n"
+  models = "the start group's certification started from the design with the higher RSS"
+
+  [[target.mutant]]
+  id = "the-queue-keeps-the-library-design"
+  find = "    local = {tuple(T0): (S0, key0)}"
+  replace = "    local = {tuple(T0): (C0, key0)}"
+  models = "the lower-RSS design computed and dropped: the start group's certification still handed the library's design"
 
   [[target.mutant]]
   id = "the-start-design-is-not-adopted"
