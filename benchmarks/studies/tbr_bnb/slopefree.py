@@ -377,10 +377,18 @@ class _Dual:
         return float(self.b @ y + self.T * max(0.0, np.linalg.eigvalsh(self.S(y))[-1]))
 
     def smoothed(self, y, a):
+        return self.smoothed_and_value(y, a)[:2]
+
+    def smoothed_and_value(self, y, a):
+        """The smoothing and its gradient, and value(y) from the same eigendecomposition:
+        lambda_max is the last of eigh's eigenvalues, so S(y) is built and decomposed
+        once an evaluation, not twice."""
         lam, Q = np.linalg.eigh(self.S(y))
         z = _capped(lam / a, self.T)
         Z = (Q * z) @ Q.T
-        return float(self.b @ y + z @ lam - a / 2 * (z @ z)), self.b - self.M @ Z.reshape(-1, order="F")
+        by = float(self.b @ y)
+        return (by + float(z @ lam) - a / 2 * float(z @ z), self.b - self.M @ Z.reshape(-1, order="F"),
+                by + self.T * max(0.0, float(lam[-1])))
 
     def start(self, w: Optional["Multipliers"]):
         y = np.zeros(self.size)
@@ -413,7 +421,7 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
     gives up after ``budget`` evaluations (DUAL_BUDGET when not given). The
     float value only decides whether the exact bound is tried: size_certificate
     certifies with bound() at the multipliers returned."""
-    from scipy.optimize import minimize
+    from scipy.optimize import Bounds, minimize
 
     D = _Dual(A, R, m, c)
     y = D.start(warm)
@@ -435,15 +443,15 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
         info["evals"] += 1
         if info["evals"] > limit:
             raise _Spent
-        f, g = D.smoothed(yv, a)
-        true = D.value(yv)
+        f, g, true = D.smoothed_and_value(yv, a)
         if true < best[0]:
             best[0], best[1] = true, yv.copy()
         if true < 0:
             raise _Closed
         return f, g
 
-    bounds = [(None, None)] * D.ne + [(0.0, None)] * (D.size - D.ne)
+    # one Bounds for every stage: a list of (lo, hi) pairs is converted on each call
+    bounds = Bounds(np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)], np.full(D.size, np.inf))
     a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2   # a start at F = 0 would leave a near zero and lambda / a past 1e17
     try:
         for _ in range(stages):

@@ -63,6 +63,9 @@ design = ["pyscipopt>=4.4.0", "highspy>=1.7.0"]
 scip = ["pyscipopt>=4.4.0"]
 # SPOTSYNTH Bayesian synthetic control (NumPyro / JAX).
 bayes = ["numpyro"]
+# Compiled kernels (numba), used where installed and replaced by the NumPy / SciPy
+# path where not: the TBR branch and bound study's floors (benchmarks/studies/tbr_bnb).
+fast = ["numba>=0.60"]
 # The test suite. Not needed to use the library -- the suite is a development
 # artifact and is not shipped in the wheel -- so this exists to make
 # ``pip install -e ".[test]"`` reproduce a working local test environment. The
@@ -78,7 +81,7 @@ test = [
     "hypothesis>=6.100",
 ]
 # Everything optional, for the full feature set.
-all = ["pyscipopt>=4.4.0", "highspy>=1.7.0", "numpyro"]
+all = ["pyscipopt>=4.4.0", "highspy>=1.7.0", "numpyro", "numba>=0.60"]
 
 [project.urls]
 Homepage = "https://github.com/jgreathouse9/mlsynth"

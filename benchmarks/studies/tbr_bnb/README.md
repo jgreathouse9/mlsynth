@@ -791,13 +791,88 @@ raised past the doubles, and below them left a zero cap that its widening loop
 could not raise. It is now an integer root (`root_above`), at most 2^-64 above the
 square root, rounded up to a double, or to inf, a cap whose bound clears nothing.
 
+## The floors in one compiled loop
+
+With the floor's per-call costs gone, a floor still cost about 0.16 ms, almost all of
+it the Python and NumPy around a few thousand floating-point operations. With numba
+installed (the optional extra `fast`), `fastfloor.floors` computes a chunk of groups
+in one compiled loop, and `treatment._floor_chunk` uses it; without numba the old
+path computes every group. For each group the kernel computes what `rss_floor`
+computes:
+
+- the series, summed left to right in ascending column order as numpy sums fewer
+  than eight columns, so it is `_split`'s bit for bit (eight or more go to
+  `rss_floor`);
+- a bracket on y'y from the plain sum of squares and a gamma_{n+2} error bound
+  (numba has no `math.fsum`; the bracket is wider than `yy_bracket`'s and the screen
+  reads it the same way);
+- the slope cap in doubles, as `slope_cap` computes it;
+- an NNLS point by Lawson and Hanson's active set on the group's Gram, started from
+  the previous group's support carried over by geo (11.1 solves a group against
+  22.1 from cold, on the four-geo GeoLift groups);
+- `box_bound_float`'s certificate at that point, term for term
+  (`fastfloor._certificate`, whose pieces the tests compare with `certificate.py`'s).
+
+A group the kernel cannot do in doubles comes back with a nan floor and takes
+`rss_floor`'s path. The certificate holds at any point, so the solver decides only
+how tight a floor is: on every four-geo group the kernel's floors are `rss_floor`'s
+to 1e-10 relative.
+
+The active set ends where a Cholesky solve on it fails, at its last feasible point,
+with the column just added left out. The first version stepped toward the solution
+of that failed solve, which is whatever an earlier solve left in the scratch; when
+those entries were positive nothing left the set, and the same solve failed again
+without end (`test_a_singular_active_set_ends_the_solve`, a singular three-column
+Gram). The floors of real panels never reached it, since their c is the Gram's own
+B'y, but a floor that can hang the search is a defect whatever its inputs.
+
+numba keys its disk cache on the source file and records the module's name in it.
+The suite imports the module as `studies.tbr_bnb.fastfloor` and a script as
+`benchmarks.studies.tbr_bnb.fastfloor`, and a cache written under the first failed
+to load under the second. The kernel is cached only under the second name and
+compiles in memory under any other (3.3 s, once a process).
+
+On the 91,390 four-geo GeoLift groups the floors take 2.0 s against 14.2 s, 22 us a
+group against 156 us. End to end (`results/fast_floor.log`, two alternating runs
+of each on one host):
+
+| | main | with the kernel |
+| --- | --- | --- |
+| one job | 38.3 s, 36.5 s | 24.4 s, 24.1 s |
+| four jobs | 19.2 s, 18.9 s | 15.1 s, 15.1 s |
+
+Both certify austin, dallas, minneapolis and reno with the same key, 32 survivors,
+91,358 groups screened out, and 98 groups searched on one job (103 on four).
+
+Two changes to the smoothed dual come with this one. Each evaluation built S(y) and
+decomposed it twice, `eigh` for the smoothing and `eigvalsh` for the unsmoothed value
+that decides whether the dual has closed; the value now comes from `eigh`'s largest
+eigenvalue. The bounds, a list of a few thousand pairs that every `minimize` call
+converted, are one `Bounds` object per dual. The 49 dual calls of the four-geo run
+replay with the same closures and the same 7,828 evaluations, in 6.7 s against 7.2
+to 7.7 s.
+
+Measured and not built:
+
+- Cython. The same kernel compiled with Cython ran in 18.9 us a group against
+  numba's 19.4 us, with identical weights. It would make the package build compiled
+  extensions, with wheels per platform and Python version, for no gain in speed.
+- A compiled solver for the smoothed dual. The dual spends about 0.5 ms an
+  evaluation inside L-BFGS-B, outside the objective. A projected L-BFGS with its
+  two-loop update in numba costs almost nothing per evaluation, but on the 49
+  recorded dual calls it closed 15 (17 with L-BFGS-B's first step, interpolated
+  backtracking and its memory kept across stages) against L-BFGS-B's 45, and took
+  half again as many evaluations where both closed. About 2,630 of the 2,667
+  multipliers are bounded and many sit at zero, the case L-BFGS-B's Cauchy point and
+  subspace minimisation are built for.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (528 tests, about 75 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (574 tests, about 75 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 232 mutants of the 22
+but for the lines marked `pragma: no cover`, each with its reason. The 259 mutants of the 23
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -905,6 +980,7 @@ fixing is certified to the solver's value.
   (`size_certificate`) and `certify_slope_free()`.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
 - `treatment.py`: the search over treatment groups, `certify_treatment()`.
+- `fastfloor.py`: the floors of a chunk of groups in one compiled loop, with numba installed.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.

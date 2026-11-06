@@ -80,6 +80,9 @@ jobs:
           # surviving mutant. Installing it is what makes those targets mean
           # anything here.
           pip install numpyro
+          # The same for the TBR study's compiled floor kernel, whose tests skip
+          # without numba.
+          pip install "numba>=0.60"
           pip install pytest pytest-xdist hypothesis
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV

@@ -114,6 +114,9 @@ jobs:
           # exercises the estimators that need it (BFSC, SPOTSYNTH's Bayesian
           # mode). Without it their tests skip and get no CI coverage.
           pip install numpyro
+          # The [fast] extra, so the TBR study's compiled floor kernel is tested,
+          # not skipped (benchmarks/studies/tbr_bnb/test_fastfloor.py).
+          pip install "numba>=0.60"
           pip install pytest pytest-cov pytest-xdist coverage hypothesis
 
       - name: Set PYTHONPATH
@@ -222,6 +225,7 @@ jobs:
           # The [bayes] extra so BFSC / SPOTSYNTH-Bayesian run on every
           # supported Python version, not just the 3.11 build job.
           pip install numpyro
+          pip install "numba>=0.60"
           pip install pytest pytest-xdist hypothesis
 
       - name: Set PYTHONPATH

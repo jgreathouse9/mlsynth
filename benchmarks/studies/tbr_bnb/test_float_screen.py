@@ -19,7 +19,7 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import treatment
+from . import fastfloor, treatment
 from .brute import geo_panel
 from .treatment import (EDGE, SLACK, _competes, _split, can_compete, ceiling, certify_treatment,
                         compete_bracket, square_sum, yy_bracket)
@@ -313,6 +313,9 @@ def test_rows_with_no_bracket_certify_the_same_design(monkeypatch):
     """With no group bracketed, every row carries its exact y'y from the floors: the
     search is the exact one, and the exact y'y is never computed a second time."""
     M = geo_panel(5)
+    # the floors without the compiled kernel, which builds its own brackets (fastfloor);
+    # its exact route is tested in test_fastfloor
+    monkeypatch.setattr(fastfloor, "AVAILABLE", False)
     want = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
     monkeypatch.setattr(treatment, "yy_bracket", lambda y: None)
     calls = _count_exact(monkeypatch)
