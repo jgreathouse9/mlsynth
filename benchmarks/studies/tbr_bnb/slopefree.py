@@ -769,8 +769,12 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     certified by the slope-free relaxation at the incumbent's ratio, with a no-good
     cut for each excluded design and triangle cuts, and branched on where it is not.
 
-    A caller that already holds a design passes it as ``start``, and it replaces the
-    RSS descent's (the treatment search's pass has already searched the group).
+    A caller that already holds a design passes it as ``start``, and the search starts
+    from it unless the RSS descent finds one with a lower RSS. A start comes from a
+    cheaper search (the treatment pass descends from 10 starts, this from
+    ``restarts``), and every size is tested at the start's ratio: on GeoLift at five
+    geos a pass design with RSS 5,089,437.7, where the descent reached 4,860,705.3,
+    left sizes 13 to 17 open at the root and the certificate open at the depth limit.
 
     With a ``ceiling`` above the incumbent's RSS the question is narrower: whether any
     design has an RSS below the ceiling. Each size is then tested at the ratio
@@ -788,9 +792,11 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     t_all = time.perf_counter()
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
-    C = set(start) if start is not None else incumbent(y, X, restarts=restarts, seed=seed)[1]
+    C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
     D = ExactData(y, X)
     c, G = D.c, D.G
+    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:
+        C = set(start)                   # kept unless the descent found a design with a lower RSS
     cu, lam = _ratio(c, G, C)
     if set(C) in excluded or not cu > 0:
         C = _best_neighbour(c, G, [C] + excluded, excluded)

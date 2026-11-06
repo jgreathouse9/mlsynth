@@ -72,7 +72,7 @@ def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 
         except NoDesignLeft:
             out.certified = True               # no positive-slope design is left
             break
-        if not res.certified:                  # pragma: no cover - the GeoLift groups and the test panels close
+        if not res.certified:                  # nodes left open (GeoLift at five geos from a poor start)
             break
         if res.ceiling_held or (ceiling is not None and res.incumbent >= ceiling):
             out.certified = out.stopped = True # every remaining design has at least the ceiling

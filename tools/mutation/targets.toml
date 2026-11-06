@@ -12093,6 +12093,18 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py be
 timeout = 900.0
 
   [[target.mutant]]
+  id = "a-given-start-skips-the-descent"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None:\n"
+  models = "a caller's design taken whatever the descent finds, as the 10-restart pass design at five geos on GeoLift"
+
+  [[target.mutant]]
+  id = "the-lower-ratio-design-starts"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None and _ratio(c, G, set(start))[1] <= _ratio(c, G, C)[1]:\n"
+  models = "the search started from the design with the higher RSS of the two"
+
+  [[target.mutant]]
   id = "the-value-reads-the-smallest-eigenvalue"
   find = "by + self.T * max(0.0, float(lam[-1])))"
   replace = "by + self.T * max(0.0, float(lam[0])))"
@@ -12456,9 +12468,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-start-is-ignored"
-  find = "    C = set(start) if start is not None else incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
-  replace = "    C = incumbent(y, X, restarts=restarts, seed=seed)[1]\n"
-  models = "a caller's design ignored and the group searched again"
+  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if False:\n"
+  models = "a caller's design ignored, the descent's taken even when the caller's is better"
 
   [[target.mutant]]
   id = "the-ceiling-does-not-raise-the-test-ratio"
@@ -12477,6 +12489,12 @@ name = "tbr-bnb-gated"
 module-path = "benchmarks/studies/tbr_bnb/gated.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-open-slope-free-certificate-is-read-as-closed"
+  find = "        if not res.certified:                  # nodes left open (GeoLift at five geos from a poor start)\n            break\n"
+  replace = "        if False:\n            break\n"
+  models = "a slope-free certificate with nodes left open taken as a certificate, the group reported certified"
 
   [[target.mutant]]
   id = "a-failing-design-is-accepted"

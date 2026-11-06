@@ -475,17 +475,102 @@ def test_a_one_design_node_below_the_incumbent_is_closed():
 # ---------------------------------------------------------------- a given start
 
 
-def test_a_given_start_replaces_the_local_search(monkeypatch):
-    """A caller that already holds a design hands it over, and the certificate starts
-    from it without searching again."""
-    from . import search
+def _first_ratio(monkeypatch):
+    """The ratio the slope-free search starts from: the incumbent's at the first node."""
+    from . import slopefree
 
+    real = slopefree._branch
+    seen = []
+
+    def spy(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
+        if not seen:
+            seen.append(inc["lam"])
+        return real(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded)
+
+    monkeypatch.setattr(slopefree, "_branch", spy)
+    return seen
+
+
+def test_a_given_start_is_kept_when_the_descent_finds_nothing_better(monkeypatch):
+    """A caller that holds the group's optimum hands it over; the descent runs and
+    cannot beat it, so the search starts from it."""
     y, X = panel(0, p=6)
     best, C = positive_optimum(y, X)
-    monkeypatch.setattr(search, "incumbent", lambda *a, **k: pytest.fail("the start was searched again"))
+    seen = _first_ratio(monkeypatch)
     out = certify_slope_free(y, X, start=C)
+    D = ExactData(y, X)
+    assert seen and seen[0] == _ratio(D.c, D.G, C)
     assert out.certified and set(out.controls) == C
     assert float(out.incumbent) == pytest.approx(best, rel=1e-9)
+
+
+def test_a_start_better_than_the_descents_design_is_used(monkeypatch):
+    """With the descent patched to its poorest design, a caller's optimum starts the
+    search: the descent does not overrule a better start."""
+    from . import search
+
+    y, X = panel(1, p=5)
+    best, C = positive_optimum(y, X)
+    D = ExactData(y, X)
+    worst = min((j for j in range(5) if D.c[j] > 0), key=lambda j: D.c[j] ** 2 / D.G[j, j])
+    assert {worst} != C
+    monkeypatch.setattr(search, "incumbent", lambda y, X, **k: (None, {worst}))
+    seen = _first_ratio(monkeypatch)
+    out = certify_slope_free(y, X, start=C, hull=False)
+    assert seen and seen[0] == _ratio(D.c, D.G, C)
+    assert out.certified and set(out.controls) == C
+
+
+def test_a_poor_start_gives_way_to_the_descents_design(monkeypatch):
+    """A given start comes from a cheaper search (the treatment pass descends from 10
+    starts); at five geos on GeoLift one such start had RSS 5,089,437.7 where the
+    descent from 50 reached 4,860,705.3, and its certification ran 300 s to the depth
+    limit. The search starts from whichever has the higher ratio."""
+    from .search import incumbent
+
+    y, X = panel(1, p=5)
+    D = ExactData(y, X)
+    worst = min((j for j in range(5) if D.c[j] > 0), key=lambda j: D.c[j] ** 2 / D.G[j, j])
+    desc = incumbent(y, X, restarts=50, seed=0)[1]
+    assert _ratio(D.c, D.G, desc) > _ratio(D.c, D.G, {worst})
+    seen = _first_ratio(monkeypatch)
+    out = certify_slope_free(y, X, start={worst}, hull=False)
+    assert seen and seen[0] == _ratio(D.c, D.G, desc)
+    assert out.certified
+
+
+def test_a_start_with_no_positive_slope_gives_way_to_the_descent(monkeypatch):
+    from .search import incumbent
+
+    y, X = panel(1, p=5)
+    D = ExactData(y, X)
+    neg = [j for j in range(5) if D.c[j] <= 0]
+    if not neg:
+        pytest.skip("every control of this panel has a positive slope")
+    seen = _first_ratio(monkeypatch)
+    out = certify_slope_free(y, X, start={neg[0]}, hull=False)
+    assert seen and seen[0] == _ratio(D.c, D.G, incumbent(y, X, restarts=50, seed=0)[1])
+    assert out.certified
+
+
+@settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])
+@given(seed=st.integers(0, 10_000), pick=st.integers(1, 2 ** 6 - 1))
+def test_property_the_search_starts_from_the_better_of_the_start_and_the_descent(monkeypatch, seed, pick):
+    """Whatever design is handed over, the search starts at the larger positive ratio of
+    it and the descent's design, and certifies the enumerated optimum."""
+    from .search import incumbent
+
+    y, X = panel(seed, p=6)
+    D = ExactData(y, X)
+    S = {j for j in range(6) if (pick >> j) & 1}
+    r = [_ratio(D.c, D.G, C) for C in (S, incumbent(y, X, restarts=50, seed=0)[1])
+         if D.c @ np.array([1 if j in C else 0 for j in range(6)], dtype=object) > 0]
+    best, C = positive_optimum(y, X)
+    with monkeypatch.context() as mp:
+        seen = _first_ratio(mp)
+        out = certify_slope_free(y, X, start=S)
+    assert seen and seen[0] == max(r)
+    assert out.certified and float(out.incumbent) == pytest.approx(best, rel=1e-9)
 
 
 def test_a_poor_start_still_reaches_the_optimum(monkeypatch):
