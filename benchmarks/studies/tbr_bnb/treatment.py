@@ -523,11 +523,6 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
     else:                                   # the library's design, which its own search scored
         T0, Cs = _start(M, k, n_test, restarts)
         C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)
-    S0 = C0                                 # the start group's certification starts from the lower RSS;
-    if start is None:                       # the library's design was chosen by the key, not the RSS
-        Cd, _, rss_d, _ = _local(M, T0, n_test, restarts)
-        if rss_d < rss0:
-            S0 = Cd
     out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
                                certified=True, groups=comb(p, k), screened_out=0)
 
@@ -535,7 +530,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
         out.treatment, out.controls, out.rss, out.passing = list(T), sorted(C), res.rss, True
         out.key = res.key
 
-    local = {tuple(T0): (S0, key0)}         # the start group: its certification's start, the first incumbent's key
+    local = {tuple(T0): (C0, key0)}         # the first incumbent, not yet certified
     if key0 is not None:
         out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0
         out.passing = True

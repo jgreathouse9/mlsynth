@@ -12527,24 +12527,6 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py be
 timeout = 1200.0
 
   [[target.mutant]]
-  id = "the-start-group-starts-from-the-library-design"
-  find = "        if rss_d < rss0:\n            S0 = Cd\n"
-  replace = "        if rss_d < rss0:\n            S0 = C0\n"
-  models = "the start group certified from the library's key-chosen design whatever its RSS, as at five geos on GeoLift"
-
-  [[target.mutant]]
-  id = "the-higher-rss-start-is-taken"
-  find = "        if rss_d < rss0:\n"
-  replace = "        if rss_d > rss0:\n"
-  models = "the start group's certification started from the design with the higher RSS"
-
-  [[target.mutant]]
-  id = "the-queue-keeps-the-library-design"
-  find = "    local = {tuple(T0): (S0, key0)}"
-  replace = "    local = {tuple(T0): (C0, key0)}"
-  models = "the lower-RSS design computed and dropped: the start group's certification still handed the library's design"
-
-  [[target.mutant]]
   id = "the-start-design-is-not-adopted"
   find = "    if key0 is not None:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
   replace = "    if False:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
