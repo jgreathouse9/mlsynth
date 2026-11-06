@@ -54,6 +54,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .oracle import FAMS, TERMS, _coef, unpack
@@ -73,14 +74,47 @@ def qarr(A):
     return np.vectorize(Q, otypes=[object])(np.asarray(A, dtype=float))
 
 
+def _integer_matrix(A):
+    """The doubles A as Python integers over one power of two D: A = N / D exactly.
+    A finite double is an integer over a power of two, n / d, and with D the largest
+    of the d every D / d is an integer."""
+    A = np.asarray(A, dtype=float)
+    if not np.isfinite(A).all():
+        raise MlsynthDataError("the exact data need finite values: the series has an infinite or "
+                               "missing entry.")
+    parts = [v.as_integer_ratio() for v in A.ravel().tolist()]
+    D = max((d for _, d in parts), default=1)
+    N = np.empty(len(parts), dtype=object)
+    N[:] = [n * (D // d) for n, d in parts]
+    return N.reshape(A.shape), D
+
+
 class ExactData:
-    """y and X as given (doubles), their exact Gram, cross products and norms."""
+    """y and X as given (doubles), their exact Gram, cross products and norms.
+
+    The products are of Python integers over one power of two (_integer_matrix):
+    with y = n / Dy and X = N / Dx, X'X = N'N / Dx^2, X'y = N'n / (Dx Dy) and
+    y'y = n'n / Dy^2, one division each. The Fraction products they replace reduce
+    a gcd at every partial sum; on a GeoLift group (90 periods, 36 controls) they
+    took 0.19 s a group."""
+
     def __init__(self, y, X):
-        self.yq, self.Xq = qarr(y), qarr(X)
-        self.G = self.Xq.T @ self.Xq
-        self.c = self.Xq.T @ self.yq
-        self.yy = self.yq @ self.yq
+        n, Dy = _integer_matrix(y)
+        N, Dx = _integer_matrix(X)
+        self._y, self._X = y, X
+        to_q = np.vectorize(Q, otypes=[object])
+        self.G = to_q(N.T @ N, Dx * Dx) if N.size else np.empty((N.shape[1], N.shape[1]), dtype=object)
+        self.c = to_q(N.T @ n, Dx * Dy) if N.size else np.empty(N.shape[1], dtype=object)
+        self.yy = Q(int(n @ n) if n.size else 0, Dy * Dy)
         self.p = X.shape[1]
+
+    @functools.cached_property
+    def yq(self):
+        return qarr(self._y)
+
+    @functools.cached_property
+    def Xq(self):
+        return qarr(self._X)
 
     def rss(self, C, b):
         """The exact RSS of control set C at slope b (a double): an upper bound

@@ -210,14 +210,26 @@ class TreatmentCertificate:
 
 def _start(M, k, n_test, restarts):
     """The library's greedy search and local search (#964), every geo eligible for
-    every role: the incumbent's treatment group at size k."""
+    every role: the first incumbent's treatment and control groups at size k."""
     from mlsynth.utils.tbr_helpers.design.local import local_search
     from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     roles = [frozenset({"treatment", "control", "unassigned"})] * M.shape[1]
     out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="reference")
     best = local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0)
-    return best.treatment
+    return sorted(best.treatment), sorted(best.control)
+
+
+def _design(M, T, C, n_test):
+    """The design (T, C), C in geo indices, as _local reports one: C in the group's
+    control indices, the reference key when it has a positive slope and passes the
+    four gates (else None), its exact RSS, and the group's controls."""
+    y, X, rest = _split(M, T)
+    Cg = sorted(rest.index(j) for j in C)
+    cu, uGu, yy = design_moments(y, X, Cg)
+    ratio = cu * cu / uGu if cu > 0 else Q(0)
+    gates, key = gates_of(y, X, Cg, n_test)
+    return Cg, (key if cu > 0 and all(gates) else None), yy - ratio, rest
 
 
 def _yy(M, T):
@@ -331,7 +343,12 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
 def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
-    T0 = sorted(start) if start is not None else sorted(_start(M, k, n_test, restarts))
+    if start is not None:
+        T0 = sorted(start)
+        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)
+    else:                                   # the library's design, which its own search scored
+        T0, Cs = _start(M, k, n_test, restarts)
+        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)
     out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
                                certified=True, groups=comb(p, k), screened_out=0)
 
@@ -339,24 +356,20 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
         out.treatment, out.controls, out.rss, out.passing = list(T), sorted(C), res.rss, True
         out.key = res.key
 
-    t1 = time.perf_counter()
-    res, C = _optimum(M, T0, n_test, restarts)
-    left_open = [] if res.certified else [(list(T0), _yy(M, T0), None)]
-    out.survivors.append(dict(treatment=list(T0), certified=res.certified, passing=res.passing,
-                              key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                              seconds=time.perf_counter() - t1, start=True))
-    if res.passing:
-        take(T0, res, C)
+    local = {tuple(T0): (C0, key0)}         # the first incumbent, not yet certified
+    if key0 is not None:
+        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0
+        out.passing = True
+    left_open = []
     lam = gram_floor(M)
-    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)
+    rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)
     rows.sort(key=lambda r: r[0] / r[1])  # the highest correlation bound first
 
     def class_of():
         return (None, None) if out.key is None else (Q(out.key[4]), out.rss)
 
-    local = {}                              # the pass: group -> (design, key or None)
-    if pass_restarts:
-        for wave in _waves(rows, n_jobs, lambda r: can_compete(r[1], r[0], *class_of())):
+    if pass_restarts:                       # the pass: group -> (design, key or None)
+        for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and can_compete(r[1], r[0], *class_of())):
             found = _map(pool, _local, [(M, T, n_test, pass_restarts) for _, _, T in wave])
             for (_, _, T), (C, key, rss, rest) in zip(wave, found):   # in queue order
                 local[T] = (C, key)
@@ -384,7 +397,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
                 left_open.append((list(T), yy, c))
             out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
                                       key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                                      pass_key=pass_key, ceiling=c, seconds=secs))
+                                      pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))
             if res.passing and (out.key is None or res.key > out.key):
                 take(T, res, C)
                 out.replaced += 1

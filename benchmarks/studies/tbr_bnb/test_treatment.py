@@ -363,8 +363,8 @@ def test_each_survivor_is_certified_against_the_incumbents_ceiling(monkeypatch):
     monkeypatch.setattr(tr, "certify_gated", spy)
     out = certify_treatment(geo_panel(5), 2, n_test=N_TEST, restarts=3)
     assert out.passing and len(seen) == len(out.survivors) >= 2
-    assert seen[0][1] is None                      # the start, before any incumbent
-    assert all(c is not None and 0 < c < yy for yy, c in seen[1:])
+    # the library's start design passes here, so it is the incumbent before any group is certified
+    assert all(c is not None and 0 < c < yy for yy, c in seen)
     assert all("stopped" in s for s in out.survivors)
 
 
@@ -426,6 +426,17 @@ def _flaky(monkeypatch, fail_calls):
     return seen
 
 
+def _retried_turn(M, plain):
+    """The first certification (1-based) whose ceiling at its turn is above the final
+    incumbent's for its group: cut short there, the group is retried."""
+    final = (Q(plain.key[4]), plain.rss)
+    for i, s in enumerate(plain.survivors):
+        c = ceiling(treatment._yy(M, s["treatment"]), *final)
+        if s["ceiling"] is None or c < s["ceiling"]:
+            return i + 1
+    raise AssertionError("no certification of this run would be retried")
+
+
 def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     """A survivor whose certificate does not close against the ceiling of its turn
     is certified again at the end against the final incumbent's, which is lower
@@ -434,10 +445,11 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     start = _worst_passing(M)
     plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert plain.replaced >= 1                           # the incumbent improves during the search
-    seen = _flaky(monkeypatch, {2})                      # the first survivor after the start
+    turn = _retried_turn(M, plain)
+    seen = _flaky(monkeypatch, {turn})
     out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert out.certified and out.retried == 1
-    assert seen[-1] is not None and seen[-1] < seen[1]  # retried at a lower ceiling
+    assert seen[-1] is not None and (seen[turn - 1] is None or seen[-1] < seen[turn - 1])  # a lower ceiling
     assert out.key == plain.key
 
 
@@ -451,7 +463,6 @@ def test_a_retried_group_can_replace_the_incumbent(monkeypatch):
     start = _worst_passing(M)
     plain = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     turn = 1 + [s["treatment"] for s in plain.survivors].index(sorted(plain.treatment))
-    assert turn > 1                                     # the winner is not the start
     real = tr.certify_gated
     calls = []
 
@@ -473,7 +484,7 @@ def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkey
     start = _worst_passing(M)
     calls = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     n = len(calls.survivors)
-    seen = _flaky(monkeypatch, {2, n + 1})               # open on its turn and on its retry
+    seen = _flaky(monkeypatch, {_retried_turn(M, calls), n + 1})   # open on its turn and on its retry
     out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
     assert not out.certified and out.retried == 1
 
@@ -533,8 +544,7 @@ def test_each_certification_starts_from_its_groups_local_design(monkeypatch):
     M = geo_panel(5)
     out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_passing(M), restarts=3, pass_restarts=10)
     assert len(seen) == len(out.survivors) >= 2
-    assert seen[0] is None                                # the start group, before the pass
-    assert all(s is not None and len(s) >= 1 for s in seen[1:])
+    assert all(s is not None and len(s) >= 1 for s in seen)   # the start group's from before the pass
 
 
 def test_a_negative_pass_is_refused():
