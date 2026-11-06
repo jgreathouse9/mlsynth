@@ -9461,8 +9461,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "placebo-family-on-every-pre-period"
-  find = "                loo_W = solve_simplex_loo_exact(Y0[fit_pos], fallback=simplex_qp)"
-  replace = "                loo_W = solve_simplex_loo_exact(Y0[:pre], fallback=simplex_qp)"
+  find = "                loo_W = solve_simplex_loo_exact(pool[fit_pos], fallback=simplex_qp)"
+  replace = "                loo_W = solve_simplex_loo_exact(pool[:pre], fallback=simplex_qp)"
   models = "the same defect on the batched outcome-only path, which serves the default specification"
 
   [[target.mutant]]
@@ -13094,3 +13094,32 @@ timeout = 1200.0
   replace = "                if g < best:"
   models = "the coordinate that raises the objective added to the passive set"
 
+[[target]]
+name = "vanillasc-placebo-units"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_vanillasc_placebo_units.py -q -p no:cacheprovider --disable-warnings"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "pool-labels-shifted"
+  find = "pool_names = ([treated_name] if with_treated else []) + donor_names"
+  replace = "pool_names = donor_names + ([treated_name] if with_treated else [])"
+  models = "with the treated unit in the pools, every placebo's weights are filed under the wrong donor, so they no longer rebuild its gaps"
+
+  [[target.mutant]]
+  id = "unit-gaps-record-the-counterfactual"
+  find = "unit_gaps[donor_names[j]] = [float(g) for g in Y0[:, j] - cfj]"
+  replace = "unit_gaps[donor_names[j]] = [float(g) for g in cfj]"
+  models = "a placebo's synthetic outcome is recorded where its gap belongs, so any statistic rebuilt from the details is meaningless"
+
+  [[target.mutant]]
+  id = "treated-unit-missing-from-the-ratios"
+  find = "unit_ratios = {treated_name: float(ratio_tr)}"
+  replace = "unit_ratios = {}"
+  models = "the treated unit's own ratio is left out of the per-unit record, so the test cannot be rebuilt from the details"
+
+  [[target.mutant]]
+  id = "covariate-pools-drop-the-treated-predictors"
+  find = "Xpool = (Xs if with_treated else Xs[:, 1:]) if covariates else None"
+  replace = "Xpool = Xs[:, 1:] if covariates else None"
+  models = "with covariates and the treated unit in the pools, the predictor columns no longer line up with the outcome columns, so each placebo is matched on another unit's predictors"

@@ -334,6 +334,16 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     "or linear effect path, with an optional "
                     "assignment-probability sensitivity sweep), or False.",
     )
+    placebo_includes_treated: bool = Field(
+        default=False,
+        description="With inference='placebo', keep the treated unit in every "
+                    "placebo unit's donor pool, as Abadie, Diamond and "
+                    "Hainmueller (2010) and Ferman, Pinto and Possebom (2020) "
+                    "do. False (the default) leaves it out, so no placebo is "
+                    "built from a unit whose post-treatment outcomes carry the "
+                    "effect. Either way the details record every unit's gaps, "
+                    "donor weights and RMSPE ratio.",
+    )
     placebo_cs_class: Literal["constant", "linear"] = Field(
         default="linear",
         description="With inference='placebo_cs', the one-parameter family the "
@@ -739,6 +749,20 @@ class VanillaSCConfig(BaseEstimatorConfig):
                     f"{', '.join(set_options)} applies only to backend='exact', and "
                     f"backend={self.backend!r} was given."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _pool_option_needs_the_in_space_placebo(self):
+        """The option sets the in-space placebo's pools; with any other
+        inference there are no such pools, so asking for it is an error, not a
+        setting to ignore."""
+        mode = "placebo" if self.inference is True else str(self.inference).lower()
+        if self.placebo_includes_treated and mode != "placebo":
+            raise ValueError(
+                "placebo_includes_treated sets the donor pools of the in-space "
+                "placebo, so it needs inference='placebo' (or True); "
+                f"inference={self.inference!r} has no such pools."
+            )
         return self
 
     @model_validator(mode="after")
