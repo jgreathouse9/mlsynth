@@ -120,6 +120,7 @@ def test_property_the_box_bound_is_the_hull_bound_to_rounding(seed, shift):
 
 @SETTINGS
 @given(g=st.lists(st.floats(-1e6, 1e6), min_size=1, max_size=12), hi=st.floats(1e-3, 1e3))
+@example(g=[-5e-324], hi=1.5)                     # a subnormal product: its rounding is absolute
 def test_property_the_greedy_multiplier_is_zero_on_the_box_once_a_gradient_is_nonnegative(g, hi):
     """Why the multiplier 0 loses nothing: with lo = 0 and m = p the fill stops at
     the first nonnegative cost, where the multiplier is 0; with every cost negative
@@ -129,7 +130,9 @@ def test_property_the_greedy_multiplier_is_zero_on_the_box_once_a_gradient_is_no
         assert _greedy_lambda(g, 0.0, hi, g.size) == 0.0
     exact_min = sum(Q(hi) * min(Q(0), Q(float(v))) for v in g)
     got = Q(knapsack_dual(g, 0.0, hi, g.size, lam=0.0))
-    assert abs(got - exact_min) <= abs(exact_min) * Q(1, 10 ** 12)
+    # relative to the sum, plus half a subnormal step for each product and the sum
+    # in the subnormal range, where rounding is absolute
+    assert abs(got - exact_min) <= abs(exact_min) * Q(1, 10 ** 12) + (g.size + 1) * Q(2) ** -1074
 
 
 def test_every_gradient_negative():
