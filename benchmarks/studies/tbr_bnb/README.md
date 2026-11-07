@@ -963,15 +963,20 @@ an open size.
 
 The cap also binds inside each group's certification. On the four GeoLift groups of
 `results/certify_lbfgs.log` it is 7 to 11 times the incumbent's slope, against 53 to
-85 with `lambda_min(G)`.
+85 with `lambda_min(G)`. It does not change the GeoLift timings. With `main` and this
+branch run in turn on a quiet host (four processes), four geos took 12.0 and 11.9 s
+against 12.2 and 12.2 s, five geos 30.5 and 29.5 s against 31.4 and 28.3 s, and six
+geos 274.7 s against 267.2 s; `geo_panel(0)` with 60 geos at four took 206.3 s
+against 204.6 s. Each pair certifies the same design with the same key, survivors
+and screen.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (579 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (590 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 262 mutants of the 23
+but for the lines marked `pragma: no cover`, each with its reason. The 269 mutants of the 23
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
