@@ -282,11 +282,28 @@ def test_property_a_certified_size_holds_no_better_design(seed, f, dm):
 # ---------------------------------------------------------------- edges
 
 
-def test_a_size_with_its_designs_fixed_in_uses_the_ladder(needs_triangles):
+def test_a_node_with_fixings_holds_no_better_design_when_certified():
+    """Seed 12 at size 8 with one geo of the incumbent fixed in and another out:
+    certified only when no design of size 8 with those fixings has a larger ratio."""
+    c, G, lam, m, cuts = _geo_size(12, Q(1), -1)
+    C = sorted(cuts[0])
+    out = next(j for j in range(len(c)) if j not in cuts[0])
+    fixes = [(C[0], 1), (out, 0)]
+    res = size_certificate(c, G, lam, m, cuts=cuts, fixes=fixes, schedules=SCREEN_SCHEDULES)
+    designs = [D for D in combinations(range(len(c)), m) if C[0] in D and out not in D and set(D) != cuts[0]]
+    cf = np.array([float(v) for v in c]); Gf = np.array([[float(v) for v in r] for r in G])
+    best = max((cf[list(D)].sum() ** 2 / Gf[np.ix_(D, D)].sum() for D in designs if cf[list(D)].sum() > 0), default=None)
+    assert res.certified
+    assert best is None or best <= float(dyadic_below(lam)) * (1 + 1e-9)
+
+
+def test_a_point_that_offers_only_known_triangles_ends_the_rounds(monkeypatch, needs_triangles):
+    """A round whose smoothed point separates only triangles already in the rows adds
+    nothing: the rounds stop there, not at the limit."""
     c, G, lam, m, cuts = needs_triangles
-    res = size_certificate(c, G, lam, m, cuts=cuts, fixes=[(0, 1), (1, 0)], schedules=SCREEN_SCHEDULES)
-    plain = size_certificate(c, G, lam, m, cuts=cuts, fixes=[(0, 1), (1, 0)], schedules=SCREEN_SCHEDULES[:1])
-    assert res.certified == plain.certified or res.certified
+    calls = _spy(monkeypatch, fail=True)            # each round's point is the one before it
+    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    assert sum(1 for cl in calls if cl[2] > 0) == 1 < FIRST_ORDER_ROUNDS and res.tier == "full"
 
 
 def test_no_schedule_goes_straight_to_the_relaxations(monkeypatch, needs_triangles):

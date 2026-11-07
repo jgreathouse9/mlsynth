@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12207,6 +12207,78 @@ timeout = 900.0
   find = "        if b is not None and b <= 0:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
   replace = "        if b is not None:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
   models = "the dual tier's certificate taken whatever its sign, so a group holding a design below the ceiling is screened out"
+
+  [[target.mutant]]
+  id = "a-size-tries-only-the-first-schedule"
+  find = "    for rung, (maxfun, stages, budget) in enumerate(schedules):\n        w, info = dual_multipliers"
+  replace = "    for rung, (maxfun, stages, budget) in enumerate(schedules[:1]):\n        w, info = dual_multipliers"
+  models = "a size's dual tier stopping at the size certificates' schedule, so a large group's sizes that stall at 150 evaluations a stage go to Clarabel (2,250 of the 100-geo incumbent group's 2,321 s)"
+
+  [[target.mutant]]
+  id = "every-size-rung-is-warm"
+  find = "warm=warm if rung == 0 else None,"
+  replace = "warm=warm,"
+  models = "the previous size's multipliers given to the longer schedules too, which begins their smoothing too fine (warm starts left sizes open that runs from zero closed)"
+
+  [[target.mutant]]
+  id = "a-size-rung-ignores-its-schedule"
+  find = "        w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None,\n                                   maxfun=maxfun, stages=stages, budget=budget)\n"
+  replace = "        w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None)\n"
+  models = "each rung of a size's ladder run at the first schedule's settings, so the ladder repeats the stalled search"
+
+  [[target.mutant]]
+  id = "a-size-ignores-the-size-rule"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    if warm is not None:"
+  replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    if warm is not None:"
+  models = "the long schedules and the rounds run on every size of every group, where on small groups a schedule that does not close costs more than Clarabel's solve"
+
+  [[target.mutant]]
+  id = "no-first-order-triangle-rounds"
+  find = "    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
+  replace = "    first_order_rounds = 0\n"
+  models = "the triangle rounds defined and never run, so a size that needs triangles always goes to Clarabel"
+
+  [[target.mutant]]
+  id = "triangle-rounds-without-the-ladder"
+  find = "    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
+  replace = "    first_order_rounds = FIRST_ORDER_ROUNDS\n"
+  models = "the rounds run on small groups too, below the size the schedules were measured to pay at"
+
+  [[target.mutant]]
+  id = "one-triangle-round-short"
+  find = "    for r in range(1, first_order_rounds + 1):\n"
+  replace = "    for r in range(1, first_order_rounds):\n"
+  models = "the round limit read as exclusive, so the last round, the one sizes 23 and 24 needed, never runs"
+
+  [[target.mutant]]
+  id = "the-separated-triangles-are-not-in-the-rows"
+  find = "        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)\n"
+  replace = "        Rt = Rows(c, m, cuts=cuts, fixes=fixes)\n"
+  models = "triangles separated and counted but left out of the rows the round solves, so every round repeats the relaxation without them"
+
+  [[target.mutant]]
+  id = "a-triangle-round-certifies-without-its-exact-bound"
+  find = "            b = bound(A, Rt, w.y_eq, w.y_in, m)\n            if b is not None and b <= 0:\n"
+  replace = "            b = bound(A, Rt, w.y_eq, w.y_in, m)\n            if b is not None:\n"
+  models = "a round's float certificate taken whatever its exact bound, so a size holding a better design can be pruned"
+
+  [[target.mutant]]
+  id = "known-triangles-count-as-new"
+  find = "               if (kind, idx) not in set(tri)]\n"
+  replace = "               ]\n"
+  models = "triangles already in the rows re-added each round, so a point that separates nothing new keeps the rounds running to the limit"
+
+  [[target.mutant]]
+  id = "the-smoothed-point-is-not-scaled"
+  find = "    info[\"point\"] = Z / Z[0, 0] if Z[0, 0] > 0 else None\n"
+  replace = "    info[\"point\"] = Z\n"
+  models = "the dual's point returned at the smoothing's scale, not with its corner entry at one, so triangles are separated from a matrix that is no relaxation point"
+
+  [[target.mutant]]
+  id = "a-closed-dual-reports-a-point"
+  find = "    info = {\"evals\": 1, \"point\": None}\n"
+  replace = "    info = {\"evals\": 1, \"point\": np.eye(R.n)}\n"
+  models = "a dual that closes reporting a point, so a caller reading the point cannot tell a closed search from one that gave up"
 
   [[target.mutant]]
   id = "the-ladder-stops-after-the-first-rung"
