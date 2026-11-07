@@ -655,7 +655,17 @@ The longer schedules run from 48 candidate controls (`SCREEN_LADDER_FROM`). On
 simulated 90-period panels, where the second schedule closed a group, it took
 0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls, the GeoLift groups' size;
 1.5-2.6 s against 4.6-8.7 s at 56; and 2.8-8.1 s against 23-47 s at 76 (24
-groups, four at each size and ratio). A schedule that
+groups, four at each size and ratio). End to end on simulated 90-period panels
+(`results/screen_ladder.log`, `main` and this branch on one host, three
+processes):
+
+| panel | treated geos | `main` | with the schedules | the design |
+| --- | --- | --- | --- | --- |
+| 90 geos | 3 | 477.3 s (561.1 s certifying) | 369.3 s (325.6 s) | the same, key equal |
+| 80 geos | 4 | 2,587.0 s (4,460.3 s) | 1,093.0 s (1,284.9 s) | the same, key equal |
+
+The slowest group of each run kept its time (287 s and 448 s), and the gain is
+in the rest. A schedule that
 does not close costs its whole budget: on five 30-geo groups (26 controls, 20
 periods) the two longer schedules spent 1.9-4.6 s, where the whole screen with
 Clarabel took 0.35-0.71 s. Below 48 controls the screen is unchanged.
