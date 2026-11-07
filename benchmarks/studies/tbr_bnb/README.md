@@ -700,11 +700,11 @@ still open after six rounds (4.6, 53 and 98 times y'y), where two rounds from ze
 closed 23 and 24: as at the screen, a start near the boundary begins the smoothing
 too fine.
 
-From 48 candidate controls `size_certificate` now tries the screen's three
-schedules (the previous size's multipliers given to the first only), then up to
-`FIRST_ORDER_ROUNDS = 3` rounds, before the Shor and full relaxations; the result's
-tier names `triangles` when a round closes it. Profiled again, the group took
-1,272 s:
+From 90 candidate controls (`SIZE_LADDER_FROM`) `size_certificate` now tries the
+screen's three schedules (the previous size's multipliers given to the first only),
+then up to `FIRST_ORDER_ROUNDS = 3` rounds, before the Shor and full relaxations;
+the result's tier names `triangles` when a round closes it. Profiled again, the
+group took 1,272 s:
 
 | sizes | tier | seconds a size |
 | --- | --- | --- |
@@ -712,6 +712,23 @@ tier names `triangles` when a round closes it. Profiled again, the group took
 | 21, 22, 26 | triangles, one round | 92.4-94.5 |
 | 23, 24 | triangles, two rounds | 137.7, 149.4 |
 | 25 | full, after three first-order rounds | 584.5 (392 on `main`) |
+
+Why 90 and not the screen's 48: on the 80-geo, four-treated search the incumbent's
+group, (7, 9, 26, 48), has 76 candidate controls, and there Clarabel's first solve
+took 43-48 s, about what a first-order round costs. Profiled on one process:
+
+| the group's sizes 21-27 | `main` | schedules and rounds | schedules alone |
+| --- | --- | --- | --- |
+| 21, 23, 27 | 43-48 s each, Clarabel | under 8 s each, dual | under 8 s each, dual |
+| 24 | 67.6 s, one round | 70.2 s, one first-order round | 118.9 s, Clarabel after the schedules |
+| 25 | 131.0 s, two rounds | 272.7 s, Clarabel after three rounds | 162.7 s |
+| 26 | 85.9 s, one round | 100.3 s, two first-order rounds | 128.0 s |
+| the group | 439.3 s | 479.0 s | 446.8 s |
+
+The schedules close the sizes the dual can close and cost about 50 s on each size
+that goes to Clarabel anyway; at 76 controls the two balance. Below 90 controls a
+size's cascade is the one on `main`. The threshold rests on two groups, one either
+side of it.
 
 The other hard group of that search, (4, 27, 33, 58), is hard in a third way: the
 screen does not close it (193 s), and size 21 is open at the root after six
@@ -1133,11 +1150,11 @@ four and five geos that floor was not the least, and the bound did not change.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (654 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (682 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 294 mutants of the 24
+but for the lines marked `pragma: no cover`, each with its reason. The 310 mutants of the 24
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
