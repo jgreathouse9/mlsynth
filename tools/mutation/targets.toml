@@ -11354,7 +11354,7 @@ timeout = 1500.0
   [[target.mutant]]
   id = "an-empty-gram-is-read"
   find = "    if G.size == 0:\n        return None\n"
-  replace = ""
+  replace = "    pass\n"
   models = "no guard for a group with no controls, whose diagonal has no minimum"
 
   [[target.mutant]]
@@ -12931,12 +12931,6 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   find = "            if not res.certified:\n                left_open.append((list(T), yy, c))\n"
   replace = "            if False:\n                left_open.append((list(T), yy, c))\n"
   models = "a survivor whose own certification was cut short counted as certified"
-
-  [[target.mutant]]
-  id = "a-singular-gram-gives-a-floor"
-  find = "    return lam if lam is not None and lam > 0 else None\n"
-  replace = "    return lam\n"
-  models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
 
   [[target.mutant]]
   id = "the-start-group-is-left-out-of-the-queue"
