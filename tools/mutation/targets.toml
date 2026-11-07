@@ -12089,8 +12089,32 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-full-solve-failure-ends-the-search"
+  find = "        try:\n            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "        sol = solve(c, G, lam, R)\n"
+  models = "Clarabel's failure on the full relaxation raised out of the certificate, ending the treatment search (the 100-geo incident)"
+
+  [[target.mutant]]
+  id = "a-failed-full-solve-certifies-the-size"
+  find = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "            return SizeResult(True, Q(0), r, len(tri), time.perf_counter() - t0, u)\n"
+  models = "a size whose relaxation could not be solved read as certified, so its designs are pruned unexamined"
+
+  [[target.mutant]]
+  id = "a-failed-round-drops-the-last-point"
+  find = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, None)\n"
+  models = "the last solved round's relaxation point dropped on a failure, so branching picks its geo blind"
+
+  [[target.mutant]]
+  id = "every-error-reads-as-no-bound"
+  find = "        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n"
+  replace = "        except Exception:    # no bound: the size is open, branched from the last point solved\n"
+  models = "any error in the full relaxation read as the solver's failure, so a defect in the rows or the bound is swallowed"
 
   [[target.mutant]]
   id = "a-given-start-skips-the-descent"

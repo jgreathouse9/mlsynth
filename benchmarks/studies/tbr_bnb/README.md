@@ -535,7 +535,12 @@ reno) in 230 s, where it took 379 s: the 242 sizes take 100 s, where they took
 246 s, with 207 solves, 90 s of them in Clarabel. Each tier's certificate is
 the exact bound, so a size is closed only when that bound is at or below zero;
 `test_cascade.py` checks each tier against enumeration and that a tier which
-does not close, or whose solver fails, hands the size to the next.
+does not close, or whose solver fails, hands the size to the next. The full
+relaxation hands a failure to the branch and bound: the size is left open, with the
+last round's relaxation point when one was solved, and is branched. On a simulated
+panel of 100 geos at four treated geos, Clarabel failed on one size's full
+relaxation while one group's search branched, and before this the error ended the
+whole treatment search (`test_solver_failure.py`).
 
 ### The dual tier
 
