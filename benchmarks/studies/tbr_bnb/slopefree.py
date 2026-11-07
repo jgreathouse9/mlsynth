@@ -182,6 +182,7 @@ class Rows:
             else:
                 le(row((u(i), 1), (u(j), 1), (u(k), 1), (U(i, j), -1), (U(i, k), -1), (U(j, k), -1)), 1)
         self.n_eq, self.n_in = len(self.eq), len(self.ineq)
+        self.n_triangles = len(triangles)
 
     def holds(self, Z) -> bool:
         """Every row at the exact matrix Z."""
@@ -313,7 +314,7 @@ class SizeResult:
     triangles: int
     seconds: float
     u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
-    tier: str = "full"                   # the cascade's tier that decided: reuse, dual, shor or full
+    tier: str = "full"                   # the cascade's tier that decided: reuse, dual, triangles, shor or full
     multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
 
 
@@ -420,12 +421,17 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
     and the search stops at the first iterate whose unsmoothed F is below zero, or
     gives up after ``budget`` evaluations (DUAL_BUDGET when not given). The
     float value only decides whether the exact bound is tried: size_certificate
-    certifies with bound() at the multipliers returned."""
+    certifies with bound() at the multipliers returned.
+
+    ``info["point"]`` is, when it gives up, the smoothing's maximiser at the best
+    iterate and the last smoothing, scaled to a corner entry of one: an approximate
+    point of the relaxation, from which size_certificate separates triangles. It is
+    None when the search closes."""
     from scipy.optimize import Bounds, minimize
 
     D = _Dual(A, R, m, c)
     y = D.start(warm)
-    info = {"evals": 1}
+    info = {"evals": 1, "point": None}
     f0 = D.value(y)
     if f0 < 0:
         return Multipliers("full", *D.back(y)), info
@@ -453,8 +459,10 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
     # one Bounds for every stage: a list of (lo, hi) pairs is converted on each call
     bounds = Bounds(np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)], np.full(D.size, np.inf))
     a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2   # a start at F = 0 would leave a near zero and lambda / a past 1e17
+    last = a
     try:
         for _ in range(stages):
+            last = a
             y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
                          options=dict(maxfun=maxfun, maxcor=20)).x
             a *= 0.1
@@ -462,17 +470,37 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
         return Multipliers("full", *D.back(best[1])), info
     except _Spent:
         pass
+    lam_s, V = np.linalg.eigh(D.S(best[1]))
+    Z = (V * _capped(lam_s / last, D.T)) @ V.T
+    info["point"] = Z / Z[0, 0] if Z[0, 0] > 0 else None
     return None, info
 
 
+#: The first-order triangle rounds a size tries, on SCREEN_SCHEDULES' last schedule,
+#: before the Shor and full relaxations, when the screen's longer schedules run. On
+#: the incumbent's group of the 100-geo, four-treated search the sizes that needed
+#: triangles closed after one round (21, 22, 26) or two (23, 24); 25 was open after
+#: three, at 6.0 times y'y and falling, and went to Clarabel.
+FIRST_ORDER_ROUNDS = 3
+
+
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
-                     warm: Optional[Multipliers] = None) -> SizeResult:
+                     warm: Optional[Multipliers] = None,
+                     schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the Shor relaxation's; then the
     full relaxation's, with up to ``rounds`` rounds of the ``per_round`` most violated
-    triangle inequalities where it is above zero."""
+    triangle inequalities where it is above zero.
+
+    The first-order tier tries each of ``schedules`` in turn (screen_schedules(p)
+    when None), ``warm`` given to the first only, and, when there is more than one,
+    up to FIRST_ORDER_ROUNDS rounds of triangles separated from the last schedule's
+    smoothed point, each on the last schedule from zero: warm-starting a round from
+    the last round's multipliers left three sizes of the 100-geo incumbent's group
+    open after six rounds that two rounds from zero closed."""
     t0 = time.perf_counter()
+    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     if warm is not None:
@@ -483,11 +511,33 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             if b is not None and b <= 0:
                 return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="reuse", multipliers=warm)
     R = Rows(c, m, cuts=cuts, fixes=fixes)
-    w, _ = dual_multipliers(A, R, m, c, warm=warm)
-    if w is not None:
-        b = bound(A, R, w.y_eq, w.y_in, m)
-        if b is not None and b <= 0:
-            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
+    point = None
+    for rung, (maxfun, stages, budget) in enumerate(schedules):
+        w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None,
+                                   maxfun=maxfun, stages=stages, budget=budget)
+        point = info.get("point") if info else None
+        if w is not None:
+            b = bound(A, R, w.y_eq, w.y_in, m)
+            if b is not None and b <= 0:
+                return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
+    tri: List = []
+    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0
+    for r in range(1, first_order_rounds + 1):
+        if point is None:
+            break
+        new = [(kind, idx) for _, kind, idx in separate_triangles(point[0, 1:], point[1:, 1:], k=per_round)
+               if (kind, idx) not in set(tri)]
+        if not new:
+            break
+        tri += new
+        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
+        maxfun, stages, budget = schedules[-1]
+        w, info = dual_multipliers(A, Rt, m, c, maxfun=maxfun, stages=stages, budget=budget)
+        point = info.get("point") if info else None
+        if w is not None:
+            b = bound(A, Rt, w.y_eq, w.y_in, m)
+            if b is not None and b <= 0:
+                return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
     R = Rows(c, m, cuts=cuts, fixes=fixes, level="shor")
     try:
         sol = solve(c, G, lam, R)
