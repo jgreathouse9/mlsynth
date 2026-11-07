@@ -339,9 +339,11 @@ def test_without_numba_the_floors_are_rss_floors(monkeypatch):
 
 @needs_numba
 def test_no_gram_floor_takes_the_old_path():
-    """A singular panel has no Gram floor: every floor is 0, as before."""
+    """A singular panel with a negative Gram entry has no Gram floor: every floor
+    is 0, as before."""
     M = geo_panel(5).copy()
-    M[:, 1] = M[:, 0]
+    M[:, 1] = -M[:, 0]
+    assert gram_floor(M) is None
     rows = treatment._floor_chunk(M, gram_floor(M), [(0, 2), (3, 4)])
     assert all(floor == 0 for floor, _, _ in rows)
 

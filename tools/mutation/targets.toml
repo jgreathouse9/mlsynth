@@ -11328,6 +11328,36 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py 
 timeout = 1500.0
 
   [[target.mutant]]
+  id = "the-diagonal-read-with-negative-entries"
+  find = "    if all(g >= 0 for g in G.ravel()):\n"
+  replace = "    if True:\n"
+  models = "the smallest diagonal entry taken as the Gram floor when G has a negative entry, where two nearly opposite controls sum to a series far shorter than either and the slope cap falls below their best-fit slope"
+
+  [[target.mutant]]
+  id = "the-eigenvalue-bound-always"
+  find = "    if all(g >= 0 for g in G.ravel()):\n"
+  replace = "    if False:\n"
+  models = "the eigenvalue bound kept for a nonnegative Gram, which is 0 with more controls than periods, so there is no slope cap and the hull stage is skipped"
+
+  [[target.mutant]]
+  id = "the-largest-diagonal"
+  find = "        lam = min(G[j, j] for j in range(G.shape[0]))\n"
+  replace = "        lam = max(G[j, j] for j in range(G.shape[0]))\n"
+  models = "the largest diagonal entry as the floor, above u'Gu for the shortest single control"
+
+  [[target.mutant]]
+  id = "a-zero-gram-floor-is-returned"
+  find = "    return lam if lam is not None and lam > 0 else None\n"
+  replace = "    return lam\n"
+  models = "a floor of 0 (a control that is zero in every period) returned as a bound, which the slope cap then divides by"
+
+  [[target.mutant]]
+  id = "an-empty-gram-is-read"
+  find = "    if G.size == 0:\n        return None\n"
+  replace = ""
+  models = "no guard for a group with no controls, whose diagonal has no minimum"
+
+  [[target.mutant]]
   id = "the-gram-is-over-one-denominator"
   find = "        self.G = to_q(N.T @ N, Dx * Dx)\n"
   replace = "        self.G = to_q(N.T @ N, Dx)\n"
@@ -12537,6 +12567,18 @@ name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
+
+  [[target.mutant]]
+  id = "no-gram-floor-for-any-panel"
+  find = "    return gram_lower(Mq.T @ Mq)\n"
+  replace = "    return None\n"
+  models = "no Gram floor for any panel, so every floor is 0 and the screen rules nothing out, as with more geos than periods before the diagonal bound"
+
+  [[target.mutant]]
+  id = "the-gram-of-the-periods"
+  find = "    return gram_lower(Mq.T @ Mq)\n"
+  replace = "    return gram_lower(Mq @ Mq.T)\n"
+  models = "the floor read from M M', the periods' Gram, whose diagonal is not among any group's x_j'x_j"
 
   [[target.mutant]]
   id = "the-start-design-is-not-adopted"

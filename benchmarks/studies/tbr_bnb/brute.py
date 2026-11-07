@@ -90,6 +90,13 @@ def geo_panel(seed: int, n: int = 40, p: int = 7, rho: float = 0.5):
     return Y - Y.mean(axis=0)
 
 
+def wide_panel(seed: int, n: int = 10, p: int = 12):
+    """geo_panel's series shifted to be positive, with more geos than periods: every
+    entry of the Gram matrix M'M is positive and M'M is singular."""
+    M = geo_panel(seed, n=n, p=p)
+    return M - M.min() + 1.0
+
+
 def treatment_optimum(M, k: int, n_test: int):
     """The reference key's best design with ``k`` treatment geos, by enumeration of
     every treatment group and control group, among designs that pass the four gates:

@@ -17,7 +17,7 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from .brute import geo_panel, treatment_optimum
+from .brute import geo_panel, treatment_optimum, wide_panel
 from .certificate import ExactData
 from .gated import certify_gated
 from . import fastfloor, treatment
@@ -115,17 +115,21 @@ def test_property_the_floor_is_below_every_design(seed, k, t):
     assert all(floor <= rss for rss in _designs(M, T))
 
 
-@given(seed=st.integers(0, 10_000))
+@given(seed=st.integers(0, 10_000), wide=st.booleans())
 @SETTINGS
-def test_property_the_gram_floor_holds_for_every_treatment_group(seed):
-    """The full Gram matrix's eigenvalue floor bounds every principal submatrix's
-    smallest eigenvalue, so one floor serves every group."""
-    M = geo_panel(seed % 300, p=6)
+def test_property_the_gram_floor_holds_for_every_treatment_group(seed, wide):
+    """One floor serves every group: it is at most x'x = u'Gu for every control
+    group of every treatment group, on centred panels and on positive panels with
+    more geos than periods."""
+    M = wide_panel(seed % 300, n=5, p=7) if wide else geo_panel(seed % 300, p=6)
+    p = M.shape[1]
     lam = gram_floor(M)
     assert lam is not None and lam > 0
-    for T in combinations(range(6), 2):
-        X = np.delete(M, list(T), axis=1)
-        assert float(lam) <= np.linalg.eigvalsh(X.T @ X)[0] * (1 + 1e-9)
+    for T in combinations(range(p), 2):
+        G = ExactData(M[:, 0], np.delete(M, list(T), axis=1)).G
+        for r in range(1, p - 1):
+            for C in combinations(range(p - 2), r):
+                assert lam <= sum(G[i, j] for i in C for j in C)
 
 
 @given(seed=st.integers(0, 10_000), k=st.integers(1, 2))
@@ -345,11 +349,31 @@ def test_a_pass_design_with_a_negative_slope_has_the_rss_of_no_fit(monkeypatch):
     assert C == [neg] and key is None and rss == D.yy
 
 
-def test_a_singular_gram_gives_no_floor_and_rules_nothing_out():
+def test_a_singular_gram_with_a_negative_entry_gives_no_floor_and_rules_nothing_out():
     M = geo_panel(1, p=5)
-    M = np.column_stack([M, M[:, 0]])          # a duplicated geo
+    M = np.column_stack([M, -M[:, 0]])         # a geo and its negative
     assert gram_floor(M) is None
     assert rss_floor(M, (1,), None) == 0
+
+
+def test_a_singular_positive_gram_gives_the_diagonal_floor():
+    """Twelve geos over ten periods: M'M is singular, so no eigenvalue bound exists,
+    but every entry is positive and the floor is the smallest x_j'x_j."""
+    M = wide_panel(0)
+    G = ExactData(M[:, 0], M).G
+    assert gram_floor(M) == min(G[j, j] for j in range(M.shape[1]))
+
+
+def test_more_geos_than_periods_still_screens_and_certifies():
+    M = wide_panel(0)
+    groups = list(combinations(range(M.shape[1]), 1))
+    rows = treatment._floor_chunk(M, gram_floor(M), groups)
+    assert all(row[0] > 0 for row in rows)
+    out = certify_treatment(M, 1, n_test=4, restarts=5)
+    key, T, C = treatment_optimum(M, 1, 4)
+    assert out.certified and out.screened_out > 0
+    assert tuple(out.key) == pytest.approx(tuple(key), rel=1e-12)
+    assert set(out.treatment) == T and set(out.controls) == C
 
 
 def test_each_survivor_is_certified_against_the_incumbents_ceiling(monkeypatch):
