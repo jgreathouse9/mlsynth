@@ -1,0 +1,27 @@
+# The group screen's schedules (#965): the certified treatment search on simulated
+# 90-period panels, main f881ea8c against the ladder, n_jobs=3, one host (load 2.0-2.8).
+main   sim:90:0 k=3 wall 477.3s cert_sum 561.1s slowest [287.3, 86.4, 62.2] survivors 8 searched 7 certified True treatment ['g0', 'g16', 'g67'] key [1, 1, 1, 1, 0.99, 0.038732218733697706]
+ladder sim:90:0 k=3 wall 369.3s cert_sum 325.6s slowest [286.4, 10.8, 9.2] survivors 8 searched 7 certified True treatment ['g0', 'g16', 'g67'] key [1, 1, 1, 1, 0.99, 0.038732218733697706]
+ladder sim:80:0 k=4 wall 1093.0s cert_sum 1284.9s slowest [448.5, 273.8, 82.7] survivors 145 searched 149 certified True treatment ['g7', 'g9', 'g26', 'g48'] key [1, 1, 1, 1, 1.0, 0.01218218807443171]
+main   sim:80:0 k=4 wall 2587.0s cert_sum 4460.3s slowest [447.9, 238.9, 54.6] survivors 145 searched 149 certified True treatment ['g7', 'g9', 'g26', 'g48'] key [1, 1, 1, 1, 1.0, 0.01218218807443171]
+# The 19 groups of the 100-geo, four-treated search, screened at their recorded ceilings
+# (seconds; closed or not): Clarabel full rows | 1,000 a stage | 3,000 a stage
+[4, 35, 58, 60] clarabel 116.4 False | 22.94 False | 49.92 False
+[4, 21, 35, 58] clarabel 121.19 False | 21.9 False | 47.3 False
+[4, 27, 33, 35] clarabel 134.44 True | 5.85 True | 13.08 True
+[4, 33, 35, 58] clarabel 140.07 True | 9.21 True | 14.89 True
+[4, 33, 35, 60] clarabel 99.92 True | 4.98 True | 13.38 True
+[4, 33, 35, 51] clarabel 132.65 True | 5.16 True | 13.23 True
+[4, 33, 35, 36] clarabel 108.29 True | 4.51 True | 11.64 True
+[4, 21, 33, 35] clarabel 100.06 True | 5.29 True | 14.15 True
+[16, 21, 58, 67] clarabel 78.42 True | 9.29 True | 8.14 True
+[0, 21, 58, 65] clarabel 97.21 True | 5.0 True | 11.48 True
+[4, 21, 58, 67] clarabel 139.97 True | 8.01 True | 21.16 True
+[4, 21, 58, 60] clarabel 135.2 True | 8.15 True | 13.21 True
+[4, 58, 60, 67] clarabel 106.66 True | 5.09 True | 14.01 True
+[4, 16, 58, 67] clarabel 97.9 True | 6.36 True | 18.45 True
+[4, 21, 54, 58] clarabel 92.53 True | 4.79 True | 13.4 True
+[33, 36, 58, 98] clarabel 106.65 True | 4.26 True | 13.82 True
+[16, 58, 62, 67] clarabel 97.19 True | 4.29 True | 15.38 True
+[4, 27, 58, 67] clarabel 91.9 True | 4.65 True | 12.87 True
+[4, 21, 33, 58] clarabel 136.36 True | 23.27 False | 25.29 True
