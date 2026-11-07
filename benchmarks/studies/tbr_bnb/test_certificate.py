@@ -9,8 +9,10 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from .brute import panel, piece_optimum
-from .certificate import ExactData, hull_bound, joint_bound, shor_bound
+from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
+
+from .brute import panel, piece_optimum, wide_panel
+from .certificate import ExactData, gram_lower, hull_bound, joint_bound, shor_bound
 from .hull import ControlBound
 from .lifts import Lift
 
@@ -273,3 +275,94 @@ def test_a_binding_fixing_is_certified_to_the_solvers_value():
     b, _, _ = joint_bound(L, y, X, lo, hi, m, duals=_duals(L), fixes=[(j, 1, d)])
     assert abs(d) * L.scale ** 2 > 1e-3 * abs(float(b))      # the fixing binds
     assert float(b) == pytest.approx(P.value * L.scale ** 2, rel=1e-5)
+
+
+# ---------------------------------------------------------------- the Gram floor
+
+
+def _subsets_min(G):
+    """min u'Gu over every nonzero 0/1 vector u, by enumeration (exact)."""
+    p = G.shape[0]
+    return min(sum(G[i, j] for i in C for j in C)
+               for r in range(1, p + 1) for C in combinations(range(p), r))
+
+
+def _wide(seed, n=5, p=7):
+    """A treatment series and p positive candidate controls over n < p periods."""
+    M = wide_panel(seed, n=n, p=p + 1)
+    return M[:, 0], M[:, 1:]
+
+
+def test_smoke_gram_lower_of_a_nonnegative_gram_is_its_smallest_diagonal():
+    y, X = _wide(0)
+    G = ExactData(y, X).G
+    assert all(g >= 0 for g in G.ravel())
+    assert gram_lower(G) == min(G[j, j] for j in range(G.shape[0]))
+
+
+def test_a_singular_nonnegative_gram_has_a_slope_cap_above_every_slope():
+    """Seven controls over five periods: lambda_min(G) is 0, and the cap comes from
+    the diagonal instead, above the best-fit slope of every control group."""
+    y, X = _wide(1)
+    D = ExactData(y, X)
+    lam = lambda_min_lower(_from_fractions(D.G.tolist()))
+    assert lam is None or lam <= 0                          # no eigenvalue cap
+    cap = D.slope_cap()
+    assert cap is not None
+    for r in range(1, 8):
+        for C in combinations(range(7), r):
+            x = X[:, list(C)].sum(axis=1)
+            assert (y @ x) / (x @ x) <= float(cap)
+
+
+def test_a_gram_with_a_negative_entry_takes_the_eigenvalue_bound():
+    y, X = panel(3)
+    G = ExactData(y, X).G
+    assert any(g < 0 for g in G.ravel())
+    assert gram_lower(G) == lambda_min_lower(_from_fractions(G.tolist()))
+
+
+def test_a_negative_entry_can_put_a_design_below_the_smallest_diagonal():
+    """Two nearly opposite controls sum to a short series, so u'Gu over the pair is
+    far below either diagonal entry; the floor stays below it."""
+    rng = np.random.default_rng(4)
+    a, b, c = rng.normal(size=(3, 6))
+    X = np.column_stack([a, -a + 0.01 * b, c])
+    G = ExactData(rng.normal(size=6), X).G
+    assert _subsets_min(G) < min(G[j, j] for j in range(3)) / 100
+    floor = gram_lower(G)
+    assert floor is not None and 0 < floor <= _subsets_min(G)
+
+
+def test_a_singular_gram_with_a_negative_entry_has_no_floor():
+    y, X = panel(5)
+    X = np.column_stack([X, -X[:, 0]])                       # a geo and its negative
+    assert gram_lower(ExactData(y, X).G) is None
+    assert ExactData(y, X).slope_cap() is None
+
+
+def test_an_empty_gram_has_no_floor():
+    assert gram_lower(np.zeros((0, 0), dtype=object)) is None
+
+
+def test_a_zero_control_has_no_floor():
+    """A control that is zero in every period makes u'Gu zero at that control."""
+    y, X = _wide(2)
+    X = X.copy(); X[:, 3] = 0.0
+    assert gram_lower(ExactData(y, X).G) is None
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), wide=st.booleans(), n=st.integers(3, 8), p=st.integers(1, 6))
+def test_property_the_gram_floor_is_below_every_control_group(seed, wide, n, p):
+    """Over mixed-sign and positive panels, with fewer or more controls than periods,
+    the floor is at most u'Gu for every control group, and never below the eigenvalue
+    bound when that is positive."""
+    y, X = _wide(seed, n=n, p=p) if wide else panel(seed, n=n, p=p)
+    G = ExactData(y, X).G
+    floor = gram_lower(G)
+    if floor is not None:
+        assert 0 < floor <= _subsets_min(G)
+    lam = lambda_min_lower(_from_fractions(G.tolist()))
+    if lam is not None and lam > 0:
+        assert floor is not None and floor >= lam

@@ -82,10 +82,14 @@ is empty (the remark after their Thm 1).
 
 Every prune compares an exact lower bound with the incumbent's exact RSS:
 
-- Slope cap. A design with RSS below `y'y` has `b <= ||y|| / sqrt(lambda_min(G))`
-  (Cauchy-Schwarz and the Rayleigh quotient, derived here), with
-  `lambda_min(G)` bounded below exactly by the library's `lambda_min_lower`. The
-  pieces cover `(0, cap]`; the cap is 53 to 85 times the incumbent's slope.
+- Slope cap. A design with RSS below `y'y` has `b <= ||y|| / sqrt(L)` with
+  `L <= x'x = u'Gu` for every nonzero binary `u` (Cauchy-Schwarz, derived here).
+  When no entry of `G` is negative, `L = min_j G_jj`, since `u'Gu` sums the entries
+  of a principal submatrix and so is at least any one diagonal entry in it; else `L`
+  is `lambda_min(G)` bounded below exactly by the library's `lambda_min_lower` (the
+  Rayleigh quotient). The diagonal is never below `lambda_min(G)`. The pieces cover
+  `(0, cap]`; on the four GeoLift groups of `results/certify_lbfgs.log` the cap is 7
+  to 11 times the incumbent's slope, 53 to 85 times with `lambda_min(G)`.
 - Hull QP. `f(wbar) + min_P grad f(wbar)'(w - wbar)` is a bound at any point
   (Boyd and Vandenberghe 2004, eq. (3.2)); the linear minimum is a continuous
   knapsack (Dantzig 1957), solved exactly.
@@ -924,13 +928,60 @@ four processes barely help at five geos, since the one certification took 300 s.
 four geos the descents add about 1.3 s on one process, 32 certifications at a median
 of 50 ms each (94 ms at most over 40 groups).
 
+## More geos than periods
+
+On simulated panels of 90 periods (`brute.geo_panel(0, n=90, p)`, centred per geo)
+the search at three treated geos took 46.9 s with 60 geos and 123.6 s with 80, and at
+100 geos had not finished after an hour. The floors explain it. With 90 or 100 geos
+M'M has rank 89 (centring takes one), so its smallest eigenvalue is zero and
+`lambda_min_lower` finds no positive bound; the slope cap needs one, so every floor
+was zero (117,480 of 117,480 groups at 90 geos, 161,700 of 161,700 at 100), the
+screen admitted every group, and the pass searched them one by one. The hull stage of
+`certify_slope_free` reads the same cap and was skipped.
+
+The cap needs `L <= x'x = u'Gu` for every nonzero binary `u`, not an eigenvalue.
+When no entry of `G` is negative, `u'Gu` is the sum of a principal submatrix's
+entries and so at least each of its diagonal entries, and `L = min_j G_jj` (derived
+here). The diagonal is never below `lambda_min(G)`, so the new cap is never looser.
+Every panel measured has a Gram matrix with no negative entry: GeoLift's smallest
+entry is 8,391,624.9, and the simulated panels' 1,337 to 1,783. With a negative entry
+the eigenvalue bound stands.
+
+With the diagonal bound no floor is zero at 90 or 100 geos, and their quantiles are
+those of the panels at 60 and 80 (`results/diag_cap.log`); at 40, 60 and 80 geos the
+floors are unchanged. On four processes, one run each (`results/diag_cap.log`):
+
+| panel | treated geos | groups | `main` | this branch | survivors | screened out |
+| --- | --- | --- | --- | --- | --- | --- |
+| 60 geos | 3 | 34,220 | 46.9 s | 39.6 s | 10 | 34,210 |
+| 80 geos | 3 | 82,160 | 123.6 s | 113.2 s | 4 | 82,156 |
+| 90 geos | 3 | 117,480 | not run | 389.9 s | 8 | 117,472 |
+| 100 geos | 3 | 161,700 | over 3,600 s | 1,361.5 s | 10 | 161,690 |
+| 80 geos | 4 | 1,581,580 | 1,910.6 s | 1,907.0 s | 145 | 1,581,435 |
+
+At 60 and 80 geos the floors and the survivors are the same on both, and the times
+differ from run to run. At 100 geos the start found the design the search certified
+(g16, g21, g58), and 1,039 s of the 2,000 s of certification went to one group. At
+100 geos and four treated geos the search on this branch ended about 50 minutes in
+on a solver failure in one group's full relaxation, which a separate change reads as
+an open size.
+
+The cap also binds inside each group's certification. On the four GeoLift groups of
+`results/certify_lbfgs.log` it is 7 to 11 times the incumbent's slope, against 53 to
+85 with `lambda_min(G)`. It does not change the GeoLift timings. With `main` and this
+branch run in turn on a quiet host (four processes), four geos took 12.0 and 11.9 s
+against 12.2 and 12.2 s, five geos 30.5 and 29.5 s against 31.4 and 28.3 s, and six
+geos 274.7 s against 267.2 s; `geo_panel(0)` with 60 geos at four took 206.3 s
+against 204.6 s. Each pair certifies the same design with the same key, survivors
+and screen.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (579 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (590 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 262 mutants of the 23
+but for the lines marked `pragma: no cover`, each with its reason. The 269 mutants of the 23
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
