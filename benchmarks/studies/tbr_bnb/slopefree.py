@@ -539,8 +539,8 @@ SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((150, 6, DUAL_BUDGET), (10
 
 #: The longer schedules run from this many candidate controls. Where the second
 #: closes, it took 0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls (the
-#: GeoLift groups' size), 1.5-2.3 s against 4.6-6.7 s at 56, and 7.8 s against
-#: 27 s at 76, and a schedule that does not close costs its whole budget.
+#: GeoLift groups' size), 1.5-2.6 s against 4.6-8.7 s at 56, and 2.8-8.1 s
+#: against 23-47 s at 76, and a schedule that does not close costs its whole budget.
 SCREEN_LADDER_FROM = 48
 
 

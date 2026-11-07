@@ -654,7 +654,8 @@ closes to Clarabel; the result's `rung` names the schedule that closed it.
 The longer schedules run from 48 candidate controls (`SCREEN_LADDER_FROM`). On
 simulated 90-period panels, where the second schedule closed a group, it took
 0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls, the GeoLift groups' size;
-1.5-2.3 s against 4.6-6.7 s at 56; and 7.8 s against 27 s at 76. A schedule that
+1.5-2.6 s against 4.6-8.7 s at 56; and 2.8-8.1 s against 23-47 s at 76 (24
+groups, four at each size and ratio). A schedule that
 does not close costs its whole budget: on five 30-geo groups (26 controls, 20
 periods) the two longer schedules spent 1.9-4.6 s, where the whole screen with
 Clarabel took 0.35-0.71 s. Below 48 controls the screen is unchanged.
@@ -1073,11 +1074,11 @@ four and five geos that floor was not the least, and the bound did not change.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (632 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (654 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 284 mutants of the 24
+but for the lines marked `pragma: no cover`, each with its reason. The 294 mutants of the 24
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
